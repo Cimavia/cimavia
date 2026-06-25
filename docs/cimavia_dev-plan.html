@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan de Développement — CIMAVIA</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #080C10;
+      color: #CBD5E1;
+      min-height: 100vh;
+      padding: 32px 20px;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .header-label {
+      color: #334155;
+      font-size: 11px;
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: clamp(22px, 5vw, 40px);
+      font-weight: 900;
+      color: #F1F5F9;
+      letter-spacing: -1px;
+      margin-bottom: 4px;
+    }
+
+    .header-sub {
+      color: #4ADE80;
+      font-size: 13px;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+    }
+
+    /* Progress */
+    .progress-box {
+      background: #0F172A;
+      padding: 16px 20px;
+      border: 1px solid #1E293B;
+    }
+
+    .progress-top {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 11px;
+      color: #475569;
+    }
+
+    .progress-count {
+      color: #94A3B8;
+    }
+
+    .progress-track {
+      background: #1E293B;
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    .progress-fill {
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #4ADE80, #61DAFB);
+      transition: width 0.4s ease;
+    }
+
+    /* Changelog */
+    .changelog {
+      background: #0F172A;
+      border: 1px solid #1E293B;
+      border-top: none;
+      padding: 12px 20px;
+    }
+
+    .changelog-title {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: #334155;
+      margin-bottom: 8px;
+    }
+
+    .changelog-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .cl {
+      padding: 2px 8px;
+      font-size: 10px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-top: 24px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #1E293B;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #334155;
+      padding: 8px 14px;
+      font-size: 11px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      font-family: inherit;
+      transition: all 0.2s;
+      white-space: nowrap;
+      margin-bottom: -1px;
+    }
+
+    .tab.active {
+      border-bottom-color: var(--c);
+      color: var(--c);
+      background: color-mix(in srgb, var(--c) 8%, transparent);
+    }
+
+    /* Phases */
+    .phase {
+      margin-bottom: 12px;
+      border: 1px solid #0F172A;
+      background: #0A0C10;
+      transition: all 0.2s;
+    }
+
+    .phase.open {
+      background: #0A1017;
+    }
+
+    .phase-header {
+      width: 100%;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-align: left;
+      font-family: inherit;
+    }
+
+    .phase-id {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      flex-shrink: 0;
+    }
+
+    .phase-info {
+      flex: 1;
+    }
+
+    .phase-title {
+      color: #F1F5F9;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .phase-duration {
+      color: #334155;
+      font-size: 11px;
+      letter-spacing: 1px;
+      margin-left: 12px;
+    }
+
+    .phase-objective-collapsed {
+      color: #334155;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .phase-mini-progress {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .mini-count {
+      font-size: 11px;
+      color: #334155;
+    }
+
+    .mini-track {
+      background: #1E293B;
+      height: 2px;
+      width: 48px;
+      margin-top: 4px;
+    }
+
+    .mini-fill {
+      height: 2px;
+      transition: width 0.3s;
+    }
+
+    .phase-chevron {
+      color: #334155;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    /* Phase content */
+    .phase-content {
+      padding: 0 24px 24px;
+      display: none;
+    }
+
+    .phase.open .phase-content {
+      display: block;
+    }
+
+    .phase-objective {
+      border-left: 2px solid;
+      padding: 10px 16px;
+      margin-bottom: 24px;
+      font-size: 12px;
+      color: #94A3B8;
+      letter-spacing: 0.5px;
+    }
+
+    /* Category */
+    .cat-title {
+      font-size: 10px;
+      letter-spacing: 3px;
+      margin-bottom: 12px;
+      opacity: 0.8;
+    }
+
+    .cat {
+      margin-bottom: 24px;
+    }
+
+    .tasks {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Task */
+    .task {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #0D1117;
+      border: 1px solid #1E293B;
+      cursor: pointer;
+      transition: all 0.15s;
+      align-items: start;
+    }
+
+    .task.done {
+      border-color: transparent;
+    }
+
+    .checkbox {
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      transition: all 0.15s;
+    }
+
+    .checkbox.checked {
+      border-color: inherit;
+    }
+
+    .checkmark {
+      color: #080C10;
+      font-size: 10px;
+      font-weight: 900;
+      display: none;
+    }
+
+    .checkbox.checked .checkmark {
+      display: block;
+    }
+
+    .task-name {
+      font-size: 13px;
+      color: #CBD5E1;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .task.done .task-name {
+      color: #475569;
+      text-decoration: line-through;
+    }
+
+    .task-detail {
+      font-size: 11px;
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    /* Summary */
+    .summary {
+      margin-top: 32px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 1px;
+      background: #1E293B;
+      border: 1px solid #1E293B;
+    }
+
+    .summary-cell {
+      background: #0A0C10;
+      padding: 16px 20px;
+    }
+
+    .summary-label {
+      font-size: 9px;
+      color: #334155;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+    }
+
+    .summary-value {
+      font-size: 13px;
+      color: #94A3B8;
+      font-weight: 700;
+    }
+
+    .summary-sub {
+      font-size: 10px;
+      color: #475569;
+      margin-top: 2px;
+    }
+
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      color: #1E293B;
+      font-size: 10px;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <p class="header-label">PLAN DE DÉVELOPPEMENT</p>
+    <h1>CIMAVIA</h1>
+    <p class="header-sub">SUIVI ESCALADE — NESTJS + EXPO + REACT · MULTI-TENANT · HÉBERGEMENT FR</p>
+
+    <div class="progress-box">
+      <div class="progress-top"><span>PROGRESSION GLOBALE</span><span class="progress-count" id="prog-count">0 / 0
+          tâches</span></div>
+      <div class="progress-track">
+        <div class="progress-fill" id="prog-fill" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="changelog">
+      <div class="changelog-title">CHOIX CLÉS — CIMAVIA</div>
+      <div class="changelog-items">
+        <span class="cl" style="background:#94A3B815;color:#94A3B8">Monorepo 3 apps : api / mobile / web</span>
+        <span class="cl" style="background:#61DAFB15;color:#61DAFB">+ apps/web React + Vite (coach)</span>
+        <span class="cl" style="background:#FB923C15;color:#FB923C">+ Isolation multi-tenant (Prisma extension)</span>
+        <span class="cl" style="background:#4ADE8015;color:#4ADE80">+ Object storage médias (S3 FR)</span>
+        <span class="cl" style="background:#F472B615;color:#F472B6">+ Atomic design + tokens partagés</span>
+        <span class="cl" style="background:#9B6EFF15;color:#9B6EFF">+ i18n dès le départ (FR→EN)</span>
+        <span class="cl" style="background:#9B6EFF15;color:#9B6EFF">Expo SDK 56 ← 55</span>
+        <span class="cl" style="background:#2DD4BF15;color:#2DD4BF">MVP gratuit Scaleway + Neon → v1.0 Clever Cloud (FR souverain)</span>
+        <span class="cl" style="background:#E535AB15;color:#E535AB">Messagerie WS NestJS (post-MVP)</span>
+        <span class="cl" style="background:#64748B25;color:#94A3B8">Redis différé (MVP)</span>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div id="phases" style="margin-top:24px"></div>
+
+    <div class="summary">
+      <div class="summary-cell">
+        <div class="summary-label">DURÉE ESTIMÉE</div>
+        <div class="summary-value">~11–14 semaines</div>
+        <div class="summary-sub">Solo, assisté Claude Code</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label">PHASES</div>
+        <div class="summary-value">P0 → P7 (8 phases)</div>
+        <div class="summary-sub">Setup éprouvé, démarrage rapide</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label">QUALITÉ CODE</div>
+        <div class="summary-value">SonarCloud + Biome dès P0</div>
+        <div class="summary-sub">Bloque les PRs si régression</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label">HÉBERGEMENT</div>
+        <div class="summary-value">MVP gratuit → v1.0 FR</div>
+        <div class="summary-sub">Scaleway/Neon → Clever Cloud</div>
+      </div>
+    </div>
+    <div class="footer">CIMAVIA — PLAN v1 — 2026 — vérifier les versions au démarrage</div>
+  </div>
+
+  <script>
+    const phases = [
+      {
+        id: "P0", title: "Setup & Architecture", duration: "1 semaine", color: "#94A3B8",
+        objective: "Poser des fondations solides — monorepo 3 apps, outillage, qualité et observabilité dès le départ",
+        categories: [
+          {
+            name: "Monorepo & Tooling", tasks: [
+              { id: "p0-1", text: "Créer le monorepo Turborepo + pnpm", detail: "apps/api (NestJS), apps/mobile (Expo), apps/web (React+Vite), packages/shared, packages/tsconfig, packages/tokens" },
+              { id: "p0-2", text: "TypeScript strict partagé", detail: "packages/tsconfig (base/node/react), strict: true — types et schémas Zod partagés via @cmv/shared dès maintenant" },
+              { id: "p0-3", text: "Biome + Husky + lint-staged + commitlint", detail: "Biome (lint + format en un seul outil, pas ESLint/Prettier). Hooks pre-commit bloquants, Conventional Commits (subject lower-case)" },
+              { id: "p0-4", text: "Git + GitHub + GitLab Flow", detail: "feature/* → main → staging → production, merge unidirectionnel, branches protégées. Repo public (SonarCloud gratuit)" },
+            ]
+          },
+          {
+            name: "CI/CD — Pipeline de base", tasks: [
+              { id: "p0-5", text: "GitHub Actions : lint + typecheck + tests sur PR", detail: "biome ci + turbo typecheck test — bloque le merge si fail. Vars fictives pour prisma generate en CI" },
+              { id: "p0-6", text: "SonarCloud dès le setup", detail: "Qualité + sécurité sur chaque PR. Exclut apps/mobile et apps/web des sources analysées" },
+              { id: "p0-7", text: "Secrets GitHub Actions", detail: "SONAR_TOKEN, AXIOM_TOKEN, SENTRY_DSN, BETTER_AUTH_SECRET, DATABASE_URL — ajoutés phase par phase" },
+            ]
+          },
+          {
+            name: "Backend — Squelette + Observabilité", tasks: [
+              { id: "p0-8", text: "Créer le projet NestJS (apps/api)", detail: "Structure modulaire : auth/, account/, exercise/, session/, plan/, feedback/, message/, invoice/, infra (prisma, storage, redis)" },
+              { id: "p0-9", text: "Prisma 7 + PostgreSQL (Docker local)", detail: "docker postgres:18-alpine. prisma.config.ts, adapter @prisma/adapter-pg + pg. Client dans generated/prisma/" },
+              { id: "p0-10", text: "nestjs-pino → Axiom + Sentry", detail: "Logs JSON structurés, instrument.ts 1er import de main.ts, SentryExceptionFilter custom" },
+              { id: "p0-11", text: "Env + validation Zod au boot", detail: "ConfigModule + Zod : l'API refuse de démarrer si une variable manque ou est mal typée" },
+            ]
+          },
+          {
+            name: "Mobile & Web — Squelettes", tasks: [
+              { id: "p0-12", text: "App Expo SDK 56 (apps/mobile)", detail: "Expo Router, NativeWind v4 (Tailwind v3), New Architecture. scheme: cimavia. Dev Build (expo-dev-client)" },
+              { id: "p0-13", text: "App React + Vite (apps/web)", detail: "Vite + React 19 + TanStack Router + TanStack Query + Tailwind v3. Pas de Next.js" },
+              { id: "p0-14", text: "packages/tokens + design system atomic", detail: "Tokens partagés (couleurs/spacing/typo) exposés à Tailwind (web) ET NativeWind (mobile). Atoms Cmv* de base" },
+            ]
+          },
+        ]
+      },
+      {
+        id: "P1", title: "Auth, Rôles & Multi-tenant", duration: "1–2 semaines", color: "#FB923C",
+        objective: "Comptes coach/athlète, relation coach↔athlète et isolation des données — la fondation multi-tenant",
+        categories: [
+          {
+            name: "Authentification", tasks: [
+              { id: "p1-1", text: "Better Auth dans NestJS", detail: "Users dans table Prisma, @thallesp/nestjs-better-auth, AuthGuard, @Session(). Instance PrismaClient unique partagée" },
+              { id: "p1-2", text: "Client Better Auth mobile + web", detail: "@better-auth/expo + expo-secure-store (mobile, cookie injecté explicitement) ; client web Better Auth (apps/web)" },
+              { id: "p1-3", text: "Connexion BDD MVP : Neon free", detail: "DATABASE_URL Neon (EU). migrate dev OK (Prisma-natif). Local = Docker. v1.0 = Clever Cloud PG" },
+            ]
+          },
+          {
+            name: "Rôles & relation", tasks: [
+              { id: "p1-4", text: "Rôles coach / athlète", detail: "Champ role sur profile. Routing/affichage conditionnés par rôle (même code web/mobile)" },
+              { id: "p1-5", text: "Relation coach↔athlète (invitation)", detail: "1 athlète = 1 coach (unicité en base), 1 coach = N athlètes. Invitation par lien/code, statut pending/active" },
+              { id: "p1-6", text: "Fiche athlète (champ libre)", detail: "Table athlete_sheets : content text, éditable par le coach uniquement" },
+            ]
+          },
+          {
+            name: "Isolation multi-tenant", tasks: [
+              { id: "p1-7", text: "Tenancy guard + Prisma Client Extension", detail: "RÈGLE DURE : toute requête scopée à l'acteur courant. Le coach ne voit que SES athlètes, l'athlète que ses données" },
+              { id: "p1-8", text: "Tests e2e d'isolation", detail: "Vérifier qu'un coach A ne peut JAMAIS lire/écrire les données d'un athlète d'un coach B (supertest)" },
+            ]
+          },
+        ]
+      },
+      {
+        id: "P2", title: "Exercices & Séances", duration: "1–2 semaines", color: "#E535AB",
+        objective: "Le coach construit sa bibliothèque d'exercices et compose des séances réutilisables",
+        categories: [
+          {
+            name: "Bibliothèque d'exercices", tasks: [
+              { id: "p2-1", text: "CRUD exercices (coach)", detail: "Titre, description, catégorie (renfo / grimpe / technique). Scopé au coach" },
+              { id: "p2-2", text: "Object storage + documents joints", detail: "Module storage NestJS (@aws-sdk/client-s3 → Scaleway Object Storage). Buckets privés, URLs signées. PDF/image/lien par exercice" },
+            ]
+          },
+          {
+            name: "Séances", tasks: [
+              { id: "p2-3", text: "Composition de séances", detail: "Séance = liste ordonnée d'exercices (session_exercises, position, prescription) + consignes globales" },
+              { id: "p2-4", text: "Séance réutilisable comme modèle", detail: "Le modèle sera copié en instance lors de l'ajout à une planif (P3) pour pouvoir être modifié sans toucher la biblio" },
+            ]
+          },
+          {
+            name: "UI coach (web)", tasks: [
+              { id: "p2-5", text: "Écrans création exercice / séance (apps/web)", detail: "Organisms ExerciseForm, SessionBuilder. Upload de documents avec barre de progression" },
+            ]
+          },
+        ]
+      },
+      {
+        id: "P3", title: "Planifications", duration: "2 semaines", color: "#9B6EFF",
+        objective: "Le coach planifie des cycles flexibles ; l'athlète consulte son planning (hors-ligne)",
+        categories: [
+          {
+            name: "Construction de planif (coach)", tasks: [
+              { id: "p3-1", text: "Plan + semaines (nombre libre)", detail: "plans + plan_weeks : type training/deload, nombre de semaines libre, description globale du cycle" },
+              { id: "p3-2", text: "Séances planifiées (instances)", detail: "scheduled_sessions + scheduled_session_exercises : copie éditable des modèles, nombre de séances/semaine libre" },
+              { id: "p3-3", text: "Diffusion + statut", detail: "draft → published. À la diffusion, notification push à l'athlète" },
+            ]
+          },
+          {
+            name: "Consultation (athlète)", tasks: [
+              { id: "p3-4", text: "Vue calendrier/semaine (mobile)", detail: "Organisms PlanWeekList, SessionCard. Détail séance : exercices, consignes, documents" },
+              { id: "p3-5", text: "Lecture hors-ligne", detail: "Cache des séances de la semaine (persistance TanStack Query + stockage local) — utile en salle sans réseau" },
+            ]
+          },
+        ]
+      },
+      {
+        id: "P4", title: "Débrief & Médias", duration: "1–2 semaines", color: "#4ADE80",
+        objective: "L'athlète débriefe ses séances avec médias ; le coach ajuste en cours de planif",
+        categories: [
+          {
+            name: "Débrief de séance (athlète)", tasks: [
+              { id: "p4-1", text: "Débrief texte libre", detail: "session_feedback : un champ texte « retour sur la séance », rattaché à la séance planifiée. Pas d'indicateur en MVP" },
+              { id: "p4-2", text: "Upload photos / vidéos", detail: "expo-image-picker/expo-camera, compression client. Limites : vidéo 60s/720p/~50Mo, 3 vidéos + 5 photos. Upload S3 via URL signée" },
+            ]
+          },
+          {
+            name: "Ajustement (coach)", tasks: [
+              { id: "p4-3", text: "Modifier un exercice/séance en cours de planif", detail: "Édition des scheduled_session_exercises sans toucher la biblio. Pas d'historique en MVP" },
+              { id: "p4-4", text: "Notifications push", detail: "expo-server-sdk côté NestJS : débrief reçu (coach), modif de planif (athlète)" },
+            ]
+          },
+        ]
+      },
+      {
+        id: "P5", title: "Messagerie", duration: "2 semaines", color: "#61DAFB",
+        objective: "Communication asynchrone coach↔athlète : texte, audio, médias",
+        categories: [
+          {
+            name: "Conversations & messages", tasks: [
+              { id: "p5-1", text: "Conversation 1:1 coach↔athlète", detail: "conversations + messages. Scopées par le tenancy guard" },
+              { id: "p5-2", text: "Messages texte / audio / image / vidéo", detail: "Audio et médias via object storage (URLs signées). Rattachement optionnel à une séance/débrief" },
+              { id: "p5-3", text: "Async + push", detail: "MVP : polling TanStack Query + notification push. WebSocket Gateway NestJS (socket.io + Redis) en post-MVP si le live est nécessaire" },
+            ]
+          },
+          {
+            name: "UI", tasks: [
+              { id: "p5-4", text: "Écran conversation (mobile + web)", detail: "Organisms MessageList, MessageBubble, Composer (texte + pièces jointes + enregistrement audio)" },
+            ]
+          },
+        ]
+      },
+      {
+        id: "P6", title: "Facturation", duration: "1 semaine", color: "#2DD4BF",
+        objective: "Le coach émet des factures et suit leur statut ; paiement réel externe en MVP",
+        categories: [
+          {
+            name: "Factures", tasks: [
+              { id: "p6-1", text: "Émission de facture (coach)", detail: "invoices : période, montant, échéance, note. Scopée coach↔athlète" },
+              { id: "p6-2", text: "Statut payé / en attente", detail: "Marquage manuel en MVP. Paiement réel externe (virement). PSP (Stripe) en v1.0" },
+              { id: "p6-3", text: "Consultation factures (athlète)", detail: "Liste + détail côté athlète. Organism InvoiceRow" },
+            ]
+          },
+        ]
+      },
+      {
+        id: "P7", title: "i18n & Déploiement FR", duration: "2 semaines", color: "#818CF8",
+        objective: "Anglais activé et mise en production sur hébergement français",
+        categories: [
+          {
+            name: "Internationalisation", tasks: [
+              { id: "p7-1", text: "EN (en.json)", detail: "i18next + expo-localization (mobile) — strings externalisées depuis P0. Ajout de en.json. Formats date/montant localisés" },
+            ]
+          },
+          {
+            name: "Déploiement", tasks: [
+              { id: "p7-2", text: "MVP gratuit : Scaleway", detail: "Backend → Serverless Containers (free tier, scale-to-zero). Médias → Object Storage. BDD → Neon free. Web → Cloudflare Pages/Scaleway" },
+              { id: "p7-3", text: "Build mobile : EAS", detail: "APK/IPA prod via EAS Build. EAS Insights pour le suivi d'adoption" },
+              { id: "p7-4", text: "Chemin souverain v1.0 : Clever Cloud", detail: "App + PostgreSQL + Redis + Cellar (S3). HDS intégré. Bascule = variables d'env (rien de propriétaire)" },
+            ]
+          },
+          {
+            name: "Conformité & prod", tasks: [
+              { id: "p7-5", text: "RGPD / HDS-ready", detail: "Consentement, droit à l'effacement, données en France. Clarifier si données = santé (→ HDS obligatoire)" },
+              { id: "p7-6", text: "CI prod complète + branches staging/production", detail: "Auto-deploy sur merge, health check GET /health, Sentry 3 couches actif" },
+            ]
+          },
+        ]
+      },
+    ];
+
+    const checked = {};
+    let openPhaseId = 'P0';
+    const totalTasks = phases.reduce((a, p) => a + p.categories.reduce((b, c) => b + c.tasks.length, 0), 0);
+
+    function getDone() { return Object.values(checked).filter(Boolean).length; }
+
+    function updateProgress() {
+      const done = getDone();
+      document.getElementById('prog-count').textContent = `${done} / ${totalTasks} tâches`;
+      document.getElementById('prog-fill').style.width = `${(done / totalTasks) * 100}%`;
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById('tabs');
+      tabs.innerHTML = phases.map(p => `
+    <button class="tab ${p.id === openPhaseId ? 'active' : ''}" style="--c:${p.color}" data-id="${p.id}">${p.id}</button>
+  `).join('');
+      tabs.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          openPhaseId = btn.dataset.id;
+          render();
+        });
+      });
+    }
+
+    function renderPhases() {
+      const container = document.getElementById('phases');
+      container.innerHTML = '';
+      phases.forEach(p => {
+        const isOpen = p.id === openPhaseId;
+        const allTasks = p.categories.flatMap(c => c.tasks);
+        const doneTasks = allTasks.filter(t => checked[t.id]).length;
+
+        const div = document.createElement('div');
+        div.className = `phase ${isOpen ? 'open' : ''}`;
+        div.style.borderColor = isOpen ? p.color + '44' : '#0F172A';
+
+        div.innerHTML = `
+      <button class="phase-header" data-id="${p.id}">
+        <span class="phase-id" style="background:${p.color}22;color:${p.color}">${p.id}</span>
+        <div class="phase-info">
+          <div><span class="phase-title">${p.title}</span><span class="phase-duration">${p.duration}</span></div>
+          ${!isOpen ? `<div class="phase-objective-collapsed">${p.objective}</div>` : ''}
+        </div>
+        <div class="phase-mini-progress">
+          <div class="mini-count" style="color:${doneTasks === allTasks.length && doneTasks > 0 ? p.color : '#334155'}">${doneTasks}/${allTasks.length}</div>
+          <div class="mini-track"><div class="mini-fill" style="background:${p.color};width:${(doneTasks / allTasks.length) * 100}%"></div></div>
+        </div>
+        <span class="phase-chevron">${isOpen ? '▲' : '▼'}</span>
+      </button>
+      ${isOpen ? `
+        <div class="phase-content">
+          <div class="phase-objective" style="background:${p.color}0D;border-color:${p.color}">🎯 ${p.objective}</div>
+          ${p.categories.map(cat => `
+            <div class="cat">
+              <div class="cat-title" style="color:${p.color}">── ${cat.name.toUpperCase()}</div>
+              <div class="tasks">
+                ${cat.tasks.map(task => `
+                  <div class="task ${checked[task.id] ? 'done' : ''}" style="${checked[task.id] ? `background:${p.color}08` : ''}" data-task="${task.id}">
+                    <div class="checkbox ${checked[task.id] ? 'checked' : ''}" style="${checked[task.id] ? `background:${p.color};border-color:${p.color}` : ''}">
+                      <span class="checkmark">✓</span>
+                    </div>
+                    <div>
+                      <div class="task-name">${task.text}</div>
+                      <div class="task-detail">${task.detail}</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    `;
+
+        div.querySelector('.phase-header').addEventListener('click', () => {
+          openPhaseId = openPhaseId === p.id ? null : p.id;
+          render();
+        });
+
+        if (isOpen) {
+          div.querySelectorAll('.task').forEach(taskEl => {
+            taskEl.addEventListener('click', () => {
+              const id = taskEl.dataset.task;
+              checked[id] = !checked[id];
+              updateProgress();
+              render();
+            });
+          });
+        }
+
+        container.appendChild(div);
+      });
+    }
+
+    function render() {
+      renderTabs();
+      renderPhases();
+    }
+
+    render();
+    updateProgress();
+  </script>
+</body>
+
