@@ -1,0 +1,12 @@
+{
+  "extends": "@cmv/tsconfig/react",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@cmv/shared": ["../../packages/shared/src/index.ts"],
+      "@cmv/tokens": ["../../packages/tokens/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
