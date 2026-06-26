@@ -14,12 +14,17 @@
   },
   "scripts": {
     "dev": "turbo dev",
+    "dev:api": "turbo run dev --filter=@cmv/api",
+    "dev:mobile": "pnpm --filter @cmv/mobile dev",
+    "dev:web": "pnpm --filter @cmv/web dev",
+    "build:shared": "pnpm --filter @cmv/shared build",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "format": "biome format --write .",
-    "check": "biome check --write ."
+    "check": "biome check --write .",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",

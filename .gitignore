@@ -14,8 +14,8 @@ out/
 
 # Environment
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Editors
 .vscode/settings.json
