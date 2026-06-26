@@ -1,8 +1,8 @@
 // @ts-check
-const cmvPreset = require("@cmv/tokens/tailwind-preset");
+import cmvPreset from "@cmv/tokens/tailwind-preset";
 
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   presets: [cmvPreset],
   theme: {
