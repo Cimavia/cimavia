@@ -604,7 +604,24 @@
       },
     ];
 
-    const checked = {};
+    // Avancement réel — P0 (mis à jour manuellement, pas de persistance localStorage).
+    // Non cochés volontairement : p0-4 (flow GitLab/branches protégées — commits directs sur main
+    // pour l'instant), p0-7 (secrets GitHub — externe, ajoutés phase par phase), p0-9 (Prisma OK
+    // mais Postgres Docker local non monté), p0-10 (Sentry OK mais transport Axiom non câblé).
+    const checked = {
+      "p0-1": true,
+      "p0-2": true,
+      "p0-3": true,
+      "p0-5": true,
+      "p0-6": true,
+      "p0-8": true,
+      "p0-11": true,
+      "p0-12": true,
+      "p0-13": true,
+      "p0-14": true,
+      "p0-15": true,
+      "p0-16": true,
+    };
     let openPhaseId = 'P0';
     const totalTasks = phases.reduce((a, p) => a + p.categories.reduce((b, c) => b + c.tasks.length, 0), 0);
 
