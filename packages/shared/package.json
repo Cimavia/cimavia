@@ -1,0 +1,21 @@
+{
+  "name": "@cmv/shared",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@cmv/tsconfig": "workspace:*",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  }
+}
