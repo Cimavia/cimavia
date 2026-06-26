@@ -6,8 +6,8 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-white">
-      <h1 className="text-cmv-2xl font-semibold text-cmv-neutral-800">cimavia</h1>
+    <main className="flex min-h-screen items-center justify-center bg-background">
+      <h1 className="font-display text-title text-text-hi">cimavia</h1>
     </main>
   );
 }
