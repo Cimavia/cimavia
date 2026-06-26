@@ -1,0 +1,46 @@
+{
+  "name": "@cmv/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@cmv/shared": "workspace:*",
+    "@nestjs/common": "11.1.27",
+    "@nestjs/config": "4.0.4",
+    "@nestjs/core": "11.1.27",
+    "@nestjs/platform-fastify": "11.1.27",
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "pg": "8.22.0",
+    "@sentry/nestjs": "10.61.0",
+    "@sentry/profiling-node": "10.61.0",
+    "nestjs-pino": "4.6.1",
+    "pino-http": "11.0.0",
+    "prisma": "7.8.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@cmv/tsconfig": "workspace:*",
+    "@nestjs/cli": "11.0.23",
+    "@nestjs/schematics": "11.1.0",
+    "@nestjs/testing": "11.1.27",
+    "@types/node": "22.20.0",
+    "@types/pg": "8.20.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  }
+}

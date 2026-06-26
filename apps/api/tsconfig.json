@@ -1,0 +1,10 @@
+{
+  "extends": "@cmv/tsconfig/nestjs",
+  "compilerOptions": {
+    "paths": {
+      "@cmv/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
