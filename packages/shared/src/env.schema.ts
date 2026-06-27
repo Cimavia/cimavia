@@ -5,7 +5,7 @@ import { z } from "zod";
 // pour les services pas encore configurés (Sentry, Axiom…).
 const emptyAsUndefined = (v: unknown) => (v === "" ? undefined : v);
 
-export const apiEnvSchema = z.object({
+export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_URL: z.url(),
@@ -15,4 +15,4 @@ export const apiEnvSchema = z.object({
   AXIOM_DATASET: z.preprocess(emptyAsUndefined, z.string().optional()),
 });
 
-export type ApiEnv = z.infer<typeof apiEnvSchema>;
+export type Env = z.infer<typeof envSchema>;
