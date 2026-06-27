@@ -1,10 +1,13 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { APP_FILTER } from "@nestjs/core";
+import { SentryModule } from "@sentry/nestjs/setup";
 import { LoggerModule } from "nestjs-pino";
 import type { TransportTargetOptions } from "pino";
 import { validateEnv } from "./config/env.validation";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./infra/prisma/prisma.module";
+import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
 
 /**
  * Cibles de transport pino :
@@ -34,6 +37,7 @@ function buildLogTargets(): TransportTargetOptions[] {
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ".env",
@@ -49,5 +53,6 @@ function buildLogTargets(): TransportTargetOptions[] {
     PrismaModule,
     HealthModule,
   ],
+  providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
 })
 export class AppModule {}
