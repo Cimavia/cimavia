@@ -1,11 +1,13 @@
 services:
   postgres:
     image: postgres:18-alpine
+    container_name: cimavia_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: cimavia
       POSTGRES_PASSWORD: cimavia
       POSTGRES_DB: cimavia
+    # Hôte sur 5433 pour éviter tout conflit avec un Postgres déjà sur 5432.
     ports:
       - "5432:5432"
     volumes:
