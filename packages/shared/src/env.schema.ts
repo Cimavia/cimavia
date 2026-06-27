@@ -15,4 +15,4 @@ export const envSchema = z.object({
   AXIOM_DATASET: z.preprocess(emptyAsUndefined, z.string().optional()),
 });
 
-export type Env = z.infer<typeof envSchema>;
+export type EnvSchema = z.infer<typeof envSchema>;
