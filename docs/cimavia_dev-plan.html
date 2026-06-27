@@ -605,8 +605,10 @@
     ];
 
     // Avancement réel — P0 (mis à jour manuellement, pas de persistance localStorage).
-    // Non cochés volontairement : p0-4 (flow GitLab/branches protégées — commits directs sur main
-    // pour l'instant), p0-7 (secrets GitHub — externe, ajoutés phase par phase).
+    // Non cochés volontairement : p0-4 (flow GitLab — branches staging/production créées et
+    // poussées, protection des branches à appliquer côté GitHub), p0-7 (secrets GitHub —
+    // externe, ajoutés phase par phase). p0-10 vérifié de bout en bout (issue Sentry reçue +
+    // logs visibles dans le dataset Axiom).
     const checked = {
       "p0-1": true,
       "p0-2": true,
