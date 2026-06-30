@@ -22,6 +22,7 @@ Maquettes d'écrans produites via **Claude Design** (format `*.dc.html`), track 
 |---|---|---|---|---|
 | `shared/design_system.dc.html` | pd-1, pd-2 | Design system (tokens + atoms) | P0-14 | ✅ |
 | `mobile-athlete/athlete-planning_semaine.dc.html` | pd-9 | Planning athlète — vue semaine | P3 | ✅ |
+| `mobile-athlete/athlete_seance.dc.html` | pd-9 | Détail de séance (à faire / débriefée) + onglet Séances (liste + vide) — entrée du débrief | P3 | ✅ |
 | `web-coach/coach_builder_planification.dc.html` | pd-7 | Builder de planification (coach) | P3 | ✅ |
 | `shared/auth_onboarding.dc.html` | pd-3 | Auth & onboarding (connexion, inscription, rôle, invitation) + états erreur/chargement | P1 | ✅ |
 | `web-coach/coach_dashboard_athletes.dc.html` | pd-4 | Dashboard coach + liste des athlètes (+ vide + skeleton) | P1 | ✅ |
