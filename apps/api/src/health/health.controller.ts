@@ -1,7 +1,10 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from "@nestjs/swagger";
+import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 import { HealthService } from "./health.service";
 
+// Health = sondes liveness/readiness (hébergeur) → publiques malgré l'AuthGuard global.
+@AllowAnonymous()
 @ApiTags("health")
 @Controller("health")
 export class HealthController {

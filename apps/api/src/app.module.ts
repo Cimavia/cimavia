@@ -1,13 +1,20 @@
+import type { EnvSchema } from "@cmv/shared";
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { APP_FILTER } from "@nestjs/core";
 import { SentryModule } from "@sentry/nestjs/setup";
+import { AuthModule as BetterAuthModule } from "@thallesp/nestjs-better-auth";
+import { ClsModule } from "nestjs-cls";
 import { LoggerModule } from "nestjs-pino";
 import type { TransportTargetOptions } from "pino";
+import { AccountModule } from "./account/account.module";
+import { createAuth } from "./auth/auth.config";
 import { validateEnv } from "./config/env.validation";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./infra/prisma/prisma.module";
+import { PrismaService } from "./infra/prisma/prisma.service";
 import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
+import { TenancyModule } from "./tenancy/tenancy.module";
 
 /**
  * Cibles de transport pino :
@@ -43,6 +50,8 @@ function buildLogTargets(): TransportTargetOptions[] {
       envFilePath: ".env",
       validate: validateEnv,
     }),
+    // CLS monté en middleware : le store existe pour toute la requête (guards → interceptors → controller).
+    ClsModule.forRoot({ global: true, middleware: { mount: true } }),
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === "production" ? "info" : "debug",
@@ -51,6 +60,20 @@ function buildLogTargets(): TransportTargetOptions[] {
       },
     }),
     PrismaModule,
+    // Better Auth : instance construite sur le PrismaClient unique (client de base, non scopé).
+    // Enregistre un AuthGuard global → toute route est protégée sauf @AllowAnonymous().
+    BetterAuthModule.forRootAsync({
+      inject: [PrismaService, ConfigService],
+      useFactory: (prisma: PrismaService, config: ConfigService<EnvSchema, true>) => ({
+        auth: createAuth(prisma, {
+          secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
+          baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
+          trustedOrigins: [config.get("BETTER_AUTH_URL", { infer: true })],
+        }),
+      }),
+    }),
+    TenancyModule,
+    AccountModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],

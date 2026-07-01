@@ -8,16 +8,22 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
+import { ZodBodyValidationPipe } from "./zod/zod-body-validation.pipe";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: false }),
-    { bufferLogs: true },
+    // bodyParser: false → Better Auth lit le body brut des routes /api/auth/* ;
+    // @thallesp/nestjs-better-auth ré-ajoute les parseurs par défaut pour les autres routes.
+    { bufferLogs: true, bodyParser: false },
   );
 
   app.useLogger(app.get(PinoLogger));
   app.enableShutdownHooks();
+
+  // Valide automatiquement toute entrée typée par un DTO createZodDto (schémas @cmv/shared).
+  app.useGlobalPipes(new ZodBodyValidationPipe());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("cimavia API")

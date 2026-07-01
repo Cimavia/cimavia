@@ -1,16 +1,13 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  private readonly pool: Pool;
-
   constructor() {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    super({ adapter: new PrismaPg(pool) });
-    this.pool = pool;
+    // L'adapter possède le pool (créé depuis la connexion) et l'arrête lui-même sur $disconnect
+    // → pas de gestion manuelle du Pool ici (évite un double `pool.end()` au shutdown).
+    super({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   }
 
   async onModuleInit(): Promise<void> {
@@ -19,6 +16,5 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
-    await this.pool.end();
   }
 }
