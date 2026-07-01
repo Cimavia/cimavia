@@ -1,13 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { HomeScreen } from "@/feature/home";
 
 export const Route = createFileRoute("/")({
-  component: HomePage,
+  component: HomeScreen,
 });
-
-function HomePage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-background">
-      <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">cimavia</h1>
-    </main>
-  );
-}

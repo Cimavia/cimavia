@@ -1,4 +1,5 @@
 import "./index.css";
+import "./shared/lib/i18n";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";

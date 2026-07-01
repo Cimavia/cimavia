@@ -16,8 +16,11 @@
     "@cmv/tokens": "workspace:*",
     "@tanstack/react-query": "5.101.1",
     "@tanstack/react-router": "1.170.16",
+    "better-auth": "1.6.23",
+    "i18next": "^26.3.4",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "react-i18next": "^16.6.6"
   },
   "devDependencies": {
     "@cmv/tsconfig": "workspace:*",

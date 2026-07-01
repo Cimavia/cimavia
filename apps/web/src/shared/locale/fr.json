@@ -1,0 +1,60 @@
+{
+  "common": {
+    "appName": "cimavia",
+    "email": "Adresse e-mail",
+    "password": "Mot de passe",
+    "loading": "Chargement…"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "submit": "Se connecter",
+      "submitting": "Connexion…",
+      "forgot": "Mot de passe oublié ?",
+      "noAccount": "Pas encore de compte ?",
+      "toRegister": "Créer un compte"
+    },
+    "register": {
+      "title": "Créer un compte",
+      "name": "Nom complet",
+      "role": "Je suis",
+      "submit": "Créer mon compte",
+      "submitting": "Création…",
+      "hasAccount": "Déjà un compte ?",
+      "toLogin": "Se connecter"
+    },
+    "forgot": {
+      "title": "Mot de passe oublié",
+      "description": "Saisissez votre e-mail pour recevoir un lien de réinitialisation.",
+      "submit": "Envoyer le lien",
+      "submitting": "Envoi…",
+      "sent": "Si un compte existe, un lien de réinitialisation vient d'être envoyé.",
+      "back": "Retour à la connexion"
+    },
+    "reset": {
+      "title": "Nouveau mot de passe",
+      "newPassword": "Nouveau mot de passe",
+      "submit": "Réinitialiser",
+      "submitting": "Réinitialisation…",
+      "success": "Mot de passe réinitialisé. Vous pouvez vous connecter.",
+      "invalidToken": "Lien invalide ou expiré.",
+      "toLogin": "Aller à la connexion"
+    },
+    "errors": {
+      "generic": "Une erreur est survenue. Réessayez.",
+      "invalidCredentials": "E-mail ou mot de passe incorrect."
+    }
+  },
+  "role": {
+    "coach": "Coach",
+    "athlete": "Athlète"
+  },
+  "home": {
+    "welcome": "Bonjour {{name}}",
+    "spaceCoach": "Espace coach",
+    "spaceAthlete": "Espace athlète",
+    "coachHint": "Vos athlètes et planifications apparaîtront ici.",
+    "athleteHint": "Vos séances et votre coach apparaîtront ici.",
+    "logout": "Se déconnecter"
+  }
+}

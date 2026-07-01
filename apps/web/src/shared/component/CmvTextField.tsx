@@ -1,0 +1,20 @@
+import type { InputHTMLAttributes } from "react";
+
+type CmvTextFieldProps = Pick<
+  InputHTMLAttributes<HTMLInputElement>,
+  "type" | "value" | "onChange" | "placeholder" | "required" | "autoComplete" | "name" | "minLength"
+> & { label: string };
+
+export function CmvTextField({ label, name, ...rest }: CmvTextFieldProps) {
+  return (
+    <label className="flex flex-col gap-1 text-cmv-text-mid text-sm" htmlFor={name}>
+      {label}
+      <input
+        id={name}
+        name={name}
+        className="rounded-lg border border-cmv-border bg-cmv-surface px-3 py-2 text-cmv-text-hi outline-none focus:border-cmv-accent"
+        {...rest}
+      />
+    </label>
+  );
+}
