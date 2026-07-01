@@ -8,6 +8,7 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
+import { browserOrigins } from "./config/origins";
 import { ZodBodyValidationPipe } from "./zod/zod-body-validation.pipe";
 
 async function bootstrap(): Promise<void> {
@@ -34,8 +35,12 @@ async function bootstrap(): Promise<void> {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup("docs", app, document);
 
-  const configService = app.get(ConfigService<EnvSchema>);
+  const configService = app.get(ConfigService<EnvSchema, true>);
   const port = configService.get("PORT", { infer: true });
+
+  // CORS pour les clients navigateur (web) : cookies de session → credentials requis.
+  // Les routes /api/auth/* gèrent leur propre CORS via trustedOrigins (Better Auth).
+  app.enableCors({ origin: browserOrigins(configService), credentials: true });
 
   await app.listen(port ?? 3000);
 
