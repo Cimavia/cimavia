@@ -10,6 +10,9 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_URL: z.url(),
   DIRECT_URL: z.preprocess(emptyAsUndefined, z.url().optional()),
+  // Better Auth : secret de signature (obligatoire) + URL publique de l'API (base des liens).
+  BETTER_AUTH_SECRET: z.string().min(1),
+  BETTER_AUTH_URL: z.url(),
   SENTRY_DSN: z.preprocess(emptyAsUndefined, z.url().optional()),
   AXIOM_TOKEN: z.preprocess(emptyAsUndefined, z.string().optional()),
   AXIOM_DATASET: z.preprocess(emptyAsUndefined, z.string().optional()),
