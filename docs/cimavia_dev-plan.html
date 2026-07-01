@@ -463,7 +463,7 @@
         ]
       },
       {
-        id: "PD", title: "Maquettage & Design", duration: "parallèle (continu)", color: "#F472B6",
+        id: "PD", title: "Maquettage & Design", duration: "parallèle · maquettes livrées", color: "#F472B6",
         objective: "Maquetter les écrans coach (web) et athlète (mobile) via Claude Design, en parallèle du dev — chaque lot de maquettes débloque la phase UI correspondante",
         categories: [
           {
@@ -484,14 +484,15 @@
           },
           {
             name: "Parcours Athlète (mobile)", tasks: [
-              { id: "pd-9", text: "Planning : vue semaine + détail séance", detail: "Calendrier/semaine (PlanWeek), SessionCard, détail ScheduledSession (exercices, consignes, documents). Pensé pour la lecture hors-ligne en salle. Sert P3" },
-              { id: "pd-10", text: "Débrief de séance (SessionFeedback)", detail: "Texte libre + ajout photos/vidéos (limites : 3 vidéos + 5 photos). États d'upload. Sert P4" },
+              { id: "pd-9", text: "Planning, onglet Séances & détail séance", detail: "Vue semaine (PlanWeek) + onglet Séances (liste à venir/passées + état vide) + détail ScheduledSession (exercices, consignes, documents) = entrée du débrief. Lecture hors-ligne en salle. Sert P3" },
+              { id: "pd-10", text: "Débrief de séance (SessionFeedback)", detail: "Texte libre + ajout photos/vidéos (limites : 3 vidéos + 5 photos). États vide / upload / erreur-limite. Sert P4" },
               { id: "pd-11", text: "Consultation factures (athlète)", detail: "Liste + détail des Invoice côté athlète. Sert P6" },
+              { id: "pd-13", text: "Profil athlète", detail: "Point d'entrée compte : accès à Mes factures, mon coach, infos perso, langue (i18n), déconnexion. Sert P1" },
             ]
           },
           {
             name: "Transverse — Messagerie", tasks: [
-              { id: "pd-12", text: "Conversation 1:1 (mobile + web)", detail: "Liste de conversations + fil de messages, MessageBubble, Composer (texte + pièces jointes + enregistrement audio). Rattachement optionnel à une séance/débrief. Sert P5" },
+              { id: "pd-12", text: "Conversation 1:1 (mobile + web)", detail: "Fil de messages, MessageBubble, Composer (texte + pièces jointes + audio). Coach : liste de conversations ; athlète : fil direct (1 coach). États vides + message non envoyé/hors-ligne. Sert P5" },
             ]
           },
         ]
@@ -640,10 +641,12 @@
       },
     ];
 
-    // Avancement réel — P0 (mis à jour manuellement, pas de persistance localStorage).
+    // Avancement réel — P0 + PD (mis à jour manuellement, pas de persistance localStorage).
     // P0 = 16/16. Notes : p0-4 = GitLab flow opérationnel (branches main/staging/production +
     // rulesets : main push direct + signatures, staging/prod en PR + checks). p0-7 = SONAR_TOKEN
     // en place (CI verte) ; les autres secrets sont ajoutés phase par phase par design.
+    // PD = 13/13 : maquettes livrées (Claude Design, docs/maquettes/) — voir docs/maquettes/README.md
+    // pour le mapping écran↔tâche et les écarts MVP repérés (paiement intégré, temps réel, etc.).
     const checked = {
       "p0-1": true,
       "p0-2": true,
@@ -661,6 +664,19 @@
       "p0-14": true,
       "p0-15": true,
       "p0-16": true,
+      "pd-1": true,
+      "pd-2": true,
+      "pd-3": true,
+      "pd-4": true,
+      "pd-5": true,
+      "pd-6": true,
+      "pd-7": true,
+      "pd-8": true,
+      "pd-9": true,
+      "pd-10": true,
+      "pd-11": true,
+      "pd-12": true,
+      "pd-13": true,
     };
     let openPhaseId = 'P0';
     const totalTasks = phases.reduce((a, p) => a + p.categories.reduce((b, c) => b + c.tasks.length, 0), 0);
