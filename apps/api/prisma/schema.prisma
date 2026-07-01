@@ -5,3 +5,150 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth — tables gérées par Better Auth (voir apps/api/src/auth/…).
+// Le `User` porte le profil via *additionalFields* Better Auth : `role` et `locale`
+// sont des scalaires (String) validés côté app par @cmv/shared (Role, Locale) —
+// pas des enums Postgres, car Better Auth ne gère que des types scalaires.
+// Optionnel : `npx @better-auth/cli generate` peut resynchroniser ces modèles.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  // additionalFields Better Auth (validés par @cmv/shared) :
+  role          String // Role : COACH | ATHLETE | ADMIN
+  locale        String   @default("fr") // Locale : fr | en
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Auth
+  sessions Session[]
+  accounts Account[]
+
+  // Métier — tenancy (relation coach↔athlète nullable/réversible)
+  athleteRelation     CoachAthlete?  @relation("AthleteRelation") // athlète → au plus 1 coach
+  coachRelations      CoachAthlete[] @relation("CoachRelations") // coach → N athlètes
+  coachInvitations    Invitation[]   @relation("CoachInvitations")
+  acceptedInvitations Invitation[]   @relation("AthleteAcceptedInvitations")
+  athleteSheet        AthleteSheet?  @relation("AthleteSheetAthlete") // fiche de l'athlète
+  coachSheets         AthleteSheet[] @relation("AthleteSheetCoach") // fiches rédigées par le coach
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Métier — fondation multi-tenant (P1).
+// Invariant : 1 athlète a AU PLUS 1 coach (0 ou 1, unicité en base) ; 1 coach = N athlètes.
+// La relation est une table à part : absence de ligne = athlète autonome (v1.0) ;
+// suppression = redevient autonome. Réversible par construction, sans refonte.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CoachAthleteStatus {
+  PENDING
+  ACTIVE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+model CoachAthlete {
+  id        String             @id @default(cuid())
+  coachId   String
+  coach     User               @relation("CoachRelations", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId String             @unique // unicité → au plus 1 coach par athlète
+  athlete   User               @relation("AthleteRelation", fields: [athleteId], references: [id], onDelete: Cascade)
+  status    CoachAthleteStatus @default(ACTIVE)
+  invitedAt DateTime           @default(now())
+  joinedAt  DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([coachId])
+  @@map("coach_athlete")
+}
+
+model Invitation {
+  id                  String           @id @default(cuid())
+  code                String           @unique
+  email               String? // nominative si présent ; sinon lien générique
+  status              InvitationStatus @default(PENDING)
+  coachId             String
+  coach               User             @relation("CoachInvitations", fields: [coachId], references: [id], onDelete: Cascade)
+  acceptedByAthleteId String?
+  acceptedByAthlete   User?            @relation("AthleteAcceptedInvitations", fields: [acceptedByAthleteId], references: [id], onDelete: SetNull)
+  expiresAt           DateTime
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([coachId])
+  @@map("coach_invitation")
+}
+
+model AthleteSheet {
+  id        String   @id @default(cuid())
+  athleteId String   @unique // une fiche par athlète
+  athlete   User     @relation("AthleteSheetAthlete", fields: [athleteId], references: [id], onDelete: Cascade)
+  coachId   String
+  coach     User     @relation("AthleteSheetCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  content   String   @default("") // champ libre, éditable par le coach seul (tenancy layer)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([coachId])
+  @@map("athlete_sheet")
+}
