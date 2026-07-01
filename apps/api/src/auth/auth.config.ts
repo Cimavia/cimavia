@@ -1,4 +1,5 @@
-import { Locale, Role } from "@cmv/shared";
+import { expo } from "@better-auth/expo";
+import { Locale, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, Role } from "@cmv/shared";
 import { Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { betterAuth } from "better-auth";
@@ -24,8 +25,12 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     baseURL: config.baseURL,
     trustedOrigins: config.trustedOrigins,
     database: prismaAdapter(prisma, { provider: "postgresql" }),
+    // Plugin serveur Expo : gère l'origine (scheme cimavia://) et les cookies natifs du client mobile.
+    plugins: [expo()],
     emailAndPassword: {
       enabled: true,
+      minPasswordLength: PASSWORD_MIN_LENGTH,
+      maxPasswordLength: PASSWORD_MAX_LENGTH,
       sendResetPassword: async ({ user, url }) => {
         // MOCKED — envoi de l'email de réinitialisation. À connecter (infra mail + i18n) en P7.
         logger.warn(`MOCKED reset-password pour ${user.email} : ${url}`);
