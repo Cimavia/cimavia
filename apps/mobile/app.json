@@ -16,7 +16,7 @@
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-font"],
+    "plugins": ["expo-router", "expo-font", "expo-secure-store", "expo-localization"],
     "experiments": {
       "typedRoutes": true
     }
