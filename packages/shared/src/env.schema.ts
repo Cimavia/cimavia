@@ -13,6 +13,9 @@ export const envSchema = z.object({
   // Better Auth : secret de signature (obligatoire) + URL publique de l'API (base des liens).
   BETTER_AUTH_SECRET: z.string().min(1),
   BETTER_AUTH_URL: z.url(),
+  // Origines navigateur autorisées (CORS + trustedOrigins), séparées par des virgules.
+  // Ex. : "http://localhost:5173". Le scheme mobile (cimavia://) est ajouté côté code.
+  CORS_ORIGINS: z.preprocess(emptyAsUndefined, z.string().optional()),
   SENTRY_DSN: z.preprocess(emptyAsUndefined, z.url().optional()),
   AXIOM_TOKEN: z.preprocess(emptyAsUndefined, z.string().optional()),
   AXIOM_DATASET: z.preprocess(emptyAsUndefined, z.string().optional()),

@@ -10,6 +10,7 @@ import type { TransportTargetOptions } from "pino";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
 import { validateEnv } from "./config/env.validation";
+import { browserOrigins, MOBILE_SCHEME } from "./config/origins";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { PrismaService } from "./infra/prisma/prisma.service";
@@ -68,7 +69,8 @@ function buildLogTargets(): TransportTargetOptions[] {
         auth: createAuth(prisma, {
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
-          trustedOrigins: [config.get("BETTER_AUTH_URL", { infer: true })],
+          // Navigateurs autorisés + scheme mobile (flux natif @better-auth/expo).
+          trustedOrigins: [...browserOrigins(config), MOBILE_SCHEME],
         }),
       }),
     }),
