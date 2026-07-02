@@ -22,8 +22,6 @@ async function bootstrap(): Promise<void> {
 
   app.useLogger(app.get(PinoLogger));
   app.enableShutdownHooks();
-
-  // Valide automatiquement toute entrée typée par un DTO createZodDto (schémas @cmv/shared).
   app.useGlobalPipes(new ZodBodyValidationPipe());
 
   const swaggerConfig = new DocumentBuilder()
@@ -38,11 +36,9 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService<EnvSchema, true>);
   const port = configService.get("PORT", { infer: true });
 
-  // CORS pour les clients navigateur (web) : cookies de session → credentials requis.
-  // Les routes /api/auth/* gèrent leur propre CORS via trustedOrigins (Better Auth).
   app.enableCors({ origin: browserOrigins(configService), credentials: true });
 
-  await app.listen(port ?? 3000);
+  await app.listen(port ?? 3000, "0.0.0.0");
 
   const logger = new Logger("Bootstrap");
   logger.log(`API running on port ${port}`);
