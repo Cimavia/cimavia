@@ -27,7 +27,7 @@ model User {
   updatedAt     DateTime @updatedAt
 
   // Auth
-  sessions Session[]
+  sessions AuthSession[]
   accounts Account[]
 
   // Métier — tenancy (relation coach↔athlète nullable/réversible)
@@ -38,10 +38,16 @@ model User {
   athleteSheet        AthleteSheet?  @relation("AthleteSheetAthlete") // fiche de l'athlète
   coachSheets         AthleteSheet[] @relation("AthleteSheetCoach") // fiches rédigées par le coach
 
+  // Métier — bibliothèque du coach (P2)
+  exercises     Exercise[] @relation("CoachExercises") // exercices du coach
+  coachSessions Session[]  @relation("CoachSessions") // séances (modèles) du coach
+
   @@map("user")
 }
 
-model Session {
+// Renommé `AuthSession` (table `session` conservée via @@map) pour libérer `Session` au
+// profit de l'entité métier séance (P2). Résolu par Better Auth via `session.modelName`.
+model AuthSession {
   id        String   @id @default(cuid())
   expiresAt DateTime
   token     String   @unique
@@ -151,4 +157,90 @@ model AthleteSheet {
 
   @@index([coachId])
   @@map("athlete_sheet")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Métier — bibliothèque du coach (P2).
+// Exercices et séances (modèles) réutilisables, scopés au coach (coachId).
+// Le `coachId` est dénormalisé sur les tables enfant (ExerciseDocument,
+// SessionExercise) : le tenancy extension scope chaque modèle par un champ DIRECT,
+// donc toute entité métier porte son propre champ tenant (règle dure multi-tenant).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ExerciseCategory {
+  RENFO
+  GRIMPE
+  TECHNIQUE
+}
+
+enum DocumentType {
+  FILE // fichier uploadé en object storage (storagePath)
+  LINK // lien externe (url) — ex. vidéo YouTube
+}
+
+model Exercise {
+  id          String           @id @default(cuid())
+  coachId     String
+  coach       User             @relation("CoachExercises", fields: [coachId], references: [id], onDelete: Cascade)
+  title       String
+  description String? // consignes — nullable, pas de fallback (règle dure n°5)
+  category    ExerciseCategory
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  documents        ExerciseDocument[]
+  sessionExercises SessionExercise[]
+
+  @@index([coachId])
+  @@map("exercise")
+}
+
+model ExerciseDocument {
+  id          String       @id @default(cuid())
+  coachId     String // dénormalisé pour le scope tenant direct
+  exerciseId  String
+  exercise    Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  type        DocumentType
+  storagePath String? // clé objet S3 (type FILE) — jamais le binaire en BDD
+  url         String? // lien externe (type LINK)
+  fileName    String? // nom d'affichage (type FILE)
+  mimeType    String? // type MIME (type FILE)
+  createdAt   DateTime     @default(now())
+
+  @@index([coachId])
+  @@index([exerciseId])
+  @@map("exercise_document")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  coachId   String
+  coach     User     @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
+  title     String
+  notes     String? // consignes globales — nullable, pas de fallback
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  exercises SessionExercise[]
+
+  @@index([coachId])
+  // Exception au singulier (convention repo) : `session` est déjà pris par la table auth.
+  @@map("sessions")
+}
+
+model SessionExercise {
+  id           String   @id @default(cuid())
+  coachId      String // dénormalisé pour le scope tenant direct
+  sessionId    String
+  session      Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId   String
+  exercise     Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  position     Int // ordre dans la séance (0-based)
+  prescription String? // prescription pour cet exercice — nullable
+  createdAt    DateTime @default(now())
+
+  @@unique([sessionId, position])
+  @@index([coachId])
+  @@index([exerciseId])
+  @@map("session_exercise")
 }

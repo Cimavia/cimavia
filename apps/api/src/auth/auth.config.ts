@@ -25,6 +25,10 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     baseURL: config.baseURL,
     trustedOrigins: config.trustedOrigins,
     database: prismaAdapter(prisma, { provider: "postgresql" }),
+    // Le modèle Prisma de session auth est renommé `AuthSession` pour libérer le nom `Session`
+    // au profit de l'entité métier séance (P2). La table reste `session` (via @@map) — pas de
+    // migration de données. Better Auth résout le délégué Prisma via ce `modelName`.
+    session: { modelName: "authSession" },
     // Plugin serveur Expo : gère l'origine (scheme cimavia://) et les cookies natifs du client mobile.
     plugins: [expo()],
     emailAndPassword: {

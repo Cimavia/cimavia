@@ -12,6 +12,10 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   CoachAthlete: { coach: "coachId", athlete: "athleteId" },
   Invitation: { coach: "coachId" },
   AthleteSheet: { coach: "coachId", athlete: "athleteId" },
+  Exercise: { coach: "coachId" },
+  ExerciseDocument: { coach: "coachId" },
+  Session: { coach: "coachId" },
+  SessionExercise: { coach: "coachId" },
 };
 
 // Champ de scope applicable à l'acteur, ou null si le rôle n'a aucun accès à ce modèle.
@@ -69,7 +73,10 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
                 throw new Error(`[tenancy] délégué Prisma introuvable pour ${model}`);
               }
               const a = args as { where?: Record<string, unknown> };
-              return delegate[method]({ ...a, where: { ...a.where, ...filter } });
+              return delegate[method]({
+                ...a,
+                where: { ...a.where, ...filter },
+              });
             }
             case "findFirst":
             case "findFirstOrThrow":
@@ -92,7 +99,9 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
             }
             case "createMany":
             case "createManyAndReturn": {
-              const a = args as { data?: Record<string, unknown> | Record<string, unknown>[] };
+              const a = args as {
+                data?: Record<string, unknown> | Record<string, unknown>[];
+              };
               a.data = Array.isArray(a.data)
                 ? a.data.map((d) => ({ ...d, ...filter }))
                 : { ...a.data, ...filter };
