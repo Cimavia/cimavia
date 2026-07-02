@@ -19,6 +19,7 @@
       "!**/android",
       "!**/ios",
       "!apps/web/src/routeTree.gen.ts",
+      "!apps/mobile/babel.config.js",
       "!apps/mobile/metro.config.js",
       "!apps/mobile/tailwind.config.js",
       "!apps/web/tailwind.config.js",
