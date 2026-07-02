@@ -6,7 +6,7 @@ type CmvButtonProps = {
   disabled?: boolean;
 };
 
-export function CmvButton({ label, onPress, disabled }: CmvButtonProps) {
+export function CmvButton({ label, onPress, disabled }: Readonly<CmvButtonProps>) {
   return (
     <Pressable
       onPress={onPress}

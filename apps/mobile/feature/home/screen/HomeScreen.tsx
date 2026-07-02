@@ -2,7 +2,6 @@ import { Role } from "@cmv/shared";
 import { Redirect, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { authClient } from "@/shared/lib/auth";
@@ -25,21 +24,19 @@ export function HomeScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cmv-bg-0">
-      <View className="flex-1 items-center justify-center gap-3 p-6">
-        <CmvText className="font-cmv-display text-cmv-subtitle text-cmv-text-hi">
-          {t("home.welcome", { name: session?.user.name })}
-        </CmvText>
-        <CmvText className="text-cmv-accent">
-          {isCoach ? t("home.spaceCoach") : t("home.spaceAthlete")}
-        </CmvText>
-        <CmvText className="text-center text-cmv-text-mid">
-          {isCoach ? t("home.coachHint") : t("home.athleteHint")}
-        </CmvText>
-        <View className="mt-4 w-full">
-          <CmvButton label={t("home.logout")} onPress={onLogout} />
-        </View>
+    <View className="flex-1 items-center justify-center gap-3 bg-cmv-bg-0 p-6">
+      <CmvText className="font-cmv-display text-cmv-subtitle text-cmv-text-hi">
+        {t("home.welcome", { name: session?.user.name })}
+      </CmvText>
+      <CmvText className="text-cmv-accent">
+        {isCoach ? t("home.spaceCoach") : t("home.spaceAthlete")}
+      </CmvText>
+      <CmvText className="text-center text-cmv-text-mid">
+        {isCoach ? t("home.coachHint") : t("home.athleteHint")}
+      </CmvText>
+      <View className="mt-4 w-full">
+        <CmvButton label={t("home.logout")} onPress={onLogout} />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

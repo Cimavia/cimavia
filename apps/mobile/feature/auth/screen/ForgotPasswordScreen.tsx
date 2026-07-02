@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
@@ -31,36 +30,34 @@ export function ForgotPasswordScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-cmv-bg-0">
-      <View className="flex-1 justify-center gap-4 p-6">
-        <CmvText className="mb-2 font-cmv-display text-cmv-title text-cmv-text-hi">
-          {t("auth.forgot.title")}
-        </CmvText>
-        {sent ? (
-          <CmvText className="text-cmv-text-mid">{t("auth.forgot.sent")}</CmvText>
-        ) : (
-          <>
-            <CmvText className="text-cmv-text-mid">{t("auth.forgot.description")}</CmvText>
-            <CmvTextField
-              label={t("common.email")}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-            {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
-            <CmvButton
-              label={submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
-              onPress={onSubmit}
-              disabled={submitting}
-            />
-          </>
-        )}
-        <Pressable onPress={() => router.push("/login")}>
-          <CmvText className="text-cmv-accent">{t("auth.forgot.back")}</CmvText>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+    <View className="flex-1 justify-center gap-4 bg-cmv-bg-0 p-6">
+      <CmvText className="mb-2 font-cmv-display text-cmv-title text-cmv-text-hi">
+        {t("auth.forgot.title")}
+      </CmvText>
+      {sent ? (
+        <CmvText className="text-cmv-text-mid">{t("auth.forgot.sent")}</CmvText>
+      ) : (
+        <>
+          <CmvText className="text-cmv-text-mid">{t("auth.forgot.description")}</CmvText>
+          <CmvTextField
+            label={t("common.email")}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+          />
+          {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
+          <CmvButton
+            label={submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
+            onPress={onSubmit}
+            disabled={submitting}
+          />
+        </>
+      )}
+      <Pressable onPress={() => router.push("/login")}>
+        <CmvText className="text-cmv-accent">{t("auth.forgot.back")}</CmvText>
+      </Pressable>
+    </View>
   );
 }
