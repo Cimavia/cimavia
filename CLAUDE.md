@@ -76,6 +76,15 @@ pnpm turbo lint typecheck test # qualité (= ce que la CI bloque)
 pnpm --filter @cmv/api exec prisma migrate dev   # migrations (Neon/local)
 ```
 
+## Façon de travailler (collaboration)
+
+- **Plan d'abord** : pour toute feature/phase, proposer un plan et **attendre la validation** avant de coder.
+- **Commits atomiques relus 1 par 1** : livrer par petits incréments cohérents, donner le commit à faire, et attendre qu'il soit relu/commité avant de continuer. Ne jamais committer/pousser sans demande explicite.
+- **Kylian teste/vérifie lui-même** (migrations, e2e, uploads, app) : préparer de quoi tester ; il exécute et rapporte le résultat.
+- **Actions sur interfaces web** (Scaleway, Neon, SonarCloud, secrets, branch protection) = Kylian les fait — les **lister explicitement** plutôt que tenter.
+- Qualité : `pnpm turbo lint typecheck test` vert avant de conclure une étape.
+- Git flow, commits signés, secrets CI : voir `CONTRIBUTING.md`.
+
 ## Hébergement
 
 - **MVP (gratuit)** : API → Scaleway Serverless Containers · médias → Scaleway Object Storage (FR) · **BDD → Neon free** (EU, Prisma-natif). Redis **différé**.
