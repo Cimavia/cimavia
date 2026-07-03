@@ -6,8 +6,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
-// Tables métier + auth à réinitialiser entre exécutions (isolation des runs).
 const TABLES = [
+  "session_exercise",
+  "exercise_document",
+  "sessions",
+  "exercise",
   "athlete_sheet",
   "coach_invitation",
   "coach_athlete",
@@ -24,7 +27,6 @@ type Agent = ReturnType<typeof request.agent>;
 let app: NestFastifyApplication;
 let baseURL: string;
 
-// Crée un compte (sign-up Better Auth) et retourne un agent supertest porteur du cookie de session.
 async function signUp(email: string, role: string): Promise<Agent> {
   const agent = request.agent(baseURL);
   const res = await agent
@@ -35,14 +37,15 @@ async function signUp(email: string, role: string): Promise<Agent> {
 }
 
 beforeAll(async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
     bodyParser: false,
   });
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
 
-  // Repart d'une base propre.
   const prisma = app.get(PrismaService);
   await prisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${TABLES.map((t) => `"${t}"`).join(", ")} CASCADE`,
@@ -58,7 +61,6 @@ afterAll(async () => {
 });
 
 describe("Isolation multi-tenant (P1)", () => {
-  // Tenant A : coach A + athlète A1 ; Tenant B : coach B + athlète B1 ; athlète C autonome.
   let coachA: Agent;
   let coachB: Agent;
   let athleteA1: Agent;
@@ -146,5 +148,59 @@ describe("Isolation multi-tenant (P1)", () => {
   it("une requête non authentifiée est refusée", async () => {
     const res = await request(baseURL).get("/athletes");
     expect(res.status).toBe(401);
+  });
+});
+
+describe("Isolation bibliothèque d'exercices (P2)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let athlete: Agent;
+  let exerciseAId: string;
+
+  beforeAll(async () => {
+    coachA = await signUp("ex-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("ex-coach-b@cmv.test", Role.COACH);
+    athlete = await signUp("ex-athlete@cmv.test", Role.ATHLETE);
+
+    const created = await coachA.post("/exercises").send({
+      title: "Gainage dynamique",
+      description: "4×45 s",
+      category: "RENFO",
+    });
+    expect(created.status).toBe(201);
+    exerciseAId = created.body.id;
+    expect(typeof created.body.coachId).toBe("string");
+    expect(created.body.documents).toEqual([]);
+  });
+
+  it("un coach ne liste que SES exercices", async () => {
+    const own = await coachA.get("/exercises");
+    expect(own.status).toBe(200);
+    expect(own.body).toHaveLength(1);
+    expect(own.body[0].id).toBe(exerciseAId);
+
+    const other = await coachB.get("/exercises");
+    expect(other.body).toHaveLength(0);
+  });
+
+  it("un coach ne peut PAS lire l'exercice d'un autre coach", async () => {
+    const res = await coachB.get(`/exercises/${exerciseAId}`);
+    expect(res.status).toBe(404);
+  });
+
+  it("un coach ne peut PAS modifier ni supprimer l'exercice d'un autre coach", async () => {
+    const patch = await coachB.patch(`/exercises/${exerciseAId}`).send({ title: "intrusion" });
+    expect(patch.status).toBe(404);
+    const del = await coachB.delete(`/exercises/${exerciseAId}`);
+    expect(del.status).toBe(404);
+    const still = await coachA.get(`/exercises/${exerciseAId}`);
+    expect(still.body.title).toBe("Gainage dynamique");
+  });
+
+  it("un athlète n'a aucun accès à la bibliothèque (route coach)", async () => {
+    expect((await athlete.get("/exercises")).status).toBe(403);
+    expect((await athlete.post("/exercises").send({ title: "x", category: "RENFO" })).status).toBe(
+      403,
+    );
   });
 });

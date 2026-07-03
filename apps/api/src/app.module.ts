@@ -11,6 +11,7 @@ import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEME } from "./config/origins";
+import { ExerciseModule } from "./exercise/exercise.module";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { PrismaService } from "./infra/prisma/prisma.service";
@@ -51,7 +52,6 @@ function buildLogTargets(): TransportTargetOptions[] {
       envFilePath: ".env",
       validate: validateEnv,
     }),
-    // CLS monté en middleware : le store existe pour toute la requête (guards → interceptors → controller).
     ClsModule.forRoot({ global: true, middleware: { mount: true } }),
     LoggerModule.forRoot({
       pinoHttp: {
@@ -61,21 +61,19 @@ function buildLogTargets(): TransportTargetOptions[] {
       },
     }),
     PrismaModule,
-    // Better Auth : instance construite sur le PrismaClient unique (client de base, non scopé).
-    // Enregistre un AuthGuard global → toute route est protégée sauf @AllowAnonymous().
     BetterAuthModule.forRootAsync({
       inject: [PrismaService, ConfigService],
       useFactory: (prisma: PrismaService, config: ConfigService<EnvSchema, true>) => ({
         auth: createAuth(prisma, {
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
-          // Navigateurs autorisés + scheme mobile (flux natif @better-auth/expo).
           trustedOrigins: [...browserOrigins(config), MOBILE_SCHEME],
         }),
       }),
     }),
     TenancyModule,
     AccountModule,
+    ExerciseModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
