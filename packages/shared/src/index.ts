@@ -11,6 +11,32 @@ export {
   coachAthleteStatusSchema,
 } from "./dto/coach-athlete.schema";
 export type {
+  AttachDocumentInput,
+  CreateExerciseInput,
+  DocumentType as DocumentTypeType,
+  ExerciseCategory as ExerciseCategoryType,
+  ExerciseDocumentDto,
+  ExerciseDto,
+  RequestUploadUrlInput,
+  UpdateExerciseInput,
+  UploadUrlDto,
+} from "./dto/exercise.schema";
+export {
+  attachDocumentSchema,
+  createExerciseSchema,
+  DocumentType,
+  documentTypeSchema,
+  EXERCISE_DESCRIPTION_MAX_LENGTH,
+  EXERCISE_TITLE_MAX_LENGTH,
+  ExerciseCategory,
+  exerciseCategorySchema,
+  exerciseDocumentDtoSchema,
+  exerciseDtoSchema,
+  requestUploadUrlSchema,
+  updateExerciseSchema,
+  uploadUrlDtoSchema,
+} from "./dto/exercise.schema";
+export type {
   AcceptInvitationInput,
   CreateInvitationInput,
   InvitationDto,
@@ -23,6 +49,23 @@ export {
   invitationDtoSchema,
   invitationStatusSchema,
 } from "./dto/invitation.schema";
+export type {
+  CreateSessionInput,
+  SessionDto,
+  SessionExerciseDto,
+  SessionExerciseInput,
+  UpdateSessionInput,
+} from "./dto/session.schema";
+export {
+  createSessionSchema,
+  SESSION_NOTES_MAX_LENGTH,
+  SESSION_PRESCRIPTION_MAX_LENGTH,
+  SESSION_TITLE_MAX_LENGTH,
+  sessionDtoSchema,
+  sessionExerciseDtoSchema,
+  sessionExerciseInputSchema,
+  updateSessionSchema,
+} from "./dto/session.schema";
 export type { EnvSchema } from "./env.schema";
 export { envSchema } from "./env.schema";
 export type { Locale as LocaleType } from "./locale";
