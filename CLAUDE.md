@@ -87,6 +87,7 @@ pnpm --filter @cmv/api exec prisma migrate dev   # migrations (Neon/local)
 
 ## Hébergement
 
+- **Dev local** : PostgreSQL + **MinIO** (object storage S3-compatible) via `apps/api/docker-compose.yml`. Bucket privé créé au 1er démarrage. Aucun compte cloud requis — bascule prod = variables `S3_*` (`S3_FORCE_PATH_STYLE=true` pour MinIO, `false` pour Scaleway).
 - **MVP (gratuit)** : API → Scaleway Serverless Containers · médias → Scaleway Object Storage (FR) · **BDD → Neon free** (EU, Prisma-natif). Redis **différé**.
 - **v1.0 (souverain FR)** : bascule **Clever Cloud** (app + PostgreSQL + Redis + Cellar S3, HDS). Portabilité = variables d'env, rien de propriétaire.
 
