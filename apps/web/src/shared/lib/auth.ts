@@ -6,7 +6,6 @@ const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://
 
 export const authClient = createAuthClient({
   baseURL,
-  // Expose role/locale (additionalFields serveur) typés sur la session cliente.
   plugins: [
     inferAdditionalFields({
       user: {

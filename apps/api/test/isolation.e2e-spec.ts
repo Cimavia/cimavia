@@ -203,4 +203,44 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       403,
     );
   });
+
+  it("attache un document LINK, visible dans le détail de l'exercice", async () => {
+    const attached = await coachA
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ type: "LINK", url: "https://youtu.be/demo" });
+    expect(attached.status).toBe(201);
+    expect(attached.body.type).toBe("LINK");
+    expect(attached.body.url).toBe("https://youtu.be/demo");
+    expect(attached.body.fileName).toBeNull();
+
+    const detail = await coachA.get(`/exercises/${exerciseAId}`);
+    expect(detail.body.documents).toHaveLength(1);
+    expect(detail.body.documents[0].id).toBe(attached.body.id);
+  });
+
+  it("un coach ne peut PAS agir sur les documents de l'exercice d'un autre coach", async () => {
+    const attach = await coachB
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ type: "LINK", url: "https://x.test" });
+    expect(attach.status).toBe(404);
+
+    const uploadUrl = await coachB
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "a.pdf", mimeType: "application/pdf", size: 1000 });
+    expect(uploadUrl.status).toBe(404);
+  });
+
+  it("URL d'upload : 503 si storage non configuré, 400 si type non autorisé", async () => {
+    // .env.test ne fournit pas de config S3 → 503 (l'API démarre quand même).
+    const noStorage = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "demo.pdf", mimeType: "application/pdf", size: 1000 });
+    expect(noStorage.status).toBe(503);
+
+    // Le type est validé avant tout appel storage → 400.
+    const badType = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "x.exe", mimeType: "application/x-msdownload", size: 1000 });
+    expect(badType.status).toBe(400);
+  });
 });

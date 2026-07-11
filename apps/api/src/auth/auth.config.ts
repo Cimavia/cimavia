@@ -23,7 +23,12 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
   return betterAuth({
     secret: config.secret,
     baseURL: config.baseURL,
-    trustedOrigins: config.trustedOrigins,
+    trustedOrigins: [
+      ...config.trustedOrigins,
+      // Origines supplémentaires : IP réseau locale, tunnel ngrok/Expo…
+      // Configurer via BETTER_AUTH_TRUSTED_ORIGINS (valeurs séparées par virgule)
+      ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").map((o) => o.trim()) ?? []),
+    ],
     database: prismaAdapter(prisma, { provider: "postgresql" }),
     // Le modèle Prisma de session auth est renommé `AuthSession` pour libérer le nom `Session`
     // au profit de l'entité métier séance (P2). La table reste `session` (via @@map) — pas de
@@ -43,7 +48,12 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     user: {
       additionalFields: {
         role: { type: "string", required: true, input: true },
-        locale: { type: "string", required: false, input: true, defaultValue: Locale.FR },
+        locale: {
+          type: "string",
+          required: false,
+          input: true,
+          defaultValue: Locale.FR,
+        },
       },
     },
     databaseHooks: {

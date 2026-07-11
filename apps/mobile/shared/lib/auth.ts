@@ -10,7 +10,11 @@ const baseURL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 export const authClient = createAuthClient({
   baseURL,
   plugins: [
-    expoClient({ scheme: "cimavia", storagePrefix: "cimavia", storage: SecureStore }),
+    expoClient({
+      scheme: "cimavia",
+      storagePrefix: "cimavia",
+      storage: SecureStore,
+    }),
     inferAdditionalFields({
       user: {
         role: { type: "string" },

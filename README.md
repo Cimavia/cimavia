@@ -17,18 +17,18 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 
 - Node.js ≥ 22
 - pnpm 10.34.4 (`corepack enable && corepack use pnpm@10.34.4`)
-- Docker (pour PostgreSQL local)
+- Docker (pour PostgreSQL **et** MinIO local — object storage S3-compatible)
 
 ## Démarrage
 
 ```bash
 pnpm install
 # Variables d'env : copier les modèles et renseigner les secrets
-cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS
+cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (MinIO local)
 cp apps/web/.env.example apps/web/.env        # VITE_API_URL
 cp apps/mobile/.env.example apps/mobile/.env  # EXPO_PUBLIC_API_URL (IP LAN sur appareil/émulateur, pas localhost)
-# Démarrer PostgreSQL local (apps/api)
-docker compose -f apps/api/docker-compose.yml up -d
+# Démarrer PostgreSQL + MinIO local (apps/api) — MinIO crée le bucket privé au 1er démarrage
+docker compose -f apps/api/docker-compose.yml up -d   # S3 sur :9000, console MinIO sur :9001
 # Migrer la base
 pnpm --filter @cmv/api exec prisma migrate dev
 # Lancer tout
