@@ -48,7 +48,7 @@ export function ForgotPasswordScreen() {
             onChange={(event) => setEmail(event.target.value)}
           />
           {error != null && <p className="text-sm text-cmv-error">{error}</p>}
-          <CmvButton type="submit" disabled={submitting}>
+          <CmvButton type="submit" disabled={submitting} fullWidth>
             {submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
           </CmvButton>
         </form>

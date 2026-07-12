@@ -62,7 +62,7 @@ export function ResetPasswordScreen() {
             onChange={(event) => setPassword(event.target.value)}
           />
           {error != null && <p className="text-sm text-cmv-error">{error}</p>}
-          <CmvButton type="submit" disabled={submitting}>
+          <CmvButton type="submit" disabled={submitting} fullWidth>
             {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
           </CmvButton>
         </form>

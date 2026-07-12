@@ -61,7 +61,7 @@ export function LoginScreen() {
           onChange={(event) => setPassword(event.target.value)}
         />
         {error != null && <p className="text-sm text-cmv-error">{error}</p>}
-        <CmvButton type="submit" disabled={submitting}>
+        <CmvButton type="submit" disabled={submitting} fullWidth>
           {submitting ? t("auth.login.submitting") : t("auth.login.submit")}
         </CmvButton>
       </form>

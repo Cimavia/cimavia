@@ -39,7 +39,7 @@ export function HomeScreen() {
         {isCoach ? t("home.coachHint") : t("home.athleteHint")}
       </p>
       <div className="mt-4 w-full max-w-xs">
-        <CmvButton type="button" onClick={onLogout}>
+        <CmvButton type="button" onClick={onLogout} fullWidth>
           {t("home.logout")}
         </CmvButton>
       </div>

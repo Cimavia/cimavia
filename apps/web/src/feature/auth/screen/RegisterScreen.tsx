@@ -94,7 +94,7 @@ export function RegisterScreen() {
           </div>
         </fieldset>
         {error != null && <p className="text-sm text-cmv-error">{error}</p>}
-        <CmvButton type="submit" disabled={submitting}>
+        <CmvButton type="submit" disabled={submitting} fullWidth>
           {submitting ? t("auth.register.submitting") : t("auth.register.submit")}
         </CmvButton>
       </form>
