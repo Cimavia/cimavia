@@ -24,6 +24,8 @@ export default defineConfig({
       BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "",
       BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? "",
       PORT: process.env.PORT ?? "3001",
+      // Origine navigateur fixée : le test de preflight CORS ne doit pas dépendre du .env local.
+      CORS_ORIGINS: "http://localhost:5173",
       // Object storage désactivé en e2e : on teste le fail-closed (503), sans dépendre du
       // .env local du dev (MinIO) ni exiger un bucket en CI. process.env prime sur le
       // fichier .env lu par ConfigModule → ces valeurs vides gagnent.

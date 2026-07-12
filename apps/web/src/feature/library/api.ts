@@ -1,11 +1,14 @@
 import type {
   AttachDocumentInput,
   CreateExerciseInput,
+  CreateSessionInput,
   ExerciseCategory,
   ExerciseDocumentDto,
   ExerciseDto,
   RequestUploadUrlInput,
+  SessionDto,
   UpdateExerciseInput,
+  UpdateSessionInput,
   UploadUrlDto,
 } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
@@ -26,7 +29,8 @@ export function listExercises(filters: ExerciseFilters): Promise<ExerciseDto[]> 
   if (filters.category) params.set("category", filters.category);
   if (filters.search) params.set("search", filters.search);
   const query = params.toString();
-  return api.get<ExerciseDto[]>(`/exercises${query ? `?${query}` : ""}`);
+  const path = query ? `/exercises?${query}` : "/exercises";
+  return api.get<ExerciseDto[]>(path);
 }
 
 export function createExercise(input: CreateExerciseInput): Promise<ExerciseDto> {
@@ -59,4 +63,28 @@ export function attachDocument(
 
 export function deleteDocument(exerciseId: string, documentId: string): Promise<void> {
   return api.delete<void>(`/exercises/${exerciseId}/documents/${documentId}`);
+}
+
+// ── Séances (modèles) ────────────────────────────────────────────────────────
+
+export const sessionKeys = {
+  all: ["sessions"] as const,
+  list: () => ["sessions", "list"] as const,
+};
+
+export function listSessions(): Promise<SessionDto[]> {
+  return api.get<SessionDto[]>("/sessions");
+}
+
+export function createSession(input: CreateSessionInput): Promise<SessionDto> {
+  return api.post<SessionDto>("/sessions", input);
+}
+
+// PUT : la composition est remplacée intégralement (replace-all côté API).
+export function updateSession(id: string, input: UpdateSessionInput): Promise<SessionDto> {
+  return api.put<SessionDto>(`/sessions/${id}`, input);
+}
+
+export function deleteSession(id: string): Promise<void> {
+  return api.delete<void>(`/sessions/${id}`);
 }

@@ -1,4 +1,13 @@
 import { type ReactNode, useEffect } from "react";
+import { cn } from "@/shared/util/cn.util";
+
+// md = formulaire simple (exercice) ; lg = mise en page à deux colonnes (builder de séance).
+type CmvPanelSize = "md" | "lg";
+
+const SIZE_CLASSES: Record<CmvPanelSize, string> = {
+  md: "max-w-xl",
+  lg: "max-w-5xl",
+};
 
 type CmvPanelProps = {
   open: boolean;
@@ -8,6 +17,7 @@ type CmvPanelProps = {
   children: ReactNode;
   // Zone d'actions en pied de panneau (Annuler / Enregistrer).
   footer?: ReactNode;
+  size?: CmvPanelSize;
 };
 
 // Panneau latéral (slide-over) — support des formulaires exercice / séance (cf. maquette).
@@ -18,6 +28,7 @@ export function CmvPanel({
   onClose,
   children,
   footer,
+  size = "md",
 }: Readonly<CmvPanelProps>) {
   // Échap ferme le panneau. Effet monté seulement quand le panneau est ouvert.
   useEffect(() => {
@@ -41,7 +52,10 @@ export function CmvPanel({
       />
       <aside
         aria-label={title}
-        className="relative flex h-full w-full max-w-xl flex-col border-cmv-border border-l bg-cmv-bg-1 shadow-xl"
+        className={cn(
+          "relative flex h-full w-full flex-col border-cmv-border border-l bg-cmv-bg-1 shadow-xl",
+          SIZE_CLASSES[size],
+        )}
       >
         <header className="flex flex-col gap-cmv-xs border-cmv-border border-b p-cmv-xl">
           <h2 className="text-cmv-title text-cmv-text-hi">{title}</h2>

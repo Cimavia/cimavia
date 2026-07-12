@@ -75,13 +75,38 @@
       "GRIMPE": "Grimpe",
       "TECHNIQUE": "Technique"
     },
+    "newSession": "Nouvelle séance",
     "empty": {
       "title": "Aucun exercice",
       "description": "Créez votre premier exercice : il sera réutilisable dans toutes vos séances."
     },
-    "sessions": {
-      "soonTitle": "Séances",
-      "soonDescription": "La composition de séances arrive dans la prochaine étape."
+    "session": {
+      "createTitle": "Nouvelle séance",
+      "editTitle": "Modifier la séance",
+      "panelDescription": "Une liste ordonnée d'exercices, réutilisable dans vos planifications.",
+      "titleLabel": "Titre de la séance",
+      "titlePlaceholder": "Bloc force max",
+      "notesLabel": "Consignes globales",
+      "notesPlaceholder": "Repos 3 min entre séries, amplitude complète…",
+      "composition": "Déroulé de la séance",
+      "emptyComposition": "Aucun exercice",
+      "emptyCompositionHint": "Ajoutez des exercices depuis votre bibliothèque, à droite.",
+      "pickerTitle": "Exercices",
+      "prescriptionLabel": "Prescription",
+      "prescriptionPlaceholder": "5×5 à +10 kg, récup 3 min",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "remove": "Retirer",
+      "exerciseCount": "{{count}} exercice",
+      "exerciseCount_other": "{{count}} exercices",
+      "more": "+{{count}} autre",
+      "more_other": "+{{count}} autres",
+      "emptyTitle": "Aucune séance",
+      "emptyDescription": "Composez une séance à partir de vos exercices : elle sera réutilisable dans vos planifications.",
+      "cancel": "Annuler",
+      "submitCreate": "Créer la séance",
+      "submitEdit": "Enregistrer la séance",
+      "submitting": "Enregistrement…"
     },
     "exercise": {
       "createTitle": "Nouvel exercice",

@@ -9,7 +9,6 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { configureApp } from "./app.setup";
-import { browserOrigins } from "./config/origins";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -37,8 +36,7 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService<EnvSchema, true>);
   const port = configService.get("PORT", { infer: true });
 
-  app.enableCors({ origin: browserOrigins(configService), credentials: true });
-
+  // CORS et validation sont posés par configureApp() (partagé avec les e2e) — cf. app.setup.ts.
   await app.listen(port ?? 3000, "0.0.0.0");
 
   const logger = new Logger("Bootstrap");

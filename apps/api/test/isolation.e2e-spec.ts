@@ -153,6 +153,21 @@ describe("Isolation multi-tenant (P1)", () => {
     const res = await request(baseURL).get("/athletes");
     expect(res.status).toBe(401);
   });
+
+  // Le défaut de la couche CORS ne renvoie que GET,HEAD,POST : sans `methods` explicite, tout
+  // PATCH/PUT/DELETE légitime est bloqué en preflight côté navigateur (invisible en supertest).
+  it("CORS : le preflight autorise les méthodes d'écriture depuis le web", async () => {
+    const res = await request(baseURL)
+      .options("/sessions/whatever")
+      .set("Origin", "http://localhost:5173")
+      .set("Access-Control-Request-Method", "PUT");
+
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+    const allowed = res.headers["access-control-allow-methods"] ?? "";
+    for (const method of ["GET", "POST", "PATCH", "PUT", "DELETE"]) {
+      expect(allowed).toContain(method);
+    }
+  });
 });
 
 describe("Isolation bibliothèque d'exercices (P2)", () => {

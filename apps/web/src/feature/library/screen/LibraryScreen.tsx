@@ -1,35 +1,35 @@
-import { type ExerciseCategory, type ExerciseDto, Role } from "@cmv/shared";
+import { type ExerciseDto, Role, type SessionDto } from "@cmv/shared";
 import { Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ExerciseCard } from "@/feature/library/component/ExerciseCard";
 import { ExerciseForm } from "@/feature/library/component/ExerciseForm";
-import { EXERCISE_CATEGORIES } from "@/feature/library/constant";
+import { ExerciseList } from "@/feature/library/component/ExerciseList";
+import { SessionBuilder } from "@/feature/library/component/SessionBuilder";
+import { SessionList } from "@/feature/library/component/SessionList";
 import { useExercises } from "@/feature/library/hook/useExercises";
-import { CmvButton, CmvEmptyState, CmvSegmented, CmvTabs, CmvTextField } from "@/shared/component";
+import { useSessions } from "@/feature/library/hook/useSessions";
+import { CmvButton, CmvTabs } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 type LibraryTab = "exercises" | "sessions";
-// "ALL" = pas de filtre catégorie (valeur sentinelle locale, jamais envoyée à l'API).
-type CategoryFilter = ExerciseCategory | "ALL";
 
 export function LibraryScreen() {
   const { t } = useTranslation();
-  const { data: session, isPending: isSessionPending } = authClient.useSession();
+  // `authSession` = session d'authentification, à ne pas confondre avec la Session métier (séance).
+  const { data: authSession, isPending: isAuthPending } = authClient.useSession();
 
   const [tab, setTab] = useState<LibraryTab>("exercises");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
-  const [search, setSearch] = useState("");
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [editing, setEditing] = useState<ExerciseDto | null>(null);
+  const [exercisePanelOpen, setExercisePanelOpen] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<ExerciseDto | null>(null);
+  const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<SessionDto | null>(null);
 
-  const filters = {
-    ...(categoryFilter === "ALL" ? {} : { category: categoryFilter }),
-    ...(search.trim() ? { search: search.trim() } : {}),
-  };
-  const { data: exercises, isPending, isError } = useExercises(filters);
+  // Compteurs d'onglets : totaux (non filtrés). Mêmes clés de cache que les listes → pas de
+  // requête supplémentaire pour les séances ; les exercices non filtrés sont une entrée à part.
+  const { data: allExercises } = useExercises({});
+  const { data: allSessions } = useSessions();
 
-  if (isSessionPending) {
+  if (isAuthPending) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
         {t("common.loading")}
@@ -37,18 +37,30 @@ export function LibraryScreen() {
     );
   }
   // Bibliothèque = surface coach uniquement (l'API refuse déjà l'athlète en 403).
-  if (session?.user.role !== Role.COACH) {
+  if (authSession?.user.role !== Role.COACH) {
     return <Navigate to="/" />;
   }
 
+  const isSessionsTab = tab === "sessions";
+
   function openCreate() {
-    setEditing(null);
-    setPanelOpen(true);
+    if (isSessionsTab) {
+      setEditingSession(null);
+      setSessionPanelOpen(true);
+      return;
+    }
+    setEditingExercise(null);
+    setExercisePanelOpen(true);
   }
 
-  function openEdit(exercise: ExerciseDto) {
-    setEditing(exercise);
-    setPanelOpen(true);
+  function openEditExercise(exercise: ExerciseDto) {
+    setEditingExercise(exercise);
+    setExercisePanelOpen(true);
+  }
+
+  function openEditSession(session: SessionDto) {
+    setEditingSession(session);
+    setSessionPanelOpen(true);
   }
 
   return (
@@ -61,7 +73,9 @@ export function LibraryScreen() {
             </h1>
             <p className="text-cmv-body text-cmv-text-mid">{t("library.subtitle")}</p>
           </div>
-          <CmvButton onClick={openCreate}>{t("library.newExercise")}</CmvButton>
+          <CmvButton onClick={openCreate}>
+            {isSessionsTab ? t("library.newSession") : t("library.newExercise")}
+          </CmvButton>
         </header>
 
         <CmvTabs
@@ -71,71 +85,39 @@ export function LibraryScreen() {
             {
               value: "exercises",
               label: t("library.tabs.exercises"),
-              ...(exercises ? { count: exercises.length } : {}),
+              ...(allExercises ? { count: allExercises.length } : {}),
             },
-            { value: "sessions", label: t("library.tabs.sessions") },
+            {
+              value: "sessions",
+              label: t("library.tabs.sessions"),
+              ...(allSessions ? { count: allSessions.length } : {}),
+            },
           ]}
         />
 
-        {tab === "sessions" ? (
-          // MOCKED — onglet Séances. À connecter au SessionBuilder (commit 8).
-          <CmvEmptyState
-            title={t("library.sessions.soonTitle")}
-            description={t("library.sessions.soonDescription")}
-          />
+        {isSessionsTab ? (
+          <SessionList onCreate={openCreate} onEdit={openEditSession} />
         ) : (
-          <>
-            <div className="flex flex-wrap items-end justify-between gap-cmv-lg">
-              <div className="w-full max-w-xs">
-                <CmvTextField
-                  label={t("library.searchLabel")}
-                  name="search"
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t("library.searchExercise")}
-                />
-              </div>
-              <CmvSegmented<CategoryFilter>
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                options={[
-                  { value: "ALL", label: t("library.filterAll") },
-                  ...EXERCISE_CATEGORIES.map((value) => ({
-                    value: value as CategoryFilter,
-                    label: t(`library.category.${value}`),
-                  })),
-                ]}
-              />
-            </div>
-
-            {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
-            {isError ? <p className="text-cmv-error">{t("common.error")}</p> : null}
-
-            {exercises?.length === 0 ? (
-              <CmvEmptyState
-                title={t("library.empty.title")}
-                description={t("library.empty.description")}
-                action={<CmvButton onClick={openCreate}>{t("library.newExercise")}</CmvButton>}
-              />
-            ) : null}
-
-            <div className="grid gap-cmv-lg sm:grid-cols-2 lg:grid-cols-3">
-              {exercises?.map((exercise) => (
-                <ExerciseCard key={exercise.id} exercise={exercise} onSelect={openEdit} />
-              ))}
-            </div>
-          </>
+          <ExerciseList onCreate={openCreate} onEdit={openEditExercise} />
         )}
       </div>
 
-      {/* Remonté par `key` : le formulaire se réinitialise à chaque exercice édité. */}
-      {panelOpen ? (
+      {/* `key` : le formulaire se réinitialise à chaque élément édité. */}
+      {exercisePanelOpen ? (
         <ExerciseForm
-          key={editing?.id ?? "new"}
-          open={panelOpen}
-          exercise={editing}
-          onClose={() => setPanelOpen(false)}
+          key={editingExercise?.id ?? "new-exercise"}
+          open={exercisePanelOpen}
+          exercise={editingExercise}
+          onClose={() => setExercisePanelOpen(false)}
+        />
+      ) : null}
+
+      {sessionPanelOpen ? (
+        <SessionBuilder
+          key={editingSession?.id ?? "new-session"}
+          open={sessionPanelOpen}
+          session={editingSession}
+          onClose={() => setSessionPanelOpen(false)}
         />
       ) : null}
     </main>
