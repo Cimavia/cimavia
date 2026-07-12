@@ -1,0 +1,5 @@
+{
+  "recommendations": ["biomejs.biome"],
+  // Prettier n'est pas utilisé sur ce projet : Biome fait lint + format.
+  "unwantedRecommendations": ["esbenp.prettier-vscode"]
+}

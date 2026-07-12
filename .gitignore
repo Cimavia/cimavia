@@ -18,7 +18,6 @@ out/
 !.env.example
 
 # Editors
-.vscode/settings.json
 .idea/
 *.suo
 *.ntvs*

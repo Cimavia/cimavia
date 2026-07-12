@@ -11,7 +11,14 @@ type CmvPanelProps = {
 };
 
 // Panneau latéral (slide-over) — support des formulaires exercice / séance (cf. maquette).
-export function CmvPanel({ open, title, description, onClose, children, footer }: CmvPanelProps) {
+export function CmvPanel({
+  open,
+  title,
+  description,
+  onClose,
+  children,
+  footer,
+}: Readonly<CmvPanelProps>) {
   // Échap ferme le panneau. Effet monté seulement quand le panneau est ouvert.
   useEffect(() => {
     if (!open) return;
@@ -26,7 +33,6 @@ export function CmvPanel({ open, title, description, onClose, children, footer }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Fond cliquable : ferme le panneau. */}
       <button
         type="button"
         aria-label="Fermer"
