@@ -244,3 +244,91 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(badType.status).toBe(400);
   });
 });
+
+describe("Composition & isolation des séances (P2)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let athlete: Agent;
+  let exA1: string;
+  let exA2: string;
+  let exB: string;
+  let sessionAId: string;
+
+  // Crée un exercice pour le coach donné et retourne son id.
+  async function createExercise(coach: Agent, title: string): Promise<string> {
+    const res = await coach.post("/exercises").send({ title, category: "RENFO" });
+    expect(res.status).toBe(201);
+    return res.body.id;
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("se-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("se-coach-b@cmv.test", Role.COACH);
+    athlete = await signUp("se-athlete@cmv.test", Role.ATHLETE);
+
+    exA1 = await createExercise(coachA, "Échauffement épaules");
+    exA2 = await createExercise(coachA, "Tractions lestées");
+    exB = await createExercise(coachB, "Exercice du coach B");
+  });
+
+  it("crée une séance avec une composition ordonnée (positions + prescription)", async () => {
+    const res = await coachA.post("/sessions").send({
+      title: "Bloc force max",
+      notes: "Repos 3 min entre séries.",
+      exercises: [
+        { exerciseId: exA1, prescription: "10 min mobilité" },
+        { exerciseId: exA2, prescription: "5×5 à +10 kg" },
+      ],
+    });
+    expect(res.status).toBe(201);
+    sessionAId = res.body.id;
+    expect(res.body.exercises).toHaveLength(2);
+    expect(res.body.exercises[0]).toMatchObject({
+      exerciseId: exA1,
+      position: 0,
+      title: "Échauffement épaules",
+      category: "RENFO",
+    });
+    expect(res.body.exercises[1]).toMatchObject({ exerciseId: exA2, position: 1 });
+  });
+
+  it("refuse une séance référençant l'exercice d'un autre coach (400)", async () => {
+    const res = await coachA.post("/sessions").send({
+      title: "Intrusion",
+      exercises: [{ exerciseId: exB }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("met à jour la séance en remplaçant intégralement la composition (replace-all)", async () => {
+    const res = await coachA.put(`/sessions/${sessionAId}`).send({
+      title: "Bloc force max (v2)",
+      notes: null,
+      exercises: [{ exerciseId: exA2, prescription: "4×6" }],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Bloc force max (v2)");
+    expect(res.body.notes).toBeNull();
+    expect(res.body.exercises).toHaveLength(1);
+    expect(res.body.exercises[0]).toMatchObject({ exerciseId: exA2, position: 0 });
+  });
+
+  it("un coach ne voit/modifie/supprime que SES séances", async () => {
+    const own = await coachA.get("/sessions");
+    expect(own.status).toBe(200);
+    expect(own.body).toHaveLength(1);
+
+    const other = await coachB.get("/sessions");
+    expect(other.body).toHaveLength(0);
+
+    expect((await coachB.get(`/sessions/${sessionAId}`)).status).toBe(404);
+    expect(
+      (await coachB.put(`/sessions/${sessionAId}`).send({ title: "x", exercises: [] })).status,
+    ).toBe(404);
+    expect((await coachB.delete(`/sessions/${sessionAId}`)).status).toBe(404);
+  });
+
+  it("un athlète n'a aucun accès aux séances (route coach)", async () => {
+    expect((await athlete.get("/sessions")).status).toBe(403);
+  });
+});

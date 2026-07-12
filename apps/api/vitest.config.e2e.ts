@@ -24,6 +24,15 @@ export default defineConfig({
       BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? "",
       BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? "",
       PORT: process.env.PORT ?? "3001",
+      // Object storage désactivé en e2e : on teste le fail-closed (503), sans dépendre du
+      // .env local du dev (MinIO) ni exiger un bucket en CI. process.env prime sur le
+      // fichier .env lu par ConfigModule → ces valeurs vides gagnent.
+      S3_ENDPOINT: "",
+      S3_REGION: "",
+      S3_BUCKET: "",
+      S3_ACCESS_KEY_ID: "",
+      S3_SECRET_ACCESS_KEY: "",
+      S3_FORCE_PATH_STYLE: "",
     },
   },
 });
