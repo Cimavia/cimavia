@@ -13,6 +13,7 @@ export {
 export type {
   AttachDocumentInput,
   CreateExerciseInput,
+  DocumentMimeType,
   DocumentType as DocumentTypeType,
   ExerciseCategory as ExerciseCategoryType,
   ExerciseDocumentDto,
@@ -24,7 +25,9 @@ export type {
 export {
   attachDocumentSchema,
   createExerciseSchema,
+  DOCUMENT_MIME_TYPES,
   DocumentType,
+  documentMimeTypeSchema,
   documentTypeSchema,
   EXERCISE_DESCRIPTION_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
@@ -32,6 +35,8 @@ export {
   exerciseCategorySchema,
   exerciseDocumentDtoSchema,
   exerciseDtoSchema,
+  isAllowedDocumentMime,
+  MAX_DOCUMENT_SIZE_BYTES,
   requestUploadUrlSchema,
   updateExerciseSchema,
   uploadUrlDtoSchema,

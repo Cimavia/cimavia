@@ -3,7 +3,8 @@
     "appName": "cimavia",
     "email": "Adresse e-mail",
     "password": "Mot de passe",
-    "loading": "Chargement…"
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue. Réessayez."
   },
   "auth": {
     "login": {
@@ -55,6 +56,60 @@
     "spaceAthlete": "Espace athlète",
     "coachHint": "Vos athlètes et planifications apparaîtront ici.",
     "athleteHint": "Vos séances et votre coach apparaîtront ici.",
-    "logout": "Se déconnecter"
+    "logout": "Se déconnecter",
+    "toLibrary": "Ma bibliothèque"
+  },
+  "library": {
+    "title": "Bibliothèque",
+    "subtitle": "Vos exercices et séances réutilisables.",
+    "newExercise": "Nouvel exercice",
+    "searchLabel": "Rechercher",
+    "searchExercise": "Rechercher un exercice…",
+    "filterAll": "Toutes",
+    "tabs": {
+      "exercises": "Exercices",
+      "sessions": "Séances"
+    },
+    "category": {
+      "RENFO": "Renfo",
+      "GRIMPE": "Grimpe",
+      "TECHNIQUE": "Technique"
+    },
+    "empty": {
+      "title": "Aucun exercice",
+      "description": "Créez votre premier exercice : il sera réutilisable dans toutes vos séances."
+    },
+    "sessions": {
+      "soonTitle": "Séances",
+      "soonDescription": "La composition de séances arrive dans la prochaine étape."
+    },
+    "exercise": {
+      "createTitle": "Nouvel exercice",
+      "editTitle": "Modifier l'exercice",
+      "panelDescription": "Réutilisable dans toutes vos séances.",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "Gainage dynamique",
+      "categoryLabel": "Catégorie",
+      "descriptionLabel": "Description & consignes",
+      "descriptionPlaceholder": "Planche + bascule du bassin, 4 séries de 45 s…",
+      "documents": "Documents joints",
+      "documentCount": "{{count}} document",
+      "documentCount_other": "{{count}} documents",
+      "addFile": "Ajouter un fichier",
+      "fileHint": "PDF, JPG, PNG ou WEBP — 20 Mo max",
+      "addLink": "Lien externe",
+      "addLinkAction": "Ajouter",
+      "linkPlaceholder": "https://…",
+      "file": "Fichier",
+      "link": "Lien",
+      "uploading": "Envoi en cours…",
+      "delete": "Supprimer",
+      "cancel": "Annuler",
+      "submitCreate": "Créer l'exercice",
+      "submitEdit": "Enregistrer",
+      "submitting": "Enregistrement…",
+      "errorFileType": "Type de fichier non autorisé (PDF, JPG, PNG, WEBP).",
+      "errorFileSize": "Fichier trop volumineux (20 Mo max)."
+    }
   }
 }

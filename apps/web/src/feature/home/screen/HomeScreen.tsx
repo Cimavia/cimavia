@@ -38,8 +38,13 @@ export function HomeScreen() {
       <p className="max-w-sm text-sm text-cmv-text-mid">
         {isCoach ? t("home.coachHint") : t("home.athleteHint")}
       </p>
-      <div className="mt-4 w-full max-w-xs">
-        <CmvButton type="button" onClick={onLogout} fullWidth>
+      <div className="mt-4 flex w-full max-w-xs flex-col gap-cmv-sm">
+        {isCoach ? (
+          <CmvButton type="button" onClick={() => navigate({ to: "/library" })} fullWidth>
+            {t("home.toLibrary")}
+          </CmvButton>
+        ) : null}
+        <CmvButton type="button" variant="secondary" onClick={onLogout} fullWidth>
           {t("home.logout")}
         </CmvButton>
       </div>

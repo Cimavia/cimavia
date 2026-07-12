@@ -9,7 +9,7 @@ type CmvTabsProps<T extends string> = {
 };
 
 // Onglets de section (Exercices / Séances) avec compteur optionnel.
-export function CmvTabs<T extends string>({ tabs, value, onChange }: CmvTabsProps<T>) {
+export function CmvTabs<T extends string>({ tabs, value, onChange }: Readonly<CmvTabsProps<T>>) {
   return (
     <div role="tablist" className="flex gap-cmv-lg border-cmv-border border-b">
       {tabs.map((tab) => {

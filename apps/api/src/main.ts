@@ -8,8 +8,8 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
+import { configureApp } from "./app.setup";
 import { browserOrigins } from "./config/origins";
-import { ZodBodyValidationPipe } from "./zod/zod-body-validation.pipe";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -22,7 +22,8 @@ async function bootstrap(): Promise<void> {
 
   app.useLogger(app.get(PinoLogger));
   app.enableShutdownHooks();
-  app.useGlobalPipes(new ZodBodyValidationPipe());
+  // Config partagée avec les tests e2e (validation d'entrée) — cf. app.setup.ts.
+  configureApp(app);
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("cimavia API")

@@ -4,6 +4,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
+import { configureApp } from "../src/app.setup";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
@@ -43,6 +44,9 @@ beforeAll(async () => {
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
     bodyParser: false,
   });
+  // Même configuration HTTP que main.ts (pipe de validation Zod) — sinon les e2e tourneraient
+  // sans validation d'entrée et ne testeraient pas le comportement réel de l'API.
+  configureApp(app);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
 
@@ -230,18 +234,34 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(uploadUrl.status).toBe(404);
   });
 
-  it("URL d'upload : 503 si storage non configuré, 400 si type non autorisé", async () => {
+  it("URL d'upload : 503 si storage non configuré (entrée valide)", async () => {
     // .env.test ne fournit pas de config S3 → 503 (l'API démarre quand même).
     const noStorage = await coachA
       .post(`/exercises/${exerciseAId}/documents/upload-url`)
       .send({ fileName: "demo.pdf", mimeType: "application/pdf", size: 1000 });
     expect(noStorage.status).toBe(503);
+  });
 
-    // Le type est validé avant tout appel storage → 400.
+  it("URL d'upload : type MIME et taille validés par le schéma partagé (400)", async () => {
+    // Contraintes portées par requestUploadUrlSchema (@cmv/shared) → rejet AVANT le service.
     const badType = await coachA
       .post(`/exercises/${exerciseAId}/documents/upload-url`)
       .send({ fileName: "x.exe", mimeType: "application/x-msdownload", size: 1000 });
     expect(badType.status).toBe(400);
+
+    const tooBig = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "gros.pdf", mimeType: "application/pdf", size: 50 * 1024 * 1024 });
+    expect(tooBig.status).toBe(400);
+  });
+
+  it("le pipe de validation global est actif (titre vide, catégorie inconnue → 400)", async () => {
+    expect((await coachA.post("/exercises").send({ title: "", category: "RENFO" })).status).toBe(
+      400,
+    );
+    expect((await coachA.post("/exercises").send({ title: "x", category: "CARDIO" })).status).toBe(
+      400,
+    );
   });
 });
 

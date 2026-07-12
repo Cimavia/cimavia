@@ -6,18 +6,12 @@ import {
   type RequestUploadUrlInput,
   type UploadUrlDto,
 } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Exercise, Prisma } from "@prisma/client";
 import { SIGNED_URL_TTL_SECONDS, StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toExerciseDocumentDto } from "../exercise-document.mapper";
-
-// Types acceptés pour un document d'exercice en P2 (PDF / image — CDC §5.2).
-const ALLOWED_DOCUMENT_MIME = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
-
-// Plafond de taille d'un document (20 Mo) — la vidéo lourde relève du débrief (P4), pas ici.
-export const MAX_DOCUMENT_SIZE_BYTES = 20 * 1024 * 1024;
 
 @Injectable()
 export class ExerciseDocumentService {
@@ -36,17 +30,10 @@ export class ExerciseDocumentService {
   }
 
   // Étape 1 : URL PUT signée pour uploader un fichier directement vers l'object storage.
+  // Type MIME et taille max sont validés en amont par `requestUploadUrlSchema` (@cmv/shared,
+  // pipe global) → une entrée non conforme n'atteint jamais ce service (400).
   async createUploadUrl(exerciseId: string, input: RequestUploadUrlInput): Promise<UploadUrlDto> {
     const exercise = await this.getOwnedExercise(exerciseId);
-    if (!ALLOWED_DOCUMENT_MIME.has(input.mimeType)) {
-      throw new BadRequestException(`Type de fichier non autorisé : ${input.mimeType}`);
-    }
-    if (input.size > MAX_DOCUMENT_SIZE_BYTES) {
-      throw new BadRequestException(
-        `Fichier trop volumineux (max ${MAX_DOCUMENT_SIZE_BYTES} octets)`,
-      );
-    }
-
     const storagePath = buildDocumentKey(exercise.coachId, exerciseId, input.fileName);
     const uploadUrl = await this.storage.createUploadUrl(storagePath, input.mimeType);
     return { uploadUrl, storagePath, expiresIn: SIGNED_URL_TTL_SECONDS };
