@@ -4,7 +4,9 @@
     "email": "Adresse e-mail",
     "password": "Mot de passe",
     "loading": "Chargement…",
-    "error": "Une erreur est survenue. Réessayez."
+    "error": "Une erreur est survenue. Réessayez.",
+    "cancel": "Annuler",
+    "confirmDelete": "Confirmer la suppression"
   },
   "auth": {
     "login": {
@@ -103,6 +105,7 @@
       "more_other": "+{{count}} autres",
       "emptyTitle": "Aucune séance",
       "emptyDescription": "Composez une séance à partir de vos exercices : elle sera réutilisable dans vos planifications.",
+      "deleteSession": "Supprimer la séance",
       "cancel": "Annuler",
       "submitCreate": "Créer la séance",
       "submitEdit": "Enregistrer la séance",
@@ -129,6 +132,7 @@
       "link": "Lien",
       "uploading": "Envoi en cours…",
       "delete": "Supprimer",
+      "deleteExercise": "Supprimer l'exercice",
       "cancel": "Annuler",
       "submitCreate": "Créer l'exercice",
       "submitEdit": "Enregistrer",

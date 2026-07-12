@@ -2,10 +2,11 @@ import type { ExerciseCategory, ExerciseDto, SessionDto } from "@cmv/shared";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useExercises } from "@/feature/library/hook/useExercises";
-import { useSaveSession } from "@/feature/library/hook/useSessions";
+import { useDeleteSession, useSaveSession } from "@/feature/library/hook/useSessions";
 import {
   CmvBadge,
   CmvButton,
+  CmvConfirmButton,
   CmvEmptyState,
   CmvPanel,
   CmvTextArea,
@@ -44,6 +45,7 @@ type SessionBuilderProps = {
 export function SessionBuilder({ open, session, onClose }: Readonly<SessionBuilderProps>) {
   const { t } = useTranslation();
   const { save, isSaving, error } = useSaveSession();
+  const removeSession = useDeleteSession();
   const { data: exercises } = useExercises({});
 
   const [title, setTitle] = useState(session?.title ?? "");
@@ -104,10 +106,21 @@ export function SessionBuilder({ open, session, onClose }: Readonly<SessionBuild
     onClose();
   }
 
-  const errorMessage = error instanceof ApiError ? error.message : null;
+  const saveErrorMessage = error instanceof ApiError ? error.message : null;
+  const deleteError = removeSession.error;
+  const deleteErrorMessage = deleteError instanceof ApiError ? deleteError.message : null;
+  const errorMessage = saveErrorMessage ?? deleteErrorMessage;
+
   const isEditing = session != null;
+  const isBusy = isSaving || removeSession.isPending;
   const submitLabelKey = isEditing ? "library.session.submitEdit" : "library.session.submitCreate";
   const submitLabel = isSaving ? t("library.session.submitting") : t(submitLabelKey);
+
+  function onDelete() {
+    if (session == null) return;
+    // `mutate` (et non mutateAsync) : l'erreur atterrit dans removeSession.error, pas en rejet.
+    removeSession.mutate(session.id, { onSuccess: onClose });
+  }
 
   const search = pickerSearch.trim().toLowerCase();
   const pickable = (exercises ?? []).filter((exercise) =>
@@ -123,10 +136,20 @@ export function SessionBuilder({ open, session, onClose }: Readonly<SessionBuild
       onClose={onClose}
       footer={
         <>
-          <CmvButton variant="ghost" onClick={onClose} disabled={isSaving}>
+          {isEditing ? (
+            <CmvConfirmButton
+              label={t("library.session.deleteSession")}
+              confirmLabel={t("common.confirmDelete")}
+              cancelLabel={t("common.cancel")}
+              disabled={isBusy}
+              onConfirm={onDelete}
+            />
+          ) : null}
+          <div className="flex-1" />
+          <CmvButton variant="ghost" onClick={onClose} disabled={isBusy}>
             {t("library.session.cancel")}
           </CmvButton>
-          <CmvButton type="submit" onClick={onSubmit} disabled={isSaving || !title.trim()}>
+          <CmvButton type="submit" onClick={onSubmit} disabled={isBusy || !title.trim()}>
             {submitLabel}
           </CmvButton>
         </>

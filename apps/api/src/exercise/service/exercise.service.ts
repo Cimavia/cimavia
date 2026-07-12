@@ -1,10 +1,11 @@
-import type {
-  CreateExerciseInput,
-  ExerciseCategory,
-  ExerciseDto,
-  UpdateExerciseInput,
+import {
+  type CreateExerciseInput,
+  DocumentType,
+  type ExerciseCategory,
+  type ExerciseDto,
+  type UpdateExerciseInput,
 } from "@cmv/shared";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -105,7 +106,26 @@ export class ExerciseService {
   }
 
   async delete(id: string): Promise<void> {
-    await this.getOwnedOrThrow(id);
+    const exercise = await this.getOwnedOrThrow(id);
+
+    // SessionExercise.exercise est en onDelete: Restrict — la bibliothèque ne doit pas se vider
+    // sous les séances qui s'en servent. On renvoie un 409 explicite plutôt que de laisser
+    // remonter une violation de clé étrangère (500), et le client peut afficher le pourquoi.
+    const usedInSessions = await this.db.sessionExercise.count({ where: { exerciseId: id } });
+    if (usedInSessions > 0) {
+      throw new ConflictException(
+        `Exercice utilisé dans ${usedInSessions} séance(s) : retirez-le d'abord de ces séances`,
+      );
+    }
+
+    // Les lignes ExerciseDocument partent en cascade, mais PAS les objets en storage :
+    // on les supprime explicitement d'abord, sinon ils resteraient orphelins (et facturés).
+    for (const document of exercise.documents) {
+      if (document.type === DocumentType.FILE && document.storagePath != null) {
+        await this.storage.deleteObject(document.storagePath);
+      }
+    }
+
     await this.db.exercise.delete({ where: { id } });
   }
 }

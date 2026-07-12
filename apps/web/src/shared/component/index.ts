@@ -2,6 +2,7 @@ export { CmvBadge } from "./CmvBadge";
 export { CmvBox } from "./CmvBox";
 export { CmvButton } from "./CmvButton";
 export { CmvCard } from "./CmvCard";
+export { CmvConfirmButton } from "./CmvConfirmButton";
 export { CmvEmptyState } from "./CmvEmptyState";
 export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";

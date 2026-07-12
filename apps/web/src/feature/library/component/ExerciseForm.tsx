@@ -8,6 +8,7 @@ import {
 import { type ChangeEvent, type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ACCEPTED_DOCUMENT_ATTR, EXERCISE_CATEGORIES } from "@/feature/library/constant";
+import { useDeleteExercise } from "@/feature/library/hook/useExercises";
 import {
   type PendingFile,
   useDeleteDocument,
@@ -16,6 +17,7 @@ import {
 import {
   CmvBadge,
   CmvButton,
+  CmvConfirmButton,
   CmvPanel,
   CmvProgressBar,
   CmvSegmented,
@@ -34,6 +36,7 @@ export function ExerciseForm({ open, exercise, onClose }: Readonly<ExerciseFormP
   const { t } = useTranslation();
   const { save, isSaving, error, progress } = useSaveExercise();
   const removeDocument = useDeleteDocument();
+  const removeExercise = useDeleteExercise();
 
   const [title, setTitle] = useState(exercise?.title ?? "");
   const [description, setDescription] = useState(exercise?.description ?? "");
@@ -86,13 +89,25 @@ export function ExerciseForm({ open, exercise, onClose }: Readonly<ExerciseFormP
     onClose();
   }
 
-  const errorMessage = error instanceof ApiError ? error.message : null;
+  const saveErrorMessage = error instanceof ApiError ? error.message : null;
+  // 409 si l'exercice est utilisé dans une séance → message de l'API affiché tel quel.
+  const deleteError = removeExercise.error;
+  const deleteErrorMessage = deleteError instanceof ApiError ? deleteError.message : null;
+  const errorMessage = saveErrorMessage ?? deleteErrorMessage;
+
   const isEditing = exercise != null;
+  const isBusy = isSaving || removeExercise.isPending;
 
   const submitLabelKey = isEditing
     ? "library.exercise.submitEdit"
     : "library.exercise.submitCreate";
   const submitLabel = isSaving ? t("library.exercise.submitting") : t(submitLabelKey);
+
+  function onDelete() {
+    if (exercise == null) return;
+    // `mutate` (et non mutateAsync) : l'erreur atterrit dans removeExercise.error, pas en rejet.
+    removeExercise.mutate(exercise.id, { onSuccess: onClose });
+  }
 
   return (
     <CmvPanel
@@ -102,10 +117,20 @@ export function ExerciseForm({ open, exercise, onClose }: Readonly<ExerciseFormP
       onClose={onClose}
       footer={
         <>
-          <CmvButton variant="ghost" onClick={onClose} disabled={isSaving}>
+          {isEditing ? (
+            <CmvConfirmButton
+              label={t("library.exercise.deleteExercise")}
+              confirmLabel={t("common.confirmDelete")}
+              cancelLabel={t("common.cancel")}
+              disabled={isBusy}
+              onConfirm={onDelete}
+            />
+          ) : null}
+          <div className="flex-1" />
+          <CmvButton variant="ghost" onClick={onClose} disabled={isBusy}>
             {t("library.exercise.cancel")}
           </CmvButton>
-          <CmvButton type="submit" onClick={onSubmit} disabled={isSaving || !title.trim()}>
+          <CmvButton type="submit" onClick={onSubmit} disabled={isBusy || !title.trim()}>
             {submitLabel}
           </CmvButton>
         </>

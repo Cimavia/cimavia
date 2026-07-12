@@ -366,4 +366,27 @@ describe("Composition & isolation des séances (P2)", () => {
   it("un athlète n'a aucun accès aux séances (route coach)", async () => {
     expect((await athlete.get("/sessions")).status).toBe(403);
   });
+
+  // SessionExercise.exercise est en onDelete: Restrict → sans garde applicative, la suppression
+  // remonterait une violation de clé étrangère (500) au lieu d'un refus explicite.
+  it("supprimer un exercice utilisé dans une séance est refusé (409), puis autorisé une fois retiré", async () => {
+    // exA2 est encore dans la séance (replace-all précédent).
+    const conflict = await coachA.delete(`/exercises/${exA2}`);
+    expect(conflict.status).toBe(409);
+
+    // On vide la composition → l'exercice n'est plus référencé.
+    const emptied = await coachA
+      .put(`/sessions/${sessionAId}`)
+      .send({ title: "Bloc force max (v2)", notes: null, exercises: [] });
+    expect(emptied.status).toBe(200);
+
+    expect((await coachA.delete(`/exercises/${exA2}`)).status).toBe(204);
+  });
+
+  it("supprimer une séance est possible et laisse les exercices intacts", async () => {
+    expect((await coachA.delete(`/sessions/${sessionAId}`)).status).toBe(204);
+    expect((await coachA.get("/sessions")).body).toHaveLength(0);
+    // exA1 n'était plus dans la séance mais existe toujours en bibliothèque.
+    expect((await coachA.get(`/exercises/${exA1}`)).status).toBe(200);
+  });
 });
