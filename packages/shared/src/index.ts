@@ -121,14 +121,17 @@ export type { Locale as LocaleType } from "./locale";
 export { Locale } from "./locale";
 export type { Role as RoleType } from "./role";
 export { Role } from "./role";
-export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
 export {
   DAYS_PER_WEEK,
   daysBetweenIsoDates,
-  isDateInPlanWeek,
+  isIsoDate,
   isMondayIsoDate,
+  shiftIsoDate,
+} from "./util/date.util";
+export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
+export {
+  isDateInPlanWeek,
   planEndDate,
   planWeekRange,
   selectCurrentPlan,
-  shiftIsoDate,
 } from "./util/plan.util";

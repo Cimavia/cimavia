@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
-import { isMondayIsoDate } from "../util/plan.util";
+import { isMondayIsoDate } from "../util/date.util";
 import {
   EXERCISE_DESCRIPTION_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,

@@ -1,13 +1,7 @@
-// Logique pure des dates de planification, partagée API ↔ web ↔ mobile.
-// Une date de planif est une date CIVILE ("YYYY-MM-DD") : ni heure, ni fuseau. Tout est calculé
-// en UTC pour qu'un lundi reste le même lundi, que le device soit à Paris ou à Denver.
-// Toute entrée invalide retourne `null` — jamais une date de repli (règle dure n°5).
+// Logique pure des planifications (cycle → semaines → séances), partagée API ↔ web ↔ mobile.
+// S'appuie sur le calendrier générique (date.util) : ici, seule la notion de CYCLE est traitée.
 
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const MONDAY = 1;
-
-export const DAYS_PER_WEEK = 7;
+import { DAYS_PER_WEEK, isIsoDate, shiftIsoDate } from "./date.util";
 
 // Une semaine de plan, bornes incluses (lundi → dimanche).
 export type PlanWeekRange = { startDate: string; endDate: string };
@@ -15,41 +9,9 @@ export type PlanWeekRange = { startDate: string; endDate: string };
 // Le minimum pour situer un plan dans le temps : sa date de début et son nombre de semaines.
 export type PlanPeriod = { startDate: string; weekCount: number };
 
-function parseIsoDate(isoDate: string): Date | null {
-  if (!ISO_DATE_PATTERN.test(isoDate)) return null;
-  const time = Date.parse(`${isoDate}T00:00:00Z`);
-  if (Number.isNaN(time)) return null;
-  const date = new Date(time);
-  // Date.parse REPORTE une date inexistante au lieu de la refuser (2026-02-31 → 2026-03-03) :
-  // seul l'aller-retour la démasque.
-  return toIsoDate(date) === isoDate ? date : null;
-}
-
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-export function shiftIsoDate(isoDate: string, days: number): string | null {
-  const date = parseIsoDate(isoDate);
-  if (date == null || !Number.isInteger(days)) return null;
-  return toIsoDate(new Date(date.getTime() + days * MS_PER_DAY));
-}
-
-// Nombre de jours de `from` à `to` (négatif si `to` précède `from`).
-export function daysBetweenIsoDates(from: string, to: string): number | null {
-  const start = parseIsoDate(from);
-  const end = parseIsoDate(to);
-  if (start == null || end == null) return null;
-  return Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
-}
-
-// Un Plan démarre un lundi : la semaine 1 couvre alors un vrai lundi→dimanche, et la plage
-// d'une semaine se déduit du seul `startDate` (pas de date stockée sur PlanWeek).
-export function isMondayIsoDate(isoDate: string): boolean {
-  return parseIsoDate(isoDate)?.getUTCDay() === MONDAY;
-}
-
-// Plage de la semaine `weekNumber` (1-based) d'un plan démarrant à `planStartDate`.
+// Plage de la semaine `weekNumber` (1-based) d'un plan démarrant à `planStartDate` (un lundi,
+// contrainte portée par planStartDateSchema) : aucune date n'est stockée sur PlanWeek, elle se
+// déduit du seul `startDate` du plan → pas de dérive possible entre les deux.
 export function planWeekRange(planStartDate: string, weekNumber: number): PlanWeekRange | null {
   if (!Number.isInteger(weekNumber) || weekNumber < 1) return null;
   const startDate = shiftIsoDate(planStartDate, (weekNumber - 1) * DAYS_PER_WEEK);
@@ -69,8 +31,7 @@ export function planEndDate(planStartDate: string, weekCount: number): string | 
 // d'une séance planifiée, côté API — et réutilisable par le client pour désactiver les jours.)
 export function isDateInPlanWeek(planStartDate: string, weekNumber: number, date: string): boolean {
   const range = planWeekRange(planStartDate, weekNumber);
-  if (range == null || parseIsoDate(date) == null) return false;
-  // Les dates ISO se comparent lexicographiquement (format à largeur fixe).
+  if (range == null || !isIsoDate(date)) return false;
   return date >= range.startDate && date <= range.endDate;
 }
 
@@ -84,11 +45,11 @@ export function selectCurrentPlan<T extends PlanPeriod>(
   plans: readonly T[],
   today: string,
 ): T | null {
-  if (parseIsoDate(today) == null) return null;
+  if (!isIsoDate(today)) return null;
 
   const dated = plans.flatMap((plan) => {
     const endDate = planEndDate(plan.startDate, plan.weekCount);
-    if (endDate == null || parseIsoDate(plan.startDate) == null) return [];
+    if (endDate == null) return [];
     return [{ plan, endDate }];
   });
 
