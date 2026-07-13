@@ -6,14 +6,11 @@ import type {
 } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Exercise, Prisma } from "@prisma/client";
-import type { TenantPrisma } from "../../tenancy/tenancy.extension";
+import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 
 // La séance avec ses exercices composés (positions), ordonnés.
 type SessionWithExercises = Prisma.SessionGetPayload<{ include: { exercises: true } }>;
-
-// Client de transaction interactive (extension tenant appliquée à l'intérieur).
-type Tx = Parameters<Parameters<TenantPrisma["$transaction"]>[0]>[0];
 
 @Injectable()
 export class SessionService {
@@ -114,7 +111,7 @@ export class SessionService {
 
   // Insère la composition ordonnée : la position = l'ordre du tableau (coachId injecté).
   private async replaceExercises(
-    tx: Tx,
+    tx: TenantTx,
     sessionId: string,
     exercises: SessionExerciseInput[],
   ): Promise<void> {

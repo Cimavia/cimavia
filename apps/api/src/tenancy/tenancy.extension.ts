@@ -127,3 +127,10 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
 }
 
 export type TenantPrisma = ReturnType<typeof createTenantPrisma>;
+
+/**
+ * Client d'une transaction interactive (`db.$transaction(async (tx) => …)`). L'extension tenant
+ * s'applique AUSSI à l'intérieur : `tx` scope donc comme `db`. Type dérivé du client plutôt que
+ * réécrit dans chaque service — sinon la signature diverge au premier changement d'extension.
+ */
+export type TenantTx = Parameters<Parameters<TenantPrisma["$transaction"]>[0]>[0];
