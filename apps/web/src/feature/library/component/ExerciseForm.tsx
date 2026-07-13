@@ -24,7 +24,7 @@ import {
   CmvTextArea,
   CmvTextField,
 } from "@/shared/component";
-import { ApiError } from "@/shared/lib/api";
+import { apiErrorMessage } from "@/shared/lib/api";
 
 type ExerciseFormProps = {
   open: boolean;
@@ -89,11 +89,8 @@ export function ExerciseForm({ open, exercise, onClose }: Readonly<ExerciseFormP
     onClose();
   }
 
-  const saveErrorMessage = error instanceof ApiError ? error.message : null;
   // 409 si l'exercice est utilisé dans une séance → message de l'API affiché tel quel.
-  const deleteError = removeExercise.error;
-  const deleteErrorMessage = deleteError instanceof ApiError ? deleteError.message : null;
-  const errorMessage = saveErrorMessage ?? deleteErrorMessage;
+  const errorMessage = apiErrorMessage(error) ?? apiErrorMessage(removeExercise.error);
 
   const isEditing = exercise != null;
   const isBusy = isSaving || removeExercise.isPending;

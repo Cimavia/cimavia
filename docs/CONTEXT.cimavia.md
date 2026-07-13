@@ -41,14 +41,18 @@ Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement
 ## Entraînement
 
 ### Exercise
-Brique de la bibliothèque du coach (titre, description, catégorie : renfo / grimpe / technique). Peut porter des **documents** joints (PDF / image / lien). Scopé au coach.
+Brique de la bibliothèque du coach : `title`, `description` (nullable), `category` ∈ **`RENFO` | `GRIMPE` | `TECHNIQUE`**. Peut porter des **documents** joints. Scopé au coach (`coachId`). Réutilisable dans plusieurs `Session`.
 
 ### Document
-Pièce jointe d'un `Exercise` (ou d'une séance), stockée en **object storage** (bucket privé, URL signée). Jamais le binaire en BDD.
+Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
+- **`FILE`** — fichier en **object storage** (bucket privé) : PDF / PNG / JPEG / WEBP, **20 Mo max**. Jamais le binaire en BDD ; upload direct client → storage par **URL PUT signée**, lecture par **URL GET signée** courte.
+- **`LINK`** — URL externe (ex. vidéo). Aucun fichier stocké.
 
 ### Session (séance) — modèle vs instance
-- **Modèle** : séance réutilisable = liste ordonnée d'`Exercise` + consignes globales. Vit dans la bibliothèque du coach.
-- **Instance** (`ScheduledSession`) : **copie éditable** d'un modèle, posée dans une planification. La modifier ne touche **pas** la bibliothèque. C'est le seam qui permet d'ajuster une séance pour un athlète sans casser les modèles.
+- **Modèle** (`Session`) : séance réutilisable = liste **ordonnée** de `SessionExercise` (`position`, `prescription` nullable) + `notes` (consignes globales, nullable). Vit dans la bibliothèque du coach. La composition se met à jour en **replace-all** (`PUT`) : l'ordre du tableau **définit** les positions.
+- **Instance** (`ScheduledSession`) : **copie éditable** d'un modèle, posée dans une planification (P3). La modifier ne touche **pas** la bibliothèque. C'est le seam qui permet d'ajuster une séance pour un athlète sans casser les modèles.
+
+> ⚠️ **Nommage** : Better Auth possède déjà une table de sessions d'authentification. Son modèle Prisma a été renommé **`AuthSession`** (table `session` conservée via `@@map`, remap par `session.modelName`) pour laisser le nom **`Session`** à l'entité métier séance (table `sessions`). Ne pas confondre les deux dans le code.
 
 ### Plan (planification)
 Cycle d'entraînement créé par le coach pour un athlète. **Nombre de semaines libre**. Statut `DRAFT` → `PUBLISHED` ; à la publication, notification push à l'athlète.
@@ -81,7 +85,8 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 
 - **Invariant** : 1 `Athlete` = exactement 1 `Coach`. 1 `Coach` = N `Athlete`.
 - Presque toute entité (`Plan`, `Session`, `SessionFeedback`, `Conversation`, `Invoice`, `AthleteProfile`…) est **scopée à la relation `CoachAthlete`**.
-- L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant.
+- La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3).
+- L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant (dont les **pièges du scope automatique** : `include` imbriqués non scopés, FK non contraintes par le tenant).
 
 ---
 

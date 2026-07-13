@@ -7,33 +7,27 @@ import {
   type UploadUrlDto,
 } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Exercise, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { SIGNED_URL_TTL_SECONDS, StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toExerciseDocumentDto } from "../exercise-document.mapper";
+import { ExerciseService } from "./exercise.service";
 
 @Injectable()
 export class ExerciseDocumentService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly storage: StorageService,
+    // Le contrôle d'appartenance de l'exercice parent vit dans ExerciseService (source unique).
+    private readonly exercises: ExerciseService,
   ) {}
-
-  // Confirme que l'exercice appartient au coach courant (scope coachId), sinon 404.
-  private async getOwnedExercise(exerciseId: string): Promise<Exercise> {
-    const exercise = await this.db.exercise.findFirst({ where: { id: exerciseId } });
-    if (exercise == null) {
-      throw new NotFoundException("Exercice introuvable");
-    }
-    return exercise;
-  }
 
   // Étape 1 : URL PUT signée pour uploader un fichier directement vers l'object storage.
   // Type MIME et taille max sont validés en amont par `requestUploadUrlSchema` (@cmv/shared,
   // pipe global) → une entrée non conforme n'atteint jamais ce service (400).
   async createUploadUrl(exerciseId: string, input: RequestUploadUrlInput): Promise<UploadUrlDto> {
-    const exercise = await this.getOwnedExercise(exerciseId);
+    const exercise = await this.exercises.getOwnedOrThrow(exerciseId);
     const storagePath = buildDocumentKey(exercise.coachId, exerciseId, input.fileName);
     const uploadUrl = await this.storage.createUploadUrl(storagePath, input.mimeType);
     return { uploadUrl, storagePath, expiresIn: SIGNED_URL_TTL_SECONDS };
@@ -41,7 +35,7 @@ export class ExerciseDocumentService {
 
   // Étape 2 : rattacher le document (après upload pour un FILE, ou lien externe pour un LINK).
   async attach(exerciseId: string, input: AttachDocumentInput): Promise<ExerciseDocumentDto> {
-    await this.getOwnedExercise(exerciseId);
+    await this.exercises.getOwnedOrThrow(exerciseId);
     // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast final.
     const data: Omit<Prisma.ExerciseDocumentUncheckedCreateInput, "coachId"> =
       input.type === DocumentType.FILE

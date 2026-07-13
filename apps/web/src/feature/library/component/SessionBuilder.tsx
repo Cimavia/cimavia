@@ -12,7 +12,7 @@ import {
   CmvTextArea,
   CmvTextField,
 } from "@/shared/component";
-import { ApiError } from "@/shared/lib/api";
+import { apiErrorMessage } from "@/shared/lib/api";
 
 // Ligne de composition en cours d'édition. `key` est une clé locale stable (un même exercice
 // peut figurer plusieurs fois dans une séance — l'exerciseId ne suffit donc pas).
@@ -106,10 +106,7 @@ export function SessionBuilder({ open, session, onClose }: Readonly<SessionBuild
     onClose();
   }
 
-  const saveErrorMessage = error instanceof ApiError ? error.message : null;
-  const deleteError = removeSession.error;
-  const deleteErrorMessage = deleteError instanceof ApiError ? deleteError.message : null;
-  const errorMessage = saveErrorMessage ?? deleteErrorMessage;
+  const errorMessage = apiErrorMessage(error) ?? apiErrorMessage(removeSession.error);
 
   const isEditing = session != null;
   const isBusy = isSaving || removeSession.isPending;

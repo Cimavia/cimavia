@@ -32,8 +32,15 @@ Un module par domaine métier : `auth/`, `account/` (users, rôles, relation coa
 - **Une seule instance `PrismaClient`**, partagée (et étendue, cf. §5). Adapter `@prisma/adapter-pg`.
 - Pas de SQL brut hors migrations. `prisma migrate dev` doit fonctionner (BDD MVP = Neon free, Prisma-natif — ne pas réintroduire une BDD qui casse le shadow database).
 
+### Configuration de l'app — **`app.setup.ts` (point unique)**
+Tout ce qui configure l'app HTTP (pipe de validation global, CORS…) vit dans **`configureApp(app)`**, appelé par `main.ts` **ET** par les tests e2e.
+
+> **Pourquoi c'est une règle et pas un détail** : `Test.createTestingModule()` **n'exécute pas `main.ts`**. Tout comportement câblé uniquement là (validation, CORS) est **absent des tests** — l'API testée n'est alors pas celle qui tourne en prod. Deux bugs réels en P2 : la validation Zod inactive en e2e, et un CORS refusant `PUT`/`PATCH`/`DELETE` en preflight (invisible en supertest, qui n'émet pas de preflight). Toute nouvelle config HTTP passe par `configureApp`, et est couverte par un e2e.
+
 ### Validation
 - Toute entrée HTTP validée par **Zod** (`@cmv/shared`). DTO = schéma Zod + type inféré, **partagés** front/back. Pas de DTO redéfini côté app.
+- **Les contraintes vivent dans le schéma**, pas dans le service : types MIME acceptés, tailles max, longueurs… Ainsi la règle est appliquée par le pipe (400 automatique) **et** réutilisable par le client (cf. `requestUploadUrlSchema`, `isAllowedDocumentMime`). Un contrôle réécrit dans un service est une duplication.
+- Schéma non portable par une classe DTO (**union discriminée**) → `@Body(new ZodSchemaPipe(schema))` par route (une classe ne peut pas étendre un type union).
 - `ConfigModule` + Zod valident l'environnement **au boot** : l'API refuse de démarrer si une variable manque/est mal typée.
 
 ### Observabilité
@@ -103,6 +110,13 @@ L'isolation des données est garantie **à la couche données**, pas par la seul
 - **Prisma Client Extension** : applique automatiquement le scope tenant à toute requête (filtre `where` par coach/athlète). Aucune query métier ne s'exécute sans scope.
 - **Conséquence** : un coach ne lit/écrit que SES athlètes ; un athlète que SES données. Toute nouvelle entité métier doit être rattachée au tenant.
 - **Tests** : e2e d'isolation obligatoires — vérifier qu'un coach A ne peut jamais accéder aux données d'un athlète du coach B.
+
+### Pièges du scope automatique (appris en P2 — à respecter pour toute entité)
+
+1. **Le champ tenant doit être DIRECT sur le modèle.** L'extension scope par un champ du modèle lui-même (`TENANT_SCOPES`). Les tables enfant (`ExerciseDocument`, `SessionExercise`) portent donc un **`coachId` dénormalisé** — on ne s'appuie pas sur le parent. Un modèle absent du registre est **refusé** (fail-closed).
+2. **Les `include` imbriqués ne sont PAS scopés.** L'extension n'intercepte que les opérations de **premier niveau** : un `include: { exercise: true }` lit la table jointe **sans filtre tenant**. Conséquence : ne jamais résoudre une donnée d'un autre modèle par un `include` — la charger par une **requête scopée séparée** (cf. `SessionService.loadExerciseMap`).
+3. **Les FK n'imposent pas le tenant.** Rien n'empêche en base de référencer l'`exerciseId` d'un autre coach. Toute référence entrante venant du client doit être **validée comme possédée** avant écriture (cf. `SessionService.assertExercisesOwned` → 400).
+4. **Les suppressions `Restrict` doivent être gardées côté applicatif.** Sinon la violation de FK remonte en 500 : préférer un **409 explicite** et actionnable (cf. suppression d'un exercice utilisé dans une séance).
 
 > Pas de RLS Postgres en MVP : tous les accès passent par Prisma, donc l'extension suffit et reste portable.
 

@@ -641,12 +641,16 @@
       },
     ];
 
-    // Avancement réel — P0 + PD (mis à jour manuellement, pas de persistance localStorage).
+    // Avancement réel (mis à jour manuellement, pas de persistance localStorage).
     // P0 = 16/16. Notes : p0-4 = GitLab flow opérationnel (branches main/staging/production +
     // rulesets : main push direct + signatures, staging/prod en PR + checks). p0-7 = SONAR_TOKEN
     // en place (CI verte) ; les autres secrets sont ajoutés phase par phase par design.
     // PD = 13/13 : maquettes livrées (Claude Design, docs/maquettes/) — voir docs/maquettes/README.md
     // pour le mapping écran↔tâche et les écarts MVP repérés (paiement intégré, temps réel, etc.).
+    // P1 = 9/9. P2 = 5/5. Note p2-2 : object storage = MinIO en dev local (docker-compose, aucun
+    // compte cloud requis) ; bascule Scaleway par variables S3_* — cf. architecture-choice.md §7.
+    // Dette technique assumée par phase : docs/dette-technique.md.
+    // Prochaine phase : P3 — Planifications.
     const checked = {
       "p0-1": true,
       "p0-2": true,
@@ -686,8 +690,13 @@
       "p1-7": true,
       "p1-8": true,
       "p1-9": true,
+      "p2-1": true,
+      "p2-2": true,
+      "p2-3": true,
+      "p2-4": true,
+      "p2-5": true,
     };
-    let openPhaseId = 'P0';
+    let openPhaseId = 'P3'; // phase en cours
     const totalTasks = phases.reduce((a, p) => a + p.categories.reduce((b, c) => b + c.tasks.length, 0), 0);
 
     function getDone() { return Object.values(checked).filter(Boolean).length; }

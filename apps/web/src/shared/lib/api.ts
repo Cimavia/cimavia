@@ -17,6 +17,10 @@ export class ApiError extends Error {
   }
 }
 
+export function apiErrorMessage(error: unknown): string | null {
+  return error instanceof ApiError ? error.message : null;
+}
+
 // Corps d'erreur NestJS : `message` vaut soit une string, soit la liste des erreurs Zod.
 type NestErrorBody = { message?: string | ApiFieldError[]; error?: string };
 

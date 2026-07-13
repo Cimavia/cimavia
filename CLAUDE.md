@@ -14,7 +14,8 @@ Contexte auto-chargé par Claude Code. Garder **court et à jour** : toute déri
 - `CONTEXT.cimavia.md` — **glossaire métier** (termes canoniques : Coach, Athlete, Session, Plan, Feedback…). Utiliser ces termes tels quels.
 - `architecture-choice.md` — **règles & conventions** d'archi (à respecter pour toute feature).
 - `cahier-des-charges-mvp.md` — périmètre MVP (MoSCoW, modèle de données, non-fonctionnel).
-- `dev-plan` (HTML) — plan en 8 phases P0→P7.
+- `dev-plan` (HTML) — plan en 8 phases P0→P7 ; l'avancement réel est l'objet `checked` (mis à jour à la main en fin de phase).
+- `dette-technique.md` — **raccourcis assumés** par phase. Tout raccourci pris s'y ajoute **au moment où on le prend** (raison + déclencheur de résolution).
 
 ## Monorepo
 

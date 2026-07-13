@@ -46,8 +46,12 @@ export class ExerciseService {
     };
   }
 
-  // Charge un exercice du coach courant, ou lève 404 (scope coachId appliqué par le tenancy layer).
-  private async getOwnedOrThrow(id: string): Promise<ExerciseWithDocuments> {
+  /**
+   * Charge un exercice du coach courant, ou lève 404 (scope coachId appliqué par le tenancy layer).
+   * Public : `ExerciseDocumentService` s'appuie dessus — un seul contrôle d'appartenance,
+   * un seul message, pas deux implémentations à garder en phase.
+   */
+  async getOwnedOrThrow(id: string): Promise<ExerciseWithDocuments> {
     const exercise = await this.db.exercise.findFirst({
       where: { id },
       include: { documents: true },
