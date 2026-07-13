@@ -42,6 +42,10 @@ model User {
   exercises     Exercise[] @relation("CoachExercises") // exercices du coach
   coachSessions Session[]  @relation("CoachSessions") // séances (modèles) du coach
 
+  // Métier — planifications (P3) : premier objet lu par les DEUX rôles.
+  coachPlans   Plan[] @relation("CoachPlans") // planifs écrites par le coach
+  athletePlans Plan[] @relation("AthletePlans") // planifs reçues par l'athlète
+
   @@map("user")
 }
 
@@ -190,6 +194,9 @@ model Exercise {
 
   documents        ExerciseDocument[]
   sessionExercises SessionExercise[]
+  // Copies posées dans des planifications (P3) : SetNull → la suppression d'un exercice de la
+  // bibliothèque ne casse JAMAIS une planif (l'instance garde son snapshot titre/description).
+  scheduledCopies  ScheduledSessionExercise[]
 
   @@index([coachId])
   @@map("exercise")
@@ -222,6 +229,8 @@ model Session {
   updatedAt DateTime @updatedAt
 
   exercises SessionExercise[]
+  // Instances posées dans des planifications (P3) : SetNull, même raison que Exercise.
+  instances ScheduledSession[]
 
   @@index([coachId])
   // Exception au singulier (convention repo) : `session` est déjà pris par la table auth.
@@ -243,4 +252,158 @@ model SessionExercise {
   @@index([coachId])
   @@index([exerciseId])
   @@map("session_exercise")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Métier — planifications (P3).
+// Le Plan est le PREMIER objet lu par les deux rôles : chaque table porte donc `coachId` ET
+// `athleteId` en direct (le tenancy extension scope par un champ du modèle lui-même). Le
+// scope athlète ne suffit pas à lui seul : un plan DRAFT lui reste invisible grâce au filtre
+// `status: PUBLISHED` appliqué par le service athlète — voir PlanService.
+//
+// Une séance planifiée est une COPIE FIGÉE d'un modèle de séance, pas une référence :
+// titre/consignes/exercices (titre, description, catégorie, prescription) et les documents
+// sont dupliqués à l'instanciation. Les liens `source*` sont donc nullables (`SetNull`) et ne
+// servent qu'à la traçabilité — la bibliothèque du coach reste librement modifiable et
+// supprimable sans jamais dégrader une planif déjà diffusée.
+//
+// Les documents copiés PARTAGENT la clé objet S3 de l'original (aucune duplication de binaire) :
+// la suppression d'un document/exercice de la bibliothèque ne purge donc l'objet que s'il n'est
+// plus référencé par une copie (garde de comptage côté service).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PlanStatus {
+  DRAFT // en construction — invisible de l'athlète
+  PUBLISHED // diffusée — visible de l'athlète, notification envoyée
+}
+
+enum PlanWeekType {
+  TRAINING
+  DELOAD // décharge
+}
+
+enum ScheduledSessionStatus {
+  PLANNED // posée par le coach (état initial et seul état écrit en P3)
+  DONE // transition portée par le débrief (P4)
+  SKIPPED
+}
+
+model Plan {
+  id          String     @id @default(cuid())
+  coachId     String
+  coach       User       @relation("CoachPlans", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId   String
+  athlete     User       @relation("AthletePlans", fields: [athleteId], references: [id], onDelete: Cascade)
+  title       String
+  description String? // description du cycle — nullable, pas de fallback
+  // Date civile (pas d'horaire, pas de fuseau) : toujours un LUNDI (planStartDateSchema).
+  // Les dates des semaines s'en déduisent (planWeekRange) — rien n'est stocké sur PlanWeek.
+  startDate   DateTime   @db.Date
+  status      PlanStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  weeks             PlanWeek[]
+  scheduledSessions ScheduledSession[]
+
+  @@index([coachId])
+  @@index([athleteId, status]) // lecture athlète : ses plans diffusés
+  @@map("plan")
+}
+
+model PlanWeek {
+  id         String       @id @default(cuid())
+  // coachId/athleteId recopiés du Plan parent : l'extension tenant filtre par un champ du
+  // modèle INTERROGÉ (`where: { coachId }`), elle ne sait pas remonter la relation
+  // (`where: { plan: { coachId } }`). Sans ces colonnes, la semaine serait non scopable.
+  // L'extension les injecte elle-même à la création — aucun service ne les renseigne.
+  coachId    String
+  athleteId  String
+  planId     String
+  plan       Plan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  weekNumber Int // 1-based ; nombre de semaines LIBRE (CDC §5.4)
+  type       PlanWeekType
+  note       String? // note de semaine — nullable
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  sessions ScheduledSession[]
+
+  @@unique([planId, weekNumber])
+  @@index([coachId])
+  @@index([athleteId])
+  @@map("plan_week")
+}
+
+model ScheduledSession {
+  id              String                 @id @default(cuid())
+  coachId         String
+  athleteId       String
+  planId          String
+  plan            Plan                   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planWeekId      String
+  planWeek        PlanWeek               @relation(fields: [planWeekId], references: [id], onDelete: Cascade)
+  sourceSessionId String? // modèle d'origine — traçabilité seule
+  sourceSession   Session?               @relation(fields: [sourceSessionId], references: [id], onDelete: SetNull)
+  title           String // copié du modèle, puis éditable
+  notes           String? // consignes globales — nullable
+  scheduledDate   DateTime               @db.Date // dans la plage de sa semaine (invariant service)
+  position        Int // ordre dans la journée (0-based)
+  status          ScheduledSessionStatus @default(PLANNED)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  exercises ScheduledSessionExercise[]
+
+  @@unique([planWeekId, scheduledDate, position]) // plusieurs séances par jour, ordonnées
+  @@index([coachId])
+  @@index([athleteId, scheduledDate]) // vue semaine / liste des séances de l'athlète
+  @@index([planId])
+  @@index([sourceSessionId])
+  @@map("scheduled_session")
+}
+
+model ScheduledSessionExercise {
+  id                 String           @id @default(cuid())
+  coachId            String
+  athleteId          String
+  scheduledSessionId String
+  scheduledSession   ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
+  sourceExerciseId   String? // exercice d'origine — traçabilité seule
+  sourceExercise     Exercise?        @relation(fields: [sourceExerciseId], references: [id], onDelete: SetNull)
+  title              String // snapshot : l'affichage ne dépend jamais de sourceExercise
+  description        String?
+  category           ExerciseCategory
+  prescription       String? // prescription pour cet athlète — nullable
+  position           Int // ordre dans la séance (0-based)
+  createdAt          DateTime         @default(now())
+
+  documents ScheduledSessionExerciseDocument[]
+
+  @@unique([scheduledSessionId, position])
+  @@index([coachId])
+  @@index([athleteId])
+  @@index([sourceExerciseId])
+  @@map("scheduled_session_exercise")
+}
+
+model ScheduledSessionExerciseDocument {
+  id                         String                   @id @default(cuid())
+  coachId                    String
+  athleteId                  String // sans cette copie, l'athlète ne pourrait PAS lire les documents
+  scheduledSessionExerciseId String
+  scheduledSessionExercise   ScheduledSessionExercise @relation(fields: [scheduledSessionExerciseId], references: [id], onDelete: Cascade)
+  type                       DocumentType
+  storagePath                String? // MÊME clé objet que le document d'origine (type FILE)
+  url                        String? // lien externe (type LINK)
+  fileName                   String?
+  mimeType                   String?
+  createdAt                  DateTime                 @default(now())
+
+  @@index([coachId])
+  @@index([athleteId])
+  @@index([scheduledSessionExerciseId])
+  @@index([storagePath]) // garde de comptage avant purge d'un objet S3 encore référencé
+  @@map("scheduled_session_exercise_document")
 }
