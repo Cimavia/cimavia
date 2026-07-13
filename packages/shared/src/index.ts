@@ -55,6 +55,50 @@ export {
   invitationStatusSchema,
 } from "./dto/invitation.schema";
 export type {
+  CreatePlanInput,
+  CreateScheduledSessionInput,
+  PlanDto,
+  PlanStatus as PlanStatusType,
+  PlanSummaryDto,
+  PlanWeekDto,
+  PlanWeekInput,
+  PlanWeekType as PlanWeekTypeType,
+  ScheduledSessionDto,
+  ScheduledSessionExerciseDto,
+  ScheduledSessionExerciseInput,
+  ScheduledSessionStatus as ScheduledSessionStatusType,
+  ScheduledSessionSummaryDto,
+  UpdatePlanInput,
+  UpdatePlanWeekInput,
+  UpdateScheduledSessionInput,
+} from "./dto/plan.schema";
+export {
+  createPlanSchema,
+  createScheduledSessionSchema,
+  PLAN_DESCRIPTION_MAX_LENGTH,
+  PLAN_MAX_WEEKS,
+  PLAN_TITLE_MAX_LENGTH,
+  PLAN_WEEK_NOTE_MAX_LENGTH,
+  PlanStatus,
+  PlanWeekType,
+  planDtoSchema,
+  planStartDateSchema,
+  planStatusSchema,
+  planSummaryDtoSchema,
+  planWeekDtoSchema,
+  planWeekInputSchema,
+  planWeekTypeSchema,
+  ScheduledSessionStatus,
+  scheduledSessionDtoSchema,
+  scheduledSessionExerciseDtoSchema,
+  scheduledSessionExerciseInputSchema,
+  scheduledSessionStatusSchema,
+  scheduledSessionSummaryDtoSchema,
+  updatePlanSchema,
+  updatePlanWeekSchema,
+  updateScheduledSessionSchema,
+} from "./dto/plan.schema";
+export type {
   CreateSessionInput,
   SessionDto,
   SessionExerciseDto,
@@ -77,3 +121,14 @@ export type { Locale as LocaleType } from "./locale";
 export { Locale } from "./locale";
 export type { Role as RoleType } from "./role";
 export { Role } from "./role";
+export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
+export {
+  DAYS_PER_WEEK,
+  daysBetweenIsoDates,
+  isDateInPlanWeek,
+  isMondayIsoDate,
+  planEndDate,
+  planWeekRange,
+  selectCurrentPlan,
+  shiftIsoDate,
+} from "./util/plan.util";
