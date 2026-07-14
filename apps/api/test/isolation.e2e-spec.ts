@@ -100,11 +100,14 @@ describe("Isolation multi-tenant (P1)", () => {
     b1Id = acceptB.body.athleteId;
   });
 
-  it("un coach ne voit que SES athlètes", async () => {
+  it("un coach ne voit que SES athlètes, avec leur nom (pas un id opaque)", async () => {
     const res = await coachA.get("/athletes");
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].athleteId).toBe(a1Id);
+    // `signUp` inscrit le compte avec l'e-mail comme nom.
+    expect(res.body[0].athleteName).toBe("athlete-a1@cmv.test");
+    expect(res.body[0].coachName).toBe("coach-a@cmv.test");
   });
 
   it("un athlète lié voit SON coach ; un athlète autonome n'en a aucun", async () => {

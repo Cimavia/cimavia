@@ -19,6 +19,7 @@ import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toCoachAthleteDto } from "../coach-athlete.mapper";
 import { toInvitationDto } from "../invitation.mapper";
+import { UserDirectoryService } from "./user-directory.service";
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
@@ -29,6 +30,7 @@ export class InvitationService {
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     // Client de base (non scopé) : redemption = flux d'onboarding cross-tenant.
     private readonly prisma: PrismaService,
+    private readonly users: UserDirectoryService,
   ) {}
 
   // Coach : émet une invitation (code + expiration). coachId injecté par le tenancy layer.
@@ -94,6 +96,7 @@ export class InvitationService {
         },
       }),
     ]);
-    return toCoachAthleteDto(relation);
+    const names = await this.users.namesByIds([relation.coachId, relation.athleteId]);
+    return toCoachAthleteDto(relation, names);
   }
 }
