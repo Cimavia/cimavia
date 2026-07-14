@@ -15,6 +15,7 @@ import { ExerciseModule } from "./exercise/exercise.module";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { PrismaService } from "./infra/prisma/prisma.service";
+import { NotificationModule } from "./notification/notification.module";
 import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
 import { PlanModule } from "./plan/plan.module";
 import { SessionModule } from "./session/session.module";
@@ -74,6 +75,7 @@ function buildLogTargets(): TransportTargetOptions[] {
       }),
     }),
     TenancyModule,
+    NotificationModule,
     AccountModule,
     ExerciseModule,
     SessionModule,

@@ -4,11 +4,29 @@ import type { Prisma } from "@prisma/client";
 import { toIsoDate } from "../util/date.util";
 
 // Le plan en liste : pas de contenu, juste de quoi le situer (nb de semaines, nb de séances).
+export const PLAN_COUNTS_INCLUDE = {
+  _count: { select: { weeks: true, scheduledSessions: true } },
+} satisfies Prisma.PlanInclude;
+
 export type PlanWithCounts = Prisma.PlanGetPayload<{
   include: { _count: { select: { weeks: true; scheduledSessions: true } } };
 }>;
 
-// Le plan en détail : semaines ordonnées, séances ordonnées, nombre d'exercices par séance.
+// Le plan en détail : semaines ordonnées, séances ordonnées par jour puis par position dans la
+// journée, nombre d'exercices par séance. Forme rendue par l'API après chaque écriture.
+export const PLAN_DETAIL_INCLUDE = {
+  weeks: {
+    orderBy: { weekNumber: "asc" },
+    include: {
+      sessions: {
+        orderBy: [{ scheduledDate: "asc" }, { position: "asc" }],
+        include: { _count: { select: { exercises: true } } },
+      },
+    },
+  },
+  _count: { select: { weeks: true, scheduledSessions: true } },
+} satisfies Prisma.PlanInclude;
+
 export type PlanWithWeeks = Prisma.PlanGetPayload<{
   include: {
     weeks: { include: { sessions: { include: { _count: { select: { exercises: true } } } } } };

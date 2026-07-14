@@ -47,4 +47,11 @@ export class PlanController {
   addWeek(@Param("id") id: string, @Body() dto: AddPlanWeekDto) {
     return this.plans.addWeek(id, dto);
   }
+
+  // Diffusion : le cycle devient visible de l'athlète, qui reçoit une notification.
+  @Post(":id/publish")
+  @HttpCode(200)
+  publish(@Param("id") id: string) {
+    return this.plans.publish(id);
+  }
 }

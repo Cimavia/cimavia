@@ -8,6 +8,11 @@ import { configureApp } from "../src/app.setup";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
+  "scheduled_session_exercise_document",
+  "scheduled_session_exercise",
+  "scheduled_session",
+  "plan_week",
+  "plan",
   "session_exercise",
   "exercise_document",
   "sessions",
@@ -388,5 +393,252 @@ describe("Composition & isolation des séances (P2)", () => {
     expect((await coachA.get("/sessions")).body).toHaveLength(0);
     // exA1 n'était plus dans la séance mais existe toujours en bibliothèque.
     expect((await coachA.get(`/exercises/${exA1}`)).status).toBe(200);
+  });
+});
+
+// Le cycle démarre TOUJOURS un lundi (planStartDateSchema) : on prend celui de la semaine en
+// cours, pour que le plan diffusé soit bien le plan « courant » vu par l'athlète.
+function mondayOfCurrentWeek(): string {
+  const now = new Date();
+  const weekday = now.getUTCDay(); // 0 = dimanche
+  const toMonday = weekday === 0 ? -6 : 1 - weekday;
+  const monday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + toMonday),
+  );
+  return monday.toISOString().slice(0, 10);
+}
+
+describe("Planifications : diffusion & isolation (P3)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let athleteA1: Agent;
+  let athleteB1: Agent;
+  let a1Id: string;
+  let b1Id: string;
+  let exerciseAId: string;
+  let exerciseBId: string;
+  let templateId: string;
+  let planId: string;
+  let week1Id: string;
+  let week2Id: string;
+  let scheduledId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  // Lie un athlète à un coach par invitation et retourne son id.
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return accepted.body.athleteId;
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("plan-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("plan-coach-b@cmv.test", Role.COACH);
+    athleteA1 = await signUp("plan-athlete-a1@cmv.test", Role.ATHLETE);
+    athleteB1 = await signUp("plan-athlete-b1@cmv.test", Role.ATHLETE);
+
+    a1Id = await link(coachA, athleteA1);
+    b1Id = await link(coachB, athleteB1);
+
+    // Bibliothèque du coach A : un exercice documenté, composé dans une séance modèle.
+    const exercise = await coachA
+      .post("/exercises")
+      .send({ title: "Tractions lestées", description: "Prise large", category: "RENFO" });
+    exerciseAId = exercise.body.id;
+    await coachA
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ type: "LINK", url: "https://youtu.be/demo" });
+
+    const template = await coachA.post("/sessions").send({
+      title: "Bloc force max",
+      notes: "Repos 3 min.",
+      exercises: [{ exerciseId: exerciseAId, prescription: "5×5" }],
+    });
+    templateId = template.body.id;
+
+    const exerciseB = await coachB.post("/exercises").send({ title: "Chez B", category: "GRIMPE" });
+    exerciseBId = exerciseB.body.id;
+  });
+
+  it("crée un cycle avec ses semaines (type training/deload, nombre libre)", async () => {
+    const res = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle bloc — automne",
+      description: "Montée en charge puis décharge.",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "DELOAD", note: "volume -40 %" }],
+    });
+    expect(res.status).toBe(201);
+    planId = res.body.id;
+    week1Id = res.body.weeks[0].id;
+    week2Id = res.body.weeks[1].id;
+
+    expect(res.body.status).toBe("DRAFT");
+    expect(res.body.weekCount).toBe(2);
+    // Les bornes de semaine sont CALCULÉES à partir du lundi de départ (rien n'est stocké).
+    expect(res.body.weeks[0].startDate).toBe(monday);
+    expect(res.body.weeks[1].weekNumber).toBe(2);
+    expect(res.body.weeks[1].type).toBe("DELOAD");
+  });
+
+  it("refuse un cycle qui ne démarre pas un lundi, ou pour l'athlète d'un autre coach", async () => {
+    const notMonday = await coachA
+      .post("/plans")
+      .send({ athleteId: a1Id, title: "x", startDate: "2026-07-14" }); // mardi
+    expect(notMonday.status).toBe(400);
+
+    const otherAthlete = await coachA
+      .post("/plans")
+      .send({ athleteId: b1Id, title: "Intrusion", startDate: monday });
+    expect(otherAthlete.status).toBe(400);
+  });
+
+  it("instancie une séance : la composition et les documents sont COPIÉS du modèle", async () => {
+    const res = await coachA
+      .post(`/plan-weeks/${week1Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: monday });
+    expect(res.status).toBe(201);
+    scheduledId = res.body.id;
+
+    expect(res.body.title).toBe("Bloc force max");
+    expect(res.body.exercises).toHaveLength(1);
+    expect(res.body.exercises[0]).toMatchObject({
+      sourceExerciseId: exerciseAId,
+      title: "Tractions lestées",
+      category: "RENFO",
+      prescription: "5×5",
+      position: 0,
+    });
+    // Le document de l'exercice suit la copie : sans lui, l'athlète n'y aurait aucun accès.
+    expect(res.body.exercises[0].documents).toHaveLength(1);
+    expect(res.body.exercises[0].documents[0].url).toBe("https://youtu.be/demo");
+  });
+
+  it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {
+    const outOfWeek = await coachA
+      .post(`/plan-weeks/${week1Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: "2027-01-04" });
+    expect(outOfWeek.status).toBe(400);
+
+    const foreignExercise = await coachA.post(`/plan-weeks/${week1Id}/sessions`).send({
+      title: "Intrusion",
+      scheduledDate: monday,
+      exercises: [{ sourceExerciseId: exerciseBId, title: "Volé", category: "GRIMPE" }],
+    });
+    expect(foreignExercise.status).toBe(400);
+  });
+
+  it("éditer l'instance ne touche PAS le modèle de la bibliothèque", async () => {
+    const edited = await coachA.put(`/scheduled-sessions/${scheduledId}`).send({
+      title: "Bloc force max (ajusté)",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [
+        {
+          sourceExerciseId: exerciseAId,
+          title: "Tractions lestées",
+          category: "RENFO",
+          prescription: "4×6 — épaule sensible",
+        },
+      ],
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.exercises[0].prescription).toBe("4×6 — épaule sensible");
+
+    const template = await coachA.get(`/sessions/${templateId}`);
+    expect(template.body.title).toBe("Bloc force max");
+    expect(template.body.exercises[0].prescription).toBe("5×5");
+  });
+
+  it("un brouillon est INVISIBLE de l'athlète (le scope tenant ne filtre pas le statut)", async () => {
+    const plan = await athleteA1.get("/me/plan");
+    expect(plan.status).toBe(200);
+    expect(plan.body).toBeNull();
+
+    // Même en connaissant l'id exact de la séance.
+    expect((await athleteA1.get(`/me/scheduled-sessions/${scheduledId}`)).status).toBe(404);
+  });
+
+  it("un coach ne voit ni ne diffuse la planification d'un autre coach", async () => {
+    expect((await coachB.get(`/plans/${planId}`)).status).toBe(404);
+    expect((await coachB.post(`/plans/${planId}/publish`)).status).toBe(404);
+    expect((await coachB.post(`/plans/${planId}/weeks`).send({ type: "TRAINING" })).status).toBe(
+      404,
+    );
+    expect((await coachB.delete(`/plan-weeks/${week2Id}`)).status).toBe(404);
+    expect((await coachB.get(`/scheduled-sessions/${scheduledId}`)).status).toBe(404);
+  });
+
+  it("refuse de diffuser un cycle sans semaine (rien à consulter)", async () => {
+    const empty = await coachA
+      .post("/plans")
+      .send({ athleteId: a1Id, title: "Cycle vide", startDate: monday });
+    const res = await coachA.post(`/plans/${empty.body.id}/publish`);
+    expect(res.status).toBe(400);
+    await coachA.delete(`/plans/${empty.body.id}`);
+  });
+
+  it("diffuse le cycle : DRAFT → PUBLISHED, une seule fois", async () => {
+    const res = await coachA.post(`/plans/${planId}/publish`);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("PUBLISHED");
+    expect(res.body.publishedAt).not.toBeNull();
+
+    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(409);
+  });
+
+  it("l'athlète consulte SON cycle diffusé (semaines + séances) et le détail d'une séance", async () => {
+    const plan = await athleteA1.get("/me/plan");
+    expect(plan.status).toBe(200);
+    expect(plan.body.id).toBe(planId);
+    expect(plan.body.weeks).toHaveLength(2);
+    expect(plan.body.weeks[0].sessions).toHaveLength(1);
+    expect(plan.body.weeks[0].sessions[0]).toMatchObject({
+      id: scheduledId,
+      scheduledDate: monday,
+      status: "PLANNED",
+      exerciseCount: 1,
+    });
+
+    const session = await athleteA1.get(`/me/scheduled-sessions/${scheduledId}`);
+    expect(session.status).toBe(200);
+    expect(session.body.exercises[0].title).toBe("Tractions lestées");
+    expect(session.body.exercises[0].documents).toHaveLength(1);
+  });
+
+  it("l'athlète d'un autre coach ne voit rien de ce cycle", async () => {
+    expect((await athleteB1.get("/me/plan")).body).toBeNull();
+    expect((await athleteB1.get(`/me/scheduled-sessions/${scheduledId}`)).status).toBe(404);
+  });
+
+  it("les routes de construction restent interdites à l'athlète", async () => {
+    expect((await athleteA1.get("/plans")).status).toBe(403);
+    expect((await athleteA1.get(`/scheduled-sessions/${scheduledId}`)).status).toBe(403);
+    expect((await athleteA1.post(`/plans/${planId}/weeks`).send({ type: "TRAINING" })).status).toBe(
+      403,
+    );
+    // Symétrie : les routes /me/* sont réservées à l'athlète.
+    expect((await coachA.get("/me/plan")).status).toBe(403);
+  });
+
+  // C'est l'arbitrage du modèle : l'instance est une copie autonome (sourceExerciseId en SetNull),
+  // donc la bibliothèque reste librement modifiable — pas de 409 à vie sur un exercice planifié.
+  it("supprimer un exercice de la bibliothèque ne casse PAS la planification diffusée", async () => {
+    // Il faut d'abord le retirer du MODÈLE (SessionExercise reste en Restrict → 409).
+    expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(409);
+    await coachA
+      .put(`/sessions/${templateId}`)
+      .send({ title: "Bloc force max", notes: null, exercises: [] });
+
+    expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(204);
+
+    // La séance de l'athlète est intacte : titre, prescription et document toujours là.
+    const session = await athleteA1.get(`/me/scheduled-sessions/${scheduledId}`);
+    expect(session.status).toBe(200);
+    expect(session.body.exercises[0].title).toBe("Tractions lestées");
+    expect(session.body.exercises[0].sourceExerciseId).toBeNull(); // FK passée à null
+    expect(session.body.exercises[0].documents).toHaveLength(1);
   });
 });

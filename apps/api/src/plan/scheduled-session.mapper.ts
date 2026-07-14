@@ -5,6 +5,10 @@ import type { StorageService } from "../infra/storage/storage.service";
 import { toIsoDate } from "../util/date.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
+export const SESSION_DETAIL_INCLUDE = {
+  exercises: { orderBy: { position: "asc" }, include: { documents: true } },
+} satisfies Prisma.ScheduledSessionInclude;
+
 export type ScheduledSessionWithExercises = Prisma.ScheduledSessionGetPayload<{
   include: { exercises: { include: { documents: true } } };
 }>;

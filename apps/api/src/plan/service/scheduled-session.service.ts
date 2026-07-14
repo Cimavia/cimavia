@@ -13,13 +13,10 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
 import {
   type ScheduledSessionWithExercises,
+  SESSION_DETAIL_INCLUDE,
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
 import { PlanService } from "./plan.service";
-
-const SESSION_DETAIL_INCLUDE = {
-  exercises: { orderBy: { position: "asc" }, include: { documents: true } },
-} satisfies Prisma.ScheduledSessionInclude;
 
 // La séance telle qu'elle sera écrite : un instantané, plus aucune référence à résoudre.
 type SessionDraft = {

@@ -11,37 +11,36 @@ import {
   DAYS_PER_WEEK,
   daysBetweenIsoDates,
   PLAN_MAX_WEEKS,
+  PlanStatus,
 } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type { Plan, PlanWeek, Prisma } from "@prisma/client";
+import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
-import { type PlanWithWeeks, toPlanDto, toPlanSummaryDto } from "../plan.mapper";
-
-// Semaines ordonnées, séances ordonnées par jour puis par position dans la journée.
-const PLAN_DETAIL_INCLUDE = {
-  weeks: {
-    orderBy: { weekNumber: "asc" },
-    include: {
-      sessions: {
-        orderBy: [{ scheduledDate: "asc" }, { position: "asc" }],
-        include: { _count: { select: { exercises: true } } },
-      },
-    },
-  },
-  _count: { select: { weeks: true, scheduledSessions: true } },
-} satisfies Prisma.PlanInclude;
-
-const PLAN_COUNTS_INCLUDE = {
-  _count: { select: { weeks: true, scheduledSessions: true } },
-} satisfies Prisma.PlanInclude;
+import {
+  PLAN_COUNTS_INCLUDE,
+  PLAN_DETAIL_INCLUDE,
+  type PlanWithWeeks,
+  toPlanDto,
+  toPlanSummaryDto,
+} from "../plan.mapper";
 
 export type ListPlansFilters = { athleteId?: string };
 
 @Injectable()
 export class PlanService {
-  constructor(@Inject(TENANT_PRISMA) private readonly db: TenantPrisma) {}
+  constructor(
+    @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
+    private readonly notifications: NotificationService,
+  ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
     await this.assertAthleteOwned(input.athleteId);
@@ -118,6 +117,36 @@ export class PlanService {
     // Semaines, séances, exercices et copies de documents partent en cascade (schéma). Les objets
     // S3 ne sont PAS touchés : ils appartiennent à la bibliothèque, les copies les partagent.
     await this.db.plan.delete({ where: { id } });
+  }
+
+  /**
+   * Diffusion : DRAFT → PUBLISHED. C'est le seul moment où le plan devient visible de l'athlète
+   * (les lectures athlète filtrent sur PUBLISHED). Pas de retour arrière en MVP : une fois
+   * diffusé, le cycle s'ajuste en place (CDC §5.7), il ne repasse pas en brouillon.
+   */
+  async publish(id: string): Promise<PlanDto> {
+    const plan = await this.getOwnedOrThrow(id);
+    if (plan.status === PlanStatus.PUBLISHED) {
+      throw new ConflictException("Planification déjà diffusée");
+    }
+
+    const weekCount = await this.db.planWeek.count({ where: { planId: id } });
+    if (weekCount === 0) {
+      throw new BadRequestException("Un cycle sans semaine n'a rien à diffuser");
+    }
+
+    await this.db.plan.update({
+      where: { id },
+      data: { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
+    });
+
+    await this.notifications.notifyPlanPublished({
+      athleteId: plan.athleteId,
+      planId: plan.id,
+      planTitle: plan.title,
+    });
+
+    return this.getDto(id);
   }
 
   // ── Semaines ───────────────────────────────────────────────────────────────

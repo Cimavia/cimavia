@@ -14,6 +14,11 @@ export function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+// Aujourd'hui, en date civile UTC — repère de « où en est l'athlète dans son cycle ».
+export function todayIsoDate(): string {
+  return toIsoDate(new Date());
+}
+
 // Décalage d'une date de colonne, délégué à la logique pure partagée (pas d'arithmétique de
 // dates réécrite ici). `null` ne survient que sur une date corrompue en base → on lève.
 export function shiftDbDate(date: Date, days: number): Date {
