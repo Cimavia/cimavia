@@ -13,7 +13,7 @@ import {
   PLAN_MAX_WEEKS,
 } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { PlanWeek, Prisma } from "@prisma/client";
+import type { Plan, PlanWeek, Prisma } from "@prisma/client";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
@@ -125,7 +125,7 @@ export class PlanService {
   async addWeek(planId: string, input: PlanWeekInput): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(planId);
 
-    const weekCount = plan.weeks.length;
+    const weekCount = await this.db.planWeek.count({ where: { planId } });
     if (weekCount >= PLAN_MAX_WEEKS) {
       throw new BadRequestException(`Un cycle ne peut pas dépasser ${PLAN_MAX_WEEKS} semaines`);
     }
@@ -180,8 +180,8 @@ export class PlanService {
    * Public : le service des séances planifiées s'appuie dessus — un seul contrôle
    * d'appartenance, un seul message, pas deux implémentations à garder en phase.
    */
-  async getOwnedOrThrow(id: string): Promise<PlanWithWeeks> {
-    const plan = await this.db.plan.findFirst({ where: { id }, include: PLAN_DETAIL_INCLUDE });
+  async getOwnedOrThrow(id: string): Promise<Plan> {
+    const plan = await this.db.plan.findFirst({ where: { id } });
     if (plan == null) {
       throw new NotFoundException("Planification introuvable");
     }
@@ -196,8 +196,17 @@ export class PlanService {
     return week;
   }
 
+  // Le plan complet (semaines + séances) — la forme rendue par l'API après chaque écriture.
+  private async getDetailOrThrow(id: string): Promise<PlanWithWeeks> {
+    const plan = await this.db.plan.findFirst({ where: { id }, include: PLAN_DETAIL_INCLUDE });
+    if (plan == null) {
+      throw new NotFoundException("Planification introuvable");
+    }
+    return plan;
+  }
+
   private async getDto(id: string): Promise<PlanDto> {
-    return toPlanDto(await this.getOwnedOrThrow(id));
+    return toPlanDto(await this.getDetailOrThrow(id));
   }
 
   // La relation coach→athlète est scopée par le tenancy layer : un athlète qui n'est pas le sien

@@ -1,49 +1,32 @@
-import {
-  type CreateExerciseInput,
-  DocumentType,
-  type ExerciseCategory,
-  type ExerciseDto,
-  type UpdateExerciseInput,
+import type {
+  CreateExerciseInput,
+  ExerciseCategory,
+  ExerciseDto,
+  UpdateExerciseInput,
 } from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { toExerciseDocumentDto } from "../exercise-document.mapper";
+import { type ExerciseWithDocuments, toExerciseDto } from "../exercise.mapper";
+import { DocumentCleanupService } from "./document-cleanup.service";
 
 export type ListExercisesFilters = {
   category?: ExerciseCategory;
   search?: string;
 };
 
-// L'exercice avec ses documents (URLs signées à mapper).
-type ExerciseWithDocuments = Prisma.ExerciseGetPayload<{ include: { documents: true } }>;
-
 @Injectable()
 export class ExerciseService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly storage: StorageService,
+    private readonly cleanup: DocumentCleanupService,
   ) {}
 
-  private async toDto(exercise: ExerciseWithDocuments): Promise<ExerciseDto> {
-    // Documents ordonnés par ancienneté ; chaque FILE reçoit une URL GET signée.
-    const documents = await Promise.all(
-      exercise.documents
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-        .map((doc) => toExerciseDocumentDto(doc, this.storage)),
-    );
-    return {
-      id: exercise.id,
-      coachId: exercise.coachId,
-      title: exercise.title,
-      description: exercise.description,
-      category: exercise.category,
-      documents,
-      createdAt: exercise.createdAt.toISOString(),
-      updatedAt: exercise.updatedAt.toISOString(),
-    };
+  private toDto(exercise: ExerciseWithDocuments): Promise<ExerciseDto> {
+    return toExerciseDto(exercise, this.storage);
   }
 
   /**
@@ -122,12 +105,11 @@ export class ExerciseService {
       );
     }
 
-    // Les lignes ExerciseDocument partent en cascade, mais PAS les objets en storage :
-    // on les supprime explicitement d'abord, sinon ils resteraient orphelins (et facturés).
+    // Les lignes ExerciseDocument partent en cascade, mais PAS les objets en storage : on les
+    // supprime explicitement, sinon ils resteraient orphelins (et facturés). Sauf ceux qu'une
+    // séance planifiée affiche encore — ses copies partagent la clé objet (P3).
     for (const document of exercise.documents) {
-      if (document.type === DocumentType.FILE && document.storagePath != null) {
-        await this.storage.deleteObject(document.storagePath);
-      }
+      await this.cleanup.deleteObjectIfUnreferenced(document);
     }
 
     await this.db.exercise.delete({ where: { id } });

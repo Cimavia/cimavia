@@ -1,18 +1,9 @@
 import type { AthleteSheetDto } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AthleteSheet, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-
-function toDto(sheet: AthleteSheet): AthleteSheetDto {
-  return {
-    id: sheet.id,
-    athleteId: sheet.athleteId,
-    coachId: sheet.coachId,
-    content: sheet.content,
-    updatedAt: sheet.updatedAt.toISOString(),
-  };
-}
+import { toAthleteSheetDto } from "../athlete-sheet.mapper";
 
 @Injectable()
 export class AthleteSheetService {
@@ -34,7 +25,7 @@ export class AthleteSheetService {
     const sheet = await this.db.athleteSheet.findFirst({
       where: { athleteId },
     });
-    return sheet == null ? null : toDto(sheet);
+    return sheet == null ? null : toAthleteSheetDto(sheet);
   }
 
   // Coach seul : édite le champ libre. Crée la fiche si absente (coachId injecté par le tenancy layer).
@@ -56,6 +47,6 @@ export class AthleteSheetService {
             where: { id: existing.id },
             data: { content },
           });
-    return toDto(sheet);
+    return toAthleteSheetDto(sheet);
   }
 }

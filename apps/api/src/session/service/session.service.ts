@@ -8,9 +8,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import type { Exercise, Prisma } from "@prisma/client";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-
-// La séance avec ses exercices composés (positions), ordonnés.
-type SessionWithExercises = Prisma.SessionGetPayload<{ include: { exercises: true } }>;
+import { type SessionWithExercises, toSessionDto } from "../session.mapper";
 
 @Injectable()
 export class SessionService {
@@ -128,35 +126,4 @@ export class SessionService {
       >[] as Prisma.SessionExerciseUncheckedCreateInput[],
     });
   }
-}
-
-// Assemble le DTO à partir de la séance et de la map d'exercices (résolus de façon scopée).
-function toSessionDto(
-  session: SessionWithExercises,
-  exerciseById: Map<string, Exercise>,
-): SessionDto {
-  return {
-    id: session.id,
-    coachId: session.coachId,
-    title: session.title,
-    notes: session.notes,
-    exercises: session.exercises.map((se) => {
-      const exercise = exerciseById.get(se.exerciseId);
-      if (exercise == null) {
-        throw new Error(
-          `[session] exercice ${se.exerciseId} hors scope pour la séance ${session.id}`,
-        );
-      }
-      return {
-        id: se.id,
-        exerciseId: se.exerciseId,
-        position: se.position,
-        prescription: se.prescription,
-        title: exercise.title,
-        category: exercise.category,
-      };
-    }),
-    createdAt: session.createdAt.toISOString(),
-    updatedAt: session.updatedAt.toISOString(),
-  };
 }

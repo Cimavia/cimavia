@@ -1,6 +1,20 @@
 import { DocumentType, type ExerciseDocumentDto } from "@cmv/shared";
-import type { ExerciseDocument } from "@prisma/client";
-import type { StorageService } from "../infra/storage/storage.service";
+import type { StorageService } from "./storage.service";
+
+/**
+ * Forme commune à un document de la bibliothèque (`ExerciseDocument`) et à sa COPIE posée dans
+ * une planification (`ScheduledSessionExerciseDocument`) : les deux partagent la même clé objet
+ * et se lisent de la même façon. Typé structurellement pour servir les deux sans duplication.
+ */
+export type DocumentRow = {
+  id: string;
+  type: DocumentType;
+  storagePath: string | null;
+  url: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  createdAt: Date;
+};
 
 /**
  * Mappe un document vers son DTO de sortie.
@@ -9,8 +23,8 @@ import type { StorageService } from "../infra/storage/storage.service";
  * L'invariant type↔champs est garanti à la création (union discriminée) ; on lève plutôt
  * que de retomber silencieusement sur une valeur par défaut (règle dure n°5).
  */
-export async function toExerciseDocumentDto(
-  doc: ExerciseDocument,
+export async function toDocumentDto(
+  doc: DocumentRow,
   storage: StorageService,
 ): Promise<ExerciseDocumentDto> {
   let url: string;

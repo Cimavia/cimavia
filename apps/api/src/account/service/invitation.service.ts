@@ -13,34 +13,14 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { CoachAthlete, Invitation, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { toCoachAthleteDto } from "../coach-athlete.mapper";
+import { toInvitationDto } from "../invitation.mapper";
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
-
-function toInvitationDto(invitation: Invitation): InvitationDto {
-  return {
-    id: invitation.id,
-    code: invitation.code,
-    email: invitation.email,
-    status: invitation.status,
-    expiresAt: invitation.expiresAt.toISOString(),
-    createdAt: invitation.createdAt.toISOString(),
-  };
-}
-
-function toCoachAthleteDto(relation: CoachAthlete): CoachAthleteDto {
-  return {
-    id: relation.id,
-    coachId: relation.coachId,
-    athleteId: relation.athleteId,
-    status: relation.status,
-    invitedAt: relation.invitedAt.toISOString(),
-    joinedAt: relation.joinedAt?.toISOString() ?? null,
-  };
-}
 
 @Injectable()
 export class InvitationService {

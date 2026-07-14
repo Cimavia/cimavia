@@ -8,10 +8,11 @@ import {
 } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { toDocumentDto } from "../../infra/storage/document.mapper";
 import { SIGNED_URL_TTL_SECONDS, StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { toExerciseDocumentDto } from "../exercise-document.mapper";
+import { DocumentCleanupService } from "./document-cleanup.service";
 import { ExerciseService } from "./exercise.service";
 
 @Injectable()
@@ -21,6 +22,7 @@ export class ExerciseDocumentService {
     private readonly storage: StorageService,
     // Le contrôle d'appartenance de l'exercice parent vit dans ExerciseService (source unique).
     private readonly exercises: ExerciseService,
+    private readonly cleanup: DocumentCleanupService,
   ) {}
 
   // Étape 1 : URL PUT signée pour uploader un fichier directement vers l'object storage.
@@ -51,7 +53,7 @@ export class ExerciseDocumentService {
     const doc = await this.db.exerciseDocument.create({
       data: data as Prisma.ExerciseDocumentUncheckedCreateInput,
     });
-    return toExerciseDocumentDto(doc, this.storage);
+    return toDocumentDto(doc, this.storage);
   }
 
   async remove(exerciseId: string, documentId: string): Promise<void> {
@@ -63,9 +65,8 @@ export class ExerciseDocumentService {
     }
     // Supprime d'abord l'objet S3 (FILE) puis la ligne : un objet orphelin coûte, une ligne
     // orpheline casse l'affichage. En cas d'échec S3, on n'efface pas la référence.
-    if (doc.type === DocumentType.FILE && doc.storagePath != null) {
-      await this.storage.deleteObject(doc.storagePath);
-    }
+    // L'objet est conservé s'il est encore affiché par une séance planifiée (copie du document).
+    await this.cleanup.deleteObjectIfUnreferenced(doc);
     await this.db.exerciseDocument.delete({ where: { id: documentId } });
   }
 }
