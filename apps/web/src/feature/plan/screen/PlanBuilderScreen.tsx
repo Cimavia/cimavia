@@ -15,7 +15,13 @@ import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { useDeletePlan, usePublishPlan } from "@/feature/plan/hook/usePlans";
-import { CmvBadge, CmvButton, CmvConfirmButton, CmvEmptyState } from "@/shared/component";
+import {
+  CmvAppShell,
+  CmvBadge,
+  CmvButton,
+  CmvConfirmButton,
+  CmvEmptyState,
+} from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
 
@@ -71,31 +77,15 @@ export function PlanBuilderScreen() {
   const isPanelReady = edit != null && (edit.sessionId == null || panelSession != null);
 
   return (
-    <main className="min-h-screen bg-cmv-bg-0 p-cmv-xl">
-      <header className="mb-cmv-xl flex flex-col gap-cmv-md">
-        <Link to="/plans" className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi">
-          {t("plan.builder.back")}
-        </Link>
-
-        <div className="flex flex-wrap items-center gap-cmv-md">
-          <div className="flex flex-col gap-cmv-xs">
-            <div className="flex items-center gap-cmv-sm">
-              <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">{plan.title}</h1>
-              <CmvBadge variant={isPublished ? "accent" : "neutral"}>
-                {t(`plan.status.${plan.status}`)}
-              </CmvBadge>
-            </div>
-            <p className="text-cmv-caption text-cmv-text-lo">
-              {t("plan.card.meta", {
-                weeks: plan.weekCount,
-                sessions: plan.sessionCount,
-                date: formatDate(plan.startDate),
-              })}
-            </p>
-          </div>
-
-          <div className="flex-1" />
-
+    <CmvAppShell
+      title={plan.title}
+      subtitle={t("plan.card.meta", {
+        weeks: plan.weekCount,
+        sessions: plan.sessionCount,
+        date: formatDate(plan.startDate),
+      })}
+      actions={
+        <>
           <CmvConfirmButton
             label={t("plan.builder.delete")}
             confirmLabel={t("common.confirmDelete")}
@@ -105,7 +95,6 @@ export function PlanBuilderScreen() {
               removePlan.mutate(planId, { onSuccess: () => navigate({ to: "/plans" }) })
             }
           />
-
           {/* La diffusion est irréversible et exige au moins une semaine (l'API le refuse sinon). */}
           <CmvButton
             onClick={() => publish.mutate(planId)}
@@ -113,16 +102,29 @@ export function PlanBuilderScreen() {
           >
             {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
           </CmvButton>
+        </>
+      }
+    >
+      <div className="mb-cmv-lg flex flex-col gap-cmv-sm">
+        <Link to="/plans" className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi">
+          {t("plan.builder.back")}
+        </Link>
+
+        <div className="flex items-center gap-cmv-sm">
+          <CmvBadge variant={isPublished ? "accent" : "neutral"}>
+            {t(`plan.status.${plan.status}`)}
+          </CmvBadge>
+          {isPublished ? (
+            <span className="text-cmv-caption text-cmv-text-lo">
+              {t("plan.builder.publishedHint")}
+            </span>
+          ) : null}
         </div>
 
         {plan.description == null ? null : (
           <p className="max-w-3xl text-cmv-body text-cmv-text-mid">{plan.description}</p>
         )}
-
-        {isPublished ? (
-          <p className="text-cmv-caption text-cmv-text-lo">{t("plan.builder.publishedHint")}</p>
-        ) : null}
-      </header>
+      </div>
 
       <div className="flex flex-col gap-cmv-lg">
         {plan.weeks.length === 0 ? (
@@ -162,6 +164,6 @@ export function PlanBuilderScreen() {
           onClose={() => setEdit(null)}
         />
       ) : null}
-    </main>
+    </CmvAppShell>
   );
 }

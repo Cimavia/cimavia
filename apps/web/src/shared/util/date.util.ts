@@ -27,6 +27,21 @@ export function formatDate(isoDate: string): string {
   return format(isoDate, { day: "numeric", month: "short", year: "numeric" });
 }
 
+/**
+ * « 20 juil. 2026, 14:35 » — pour un **instant** (`createdAt`, `expiresAt`…), pas une date civile.
+ * Ici, PAS de `timeZone: "UTC"` : un horodatage a une heure réelle, qu'on affiche dans le fuseau
+ * de l'utilisateur. C'est exactement l'inverse des dates de planification (jours sans heure).
+ */
+export function formatDateTime(isoDateTime: string): string {
+  return new Intl.DateTimeFormat(i18n.language, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(isoDateTime));
+}
+
 // « 12 – 18 oct. » — plage d'une semaine.
 export function formatDateRange(startIsoDate: string, endIsoDate: string): string {
   const start = format(startIsoDate, { day: "numeric" });

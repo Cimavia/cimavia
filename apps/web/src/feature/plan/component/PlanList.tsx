@@ -1,7 +1,7 @@
 import { PlanStatus, type PlanSummaryDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAthletes } from "@/feature/plan/hook/usePlans";
+import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { CmvBadge, CmvCard } from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
 

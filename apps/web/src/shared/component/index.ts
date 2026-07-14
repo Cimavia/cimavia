@@ -1,3 +1,4 @@
+export { CmvAppShell } from "./CmvAppShell";
 export { CmvBadge } from "./CmvBadge";
 export { CmvBox } from "./CmvBox";
 export { CmvButton } from "./CmvButton";

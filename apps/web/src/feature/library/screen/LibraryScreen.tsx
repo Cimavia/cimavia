@@ -8,7 +8,7 @@ import { SessionBuilder } from "@/feature/library/component/SessionBuilder";
 import { SessionList } from "@/feature/library/component/SessionList";
 import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
-import { CmvButton, CmvTabs } from "@/shared/component";
+import { CmvAppShell, CmvButton, CmvTabs } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 type LibraryTab = "exercises" | "sessions";
@@ -64,20 +64,16 @@ export function LibraryScreen() {
   }
 
   return (
-    <main className="min-h-screen bg-cmv-bg-0 p-cmv-2xl">
-      <div className="mx-auto flex max-w-5xl flex-col gap-cmv-xl">
-        <header className="flex items-start justify-between gap-cmv-lg">
-          <div className="flex flex-col gap-cmv-xs">
-            <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">
-              {t("library.title")}
-            </h1>
-            <p className="text-cmv-body text-cmv-text-mid">{t("library.subtitle")}</p>
-          </div>
-          <CmvButton onClick={openCreate}>
-            {isSessionsTab ? t("library.newSession") : t("library.newExercise")}
-          </CmvButton>
-        </header>
-
+    <CmvAppShell
+      title={t("library.title")}
+      subtitle={t("library.subtitle")}
+      actions={
+        <CmvButton onClick={openCreate}>
+          {isSessionsTab ? t("library.newSession") : t("library.newExercise")}
+        </CmvButton>
+      }
+    >
+      <div className="flex flex-col gap-cmv-xl">
         <CmvTabs
           value={tab}
           onChange={setTab}
@@ -120,6 +116,6 @@ export function LibraryScreen() {
           onClose={() => setSessionPanelOpen(false)}
         />
       ) : null}
-    </main>
+    </CmvAppShell>
   );
 }

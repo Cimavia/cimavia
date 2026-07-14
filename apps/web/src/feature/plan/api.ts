@@ -1,5 +1,4 @@
 import type {
-  CoachAthleteDto,
   CreatePlanInput,
   CreateScheduledSessionInput,
   PlanDto,
@@ -24,15 +23,6 @@ export const scheduledSessionKeys = {
   all: ["scheduled-sessions"] as const,
   detail: (sessionId: string) => ["scheduled-sessions", "detail", sessionId] as const,
 };
-
-export const athleteKeys = {
-  all: ["athletes"] as const,
-};
-
-// Les athlètes du coach (relation + noms) — de quoi choisir le destinataire d'un cycle.
-export function listAthletes(): Promise<CoachAthleteDto[]> {
-  return api.get<CoachAthleteDto[]>("/athletes");
-}
 
 // ── Cycles ───────────────────────────────────────────────────────────────────
 

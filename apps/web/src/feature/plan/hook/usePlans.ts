@@ -1,22 +1,7 @@
-import type { CoachAthleteDto, CreatePlanInput, PlanSummaryDto } from "@cmv/shared";
+import type { CreatePlanInput, PlanSummaryDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  athleteKeys,
-  createPlan,
-  deletePlan,
-  listAthletes,
-  listPlans,
-  planKeys,
-  publishPlan,
-} from "@/feature/plan/api";
+import { createPlan, deletePlan, listPlans, planKeys, publishPlan } from "@/feature/plan/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
-
-export function useAthletes() {
-  return useQuery<CoachAthleteDto[]>({
-    queryKey: athleteKeys.all,
-    queryFn: listAthletes,
-  });
-}
 
 export function usePlans() {
   return useQuery<PlanSummaryDto[]>({

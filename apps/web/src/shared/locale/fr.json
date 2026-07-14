@@ -6,7 +6,9 @@
     "loading": "Chargement…",
     "error": "Une erreur est survenue. Réessayez.",
     "cancel": "Annuler",
-    "confirmDelete": "Confirmer la suppression"
+    "confirmDelete": "Confirmer la suppression",
+    "close": "Fermer",
+    "logout": "Se déconnecter"
   },
   "auth": {
     "login": {
@@ -51,16 +53,6 @@
   "role": {
     "coach": "Coach",
     "athlete": "Athlète"
-  },
-  "home": {
-    "welcome": "Bonjour {{name}}",
-    "spaceCoach": "Espace coach",
-    "spaceAthlete": "Espace athlète",
-    "coachHint": "Vos athlètes et planifications apparaîtront ici.",
-    "athleteHint": "Vos séances et votre coach apparaîtront ici.",
-    "logout": "Se déconnecter",
-    "toLibrary": "Ma bibliothèque",
-    "toPlans": "Mes planifications"
   },
   "library": {
     "title": "Bibliothèque",
@@ -229,6 +221,72 @@
       "sessionCreated": "Séance ajoutée au cycle",
       "sessionSaved": "Séance enregistrée",
       "sessionDeleted": "Séance supprimée"
+    }
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "athletes": "Athlètes",
+    "library": "Bibliothèque",
+    "plans": "Planifications"
+  },
+  "athlete": {
+    "title": "Mes athlètes",
+    "subtitle": "{{count}} athlète(s) suivi(s)",
+    "invite": "Inviter un athlète",
+    "openSheet": "Fiche athlète",
+    "createPlan": "Créer un cycle",
+    "seePlans": "Voir les cycles",
+    "relationStatus": {
+      "PENDING": "En attente",
+      "ACTIVE": "Actif"
+    },
+    "invitationStatus": {
+      "PENDING": "En attente",
+      "ACCEPTED": "Acceptée",
+      "REVOKED": "Révoquée"
+    },
+    "empty": {
+      "title": "Aucun athlète",
+      "description": "Invitez un athlète : il rejoindra votre espace avec le code que vous lui transmettez."
+    },
+    "invitation": {
+      "title": "Inviter un athlète",
+      "description": "Émettez un code, transmettez-le à votre athlète : il le saisira à son inscription.",
+      "emailLabel": "E-mail de l'athlète",
+      "emailPlaceholder": "lea@exemple.fr",
+      "emailHint": "Facultatif. Sans e-mail, le code est utilisable par n'importe quel athlète non encore lié.",
+      "submit": "Émettre un code",
+      "submitting": "Émission…",
+      "pending": "Invitations en attente",
+      "emptyPending": "Aucune invitation en attente",
+      "expires": "expire le {{date}}",
+      "copy": "Copier",
+      "copied": "Code copié dans le presse-papiers"
+    },
+    "sheet": {
+      "description": "Champ libre, visible de vous seul : objectifs, points forts, notes de suivi.",
+      "label": "Notes",
+      "placeholder": "Objectif 8a en salle d'ici juin. Épaule droite sensible — surveiller le volume de tractions.",
+      "submit": "Enregistrer la fiche",
+      "submitting": "Enregistrement…"
+    },
+    "toast": {
+      "invitationCreated": "Invitation créée : transmettez le code à votre athlète",
+      "sheetSaved": "Fiche athlète enregistrée"
+    }
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "welcome": "Bonjour {{name}}",
+    "athleteHint": "Votre planning et vos séances vivent sur l'application mobile.",
+    "tiles": {
+      "athletes": "Athlètes suivis",
+      "athletesHint": "Relations actives",
+      "plans": "Planifications",
+      "plansHint": "Brouillons et cycles diffusés",
+      "feedback": "Débriefs à relire",
+      "invoices": "Factures en attente",
+      "soon": "Bientôt disponible"
     }
   }
 }

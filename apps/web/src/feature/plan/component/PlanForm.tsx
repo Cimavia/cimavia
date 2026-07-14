@@ -2,8 +2,9 @@ import { isMondayIsoDate, mondayOfIsoWeek, PLAN_MAX_WEEKS, PlanWeekType } from "
 import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { DEFAULT_WEEK_COUNT } from "@/feature/plan/constant";
-import { useAthletes, useCreatePlan } from "@/feature/plan/hook/usePlans";
+import { useCreatePlan } from "@/feature/plan/hook/usePlans";
 import { CmvButton, CmvPanel, CmvSelect, CmvTextArea, CmvTextField } from "@/shared/component";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { formatDate } from "@/shared/util/date.util";
