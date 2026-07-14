@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { daysBetweenIsoDates, isIsoDate, isMondayIsoDate, shiftIsoDate } from "./date.util";
+import {
+  daysBetweenIsoDates,
+  isIsoDate,
+  isMondayIsoDate,
+  mondayOfIsoWeek,
+  shiftIsoDate,
+} from "./date.util";
 
 // 2026-10-12 est un lundi (référence de tous les cas ci-dessous).
 const MONDAY = "2026-10-12";
@@ -56,5 +62,17 @@ describe("isMondayIsoDate", () => {
 
   it("est faux (jamais null) sur une entrée invalide", () => {
     expect(isMondayIsoDate("2026-13-01")).toBe(false);
+  });
+});
+
+describe("mondayOfIsoWeek", () => {
+  it("remonte au lundi de la semaine (lundi → lui-même, dimanche → 6 jours en arrière)", () => {
+    expect(mondayOfIsoWeek(MONDAY)).toBe(MONDAY);
+    expect(mondayOfIsoWeek("2026-10-15")).toBe(MONDAY); // jeudi
+    expect(mondayOfIsoWeek("2026-10-18")).toBe(MONDAY); // dimanche — le piège du getUTCDay() = 0
+  });
+
+  it("retourne null sur une date invalide", () => {
+    expect(mondayOfIsoWeek("2026-02-31")).toBeNull();
   });
 });

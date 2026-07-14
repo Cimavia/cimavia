@@ -59,7 +59,8 @@
     "coachHint": "Vos athlètes et planifications apparaîtront ici.",
     "athleteHint": "Vos séances et votre coach apparaîtront ici.",
     "logout": "Se déconnecter",
-    "toLibrary": "Ma bibliothèque"
+    "toLibrary": "Ma bibliothèque",
+    "toPlans": "Mes planifications"
   },
   "library": {
     "title": "Bibliothèque",
@@ -139,6 +140,84 @@
       "submitting": "Enregistrement…",
       "errorFileType": "Type de fichier non autorisé (PDF, JPG, PNG, WEBP).",
       "errorFileSize": "Fichier trop volumineux (20 Mo max)."
+    }
+  },
+  "plan": {
+    "title": "Planifications",
+    "subtitle": "Les cycles de vos athlètes : construisez, ajustez, diffusez.",
+    "new": "Nouvelle planification",
+    "status": {
+      "DRAFT": "Brouillon",
+      "PUBLISHED": "Diffusée"
+    },
+    "weekType": {
+      "TRAINING": "Entraînement",
+      "DELOAD": "Décharge"
+    },
+    "empty": {
+      "title": "Aucune planification",
+      "description": "Créez un cycle pour un de vos athlètes : semaines, séances, puis diffusion."
+    },
+    "card": {
+      "meta": "{{weeks}} semaine(s) · {{sessions}} séance(s) · début le {{date}}"
+    },
+    "form": {
+      "title": "Nouvelle planification",
+      "description": "Un cycle pour un athlète. Le nombre de semaines reste libre : vous en ajouterez ou en retirerez ensuite.",
+      "athlete": "Athlète",
+      "athletePlaceholder": "Choisir un athlète…",
+      "titleLabel": "Titre du cycle",
+      "titlePlaceholder": "Cycle bloc — automne",
+      "descriptionLabel": "Description du cycle",
+      "descriptionPlaceholder": "Montée en charge progressive, puis décharge en dernière semaine.",
+      "startDate": "Début du cycle",
+      "startDateHint": "Un cycle démarre un lundi.",
+      "startDateSnapped": "Le cycle démarrera le lundi {{date}}.",
+      "weekCount": "Nombre de semaines",
+      "submit": "Créer le cycle",
+      "submitting": "Création…"
+    },
+    "week": {
+      "number": "Semaine {{number}}",
+      "sessionCount": "{{count}} séance(s)",
+      "addSession": "+ Séance",
+      "delete": "Supprimer la semaine"
+    },
+    "session": {
+      "createTitle": "Ajouter une séance",
+      "editTitle": "Séance planifiée",
+      "panelDescription": "Cette séance est une copie : la modifier ne touche pas votre bibliothèque.",
+      "day": "Jour",
+      "template": "Séance modèle",
+      "templateNone": "Séance vide (sans modèle)",
+      "templateHint": "Le titre, les consignes, les exercices et leurs documents seront copiés du modèle.",
+      "titleLabel": "Titre de la séance",
+      "titlePlaceholder": "Bloc force max",
+      "notesLabel": "Consignes du coach",
+      "notesPlaceholder": "Bien s'échauffer les épaules avant les essais.",
+      "composition": "Déroulé de la séance",
+      "emptyComposition": "Aucun exercice",
+      "emptyCompositionHint": "Piochez dans votre bibliothèque, à droite.",
+      "pickerTitle": "Bibliothèque d'exercices",
+      "prescriptionLabel": "Prescription",
+      "prescriptionPlaceholder": "5×5 à +10 kg, repos 3 min",
+      "exerciseCount": "{{count}} exercice(s)",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "remove": "Retirer",
+      "delete": "Supprimer la séance",
+      "submit": "Enregistrer",
+      "submitting": "Enregistrement…"
+    },
+    "builder": {
+      "back": "← Planifications",
+      "addWeek": "Ajouter une semaine",
+      "publish": "Diffuser le cycle",
+      "published": "Cycle diffusé",
+      "publishedHint": "L'athlète voit ce cycle. Vos ajustements lui sont visibles immédiatement.",
+      "delete": "Supprimer le cycle",
+      "emptyWeeks": "Aucune semaine",
+      "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances."
     }
   }
 }

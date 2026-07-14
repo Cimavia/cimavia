@@ -126,6 +126,7 @@ export {
   daysBetweenIsoDates,
   isIsoDate,
   isMondayIsoDate,
+  mondayOfIsoWeek,
   shiftIsoDate,
 } from "./util/date.util";
 export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";

@@ -2,7 +2,17 @@ import type { InputHTMLAttributes } from "react";
 
 type CmvTextFieldProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,
-  "type" | "value" | "onChange" | "placeholder" | "required" | "autoComplete" | "name" | "minLength"
+  | "type"
+  | "value"
+  | "onChange"
+  | "placeholder"
+  | "required"
+  | "autoComplete"
+  | "name"
+  | "minLength"
+  // Bornes des champs numériques et de date (ex. nombre de semaines d'un cycle).
+  | "min"
+  | "max"
 > & { label: string };
 
 export function CmvTextField({ label, name, ...rest }: CmvTextFieldProps) {

@@ -1,4 +1,4 @@
-import { Role } from "@cmv/shared";
+import { mondayOfIsoWeek, Role } from "@cmv/shared";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
@@ -402,13 +402,9 @@ describe("Composition & isolation des séances (P2)", () => {
 // Le cycle démarre TOUJOURS un lundi (planStartDateSchema) : on prend celui de la semaine en
 // cours, pour que le plan diffusé soit bien le plan « courant » vu par l'athlète.
 function mondayOfCurrentWeek(): string {
-  const now = new Date();
-  const weekday = now.getUTCDay(); // 0 = dimanche
-  const toMonday = weekday === 0 ? -6 : 1 - weekday;
-  const monday = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + toMonday),
-  );
-  return monday.toISOString().slice(0, 10);
+  const monday = mondayOfIsoWeek(new Date().toISOString().slice(0, 10));
+  if (monday == null) throw new Error("[test] lundi de la semaine courante introuvable");
+  return monday;
 }
 
 describe("Planifications : diffusion & isolation (P3)", () => {

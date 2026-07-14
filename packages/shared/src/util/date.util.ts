@@ -45,3 +45,13 @@ export function daysBetweenIsoDates(from: string, to: string): number | null {
 export function isMondayIsoDate(isoDate: string): boolean {
   return parseIsoDate(isoDate)?.getUTCDay() === MONDAY;
 }
+
+// Le lundi de la semaine contenant `isoDate` (les semaines cimavia vont du lundi au dimanche).
+// Sert autant à caler la date de début d'un cycle qu'à situer « cette semaine » côté athlète.
+export function mondayOfIsoWeek(isoDate: string): string | null {
+  const date = parseIsoDate(isoDate);
+  if (date == null) return null;
+  const weekday = date.getUTCDay(); // 0 = dimanche
+  const toMonday = weekday === 0 ? -6 : MONDAY - weekday;
+  return shiftIsoDate(isoDate, toMonday);
+}

@@ -8,6 +8,8 @@ export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";
 export type { CmvSegmentedOption } from "./CmvSegmented";
 export { CmvSegmented } from "./CmvSegmented";
+export type { CmvSelectOption } from "./CmvSelect";
+export { CmvSelect } from "./CmvSelect";
 export type { CmvTab } from "./CmvTabs";
 export { CmvTabs } from "./CmvTabs";
 export { CmvTextArea } from "./CmvTextArea";
