@@ -9,6 +9,7 @@ import {
   planKeys,
   publishPlan,
 } from "@/feature/plan/api";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 export function useAthletes() {
   return useQuery<CoachAthleteDto[]>({
@@ -26,25 +27,40 @@ export function usePlans() {
 
 export function useCreatePlan() {
   const queryClient = useQueryClient();
+  const toast = useMutationToast();
   return useMutation({
     mutationFn: (input: CreatePlanInput) => createPlan(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: planKeys.all }),
+    onSuccess: (plan) => {
+      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      toast.onSuccess("plan.toast.created", { title: plan.title });
+    },
+    onError: toast.onError,
   });
 }
 
 export function useDeletePlan() {
   const queryClient = useQueryClient();
+  const toast = useMutationToast();
   return useMutation({
     mutationFn: (planId: string) => deletePlan(planId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: planKeys.all }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      toast.onSuccess("plan.toast.deleted");
+    },
+    onError: toast.onError,
   });
 }
 
 // Diffusion : DRAFT → PUBLISHED. Irréversible (l'API refuse une seconde diffusion).
 export function usePublishPlan() {
   const queryClient = useQueryClient();
+  const toast = useMutationToast();
   return useMutation({
     mutationFn: (planId: string) => publishPlan(planId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: planKeys.all }),
+    onSuccess: (plan) => {
+      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      toast.onSuccess("plan.toast.published", { title: plan.title });
+    },
+    onError: toast.onError,
   });
 }

@@ -5,6 +5,8 @@ type CmvTextFieldProps = Pick<
   | "type"
   | "value"
   | "onChange"
+  // Validation/normalisation à la sortie du champ (ex. recaler une date sur un lundi).
+  | "onBlur"
   | "placeholder"
   | "required"
   | "autoComplete"

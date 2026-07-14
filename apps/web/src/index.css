@@ -1,16 +1,11 @@
 /**
  * apps/web/src/index.css
  *
- * Pont shadcn/ui <-> design system Cimavia.
- * Les primitives shadcn (cssVariables: true) lisent ces variables ; on les
- * mappe sur la palette « Granite A ». Aucun token non préfixé n'entre dans
- * le preset partagé : tout le mapping shadcn vit ici, côté web uniquement.
+ * Styles de base du document. La palette, la typo et les rayons viennent du preset partagé
+ * (@cmv/tokens) : on n'écrit ici que les défauts globaux (fond, texte, bordure implicite), en
+ * classes `cmv-*`. Aucune couleur en dur, aucun token non préfixé (règle dure n°3).
  *
- * Valeurs en canaux HSL (format attendu par la config shadcn en Tailwind v3,
- * où colors = hsl(var(--x))). Converties au pixel depuis le design system.
- *
- * MVP : thème sombre unique -> tout dans :root. Pour un thème clair plus tard,
- * dupliquer le bloc sous .light (ou inverser :root/.dark).
+ * MVP : thème sombre unique.
  */
 
 @tailwind base;
@@ -20,52 +15,14 @@
 @layer base {
   :root {
     color-scheme: dark;
-
-    /* Surfaces */
-    --background: 210 33.3% 5.9%; /* bg/0      #0A0F14 */
-    --foreground: 190.4 48.9% 90.8%; /* text/hi   #DCEFF3 */
-    --card: 208.2 29.8% 11.2%; /* surface   #141D25 */
-    --card-foreground: 190.4 48.9% 90.8%;
-    --popover: 210 26.3% 14.9%; /* surface/hi #1C2630 */
-    --popover-foreground: 190.4 48.9% 90.8%;
-    --muted: 210 30% 7.8%; /* bg/1      #0E141A */
-    --muted-foreground: 210 16.4% 71.4%; /* text/mid #AAB6C2 */
-
-    /* Marque */
-    --primary: 16.8 54% 49.4%; /* accent    #C2603A */
-    --primary-foreground: 190.4 48.9% 90.8%; /* text/hi sur terracotta : ~3.8:1, OK label gras/large, limite en petit */
-    --secondary: 210 26.3% 14.9%; /* surface/hi #1C2630 */
-    --secondary-foreground: 190.4 48.9% 90.8%;
-
-    /* ATTENTION : --accent de shadcn = fond de survol/highlight neutre,
-       PAS la couleur de marque. On le mappe sur surface/hi, sinon chaque
-       hover de menu/dropdown deviendrait terracotta. La marque, c'est --primary. */
-    --accent: 210 26.3% 14.9%; /* surface/hi #1C2630 */
-    --accent-foreground: 190.4 48.9% 90.8%;
-
-    /* États */
-    --destructive: 4.9 60% 55.9%; /* error     #D2564B */
-    --destructive-foreground: 190.4 48.9% 90.8%;
-
-    /* Contours & focus */
-    --border: 208.7 21.1% 21.4%; /* border    #2B3742 */
-    --input: 208.7 21.1% 21.4%;
-    --ring: 16.8 54% 49.4%; /* focus = accent */
-
-    /* Rayon : 8px ("Rondeur 8px" verrouillée). shadcn dérive
-       rounded-lg = var(--radius), md = -2px, sm = -4px.
-       Les composants Cmv* utilisent rounded-cmv-* explicitement. */
-    --radius: 0.5rem;
-
-    /* success / warning / accent-soft ne font pas partie du set shadcn :
-       déjà dispo via le preset (text-cmv-success, bg-cmv-accent-soft, ...). */
   }
 
+  /* Couleur de bordure par défaut : sans ça, un `border` seul rendrait le gris du navigateur. */
   * {
-    @apply border-border;
+    @apply border-cmv-border;
   }
 
   body {
-    @apply bg-background text-foreground font-cmv-sans;
+    @apply bg-cmv-bg-0 font-cmv-sans text-cmv-text-hi;
   }
 }

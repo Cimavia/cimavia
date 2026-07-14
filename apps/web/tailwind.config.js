@@ -4,61 +4,14 @@ import cmvPreset from "@cmv/tokens/tailwind-preset";
 /**
  * Config Tailwind web.
  *
- * - `cmvPreset` (@cmv/tokens) fournit les tokens cmv- partagés (couleurs,
- *   typo, rayons, spacing).
- * - Le bloc `colors`/`borderRadius` ci-dessous est le contrat shadcn/ui
- *   (mode cssVariables: true) : ces noms NON préfixés vivent côté web
- *   uniquement et lisent les variables HSL définies dans src/index.css.
+ * `cmvPreset` (@cmv/tokens) fournit TOUS les tokens du design system (couleurs, typo, rayons,
+ * spacing), préfixés `cmv-`. Aucun token non préfixé n'est déclaré ici : le design system est
+ * fait main (composants `Cmv*`) — pas de bibliothèque de primitives tierce.
  *
  * @type {import('tailwindcss').Config}
  */
 export default {
-  darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   presets: [cmvPreset],
-  theme: {
-    extend: {
-      colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-    },
-  },
   plugins: [],
 };

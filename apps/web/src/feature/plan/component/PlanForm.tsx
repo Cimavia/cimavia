@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { DEFAULT_WEEK_COUNT } from "@/feature/plan/constant";
 import { useAthletes, useCreatePlan } from "@/feature/plan/hook/usePlans";
 import { CmvButton, CmvPanel, CmvSelect, CmvTextArea, CmvTextField } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { formatDate } from "@/shared/util/date.util";
 
 type PlanFormProps = {
   open: boolean;
@@ -19,6 +20,7 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
   const navigate = useNavigate();
   const { data: athletes } = useAthletes();
   const createPlan = useCreatePlan();
+  const toast = useMutationToast();
 
   const [athleteId, setAthleteId] = useState("");
   const [title, setTitle] = useState("");
@@ -26,28 +28,42 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
   const [startDate, setStartDate] = useState("");
   const [weekCount, setWeekCount] = useState(DEFAULT_WEEK_COUNT);
 
-  // Un cycle démarre un lundi (contrainte du schéma partagé) : plutôt que de rejeter la saisie du
-  // coach, on la ramène au lundi de la semaine choisie — et on le lui dit.
-  const snappedDate = startDate === "" ? "" : (mondayOfIsoWeek(startDate) ?? "");
-  const wasSnapped = startDate !== "" && !isMondayIsoDate(startDate);
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (athleteId === "" || snappedDate === "") return;
-
-    const plan = await createPlan.mutateAsync({
-      athleteId,
-      title: title.trim(),
-      description: description.trim() || null,
-      startDate: snappedDate,
-      weeks: Array.from({ length: weekCount }, () => ({ type: PlanWeekType.TRAINING })),
-    });
-    onClose();
-    navigate({ to: "/plans/$planId", params: { planId: plan.id } });
+  /**
+   * Un cycle démarre un lundi (contrainte du schéma partagé). Plutôt que de rejeter la saisie du
+   * coach, on RÉÉCRIT le champ au lundi de la semaine choisie dès qu'il le quitte — et on le lui
+   * DIT par un toast : une valeur qui change toute seule sans explication est plus déroutante
+   * qu'un refus.
+   */
+  function snapToMonday() {
+    if (startDate === "" || isMondayIsoDate(startDate)) return;
+    const monday = mondayOfIsoWeek(startDate);
+    if (monday == null) return;
+    setStartDate(monday);
+    toast.onInfo("plan.form.startDateSnapped", { date: formatDate(monday) });
   }
 
-  const errorMessage = apiErrorMessage(createPlan.error);
-  const canSubmit = athleteId !== "" && title.trim() !== "" && snappedDate !== "";
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (athleteId === "" || !isMondayIsoDate(startDate)) return;
+
+    createPlan.mutate(
+      {
+        athleteId,
+        title: title.trim(),
+        description: description.trim() || null,
+        startDate,
+        weeks: Array.from({ length: weekCount }, () => ({ type: PlanWeekType.TRAINING })),
+      },
+      {
+        onSuccess: (plan) => {
+          onClose();
+          navigate({ to: "/plans/$planId", params: { planId: plan.id } });
+        },
+      },
+    );
+  }
+
+  const canSubmit = athleteId !== "" && title.trim() !== "" && startDate !== "";
 
   return (
     <CmvPanel
@@ -105,13 +121,10 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
             type="date"
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
+            onBlur={snapToMonday}
             required
           />
-          <p className="text-cmv-caption text-cmv-text-lo">
-            {wasSnapped
-              ? t("plan.form.startDateSnapped", { date: snappedDate })
-              : t("plan.form.startDateHint")}
-          </p>
+          <p className="text-cmv-caption text-cmv-text-lo">{t("plan.form.startDateHint")}</p>
         </div>
 
         <CmvTextField
@@ -123,10 +136,6 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
           min={1}
           max={PLAN_MAX_WEEKS}
         />
-
-        {errorMessage == null ? null : (
-          <p className="text-cmv-caption text-cmv-error">{errorMessage}</p>
-        )}
       </form>
     </CmvPanel>
   );

@@ -16,10 +16,10 @@
  *   - Hex bruts (pas de variables CSS) : lisibles par NativeWind ET le web.
  *     Thème sombre unique pour le MVP.
  *
- * shadcn/ui (web) : garder le mode `cssVariables: true` et mapper la palette
- *   granite dans apps/web/src/index.css. Les primitives shadcn conservent
- *   ainsi leur contrat (bg-background, etc.) SANS introduire de token non
- *   préfixé dans ce preset. Les composants Cmv* utilisent les classes cmv-.
+ * Design system fait main : aucune bibliothèque de primitives tierce (pas de shadcn/Radix).
+ *   Si l'une venait à être introduite pour des primitives complexes (menu, dialog, combobox),
+ *   ses composants resteraient NON préfixés, dans un dossier `ui/` à part — sans jamais
+ *   introduire de token non préfixé dans ce preset (cf. architecture-choice.md §5).
  *
  * Consommation :
  *   apps/web/tailwind.config.js     -> presets: [require('@cmv/tokens/tailwind-preset')]

@@ -6,6 +6,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { routeTree } from "./routeTree.gen";
+import { ToastProvider } from "./shared/component/CmvToast";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +34,9 @@ if (!rootElement) throw new Error("Root element not found");
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

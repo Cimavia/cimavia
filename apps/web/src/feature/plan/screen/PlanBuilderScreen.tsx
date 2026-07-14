@@ -16,7 +16,6 @@ import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSession
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { useDeletePlan, usePublishPlan } from "@/feature/plan/hook/usePlans";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvEmptyState } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
 
@@ -30,7 +29,7 @@ export function PlanBuilderScreen() {
 
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: plan, isPending } = usePlan(planId);
-  const { addWeek, isBusy, error } = usePlanMutations(planId);
+  const { addWeek, isBusy } = usePlanMutations(planId);
   const publish = usePublishPlan();
   const removePlan = useDeletePlan();
 
@@ -58,8 +57,6 @@ export function PlanBuilderScreen() {
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
-  const errorMessage =
-    apiErrorMessage(error) ?? apiErrorMessage(publish.error) ?? apiErrorMessage(removePlan.error);
 
   function onOpenCreate(week: PlanWeekDto, date: string) {
     setEdit({ week, date, sessionId: null });
@@ -125,10 +122,6 @@ export function PlanBuilderScreen() {
         {isPublished ? (
           <p className="text-cmv-caption text-cmv-text-lo">{t("plan.builder.publishedHint")}</p>
         ) : null}
-
-        {errorMessage == null ? null : (
-          <p className="text-cmv-caption text-cmv-error">{errorMessage}</p>
-        )}
       </header>
 
       <div className="flex flex-col gap-cmv-lg">

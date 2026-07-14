@@ -15,7 +15,6 @@ import {
   CmvTextArea,
   CmvTextField,
 } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
 import { formatDayLabel } from "@/shared/util/date.util";
 
 // Ligne de composition en cours d'édition. `key` est locale et stable : un même exercice peut
@@ -66,7 +65,7 @@ export function ScheduledSessionPanel({
   onClose,
 }: Readonly<ScheduledSessionPanelProps>) {
   const { t } = useTranslation();
-  const { createSession, saveSession, removeSession, isBusy, error } = usePlanMutations(planId);
+  const { createSession, saveSession, removeSession, isBusy } = usePlanMutations(planId);
   const { data: templates } = useSessions();
   const { data: exercises } = useExercises({});
 
@@ -115,40 +114,44 @@ export function ScheduledSessionPanel({
     );
   }
 
-  async function onSubmit(event: FormEvent) {
+  function onSubmit(event: FormEvent) {
     event.preventDefault();
 
     if (!isEditing) {
-      await createSession.mutateAsync({
-        weekId: week.id,
-        input: {
-          // Depuis un modèle → l'API copie tout ; sinon séance vide (titre obligatoire).
-          sourceSessionId: sourceSessionId === "" ? null : sourceSessionId,
-          scheduledDate,
-          ...(sourceSessionId === "" ? { title: title.trim() } : {}),
+      createSession.mutate(
+        {
+          weekId: week.id,
+          input: {
+            // Depuis un modèle → l'API copie tout ; sinon séance vide (titre obligatoire).
+            sourceSessionId: sourceSessionId === "" ? null : sourceSessionId,
+            scheduledDate,
+            ...(sourceSessionId === "" ? { title: title.trim() } : {}),
+          },
         },
-      });
-      onClose();
+        { onSuccess: onClose },
+      );
       return;
     }
 
-    await saveSession.mutateAsync({
-      sessionId: session.id,
-      input: {
-        title: title.trim(),
-        // Champ vide → null (nullable, pas de fallback silencieux).
-        notes: notes.trim() || null,
-        scheduledDate,
-        exercises: items.map((item) => ({
-          sourceExerciseId: item.sourceExerciseId,
-          title: item.title,
-          description: item.description,
-          category: item.category,
-          prescription: item.prescription.trim() || null,
-        })),
+    saveSession.mutate(
+      {
+        sessionId: session.id,
+        input: {
+          title: title.trim(),
+          // Champ vide → null (nullable, pas de fallback silencieux).
+          notes: notes.trim() || null,
+          scheduledDate,
+          exercises: items.map((item) => ({
+            sourceExerciseId: item.sourceExerciseId,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            prescription: item.prescription.trim() || null,
+          })),
+        },
       },
-    });
-    onClose();
+      { onSuccess: onClose },
+    );
   }
 
   function onDelete() {
@@ -162,7 +165,6 @@ export function ScheduledSessionPanel({
   }));
 
   const canSubmit = isEditing || sourceSessionId !== "" || title.trim() !== "";
-  const errorMessage = apiErrorMessage(error);
 
   return (
     <CmvPanel
@@ -297,10 +299,6 @@ export function ScheduledSessionPanel({
               </div>
             </>
           ) : null}
-
-          {errorMessage == null ? null : (
-            <p className="text-cmv-caption text-cmv-error">{errorMessage}</p>
-          )}
         </section>
 
         {/* En édition seulement : la bibliothèque dans laquelle piocher des exercices. */}

@@ -172,7 +172,7 @@
       "descriptionPlaceholder": "Montée en charge progressive, puis décharge en dernière semaine.",
       "startDate": "Début du cycle",
       "startDateHint": "Un cycle démarre un lundi.",
-      "startDateSnapped": "Le cycle démarrera le lundi {{date}}.",
+      "startDateSnapped": "Un cycle démarre un lundi : le début a été recalé au {{date}}.",
       "weekCount": "Nombre de semaines",
       "submit": "Créer le cycle",
       "submitting": "Création…"
@@ -218,6 +218,17 @@
       "delete": "Supprimer le cycle",
       "emptyWeeks": "Aucune semaine",
       "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances."
+    },
+    "toast": {
+      "created": "Cycle « {{title}} » créé",
+      "published": "Cycle « {{title}} » diffusé à l'athlète",
+      "deleted": "Cycle supprimé",
+      "weekAdded": "Semaine ajoutée",
+      "weekUpdated": "Semaine mise à jour",
+      "weekDeleted": "Semaine supprimée",
+      "sessionCreated": "Séance ajoutée au cycle",
+      "sessionSaved": "Séance enregistrée",
+      "sessionDeleted": "Séance supprimée"
     }
   }
 }

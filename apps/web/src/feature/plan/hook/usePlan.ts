@@ -17,6 +17,7 @@ import {
   updatePlanWeek,
   updateScheduledSession,
 } from "@/feature/plan/api";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 export function usePlan(planId: string) {
   return useQuery<PlanDto>({
@@ -29,46 +30,60 @@ export function usePlan(planId: string) {
  * Écritures du builder. Toutes invalident les DEUX racines : `plans` (le détail du cycle et les
  * compteurs de la liste) et `scheduled-sessions` (le détail d'une instance ouverte). Sans quoi le
  * panneau rouvert afficherait la composition d'avant l'enregistrement.
+ * Chaque mutation confirme son effet par un toast — succès comme erreur.
  */
 export function usePlanMutations(planId: string) {
   const queryClient = useQueryClient();
+  const toast = useMutationToast();
+
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: planKeys.all });
     await queryClient.invalidateQueries({ queryKey: scheduledSessionKeys.all });
   };
 
+  const done = (messageKey: string) => async () => {
+    await invalidate();
+    toast.onSuccess(messageKey);
+  };
+
   const addWeek = useMutation({
     mutationFn: (input: PlanWeekInput) => addPlanWeek(planId, input),
-    onSuccess: invalidate,
+    onSuccess: done("plan.toast.weekAdded"),
+    onError: toast.onError,
   });
 
   const updateWeek = useMutation({
     mutationFn: ({ weekId, input }: { weekId: string; input: UpdatePlanWeekInput }) =>
       updatePlanWeek(weekId, input),
-    onSuccess: invalidate,
+    onSuccess: done("plan.toast.weekUpdated"),
+    onError: toast.onError,
   });
 
   // Renumérote les semaines suivantes et fait remonter leurs séances d'une semaine (côté API).
   const removeWeek = useMutation({
     mutationFn: (weekId: string) => deletePlanWeek(weekId),
-    onSuccess: invalidate,
+    onSuccess: done("plan.toast.weekDeleted"),
+    onError: toast.onError,
   });
 
   const createSession = useMutation({
     mutationFn: ({ weekId, input }: { weekId: string; input: CreateScheduledSessionInput }) =>
       createScheduledSession(weekId, input),
-    onSuccess: invalidate,
+    onSuccess: done("plan.toast.sessionCreated"),
+    onError: toast.onError,
   });
 
   const saveSession = useMutation({
     mutationFn: ({ sessionId, input }: { sessionId: string; input: UpdateScheduledSessionInput }) =>
       updateScheduledSession(sessionId, input),
-    onSuccess: invalidate,
+    onSuccess: done("plan.toast.sessionSaved"),
+    onError: toast.onError,
   });
 
   const removeSession = useMutation({
     mutationFn: (sessionId: string) => deleteScheduledSession(sessionId),
-    onSuccess: invalidate,
+    onSuccess: done("plan.toast.sessionDeleted"),
+    onError: toast.onError,
   });
 
   const isBusy =
@@ -79,14 +94,6 @@ export function usePlanMutations(planId: string) {
     saveSession.isPending ||
     removeSession.isPending;
 
-  const error =
-    addWeek.error ??
-    updateWeek.error ??
-    removeWeek.error ??
-    createSession.error ??
-    saveSession.error ??
-    removeSession.error;
-
   return {
     addWeek,
     updateWeek,
@@ -95,6 +102,5 @@ export function usePlanMutations(planId: string) {
     saveSession,
     removeSession,
     isBusy,
-    error,
   };
 }

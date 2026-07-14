@@ -20,14 +20,17 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 
 ---
 
-## Modèle de données — à trancher en P3
+## P3 — Planifications
 
-**`ScheduledSessionExercise` doit-il garder une FK vers l'`Exercise` d'origine ?**
+| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
+|---|---|---|---|---|
+| P3-1 | **Push non envoyé à la diffusion** : `POST /plans/:id/publish` déclenche `NotificationService.notifyPlanPublished`, qui **journalise** (Pino → Axiom) au lieu d'émettre une notification. | Le push complet suppose l'enregistrement des tokens device (table `PushToken` + `expo-notifications` + build sur téléphone physique) — c'est le périmètre explicite de **p4-4**. Le déclencheur métier, lui, est déjà en place et couvert par les e2e : seule la livraison manque. | **p4-4** : brancher `expo-server-sdk` DANS `NotificationService`, sans toucher aux appelants (`grep MOCKED`). | 🔴 |
+| P3-2 | **Objets S3 orphelins après suppression d'une planif** : une copie de document partage la clé objet de la bibliothèque. Si le document d'origine est supprimé (l'objet est alors *conservé* car une copie l'utilise) puis que la planif est supprimée à son tour, l'objet reste dans le bucket sans aucune ligne. | Le compromis inverse — purger l'objet dès la suppression du document — casserait un cycle **déjà diffusé** à l'athlète : une ligne pointerait vers un fichier disparu. On préfère payer du stockage. Le comptage de références (`deleteObjectIfUnreferenced`) évite le cas courant. | Même tâche de purge que **P2-1** (lister les clés sans ligne correspondante, ni `ExerciseDocument` ni `ScheduledSessionExerciseDocument`). | 🟡 |
+| P3-3 | **Documents non lisibles hors-ligne** : le cache athlète (p3-5) conserve la structure des séances (exercices, prescriptions, consignes), mais les documents sont servis par des **URLs signées à TTL court** (5 min) — inutilisables sans réseau. | L'usage visé est « consulter sa séance en salle sans réseau » : le déroulé et les consignes suffisent. Télécharger et chiffrer les PDF/images en local est un chantier à part (quota, purge, sécurité). | Si les athlètes réclament les documents en salle : télécharger les fichiers à la diffusion et les stocker via `expo-file-system`. | 🟢 |
+| P3-4 | **Écrans coach de P1 jamais construits** : la phase P1 a été cochée sur son **périmètre API** (relation, invitation, fiche athlète, tenancy). Côté web il n'existe ni nav latérale, ni liste d'athlètes (pd-4), ni écran d'invitation, ni fiche athlète (pd-5). | L'API est complète et testée ; le manque est purement UI. P2 et P3 ont pu avancer avec des relations créées à la main (client HTTP). | **p3-8** — à rattraper en fin de P3 : sans écran d'invitation, la recette du parcours coach passe obligatoirement par Insomnia. | 🔴 |
+| P3-5 | **Écarts aux maquettes assumés** : pas de **durée de séance** (« 75 min » dans pd-7/pd-9 — le champ n'existe ni au CDC §8 ni sur `Session` en P2), et pas de **drag & drop** dans le builder (réordonnancement par ↑/↓). | Ajouter `durationMinutes` sur la seule instance créerait une asymétrie modèle/instance ; l'ajouter partout rouvre P2 pour un champ décoratif. Le DnD suit la dette **P2-3** (dépendance + accessibilité). | Ajouter `durationMinutes Int?` sur `Session` ET `ScheduledSession` le jour où le coach en exprime le besoin (migration triviale, nullable). | 🟢 |
 
-- **Oui** (prévu au CDC §8) : permet d'afficher les **documents** de l'exercice dans la séance planifiée. Mais impose un `onDelete: Restrict` → le coach ne pourra pas supprimer un exercice utilisé dans **une planification passée**, ce qui deviendra vite bloquant.
-- **Non** (copie autonome : titre/description dupliqués) : la planification devient un instantané immuable, la bibliothèque reste librement modifiable. Mais on perd les documents, sauf à les copier aussi.
-
-Contexte : en P2, `SessionExercise.exercise` est déjà en `Restrict` (avec un **409** explicite côté API). Le compromis se pose différemment pour les instances, qui sont censées être des **copies figées**.
+> **Tranché en P3** (la question ouverte du modèle) : `ScheduledSessionExercise` est une **copie autonome** — snapshot `title`/`description`/`category`/`prescription` + `sourceExerciseId` **nullable en `SetNull`** (traçabilité seule), et les documents sont **copiés en lignes** partageant la clé objet. Conséquence : le coach peut supprimer un exercice de sa bibliothèque **sans jamais casser ni bloquer** une planification diffusée (pas de `Restrict`, pas de 409 à vie). La bibliothèque (`SessionExercise`) garde, elle, son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
 ---
 
