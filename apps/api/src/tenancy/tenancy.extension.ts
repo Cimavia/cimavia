@@ -16,14 +16,14 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   ExerciseDocument: { coach: "coachId" },
   Session: { coach: "coachId" },
   SessionExercise: { coach: "coachId" },
-  // Planifications (P3) : lues par les DEUX rôles → scope coach ET athlète. Attention, le
-  // scope athlète ne dit rien du statut : c'est le service athlète qui filtre `PUBLISHED`
-  // (sinon un plan encore en brouillon serait visible de l'athlète).
   Plan: { coach: "coachId", athlete: "athleteId" },
   PlanWeek: { coach: "coachId", athlete: "athleteId" },
   ScheduledSession: { coach: "coachId", athlete: "athleteId" },
   ScheduledSessionExercise: { coach: "coachId", athlete: "athleteId" },
   ScheduledSessionExerciseDocument: { coach: "coachId", athlete: "athleteId" },
+  SessionFeedback: { coach: "coachId", athlete: "athleteId" },
+  FeedbackMedia: { coach: "coachId", athlete: "athleteId" },
+  PushToken: { coach: "userId", athlete: "userId" },
 };
 
 // Champ de scope applicable à l'acteur, ou null si le rôle n'a aucun accès à ce modèle.

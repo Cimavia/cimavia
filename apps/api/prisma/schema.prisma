@@ -46,6 +46,13 @@ model User {
   coachPlans   Plan[] @relation("CoachPlans") // planifs écrites par le coach
   athletePlans Plan[] @relation("AthletePlans") // planifs reçues par l'athlète
 
+  // Métier — débriefs (P4) : écrits par l'athlète, lus par le coach.
+  athleteFeedback SessionFeedback[] @relation("AthleteFeedback")
+  coachFeedback   SessionFeedback[] @relation("CoachFeedback")
+
+  // Notifications push — les DEUX rôles enregistrent leurs appareils (P4).
+  pushTokens PushToken[]
+
   @@map("user")
 }
 
@@ -355,6 +362,7 @@ model ScheduledSession {
   updatedAt       DateTime               @updatedAt
 
   exercises ScheduledSessionExercise[]
+  feedback  SessionFeedback? // au plus un débrief par séance (P4)
 
   @@unique([planWeekId, scheduledDate, position]) // plusieurs séances par jour, ordonnées
   @@index([coachId])
@@ -406,4 +414,93 @@ model ScheduledSessionExerciseDocument {
   @@index([scheduledSessionExerciseId])
   @@index([storagePath]) // garde de comptage avant purge d'un objet S3 encore référencé
   @@map("scheduled_session_exercise_document")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Métier — débrief & médias (P4).
+// Le débrief est écrit par l'ATHLÈTE et lu par le COACH : les deux tables portent donc
+// `coachId` ET `athleteId` en direct, comme la planification (le tenancy extension scope par
+// un champ du modèle interrogé, il ne remonte pas les relations).
+//
+// ⚠️ Le scope tenant ne dit rien du STATUT : seul le service impose qu'une séance débriefée
+// appartienne à un plan PUBLISHED (un brouillon n'est pas débriefable) — voir FeedbackService.
+//
+// Contrairement aux documents de la bibliothèque, un média de débrief n'est JAMAIS copié ni
+// partagé : sa clé objet n'appartient qu'à lui. Sa suppression purge donc l'objet directement,
+// sans garde de comptage (pas de nouveau cas d'orphelin — cf. dettes P2-1/P3-2).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model SessionFeedback {
+  id                 String           @id @default(cuid())
+  coachId            String // dénormalisé : le coach LIT le débrief de son athlète
+  coach              User             @relation("CoachFeedback", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId          String
+  athlete            User             @relation("AthleteFeedback", fields: [athleteId], references: [id], onDelete: Cascade)
+  scheduledSessionId String           @unique // un seul débrief par séance (CDC §5.6)
+  scheduledSession   ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
+  content            String? // texte libre — nullable : un débrief peut n'être que des médias
+  // Marqueur de lecture du coach : alimente la tuile « Débriefs à relire ». Repassé à null
+  // quand l'athlète complète son débrief, sinon un ajout tardif ne serait jamais resignalé.
+  coachReadAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  media FeedbackMedia[]
+
+  @@index([coachId, coachReadAt]) // tuile dashboard : les débriefs non lus du coach
+  @@index([athleteId])
+  @@map("session_feedback")
+}
+
+model FeedbackMedia {
+  id                String          @id @default(cuid())
+  coachId           String
+  athleteId         String
+  sessionFeedbackId String
+  sessionFeedback   SessionFeedback @relation(fields: [sessionFeedbackId], references: [id], onDelete: Cascade)
+  type              MediaType
+  storagePath       String // clé objet S3 — jamais le binaire en BDD
+  fileName          String
+  mimeType          String
+  sizeBytes         Int
+  durationSeconds   Int? // vidéo uniquement — déclaré par le client (pas de décodage serveur)
+  createdAt         DateTime        @default(now())
+
+  @@index([coachId])
+  @@index([athleteId])
+  @@index([sessionFeedbackId])
+  @@map("feedback_media")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notifications push (P4).
+// Un token adresse une INSTALLATION de l'app, pas un utilisateur : d'où une table (plusieurs
+// appareils par personne) plutôt qu'une colonne sur User. Le token change (réinstallation,
+// restauration) → `@unique` pour que le réenregistrement mette à jour la ligne existante.
+// Scopé `userId` pour les deux rôles : chacun ne gère que ses propres appareils. L'ENVOI, lui,
+// lit les tokens du DESTINATAIRE (un autre tenant) — il passe donc par le client Prisma de
+// base, cf. NotificationService.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PushPlatform {
+  IOS
+  ANDROID
+}
+
+model PushToken {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String       @unique // ExponentPushToken[…] — l'adresse de livraison
+  platform  PushPlatform // sans effet sur la livraison (Expo route seul) : diagnostic prod
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([userId])
+  @@map("push_token")
 }
