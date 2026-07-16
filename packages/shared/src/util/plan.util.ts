@@ -21,6 +21,18 @@ export function planWeekRange(planStartDate: string, weekNumber: number): PlanWe
   return { startDate, endDate };
 }
 
+// Les 7 jours (lundi → dimanche) d'une semaine, à partir de son lundi. `null` si la date est
+// illisible. Sert aussi bien au builder du coach qu'à la vue semaine de l'athlète.
+export function planWeekDays(weekStartDate: string): string[] | null {
+  const days: string[] = [];
+  for (let index = 0; index < DAYS_PER_WEEK; index++) {
+    const day = shiftIsoDate(weekStartDate, index);
+    if (day == null) return null;
+    days.push(day);
+  }
+  return days;
+}
+
 // Dernier jour du cycle (dimanche de la dernière semaine). `null` si le plan n'a aucune semaine.
 export function planEndDate(planStartDate: string, weekCount: number): string | null {
   if (!Number.isInteger(weekCount) || weekCount < 1) return null;

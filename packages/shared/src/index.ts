@@ -1,3 +1,5 @@
+export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
+export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
 export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./auth";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
@@ -123,16 +125,30 @@ export type { Role as RoleType } from "./role";
 export { Role } from "./role";
 export {
   DAYS_PER_WEEK,
+  dateToIsoDate,
   daysBetweenIsoDates,
   isIsoDate,
   isMondayIsoDate,
+  isoDateToDate,
   mondayOfIsoWeek,
+  shiftDate,
   shiftIsoDate,
+  todayIsoDate,
 } from "./util/date.util";
+export {
+  formatIsoDate,
+  formatIsoDateRange,
+  formatIsoDateTime,
+  formatIsoDayLabel,
+  formatIsoDayNumber,
+  formatIsoFullDay,
+  formatIsoWeekday,
+} from "./util/date-format.util";
 export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
 export {
   isDateInPlanWeek,
   planEndDate,
+  planWeekDays,
   planWeekRange,
   selectCurrentPlan,
 } from "./util/plan.util";

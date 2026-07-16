@@ -22,7 +22,7 @@ export function RegisterScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!isPending && session != null) {
-    return <Redirect href="/home" />;
+    return <Redirect href="/planning" />;
   }
 
   async function onSubmit() {
@@ -34,7 +34,7 @@ export function RegisterScreen() {
         setError(t("auth.errors.generic"));
         return;
       }
-      router.replace("/home");
+      router.replace("/planning");
     } catch {
       setError(t("auth.errors.generic"));
     } finally {

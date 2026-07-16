@@ -17,7 +17,7 @@ export function LoginScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!isPending && session != null) {
-    return <Redirect href="/home" />;
+    return <Redirect href="/planning" />;
   }
 
   async function onSubmit() {
@@ -29,7 +29,7 @@ export function LoginScreen() {
         setError(t("auth.errors.invalidCredentials"));
         return;
       }
-      router.replace("/home");
+      router.replace("/planning");
     } catch {
       setError(t("auth.errors.generic"));
     } finally {

@@ -10,6 +10,25 @@ const MONDAY = 1;
 
 export const DAYS_PER_WEEK = 7;
 
+// ── Ponts avec l'objet Date ──────────────────────────────────────────────────
+// Utiles là où une date civile croise une API qui parle `Date` (colonnes Prisma `@db.Date`,
+// Intl.DateTimeFormat). Le parsing — et son piège — n'est écrit qu'ICI.
+
+export function isoDateToDate(isoDate: string): Date | null {
+  return parseIsoDate(isoDate);
+}
+
+export function dateToIsoDate(date: Date): string {
+  return toIsoDate(date);
+}
+
+// Décale une `Date` d'un nombre de jours, en repassant par la date civile (donc sans dérive
+// d'heure d'été). `null` si la date est incohérente.
+export function shiftDate(date: Date, days: number): Date | null {
+  const shifted = shiftIsoDate(toIsoDate(date), days);
+  return shifted == null ? null : parseIsoDate(shifted);
+}
+
 function parseIsoDate(isoDate: string): Date | null {
   if (!ISO_DATE_PATTERN.test(isoDate)) return null;
   const time = Date.parse(`${isoDate}T00:00:00Z`);
@@ -26,6 +45,11 @@ function toIsoDate(date: Date): string {
 
 export function isIsoDate(isoDate: string): boolean {
   return parseIsoDate(isoDate) != null;
+}
+
+// Aujourd'hui, en date civile UTC — le repère de « où en est l'athlète dans son cycle ».
+export function todayIsoDate(): string {
+  return toIsoDate(new Date());
 }
 
 export function shiftIsoDate(isoDate: string, days: number): string | null {

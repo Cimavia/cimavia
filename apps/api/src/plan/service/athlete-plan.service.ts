@@ -1,10 +1,10 @@
 import type { PlanDto, ScheduledSessionDto } from "@cmv/shared";
-import { PlanStatus, selectCurrentPlan } from "@cmv/shared";
+import { PlanStatus, selectCurrentPlan, todayIsoDate } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { todayIsoDate, toIsoDate } from "../../util/date.util";
+import { toIsoDate } from "../../util/date.util";
 import { PLAN_COUNTS_INCLUDE, PLAN_DETAIL_INCLUDE, toPlanDto } from "../plan.mapper";
 import { SESSION_DETAIL_INCLUDE, toScheduledSessionDto } from "../scheduled-session.mapper";
 

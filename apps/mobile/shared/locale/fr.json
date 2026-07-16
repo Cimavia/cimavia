@@ -3,7 +3,9 @@
     "appName": "cimavia",
     "email": "Adresse e-mail",
     "password": "Mot de passe",
-    "loading": "Chargement…"
+    "loading": "Chargement…",
+    "logout": "Se déconnecter",
+    "offline": "Hors-ligne — séances en cache, documents indisponibles"
   },
   "auth": {
     "login": {
@@ -49,12 +51,48 @@
     "coach": "Coach",
     "athlete": "Athlète"
   },
-  "home": {
-    "welcome": "Bonjour {{name}}",
-    "spaceCoach": "Espace coach",
-    "spaceAthlete": "Espace athlète",
-    "coachHint": "Vos athlètes et planifications apparaîtront ici.",
-    "athleteHint": "Vos séances et votre coach apparaîtront ici.",
-    "logout": "Se déconnecter"
+  "nav": {
+    "planning": "Planning",
+    "sessions": "Séances",
+    "profile": "Profil"
+  },
+  "plan": {
+    "thisWeek": "Cette semaine",
+    "rest": "Repos",
+    "outOfCycle": "Aucune séance cette semaine : ton cycle n'a pas encore commencé, ou il est terminé.",
+    "doneCount": "{{done}}/{{total}} séances faites",
+    "weekType": {
+      "TRAINING": "Entraînement",
+      "DELOAD": "Décharge"
+    },
+    "sessionStatus": {
+      "PLANNED": "À faire",
+      "DONE": "Fait",
+      "SKIPPED": "Sautée"
+    },
+    "category": {
+      "RENFO": "Renfo",
+      "GRIMPE": "Grimpe",
+      "TECHNIQUE": "Technique"
+    },
+    "week": {
+      "number": "Semaine {{number}}"
+    },
+    "empty": {
+      "title": "Aucune séance planifiée",
+      "description": "Ton coach n'a pas encore diffusé de planification. Dès qu'il le fera, tes séances s'afficheront ici."
+    },
+    "sessions": {
+      "upcoming": "À venir",
+      "past": "Passées",
+      "empty": "Aucune séance",
+      "emptyHint": "Rien à afficher pour l'instant."
+    },
+    "session": {
+      "exerciseCount": "{{count}} exercice(s)",
+      "composition": "Déroulé · {{count}} exercice(s)",
+      "notes": "Consignes du coach",
+      "link": "Document"
+    }
   }
 }

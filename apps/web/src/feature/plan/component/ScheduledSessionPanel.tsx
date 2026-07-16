@@ -1,9 +1,9 @@
 import type { ExerciseCategory, ExerciseDto, PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
+import { planWeekDays } from "@cmv/shared";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
-import { weekDays } from "@/feature/plan/constant";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import {
   CmvBadge,
@@ -159,7 +159,7 @@ export function ScheduledSessionPanel({
     removeSession.mutate(session.id, { onSuccess: onClose });
   }
 
-  const dayOptions = weekDays(week.startDate).map((day) => ({
+  const dayOptions = (planWeekDays(week.startDate) ?? []).map((day) => ({
     value: day,
     label: formatDayLabel(day),
   }));

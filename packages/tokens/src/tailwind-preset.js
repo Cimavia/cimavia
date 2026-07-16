@@ -11,6 +11,9 @@
  *   rayons    -> rounded-cmv-*
  *   spacing   -> p-cmv-*, gap-cmv-*, ...
  *
+ * La palette elle-même vit dans `palette.json` : c'est la SEULE source des hex, lisible par ce
+ * preset (JS) comme par le code applicatif (TS) qui doit thémer la navigation native.
+ *
  * Contraintes :
  *   - Tailwind CSS v3.4 (NativeWind 4 ne supporte pas Tailwind v4).
  *   - Hex bruts (pas de variables CSS) : lisibles par NativeWind ET le web.
@@ -26,38 +29,7 @@
  *   apps/mobile/tailwind.config.js  -> presets: [require('@cmv/tokens/tailwind-preset')]
  */
 
-const cmv = {
-  // Neutres · Granite
-  bg: {
-    0: "#0A0F14", // fond le plus profond        -> bg-cmv-bg-0
-    1: "#0E141A", // fond surélevé / "muted"      -> bg-cmv-bg-1
-  },
-  surface: {
-    DEFAULT: "#141D25", // cartes                 -> bg-cmv-surface
-    hi: "#1C2630", // hover / popover / segment actif -> bg-cmv-surface-hi
-  },
-  border: {
-    DEFAULT: "#2B3742", // -> border-cmv-border
-    hi: "#3A4854", // -> border-cmv-border-hi
-  },
-
-  // Texte (sur fond sombre)
-  text: {
-    hi: "#DCEFF3", // principal     -> text-cmv-text-hi
-    mid: "#AAB6C2", // secondaire    -> text-cmv-text-mid
-    lo: "#6B93A0", // tertiaire — contraste AA limite, métadonnées seulement
-  },
-
-  // Accent & sémantiques
-  accent: {
-    DEFAULT: "#C2603A", // action primaire -> bg-cmv-accent
-    hi: "#D07049", // hover / actif   -> bg-cmv-accent-hi
-    soft: "rgba(194, 96, 58, 0.16)", // fond discret (accent @16%) -> bg-cmv-accent-soft
-  },
-  success: "#4E9A6A", // -> text-cmv-success
-  warning: "#D6A23F", // -> text-cmv-warning
-  error: "#D2564B", // -> text-cmv-error
-};
+const cmv = require("./palette.json");
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {

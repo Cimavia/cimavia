@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isDateInPlanWeek, planEndDate, planWeekRange, selectCurrentPlan } from "./plan.util";
+import {
+  isDateInPlanWeek,
+  planEndDate,
+  planWeekDays,
+  planWeekRange,
+  selectCurrentPlan,
+} from "./plan.util";
 
 // 2026-10-12 est un lundi (date de début de cycle valide — cf. planStartDateSchema).
 const MONDAY = "2026-10-12";
@@ -20,6 +26,24 @@ describe("planWeekRange", () => {
     expect(planWeekRange(MONDAY, 0)).toBeNull();
     expect(planWeekRange(MONDAY, -1)).toBeNull();
     expect(planWeekRange(MONDAY, 1.5)).toBeNull();
+  });
+});
+
+describe("planWeekDays", () => {
+  it("déroule les 7 jours du lundi au dimanche", () => {
+    expect(planWeekDays(MONDAY)).toEqual([
+      "2026-10-12",
+      "2026-10-13",
+      "2026-10-14",
+      "2026-10-15",
+      "2026-10-16",
+      "2026-10-17",
+      "2026-10-18",
+    ]);
+  });
+
+  it("retourne null sur une date illisible (pas une semaine tronquée)", () => {
+    expect(planWeekDays("2026-02-31")).toBeNull();
   });
 });
 

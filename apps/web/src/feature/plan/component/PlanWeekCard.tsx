@@ -1,6 +1,7 @@
 import type { PlanWeekDto, PlanWeekType, ScheduledSessionSummaryDto } from "@cmv/shared";
+import { planWeekDays } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { PLAN_WEEK_TYPES, weekDays } from "@/feature/plan/constant";
+import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/component";
 import { formatDateRange, formatDayLabel } from "@/shared/util/date.util";
@@ -21,7 +22,7 @@ export function PlanWeekCard({
   const { t } = useTranslation();
   const { updateWeek, removeWeek, isBusy } = usePlanMutations(planId);
 
-  const days = weekDays(week.startDate);
+  const days = planWeekDays(week.startDate) ?? [];
   const sessionsByDay = new Map<string, ScheduledSessionSummaryDto[]>();
   for (const session of week.sessions) {
     const existing = sessionsByDay.get(session.scheduledDate) ?? [];

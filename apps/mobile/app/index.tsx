@@ -2,7 +2,7 @@ import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { authClient } from "@/shared/lib/auth";
 
-// Gate de session : aiguille vers l'accueil (connecté) ou le login (déconnecté).
+// Gate de session : aiguille vers le planning (connecté) ou le login (déconnecté).
 export default function Index() {
   const { data: session, isPending } = authClient.useSession();
 
@@ -14,5 +14,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={session == null ? "/login" : "/home"} />;
+  return <Redirect href={session == null ? "/login" : "/planning"} />;
 }

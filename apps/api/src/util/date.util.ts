@@ -1,32 +1,30 @@
-import { shiftIsoDate } from "@cmv/shared";
+import { dateToIsoDate, isoDateToDate, shiftDate } from "@cmv/shared";
 
-// Pont entre les dates civiles des DTO ("YYYY-MM-DD", cf. @cmv/shared/date.util) et les colonnes
-// `@db.Date` de Prisma, qui se manipulent en `Date`. Postgres stocke un jour sans heure ; Prisma
-// le rend en Date à minuit UTC. On reste donc en UTC des deux côtés : aucune conversion locale,
-// donc aucun décalage de jour selon le fuseau du serveur.
-// Rien de métier ici — l'arithmétique de dates vit dans @cmv/shared (partagée avec les clients).
+/**
+ * Pont entre les dates civiles des DTO ("YYYY-MM-DD") et les colonnes `@db.Date` de Prisma, qui se
+ * manipulent en `Date`. Toute la logique (parsing, décalage, fuseau) vit dans @cmv/shared : ici on
+ * ne fait que la POLITIQUE de l'API — une date illisible en base est une donnée corrompue, donc on
+ * lève, là où les fonctions partagées, elles, retournent `null`.
+ */
 
 export function toDbDate(isoDate: string): Date {
-  return new Date(`${isoDate}T00:00:00Z`);
+  const date = isoDateToDate(isoDate);
+  if (date == null) {
+    throw new Error(`[date] date civile illisible : ${isoDate}`);
+  }
+  return date;
 }
 
 export function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return dateToIsoDate(date);
 }
 
-// Aujourd'hui, en date civile UTC — repère de « où en est l'athlète dans son cycle ».
-export function todayIsoDate(): string {
-  return toIsoDate(new Date());
-}
-
-// Décalage d'une date de colonne, délégué à la logique pure partagée (pas d'arithmétique de
-// dates réécrite ici). `null` ne survient que sur une date corrompue en base → on lève.
 export function shiftDbDate(date: Date, days: number): Date {
-  const shifted = shiftIsoDate(toIsoDate(date), days);
+  const shifted = shiftDate(date, days);
   if (shifted == null) {
     throw new Error(
       `[date] décalage impossible (${date.toISOString()} ${days > 0 ? "+" : ""}${days}j)`,
     );
   }
-  return toDbDate(shifted);
+  return shifted;
 }

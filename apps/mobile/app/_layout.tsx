@@ -1,13 +1,21 @@
 import "../global.css";
 import "@/shared/lib/i18n";
 
+import { ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { QueryProvider } from "@/shared/lib/query";
+import { navigationTheme } from "@/shared/theme/navigation";
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </SafeAreaProvider>
+    <QueryProvider>
+      <SafeAreaProvider>
+        {/* Sans ce thème, le fond des écrans natifs reste BLANC sous nos vues sombres. */}
+        <ThemeProvider value={navigationTheme}>
+          <Stack screenOptions={{ headerShown: false }} />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </QueryProvider>
   );
 }
