@@ -8,6 +8,9 @@ import { configureApp } from "../src/app.setup";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
+  "feedback_media",
+  "session_feedback",
+  "push_token",
   "scheduled_session_exercise_document",
   "scheduled_session_exercise",
   "scheduled_session",
@@ -639,5 +642,128 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(session.body.exercises[0].title).toBe("Tractions lestées");
     expect(session.body.exercises[0].sourceExerciseId).toBeNull(); // FK passée à null
     expect(session.body.exercises[0].documents).toHaveLength(1);
+  });
+});
+
+describe("Débrief de séance (P4)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let athleteB1: Agent;
+  let a1Id: string;
+  let planId: string;
+  let weekId: string;
+  let draftSessionId: string;
+  let sessionId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return accepted.body.athleteId;
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("fb-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("fb-athlete-a1@cmv.test", Role.ATHLETE);
+    const coachB = await signUp("fb-coach-b@cmv.test", Role.COACH);
+    athleteB1 = await signUp("fb-athlete-b1@cmv.test", Role.ATHLETE);
+
+    a1Id = await link(coachA, athleteA1);
+    await link(coachB, athleteB1);
+
+    const plan = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle débrief",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    planId = plan.body.id;
+    weekId = plan.body.weeks[0].id;
+
+    const session = await coachA
+      .post(`/plan-weeks/${weekId}/sessions`)
+      .send({ title: "Séance à débriefer", scheduledDate: monday });
+    draftSessionId = session.body.id;
+  });
+
+  // ⚠️ Le scope tenant ne filtre PAS le statut : sans la garde du service, l'athlète pourrait
+  // débriefer une séance d'un cycle que son coach est encore en train d'écrire.
+  it("refuse de débriefer une séance d'un cycle non diffusé", async () => {
+    const res = await athleteA1
+      .put(`/me/scheduled-sessions/${draftSessionId}/feedback`)
+      .send({ content: "Trop tôt" });
+    expect(res.status).toBe(404);
+  });
+
+  it("aucun débrief avant écriture : null, pas un objet vide", async () => {
+    await coachA.post(`/plans/${planId}/publish`);
+    sessionId = draftSessionId;
+
+    const res = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  it("débriefe la séance : le texte est enregistré et la séance passe en DONE", async () => {
+    const res = await athleteA1
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Bonne séance, épaule un peu sensible sur les tractions." });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      scheduledSessionId: sessionId,
+      athleteId: a1Id,
+      content: "Bonne séance, épaule un peu sensible sur les tractions.",
+      coachReadAt: null,
+      media: [],
+    });
+
+    const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(session.body.status).toBe("DONE");
+  });
+
+  // L'athlète débriefe en plusieurs fois : le PUT est idempotent, pas un doublon.
+  it("compléter un débrief le met à jour au lieu d'en créer un second", async () => {
+    const res = await athleteA1
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Complément : douleur passée après échauffement." });
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBe("Complément : douleur passée après échauffement.");
+
+    const reread = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    expect(reread.body.id).toBe(res.body.id);
+  });
+
+  // Un débrief vide est un état légitime (« séance faite, rien à signaler »).
+  it("accepte un débrief sans texte", async () => {
+    const res = await athleteA1.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBeNull();
+  });
+
+  it("refuse un texte au-delà de la limite du schéma", async () => {
+    const res = await athleteA1
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "x".repeat(5001) });
+    expect(res.status).toBe(400);
+  });
+
+  it("l'athlète d'un autre coach ne lit ni n'écrit ce débrief", async () => {
+    expect((await athleteB1.get(`/me/scheduled-sessions/${sessionId}/feedback`)).status).toBe(200);
+    expect((await athleteB1.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body).toBeNull();
+
+    const write = await athleteB1
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Intrusion" });
+    expect(write.status).toBe(404);
+  });
+
+  it("le débrief reste une écriture d'athlète : le coach n'y accède pas par /me", async () => {
+    expect((await coachA.get(`/me/scheduled-sessions/${sessionId}/feedback`)).status).toBe(403);
+    expect(
+      (await coachA.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({ content: "x" }))
+        .status,
+    ).toBe(403);
   });
 });

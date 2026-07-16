@@ -12,6 +12,7 @@ import { createAuth } from "./auth/auth.config";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEME } from "./config/origins";
 import { ExerciseModule } from "./exercise/exercise.module";
+import { FeedbackModule } from "./feedback/feedback.module";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { PrismaService } from "./infra/prisma/prisma.service";
@@ -80,6 +81,7 @@ function buildLogTargets(): TransportTargetOptions[] {
     ExerciseModule,
     SessionModule,
     PlanModule,
+    FeedbackModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],

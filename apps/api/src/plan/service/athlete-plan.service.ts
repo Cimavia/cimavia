@@ -1,6 +1,7 @@
 import type { PlanDto, ScheduledSessionDto } from "@cmv/shared";
 import { PlanStatus, selectCurrentPlan, todayIsoDate } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import type { ScheduledSession } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -66,5 +67,21 @@ export class AthletePlanService {
       throw new NotFoundException("Séance introuvable");
     }
     return toScheduledSessionDto(session, this.storage);
+  }
+
+  /**
+   * La séance telle qu'un athlète a le droit de l'écrire : la sienne (scope tenant) ET dans un
+   * cycle diffusé (filtre de statut). Point d'entrée unique du débrief (P4) — sans lui, l'athlète
+   * pourrait débriefer une séance d'un brouillon que son coach est encore en train d'écrire.
+   * Renvoie la ligne (et non un DTO) : l'appelant a besoin du `coachId` à dénormaliser.
+   */
+  async getPublishedSessionOrThrow(id: string): Promise<ScheduledSession> {
+    const session = await this.db.scheduledSession.findFirst({
+      where: { id, plan: { status: PlanStatus.PUBLISHED } },
+    });
+    if (session == null) {
+      throw new NotFoundException("Séance introuvable");
+    }
+    return session;
   }
 }

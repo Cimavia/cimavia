@@ -20,6 +20,8 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
     AthletePlanController,
   ],
   providers: [PlanService, ScheduledSessionService, AthletePlanService],
-  exports: [PlanService],
+  // AthletePlanService est exporté pour le débrief (P4) : il porte la garde « séance de
+  // l'athlète courant, dans un cycle PUBLISHED » — à ne pas réécrire ailleurs.
+  exports: [PlanService, AthletePlanService],
 })
 export class PlanModule {}
