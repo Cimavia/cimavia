@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { SessionCard } from "@/feature/plan/component/SessionCard";
 import { useMyPlan } from "@/feature/plan/hook/useMyPlan";
-import { CmvScreen, CmvText } from "@/shared/component";
+import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -14,7 +14,7 @@ type SessionsTab = "upcoming" | "past";
 // Onglet Séances (p3-4) : à venir / passées, dérivés du cycle courant — aucune requête de plus.
 export function SessionsScreen() {
   const { t } = useTranslation();
-  const { data: plan, isPending } = useMyPlan();
+  const { data: plan, isPending, isError, refetch } = useMyPlan();
   const [tab, setTab] = useState<SessionsTab>("upcoming");
 
   const today = todayIsoDate();
@@ -56,7 +56,9 @@ export function SessionsScreen() {
       <ScrollView contentContainerClassName="gap-3 px-4 pb-4">
         {isPending ? <ActivityIndicator /> : null}
 
-        {!isPending && sessions.length === 0 ? (
+        {isError && plan == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
+
+        {!isPending && !isError && sessions.length === 0 ? (
           <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
             <CmvText className="text-cmv-text-hi">{t("plan.sessions.empty")}</CmvText>
             <CmvText className="text-cmv-text-mid text-sm">{t("plan.sessions.emptyHint")}</CmvText>

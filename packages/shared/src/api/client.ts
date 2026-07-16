@@ -53,7 +53,12 @@ export type ApiFetch = (url: string, init: ApiRequestInit) => Promise<ApiRespons
 
 export type ApiClientConfig = {
   baseUrl: string;
-  fetchFn: ApiFetch;
+  /**
+   * Implémentation de `fetch`. Par défaut celle du runtime, **liée à `globalThis`** : dans un
+   * navigateur, `fetch` détaché de `window` lève `Illegal invocation` dès qu'il est appelé comme
+   * méthode d'un autre objet. Ne surcharger que pour un test (injection d'un faux).
+   */
+  fetchFn?: ApiFetch;
   // En-têtes évalués à CHAQUE requête : le cookie de session change au fil de la vie de l'app.
   headers?: () => Record<string, string>;
   // Web : envoie le cookie de session du navigateur.
@@ -68,7 +73,20 @@ export type ApiClient = {
   delete: <T>(path: string) => Promise<T>;
 };
 
+// `fetch` du runtime, décrit structurellement (ce module n'impose pas `lib: DOM` à ses
+// consommateurs — l'API NestJS en fait partie).
+const globalFetch = (globalThis as { fetch?: ApiFetch }).fetch;
+
 export function createApiClient(config: ApiClientConfig): ApiClient {
+  // `.bind(globalThis)` est INDISPENSABLE : appelé avec un autre `this` (ou aucun, en module
+  // strict), le `fetch` du navigateur lève « Illegal invocation ».
+  const resolved = config.fetchFn ?? globalFetch?.bind(globalThis);
+  if (resolved == null) {
+    throw new Error("[api] aucun fetch disponible dans ce runtime");
+  }
+  // `request` est hoistée : TS ne propage pas le narrowing du const dans son corps.
+  const doFetch: ApiFetch = resolved;
+
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers = { ...(config.headers?.() ?? {}) };
     if (body !== undefined) {
@@ -80,7 +98,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     if (body !== undefined) init.body = JSON.stringify(body);
     if (config.credentials != null) init.credentials = config.credentials;
 
-    const response = await config.fetchFn(`${config.baseUrl}${path}`, init);
+    const response = await doFetch(`${config.baseUrl}${path}`, init);
 
     // 204 No Content (DELETE) → pas de corps à parser.
     if (response.status === 204) return undefined as T;

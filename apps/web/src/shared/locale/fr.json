@@ -8,7 +8,10 @@
     "cancel": "Annuler",
     "confirmDelete": "Confirmer la suppression",
     "close": "Fermer",
-    "logout": "Se déconnecter"
+    "logout": "Se déconnecter",
+    "errorTitle": "Chargement impossible",
+    "errorDescription": "Les données n'ont pas pu être récupérées. Vérifiez votre connexion, puis réessayez.",
+    "retry": "Réessayer"
   },
   "auth": {
     "login": {

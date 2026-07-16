@@ -2,7 +2,7 @@ import type { SessionDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { SessionCard } from "@/feature/library/component/SessionCard";
 import { useSessions } from "@/feature/library/hook/useSessions";
-import { CmvButton, CmvEmptyState } from "@/shared/component";
+import { CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 
 type SessionListProps = {
   onCreate: () => void;
@@ -11,12 +11,19 @@ type SessionListProps = {
 
 export function SessionList({ onCreate, onEdit }: Readonly<SessionListProps>) {
   const { t } = useTranslation();
-  const { data: sessions, isPending, isError } = useSessions();
+  const { data: sessions, isPending, isError, refetch } = useSessions();
 
   return (
     <>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
-      {isError ? <p className="text-cmv-error">{t("common.error")}</p> : null}
+      {isError ? (
+        <CmvErrorState
+          title={t("common.errorTitle")}
+          description={t("common.errorDescription")}
+          retryLabel={t("common.retry")}
+          onRetry={() => refetch()}
+        />
+      ) : null}
 
       {sessions?.length === 0 ? (
         <CmvEmptyState

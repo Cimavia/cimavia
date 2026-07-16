@@ -5,14 +5,14 @@ import { useTranslation } from "react-i18next";
 import { PlanForm } from "@/feature/plan/component/PlanForm";
 import { PlanList } from "@/feature/plan/component/PlanList";
 import { usePlans } from "@/feature/plan/hook/usePlans";
-import { CmvAppShell, CmvButton, CmvEmptyState } from "@/shared/component";
+import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 // Liste des planifications du coach (p3-1). Surface coach : l'API refuse déjà l'athlète en 403.
 export function PlansScreen() {
   const { t } = useTranslation();
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
-  const { data: plans, isPending } = usePlans();
+  const { data: plans, isPending, isError, refetch } = usePlans();
   const [formOpen, setFormOpen] = useState(false);
 
   if (isAuthPending) {
@@ -36,7 +36,16 @@ export function PlansScreen() {
     >
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
-      {!isPending && !hasPlans ? (
+      {isError ? (
+        <CmvErrorState
+          title={t("common.errorTitle")}
+          description={t("common.errorDescription")}
+          retryLabel={t("common.retry")}
+          onRetry={() => refetch()}
+        />
+      ) : null}
+
+      {!isPending && !isError && !hasPlans ? (
         <CmvEmptyState
           title={t("plan.empty.title")}
           description={t("plan.empty.description")}

@@ -5,7 +5,10 @@
     "password": "Mot de passe",
     "loading": "Chargement…",
     "logout": "Se déconnecter",
-    "offline": "Hors-ligne — séances en cache, documents indisponibles"
+    "offline": "Hors-ligne — séances en cache, documents indisponibles",
+    "errorTitle": "Chargement impossible",
+    "errorDescription": "Tes séances n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
+    "retry": "Réessayer"
   },
   "auth": {
     "login": {

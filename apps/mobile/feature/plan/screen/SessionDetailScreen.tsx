@@ -2,7 +2,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from "react-native";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { CmvScreen, CmvText } from "@/shared/component";
+import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -14,7 +14,7 @@ import { formatFullDay } from "@/shared/util/date.util";
 export function SessionDetailScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: session, isPending } = useScheduledSession(id);
+  const { data: session, isPending, isError, refetch } = useScheduledSession(id);
 
   return (
     <CmvScreen>
@@ -22,6 +22,8 @@ export function SessionDetailScreen() {
 
       <ScrollView contentContainerClassName="gap-6 p-4">
         {isPending ? <ActivityIndicator /> : null}
+
+        {isError && session == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
         {session == null ? null : (
           <>

@@ -4,7 +4,13 @@ import { useTranslation } from "react-i18next";
 import { ExerciseCard } from "@/feature/library/component/ExerciseCard";
 import { EXERCISE_CATEGORIES } from "@/feature/library/constant";
 import { useExercises } from "@/feature/library/hook/useExercises";
-import { CmvButton, CmvEmptyState, CmvSegmented, CmvTextField } from "@/shared/component";
+import {
+  CmvButton,
+  CmvEmptyState,
+  CmvErrorState,
+  CmvSegmented,
+  CmvTextField,
+} from "@/shared/component";
 
 // "ALL" = pas de filtre catégorie (valeur sentinelle locale, jamais envoyée à l'API).
 type CategoryFilter = ExerciseCategory | "ALL";
@@ -23,7 +29,7 @@ export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) 
     ...(categoryFilter === "ALL" ? {} : { category: categoryFilter }),
     ...(search.trim() ? { search: search.trim() } : {}),
   };
-  const { data: exercises, isPending, isError } = useExercises(filters);
+  const { data: exercises, isPending, isError, refetch } = useExercises(filters);
 
   return (
     <>
@@ -52,7 +58,14 @@ export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) 
       </div>
 
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
-      {isError ? <p className="text-cmv-error">{t("common.error")}</p> : null}
+      {isError ? (
+        <CmvErrorState
+          title={t("common.errorTitle")}
+          description={t("common.errorDescription")}
+          retryLabel={t("common.retry")}
+          onRetry={() => refetch()}
+        />
+      ) : null}
 
       {exercises?.length === 0 ? (
         <CmvEmptyState

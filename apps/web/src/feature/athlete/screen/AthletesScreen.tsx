@@ -6,14 +6,21 @@ import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel
 import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { usePlans } from "@/feature/plan/hook/usePlans";
-import { CmvAppShell, CmvBadge, CmvButton, CmvCard, CmvEmptyState } from "@/shared/component";
+import {
+  CmvAppShell,
+  CmvBadge,
+  CmvButton,
+  CmvCard,
+  CmvEmptyState,
+  CmvErrorState,
+} from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 export function AthletesScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
-  const { data: athletes, isPending } = useAthletes();
+  const { data: athletes, isPending, isError, refetch } = useAthletes();
   const { data: plans } = usePlans();
 
   const [invitationOpen, setInvitationOpen] = useState(false);
@@ -36,6 +43,9 @@ export function AthletesScreen() {
       .map((plan) => [plan.athleteId, plan]),
   );
 
+  // Erreur, vide et chargement sont TROIS états distincts : `athletes` est undefined aussi bien
+  // pendant le chargement qu'après un échec — les confondre afficherait « Aucun athlète » sur une
+  // panne réseau.
   const hasAthletes = athletes != null && athletes.length > 0;
 
   return (
@@ -46,7 +56,16 @@ export function AthletesScreen() {
     >
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
-      {!isPending && !hasAthletes ? (
+      {isError ? (
+        <CmvErrorState
+          title={t("common.errorTitle")}
+          description={t("common.errorDescription")}
+          retryLabel={t("common.retry")}
+          onRetry={() => refetch()}
+        />
+      ) : null}
+
+      {!isPending && !isError && !hasAthletes ? (
         <CmvEmptyState
           title={t("athlete.empty.title")}
           description={t("athlete.empty.description")}

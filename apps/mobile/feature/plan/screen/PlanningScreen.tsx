@@ -3,14 +3,14 @@ import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { currentWeek, useMyPlan } from "@/feature/plan/hook/useMyPlan";
-import { CmvScreen, CmvText } from "@/shared/component";
+import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatDateRange } from "@/shared/util/date.util";
 
 // Vue semaine de l'athlète (p3-4) : la semaine EN COURS de son cycle diffusé.
 export function PlanningScreen() {
   const { t } = useTranslation();
-  const { data: plan, isPending } = useMyPlan();
+  const { data: plan, isPending, isError, refetch } = useMyPlan();
 
   const today = todayIsoDate();
   const week = currentWeek(plan);
@@ -24,7 +24,10 @@ export function PlanningScreen() {
       <ScrollView contentContainerClassName="gap-6 p-4">
         {isPending ? <ActivityIndicator /> : null}
 
-        {!isPending && plan == null ? (
+        {/* Hors-ligne, le cache sert encore le plan : l'erreur n'a de sens que sans données. */}
+        {isError && plan == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
+
+        {!isPending && !isError && plan == null ? (
           <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
             <CmvText className="text-cmv-text-hi">{t("plan.empty.title")}</CmvText>
             <CmvText className="text-cmv-text-mid text-sm">{t("plan.empty.description")}</CmvText>

@@ -5,6 +5,7 @@ export { CmvButton } from "./CmvButton";
 export { CmvCard } from "./CmvCard";
 export { CmvConfirmButton } from "./CmvConfirmButton";
 export { CmvEmptyState } from "./CmvEmptyState";
+export { CmvErrorState } from "./CmvErrorState";
 export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";
 export type { CmvSegmentedOption } from "./CmvSegmented";

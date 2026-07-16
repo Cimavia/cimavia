@@ -9,7 +9,6 @@ const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http:/
 
 export const api = createApiClient({
   baseUrl: BASE_URL,
-  fetchFn: fetch,
   credentials: "include",
 });
 

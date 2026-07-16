@@ -21,6 +21,7 @@ import {
   CmvButton,
   CmvConfirmButton,
   CmvEmptyState,
+  CmvErrorState,
 } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
@@ -34,7 +35,7 @@ export function PlanBuilderScreen() {
   const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
-  const { data: plan, isPending } = usePlan(planId);
+  const { data: plan, isPending, isError, refetch } = usePlan(planId);
   const { addWeek, isBusy } = usePlanMutations(planId);
   const publish = usePublishPlan();
   const removePlan = useDeletePlan();
@@ -57,6 +58,20 @@ export function PlanBuilderScreen() {
   }
   if (authSession?.user.role !== Role.COACH) {
     return <Navigate to="/" />;
+  }
+  // Échec de chargement : on le DIT, avec un recours. Rediriger vers la liste (ce que faisait le
+  // `plan == null` seul) laisserait croire que le cycle a disparu.
+  if (isError) {
+    return (
+      <CmvAppShell title={t("plan.title")}>
+        <CmvErrorState
+          title={t("common.errorTitle")}
+          description={t("common.errorDescription")}
+          retryLabel={t("common.retry")}
+          onRetry={() => refetch()}
+        />
+      </CmvAppShell>
+    );
   }
   if (plan == null) {
     return <Navigate to="/plans" />;
