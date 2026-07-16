@@ -44,6 +44,43 @@ export {
   uploadUrlDtoSchema,
 } from "./dto/exercise.schema";
 export type {
+  AttachFeedbackMediaInput,
+  CoachFeedbackSummaryDto,
+  FeedbackImageMimeType,
+  FeedbackMediaDto,
+  FeedbackVideoMimeType,
+  MediaType as MediaTypeType,
+  RequestFeedbackUploadUrlInput,
+  SessionFeedbackDto,
+  UpsertSessionFeedbackInput,
+} from "./dto/feedback.schema";
+export {
+  attachFeedbackMediaSchema,
+  coachFeedbackSummaryDtoSchema,
+  FEEDBACK_CONTENT_MAX_LENGTH,
+  FEEDBACK_IMAGE_MIME_TYPES,
+  FEEDBACK_PHOTO_MAX_DIMENSION_PX,
+  FEEDBACK_VIDEO_MAX_HEIGHT_PX,
+  FEEDBACK_VIDEO_MIME_TYPES,
+  feedbackImageMimeTypeSchema,
+  feedbackMediaDtoSchema,
+  feedbackVideoMimeTypeSchema,
+  isAllowedFeedbackImageMime,
+  isAllowedFeedbackVideoMime,
+  MAX_FEEDBACK_PHOTO_SIZE_BYTES,
+  MAX_FEEDBACK_PHOTOS,
+  MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
+  MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+  MAX_FEEDBACK_VIDEOS,
+  MediaType,
+  maxFeedbackMediaCount,
+  maxFeedbackMediaSizeBytes,
+  mediaTypeSchema,
+  requestFeedbackUploadUrlSchema,
+  sessionFeedbackDtoSchema,
+  upsertSessionFeedbackSchema,
+} from "./dto/feedback.schema";
+export type {
   AcceptInvitationInput,
   CreateInvitationInput,
   InvitationDto,
@@ -100,6 +137,20 @@ export {
   updatePlanWeekSchema,
   updateScheduledSessionSchema,
 } from "./dto/plan.schema";
+export type {
+  PushPlatform as PushPlatformType,
+  PushTokenDto,
+  RegisterPushTokenInput,
+} from "./dto/push-token.schema";
+export {
+  EXPO_PUSH_TOKEN_PATTERN,
+  expoPushTokenSchema,
+  isExpoPushToken,
+  PushPlatform,
+  pushPlatformSchema,
+  pushTokenDtoSchema,
+  registerPushTokenSchema,
+} from "./dto/push-token.schema";
 export type {
   CreateSessionInput,
   SessionDto,
