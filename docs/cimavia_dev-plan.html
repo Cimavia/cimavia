@@ -658,11 +658,17 @@
     // compte cloud requis) ; bascule Scaleway par variables S3_* — cf. architecture-choice.md §7.
     // Dette technique assumée par phase : docs/dette-technique.md.
     //
-    // P3 EN COURS (4/8) : p3-1, p3-2, p3-3, p3-6 faits (API + builder web coach, e2e d'isolation
-    // verts). Restent p3-4 / p3-5 (mobile athlète : vue semaine, détail séance, lecture hors-ligne)
-    // et p3-7 / p3-8 (retours d'interface + écrans coach jamais construits en P1 — cf. dette P3-4).
-    // Décisions P3 : ScheduledSessionExercise = COPIE autonome (snapshot + FK nullable SetNull) →
-    // la bibliothèque reste librement supprimable ; push différé à p4-4 (seam NotificationService).
+    // P3 = 8/8 (dont p3-6/7/8 ajoutées en cours de phase). 38 e2e verts.
+    // Décisions structurantes P3 :
+    //  - ScheduledSessionExercise = COPIE autonome (snapshot + FK nullable SetNull) + documents
+    //    copiés partageant la clé S3 → la bibliothèque reste librement modifiable/supprimable sans
+    //    jamais casser une planif diffusée (pas de Restrict, pas de 409 à vie).
+    //  - Lecture athlète isolée dans AthletePlanService : le scope tenant ne filtre PAS le statut,
+    //    c'est ce service qui impose PUBLISHED (sinon les brouillons fuiteraient).
+    //  - Push différé à p4-4 : le déclencheur existe (NotificationService, log Pino → Axiom).
+    // Rattrapages faits en P3 : p3-8 (nav + athlètes + invitation + fiche, jamais construits en P1),
+    // dashboard coach en remplacement de l'accueil, retours d'interface (toasts + états d'erreur).
+    // Prochaine phase : P4 — Débrief & Médias.
     const checked = {
       "p0-1": true,
       "p0-2": true,
@@ -711,8 +717,12 @@
       "p3-2": true,
       "p3-3": true,
       "p3-6": true,
+      "p3-4": true,
+      "p3-5": true,
+      "p3-7": true,
+      "p3-8": true,
     };
-    let openPhaseId = 'P3'; // phase en cours
+    let openPhaseId = 'P4'; // phase en cours
     const totalTasks = phases.reduce((a, p) => a + p.categories.reduce((b, c) => b + c.tasks.length, 0), 0);
 
     function getDone() { return Object.values(checked).filter(Boolean).length; }

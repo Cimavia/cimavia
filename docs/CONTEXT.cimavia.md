@@ -55,13 +55,25 @@ Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
 > ⚠️ **Nommage** : Better Auth possède déjà une table de sessions d'authentification. Son modèle Prisma a été renommé **`AuthSession`** (table `session` conservée via `@@map`, remap par `session.modelName`) pour laisser le nom **`Session`** à l'entité métier séance (table `sessions`). Ne pas confondre les deux dans le code.
 
 ### Plan (planification)
-Cycle d'entraînement créé par le coach pour un athlète. **Nombre de semaines libre**. Statut `DRAFT` → `PUBLISHED` ; à la publication, notification push à l'athlète.
+Cycle d'entraînement créé par le coach pour un athlète. **Nombre de semaines libre**. `startDate` est **toujours un lundi** (contrainte du schéma partagé) et c'est une **date civile** (`YYYY-MM-DD`, sans heure ni fuseau). Statut `DRAFT` → `PUBLISHED` : la diffusion est **irréversible** en MVP (le cycle s'ajuste en place, cf. CDC §5.7) et refusée si le cycle n'a aucune semaine. Elle notifie l'athlète — le déclencheur existe (`NotificationService`), l'envoi push arrive en P4.
 
 ### PlanWeek (semaine)
-Une semaine d'un `Plan`. Porte un **type** : `TRAINING` ou `DELOAD` (décharge). Contient un **nombre libre** de séances planifiées.
+Une semaine d'un `Plan`. Porte un **type** (`TRAINING` | `DELOAD`), un `weekNumber` 1-based et une note libre. Contient un **nombre libre** de séances planifiées.
+
+⚠️ **Aucune date n'est stockée sur la semaine** : ses bornes se calculent (`planWeekRange` = `plan.startDate + 7×(weekNumber−1)` → dimanche). Une seule source, donc aucune dérive possible. Corollaire : déplacer le `startDate` d'un plan, ou supprimer une semaine du milieu, **décale les séances** des semaines concernées (l'API s'en charge) — sinon une séance sortirait de la plage de sa semaine.
 
 ### ScheduledSession
-Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte ses propres `ScheduledSessionExercise` (exercices + prescription), modifiables par le coach en cours de cycle. **Pas d'historique des modifications** en MVP.
+Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte une `scheduledDate` (dans la plage de sa semaine — invariant vérifié à l'écriture) et une `position` = rang **dans la journée** (plusieurs séances le même jour). Statut `PLANNED` | `DONE` | `SKIPPED` — en P3 tout est créé `PLANNED` ; `DONE` arrive avec le débrief (P4). Se met à jour en **replace-all** (`PUT`), comme la séance modèle. **Pas d'historique des modifications** en MVP.
+
+### ScheduledSessionExercise — la copie, pas la référence
+**Décision structurante (P3).** L'instance est un **instantané autonome** : `title`, `description`, `category`, `prescription` sont **copiés** de l'`Exercise`, et ses documents sont **dupliqués en lignes** (`ScheduledSessionExerciseDocument`) partageant la **même clé objet S3** (aucun binaire dupliqué).
+
+Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: SetNull`)** et ne servent qu'à la traçabilité : **l'affichage n'en dépend jamais**. Conséquences voulues :
+- le coach peut supprimer un exercice de sa bibliothèque **sans jamais bloquer** (pas de `Restrict`, pas de 409 à vie) ni dégrader une planif déjà diffusée ;
+- l'athlète voit les documents alors qu'il n'a **aucun scope** sur la bibliothèque du coach — c'est la copie qui le lui permet ;
+- la contrepartie : un objet S3 n'est purgé que s'il n'est plus référencé par une copie (`DocumentCleanupService`).
+
+La bibliothèque, elle, garde son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
 ---
 
@@ -85,7 +97,9 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 
 - **Invariant** : 1 `Athlete` = exactement 1 `Coach`. 1 `Coach` = N `Athlete`.
 - Presque toute entité (`Plan`, `Session`, `SessionFeedback`, `Conversation`, `Invoice`, `AthleteProfile`…) est **scopée à la relation `CoachAthlete`**.
-- La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3).
+- La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
+- La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux rôles** : chaque table porte donc `coachId` ET `athleteId` en direct.
+- ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
 - L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant (dont les **pièges du scope automatique** : `include` imbriqués non scopés, FK non contraintes par le tenant).
 
 ---
