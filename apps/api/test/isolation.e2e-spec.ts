@@ -260,12 +260,16 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(uploadUrl.status).toBe(404);
   });
 
-  it("URL d'upload : 503 si storage non configuré (entrée valide)", async () => {
-    // .env.test ne fournit pas de config S3 → 503 (l'API démarre quand même).
-    const noStorage = await coachA
+  // Le fail-closed « storage non configuré → 503 » est couvert par le test unitaire de
+  // StorageService : les e2e tournent désormais avec le MinIO du docker-compose, sans quoi le
+  // flux médias de P4 (upload signé → rattachement → purge) ne serait pas testable.
+  it("URL d'upload : signée sur le bucket privé", async () => {
+    const res = await coachA
       .post(`/exercises/${exerciseAId}/documents/upload-url`)
       .send({ fileName: "demo.pdf", mimeType: "application/pdf", size: 1000 });
-    expect(noStorage.status).toBe(503);
+    expect(res.status).toBe(201);
+    expect(res.body.uploadUrl).toContain("X-Amz-Signature");
+    expect(res.body.storagePath).toContain(`/exercises/${exerciseAId}/`);
   });
 
   it("URL d'upload : type MIME et taille validés par le schéma partagé (400)", async () => {
@@ -765,5 +769,203 @@ describe("Débrief de séance (P4)", () => {
       (await coachA.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({ content: "x" }))
         .status,
     ).toBe(403);
+  });
+});
+
+describe("Médias de débrief (P4)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let athleteB1: Agent;
+  let sessionId: string;
+  let a1Id: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  const photo = (fileName = "voie.jpg") => ({
+    type: "IMAGE",
+    fileName,
+    mimeType: "image/jpeg",
+    size: 120_000,
+  });
+  const video = (fileName = "essai.mp4") => ({
+    type: "VIDEO",
+    fileName,
+    mimeType: "video/mp4",
+    size: 8_000_000,
+    durationSeconds: 42,
+  });
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    return accepted.body.athleteId;
+  }
+
+  // Parcours réel : URL signée → PUT direct vers le storage → rattachement.
+  async function upload(agent: Agent, input: Record<string, unknown>): Promise<string> {
+    const signed = await agent
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(input);
+    expect(signed.status).toBe(201);
+
+    const body = Buffer.alloc(input.size as number, 1);
+    const put = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body,
+      headers: { "content-type": input.mimeType as string, "content-length": String(body.length) },
+    });
+    expect(put.status).toBe(200);
+
+    return signed.body.storagePath;
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("media-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("media-athlete-a1@cmv.test", Role.ATHLETE);
+    const coachB = await signUp("media-coach-b@cmv.test", Role.COACH);
+    athleteB1 = await signUp("media-athlete-b1@cmv.test", Role.ATHLETE);
+
+    a1Id = await link(coachA, athleteA1);
+    await link(coachB, athleteB1);
+
+    const plan = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle médias",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const session = await coachA
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance filmée", scheduledDate: monday });
+    sessionId = session.body.id;
+    await coachA.post(`/plans/${plan.body.id}/publish`);
+  });
+
+  it("rattache une photo à une séance jamais débriefée : le débrief est créé, la séance passe DONE", async () => {
+    const storagePath = await upload(athleteA1, photo());
+    const attached = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
+      .send({ ...photo(), storagePath });
+    expect(attached.status).toBe(201);
+    expect(attached.body).toMatchObject({
+      type: "IMAGE",
+      fileName: "voie.jpg",
+      sizeBytes: 120_000,
+    });
+    // Média = fichier privé : l'URL de lecture est toujours signée, jamais publique.
+    expect(attached.body.url).toContain("X-Amz-Signature");
+    expect(attached.body.durationSeconds).toBeNull();
+
+    const feedback = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    expect(feedback.body.content).toBeNull(); // débrief média-seul
+    expect(feedback.body.media).toHaveLength(1);
+
+    const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(session.body.status).toBe("DONE");
+  });
+
+  it("demander une URL d'upload ne débriefe pas à soi seul (une capture abandonnée n'engage rien)", async () => {
+    const other = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle témoin",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const session = await coachA
+      .post(`/plan-weeks/${other.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance témoin", scheduledDate: monday });
+    await coachA.post(`/plans/${other.body.id}/publish`);
+
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${session.body.id}/feedback/media/upload-url`)
+      .send(photo());
+    expect(signed.status).toBe(201);
+
+    expect(
+      (await athleteA1.get(`/me/scheduled-sessions/${session.body.id}/feedback`)).body,
+    ).toBeNull();
+    expect((await athleteA1.get(`/me/scheduled-sessions/${session.body.id}`)).body.status).toBe(
+      "PLANNED",
+    );
+  });
+
+  it("plafonne à 3 vidéos par débrief (409 sur la 4e)", async () => {
+    for (let i = 0; i < 3; i++) {
+      const storagePath = await upload(athleteA1, video(`essai-${i}.mp4`));
+      const res = await athleteA1
+        .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
+        .send({ ...video(`essai-${i}.mp4`), storagePath });
+      expect(res.status).toBe(201);
+    }
+
+    // Le quota est refusé DÈS la demande d'URL : pas d'upload de 50 Mo pour s'entendre dire non.
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(video("de-trop.mp4"));
+    expect(signed.status).toBe(409);
+  });
+
+  it("les photos ont leur propre quota (5), indépendant des vidéos", async () => {
+    for (let i = 1; i < 5; i++) {
+      const storagePath = await upload(athleteA1, photo(`voie-${i}.jpg`));
+      const res = await athleteA1
+        .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
+        .send({ ...photo(`voie-${i}.jpg`), storagePath });
+      expect(res.status).toBe(201);
+    }
+
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(photo("de-trop.jpg"));
+    expect(signed.status).toBe(409);
+  });
+
+  it("supprimer un média libère une place dans le quota", async () => {
+    const feedback = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    const firstPhoto = feedback.body.media.find((m: { type: string }) => m.type === "IMAGE");
+
+    const removed = await athleteA1.delete(
+      `/me/scheduled-sessions/${sessionId}/feedback/media/${firstPhoto.id}`,
+    );
+    expect(removed.status).toBe(204);
+
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(photo("remplacement.jpg"));
+    expect(signed.status).toBe(201);
+  });
+
+  // Les plafonds vivent dans le schéma partagé → rejet AVANT le service, sans code dédié.
+  it("mime, taille et durée sont validés par le schéma partagé (400)", async () => {
+    const url = `/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`;
+
+    expect((await athleteA1.post(url).send({ ...video(), mimeType: "video/avi" })).status).toBe(
+      400,
+    );
+    expect((await athleteA1.post(url).send({ ...video(), size: 51 * 1024 * 1024 })).status).toBe(
+      400,
+    );
+    expect((await athleteA1.post(url).send({ ...video(), durationSeconds: 61 })).status).toBe(400);
+    // Une vidéo sans durée déclarée : la branche VIDEO l'exige.
+    expect(
+      (await athleteA1.post(url).send({ ...video(), durationSeconds: undefined })).status,
+    ).toBe(400);
+  });
+
+  it("un athlète ne dépose ni ne supprime de média sur la séance d'un autre", async () => {
+    const url = `/me/scheduled-sessions/${sessionId}/feedback/media`;
+    expect((await athleteB1.post(`${url}/upload-url`).send(photo())).status).toBe(404);
+    expect(
+      (await athleteB1.post(url).send({ ...photo(), storagePath: "athlete/x/voie.jpg" })).status,
+    ).toBe(404);
+
+    const feedback = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    const mediaId = feedback.body.media[0].id;
+    expect((await athleteB1.delete(`${url}/${mediaId}`)).status).toBe(404);
+  });
+
+  it("le dépôt de médias reste interdit au coach", async () => {
+    const url = `/me/scheduled-sessions/${sessionId}/feedback/media`;
+    expect((await coachA.post(`${url}/upload-url`).send(photo())).status).toBe(403);
   });
 });

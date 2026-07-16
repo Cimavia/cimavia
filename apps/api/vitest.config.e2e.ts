@@ -26,15 +26,17 @@ export default defineConfig({
       PORT: process.env.PORT ?? "3001",
       // Origine navigateur fixée : le test de preflight CORS ne doit pas dépendre du .env local.
       CORS_ORIGINS: "http://localhost:5173",
-      // Object storage désactivé en e2e : on teste le fail-closed (503), sans dépendre du
-      // .env local du dev (MinIO) ni exiger un bucket en CI. process.env prime sur le
-      // fichier .env lu par ConfigModule → ces valeurs vides gagnent.
-      S3_ENDPOINT: "",
-      S3_REGION: "",
-      S3_BUCKET: "",
-      S3_ACCESS_KEY_ID: "",
-      S3_SECRET_ACCESS_KEY: "",
-      S3_FORCE_PATH_STYLE: "",
+      // Object storage : le MinIO du docker-compose, sur un bucket e2e dédié. Les e2e
+      // dépendent déjà de ce compose (postgres_e2e) — le flux médias de P4 (upload signé,
+      // rattachement, purge) ne serait pas couvert sans un storage réel.
+      // Le fail-closed « API démarre sans storage → 503 » est couvert par le test unitaire
+      // de StorageService (src/infra/storage/storage.service.test.ts).
+      S3_ENDPOINT: "http://localhost:9000",
+      S3_REGION: "us-east-1",
+      S3_BUCKET: "cimavia-media-e2e",
+      S3_ACCESS_KEY_ID: "cimavia",
+      S3_SECRET_ACCESS_KEY: "cimavia_dev_secret",
+      S3_FORCE_PATH_STYLE: "true",
     },
   },
 });

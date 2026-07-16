@@ -76,14 +76,27 @@ export class StorageService {
     return { client: this.client, bucket: this.bucket };
   }
 
-  // URL PUT signée : le client uploade directement le fichier vers S3 (jamais via l'API).
+  /**
+   * URL PUT signée : le client uploade directement le fichier vers S3 (jamais via l'API).
+   *
+   * `contentLength` fait entrer la taille dans la SIGNATURE : le storage rejette alors un envoi
+   * dont le poids diffère de celui annoncé à l'API. Sans elle, un client pourrait déclarer 10 Mo,
+   * obtenir son URL et pousser 2 Go — le plafond du schéma ne serait qu'une politesse. Le client
+   * doit donc envoyer exactement `Content-Length: contentLength`.
+   */
   async createUploadUrl(
     key: string,
     contentType: string,
     ttl = SIGNED_URL_TTL_SECONDS,
+    contentLength?: number,
   ): Promise<string> {
     const { client, bucket } = this.require();
-    const command = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: contentLength,
+    });
     return getSignedUrl(client, command, { expiresIn: ttl });
   }
 
