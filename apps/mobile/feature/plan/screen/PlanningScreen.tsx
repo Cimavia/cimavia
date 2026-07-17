@@ -1,7 +1,8 @@
 import { todayIsoDate } from "@cmv/shared";
+import { cmvColors } from "@cmv/tokens";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, ScrollView, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { useMyCoach } from "@/feature/coach";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { currentWeek, useMyPlan } from "@/feature/plan/hook/useMyPlan";
@@ -12,7 +13,7 @@ import { formatDateRange } from "@/shared/util/date.util";
 // Vue semaine de l'athlète (p3-4) : la semaine EN COURS de son cycle diffusé.
 export function PlanningScreen() {
   const { t } = useTranslation();
-  const { data: plan, isPending, isError, refetch } = useMyPlan();
+  const { data: plan, isPending, isError, isRefetching, refetch } = useMyPlan();
   const { data: coach } = useMyCoach();
 
   const today = todayIsoDate();
@@ -24,7 +25,20 @@ export function PlanningScreen() {
     <CmvScreen>
       <OfflineBanner />
 
-      <ScrollView contentContainerClassName="gap-6 p-4">
+      {/* Tirer pour rafraîchir : le geste attendu sur mobile, et le seul contrôle DIRECT de
+          l'athlète sur la fraîcheur — les autres refetch (retour au premier plan, retour du
+          réseau) sont automatiques et invisibles. */}
+      <ScrollView
+        contentContainerClassName="gap-6 p-4"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => refetch()}
+            // Le spinner est natif : il ignore les className, d'où la valeur (issue des tokens).
+            tintColor={cmvColors.accent.DEFAULT}
+          />
+        }
+      >
         {isPending ? <ActivityIndicator /> : null}
 
         {/* Hors-ligne, le cache sert encore le plan : l'erreur n'a de sens que sans données. */}
