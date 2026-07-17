@@ -1085,3 +1085,96 @@ describe("Tokens de notification push (P4)", () => {
     expect(adjusted.status).toBe(200);
   });
 });
+
+describe("Lecture coach des débriefs (P4)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let athleteA1: Agent;
+  let sessionId: string;
+  let feedbackId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  beforeAll(async () => {
+    coachA = await signUp("read-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("read-coach-b@cmv.test", Role.COACH);
+    athleteA1 = await signUp("read-athlete-a1@cmv.test", Role.ATHLETE);
+
+    const invitation = await coachA.post("/invitations").send({});
+    const accepted = await athleteA1
+      .post("/invitations/accept")
+      .send({ code: invitation.body.code });
+
+    const plan = await coachA.post("/plans").send({
+      athleteId: accepted.body.athleteId,
+      title: "Cycle lu",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const session = await coachA
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance relue", scheduledDate: monday });
+    sessionId = session.body.id;
+    await coachA.post(`/plans/${plan.body.id}/publish`);
+
+    await athleteA1
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Séance dure mais bien passée." });
+  });
+
+  it("le coach liste les débriefs de ses athlètes, nommés et non lus", async () => {
+    const res = await coachA.get("/feedbacks");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+
+    feedbackId = res.body[0].id;
+    expect(res.body[0]).toMatchObject({
+      scheduledSessionId: sessionId,
+      // Le nom, pas un id opaque : le coach suit N athlètes.
+      athleteName: "read-athlete-a1@cmv.test",
+      sessionTitle: "Séance relue",
+      scheduledDate: monday,
+      content: "Séance dure mais bien passée.",
+      mediaCount: 0,
+      coachReadAt: null,
+    });
+  });
+
+  it("le coach lit le détail du débrief d'une séance", async () => {
+    const res = await coachA.get(`/scheduled-sessions/${sessionId}/feedback`);
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBe("Séance dure mais bien passée.");
+    expect(res.body.media).toEqual([]);
+  });
+
+  it("marquer comme lu est idempotent : la date de lecture ne bouge plus", async () => {
+    const first = await coachA.post(`/feedbacks/${feedbackId}/read`);
+    expect(first.status).toBe(201);
+    expect(first.body.coachReadAt).not.toBeNull();
+
+    const second = await coachA.post(`/feedbacks/${feedbackId}/read`);
+    expect(second.body.coachReadAt).toBe(first.body.coachReadAt);
+  });
+
+  // Le cœur du marqueur : un ajout tardif de l'athlète doit ressortir comme « à relire ».
+  it("compléter le débrief le rend à relire", async () => {
+    await athleteA1
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Ajout : douleur au doigt sur la fin." });
+
+    const res = await coachA.get("/feedbacks");
+    expect(res.body[0].coachReadAt).toBeNull();
+    expect(res.body[0].content).toBe("Ajout : douleur au doigt sur la fin.");
+  });
+
+  it("un autre coach ne voit ni ne marque ce débrief", async () => {
+    expect((await coachB.get("/feedbacks")).body).toEqual([]);
+    expect((await coachB.post(`/feedbacks/${feedbackId}/read`)).status).toBe(404);
+    expect((await coachB.get(`/scheduled-sessions/${sessionId}/feedback`)).body).toBeNull();
+  });
+
+  it("l'athlète n'accède pas aux routes coach", async () => {
+    expect((await athleteA1.get("/feedbacks")).status).toBe(403);
+    expect((await athleteA1.post(`/feedbacks/${feedbackId}/read`)).status).toBe(403);
+  });
+});

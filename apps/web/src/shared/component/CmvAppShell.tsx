@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: "/athletes", labelKey: "nav.athletes" },
   { to: "/library", labelKey: "nav.library" },
   { to: "/plans", labelKey: "nav.plans" },
+  { to: "/feedbacks", labelKey: "nav.feedbacks" },
 ] as const;
 
 type CmvAppShellProps = {

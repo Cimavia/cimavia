@@ -230,7 +230,8 @@
     "dashboard": "Tableau de bord",
     "athletes": "Athlètes",
     "library": "Bibliothèque",
-    "plans": "Planifications"
+    "plans": "Planifications",
+    "feedbacks": "Débriefs"
   },
   "athlete": {
     "title": "Mes athlètes",
@@ -289,7 +290,24 @@
       "plansHint": "Brouillons et cycles diffusés",
       "feedback": "Débriefs à relire",
       "invoices": "Factures en attente",
-      "soon": "Bientôt disponible"
+      "soon": "Bientôt disponible",
+      "feedbackHint": "Débriefs que tu n'as pas encore ouverts."
+    }
+  },
+  "feedback": {
+    "title": "Débriefs",
+    "subtitle": "Les retours de tes athlètes sur leurs séances.",
+    "open": "Ouvrir",
+    "unread": "À relire",
+    "mediaCount": "{{count}} média(s)",
+    "empty": {
+      "title": "Aucun débrief",
+      "description": "Dès qu'un athlète débriefera une séance, son retour s'affichera ici."
+    },
+    "detail": {
+      "subtitle": "{{athlete}} · séance du {{date}}",
+      "content": "Retour de l'athlète",
+      "media": "Photos et vidéos ({{count}})"
     }
   }
 }

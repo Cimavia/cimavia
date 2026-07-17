@@ -2,13 +2,14 @@ import { Role } from "@cmv/shared";
 import { Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
+import { unreadCount, useFeedbacks } from "@/feature/feedback/hook/useFeedbacks";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { CmvAppShell, CmvButton, CmvCard } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 // Tuiles du dashboard (maquette pd-4). Seuls les compteurs déjà disponibles sont branchés ;
 // les autres attendent leur phase — la tuile affiche « — », jamais un 0 trompeur.
-// MOCKED — débriefs à relire (P4), séances de la semaine (P3 côté agrégat), factures (P6).
+// MOCKED — factures (P6).
 type Tile = { labelKey: string; value: string; hintKey: string };
 
 export function DashboardScreen() {
@@ -16,6 +17,7 @@ export function DashboardScreen() {
   const { data: authSession, isPending } = authClient.useSession();
   const { data: athletes } = useAthletes();
   const { data: plans } = usePlans();
+  const { data: feedbacks } = useFeedbacks();
 
   if (isPending) {
     return (
@@ -44,6 +46,7 @@ export function DashboardScreen() {
     );
   }
 
+  const unread = unreadCount(feedbacks);
   const tiles: Tile[] = [
     {
       labelKey: "dashboard.tiles.athletes",
@@ -55,8 +58,13 @@ export function DashboardScreen() {
       value: plans == null ? "—" : String(plans.length),
       hintKey: "dashboard.tiles.plansHint",
     },
-    // MOCKED — débriefs (P4). À connecter en P4.
-    { labelKey: "dashboard.tiles.feedback", value: "—", hintKey: "dashboard.tiles.soon" },
+    {
+      labelKey: "dashboard.tiles.feedback",
+      // `unreadCount` rend null tant que la liste n'est pas là : « — », jamais un 0 qui
+      // laisserait croire qu'il n'y a rien à relire (règle nullable).
+      value: unread == null ? "—" : String(unread),
+      hintKey: "dashboard.tiles.feedbackHint",
+    },
     // MOCKED — facturation (P6). À connecter en P6.
     { labelKey: "dashboard.tiles.invoices", value: "—", hintKey: "dashboard.tiles.soon" },
   ];

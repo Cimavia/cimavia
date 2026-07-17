@@ -11,5 +11,8 @@ import { UserDirectoryService } from "./service/user-directory.service";
 @Module({
   controllers: [InvitationController, RelationController, AthleteSheetController],
   providers: [InvitationService, RelationService, AthleteSheetService, UserDirectoryService],
+  // Exporté pour la liste des débriefs (P4) : elle nomme l'athlète, et le nom ne vit que sur
+  // `User` — table hors scope tenant, lue par ce seul service.
+  exports: [UserDirectoryService],
 })
 export class AccountModule {}
