@@ -808,11 +808,14 @@ describe("Médias de débrief (P4)", () => {
       .send(input);
     expect(signed.status).toBe(201);
 
+    // `content-length` n'est PAS posé à la main : undici le refuse et le calcule lui-même depuis
+    // le corps. C'est justement ce qu'on veut vérifier — l'URL étant signée avec la taille
+    // annoncée à l'API, l'upload ne passe que si le poids réel correspond.
     const body = Buffer.alloc(input.size as number, 1);
     const put = await fetch(signed.body.uploadUrl, {
       method: "PUT",
       body,
-      headers: { "content-type": input.mimeType as string, "content-length": String(body.length) },
+      headers: { "content-type": input.mimeType as string },
     });
     expect(put.status).toBe(200);
 
@@ -887,6 +890,22 @@ describe("Médias de débrief (P4)", () => {
     expect((await athleteA1.get(`/me/scheduled-sessions/${session.body.id}`)).body.status).toBe(
       "PLANNED",
     );
+  });
+
+  // Sans la taille dans la signature, un client pourrait déclarer 8 Mo puis pousser ce qu'il
+  // veut : le plafond du schéma ne serait qu'une politesse.
+  it("le storage refuse un envoi plus lourd que la taille signée", async () => {
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(photo("menteuse.jpg"));
+    expect(signed.status).toBe(201);
+
+    const tooBig = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(120_000 * 2, 1),
+      headers: { "content-type": "image/jpeg" },
+    });
+    expect(tooBig.ok).toBe(false);
   });
 
   it("plafonne à 3 vidéos par débrief (409 sur la 4e)", async () => {
@@ -967,5 +986,102 @@ describe("Médias de débrief (P4)", () => {
   it("le dépôt de médias reste interdit au coach", async () => {
     const url = `/me/scheduled-sessions/${sessionId}/feedback/media`;
     expect((await coachA.post(`${url}/upload-url`).send(photo())).status).toBe(403);
+  });
+});
+
+describe("Tokens de notification push (P4)", () => {
+  let coach: Agent;
+  let athlete: Agent;
+  let other: Agent;
+
+  const TOKEN = "ExponentPushToken[athlete-device-1]";
+
+  beforeAll(async () => {
+    coach = await signUp("push-coach@cmv.test", Role.COACH);
+    athlete = await signUp("push-athlete@cmv.test", Role.ATHLETE);
+    other = await signUp("push-other@cmv.test", Role.ATHLETE);
+  });
+
+  // Les deux rôles reçoivent des notifications : la route n'est pas réservée à l'un d'eux.
+  it("coach comme athlète enregistrent leur appareil", async () => {
+    const asAthlete = await athlete.post("/me/push-tokens").send({ token: TOKEN, platform: "IOS" });
+    expect(asAthlete.status).toBe(201);
+    expect(asAthlete.body).toMatchObject({ token: TOKEN, platform: "IOS" });
+
+    const asCoach = await coach
+      .post("/me/push-tokens")
+      .send({ token: "ExponentPushToken[coach-device]", platform: "ANDROID" });
+    expect(asCoach.status).toBe(201);
+  });
+
+  // L'app réenregistre son token à chaque démarrage : ce n'est pas un doublon.
+  it("réenregistrer le même appareil met la ligne à jour", async () => {
+    const again = await athlete.post("/me/push-tokens").send({ token: TOKEN, platform: "ANDROID" });
+    expect(again.status).toBe(201);
+    expect(again.body.platform).toBe("ANDROID");
+  });
+
+  // Le token est unique en base : sans réaffectation, se reconnecter avec un autre compte sur
+  // le même téléphone violerait la contrainte (500).
+  it("un appareil qui change de main est réaffecté au dernier compte connecté", async () => {
+    const stolen = await other.post("/me/push-tokens").send({ token: TOKEN, platform: "IOS" });
+    expect(stolen.status).toBe(201);
+
+    // L'ancien propriétaire ne le révoque plus : la ligne ne lui appartient plus.
+    const revokeByPrevious = await athlete.delete(`/me/push-tokens/${TOKEN}`);
+    expect(revokeByPrevious.status).toBe(204);
+    expect(
+      (await other.post("/me/push-tokens").send({ token: TOKEN, platform: "IOS" })).status,
+    ).toBe(201);
+  });
+
+  it("refuse un token qui ne pourrait jamais être livré (400)", async () => {
+    const res = await athlete.post("/me/push-tokens").send({ token: "bidon", platform: "IOS" });
+    expect(res.status).toBe(400);
+
+    const badPlatform = await athlete
+      .post("/me/push-tokens")
+      .send({ token: "ExponentPushToken[x]", platform: "WEB" });
+    expect(badPlatform.status).toBe(400);
+  });
+
+  it("révoquer est silencieux sur un token inconnu (une déconnexion n'échoue pas)", async () => {
+    const res = await athlete.delete("/me/push-tokens/ExponentPushToken[jamais-vu]");
+    expect(res.status).toBe(204);
+  });
+
+  // Sans appareil enregistré, l'événement métier réussit quand même : un push est un effet de
+  // bord, jamais une transaction (c'est ce qui garde ces e2e verts sans téléphone).
+  it("débriefer réussit sans appareil enregistré", async () => {
+    const c = await signUp("push-flow-coach@cmv.test", Role.COACH);
+    const a = await signUp("push-flow-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await c.post("/invitations").send({});
+    const accepted = await a.post("/invitations/accept").send({ code: invitation.body.code });
+
+    const monday = mondayOfCurrentWeek();
+    const plan = await c.post("/plans").send({
+      athleteId: accepted.body.athleteId,
+      title: "Cycle push",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const session = await c
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance", scheduledDate: monday });
+    expect((await c.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+
+    const feedback = await a
+      .put(`/me/scheduled-sessions/${session.body.id}/feedback`)
+      .send({ content: "RAS" });
+    expect(feedback.status).toBe(200);
+
+    // Ajustement en cours de cycle diffusé (CDC §5.7) : notifie l'athlète, sans échouer.
+    const adjusted = await c.put(`/scheduled-sessions/${session.body.id}`).send({
+      title: "Séance (ajustée)",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [],
+    });
+    expect(adjusted.status).toBe(200);
   });
 });

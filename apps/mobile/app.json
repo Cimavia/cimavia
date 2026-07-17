@@ -19,6 +19,12 @@
     "plugins": ["expo-router", "expo-font", "expo-secure-store", "expo-localization"],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "412cffac-62a8-432c-9f18-04107c70e2cb"
+      }
     }
   }
 }

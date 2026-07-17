@@ -4,10 +4,11 @@ import type {
   ScheduledSessionExerciseInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
-import { isDateInPlanWeek } from "@cmv/shared";
+import { isDateInPlanWeek, PlanStatus } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Exercise, ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
+import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
@@ -40,6 +41,7 @@ export class ScheduledSessionService {
     private readonly storage: StorageService,
     // Contrôles d'appartenance du plan et de la semaine : source unique (PlanService).
     private readonly plans: PlanService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async create(
@@ -114,6 +116,17 @@ export class ScheduledSessionService {
 
       await this.insertExercises(tx, id, session.athleteId, input.exercises, documents);
     });
+
+    // Ajuster un cycle DÉJÀ diffusé doit prévenir l'athlète (CDC §5.7) : il a peut-être la
+    // version d'avant en cache hors-ligne, et s'entraînerait dessus. Sur un brouillon, il n'y a
+    // rien à annoncer — le cycle n'existe pas encore pour lui.
+    if (plan.status === PlanStatus.PUBLISHED) {
+      await this.notifications.notifyPlanUpdated({
+        athleteId: plan.athleteId,
+        planId: plan.id,
+        sessionTitle: input.title,
+      });
+    }
 
     return this.getDto(id);
   }

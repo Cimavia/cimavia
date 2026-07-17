@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "84068105493",
+    "project_id": "cimavia-35298",
+    "storage_bucket": "cimavia-35298.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84068105493:android:a6398fb8b08647df383d1c",
+        "android_client_info": {
+          "package_name": "fr.cimavia.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBl4YRXf1w6-q9Iazg75gbFKbZBaEIN0TE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

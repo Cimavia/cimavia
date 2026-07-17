@@ -3,6 +3,7 @@ import { ScheduledSessionStatus } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
+import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -21,6 +22,7 @@ export class FeedbackService {
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly storage: StorageService,
     private readonly athletePlans: AthletePlanService,
+    private readonly notifications: NotificationService,
   ) {}
 
   /**
@@ -60,7 +62,7 @@ export class FeedbackService {
     const existing = await this.db.sessionFeedback.findFirst({ where: { scheduledSessionId } });
     if (existing != null) return existing;
 
-    return this.db.$transaction(async (tx) => {
+    const feedback = await this.db.$transaction(async (tx) => {
       // athleteId injecté par le tenancy layer ; coachId dénormalisé depuis la séance (jamais
       // depuis le client) — d'où le cast final.
       const data: Omit<Prisma.SessionFeedbackUncheckedCreateInput, "athleteId"> = {
@@ -77,6 +79,18 @@ export class FeedbackService {
       });
       return created;
     });
+
+    // Notifié à la CRÉATION seulement : l'athlète débriefe en plusieurs fois (texte puis
+    // photos), et un push par ajout serait du harcèlement. Les compléments repassent
+    // `coachReadAt` à null — visibles dans la tuile « à relire », sans notification.
+    await this.notifications.notifyFeedbackReceived({
+      coachId: feedback.coachId,
+      athleteId: feedback.athleteId,
+      scheduledSessionId,
+      sessionTitle: session.title,
+    });
+
+    return feedback;
   }
 
   // Lecture du débrief d'une séance. `null` plutôt qu'un débrief vide de complaisance : le rendu

@@ -25,6 +25,7 @@
     "better-auth": "1.6.23",
     "expo": "56.0.13",
     "expo-constants": "56.0.19",
+    "expo-dev-client": "~56.0.23",
     "expo-font": "56.0.7",
     "expo-linking": "56.0.14",
     "expo-localization": "~56.0.6",
