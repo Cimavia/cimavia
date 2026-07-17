@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
+import { revokeCurrentPushToken } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
@@ -11,6 +12,9 @@ export function ProfileScreen() {
   const { data: session } = authClient.useSession();
 
   async function onLogout() {
+    // Détacher l'appareil AVANT de fermer la session : la route de révocation est scopée à
+    // l'utilisateur connecté, elle n'aurait plus d'effet après le signOut.
+    await revokeCurrentPushToken();
     await authClient.signOut();
     router.replace("/login");
   }

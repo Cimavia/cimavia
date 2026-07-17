@@ -97,5 +97,34 @@
       "notes": "Consignes du coach",
       "link": "Document"
     }
+  },
+  "feedback": {
+    "title": "Débrief de la séance",
+    "subtitle": "Ton retour est visible immédiatement par ton coach.",
+    "open": "Débriefer la séance",
+    "openDone": "Voir / modifier mon débrief",
+    "contentLabel": "Retour sur la séance",
+    "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
+    "contentHint": "Tu peux compléter ton débrief plus tard.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saved": "Débrief enregistré.",
+    "saveError": "Impossible d'enregistrer le débrief. Vérifie ta connexion.",
+    "media": {
+      "title": "Photos et vidéos",
+      "addPhoto": "Ajouter une photo",
+      "addVideo": "Ajouter une vidéo",
+      "remaining": "Encore {{photos}} photo(s) et {{videos}} vidéo(s) possibles.",
+      "remove": "Retirer",
+      "uploading": "Envoi en cours…",
+      "videoBadge": "Vidéo · {{seconds}} s",
+      "permission": "cimavia a besoin d'accéder à tes photos pour les joindre au débrief.",
+      "photoTooBig": "Cette photo est trop lourde, même après compression.",
+      "videoTooBig": "Cette vidéo dépasse 50 Mo. Filme plus court ou baisse la qualité dans l'appareil photo.",
+      "videoDuration": "Cette vidéo dépasse 60 secondes.",
+      "videoFormat": "Ce format de vidéo n'est pas géré. Filme depuis l'application appareil photo.",
+      "unreadable": "Ce fichier est illisible.",
+      "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie."
+    }
   }
 }

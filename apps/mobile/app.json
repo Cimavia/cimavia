@@ -11,12 +11,20 @@
       "bundleIdentifier": "fr.cimavia.app"
     },
     "android": {
-      "package": "fr.cimavia.app"
+      "package": "fr.cimavia.app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-font", "expo-secure-store", "expo-localization"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-notifications",
+      "expo-image-picker"
+    ],
     "experiments": {
       "typedRoutes": true
     },

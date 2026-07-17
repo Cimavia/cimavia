@@ -1,5 +1,6 @@
 import "../global.css";
 import "@/shared/lib/i18n";
+import "@/shared/lib/notification";
 
 import { ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";

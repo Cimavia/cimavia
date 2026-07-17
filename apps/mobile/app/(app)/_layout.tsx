@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { usePushToken } from "@/feature/notification";
 import { tabBarTheme } from "@/shared/theme/navigation";
 
 // Onglets de l'athlète (routing only — cf. règle « pure shells »).
@@ -13,6 +14,8 @@ const TABS = [
 
 export default function AppTabsLayout() {
   const { t } = useTranslation();
+  // Enregistre l'appareil pour les push, une fois l'utilisateur connecté (zone authentifiée).
+  usePushToken();
 
   return (
     <Tabs

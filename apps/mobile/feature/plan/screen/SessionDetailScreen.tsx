@@ -1,8 +1,9 @@
-import { useLocalSearchParams } from "expo-router";
+import { ScheduledSessionStatus } from "@cmv/shared";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from "react-native";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -45,6 +46,17 @@ export function SessionDetailScreen() {
                 <CmvText className="text-cmv-text-hi">{session.notes}</CmvText>
               </View>
             )}
+
+            {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
+                déroulé, pas enterrée sous la liste des exercices. */}
+            <CmvButton
+              label={
+                session.status === ScheduledSessionStatus.DONE
+                  ? t("feedback.openDone")
+                  : t("feedback.open")
+              }
+              onPress={() => router.push(`/session/${session.id}/feedback`)}
+            />
 
             <View className="gap-3">
               <CmvText className="text-cmv-text-mid text-xs">
