@@ -78,6 +78,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | Internationalisation (EN) | v1.0 | i18n techniquement prêt dès le MVP |
 | **Paiement intégré** (PSP type Stripe) | v1.0 | + statut auto |
 | Débrief **par exercice** | post-MVP | à évaluer ; MVP = débrief séance suffisant |
+| **Débrief vocal** (audio joint au débrief) | P5 | Le modèle ne le bloque pas (`MediaType` extensible, flux d'upload identique). Différé à la messagerie, qui impose de toute façon de construire l'enregistreur/lecteur audio (§5.8) : l'ajouter au débrief coûtera alors quelques heures, contre une journée aujourd'hui. |
 | Résultats de compétition | v1.0 | saisie + historique |
 | Suivi/analyse de progression (tableaux de bord) | v1.x | agrégation des débriefs |
 | Versionnement des planifications (historique) | v1.x | non MVP |

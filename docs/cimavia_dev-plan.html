@@ -585,8 +585,15 @@
           },
           {
             name: "Ajustement (coach)", tasks: [
-              { id: "p4-3", text: "Modifier un exercice/séance en cours de planif", detail: "Édition des scheduled_session_exercises sans toucher la biblio. Pas d'historique en MVP" },
-              { id: "p4-4", text: "Notifications push", detail: "expo-server-sdk côté NestJS : débrief reçu (coach), modif de planif (athlète)" },
+              { id: "p4-3", text: "Modifier un exercice/séance en cours de planif", detail: "Édition des scheduled_session_exercises sans toucher la biblio. Pas d'historique en MVP. L'édition était DÉJÀ livrée en p3-2 (rien ne bloquait sur un cycle PUBLISHED) : P4 n'ajoute que la notification à l'athlète" },
+              { id: "p4-4", text: "Notifications push", detail: "expo-server-sdk DANS NotificationService, sans toucher aux appelants — dette P3-1 soldée. Planif diffusée/ajustée (athlète), débrief reçu (coach). Table PushToken + expo-notifications. Dev build EAS + FCM V1 requis" },
+            ]
+          },
+          {
+            name: "Rattrapages — parcours de bout en bout", tasks: [
+              { id: "p4-5", text: "Rejoindre un coach par code (mobile)", detail: "DETTE : POST /invitations/accept existait et était testé, mais AUCUN client ne l'appelait — la relation ne pouvait s'établir qu'à la main (Insomnia). Sans coach, l'athlète n'a ni planif ni séance à débriefer. Distingue aussi « sans coach » de « coach sans cycle diffusé »" },
+              { id: "p4-6", text: "Rafraîchissement des données (mobile)", detail: "DETTE P3 : RIEN ne déclenchait de refetch (refetchOnWindowFocus s'appuie sur des événements de navigateur, absents en RN). Avec le cache persisté + staleTime 5 min, l'athlète relisait un cycle supprimé. focusManager + onlineManager + pull-to-refresh" },
+              { id: "p4-7", text: "Lecture des débriefs (coach, web)", detail: "Écran Débriefs (liste + panneau détail, médias en URLs signées) et tuile « Débriefs à relire » branchée — solde P3-6 côté débriefs" },
             ]
           },
         ]
@@ -665,10 +672,24 @@
     //    jamais casser une planif diffusée (pas de Restrict, pas de 409 à vie).
     //  - Lecture athlète isolée dans AthletePlanService : le scope tenant ne filtre PAS le statut,
     //    c'est ce service qui impose PUBLISHED (sinon les brouillons fuiteraient).
-    //  - Push différé à p4-4 : le déclencheur existe (NotificationService, log Pino → Axiom).
-    // Rattrapages faits en P3 : p3-8 (nav + athlètes + invitation + fiche, jamais construits en P1),
-    // dashboard coach en remplacement de l'accueil, retours d'interface (toasts + états d'erreur).
-    // Prochaine phase : P4 — Débrief & Médias.
+    //
+    // P4 = 7/7 (dont p4-5/6/7 ajoutées en cours de phase). 67 e2e verts.
+    // Dettes soldées : P3-1 (push réellement envoyé), P3-6 côté débriefs (tuile branchée ;
+    // les factures restent MOCKED pour P6).
+    // Décisions structurantes P4 :
+    //  - Débrief = 1 par séance, texte NULLABLE : média-seul et reprise en plusieurs fois. Aucune
+    //    règle « texte OU média » (elle interdirait le média-seul, qui part d'un débrief vide).
+    //    Débriefer passe la séance en DONE, sans retour. coachReadAt repasse à null sur complément.
+    //  - Les contraintes médias vivent dans le schéma partagé, SAUF le quota 3/5 (dépend de l'état
+    //    en base → 409 côté service, maxFeedbackMediaCount() reste la source unique). La taille est
+    //    signée dans l'URL PUT (ContentLength) : opposable par le storage, pas seulement déclarée.
+    //  - Pas de transcodage vidéo : refus explicite hors plafonds (dettes P4-1/P4-2).
+    //  - NotificationService lit les tokens du DESTINATAIRE (autre tenant) → client Prisma de base.
+    //    Un échec de push ne fait JAMAIS échouer l'action métier.
+    // Révélé par le test de bout en bout (→ p4-5/p4-6) : sans écran « rejoindre un coach », la
+    // relation ne pouvait s'établir qu'à la main ; et rien ne déclenchait de refetch côté mobile.
+    // Setup téléphone physique (IP LAN, S3_ENDPOINT signé, EAS, FCM, WSL2) : voir README.
+    // Prochaine phase : P5 — Messagerie (y intégrer le débrief vocal, cf. CDC §4).
     const checked = {
       "p0-1": true,
       "p0-2": true,
@@ -721,8 +742,15 @@
       "p3-5": true,
       "p3-7": true,
       "p3-8": true,
+      "p4-1": true,
+      "p4-2": true,
+      "p4-3": true,
+      "p4-4": true,
+      "p4-5": true,
+      "p4-6": true,
+      "p4-7": true,
     };
-    let openPhaseId = 'P4'; // phase en cours
+    let openPhaseId = 'P5'; // phase en cours
     const totalTasks = phases.reduce((a, p) => a + p.categories.reduce((b, c) => b + c.tasks.length, 0), 0);
 
     function getDone() { return Object.values(checked).filter(Boolean).length; }

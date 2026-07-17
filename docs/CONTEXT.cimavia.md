@@ -55,7 +55,7 @@ Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
 > ⚠️ **Nommage** : Better Auth possède déjà une table de sessions d'authentification. Son modèle Prisma a été renommé **`AuthSession`** (table `session` conservée via `@@map`, remap par `session.modelName`) pour laisser le nom **`Session`** à l'entité métier séance (table `sessions`). Ne pas confondre les deux dans le code.
 
 ### Plan (planification)
-Cycle d'entraînement créé par le coach pour un athlète. **Nombre de semaines libre**. `startDate` est **toujours un lundi** (contrainte du schéma partagé) et c'est une **date civile** (`YYYY-MM-DD`, sans heure ni fuseau). Statut `DRAFT` → `PUBLISHED` : la diffusion est **irréversible** en MVP (le cycle s'ajuste en place, cf. CDC §5.7) et refusée si le cycle n'a aucune semaine. Elle notifie l'athlète — le déclencheur existe (`NotificationService`), l'envoi push arrive en P4.
+Cycle d'entraînement créé par le coach pour un athlète. **Nombre de semaines libre**. `startDate` est **toujours un lundi** (contrainte du schéma partagé) et c'est une **date civile** (`YYYY-MM-DD`, sans heure ni fuseau). Statut `DRAFT` → `PUBLISHED` : la diffusion est **irréversible** en MVP (le cycle s'ajuste en place, cf. CDC §5.7) et refusée si le cycle n'a aucune semaine. Elle **notifie l'athlète** par push (`NotificationService` → `expo-server-sdk`, P4). Ajuster un cycle déjà diffusé le notifie aussi : il a peut-être la version d'avant en cache hors-ligne.
 
 ### PlanWeek (semaine)
 Une semaine d'un `Plan`. Porte un **type** (`TRAINING` | `DELOAD`), un `weekNumber` 1-based et une note libre. Contient un **nombre libre** de séances planifiées.
@@ -80,10 +80,25 @@ La bibliothèque, elle, garde son `Restrict`/409 : un modèle de séance doit re
 ## Suivi & échanges
 
 ### SessionFeedback (débrief)
-Retour de l'athlète sur une `ScheduledSession` : **un champ texte libre** (« retour sur la séance ») + médias. **Pas d'indicateur ni de score** en MVP ; le débrief par exercice est différé (post-MVP).
+Retour de l'athlète sur une `ScheduledSession` : **un champ texte libre** (« retour sur la séance ») + médias. **Un seul débrief par séance** (`scheduledSessionId` unique). **Pas d'indicateur ni de score** en MVP ; le débrief par exercice est différé (post-MVP).
+
+Écrit par l'**athlète**, lu par le **coach** : les deux tables portent donc `coachId` ET `athleteId` en direct. ⚠️ Comme pour la planification, le scope tenant ne dit rien du **statut** : une séance n'est débriefable que si son cycle est `PUBLISHED` — garde portée par `AthletePlanService.getPublishedSessionOrThrow`, seul point d'entrée (P3).
+
+Trois règles à connaître :
+- **Le texte est nullable** : un débrief peut n'être que des photos, et l'athlète le complète **en plusieurs fois** (texte puis médias, ou l'inverse). D'où un `PUT` idempotent, et aucune contrainte « texte OU média » — elle interdirait le débrief média-seul, qui commence forcément par un débrief vide. Un débrief vide est un état légitime : « séance faite, rien à signaler ».
+- **Débriefer passe la séance en `DONE`**, sous quelque forme que ce soit (texte, ou premier média rattaché). Transition **sans retour** : un débrief complété ne redevient pas `PLANNED`.
+- **`coachReadAt`** alimente la tuile « Débriefs à relire ». Il repasse à `null` quand l'athlète complète son débrief — sinon un ajout tardif resterait invisible pour un coach qui l'a déjà ouvert. Seule la **création** notifie le coach (un push par ajout serait du harcèlement).
 
 ### Media
-Photo / vidéo / audio rattaché à un `SessionFeedback` ou à un `Message`. Stocké en object storage (URL signée), compressé côté client. Limites MVP : vidéo **60 s / 720p / ~50 Mo**, **3 vidéos + 5 photos** par débrief.
+Photo / vidéo rattachée à un `SessionFeedback` (l'**audio** arrive avec la messagerie, P5 — le débrief vocal est différé à P5, où le composant d'enregistrement existera). Stocké en object storage (URL GET signée), compressé côté client. Limites MVP : vidéo **60 s / 720p / ~50 Mo**, **3 vidéos + 5 photos** par débrief.
+
+Contrairement à un `Document` de la bibliothèque, un média de débrief n'est **jamais copié ni partagé** : sa clé objet n'appartient qu'à lui, donc sa suppression purge l'objet **directement**, sans garde de comptage.
+
+Ce qui est réellement appliqué, et où :
+- **mime, taille, durée** → dans le schéma Zod partagé (`@cmv/shared`) : rejet en 400 par le pipe, et le client réutilise les mêmes bornes avant capture ;
+- **la taille** est en plus **signée dans l'URL PUT** (`ContentLength`) : le storage rejette tout envoi d'un autre poids — sans quoi le plafond ne serait qu'une politesse ;
+- **le quota 3/5** dépend de l'état en base : il ne peut pas vivre dans le schéma. `maxFeedbackMediaCount()` en reste la source unique, partagée par le service (409) et le client (bouton éteint) ;
+- **le 720p** n'est ni appliqué ni vérifié (pas de transcodage — dette P4-1), et la **durée est déclarative** (le serveur ne décode pas le fichier — dette P4-2).
 
 ### Conversation / Message
 Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audio / image / vidéo, rattachable à une séance ou un débrief. MVP : **asynchrone** (polling TanStack Query + push). WebSocket temps réel **différé** (post-MVP).
@@ -100,6 +115,7 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 - La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux rôles** : chaque table porte donc `coachId` ET `athleteId` en direct.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
+- ⚠️ **`PushToken` est scopé `userId` pour les deux rôles** : un token adresse une *installation* de l'app, il appartient à une personne, pas à la relation coach↔athlète. L'**envoi**, lui, lit les tokens du DESTINATAIRE (donc d'un autre tenant) : il passe par le client Prisma de base, comme `UserDirectoryService`.
 - L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant (dont les **pièges du scope automatique** : `include` imbriqués non scopés, FK non contraintes par le tenant).
 
 ---
@@ -110,7 +126,7 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 |---|---|---|
 | Bibliothèque exercices/séances | CRUD (les siens) | — |
 | Planification | CRUD (ses athlètes) | lecture (la sienne) |
-| Débrief de séance | lecture | écriture (le sien) |
+| Débrief de séance | lecture + marquage « lu » | écriture (le sien) |
 | Fiche athlète | CRUD | — |
 | Messagerie | 1:1 avec ses athlètes | 1:1 avec son coach |
 | Facture | émission + statut | lecture |
