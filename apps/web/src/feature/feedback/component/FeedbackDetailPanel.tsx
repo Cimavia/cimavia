@@ -53,11 +53,19 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
           <div className="grid gap-cmv-sm sm:grid-cols-2">
             {(detail?.media ?? []).map((media) =>
               media.type === MediaType.IMAGE ? (
-                <a key={media.id} href={media.url} target="_blank" rel="noreferrer">
+                <a
+                  key={media.id}
+                  href={media.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={t("feedback.detail.openFull")}
+                >
+                  {/* `contain`, pas `cover` : le coach regarde un GESTE — un recadrage rognerait
+                      justement ce qu'il doit voir. Le clic ouvre la photo en pleine taille. */}
                   <img
                     src={media.url}
                     alt={media.fileName}
-                    className="h-40 w-full rounded-cmv-md border border-cmv-border object-cover"
+                    className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 object-contain"
                   />
                 </a>
               ) : (
@@ -66,7 +74,7 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
                   key={media.id}
                   src={media.url}
                   controls
-                  className="h-40 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1"
+                  className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1"
                 >
                   <track kind="captions" />
                 </video>

@@ -56,14 +56,7 @@ export function useAddFeedbackMedia(sessionId: string) {
       }
 
       const signed = await requestMediaUploadUrl(sessionId, toUploadUrlInput(media));
-      const upload = await uploadAsync(signed.uploadUrl, media.uri, {
-        httpMethod: "PUT",
-        uploadType: FileSystemUploadType.BINARY_CONTENT,
-        headers: { "Content-Type": media.mimeType },
-      });
-      if (upload.status < 200 || upload.status >= 300) {
-        throw new Error(`Upload refusé par le storage (${upload.status})`);
-      }
+      await uploadToStorage(signed.uploadUrl, media);
 
       return attachMedia(sessionId, {
         ...toUploadUrlInput(media),
@@ -83,6 +76,35 @@ export function useDeleteFeedbackMedia(sessionId: string) {
     mutationFn: (mediaId: string) => deleteMedia(sessionId, mediaId),
     onSuccess: invalidate,
   });
+}
+
+/**
+ * Envoie le fichier au storage, directement (le binaire ne passe jamais par l'API).
+ *
+ * Deux échecs radicalement différents, qu'on ne confond pas :
+ *  - le storage est INJOIGNABLE (`uploadAsync` lève) : réseau, ou endpoint signé pointant sur une
+ *    adresse que le téléphone ne sait pas résoudre — le cas classique en dev (`localhost`) ;
+ *  - le storage RÉPOND et refuse (403 signature, 400 taille…) : l'URL est bonne, l'envoi non.
+ *
+ * Les distinguer n'est pas cosmétique : « vérifie ta connexion » sur une signature invalide
+ * envoie chercher la panne au mauvais endroit.
+ */
+async function uploadToStorage(uploadUrl: string, media: PreparedMedia): Promise<void> {
+  let status: number;
+  try {
+    const upload = await uploadAsync(uploadUrl, media.uri, {
+      httpMethod: "PUT",
+      uploadType: FileSystemUploadType.BINARY_CONTENT,
+      headers: { "Content-Type": media.mimeType },
+    });
+    status = upload.status;
+  } catch {
+    throw new MediaRejectedError("feedback.media.storageUnreachable");
+  }
+
+  if (status < 200 || status >= 300) {
+    throw new MediaRejectedError("feedback.media.storageRejected");
+  }
 }
 
 // Ce qui reste comme place, par type — le bouton d'ajout s'éteint AVANT que l'API réponde 409.
