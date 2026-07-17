@@ -126,5 +126,26 @@
       "unreadable": "Ce fichier est illisible.",
       "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie."
     }
+  },
+  "coach": {
+    "missing": {
+      "title": "Tu n'as pas encore de coach",
+      "description": "Ton coach t'a transmis un code d'invitation ? Saisis-le pour recevoir tes planifications.",
+      "action": "Rejoindre mon coach"
+    },
+    "join": {
+      "title": "Rejoindre mon coach",
+      "description": "Saisis le code d'invitation que ton coach t'a communiqué.",
+      "codeLabel": "Code d'invitation",
+      "codePlaceholder": "Ex. 7QK4M2",
+      "submit": "Rejoindre",
+      "joining": "Connexion en cours…",
+      "error": "Impossible de rejoindre ce coach. Vérifie le code et ta connexion."
+    },
+    "joined": {
+      "title": "Tu as déjà un coach",
+      "description": "Tu es suivi par {{name}}.",
+      "goToPlanning": "Voir mon planning"
+    }
   }
 }

@@ -1,9 +1,11 @@
 import { todayIsoDate } from "@cmv/shared";
+import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
+import { useMyCoach } from "@/feature/coach";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { currentWeek, useMyPlan } from "@/feature/plan/hook/useMyPlan";
-import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatDateRange } from "@/shared/util/date.util";
 
@@ -11,6 +13,7 @@ import { formatDateRange } from "@/shared/util/date.util";
 export function PlanningScreen() {
   const { t } = useTranslation();
   const { data: plan, isPending, isError, refetch } = useMyPlan();
+  const { data: coach } = useMyCoach();
 
   const today = todayIsoDate();
   const week = currentWeek(plan);
@@ -27,7 +30,19 @@ export function PlanningScreen() {
         {/* Hors-ligne, le cache sert encore le plan : l'erreur n'a de sens que sans données. */}
         {isError && plan == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
-        {!isPending && !isError && plan == null ? (
+        {/* « Sans coach » et « coach sans cycle diffusé » sont deux états DIFFÉRENTS : dire à un
+            athlète non rattaché que son coach n'a rien diffusé le laisserait attendre pour rien. */}
+        {!isPending && !isError && plan == null && coach == null ? (
+          <View className="gap-3 rounded-lg border border-cmv-border border-dashed p-6">
+            <CmvText className="text-cmv-text-hi">{t("coach.missing.title")}</CmvText>
+            <CmvText className="text-cmv-text-mid text-sm">
+              {t("coach.missing.description")}
+            </CmvText>
+            <CmvButton label={t("coach.missing.action")} onPress={() => router.push("/join")} />
+          </View>
+        ) : null}
+
+        {!isPending && !isError && plan == null && coach != null ? (
           <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
             <CmvText className="text-cmv-text-hi">{t("plan.empty.title")}</CmvText>
             <CmvText className="text-cmv-text-mid text-sm">{t("plan.empty.description")}</CmvText>
