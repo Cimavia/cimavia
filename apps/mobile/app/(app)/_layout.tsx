@@ -5,10 +5,11 @@ import { usePushToken } from "@/feature/notification";
 import { tabBarTheme } from "@/shared/theme/navigation";
 
 // Onglets de l'athlète (routing only — cf. règle « pure shells »).
-// Messagerie (P5) et Factures (P6) s'ajouteront ici.
+// Factures (P6) s'ajouteront ici.
 const TABS = [
   { name: "planning", labelKey: "nav.planning", icon: "calendar-outline" },
   { name: "sessions", labelKey: "nav.sessions", icon: "barbell-outline" },
+  { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline" },
   { name: "profile", labelKey: "nav.profile", icon: "person-outline" },
 ] as const;
 
@@ -21,6 +22,9 @@ export default function AppTabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Masque la barre d'onglets à l'ouverture du clavier : dans la messagerie, elle resterait
+        // sinon posée par-dessus le clavier, entre lui et le champ de saisie.
+        tabBarHideOnKeyboard: true,
         // La barre d'onglets est peinte en NATIF : elle ignore les className, d'où ces valeurs
         // (tirées de @cmv/tokens — aucun hex ici, règle dure n°3).
         tabBarActiveTintColor: tabBarTheme.activeTintColor,

@@ -113,6 +113,13 @@ Configuration asymétrique et source de tous les pièges : **l'API et Metro tour
 
 Le téléphone vise **toujours l'IP LAN de Windows**, jamais le `172.x` de WSL (adresse interne).
 
+**Metro annonce le mauvais hôte.** Par défaut Metro publie son IP WSL (`172.x`) dans le QR — le
+téléphone ne la résout pas (« unable to resolve host »). Poser `REACT_NATIVE_PACKAGER_HOSTNAME`
+= l'IP LAN Windows dans **`apps/mobile/.env.local`** (voir `.env.example`) : `pnpm dev:mobile`
+annonce alors la bonne adresse, sans préfixer la commande. À mettre à jour si l'IP LAN change
+(DHCP). ⚠️ Bien un `.env.local`, pas `.env` : Expo SDK 56 refuse les variables non-`EXPO_PUBLIC_`
+hors `.env.local`.
+
 Trois obstacles rencontrés, dans l'ordre où ils mordent :
 
 1. **Pare-feu Windows** — ouvrir les ports (**admin**) :
