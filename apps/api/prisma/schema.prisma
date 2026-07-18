@@ -50,6 +50,11 @@ model User {
   athleteFeedback SessionFeedback[] @relation("AthleteFeedback")
   coachFeedback   SessionFeedback[] @relation("CoachFeedback")
 
+  // Métier — messagerie (P5) : fil 1:1 lu et écrit par les DEUX rôles.
+  coachConversations   Conversation[] @relation("CoachConversations")
+  athleteConversations Conversation[] @relation("AthleteConversations")
+  sentMessages         Message[]      @relation("SentMessages")
+
   // Notifications push — les DEUX rôles enregistrent leurs appareils (P4).
   pushTokens PushToken[]
 
@@ -363,6 +368,7 @@ model ScheduledSession {
 
   exercises ScheduledSessionExercise[]
   feedback  SessionFeedback? // au plus un débrief par séance (P4)
+  messages  Message[] // messages rattachés à cette séance (P5) — SetNull à la suppression
 
   @@unique([planWeekId, scheduledDate, position]) // plusieurs séances par jour, ordonnées
   @@index([coachId])
@@ -450,7 +456,8 @@ model SessionFeedback {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  media FeedbackMedia[]
+  media    FeedbackMedia[]
+  messages Message[] // messages rattachés à ce débrief (P5) — SetNull à la suppression
 
   @@index([coachId, coachReadAt]) // tuile dashboard : les débriefs non lus du coach
   @@index([athleteId])
@@ -503,4 +510,81 @@ model PushToken {
 
   @@index([userId])
   @@map("push_token")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Messagerie (P5) — communication asynchrone coach ↔ athlète (CDC §5.8).
+// Fil 1:1 : les DEUX rôles lisent ET écrivent, d'où `coachId` ET `athleteId` en direct sur les
+// deux tables (le tenancy extension scope par un champ du modèle interrogé, pas par la relation).
+// Un `@@unique([coachId, athleteId])` garantit un seul fil par relation et rend la course du
+// get-or-create inoffensive (le 2e create échoue en P2002, on relit).
+//
+// MVP : asynchrone (polling TanStack Query + push). WebSocket temps réel différé post-MVP.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Un message est SOIT du texte SOIT un média (audio/image/vidéo) — jamais les deux (pas de
+// légende sur média en MVP). TEXT n'est donc pas un `MediaType` : enum dédié, découplé du débrief
+// (le débrief vocal ajoutera `AUDIO` à `MediaType`, pas ici).
+enum MessageType {
+  TEXT
+  AUDIO
+  IMAGE
+  VIDEO
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  coachId       String
+  coach         User      @relation("CoachConversations", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId     String
+  athlete       User      @relation("AthleteConversations", fields: [athleteId], references: [id], onDelete: Cascade)
+  // Dernier message posté : tri de la liste de conversations du coach, sans agréger les messages.
+  // Nullable tant qu'aucun message n'a été envoyé (pas de fallback silencieux).
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  messages Message[]
+
+  @@unique([coachId, athleteId]) // 1:1 par relation ; garde la course du get-or-create
+  @@index([coachId])
+  @@index([athleteId])
+  @@map("conversation")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  coachId        String // dénormalisé (scope tenant — un include imbriqué n'est pas scopé)
+  athleteId      String // dénormalisé
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  // Auteur du message : coachId ou athleteId. Détermine l'alignement des bulles et le destinataire
+  // du push (l'AUTRE partie). Pas de FK relation métier : lu tel quel côté client.
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  type           MessageType
+  content        String? // texte (type TEXT) — nullable
+  // Média (type AUDIO | IMAGE | VIDEO) : clé objet S3 + métadonnées, jamais le binaire en BDD.
+  storagePath     String?
+  fileName        String?
+  mimeType        String?
+  sizeBytes       Int?
+  durationSeconds Int? // audio/vidéo — déclaré par le client (pas de décodage serveur)
+  // Rattachement optionnel à une séance ou un débrief (« à propos de… »). Nullable/SetNull :
+  // supprimer la cible n'efface pas le message, il perd juste son contexte.
+  scheduledSessionId String?
+  scheduledSession   ScheduledSession? @relation(fields: [scheduledSessionId], references: [id], onDelete: SetNull)
+  sessionFeedbackId  String?
+  sessionFeedback    SessionFeedback?  @relation(fields: [sessionFeedbackId], references: [id], onDelete: SetNull)
+  // Lu par le DESTINATAIRE (pas l'auteur) : alimente `unreadCount` et le throttle push
+  // « first-unread » (on ne notifie qu'au passage de « tout lu » à « non lu »).
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([conversationId, createdAt]) // fil chronologique
+  @@index([coachId])
+  @@index([athleteId])
+  @@index([scheduledSessionId])
+  @@index([sessionFeedbackId])
+  @@map("message")
 }

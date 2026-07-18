@@ -23,6 +23,8 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   ScheduledSessionExerciseDocument: { coach: "coachId", athlete: "athleteId" },
   SessionFeedback: { coach: "coachId", athlete: "athleteId" },
   FeedbackMedia: { coach: "coachId", athlete: "athleteId" },
+  Conversation: { coach: "coachId", athlete: "athleteId" },
+  Message: { coach: "coachId", athlete: "athleteId" },
   PushToken: { coach: "userId", athlete: "userId" },
 };
 
