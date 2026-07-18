@@ -8,6 +8,8 @@ import { configureApp } from "../src/app.setup";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
+  "message",
+  "conversation",
   "feedback_media",
   "session_feedback",
   "push_token",
@@ -1176,5 +1178,156 @@ describe("Lecture coach des débriefs (P4)", () => {
   it("l'athlète n'accède pas aux routes coach", async () => {
     expect((await athleteA1.get("/feedbacks")).status).toBe(403);
     expect((await athleteA1.post(`/feedbacks/${feedbackId}/read`)).status).toBe(403);
+  });
+});
+
+describe("Messagerie : fil texte & isolation (P5)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let coachB: Agent;
+  let athleteB1: Agent;
+  let autonome: Agent;
+  let a1Id: string;
+  let coachAId: string;
+  let conversationId: string;
+
+  async function link(
+    coach: Agent,
+    athlete: Agent,
+  ): Promise<{ athleteId: string; coachId: string }> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return { athleteId: accepted.body.athleteId, coachId: accepted.body.coachId };
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("msg-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("msg-athlete-a1@cmv.test", Role.ATHLETE);
+    coachB = await signUp("msg-coach-b@cmv.test", Role.COACH);
+    athleteB1 = await signUp("msg-athlete-b1@cmv.test", Role.ATHLETE);
+    autonome = await signUp("msg-autonome@cmv.test", Role.ATHLETE);
+
+    const relation = await link(coachA, athleteA1);
+    a1Id = relation.athleteId;
+    coachAId = relation.coachId;
+    await link(coachB, athleteB1);
+  });
+
+  it("le coach ouvre un fil avec SON athlète (get-or-create, contrepartie nommée)", async () => {
+    const res = await coachA.post("/conversations").send({ athleteId: a1Id });
+    expect(res.status).toBe(201);
+    expect(res.body.counterpartId).toBe(a1Id);
+    expect(res.body.counterpartName).toBe("msg-athlete-a1@cmv.test");
+    expect(res.body.lastMessageAt).toBeNull();
+    expect(res.body.unreadCount).toBe(0);
+    conversationId = res.body.id;
+
+    // Idempotent : réouvrir renvoie le MÊME fil, pas un doublon.
+    const again = await coachA.post("/conversations").send({ athleteId: a1Id });
+    expect(again.body.id).toBe(conversationId);
+  });
+
+  it("l'athlète ouvre SON fil (même conversation, contrepartie = le coach)", async () => {
+    const res = await athleteA1.post("/conversations").send({});
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBe(conversationId);
+    expect(res.body.counterpartId).toBe(coachAId);
+    expect(res.body.counterpartName).toBe("msg-coach-a@cmv.test");
+  });
+
+  it("le coach ne peut pas ouvrir un fil avec l'athlète d'un autre coach (400)", async () => {
+    const res = await coachA.post("/conversations").send({ athleteId: "unknown-athlete-id" });
+    expect(res.status).toBe(400);
+  });
+
+  it("un athlète autonome (0 coach) n'a pas de messagerie (400)", async () => {
+    const res = await autonome.post("/conversations").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("le coach envoie un message texte ; l'athlète le lit dans le fil", async () => {
+    const sent = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Salut, prêt pour la séance ?" });
+    expect(sent.status).toBe(201);
+    expect(sent.body).toMatchObject({
+      conversationId,
+      senderId: coachAId,
+      type: "TEXT",
+      content: "Salut, prêt pour la séance ?",
+      media: null,
+      readAt: null,
+    });
+
+    const list = await athleteA1.get(`/conversations/${conversationId}/messages`);
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0].id).toBe(sent.body.id);
+  });
+
+  it("le dernier message et le non-lu remontent dans la liste de l'athlète", async () => {
+    const list = await athleteA1.get("/conversations");
+    expect(list.status).toBe(200);
+    const fil = list.body.find((c: { id: string }) => c.id === conversationId);
+    expect(fil.lastMessageType).toBe("TEXT");
+    expect(fil.lastMessagePreview).toBe("Salut, prêt pour la séance ?");
+    expect(fil.lastMessageAt).not.toBeNull();
+    // Message entrant non lu côté athlète.
+    expect(fil.unreadCount).toBe(1);
+  });
+
+  it("l'expéditeur ne compte pas ses propres messages comme non lus", async () => {
+    const list = await coachA.get("/conversations");
+    const fil = list.body.find((c: { id: string }) => c.id === conversationId);
+    expect(fil.unreadCount).toBe(0);
+  });
+
+  it("marquer lu remet le compteur à zéro (idempotent)", async () => {
+    const read = await athleteA1.post(`/conversations/${conversationId}/read`);
+    expect(read.status).toBe(204);
+
+    const list = await athleteA1.get("/conversations");
+    const fil = list.body.find((c: { id: string }) => c.id === conversationId);
+    expect(fil.unreadCount).toBe(0);
+
+    // Rien à relire une seconde fois.
+    expect((await athleteA1.post(`/conversations/${conversationId}/read`)).status).toBe(204);
+  });
+
+  it("l'athlète répond ; le message est aligné sur son id d'expéditeur", async () => {
+    const reply = await athleteA1
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Oui, j'arrive." });
+    expect(reply.status).toBe(201);
+    expect(reply.body.senderId).toBe(a1Id);
+
+    // Réciproque : le coach a maintenant un message entrant non lu.
+    const list = await coachA.get("/conversations");
+    const fil = list.body.find((c: { id: string }) => c.id === conversationId);
+    expect(fil.unreadCount).toBe(1);
+  });
+
+  it("un fil d'un autre tenant est invisible et inaccessible", async () => {
+    // coachB ne voit pas le fil de coachA.
+    expect((await coachB.get("/conversations")).body).toEqual([]);
+    // Ni ses messages, ni l'envoi, ni le marquage lu (scope tenant → 404).
+    expect((await coachB.get(`/conversations/${conversationId}/messages`)).status).toBe(404);
+    expect(
+      (
+        await coachB.post(`/conversations/${conversationId}/messages`).send({
+          type: "TEXT",
+          content: "intrusion",
+        })
+      ).status,
+    ).toBe(404);
+    expect((await coachB.post(`/conversations/${conversationId}/read`)).status).toBe(404);
+  });
+
+  it("le pipe de validation rejette un texte vide (400)", async () => {
+    const res = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "" });
+    expect(res.status).toBe(400);
   });
 });

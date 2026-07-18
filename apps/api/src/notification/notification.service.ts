@@ -26,12 +26,21 @@ export type FeedbackReceivedEvent = {
   sessionTitle: string;
 };
 
+export type MessageReceivedEvent = {
+  // Le DESTINATAIRE (l'autre partie du fil), résolu par l'appelant depuis une conversation DÉJÀ
+  // scopée — jamais depuis le client (règle 1). L'expéditeur sert à afficher son nom.
+  recipientId: string;
+  senderId: string;
+  conversationId: string;
+};
+
 // Ce que le client reçoit dans les données de la notification : de quoi router vers le bon
 // écran à l'ouverture. Typé ici pour que la navigation mobile n'ait pas à deviner.
 type PushPayload =
   | { type: "PLAN_PUBLISHED"; planId: string }
   | { type: "PLAN_UPDATED"; planId: string }
-  | { type: "FEEDBACK_RECEIVED"; scheduledSessionId: string };
+  | { type: "FEEDBACK_RECEIVED"; scheduledSessionId: string }
+  | { type: "MESSAGE_RECEIVED"; conversationId: string };
 
 type PushContent = { title: string; body: string; data: PushPayload };
 
@@ -97,6 +106,29 @@ export class NotificationService {
         // Un coach suit N athlètes : sans le nom, la notification serait inexploitable.
         body: `${athlete?.name ?? "Un de tes athlètes"} a débriefé « ${event.sessionTitle} ».`,
         data: { type: "FEEDBACK_RECEIVED", scheduledSessionId: event.scheduledSessionId },
+      };
+    });
+  }
+
+  /**
+   * Nouveau message reçu (CDC §5.8). Le déclencheur du push (éviter une rafale de notifications)
+   * est décidé par l'appelant — comme « seule la création d'un débrief notifie » en P4 : le
+   * MessageService ne notifie qu'au passage « tout lu » → « non lu » du fil. Ici on ne fait que
+   * livrer.
+   */
+  async notifyMessageReceived(event: MessageReceivedEvent): Promise<void> {
+    this.logger.info({ event: "message.received", ...event }, "Message reçu");
+    await this.send(event.recipientId, async () => {
+      const sender = await this.prisma.user.findUnique({
+        where: { id: event.senderId },
+        select: { name: true },
+      });
+      return {
+        // Le nom de l'expéditeur en titre : un coach suit N athlètes, l'athlète a 1 coach — dans
+        // les deux cas c'est l'info utile. Corps générique (le média n'a pas de texte à montrer).
+        title: sender?.name ?? "Nouveau message",
+        body: "Tu as reçu un nouveau message.",
+        data: { type: "MESSAGE_RECEIVED", conversationId: event.conversationId },
       };
     });
   }

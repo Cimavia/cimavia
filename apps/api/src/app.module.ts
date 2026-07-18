@@ -16,6 +16,7 @@ import { FeedbackModule } from "./feedback/feedback.module";
 import { HealthModule } from "./health/health.module";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { PrismaService } from "./infra/prisma/prisma.service";
+import { MessageModule } from "./message/message.module";
 import { NotificationModule } from "./notification/notification.module";
 import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
 import { PlanModule } from "./plan/plan.module";
@@ -82,6 +83,7 @@ function buildLogTargets(): TransportTargetOptions[] {
     SessionModule,
     PlanModule,
     FeedbackModule,
+    MessageModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
