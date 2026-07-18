@@ -1455,3 +1455,123 @@ describe("Messagerie : médias (P5)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("Messagerie : rattachement séance / débrief (P5)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let athleteA2: Agent;
+  let conversationId: string;
+  let sessionA1Id: string;
+  let sessionA2Id: string;
+  let draftSessionId: string;
+  let feedbackA1Id: string;
+  let feedbackA2Id: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    return accepted.body.athleteId;
+  }
+
+  // Crée un plan (publié ou non) avec une séance, renvoie l'id de la séance.
+  async function sessionInPlan(
+    athleteId: string,
+    title: string,
+    publish: boolean,
+  ): Promise<string> {
+    const plan = await coachA.post("/plans").send({
+      athleteId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const session = await coachA
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title, scheduledDate: monday });
+    if (publish) {
+      await coachA.post(`/plans/${plan.body.id}/publish`);
+    }
+    return session.body.id;
+  }
+
+  async function debrief(athlete: Agent, sessionId: string): Promise<string> {
+    const res = await athlete
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Retour" });
+    expect(res.status).toBe(200);
+    return res.body.id;
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("msga-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("msga-athlete-a1@cmv.test", Role.ATHLETE);
+    athleteA2 = await signUp("msga-athlete-a2@cmv.test", Role.ATHLETE);
+
+    const a1Id = await link(coachA, athleteA1);
+    const a2Id = await link(coachA, athleteA2);
+
+    sessionA1Id = await sessionInPlan(a1Id, "Séance A1", true);
+    sessionA2Id = await sessionInPlan(a2Id, "Séance A2", true);
+    draftSessionId = await sessionInPlan(a1Id, "Séance brouillon A1", false);
+    feedbackA1Id = await debrief(athleteA1, sessionA1Id);
+    feedbackA2Id = await debrief(athleteA2, sessionA2Id);
+
+    const opened = await coachA.post("/conversations").send({ athleteId: a1Id });
+    conversationId = opened.body.id;
+  });
+
+  it("l'athlète rattache une séance publiée à son message", async () => {
+    const res = await athleteA1
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "À propos de cette séance", scheduledSessionId: sessionA1Id });
+    expect(res.status).toBe(201);
+    expect(res.body.scheduledSessionId).toBe(sessionA1Id);
+  });
+
+  it("le coach rattache la même séance", async () => {
+    const res = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Bien vu", scheduledSessionId: sessionA1Id });
+    expect(res.status).toBe(201);
+    expect(res.body.scheduledSessionId).toBe(sessionA1Id);
+  });
+
+  // Le scope tenant ne filtre PAS le statut : sans la garde du service, l'athlète rattacherait
+  // une séance d'un cycle encore en brouillon.
+  it("refuse le rattachement d'une séance non diffusée (côté athlète)", async () => {
+    const res = await athleteA1
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Trop tôt", scheduledSessionId: draftSessionId });
+    expect(res.status).toBe(404);
+  });
+
+  // Le coach a N athlètes : sa séance d'un AUTRE athlète n'a rien à faire dans ce fil.
+  it("refuse une séance d'un autre athlète du même coach (400)", async () => {
+    const res = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Mauvais fil", scheduledSessionId: sessionA2Id });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse une séance inconnue (400)", async () => {
+    const res = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "?", scheduledSessionId: "nope" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rattache un débrief du fil, mais pas celui d'un autre athlète", async () => {
+    const ok = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "J'ai lu ton débrief", sessionFeedbackId: feedbackA1Id });
+    expect(ok.status).toBe(201);
+    expect(ok.body.sessionFeedbackId).toBe(feedbackA1Id);
+
+    const cross = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Mauvais débrief", sessionFeedbackId: feedbackA2Id });
+    expect(cross.status).toBe(400);
+  });
+});

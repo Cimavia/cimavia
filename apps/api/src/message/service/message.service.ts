@@ -1,15 +1,19 @@
 import type { MessageDto, SendMessageInput } from "@cmv/shared";
 import { MessageType, Role } from "@cmv/shared";
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
+import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor, type TenantContext } from "../../tenancy/tenant-context.type";
 import { toMessageDto } from "../message.mapper";
 import { ConversationService } from "./conversation.service";
+
+// Rattachement résolu et validé, prêt à persister (ids possédés, ou null).
+type ResolvedAttachment = { scheduledSessionId: string | null; sessionFeedbackId: string | null };
 
 /**
  * Messages d'un fil : lecture, envoi (texte ou média), marquage lu. Le fil est toujours résolu via
@@ -22,6 +26,9 @@ export class MessageService {
     private readonly storage: StorageService,
     private readonly conversations: ConversationService,
     private readonly notifications: NotificationService,
+    // Garde « séance de l'athlète courant, dans un cycle PUBLISHED » — source unique (P3), pour
+    // valider un rattachement côté athlète (le scope tenant ne filtre pas le statut).
+    private readonly athletePlans: AthletePlanService,
     private readonly cls: ClsService,
   ) {}
 
@@ -49,7 +56,8 @@ export class MessageService {
       where: { conversationId, senderId: actor.userId, readAt: null },
     });
 
-    const data = buildMessageData(conversation, actor, input);
+    const attachment = await this.resolveAttachment(conversation, actor, input);
+    const data = buildMessageData(conversation, actor, input, attachment);
     const message = await this.db.$transaction(async (tx) => {
       const created = await tx.message.create({ data });
       // `lastMessageAt` sert au tri de la liste de fils, sans agréger les messages.
@@ -84,28 +92,89 @@ export class MessageService {
       data: { readAt: new Date() },
     });
   }
+
+  /**
+   * Valide le rattachement optionnel (« à propos de… ») : la FK n'impose pas le tenant, donc un id
+   * entrant doit être prouvé possédé AVANT écriture. Deux gardes :
+   * - la cible doit appartenir à la MÊME relation que le fil (un coach a N athlètes : sa séance
+   *   d'un autre athlète n'a rien à faire ici) ;
+   * - côté athlète, une séance passe par AthletePlanService (filtre PUBLISHED) — le scope tenant,
+   *   lui, laisserait référencer un brouillon du coach.
+   */
+  private async resolveAttachment(
+    conversation: Conversation,
+    actor: TenantContext,
+    input: SendMessageInput,
+  ): Promise<ResolvedAttachment> {
+    return {
+      scheduledSessionId: await this.validateSession(
+        conversation,
+        actor,
+        input.scheduledSessionId ?? null,
+      ),
+      sessionFeedbackId: await this.validateFeedback(conversation, input.sessionFeedbackId ?? null),
+    };
+  }
+
+  private async validateSession(
+    conversation: Conversation,
+    actor: TenantContext,
+    id: string | null,
+  ): Promise<string | null> {
+    if (id == null) return null;
+    // Athlète : garde PUBLISHED (source unique). Coach : lecture scopée de SA séance.
+    const session =
+      actor.role === Role.ATHLETE
+        ? await this.athletePlans.getPublishedSessionOrThrow(id)
+        : await this.db.scheduledSession.findFirst({ where: { id } });
+    if (session == null) {
+      throw new BadRequestException("Séance inconnue");
+    }
+    if (session.coachId !== conversation.coachId || session.athleteId !== conversation.athleteId) {
+      throw new BadRequestException("Séance hors de ce fil");
+    }
+    return id;
+  }
+
+  private async validateFeedback(
+    conversation: Conversation,
+    id: string | null,
+  ): Promise<string | null> {
+    if (id == null) return null;
+    // Un débrief n'existe que sur une séance PUBLISHED (créé via la garde P4) : la lecture scopée
+    // suffit, pas de contrôle de statut à part.
+    const feedback = await this.db.sessionFeedback.findFirst({ where: { id } });
+    if (feedback == null) {
+      throw new BadRequestException("Débrief inconnu");
+    }
+    if (
+      feedback.coachId !== conversation.coachId ||
+      feedback.athleteId !== conversation.athleteId
+    ) {
+      throw new BadRequestException("Débrief hors de ce fil");
+    }
+    return id;
+  }
 }
 
 /**
  * Champs Prisma d'un message. Les deux champs tenant sont recopiés du fil (l'extension n'injecte
- * que celui de l'acteur), `senderId` = l'auteur courant.
- *
- * ⚠️ Le rattachement optionnel (séance/débrief) est volontairement ignoré ici tant que sa
- * validation « cible possédée + cycle PUBLISHED » n'est pas câblée (commit suivant) : persister un
- * id client sans contrôle contournerait le tenant (la FK n'impose rien).
+ * que celui de l'acteur), `senderId` = l'auteur courant. Le rattachement a déjà été validé
+ * (`resolveAttachment`) : on ne persiste ici que des ids possédés, ou null.
  */
 function buildMessageData(
   conversation: Conversation,
   actor: TenantContext,
   input: SendMessageInput,
+  attachment: ResolvedAttachment,
 ): Prisma.MessageUncheckedCreateInput {
   const base = {
     coachId: conversation.coachId,
     athleteId: conversation.athleteId,
     conversationId: conversation.id,
     senderId: actor.userId,
-    scheduledSessionId: null,
-    sessionFeedbackId: null,
+    scheduledSessionId: attachment.scheduledSessionId,
+    sessionFeedbackId: attachment.sessionFeedbackId,
   };
 
   if (input.type === MessageType.TEXT) {
