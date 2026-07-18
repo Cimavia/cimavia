@@ -146,7 +146,23 @@
     "media": {
       "audio": "🎤 Message vocal",
       "image": "📷 Photo",
-      "video": "🎥 Vidéo"
+      "video": "🎥 Vidéo",
+      "uploading": "Envoi en cours…",
+      "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie.",
+      "permission": "cimavia a besoin d'accéder à tes photos pour les joindre.",
+      "imageTooBig": "Cette photo est trop lourde, même après compression.",
+      "videoTooBig": "Cette vidéo dépasse 50 Mo. Filme plus court ou baisse la qualité.",
+      "videoTooLong": "Cette vidéo dépasse 60 secondes.",
+      "videoFormat": "Ce format de vidéo n'est pas géré. Filme depuis l'appareil photo.",
+      "audioTooBig": "Cette note vocale est trop lourde.",
+      "audioTooLong": "Une note vocale ne peut pas dépasser 5 minutes.",
+      "unreadable": "Ce fichier est illisible.",
+      "storageUnreachable": "Le serveur de médias est injoignable depuis ton téléphone. Réessaie sur un autre réseau.",
+      "storageRejected": "Le serveur a refusé ce fichier. Réessaie ; si ça persiste, préviens ton coach."
+    },
+    "audio": {
+      "permission": "cimavia a besoin du micro pour enregistrer un message vocal.",
+      "recordError": "L'enregistrement a échoué. Réessaie."
     }
   },
   "coach": {

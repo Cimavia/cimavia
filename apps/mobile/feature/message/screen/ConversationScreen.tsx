@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import type { TFunction } from "i18next";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useMyCoach } from "@/feature/coach/hook/useMyCoach";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageList } from "@/feature/message/component/MessageList";
@@ -10,8 +12,22 @@ import {
   useMyConversation,
   useSendMessage,
 } from "@/feature/message/hook/useConversation";
+import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
+import { MediaRejectedError } from "@/feature/message/util/media.util";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { apiErrorMessage } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
+
+/**
+ * Un refus métier (fichier trop lourd, permission) porte sa clé i18n ; une panne technique garde
+ * le message de l'API. Les deux se disent — aucune ne se masque.
+ */
+function mediaErrorMessage(error: unknown, manualKey: string | null, t: TFunction): string | null {
+  if (manualKey != null) return t(manualKey);
+  if (error == null) return null;
+  if (error instanceof MediaRejectedError) return t(error.reasonKey);
+  return apiErrorMessage(error) ?? t("messages.media.uploadError");
+}
 
 /**
  * Fil de messagerie de l'athlète avec son coach (CDC §5.8). Asynchrone : les nouveaux messages
@@ -29,9 +45,20 @@ export function ConversationScreen() {
   const messages = useMessages(conversationId);
   const send = useSendMessage(conversationId ?? "");
   const markRead = useMarkRead(conversationId);
+  const { pickAndSend, recordAndSend } = useSendMessageMedia(conversationId ?? "");
+
+  // Refus de l'enregistreur (permission, durée) : porté à la main car il ne passe pas par une
+  // mutation. Réinitialisé à chaque nouvelle tentative.
+  const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
 
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
+  const mediaBusy = pickAndSend.isPending || recordAndSend.isPending;
+  const mediaError = mediaErrorMessage(
+    pickAndSend.error ?? recordAndSend.error,
+    recorderErrorKey,
+    t,
+  );
 
   // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la conversation
   // (pas les messages) : le prochain poll ramène `readAt` posé et la condition retombe — pas de
@@ -82,13 +109,12 @@ export function ConversationScreen() {
 
   return (
     <CmvScreen>
-      <KeyboardAvoidingView
-        className="flex-1"
-        // iOS pousse le contenu (padding), Android réduit la hauteur de la vue (height) : sans
-        // `behavior` explicite, le composant est INERTE sur Android et le champ reste sous le
-        // clavier. La barre d'onglets est masquée en parallèle (tabBarHideOnKeyboard) → offset 0.
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      {/* KeyboardAvoidingView de react-native-keyboard-controller (pas celui de RN) : il gère
+          Android edge-to-edge, là où le natif reste inerte. La barre d'onglets se masque en
+          parallèle (tabBarHideOnKeyboard) → le composer vient pile au-dessus du clavier.
+          `style` (et non className) : la vue vient d'une lib tierce, on ne dépend pas de NativeWind
+          pour un simple flex:1 (aucune couleur/token ici). */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         {items.length === 0 ? (
           <View className="flex-1 items-center justify-center gap-2 p-6">
             <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
@@ -108,9 +134,23 @@ export function ConversationScreen() {
           <CmvText className="px-4 pb-1 text-cmv-error text-sm">{t("messages.sendError")}</CmvText>
         ) : null}
 
+        {mediaError != null ? (
+          <CmvText className="px-4 pb-1 text-cmv-error text-sm">{mediaError}</CmvText>
+        ) : null}
+
         <Composer
-          onSend={(content) => send.mutate({ type: "TEXT", content })}
+          onSendText={(content) => send.mutate({ type: "TEXT", content })}
+          onPickMedia={() => {
+            setRecorderErrorKey(null);
+            pickAndSend.mutate();
+          }}
+          onRecordAudio={(audio) => {
+            setRecorderErrorKey(null);
+            recordAndSend.mutate(audio);
+          }}
+          onMediaError={setRecorderErrorKey}
           sending={send.isPending}
+          mediaBusy={mediaBusy}
         />
       </KeyboardAvoidingView>
     </CmvScreen>

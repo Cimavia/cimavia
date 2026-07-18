@@ -1,45 +1,52 @@
 import type { MessageDto } from "@cmv/shared";
 import { MessageType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { View } from "react-native";
-import { CmvText } from "@/shared/component";
+import { Image, View } from "react-native";
+import { CmvAudioPlayer, CmvText } from "@/shared/component";
+import { formatMmSs } from "@/shared/util/time";
 
 type MessageBubbleProps = {
   message: MessageDto;
   mine: boolean;
 };
 
-// Libellé d'un message média (commit 6 : le rendu audio/image arrive avec l'enregistreur, commit
-// 7). Un message reçu du web pouvant déjà être un média, on ne laisse jamais une bulle vide.
-function mediaLabelKey(type: MessageType): string | null {
-  switch (type) {
-    case MessageType.AUDIO:
-      return "messages.media.audio";
-    case MessageType.IMAGE:
-      return "messages.media.image";
-    case MessageType.VIDEO:
-      return "messages.media.video";
-    default:
-      return null;
+// Rendu du contenu média. L'URL est signée (bucket privé), régénérée à chaque lecture.
+function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
+  const { t } = useTranslation();
+  const media = message.media;
+  if (media == null) return null;
+
+  if (message.type === MessageType.AUDIO) {
+    return <CmvAudioPlayer url={media.url} durationSeconds={media.durationSeconds} />;
   }
+  if (message.type === MessageType.IMAGE) {
+    return (
+      <Image source={{ uri: media.url }} className="h-48 w-48 rounded-xl" resizeMode="cover" />
+    );
+  }
+  // Vidéo : pas de lecteur intégré côté mobile en MVP (le coach la lit sur web) → pastille, comme
+  // la galerie du débrief (dette P4-4).
+  return (
+    <View className="flex-row items-center gap-2">
+      <CmvText className="text-cmv-text-hi">{t("messages.media.video")}</CmvText>
+      {media.durationSeconds != null ? (
+        <CmvText className="text-cmv-text-mid text-xs">{formatMmSs(media.durationSeconds)}</CmvText>
+      ) : null}
+    </View>
+  );
 }
 
 export function MessageBubble({ message, mine }: Readonly<MessageBubbleProps>) {
-  const { t } = useTranslation();
-  const mediaKey = message.content == null ? mediaLabelKey(message.type) : null;
-
   return (
     <View
-      className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+      className={`max-w-[80%] rounded-2xl px-3 py-2 ${
         mine ? "self-end bg-cmv-accent" : "self-start bg-cmv-surface"
       }`}
     >
       {message.content != null ? (
         <CmvText className="text-cmv-text-hi">{message.content}</CmvText>
       ) : (
-        <CmvText className="text-cmv-text-mid italic">
-          {mediaKey != null ? t(mediaKey) : ""}
-        </CmvText>
+        <MediaContent message={message} />
       )}
     </View>
   );

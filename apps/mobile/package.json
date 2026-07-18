@@ -10,7 +10,8 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "lint": "biome check app feature shared",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "build:dev:android": "eas build --profile development --platform android"
   },
   "dependencies": {
     "@better-auth/expo": "1.6.23",
@@ -24,6 +25,7 @@
     "@tanstack/react-query-persist-client": "5.101.1",
     "better-auth": "1.6.23",
     "expo": "56.0.13",
+    "expo-audio": "~56.0.12",
     "expo-constants": "56.0.19",
     "expo-dev-client": "~56.0.23",
     "expo-device": "~56.0.4",
@@ -45,6 +47,7 @@
     "react-i18next": "^16.6.6",
     "react-native": "0.85.3",
     "react-native-css-interop": "0.2.6",
+    "react-native-keyboard-controller": "1.21.6",
     "react-native-safe-area-context": "5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-web": "0.21.2"

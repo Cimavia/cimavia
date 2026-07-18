@@ -1,3 +1,5 @@
+export { CmvAudioPlayer } from "./CmvAudioPlayer";
+export { CmvAudioRecorder, type RecordedAudio } from "./CmvAudioRecorder";
 export { CmvButton } from "./CmvButton";
 export { CmvErrorState } from "./CmvErrorState";
 export { CmvScreen } from "./CmvScreen";

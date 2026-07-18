@@ -23,7 +23,13 @@
       "expo-secure-store",
       "expo-localization",
       "expo-notifications",
-      "expo-image-picker"
+      "expo-image-picker",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "cimavia utilise le micro pour enregistrer tes messages vocaux."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
