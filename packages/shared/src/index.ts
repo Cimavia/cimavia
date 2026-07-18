@@ -94,6 +94,37 @@ export {
   invitationStatusSchema,
 } from "./dto/invitation.schema";
 export type {
+  ConversationDto,
+  MessageAudioMimeType,
+  MessageDto,
+  MessageMediaDto,
+  MessageType as MessageTypeType,
+  OpenConversationInput,
+  RequestMessageUploadUrlInput,
+  SendMessageInput,
+} from "./dto/message.schema";
+export {
+  conversationDtoSchema,
+  isAllowedMessageAudioMime,
+  MAX_MESSAGE_AUDIO_DURATION_SECONDS,
+  MAX_MESSAGE_AUDIO_SIZE_BYTES,
+  MAX_MESSAGE_IMAGE_SIZE_BYTES,
+  MAX_MESSAGE_VIDEO_DURATION_SECONDS,
+  MAX_MESSAGE_VIDEO_SIZE_BYTES,
+  MESSAGE_AUDIO_MIME_TYPES,
+  MESSAGE_IMAGE_MIME_TYPES,
+  MESSAGE_TEXT_MAX_LENGTH,
+  MESSAGE_VIDEO_MIME_TYPES,
+  MessageType,
+  messageAudioMimeTypeSchema,
+  messageDtoSchema,
+  messageMediaDtoSchema,
+  messageTypeSchema,
+  openConversationSchema,
+  requestMessageUploadUrlSchema,
+  sendMessageSchema,
+} from "./dto/message.schema";
+export type {
   CreatePlanInput,
   CreateScheduledSessionInput,
   PlanDto,
