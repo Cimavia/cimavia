@@ -17,35 +17,50 @@ import {
 } from "@/feature/message/util/media.util";
 import type { RecordedAudio } from "@/shared/component";
 
+// Source d'un média avant préparation : une pièce jointe choisie, ou une note vocale enregistrée.
+type MediaSource =
+  | { kind: "asset"; asset: ImagePicker.ImagePickerAsset }
+  | { kind: "audio"; audio: RecordedAudio };
+
 /**
  * Envoi d'un média dans un fil : préparation (compression/mesure) → URL signée → upload direct →
- * message. Le binaire ne passe jamais par l'API. Deux entrées, un même pipeline : une pièce jointe
- * choisie dans la galerie, ou une note vocale enregistrée.
+ * message. Le binaire ne passe jamais par l'API.
+ *
+ * La préparation + l'upload passent par UNE mutation, donc `isUploading` (indicateur « envoi en
+ * cours ») ne couvre QUE ce qui suit la sélection. L'ouverture de la galerie, elle, se fait HORS
+ * de la mutation — sinon l'indicateur s'allumerait pendant que l'utilisateur choisit encore.
  */
 export function useSendMessageMedia(conversationId: string) {
   const queryClient = useQueryClient();
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: messageKeys.list(conversationId) });
-    queryClient.invalidateQueries({ queryKey: conversationKeys.mine() });
+
+  const send = useMutation({
+    mutationFn: async (source: MediaSource) => {
+      const media =
+        source.kind === "asset" ? await prepareAsset(source.asset) : prepareAudio(source.audio);
+      return uploadAndSend(conversationId, media);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: messageKeys.list(conversationId) });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.mine() });
+    },
+  });
+
+  // Ouvre la galerie puis délègue à la mutation. L'échec de sélection (permission) est signalé à
+  // part — il précède l'upload, donc ne peut pas passer par `send.error`.
+  const pickAndSend = async (onPickError: (reasonKey: string) => void) => {
+    try {
+      const asset = await pickImageOrVideo();
+      if (asset != null) send.mutate({ kind: "asset", asset });
+    } catch (error) {
+      onPickError(
+        error instanceof MediaRejectedError ? error.reasonKey : "messages.media.uploadError",
+      );
+    }
   };
 
-  const pickAndSend = useMutation({
-    mutationFn: async () => {
-      const asset = await pickImageOrVideo();
-      if (asset == null) return null; // sélection annulée : ce n'est pas une erreur
-      return uploadAndSend(conversationId, await prepareAsset(asset));
-    },
-    onSuccess: (message) => {
-      if (message != null) invalidate();
-    },
-  });
+  const recordAndSend = (audio: RecordedAudio) => send.mutate({ kind: "audio", audio });
 
-  const recordAndSend = useMutation({
-    mutationFn: (audio: RecordedAudio) => uploadAndSend(conversationId, prepareAudio(audio)),
-    onSuccess: invalidate,
-  });
-
-  return { pickAndSend, recordAndSend };
+  return { pickAndSend, recordAndSend, isUploading: send.isPending, uploadError: send.error };
 }
 
 async function uploadAndSend(

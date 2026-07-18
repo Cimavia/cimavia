@@ -45,20 +45,16 @@ export function ConversationScreen() {
   const messages = useMessages(conversationId);
   const send = useSendMessage(conversationId ?? "");
   const markRead = useMarkRead(conversationId);
-  const { pickAndSend, recordAndSend } = useSendMessageMedia(conversationId ?? "");
+  const media = useSendMessageMedia(conversationId ?? "");
 
-  // Refus de l'enregistreur (permission, durée) : porté à la main car il ne passe pas par une
-  // mutation. Réinitialisé à chaque nouvelle tentative.
-  const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
+  // Refus qui précède l'upload (permission galerie, permission/erreur micro) : porté à la main car
+  // il ne passe pas par la mutation. Réinitialisé à chaque nouvelle tentative.
+  const [preUploadErrorKey, setPreUploadErrorKey] = useState<string | null>(null);
 
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
-  const mediaBusy = pickAndSend.isPending || recordAndSend.isPending;
-  const mediaError = mediaErrorMessage(
-    pickAndSend.error ?? recordAndSend.error,
-    recorderErrorKey,
-    t,
-  );
+  const mediaBusy = media.isUploading;
+  const mediaError = mediaErrorMessage(media.uploadError, preUploadErrorKey, t);
 
   // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la conversation
   // (pas les messages) : le prochain poll ramène `readAt` posé et la condition retombe — pas de
@@ -141,14 +137,14 @@ export function ConversationScreen() {
         <Composer
           onSendText={(content) => send.mutate({ type: "TEXT", content })}
           onPickMedia={() => {
-            setRecorderErrorKey(null);
-            pickAndSend.mutate();
+            setPreUploadErrorKey(null);
+            media.pickAndSend(setPreUploadErrorKey);
           }}
           onRecordAudio={(audio) => {
-            setRecorderErrorKey(null);
-            recordAndSend.mutate(audio);
+            setPreUploadErrorKey(null);
+            media.recordAndSend(audio);
           }}
-          onMediaError={setRecorderErrorKey}
+          onMediaError={setPreUploadErrorKey}
           sending={send.isPending}
           mediaBusy={mediaBusy}
         />

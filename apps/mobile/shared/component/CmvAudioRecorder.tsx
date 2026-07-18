@@ -62,6 +62,9 @@ export function CmvAudioRecorder({
     const durationSeconds = Math.round(state.durationMillis / 1000);
     try {
       await recorder.stop();
+      // Rebascule en mode LECTURE : le mode « record » posé au démarrage rendrait muette la
+      // lecture des notes vocales qui suit (piège classique expo-audio).
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       onRecordingChange?.(false);
       if (keep && recorder.uri != null && durationSeconds > 0) {
         onRecorded({ uri: recorder.uri, durationSeconds });
