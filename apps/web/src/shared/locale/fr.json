@@ -231,7 +231,31 @@
     "athletes": "Athlètes",
     "library": "Bibliothèque",
     "plans": "Planifications",
-    "feedbacks": "Débriefs"
+    "feedbacks": "Débriefs",
+    "messages": "Messages"
+  },
+  "messages": {
+    "title": "Messages",
+    "subtitle": "Échange avec tes athlètes.",
+    "placeholder": "Écris un message…",
+    "send": "Envoyer",
+    "loadError": "Impossible de charger la conversation.",
+    "noMessages": "Aucun message",
+    "empty": {
+      "description": "Démarre la conversation."
+    },
+    "pickThread": {
+      "title": "Sélectionne un athlète pour ouvrir la conversation."
+    },
+    "noAthletes": {
+      "title": "Aucun athlète",
+      "description": "Invite un athlète depuis la section Athlètes pour pouvoir lui écrire."
+    },
+    "preview": {
+      "AUDIO": "🎤 Message vocal",
+      "IMAGE": "📷 Photo",
+      "VIDEO": "🎥 Vidéo"
+    }
   },
   "athlete": {
     "title": "Mes athlètes",
