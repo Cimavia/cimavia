@@ -2,7 +2,9 @@ import type {
   ConversationDto,
   MessageDto,
   OpenConversationInput,
+  RequestMessageUploadUrlInput,
   SendMessageInput,
+  UploadUrlDto,
 } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
@@ -34,4 +36,12 @@ export function sendMessage(conversationId: string, input: SendMessageInput): Pr
 // Marque lus les messages entrants du fil (204, pas de corps).
 export function markConversationRead(conversationId: string): Promise<void> {
   return api.post<void>(`/conversations/${conversationId}/read`, {});
+}
+
+// Média : URL PUT signée (audio/image/vidéo) avant l'upload direct vers le storage.
+export function requestMessageUploadUrl(
+  conversationId: string,
+  input: RequestMessageUploadUrlInput,
+): Promise<UploadUrlDto> {
+  return api.post<UploadUrlDto>(`/conversations/${conversationId}/messages/upload-url`, input);
 }

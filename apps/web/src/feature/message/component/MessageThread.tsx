@@ -8,6 +8,7 @@ import {
   useSendMessage,
   useThreadMessages,
 } from "@/feature/message/hook/useMessages";
+import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia";
 import { CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
@@ -28,6 +29,7 @@ export function MessageThread({ athleteId, athleteName }: Readonly<MessageThread
   const messages = useThreadMessages(conversationId);
   const send = useSendMessage(conversationId ?? "");
   const markRead = useMarkRead(conversationId);
+  const media = useSendMessageMedia(conversationId ?? "");
 
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
@@ -82,7 +84,11 @@ export function MessageThread({ athleteId, athleteName }: Readonly<MessageThread
 
       <Composer
         onSendText={(content) => send.mutate({ type: "TEXT", content })}
+        onSendFile={media.sendFile}
+        onRecordedAudio={media.sendAudio}
         sending={send.isPending}
+        mediaBusy={media.isUploading}
+        progress={media.progress}
       />
     </div>
   );

@@ -239,8 +239,26 @@
     "subtitle": "Échange avec tes athlètes.",
     "placeholder": "Écris un message…",
     "send": "Envoyer",
+    "attach": "Joindre une photo ou une vidéo",
+    "record": "Enregistrer un message vocal",
     "loadError": "Impossible de charger la conversation.",
     "noMessages": "Aucun message",
+    "media": {
+      "uploading": "Envoi en cours… {{percent}} %",
+      "unsupported": "Ce type de fichier n'est pas géré.",
+      "imageFormat": "Ce format d'image n'est pas géré (JPEG, PNG ou WEBP).",
+      "imageTooBig": "Cette image dépasse 10 Mo.",
+      "videoFormat": "Ce format de vidéo n'est pas géré (MP4 ou MOV).",
+      "videoTooBig": "Cette vidéo dépasse 50 Mo.",
+      "videoTooLong": "Cette vidéo dépasse 60 secondes.",
+      "audioFormat": "Ce format audio n'est pas géré par ton navigateur.",
+      "audioTooBig": "Cette note vocale est trop lourde.",
+      "audioTooLong": "Une note vocale ne peut pas dépasser 5 minutes.",
+      "unreadable": "Ce fichier est illisible."
+    },
+    "audio": {
+      "permission": "Autorise l'accès au micro pour enregistrer un message vocal."
+    },
     "empty": {
       "description": "Démarre la conversation."
     },
