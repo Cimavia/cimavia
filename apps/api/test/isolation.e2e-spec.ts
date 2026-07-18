@@ -1331,3 +1331,127 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("Messagerie : médias (P5)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let coachB: Agent;
+  let conversationId: string;
+
+  const audio = (fileName = "note.m4a") => ({
+    type: "AUDIO",
+    fileName,
+    mimeType: "audio/m4a",
+    size: 200_000,
+    durationSeconds: 12,
+  });
+  const image = (fileName = "photo.jpg") => ({
+    type: "IMAGE",
+    fileName,
+    mimeType: "image/jpeg",
+    size: 120_000,
+  });
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    return accepted.body.athleteId;
+  }
+
+  // Parcours réel : URL signée → PUT direct vers le storage → envoi du message.
+  async function upload(agent: Agent, input: Record<string, unknown>): Promise<string> {
+    const signed = await agent
+      .post(`/conversations/${conversationId}/messages/upload-url`)
+      .send(input);
+    expect(signed.status).toBe(201);
+
+    // `content-length` calculé par undici depuis le corps : l'URL étant signée avec la taille
+    // annoncée, l'upload ne passe que si le poids réel correspond.
+    const body = Buffer.alloc(input.size as number, 1);
+    const put = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body,
+      headers: { "content-type": input.mimeType as string },
+    });
+    expect(put.status).toBe(200);
+    return signed.body.storagePath;
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("msgm-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("msgm-athlete-a1@cmv.test", Role.ATHLETE);
+    coachB = await signUp("msgm-coach-b@cmv.test", Role.COACH);
+
+    const a1Id = await link(coachA, athleteA1);
+    const opened = await coachA.post("/conversations").send({ athleteId: a1Id });
+    conversationId = opened.body.id;
+  });
+
+  it("envoie une note vocale : URL de lecture signée, durée conservée", async () => {
+    const storagePath = await upload(coachA, audio());
+    const sent = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ ...audio(), storagePath });
+    expect(sent.status).toBe(201);
+    expect(sent.body.type).toBe("AUDIO");
+    expect(sent.body.content).toBeNull();
+    expect(sent.body.media).toMatchObject({
+      fileName: "note.m4a",
+      mimeType: "audio/m4a",
+      sizeBytes: 200_000,
+      durationSeconds: 12,
+    });
+    // Média = fichier privé : l'URL de lecture est toujours signée, jamais publique.
+    expect(sent.body.media.url).toContain("X-Amz-Signature");
+
+    const list = await athleteA1.get(`/conversations/${conversationId}/messages`);
+    expect(list.body.at(-1).id).toBe(sent.body.id);
+  });
+
+  it("envoie une image : pas de durée, clé segmentée par conversation", async () => {
+    const storagePath = await upload(athleteA1, image());
+    expect(storagePath).toContain(`conversation/${conversationId}/`);
+
+    const sent = await athleteA1
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ ...image(), storagePath });
+    expect(sent.status).toBe(201);
+    expect(sent.body.type).toBe("IMAGE");
+    expect(sent.body.media.durationSeconds).toBeNull();
+  });
+
+  // Sans la taille dans la signature, un client pourrait déclarer 200 Ko puis pousser plus lourd :
+  // le plafond du schéma ne serait qu'une politesse.
+  it("le storage refuse un envoi plus lourd que la taille signée", async () => {
+    const signed = await coachA
+      .post(`/conversations/${conversationId}/messages/upload-url`)
+      .send(audio("menteuse.m4a"));
+    expect(signed.status).toBe(201);
+
+    const tooBig = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(500_000, 1),
+      headers: { "content-type": "audio/m4a" },
+    });
+    expect(tooBig.status).not.toBe(200);
+  });
+
+  it("le schéma rejette un mime audio non supporté et une durée hors plafond (400)", async () => {
+    const badMime = await coachA
+      .post(`/conversations/${conversationId}/messages/upload-url`)
+      .send({ ...audio(), mimeType: "audio/ogg" });
+    expect(badMime.status).toBe(400);
+
+    const tooLong = await coachA
+      .post(`/conversations/${conversationId}/messages/upload-url`)
+      .send({ ...audio(), durationSeconds: 301 });
+    expect(tooLong.status).toBe(400);
+  });
+
+  it("un tiers ne peut pas demander d'URL d'upload sur ce fil (404)", async () => {
+    const res = await coachB
+      .post(`/conversations/${conversationId}/messages/upload-url`)
+      .send(audio());
+    expect(res.status).toBe(404);
+  });
+});
