@@ -34,13 +34,20 @@ export type MessageReceivedEvent = {
   conversationId: string;
 };
 
+export type InvoiceIssuedEvent = {
+  // L'athlète destinataire, résolu par l'appelant depuis une entité DÉJÀ scopée (règle 1).
+  athleteId: string;
+  invoiceId: string;
+};
+
 // Ce que le client reçoit dans les données de la notification : de quoi router vers le bon
 // écran à l'ouverture. Typé ici pour que la navigation mobile n'ait pas à deviner.
 type PushPayload =
   | { type: "PLAN_PUBLISHED"; planId: string }
   | { type: "PLAN_UPDATED"; planId: string }
   | { type: "FEEDBACK_RECEIVED"; scheduledSessionId: string }
-  | { type: "MESSAGE_RECEIVED"; conversationId: string };
+  | { type: "MESSAGE_RECEIVED"; conversationId: string }
+  | { type: "INVOICE_ISSUED"; invoiceId: string };
 
 type PushContent = { title: string; body: string; data: PushPayload };
 
@@ -131,6 +138,17 @@ export class NotificationService {
         data: { type: "MESSAGE_RECEIVED", conversationId: event.conversationId },
       };
     });
+  }
+
+  // Facture émise (CDC §5.10). L'athlète est notifié qu'une facture l'attend ; le montant n'est
+  // pas mis dans le corps (une notification n'est pas un relevé — il ouvre l'écran Factures).
+  async notifyInvoiceIssued(event: InvoiceIssuedEvent): Promise<void> {
+    this.logger.info({ event: "invoice.issued", ...event }, "Facture émise par le coach");
+    await this.send(event.athleteId, () => ({
+      title: "Nouvelle facture",
+      body: "Ton coach t'a émis une facture.",
+      data: { type: "INVOICE_ISSUED", invoiceId: event.invoiceId },
+    }));
   }
 
   /**
