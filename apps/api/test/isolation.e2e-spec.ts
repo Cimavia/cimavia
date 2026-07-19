@@ -8,6 +8,7 @@ import { configureApp } from "../src/app.setup";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
+  "invoice",
   "message",
   "conversation",
   "feedback_media",
@@ -1617,5 +1618,148 @@ describe("Messagerie : rattachement séance / débrief (P5)", () => {
       .post(`/conversations/${conversationId}/messages`)
       .send({ type: "TEXT", content: "Mauvais débrief", sessionFeedbackId: feedbackA2Id });
     expect(cross.status).toBe(400);
+  });
+});
+
+describe("Facturation : émission, statut & isolation (P6)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let coachB: Agent;
+  let athleteB1: Agent;
+  let a1Id: string;
+  let coachAId: string;
+  let invoiceId: string;
+
+  async function link(
+    coach: Agent,
+    athlete: Agent,
+  ): Promise<{ athleteId: string; coachId: string }> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return { athleteId: accepted.body.athleteId, coachId: accepted.body.coachId };
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("inv-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("inv-athlete-a1@cmv.test", Role.ATHLETE);
+    coachB = await signUp("inv-coach-b@cmv.test", Role.COACH);
+    athleteB1 = await signUp("inv-athlete-b1@cmv.test", Role.ATHLETE);
+
+    const relation = await link(coachA, athleteA1);
+    a1Id = relation.athleteId;
+    coachAId = relation.coachId;
+    await link(coachB, athleteB1);
+  });
+
+  it("le coach émet une facture pour SON athlète (PENDING, impayée)", async () => {
+    const res = await coachA.post("/invoices").send({
+      athleteId: a1Id,
+      period: "2026-07",
+      amountCents: 4990,
+      dueDate: "2026-07-31",
+      note: "Coaching juillet",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      coachId: coachAId,
+      athleteId: a1Id,
+      athleteName: "inv-athlete-a1@cmv.test",
+      coachName: "inv-coach-a@cmv.test",
+      period: "2026-07",
+      amountCents: 4990,
+      currency: "EUR",
+      status: "PENDING",
+      dueDate: "2026-07-31",
+      paidAt: null,
+      note: "Coaching juillet",
+    });
+    invoiceId = res.body.id;
+  });
+
+  it("le coach ne peut pas facturer l'athlète d'un autre coach (400)", async () => {
+    const res = await coachA.post("/invoices").send({
+      athleteId: "unknown-athlete-id",
+      period: "2026-07",
+      amountCents: 1000,
+      dueDate: "2026-07-31",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("l'athlète consulte SA facture (liste + détail)", async () => {
+    const list = await athleteA1.get("/invoices");
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0].id).toBe(invoiceId);
+    expect(list.body[0].coachName).toBe("inv-coach-a@cmv.test");
+
+    const detail = await athleteA1.get(`/invoices/${invoiceId}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.amountCents).toBe(4990);
+  });
+
+  it("un athlète d'un autre coach ne voit pas la facture (liste vide, détail 404)", async () => {
+    const list = await athleteB1.get("/invoices");
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(0);
+    expect((await athleteB1.get(`/invoices/${invoiceId}`)).status).toBe(404);
+  });
+
+  it("un autre coach ne voit ni ne modifie la facture (scope tenant → 404)", async () => {
+    expect((await coachB.get("/invoices")).body).toHaveLength(0);
+    expect((await coachB.get(`/invoices/${invoiceId}`)).status).toBe(404);
+    const patch = await coachB.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
+    expect(patch.status).toBe(404);
+  });
+
+  it("l'athlète ne peut ni émettre ni changer le statut (403)", async () => {
+    const emit = await athleteA1.post("/invoices").send({
+      athleteId: a1Id,
+      period: "2026-08",
+      amountCents: 1000,
+      dueDate: "2026-08-31",
+    });
+    expect(emit.status).toBe(403);
+    const patch = await athleteA1.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
+    expect(patch.status).toBe(403);
+  });
+
+  it("le coach marque payé (paidAt posé), puis rouvre (paidAt effacé) — toggle", async () => {
+    const paid = await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
+    expect(paid.status).toBe(200);
+    expect(paid.body.status).toBe("PAID");
+    expect(paid.body.paidAt).not.toBeNull();
+
+    const reopened = await coachA
+      .patch(`/invoices/${invoiceId}/status`)
+      .send({ status: "PENDING" });
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.status).toBe("PENDING");
+    expect(reopened.body.paidAt).toBeNull();
+  });
+
+  it("refuse une période mal formée et une devise inconnue (400)", async () => {
+    expect(
+      (
+        await coachA.post("/invoices").send({
+          athleteId: a1Id,
+          period: "2026-7",
+          amountCents: 1000,
+          dueDate: "2026-07-31",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await coachA.post("/invoices").send({
+          athleteId: a1Id,
+          period: "2026-07",
+          amountCents: 1000,
+          currency: "USD",
+          dueDate: "2026-07-31",
+        })
+      ).status,
+    ).toBe(400);
   });
 });
