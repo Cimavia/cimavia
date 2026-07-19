@@ -749,8 +749,12 @@
       "p4-5": true,
       "p4-6": true,
       "p4-7": true,
+      "p5-1": true,
+      "p5-2": true,
+      "p5-3": true,
+      "p5-4": true,
     };
-    let openPhaseId = 'P5'; // phase en cours
+    let openPhaseId = 'P6'; // phase en cours
     const totalTasks = phases.reduce((a, p) => a + p.categories.reduce((b, c) => b + c.tasks.length, 0), 0);
 
     function getDone() { return Object.values(checked).filter(Boolean).length; }

@@ -62,6 +62,28 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 > (on recharge sans cesse), qui aurait mordu en production.
 
 ---
+
+## P5 — Messagerie & débrief vocal
+
+| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
+|---|---|---|---|---|
+| P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | Un fil 1:1 coach↔athlète reste modeste ; le cache persisté mobile encaisse. | Cursoriser (par `createdAt`) dès qu'un fil dépasse quelques centaines de messages, ou si le chargement devient lent. Même famille que P2-2. | 🟢 |
+| P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2) : le serveur ne décode pas la note vocale ; sa durée vient du client. | Le vrai garde-fou du coût est la **taille**, signée dans l'URL PUT donc opposable. Mentir sur la durée sans dépasser la taille ne coûte rien. | Une inspection serveur (ffprobe) n'a de sens qu'avec un pipeline de transcodage — donc avec P4-1. | 🟢 |
+| P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du **webm/opus** ; un athlète **iOS** peut ne pas le lire nativement. (Safari coach → mp4, lisible partout ; mobile → coach est toujours du m4a.) | Le coach lit surtout sur web ; l'envoi de vocal web → athlète iOS est un cas secondaire. Aucune perte de données, seulement la lecture qui peut échouer sur une plateforme. | Transcodage serveur (webm → aac) — même chantier que P4-1. Ou restreindre l'enregistrement web au mp4 quand le navigateur le supporte. | 🟡 |
+| P5-4 | **Throttle push « first-unread » sans reprise temporelle** : on ne notifie qu'au passage « tout lu » → « non lu » d'un fil. Une rafale de messages = 1 push ; tant que le destinataire n'a pas lu, les suivants ne re-notifient pas. | Évite le harcèlement (même philosophie que P4-5). Le signal n'est pas perdu — l'`unreadCount` grossit, visible à l'ouverture. | Si des messages sont ratés faute de rappel : re-notifier au-delà d'un délai (ex. 1 h après le dernier push non lu). | 🟢 |
+| P5-5 | **Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile), et entre mobile et web : compression photo, mesure de taille, validation. | Chaque copie est courte et lisible ; extraire tôt un util partagé aurait figé une abstraction encore mouvante. | Promouvoir en util partagé (`shared/`) au 3ᵉ consommateur, ou si une règle de préparation diverge et doit rester unique. | 🟢 |
+| ~~P2-1~~ / ~~P3-2~~ | *(inchangées sur le flux nominal)* Un média de message/débrief a une clé qui n'appartient qu'à lui → suppression = purge directe, comme en P4. **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | La suppression de relation n'est pas un flux MVP. | Même tâche de purge que P2-1 (lister les clés sans ligne) ; couvre désormais aussi `conversation/*` et `athlete/*/feedback/*`. | 🟡 |
+
+> **Promu en P5** : l'enregistreur et le lecteur audio (`CmvAudioRecorder`/`CmvAudioPlayer`) sont
+> dans `shared/component/` côté mobile, construits pour la messagerie **et** réutilisés tels quels
+> par le débrief vocal — l'ajout au débrief a coûté quelques heures, comme anticipé (CDC §4).
+
+> **Correctif réseau (dev) consigné en P5** : sous WSL2 (mode NAT), Metro annonce son IP interne
+> `172.x`, injoignable du téléphone. `REACT_NATIVE_PACKAGER_HOSTNAME` = IP LAN Windows, dans
+> `apps/mobile/.env.local` (SDK 56 refuse les variables non-`EXPO_PUBLIC_` hors `.env.local`).
+> Voir README §WSL2.
+
+---
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
