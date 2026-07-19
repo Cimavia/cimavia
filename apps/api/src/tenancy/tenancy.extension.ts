@@ -25,6 +25,7 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   FeedbackMedia: { coach: "coachId", athlete: "athleteId" },
   Conversation: { coach: "coachId", athlete: "athleteId" },
   Message: { coach: "coachId", athlete: "athleteId" },
+  Invoice: { coach: "coachId", athlete: "athleteId" },
   PushToken: { coach: "userId", athlete: "userId" },
 };
 

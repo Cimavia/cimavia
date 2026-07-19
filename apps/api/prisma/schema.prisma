@@ -58,6 +58,10 @@ model User {
   // Notifications push — les DEUX rôles enregistrent leurs appareils (P4).
   pushTokens PushToken[]
 
+  // Métier — facturation (P6) : émises par le coach, lues par l'athlète.
+  coachInvoices   Invoice[] @relation("CoachInvoices")
+  athleteInvoices Invoice[] @relation("AthleteInvoices")
+
   @@map("user")
 }
 
@@ -554,23 +558,23 @@ model Conversation {
 }
 
 model Message {
-  id             String       @id @default(cuid())
-  coachId        String // dénormalisé (scope tenant — un include imbriqué n'est pas scopé)
-  athleteId      String // dénormalisé
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  id                 String            @id @default(cuid())
+  coachId            String // dénormalisé (scope tenant — un include imbriqué n'est pas scopé)
+  athleteId          String // dénormalisé
+  conversationId     String
+  conversation       Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   // Auteur du message : coachId ou athleteId. Détermine l'alignement des bulles et le destinataire
   // du push (l'AUTRE partie). Pas de FK relation métier : lu tel quel côté client.
-  senderId       String
-  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  type           MessageType
-  content        String? // texte (type TEXT) — nullable
+  senderId           String
+  sender             User              @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  type               MessageType
+  content            String? // texte (type TEXT) — nullable
   // Média (type AUDIO | IMAGE | VIDEO) : clé objet S3 + métadonnées, jamais le binaire en BDD.
-  storagePath     String?
-  fileName        String?
-  mimeType        String?
-  sizeBytes       Int?
-  durationSeconds Int? // audio/vidéo — déclaré par le client (pas de décodage serveur)
+  storagePath        String?
+  fileName           String?
+  mimeType           String?
+  sizeBytes          Int?
+  durationSeconds    Int? // audio/vidéo — déclaré par le client (pas de décodage serveur)
   // Rattachement optionnel à une séance ou un débrief (« à propos de… »). Nullable/SetNull :
   // supprimer la cible n'efface pas le message, il perd juste son contexte.
   scheduledSessionId String?
@@ -579,8 +583,8 @@ model Message {
   sessionFeedback    SessionFeedback?  @relation(fields: [sessionFeedbackId], references: [id], onDelete: SetNull)
   // Lu par le DESTINATAIRE (pas l'auteur) : alimente `unreadCount` et le throttle push
   // « first-unread » (on ne notifie qu'au passage de « tout lu » à « non lu »).
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  readAt             DateTime?
+  createdAt          DateTime          @default(now())
 
   @@index([conversationId, createdAt]) // fil chronologique
   @@index([coachId])
@@ -588,4 +592,40 @@ model Message {
   @@index([scheduledSessionId])
   @@index([sessionFeedbackId])
   @@map("message")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Facturation (P6) — le coach émet, l'athlète lit (CDC §5.10).
+// `coachId` ET `athleteId` en direct (comme la messagerie) : le coach ÉCRIT, l'athlète LIT — le
+// tenancy extension scope chaque rôle par un champ du modèle, pas par la relation. La même liste
+// sert donc les deux rôles sans requête distincte.
+// Statut MANUEL (PENDING/PAID), réversible : le paiement réel est externe (virement) en MVP ; le
+// PSP (Stripe) qui poserait ce statut est différé v1.0. `amountCents` = ENTIER de centimes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  coachId     String // émetteur
+  coach       User          @relation("CoachInvoices", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId   String // destinataire (lecture)
+  athlete     User          @relation("AthleteInvoices", fields: [athleteId], references: [id], onDelete: Cascade)
+  period      String // mois civil facturé "YYYY-MM" (ex. "2026-07")
+  amountCents Int // centimes, jamais un float
+  currency    String        @default("EUR") // EUR en MVP ; champ présent pour le multi-devise v1.0
+  status      InvoiceStatus @default(PENDING)
+  issuedAt    DateTime      @default(now())
+  dueDate     DateTime      @db.Date // échéance, date civile (comme Plan.startDate)
+  paidAt      DateTime? // posé au marquage PAID, effacé au retour PENDING — null tant qu'impayée
+  note        String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([coachId, status]) // tuile « Factures en attente » + liste coach
+  @@index([athleteId, status]) // liste athlète
+  @@map("invoice")
 }
