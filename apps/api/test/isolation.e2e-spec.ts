@@ -796,6 +796,13 @@ describe("Médias de débrief (P4)", () => {
     size: 8_000_000,
     durationSeconds: 42,
   });
+  const audio = (fileName = "note.m4a") => ({
+    type: "AUDIO",
+    fileName,
+    mimeType: "audio/m4a",
+    size: 200_000,
+    durationSeconds: 18,
+  });
 
   async function link(coach: Agent, athlete: Agent): Promise<string> {
     const invitation = await coach.post("/invitations").send({});
@@ -867,6 +874,43 @@ describe("Médias de débrief (P4)", () => {
 
     const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
     expect(session.body.status).toBe("DONE");
+  });
+
+  // Débrief vocal (P5, CDC §4) : même flux que photo/vidéo, MediaType étendu à AUDIO.
+  it("rattache une note vocale au débrief (durée conservée)", async () => {
+    const storagePath = await upload(athleteA1, audio());
+    const attached = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
+      .send({ ...audio(), storagePath });
+    expect(attached.status).toBe(201);
+    expect(attached.body).toMatchObject({
+      type: "AUDIO",
+      fileName: "note.m4a",
+      durationSeconds: 18,
+    });
+    expect(attached.body.url).toContain("X-Amz-Signature");
+  });
+
+  it("plafonne les notes vocales à 3 par débrief (409)", async () => {
+    for (let index = 0; index < 2; index += 1) {
+      const storagePath = await upload(athleteA1, audio(`note-${index}.m4a`));
+      const res = await athleteA1
+        .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
+        .send({ ...audio(`note-${index}.m4a`), storagePath });
+      expect(res.status).toBe(201);
+    }
+    // La 4e (une déjà posée au test précédent + 2 ici = 3) dépasse le plafond.
+    const overflow = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(audio("trop.m4a"));
+    expect(overflow.status).toBe(409);
+  });
+
+  it("refuse un mime audio non supporté (400)", async () => {
+    const res = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send({ ...audio(), mimeType: "audio/webm" });
+    expect(res.status).toBe(400);
   });
 
   it("demander une URL d'upload ne débriefe pas à soi seul (une capture abandonnée n'engage rien)", async () => {

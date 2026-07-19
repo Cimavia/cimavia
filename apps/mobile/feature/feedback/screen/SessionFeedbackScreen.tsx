@@ -9,6 +9,7 @@ import { MediaGrid } from "@/feature/feedback/component/MediaGrid";
 import { MediaPicker } from "@/feature/feedback/component/MediaPicker";
 import {
   remainingSlots,
+  useAddFeedbackAudio,
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
 } from "@/feature/feedback/hook/useFeedbackMedia";
@@ -19,9 +20,11 @@ import { apiErrorMessage } from "@/shared/lib/api";
 
 /**
  * Un refus métier (fichier trop lourd, permission refusée) porte sa propre clé i18n ; une panne
- * technique garde le message de l'API. Les deux se disent — aucune ne se masque.
+ * technique garde le message de l'API. Les deux se disent — aucune ne se masque. Le refus de
+ * l'enregistreur, qui précède l'upload, est porté à la main (`manualKey`).
  */
-function mediaErrorMessage(error: unknown, t: TFunction): string | null {
+function mediaErrorMessage(error: unknown, manualKey: string | null, t: TFunction): string | null {
+  if (manualKey != null) return t(manualKey);
   if (error == null) return null;
   if (error instanceof MediaRejectedError) return t(error.reasonKey);
   return apiErrorMessage(error) ?? t("feedback.media.uploadError");
@@ -40,9 +43,12 @@ export function SessionFeedbackScreen() {
   const { data: feedback, isPending, isError, refetch } = useSessionFeedback(id);
   const upsert = useUpsertFeedback(id);
   const addMedia = useAddFeedbackMedia(id);
+  const addAudio = useAddFeedbackAudio(id);
   const removeMedia = useDeleteFeedbackMedia(id);
 
   const [content, setContent] = useState("");
+  // Refus de l'enregistreur (permission/durée) : précède l'upload, ne passe pas par une mutation.
+  const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
 
   // Le formulaire part de ce qui est déjà enregistré (débrief repris en plusieurs fois). On ne
   // resynchronise QUE sur l'identité du débrief chargé : réécrire à chaque render effacerait la
@@ -56,7 +62,11 @@ export function SessionFeedbackScreen() {
   // un texte inchangé, non.
   const canSubmit = feedback == null || content !== saved;
 
-  const mediaError = mediaErrorMessage(addMedia.error ?? removeMedia.error, t);
+  const mediaError = mediaErrorMessage(
+    addMedia.error ?? addAudio.error ?? removeMedia.error,
+    recorderErrorKey,
+    t,
+  );
 
   return (
     <CmvScreen>
@@ -104,8 +114,17 @@ export function SessionFeedbackScreen() {
               <MediaPicker
                 photosLeft={remainingSlots(feedback, MediaType.IMAGE)}
                 videosLeft={remainingSlots(feedback, MediaType.VIDEO)}
-                onAdd={(type) => addMedia.mutate(type)}
-                isUploading={addMedia.isPending}
+                audiosLeft={remainingSlots(feedback, MediaType.AUDIO)}
+                onAdd={(type) => {
+                  setRecorderErrorKey(null);
+                  addMedia.mutate(type);
+                }}
+                onRecordAudio={(audio) => {
+                  setRecorderErrorKey(null);
+                  addAudio.mutate(audio);
+                }}
+                onRecorderError={setRecorderErrorKey}
+                isUploading={addMedia.isPending || addAudio.isPending}
               />
 
               {mediaError == null ? null : (

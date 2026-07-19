@@ -82,7 +82,8 @@ export class FeedbackMediaService {
       fileName: input.fileName,
       mimeType: input.mimeType,
       sizeBytes: input.size,
-      durationSeconds: input.type === MediaType.VIDEO ? input.durationSeconds : null,
+      // L'image n'a pas de durée ; la vidéo et la note vocale, oui (déclarée par le client).
+      durationSeconds: input.type === MediaType.IMAGE ? null : input.durationSeconds,
     };
     const media = await this.db.feedbackMedia.create({
       data: data as Prisma.FeedbackMediaUncheckedCreateInput,
@@ -107,9 +108,9 @@ export class FeedbackMediaService {
   }
 
   /**
-   * Plafond par type : 3 vidéos, 5 photos (CDC §6). Ce quota ne peut pas vivre dans le schéma
-   * Zod — il dépend du nombre déjà attaché. `maxFeedbackMediaCount` (@cmv/shared) reste la
-   * source unique de la valeur, partagée avec le client.
+   * Plafond par type : 3 vidéos, 5 photos, 3 notes vocales (CDC §6). Ce quota ne peut pas vivre
+   * dans le schéma Zod — il dépend du nombre déjà attaché. `maxFeedbackMediaCount` (@cmv/shared)
+   * reste la source unique de la valeur, partagée avec le client.
    */
   private async assertQuotaLeft(scheduledSessionId: string, type: MediaTypeType): Promise<void> {
     const count = await this.db.feedbackMedia.count({
@@ -117,14 +118,17 @@ export class FeedbackMediaService {
     });
     const max = maxFeedbackMediaCount(type);
     if (count >= max) {
-      throw new ConflictException(
-        type === MediaType.VIDEO
-          ? `Maximum ${max} vidéos par débrief`
-          : `Maximum ${max} photos par débrief`,
-      );
+      throw new ConflictException(`Maximum ${max} ${QUOTA_LABEL[type]} par débrief`);
     }
   }
 }
+
+// Libellé du type pour le message de quota (409).
+const QUOTA_LABEL: Record<MediaTypeType, string> = {
+  [MediaType.IMAGE]: "photos",
+  [MediaType.VIDEO]: "vidéos",
+  [MediaType.AUDIO]: "notes vocales",
+};
 
 // Clé objet : segmentée par athlète puis séance, préfixe UUID contre les collisions de noms.
 // Le nom de fichier est assaini (caractères sûrs uniquement), comme pour les documents.

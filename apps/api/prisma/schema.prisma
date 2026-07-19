@@ -439,6 +439,7 @@ model ScheduledSessionExerciseDocument {
 enum MediaType {
   IMAGE
   VIDEO
+  AUDIO // débrief vocal (P5) — note vocale de l'athlète, m4a
 }
 
 model SessionFeedback {

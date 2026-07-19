@@ -90,7 +90,7 @@ Trois règles à connaître :
 - **`coachReadAt`** alimente la tuile « Débriefs à relire ». Il repasse à `null` quand l'athlète complète son débrief — sinon un ajout tardif resterait invisible pour un coach qui l'a déjà ouvert. Seule la **création** notifie le coach (un push par ajout serait du harcèlement).
 
 ### Media
-Photo / vidéo rattachée à un `SessionFeedback` (l'**audio** arrive avec la messagerie, P5 — le débrief vocal est différé à P5, où le composant d'enregistrement existera). Stocké en object storage (URL GET signée), compressé côté client. Limites MVP : vidéo **60 s / 720p / ~50 Mo**, **3 vidéos + 5 photos** par débrief.
+Photo / vidéo / **note vocale** rattachée à un `SessionFeedback`. L'**audio** (débrief vocal, CDC §4) a rejoint `MediaType` en P5, avec l'enregistreur/lecteur construits pour la messagerie (promus en `shared/component/` côté mobile) — même flux d'upload que photo/vidéo. Stocké en object storage (URL GET signée), compressé côté client. Limites MVP : vidéo **60 s / 720p / ~50 Mo**, **3 vidéos + 5 photos + 3 notes vocales** (m4a, ≤ 5 min / 10 Mo) par débrief.
 
 Contrairement à un `Document` de la bibliothèque, un média de débrief n'est **jamais copié ni partagé** : sa clé objet n'appartient qu'à lui, donc sa suppression purge l'objet **directement**, sans garde de comptage.
 

@@ -1,4 +1,4 @@
-import type { SessionFeedbackDto } from "@cmv/shared";
+import type { RequestFeedbackUploadUrlInput, SessionFeedbackDto } from "@cmv/shared";
 import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
@@ -18,9 +18,11 @@ import {
 import {
   MediaRejectedError,
   type PreparedMedia,
+  prepareAudio,
   prepareMedia,
 } from "@/feature/feedback/util/media.util";
 import { planKeys, scheduledSessionKeys } from "@/feature/plan/api";
+import type { RecordedAudio } from "@/shared/component";
 
 // Après un ajout/retrait de média, la séance a pu passer en DONE : le planning et le détail
 // doivent suivre, sinon ils afficheraient encore « À faire ».
@@ -55,17 +57,24 @@ export function useAddFeedbackMedia(sessionId: string) {
         );
       }
 
-      const signed = await requestMediaUploadUrl(sessionId, toUploadUrlInput(media));
-      await uploadToStorage(signed.uploadUrl, media);
-
-      return attachMedia(sessionId, {
-        ...toUploadUrlInput(media),
-        storagePath: signed.storagePath,
-      });
+      return uploadAndAttach(sessionId, media);
     },
     onSuccess: (media) => {
       if (media != null) invalidate();
     },
+  });
+}
+
+/**
+ * Débrief vocal (P5) : la note vocale vient de l'enregistreur partagé (pas d'un picker). Même flux
+ * ensuite — URL signée → upload direct → rattachement — et le débrief passe en DONE.
+ */
+export function useAddFeedbackAudio(sessionId: string) {
+  const invalidate = useInvalidateFeedback(sessionId);
+
+  return useMutation({
+    mutationFn: (audio: RecordedAudio) => uploadAndAttach(sessionId, prepareAudio(audio)),
+    onSuccess: invalidate,
   });
 }
 
@@ -76,6 +85,15 @@ export function useDeleteFeedbackMedia(sessionId: string) {
     mutationFn: (mediaId: string) => deleteMedia(sessionId, mediaId),
     onSuccess: invalidate,
   });
+}
+
+// Flux commun photo/vidéo/note vocale : URL signée → upload direct → rattachement. Le rattachement
+// crée le débrief s'il n'existait pas encore et passe la séance en DONE (côté API).
+async function uploadAndAttach(sessionId: string, media: PreparedMedia) {
+  const input = toUploadUrlInput(media);
+  const signed = await requestMediaUploadUrl(sessionId, input);
+  await uploadToStorage(signed.uploadUrl, media);
+  return attachMedia(sessionId, { ...input, storagePath: signed.storagePath });
 }
 
 /**
@@ -136,19 +154,22 @@ async function pickAsset(type: MediaTypeType): Promise<ImagePicker.ImagePickerAs
 
 // Le même descripteur sert à demander l'URL et à rattacher : une seule source, pas de dérive
 // possible entre la taille signée et la taille rattachée.
-function toUploadUrlInput(media: PreparedMedia) {
-  return media.type === MediaType.VIDEO
-    ? {
-        type: MediaType.VIDEO,
-        fileName: media.fileName,
-        mimeType: media.mimeType,
-        size: media.size,
-        durationSeconds: media.durationSeconds,
-      }
-    : {
-        type: MediaType.IMAGE,
-        fileName: media.fileName,
-        mimeType: media.mimeType,
-        size: media.size,
-      };
+function toUploadUrlInput(media: PreparedMedia): RequestFeedbackUploadUrlInput {
+  if (media.type === MediaType.IMAGE) {
+    return {
+      type: media.type,
+      fileName: media.fileName,
+      mimeType: media.mimeType,
+      size: media.size,
+    };
+  }
+  // VIDEO et AUDIO portent tous deux `durationSeconds` ; le cast couvre l'union que TS ne narrow
+  // pas quand `type` et `mimeType` restent ouverts.
+  return {
+    type: media.type,
+    fileName: media.fileName,
+    mimeType: media.mimeType,
+    size: media.size,
+    durationSeconds: media.durationSeconds,
+  } as RequestFeedbackUploadUrlInput;
 }

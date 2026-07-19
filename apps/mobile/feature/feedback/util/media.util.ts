@@ -1,14 +1,18 @@
 import {
   FEEDBACK_PHOTO_MAX_DIMENSION_PX,
+  type FeedbackAudioMimeType,
   type FeedbackImageMimeType,
   type FeedbackVideoMimeType,
   isAllowedFeedbackVideoMime,
+  MAX_FEEDBACK_AUDIO_DURATION_SECONDS,
+  MAX_FEEDBACK_AUDIO_SIZE_BYTES,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
 } from "@cmv/shared";
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import type { ImagePickerAsset } from "expo-image-picker";
+import type { RecordedAudio } from "@/shared/component";
 
 // Un fichier prêt à partir : la taille est MESURÉE sur le fichier final (après compression),
 // jamais celle annoncée par le picker — l'API signe l'URL avec, et le storage la vérifie.
@@ -25,6 +29,14 @@ export type PreparedMedia =
       uri: string;
       fileName: string;
       mimeType: FeedbackVideoMimeType;
+      size: number;
+      durationSeconds: number;
+    }
+  | {
+      type: typeof MediaType.AUDIO;
+      uri: string;
+      fileName: string;
+      mimeType: FeedbackAudioMimeType;
       size: number;
       durationSeconds: number;
     };
@@ -106,6 +118,26 @@ function prepareVideo(asset: ImagePickerAsset): PreparedMedia {
 
 export function prepareMedia(asset: ImagePickerAsset): Promise<PreparedMedia> {
   return asset.type === "video" ? Promise.resolve(prepareVideo(asset)) : preparePhoto(asset);
+}
+
+// Note vocale enregistrée (débrief vocal, P5 — expo-audio, preset HIGH_QUALITY → m4a/AAC). Taille
+// mesurée sur le fichier ; durée déclarée par l'enregistreur (pas de décodage — cf. dette P4-2).
+export function prepareAudio(audio: RecordedAudio): PreparedMedia {
+  if (audio.durationSeconds > MAX_FEEDBACK_AUDIO_DURATION_SECONDS) {
+    throw new MediaRejectedError("feedback.media.audioTooLong");
+  }
+  const size = fileSize(audio.uri);
+  if (size > MAX_FEEDBACK_AUDIO_SIZE_BYTES) {
+    throw new MediaRejectedError("feedback.media.audioTooBig");
+  }
+  return {
+    type: MediaType.AUDIO,
+    uri: audio.uri,
+    fileName: `note-${Date.now()}.m4a`,
+    mimeType: "audio/m4a",
+    size,
+    durationSeconds: audio.durationSeconds,
+  };
 }
 
 function baseName(fileName: string | null | undefined): string | null {

@@ -349,7 +349,7 @@
     "detail": {
       "subtitle": "{{athlete}} · séance du {{date}}",
       "content": "Retour de l'athlète",
-      "media": "Photos et vidéos ({{count}})",
+      "media": "Médias ({{count}})",
       "openFull": "Ouvrir en grand"
     }
   }

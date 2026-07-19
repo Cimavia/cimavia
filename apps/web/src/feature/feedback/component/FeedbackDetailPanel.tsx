@@ -51,25 +51,42 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
           {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
           <div className="grid gap-cmv-sm sm:grid-cols-2">
-            {(detail?.media ?? []).map((media) =>
-              media.type === MediaType.IMAGE ? (
-                <a
-                  key={media.id}
-                  href={media.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={t("feedback.detail.openFull")}
-                >
-                  {/* `contain`, pas `cover` : le coach regarde un GESTE — un recadrage rognerait
-                      justement ce qu'il doit voir. Le clic ouvre la photo en pleine taille. */}
-                  <img
+            {(detail?.media ?? []).map((media) => {
+              if (media.type === MediaType.IMAGE) {
+                return (
+                  <a
+                    key={media.id}
+                    href={media.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={t("feedback.detail.openFull")}
+                  >
+                    {/* `contain`, pas `cover` : le coach regarde un GESTE — un recadrage rognerait
+                        justement ce qu'il doit voir. Le clic ouvre la photo en pleine taille. */}
+                    <img
+                      src={media.url}
+                      alt={media.fileName}
+                      className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 object-contain"
+                    />
+                  </a>
+                );
+              }
+              if (media.type === MediaType.AUDIO) {
+                // Note vocale (débrief vocal, P5) : lecteur audio plein largeur, pas de « boîte
+                // noire » vidéo.
+                return (
+                  <audio
+                    key={media.id}
                     src={media.url}
-                    alt={media.fileName}
-                    className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 object-contain"
-                  />
-                </a>
-              ) : (
-                // Le navigateur streame depuis l'URL signée : rien ne transite par l'API.
+                    controls
+                    className="w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-sm sm:col-span-2"
+                  >
+                    <track kind="captions" />
+                  </audio>
+                );
+              }
+              // Vidéo : le navigateur streame depuis l'URL signée : rien ne transite par l'API.
+              return (
                 <video
                   key={media.id}
                   src={media.url}
@@ -78,8 +95,8 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
                 >
                   <track kind="captions" />
                 </video>
-              ),
-            )}
+              );
+            })}
           </div>
         </section>
       </div>

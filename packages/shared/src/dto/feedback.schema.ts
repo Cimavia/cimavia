@@ -3,11 +3,13 @@ import type { TypesValuesOf } from "../type/generics.type";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
-// Photo / vidéo d'un débrief. L'audio n'apparaît qu'avec la messagerie (P5) : le débrief ne le
-// propose pas en MVP (CDC §5.6), d'où un enum volontairement restreint à deux valeurs.
+// Photo / vidéo / note vocale d'un débrief. L'audio (débrief vocal, CDC §4/§5.6) a rejoint l'enum
+// en P5 : l'athlète enregistre sur mobile (m4a via expo-audio), avec l'enregistreur construit pour
+// la messagerie. Le flux d'upload est identique aux autres médias.
 export const MediaType = {
   IMAGE: "IMAGE",
   VIDEO: "VIDEO",
+  AUDIO: "AUDIO",
 } as const;
 export type MediaType = TypesValuesOf<typeof MediaType>;
 export const mediaTypeSchema = z.enum(MediaType);
@@ -17,9 +19,12 @@ export const mediaTypeSchema = z.enum(MediaType);
 // avant capture/upload) s'y réfèrent tous les deux.
 export const MAX_FEEDBACK_PHOTOS = 5;
 export const MAX_FEEDBACK_VIDEOS = 3;
+export const MAX_FEEDBACK_AUDIOS = 3;
 export const MAX_FEEDBACK_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_FEEDBACK_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
+export const MAX_FEEDBACK_AUDIO_SIZE_BYTES = 10 * 1024 * 1024;
 export const MAX_FEEDBACK_VIDEO_DURATION_SECONDS = 60;
+export const MAX_FEEDBACK_AUDIO_DURATION_SECONDS = 300;
 
 // Cibles de compression CLIENT (le serveur ne transcode pas — cf. dette P4) : la photo est
 // réduite à cette dimension max, la vidéo capturée à cette hauteur max.
@@ -35,6 +40,12 @@ export const FEEDBACK_VIDEO_MIME_TYPES = ["video/mp4", "video/quicktime"] as con
 export type FeedbackVideoMimeType = (typeof FEEDBACK_VIDEO_MIME_TYPES)[number];
 export const feedbackVideoMimeTypeSchema = z.enum(FEEDBACK_VIDEO_MIME_TYPES);
 
+// Note vocale : m4a/AAC (capture native iOS/Android via expo-audio). Le débrief se débriefe sur
+// mobile — pas de webm (enregistrement navigateur), contrairement à la messagerie.
+export const FEEDBACK_AUDIO_MIME_TYPES = ["audio/m4a", "audio/mp4", "audio/aac"] as const;
+export type FeedbackAudioMimeType = (typeof FEEDBACK_AUDIO_MIME_TYPES)[number];
+export const feedbackAudioMimeTypeSchema = z.enum(FEEDBACK_AUDIO_MIME_TYPES);
+
 // Gardes de type : permettent au client de filtrer un mime (string) avant l'envoi.
 export function isAllowedFeedbackImageMime(mimeType: string): mimeType is FeedbackImageMimeType {
   return (FEEDBACK_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType);
@@ -44,6 +55,10 @@ export function isAllowedFeedbackVideoMime(mimeType: string): mimeType is Feedba
   return (FEEDBACK_VIDEO_MIME_TYPES as readonly string[]).includes(mimeType);
 }
 
+export function isAllowedFeedbackAudioMime(mimeType: string): mimeType is FeedbackAudioMimeType {
+  return (FEEDBACK_AUDIO_MIME_TYPES as readonly string[]).includes(mimeType);
+}
+
 /**
  * Quota de médias par débrief, par type. Le nombre déjà attaché n'étant connu que de la base,
  * ce plafond ne peut pas être appliqué par le schéma (contrairement au mime, à la taille et à
@@ -51,11 +66,15 @@ export function isAllowedFeedbackVideoMime(mimeType: string): mimeType is Feedba
  * la valeur — le client s'en sert pour désactiver le bouton d'ajout.
  */
 export function maxFeedbackMediaCount(type: MediaType): number {
-  return type === MediaType.VIDEO ? MAX_FEEDBACK_VIDEOS : MAX_FEEDBACK_PHOTOS;
+  if (type === MediaType.VIDEO) return MAX_FEEDBACK_VIDEOS;
+  if (type === MediaType.AUDIO) return MAX_FEEDBACK_AUDIOS;
+  return MAX_FEEDBACK_PHOTOS;
 }
 
 export function maxFeedbackMediaSizeBytes(type: MediaType): number {
-  return type === MediaType.VIDEO ? MAX_FEEDBACK_VIDEO_SIZE_BYTES : MAX_FEEDBACK_PHOTO_SIZE_BYTES;
+  if (type === MediaType.VIDEO) return MAX_FEEDBACK_VIDEO_SIZE_BYTES;
+  if (type === MediaType.AUDIO) return MAX_FEEDBACK_AUDIO_SIZE_BYTES;
+  return MAX_FEEDBACK_PHOTO_SIZE_BYTES;
 }
 
 // ── Entrées athlète ──────────────────────────────────────────────────────────
@@ -95,6 +114,15 @@ export const requestFeedbackUploadUrlSchema = z.discriminatedUnion("type", [
       durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_DURATION_SECONDS),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal(MediaType.AUDIO),
+      fileName: z.string().min(1),
+      mimeType: feedbackAudioMimeTypeSchema,
+      size: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_SIZE_BYTES),
+      durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_DURATION_SECONDS),
+    })
+    .strict(),
 ]);
 export type RequestFeedbackUploadUrlInput = z.infer<typeof requestFeedbackUploadUrlSchema>;
 
@@ -117,6 +145,16 @@ export const attachFeedbackMediaSchema = z.discriminatedUnion("type", [
       mimeType: feedbackVideoMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_DURATION_SECONDS),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal(MediaType.AUDIO),
+      storagePath: z.string().min(1),
+      fileName: z.string().min(1),
+      mimeType: feedbackAudioMimeTypeSchema,
+      size: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_SIZE_BYTES),
+      durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_DURATION_SECONDS),
     })
     .strict(),
 ]);
