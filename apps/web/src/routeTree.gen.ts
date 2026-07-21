@@ -14,6 +14,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
 import { Route as AthletesRouteImport } from './routes/athletes'
@@ -44,6 +45,11 @@ const LoginRoute = LoginRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvoicesRoute = InvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/athletes': typeof AthletesRoute
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/invoices': typeof InvoicesRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/athletes': typeof AthletesRoute
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/invoices': typeof InvoicesRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/athletes': typeof AthletesRoute
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/invoices': typeof InvoicesRoute
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/athletes'
     | '/feedbacks'
     | '/forgot-password'
+    | '/invoices'
     | '/library'
     | '/login'
     | '/messages'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/athletes'
     | '/feedbacks'
     | '/forgot-password'
+    | '/invoices'
     | '/library'
     | '/login'
     | '/messages'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/athletes'
     | '/feedbacks'
     | '/forgot-password'
+    | '/invoices'
     | '/library'
     | '/login'
     | '/messages'
@@ -164,6 +176,7 @@ export interface RootRouteChildren {
   AthletesRoute: typeof AthletesRoute
   FeedbacksRoute: typeof FeedbacksRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  InvoicesRoute: typeof InvoicesRoute
   LibraryRoute: typeof LibraryRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invoices': {
+      id: '/invoices'
+      path: '/invoices'
+      fullPath: '/invoices'
+      preLoaderRoute: typeof InvoicesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -260,6 +280,7 @@ const rootRouteChildren: RootRouteChildren = {
   AthletesRoute: AthletesRoute,
   FeedbacksRoute: FeedbacksRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  InvoicesRoute: InvoicesRoute,
   LibraryRoute: LibraryRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,

@@ -13,14 +13,22 @@ export type InvoiceCurrency = (typeof INVOICE_CURRENCIES)[number];
 export const invoiceCurrencySchema = z.enum(INVOICE_CURRENCIES);
 export const DEFAULT_INVOICE_CURRENCY: InvoiceCurrency = "EUR";
 
-// Statut manuel (CDC §5.10) : PENDING → PAID au marquage du coach, réversible (retour arrière
-// confirmé côté UI). Le PSP (Stripe) qui automatiserait ce statut est différé v1.0.
+// Cycle de vie d'une facture, lié à celui de son cycle (1:1 via planId) :
+// - DRAFT   : termes saisis dans le builder, cycle pas encore diffusé — invisible de l'athlète.
+// - PENDING : émise au `publish` du cycle (issuedAt posé), en attente de règlement.
+// - PAID    : marquée réglée par le coach (manuel — paiement réel externe en MVP). Réversible
+//             (retour arrière confirmé côté UI). Le PSP (Stripe) est différé v1.0.
 export const InvoiceStatus = {
+  DRAFT: "DRAFT",
   PENDING: "PENDING",
   PAID: "PAID",
 } as const;
 export type InvoiceStatus = TypesValuesOf<typeof InvoiceStatus>;
 export const invoiceStatusSchema = z.enum(InvoiceStatus);
+
+// Statuts d'une facture ÉMISE (hors brouillon) — ce que le toggle coach peut poser, et ce que les
+// deux rôles voient dans leur liste. DRAFT ne vit que dans le builder de cycle.
+export const issuedInvoiceStatusSchema = z.enum([InvoiceStatus.PENDING, InvoiceStatus.PAID]);
 
 // Période facturée : mois civil "YYYY-MM" (ex. "2026-07"). Pas un jour — une facture couvre un
 // mois de prestation. Source unique du format (l'API valide, les clients affichent via
@@ -33,27 +41,25 @@ export const invoicePeriodSchema = z
 // ── Entrée coach ─────────────────────────────────────────────────────────────
 
 /**
- * Émission d'une facture. `athleteId` est validé côté service (l'athlète doit être un athlète DU
- * coach — la FK n'impose pas le tenant, cf. règle multi-tenant). `currency` optionnelle → EUR.
- * `dueDate` est une date civile (comme Plan.startDate), sans contrainte de jour de semaine.
+ * Termes de facturation d'un cycle, saisis dans le builder (sous les semaines). Persiste la facture
+ * DRAFT du plan (1:1). L'athlète (déjà porté par le cycle), la période (dérivée du mois de début du
+ * cycle) et la devise (EUR) ne sont PAS saisis : ils sont posés par le service. `dueDate` est une
+ * date civile (comme Plan.startDate), sans contrainte de jour de semaine.
  */
-export const createInvoiceSchema = z
+export const planBillingSchema = z
   .object({
-    athleteId: z.string().min(1),
-    period: invoicePeriodSchema,
     amountCents: z.number().int().positive().max(INVOICE_AMOUNT_MAX_CENTS),
-    currency: invoiceCurrencySchema.default(DEFAULT_INVOICE_CURRENCY),
     dueDate: z.iso.date(),
     note: z.string().max(INVOICE_NOTE_MAX_LENGTH).nullable().optional(),
   })
   .strict();
-export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
+export type PlanBillingInput = z.infer<typeof planBillingSchema>;
 
-// Marquage manuel du statut (toggle payé/impayé). `paidAt` est posé/effacé par le service selon
-// la valeur — jamais transmis par le client.
+// Marquage manuel du statut d'une facture émise (toggle payé/impayé). `paidAt` est posé/effacé par
+// le service selon la valeur — jamais transmis par le client. DRAFT est exclu (non émise).
 export const updateInvoiceStatusSchema = z
   .object({
-    status: invoiceStatusSchema,
+    status: issuedInvoiceStatusSchema,
   })
   .strict();
 export type UpdateInvoiceStatusInput = z.infer<typeof updateInvoiceStatusSchema>;
@@ -62,8 +68,8 @@ export type UpdateInvoiceStatusInput = z.infer<typeof updateInvoiceStatusSchema>
 
 /**
  * Forme UNIQUE servie aux deux rôles : le web coach lit `athleteName` (il suit N athlètes), le
- * mobile athlète lit `coachName` (il a 1 coach). Les noms sont résolus côté API (table User, hors
- * scope tenant) — le DTO n'a donc pas à brancher selon le rôle.
+ * mobile athlète lit `coachName` (il a 1 coach). Les noms et le titre du cycle sont résolus côté
+ * API (User et Plan, requêtes scopées) — le DTO n'a donc pas à brancher selon le rôle.
  */
 export const invoiceDtoSchema = z.object({
   id: z.string(),
@@ -71,11 +77,16 @@ export const invoiceDtoSchema = z.object({
   coachName: z.string(),
   athleteId: z.string(),
   athleteName: z.string(),
+  // Cycle facturé (1:1). Nullable : le modèle reste ouvert à une facture hors-cycle (v1.0) ; en
+  // MVP il est toujours renseigné. `planTitle` suit la même nullabilité.
+  planId: z.string().nullable(),
+  planTitle: z.string().nullable(),
   period: z.string(),
   amountCents: z.number().int(),
   currency: invoiceCurrencySchema,
   status: invoiceStatusSchema,
-  issuedAt: z.iso.datetime(),
+  // null tant que DRAFT (non émise) — posé au `publish` du cycle.
+  issuedAt: z.iso.datetime().nullable(),
   dueDate: z.iso.date(),
   // null tant qu'impayée (rendu « — ») — jamais un fallback silencieux.
   paidAt: z.iso.datetime().nullable(),

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { authClient } from "@/shared/lib/auth";
 
-// Sections du coach. Facturation (P6) s'ajoutera ici.
+// Sections du coach.
 const NAV_ITEMS = [
   { to: "/", labelKey: "nav.dashboard" },
   { to: "/athletes", labelKey: "nav.athletes" },
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: "/plans", labelKey: "nav.plans" },
   { to: "/feedbacks", labelKey: "nav.feedbacks" },
   { to: "/messages", labelKey: "nav.messages" },
+  { to: "/invoices", labelKey: "nav.invoices" },
 ] as const;
 
 type CmvAppShellProps = {

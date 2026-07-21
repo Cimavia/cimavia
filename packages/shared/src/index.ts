@@ -101,14 +101,13 @@ export {
   invitationStatusSchema,
 } from "./dto/invitation.schema";
 export type {
-  CreateInvoiceInput,
   InvoiceCurrency,
   InvoiceDto,
   InvoiceStatus as InvoiceStatusType,
+  PlanBillingInput,
   UpdateInvoiceStatusInput,
 } from "./dto/invoice.schema";
 export {
-  createInvoiceSchema,
   DEFAULT_INVOICE_CURRENCY,
   INVOICE_AMOUNT_MAX_CENTS,
   INVOICE_CURRENCIES,
@@ -118,7 +117,8 @@ export {
   invoiceCurrencySchema,
   invoiceDtoSchema,
   invoicePeriodSchema,
-  invoiceStatusSchema,
+  issuedInvoiceStatusSchema,
+  planBillingSchema,
   updateInvoiceStatusSchema,
 } from "./dto/invoice.schema";
 export type {

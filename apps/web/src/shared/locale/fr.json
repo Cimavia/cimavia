@@ -232,7 +232,8 @@
     "library": "Bibliothèque",
     "plans": "Planifications",
     "feedbacks": "Débriefs",
-    "messages": "Messages"
+    "messages": "Messages",
+    "invoices": "Facturation"
   },
   "messages": {
     "title": "Messages",
@@ -333,7 +334,8 @@
       "feedback": "Débriefs à relire",
       "invoices": "Factures en attente",
       "soon": "Bientôt disponible",
-      "feedbackHint": "Débriefs que tu n'as pas encore ouverts."
+      "feedbackHint": "Débriefs que tu n'as pas encore ouverts.",
+      "invoicesHint": "Factures que tes athlètes n'ont pas encore réglées."
     }
   },
   "feedback": {
@@ -351,6 +353,44 @@
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
       "openFull": "Ouvrir en grand"
+    }
+  },
+  "invoice": {
+    "title": "Facturation",
+    "subtitle": "Émets tes factures et suis leur règlement.",
+    "new": "Nouvelle facture",
+    "markPaid": "Marquer payée",
+    "reopen": "Marquer impayée",
+    "reopenConfirm": "Confirmer",
+    "periodLabel": "Période : {{period}}",
+    "dueLabel": "Échéance : {{date}}",
+    "paidAtLabel": "Payée le {{date}}",
+    "status": {
+      "pending": "En attente",
+      "paid": "Payée"
+    },
+    "empty": {
+      "title": "Aucune facture",
+      "description": "Émets ta première facture pour un athlète."
+    },
+    "form": {
+      "title": "Nouvelle facture",
+      "description": "Émets une facture pour un de tes athlètes.",
+      "athlete": "Athlète",
+      "athletePlaceholder": "Choisis un athlète",
+      "period": "Période facturée",
+      "amount": "Montant (€)",
+      "amountPlaceholder": "49,90",
+      "dueDate": "Échéance",
+      "note": "Note",
+      "notePlaceholder": "Précisions sur la prestation (optionnel)",
+      "submit": "Émettre la facture",
+      "submitting": "Émission…"
+    },
+    "toast": {
+      "issued": "Facture émise.",
+      "paid": "Facture marquée payée.",
+      "reopened": "Facture rouverte (impayée)."
     }
   }
 }
