@@ -1,17 +1,22 @@
 import type { InvoiceCurrency, InvoiceDto, InvoiceStatusType } from "@cmv/shared";
 import type { Invoice } from "@prisma/client";
+import type { StorageService } from "../infra/storage/storage.service";
 import { toIsoDate } from "../util/date.util";
 
 /**
  * Facture Prisma → DTO. Les noms (coach ET athlète) et le titre du cycle sont passés en argument :
  * ils viennent de requêtes SCOPÉES à part (UserDirectoryService / Plan), jamais d'un `include`
  * imbriqué — qui échapperait au scope (piège n°2 du multi-tenant). Hors du service (règle archi).
+ *
+ * `async` : le justificatif PDF est servi par une URL GET SIGNÉE, régénérée à chaque lecture
+ * (bucket privé, TTL court) — jamais une URL publique stockée.
  */
-export function toInvoiceDto(
+export async function toInvoiceDto(
   invoice: Invoice,
   names: Map<string, string>,
   planTitles: Map<string, string>,
-): InvoiceDto {
+  storage: StorageService,
+): Promise<InvoiceDto> {
   const coachName = names.get(invoice.coachId);
   const athleteName = names.get(invoice.athleteId);
   if (coachName == null || athleteName == null) {
@@ -38,6 +43,9 @@ export function toInvoiceDto(
     // null tant qu'impayée — rendu « — » côté client (jamais un fallback silencieux).
     paidAt: invoice.paidAt?.toISOString() ?? null,
     note: invoice.note,
+    documentUrl:
+      invoice.documentPath == null ? null : await storage.createDownloadUrl(invoice.documentPath),
+    documentFileName: invoice.documentFileName,
     createdAt: invoice.createdAt.toISOString(),
     updatedAt: invoice.updatedAt.toISOString(),
   };

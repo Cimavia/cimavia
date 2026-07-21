@@ -3,7 +3,14 @@ import { cmvColors } from "@cmv/tokens";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  View,
+} from "react-native";
 import { useMyInvoices } from "@/feature/invoice/hook/useMyInvoices";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
@@ -109,6 +116,19 @@ function InvoiceCard({ invoice }: Readonly<{ invoice: InvoiceDto }>) {
 
       {invoice.note == null ? null : (
         <CmvText className="text-cmv-text-mid text-sm">{invoice.note}</CmvText>
+      )}
+
+      {/* Justificatif PDF : URL GET signée (TTL court), ouverte par le lecteur du téléphone. */}
+      {invoice.documentUrl == null ? null : (
+        <Pressable
+          onPress={() => {
+            const url = invoice.documentUrl;
+            if (url != null) void Linking.openURL(url);
+          }}
+          className="self-start rounded-lg border border-cmv-border px-3 py-2"
+        >
+          <CmvText className="text-cmv-accent text-sm">{t("invoice.viewDocument")}</CmvText>
+        </Pressable>
       )}
     </View>
   );

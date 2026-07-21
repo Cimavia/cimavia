@@ -1,4 +1,11 @@
-import type { InvoiceDto, PlanBillingInput, UpdateInvoiceStatusInput } from "@cmv/shared";
+import type {
+  AttachInvoiceDocumentInput,
+  InvoiceDto,
+  PlanBillingInput,
+  RequestInvoiceDocumentUploadUrlInput,
+  UpdateInvoiceStatusInput,
+  UploadUrlDto,
+} from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
 export const invoiceKeys = {
@@ -28,4 +35,24 @@ export function getPlanBilling(planId: string): Promise<InvoiceDto | null> {
 
 export function savePlanBilling(planId: string, input: PlanBillingInput): Promise<InvoiceDto> {
   return api.put<InvoiceDto>(`/plans/${planId}/billing`, input);
+}
+
+// ── Justificatif PDF ──────────────────────────────────────────────────────────
+
+export function requestInvoiceDocumentUploadUrl(
+  planId: string,
+  input: RequestInvoiceDocumentUploadUrlInput,
+): Promise<UploadUrlDto> {
+  return api.post<UploadUrlDto>(`/plans/${planId}/billing/document/upload-url`, input);
+}
+
+export function attachInvoiceDocument(
+  planId: string,
+  input: AttachInvoiceDocumentInput,
+): Promise<InvoiceDto> {
+  return api.put<InvoiceDto>(`/plans/${planId}/billing/document`, input);
+}
+
+export function removeInvoiceDocument(planId: string): Promise<InvoiceDto> {
+  return api.delete<InvoiceDto>(`/plans/${planId}/billing/document`);
 }

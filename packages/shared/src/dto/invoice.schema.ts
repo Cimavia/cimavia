@@ -55,6 +55,43 @@ export const planBillingSchema = z
   .strict();
 export type PlanBillingInput = z.infer<typeof planBillingSchema>;
 
+// Justificatif de facture : un PDF, joint par le coach (aujourd'hui il l'envoie par un autre canal).
+// Un seul par facture. Mime et taille contraints ICI → l'API rejette en 400 sans code dédié, et le
+// client réutilise les mêmes bornes avant l'envoi.
+export const INVOICE_DOCUMENT_MIME_TYPES = ["application/pdf"] as const;
+export type InvoiceDocumentMimeType = (typeof INVOICE_DOCUMENT_MIME_TYPES)[number];
+export const invoiceDocumentMimeTypeSchema = z.enum(INVOICE_DOCUMENT_MIME_TYPES);
+export const MAX_INVOICE_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+
+export function isAllowedInvoiceDocumentMime(
+  mimeType: string,
+): mimeType is InvoiceDocumentMimeType {
+  return (INVOICE_DOCUMENT_MIME_TYPES as readonly string[]).includes(mimeType);
+}
+
+// Étape 1 : URL PUT signée (le binaire ne transite jamais par l'API — règle 7).
+export const requestInvoiceDocumentUploadUrlSchema = z
+  .object({
+    fileName: z.string().min(1),
+    mimeType: invoiceDocumentMimeTypeSchema,
+    size: z.number().int().positive().max(MAX_INVOICE_DOCUMENT_SIZE_BYTES),
+  })
+  .strict();
+export type RequestInvoiceDocumentUploadUrlInput = z.infer<
+  typeof requestInvoiceDocumentUploadUrlSchema
+>;
+
+// Étape 2 : rattacher le PDF uploadé à la facture DRAFT du cycle.
+export const attachInvoiceDocumentSchema = z
+  .object({
+    storagePath: z.string().min(1),
+    fileName: z.string().min(1),
+    mimeType: invoiceDocumentMimeTypeSchema,
+    size: z.number().int().positive().max(MAX_INVOICE_DOCUMENT_SIZE_BYTES),
+  })
+  .strict();
+export type AttachInvoiceDocumentInput = z.infer<typeof attachInvoiceDocumentSchema>;
+
 // Marquage manuel du statut d'une facture émise (toggle payé/impayé). `paidAt` est posé/effacé par
 // le service selon la valeur — jamais transmis par le client. DRAFT est exclu (non émise).
 export const updateInvoiceStatusSchema = z
@@ -91,6 +128,10 @@ export const invoiceDtoSchema = z.object({
   // null tant qu'impayée (rendu « — ») — jamais un fallback silencieux.
   paidAt: z.iso.datetime().nullable(),
   note: z.string().nullable(),
+  // Justificatif PDF joint par le coach : URL GET signée (régénérée à chaque lecture, bucket privé)
+  // + nom d'origine. `null` si aucun PDF n'est attaché.
+  documentUrl: z.url().nullable(),
+  documentFileName: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

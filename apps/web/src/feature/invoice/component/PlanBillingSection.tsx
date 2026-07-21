@@ -1,8 +1,14 @@
+import { type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePlanBilling, useSavePlanBilling } from "@/feature/invoice/hook/useInvoices";
-import { CmvButton, CmvCard, CmvTextArea, CmvTextField } from "@/shared/component";
+import {
+  useAttachInvoiceDocument,
+  usePlanBilling,
+  useRemoveInvoiceDocument,
+  useSavePlanBilling,
+} from "@/feature/invoice/hook/useInvoices";
+import { CmvButton, CmvCard, CmvTextArea, CmvTextField, useToast } from "@/shared/component";
 
 type PlanBillingSectionProps = {
   planId: string;
@@ -112,6 +118,85 @@ export function PlanBillingSection({ planId, isPublished }: Readonly<PlanBilling
           </CmvButton>
         </div>
       </form>
+
+      {/* Justificatif PDF : disponible une fois les termes enregistrés (l'API le rattache à la
+          facture DRAFT). Tant que rien n'est saisi, on invite à enregistrer d'abord. */}
+      <div className="mt-cmv-md flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-md">
+        <h3 className="text-cmv-body text-cmv-text-hi">{t("invoice.billing.document")}</h3>
+        {billing == null ? (
+          <p className="text-cmv-caption text-cmv-text-lo">
+            {t("invoice.billing.documentAfterSave")}
+          </p>
+        ) : (
+          <BillingDocument planId={planId} billing={billing} />
+        )}
+      </div>
     </CmvCard>
+  );
+}
+
+function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing: InvoiceDto }>) {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const attach = useAttachInvoiceDocument(planId);
+  const remove = useRemoveInvoiceDocument(planId);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Réinitialise pour pouvoir resélectionner le même fichier après un retrait.
+    event.target.value = "";
+    if (file == null) return;
+    if (file.type !== "application/pdf") {
+      toast.error(t("invoice.billing.documentPdfOnly"));
+      return;
+    }
+    if (file.size > MAX_INVOICE_DOCUMENT_SIZE_BYTES) {
+      toast.error(t("invoice.billing.documentTooBig"));
+      return;
+    }
+    attach.mutate(file);
+  }
+
+  const busy = attach.isPending || remove.isPending;
+
+  return (
+    <div className="flex flex-col gap-cmv-sm">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={onPick}
+      />
+
+      {billing.documentUrl == null || billing.documentFileName == null ? (
+        <div className="flex flex-col gap-cmv-xs">
+          <CmvButton variant="secondary" disabled={busy} onClick={() => inputRef.current?.click()}>
+            {attach.isPending
+              ? t("invoice.billing.documentUploading")
+              : t("invoice.billing.documentAdd")}
+          </CmvButton>
+          <p className="text-cmv-caption text-cmv-text-lo">{t("invoice.billing.documentHint")}</p>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-cmv-sm">
+          <a
+            href={billing.documentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-cmv-body text-cmv-accent hover:underline"
+          >
+            {billing.documentFileName}
+          </a>
+          <CmvButton variant="ghost" disabled={busy} onClick={() => inputRef.current?.click()}>
+            {t("invoice.billing.documentReplace")}
+          </CmvButton>
+          <CmvButton variant="ghost" disabled={busy} onClick={() => remove.mutate()}>
+            {t("invoice.billing.documentRemove")}
+          </CmvButton>
+        </div>
+      )}
+    </div>
   );
 }

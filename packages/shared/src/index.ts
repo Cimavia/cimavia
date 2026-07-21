@@ -101,24 +101,33 @@ export {
   invitationStatusSchema,
 } from "./dto/invitation.schema";
 export type {
+  AttachInvoiceDocumentInput,
   InvoiceCurrency,
+  InvoiceDocumentMimeType,
   InvoiceDto,
   InvoiceStatus as InvoiceStatusType,
   PlanBillingInput,
+  RequestInvoiceDocumentUploadUrlInput,
   UpdateInvoiceStatusInput,
 } from "./dto/invoice.schema";
 export {
+  attachInvoiceDocumentSchema,
   DEFAULT_INVOICE_CURRENCY,
   INVOICE_AMOUNT_MAX_CENTS,
   INVOICE_CURRENCIES,
+  INVOICE_DOCUMENT_MIME_TYPES,
   INVOICE_NOTE_MAX_LENGTH,
   INVOICE_PERIOD_PATTERN,
   InvoiceStatus,
   invoiceCurrencySchema,
+  invoiceDocumentMimeTypeSchema,
   invoiceDtoSchema,
   invoicePeriodSchema,
+  isAllowedInvoiceDocumentMime,
   issuedInvoiceStatusSchema,
+  MAX_INVOICE_DOCUMENT_SIZE_BYTES,
   planBillingSchema,
+  requestInvoiceDocumentUploadUrlSchema,
   updateInvoiceStatusSchema,
 } from "./dto/invoice.schema";
 export type {

@@ -1,8 +1,17 @@
-import type { InvoiceDto, PlanBillingInput, UpdateInvoiceStatusInput } from "@cmv/shared";
+import { randomUUID } from "node:crypto";
+import type {
+  AttachInvoiceDocumentInput,
+  InvoiceDto,
+  PlanBillingInput,
+  RequestInvoiceDocumentUploadUrlInput,
+  UpdateInvoiceStatusInput,
+  UploadUrlDto,
+} from "@cmv/shared";
 import { DEFAULT_INVOICE_CURRENCY, InvoiceStatus, PlanStatus } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Invoice, Plan, Prisma } from "@prisma/client";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
+import { SIGNED_URL_TTL_SECONDS, StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
@@ -25,6 +34,7 @@ export class InvoiceService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly users: UserDirectoryService,
+    private readonly storage: StorageService,
   ) {}
 
   // ── Builder : facture DRAFT du cycle ─────────────────────────────────────────
@@ -116,11 +126,80 @@ export class InvoiceService {
       this.resolveNames(invoices),
       this.resolvePlanTitles(invoices),
     ]);
-    return invoices.map((invoice) => toInvoiceDto(invoice, names, planTitles));
+    return Promise.all(
+      invoices.map((invoice) => toInvoiceDto(invoice, names, planTitles, this.storage)),
+    );
   }
 
   async get(id: string): Promise<InvoiceDto> {
     return this.toDto(await this.getIssuedOrThrow(id));
+  }
+
+  // ── Justificatif PDF (builder) ───────────────────────────────────────────────
+
+  /**
+   * Étape 1 : URL PUT signée pour le PDF. Mime et taille sont validés en amont par le schéma
+   * (@cmv/shared). Aucune facture n'est modifiée ici — c'est le rattachement qui engage. Refusé si
+   * le cycle est déjà diffusé (facturation figée).
+   */
+  async requestDocumentUploadUrl(
+    planId: string,
+    input: RequestInvoiceDocumentUploadUrlInput,
+  ): Promise<UploadUrlDto> {
+    const plan = await this.getDraftablePlanOrThrow(planId);
+    const storagePath = buildInvoiceDocumentKey(plan.athleteId, planId, input.fileName);
+    const uploadUrl = await this.storage.createUploadUrl(
+      storagePath,
+      input.mimeType,
+      SIGNED_URL_TTL_SECONDS,
+      input.size,
+    );
+    return { uploadUrl, storagePath, expiresIn: SIGNED_URL_TTL_SECONDS };
+  }
+
+  /**
+   * Étape 2 : rattacher le PDF uploadé à la facture DRAFT du cycle. Exige des termes de facturation
+   * déjà saisis (la facture DRAFT doit exister). Remplacer un PDF déjà attaché purge l'ancien objet.
+   */
+  async attachDocument(planId: string, input: AttachInvoiceDocumentInput): Promise<InvoiceDto> {
+    await this.getDraftablePlanOrThrow(planId);
+    const draft = await this.getDraftInvoiceOrThrow(planId);
+
+    const previousPath = draft.documentPath;
+    const updated = await this.db.invoice.update({
+      where: { id: draft.id },
+      data: {
+        documentPath: input.storagePath,
+        documentFileName: input.fileName,
+        documentMimeType: input.mimeType,
+        documentSizeBytes: input.size,
+      },
+    });
+    // L'ancien objet n'est plus référencé : on le purge (sa clé n'appartient qu'à cette facture).
+    if (previousPath != null && previousPath !== input.storagePath) {
+      await this.storage.deleteObject(previousPath);
+    }
+    return this.toDto(updated);
+  }
+
+  // Retirer le PDF de la facture DRAFT (purge l'objet). Le cycle diffusé fige tout : refusé alors.
+  async removeDocument(planId: string): Promise<InvoiceDto> {
+    await this.getDraftablePlanOrThrow(planId);
+    const draft = await this.getDraftInvoiceOrThrow(planId);
+    if (draft.documentPath == null) {
+      return this.toDto(draft);
+    }
+    const updated = await this.db.invoice.update({
+      where: { id: draft.id },
+      data: {
+        documentPath: null,
+        documentFileName: null,
+        documentMimeType: null,
+        documentSizeBytes: null,
+      },
+    });
+    await this.storage.deleteObject(draft.documentPath);
+    return this.toDto(updated);
   }
 
   /**
@@ -164,12 +243,24 @@ export class InvoiceService {
     return invoice;
   }
 
+  // La facture DRAFT du cycle (termes déjà saisis). Absente → le coach doit d'abord enregistrer la
+  // facturation (montant/échéance) avant d'y joindre un PDF.
+  private async getDraftInvoiceOrThrow(planId: string): Promise<Invoice> {
+    const draft = await this.db.invoice.findFirst({
+      where: { planId, status: InvoiceStatus.DRAFT },
+    });
+    if (draft == null) {
+      throw new BadRequestException("Enregistre d'abord la facturation avant de joindre un PDF");
+    }
+    return draft;
+  }
+
   private async toDto(invoice: Invoice): Promise<InvoiceDto> {
     const [names, planTitles] = await Promise.all([
       this.resolveNames([invoice]),
       this.resolvePlanTitles([invoice]),
     ]);
-    return toInvoiceDto(invoice, names, planTitles);
+    return toInvoiceDto(invoice, names, planTitles, this.storage);
   }
 
   private resolveNames(invoices: Invoice[]): Promise<Map<string, string>> {
@@ -191,4 +282,11 @@ export class InvoiceService {
 // Mois civil facturé "YYYY-MM", dérivé du début du cycle. Source unique de la dérivation.
 function periodOf(plan: Plan): string {
   return toIsoDate(plan.startDate).slice(0, 7);
+}
+
+// Clé objet du justificatif : segmentée par athlète puis cycle (comme les médias de débrief). Le
+// nom d'origine est assaini ; l'UUID évite toute collision.
+function buildInvoiceDocumentKey(athleteId: string, planId: string, fileName: string): string {
+  const safeName = fileName.replace(/[^\w.-]+/g, "_");
+  return `athlete/${athleteId}/invoice/${planId}/${randomUUID()}-${safeName}`;
 }

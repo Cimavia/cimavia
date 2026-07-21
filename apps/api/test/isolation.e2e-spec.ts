@@ -1738,6 +1738,48 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
     ).toBe(404);
   });
 
+  it("le coach joint un justificatif PDF à la facturation (upload signé → rattachement)", async () => {
+    const signed = await coachA
+      .post(`/plans/${planId}/billing/document/upload-url`)
+      .send({ fileName: "facture-juillet.pdf", mimeType: "application/pdf", size: 20_000 });
+    expect(signed.status).toBe(201);
+
+    // PUT direct vers le storage (MinIO), taille signée opposable — comme les médias de débrief.
+    const put = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(20_000, 1),
+      headers: { "content-type": "application/pdf" },
+    });
+    expect(put.status).toBe(200);
+
+    const attached = await coachA.put(`/plans/${planId}/billing/document`).send({
+      storagePath: signed.body.storagePath,
+      fileName: "facture-juillet.pdf",
+      mimeType: "application/pdf",
+      size: 20_000,
+    });
+    expect(attached.status).toBe(200);
+    expect(attached.body.documentFileName).toBe("facture-juillet.pdf");
+    expect(attached.body.documentUrl).not.toBeNull();
+  });
+
+  it("refuse un justificatif non-PDF (400), et un autre coach ne peut pas en joindre (404)", async () => {
+    expect(
+      (
+        await coachA
+          .post(`/plans/${planId}/billing/document/upload-url`)
+          .send({ fileName: "x.png", mimeType: "image/png", size: 1000 })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await coachB
+          .post(`/plans/${planId}/billing/document/upload-url`)
+          .send({ fileName: "x.pdf", mimeType: "application/pdf", size: 1000 })
+      ).status,
+    ).toBe(404);
+  });
+
   it("diffuser le cycle émet la facture (DRAFT → PENDING) et notifie l'athlète", async () => {
     const res = await coachA.post(`/plans/${planId}/publish`);
     expect(res.status).toBe(200);
@@ -1753,9 +1795,15 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
       coachName: "inv-coach-a@cmv.test",
       amountCents: 5500,
       status: "PENDING",
+      documentFileName: "facture-juillet.pdf",
     });
     expect(list.body[0].issuedAt).not.toBeNull();
     invoiceId = list.body[0].id;
+
+    // Le justificatif joint en DRAFT survit à l'émission : l'athlète le lit par URL GET signée.
+    expect(list.body[0].documentUrl).not.toBeNull();
+    const pdf = await fetch(list.body[0].documentUrl);
+    expect(pdf.status).toBe(200);
 
     const detail = await athleteA1.get(`/invoices/${invoiceId}`);
     expect(detail.status).toBe(200);

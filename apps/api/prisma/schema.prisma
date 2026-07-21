@@ -613,26 +613,32 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id          String        @id @default(cuid())
-  coachId     String // émetteur
-  coach       User          @relation("CoachInvoices", fields: [coachId], references: [id], onDelete: Cascade)
-  athleteId   String // destinataire (lecture)
-  athlete     User          @relation("AthleteInvoices", fields: [athleteId], references: [id], onDelete: Cascade)
+  id                String        @id @default(cuid())
+  coachId           String // émetteur
+  coach             User          @relation("CoachInvoices", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId         String // destinataire (lecture)
+  athlete           User          @relation("AthleteInvoices", fields: [athleteId], references: [id], onDelete: Cascade)
   // Cycle facturé (1:1) — @unique garantit une seule facture par cycle. Nullable pour rester
   // ouvert à une facture hors-cycle (v1.0) ; en MVP toujours renseigné. Cascade : supprimer le
   // cycle supprime sa facture (elle n'a de sens que rattachée).
-  planId      String?       @unique
-  plan        Plan?         @relation(fields: [planId], references: [id], onDelete: Cascade)
-  period      String // mois civil facturé "YYYY-MM" (ex. "2026-07"), dérivé du début du cycle
-  amountCents Int // centimes, jamais un float
-  currency    String        @default("EUR") // EUR en MVP ; champ présent pour le multi-devise v1.0
-  status      InvoiceStatus @default(DRAFT)
-  issuedAt    DateTime? // posé au publish (émission) — null tant que DRAFT
-  dueDate     DateTime      @db.Date // échéance, date civile (comme Plan.startDate)
-  paidAt      DateTime? // posé au marquage PAID, effacé au retour PENDING — null tant qu'impayée
-  note        String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  planId            String?       @unique
+  plan              Plan?         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  period            String // mois civil facturé "YYYY-MM" (ex. "2026-07"), dérivé du début du cycle
+  amountCents       Int // centimes, jamais un float
+  currency          String        @default("EUR") // EUR en MVP ; champ présent pour le multi-devise v1.0
+  status            InvoiceStatus @default(DRAFT)
+  issuedAt          DateTime? // posé au publish (émission) — null tant que DRAFT
+  dueDate           DateTime      @db.Date // échéance, date civile (comme Plan.startDate)
+  paidAt            DateTime? // posé au marquage PAID, effacé au retour PENDING — null tant qu'impayée
+  note              String?
+  // Justificatif PDF (le coach l'envoie aujourd'hui par un autre canal). Clé objet S3 + métadonnées
+  // — jamais le binaire en BDD (règle 7). Nullable : facultatif. Un seul PDF par facture.
+  documentPath      String?
+  documentFileName  String?
+  documentMimeType  String?
+  documentSizeBytes Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   @@index([coachId, status]) // tuile « Factures en attente » + liste coach
   @@index([athleteId, status]) // liste athlète

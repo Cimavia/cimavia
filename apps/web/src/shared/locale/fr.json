@@ -386,12 +386,24 @@
       "save": "Enregistrer la facturation",
       "saving": "Enregistrement…",
       "issuedHint": "La facture a été émise à la diffusion du cycle.",
-      "trackLink": "Suivre dans Facturation"
+      "trackLink": "Suivre dans Facturation",
+      "document": "Justificatif (PDF)",
+      "documentAfterSave": "Enregistre la facturation ci-dessus pour pouvoir joindre un PDF.",
+      "documentAdd": "Joindre un PDF",
+      "documentReplace": "Remplacer",
+      "documentRemove": "Retirer",
+      "documentUploading": "Envoi…",
+      "documentHint": "PDF, 10 Mo max. Envoyé à l'athlète avec la facture.",
+      "documentPdfOnly": "Seuls les PDF sont acceptés.",
+      "documentTooBig": "Fichier trop volumineux (10 Mo max)."
     },
     "toast": {
       "billingSaved": "Facturation enregistrée.",
       "paid": "Facture marquée payée.",
-      "reopened": "Facture rouverte (impayée)."
-    }
+      "reopened": "Facture rouverte (impayée).",
+      "documentAttached": "Justificatif joint.",
+      "documentRemoved": "Justificatif retiré."
+    },
+    "viewDocument": "Voir le PDF"
   }
 }

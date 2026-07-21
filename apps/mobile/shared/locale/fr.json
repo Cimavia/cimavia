@@ -203,6 +203,7 @@
     "empty": {
       "title": "Aucune facture",
       "description": "Ton coach ne t'a pas encore émis de facture."
-    }
+    },
+    "viewDocument": "Voir le PDF"
   }
 }

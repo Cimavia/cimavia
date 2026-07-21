@@ -123,6 +123,17 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen }: Readonly<InvoiceRow
           </p>
 
           {invoice.note == null ? null : <p className="text-cmv-text-mid">{invoice.note}</p>}
+
+          {invoice.documentUrl == null ? null : (
+            <a
+              href={invoice.documentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cmv-caption text-cmv-accent hover:underline"
+            >
+              {t("invoice.viewDocument")}
+            </a>
+          )}
         </div>
 
         {isPaid ? (
