@@ -48,6 +48,13 @@ async function signUp(email: string, role: string): Promise<Agent> {
   return agent;
 }
 
+// Diffuser un cycle exige désormais une facturation saisie (gating P6). Les setups qui veulent
+// juste un cycle diffusé passent par ce raccourci : termes de facturation puis publish.
+async function billAndPublish(coach: Agent, planId: string) {
+  await coach.put(`/plans/${planId}/billing`).send({ amountCents: 5000, dueDate: "2026-01-05" });
+  return coach.post(`/plans/${planId}/publish`);
+}
+
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -590,6 +597,15 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   });
 
   it("diffuse le cycle : DRAFT → PUBLISHED, une seule fois", async () => {
+    // Gating P6 : sans facturation saisie, la diffusion est refusée (rien n'est diffusé).
+    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(400);
+
+    const billing = await coachA
+      .put(`/plans/${planId}/billing`)
+      .send({ amountCents: 6000, dueDate: monday });
+    expect(billing.status).toBe(200);
+    expect(billing.body.status).toBe("DRAFT");
+
     const res = await coachA.post(`/plans/${planId}/publish`);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("PUBLISHED");
@@ -705,7 +721,7 @@ describe("Débrief de séance (P4)", () => {
   });
 
   it("aucun débrief avant écriture : null, pas un objet vide", async () => {
-    await coachA.post(`/plans/${planId}/publish`);
+    await billAndPublish(coachA, planId);
     sessionId = draftSessionId;
 
     const res = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
@@ -851,7 +867,7 @@ describe("Médias de débrief (P4)", () => {
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
       .send({ title: "Séance filmée", scheduledDate: monday });
     sessionId = session.body.id;
-    await coachA.post(`/plans/${plan.body.id}/publish`);
+    await billAndPublish(coachA, plan.body.id);
   });
 
   it("rattache une photo à une séance jamais débriefée : le débrief est créé, la séance passe DONE", async () => {
@@ -924,7 +940,7 @@ describe("Médias de débrief (P4)", () => {
     const session = await coachA
       .post(`/plan-weeks/${other.body.weeks[0].id}/sessions`)
       .send({ title: "Séance témoin", scheduledDate: monday });
-    await coachA.post(`/plans/${other.body.id}/publish`);
+    await billAndPublish(coachA, other.body.id);
 
     const signed = await athleteA1
       .post(`/me/scheduled-sessions/${session.body.id}/feedback/media/upload-url`)
@@ -1115,7 +1131,7 @@ describe("Tokens de notification push (P4)", () => {
     const session = await c
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
       .send({ title: "Séance", scheduledDate: monday });
-    expect((await c.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+    expect((await billAndPublish(c, plan.body.id)).status).toBe(200);
 
     const feedback = await a
       .put(`/me/scheduled-sessions/${session.body.id}/feedback`)
@@ -1162,7 +1178,7 @@ describe("Lecture coach des débriefs (P4)", () => {
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
       .send({ title: "Séance relue", scheduledDate: monday });
     sessionId = session.body.id;
-    await coachA.post(`/plans/${plan.body.id}/publish`);
+    await billAndPublish(coachA, plan.body.id);
 
     await athleteA1
       .put(`/me/scheduled-sessions/${sessionId}/feedback`)
@@ -1536,7 +1552,7 @@ describe("Messagerie : rattachement séance / débrief (P5)", () => {
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
       .send({ title, scheduledDate: monday });
     if (publish) {
-      await coachA.post(`/plans/${plan.body.id}/publish`);
+      await billAndPublish(coachA, plan.body.id);
     }
     return session.body.id;
   }
@@ -1621,14 +1637,17 @@ describe("Messagerie : rattachement séance / débrief (P5)", () => {
   });
 });
 
-describe("Facturation : émission, statut & isolation (P6)", () => {
+describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", () => {
   let coachA: Agent;
   let athleteA1: Agent;
   let coachB: Agent;
   let athleteB1: Agent;
   let a1Id: string;
   let coachAId: string;
+  let planId: string;
   let invoiceId: string;
+
+  const monday = mondayOfCurrentWeek();
 
   async function link(
     coach: Agent,
@@ -1650,79 +1669,123 @@ describe("Facturation : émission, statut & isolation (P6)", () => {
     a1Id = relation.athleteId;
     coachAId = relation.coachId;
     await link(coachB, athleteB1);
+
+    // Un cycle DRAFT (une semaine suffit à le rendre diffusable) pour l'athlète A1.
+    const plan = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle prépa bloc",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    planId = plan.body.id;
   });
 
-  it("le coach émet une facture pour SON athlète (PENDING, impayée)", async () => {
-    const res = await coachA.post("/invoices").send({
-      athleteId: a1Id,
-      period: "2026-07",
-      amountCents: 4990,
-      dueDate: "2026-07-31",
-      note: "Coaching juillet",
-    });
-    expect(res.status).toBe(201);
+  it("refuse de diffuser un cycle sans facturation saisie (gating)", async () => {
+    const res = await coachA.post(`/plans/${planId}/publish`);
+    expect(res.status).toBe(400);
+    // Le cycle reste en brouillon (rien n'a été diffusé).
+    expect((await coachA.get(`/plans/${planId}`)).body.status).toBe("DRAFT");
+  });
+
+  it("le coach saisit la facturation : facture DRAFT, période dérivée du cycle", async () => {
+    const res = await coachA
+      .put(`/plans/${planId}/billing`)
+      .send({ amountCents: 4990, dueDate: monday, note: "Coaching mensuel" });
+    expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       coachId: coachAId,
       athleteId: a1Id,
-      athleteName: "inv-athlete-a1@cmv.test",
-      coachName: "inv-coach-a@cmv.test",
-      period: "2026-07",
+      planId,
+      planTitle: "Cycle prépa bloc",
       amountCents: 4990,
       currency: "EUR",
-      status: "PENDING",
-      dueDate: "2026-07-31",
+      status: "DRAFT",
+      period: monday.slice(0, 7), // mois de début du cycle
+      issuedAt: null,
       paidAt: null,
-      note: "Coaching juillet",
+      note: "Coaching mensuel",
     });
-    invoiceId = res.body.id;
   });
 
-  it("le coach ne peut pas facturer l'athlète d'un autre coach (400)", async () => {
-    const res = await coachA.post("/invoices").send({
-      athleteId: "unknown-athlete-id",
-      period: "2026-07",
-      amountCents: 1000,
-      dueDate: "2026-07-31",
-    });
-    expect(res.status).toBe(400);
+  it("une facture DRAFT est invisible des listes des deux rôles", async () => {
+    expect((await coachA.get("/invoices")).body).toHaveLength(0);
+    expect((await athleteA1.get("/invoices")).body).toHaveLength(0);
   });
 
-  it("l'athlète consulte SA facture (liste + détail)", async () => {
+  it("ré-enregistrer la facturation met à jour LA facture du cycle (pas de doublon)", async () => {
+    const res = await coachA
+      .put(`/plans/${planId}/billing`)
+      .send({ amountCents: 5500, dueDate: monday });
+    expect(res.status).toBe(200);
+    expect(res.body.amountCents).toBe(5500);
+    expect(res.body.note).toBeNull();
+    // Toujours en brouillon, toujours une seule (get renvoie le brouillon courant).
+    const draft = await coachA.get(`/plans/${planId}/billing`);
+    expect(draft.body.amountCents).toBe(5500);
+  });
+
+  it("l'athlète et un autre coach ne peuvent pas saisir la facturation du cycle", async () => {
+    // Rôle : la saisie de facturation est réservée au coach.
+    expect(
+      (await athleteA1.put(`/plans/${planId}/billing`).send({ amountCents: 1, dueDate: monday }))
+        .status,
+    ).toBe(403);
+    // Scope : le cycle n'appartient pas à coachB.
+    expect(
+      (await coachB.put(`/plans/${planId}/billing`).send({ amountCents: 1, dueDate: monday }))
+        .status,
+    ).toBe(404);
+  });
+
+  it("diffuser le cycle émet la facture (DRAFT → PENDING) et notifie l'athlète", async () => {
+    const res = await coachA.post(`/plans/${planId}/publish`);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("PUBLISHED");
+
+    // L'athlète voit désormais SA facture émise, avec le cycle et le coach nommés.
     const list = await athleteA1.get("/invoices");
     expect(list.status).toBe(200);
     expect(list.body).toHaveLength(1);
-    expect(list.body[0].id).toBe(invoiceId);
-    expect(list.body[0].coachName).toBe("inv-coach-a@cmv.test");
+    expect(list.body[0]).toMatchObject({
+      planId,
+      planTitle: "Cycle prépa bloc",
+      coachName: "inv-coach-a@cmv.test",
+      amountCents: 5500,
+      status: "PENDING",
+    });
+    expect(list.body[0].issuedAt).not.toBeNull();
+    invoiceId = list.body[0].id;
 
     const detail = await athleteA1.get(`/invoices/${invoiceId}`);
     expect(detail.status).toBe(200);
-    expect(detail.body.amountCents).toBe(4990);
+    expect(detail.body.athleteName).toBe("inv-athlete-a1@cmv.test");
   });
 
-  it("un athlète d'un autre coach ne voit pas la facture (liste vide, détail 404)", async () => {
-    const list = await athleteB1.get("/invoices");
-    expect(list.status).toBe(200);
-    expect(list.body).toHaveLength(0);
-    expect((await athleteB1.get(`/invoices/${invoiceId}`)).status).toBe(404);
+  it("la facturation est figée une fois le cycle diffusé", async () => {
+    const res = await coachA
+      .put(`/plans/${planId}/billing`)
+      .send({ amountCents: 9999, dueDate: monday });
+    expect(res.status).toBe(400);
   });
 
   it("un autre coach ne voit ni ne modifie la facture (scope tenant → 404)", async () => {
     expect((await coachB.get("/invoices")).body).toHaveLength(0);
     expect((await coachB.get(`/invoices/${invoiceId}`)).status).toBe(404);
-    const patch = await coachB.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
-    expect(patch.status).toBe(404);
+    expect(
+      (await coachB.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" })).status,
+    ).toBe(404);
   });
 
-  it("l'athlète ne peut ni émettre ni changer le statut (403)", async () => {
-    const emit = await athleteA1.post("/invoices").send({
-      athleteId: a1Id,
-      period: "2026-08",
-      amountCents: 1000,
-      dueDate: "2026-08-31",
-    });
-    expect(emit.status).toBe(403);
-    const patch = await athleteA1.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
-    expect(patch.status).toBe(403);
+  it("un athlète d'un autre coach ne voit pas la facture", async () => {
+    expect((await athleteB1.get("/invoices")).body).toHaveLength(0);
+    expect((await athleteB1.get(`/invoices/${invoiceId}`)).status).toBe(404);
+  });
+
+  it("l'athlète ne peut pas changer le statut (403)", async () => {
+    expect(
+      (await athleteA1.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" })).status,
+    ).toBe(403);
   });
 
   it("le coach marque payé (paidAt posé), puis rouvre (paidAt effacé) — toggle", async () => {
@@ -1739,27 +1802,12 @@ describe("Facturation : émission, statut & isolation (P6)", () => {
     expect(reopened.body.paidAt).toBeNull();
   });
 
-  it("refuse une période mal formée et une devise inconnue (400)", async () => {
+  it("refuse un statut invalide au toggle (ni DRAFT, ni valeur inconnue)", async () => {
     expect(
-      (
-        await coachA.post("/invoices").send({
-          athleteId: a1Id,
-          period: "2026-7",
-          amountCents: 1000,
-          dueDate: "2026-07-31",
-        })
-      ).status,
+      (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "DRAFT" })).status,
     ).toBe(400);
     expect(
-      (
-        await coachA.post("/invoices").send({
-          athleteId: a1Id,
-          period: "2026-07",
-          amountCents: 1000,
-          currency: "USD",
-          dueDate: "2026-07-31",
-        })
-      ).status,
+      (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "NOPE" })).status,
     ).toBe(400);
   });
 });
