@@ -5,22 +5,26 @@ type CmvTextFieldProps = Pick<
   | "type"
   | "value"
   | "onChange"
-  // Validation/normalisation à la sortie du champ (ex. recaler une date sur un lundi).
   | "onBlur"
   | "placeholder"
   | "required"
   | "autoComplete"
   | "name"
   | "minLength"
-  // Bornes des champs numériques et de date (ex. nombre de semaines d'un cycle).
   | "min"
   | "max"
-> & { label: string };
+> & {
+  label: string;
+  requiredMark?: boolean;
+};
 
-export function CmvTextField({ label, name, ...rest }: CmvTextFieldProps) {
+export function CmvTextField({ label, name, requiredMark, ...rest }: CmvTextFieldProps) {
   return (
     <label className="flex flex-col gap-1 text-cmv-text-mid text-sm" htmlFor={name}>
-      {label}
+      <span>
+        {label}
+        {requiredMark ? <span className="text-cmv-error"> *</span> : null}
+      </span>
       <input
         id={name}
         name={name}

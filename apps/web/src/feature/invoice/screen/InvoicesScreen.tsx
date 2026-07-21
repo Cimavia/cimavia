@@ -1,8 +1,6 @@
 import { type InvoiceDto, InvoiceStatus, Role } from "@cmv/shared";
 import { Navigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { InvoiceForm } from "@/feature/invoice/component/InvoiceForm";
 import { useInvoices, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 import {
   CmvAppShell,
@@ -18,17 +16,17 @@ import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 /**
- * Facturation côté coach (p6-1/p6-2) : émettre une facture et suivre son statut. Le marquage
- * « payé » est manuel (paiement réel externe en MVP) ; le retour arrière « impayé » est confirmé
- * en deux temps (CmvConfirmButton) — poser un paiement à tort se corrige, mais pas à la légère.
+ * Suivi des factures ÉMISES (p6-2). L'émission n'est PAS ici : elle se fait à la diffusion d'un
+ * cycle (la facturation se saisit dans le builder). Cet écran ne fait que suivre le statut. Le
+ * marquage « payé » est manuel (paiement réel externe en MVP) ; le retour arrière « impayé » est
+ * confirmé en deux temps (CmvConfirmButton) — poser un paiement à tort se corrige, mais pas à la
+ * légère.
  */
 export function InvoicesScreen() {
   const { t } = useTranslation();
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: invoices, isPending, isError, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
-
-  const [formOpen, setFormOpen] = useState(false);
 
   if (isAuthPending) {
     return (
@@ -46,11 +44,7 @@ export function InvoicesScreen() {
   const hasInvoices = invoices != null && invoices.length > 0;
 
   return (
-    <CmvAppShell
-      title={t("invoice.title")}
-      subtitle={t("invoice.subtitle")}
-      actions={<CmvButton onClick={() => setFormOpen(true)}>{t("invoice.new")}</CmvButton>}
-    >
+    <CmvAppShell title={t("invoice.title")} subtitle={t("invoice.subtitle")}>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {isError ? (
@@ -84,8 +78,6 @@ export function InvoicesScreen() {
           ))}
         </div>
       ) : null}
-
-      <InvoiceForm open={formOpen} onClose={() => setFormOpen(false)} />
     </CmvAppShell>
   );
 }
@@ -117,15 +109,17 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen }: Readonly<InvoiceRow
           </p>
 
           <p className="text-cmv-caption text-cmv-text-mid">
-            {t("invoice.periodLabel", { period: formatPeriod(invoice.period) })} ·{" "}
-            {t("invoice.dueLabel", { date: formatDate(invoice.dueDate) })}
+            {/* Le cycle facturé — cœur du lien facture ↔ planification. */}
+            {invoice.planTitle ?? "—"} ·{" "}
+            {t("invoice.periodLabel", { period: formatPeriod(invoice.period) })}
           </p>
 
           <p className="text-cmv-caption text-cmv-text-lo">
+            {t("invoice.dueLabel", { date: formatDate(invoice.dueDate) })}
             {/* paidAt null tant qu'impayée : rendu « — » (jamais un fallback silencieux). */}
             {isPaid && invoice.paidAt != null
-              ? t("invoice.paidAtLabel", { date: formatDate(invoice.paidAt.slice(0, 10)) })
-              : "—"}
+              ? ` · ${t("invoice.paidAtLabel", { date: formatDate(invoice.paidAt.slice(0, 10)) })}`
+              : ""}
           </p>
 
           {invoice.note == null ? null : <p className="text-cmv-text-mid">{invoice.note}</p>}

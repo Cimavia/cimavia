@@ -1,17 +1,14 @@
-import type {
-  CreateInvoiceInput,
-  InvoiceDto,
-  InvoiceStatusType,
-  UpdateInvoiceStatusInput,
-} from "@cmv/shared";
+import type { InvoiceDto, PlanBillingInput, UpdateInvoiceStatusInput } from "@cmv/shared";
 import { InvoiceStatus } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  createInvoice,
+  getPlanBilling,
   invoiceKeys,
   listInvoices,
+  savePlanBilling,
   updateInvoiceStatus,
 } from "@/feature/invoice/api";
+import { planKeys } from "@/feature/plan/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 export function useInvoices() {
@@ -21,32 +18,42 @@ export function useInvoices() {
   });
 }
 
-export function useCreateInvoice() {
-  const queryClient = useQueryClient();
-  const toast = useMutationToast();
-
-  return useMutation({
-    mutationFn: (input: CreateInvoiceInput) => createInvoice(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-      toast.onSuccess("invoice.toast.issued");
-    },
-    onError: toast.onError,
-  });
-}
-
 export function useUpdateInvoiceStatus() {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: InvoiceStatusType }) =>
-      updateInvoiceStatus(id, { status } satisfies UpdateInvoiceStatusInput),
+    mutationFn: ({ id, status }: { id: string; status: UpdateInvoiceStatusInput["status"] }) =>
+      updateInvoiceStatus(id, { status }),
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
       toast.onSuccess(
         invoice.status === InvoiceStatus.PAID ? "invoice.toast.paid" : "invoice.toast.reopened",
       );
+    },
+    onError: toast.onError,
+  });
+}
+
+// Termes de facturation DRAFT du cycle (section du builder). `null` tant que rien n'est saisi.
+export function usePlanBilling(planId: string) {
+  return useQuery<InvoiceDto | null>({
+    queryKey: invoiceKeys.billing(planId),
+    queryFn: () => getPlanBilling(planId),
+  });
+}
+
+export function useSavePlanBilling(planId: string) {
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+
+  return useMutation({
+    mutationFn: (input: PlanBillingInput) => savePlanBilling(planId, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
+      // Le compteur de complétude du cycle (gating de la diffusion) dépend de la facturation.
+      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      toast.onSuccess("invoice.toast.billingSaved");
     },
     onError: toast.onError,
   });

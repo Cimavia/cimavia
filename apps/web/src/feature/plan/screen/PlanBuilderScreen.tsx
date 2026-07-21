@@ -10,6 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PlanBillingSection } from "@/feature/invoice";
+import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
@@ -39,6 +41,8 @@ export function PlanBuilderScreen() {
   const { addWeek, isBusy } = usePlanMutations(planId);
   const publish = usePublishPlan();
   const removePlan = useDeletePlan();
+  // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
+  const { data: billing } = usePlanBilling(planId);
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
 
@@ -79,6 +83,15 @@ export function PlanBuilderScreen() {
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
 
+  // Indice sous le statut : cycle diffusé, ou facturation manquante (ce qui bloque la diffusion).
+  let statusHintKey: string | null = null;
+  if (isPublished) statusHintKey = "plan.builder.publishedHint";
+  else if (billing == null) statusHintKey = "plan.builder.billingRequired";
+
+  // Info-bulle expliquant pourquoi la diffusion est bloquée (facturation à saisir d'abord).
+  const publishBlockedTitle =
+    !isPublished && billing == null ? t("plan.builder.billingRequired") : undefined;
+
   function onOpenCreate(week: PlanWeekDto, date: string) {
     setEdit({ week, date, sessionId: null });
   }
@@ -101,22 +114,33 @@ export function PlanBuilderScreen() {
       })}
       actions={
         <>
-          <CmvConfirmButton
-            label={t("plan.builder.delete")}
-            confirmLabel={t("common.confirmDelete")}
-            cancelLabel={t("common.cancel")}
-            disabled={isBusy}
-            onConfirm={() =>
-              removePlan.mutate(planId, { onSuccess: () => navigate({ to: "/plans" }) })
-            }
-          />
-          {/* La diffusion est irréversible et exige au moins une semaine (l'API le refuse sinon). */}
-          <CmvButton
-            onClick={() => publish.mutate(planId)}
-            disabled={isPublished || plan.weeks.length === 0 || publish.isPending}
-          >
-            {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
-          </CmvButton>
+          {/* Un cycle diffusé ne se supprime pas : sa facture est émise et l'athlète s'entraîne
+              dessus. Info-bulle sur un span (le `title` d'un bouton désactivé ne s'affiche pas
+              partout). */}
+          <span title={isPublished ? t("plan.builder.deleteDisabledPublished") : undefined}>
+            <CmvConfirmButton
+              label={t("plan.builder.delete")}
+              confirmLabel={t("common.confirmDelete")}
+              cancelLabel={t("common.cancel")}
+              disabled={isBusy || isPublished}
+              onConfirm={() =>
+                removePlan.mutate(planId, { onSuccess: () => navigate({ to: "/plans" }) })
+              }
+            />
+          </span>
+          {/* La diffusion est irréversible et exige au moins une semaine ET une facturation saisie
+              (l'API refuse sinon). Info-bulle sur un span : un bouton désactivé ne déclenche pas
+              toujours le `title` natif selon le navigateur. */}
+          <span title={publishBlockedTitle}>
+            <CmvButton
+              onClick={() => publish.mutate(planId)}
+              disabled={
+                isPublished || plan.weeks.length === 0 || billing == null || publish.isPending
+              }
+            >
+              {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
+            </CmvButton>
+          </span>
         </>
       }
     >
@@ -129,11 +153,9 @@ export function PlanBuilderScreen() {
           <CmvBadge variant={isPublished ? "accent" : "neutral"}>
             {t(`plan.status.${plan.status}`)}
           </CmvBadge>
-          {isPublished ? (
-            <span className="text-cmv-caption text-cmv-text-lo">
-              {t("plan.builder.publishedHint")}
-            </span>
-          ) : null}
+          {statusHintKey == null ? null : (
+            <span className="text-cmv-caption text-cmv-text-lo">{t(statusHintKey)}</span>
+          )}
         </div>
 
         {plan.description == null ? null : (
@@ -168,6 +190,9 @@ export function PlanBuilderScreen() {
             {t("plan.builder.addWeek")}
           </CmvButton>
         </div>
+
+        {/* Facturation du cycle : sa saisie conditionne la diffusion (gating). */}
+        <PlanBillingSection planId={planId} isPublished={isPublished} />
       </div>
 
       {isPanelReady && edit != null ? (

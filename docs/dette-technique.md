@@ -84,6 +84,14 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 > Voir README §WSL2.
 
 ---
+
+## P6 — Facturation
+
+| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
+|---|---|---|---|---|
+| P6-1 | **Astérisques d'obligation partiels** : seul le formulaire de **facturation** (builder) marque ses champs requis d'un astérisque rouge (`CmvTextField requiredMark`). Les autres formulaires de l'app (auth, cycle, séance, exercice, fiche athlète, messagerie) n'ont aucun repère visuel du caractère obligatoire. | Le mécanisme partagé est déjà posé (`requiredMark` sur `CmvTextField`) et **opt-in** : le généraliser d'un coup — ou le dériver de `required` — surchargerait des formulaires courts (login) sans revue champ par champ. Aucune régression fonctionnelle, seulement un repère visuel manquant. | Déployer `requiredMark` sur tous les champs obligatoires de l'app (et ajouter l'équivalent à `CmvSelect` / `CmvTextArea`), après revue de chaque formulaire ; ou le dériver de `required` une fois cette revue faite. | 🟢 |
+
+---
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
