@@ -21,6 +21,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { Plan, PlanWeek, Prisma } from "@prisma/client";
+import { InvoiceService } from "../../invoice/service/invoice.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -40,6 +41,7 @@ export class PlanService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly notifications: NotificationService,
+    private readonly invoices: InvoiceService,
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
@@ -123,6 +125,10 @@ export class PlanService {
    * Diffusion : DRAFT → PUBLISHED. C'est le seul moment où le plan devient visible de l'athlète
    * (les lectures athlète filtrent sur PUBLISHED). Pas de retour arrière en MVP : une fois
    * diffusé, le cycle s'ajuste en place (CDC §5.7), il ne repasse pas en brouillon.
+   *
+   * La facture du cycle est ÉMISE ici, atomiquement : passage PUBLISHED et DRAFT → PENDING dans la
+   * même transaction. Sans termes de facturation saisis, `issueForPlan` lève (400) et rien n'est
+   * diffusé — c'est le gating (P6). L'athlète reçoit alors deux notifications : cycle + facture.
    */
   async publish(id: string): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(id);
@@ -135,15 +141,23 @@ export class PlanService {
       throw new BadRequestException("Un cycle sans semaine n'a rien à diffuser");
     }
 
-    await this.db.plan.update({
-      where: { id },
-      data: { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
+    const invoice = await this.db.$transaction(async (tx) => {
+      await tx.plan.update({
+        where: { id },
+        data: { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
+      });
+      // Gating : lève si aucune facturation n'a été saisie → la transaction est annulée.
+      return this.invoices.issueForPlan(tx, plan);
     });
 
     await this.notifications.notifyPlanPublished({
       athleteId: plan.athleteId,
       planId: plan.id,
       planTitle: plan.title,
+    });
+    await this.notifications.notifyInvoiceIssued({
+      athleteId: plan.athleteId,
+      invoiceId: invoice.id,
     });
 
     return this.getDto(id);

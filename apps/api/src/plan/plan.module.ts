@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { StorageModule } from "../infra/storage/storage.module";
+import { InvoiceModule } from "../invoice/invoice.module";
 import { AthletePlanController } from "./controller/athlete-plan.controller";
 import { PlanController } from "./controller/plan.controller";
 import { PlanWeekController } from "./controller/plan-week.controller";
@@ -12,7 +13,7 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
 // Écriture réservée au coach ; lecture athlète isolée dans AthletePlanService (filtre PUBLISHED).
 // StorageModule : les documents copiés sont servis en URLs GET signées, comme en bibliothèque.
 @Module({
-  imports: [StorageModule],
+  imports: [StorageModule, InvoiceModule],
   controllers: [
     PlanController,
     PlanWeekController,

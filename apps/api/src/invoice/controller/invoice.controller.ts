@@ -1,27 +1,20 @@
 import { Role } from "@cmv/shared";
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Roles } from "@thallesp/nestjs-better-auth";
-import { CreateInvoiceDto } from "../dto/create-invoice.dto";
 import { UpdateInvoiceStatusDto } from "../dto/update-invoice-status.dto";
 import { InvoiceService } from "../service/invoice.service";
 
 /**
- * Facturation (CDC §5.10). Émission et changement de statut : COACH seul. Lecture : les deux rôles
- * (le service scope automatiquement — le coach voit SES factures émises, l'athlète les siennes).
- * @Roles au niveau MÉTHODE (pas de classe), comme InvitationController : les droits diffèrent selon
- * la route.
+ * Suivi des factures ÉMISES (CDC §5.10). L'émission n'est PAS une action HTTP isolée : elle se fait
+ * à la diffusion du cycle (PlanController). Lecture : les deux rôles (le service scope
+ * automatiquement — coach voit SES factures émises, athlète les siennes ; DRAFT exclu). Marquage du
+ * statut : COACH seul. @Roles au niveau MÉTHODE (les droits diffèrent selon la route).
  */
 @ApiTags("invoices")
 @Controller("invoices")
 export class InvoiceController {
   constructor(private readonly invoices: InvoiceService) {}
-
-  @Post()
-  @Roles([Role.COACH])
-  create(@Body() dto: CreateInvoiceDto) {
-    return this.invoices.create(dto);
-  }
 
   @Get()
   @Roles([Role.COACH, Role.ATHLETE])

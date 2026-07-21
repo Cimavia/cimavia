@@ -1,77 +1,135 @@
-import type { CreateInvoiceInput, InvoiceDto, UpdateInvoiceStatusInput } from "@cmv/shared";
-import { CoachAthleteStatus, InvoiceStatus } from "@cmv/shared";
+import type { InvoiceDto, PlanBillingInput, UpdateInvoiceStatusInput } from "@cmv/shared";
+import { DEFAULT_INVOICE_CURRENCY, InvoiceStatus, PlanStatus } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Invoice, Prisma } from "@prisma/client";
+import type { Invoice, Plan, Prisma } from "@prisma/client";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
-import { NotificationService } from "../../notification/notification.service";
-import type { TenantPrisma } from "../../tenancy/tenancy.extension";
+import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { toDbDate } from "../../util/date.util";
+import { toDbDate, toIsoDate } from "../../util/date.util";
 import { toInvoiceDto } from "../invoice.mapper";
 
 /**
- * Facturation (CDC §5.10). Une SEULE liste sert les deux rôles : le scope tenant filtre par
- * `coachId` (émetteur) ou `athleteId` (destinataire) selon l'acteur — le coach ne voit que SES
- * factures, l'athlète que les siennes. Émission et changement de statut sont réservés au coach
- * (imposé par le contrôleur). `upsert` étant interdit par le client tenant, le toggle de statut
- * passe par findFirst + update.
+ * Facturation (CDC §5.10), liée 1:1 à un cycle. Trois temps :
+ * 1. Le coach saisit les termes dans le builder → facture DRAFT (`saveDraft`), invisible de
+ *    l'athlète.
+ * 2. Le cycle est diffusé → `issueForPlan` (appelé par PlanService dans SA transaction) passe la
+ *    facture en PENDING et pose `issuedAt`.
+ * 3. Le coach marque payé/impayé (`updateStatus`).
+ *
+ * Les lectures `list`/`get` ne servent QUE des factures émises (DRAFT exclu — il ne vit que dans le
+ * builder). Le scope tenant filtre par coachId ou athleteId selon l'acteur ; `upsert` étant interdit
+ * par le client tenant, `saveDraft` fait findFirst + create/update.
  */
 @Injectable()
 export class InvoiceService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly users: UserDirectoryService,
-    private readonly notifications: NotificationService,
   ) {}
 
-  async create(input: CreateInvoiceInput): Promise<InvoiceDto> {
-    await this.assertAthleteOwned(input.athleteId);
+  // ── Builder : facture DRAFT du cycle ─────────────────────────────────────────
 
-    // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
-    const invoice = await this.db.invoice.create({
+  // Termes de facturation du cycle courant (DRAFT), ou null tant que le coach n'a rien saisi.
+  async getDraftByPlan(planId: string): Promise<InvoiceDto | null> {
+    await this.getDraftablePlanOrThrow(planId);
+    const draft = await this.db.invoice.findFirst({
+      where: { planId, status: InvoiceStatus.DRAFT },
+    });
+    return draft == null ? null : this.toDto(draft);
+  }
+
+  /**
+   * Crée ou met à jour la facture DRAFT du cycle. La période est DÉRIVÉE du mois de début du cycle
+   * (jamais saisie) et rafraîchie à chaque enregistrement — la date de début a pu bouger depuis.
+   * Refusé si le cycle est déjà diffusé (sa facture n'est plus un brouillon).
+   */
+  async saveDraft(planId: string, input: PlanBillingInput): Promise<InvoiceDto> {
+    const plan = await this.getDraftablePlanOrThrow(planId);
+    const period = periodOf(plan);
+
+    const existing = await this.db.invoice.findFirst({
+      where: { planId, status: InvoiceStatus.DRAFT },
+    });
+
+    if (existing == null) {
+      // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
+      const created = await this.db.invoice.create({
+        data: {
+          athleteId: plan.athleteId,
+          planId,
+          period,
+          amountCents: input.amountCents,
+          currency: DEFAULT_INVOICE_CURRENCY,
+          status: InvoiceStatus.DRAFT,
+          dueDate: toDbDate(input.dueDate),
+          note: input.note ?? null,
+        } satisfies Omit<
+          Prisma.InvoiceUncheckedCreateInput,
+          "coachId"
+        > as Prisma.InvoiceUncheckedCreateInput,
+      });
+      return this.toDto(created);
+    }
+
+    const updated = await this.db.invoice.update({
+      where: { id: existing.id },
       data: {
-        athleteId: input.athleteId,
-        period: input.period,
+        period,
         amountCents: input.amountCents,
-        currency: input.currency,
         dueDate: toDbDate(input.dueDate),
         note: input.note ?? null,
-      } satisfies Omit<
-        Prisma.InvoiceUncheckedCreateInput,
-        "coachId"
-      > as Prisma.InvoiceUncheckedCreateInput,
+      },
     });
-
-    // athleteId vient d'une requête DÉJÀ scopée (assertAthleteOwned) → sûr pour le push (règle 1
-    // du NotificationService). Un échec d'envoi ne fait pas échouer l'émission (règle 2).
-    await this.notifications.notifyInvoiceIssued({
-      athleteId: invoice.athleteId,
-      invoiceId: invoice.id,
-    });
-
-    return this.toDto(invoice);
+    return this.toDto(updated);
   }
+
+  /**
+   * Émission au `publish` du cycle : DRAFT → PENDING, `issuedAt` posé. Appelé par PlanService DANS
+   * sa transaction (le plan passe PUBLISHED et la facture est émise atomiquement). Lève si aucun
+   * terme de facturation n'a été saisi — c'est le gating de la diffusion (« remplis la facturation
+   * avant de diffuser »). Retourne la facture émise pour que l'appelant notifie l'athlète.
+   */
+  async issueForPlan(tx: TenantTx, plan: Plan): Promise<Invoice> {
+    const draft = await tx.invoice.findFirst({
+      where: { planId: plan.id, status: InvoiceStatus.DRAFT },
+    });
+    if (draft == null) {
+      throw new BadRequestException("Renseigne la facturation avant de diffuser le cycle");
+    }
+    return tx.invoice.update({
+      where: { id: draft.id },
+      data: { status: InvoiceStatus.PENDING, issuedAt: new Date(), period: periodOf(plan) },
+    });
+  }
+
+  // ── Suivi : factures émises (DRAFT exclu) ────────────────────────────────────
 
   // De la plus récemment émise à la plus ancienne — l'ordre utile aux deux rôles.
   async list(): Promise<InvoiceDto[]> {
-    const invoices = await this.db.invoice.findMany({ orderBy: { issuedAt: "desc" } });
+    const invoices = await this.db.invoice.findMany({
+      where: { status: { not: InvoiceStatus.DRAFT } },
+      orderBy: { issuedAt: "desc" },
+    });
     if (invoices.length === 0) return [];
 
-    const names = await this.resolveNames(invoices);
-    return invoices.map((invoice) => toInvoiceDto(invoice, names));
+    const [names, planTitles] = await Promise.all([
+      this.resolveNames(invoices),
+      this.resolvePlanTitles(invoices),
+    ]);
+    return invoices.map((invoice) => toInvoiceDto(invoice, names, planTitles));
   }
 
   async get(id: string): Promise<InvoiceDto> {
-    return this.toDto(await this.getOwnedOrThrow(id));
+    return this.toDto(await this.getIssuedOrThrow(id));
   }
 
   /**
    * Marquage manuel du statut, réversible (toggle). PENDING → PAID pose `paidAt` ; le retour
-   * PAID → PENDING l'efface (une facture rouverte n'a plus de date de paiement). Idempotent :
-   * remarquer le même statut ne redate rien.
+   * PAID → PENDING l'efface. Idempotent : remarquer le même statut ne redate rien. DRAFT est exclu
+   * (une facture non émise ne se marque pas payée).
    */
   async updateStatus(id: string, input: UpdateInvoiceStatusInput): Promise<InvoiceDto> {
-    const invoice = await this.getOwnedOrThrow(id);
+    const invoice = await this.getIssuedOrThrow(id);
 
     if (invoice.status !== input.status) {
       const paidAt = input.status === InvoiceStatus.PAID ? new Date() : null;
@@ -83,8 +141,23 @@ export class InvoiceService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  private async getOwnedOrThrow(id: string): Promise<Invoice> {
-    const invoice = await this.db.invoice.findFirst({ where: { id } });
+  // Le cycle du coach courant, refusé s'il est déjà diffusé (facturation figée à l'émission).
+  private async getDraftablePlanOrThrow(planId: string): Promise<Plan> {
+    const plan = await this.db.plan.findFirst({ where: { id: planId } });
+    if (plan == null) {
+      throw new NotFoundException("Cycle introuvable");
+    }
+    if (plan.status === PlanStatus.PUBLISHED) {
+      throw new BadRequestException("Cycle déjà diffusé : sa facturation est figée");
+    }
+    return plan;
+  }
+
+  // Une facture ÉMISE (DRAFT exclu) : le brouillon se lit via getDraftByPlan, pas par id.
+  private async getIssuedOrThrow(id: string): Promise<Invoice> {
+    const invoice = await this.db.invoice.findFirst({
+      where: { id, status: { not: InvoiceStatus.DRAFT } },
+    });
     if (invoice == null) {
       throw new NotFoundException("Facture introuvable");
     }
@@ -92,23 +165,30 @@ export class InvoiceService {
   }
 
   private async toDto(invoice: Invoice): Promise<InvoiceDto> {
-    const names = await this.resolveNames([invoice]);
-    return toInvoiceDto(invoice, names);
+    const [names, planTitles] = await Promise.all([
+      this.resolveNames([invoice]),
+      this.resolvePlanTitles([invoice]),
+    ]);
+    return toInvoiceDto(invoice, names, planTitles);
   }
 
   private resolveNames(invoices: Invoice[]): Promise<Map<string, string>> {
     return this.users.namesByIds(invoices.flatMap((i) => [i.coachId, i.athleteId]));
   }
 
-  // La relation coach→athlète est scopée par le tenancy layer : un athlète qui n'est pas le sien
-  // (ou une relation inactive) ne remonte pas. La FK, elle, n'impose rien — d'où ce contrôle
-  // (même garde que PlanService.assertAthleteOwned).
-  private async assertAthleteOwned(athleteId: string): Promise<void> {
-    const relation = await this.db.coachAthlete.findFirst({
-      where: { athleteId, status: CoachAthleteStatus.ACTIVE },
+  // Titres des cycles facturés, en une requête scopée (jamais un include imbriqué).
+  private async resolvePlanTitles(invoices: Invoice[]): Promise<Map<string, string>> {
+    const planIds = invoices.map((i) => i.planId).filter((id): id is string => id != null);
+    if (planIds.length === 0) return new Map();
+    const plans = await this.db.plan.findMany({
+      where: { id: { in: planIds } },
+      select: { id: true, title: true },
     });
-    if (relation == null) {
-      throw new BadRequestException("Athlète inconnu");
-    }
+    return new Map(plans.map((plan) => [plan.id, plan.title]));
   }
+}
+
+// Mois civil facturé "YYYY-MM", dérivé du début du cycle. Source unique de la dérivation.
+function periodOf(plan: Plan): string {
+  return toIsoDate(plan.startDate).slice(0, 7);
 }
