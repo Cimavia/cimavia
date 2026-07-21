@@ -58,7 +58,8 @@
     "planning": "Planning",
     "sessions": "Séances",
     "messages": "Messages",
-    "profile": "Profil"
+    "profile": "Profil",
+    "invoices": "Factures"
   },
   "plan": {
     "thisWeek": "Cette semaine",
@@ -187,6 +188,21 @@
       "title": "Tu as déjà un coach",
       "description": "Tu es suivi par {{name}}.",
       "goToPlanning": "Voir mon planning"
+    }
+  },
+  "invoice": {
+    "title": "Mes factures",
+    "byCoach": "De {{name}}",
+    "periodLabel": "Période : {{period}}",
+    "dueLabel": "Échéance : {{date}}",
+    "paidAtLabel": "payée le {{date}}",
+    "status": {
+      "pending": "En attente",
+      "paid": "Payée"
+    },
+    "empty": {
+      "title": "Aucune facture",
+      "description": "Ton coach ne t'a pas encore émis de facture."
     }
   }
 }

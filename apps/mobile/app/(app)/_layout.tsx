@@ -5,11 +5,11 @@ import { usePushToken } from "@/feature/notification";
 import { tabBarTheme } from "@/shared/theme/navigation";
 
 // Onglets de l'athlète (routing only — cf. règle « pure shells »).
-// Factures (P6) s'ajouteront ici.
 const TABS = [
   { name: "planning", labelKey: "nav.planning", icon: "calendar-outline" },
   { name: "sessions", labelKey: "nav.sessions", icon: "barbell-outline" },
   { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline" },
+  { name: "invoices", labelKey: "nav.invoices", icon: "receipt-outline" },
   { name: "profile", labelKey: "nav.profile", icon: "person-outline" },
 ] as const;
 

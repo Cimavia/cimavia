@@ -1,4 +1,5 @@
 import {
+  formatIsoDate,
   formatIsoDateRange,
   formatIsoDayNumber,
   formatIsoFullDay,
@@ -12,6 +13,11 @@ import i18n from "@/shared/lib/i18n";
  */
 export function formatWeekday(isoDate: string): string {
   return formatIsoWeekday(isoDate, i18n.language);
+}
+
+// « 14 oct. 2026 » — date civile (échéance de facture…).
+export function formatDate(isoDate: string): string {
+  return formatIsoDate(isoDate, i18n.language);
 }
 
 export function formatDayNumber(isoDate: string): string {

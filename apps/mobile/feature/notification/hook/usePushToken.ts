@@ -40,6 +40,8 @@ function routeFor(data: unknown): Href | null {
       return "/planning";
     case "FEEDBACK_RECEIVED":
       return payload.scheduledSessionId == null ? null : `/session/${payload.scheduledSessionId}`;
+    case "INVOICE_ISSUED":
+      return "/invoices";
     default:
       return null;
   }
