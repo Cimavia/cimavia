@@ -155,6 +155,8 @@ le PC étant un faux négatif en mode *mirrored* :
 - Auth : **Better Auth** (email/mot de passe) sur les 3 couches ; profil (`role`, `locale`) sur `user`
 - Multi-tenant : isolation à la couche données (tenancy interceptor + Prisma Client Extension) — voir `docs/architecture-choice.md` §6
 - i18n : **i18next** dès le départ, aucune string en dur (FR ; EN en P7)
+- Argent : montants en **centimes entiers** (`amountCents`), jamais de float ; formatage localisé par `formatMoney` / `formatInvoicePeriod` (`@cmv/shared`) — source unique, pas de calcul dans le JSX
+- Médias : object storage privé, **URLs signées** (PUT à l'envoi, GET à la lecture) ; le binaire ne transite jamais par l'API
 
 Voir `docs/architecture-choice.md` pour les règles d'archi détaillées, et
 `CONTRIBUTING.md` pour le workflow de contribution (git flow, commits signés,

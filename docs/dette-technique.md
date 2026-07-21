@@ -29,7 +29,7 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 | P3-3 | **Documents non lisibles hors-ligne** : le cache athlète (p3-5) conserve la structure des séances (exercices, prescriptions, consignes), mais les documents sont servis par des **URLs signées à TTL court** (5 min) — inutilisables sans réseau. | L'usage visé est « consulter sa séance en salle sans réseau » : le déroulé et les consignes suffisent. Télécharger et chiffrer les PDF/images en local est un chantier à part (quota, purge, sécurité). | Si les athlètes réclament les documents en salle : télécharger les fichiers à la diffusion et les stocker via `expo-file-system`. | 🟢 |
 | ~~P3-4~~ | ~~**Écrans coach de P1 jamais construits**~~ (nav, liste d'athlètes, invitation, fiche). | — | ✅ **Résolu en p3-8** : nav latérale (`CmvAppShell`), `/athletes`, panneau d'invitation (code + copie) et fiche athlète livrés. Le dashboard a remplacé l'accueil. | ✅ |
 | P3-5 | **Écarts aux maquettes assumés** : pas de **durée de séance** (« 75 min » dans pd-7/pd-9 — le champ n'existe ni au CDC §8 ni sur `Session` en P2), et pas de **drag & drop** dans le builder (réordonnancement par ↑/↓). | Ajouter `durationMinutes` sur la seule instance créerait une asymétrie modèle/instance ; l'ajouter partout rouvre P2 pour un champ décoratif. Le DnD suit la dette **P2-3** (dépendance + accessibilité). | Ajouter `durationMinutes Int?` sur `Session` ET `ScheduledSession` le jour où le coach en exprime le besoin (migration triviale, nullable). | 🟢 |
-| P3-6 | **Tuile « Factures en attente » non branchée** : affiche `—`, marquée `// MOCKED`. (« Débriefs à relire » est branchée en P4.) | Les données n'existent pas encore ; un `0` mentirait (règle nullable). La structure de l'écran, elle, est posée. | **P6** (factures) : `grep -r MOCKED` la liste. | 🟡 |
+| ~~P3-6~~ | ~~**Tuile « Factures en attente » non branchée**~~ : affichait `—`, marquée `// MOCKED`. | — | ✅ **Résolue en P6** : branchée sur `pendingCount(invoices)` (factures émises non réglées). Le `—` subsiste tant que la liste n'est pas chargée — c'est la règle nullable, plus un mock. Plus aucun `// MOCKED` côté facturation. | ✅ |
 
 ---
 
@@ -50,7 +50,7 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 
 > **Résolu en P4** : ~~P3-1~~ (push non envoyé) — `expo-server-sdk` est branché dans
 > `NotificationService`, sans que les appelants aient bougé. ~~P3-6~~ côté débriefs — la tuile
-> « Débriefs à relire » est connectée (les factures restent `MOCKED` pour P6).
+> « Débriefs à relire » est connectée (la tuile factures a suivi en P6).
 
 > **Rattrapages faits en P4** (hors périmètre annoncé, révélés par le test de bout en bout) :
 > **p4-5** l'écran mobile « rejoindre un coach » — `POST /invitations/accept` existait et était
@@ -91,6 +91,24 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 |---|---|---|---|---|
 | P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : le justificatif PDF est purgé au remplacement et au retrait explicite, mais supprimer un cycle DRAFT cascade sa facture en base **sans** purger l'objet. | Même famille que P2-1 / P3-2 (la purge des objets sans ligne est une tâche transverse, pas propre à la facturation). Un cycle diffusé, lui, ne se supprime plus (garde UI) : le cas se limite aux brouillons. | Même tâche de purge que **P2-1** — le balayage couvre désormais aussi `athlete/*/invoice/*`. Ou purger le PDF dans `PlanService.delete` avant la cascade. | 🟡 |
 | P6-1 | **Astérisques d'obligation partiels** : seul le formulaire de **facturation** (builder) marque ses champs requis d'un astérisque rouge (`CmvTextField requiredMark`). Les autres formulaires de l'app (auth, cycle, séance, exercice, fiche athlète, messagerie) n'ont aucun repère visuel du caractère obligatoire. | Le mécanisme partagé est déjà posé (`requiredMark` sur `CmvTextField`) et **opt-in** : le généraliser d'un coup — ou le dériver de `required` — surchargerait des formulaires courts (login) sans revue champ par champ. Aucune régression fonctionnelle, seulement un repère visuel manquant. | Déployer `requiredMark` sur tous les champs obligatoires de l'app (et ajouter l'équivalent à `CmvSelect` / `CmvTextArea`), après revue de chaque formulaire ; ou le dériver de `required` une fois cette revue faite. | 🟢 |
+| P6-3 | **Suppression d'un cycle diffusé bloquée côté UI seulement** : le bouton est désactivé (info-bulle), mais `DELETE /plans/:id` accepterait encore un cycle `PUBLISHED` — et effacerait sa facture émise en cascade. | Le seul client coach est le web, où le bouton est désactivé ; aucun flux ne mène à cet appel. La garde dure demanderait un 409 côté service + reprise des e2e. | Ajouter le refus dans `PlanService.delete` (409 si `PUBLISHED`) et le couvrir en e2e — à faire dès qu'un second client écrit sur les cycles, ou avant la mise en production. | 🟡 |
+
+---
+
+> **Tranché en P6** (le modèle de la facturation) : une facture est **liée 1:1 à un cycle**
+> (`Invoice.planId @unique`, `onDelete: Cascade`) plutôt qu'émise isolément — c'est le geste réel du
+> coach (« la planif + la facture »). Trois conséquences assumées :
+> **(1)** la facturation se saisit **dans le builder**, sous les semaines, et non sur un écran
+> dédié ; `/invoices` ne fait plus que du **suivi** (statut payé/impayé).
+> **(2)** un statut **`DRAFT`** a été ajouté à `InvoiceStatus` pour que les termes vivent avec le
+> cycle en brouillon **sans polluer le modèle `Plan`** de colonnes de facturation — les deux modèles
+> restent séparés, reliés par la seule FK. Le brouillon est **toujours complet** (`amountCents` et
+> `dueDate` NOT NULL), ce qui rend le verrou de diffusion trivial : *un DRAFT existe ⇒ la
+> facturation est remplie*. Corollaire assumé : on saisit les termes **avant** de joindre le PDF.
+> **(3)** la facture est **émise dans la transaction du `publish`** (DRAFT → PENDING, `issuedAt`
+> posé), donc l'athlète ne voit jamais de facture pour un cycle non diffusé, et diffuser sans
+> facturation est refusé (400). Ce verrou a rendu nécessaire l'ajout d'une facturation aux setups
+> P4/P5 qui diffusaient un cycle — d'où le helper `billAndPublish` des e2e.
 
 ---
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
