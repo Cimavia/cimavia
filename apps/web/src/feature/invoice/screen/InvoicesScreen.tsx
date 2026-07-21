@@ -125,25 +125,29 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen }: Readonly<InvoiceRow
           {invoice.note == null ? null : <p className="text-cmv-text-mid">{invoice.note}</p>}
         </div>
 
-        <div className="flex flex-col gap-cmv-xs">
+        <div className="flex flex-col gap-cmv-sm">
           {isPaid ? (
-            <CmvConfirmButton
-              label={t("invoice.reopen")}
-              confirmLabel={t("invoice.reopenConfirm")}
-              cancelLabel={t("common.cancel")}
-              onConfirm={onReopen}
-              disabled={busy}
-            />
+            <div className="flex justify-end">
+              <CmvConfirmButton
+                label={t("invoice.reopen")}
+                confirmLabel={t("invoice.reopenConfirm")}
+                cancelLabel={t("common.cancel")}
+                onConfirm={onReopen}
+                disabled={busy}
+              />
+            </div>
           ) : (
-            <CmvButton variant="secondary" onClick={onMarkPaid} disabled={busy}>
-              {t("invoice.markPaid")}
-            </CmvButton>
+            <div className="flex justify-end">
+              <CmvButton variant="secondary" onClick={onMarkPaid} disabled={busy}>
+                {t("invoice.markPaid")}
+              </CmvButton>
+            </div>
           )}
 
           {/* Justificatif PDF en pied de carte, aligné à droite. URL GET signée (TTL court), ouverte
           dans un onglet — même geste que le bouton « Voir le PDF » côté athlète mobile. */}
           {invoice.documentUrl == null ? null : (
-            <div className="mt-cmv-md flex justify-end">
+            <div className="flex justify-end">
               <CmvButton
                 variant="secondary"
                 onClick={() => window.open(invoice.documentUrl ?? "", "_blank", "noopener")}
