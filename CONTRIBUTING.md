@@ -29,6 +29,9 @@ Convention **Conventional Commits**, sujet en minuscule (vérifié par commitlin
 git config --global gpg.format ssh
 git config --global user.signingkey ~/.ssh/<ta_clé>.pub
 git config --global commit.gpgsign true
+
+git config --global user.email "you@example.com"
+git config --global user.name "Your Name"
 ```
 
 Puis ajouter la clé publique sur GitHub en **Signing Key** (Settings → SSH and GPG keys).
