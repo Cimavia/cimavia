@@ -1,0 +1,41 @@
+# Contexte de build Docker — tout ce qui ne doit JAMAIS entrer dans une image.
+# Les node_modules sont exclus volontairement : l'image les réinstalle depuis le lockfile
+# (pnpm crée des liens symboliques absolus, incopiables d'une machine à l'autre).
+
+node_modules
+**/node_modules
+
+# Artefacts de build : reconstruits dans l'image
+dist
+**/dist
+build
+**/build
+.turbo
+**/.turbo
+.expo
+**/.expo
+
+# Secrets — ne doivent jamais être copiés dans une couche d'image
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# Git / CI / éditeur
+.git
+.github
+.husky
+.vscode
+.idea
+
+# Tests et docs : inutiles au runtime
+coverage
+**/coverage
+docs
+**/*.md
+!README.md
+
+# Divers
+**/*.log
+**/.DS_Store
+**/*.Zone.Identifier
