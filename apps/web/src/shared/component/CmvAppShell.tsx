@@ -18,16 +18,10 @@ const NAV_ITEMS = [
 type CmvAppShellProps = {
   title: string;
   subtitle?: string;
-  // Actions d'en-tête (ex. « Nouvelle planification »).
   actions?: ReactNode;
   children: ReactNode;
 };
 
-/**
- * Coquille des écrans coach : navigation latérale + en-tête. Sans elle, chaque écran était une
- * page isolée qu'on ne pouvait atteindre que par l'accueil (les sections ne se voyaient pas
- * entre elles).
- */
 export function CmvAppShell({ title, subtitle, actions, children }: Readonly<CmvAppShellProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -50,7 +44,6 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
             <Link
               key={item.to}
               to={item.to}
-              // `activeProps` : TanStack Router applique ces classes sur la route courante.
               className="rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
               activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
               activeOptions={{ exact: item.to === "/" }}
