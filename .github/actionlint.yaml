@@ -1,0 +1,7 @@
+# Configuration actionlint. Déclare les labels de nos runners self-hosted pour que la
+# vérification statique ne les prenne pas pour des erreurs.
+self-hosted-runner:
+  labels:
+    # Runner installé sur le NAS Synology (tier dev). Cf. deploy/dev/README.md et
+    # .github/workflows/deploy-dev.yml (job « deploy »).
+    - cimavia-dev

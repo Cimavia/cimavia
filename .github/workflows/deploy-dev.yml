@@ -1,0 +1,155 @@
+name: Deploy — dev (NAS)
+
+# Tier « development » du modèle local → dev(NAS) → staging → prod : un push sur `main` publie les
+# images sur GHCR. Le déploiement sur le NAS (pull + up sur le runner self-hosted) est ajouté
+# dans un job séparé au commit suivant. staging/production auront leurs propres workflows.
+#
+# NB : la porte qualité (lint/typecheck/test) tourne en parallèle via ci.yml. Le build d'image
+# échoue de toute façon sur une erreur de type (nest build = tsc) ; un test rouge, lui, ne bloque
+# pas la publication à ce tier — c'est assumé pour garder la boucle dev rapide. On resserrera pour
+# staging/prod.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "deploy/dev/**"
+      - ".github/workflows/deploy-dev.yml"
+
+concurrency:
+  group: deploy-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build & push ${{ matrix.image }} → GHCR
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: cimavia-api
+            dockerfile: apps/api/Dockerfile
+          - image: cimavia-web
+            dockerfile: apps/web/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # GHCR exige un namespace en minuscules ; le propriétaire du dépôt peut contenir des
+      # majuscules. On le normalise une fois ici.
+      - name: Namespace GHCR (minuscules)
+        id: ns
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      # Le web fige VITE_API_URL dans le bundle AU BUILD : il faut l'URL publique de l'API du tier
+      # dev. Absente, on échoue tôt plutôt que de publier une image web pointant sur localhost.
+      - name: Vérifier DEV_PUBLIC_API_URL (web uniquement)
+        if: matrix.image == 'cimavia-web'
+        run: |
+          if [ -z "${{ vars.DEV_PUBLIC_API_URL }}" ]; then
+            echo "::error::Variable de dépôt DEV_PUBLIC_API_URL vide — l'image web pointerait sur localhost."
+            exit 1
+          fi
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag mobile `dev` (celui que référence deploy/dev/docker-compose.yml) + tag immuable par SHA
+      # (traçabilité / rollback).
+      - name: Métadonnées (tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.ns.outputs.owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=dev
+            type=sha
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          # Le NAS (DS720+) est en x86_64 : build natif amd64, pas d'émulation.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # build-args uniquement pour le web (VITE_API_URL). Chaîne vide pour l'API.
+          build-args: ${{ matrix.image == 'cimavia-web' && format('VITE_API_URL={0}', vars.DEV_PUBLIC_API_URL) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Déploiement sur le NAS
+    needs: build-and-push
+    # Runner self-hosted installé sur le NAS, étiqueté « cimavia-dev » : le job s'exécute donc
+    # DANS le réseau du NAS (aucun port entrant à ouvrir — le runner sort vers GitHub). Le label
+    # évite qu'un autre runner self-hosted ne récupère le job.
+    runs-on: [self-hosted, cimavia-dev]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Le .env (secrets, hostnames, images) vit sur le NAS, hors git. DEV_ENV_FILE = son chemin
+      # absolu (variable de dépôt). On échoue tôt s'il manque plutôt que de laisser compose partir
+      # avec des variables vides.
+      - name: Vérifier le fichier .env
+        run: |
+          if [ -z "${{ vars.DEV_ENV_FILE }}" ]; then
+            echo "::error::Variable de dépôt DEV_ENV_FILE non définie (chemin du .env sur le NAS)."
+            exit 1
+          fi
+          if [ ! -f "${{ vars.DEV_ENV_FILE }}" ]; then
+            echo "::error::${{ vars.DEV_ENV_FILE }} introuvable sur le runner."
+            exit 1
+          fi
+
+      - name: Login GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull & up
+        env:
+          COMPOSE_FILE: deploy/dev/docker-compose.yml
+          ENV_FILE: ${{ vars.DEV_ENV_FILE }}
+        run: |
+          docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
+          docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
+
+      # Smoke check : l'API applique ses migrations au démarrage (entrypoint) puis écoute. On
+      # sonde /health DEPUIS le conteneur (node y est présent) — pas besoin de l'URL publique ni
+      # d'attendre Cloudflare. Le job échoue si l'API n'est pas saine, ce qui rend le déploiement
+      # rouge dans GitHub.
+      - name: Smoke check GET /health
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec cimavia_dev_api node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+              echo "✓ API saine après déploiement"
+              exit 0
+            fi
+            echo "… attente de l'API ($i/30)"
+            sleep 2
+          done
+          echo "::error::API non saine après déploiement — 50 dernières lignes de log :"
+          docker logs --tail 50 cimavia_dev_api || true
+          exit 1
+
+      - name: Logout GHCR
+        if: always()
+        run: docker logout ghcr.io
