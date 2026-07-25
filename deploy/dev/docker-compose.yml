@@ -1,0 +1,137 @@
+# Environnement DÉVELOPPEMENT (NAS) — auto-hébergé sur NAS Synology (DS720+), exposé par
+# Cloudflare Tunnel pour être joignable depuis le téléphone (tests médias/push hors LAN).
+#
+# Modèle d'environnements du projet (4 tiers) :
+#   local (ta machine, sources + hot reload) → développement (ce NAS) → staging (cloud) → prod (cloud)
+# Deux axes distincts, à ne pas confondre :
+#   - NODE_ENV : MODE d'exécution du runtime. Toute image Docker buildée tourne en `production`
+#     (logs JSON, sampling réduit, et surtout pino-pretty — une devDependency — est ABSENTE de
+#     l'image ; `development` y ferait crasher le logger au boot). `development` est réservé au
+#     tier « local » qui tourne depuis les sources.
+#   - APP_ENV : LABEL du tier (development | staging | production). C'est lui qui distingue les
+#     déploiements dans Sentry/les logs. Ici `development` : ce NAS est le tier dev. Le jour où un
+#     staging cloud distinct apparaît, on clone ce déploiement avec APP_ENV=staging — zéro code.
+#
+# ⚠️ RÈGLE DURE : cet environnement ne reçoit QUE des données synthétiques (seed). Jamais un
+# compte athlète réel, jamais un média réel. C'est ce qui le maintient HORS du périmètre HDS —
+# l'hébergement de vraies données de santé est réservé à la prod (Clever Cloud HDS). Aucun script
+# de copie prod → NAS ne doit exister.
+#
+# Les images api/web sont TIRÉES depuis GHCR (publiées par la CI). Le NAS ne construit rien :
+# `docker compose pull && up -d`. Les valeurs viennent d'un `.env` déposé À CÔTÉ de ce compose
+# sur le NAS (hors git) — modèle : .env.dev.example.
+#
+# Réseau : aucun port publié sur l'hôte. Seul cloudflared sort (vers Cloudflare), et il joint
+# api/web/minio par nom de service sur le réseau interne. Les trois hostnames publics (api./app./
+# s3.) sont mappés vers ces services dans le dashboard Cloudflare Zero Trust.
+
+name: cimavia-dev
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: cimavia_dev_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Object storage S3-compatible. Reste MinIO ici (Cellar seulement en prod) : c'est le meilleur
+  # test de la portabilité S3_* — le même binaire API tourne sur MinIO (path-style) puis sur
+  # Cellar (virtual-hosted) sans recompiler.
+  minio:
+    image: minio/minio:latest
+    container_name: cimavia_dev_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - minio_data:/data
+
+  # Crée le bucket privé au premier démarrage puis s'arrête (idempotent). Même pattern que le
+  # compose de dev local : la boucle `until` tient lieu d'attente, l'image minio n'ayant pas de sonde.
+  minio-setup:
+    image: minio/mc:latest
+    container_name: cimavia_dev_minio_setup
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID} ${S3_SECRET_ACCESS_KEY}; do echo 'attente MinIO…'; sleep 1; done &&
+      mc mb --ignore-existing local/${S3_BUCKET} &&
+      mc anonymous set none local/${S3_BUCKET} &&
+      echo 'bucket ${S3_BUCKET} prêt (privé)'
+      "
+
+  api:
+    image: ${API_IMAGE}
+    container_name: cimavia_dev_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # MODE runtime : toujours production pour une image buildée (cf. en-tête). Ne PAS confondre
+      # avec le tier ci-dessous.
+      NODE_ENV: production
+      # LABEL du tier de déploiement (Sentry, logs). Ici : le NAS = tier « development ».
+      APP_ENV: ${APP_ENV:-development}
+      PORT: "3000"
+      # Postgres joint par nom de service sur le réseau interne (jamais exposé à l'extérieur).
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      # URL PUBLIQUE de l'API (base des liens d'auth signés). Doit matcher le hostname Cloudflare.
+      BETTER_AUTH_URL: ${PUBLIC_API_URL}
+      # Origine web publique : entre dans CORS + trustedOrigins (cf. browserOrigins). Le scheme
+      # mobile cimavia:// est ajouté côté code, pas ici.
+      CORS_ORIGINS: ${PUBLIC_WEB_URL}
+      # ⚠️ URL PUBLIQUE du storage, PAS http://minio:9000 : l'API SIGNE les URLs S3 avec cette
+      # valeur, et c'est le TÉLÉPHONE qui les appelle (le binaire ne transite jamais par l'API).
+      # Un endpoint interne signerait des URLs injoignables depuis le mobile — exactement le piège
+      # S3_ENDPOINT documenté au README §WSL2. Conséquence assumée : les rares appels S3 côté
+      # serveur (delete, head) ressortent par Cloudflare — surcoût négligeable à ce tier.
+      S3_ENDPOINT: ${PUBLIC_S3_URL}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: "true"
+      # Observabilité : actives dès que les secrets sont fournis (sinon no-op, cf. env.schema).
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      AXIOM_TOKEN: ${AXIOM_TOKEN:-}
+      AXIOM_DATASET: ${AXIOM_DATASET:-}
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+
+  web:
+    image: ${WEB_IMAGE}
+    container_name: cimavia_dev_web
+    restart: unless-stopped
+
+  # Sortie vers Cloudflare : établit le tunnel et route les hostnames publics vers api/web/minio.
+  # Le routage hostname → service est configuré côté dashboard Cloudflare (Zero Trust), pas ici :
+  # avec un tunnel par token, cloudflared n'a besoin QUE du token.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cimavia_dev_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - api
+      - web
+      - minio
+
+volumes:
+  postgres_data:
+  minio_data:
