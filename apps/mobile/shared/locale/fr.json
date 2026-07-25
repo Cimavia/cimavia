@@ -47,6 +47,7 @@
     },
     "errors": {
       "generic": "Une erreur est survenue. Réessayez.",
+      "emailInUse": "Cette adresse e-mail est déjà utilisée.",
       "invalidCredentials": "E-mail ou mot de passe incorrect."
     }
   },

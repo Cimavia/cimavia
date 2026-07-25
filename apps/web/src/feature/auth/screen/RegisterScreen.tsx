@@ -32,7 +32,10 @@ export function RegisterScreen() {
     try {
       const { error: signUpError } = await authClient.signUp.email({ email, password, name, role });
       if (signUpError) {
-        setError(t("auth.errors.generic"));
+        // 422 (UNPROCESSABLE_ENTITY) = e-mail déjà utilisé : c'est le seul 422 du sign-up côté
+        // Better Auth (les autres validations — email/mot de passe invalides — sont des 400).
+        const emailInUse = signUpError.status === 422;
+        setError(t(emailInUse ? "auth.errors.emailInUse" : "auth.errors.generic"));
         return;
       }
       navigate({ to: "/" });
