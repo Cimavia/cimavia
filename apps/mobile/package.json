@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check app feature shared",
     "test": "vitest run --passWithNoTests",
-    "build:dev:android": "eas build --profile development --platform android"
+    "build:dev:android": "eas build --profile development --platform android",
+    "build:preview:android": "eas build --profile preview --platform android"
   },
   "dependencies": {
     "@better-auth/expo": "1.6.23",
