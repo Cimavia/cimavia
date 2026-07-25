@@ -10,7 +10,7 @@ services:
     ports:
       - "5434:5432"
     volumes:
-      - postgres_e2e_data:/var/lib/postgresql/data
+      - postgres_e2e_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cimavia_e2e -d cimavia_db_e2e"]
       interval: 10s
