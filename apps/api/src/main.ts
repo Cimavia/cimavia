@@ -41,7 +41,9 @@ async function bootstrap(): Promise<void> {
 
   const logger = new Logger("Bootstrap");
   logger.log(`API running on port ${port}`);
-  logger.log(`Environment: ${configService.get("NODE_ENV", { infer: true })}`);
+  logger.log(
+    `Env: ${configService.get("APP_ENV", { infer: true })} · NODE_ENV: ${configService.get("NODE_ENV", { infer: true })}`,
+  );
 }
 
 void bootstrap();

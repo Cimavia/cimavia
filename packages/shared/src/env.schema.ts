@@ -7,6 +7,7 @@ const emptyAsUndefined = (v: unknown) => (v === "" ? undefined : v);
 
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_URL: z.url(),
   DIRECT_URL: z.preprocess(emptyAsUndefined, z.url().optional()),

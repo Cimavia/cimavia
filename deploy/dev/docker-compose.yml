@@ -19,7 +19,7 @@
 #
 # Les images api/web sont TIRÉES depuis GHCR (publiées par la CI). Le NAS ne construit rien :
 # `docker compose pull && up -d`. Les valeurs viennent d'un `.env` déposé À CÔTÉ de ce compose
-# sur le NAS (hors git) — modèle : .env.dev.example.
+# sur le NAS (hors git) — modèle : .env.example.
 #
 # Réseau : aucun port publié sur l'hôte. Seul cloudflared sort (vers Cloudflare), et il joint
 # api/web/minio par nom de service sur le réseau interne. Les trois hostnames publics (api./app./
