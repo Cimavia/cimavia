@@ -103,6 +103,22 @@ Variables de dépôt nécessaires (Actions → *Variables*, non sensibles) :
 - La base ne contient que des **données de seed** (cf. règle dure). Un script de seed dédié sera
   ajouté ultérieurement ; en attendant, créer les comptes de test via l'app.
 
+## App mobile de test (beta)
+
+Le mobile est un **client**, pas un service déployé sur le NAS : il pointe simplement vers l'API
+publique du tier dev. Pour donner une app installable à un testeur (le coach), on produit un APK
+via EAS avec l'URL de l'API figée dans le build (profil `preview` de `apps/mobile/eas.json`, qui
+pose `EXPO_PUBLIC_API_URL=https://api-dev.cimavia.fr`) :
+
+```bash
+cd apps/mobile
+eas build --profile preview --platform android   # APK standalone (distribution interne)
+```
+
+EAS renvoie un lien de téléchargement de l'APK à installer sur le téléphone. Comme l'API passe par
+le tunnel Cloudflare, l'app fonctionne **hors du réseau maison** — plus besoin d'IP LAN ni de
+port-proxy WSL2 (cf. README racine §WSL2, qui ne concerne plus que le dev local avec Metro).
+
 ## Déploiement manuel (dépannage)
 
 Le déploiement est automatique (ci-dessus). En dépannage, depuis le NAS :
