@@ -1,0 +1,44 @@
+# Outils de dev pour le tier NAS — À LANCER À LA MAIN, jamais par la CI.
+#
+# Volontairement SÉPARÉ du compose de l'app (docker-compose.yml) : le déploiement automatique
+# ne doit ni démarrer ni supprimer ces conteneurs. On les rattache au réseau déjà créé par
+# l'app (`cimavia-dev_default`) pour joindre `postgres` par son nom de service.
+#
+# CloudBeaver = DBeaver en interface web, pour inspecter la base depuis le réseau local.
+#
+# ⚠️ Données SYNTHÉTIQUES uniquement (règle dure du tier dev). À ne JAMAIS déployer en prod :
+# c'est une surface d'admin de base de données.
+#
+# Usage (sur le NAS, à côté du .env) :
+#   docker compose -f tools.docker-compose.yml up -d        # démarre CloudBeaver
+#   docker compose -f tools.docker-compose.yml down         # l'arrête
+# UI : http://<ip-lan-du-nas>:8978
+
+name: cimavia-dev-tools
+
+services:
+  cloudbeaver:
+    # `latest` assumé pour un outil de dev ; épingle la version obtenue au 1er pull si tu veux
+    # figer (ex. dbeaver/cloudbeaver:25.0.0).
+    image: dbeaver/cloudbeaver:latest
+    container_name: cimavia_dev_cloudbeaver
+    restart: unless-stopped
+    ports:
+      # Publié sur le LAN du NAS uniquement (pas via le tunnel Cloudflare : une UI d'admin BDD
+      # n'a rien à faire sur Internet). Accès : http://<ip-lan-nas>:8978
+      - "8978:8978"
+    volumes:
+      # Config de CloudBeaver (compte admin, connexions enregistrées) persistée entre redémarrages.
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+    networks:
+      - app
+
+networks:
+  # Réseau créé par le compose de l'app (projet `cimavia-dev`) — référencé en externe pour que
+  # CloudBeaver puisse résoudre `postgres`. L'app doit tourner pour que ce réseau existe.
+  app:
+    external: true
+    name: cimavia-dev_default
+
+volumes:
+  cloudbeaver_data:
