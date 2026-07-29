@@ -8,7 +8,13 @@ import type {
   UploadUrlDto,
 } from "@cmv/shared";
 import { DEFAULT_INVOICE_CURRENCY, InvoiceStatus, PlanStatus } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type { Invoice, Plan, Prisma } from "@prisma/client";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { SIGNED_URL_TTL_SECONDS, StorageService } from "../../infra/storage/storage.service";
@@ -23,7 +29,7 @@ import { toInvoiceDto } from "../invoice.mapper";
  *    l'athlète.
  * 2. Le cycle est diffusé → `issueForPlan` (appelé par PlanService dans SA transaction) passe la
  *    facture en PENDING et pose `issuedAt`.
- * 3. Le coach marque payé/impayé (`updateStatus`).
+ * 3. Le coach marque payé/impayé (`updateStatus`), ou annule (`cancel`, terminal).
  *
  * Les lectures `list`/`get` ne servent QUE des factures émises (DRAFT exclu — il ne vit que dans le
  * builder). Le scope tenant filtre par coachId ou athleteId selon l'acteur ; `upsert` étant interdit
@@ -209,12 +215,32 @@ export class InvoiceService {
    */
   async updateStatus(id: string, input: UpdateInvoiceStatusInput): Promise<InvoiceDto> {
     const invoice = await this.getIssuedOrThrow(id);
+    // Une annulation est définitive : la rouvrir par le toggle contournerait la garde de `cancel`.
+    if (invoice.status === InvoiceStatus.CANCELLED) {
+      throw new ConflictException("Facture annulée : son statut ne change plus");
+    }
 
     if (invoice.status !== input.status) {
       const paidAt = input.status === InvoiceStatus.PAID ? new Date() : null;
       await this.db.invoice.update({ where: { id }, data: { status: input.status, paidAt } });
     }
 
+    return this.get(id);
+  }
+
+  /**
+   * Annulation manuelle par le coach — depuis PENDING seulement : une facture réglée ne s'annule
+   * pas (elle se rembourse, hors périmètre), et une annulation ne se rejoue pas. Le cycle facturé
+   * n'est PAS touché : il reste diffusé, l'athlète garde ses séances. État terminal, d'où l'absence
+   * de route inverse.
+   */
+  async cancel(id: string): Promise<InvoiceDto> {
+    const invoice = await this.getIssuedOrThrow(id);
+    if (invoice.status !== InvoiceStatus.PENDING) {
+      throw new ConflictException("Seule une facture en attente de règlement peut être annulée");
+    }
+
+    await this.db.invoice.update({ where: { id }, data: { status: InvoiceStatus.CANCELLED } });
     return this.get(id);
   }
 

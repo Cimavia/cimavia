@@ -1850,12 +1850,59 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
     expect(reopened.body.paidAt).toBeNull();
   });
 
-  it("refuse un statut invalide au toggle (ni DRAFT, ni valeur inconnue)", async () => {
+  it("refuse un statut invalide au toggle (ni DRAFT, ni CANCELLED, ni valeur inconnue)", async () => {
     expect(
       (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "DRAFT" })).status,
+    ).toBe(400);
+    // CANCELLED est un statut ÉMIS valide, mais il a sa route gardée : le toggle le refuse.
+    expect(
+      (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "CANCELLED" })).status,
     ).toBe(400);
     expect(
       (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "NOPE" })).status,
     ).toBe(400);
+  });
+
+  it("l'annulation est réservée au coach propriétaire (403 athlète, 404 autre coach)", async () => {
+    expect((await athleteA1.post(`/invoices/${invoiceId}/cancel`)).status).toBe(403);
+    expect((await coachB.post(`/invoices/${invoiceId}/cancel`)).status).toBe(404);
+    // Ni l'un ni l'autre n'a modifié la facture.
+    expect((await coachA.get(`/invoices/${invoiceId}`)).body.status).toBe("PENDING");
+  });
+
+  it("refuse d'annuler une facture payée (409), sans changer son statut", async () => {
+    await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
+
+    expect((await coachA.post(`/invoices/${invoiceId}/cancel`)).status).toBe(409);
+    expect((await coachA.get(`/invoices/${invoiceId}`)).body.status).toBe("PAID");
+
+    // On la rouvre pour la suite : l'annulation ne part que d'une facture en attente.
+    await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PENDING" });
+  });
+
+  it("le coach annule une facture en attente, sans toucher au cycle diffusé", async () => {
+    const cancelled = await coachA.post(`/invoices/${invoiceId}/cancel`);
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toMatchObject({ status: "CANCELLED", paidAt: null });
+
+    // L'annulation porte sur la facture SEULE : la prestation reste diffusée.
+    expect((await coachA.get(`/plans/${planId}`)).body.status).toBe("PUBLISHED");
+  });
+
+  it("une facture annulée est terminale : ni ré-annulation, ni retour par le toggle (409)", async () => {
+    expect((await coachA.post(`/invoices/${invoiceId}/cancel`)).status).toBe(409);
+    expect(
+      (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PENDING" })).status,
+    ).toBe(409);
+    expect(
+      (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" })).status,
+    ).toBe(409);
+    expect((await coachA.get(`/invoices/${invoiceId}`)).body.status).toBe("CANCELLED");
+  });
+
+  it("l'athlète voit sa facture annulée (elle ne disparaît pas de sa liste)", async () => {
+    const list = await athleteA1.get("/invoices");
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0]).toMatchObject({ id: invoiceId, status: "CANCELLED" });
   });
 });

@@ -46,4 +46,8 @@ describe("updateInvoiceStatusSchema", () => {
     expect(updateInvoiceStatusSchema.safeParse({ status: "PENDING" }).success).toBe(true);
     expect(updateInvoiceStatusSchema.safeParse({ status: "DRAFT" }).success).toBe(false);
   });
+
+  it("refuse CANCELLED : l'annulation passe par sa route gardée, pas par le toggle", () => {
+    expect(updateInvoiceStatusSchema.safeParse({ status: "CANCELLED" }).success).toBe(false);
+  });
 });

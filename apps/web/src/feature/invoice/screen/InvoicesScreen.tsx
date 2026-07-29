@@ -1,10 +1,21 @@
-import { type InvoiceDto, InvoiceStatus, Role } from "@cmv/shared";
+import {
+  type InvoiceDto,
+  InvoiceState,
+  InvoiceStatus,
+  Role,
+  resolveInvoiceState,
+  todayIsoDate,
+} from "@cmv/shared";
 import { Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useInvoices, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
+import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
+import {
+  useCancelInvoice,
+  useInvoices,
+  useUpdateInvoiceStatus,
+} from "@/feature/invoice/hook/useInvoices";
 import {
   CmvAppShell,
-  CmvBadge,
   CmvButton,
   CmvCard,
   CmvConfirmButton,
@@ -12,6 +23,7 @@ import {
   CmvErrorState,
 } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
+import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
@@ -27,6 +39,7 @@ export function InvoicesScreen() {
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: invoices, isPending, isError, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
+  const cancel = useCancelInvoice();
 
   if (isAuthPending) {
     return (
@@ -69,11 +82,12 @@ export function InvoicesScreen() {
             <InvoiceRow
               key={invoice.id}
               invoice={invoice}
-              busy={updateStatus.isPending}
+              busy={updateStatus.isPending || cancel.isPending}
               onMarkPaid={() => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PAID })}
               onReopen={() =>
                 updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PENDING })
               }
+              onCancel={() => cancel.mutate(invoice.id)}
             />
           ))}
         </div>
@@ -87,11 +101,17 @@ type InvoiceRowProps = {
   busy: boolean;
   onMarkPaid: () => void;
   onReopen: () => void;
+  onCancel: () => void;
 };
 
-function InvoiceRow({ invoice, busy, onMarkPaid, onReopen }: Readonly<InvoiceRowProps>) {
+function InvoiceRow({ invoice, busy, onMarkPaid, onReopen, onCancel }: Readonly<InvoiceRowProps>) {
   const { t } = useTranslation();
   const isPaid = invoice.status === InvoiceStatus.PAID;
+  // Annulée = terminal (l'API refuse tout retour en 409) : la carte ne propose plus aucune action,
+  // et le montant est barré — plus personne ne doit rien.
+  const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
+  // L'échéance dépassée se colore aussi (maquette pd-8) : c'est elle que le coach cherche des yeux.
+  const isOverdue = resolveInvoiceState(invoice, todayIsoDate()) === InvoiceState.OVERDUE;
 
   return (
     <CmvCard>
@@ -99,12 +119,15 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen }: Readonly<InvoiceRow
         <div className="flex flex-1 flex-col gap-cmv-xs">
           <div className="flex items-center gap-cmv-sm">
             <h3 className="text-cmv-subtitle text-cmv-text-hi">{invoice.athleteName}</h3>
-            <CmvBadge variant={isPaid ? "neutral" : "accent"}>
-              {isPaid ? t("invoice.status.paid") : t("invoice.status.pending")}
-            </CmvBadge>
+            <InvoiceStatusBadge invoice={invoice} />
           </div>
 
-          <p className="font-cmv-display text-cmv-title text-cmv-text-hi">
+          <p
+            className={cn(
+              "font-cmv-display text-cmv-title",
+              isCancelled ? "text-cmv-text-lo line-through" : "text-cmv-text-hi",
+            )}
+          >
             {formatMoney(invoice.amountCents, invoice.currency)}
           </p>
 
@@ -114,7 +137,9 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen }: Readonly<InvoiceRow
             {t("invoice.periodLabel", { period: formatPeriod(invoice.period) })}
           </p>
 
-          <p className="text-cmv-caption text-cmv-text-lo">
+          <p
+            className={cn("text-cmv-caption", isOverdue ? "text-cmv-error-on" : "text-cmv-text-lo")}
+          >
             {t("invoice.dueLabel", { date: formatDate(invoice.dueDate) })}
             {/* paidAt null tant qu'impayée : rendu « — » (jamais un fallback silencieux). */}
             {isPaid && invoice.paidAt != null
@@ -136,13 +161,27 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen }: Readonly<InvoiceRow
                 disabled={busy}
               />
             </div>
-          ) : (
-            <div className="flex justify-end">
-              <CmvButton variant="secondary" onClick={onMarkPaid} disabled={busy}>
-                {t("invoice.markPaid")}
-              </CmvButton>
-            </div>
-          )}
+          ) : null}
+
+          {!isPaid && !isCancelled ? (
+            <>
+              <div className="flex justify-end">
+                <CmvButton variant="secondary" onClick={onMarkPaid} disabled={busy}>
+                  {t("invoice.markPaid")}
+                </CmvButton>
+              </div>
+              {/* Annulation en deux temps : irréversible côté API (409 sur tout retour). */}
+              <div className="flex justify-end">
+                <CmvConfirmButton
+                  label={t("invoice.cancel")}
+                  confirmLabel={t("invoice.cancelConfirm")}
+                  cancelLabel={t("common.cancel")}
+                  onConfirm={onCancel}
+                  disabled={busy}
+                />
+              </div>
+            </>
+          ) : null}
 
           {/* Justificatif PDF en pied de carte, aligné à droite. URL GET signée (TTL court), ouverte
           dans un onglet — même geste que le bouton « Voir le PDF » côté athlète mobile. */}

@@ -364,12 +364,16 @@
     "markPaid": "Marquer payée",
     "reopen": "Marquer impayée",
     "reopenConfirm": "Confirmer",
+    "cancel": "Annuler la facture",
+    "cancelConfirm": "Annuler définitivement",
     "periodLabel": "Période : {{period}}",
     "dueLabel": "Échéance : {{date}}",
     "paidAtLabel": "payée le {{date}}",
     "status": {
       "pending": "En attente",
-      "paid": "Payée"
+      "paid": "Payée",
+      "overdue": "En retard",
+      "cancelled": "Annulée"
     },
     "empty": {
       "title": "Aucune facture émise",
@@ -402,6 +406,7 @@
       "billingSaved": "Facturation enregistrée.",
       "paid": "Facture marquée payée.",
       "reopened": "Facture rouverte (impayée).",
+      "cancelled": "Facture annulée.",
       "documentAttached": "Justificatif joint.",
       "documentRemoved": "Justificatif retiré."
     },

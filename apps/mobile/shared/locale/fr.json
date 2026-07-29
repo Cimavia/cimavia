@@ -82,7 +82,8 @@
       "TECHNIQUE": "Technique"
     },
     "week": {
-      "number": "Semaine {{number}}"
+      "number": "Semaine {{number}}",
+      "numberAndType": "Semaine {{number}} · {{type}}"
     },
     "empty": {
       "title": "Aucune séance planifiée",
@@ -199,7 +200,9 @@
     "paidAtLabel": "payée le {{date}}",
     "status": {
       "pending": "En attente",
-      "paid": "Payée"
+      "paid": "Payée",
+      "overdue": "En retard",
+      "cancelled": "Annulée"
     },
     "empty": {
       "title": "Aucune facture",

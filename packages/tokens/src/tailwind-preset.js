@@ -14,6 +14,15 @@
  * La palette elle-même vit dans `palette.json` : c'est la SEULE source des hex, lisible par ce
  * preset (JS) comme par le code applicatif (TS) qui doit thémer la navigation native.
  *
+ * Familles d'état (`accent`, `success`, `warning`, `error`, `info`) — quatre nuances, un seul rôle
+ * chacune, pour que la pastille d'état se compose sans jamais choisir un hex :
+ *   DEFAULT -> aplat (bandeau, barre de toast, point) — PAS du texte : trop sombre sur `surface`.
+ *   soft    -> fond de la pastille (teinte à 16 % sur le fond sombre).
+ *   line    -> bordure de la pastille (même teinte à 34 %).
+ *   on      -> texte/icône POSÉ SUR `soft` — la nuance claire, seule à passer AA (≥ 4.5:1).
+ * `hi` garde son sens habituel (variante plus claire du DEFAULT, survol) et n'existe que sur
+ * `accent` : sur les états, c'est `on` qu'il faut, jamais `DEFAULT`.
+ *
  * Contraintes :
  *   - Tailwind CSS v3.4 (NativeWind 4 ne supporte pas Tailwind v4).
  *   - Hex bruts (pas de variables CSS) : lisibles par NativeWind ET le web.

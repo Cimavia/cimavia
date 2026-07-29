@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; }
+  *::-webkit-scrollbar { width:0; height:0; }
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+</style>
+</helmet>
+
+<!-- shared bottom nav (coach mobile: Athlètes / Messages / Facturation / Profil — pas de Bibliothèque/Planifications, web-only) -->
+
+<!-- ============================================================ DASHBOARD (coach, mobile) ============================================================ -->
+<div style="position:absolute; left:0px; top:0px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">DASHBOARD (coach, mobile)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <!-- header -->
+      <div style="position:relative; padding:60px 20px 18px; background:linear-gradient(180deg,#141d25,#0e141a); overflow:hidden">
+        <div style="position:absolute; top:-30px; right:-30px; width:180px; height:180px; background:repeating-radial-gradient(circle at 100% 0, transparent 0 21px, rgba(194,96,58,.08) 21px 22px); pointer-events:none"></div>
+        <div style="position:relative; display:flex; align-items:center; justify-content:space-between">
+          <div style="display:flex; align-items:center; gap:10px">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 3 L19 18 H3 Z" stroke="#c2603a" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="11" cy="7.4" r="1.5" fill="#c2603a"></circle></svg>
+            <span style="font:700 18px/1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#eceff3">Cimavia</span>
+          </div>
+          <div style="width:34px; height:34px; border-radius:9px; background:#c2603a; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#fff">MK</div>
+        </div>
+        <div style="position:relative; font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#eceff3; margin-top:20px">Bonjour, Marc</div>
+        <div style="position:relative; font:400 13px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:8px">8 athlètes · 3 débriefs en attente de retour</div>
+      </div>
+
+      <div style="flex:1; padding:18px 20px 120px; overflow-y:auto">
+
+        <!-- stat grid -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:11px">
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:15px">
+            <div style="font:500 11.5px/1.3 'IBM Plex Sans',sans-serif; color:#8593a0">Athlètes actifs</div>
+            <div style="font:600 26px/1 'IBM Plex Mono',monospace; color:#eceff3; margin-top:10px; font-variant-numeric:tabular-nums">8</div>
+          </div>
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:15px">
+            <div style="font:500 11.5px/1.3 'IBM Plex Sans',sans-serif; color:#8593a0">Débriefs à relire</div>
+            <div style="font:600 26px/1 'IBM Plex Mono',monospace; color:#e6c478; margin-top:10px; font-variant-numeric:tabular-nums">3</div>
+          </div>
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:15px">
+            <div style="font:500 11.5px/1.3 'IBM Plex Sans',sans-serif; color:#8593a0">Séances / semaine</div>
+            <div style="font:600 26px/1 'IBM Plex Mono',monospace; color:#eceff3; margin-top:10px; font-variant-numeric:tabular-nums">42</div>
+          </div>
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:15px">
+            <div style="font:500 11.5px/1.3 'IBM Plex Sans',sans-serif; color:#8593a0">Factures en attente</div>
+            <div style="display:flex; align-items:baseline; gap:6px; margin-top:10px"><span style="font:600 26px/1 'IBM Plex Mono',monospace; color:#eceff3; font-variant-numeric:tabular-nums">2</span><span style="font:500 11px/1 'IBM Plex Sans',sans-serif; color:#8593a0">· 240 €</span></div>
+          </div>
+        </div>
+
+        <!-- quick action -->
+        <div style="display:flex; align-items:center; gap:8px; justify-content:center; margin-top:16px; font:600 14px/1 'IBM Plex Sans',sans-serif; color:#fff; background:#c2603a; padding:14px; border-radius:8px; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M19 8v6M22 11h-6"></path></svg>Inviter un athlète</div>
+
+        <!-- athlete list preview -->
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:26px; margin-bottom:12px">
+          <span style="font:600 11px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#8593a0">Mes athlètes</span>
+          <span style="font:600 12.5px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer">Tout voir →</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; margin-bottom:9px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:38px; height:38px; border-radius:10px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">LM</div>
+          <div style="flex:1"><div style="font:600 14px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Léa Moreau</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Débrief il y a 2 h</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); padding:5px 9px; border-radius:7px; white-space:nowrap">Actif</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; margin-bottom:9px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:38px; height:38px; border-radius:10px; background:#3a2f24; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#e6c478; flex-shrink:0">TR</div>
+          <div style="flex:1"><div style="font:600 14px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Thomas Rey</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Séance faite hier</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); padding:5px 9px; border-radius:7px; white-space:nowrap">Actif</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:38px; height:38px; border-radius:10px; background:#243440; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#8fb8cc; flex-shrink:0">NF</div>
+          <div style="flex:1"><div style="font:600 14px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Noah Fontaine</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Invitation envoyée</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#e6c478; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); padding:5px 9px; border-radius:7px; white-space:nowrap">En attente</span>
+        </div>
+      </div>
+
+      <!-- bottom nav -->
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 18px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 22px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#eceff3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Athlètes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="position:absolute; top:-3px; right:5px; width:8px; height:8px; border-radius:50%; background:#c2603a; border:1.5px solid #141d25"></span><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Messages</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Factures</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ LISTE DES ATHLÈTES (coach, mobile) ============================================================ -->
+<div style="position:absolute; left:500px; top:0px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">LISTE DES ATHLÈTES (coach, mobile)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:60px 20px 14px; background:linear-gradient(180deg,#141d25,#0e141a)">
+        <div style="display:flex; align-items:center; justify-content:space-between">
+          <div style="font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#eceff3">Mes athlètes</div>
+          <div style="width:36px; height:36px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c2603a" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:11px 13px; margin-top:14px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4-4"></path></svg>
+          <span style="font:400 13.5px/1 'IBM Plex Sans',sans-serif; color:#5f6c79">Rechercher un athlète…</span>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:12px">
+          <span style="font:600 12px/1 'IBM Plex Sans',sans-serif; color:#eceff3; background:#2b3742; padding:7px 13px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.35)">Tous</span>
+          <span style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:7px 13px; border-radius:999px">Actifs</span>
+          <span style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:7px 13px; border-radius:999px">En attente</span>
+        </div>
+      </div>
+
+      <div style="flex:1; padding:14px 20px 120px; overflow-y:auto; display:flex; flex-direction:column; gap:9px">
+
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:40px; height:40px; border-radius:11px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 14px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">LM</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Léa Moreau</div><div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Cycle Bloc — S3/4</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); padding:5px 9px; border-radius:7px; white-space:nowrap; flex-shrink:0">Actif</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:40px; height:40px; border-radius:11px; background:#3a2f24; display:flex; align-items:center; justify-content:center; font:600 14px/1 'Space Grotesk',sans-serif; color:#e6c478; flex-shrink:0">TR</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Thomas Rey</div><div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Prépa physique — S1/4</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); padding:5px 9px; border-radius:7px; white-space:nowrap; flex-shrink:0">Actif</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:40px; height:40px; border-radius:11px; background:#2e2a3b; display:flex; align-items:center; justify-content:center; font:600 14px/1 'Space Grotesk',sans-serif; color:#b3a8d6; flex-shrink:0">CB</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Camille Bernard</div><div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Inactive · 12 j</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); padding:5px 9px; border-radius:7px; white-space:nowrap; flex-shrink:0">Actif</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:40px; height:40px; border-radius:11px; background:#243440; display:flex; align-items:center; justify-content:center; font:600 14px/1 'Space Grotesk',sans-serif; color:#8fb8cc; flex-shrink:0">NF</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Noah Fontaine</div><div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Invitation envoyée il y a 2 j</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#e6c478; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); padding:5px 9px; border-radius:7px; white-space:nowrap; flex-shrink:0">En attente</span>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:40px; height:40px; border-radius:11px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 14px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">EG</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Emma Girard</div><div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Volume — S6/8</div></div>
+          <span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); padding:5px 9px; border-radius:7px; white-space:nowrap; flex-shrink:0">Actif</span>
+        </div>
+
+      </div>
+
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 18px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 22px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#eceff3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Athlètes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="position:absolute; top:-3px; right:5px; width:8px; height:8px; border-radius:50%; background:#c2603a; border:1.5px solid #141d25"></span><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Messages</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Factures</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ FICHE ATHLÈTE (coach, mobile) ============================================================ -->
+<div style="position:absolute; left:1000px; top:0px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">FICHE ATHLÈTE (coach, mobile)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:58px 20px 16px; background:#0c1218; border-bottom:1px solid #2b3742; display:flex; align-items:center; gap:13px">
+        <div style="width:36px; height:36px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg></div>
+        <span style="flex:1; font:600 16px/1 'Space Grotesk',sans-serif; color:#eceff3">Léa Moreau</span>
+        <div style="width:36px; height:36px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg></div>
+      </div>
+
+      <div style="flex:1; overflow-y:auto; padding:20px 20px 24px">
+
+        <!-- identity -->
+        <div style="display:flex; align-items:center; gap:14px">
+          <div style="width:56px; height:56px; border-radius:15px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 20px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">LM</div>
+          <div style="flex:1">
+            <div style="display:flex; align-items:center; gap:9px"><span style="font:700 19px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#eceff3">Léa Moreau</span><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); padding:4px 8px; border-radius:6px">Actif</span></div>
+            <div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:8px">Suivie depuis mars 2025 · 7b bloc</div>
+          </div>
+        </div>
+
+        <!-- quick actions -->
+        <div style="display:flex; gap:9px; margin-top:18px">
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:7px; font:600 12.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3; background:#1c2630; border:1px solid #2b3742; padding:11px; border-radius:8px; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg>Message</div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:7px; font:600 12.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3; background:#1c2630; border:1px solid #2b3742; padding:11px; border-radius:8px; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"></rect><path d="M3 9h18M8 2v4M16 2v4"></path></svg>Planning</div>
+        </div>
+
+        <!-- coach note — editable free text -->
+        <div style="font:600 11px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#8593a0; margin:22px 0 10px">Note de suivi</div>
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; overflow:hidden">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid #1a232c">
+            <span style="font:500 11px/1 'IBM Plex Sans',sans-serif; color:#5f6c79">Privée · visible par toi seul</span>
+            <span style="display:flex; align-items:center; gap:5px; font:600 12px/1 'IBM Plex Sans',sans-serif; color:#e8966f; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"></path></svg>Modifier</span>
+          </div>
+          <div style="padding:14px 15px; font:400 13.5px/1.6 'IBM Plex Sans',sans-serif; color:#aab6c2">Très bonne dynamique depuis septembre. Point de vigilance : <b style="color:#eceff3; font-weight:600">épaule droite</b> sensible après gros volume. Objectif : projet <b style="color:#eceff3; font-weight:600">7b à Ceüse</b>.</div>
+          <div style="padding:0 15px 12px; font:500 11px/1 'IBM Plex Mono',monospace; color:#5f6c79">Modifiée le 14 oct.</div>
+        </div>
+
+        <!-- plan -->
+        <div style="font:600 11px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#8593a0; margin:22px 0 10px">Planification en cours</div>
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px">
+          <div style="font:600 15px/1.1 'Space Grotesk',sans-serif; color:#eceff3">Cycle Bloc — Oct./Nov.</div>
+          <div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:7px">Semaine 3/4 · 62%</div>
+          <div style="height:6px; border-radius:3px; background:#1c2630; overflow:hidden; margin-top:10px"><div style="width:62%; height:100%; background:#4e9a6a"></div></div>
+        </div>
+
+        <!-- facturation -->
+        <div style="font:600 11px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#8593a0; margin:22px 0 10px">Facturation</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:13px 15px">
+          <div><div style="font:600 13.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Novembre 2025</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">120 €</div></div>
+          <span style="font:600 11px/1 'IBM Plex Sans',sans-serif; color:#e6c478; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); padding:5px 9px; border-radius:7px">En attente</span>
+        </div>
+      </div>
+
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 18px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 22px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#eceff3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Athlètes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="position:absolute; top:-3px; right:5px; width:8px; height:8px; border-radius:50%; background:#c2603a; border:1.5px solid #141d25"></span><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Messages</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Factures</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ FICHE ATHLÈTE — NOTE VIDE ============================================================ -->
+<div style="position:absolute; left:1500px; top:0px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">FICHE ATHLÈTE — NOTE VIDE</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:58px 20px 16px; background:#0c1218; border-bottom:1px solid #2b3742; display:flex; align-items:center; gap:13px">
+        <div style="width:36px; height:36px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg></div>
+        <span style="flex:1; font:600 16px/1 'Space Grotesk',sans-serif; color:#eceff3">Noah Fontaine</span>
+      </div>
+
+      <div style="flex:1; padding:20px 20px 24px">
+        <div style="display:flex; align-items:center; gap:14px">
+          <div style="width:56px; height:56px; border-radius:15px; background:#243440; display:flex; align-items:center; justify-content:center; font:600 20px/1 'Space Grotesk',sans-serif; color:#8fb8cc; flex-shrink:0">NF</div>
+          <div style="flex:1">
+            <div style="display:flex; align-items:center; gap:9px"><span style="font:700 19px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#eceff3">Noah Fontaine</span><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#e6c478; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); padding:4px 8px; border-radius:6px">En attente</span></div>
+            <div style="font:500 12px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:8px">Invitation envoyée il y a 2 j</div>
+          </div>
+        </div>
+
+        <div style="font:600 11px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#8593a0; margin:22px 0 10px">Note de suivi</div>
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:24px 18px; text-align:center">
+          <div style="font:400 13.5px/1.6 'IBM Plex Sans',sans-serif; color:#8593a0">Aucune note pour l'instant. Garde ici tes observations — objectifs, points de vigilance, blessures.</div>
+          <div style="display:inline-flex; align-items:center; gap:7px; margin-top:15px; font:600 12.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3; background:#1c2630; border:1px solid #3a4854; padding:10px 15px; border-radius:8px; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>Ajouter une note</div>
+        </div>
+      </div>
+
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 18px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 22px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#eceff3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Athlètes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="position:absolute; top:-3px; right:5px; width:8px; height:8px; border-radius:50%; background:#c2603a; border:1.5px solid #141d25"></span><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Messages</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Factures</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ FICHE ATHLÈTE — ÉDITION DE LA NOTE ============================================================ -->
+<div style="position:absolute; left:2000px; top:0px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">FICHE ATHLÈTE — ÉDITION DE LA NOTE</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:58px 20px 16px; background:#0c1218; border-bottom:1px solid #2b3742; display:flex; align-items:center; gap:13px">
+        <span style="flex:1; font:600 16px/1 'Space Grotesk',sans-serif; color:#eceff3">Note de suivi</span>
+        <span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer">Annuler</span>
+      </div>
+
+      <div style="flex:1; padding:20px">
+        <div style="font:500 11px/1 'IBM Plex Sans',sans-serif; color:#5f6c79; margin-bottom:10px">Léa Moreau · privée, visible par toi seul</div>
+        <div style="background:#1c2630; border:1.5px solid #c2603a; border-radius:10px; padding:15px; min-height:220px; box-shadow:0 0 0 3px rgba(194,96,58,.14)">
+          <div style="font:400 14.5px/1.65 'IBM Plex Sans',sans-serif; color:#eceff3">Très bonne dynamique depuis septembre. Point de vigilance : épaule droite sensible après gros volume. Objectif : projet 7b à Ceüse.<span style="display:inline-block; width:2px; height:18px; background:#c2603a; vertical-align:-4px; margin-left:1px; animation:blink 1s step-end infinite"></span></div>
+        </div>
+        <div style="font:500 11px/1 'IBM Plex Mono',monospace; color:#5f6c79; margin-top:10px">Enregistrement automatique</div>
+      </div>
+
+      <div style="padding:14px 20px 30px; border-top:1px solid #1a232c; background:#0e141a">
+        <div style="display:flex; align-items:center; justify-content:center; font:600 15px/1 'IBM Plex Sans',sans-serif; color:#fff; background:#c2603a; padding:15px; border-radius:8px; cursor:pointer">Enregistrer</div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ INVITATION (coach, mobile) ============================================================ -->
+<div style="position:absolute; left:2500px; top:0px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">INVITATION — CODE GÉNÉRÉ</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:58px 20px 16px; background:#0c1218; border-bottom:1px solid #2b3742; display:flex; align-items:center; gap:13px">
+        <div style="width:36px; height:36px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg></div>
+        <span style="flex:1; font:600 16px/1 'Space Grotesk',sans-serif; color:#eceff3">Inviter un athlète</span>
+      </div>
+
+      <div style="flex:1; padding:24px 22px">
+        <div style="text-align:center">
+          <div style="width:64px; height:64px; border-radius:16px; background:rgba(194,96,58,.12); border:1px solid rgba(194,96,58,.3); display:flex; align-items:center; justify-content:center; margin:0 auto"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e8966f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M19 8v6M22 11h-6"></path></svg></div>
+          <div style="font:600 19px/1.2 'Space Grotesk',sans-serif; color:#eceff3; margin-top:18px">Partage ce code</div>
+          <div style="font:400 13.5px/1.5 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:8px; max-width:280px; margin-left:auto; margin-right:auto">Ton athlète le saisit à l'inscription pour rejoindre directement ton espace.</div>
+        </div>
+
+        <!-- code -->
+        <div style="display:flex; gap:8px; justify-content:center; margin-top:26px">
+          <div style="width:44px; height:54px; border-radius:10px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 22px/1 'IBM Plex Mono',monospace; color:#eceff3">7</div>
+          <div style="width:44px; height:54px; border-radius:10px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 22px/1 'IBM Plex Mono',monospace; color:#eceff3">K</div>
+          <div style="width:44px; height:54px; border-radius:10px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 22px/1 'IBM Plex Mono',monospace; color:#eceff3">9</div>
+          <div style="width:44px; height:54px; border-radius:10px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 22px/1 'IBM Plex Mono',monospace; color:#eceff3">M</div>
+          <div style="width:44px; height:54px; border-radius:10px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 22px/1 'IBM Plex Mono',monospace; color:#eceff3">2</div>
+          <div style="width:44px; height:54px; border-radius:10px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 22px/1 'IBM Plex Mono',monospace; color:#eceff3">Q</div>
+        </div>
+
+        <!-- copy / share -->
+        <div style="display:flex; gap:9px; margin-top:22px">
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; font:600 13.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3; background:#1c2630; border:1px solid #3a4854; padding:13px; border-radius:8px; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path></svg>Copier le code</div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; font:600 13.5px/1 'IBM Plex Sans',sans-serif; color:#fff; background:#c2603a; padding:13px; border-radius:8px; cursor:pointer" style-hover="background:#d07049"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="M8.6 10.6l6.8-3.8M8.6 13.4l6.8 3.8"></path></svg>Partager le lien</div>
+        </div>
+
+        <!-- link -->
+        <div style="display:flex; align-items:center; gap:10px; margin-top:14px; padding:12px 14px; background:#141d25; border:1px solid #2b3742; border-radius:9px">
+          <span style="flex:1; font:400 12.5px/1 'IBM Plex Mono',monospace; color:#8593a0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">cimavia.app/rejoindre/7K9M2Q</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="cursor:pointer; flex-shrink:0"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path></svg>
+        </div>
+
+        <!-- pending state -->
+        <div style="display:flex; align-items:center; gap:10px; margin-top:22px; padding:13px 15px; background:rgba(214,162,63,.09); border:1px solid rgba(214,162,63,.3); border-radius:10px">
+          <span style="width:8px; height:8px; border-radius:50%; background:#e6c478; flex-shrink:0"></span>
+          <span style="font:500 12.5px/1.4 'IBM Plex Sans',sans-serif; color:#e6c478">En attente d'acceptation — expire dans 7 jours</span>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+
+<!-- ============================================================ FACTURATION — LISTE (coach, mobile) ============================================================ -->
+<div style="position:absolute; left:0px; top:1090px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">FACTURATION — LISTE (coach, mobile)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:60px 20px 16px; background:linear-gradient(180deg,#141d25,#0e141a)">
+        <div style="font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#eceff3">Facturation</div>
+        <div style="font:400 13px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:8px">Octobre 2025 · 12 factures émises</div>
+        <div style="display:flex; gap:10px; margin-top:16px">
+          <div style="flex:1; background:#1c2630; border:1px solid #2b3742; border-radius:11px; padding:12px 13px">
+            <div style="font:500 11px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Encaissé</div>
+            <div style="font:600 17px/1 'IBM Plex Mono',monospace; color:#eceff3; margin-top:8px; font-variant-numeric:tabular-nums">1 080 €</div>
+          </div>
+          <div style="flex:1; background:#1c2630; border:1px solid #2b3742; border-radius:11px; padding:12px 13px">
+            <div style="font:500 11px/1 'IBM Plex Sans',sans-serif; color:#8593a0">En attente</div>
+            <div style="font:600 17px/1 'IBM Plex Mono',monospace; color:#e6c478; margin-top:8px; font-variant-numeric:tabular-nums">240 €</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1; padding:14px 20px 120px; overflow-y:auto; display:flex; flex-direction:column; gap:9px">
+
+        <div style="display:inline-flex; background:#1c2630; border:1px solid #2b3742; border-radius:8px; padding:3px; gap:2px; align-self:flex-start; margin-bottom:6px">
+          <span style="background:#2b3742; color:#eceff3; border-radius:5px; padding:6px 12px; font:600 12px/1 'IBM Plex Sans',sans-serif; box-shadow:0 1px 2px rgba(0,0,0,.35)">Toutes</span>
+          <span style="color:#aab6c2; padding:6px 12px; font:500 12px/1 'IBM Plex Sans',sans-serif">En attente</span>
+          <span style="color:#aab6c2; padding:6px 12px; font:500 12px/1 'IBM Plex Sans',sans-serif">Payées</span>
+        </div>
+
+        <!-- en attente -->
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:38px; height:38px; border-radius:10px; background:#3a2f24; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#e6c478; flex-shrink:0">TR</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Thomas Rey</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">F-2025-011 · éch. 15 oct.</div></div>
+          <div style="text-align:right; flex-shrink:0"><div style="font:600 14.5px/1 'IBM Plex Mono',monospace; color:#eceff3; font-variant-numeric:tabular-nums">120,00 €</div><span style="font:600 10px/1 'IBM Plex Sans',sans-serif; color:#e6c478; margin-top:6px; display:inline-block">● En attente</span></div>
+        </div>
+
+        <!-- en retard -->
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:38px; height:38px; border-radius:10px; background:#2e2a3b; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#b3a8d6; flex-shrink:0">CB</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Camille Bernard</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#e89089; margin-top:5px">F-2025-009 · éch. 30 sept.</div></div>
+          <div style="text-align:right; flex-shrink:0"><div style="font:600 14.5px/1 'IBM Plex Mono',monospace; color:#eceff3; font-variant-numeric:tabular-nums">120,00 €</div><span style="font:600 10px/1 'IBM Plex Sans',sans-serif; color:#e89089; margin-top:6px; display:inline-block">● En retard</span></div>
+        </div>
+
+        <!-- payé -->
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:38px; height:38px; border-radius:10px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">LM</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Léa Moreau</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">F-2025-012 · éch. 15 oct.</div></div>
+          <div style="text-align:right; flex-shrink:0"><div style="font:600 14.5px/1 'IBM Plex Mono',monospace; color:#eceff3; font-variant-numeric:tabular-nums">120,00 €</div><span style="font:600 10px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; margin-top:6px; display:inline-block">● Payé</span></div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="width:38px; height:38px; border-radius:10px; background:#243440; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#8fb8cc; flex-shrink:0">NF</div>
+          <div style="flex:1; min-width:0"><div style="font:600 14px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Noah Fontaine</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">F-2025-008 · éch. —</div></div>
+          <div style="text-align:right; flex-shrink:0"><div style="font:600 14.5px/1 'IBM Plex Mono',monospace; color:#eceff3; font-variant-numeric:tabular-nums">90,00 €</div><span style="font:600 10px/1 'IBM Plex Sans',sans-serif; color:#9fcdb1; margin-top:6px; display:inline-block">● Payé</span></div>
+        </div>
+
+      </div>
+
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 18px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 22px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Athlètes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Messages</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#eceff3" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Factures</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ FACTURATION — DÉTAIL (coach, mobile) ============================================================ -->
+<div style="position:absolute; left:500px; top:1090px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">FACTURATION — DÉTAIL (coach, mobile)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:58px 20px 14px; background:#0c1218; border-bottom:1px solid #2b3742; display:flex; align-items:center; gap:13px">
+        <div style="width:36px; height:36px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg></div>
+        <div style="flex:1"><div style="font:600 16px/1.1 'Space Grotesk',sans-serif; color:#eceff3">Facture</div><div style="font:500 12px/1 'IBM Plex Mono',monospace; color:#8593a0; margin-top:4px">F-2025-011</div></div>
+      </div>
+
+      <div style="flex:1; padding:20px; overflow-y:auto">
+        <div style="display:flex; align-items:center; gap:13px; background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px">
+          <div style="width:38px; height:38px; border-radius:10px; background:#3a2f24; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#e6c478; flex-shrink:0">TR</div>
+          <div style="flex:1"><div style="font:600 14.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Thomas Rey</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:5px">Prépa physique — Automne</div></div>
+        </div>
+
+        <div style="background:linear-gradient(160deg,#1c2630,#141d25); border:1px solid #2b3742; border-radius:14px; padding:22px; text-align:center; margin-top:14px">
+          <div style="font:500 12.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Montant</div>
+          <div style="font:700 36px/1 'IBM Plex Mono',monospace; color:#eceff3; margin-top:12px; font-variant-numeric:tabular-nums">120,00 €</div>
+          <span style="font:600 11.5px/1 'IBM Plex Sans',sans-serif; color:#e6c478; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); padding:6px 12px; border-radius:8px; display:inline-block; margin-top:14px">● En attente · échéance 15 oct.</span>
+        </div>
+
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:4px 16px; margin-top:14px">
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid #1a232c"><span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Prestation</span><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Forfait coaching</span></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid #1a232c"><span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Émise le</span><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#eceff3">1 oct. 2025</span></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 0"><span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Échéance</span><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#eceff3">15 oct. 2025</span></div>
+        </div>
+      </div>
+
+      <!-- footer: marquage manuel -->
+      <div style="padding:14px 20px 30px; border-top:1px solid #1a232c; background:#0e141a">
+        <div style="display:flex; align-items:center; justify-content:center; gap:9px; font:600 15px/1 'IBM Plex Sans',sans-serif; color:#fff; background:#c2603a; padding:15px; border-radius:8px; cursor:pointer" style-hover="background:#d07049"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>Marquer comme payée</div>
+        <div style="text-align:center; font:400 11.5px/1.4 'IBM Plex Sans',sans-serif; color:#5f6c79; margin-top:10px">Paiement encaissé hors app (espèces, virement…)</div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ DÉBRIEFS À RELIRE — LISTE (coach, mobile) ============================================================ -->
+<div style="position:absolute; left:1000px; top:1090px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">DÉBRIEFS À RELIRE — LISTE (coach, mobile)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:60px 20px 16px; background:linear-gradient(180deg,#141d25,#0e141a)">
+        <div style="font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#eceff3">Débriefs à relire</div>
+        <div style="font:400 13px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:8px">3 débriefs non lus</div>
+      </div>
+
+      <div style="flex:1; padding:14px 20px 120px; overflow-y:auto; display:flex; flex-direction:column; gap:10px">
+
+        <!-- unread with media -->
+        <div style="background:#141d25; border:1px solid #2b3742; border-left:3px solid #c2603a; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="display:flex; align-items:center; gap:11px">
+            <div style="width:34px; height:34px; border-radius:9px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 12px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">LM</div>
+            <div style="flex:1"><div style="font:600 13.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Léa Moreau</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:4px">Voie &amp; projet 7b · aujourd'hui</div></div>
+            <span style="width:9px; height:9px; border-radius:50%; background:#c2603a; flex-shrink:0"></span>
+          </div>
+          <div style="font:400 13.5px/1.5 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:11px">Bien tenu sur les 2 premières voies, j'ai validé le crux au 3e essai ! Un peu fatiguée sur la fin, l'épaule…</div>
+          <div style="display:flex; gap:7px; margin-top:11px">
+            <div style="width:44px; height:44px; border-radius:8px; background:linear-gradient(135deg,#2a3a44,#1c2630); border:1px solid #2b3742"></div>
+            <div style="width:44px; height:44px; border-radius:8px; background:linear-gradient(135deg,#3a3326,#1c2630); border:1px solid #2b3742"></div>
+            <div style="width:44px; height:44px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="#eceff3" stroke="none"><path d="M8 5v14l11-7z"></path></svg></div>
+          </div>
+        </div>
+
+        <!-- unread text only -->
+        <div style="background:#141d25; border:1px solid #2b3742; border-left:3px solid #c2603a; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="display:flex; align-items:center; gap:11px">
+            <div style="width:34px; height:34px; border-radius:9px; background:#3a2f24; display:flex; align-items:center; justify-content:center; font:600 12px/1 'Space Grotesk',sans-serif; color:#e6c478; flex-shrink:0">TR</div>
+            <div style="flex:1"><div style="font:600 13.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Thomas Rey</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:4px">Bloc force max · hier</div></div>
+            <span style="width:9px; height:9px; border-radius:50%; background:#c2603a; flex-shrink:0"></span>
+          </div>
+          <div style="font:400 13.5px/1.5 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:11px">Merci coach, c'était dur mais j'ai tenu les 5 séries à +10 kg sans lâcher !</div>
+        </div>
+
+        <!-- unread with 1 photo -->
+        <div style="background:#141d25; border:1px solid #2b3742; border-left:3px solid #c2603a; border-radius:12px; padding:14px 15px; cursor:pointer" style-hover="background:#172029">
+          <div style="display:flex; align-items:center; gap:11px">
+            <div style="width:34px; height:34px; border-radius:9px; background:#2e2a3b; display:flex; align-items:center; justify-content:center; font:600 12px/1 'Space Grotesk',sans-serif; color:#b3a8d6; flex-shrink:0">CB</div>
+            <div style="flex:1"><div style="font:600 13.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Camille Bernard</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:4px">Endurance continuité · lun.</div></div>
+            <span style="width:9px; height:9px; border-radius:50%; background:#c2603a; flex-shrink:0"></span>
+          </div>
+          <div style="font:400 13.5px/1.5 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:11px">Reprise en douceur, sensations correctes malgré la coupure.</div>
+          <div style="display:flex; gap:7px; margin-top:11px">
+            <div style="width:44px; height:44px; border-radius:8px; background:linear-gradient(135deg,#243440,#1c2630); border:1px solid #2b3742"></div>
+          </div>
+        </div>
+
+        <div style="font:600 11px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#5f6c79; margin:10px 0 4px; text-align:center">Déjà lus</div>
+
+        <!-- read, dimmed -->
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:14px 15px; opacity:.6; cursor:pointer">
+          <div style="display:flex; align-items:center; gap:11px">
+            <div style="width:34px; height:34px; border-radius:9px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 12px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">EG</div>
+            <div style="flex:1"><div style="font:600 13.5px/1.1 'IBM Plex Sans',sans-serif; color:#eceff3">Emma Girard</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:4px">Voies en moulinette · sam.</div></div>
+          </div>
+          <div style="font:400 13.5px/1.5 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:11px">Merci pour la séance ! Bonne sensation générale.</div>
+        </div>
+
+      </div>
+
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 18px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 22px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Athlètes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Messages</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Factures</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#eceff3" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ DÉBRIEFS — DÉTAIL (marqué lu à l'ouverture) ============================================================ -->
+<div style="position:absolute; left:1500px; top:1090px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">DÉBRIEF — DÉTAIL (marqué lu à l'ouverture)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:58px 20px 14px; background:#0c1218; border-bottom:1px solid #2b3742; display:flex; align-items:center; gap:13px">
+        <div style="width:36px; height:36px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg></div>
+        <div style="width:32px; height:32px; border-radius:9px; background:#243b30; display:flex; align-items:center; justify-content:center; font:600 12px/1 'Space Grotesk',sans-serif; color:#9fcdb1; flex-shrink:0">LM</div>
+        <div style="flex:1"><div style="font:600 15px/1.1 'Space Grotesk',sans-serif; color:#eceff3">Léa Moreau</div><div style="font:500 11.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:4px">Voie &amp; projet 7b · aujourd'hui</div></div>
+      </div>
+
+      <div style="flex:1; overflow-y:auto; padding:20px">
+        <div style="display:flex; align-items:center; gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f6c79" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg><span style="font:500 11.5px/1 'IBM Plex Mono',monospace; color:#5f6c79">Lu automatiquement à l'ouverture</span></div>
+
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:12px; padding:16px; margin-top:14px">
+          <div style="font:400 14px/1.65 'IBM Plex Sans',sans-serif; color:#eceff3">Bien tenu sur les 2 premières voies, j'ai validé le crux au 3e essai ! Un peu fatiguée sur la fin, l'épaule droite a un peu tiré dans les mouvements d'épaule. Sinon contente de la séance.</div>
+
+          <div style="font:600 11px/1 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#8593a0; margin:16px 0 9px">Médias joints</div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px">
+            <div style="aspect-ratio:1; border-radius:9px; background:linear-gradient(135deg,#2a3a44,#1c2630); border:1px solid #2b3742"></div>
+            <div style="aspect-ratio:1; border-radius:9px; background:linear-gradient(135deg,#3a3326,#1c2630); border:1px solid #2b3742"></div>
+            <div style="aspect-ratio:1; border-radius:9px; background:#1c2630; border:1px solid #2b3742; position:relative; overflow:hidden"><div style="position:absolute; inset:0; background:repeating-linear-gradient(45deg, transparent 0 7px, rgba(255,255,255,.03) 7px 8px)"></div><div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="#eceff3" stroke="none"><path d="M8 5v14l11-7z"></path></svg></div><span style="position:absolute; bottom:5px; right:6px; font:600 9px/1 'IBM Plex Mono',monospace; color:#eceff3; background:rgba(10,15,20,.7); padding:2px 5px; border-radius:4px">0:18</span></div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:9px; margin-top:14px">
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:7px; font:600 12.5px/1 'IBM Plex Sans',sans-serif; color:#fff; background:#c2603a; padding:12px; border-radius:8px; cursor:pointer" style-hover="background:#d07049"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg>Répondre</div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ============================================================ DÉBRIEFS — ÉTAT VIDE ============================================================ -->
+<div style="position:absolute; left:2000px; top:1090px; width:402px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#8593a0; margin-bottom:14px; cursor:grab">DÉBRIEFS — ÉTAT VIDE</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:100%; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+
+      <div style="padding:60px 20px 16px; background:linear-gradient(180deg,#141d25,#0e141a)">
+        <div style="font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#eceff3">Débriefs à relire</div>
+      </div>
+
+      <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:24px 30px 120px">
+        <div style="text-align:center">
+          <div style="width:80px; height:80px; border-radius:20px; background:#141d25; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; margin:0 auto; position:relative">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#5f6c79" stroke-width="1.6" stroke-linecap="round"><path d="M20 6L9 17l-5-5"></path></svg>
+            <div style="position:absolute; inset:-1px; border-radius:20px; background:repeating-radial-gradient(circle at 50% 50%, transparent 0 12px, rgba(78,154,106,.06) 12px 13px); pointer-events:none"></div>
+          </div>
+          <div style="font:600 18px/1.2 'Space Grotesk',sans-serif; color:#eceff3; margin-top:22px">Tout est lu&nbsp;!</div>
+          <div style="font:400 14px/1.6 'IBM Plex Sans',sans-serif; color:#8593a0; margin-top:11px; max-width:280px">Aucun débrief en attente. Les nouveaux débriefs de tes athlètes apparaîtront ici.</div>
+        </div>
+      </div>
+
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 18px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 22px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Athlètes</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Messages</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#8593a0" stroke-width="1.7" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:500 10.5px/1 'IBM Plex Sans',sans-serif; color:#8593a0">Factures</span></div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:5px"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#eceff3" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:600 10.5px/1 'IBM Plex Sans',sans-serif; color:#eceff3">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div></x-dc>
+</body>
+</html>
