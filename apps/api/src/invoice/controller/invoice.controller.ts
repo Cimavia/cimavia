@@ -1,5 +1,5 @@
 import { Role } from "@cmv/shared";
-import { Body, Controller, Get, Param, Patch } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Roles } from "@thallesp/nestjs-better-auth";
 import { UpdateInvoiceStatusDto } from "../dto/update-invoice-status.dto";
@@ -33,5 +33,16 @@ export class InvoiceController {
   @Roles([Role.COACH])
   updateStatus(@Param("id") id: string, @Body() dto: UpdateInvoiceStatusDto) {
     return this.invoices.updateStatus(id, dto);
+  }
+
+  /**
+   * Annulation — action gardée (PENDING seulement, 409 sinon) et irréversible, d'où sa route
+   * propre plutôt qu'une valeur de plus dans le toggle. Même geste que `POST /plans/:id/publish`.
+   */
+  @Post(":id/cancel")
+  @HttpCode(200)
+  @Roles([Role.COACH])
+  cancel(@Param("id") id: string) {
+    return this.invoices.cancel(id);
   }
 }

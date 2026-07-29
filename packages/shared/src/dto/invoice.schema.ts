@@ -14,20 +14,26 @@ export const invoiceCurrencySchema = z.enum(INVOICE_CURRENCIES);
 export const DEFAULT_INVOICE_CURRENCY: InvoiceCurrency = "EUR";
 
 // Cycle de vie d'une facture, lié à celui de son cycle (1:1 via planId) :
-// - DRAFT   : termes saisis dans le builder, cycle pas encore diffusé — invisible de l'athlète.
-// - PENDING : émise au `publish` du cycle (issuedAt posé), en attente de règlement.
-// - PAID    : marquée réglée par le coach (manuel — paiement réel externe en MVP). Réversible
-//             (retour arrière confirmé côté UI). Le PSP (Stripe) est différé v1.0.
+// - DRAFT     : termes saisis dans le builder, cycle pas encore diffusé — invisible de l'athlète.
+// - PENDING   : émise au `publish` du cycle (issuedAt posé), en attente de règlement.
+// - PAID      : marquée réglée par le coach (manuel — paiement réel externe en MVP). Réversible
+//               (retour arrière confirmé côté UI). Le PSP (Stripe) est différé v1.0.
+// - CANCELLED : annulée à la main par le coach, depuis PENDING seulement. TERMINAL : ni retour en
+//               arrière, ni ré-annulation. Le cycle facturé n'est PAS affecté (il reste diffusé) —
+//               annuler une facture n'annule pas la prestation.
 export const InvoiceStatus = {
   DRAFT: "DRAFT",
   PENDING: "PENDING",
   PAID: "PAID",
+  CANCELLED: "CANCELLED",
 } as const;
 export type InvoiceStatus = TypesValuesOf<typeof InvoiceStatus>;
 export const invoiceStatusSchema = z.enum(InvoiceStatus);
 
-// Statuts d'une facture ÉMISE (hors brouillon) — ce que le toggle coach peut poser, et ce que les
-// deux rôles voient dans leur liste. DRAFT ne vit que dans le builder de cycle.
+// Statuts que le TOGGLE coach peut poser (payé ↔ impayé). DRAFT ne vit que dans le builder de
+// cycle ; CANCELLED a son propre endpoint, parce qu'il est gardé (depuis PENDING seulement) et
+// irréversible — l'ouvrir au toggle contournerait la garde. Les trois statuts ÉMIS, eux, sont
+// visibles des deux rôles.
 export const issuedInvoiceStatusSchema = z.enum([InvoiceStatus.PENDING, InvoiceStatus.PAID]);
 
 // Période facturée : mois civil "YYYY-MM" (ex. "2026-07"). Pas un jour — une facture couvre un

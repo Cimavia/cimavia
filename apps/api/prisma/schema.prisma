@@ -610,6 +610,7 @@ enum InvoiceStatus {
   DRAFT
   PENDING
   PAID
+  CANCELLED // annulée par le coach depuis PENDING — terminal, le cycle facturé n'est pas affecté
 }
 
 model Invoice {
