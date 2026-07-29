@@ -119,6 +119,19 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 | P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native / Hermes / Expo. `@better-auth/expo` est une dépendance réelle de l'API (plugin serveur : scheme `cimavia://`, cookies natifs), mais déclare `expo`, `expo-constants`, `expo-linking` et `expo-network` en **peerDependencies** — auto-installées par pnpm, elles tirent tout React Native dans une image de **serveur**. | Le code embarqué n'est jamais exécuté (seul l'entrée serveur du plugin l'est), donc aucun risque fonctionnel : c'est du poids mort. Et le coût réel se paie une seule fois : entre deux déploiements, seule la couche `dist` (~600 Ko) change — les pulls suivants sont incrémentaux. | Marquer ces peers optionnelles via `pnpm.packageExtensions` à la racine, puis vérifier que l'inscription/connexion mobile fonctionne toujours. À faire si le premier pull sur le NAS devient pénible, ou avant la prod Clever si le stockage d'images est facturé. | 🟢 |
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt que dans une étape de déploiement distincte. | `migrate deploy` est idempotent et n'applique que des migrations versionnées. Tant que l'API tourne en **instance unique** — le cas du staging NAS comme de la prod MVP — aucune course n'est possible. | Sortir la migration dans un job dédié, joué avant le déploiement, le jour où l'API passe à plusieurs instances (scale horizontal Clever Cloud). | 🟡 |
 
+## Post-MVP — Couleurs d'état (#37)
+
+> **Tranché** (le type de semaine) : le design system
+> (`docs/maquettes/shared/design_system.dc.html`) réserve délibérément la couleur à l'action
+> primaire et rend le **type de semaine** en neutre, par contraste de luminosité ; le builder
+> (pd-7) va plus loin et **assombrit** la carte d'une semaine `DELOAD`. L'issue #42 vient du
+> retour inverse d'un coach en usage réel — « besoin de plus de couleur sur les éléments
+> importants ». Arbitrage : on colore **la seule décharge** (famille `info`, bleu ardoise) et on
+> laisse l'entraînement neutre. La couleur marque l'**exception**, pas la règle : l'économie de
+> couleur du DS est préservée, le terracotta reste réservé à l'action primaire. Sur ce point
+> précis, les maquettes ne font donc plus référence. Les statuts de facture, eux, restent
+> conformes — le DS les colore déjà (`success`/`warning`/`error`).
+
 ---
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 

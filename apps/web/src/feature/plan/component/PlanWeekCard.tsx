@@ -1,9 +1,10 @@
-import type { PlanWeekDto, PlanWeekType, ScheduledSessionSummaryDto } from "@cmv/shared";
-import { planWeekDays } from "@cmv/shared";
+import type { PlanWeekDto, ScheduledSessionSummaryDto } from "@cmv/shared";
+import { PlanWeekType, planWeekDays } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 import { formatDateRange, formatDayLabel } from "@/shared/util/date.util";
 
 type PlanWeekCardProps = {
@@ -30,8 +31,17 @@ export function PlanWeekCard({
     sessionsByDay.set(session.scheduledDate, existing);
   }
 
+  // La décharge est l'exception du cycle : elle se repère au liseré, sans avoir à lire le
+  // sélecteur de type semaine par semaine. L'entraînement, lui, reste neutre (design system).
+  const isDeload = week.type === PlanWeekType.DELOAD;
+
   return (
-    <section className="flex flex-col gap-cmv-md rounded-cmv-lg border border-cmv-border bg-cmv-surface p-cmv-lg">
+    <section
+      className={cn(
+        "flex flex-col gap-cmv-md rounded-cmv-lg border border-cmv-border bg-cmv-surface p-cmv-lg",
+        isDeload && "border-l-4 border-l-cmv-info",
+      )}
+    >
       <header className="flex flex-wrap items-center gap-cmv-md">
         <h3 className="text-cmv-subtitle text-cmv-text-hi">
           {t("plan.week.number", { number: week.weekNumber })}

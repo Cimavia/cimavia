@@ -1,4 +1,4 @@
-import { todayIsoDate } from "@cmv/shared";
+import { PlanWeekType, todayIsoDate } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -6,7 +6,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-nativ
 import { useMyCoach } from "@/feature/coach";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { currentWeek, useMyPlan } from "@/feature/plan/hook/useMyPlan";
-import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvBadge, CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatDateRange } from "@/shared/util/date.util";
 
@@ -78,10 +78,15 @@ export function PlanningScreen() {
               <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
                 {t("plan.thisWeek")}
               </CmvText>
-              <CmvText className="text-cmv-text-mid">
-                {t("plan.week.number", { number: week.weekNumber })} ·{" "}
-                {t(`plan.weekType.${week.type}`)}
-              </CmvText>
+              {/* La semaine de décharge se repère à sa couleur : c'est l'exception du cycle, et
+                  la confondre avec une semaine d'entraînement fausse l'effort de l'athlète. */}
+              <CmvBadge
+                label={t("plan.week.numberAndType", {
+                  number: week.weekNumber,
+                  type: t(`plan.weekType.${week.type}`),
+                })}
+                variant={week.type === PlanWeekType.DELOAD ? "info" : "neutral"}
+              />
               <CmvText className="text-cmv-text-lo text-sm">
                 {formatDateRange(week.startDate, week.endDate)} ·{" "}
                 {t("plan.doneCount", { done: doneCount, total: week.sessions.length })}

@@ -82,7 +82,8 @@
       "TECHNIQUE": "Technique"
     },
     "week": {
-      "number": "Semaine {{number}}"
+      "number": "Semaine {{number}}",
+      "numberAndType": "Semaine {{number}} · {{type}}"
     },
     "empty": {
       "title": "Aucune séance planifiée",
