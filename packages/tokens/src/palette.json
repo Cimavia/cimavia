@@ -19,9 +19,32 @@
   "accent": {
     "DEFAULT": "#C2603A",
     "hi": "#D07049",
-    "soft": "rgba(194, 96, 58, 0.16)"
+    "soft": "rgba(194, 96, 58, 0.16)",
+    "line": "rgba(194, 96, 58, 0.34)",
+    "on": "#E8966F"
   },
-  "success": "#4E9A6A",
-  "warning": "#D6A23F",
-  "error": "#D2564B"
+  "success": {
+    "DEFAULT": "#4E9A6A",
+    "soft": "rgba(78, 154, 106, 0.16)",
+    "line": "rgba(78, 154, 106, 0.34)",
+    "on": "#9FCDB1"
+  },
+  "warning": {
+    "DEFAULT": "#D6A23F",
+    "soft": "rgba(214, 162, 63, 0.16)",
+    "line": "rgba(214, 162, 63, 0.34)",
+    "on": "#E6C478"
+  },
+  "error": {
+    "DEFAULT": "#D2564B",
+    "soft": "rgba(210, 86, 75, 0.16)",
+    "line": "rgba(210, 86, 75, 0.34)",
+    "on": "#E89089"
+  },
+  "info": {
+    "DEFAULT": "#5F8FA8",
+    "soft": "rgba(95, 143, 168, 0.16)",
+    "line": "rgba(95, 143, 168, 0.34)",
+    "on": "#8FB8CC"
+  }
 }
