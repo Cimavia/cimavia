@@ -163,5 +163,5 @@ L'isolation des données est garantie **à la couche données**, pas par la seul
 ## 11. Qualité & CI
 
 - **Biome** (lint + format) ; pas d'ESLint/Prettier. **Vitest** pour les tests. Hooks **Husky + lint-staged + commitlint** : Conventional Commits, **sujet en minuscule**.
-- CI GitHub Actions : `biome ci` + `turbo typecheck test` bloquent le merge. **SonarCloud** sur chaque PR (exclut `apps/mobile` et `apps/web` des sources). **Sentry** sur les 3 couches.
+- CI GitHub Actions : `biome ci` + `turbo typecheck test` bloquent le merge. **SonarCloud** sur chaque PR (les 3 couches, `sonar-project.properties`). **Sentry** sur les 3 couches.
 - Écrans/données mockés : commentaire `// MOCKED — <desc>. À connecter en P<X>.` (`grep -r MOCKED` doit tous les lister).

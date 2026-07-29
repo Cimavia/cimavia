@@ -263,8 +263,8 @@ export {
   formatIsoFullDay,
   formatIsoWeekday,
 } from "./util/date-format.util";
-export type { InvoiceTiming } from "./util/invoice.util";
-export { InvoiceState, resolveInvoiceState } from "./util/invoice.util";
+export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
+export { INVOICE_STATE_BADGE, InvoiceState, resolveInvoiceState } from "./util/invoice.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
 export {
