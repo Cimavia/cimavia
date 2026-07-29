@@ -28,6 +28,12 @@ export function updateInvoiceStatus(
   return api.patch<InvoiceDto>(`/invoices/${id}/status`, input);
 }
 
+// Annulation : route dédiée (et non une valeur du toggle) car gardée — 409 si la facture n'est
+// pas en attente de règlement — et irréversible.
+export function cancelInvoice(id: string): Promise<InvoiceDto> {
+  return api.post<InvoiceDto>(`/invoices/${id}/cancel`);
+}
+
 // Termes de facturation (DRAFT) du cycle, ou null tant que le coach n'a rien saisi.
 export function getPlanBilling(planId: string): Promise<InvoiceDto | null> {
   return api.get<InvoiceDto | null>(`/plans/${planId}/billing`);

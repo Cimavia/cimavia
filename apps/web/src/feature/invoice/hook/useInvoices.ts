@@ -3,6 +3,7 @@ import { InvoiceStatus } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   attachInvoiceDocument,
+  cancelInvoice,
   getPlanBilling,
   invoiceKeys,
   listInvoices,
@@ -34,6 +35,20 @@ export function useUpdateInvoiceStatus() {
       toast.onSuccess(
         invoice.status === InvoiceStatus.PAID ? "invoice.toast.paid" : "invoice.toast.reopened",
       );
+    },
+    onError: toast.onError,
+  });
+}
+
+export function useCancelInvoice() {
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+
+  return useMutation({
+    mutationFn: (id: string) => cancelInvoice(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      toast.onSuccess("invoice.toast.cancelled");
     },
     onError: toast.onError,
   });

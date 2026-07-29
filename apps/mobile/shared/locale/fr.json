@@ -200,7 +200,9 @@
     "paidAtLabel": "payée le {{date}}",
     "status": {
       "pending": "En attente",
-      "paid": "Payée"
+      "paid": "Payée",
+      "overdue": "En retard",
+      "cancelled": "Annulée"
     },
     "empty": {
       "title": "Aucune facture",

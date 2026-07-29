@@ -1,4 +1,10 @@
-import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
+import {
+  type InvoiceDto,
+  InvoiceState,
+  InvoiceStatus,
+  resolveInvoiceState,
+  todayIsoDate,
+} from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
@@ -11,6 +17,7 @@ import {
   ScrollView,
   View,
 } from "react-native";
+import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { useMyInvoices } from "@/feature/invoice/hook/useMyInvoices";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
@@ -78,26 +85,26 @@ export function InvoicesScreen() {
 function InvoiceCard({ invoice }: Readonly<{ invoice: InvoiceDto }>) {
   const { t } = useTranslation();
   const isPaid = invoice.status === InvoiceStatus.PAID;
+  // L'athlète ne pilote rien ici : une facture annulée se lit — montant barré, ton neutre.
+  const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
+  // L'échéance dépassée se colore aussi (maquette pd-8) : c'est l'information qui appelle une action.
+  const isOverdue = resolveInvoiceState(invoice, todayIsoDate()) === InvoiceState.OVERDUE;
 
   return (
     <View className="gap-2 rounded-lg border border-cmv-border bg-cmv-bg-1 p-4">
-      <View className="flex-row items-center justify-between">
+      <View className="flex-row items-center justify-between gap-2">
         {/* Le cycle facturé — cœur du lien facture ↔ planification. */}
         <CmvText className="flex-1 text-cmv-text-hi">{invoice.planTitle ?? "—"}</CmvText>
-        <View
-          className={
-            isPaid
-              ? "rounded-full border border-cmv-border px-2 py-1"
-              : "rounded-full bg-cmv-accent-soft px-2 py-1"
-          }
-        >
-          <CmvText className={isPaid ? "text-cmv-text-mid text-xs" : "text-cmv-accent text-xs"}>
-            {isPaid ? t("invoice.status.paid") : t("invoice.status.pending")}
-          </CmvText>
-        </View>
+        <InvoiceStatusBadge invoice={invoice} />
       </View>
 
-      <CmvText className="font-cmv-display text-2xl text-cmv-text-hi">
+      <CmvText
+        className={
+          isCancelled
+            ? "font-cmv-display text-2xl text-cmv-text-lo line-through"
+            : "font-cmv-display text-2xl text-cmv-text-hi"
+        }
+      >
         {formatMoney(invoice.amountCents, invoice.currency)}
       </CmvText>
 
@@ -106,7 +113,7 @@ function InvoiceCard({ invoice }: Readonly<{ invoice: InvoiceDto }>) {
         {t("invoice.periodLabel", { period: formatPeriod(invoice.period) })}
       </CmvText>
 
-      <CmvText className="text-cmv-text-lo text-xs">
+      <CmvText className={isOverdue ? "text-cmv-error-on text-xs" : "text-cmv-text-lo text-xs"}>
         {t("invoice.dueLabel", { date: formatDate(invoice.dueDate) })}
         {/* paidAt null tant qu'impayée : on n'affiche la date de règlement que si elle existe. */}
         {isPaid && invoice.paidAt != null
