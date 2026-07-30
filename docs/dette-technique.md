@@ -119,6 +119,14 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 | P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native / Hermes / Expo. `@better-auth/expo` est une dépendance réelle de l'API (plugin serveur : scheme `cimavia://`, cookies natifs), mais déclare `expo`, `expo-constants`, `expo-linking` et `expo-network` en **peerDependencies** — auto-installées par pnpm, elles tirent tout React Native dans une image de **serveur**. | Le code embarqué n'est jamais exécuté (seul l'entrée serveur du plugin l'est), donc aucun risque fonctionnel : c'est du poids mort. Et le coût réel se paie une seule fois : entre deux déploiements, seule la couche `dist` (~600 Ko) change — les pulls suivants sont incrémentaux. | Marquer ces peers optionnelles via `pnpm.packageExtensions` à la racine, puis vérifier que l'inscription/connexion mobile fonctionne toujours. À faire si le premier pull sur le NAS devient pénible, ou avant la prod Clever si le stockage d'images est facturé. | 🟢 |
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt que dans une étape de déploiement distincte. | `migrate deploy` est idempotent et n'applique que des migrations versionnées. Tant que l'API tourne en **instance unique** — le cas du staging NAS comme de la prod MVP — aucune course n'est possible. | Sortir la migration dans un job dédié, joué avant le déploiement, le jour où l'API passe à plusieurs instances (scale horizontal Clever Cloud). | 🟡 |
 
+## Post-MVP — Qualité & analyse statique
+
+| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
+|---|---|---|---|---|
+| Q-1 | **Couverture non mesurée hors `@cmv/shared`** : `sonar.coverage.exclusions` écarte `apps/api`, `apps/web` et `apps/mobile`. L'API est réellement couverte par les **111 e2e**, mais ils tournent dans un process Nest à part et ne produisent aucun lcov — ses 4 tests unitaires afficheraient 3 %. Le web et le mobile n'ont aucun harnais de test d'UI. | Un chiffre faux est pire que pas de chiffre : à 3 %, la Quality Gate échouerait sur chaque PR touchant l'API, et l'équipe apprendrait à ignorer la gate. L'analyse statique (bugs, sécurité, smells) continue de couvrir ces dossiers — seule la **mesure de couverture** est suspendue. | Instrumenter les e2e (couverture v8 sur le process Nest lancé par `vitest.config.e2e.ts`) puis retirer `apps/api/**` de l'exclusion. Pour le web/mobile : le jour où un harnais de test d'UI est introduit. | 🟡 |
+
+---
+
 ## Post-MVP — Couleurs d'état (#37)
 
 > **Tranché** (le type de semaine) : le design system

@@ -18,10 +18,11 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests --coverage"
   },
   "devDependencies": {
     "@cmv/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "4.1.9",
     "typescript": "6.0.3",
     "vitest": "4.1.9"
   },

@@ -6,15 +6,43 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+env:
+  PNPM_VERSION: "10.34.4"
+  NODE_VERSION: "22"
+
 jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
+    env:
+      # Même DSN factice que la CI : `prisma generate` (postinstall) lit prisma.config.ts, qui exige
+      # la variable — il ne se connecte à aucune base.
+      DATABASE_URL: postgresql://user:pass@localhost:5432/placeholder
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # La couverture doit exister AVANT le scan : sans lcov, Sonar ne lit pas « 0 % », il ne lit
+      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive.
+      - name: Test with coverage
+        run: pnpm turbo test
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v7
