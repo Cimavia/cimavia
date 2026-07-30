@@ -1,7 +1,7 @@
 import { MediaType } from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
 import type { TFunction } from "i18next";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { FeedbackForm } from "@/feature/feedback/component/FeedbackForm";
@@ -50,12 +50,21 @@ export function SessionFeedbackScreen() {
   // Refus de l'enregistreur (permission/durée) : précède l'upload, ne passe pas par une mutation.
   const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
 
-  // Le formulaire part de ce qui est déjà enregistré (débrief repris en plusieurs fois). On ne
-  // resynchronise QUE sur l'identité du débrief chargé : réécrire à chaque render effacerait la
-  // frappe en cours dès qu'une requête d'arrière-plan se termine.
-  useEffect(() => {
+  /**
+   * Le formulaire part de ce qui est déjà enregistré (débrief repris en plusieurs fois). On ne
+   * resynchronise QUE sur l'identité du débrief chargé : réécrire à chaque render effacerait la
+   * frappe en cours dès qu'une requête d'arrière-plan se termine.
+   *
+   * Ajusté PENDANT le render, pas dans un effet : c'est de l'état dérivé d'une donnée chargée, et
+   * la version en `useEffect` mentait au linter (elle lisait `content` sans en dépendre) tout en
+   * affichant un render de trop avec l'ancien texte.
+   */
+  const [syncedFeedbackId, setSyncedFeedbackId] = useState<string | null>(null);
+  const loadedFeedbackId = feedback?.id ?? null;
+  if (loadedFeedbackId !== syncedFeedbackId) {
+    setSyncedFeedbackId(loadedFeedbackId);
     setContent(feedback?.content ?? "");
-  }, [feedback?.id]);
+  }
 
   const saved = feedback?.content ?? "";
   // Un premier débrief vide reste légitime (« séance faite, rien à signaler ») ; ré-enregistrer

@@ -47,7 +47,8 @@
     "rules": {
       "correctness": {
         "noUnusedVariables": "error",
-        "noUnusedImports": "error"
+        "noUnusedImports": "error",
+        "useExhaustiveDependencies": "error"
       },
       "style": {
         "noNonNullAssertion": "warn"
