@@ -1,0 +1,19 @@
+version: 2
+
+# Les actions sont épinglées par SHA (sécurité : un tag est mutable, un commit non). Contrepartie :
+# plus rien ne les met à jour tout seul — d'où Dependabot, qui rouvre le sujet chaque semaine et
+# réécrit le SHA *avec* son commentaire de version. Sans lui, l'épinglage devient de l'obsolescence.
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "type: chore"
+    groups:
+      # Un seul PR pour toute la CI plutôt qu'un par action : ces mises à jour se relisent ensemble.
+      actions:
+        patterns:
+          - "*"
