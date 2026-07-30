@@ -36,18 +36,18 @@ describe("resolveInvoiceState", () => {
   });
 
   it("rend null pour un DRAFT : une facture non émise n'a pas d'état d'affichage", () => {
-    expect(resolveInvoiceState({ status: InvoiceStatus.DRAFT, dueDate: "2026-07-28" }, TODAY)).toBe(
-      null,
-    );
+    expect(
+      resolveInvoiceState({ status: InvoiceStatus.DRAFT, dueDate: "2026-07-28" }, TODAY),
+    ).toBeNull();
   });
 
   it("rend null sur une date illisible plutôt que d'annoncer un retard à tort", () => {
     expect(
       resolveInvoiceState({ status: InvoiceStatus.PENDING, dueDate: "31/07/2026" }, TODAY),
-    ).toBe(null);
+    ).toBeNull();
     expect(
       resolveInvoiceState({ status: InvoiceStatus.PENDING, dueDate: "2026-07-28" }, "hier"),
-    ).toBe(null);
+    ).toBeNull();
   });
 
   it("compare des dates civiles, pas des instants : le passage de mois ne piège pas", () => {
