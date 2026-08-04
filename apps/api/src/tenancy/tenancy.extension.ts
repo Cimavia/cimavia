@@ -45,6 +45,70 @@ type FindFirstDelegate = {
   findFirstOrThrow: (args: unknown) => Promise<unknown>;
 };
 
+type TenantFilter = Record<string, unknown>;
+
+/**
+ * Le filtre tenant applicable à cette requête, ou une erreur explicite. Trois refus, dans cet
+ * ordre : pas d'acteur (requête hors contexte), modèle absent de TENANT_SCOPES (oubli de
+ * rattachement), rôle sans accès. Aucun n'est silencieux — un scope manquant doit casser bruyamment
+ * plutôt que servir la donnée d'un autre tenant.
+ */
+function tenantFilterOrThrow(
+  model: string,
+  operation: string,
+  actor: TenantContext | undefined,
+): TenantFilter {
+  if (!actor) {
+    throw new Error(
+      `[tenancy] acteur courant absent — ${model}.${operation} exécuté hors contexte tenant`,
+    );
+  }
+  if (!(model in TENANT_SCOPES)) {
+    throw new Error(`[tenancy] modèle non scopé : ${model} — rattacher au tenant avant usage`);
+  }
+  const field = tenantField(model, actor.role);
+  if (!field) {
+    throw new Error(`[tenancy] rôle ${actor.role} non autorisé sur ${model}`);
+  }
+  return { [field]: actor.userId };
+}
+
+/**
+ * findUnique n'accepte que des clés uniques dans `where` → bascule en findFirst pour pouvoir AND
+ * le filtre tenant sans que Prisma rejette l'argument.
+ */
+function findUniqueScoped(
+  prisma: PrismaClient,
+  model: string,
+  operation: string,
+  args: unknown,
+  filter: TenantFilter,
+): Promise<unknown> {
+  const method = operation === "findUnique" ? "findFirst" : "findFirstOrThrow";
+  const delegates = prisma as unknown as Record<string, FindFirstDelegate | undefined>;
+  const delegate = delegates[delegateName(model)];
+  if (!delegate) {
+    throw new Error(`[tenancy] délégué Prisma introuvable pour ${model}`);
+  }
+  const a = args as { where?: Record<string, unknown> };
+  return delegate[method]({ ...a, where: { ...a.where, ...filter } });
+}
+
+// Lecture/écriture ciblée : le filtre s'ajoute au `where`.
+function scopeWhere(args: unknown, filter: TenantFilter): void {
+  const a = args as { where?: Record<string, unknown> };
+  a.where = { ...a.where, ...filter };
+}
+
+// Création : le tenant est INJECTÉ dans les données — l'appelant ne le fournit jamais. `createMany`
+// reçoit un tableau, `create` un objet ; le test couvre les deux formes.
+function scopeData(args: unknown, filter: TenantFilter): void {
+  const a = args as { data?: Record<string, unknown> | Record<string, unknown>[] };
+  a.data = Array.isArray(a.data)
+    ? a.data.map((item) => ({ ...item, ...filter }))
+    : { ...a.data, ...filter };
+}
+
 /**
  * Prisma Client Extension appliquant le scope tenant à TOUTE requête métier.
  * L'acteur courant est lu dans le CLS (peuplé par TenancyInterceptor). Aucune query ne
@@ -56,39 +120,13 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
           const actor = cls.get<TenantContext | undefined>(TENANT_CLS_KEY);
-          if (!actor) {
-            throw new Error(
-              `[tenancy] acteur courant absent — ${model}.${operation} exécuté hors contexte tenant`,
-            );
-          }
-          if (!(model in TENANT_SCOPES)) {
-            throw new Error(
-              `[tenancy] modèle non scopé : ${model} — rattacher au tenant avant usage`,
-            );
-          }
-          const field = tenantField(model, actor.role);
-          if (!field) {
-            throw new Error(`[tenancy] rôle ${actor.role} non autorisé sur ${model}`);
-          }
-          const filter = { [field]: actor.userId };
+          const filter = tenantFilterOrThrow(model, operation, actor);
 
           switch (operation) {
-            // findUnique n'accepte que des clés uniques dans `where` → bascule en findFirst
-            // pour pouvoir AND le filtre tenant sans que Prisma rejette l'argument.
             case "findUnique":
-            case "findUniqueOrThrow": {
-              const method = operation === "findUnique" ? "findFirst" : "findFirstOrThrow";
-              const delegates = prisma as unknown as Record<string, FindFirstDelegate | undefined>;
-              const delegate = delegates[delegateName(model)];
-              if (!delegate) {
-                throw new Error(`[tenancy] délégué Prisma introuvable pour ${model}`);
-              }
-              const a = args as { where?: Record<string, unknown> };
-              return delegate[method]({
-                ...a,
-                where: { ...a.where, ...filter },
-              });
-            }
+            case "findUniqueOrThrow":
+              return findUniqueScoped(prisma, model, operation, args, filter);
+
             case "findFirst":
             case "findFirstOrThrow":
             case "findMany":
@@ -98,26 +136,16 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
             case "update":
             case "updateMany":
             case "delete":
-            case "deleteMany": {
-              const a = args as { where?: Record<string, unknown> };
-              a.where = { ...a.where, ...filter };
+            case "deleteMany":
+              scopeWhere(args, filter);
               return query(args);
-            }
-            case "create": {
-              const a = args as { data?: Record<string, unknown> };
-              a.data = { ...a.data, ...filter };
-              return query(args);
-            }
+
+            case "create":
             case "createMany":
-            case "createManyAndReturn": {
-              const a = args as {
-                data?: Record<string, unknown> | Record<string, unknown>[];
-              };
-              a.data = Array.isArray(a.data)
-                ? a.data.map((d) => ({ ...d, ...filter }))
-                : { ...a.data, ...filter };
+            case "createManyAndReturn":
+              scopeData(args, filter);
               return query(args);
-            }
+
             default:
               // upsert & opérations exotiques : interdites via le client tenant en P1
               // (leur `where`/`create` unique créerait un angle mort de scope).
