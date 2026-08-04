@@ -1,17 +1,15 @@
-import type { ExerciseCategory, ExerciseDto, ScheduledSessionDto } from "@cmv/shared";
-import { useState } from "react";
+import type { ExerciseDto, ScheduledSessionDto } from "@cmv/shared";
+import { type CompositionRow, useComposition } from "@/feature/library/hook/useComposition";
 
 /**
- * Ligne de composition en cours d'édition. `key` est locale et stable : un même exercice peut
- * figurer deux fois dans une séance, l'id source ne suffit donc pas à l'identifier.
+ * Ligne de composition d'une séance PLANIFIÉE. Elle porte un snapshot (titre, description,
+ * catégorie) et `sourceExerciseId` **nullable** : la séance planifiée est une copie autonome, pas
+ * une référence — supprimer l'exercice d'origine dans la bibliothèque ne doit jamais casser un
+ * cycle diffusé (tranché en P3, cf. dette-technique.md).
  */
-export type EditorItem = {
-  key: string;
+export type EditorItem = CompositionRow & {
   sourceExerciseId: string | null;
-  title: string;
   description: string | null;
-  category: ExerciseCategory;
-  prescription: string;
 };
 
 function toEditorItems(session: ScheduledSessionDto | null): EditorItem[] {
@@ -26,50 +24,18 @@ function toEditorItems(session: ScheduledSessionDto | null): EditorItem[] {
   }));
 }
 
-/**
- * La composition d'une séance planifiée en cours d'édition : la liste et les quatre gestes qui la
- * modifient. Un exercice ajouté ici est une COPIE (snapshot titre/description/catégorie) — la
- * bibliothèque ne bouge jamais, et supprimer l'exercice source plus tard ne casse rien (CDC §5.4).
- */
+// L'exercice piocché devient une COPIE : on garde son id en trace, pas en dépendance.
+function toEditorRow(exercise: ExerciseDto): Omit<EditorItem, "key"> {
+  return {
+    sourceExerciseId: exercise.id,
+    title: exercise.title,
+    description: exercise.description,
+    category: exercise.category,
+    prescription: "",
+  };
+}
+
+// La composition d'une séance planifiée, sur le socle partagé avec le builder de bibliothèque.
 export function useSessionComposition(session: ScheduledSessionDto | null) {
-  const [items, setItems] = useState<EditorItem[]>(() => toEditorItems(session));
-
-  function addExercise(exercise: ExerciseDto) {
-    setItems((current) => [
-      ...current,
-      {
-        key: crypto.randomUUID(),
-        sourceExerciseId: exercise.id,
-        title: exercise.title,
-        description: exercise.description,
-        category: exercise.category,
-        prescription: "",
-      },
-    ]);
-  }
-
-  function removeItem(key: string) {
-    setItems((current) => current.filter((item) => item.key !== key));
-  }
-
-  // Déplace une ligne d'un cran ; la position finale = l'ordre du tableau (l'API la déduit).
-  function moveItem(index: number, direction: -1 | 1) {
-    setItems((current) => {
-      const target = index + direction;
-      if (target < 0 || target >= current.length) return current;
-      const next = [...current];
-      const [moved] = next.splice(index, 1);
-      if (moved == null) return current;
-      next.splice(target, 0, moved);
-      return next;
-    });
-  }
-
-  function setPrescription(key: string, value: string) {
-    setItems((current) =>
-      current.map((item) => (item.key === key ? { ...item, prescription: value } : item)),
-    );
-  }
-
-  return { items, addExercise, removeItem, moveItem, setPrescription };
+  return useComposition<EditorItem>(() => toEditorItems(session), toEditorRow);
 }
