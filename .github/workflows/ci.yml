@@ -14,35 +14,44 @@ env:
   PNPM_VERSION: "10.34.4"
   NODE_VERSION: "22"
 
+permissions:
+  contents: read
+
 jobs:
   quality:
     name: Lint + Typecheck + Test
     runs-on: ubuntu-latest
     env:
-      # DATABASE_URL fictive pour que prisma generate puisse charger prisma.config.ts
-      # prisma generate ne se connecte pas à la BDD — il lit uniquement schema.prisma
-      # Sans cette variable, env() de Prisma 7 throw pendant postinstall
-      DATABASE_URL: postgresql://cimavia_e2e:cimavia_dev_e2e@localhost:5432/cimavia_db_e2e
+      # DSN factice : `prisma generate` lit prisma.config.ts, dont le env() exige la variable — il
+      # ne se connecte à aucune base. Volontairement SANS identifiants : un mot de passe ici, même
+      # inventé, est un secret en clair pour tout scanner (et pour quiconque le recopie).
+      DATABASE_URL: postgresql://localhost:5432/placeholder
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
 
+      # `--ignore-scripts` : aucune dépendance ne doit pouvoir exécuter de code à l'installation.
+      # Le seul script dont on a besoin est le nôtre (`postinstall: prisma generate`), qu'on relance
+      # donc explicitement — le comportement est identique, l'exécution arbitraire ne l'est plus.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        run: pnpm --filter @cmv/api exec prisma generate
 
       - name: Biome CI
         run: pnpm biome ci .

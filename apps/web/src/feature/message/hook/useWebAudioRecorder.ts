@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type RecordedWebAudio = { blob: Blob; durationSeconds: number };
 
@@ -27,7 +27,13 @@ export function useWebAudioRecorder(
   const startedAtRef = useRef(0);
   const intervalRef = useRef<number | null>(null);
 
-  const cleanup = () => {
+  /**
+   * Mémoïsé pour une raison de fond, pas de style : cette fonction est le nettoyage de l'effet de
+   * démontage ci-dessous. Recréée à chaque render, elle rendrait cet effet dépendant du render —
+   * React couperait le micro et remettrait `isRecording` à false au milieu d'un enregistrement.
+   * Ses seules dépendances sont des refs et un setter, tous stables : la liste vide est exacte.
+   */
+  const cleanup = useCallback(() => {
     if (intervalRef.current != null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -38,10 +44,10 @@ export function useWebAudioRecorder(
     streamRef.current = null;
     recorderRef.current = null;
     setIsRecording(false);
-  };
+  }, []);
 
   // Libère le micro si le composant est démonté en cours d'enregistrement.
-  useEffect(() => cleanup, []);
+  useEffect(() => cleanup, [cleanup]);
 
   const start = async () => {
     try {

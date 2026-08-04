@@ -7,24 +7,18 @@ import {
   type ScheduledSessionSummaryDto,
 } from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Link, Navigate, useNavigate, useParams } from "@tanstack/react-router";
+import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
+import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
+import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
-import { useDeletePlan, usePublishPlan } from "@/feature/plan/hook/usePlans";
-import {
-  CmvAppShell,
-  CmvBadge,
-  CmvButton,
-  CmvConfirmButton,
-  CmvEmptyState,
-  CmvErrorState,
-} from "@/shared/component";
+import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
 
@@ -33,14 +27,11 @@ type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null }
 
 export function PlanBuilderScreen() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
   const { addWeek, isBusy } = usePlanMutations(planId);
-  const publish = usePublishPlan();
-  const removePlan = useDeletePlan();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
   const { data: billing } = usePlanBilling(planId);
 
@@ -83,15 +74,6 @@ export function PlanBuilderScreen() {
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
 
-  // Indice sous le statut : cycle diffusé, ou facturation manquante (ce qui bloque la diffusion).
-  let statusHintKey: string | null = null;
-  if (isPublished) statusHintKey = "plan.builder.publishedHint";
-  else if (billing == null) statusHintKey = "plan.builder.billingRequired";
-
-  // Info-bulle expliquant pourquoi la diffusion est bloquée (facturation à saisir d'abord).
-  const publishBlockedTitle =
-    !isPublished && billing == null ? t("plan.builder.billingRequired") : undefined;
-
   function onOpenCreate(week: PlanWeekDto, date: string) {
     setEdit({ week, date, sessionId: null });
   }
@@ -113,35 +95,13 @@ export function PlanBuilderScreen() {
         date: formatDate(plan.startDate),
       })}
       actions={
-        <>
-          {/* Un cycle diffusé ne se supprime pas : sa facture est émise et l'athlète s'entraîne
-              dessus. Info-bulle sur un span (le `title` d'un bouton désactivé ne s'affiche pas
-              partout). */}
-          <span title={isPublished ? t("plan.builder.deleteDisabledPublished") : undefined}>
-            <CmvConfirmButton
-              label={t("plan.builder.delete")}
-              confirmLabel={t("common.confirmDelete")}
-              cancelLabel={t("common.cancel")}
-              disabled={isBusy || isPublished}
-              onConfirm={() =>
-                removePlan.mutate(planId, { onSuccess: () => navigate({ to: "/plans" }) })
-              }
-            />
-          </span>
-          {/* La diffusion est irréversible et exige au moins une semaine ET une facturation saisie
-              (l'API refuse sinon). Info-bulle sur un span : un bouton désactivé ne déclenche pas
-              toujours le `title` natif selon le navigateur. */}
-          <span title={publishBlockedTitle}>
-            <CmvButton
-              onClick={() => publish.mutate(planId)}
-              disabled={
-                isPublished || plan.weeks.length === 0 || billing == null || publish.isPending
-              }
-            >
-              {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
-            </CmvButton>
-          </span>
-        </>
+        <PlanBuilderActions
+          planId={planId}
+          isPublished={isPublished}
+          hasWeeks={plan.weeks.length > 0}
+          isBillingFilled={billing != null}
+          isBusy={isBusy}
+        />
       }
     >
       <div className="mb-cmv-lg flex flex-col gap-cmv-sm">
@@ -149,14 +109,7 @@ export function PlanBuilderScreen() {
           {t("plan.builder.back")}
         </Link>
 
-        <div className="flex items-center gap-cmv-sm">
-          <CmvBadge variant={isPublished ? "accent" : "neutral"}>
-            {t(`plan.status.${plan.status}`)}
-          </CmvBadge>
-          {statusHintKey == null ? null : (
-            <span className="text-cmv-caption text-cmv-text-lo">{t(statusHintKey)}</span>
-          )}
-        </div>
+        <PlanStatusLine status={plan.status} isBillingFilled={billing != null} />
 
         {plan.description == null ? null : (
           <p className="max-w-3xl text-cmv-body text-cmv-text-mid">{plan.description}</p>

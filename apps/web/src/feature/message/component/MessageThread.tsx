@@ -28,25 +28,28 @@ export function MessageThread({ athleteId, athleteName }: Readonly<MessageThread
   const conversationId = conversation.data?.id;
   const messages = useThreadMessages(conversationId);
   const send = useSendMessage(conversationId ?? "");
-  const markRead = useMarkRead(conversationId);
+  // On ne garde que `mutate`, garanti stable par TanStack Query : la stabilité devient vérifiable
+  // par le linter au lieu de reposer sur un commentaire.
+  const { mutate: markRead } = useMarkRead(conversationId);
   const media = useSendMessageMedia(conversationId ?? "");
 
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
 
   // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la liste de
-  // fils (pas les messages) : pas de boucle. `mutate` est stable → hors dépendances.
+  // fils (pas les messages) : pas de boucle.
   const hasIncomingUnread = items.some(
     (message) => message.senderId !== currentUserId && message.readAt == null,
   );
   useEffect(() => {
     if (conversationId != null && hasIncomingUnread) {
-      markRead.mutate();
+      markRead();
     }
-  }, [conversationId, hasIncomingUnread]);
+  }, [conversationId, hasIncomingUnread, markRead]);
 
   // Colle le fil au dernier message à chaque arrivée.
   const bottomRef = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `items.length` est un déclencheur, pas une donnée lue par l'effet — l'arrivée d'un message doit relancer le défilement.
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
   }, [items.length]);

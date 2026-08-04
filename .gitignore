@@ -39,6 +39,9 @@ pnpm-debug.log*
 android/
 ios/
 
+# Couverture de tests (régénérée à chaque `pnpm test`, lue par SonarCloud en CI)
+coverage/
+
 # Prisma
 prisma/migrations/.gitkeep
 

@@ -44,7 +44,9 @@ export function ConversationScreen() {
   const conversationId = conversation.data?.id;
   const messages = useMessages(conversationId);
   const send = useSendMessage(conversationId ?? "");
-  const markRead = useMarkRead(conversationId);
+  // On ne garde que `mutate`, garanti stable par TanStack Query : la stabilité devient vérifiable
+  // par le linter au lieu de reposer sur un commentaire.
+  const { mutate: markRead } = useMarkRead(conversationId);
   const media = useSendMessageMedia(conversationId ?? "");
 
   // Refus qui précède l'upload (permission galerie, permission/erreur micro) : porté à la main car
@@ -58,15 +60,15 @@ export function ConversationScreen() {
 
   // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la conversation
   // (pas les messages) : le prochain poll ramène `readAt` posé et la condition retombe — pas de
-  // boucle. `mutate` est stable, on peut l'omettre des dépendances.
+  // boucle.
   const hasIncomingUnread = items.some(
     (message) => message.senderId !== currentUserId && message.readAt == null,
   );
   useEffect(() => {
     if (conversationId != null && hasIncomingUnread) {
-      markRead.mutate();
+      markRead();
     }
-  }, [conversationId, hasIncomingUnread]);
+  }, [conversationId, hasIncomingUnread, markRead]);
 
   if (!hasCoach) {
     return (

@@ -6,18 +6,54 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+env:
+  PNPM_VERSION: "10.34.4"
+  NODE_VERSION: "22"
+
+# Moindre privilège : ces workflows ne font que lire le dépôt. La décoration des PR par
+# SonarCloud passe par sa GitHub App, pas par ce token.
+permissions:
+  contents: read
+
 jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
+    env:
+      # Même DSN factice que la CI, sans identifiants (cf. ci.yml) : `prisma generate` a besoin de
+      # la variable, pas d'une base.
+      DATABASE_URL: postgresql://localhost:5432/placeholder
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        run: pnpm --filter @cmv/api exec prisma generate
+
+      # La couverture doit exister AVANT le scan : sans lcov, Sonar ne lit pas « 0 % », il ne lit
+      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive.
+      - name: Test with coverage
+        run: pnpm turbo test
+
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v7
+        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token créé à l'étape 1 → à ajouter dans les secrets GitHub
           SONAR_HOST_URL: https://sonarcloud.io
