@@ -1,14 +1,49 @@
-import { PlanWeekType, todayIsoDate } from "@cmv/shared";
+import type { PlanDto, PlanWeekDto } from "@cmv/shared";
+import { todayIsoDate } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView } from "react-native";
 import { useMyCoach } from "@/feature/coach";
-import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
+import { CurrentWeekSection } from "@/feature/plan/component/CurrentWeekSection";
+import { PlanningNotice } from "@/feature/plan/component/PlanningNotice";
 import { currentWeek, useMyPlan } from "@/feature/plan/hook/useMyPlan";
-import { CmvBadge, CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvErrorState, CmvScreen } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
-import { formatDateRange } from "@/shared/util/date.util";
+
+/**
+ * Ce que l'écran a à montrer, en un seul état — les six cas s'excluent, et l'exclusivité vaut
+ * mieux affirmée ici que reconstituée à chaque bloc par une conjonction de négations.
+ *
+ * Deux nuances qui ne se devinent pas :
+ *  - « sans coach » et « coach sans cycle diffusé » sont DIFFÉRENTS : dire à un athlète non
+ *    rattaché que son coach n'a rien diffusé le laisserait attendre pour rien ;
+ *  - hors-ligne, le cache sert encore le cycle — l'erreur n'a donc de sens que sans données.
+ */
+type PlanningState =
+  | { kind: "loading" }
+  | { kind: "error" }
+  | { kind: "noCoach" }
+  | { kind: "noPlan" }
+  | { kind: "outOfCycle"; plan: PlanDto }
+  | { kind: "week"; week: PlanWeekDto };
+
+function resolvePlanningState(
+  isPending: boolean,
+  isError: boolean,
+  plan: PlanDto | null | undefined,
+  hasCoach: boolean,
+  week: PlanWeekDto | null,
+): PlanningState {
+  if (isPending) return { kind: "loading" };
+  if (plan == null) {
+    if (isError) return { kind: "error" };
+    return hasCoach ? { kind: "noPlan" } : { kind: "noCoach" };
+  }
+  // Un cycle existe mais aucune semaine ne contient aujourd'hui : il est fini ou à venir. On le
+  // dit, plutôt que d'afficher la semaine 1 comme si c'était la semaine courante.
+  return week == null ? { kind: "outOfCycle", plan } : { kind: "week", week };
+}
 
 // Vue semaine de l'athlète (p3-4) : la semaine EN COURS de son cycle diffusé.
 export function PlanningScreen() {
@@ -17,9 +52,7 @@ export function PlanningScreen() {
   const { data: coach } = useMyCoach();
 
   const today = todayIsoDate();
-  const week = currentWeek(plan);
-
-  const doneCount = week?.sessions.filter((session) => session.status === "DONE").length ?? 0;
+  const state = resolvePlanningState(isPending, isError, plan, coach != null, currentWeek(plan));
 
   return (
     <CmvScreen>
@@ -39,66 +72,28 @@ export function PlanningScreen() {
           />
         }
       >
-        {isPending ? <ActivityIndicator /> : null}
+        {state.kind === "loading" ? <ActivityIndicator /> : null}
 
-        {/* Hors-ligne, le cache sert encore le plan : l'erreur n'a de sens que sans données. */}
-        {isError && plan == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
+        {state.kind === "error" ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
-        {/* « Sans coach » et « coach sans cycle diffusé » sont deux états DIFFÉRENTS : dire à un
-            athlète non rattaché que son coach n'a rien diffusé le laisserait attendre pour rien. */}
-        {!isPending && !isError && plan == null && coach == null ? (
-          <View className="gap-3 rounded-lg border border-cmv-border border-dashed p-6">
-            <CmvText className="text-cmv-text-hi">{t("coach.missing.title")}</CmvText>
-            <CmvText className="text-cmv-text-mid text-sm">
-              {t("coach.missing.description")}
-            </CmvText>
-            <CmvButton label={t("coach.missing.action")} onPress={() => router.push("/join")} />
-          </View>
+        {state.kind === "noCoach" ? (
+          <PlanningNotice
+            title={t("coach.missing.title")}
+            description={t("coach.missing.description")}
+            actionLabel={t("coach.missing.action")}
+            onAction={() => router.push("/join")}
+          />
         ) : null}
 
-        {!isPending && !isError && plan == null && coach != null ? (
-          <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
-            <CmvText className="text-cmv-text-hi">{t("plan.empty.title")}</CmvText>
-            <CmvText className="text-cmv-text-mid text-sm">{t("plan.empty.description")}</CmvText>
-          </View>
+        {state.kind === "noPlan" ? (
+          <PlanningNotice title={t("plan.empty.title")} description={t("plan.empty.description")} />
         ) : null}
 
-        {/* Un cycle existe mais aucune semaine ne contient aujourd'hui : il est fini ou à venir.
-            On le dit, plutôt que d'afficher la semaine 1 comme si c'était la semaine courante. */}
-        {plan != null && week == null ? (
-          <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
-            <CmvText className="text-cmv-text-hi">{plan.title}</CmvText>
-            <CmvText className="text-cmv-text-mid text-sm">{t("plan.outOfCycle")}</CmvText>
-          </View>
+        {state.kind === "outOfCycle" ? (
+          <PlanningNotice title={state.plan.title} description={t("plan.outOfCycle")} />
         ) : null}
 
-        {plan != null && week != null ? (
-          <>
-            <View className="gap-1">
-              <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-                {t("plan.thisWeek")}
-              </CmvText>
-              {/* La semaine de décharge se repère à sa couleur : c'est l'exception du cycle, et
-                  la confondre avec une semaine d'entraînement fausse l'effort de l'athlète. */}
-              <CmvBadge
-                label={t("plan.week.numberAndType", {
-                  number: week.weekNumber,
-                  type: t(`plan.weekType.${week.type}`),
-                })}
-                variant={week.type === PlanWeekType.DELOAD ? "info" : "neutral"}
-              />
-              <CmvText className="text-cmv-text-lo text-sm">
-                {formatDateRange(week.startDate, week.endDate)} ·{" "}
-                {t("plan.doneCount", { done: doneCount, total: week.sessions.length })}
-              </CmvText>
-              {week.note == null ? null : (
-                <CmvText className="text-cmv-text-mid text-sm">{week.note}</CmvText>
-              )}
-            </View>
-
-            <PlanWeekList week={week} today={today} />
-          </>
-        ) : null}
+        {state.kind === "week" ? <CurrentWeekSection week={state.week} today={today} /> : null}
       </ScrollView>
     </CmvScreen>
   );
