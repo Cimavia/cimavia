@@ -1,4 +1,5 @@
 import type { EnvSchema } from "@cmv/shared";
+import { NotificationEntityType, NotificationType } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
@@ -40,31 +41,52 @@ export type InvoiceIssuedEvent = {
   invoiceId: string;
 };
 
-// Ce que le client reçoit dans les données de la notification : de quoi router vers le bon
-// écran à l'ouverture. Typé ici pour que la navigation mobile n'ait pas à deviner.
+/**
+ * Ce que le client reçoit dans les données de la notification : de quoi router vers le bon écran à
+ * l'ouverture. Le `type` est typé depuis `NotificationType` pour que le push et la ligne persistée
+ * ne puissent pas diverger ; les CLÉS d'id, elles, restent telles quelles — une app déjà installée
+ * lit `planId`/`scheduledSessionId`, les renommer casserait sa navigation.
+ */
 type PushPayload =
-  | { type: "PLAN_PUBLISHED"; planId: string }
-  | { type: "PLAN_UPDATED"; planId: string }
-  | { type: "FEEDBACK_RECEIVED"; scheduledSessionId: string }
-  | { type: "MESSAGE_RECEIVED"; conversationId: string }
-  | { type: "INVOICE_ISSUED"; invoiceId: string };
+  | { type: typeof NotificationType.PLAN_PUBLISHED; planId: string }
+  | { type: typeof NotificationType.PLAN_UPDATED; planId: string }
+  | { type: typeof NotificationType.FEEDBACK_RECEIVED; scheduledSessionId: string }
+  | { type: typeof NotificationType.MESSAGE_RECEIVED; conversationId: string }
+  | { type: typeof NotificationType.INVOICE_ISSUED; invoiceId: string };
 
 type PushContent = { title: string; body: string; data: PushPayload };
+
+/** Ce qu'on écrit en base : le libellé n'y est pas — seulement de quoi le rendre (cf. §3). */
+type NotificationRecord = {
+  recipientId: string;
+  type: NotificationType;
+  entityType: NotificationEntityType;
+  entityId: string;
+  actorName: string | null;
+  subjectLabel: string | null;
+};
 
 /**
  * Point d'émission des notifications métier (CDC §12) : nouvelle planif, ajustement de planif,
  * débrief reçu — puis message (P5) et facture (P6).
  *
- * Deux règles gouvernent ce service :
+ * Trois règles gouvernent ce service :
  *
- * 1. **Il lit les tokens du DESTINATAIRE, donc d'un autre tenant** (le coach notifie son athlète,
- *    et réciproquement). Le client tenant refuserait par construction — on passe donc par le
- *    PrismaService de base, comme UserDirectoryService. C'est sûr à une condition, respectée par
+ * 1. **Il écrit et lit pour le DESTINATAIRE, donc dans un autre tenant** (le coach notifie son
+ *    athlète, et réciproquement). Le client tenant refuserait par construction — on passe donc par
+ *    le PrismaService de base, comme UserDirectoryService. C'est sûr à une condition, respectée par
  *    tous les appelants : l'id du destinataire vient d'une requête DÉJÀ scopée, jamais du client.
  *
- * 2. **Un échec de push ne fait jamais échouer l'action métier.** Diffuser un cycle réussit même
- *    si Expo est injoignable : l'erreur est journalisée (Pino → Axiom), pas propagée. Une
- *    notification est un effet de bord, pas une transaction.
+ * 2. **Aucun échec ne fait échouer l'action métier.** Diffuser un cycle réussit même si Expo est
+ *    injoignable : l'erreur est journalisée (Pino → Axiom), pas propagée. Une notification est un
+ *    effet de bord, pas une transaction — et les appelants notifient APRÈS avoir commité, donc une
+ *    exception ici transformerait une action réussie en 500.
+ *
+ * 3. **Persistance et push dégradent SÉPARÉMENT** (#48). Chaque événement laisse une trace en base
+ *    *en plus* du push, jamais à sa place : le push est éphémère (téléphone éteint, permission
+ *    refusée, ou compte qui n'a jamais ouvert le mobile — le cas du coach sur web). Chacun a donc
+ *    son garde-fou : un push injoignable n'empêche pas la trace, une écriture qui échoue
+ *    n'empêche pas la livraison.
  */
 @Injectable()
 export class NotificationService {
@@ -83,90 +105,171 @@ export class NotificationService {
 
   async notifyPlanPublished(event: PlanPublishedEvent): Promise<void> {
     this.logger.info({ event: "plan.published", ...event }, "Planification diffusée à l'athlète");
-    await this.send(event.athleteId, () => ({
-      title: "Nouvelle planification",
-      body: `Ton coach a diffusé « ${event.planTitle} ».`,
-      data: { type: "PLAN_PUBLISHED", planId: event.planId },
-    }));
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.PLAN_PUBLISHED,
+        entityType: NotificationEntityType.PLAN,
+        entityId: event.planId,
+        actorName: null,
+        subjectLabel: event.planTitle,
+      },
+      {
+        title: "Nouvelle planification",
+        body: `Ton coach a diffusé « ${event.planTitle} ».`,
+        data: { type: NotificationType.PLAN_PUBLISHED, planId: event.planId },
+      },
+    );
   }
 
   // Ajustement en cours de cycle (CDC §5.7) : sans notification, l'athlète s'entraînerait sur
   // une version périmée — qu'il a peut-être déjà en cache hors-ligne.
   async notifyPlanUpdated(event: PlanUpdatedEvent): Promise<void> {
     this.logger.info({ event: "plan.updated", ...event }, "Planification ajustée par le coach");
-    await this.send(event.athleteId, () => ({
-      title: "Séance modifiée",
-      body: `Ton coach a ajusté « ${event.sessionTitle} ».`,
-      data: { type: "PLAN_UPDATED", planId: event.planId },
-    }));
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.PLAN_UPDATED,
+        entityType: NotificationEntityType.PLAN,
+        entityId: event.planId,
+        actorName: null,
+        subjectLabel: event.sessionTitle,
+      },
+      {
+        title: "Séance modifiée",
+        body: `Ton coach a ajusté « ${event.sessionTitle} ».`,
+        data: { type: NotificationType.PLAN_UPDATED, planId: event.planId },
+      },
+    );
   }
 
   async notifyFeedbackReceived(event: FeedbackReceivedEvent): Promise<void> {
     this.logger.info({ event: "feedback.received", ...event }, "Débrief reçu par le coach");
-    await this.send(event.coachId, async () => {
-      const athlete = await this.prisma.user.findUnique({
-        where: { id: event.athleteId },
-        select: { name: true },
-      });
-      return {
+    // Résolu AVANT l'émission, et non plus à la demande : la trace persistée en a besoin même
+    // quand le coach n'a aucun appareil enregistré — c'est justement le cas qu'elle rattrape.
+    const athleteName = await this.userName(event.athleteId);
+    await this.emit(
+      {
+        recipientId: event.coachId,
+        type: NotificationType.FEEDBACK_RECEIVED,
+        entityType: NotificationEntityType.SCHEDULED_SESSION,
+        entityId: event.scheduledSessionId,
+        actorName: athleteName,
+        subjectLabel: event.sessionTitle,
+      },
+      {
         title: "Nouveau débrief",
         // Un coach suit N athlètes : sans le nom, la notification serait inexploitable.
-        body: `${athlete?.name ?? "Un de tes athlètes"} a débriefé « ${event.sessionTitle} ».`,
-        data: { type: "FEEDBACK_RECEIVED", scheduledSessionId: event.scheduledSessionId },
-      };
-    });
+        body: `${athleteName ?? "Un de tes athlètes"} a débriefé « ${event.sessionTitle} ».`,
+        data: {
+          type: NotificationType.FEEDBACK_RECEIVED,
+          scheduledSessionId: event.scheduledSessionId,
+        },
+      },
+    );
   }
 
   /**
-   * Nouveau message reçu (CDC §5.8). Le déclencheur du push (éviter une rafale de notifications)
-   * est décidé par l'appelant — comme « seule la création d'un débrief notifie » en P4 : le
-   * MessageService ne notifie qu'au passage « tout lu » → « non lu » du fil. Ici on ne fait que
-   * livrer.
+   * Nouveau message reçu (CDC §5.8). Le déclencheur (éviter une rafale de notifications) est décidé
+   * par l'appelant — comme « seule la création d'un débrief notifie » en P4 : le MessageService ne
+   * notifie qu'au passage « tout lu » → « non lu » du fil. Ici on ne fait que livrer. Le centre de
+   * notifications hérite donc du même throttle : une entrée par rafale, pas une par message.
    */
   async notifyMessageReceived(event: MessageReceivedEvent): Promise<void> {
     this.logger.info({ event: "message.received", ...event }, "Message reçu");
-    await this.send(event.recipientId, async () => {
-      const sender = await this.prisma.user.findUnique({
-        where: { id: event.senderId },
-        select: { name: true },
-      });
-      return {
+    const senderName = await this.userName(event.senderId);
+    await this.emit(
+      {
+        recipientId: event.recipientId,
+        type: NotificationType.MESSAGE_RECEIVED,
+        entityType: NotificationEntityType.CONVERSATION,
+        entityId: event.conversationId,
+        actorName: senderName,
+        subjectLabel: null,
+      },
+      {
         // Le nom de l'expéditeur en titre : un coach suit N athlètes, l'athlète a 1 coach — dans
         // les deux cas c'est l'info utile. Corps générique (le média n'a pas de texte à montrer).
-        title: sender?.name ?? "Nouveau message",
+        title: senderName ?? "Nouveau message",
         body: "Tu as reçu un nouveau message.",
-        data: { type: "MESSAGE_RECEIVED", conversationId: event.conversationId },
-      };
-    });
+        data: { type: NotificationType.MESSAGE_RECEIVED, conversationId: event.conversationId },
+      },
+    );
   }
 
   // Facture émise (CDC §5.10). L'athlète est notifié qu'une facture l'attend ; le montant n'est
   // pas mis dans le corps (une notification n'est pas un relevé — il ouvre l'écran Factures).
   async notifyInvoiceIssued(event: InvoiceIssuedEvent): Promise<void> {
     this.logger.info({ event: "invoice.issued", ...event }, "Facture émise par le coach");
-    await this.send(event.athleteId, () => ({
-      title: "Nouvelle facture",
-      body: "Ton coach t'a émis une facture.",
-      data: { type: "INVOICE_ISSUED", invoiceId: event.invoiceId },
-    }));
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.INVOICE_ISSUED,
+        entityType: NotificationEntityType.INVOICE,
+        entityId: event.invoiceId,
+        actorName: null,
+        subjectLabel: null,
+      },
+      {
+        title: "Nouvelle facture",
+        body: "Ton coach t'a émis une facture.",
+        data: { type: NotificationType.INVOICE_ISSUED, invoiceId: event.invoiceId },
+      },
+    );
+  }
+
+  /**
+   * Les deux canaux d'un même événement. La persistance passe EN PREMIER, et surtout avant le
+   * « aucun appareil → rien à faire » du push : c'est exactement le compte web-only qui, sans ça,
+   * ne recevrait jamais rien.
+   */
+  private async emit(record: NotificationRecord, push: PushContent): Promise<void> {
+    await this.persist(record);
+    await this.push(record.recipientId, push);
+  }
+
+  private async persist(record: NotificationRecord): Promise<void> {
+    try {
+      await this.prisma.notification.create({ data: record });
+    } catch (error) {
+      // Règle 2 : l'action métier a déjà réussi et commité — on journalise, on rend la main.
+      this.logger.error(
+        { err: error, recipientId: record.recipientId, type: record.type },
+        "Échec d'enregistrement de la notification",
+      );
+    }
+  }
+
+  /**
+   * Nom d'un utilisateur, pour nommer l'acteur d'une notification. `null` si introuvable OU si la
+   * lecture échoue : un nom manquant dégrade le libellé (le client rend une formule générique),
+   * il ne doit pas empêcher la notification (règle 2).
+   */
+  private async userName(userId: string): Promise<string | null> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+      return user?.name ?? null;
+    } catch (error) {
+      this.logger.error({ err: error, userId }, "Résolution du nom de l'acteur impossible");
+      return null;
+    }
   }
 
   /**
    * Envoie à tous les appareils du destinataire. Sans appareil enregistré (compte web-only,
-   * permission refusée, e2e), il n'y a rien à livrer — l'événement reste journalisé.
-   *
-   * Le contenu est construit par une fonction, pas passé tout fait : il peut demander une
-   * requête (résoudre un nom), qui n'a pas lieu d'être si personne n'a d'appareil — et qui
-   * profite ainsi du filet de la règle 2.
+   * permission refusée, e2e), il n'y a rien à livrer — l'événement reste journalisé, et depuis
+   * #48 il reste surtout consultable dans le centre de notifications.
    */
-  private async send(userId: string, build: () => PushContent | Promise<PushContent>) {
+  private async push(userId: string, content: PushContent): Promise<void> {
     try {
       const tokens = await this.prisma.pushToken.findMany({ where: { userId } });
       // Un token stocké peut avoir été invalidé côté Expo depuis : on filtre avant l'envoi.
       const valid = tokens.filter((row) => Expo.isExpoPushToken(row.token));
       if (valid.length === 0) return;
 
-      const content = await build();
       const messages: ExpoPushMessage[] = valid.map((row) => ({
         to: row.token,
         sound: "default",
