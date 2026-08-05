@@ -2,10 +2,11 @@ import { PushPlatform } from "@cmv/shared";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { type Href, router } from "expo-router";
+import { router } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { registerPushToken, revokePushToken } from "@/feature/notification/api";
+import { routeForPushPayload } from "@/feature/notification/util/route.util";
 
 /**
  * Enregistre l'appareil pour les notifications push (p4-4).
@@ -23,28 +24,13 @@ export function usePushToken() {
     // Ouvrir la notification doit mener à ce dont elle parle — sinon l'athlète atterrit sur
     // l'accueil et cherche lui-même la séance dont on vient de lui parler.
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const target = routeFor(response.notification.request.content.data);
+      // Destinations partagées avec le centre de notifications (#50) : ouvrir le push et toucher
+      // la ligne correspondante mènent au même endroit, par construction.
+      const target = routeForPushPayload(response.notification.request.content.data);
       if (target != null) router.push(target);
     });
     return () => subscription.remove();
   }, []);
-}
-
-// Le payload est écrit par NotificationService (API) : type + id de la cible. Inconnu → on ne
-// navigue pas plutôt que de deviner (une version d'app plus ancienne qu'un push, par exemple).
-function routeFor(data: unknown): Href | null {
-  const payload = data as { type?: string; scheduledSessionId?: string } | null;
-  switch (payload?.type) {
-    case "PLAN_PUBLISHED":
-    case "PLAN_UPDATED":
-      return "/planning";
-    case "FEEDBACK_RECEIVED":
-      return payload.scheduledSessionId == null ? null : `/session/${payload.scheduledSessionId}`;
-    case "INVOICE_ISSUED":
-      return "/invoices";
-    default:
-      return null;
-  }
 }
 
 async function registerDevice(): Promise<void> {

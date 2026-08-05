@@ -1,9 +1,12 @@
 import {
   formatIsoDate,
   formatIsoDateRange,
+  formatIsoDateTime,
   formatIsoDayNumber,
   formatIsoFullDay,
   formatIsoWeekday,
+  RELATIVE_TIME_KEY,
+  relativeTimeFrom,
 } from "@cmv/shared";
 import i18n from "@/shared/lib/i18n";
 
@@ -30,4 +33,20 @@ export function formatFullDay(isoDate: string): string {
 
 export function formatDateRange(startIsoDate: string, endIsoDate: string): string {
   return formatIsoDateRange(startIsoDate, endIsoDate, i18n.language);
+}
+
+// Un INSTANT (createdAt…), pas une date civile : affiché dans le fuseau de l'appareil.
+export function formatDateTime(isoDateTime: string): string {
+  return formatIsoDateTime(isoDateTime, i18n.language);
+}
+
+/**
+ * « il y a 2 h » — ancienneté d'un instant récent (centre de notifications). Le comptage vient de
+ * @cmv/shared, les libellés d'i18next ; au-delà d'une semaine il n'y a plus de forme relative
+ * pertinente, on affiche alors la date complète.
+ */
+export function formatRelativeTime(isoDateTime: string): string {
+  const relative = relativeTimeFrom(isoDateTime, new Date());
+  if (relative == null) return formatDateTime(isoDateTime);
+  return i18n.t(RELATIVE_TIME_KEY[relative.unit], { count: relative.value });
 }
