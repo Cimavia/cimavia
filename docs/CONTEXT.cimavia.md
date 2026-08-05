@@ -106,6 +106,16 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 ### Invoice (facture)
 Émise par le coach pour un athlète (période, montant, échéance, note). Statut `PENDING` / `PAID` (**marquage manuel** en MVP). Paiement réel **externe** (virement) ; PSP intégré (Stripe) en v1.0.
 
+### Notification
+Trace **persistée** d'un événement adressé à un `User` : cycle diffusé, séance ajustée, débrief reçu, message reçu, facture émise. Écrite par `NotificationService` **aux mêmes déclencheurs que le push, en plus de lui et jamais à sa place** — le push est éphémère (téléphone éteint, permission refusée, ou compte qui n'a jamais ouvert le mobile : c'est le cas du coach sur web), la `Notification` est ce qui reste à consulter.
+
+Porte `type` (`NotificationType`), la cible (`entityType` + `entityId`), `readAt` nullable (`null` = non lue → alimente le badge) et `createdAt`.
+
+Trois règles à connaître :
+- **Le libellé n'est PAS stocké.** Une ligne écrite aujourd'hui serait figée en français le jour où `en.json` arrive : on persiste les **paramètres** d'interpolation (`actorName`, `subjectLabel`, nullables) et le rendu se fait à l'affichage, via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next. Ces paramètres sont des **instantanés** : renommer un cycle ne réécrit pas les notifications déjà émises.
+- **`entityId` n'a pas de clé étrangère** : la cible est polymorphe (`entityType` décide du modèle visé). Contrepartie assumée — une cible supprimée laisse une entrée qui ne mène nulle part.
+- **Les déclencheurs sont ceux du push, throttles compris** : une rafale de messages ne produit qu'**une** entrée (passage « tout lu » → « non lu », cf. P5-4), et seule la **création** d'un débrief notifie (P4-5).
+
 ---
 
 ## Multi-tenant (frontière de données)
@@ -115,7 +125,7 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 - La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux rôles** : chaque table porte donc `coachId` ET `athleteId` en direct.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
-- ⚠️ **`PushToken` est scopé `userId` pour les deux rôles** : un token adresse une *installation* de l'app, il appartient à une personne, pas à la relation coach↔athlète. L'**envoi**, lui, lit les tokens du DESTINATAIRE (donc d'un autre tenant) : il passe par le client Prisma de base, comme `UserDirectoryService`.
+- ⚠️ **`PushToken` est scopé `userId` pour les deux rôles**, et **`Notification` par `recipientId`** : l'un adresse une *installation* de l'app, l'autre une personne — ni l'un ni l'autre n'appartient à la relation coach↔athlète. L'**écriture et la lecture d'envoi** visent le DESTINATAIRE, donc un autre tenant : elles passent par le client Prisma de base (`NotificationService`), comme `UserDirectoryService`. La **consultation**, elle, est scopée normalement (`NotificationFeedService`) — chacun ne lit que ce qui lui est adressé.
 - L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant (dont les **pièges du scope automatique** : `include` imbriqués non scopés, FK non contraintes par le tenant).
 
 ---
@@ -130,6 +140,7 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 | Fiche athlète | CRUD | — |
 | Messagerie | 1:1 avec ses athlètes | 1:1 avec son coach |
 | Facture | émission + statut | lecture |
+| Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |
 
 ---
 

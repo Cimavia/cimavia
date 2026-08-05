@@ -157,6 +157,7 @@ le PC étant un faux négatif en mode *mirrored* :
 - i18n : **i18next** dès le départ, aucune string en dur (FR ; EN en P7)
 - Argent : montants en **centimes entiers** (`amountCents`), jamais de float ; formatage localisé par `formatMoney` / `formatInvoicePeriod` (`@cmv/shared`) — source unique, pas de calcul dans le JSX
 - Médias : object storage privé, **URLs signées** (PUT à l'envoi, GET à la lecture) ; le binaire ne transite jamais par l'API
+- Notifications : **persistées + poussées** (mêmes déclencheurs, `NotificationService`) ; la base stocke le `type`, la cible et les paramètres (`actorName`, `subjectLabel`) — **jamais le libellé rendu**, qui est construit à l'affichage via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next
 
 Voir `docs/architecture-choice.md` pour les règles d'archi détaillées, et
 `CONTRIBUTING.md` pour le workflow de contribution (git flow, commits signés,

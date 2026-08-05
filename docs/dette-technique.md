@@ -128,6 +128,27 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 
 ---
 
+## Post-MVP — Centre de notifications ([#39](https://github.com/Cimavia/cimavia/issues/39))
+
+| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
+|---|---|---|---|---|
+| N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les `NOTIFICATION_PAGE_SIZE` (50) plus récentes, sans moyen de remonter au-delà. | Un centre de notifications sert à voir ce qui vient d'arriver, pas à consulter un historique : au-delà de 50, l'information a été traitée ailleurs (le planning, les débriefs, la messagerie sont les vraies sources). Même famille que **P2-2** et **P5-1**. | Cursoriser (par `createdAt`) si un utilisateur demande à remonter plus loin — ou plus vraisemblablement jamais, la borne étant ici un choix de produit autant qu'une facilité. | 🟢 |
+| N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment (5 événements × N athlètes × durée de vie du compte). | Le volume est très inférieur à celui des messages, et les deux index (`recipientId, createdAt DESC` et `recipientId, readAt`) gardent lecture et comptage constants quelle que soit la taille. Une purge prématurée effacerait des traces qu'on ne sait pas encore utiles. | Purger les notifications **lues** de plus de N mois, quand la table dépassera quelques centaines de milliers de lignes — même tâche de maintenance que la purge des objets S3 orphelins (P2-1). | 🟢 |
+| N-3 | **Une entrée par rafale de messages**, pas une par message : la persistance hérite du throttle push de **P5-4** (on ne notifie qu'au passage « tout lu » → « non lu »). | C'est le comportement voulu : le centre n'est pas un journal des messages, et l'`unreadCount` du fil porte déjà ce compte. Sans le throttle, dix messages d'affilée noieraient les autres notifications. Idem P4-5 pour les compléments de débrief. | Rien, sauf si les deux signaux divergent un jour (par exemple si le centre devient la seule surface de lecture). | 🟢 |
+| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe (`entityType` décide du modèle), donc rien ne garantit qu'elle existe encore. Une notification dont la cible a été supprimée mène à un écran vide ou à un 404. | Une FK est impossible sur une référence polymorphe, et **aucun flux MVP n'y conduit** : un cycle diffusé ne se supprime plus, une facture émise non plus, un débrief ni un fil ne se suppriment. Le seul chemin connu est la suppression d'une relation `CoachAthlete` — qui n'est pas un flux MVP (cf. P5). | Si la suppression de relation devient un geste réel : purger les notifications de l'ex-relation dans la même transaction. À revoir avec le même chantier que P5 (objets S3 orphelins en masse). | 🟡 |
+| N-5 | **Aucun réglage de notification** : ni opt-out par type, ni choix de canal. La ligne « Notifications » de la maquette `mobile-athlete/athlete_profile.dc.html` reste sans écran. | Cinq types d'événements, tous directement liés à une action du binôme coach↔athlète : aucun n'est du bruit qu'on voudrait couper aujourd'hui. Poser des préférences avant d'avoir un canal supplémentaire aurait figé un modèle pour rien. | Traité par [#65](https://github.com/Cimavia/cimavia/issues/65) et [#66](https://github.com/Cimavia/cimavia/issues/66) (épic mail [#61](https://github.com/Cimavia/cimavia/issues/61)) : les préférences arrivent avec le canal e-mail, qui est le premier à réellement mériter un opt-in. | 🟢 |
+
+> **Tranché en #48** (le modèle) : une `Notification` ne stocke **aucun libellé rendu**, seulement
+> son `type`, sa cible et les paramètres d'interpolation (`actorName`, `subjectLabel`). Deux
+> conséquences assumées : **(1)** le rendu vit dans les apps (`NOTIFICATION_LABEL_KEY` + i18next),
+> donc une notification écrite en juillet s'affichera en anglais le jour où `en.json` arrivera —
+> c'était la raison d'être du choix ; **(2)** les paramètres sont des **instantanés**, renommer un
+> cycle ne réécrit pas l'historique. Le libellé du **push**, lui, reste rendu côté serveur et en
+> français en dur — il n'y a pas de client pour le traduire au moment de la livraison. Son i18n
+> suivra le catalogue serveur de [#63](https://github.com/Cimavia/cimavia/issues/63).
+
+---
+
 ## Post-MVP — Couleurs d'état (#37)
 
 > **Tranché** (le type de semaine) : le design system
