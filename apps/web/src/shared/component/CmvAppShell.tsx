@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { NotificationBell } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { authClient } from "@/shared/lib/auth";
 
@@ -73,6 +74,9 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
           </div>
           <div className="flex-1" />
           {actions}
+          {/* Après les actions d'écran : la cloche est un repère fixe, elle ne doit pas bouger
+              d'un écran à l'autre au gré du nombre de boutons. */}
+          <NotificationBell />
         </header>
 
         {children}
