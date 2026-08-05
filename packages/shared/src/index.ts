@@ -162,6 +162,22 @@ export {
   sendMessageSchema,
 } from "./dto/message.schema";
 export type {
+  NotificationDto,
+  NotificationEntityType as NotificationEntityTypeType,
+  NotificationType as NotificationTypeType,
+  UnreadCountDto,
+} from "./dto/notification.schema";
+export {
+  NOTIFICATION_LABEL_KEY,
+  NOTIFICATION_PAGE_SIZE,
+  NotificationEntityType,
+  NotificationType,
+  notificationDtoSchema,
+  notificationEntityTypeSchema,
+  notificationTypeSchema,
+  unreadCountDtoSchema,
+} from "./dto/notification.schema";
+export type {
   CreatePlanInput,
   CreateScheduledSessionInput,
   PlanDto,
@@ -254,6 +270,7 @@ export {
   shiftIsoDate,
   todayIsoDate,
 } from "./util/date.util";
+export type { RelativeTime, RelativeTimeUnit } from "./util/date-format.util";
 export {
   formatIsoDate,
   formatIsoDateRange,
@@ -262,6 +279,8 @@ export {
   formatIsoDayNumber,
   formatIsoFullDay,
   formatIsoWeekday,
+  RELATIVE_TIME_KEY,
+  relativeTimeFrom,
 } from "./util/date-format.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
 export { INVOICE_STATE_BADGE, InvoiceState, resolveInvoiceState } from "./util/invoice.util";
