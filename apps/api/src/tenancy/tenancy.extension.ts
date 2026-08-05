@@ -27,6 +27,9 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   Message: { coach: "coachId", athlete: "athleteId" },
   Invoice: { coach: "coachId", athlete: "athleteId" },
   PushToken: { coach: "userId", athlete: "userId" },
+  // Comme PushToken : le même champ pour les deux rôles, chacun ne lisant que ce qu'il a reçu.
+  // L'ÉCRITURE vise le destinataire, donc un AUTRE tenant → hors de ce client (NotificationService).
+  Notification: { coach: "recipientId", athlete: "recipientId" },
 };
 
 // Champ de scope applicable à l'acteur, ou null si le rôle n'a aucun accès à ce modèle.
