@@ -1,4 +1,5 @@
 import { PushPlatform } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
@@ -18,19 +19,25 @@ import { routeForPushPayload } from "@/feature/notification/util/route.util";
  * l'API est idempotente. Un échec ne casse jamais l'app — au pire, pas de notification.
  */
 export function usePushToken() {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     void registerDevice();
 
     // Ouvrir la notification doit mener à ce dont elle parle — sinon l'athlète atterrit sur
     // l'accueil et cherche lui-même la séance dont on vient de lui parler.
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      // Le cache est PERSISTÉ et frais 5 min : arriver par un push sans invalider afficherait la
+      // version d'avant l'événement qu'on vient d'annoncer. Même geste qu'au toucher d'une ligne
+      // du centre — les deux portes d'entrée doivent se comporter pareil.
+      queryClient.invalidateQueries();
       // Destinations partagées avec le centre de notifications (#50) : ouvrir le push et toucher
       // la ligne correspondante mènent au même endroit, par construction.
       const target = routeForPushPayload(response.notification.request.content.data);
       if (target != null) router.push(target);
     });
     return () => subscription.remove();
-  }, []);
+  }, [queryClient]);
 }
 
 async function registerDevice(): Promise<void> {

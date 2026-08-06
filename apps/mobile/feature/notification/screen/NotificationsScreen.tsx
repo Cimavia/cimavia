@@ -1,5 +1,6 @@
 import { NOTIFICATION_LABEL_KEY, type NotificationDto } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
+import { useQueryClient } from "@tanstack/react-query";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +21,7 @@ import { formatRelativeTime } from "@/shared/util/date.util";
  */
 export function NotificationsScreen() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const { data: notifications, isPending, isError, isRefetching, refetch } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -38,9 +40,16 @@ export function NotificationsScreen() {
   /**
    * Marquer lue AU TOUCHER, pas à l'ouverture de l'écran : vider le badge parce qu'on a jeté un
    * œil ferait disparaître le signal avant qu'il ait servi.
+   *
+   * Puis on **invalide tout le cache** avant de naviguer. Une notification ne dit pas seulement
+   * « va là » : elle dit « l'état serveur a changé », donc ce qui est déjà en cache est périmé.
+   * Le cache mobile est PERSISTÉ et frais 5 min : sans cette invalidation, on atterrirait sur un
+   * planning ou un fil affichant précisément la version d'avant l'événement qu'on vient
+   * d'annoncer.
    */
   function onSelect(notification: NotificationDto) {
     if (notification.readAt == null) markRead.mutate(notification.id);
+    queryClient.invalidateQueries();
     const target = routeForNotification(notification);
     if (target != null) router.push(target);
   }
