@@ -1,4 +1,5 @@
 import { NOTIFICATION_LABEL_KEY, type NotificationDto } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,6 +25,7 @@ const BADGE_MAX = 99;
 export function NotificationBell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
   const { data: unreadCount } = useUnreadNotificationCount();
@@ -46,10 +48,21 @@ export function NotificationBell() {
    * Marquer lue AU CLIC, pas à l'ouverture du panneau : vider le badge parce qu'on a jeté un œil
    * ferait disparaître le signal avant qu'il ait servi. Pour tout solder d'un coup, il y a le
    * bouton dédié.
+   *
+   * Puis on **invalide tout le cache** avant de naviguer. Une notification ne dit pas seulement
+   * « va là » : elle dit « l'état serveur a changé », donc ce qui est déjà affiché est périmé.
+   * Sans ça, cliquer « nouveau débrief » alors qu'on est DÉJÀ sur l'écran des débriefs ne fait
+   * rien du tout — la navigation est un no-op et le `staleTime` d'une minute empêche le refetch.
+   *
+   * Invalidation globale plutôt qu'une table `entityType → clés` : énumérer les cibles
+   * couplerait cette feature à toutes les autres, et ce couplage se périmerait en silence au
+   * premier changement de route. Le clic est un geste rare, refetcher les quelques requêtes
+   * montées ne coûte rien.
    */
   function onSelect(notification: NotificationDto) {
     setOpen(false);
     if (notification.readAt == null) markRead.mutate(notification.id);
+    queryClient.invalidateQueries();
     const target = routeForNotification(notification);
     if (target != null) navigate(target);
   }
