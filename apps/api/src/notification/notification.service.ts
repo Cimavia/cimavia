@@ -284,7 +284,7 @@ export class NotificationService {
       for (const chunk of chunks) {
         tickets.push(...(await this.expo.sendPushNotificationsAsync(chunk)));
       }
-      await this.purgeUnregistered(valid, tickets);
+      await this.handleTickets(userId, valid, tickets);
     } catch (error) {
       // Règle 2 : on journalise et on rend la main — l'action métier a déjà réussi.
       this.logger.error({ err: error, userId }, "Échec d'envoi de la notification push");
@@ -292,21 +292,42 @@ export class NotificationService {
   }
 
   /**
-   * `DeviceNotRegistered` = l'app a été désinstallée, ou le token a tourné. Expo demande
-   * explicitement de cesser d'y écrire : on supprime la ligne, sinon on conserverait des
-   * adresses mortes qu'on réessaierait à chaque événement.
+   * Dépouille les accusés d'Expo. **Tout ticket en erreur est journalisé**, pas seulement celui
+   * qu'on sait traiter : un refus de livraison (credentials FCM absentes pour l'identifiant
+   * d'application, message trop gros…) était jusqu'ici parfaitement silencieux — l'API croyait
+   * avoir envoyé, le téléphone ne recevait rien, et aucun log ne le disait.
+   *
+   * On journalise l'**id** de la ligne, jamais le token : ce n'est pas un secret, mais qui le
+   * connaît peut détourner les notifications de quelqu'un (dette P4-3).
    */
-  private async purgeUnregistered(
+  private async handleTickets(
+    userId: string,
     tokens: { id: string; token: string }[],
     tickets: ExpoPushTicket[],
   ): Promise<void> {
-    const dead = tokens.filter((_, index) => {
-      const ticket = tickets[index];
-      return ticket?.status === "error" && ticket.details?.error === "DeviceNotRegistered";
-    });
-    if (dead.length === 0) return;
+    const failures: { tokenId: string; error: string | null; message: string }[] = [];
+    const unregisteredIds: string[] = [];
 
-    this.logger.info({ count: dead.length }, "Purge des tokens push d'appareils désinscrits");
-    await this.prisma.pushToken.deleteMany({ where: { id: { in: dead.map((t) => t.id) } } });
+    for (const [index, token] of tokens.entries()) {
+      const ticket = tickets[index];
+      if (ticket?.status !== "error") continue;
+
+      const error = ticket.details?.error ?? null;
+      failures.push({ tokenId: token.id, error, message: ticket.message });
+      // `DeviceNotRegistered` = l'app a été désinstallée, ou le token a tourné. Expo demande
+      // explicitement de cesser d'y écrire : on supprime la ligne, sinon on conserverait des
+      // adresses mortes qu'on réessaierait à chaque événement.
+      if (error === "DeviceNotRegistered") unregisteredIds.push(token.id);
+    }
+
+    if (failures.length === 0) return;
+    this.logger.error({ userId, failures }, "Notifications push refusées par Expo");
+
+    if (unregisteredIds.length === 0) return;
+    this.logger.info(
+      { count: unregisteredIds.length },
+      "Purge des tokens push d'appareils désinscrits",
+    );
+    await this.prisma.pushToken.deleteMany({ where: { id: { in: unregisteredIds } } });
   }
 }
