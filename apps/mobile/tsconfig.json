@@ -18,6 +18,7 @@
     "app",
     "feature",
     "shared",
+    "app.config.ts",
     "global.d.ts",
     "nativewind-env.d.ts",
     ".expo/types/**/*.ts",
