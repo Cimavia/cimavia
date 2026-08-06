@@ -31,19 +31,32 @@ export function useMessages(conversationId: string | undefined) {
   // Polling gated par le focus de l'écran (useFocusEffect) : pas de refetch quand l'onglet est
   // en arrière-plan. Le focusManager global (retour au premier plan) reste en plus actif.
   const [focused, setFocused] = useState(false);
-  useFocusEffect(
-    useCallback(() => {
-      setFocused(true);
-      return () => setFocused(false);
-    }, []),
-  );
 
-  return useQuery<MessageDto[]>({
+  const query = useQuery<MessageDto[]>({
     queryKey: conversationId != null ? messageKeys.list(conversationId) : messageKeys.all,
     queryFn: () => getMessages(conversationId as string),
     enabled: conversationId != null,
     refetchInterval: focused && conversationId != null ? POLL_INTERVAL_MS : false,
   });
+
+  /**
+   * Le polling seul ne suffit PAS à l'arrivée sur l'écran : le cache est persisté et frais 5 min,
+   * donc rien n'est redemandé, et le premier tick n'arrive qu'au bout de 10 s. C'est précisément
+   * le moment où l'on ouvre le fil — souvent depuis une notification — donc le pire endroit où
+   * afficher l'état d'avant. On redemande à chaque passage au premier plan.
+   *
+   * `refetch` est stable (TanStack Query) : l'abonnement n'est pas recréé à chaque rendu.
+   */
+  const { refetch } = query;
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      void refetch();
+      return () => setFocused(false);
+    }, [refetch]),
+  );
+
+  return query;
 }
 
 export function useSendMessage(conversationId: string) {
