@@ -664,9 +664,13 @@ model Invoice {
 // cf. NotificationService.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Les trois façons d'ajuster un cycle diffusé sont distinguées : annoncer « séance modifiée »
+// quand elle a été SUPPRIMÉE enverrait l'athlète chercher une séance qui n'existe plus.
 enum NotificationType {
   PLAN_PUBLISHED
   PLAN_UPDATED
+  PLAN_SESSION_ADDED
+  PLAN_SESSION_REMOVED
   FEEDBACK_RECEIVED
   MESSAGE_RECEIVED
   INVOICE_ISSUED

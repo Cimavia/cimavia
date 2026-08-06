@@ -231,6 +231,8 @@
     "type": {
       "planPublished": "Nouvelle planification : « {{subject}} »",
       "planUpdated": "Séance modifiée : « {{subject}} »",
+      "planSessionAdded": "Séance ajoutée : « {{subject}} »",
+      "planSessionRemoved": "Séance retirée : « {{subject}} »",
       "feedbackReceived": "{{actor}} a débriefé « {{subject}} »",
       "messageReceived": "Nouveau message de {{actor}}",
       "invoiceIssued": "Nouvelle facture reçue"

@@ -76,6 +76,17 @@ export class ScheduledSessionService {
       return created;
     });
 
+    // Ajouter une séance à un cycle DÉJÀ diffusé, c'est l'ajuster (CDC §5.7) : sans notification,
+    // l'athlète ne saurait pas qu'une séance de plus l'attend — et son cache hors-ligne, lui,
+    // continuerait d'afficher la semaine d'avant. Sur un brouillon, rien à annoncer.
+    if (plan.status === PlanStatus.PUBLISHED) {
+      await this.notifications.notifyPlanSessionAdded({
+        athleteId: plan.athleteId,
+        planId: plan.id,
+        sessionTitle: draft.title,
+      });
+    }
+
     return this.getDto(session.id);
   }
 
@@ -132,10 +143,23 @@ export class ScheduledSessionService {
   }
 
   async delete(id: string): Promise<void> {
-    await this.getOwnedOrThrow(id);
+    const session = await this.getOwnedOrThrow(id);
+    const plan = await this.plans.getOwnedOrThrow(session.planId);
+
     // Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
     // copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
     await this.db.scheduledSession.delete({ where: { id } });
+
+    // Retirer une séance d'un cycle diffusé est l'ajustement le plus déroutant pour l'athlète :
+    // sans notification, une séance disparaît de son planning sans explication — ou pire, reste
+    // visible dans son cache hors-ligne et il se déplace pour rien.
+    if (plan.status === PlanStatus.PUBLISHED) {
+      await this.notifications.notifyPlanSessionRemoved({
+        athleteId: plan.athleteId,
+        planId: plan.id,
+        sessionTitle: session.title,
+      });
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

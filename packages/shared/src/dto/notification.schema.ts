@@ -9,7 +9,12 @@ import type { TypesValuesOf } from "../type/generics.type";
  */
 export const NotificationType = {
   PLAN_PUBLISHED: "PLAN_PUBLISHED",
+  // Les trois façons d'ajuster un cycle DÉJÀ diffusé (CDC §5.7) sont distinguées, et non fondues
+  // dans un seul « cycle modifié » : annoncer « séance modifiée » quand elle a été SUPPRIMÉE
+  // enverrait l'athlète chercher une séance qui n'existe plus.
   PLAN_UPDATED: "PLAN_UPDATED",
+  PLAN_SESSION_ADDED: "PLAN_SESSION_ADDED",
+  PLAN_SESSION_REMOVED: "PLAN_SESSION_REMOVED",
   FEEDBACK_RECEIVED: "FEEDBACK_RECEIVED",
   MESSAGE_RECEIVED: "MESSAGE_RECEIVED",
   INVOICE_ISSUED: "INVOICE_ISSUED",
@@ -41,6 +46,8 @@ export const notificationEntityTypeSchema = z.enum(NotificationEntityType);
 export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.PLAN_PUBLISHED]: "notification.type.planPublished",
   [NotificationType.PLAN_UPDATED]: "notification.type.planUpdated",
+  [NotificationType.PLAN_SESSION_ADDED]: "notification.type.planSessionAdded",
+  [NotificationType.PLAN_SESSION_REMOVED]: "notification.type.planSessionRemoved",
   [NotificationType.FEEDBACK_RECEIVED]: "notification.type.feedbackReceived",
   [NotificationType.MESSAGE_RECEIVED]: "notification.type.messageReceived",
   [NotificationType.INVOICE_ISSUED]: "notification.type.invoiceIssued",

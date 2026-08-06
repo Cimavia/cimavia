@@ -45,6 +45,8 @@ export function routeForPushPayload(data: unknown): Href | null {
   switch (payload?.type) {
     case NotificationType.PLAN_PUBLISHED:
     case NotificationType.PLAN_UPDATED:
+    case NotificationType.PLAN_SESSION_ADDED:
+    case NotificationType.PLAN_SESSION_REMOVED:
       return targetFor(NotificationEntityType.PLAN, payload.planId);
     case NotificationType.FEEDBACK_RECEIVED:
       return targetFor(NotificationEntityType.SCHEDULED_SESSION, payload.scheduledSessionId);

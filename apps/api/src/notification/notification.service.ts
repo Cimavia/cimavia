@@ -12,7 +12,9 @@ export type PlanPublishedEvent = {
   planTitle: string;
 };
 
-export type PlanUpdatedEvent = {
+// Les trois ajustements d'un cycle diffusé (séance modifiée, ajoutée, retirée) portent la même
+// charge : à qui, dans quel cycle, quelle séance. Seul le libellé change.
+export type PlanSessionEvent = {
   athleteId: string;
   planId: string;
   sessionTitle: string;
@@ -50,6 +52,8 @@ export type InvoiceIssuedEvent = {
 type PushPayload =
   | { type: typeof NotificationType.PLAN_PUBLISHED; planId: string }
   | { type: typeof NotificationType.PLAN_UPDATED; planId: string }
+  | { type: typeof NotificationType.PLAN_SESSION_ADDED; planId: string }
+  | { type: typeof NotificationType.PLAN_SESSION_REMOVED; planId: string }
   | { type: typeof NotificationType.FEEDBACK_RECEIVED; scheduledSessionId: string }
   | { type: typeof NotificationType.MESSAGE_RECEIVED; conversationId: string }
   | { type: typeof NotificationType.INVOICE_ISSUED; invoiceId: string };
@@ -123,8 +127,9 @@ export class NotificationService {
   }
 
   // Ajustement en cours de cycle (CDC §5.7) : sans notification, l'athlète s'entraînerait sur
-  // une version périmée — qu'il a peut-être déjà en cache hors-ligne.
-  async notifyPlanUpdated(event: PlanUpdatedEvent): Promise<void> {
+  // une version périmée — qu'il a peut-être déjà en cache hors-ligne. Les trois formes
+  // d'ajustement ci-dessous sont distinctes parce que l'athlète n'a pas le même geste à faire.
+  async notifyPlanUpdated(event: PlanSessionEvent): Promise<void> {
     this.logger.info({ event: "plan.updated", ...event }, "Planification ajustée par le coach");
     await this.emit(
       {
@@ -139,6 +144,49 @@ export class NotificationService {
         title: "Séance modifiée",
         body: `Ton coach a ajusté « ${event.sessionTitle} ».`,
         data: { type: NotificationType.PLAN_UPDATED, planId: event.planId },
+      },
+    );
+  }
+
+  async notifyPlanSessionAdded(event: PlanSessionEvent): Promise<void> {
+    this.logger.info({ event: "plan.session.added", ...event }, "Séance ajoutée au cycle diffusé");
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.PLAN_SESSION_ADDED,
+        entityType: NotificationEntityType.PLAN,
+        entityId: event.planId,
+        actorName: null,
+        subjectLabel: event.sessionTitle,
+      },
+      {
+        title: "Séance ajoutée",
+        body: `Ton coach a ajouté « ${event.sessionTitle} » à ton cycle.`,
+        data: { type: NotificationType.PLAN_SESSION_ADDED, planId: event.planId },
+      },
+    );
+  }
+
+  // Le titre de la séance retirée est la SEULE trace qu'il en restera : la ligne est supprimée en
+  // base, et l'athlète doit pouvoir comprendre ce qui a disparu de son planning.
+  async notifyPlanSessionRemoved(event: PlanSessionEvent): Promise<void> {
+    this.logger.info(
+      { event: "plan.session.removed", ...event },
+      "Séance retirée du cycle diffusé",
+    );
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.PLAN_SESSION_REMOVED,
+        entityType: NotificationEntityType.PLAN,
+        entityId: event.planId,
+        actorName: null,
+        subjectLabel: event.sessionTitle,
+      },
+      {
+        title: "Séance retirée",
+        body: `Ton coach a retiré « ${event.sessionTitle} » de ton cycle.`,
+        data: { type: NotificationType.PLAN_SESSION_REMOVED, planId: event.planId },
       },
     );
   }

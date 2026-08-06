@@ -1915,6 +1915,7 @@ describe("Centre de notifications (#48)", () => {
   let athleteB1: Agent;
   let a1Id: string;
   let planId: string;
+  let planWeekId: string;
   let sessionId: string;
   let conversationId: string;
 
@@ -1965,8 +1966,9 @@ describe("Centre de notifications (#48)", () => {
       weeks: [{ type: "TRAINING" }],
     });
     planId = plan.body.id;
+    planWeekId = plan.body.weeks[0].id;
     const session = await coachA
-      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .post(`/plan-weeks/${planWeekId}/sessions`)
       .send({ title: "Séance test", scheduledDate: monday });
     sessionId = session.body.id;
 
@@ -2015,6 +2017,54 @@ describe("Centre de notifications (#48)", () => {
       actorName: null,
       subjectLabel: "Séance ajustée",
     });
+  });
+
+  // Ajouter et retirer sont des ajustements au même titre que modifier (CDC §5.7) — et ils ont
+  // leur propre type : annoncer « séance modifiée » sur une suppression enverrait l'athlète
+  // chercher une séance qui n'existe plus.
+  it("ajouter puis retirer une séance d'un cycle diffusé notifie l'athlète", async () => {
+    const added = await coachA
+      .post(`/plan-weeks/${planWeekId}/sessions`)
+      .send({ title: "Séance du jeudi", scheduledDate: monday });
+    expect(added.status).toBe(201);
+
+    expect(await find(athleteA1, "PLAN_SESSION_ADDED")).toMatchObject({
+      entityType: "PLAN",
+      entityId: planId,
+      actorName: null,
+      subjectLabel: "Séance du jeudi",
+      readAt: null,
+    });
+
+    expect((await coachA.delete(`/scheduled-sessions/${added.body.id}`)).status).toBe(204);
+
+    // Le titre est la seule trace qu'il reste de la séance : la ligne, elle, a disparu en base.
+    expect(await find(athleteA1, "PLAN_SESSION_REMOVED")).toMatchObject({
+      entityType: "PLAN",
+      entityId: planId,
+      subjectLabel: "Séance du jeudi",
+    });
+  });
+
+  // Le pendant indispensable : sur un BROUILLON, il n'y a rien à annoncer — le cycle n'existe pas
+  // encore pour l'athlète, le prévenir de chaque séance posée serait du bruit pur.
+  it("composer un cycle en brouillon ne notifie personne", async () => {
+    const draft = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle en préparation",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(draft.status).toBe(201);
+
+    const before = (await inbox(athleteA1)).length;
+    const session = await coachA
+      .post(`/plan-weeks/${draft.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance brouillon", scheduledDate: monday });
+    expect(session.status).toBe(201);
+    expect((await coachA.delete(`/scheduled-sessions/${session.body.id}`)).status).toBe(204);
+
+    expect(await inbox(athleteA1)).toHaveLength(before);
   });
 
   // LE cas que la persistance rattrape : sans appareil enregistré, le push n'a rien à livrer et
