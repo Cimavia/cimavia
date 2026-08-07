@@ -2,6 +2,7 @@ import {
   type InvoiceDto,
   InvoiceState,
   InvoiceStatus,
+  ReminderEntityType,
   Role,
   resolveInvoiceState,
   todayIsoDate,
@@ -14,6 +15,7 @@ import {
   useInvoices,
   useUpdateInvoiceStatus,
 } from "@/feature/invoice/hook/useInvoices";
+import { ScheduleReminderButton } from "@/feature/reminder";
 import {
   CmvAppShell,
   CmvButton,
@@ -169,6 +171,17 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen, onCancel }: Readonly<
                 <CmvButton variant="secondary" onClick={onMarkPaid} disabled={busy}>
                   {t("invoice.markPaid")}
                 </CmvButton>
+              </div>
+              {/* Rappel contextuel (#45) : offert sur les factures qui restent à régler seulement —
+                  se rappeler de relancer une facture payée ou annulée n'a aucun sens. La période
+                  nomme la cible, comme dans la liste des rappels. */}
+              <div className="flex justify-end">
+                <ScheduleReminderButton
+                  entityType={ReminderEntityType.INVOICE}
+                  entityId={invoice.id}
+                  targetLabel={formatPeriod(invoice.period)}
+                  variant="ghost"
+                />
               </div>
               {/* Annulation en deux temps : irréversible côté API (409 sur tout retour). */}
               <div className="flex justify-end">

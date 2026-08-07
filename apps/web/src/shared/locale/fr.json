@@ -270,6 +270,17 @@
     "markDone": "Marquer fait",
     "dismiss": "Abandonner",
     "reopen": "Rouvrir",
+    "schedule": "Programmer un rappel",
+    "form": {
+      "title": "Programmer un rappel",
+      "description": "Sur : {{target}}",
+      "dueAt": "Échéance",
+      "note": "Ce dont il faut se souvenir",
+      "notePlaceholder": "Proposer le renouvellement du cycle avant la dernière semaine",
+      "hint": "Le jour de l'échéance, le rappel apparaît dans vos notifications. Vous pouvez aussi le retrouver à tout moment dans « Rappels ».",
+      "submit": "Programmer",
+      "submitting": "Enregistrement…"
+    },
     "empty": {
       "PENDING": {
         "title": "Aucun rappel à traiter",
