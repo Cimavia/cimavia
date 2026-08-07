@@ -21,6 +21,7 @@ import { MessageModule } from "./message/message.module";
 import { NotificationModule } from "./notification/notification.module";
 import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
 import { PlanModule } from "./plan/plan.module";
+import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
 import { TenancyModule } from "./tenancy/tenancy.module";
 
@@ -86,6 +87,7 @@ function buildLogTargets(): TransportTargetOptions[] {
     FeedbackModule,
     MessageModule,
     InvoiceModule,
+    ReminderModule,
     HealthModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
