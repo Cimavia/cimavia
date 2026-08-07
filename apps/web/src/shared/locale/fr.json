@@ -245,7 +245,47 @@
     "plans": "Planifications",
     "feedbacks": "Débriefs",
     "messages": "Messages",
-    "invoices": "Facturation"
+    "invoices": "Facturation",
+    "reminders": "Rappels"
+  },
+  "reminder": {
+    "title": "Mes rappels",
+    "subtitle": "Ce que vous vous êtes promis de faire : renouvellements, relances, échéances.",
+    "dueLabel": "Échéance : {{date}}",
+    "targetLine": "{{kind}} — {{label}}",
+    "target": {
+      "plan": "Cycle",
+      "invoice": "Facture"
+    },
+    "state": {
+      "overdue": "En retard",
+      "pending": "À venir",
+      "done": "Fait",
+      "dismissed": "Abandonné"
+    },
+    "segment": {
+      "PENDING": "À traiter ({{count}})",
+      "HANDLED": "Traités ({{count}})"
+    },
+    "markDone": "Marquer fait",
+    "dismiss": "Abandonner",
+    "reopen": "Rouvrir",
+    "empty": {
+      "PENDING": {
+        "title": "Aucun rappel à traiter",
+        "description": "Programmez un rappel depuis un cycle ou une facture : il apparaîtra ici, et dans vos notifications le jour de son échéance."
+      },
+      "HANDLED": {
+        "title": "Aucun rappel traité",
+        "description": "Les rappels marqués faits ou abandonnés se rangent ici, sans disparaître."
+      }
+    },
+    "toast": {
+      "created": "Rappel programmé",
+      "DONE": "Rappel marqué fait",
+      "DISMISSED": "Rappel abandonné",
+      "PENDING": "Rappel rouvert"
+    }
   },
   "messages": {
     "title": "Messages",

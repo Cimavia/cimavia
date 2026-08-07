@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: "/feedbacks", labelKey: "nav.feedbacks" },
   { to: "/messages", labelKey: "nav.messages" },
   { to: "/invoices", labelKey: "nav.invoices" },
+  { to: "/reminders", labelKey: "nav.reminders" },
 ] as const;
 
 type CmvAppShellProps = {
