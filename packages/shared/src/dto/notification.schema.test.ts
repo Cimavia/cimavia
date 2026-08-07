@@ -40,14 +40,31 @@ describe("notificationDtoSchema", () => {
   });
 
   // Une app plus ancienne que l'API ne doit pas parser un type qu'elle ne sait pas rendre : le
-  // refus est explicite plutôt qu'un libellé vide à l'écran.
+  // refus est explicite plutôt qu'un libellé vide à l'écran. (Ce test visait `REMINDER_DUE` avant
+  // que #51 ne l'ajoute — d'où un type resté hors du produit.)
   it("refuse un type ou une entité inconnus", () => {
-    expect(notificationDtoSchema.safeParse({ ...NOTIFICATION, type: "REMINDER_DUE" }).success).toBe(
-      false,
-    );
+    expect(
+      notificationDtoSchema.safeParse({ ...NOTIFICATION, type: "PLAN_ARCHIVED" }).success,
+    ).toBe(false);
     expect(
       notificationDtoSchema.safeParse({ ...NOTIFICATION, entityType: "EXERCISE" }).success,
     ).toBe(false);
+  });
+
+  /**
+   * Un rappel dû (#51) est une entrée de flux CALCULÉE, pas une ligne de la table : son id porte le
+   * préfixe `reminder:`. Le DTO doit donc l'accepter — `id` est un id d'entrée de flux, pas un cuid.
+   */
+  it("accepte une entrée de rappel dû, dont l'id est préfixé", () => {
+    const result = notificationDtoSchema.safeParse({
+      ...NOTIFICATION,
+      id: "reminder:rmd_1",
+      type: NotificationType.REMINDER_DUE,
+      entityType: NotificationEntityType.INVOICE,
+      actorName: null,
+      subjectLabel: "Relancer le renouvellement",
+    });
+    expect(result.success).toBe(true);
   });
 
   it("refuse un horodatage qui n'est pas une date ISO", () => {

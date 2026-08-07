@@ -169,6 +169,7 @@ export type {
   NotificationDto,
   NotificationEntityType as NotificationEntityTypeType,
   NotificationType as NotificationTypeType,
+  PersistedNotificationType,
   UnreadCountDto,
 } from "./dto/notification.schema";
 export {
@@ -316,5 +317,12 @@ export {
   planWeekRange,
   selectCurrentPlan,
 } from "./util/plan.util";
-export type { ReminderTiming } from "./util/reminder.util";
-export { isReminderDue } from "./util/reminder.util";
+export type { ReminderFeedSource, ReminderTiming } from "./util/reminder.util";
+export {
+  isReminderDue,
+  parseReminderFeedId,
+  REMINDER_FEED_ID_PREFIX,
+  REMINDER_TARGET_ENTITY_TYPE,
+  reminderToNotificationDto,
+  toReminderFeedId,
+} from "./util/reminder.util";
