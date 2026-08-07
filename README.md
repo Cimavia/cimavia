@@ -85,13 +85,34 @@ l'ancienne app avant d'installer l'APK. Symptôme d'un build périmé :
 `Cannot find native module 'X'`, suivi d'une cascade de `Route is missing the required default
 export` (l'import qui lève casse le routing entier — une seule cause, pas dix).
 
+### Variantes d'app (faire cohabiter les builds)
+
+Chaque profil de build a son **identifiant natif** et son **scheme** propres — sinon l'OS voit une
+seule et même app : l'installation de l'une écrase l'autre, et le lien du QR code de Metro est
+capté par la mauvaise (symptôme : scanner le QR ouvre le build interne sur son bundle embarqué au
+lieu du serveur local). `apps/mobile/app.config.ts` dérive les trois champs de `APP_VARIANT`,
+posé par profil dans `eas.json` ; sans la variable (`expo start`, `expo run:*`) on est en `development` :
+
+| `APP_VARIANT` | Nom | Identifiant natif | Scheme |
+|---|---|---|---|
+| `development` | cimavia (dev) | `fr.cimavia.app.dev` | `cimavia-dev://` |
+| `preview` | cimavia (preview) | `fr.cimavia.app.preview` | `cimavia-preview://` |
+| `production` | cimavia | `fr.cimavia.app` | `cimavia://` |
+
+`scheme`, `ios.bundleIdentifier` et `android.package` ne vivent donc **que** dans `app.config.ts` —
+ne pas les redéclarer dans `app.json`. Les trois schemes sont des origines de confiance Better Auth
+(`apps/api/src/config/origins.ts`) ; le client mobile lit le sien via `Constants.expoConfig.scheme`.
+`slug` et `extra.eas.projectId` restent communs : un seul projet EAS, plusieurs app ids.
+
 ### Notifications push (Android)
 
 Expo passe par Firebase Cloud Messaging. Deux fichiers **distincts**, à ne pas confondre :
 
-- `google-services.json` (Firebase → Paramètres → app Android, package `fr.cimavia.app`) → se
-  dépose dans `apps/mobile/`, référencé par `app.json` (`android.googleServicesFile`). Ne
-  s'uploade **nulle part** ;
+- `google-services.json` (Firebase → Paramètres → app Android) → se dépose dans `apps/mobile/`,
+  référencé par `app.json` (`android.googleServicesFile`). Ne s'uploade **nulle part**. Il doit
+  contenir un client **par variante** (`fr.cimavia.app`, `.dev`, `.preview`) : déclarer chaque
+  package dans Firebase, puis re-télécharger le fichier — un package manquant fait **échouer le
+  build** (`No matching client found for package name`) ;
 - la **clé de compte de service** (Firebase → Paramètres → Comptes de service → Générer une clé
   privée) → expo.dev → Credentials → Android → **FCM V1**. La section n'apparaît qu'après le
   premier build.
@@ -157,6 +178,7 @@ le PC étant un faux négatif en mode *mirrored* :
 - i18n : **i18next** dès le départ, aucune string en dur (FR ; EN en P7)
 - Argent : montants en **centimes entiers** (`amountCents`), jamais de float ; formatage localisé par `formatMoney` / `formatInvoicePeriod` (`@cmv/shared`) — source unique, pas de calcul dans le JSX
 - Médias : object storage privé, **URLs signées** (PUT à l'envoi, GET à la lecture) ; le binaire ne transite jamais par l'API
+- Notifications : **persistées + poussées** (mêmes déclencheurs, `NotificationService`) ; la base stocke le `type`, la cible et les paramètres (`actorName`, `subjectLabel`) — **jamais le libellé rendu**, qui est construit à l'affichage via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next
 
 Voir `docs/architecture-choice.md` pour les règles d'archi détaillées, et
 `CONTRIBUTING.md` pour le workflow de contribution (git flow, commits signés,

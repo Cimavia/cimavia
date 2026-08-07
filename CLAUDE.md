@@ -15,7 +15,7 @@ Contexte auto-chargé par Claude Code. Garder **court et à jour** : toute déri
 - `architecture-choice.md` — **règles & conventions** d'archi (à respecter pour toute feature).
 - `cahier-des-charges-mvp.md` — périmètre MVP (MoSCoW, modèle de données, non-fonctionnel).
 - `dev-plan` (HTML) — plan en 8 phases P0→P7 ; l'avancement réel est l'objet `checked` (mis à jour à la main en fin de phase).
-- `dette-technique.md` — **raccourcis assumés** par phase. Tout raccourci pris s'y ajoute **au moment où on le prend** (raison + déclencheur de résolution).
+- `dette-technique.md` — **journal de décisions + index de dette** : les raccourcis assumés (une ligne + lien vers l'issue, qui porte le raisonnement) et les **décisions tranchées en route** que le code ne justifie pas seul. Tout raccourci pris s'y ajoute **au moment où on le prend** — une ligne suffit, l'issue peut attendre.
 
 ## Monorepo
 

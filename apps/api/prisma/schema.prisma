@@ -58,6 +58,9 @@ model User {
   // Notifications push — les DEUX rôles enregistrent leurs appareils (P4).
   pushTokens PushToken[]
 
+  // Centre de notifications (#48) : la trace PERSISTÉE des mêmes événements que le push.
+  notifications Notification[] @relation("ReceivedNotifications")
+
   // Métier — facturation (P6) : émises par le coach, lues par l'athlète.
   coachInvoices   Invoice[] @relation("CoachInvoices")
   athleteInvoices Invoice[] @relation("AthleteInvoices")
@@ -644,4 +647,66 @@ model Invoice {
   @@index([coachId, status]) // tuile « Factures en attente » + liste coach
   @@index([athleteId, status]) // liste athlète
   @@map("invoice")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Centre de notifications (#48) — trace PERSISTÉE des événements déjà poussés en push.
+// Le push est éphémère : téléphone éteint, permission refusée, ou compte qui n'a jamais ouvert le
+// mobile (le coach travaille sur le web). Dans les trois cas il ne restait RIEN à consulter. Cette
+// table s'écrit donc aux mêmes points de déclenchement, en plus du push et jamais à sa place.
+//
+// Le LIBELLÉ n'est pas stocké : une ligne écrite aujourd'hui serait figée en français le jour où
+// `en.json` arrive. On persiste les PARAMÈTRES (`actorName`, `subjectLabel`) et le rendu se fait à
+// l'affichage, dans la langue courante (cf. `NOTIFICATION_LABEL_KEY` dans @cmv/shared).
+//
+// Scopée `recipientId` pour les deux rôles (comme PushToken) : chacun ne lit que les siennes.
+// L'ÉCRITURE, elle, vise un autre tenant (le coach notifie SON athlète) → client Prisma de base,
+// cf. NotificationService.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Les trois façons d'ajuster un cycle diffusé sont distinguées : annoncer « séance modifiée »
+// quand elle a été SUPPRIMÉE enverrait l'athlète chercher une séance qui n'existe plus.
+enum NotificationType {
+  PLAN_PUBLISHED
+  PLAN_UPDATED
+  PLAN_SESSION_ADDED
+  PLAN_SESSION_REMOVED
+  FEEDBACK_RECEIVED
+  MESSAGE_RECEIVED
+  INVOICE_ISSUED
+}
+
+// Ce que la notification désigne, pour router à l'ouverture. Aujourd'hui dérivable du `type` — on
+// la garde explicite parce que les rappels (#51) casseront cette dérivation : un rappel dû porte
+// sur une facture OU une séance, selon ce qu'on rappelle.
+enum NotificationEntityType {
+  PLAN
+  SCHEDULED_SESSION
+  CONVERSATION
+  INVOICE
+}
+
+model Notification {
+  id           String                 @id @default(cuid())
+  recipientId  String
+  recipient    User                   @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+  type         NotificationType
+  entityType   NotificationEntityType
+  // Cible polymorphe, donc PAS de FK : le modèle visé dépend de `entityType`. Contrepartie
+  // assumée — une cible supprimée laisse une entrée qui mène à un 404 (aucun flux MVP n'y mène :
+  // un cycle diffusé ne se supprime plus, une facture émise non plus).
+  entityId     String
+  // Paramètres d'interpolation du libellé. Nullables : une facture émise n'a ni acteur ni sujet à
+  // nommer (règle 5 — null, pas de valeur de repli). Ce sont des INSTANTANÉS : renommer un cycle
+  // ne réécrit pas les notifications déjà émises, et c'est voulu.
+  actorName    String?
+  subjectLabel String?
+  // null = non lue. C'est ce qui alimente le badge. Pas d'`updatedAt` sur ce modèle : la table est
+  // en ajout seul, et `readAt` EST l'horodatage de sa seule mutation.
+  readAt       DateTime?
+  createdAt    DateTime               @default(now())
+
+  @@index([recipientId, createdAt(sort: Desc)]) // liste du centre, la plus récente d'abord
+  @@index([recipientId, readAt]) // compteur de non-lues (badge)
+  @@map("notification")
 }

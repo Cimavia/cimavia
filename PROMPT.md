@@ -11,6 +11,7 @@ Avant de coder, lis :
 - docs/dette-technique.md — dettes ouvertes
 - README.md (setup, commandes, WSL2/téléphone) et CONTRIBUTING.md (git flow, commits signés,
   secrets CI, observabilité).
+- Analyse le projet github Cimavia - Roadmap
 
 Rappels — acquis P0→P6 à respecter :
 
@@ -35,6 +36,9 @@ Rappels — acquis P0→P6 à respecter :
 - Il reste un // MOCKED : l'envoi de l'e-mail de réinitialisation de mot de passe
   (apps/api/src/auth/auth.config.ts) — le commentaire l'annonce pour P7. Il faut donc une infra
   mail (+ i18n du message). À intégrer au plan.
+- Lorsque qu'il y a des issues sur github à créer il faut suivre le pattern de nommage : [feature-name_numero] - titre
+  S'il y a besoin de plusieurs issues (découpage parent enfant) alors il faut une issue épic [feature-name] - titre et des issues enfants [feature-name_X].
+  Les issues doivent être relié par des relations directement dans github et être bloquante les unes par rapport aux autres si l'ordre d'implémentation est important
 
 Façon de travailler (inchangée) :
 

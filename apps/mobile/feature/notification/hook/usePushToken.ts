@@ -1,11 +1,13 @@
 import { PushPlatform } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { type Href, router } from "expo-router";
+import { router } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { registerPushToken, revokePushToken } from "@/feature/notification/api";
+import { routeForPushPayload } from "@/feature/notification/util/route.util";
 
 /**
  * Enregistre l'appareil pour les notifications push (p4-4).
@@ -17,34 +19,25 @@ import { registerPushToken, revokePushToken } from "@/feature/notification/api";
  * l'API est idempotente. Un échec ne casse jamais l'app — au pire, pas de notification.
  */
 export function usePushToken() {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     void registerDevice();
 
     // Ouvrir la notification doit mener à ce dont elle parle — sinon l'athlète atterrit sur
     // l'accueil et cherche lui-même la séance dont on vient de lui parler.
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const target = routeFor(response.notification.request.content.data);
+      // Le cache est PERSISTÉ et frais 5 min : arriver par un push sans invalider afficherait la
+      // version d'avant l'événement qu'on vient d'annoncer. Même geste qu'au toucher d'une ligne
+      // du centre — les deux portes d'entrée doivent se comporter pareil.
+      queryClient.invalidateQueries();
+      // Destinations partagées avec le centre de notifications (#50) : ouvrir le push et toucher
+      // la ligne correspondante mènent au même endroit, par construction.
+      const target = routeForPushPayload(response.notification.request.content.data);
       if (target != null) router.push(target);
     });
     return () => subscription.remove();
-  }, []);
-}
-
-// Le payload est écrit par NotificationService (API) : type + id de la cible. Inconnu → on ne
-// navigue pas plutôt que de deviner (une version d'app plus ancienne qu'un push, par exemple).
-function routeFor(data: unknown): Href | null {
-  const payload = data as { type?: string; scheduledSessionId?: string } | null;
-  switch (payload?.type) {
-    case "PLAN_PUBLISHED":
-    case "PLAN_UPDATED":
-      return "/planning";
-    case "FEEDBACK_RECEIVED":
-      return payload.scheduledSessionId == null ? null : `/session/${payload.scheduledSessionId}`;
-    case "INVOICE_ISSUED":
-      return "/invoices";
-    default:
-      return null;
-  }
+  }, [queryClient]);
 }
 
 async function registerDevice(): Promise<void> {

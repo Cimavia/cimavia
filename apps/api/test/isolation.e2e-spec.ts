@@ -8,6 +8,7 @@ import { configureApp } from "../src/app.setup";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
+  "notification",
   "invoice",
   "message",
   "conversation",
@@ -1904,5 +1905,258 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
     const list = await athleteA1.get("/invoices");
     expect(list.body).toHaveLength(1);
     expect(list.body[0]).toMatchObject({ id: invoiceId, status: "CANCELLED" });
+  });
+});
+
+describe("Centre de notifications (#48)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let coachB: Agent;
+  let athleteB1: Agent;
+  let a1Id: string;
+  let planId: string;
+  let planWeekId: string;
+  let sessionId: string;
+  let conversationId: string;
+
+  const monday = mondayOfCurrentWeek();
+  // `signUp` pose `name = email` : c'est donc l'email qu'on retrouve en `actorName`.
+  const COACH_A = "notif-coach-a@cmv.test";
+  const ATHLETE_A1 = "notif-athlete-a1@cmv.test";
+
+  type Notif = {
+    id: string;
+    type: string;
+    entityType: string;
+    entityId: string;
+    actorName: string | null;
+    subjectLabel: string | null;
+    readAt: string | null;
+    createdAt: string;
+  };
+
+  const inbox = async (agent: Agent): Promise<Notif[]> =>
+    (await agent.get("/me/notifications")).body;
+  const unread = async (agent: Agent): Promise<number> =>
+    (await agent.get("/me/notifications/unread-count")).body.count;
+  // La diffusion émet DEUX notifications d'affilée (cycle + facture) : à la milliseconde près
+  // leur ordre relatif n'est pas garanti, on cherche donc par type plutôt que par position.
+  const find = async (agent: Agent, type: string): Promise<Notif | undefined> =>
+    (await inbox(agent)).find((notification) => notification.type === type);
+
+  beforeAll(async () => {
+    coachA = await signUp(COACH_A, Role.COACH);
+    athleteA1 = await signUp(ATHLETE_A1, Role.ATHLETE);
+    coachB = await signUp("notif-coach-b@cmv.test", Role.COACH);
+    athleteB1 = await signUp("notif-athlete-b1@cmv.test", Role.ATHLETE);
+
+    const invitation = await coachA.post("/invitations").send({});
+    const accepted = await athleteA1
+      .post("/invitations/accept")
+      .send({ code: invitation.body.code });
+    a1Id = accepted.body.athleteId;
+
+    const invitationB = await coachB.post("/invitations").send({});
+    await athleteB1.post("/invitations/accept").send({ code: invitationB.body.code });
+
+    const plan = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle notifications",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    planId = plan.body.id;
+    planWeekId = plan.body.weeks[0].id;
+    const session = await coachA
+      .post(`/plan-weeks/${planWeekId}/sessions`)
+      .send({ title: "Séance test", scheduledDate: monday });
+    sessionId = session.body.id;
+
+    // ⚠️ AUCUN token push n'est enregistré dans ce bloc : tout ce qui suit vérifie donc la trace
+    // persistée SEULE, exactement la situation d'un compte qui n'a jamais ouvert le mobile.
+    expect((await billAndPublish(coachA, planId)).status).toBe(200);
+  });
+
+  it("la diffusion laisse deux traces chez l'athlète : le cycle et sa facture", async () => {
+    const list = await inbox(athleteA1);
+    expect(list).toHaveLength(2);
+
+    expect(list.find((n) => n.type === "PLAN_PUBLISHED")).toMatchObject({
+      entityType: "PLAN",
+      entityId: planId,
+      // Le libellé n'est PAS stocké : seulement de quoi le rendre côté client.
+      actorName: null,
+      subjectLabel: "Cycle notifications",
+      readAt: null,
+    });
+    expect(list.find((n) => n.type === "INVOICE_ISSUED")).toMatchObject({
+      entityType: "INVOICE",
+      actorName: null,
+      subjectLabel: null,
+      readAt: null,
+    });
+  });
+
+  it("l'émetteur n'est pas destinataire : le coach n'a rien reçu de sa propre diffusion", async () => {
+    expect(await inbox(coachA)).toHaveLength(0);
+    expect(await unread(coachA)).toBe(0);
+  });
+
+  it("ajuster une séance diffusée notifie l'athlète, avec le titre de la séance", async () => {
+    const adjusted = await coachA.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Séance ajustée",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [],
+    });
+    expect(adjusted.status).toBe(200);
+
+    expect(await find(athleteA1, "PLAN_UPDATED")).toMatchObject({
+      entityType: "PLAN",
+      entityId: planId,
+      actorName: null,
+      subjectLabel: "Séance ajustée",
+    });
+  });
+
+  // Ajouter et retirer sont des ajustements au même titre que modifier (CDC §5.7) — et ils ont
+  // leur propre type : annoncer « séance modifiée » sur une suppression enverrait l'athlète
+  // chercher une séance qui n'existe plus.
+  it("ajouter puis retirer une séance d'un cycle diffusé notifie l'athlète", async () => {
+    const added = await coachA
+      .post(`/plan-weeks/${planWeekId}/sessions`)
+      .send({ title: "Séance du jeudi", scheduledDate: monday });
+    expect(added.status).toBe(201);
+
+    expect(await find(athleteA1, "PLAN_SESSION_ADDED")).toMatchObject({
+      entityType: "PLAN",
+      entityId: planId,
+      actorName: null,
+      subjectLabel: "Séance du jeudi",
+      readAt: null,
+    });
+
+    expect((await coachA.delete(`/scheduled-sessions/${added.body.id}`)).status).toBe(204);
+
+    // Le titre est la seule trace qu'il reste de la séance : la ligne, elle, a disparu en base.
+    expect(await find(athleteA1, "PLAN_SESSION_REMOVED")).toMatchObject({
+      entityType: "PLAN",
+      entityId: planId,
+      subjectLabel: "Séance du jeudi",
+    });
+  });
+
+  // Le pendant indispensable : sur un BROUILLON, il n'y a rien à annoncer — le cycle n'existe pas
+  // encore pour l'athlète, le prévenir de chaque séance posée serait du bruit pur.
+  it("composer un cycle en brouillon ne notifie personne", async () => {
+    const draft = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle en préparation",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(draft.status).toBe(201);
+
+    const before = (await inbox(athleteA1)).length;
+    const session = await coachA
+      .post(`/plan-weeks/${draft.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance brouillon", scheduledDate: monday });
+    expect(session.status).toBe(201);
+    expect((await coachA.delete(`/scheduled-sessions/${session.body.id}`)).status).toBe(204);
+
+    expect(await inbox(athleteA1)).toHaveLength(before);
+  });
+
+  // LE cas que la persistance rattrape : sans appareil enregistré, le push n'a rien à livrer et
+  // l'événement était perdu. C'est la situation normale d'un coach qui travaille sur le web.
+  it("un débrief atteint un coach SANS appareil enregistré", async () => {
+    const feedback = await athleteA1
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Bonne séance" });
+    expect(feedback.status).toBe(200);
+
+    expect(await find(coachA, "FEEDBACK_RECEIVED")).toMatchObject({
+      entityType: "SCHEDULED_SESSION",
+      entityId: sessionId,
+      actorName: ATHLETE_A1, // un coach suit N athlètes : sans le nom, l'entrée serait opaque
+      subjectLabel: "Séance ajustée",
+      readAt: null,
+    });
+  });
+
+  it("un message notifie le destinataire, avec le nom de l'expéditeur", async () => {
+    const conversation = await coachA.post("/conversations").send({ athleteId: a1Id });
+    conversationId = conversation.body.id;
+
+    const sent = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "On se voit jeudi ?" });
+    expect(sent.status).toBe(201);
+
+    expect(await find(athleteA1, "MESSAGE_RECEIVED")).toMatchObject({
+      entityType: "CONVERSATION",
+      entityId: conversationId,
+      actorName: COACH_A,
+      subjectLabel: null,
+    });
+  });
+
+  // Le throttle push de P5-4 vaut aussi pour la trace : on notifie au passage « tout lu » →
+  // « non lu », donc une rafale de messages ne produit qu'UNE entrée tant que rien n'est lu.
+  it("une rafale de messages ne produit qu'une seule entrée", async () => {
+    const before = (await inbox(athleteA1)).filter((n) => n.type === "MESSAGE_RECEIVED").length;
+    for (const content of ["et vendredi ?", "ou samedi"]) {
+      await coachA
+        .post(`/conversations/${conversationId}/messages`)
+        .send({ type: "TEXT", content });
+    }
+    const after = (await inbox(athleteA1)).filter((n) => n.type === "MESSAGE_RECEIVED").length;
+    expect(after).toBe(before);
+  });
+
+  it("le compteur ne compte que les non lues", async () => {
+    const list = await inbox(athleteA1);
+    expect(await unread(athleteA1)).toBe(list.length);
+
+    const first = list[0];
+    const read = await athleteA1.patch(`/me/notifications/${first.id}/read`);
+    expect(read.status).toBe(200);
+    expect(read.body.readAt).not.toBeNull();
+    expect(await unread(athleteA1)).toBe(list.length - 1);
+  });
+
+  it("relire une notification déjà lue ne la redate pas", async () => {
+    const alreadyRead = (await inbox(athleteA1)).find((n) => n.readAt != null);
+    expect(alreadyRead).toBeDefined();
+
+    const again = await athleteA1.patch(`/me/notifications/${alreadyRead?.id}/read`);
+    expect(again.status).toBe(200);
+    expect(again.body.readAt).toBe(alreadyRead?.readAt);
+  });
+
+  it("marquer lue la notification d'un autre est un 404 (le scope ne la voit pas)", async () => {
+    const target = (await inbox(coachA))[0];
+    expect(target).toBeDefined();
+
+    expect((await athleteA1.patch(`/me/notifications/${target.id}/read`)).status).toBe(404);
+    expect((await coachB.patch(`/me/notifications/${target.id}/read`)).status).toBe(404);
+    // Et elle est restée non lue chez son destinataire.
+    expect((await inbox(coachA))[0].readAt).toBeNull();
+  });
+
+  it("« tout marquer comme lu » vide le badge sans rien supprimer", async () => {
+    const total = (await inbox(athleteA1)).length;
+    expect(await unread(athleteA1)).toBeGreaterThan(0);
+
+    const res = await athleteA1.post("/me/notifications/read-all");
+    expect(res.status).toBe(204);
+    expect(await unread(athleteA1)).toBe(0);
+    expect(await inbox(athleteA1)).toHaveLength(total);
+  });
+
+  it("isolation : un tiers ne voit aucune notification des autres", async () => {
+    expect(await inbox(athleteB1)).toHaveLength(0);
+    expect(await unread(athleteB1)).toBe(0);
+    expect(await inbox(coachB)).toHaveLength(0);
   });
 });

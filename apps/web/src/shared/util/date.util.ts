@@ -3,6 +3,7 @@ import {
   formatIsoDateRange,
   formatIsoDateTime,
   formatIsoDayLabel,
+  formatRelativeOrDateTime,
 } from "@cmv/shared";
 import i18n from "@/shared/lib/i18n";
 
@@ -25,4 +26,12 @@ export function formatDateRange(startIsoDate: string, endIsoDate: string): strin
 // Un INSTANT (expiresAt…), pas une date civile : affiché dans le fuseau de l'utilisateur.
 export function formatDateTime(isoDateTime: string): string {
   return formatIsoDateTime(isoDateTime, i18n.language);
+}
+
+// « il y a 2 h », ou la date complète au-delà d'une semaine. La bascule vit dans @cmv/shared
+// (identique côté mobile) ; on ne fournit ici que la locale et le traducteur courants.
+export function formatRelativeTime(isoDateTime: string): string {
+  return formatRelativeOrDateTime(isoDateTime, new Date(), i18n.language, (key, params) =>
+    i18n.t(key, params),
+  );
 }

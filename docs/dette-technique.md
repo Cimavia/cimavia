@@ -1,35 +1,52 @@
 # Dette technique — cimavia
 
-Registre des **raccourcis assumés**, décidés en connaissance de cause pour avancer. Ce n'est ni un backlog de bugs (→ issues), ni une liste de features (→ `cahier-des-charges-mvp.md` §4).
+**Journal de décisions et index de dette.** Deux choses vivent ici : les **raccourcis assumés** (le
+*quoi* et le *statut* — le *pourquoi* et le *quand* vivent dans l'issue liée) et les **décisions
+tranchées en cours de route**, que le code ne justifie pas tout seul.
 
-**Règle** : tout raccourci pris pendant une phase s'ajoute ici **au moment où on le prend**, avec sa raison et son déclencheur de résolution. Une dette non écrite est une dette oubliée.
+Ce n'est ni un backlog de bugs (→ issues), ni une liste de features (→ `cahier-des-charges-mvp.md` §4).
+
+**Règle de capture** : tout raccourci pris pendant une phase s'ajoute ici **au moment où on le
+prend** — une ligne suffit. L'issue peut attendre ; une dette non écrite est une dette oubliée.
+
+**Où lire quoi** : ce fichier dit *ce qui a été court-circuité* et *où en est le suivi*. L'issue
+liée porte le raisonnement complet — pourquoi c'était acceptable, et ce qui doit se produire pour
+qu'on le traite.
 
 Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à traiter avant la mise en prod
+
+**Épics de suivi** :
+[#67](https://github.com/Cimavia/cimavia/issues/67) cohérence base ↔ storage ·
+[#68](https://github.com/Cimavia/cimavia/issues/68) pagination ·
+[#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
+[#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod — plus dix issues
+autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur étant explicitement
+« aucun » : **P2-4** et **N-3**.
 
 ---
 
 ## P2 — Exercices & Séances
 
-| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
-|---|---|---|---|---|
-| P2-1 | **Objets orphelins en object storage** : si l'upload vers le storage réussit mais que le `POST /documents` (rattachement) échoue, le fichier reste dans le bucket sans ligne en base. | Cas rare (échec réseau entre deux appels), coût = quelques octets. La suppression d'un exercice, elle, nettoie bien ses objets. | Écrire une **tâche de purge** (lister les clés sans `ExerciseDocument` correspondant) — à faire quand les médias de débrief (P4) feront grossir le volume. | 🟡 |
-| P2-2 | **Pas de pagination** sur `GET /exercises` et `GET /sessions` : tout est renvoyé. | Un coach a des dizaines d'exercices, pas des milliers. La recherche/filtre côté API limite déjà le volume. | Ajouter `?page`/`?limit` dès qu'un coach dépasse ~200 exercices, ou si la liste devient lente. | 🟢 |
-| P2-3 | **Pas de drag & drop** dans le SessionBuilder : réordonnancement par boutons ↑/↓. | Imposerait une dépendance (dnd-kit) + un travail d'accessibilité. Les boutons sont utilisables au clavier, et le modèle (position = ordre du tableau) accepte le DnD **sans migration**. | Confort utilisateur : à ajouter si le coach compose des séances longues (>8 exercices). | 🟢 |
-| P2-4 | **`crypto.randomUUID()` pour la clé objet**, alors que les `id` de tables sont des `cuid`. | Ce n'est pas un identifiant métier, juste un segment d'unicité dans le chemin S3. `randomUUID` est natif (zéro dépendance). | Aucun — incohérence assumée, deux usages distincts. | 🟢 |
-| P2-5 | **Suppression d'un document : pas de rollback**. On supprime l'objet S3 **puis** la ligne. Si la suppression en base échoue, le document pointe vers un objet disparu. | Ordre choisi volontairement : une ligne orpheline casse l'affichage, un objet orphelin ne coûte que du stockage. La fenêtre d'échec est minuscule. | Revoir si l'on introduit une vraie gestion transactionnelle des médias (P4). | 🟢 |
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| P2-1 | **Objets orphelins en object storage** : upload réussi mais `POST /documents` échoué → fichier dans le bucket sans ligne en base. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| P2-2 | **Pas de pagination** sur `GET /exercises` et `GET /sessions` : tout est renvoyé. | 🟢 | [#79](https://github.com/Cimavia/cimavia/issues/79) |
+| P2-3 | **Pas de drag & drop** dans le SessionBuilder : réordonnancement par boutons ↑/↓. | 🟢 | [#93](https://github.com/Cimavia/cimavia/issues/93) |
+| P2-4 | **`crypto.randomUUID()` pour la clé objet**, alors que les `id` de tables sont des `cuid`. | 🟢 | — *(incohérence assumée, déclencheur : aucun)* |
+| P2-5 | **Suppression d'un document : pas de rollback**. L'objet S3 part **avant** la ligne — ordre choisi volontairement. | 🟢 | [#75](https://github.com/Cimavia/cimavia/issues/75) |
 
 ---
 
 ## P3 — Planifications
 
-| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
-|---|---|---|---|---|
-| ~~P3-1~~ | ~~**Push non envoyé à la diffusion**~~ : `POST /plans/:id/publish` déclenche `NotificationService.notifyPlanPublished`, qui **journalise** (Pino → Axiom) au lieu d'émettre une notification. | Le push complet suppose l'enregistrement des tokens device (table `PushToken` + `expo-notifications` + build sur téléphone physique) — c'est le périmètre explicite de **p4-4**. Le déclencheur métier, lui, est déjà en place et couvert par les e2e : seule la livraison manque. | ✅ **Résolu en p4-4** : `expo-server-sdk` branché DANS `NotificationService`, sans que les appelants bougent. Table `PushToken` + enregistrement mobile. | ✅ |
-| P3-2 | **Objets S3 orphelins après suppression d'une planif** : une copie de document partage la clé objet de la bibliothèque. Si le document d'origine est supprimé (l'objet est alors *conservé* car une copie l'utilise) puis que la planif est supprimée à son tour, l'objet reste dans le bucket sans aucune ligne. | Le compromis inverse — purger l'objet dès la suppression du document — casserait un cycle **déjà diffusé** à l'athlète : une ligne pointerait vers un fichier disparu. On préfère payer du stockage. Le comptage de références (`deleteObjectIfUnreferenced`) évite le cas courant. | Même tâche de purge que **P2-1** (lister les clés sans ligne correspondante, ni `ExerciseDocument` ni `ScheduledSessionExerciseDocument`). | 🟡 |
-| P3-3 | **Documents non lisibles hors-ligne** : le cache athlète (p3-5) conserve la structure des séances (exercices, prescriptions, consignes), mais les documents sont servis par des **URLs signées à TTL court** (5 min) — inutilisables sans réseau. | L'usage visé est « consulter sa séance en salle sans réseau » : le déroulé et les consignes suffisent. Télécharger et chiffrer les PDF/images en local est un chantier à part (quota, purge, sécurité). | Si les athlètes réclament les documents en salle : télécharger les fichiers à la diffusion et les stocker via `expo-file-system`. | 🟢 |
-| ~~P3-4~~ | ~~**Écrans coach de P1 jamais construits**~~ (nav, liste d'athlètes, invitation, fiche). | — | ✅ **Résolu en p3-8** : nav latérale (`CmvAppShell`), `/athletes`, panneau d'invitation (code + copie) et fiche athlète livrés. Le dashboard a remplacé l'accueil. | ✅ |
-| P3-5 | **Écarts aux maquettes assumés** : pas de **durée de séance** (« 75 min » dans pd-7/pd-9 — le champ n'existe ni au CDC §8 ni sur `Session` en P2), et pas de **drag & drop** dans le builder (réordonnancement par ↑/↓). | Ajouter `durationMinutes` sur la seule instance créerait une asymétrie modèle/instance ; l'ajouter partout rouvre P2 pour un champ décoratif. Le DnD suit la dette **P2-3** (dépendance + accessibilité). | Ajouter `durationMinutes Int?` sur `Session` ET `ScheduledSession` le jour où le coach en exprime le besoin (migration triviale, nullable). | 🟢 |
-| ~~P3-6~~ | ~~**Tuile « Factures en attente » non branchée**~~ : affichait `—`, marquée `// MOCKED`. | — | ✅ **Résolue en P6** : branchée sur `pendingCount(invoices)` (factures émises non réglées). Le `—` subsiste tant que la liste n'est pas chargée — c'est la règle nullable, plus un mock. Plus aucun `// MOCKED` côté facturation. | ✅ |
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~P3-1~~ | ~~**Push non envoyé à la diffusion**~~ : `notifyPlanPublished` journalisait au lieu d'émettre. | ✅ | résolu en **p4-4** — `expo-server-sdk` branché dans `NotificationService`, table `PushToken` |
+| P3-2 | **Objets S3 orphelins après suppression d'une planif** : une copie de document partage la clé objet de la bibliothèque. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| P3-3 | **Documents non lisibles hors-ligne** : servis par des URLs signées à TTL court (5 min). | 🟢 | [#95](https://github.com/Cimavia/cimavia/issues/95) |
+| ~~P3-4~~ | ~~**Écrans coach de P1 jamais construits**~~ (nav, liste d'athlètes, invitation, fiche). | ✅ | résolu en **p3-8** — `CmvAppShell`, `/athletes`, invitation, fiche athlète |
+| P3-5 | **Écarts aux maquettes assumés** : pas de durée de séance (« 75 min » en pd-7/pd-9), pas de drag & drop. | 🟢 | [#94](https://github.com/Cimavia/cimavia/issues/94) · [#93](https://github.com/Cimavia/cimavia/issues/93) |
+| ~~P3-6~~ | ~~**Tuile « Factures en attente » non branchée**~~ : affichait `—`, marquée `// MOCKED`. | ✅ | résolue en **P6** — branchée sur `pendingCount(invoices)` |
 
 ---
 
@@ -39,14 +56,14 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 
 ## P4 — Débrief & Médias
 
-| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
-|---|---|---|---|---|
-| P4-1 | **Vidéo non transcodée** : le plafond 720p n'est pas appliqué, ni vérifié. Le picker borne la durée à la capture, et une vidéo hors plafonds est **refusée** (message explicite) plutôt que réencodée. | Transcoder côté client impose une dépendance native lourde (`react-native-compressor`) ; côté serveur, un pipeline ffmpeg — hors de proportion pour le MVP. Les deux plafonds qui protègent le coût sont, eux, bien appliqués : la durée (déclarée, bornée à la capture) et surtout la **taille**, signée dans l'URL PUT donc opposable par le storage. | Si les athlètes butent souvent sur le refus « > 50 Mo » : compresser côté client (dev build requis, l'app n'est plus lançable dans Expo Go). | 🟢 |
-| P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. Un client modifié pourrait annoncer 10 s pour une vidéo de 5 min. | Le vrai garde-fou du coût est la taille (50 Mo), elle **vérifiée par le storage**. Mentir sur la durée sans dépasser la taille ne coûte rien de plus. | Une inspection serveur (ffprobe) n'a de sens qu'avec un pipeline de transcodage — donc avec P4-1. | 🟢 |
-| P4-3 | **Vol de token push possible** : `POST /me/push-tokens` réaffecte un token déjà enregistré au compte courant. Qui connaîtrait le token d'un tiers pourrait le priver de ses notifications. | La réaffectation est **nécessaire** : le token est unique en base, et un appareil change de main (le cas courant : tester coach et athlète sur le même téléphone). Sans elle, un 500 sur violation d'unicité. L'impact est borné : aucune donnée n'est exposée, seule la livraison bascule ; et le token n'est pas devinable. | Le correctif propre est une preuve de possession de l'appareil (challenge push) — hors MVP. À revoir si un usage multi-comptes par appareil apparaît. | 🟡 |
-| P4-4 | **Pas de miniature vidéo** dans la galerie mobile : une pastille « Vidéo · 42 s » tient lieu d'aperçu. | Générer une vignette demande un module natif de plus (`expo-video-thumbnails`) pour un gain cosmétique. Le coach, lui, lit la vidéo en entier côté web. | Confort : à ajouter si l'athlète peine à distinguer ses vidéos entre elles. | 🟢 |
-| P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach. Les compléments (texte ajouté, photo tardive) repassent le débrief « à relire » dans le dashboard, sans notification. | L'athlète débriefe en plusieurs fois : un push par ajout serait du harcèlement. Le signal n'est pas perdu — il est juste passif. | Si les coachs ratent des compléments : notifier à nouveau au-delà d'un délai (ex. 1 h après le dernier push). | 🟢 |
-| ~~P2-1~~ / ~~P3-2~~ | *(inchangées)* La purge des objets S3 orphelins reste différée. | P4 n'ajoute **aucun** nouveau cas : un média de débrief n'est jamais copié ni partagé, sa clé n'appartient qu'à lui, et sa suppression purge l'objet directement. | Toujours les mêmes déclencheurs (P2-1). | 🟡 |
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
+| P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
+| P4-3 | **Vol de token push possible** : `POST /me/push-tokens` réaffecte au compte courant un token déjà enregistré. | 🟡 | [#90](https://github.com/Cimavia/cimavia/issues/90) |
+| P4-4 | **Pas de miniature vidéo** dans la galerie mobile : une pastille « Vidéo · 42 s » tient lieu d'aperçu. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) |
+| P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
+| ~~P2-1~~ / ~~P3-2~~ | *(inchangées)* P4 n'ajoute **aucun** nouveau cas : un média de débrief n'est jamais copié ni partagé, sa suppression purge l'objet directement. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 > **Résolu en P4** : ~~P3-1~~ (push non envoyé) — `expo-server-sdk` est branché dans
 > `NotificationService`, sans que les appelants aient bougé. ~~P3-6~~ côté débriefs — la tuile
@@ -65,14 +82,14 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 
 ## P5 — Messagerie & débrief vocal
 
-| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
-|---|---|---|---|---|
-| P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | Un fil 1:1 coach↔athlète reste modeste ; le cache persisté mobile encaisse. | Cursoriser (par `createdAt`) dès qu'un fil dépasse quelques centaines de messages, ou si le chargement devient lent. Même famille que P2-2. | 🟢 |
-| P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2) : le serveur ne décode pas la note vocale ; sa durée vient du client. | Le vrai garde-fou du coût est la **taille**, signée dans l'URL PUT donc opposable. Mentir sur la durée sans dépasser la taille ne coûte rien. | Une inspection serveur (ffprobe) n'a de sens qu'avec un pipeline de transcodage — donc avec P4-1. | 🟢 |
-| P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du **webm/opus** ; un athlète **iOS** peut ne pas le lire nativement. (Safari coach → mp4, lisible partout ; mobile → coach est toujours du m4a.) | Le coach lit surtout sur web ; l'envoi de vocal web → athlète iOS est un cas secondaire. Aucune perte de données, seulement la lecture qui peut échouer sur une plateforme. | Transcodage serveur (webm → aac) — même chantier que P4-1. Ou restreindre l'enregistrement web au mp4 quand le navigateur le supporte. | 🟡 |
-| P5-4 | **Throttle push « first-unread » sans reprise temporelle** : on ne notifie qu'au passage « tout lu » → « non lu » d'un fil. Une rafale de messages = 1 push ; tant que le destinataire n'a pas lu, les suivants ne re-notifient pas. | Évite le harcèlement (même philosophie que P4-5). Le signal n'est pas perdu — l'`unreadCount` grossit, visible à l'ouverture. | Si des messages sont ratés faute de rappel : re-notifier au-delà d'un délai (ex. 1 h après le dernier push non lu). | 🟢 |
-| P5-5 | **Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile), et entre mobile et web : compression photo, mesure de taille, validation. | Chaque copie est courte et lisible ; extraire tôt un util partagé aurait figé une abstraction encore mouvante. | Promouvoir en util partagé (`shared/`) au 3ᵉ consommateur, ou si une règle de préparation diverge et doit rester unique. | 🟢 |
-| ~~P2-1~~ / ~~P3-2~~ | *(inchangées sur le flux nominal)* Un média de message/débrief a une clé qui n'appartient qu'à lui → suppression = purge directe, comme en P4. **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | La suppression de relation n'est pas un flux MVP. | Même tâche de purge que P2-1 (lister les clés sans ligne) ; couvre désormais aussi `conversation/*` et `athlete/*/feedback/*`. | 🟡 |
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | 🟢 | [#77](https://github.com/Cimavia/cimavia/issues/77) |
+| P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
+| P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du webm/opus, qu'iOS peut ne pas lire. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
+| P5-4 | **Throttle push « first-unread » sans reprise temporelle** : une rafale de messages = 1 push, sans rappel. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
+| P5-5 | **Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile), et entre mobile et web. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
+| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 > **Promu en P5** : l'enregistreur et le lecteur audio (`CmvAudioRecorder`/`CmvAudioPlayer`) sont
 > dans `shared/component/` côté mobile, construits pour la messagerie **et** réutilisés tels quels
@@ -87,11 +104,11 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 
 ## P6 — Facturation
 
-| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
-|---|---|---|---|---|
-| P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : le justificatif PDF est purgé au remplacement et au retrait explicite, mais supprimer un cycle DRAFT cascade sa facture en base **sans** purger l'objet. | Même famille que P2-1 / P3-2 (la purge des objets sans ligne est une tâche transverse, pas propre à la facturation). Un cycle diffusé, lui, ne se supprime plus (garde UI) : le cas se limite aux brouillons. | Même tâche de purge que **P2-1** — le balayage couvre désormais aussi `athlete/*/invoice/*`. Ou purger le PDF dans `PlanService.delete` avant la cascade. | 🟡 |
-| P6-1 | **Astérisques d'obligation partiels** : seul le formulaire de **facturation** (builder) marque ses champs requis d'un astérisque rouge (`CmvTextField requiredMark`). Les autres formulaires de l'app (auth, cycle, séance, exercice, fiche athlète, messagerie) n'ont aucun repère visuel du caractère obligatoire. | Le mécanisme partagé est déjà posé (`requiredMark` sur `CmvTextField`) et **opt-in** : le généraliser d'un coup — ou le dériver de `required` — surchargerait des formulaires courts (login) sans revue champ par champ. Aucune régression fonctionnelle, seulement un repère visuel manquant. | Déployer `requiredMark` sur tous les champs obligatoires de l'app (et ajouter l'équivalent à `CmvSelect` / `CmvTextArea`), après revue de chaque formulaire ; ou le dériver de `required` une fois cette revue faite. | 🟢 |
-| P6-3 | **Suppression d'un cycle diffusé bloquée côté UI seulement** : le bouton est désactivé (info-bulle), mais `DELETE /plans/:id` accepterait encore un cycle `PUBLISHED` — et effacerait sa facture émise en cascade. | Le seul client coach est le web, où le bouton est désactivé ; aucun flux ne mène à cet appel. La garde dure demanderait un 409 côté service + reprise des e2e. | Ajouter le refus dans `PlanService.delete` (409 si `PUBLISHED`) et le couvrir en e2e — à faire dès qu'un second client écrit sur les cycles, ou avant la mise en production. | 🟡 |
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| P6-1 | **Astérisques d'obligation partiels** : seul le formulaire de facturation marque ses champs requis (`CmvTextField requiredMark`). | 🟢 | [#97](https://github.com/Cimavia/cimavia/issues/97) |
+| P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| P6-3 | **Suppression d'un cycle diffusé bloquée côté UI seulement** : `DELETE /plans/:id` accepterait encore un `PUBLISHED`, et effacerait sa facture émise. | 🟡 | [#85](https://github.com/Cimavia/cimavia/issues/85) |
 
 ---
 
@@ -114,17 +131,57 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 
 ## P7 — i18n & Déploiement FR
 
-| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
-|---|---|---|---|---|
-| P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native / Hermes / Expo. `@better-auth/expo` est une dépendance réelle de l'API (plugin serveur : scheme `cimavia://`, cookies natifs), mais déclare `expo`, `expo-constants`, `expo-linking` et `expo-network` en **peerDependencies** — auto-installées par pnpm, elles tirent tout React Native dans une image de **serveur**. | Le code embarqué n'est jamais exécuté (seul l'entrée serveur du plugin l'est), donc aucun risque fonctionnel : c'est du poids mort. Et le coût réel se paie une seule fois : entre deux déploiements, seule la couche `dist` (~600 Ko) change — les pulls suivants sont incrémentaux. | Marquer ces peers optionnelles via `pnpm.packageExtensions` à la racine, puis vérifier que l'inscription/connexion mobile fonctionne toujours. À faire si le premier pull sur le NAS devient pénible, ou avant la prod Clever si le stockage d'images est facturé. | 🟢 |
-| P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt que dans une étape de déploiement distincte. | `migrate deploy` est idempotent et n'applique que des migrations versionnées. Tant que l'API tourne en **instance unique** — le cas du staging NAS comme de la prod MVP — aucune course n'est possible. | Sortir la migration dans un job dédié, joué avant le déploiement, le jour où l'API passe à plusieurs instances (scale horizontal Clever Cloud). | 🟡 |
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
+| P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
+
+> **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
+> est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
+> `@cmv/shared`, `Locale` et `User.locale` déjà en place. Il ne manque que `en.json`, la détection
+> (les deux apps forcent `lng: "fr"`, **délibérément** — sans ressource `en`, un appareil anglais
+> afficherait des libellés FR avec des dates EN) et la vérification des formats. Suivi par l'épic
+> [#71](https://github.com/Cimavia/cimavia/issues/71), hors de ce registre.
+
+---
 
 ## Post-MVP — Qualité & analyse statique
 
-| # | Dette | Pourquoi c'est acceptable | Déclencheur / résolution | Statut |
-|---|---|---|---|---|
-| Q-1 ([#56](https://github.com/Cimavia/cimavia/issues/56)) | **Couverture non mesurée hors `@cmv/shared`** : `sonar.coverage.exclusions` écarte `apps/api`, `apps/web` et `apps/mobile`. L'API est réellement couverte par les **111 e2e**, mais ils tournent dans un process Nest à part et ne produisent aucun lcov — ses 4 tests unitaires afficheraient 3 %. Le web et le mobile n'ont aucun harnais de test d'UI. | Un chiffre faux est pire que pas de chiffre : à 3 %, la Quality Gate échouerait sur chaque PR touchant l'API, et l'équipe apprendrait à ignorer la gate. L'analyse statique (bugs, sécurité, smells) continue de couvrir ces dossiers — seule la **mesure de couverture** est suspendue. | Instrumenter les e2e (couverture v8 sur le process Nest lancé par `vitest.config.e2e.ts`) puis retirer `apps/api/**` de l'exclusion. Pour le web/mobile : le jour où un harnais de test d'UI est introduit. Découpé en [#57](https://github.com/Cimavia/cimavia/issues/57) (api), [#58](https://github.com/Cimavia/cimavia/issues/58) (web), [#59](https://github.com/Cimavia/cimavia/issues/59) (mobile). | 🟡 |
-| Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`) : l'image officielle `nginx` démarre son process maître en root pour pouvoir écouter sur le port 80. Signalé par Sonar (`docker:S6471`). | Le conteneur ne sert que des fichiers statiques déjà construits, sans exécution applicative ni accès au réseau interne : une évasion supposerait d'abord une faille dans nginx lui-même. Et le tier dev n'est pas exposé directement — Cloudflare Tunnel est le seul point d'entrée. | Basculer sur `nginxinc/nginx-unprivileged`, qui écoute en **8080**. Trois changements solidaires : l'image dans `apps/web/Dockerfile`, le `listen 80` de `apps/web/nginx.conf`, et l'URL du service dans le **dashboard Cloudflare Zero Trust** (`http://web:80` → `:8080`) — ce dernier n'est pas versionné, donc invisible d'une revue de code, et un oubli casse `app-dev` sans qu'aucun test local ne le voie. `deploy/dev/docker-compose.yml` ne publie aucun port pour le web, il n'a rien à changer. À faire avant la mise en production. | 🟡 |
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| Q-1 | **Couverture non mesurée hors `@cmv/shared`** : `sonar.coverage.exclusions` écarte les trois apps. L'API est couverte par les e2e, qui ne produisent aucun lcov. | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → [#57](https://github.com/Cimavia/cimavia/issues/57) [#58](https://github.com/Cimavia/cimavia/issues/58) [#59](https://github.com/Cimavia/cimavia/issues/59) |
+| Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
+
+---
+
+## Post-MVP — Centre de notifications ([#39](https://github.com/Cimavia/cimavia/issues/39))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
+| N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
+| N-3 | **Une entrée par rafale de messages**, pas une par message : hérite du throttle push de P5-4. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
+| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| N-5 | **Aucun réglage de notification** : ni opt-out par type, ni choix de canal. | 🟢 | [#65](https://github.com/Cimavia/cimavia/issues/65) [#66](https://github.com/Cimavia/cimavia/issues/66) *(épic mail [#61](https://github.com/Cimavia/cimavia/issues/61))* |
+| N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
+| N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
+
+> **Tranché en #48** (le modèle) : une `Notification` ne stocke **aucun libellé rendu**, seulement
+> son `type`, sa cible et les paramètres d'interpolation (`actorName`, `subjectLabel`). Deux
+> conséquences assumées : **(1)** le rendu vit dans les apps (`NOTIFICATION_LABEL_KEY` + i18next),
+> donc une notification écrite en juillet s'affichera en anglais le jour où `en.json` arrivera —
+> c'était la raison d'être du choix ; **(2)** les paramètres sont des **instantanés**, renommer un
+> cycle ne réécrit pas l'historique. Le libellé du **push**, lui, reste rendu côté serveur et en
+> français en dur — il n'y a pas de client pour le traduire au moment de la livraison. Son i18n
+> suivra le catalogue serveur de [#63](https://github.com/Cimavia/cimavia/issues/63).
+
+> **Appris en test (session de recette #39)** : une notification n'est pas un lien, c'est le
+> **signal que l'état serveur a changé**. L'ouvrir invalide donc tout le cache client avant de
+> naviguer — sans quoi cliquer « nouveau débrief » depuis l'écran des débriefs ne fait
+> littéralement rien (navigation no-op + `staleTime`), et arriver par un push mobile affiche la
+> version d'avant l'événement annoncé (cache persisté, frais 5 min). L'invalidation est **globale
+> et non ciblée** : une table `entityType → clés de requête` couplerait la feature notification à
+> toutes les autres et se périmerait en silence au premier changement de route.
 
 ---
 
@@ -142,6 +199,7 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 > conformes — le DS les colore déjà (`success`/`warning`/`error`).
 
 ---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

@@ -11,7 +11,16 @@
     "logout": "Se déconnecter",
     "errorTitle": "Chargement impossible",
     "errorDescription": "Les données n'ont pas pu être récupérées. Vérifiez votre connexion, puis réessayez.",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "relativeTime": {
+      "now": "à l'instant",
+      "minute": "il y a {{count}} min",
+      "minute_other": "il y a {{count}} min",
+      "hour": "il y a {{count}} h",
+      "hour_other": "il y a {{count}} h",
+      "day": "il y a {{count}} jour",
+      "day_other": "il y a {{count}} jours"
+    }
   },
   "auth": {
     "login": {
@@ -411,5 +420,21 @@
       "documentRemoved": "Justificatif retiré."
     },
     "viewDocument": "Voir le PDF"
+  },
+  "notification": {
+    "title": "Notifications",
+    "open": "Ouvrir les notifications",
+    "empty": "Aucune notification pour le moment.",
+    "markAllRead": "Tout marquer comme lu",
+    "someone": "Quelqu'un",
+    "type": {
+      "planPublished": "Nouvelle planification : « {{subject}} »",
+      "planUpdated": "Séance modifiée : « {{subject}} »",
+      "planSessionAdded": "Séance ajoutée : « {{subject}} »",
+      "planSessionRemoved": "Séance retirée : « {{subject}} »",
+      "feedbackReceived": "{{actor}} a débriefé « {{subject}} »",
+      "messageReceived": "Nouveau message de {{actor}}",
+      "invoiceIssued": "Nouvelle facture reçue"
+    }
   }
 }

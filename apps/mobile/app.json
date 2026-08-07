@@ -3,15 +3,12 @@
     "name": "cimavia",
     "slug": "cimavia",
     "version": "1.0.0",
-    "scheme": "cimavia",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "fr.cimavia.app"
+      "supportsTablet": true
     },
     "android": {
-      "package": "fr.cimavia.app",
       "googleServicesFile": "./google-services.json"
     },
     "web": {
