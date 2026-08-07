@@ -2,6 +2,8 @@ export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
 export type { NotificationApi } from "./api/notification.api";
 export { createNotificationApi, notificationKeys } from "./api/notification.api";
+export type { ReminderApi } from "./api/reminder.api";
+export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./auth";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
