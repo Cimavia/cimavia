@@ -1,12 +1,6 @@
 import type { NotificationDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getUnreadCount,
-  listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-  notificationKeys,
-} from "@/feature/notification/api";
+import { notificationApi, notificationKeys } from "@/feature/notification/api";
 
 /**
  * Le badge vit sur la barre d'onglets, donc sur tous les écrans. `refetchInterval` s'interrompt de
@@ -18,7 +12,7 @@ const UNREAD_POLL_MS = 30_000;
 export function useUnreadNotificationCount() {
   return useQuery<number>({
     queryKey: notificationKeys.unreadCount(),
-    queryFn: async () => (await getUnreadCount()).count,
+    queryFn: async () => (await notificationApi.unreadCount()).count,
     refetchInterval: UNREAD_POLL_MS,
   });
 }
@@ -28,7 +22,7 @@ export function useUnreadNotificationCount() {
 export function useNotifications() {
   return useQuery<NotificationDto[]>({
     queryKey: notificationKeys.list(),
-    queryFn: listNotifications,
+    queryFn: notificationApi.list,
   });
 }
 
@@ -39,7 +33,7 @@ export function useNotifications() {
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => markNotificationRead(id),
+    mutationFn: notificationApi.markRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
@@ -49,7 +43,7 @@ export function useMarkNotificationRead() {
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: markAllNotificationsRead,
+    mutationFn: notificationApi.markAllRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },

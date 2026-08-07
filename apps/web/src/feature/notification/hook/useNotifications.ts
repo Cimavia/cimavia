@@ -1,12 +1,6 @@
 import type { NotificationDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getUnreadCount,
-  listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-  notificationKeys,
-} from "@/feature/notification/api";
+import { notificationApi, notificationKeys } from "@/feature/notification/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 // Le badge vit dans la nav, donc sur TOUS les écrans : il s'interroge plus lentement qu'un fil de
@@ -17,7 +11,7 @@ const UNREAD_POLL_MS = 30_000;
 export function useUnreadNotificationCount() {
   return useQuery<number>({
     queryKey: notificationKeys.unreadCount(),
-    queryFn: async () => (await getUnreadCount()).count,
+    queryFn: async () => (await notificationApi.unreadCount()).count,
     refetchInterval: UNREAD_POLL_MS,
   });
 }
@@ -29,7 +23,7 @@ export function useUnreadNotificationCount() {
 export function useNotifications(enabled: boolean) {
   return useQuery<NotificationDto[]>({
     queryKey: notificationKeys.list(),
-    queryFn: listNotifications,
+    queryFn: notificationApi.list,
     enabled,
   });
 }
@@ -43,7 +37,7 @@ export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
   return useMutation({
-    mutationFn: (id: string) => markNotificationRead(id),
+    mutationFn: notificationApi.markRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
@@ -55,7 +49,7 @@ export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
   return useMutation({
-    mutationFn: markAllNotificationsRead,
+    mutationFn: notificationApi.markAllRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
