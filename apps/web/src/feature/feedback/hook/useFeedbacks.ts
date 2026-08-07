@@ -8,10 +8,13 @@ import {
 } from "@/feature/feedback/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
+const FEEDBACKS_POLL_MS = 30_000;
+
 export function useFeedbacks() {
   return useQuery<CoachFeedbackSummaryDto[]>({
     queryKey: feedbackKeys.list(),
     queryFn: listFeedbacks,
+    refetchInterval: FEEDBACKS_POLL_MS,
   });
 }
 
