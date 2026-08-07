@@ -10,10 +10,13 @@ import { type ReminderDto, type ReminderEntityType, ReminderStatus } from "../dt
 export type ReminderTiming = { dueAt: string; status: ReminderStatus };
 
 /**
- * Un rappel est-il **dû** ? C'est la seule dérivation temporelle de la feature, et elle vit ici
- * plutôt que dans l'API : le centre de notifications l'applique à la lecture (#51) et les clients
- * s'en servent pour distinguer « en retard » de « à venir » dans la liste. Deux implémentations
- * auraient divergé sur la borne (`<` ou `<=`).
+ * Un rappel est-il **dû** ? C'est la seule dérivation temporelle de la feature, et les clients s'en
+ * servent pour distinguer « en retard » de « à venir » dans la liste des rappels.
+ *
+ * L'API applique la MÊME règle, mais en SQL (`dueAt: { lte: now }`, cf. `ReminderService.listDue`) :
+ * charger tous les rappels PENDING pour en filtrer trois en mémoire renoncerait à l'index. Les deux
+ * moitiés doivent donc s'accorder sur une borne **inclusive** — c'est ce que fixent le test ci-contre
+ * et l'e2e du centre de notifications, chacun de son côté.
  *
  * Calculé à la LECTURE, jamais persisté ni poussé : aucun job en arrière-plan n'existe tant que
  * #47 n'a pas atterri. Conséquence assumée — un rappel qui devient dû n'émet aucun push, il

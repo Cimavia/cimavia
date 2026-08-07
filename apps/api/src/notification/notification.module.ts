@@ -1,4 +1,5 @@
 import { Global, Module } from "@nestjs/common";
+import { ReminderModule } from "../reminder/reminder.module";
 import { NotificationController } from "./controller/notification.controller";
 import { PushTokenController } from "./controller/push-token.controller";
 import { NotificationService } from "./notification.service";
@@ -8,8 +9,13 @@ import { PushTokenService } from "./service/push-token.service";
 // Global : toute feature qui déclenche un événement métier (planif diffusée, débrief reçu,
 // message, facture…) l'émet via ce service, sans réimporter le module à chaque fois.
 // Seul `NotificationService` (l'ÉMISSION) est exporté ; la lecture du centre n'est utile qu'ici.
+//
+// ReminderModule : le centre a une seconde source depuis #51 — les rappels DUS du coach, calculés à
+// la lecture. La table `reminder` reste accessible depuis son seul module (ReminderService), ce qui
+// évite de dupliquer ici le prédicat « dû » et le scope. Pas de cycle : ReminderModule n'importe rien.
 @Global()
 @Module({
+  imports: [ReminderModule],
   controllers: [PushTokenController, NotificationController],
   providers: [NotificationService, NotificationFeedService, PushTokenService],
   exports: [NotificationService],

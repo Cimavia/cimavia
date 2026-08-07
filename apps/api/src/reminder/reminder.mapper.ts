@@ -1,5 +1,5 @@
-import type { ReminderDto } from "@cmv/shared";
-import { ReminderEntityType } from "@cmv/shared";
+import type { NotificationDto, ReminderDto } from "@cmv/shared";
+import { ReminderEntityType, reminderToNotificationDto } from "@cmv/shared";
 import type { Reminder } from "@prisma/client";
 
 /**
@@ -31,4 +31,21 @@ export function toReminderDto(row: Reminder, labels: ReminderTargetLabels): Remi
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Ligne → entrée du centre de notifications (#51). Le mapping lui-même vit dans `@cmv/shared`
+ * (`reminderToNotificationDto`, pur et testé) ; ici on ne fait que convertir les `Date` de Prisma en
+ * ISO. Ni `targetLabel` ni `status` ne sont nécessaires : le centre affiche la note, et seuls les
+ * rappels dus y arrivent — d'où l'absence de résolution des libellés de cible sur ce chemin.
+ */
+export function toReminderFeedEntry(row: Reminder): NotificationDto {
+  return reminderToNotificationDto({
+    id: row.id,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    note: row.note,
+    readAt: row.readAt?.toISOString() ?? null,
+    dueAt: row.dueAt.toISOString(),
+  });
 }

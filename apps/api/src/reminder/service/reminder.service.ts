@@ -121,6 +121,63 @@ export class ReminderService {
     await tx.reminder.deleteMany({ where: { OR: targets } });
   }
 
+  // ── Rappels DUS, pour le centre de notifications (#51) ───────────────────────
+  //
+  // Ces trois méthodes sont appelées par `NotificationFeedService`, jamais par un contrôleur : elles
+  // gardent la table `reminder` accessible depuis un seul module. Le prédicat « dû » est appliqué en
+  // SQL (`dueAt: { lte: now }`) et non par `isReminderDue` — sinon il faudrait charger tous les
+  // rappels PENDING pour en filtrer trois, en renonçant à l'index. Les deux moitiés doivent donc
+  // s'accorder sur une borne INCLUSIVE ; c'est ce que fixent le test unitaire du prédicat et l'e2e
+  // du centre.
+
+  /**
+   * Les rappels dus du coach, le plus récemment échu en tête. `limit` est passé par l'appelant : la
+   * borne est celle du CENTRE (une entrée de rappel y concourt avec les notifications), pas celle de
+   * l'écran « mes rappels ».
+   */
+  async listDue(now: Date, limit: number): Promise<Reminder[]> {
+    return this.db.reminder.findMany({
+      where: { status: ReminderStatus.PENDING, dueAt: { lte: now } },
+      orderBy: { dueAt: "desc" },
+      take: limit,
+    });
+  }
+
+  // Alimente le badge, aux côtés des notifications non lues.
+  async countDueUnread(now: Date): Promise<number> {
+    return this.db.reminder.count({
+      where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, readAt: null },
+    });
+  }
+
+  /**
+   * Marque un rappel « vu dans le centre ». `null` si le rappel n'existe pas ou n'est pas au coach
+   * courant (le scope s'en charge) — l'appelant en fait un 404, parce que du point de vue du client
+   * c'est une entrée du centre qui est introuvable, pas un rappel.
+   *
+   * Non redaté s'il était déjà vu : rouvrir une entrée déjà lue ne doit pas la faire remonter comme
+   * fraîche, exactement comme pour une notification persistée.
+   */
+  async markDueRead(id: string): Promise<Reminder | null> {
+    const reminder = await this.db.reminder.findFirst({ where: { id } });
+    if (reminder == null) return null;
+    if (reminder.readAt != null) return reminder;
+
+    return this.db.reminder.update({ where: { id }, data: { readAt: new Date() } });
+  }
+
+  /**
+   * « Tout marquer comme lu » côté rappels. Ne touche QUE les rappels dus : marquer un rappel encore
+   * à venir serait un mensonge (il n'était pas affiché), et surtout ça éteindrait son badge par
+   * avance — le jour de son échéance, il n'annoncerait plus rien.
+   */
+  async markAllDueRead(now: Date): Promise<void> {
+    await this.db.reminder.updateMany({
+      where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, readAt: null },
+      data: { readAt: new Date() },
+    });
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   // Un rappel du coach courant, ou 404 (scope coachId appliqué par le tenancy layer).
