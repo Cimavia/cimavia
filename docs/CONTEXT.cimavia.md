@@ -107,7 +107,9 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 Émise par le coach pour un athlète (période, montant, échéance, note). Statut `PENDING` / `PAID` (**marquage manuel** en MVP). Paiement réel **externe** (virement) ; PSP intégré (Stripe) en v1.0.
 
 ### Notification
-Trace **persistée** d'un événement adressé à un `User` : cycle diffusé, séance ajustée, débrief reçu, message reçu, facture émise. Écrite par `NotificationService` **aux mêmes déclencheurs que le push, en plus de lui et jamais à sa place** — le push est éphémère (téléphone éteint, permission refusée, ou compte qui n'a jamais ouvert le mobile : c'est le cas du coach sur web), la `Notification` est ce qui reste à consulter.
+Trace **persistée** d'un événement adressé à un `User` : cycle diffusé, séance **modifiée / ajoutée / retirée**, débrief reçu, message reçu, facture émise. Écrite par `NotificationService` **aux mêmes déclencheurs que le push, en plus de lui et jamais à sa place** — le push est éphémère (téléphone éteint, permission refusée, ou compte qui n'a jamais ouvert le mobile : c'est le cas du coach sur web), la `Notification` est ce qui reste à consulter.
+
+Les trois façons d'ajuster un cycle **déjà diffusé** (CDC §5.7) ont chacune leur type, plutôt qu'un « cycle modifié » unique : annoncer « séance modifiée » sur une **suppression** enverrait l'athlète chercher une séance qui n'existe plus. Sur un cycle `DRAFT`, aucun de ces trois événements ne notifie — le cycle n'existe pas encore pour l'athlète.
 
 Porte `type` (`NotificationType`), la cible (`entityType` + `entityId`), `readAt` nullable (`null` = non lue → alimente le badge) et `createdAt`.
 
