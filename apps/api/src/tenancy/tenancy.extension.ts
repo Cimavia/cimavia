@@ -30,6 +30,16 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   // Comme PushToken : le même champ pour les deux rôles, chacun ne lisant que ce qu'il a reçu.
   // L'ÉCRITURE vise le destinataire, donc un AUTRE tenant → hors de ce client (NotificationService).
   Notification: { coach: "recipientId", athlete: "recipientId" },
+  /**
+   * Rappels (#44) — le SEUL modèle métier sans scope athlète : c'est un outil privé du coach.
+   * L'absence de clé `athlete` n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait
+   * ce modèle se verrait refusé par `tenantFilterOrThrow` (fail closed).
+   *
+   * Ce refus étant une ERREUR (500) et non un 403, deux gardes le précèdent :
+   * `@Roles([Role.COACH])` sur le contrôleur, et le branchement par rôle du centre de
+   * notifications (#51), qui ne lit les rappels que pour un coach.
+   */
+  Reminder: { coach: "coachId" },
 };
 
 // Champ de scope applicable à l'acteur, ou null si le rôle n'a aucun accès à ce modèle.

@@ -65,6 +65,9 @@ model User {
   coachInvoices   Invoice[] @relation("CoachInvoices")
   athleteInvoices Invoice[] @relation("AthleteInvoices")
 
+  // Rappels (#44) : outil PRIVÉ du coach — aucune relation côté athlète, il n'en voit jamais aucun.
+  coachReminders Reminder[] @relation("CoachReminders")
+
   @@map("user")
 }
 
@@ -709,4 +712,73 @@ model Notification {
   @@index([recipientId, createdAt(sort: Desc)]) // liste du centre, la plus récente d'abord
   @@index([recipientId, readAt]) // compteur de non-lues (badge)
   @@map("notification")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rappels (#44) — « relancer le renouvellement de ce cycle », « facture en retard ».
+//
+// Outil PRIVÉ du coach : scopé `coachId` SEUL (pas d'`athleteId`), donc aucun athlète n'en voit
+// jamais aucun — contrairement à la planification ou à la facture, qui portent les deux champs.
+// C'est la première entité métier du projet à n'avoir qu'un seul rôle lecteur.
+//
+// Générique par construction (CDC §4 « généricité raisonnable ») : la cible est un couple
+// `entityType`/`entityId`, pour couvrir de nouveaux cas d'usage sans migrer le schéma.
+//
+// Il n'y a PAS de scheduler : « dû » se calcule à la LECTURE (`dueAt <= now`, cf. `isReminderDue`
+// dans @cmv/shared), comme le « en retard » d'une facture. Conséquence assumée — un rappel qui
+// devient dû n'émet aucun push, il apparaît dans le centre au prochain chargement (#51). C'est
+// #47 qui lèvera ce manque, une fois tranché son support d'exécution.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// PENDING → DONE | DISMISSED, RÉVERSIBLE dans les deux sens (simple toggle, comme InvoiceStatus
+// payé/impayé) : rouvrir un rappel marqué fait par erreur ne doit pas demander d'en recréer un.
+// DISMISSED est la suppression douce — il n'y a pas de DELETE sur un rappel, un rappel qu'on a
+// renoncé à traiter reste une information.
+enum ReminderStatus {
+  PENDING
+  DONE
+  DISMISSED
+}
+
+// Volontairement plus étroit que NotificationEntityType, et distinct de lui : ici ce que le produit
+// permet de RAPPELER (les deux gestes offerts par l'UI), là ce vers quoi une notification peut
+// POINTER (quatre écrans). Le pont vers la navigation est une table de @cmv/shared, pas une fonte
+// des deux enums — qui obligerait l'API à refuser CONVERSATION et SCHEDULED_SESSION à la main.
+enum ReminderEntityType {
+  PLAN
+  INVOICE
+}
+
+model Reminder {
+  id         String             @id @default(cuid())
+  coachId    String
+  coach      User               @relation("CoachReminders", fields: [coachId], references: [id], onDelete: Cascade)
+  entityType ReminderEntityType
+  // Cible polymorphe, donc PAS de FK — même motif que Notification.entityId (dette N-4) : le modèle
+  // visé dépend d'`entityType`. Différence qui compte ici : un cycle DRAFT, lui, SE SUPPRIME
+  // vraiment (`DELETE /plans/:id`). Le rappel qui le visait est donc purgé dans la transaction de
+  // suppression, plutôt que laissé à pointer vers le vide.
+  entityId   String
+  // INSTANT, pas une date civile comme Plan.startDate ou Invoice.dueDate : un rappel se déclenche à
+  // une heure, et s'affiche dans le fuseau de son lecteur (formatIsoDateTime, jamais formatIsoDate).
+  dueAt      DateTime
+  // Le contenu ENTIER du rappel, et le libellé de sa ligne. Obligatoire, et c'est du texte du COACH
+  // (comme Plan.title) — pas un libellé système : le stocker ne contredit pas la règle « le libellé
+  // d'une notification n'est jamais stocké ». Corollaire pour #47 : un rappel auto-généré ne devra
+  // pas fabriquer de note, mais porter un `reason` rendu côté client.
+  note       String
+  status     ReminderStatus     @default(PENDING)
+  // « Vu dans le centre de notifications » (#51) — DISTINCT du statut : jeter un œil à un rappel dû
+  // ne le traite pas. Sans ce champ, le badge d'un rappel dû ne se viderait jamais et le compteur
+  // perdrait toute valeur de signal. Même dédoublement que SessionFeedback.coachReadAt, qui
+  // coexiste avec le cycle de vie du débrief.
+  readAt     DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([coachId, status, dueAt]) // liste « mes rappels » + sélection des rappels dus
+  @@index([coachId, status, readAt]) // compteur de rappels dus non lus (badge)
+  // Purge des rappels d'une cible supprimée : le service filtre par (entityType, entityId).
+  @@index([entityType, entityId])
+  @@map("reminder")
 }

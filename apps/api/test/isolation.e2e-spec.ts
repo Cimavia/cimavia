@@ -9,6 +9,7 @@ import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
   "notification",
+  "reminder",
   "invoice",
   "message",
   "conversation",
