@@ -281,6 +281,7 @@ export {
   formatIsoDayNumber,
   formatIsoFullDay,
   formatIsoWeekday,
+  formatRelativeOrDateTime,
   RELATIVE_TIME_KEY,
   relativeTimeFrom,
 } from "./util/date-format.util";

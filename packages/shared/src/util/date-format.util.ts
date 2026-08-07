@@ -119,3 +119,22 @@ export function relativeTimeFrom(isoDateTime: string, now: Date): RelativeTime |
   const days = Math.floor(hours / HOURS_PER_DAY);
   return days <= RELATIVE_MAX_DAYS ? { unit: "day", value: days } : null;
 }
+
+/**
+ * « il y a 2 h », ou la date complète au-delà d'une semaine. La bascule entre les deux formes est
+ * une décision d'affichage identique web et mobile : la laisser dans chaque app, c'était accepter
+ * qu'elles divergent (et Sonar l'avait vu — bloc dupliqué entre les deux `date.util.ts`).
+ *
+ * `translate` est INJECTÉ : ce module reste pur et sans dépendance à l'instance i18n d'une app,
+ * comme la `locale` l'est déjà pour les formateurs Intl ci-dessus.
+ */
+export function formatRelativeOrDateTime(
+  isoDateTime: string,
+  now: Date,
+  locale: string,
+  translate: (key: string, params: { count: number }) => string,
+): string {
+  const relative = relativeTimeFrom(isoDateTime, now);
+  if (relative == null) return formatIsoDateTime(isoDateTime, locale);
+  return translate(RELATIVE_TIME_KEY[relative.unit], { count: relative.value });
+}
