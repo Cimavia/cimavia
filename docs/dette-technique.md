@@ -185,6 +185,56 @@ autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur �
 
 ---
 
+## Post-MVP — Rappels ([#38](https://github.com/Cimavia/cimavia/issues/38))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| R-1 | **Aucun push quand un rappel devient dû** : sans scheduler, il n'apparaît qu'au prochain chargement du centre. | 🟢 | [#47](https://github.com/Cimavia/cimavia/issues/47) |
+| R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | *(issue à créer)* |
+| R-3 | **Pas de report d'échéance ni d'édition** : reprogrammer un rappel = en créer un autre. | 🟢 | *(issue à créer)* |
+| R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts. | 🟡 | *(issue à créer)* · [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| R-5 | **Aucune rétention** des rappels `DONE`/`DISMISSED` : la table grossit indéfiniment (même famille que N-2). | 🟢 | *(issue à créer)* |
+
+> **Tranché en #44** (le modèle) : un rappel est l'**outil privé du coach** — la seule entité métier
+> scopée `coachId` **seul**, qu'aucun athlète ne voit sous aucune forme. Quatre conséquences
+> assumées : **(1)** la `note` est **obligatoire**, parce qu'elle EST le contenu du rappel et le
+> libellé de sa ligne ; c'est du texte du coach, pas un libellé système, donc la stocker ne contredit
+> pas la règle des notifications. Corollaire pour #47 : un rappel **auto-généré** ne devra pas
+> fabriquer de note mais porter un `reason` rendu côté client, sinon on réintroduit le libellé figé
+> en français. **(2)** `readAt` (« vu dans le centre ») est **distinct** du statut (« traité ») —
+> sans ce dédoublement, un coup d'œil vaudrait « fait », ou le badge ne se viderait jamais.
+> **(3)** `DISMISSED` est la suppression douce : pas de `DELETE`, et les trois transitions sont
+> réversibles. **(4)** `ReminderEntityType` est **volontairement plus étroit** que
+> `NotificationEntityType` (ce qu'on peut *rappeler* ≠ ce vers quoi une notification *pointe*) ; les
+> fondre aurait obligé l'API à refuser `CONVERSATION` et `SCHEDULED_SESSION` applicativement — soit
+> ce sous-ensemble, réécrit à la main. Le pont est une table `satisfies Record<…>`, donc
+> `routeForNotification` n'a rien eu à changer, ni côté web ni côté mobile.
+
+> **Tranché en #51** (le rappel dû dans le centre) : l'entrée est **calculée à chaque lecture**,
+> jamais persistée — `REMINDER_DUE` est le seul `NotificationType` **absent de l'enum Prisma**, et
+> son absence documente le fait que la base ne peut pas le stocker (le typecheck l'impose via
+> `PersistedNotificationType`). Deux conséquences : son `id` porte le préfixe `reminder:`, ce qui
+> garde **une seule** route `PATCH /me/notifications/:id/read` et laisse les deux UI ignorer qu'il y
+> a deux sources ; et son `createdAt` vaut le `dueAt` du rappel — daté de sa création, un rappel posé
+> longtemps à l'avance serait enterré sous des semaines de notifications le jour où il compte.
+> **Le jour où #47 poussera un rappel dû, il devra choisir entre persister et calculer**, jamais les
+> deux, sinon le même rappel apparaîtra en double.
+
+> **Appris en construisant #44/#51** (le coût réel d'un scope à un seul rôle) : un modèle absent de
+> `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
+> Lire la table `reminder` depuis le centre de notifications — écran servi aux **deux** rôles —
+> aurait donc renvoyé un **500 à tout athlète**, sur une page qui ne parle même pas de rappels. Toute
+> future entité mono-rôle devra porter les deux gardes : `@Roles` sur le contrôleur, et un
+> branchement explicite partout où un chemin partagé la touche.
+
+> **Écart de promotion assumé** : `REMINDER_BADGE` (variant + clé i18n par état) reste dans
+> `apps/web/src/feature/reminder/`, alors que son équivalent facture `INVOICE_STATE_BADGE` vit dans
+> `@cmv/shared`. Raison : un seul client la rend aujourd'hui, #46 étant reportée (règle de promotion
+> — 2+ apps → package). La **dérivation** (`isReminderDue`), elle, est bien partagée. La table monte
+> avec l'écran mobile.
+
+---
+
 ## Post-MVP — Couleurs d'état (#37)
 
 > **Tranché** (le type de semaine) : le design system
