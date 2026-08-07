@@ -238,6 +238,24 @@ export {
   registerPushTokenSchema,
 } from "./dto/push-token.schema";
 export type {
+  CreateReminderInput,
+  ReminderDto,
+  ReminderEntityType as ReminderEntityTypeType,
+  ReminderStatus as ReminderStatusType,
+  UpdateReminderStatusInput,
+} from "./dto/reminder.schema";
+export {
+  createReminderSchema,
+  REMINDER_NOTE_MAX_LENGTH,
+  REMINDER_PAGE_SIZE,
+  ReminderEntityType,
+  ReminderStatus,
+  reminderDtoSchema,
+  reminderEntityTypeSchema,
+  reminderStatusSchema,
+  updateReminderStatusSchema,
+} from "./dto/reminder.schema";
+export type {
   CreateSessionInput,
   SessionDto,
   SessionExerciseDto,
@@ -296,3 +314,5 @@ export {
   planWeekRange,
   selectCurrentPlan,
 } from "./util/plan.util";
+export type { ReminderTiming } from "./util/reminder.util";
+export { isReminderDue } from "./util/reminder.util";
