@@ -1,9 +1,9 @@
-import { Role } from "@cmv/shared";
+import { countPendingInvoices, countUnreadFeedbacks, Role, todayIsoDate } from "@cmv/shared";
 import { Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
-import { unreadCount, useFeedbacks } from "@/feature/feedback/hook/useFeedbacks";
-import { pendingCount, useInvoices } from "@/feature/invoice/hook/useInvoices";
+import { useFeedbacks } from "@/feature/feedback/hook/useFeedbacks";
+import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { CmvAppShell, CmvButton, CmvCard } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
@@ -47,8 +47,10 @@ export function DashboardScreen() {
     );
   }
 
-  const unread = unreadCount(feedbacks);
-  const pending = pendingCount(invoices);
+  // Les dérivations vivent dans @cmv/shared, testées : l'écran ne fait que rendre. `todayIsoDate()`
+  // parce que `Invoice.dueDate` est une date CIVILE — un instant y ferait basculer de jour.
+  const unread = countUnreadFeedbacks(feedbacks);
+  const pending = countPendingInvoices(invoices, todayIsoDate());
   const tiles: Tile[] = [
     {
       labelKey: "dashboard.tiles.athletes",
@@ -62,15 +64,15 @@ export function DashboardScreen() {
     },
     {
       labelKey: "dashboard.tiles.feedback",
-      // `unreadCount` rend null tant que la liste n'est pas là : « — », jamais un 0 qui
+      // `countUnreadFeedbacks` rend null tant que la liste n'est pas là : « — », jamais un 0 qui
       // laisserait croire qu'il n'y a rien à relire (règle nullable).
       value: unread == null ? "—" : String(unread),
       hintKey: "dashboard.tiles.feedbackHint",
     },
     {
       labelKey: "dashboard.tiles.invoices",
-      // `pendingCount` rend null tant que la liste n'est pas là : « — », jamais un 0 qui
-      // laisserait croire qu'aucune facture n'est en attente.
+      // `countPendingInvoices` EXCLUT les factures en retard (état dérivé, pas stocké) : cette
+      // tuile ne compte que les échéances encore à venir. Les retards ont la leur.
       value: pending == null ? "—" : String(pending),
       hintKey: "dashboard.tiles.invoicesHint",
     },
