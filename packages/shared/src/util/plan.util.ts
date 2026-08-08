@@ -1,7 +1,7 @@
 // Logique pure des planifications (cycle → semaines → séances), partagée API ↔ web ↔ mobile.
 // S'appuie sur le calendrier générique (date.util) : ici, seule la notion de CYCLE est traitée.
 
-import { DAYS_PER_WEEK, isIsoDate, shiftIsoDate } from "./date.util";
+import { DAYS_PER_WEEK, daysBetweenIsoDates, isIsoDate, shiftIsoDate } from "./date.util";
 
 // Une semaine de plan, bornes incluses (lundi → dimanche).
 export type PlanWeekRange = { startDate: string; endDate: string };
@@ -45,6 +45,27 @@ export function isDateInPlanWeek(planStartDate: string, weekNumber: number, date
   const range = planWeekRange(planStartDate, weekNumber);
   if (range == null || !isIsoDate(date)) return false;
   return date >= range.startDate && date <= range.endDate;
+}
+
+/**
+ * Dans quelle semaine du cycle tombe `date` — le « S3 » de « S3/4 », 1-based.
+ *
+ * `null` dès que la date est HORS du cycle (avant son lundi de départ, ou après son dernier
+ * dimanche) : un cycle qui n'a pas commencé n'en est pas à sa semaine 1, et un cycle terminé n'en
+ * est pas à sa dernière. Rendre 1 ou `weekCount` dans ces cas afficherait une progression inventée
+ * — c'est exactement le repli silencieux que la règle nullable interdit.
+ *
+ * Se déduit du seul `startDate` (un lundi) : aucune date n'est stockée sur `PlanWeek`, donc aucune
+ * dérive possible entre les deux représentations.
+ */
+export function planWeekNumber(plan: PlanPeriod, date: string): number | null {
+  if (!Number.isInteger(plan.weekCount) || plan.weekCount < 1) return null;
+
+  const elapsed = daysBetweenIsoDates(plan.startDate, date);
+  if (elapsed == null || elapsed < 0) return null;
+
+  const weekNumber = Math.floor(elapsed / DAYS_PER_WEEK) + 1;
+  return weekNumber > plan.weekCount ? null : weekNumber;
 }
 
 /**
