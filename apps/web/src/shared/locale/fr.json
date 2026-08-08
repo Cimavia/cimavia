@@ -389,16 +389,25 @@
     "title": "Tableau de bord",
     "welcome": "Bonjour {{name}}",
     "athleteHint": "Votre planning et vos séances vivent sur l'application mobile.",
+    "section": {
+      "todo": "À traiter",
+      "overview": "Vue d'ensemble"
+    },
     "tiles": {
       "athletes": "Athlètes suivis",
       "athletesHint": "Relations actives",
       "plans": "Planifications",
       "plansHint": "Brouillons et cycles diffusés",
       "feedback": "Débriefs à relire",
+      "feedbackHint": "Débriefs pas encore ouverts.",
+      "remindersDue": "Rappels dus",
+      "remindersDueHint": "Échéance passée, encore à traiter.",
+      "overdueInvoices": "Factures en retard",
+      "overdueInvoicesHint": "Échéance dépassée, à relancer.",
       "invoices": "Factures en attente",
-      "soon": "Bientôt disponible",
-      "feedbackHint": "Débriefs que tu n'as pas encore ouverts.",
-      "invoicesHint": "Factures que tes athlètes n'ont pas encore réglées."
+      "invoicesHint": "Émises, échéance pas encore dépassée.",
+      "notifications": "Notifications non lues",
+      "notificationsHint": "Le détail est dans la cloche, en haut à droite."
     }
   },
   "feedback": {
