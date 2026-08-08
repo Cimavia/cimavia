@@ -245,6 +245,7 @@ export type {
   ReminderDto,
   ReminderEntityType as ReminderEntityTypeType,
   ReminderStatus as ReminderStatusType,
+  ReminderSummaryDto,
   UpdateReminderStatusInput,
 } from "./dto/reminder.schema";
 export {
@@ -256,6 +257,7 @@ export {
   reminderDtoSchema,
   reminderEntityTypeSchema,
   reminderStatusSchema,
+  reminderSummaryDtoSchema,
   updateReminderStatusSchema,
 } from "./dto/reminder.schema";
 export type {

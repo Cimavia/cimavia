@@ -111,3 +111,24 @@ export const reminderDtoSchema = z.object({
   updatedAt: z.iso.datetime(),
 });
 export type ReminderDto = z.infer<typeof reminderDtoSchema>;
+
+/**
+ * Résumé chiffré des rappels du coach : ce qu'affiche une tuile de tableau de bord, sans charger la
+ * liste. Sans lui, compter deux rappels dus coûterait les 200 lignes que `GET /reminders` renvoie.
+ *
+ * **`dueCount` ne regarde PAS `readAt`**, contrairement au badge du centre de notifications
+ * (`NotificationFeedService.unreadCount`, qui additionne les rappels dus **non lus**). Un rappel
+ * aperçu dans la cloche n'est pas un rappel traité : c'est la distinction `readAt` (« vu ») /
+ * `status` (« traité ») tranchée en #44. Les confondre viderait une tuile « à traiter » d'un simple
+ * coup d'œil.
+ *
+ * Les deux nombres **s'emboîtent, ils ne partitionnent pas** : un rappel dû est un rappel à traiter
+ * dont l'échéance est passée, donc `dueCount <= pendingCount`. Un client qui les afficherait côte à
+ * côte présenterait deux fois les mêmes rappels — c'est pourquoi le dashboard n'expose que
+ * `dueCount`.
+ */
+export const reminderSummaryDtoSchema = z.object({
+  dueCount: z.number().int().min(0),
+  pendingCount: z.number().int().min(0),
+});
+export type ReminderSummaryDto = z.infer<typeof reminderSummaryDtoSchema>;
