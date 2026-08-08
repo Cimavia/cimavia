@@ -106,6 +106,10 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 ### Invoice (facture)
 Émise par le coach pour un athlète (période, montant, échéance, note). Statut `PENDING` / `PAID` (**marquage manuel** en MVP). Paiement réel **externe** (virement) ; PSP intégré (Stripe) en v1.0.
 
+⚠️ **« En retard » n'est PAS un statut** : c'est `InvoiceState.OVERDUE`, *dérivé* par `resolveInvoiceState` d'une facture `PENDING` dont la `dueDate` est dépassée — même dispositif que « rappel dû ». Conséquence pour tout compteur ou filtre : **« en attente » ≠ `status === PENDING`**, puisque ce statut couvre aussi les factures en retard. Le vocabulaire produit distingue les deux (`countPendingInvoices` / `countOverdueInvoices`, qui partitionnent l'impayé) ; le statut brut, non.
+
+`Invoice.dueDate` est une **date civile** (`YYYY-MM-DD`), contrairement à `Reminder.dueAt` qui est un instant : elle se compare avec `todayIsoDate()` et s'affiche via `formatIsoDate` (jamais `formatIsoDateTime`).
+
 ### Reminder (rappel)
 Aide-mémoire que le coach se pose à lui-même : « proposer le renouvellement avant la dernière semaine », « relancer cette facture ». **Outil privé du coach** — c'est la seule entité métier qu'un athlète ne voit jamais, sous aucune forme (scopée `coachId` **seul**, sans `athleteId`).
 

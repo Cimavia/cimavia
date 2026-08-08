@@ -235,6 +235,42 @@ autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur �
 
 ---
 
+## Post-MVP — Dashboard coach ([#110](https://github.com/Cimavia/cimavia/issues/110))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| D-1 | **Six requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, résumé des rappels, non-lues), dont deux en polling : la jointure est faite côté client, sans endpoint d'agrégat. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) |
+
+> **Tranché en #52** (aucune information lue deux fois) : c'est la contrainte qui a façonné l'écran,
+> parce que sept tuiles offrent sept occasions de recompter la même chose. Trois conséquences.
+> **(1)** « Factures en attente » **exclut désormais les factures en retard** : `OVERDUE` étant
+> *dérivé* et non stocké, l'ancien filtre `status === PENDING` les comptait des deux côtés — et
+> rangeait parmi les factures qui vont bien celles qu'il faut relancer. Les deux compteurs
+> **partitionnent** l'impayé (`countPendingInvoices` + `countOverdueInvoices`). Corollaire visible :
+> le chiffre de la tuile existante a baissé, ce n'est pas une régression.
+> **(2)** « Rappels dus » compte les rappels **non traités**, pas les non lus — sinon dérouler la
+> cloche viderait une tuile « à traiter » sans qu'aucun rappel n'ait été traité (`readAt` ≠ `status`,
+> cf. #44). D'où `GET /reminders/summary`, distinct du compteur du badge.
+> **(3)** « Notifications non lues » affiche **exactement** le nombre de la cloche, donc **recoupe
+> volontairement** « Rappels dus », qu'il inclut. Redondance assumée : afficher un nombre voisin mais
+> différent de celui montré à 300 px au-dessus serait plus déroutant que la redondance elle-même. La
+> cloche est une union par construction ; la tuile en est le panneau indicateur, et son libellé y
+> renvoie.
+
+> **Écart de maquette, consigné** : `coach_dashboard_athletes.dc.html` décrit **un seul écran** —
+> strip de statistiques **au-dessus d'un tableau d'athlètes**. L'implémentation avait scindé en `/`
+> (tuiles) et `/athletes` (grille de cartes), sans que l'écart soit noté nulle part. Il est réparé
+> par [#113](https://github.com/Cimavia/cimavia/issues/113), qui ramène le tableau sur `/` et
+> supprime `/athletes`.
+
+> **Deux écarts volontaires** à la même maquette : les tuiles sont réparties en **deux rangées**
+> nommées (« À traiter » / « Vue d'ensemble ») là où la maquette n'en prévoyait qu'une de quatre —
+> à sept, une strip unique redevient une grille indifférenciée où rien ne ressort ; et les tuiles
+> « à traiter » sont **cliquables**, alors que la strip de la maquette est décorative — une tuile qui
+> annonce du travail sans y mener est un cul-de-sac.
+
+---
+
 ## Post-MVP — Couleurs d'état (#37)
 
 > **Tranché** (le type de semaine) : le design system
