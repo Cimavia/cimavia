@@ -106,12 +106,30 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 ### Invoice (facture)
 Émise par le coach pour un athlète (période, montant, échéance, note). Statut `PENDING` / `PAID` (**marquage manuel** en MVP). Paiement réel **externe** (virement) ; PSP intégré (Stripe) en v1.0.
 
+### Reminder (rappel)
+Aide-mémoire que le coach se pose à lui-même : « proposer le renouvellement avant la dernière semaine », « relancer cette facture ». **Outil privé du coach** — c'est la seule entité métier qu'un athlète ne voit jamais, sous aucune forme (scopée `coachId` **seul**, sans `athleteId`).
+
+Porte une cible **polymorphe** (`entityType` ∈ `PLAN` | `INVOICE`, + `entityId`), un `dueAt`, une `note` et un statut `PENDING` → `DONE` | `DISMISSED`.
+
+Cinq règles à connaître :
+- **`dueAt` est un INSTANT**, pas une date civile (contrairement à `Plan.startDate` et `Invoice.dueDate`) : un rappel se déclenche à une heure, et s'affiche dans le fuseau de son lecteur (`formatIsoDateTime`).
+- **La `note` est obligatoire** : c'est le contenu entier du rappel et le libellé de sa ligne. C'est du **texte du coach** (comme `Plan.title`), pas un libellé système — le stocker ne contredit pas la règle « le libellé d'une notification n'est jamais stocké ».
+- **« Dû » est calculé à la LECTURE** (`dueAt <= now` sur un rappel `PENDING`, cf. `isReminderDue`), comme le « en retard » d'une facture. Il n'y a **pas de scheduler**, donc un rappel qui devient dû n'émet **aucun push** — il apparaît dans le centre de notifications au prochain chargement.
+- **`readAt` (« vu dans le centre ») est distinct du statut (« traité »)** : jeter un œil à un rappel dû ne le traite pas. Sans cette distinction, le badge ne se viderait jamais, ou un coup d'œil vaudrait « fait ».
+- **`DISMISSED` est la suppression douce** : il n'y a pas de `DELETE` sur un rappel, et les trois transitions sont **réversibles** (simple toggle, comme le statut de facture).
+
+`ReminderEntityType` est **volontairement plus étroit** que `NotificationEntityType` : ici on décrit ce que le produit permet de *rappeler*, là ce vers quoi une notification peut *pointer*. Le pont est la table `REMINDER_TARGET_ENTITY_TYPE` (`@cmv/shared`).
+
+Comme pour `Notification`, `entityId` **n'a pas de clé étrangère**. Différence qui compte : un cycle `DRAFT` se supprime vraiment, donc les rappels qui le visaient (et ceux de sa facture) sont **purgés dans la transaction de suppression** — là où les notifications, elles, restent (dette N-4).
+
 ### Notification
 Trace **persistée** d'un événement adressé à un `User` : cycle diffusé, séance **modifiée / ajoutée / retirée**, débrief reçu, message reçu, facture émise. Écrite par `NotificationService` **aux mêmes déclencheurs que le push, en plus de lui et jamais à sa place** — le push est éphémère (téléphone éteint, permission refusée, ou compte qui n'a jamais ouvert le mobile : c'est le cas du coach sur web), la `Notification` est ce qui reste à consulter.
 
 Les trois façons d'ajuster un cycle **déjà diffusé** (CDC §5.7) ont chacune leur type, plutôt qu'un « cycle modifié » unique : annoncer « séance modifiée » sur une **suppression** enverrait l'athlète chercher une séance qui n'existe plus. Sur un cycle `DRAFT`, aucun de ces trois événements ne notifie — le cycle n'existe pas encore pour l'athlète.
 
 Porte `type` (`NotificationType`), la cible (`entityType` + `entityId`), `readAt` nullable (`null` = non lue → alimente le badge) et `createdAt`.
+
+⚠️ **Le centre a une SECONDE source, non persistée** : les **rappels dus** du coach (`REMINDER_DUE`). Ce type est le seul de `NotificationType` **absent de l'enum Prisma** — l'entrée est calculée à chaque lecture depuis la table `reminder`, faute de scheduler pour la persister au bon moment. Trois conséquences : son `id` porte le préfixe `reminder:` (ce qui garde **une** route de marquage pour les deux sources), son `createdAt` vaut le `dueAt` du rappel (il « arrive » quand il commence à compter), et la lecture est **branchée par rôle** — `Reminder` n'ayant aucun scope athlète, l'interroger pour un athlète lèverait au lieu de rendre une liste vide.
 
 Trois règles à connaître :
 - **Le libellé n'est PAS stocké.** Une ligne écrite aujourd'hui serait figée en français le jour où `en.json` arrive : on persiste les **paramètres** d'interpolation (`actorName`, `subjectLabel`, nullables) et le rendu se fait à l'affichage, via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next. Ces paramètres sont des **instantanés** : renommer un cycle ne réécrit pas les notifications déjà émises.
@@ -127,6 +145,7 @@ Trois règles à connaître :
 - La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux rôles** : chaque table porte donc `coachId` ET `athleteId` en direct.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
+- ⚠️ **`Reminder` est scopé `coachId` SEUL** — la seule entité métier sans scope athlète (outil privé du coach). L'absence de clé `athlete` dans `TENANT_SCOPES` n'est pas un oubli, mais elle se manifeste par une **erreur** (fail closed), pas un 403 : deux gardes doivent donc la précéder — le `@Roles([Role.COACH])` du contrôleur, et le branchement par rôle du centre de notifications.
 - ⚠️ **`PushToken` est scopé `userId` pour les deux rôles**, et **`Notification` par `recipientId`** : l'un adresse une *installation* de l'app, l'autre une personne — ni l'un ni l'autre n'appartient à la relation coach↔athlète. L'**écriture et la lecture d'envoi** visent le DESTINATAIRE, donc un autre tenant : elles passent par le client Prisma de base (`NotificationService`), comme `UserDirectoryService`. La **consultation**, elle, est scopée normalement (`NotificationFeedService`) — chacun ne lit que ce qui lui est adressé.
 - L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant (dont les **pièges du scope automatique** : `include` imbriqués non scopés, FK non contraintes par le tenant).
 
@@ -142,6 +161,7 @@ Trois règles à connaître :
 | Fiche athlète | CRUD | — |
 | Messagerie | 1:1 avec ses athlètes | 1:1 avec son coach |
 | Facture | émission + statut | lecture |
+| Rappel | CRUD (les siens) | — *(aucun accès : 403)* |
 | Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |
 
 ---

@@ -21,6 +21,12 @@ packages/
 
 Règle de promotion : un type/une fonction utilisé par **2+ apps** monte dans un package (`@cmv/*`). Spécifique à une app → reste dans l'app.
 
+### Plomberie HTTP partagée — `create<X>Api(api)`
+
+Un appel HTTP que **les deux clients** font n'a rien de spécifique à l'un d'eux : mêmes routes, mêmes DTO, mêmes clés de cache TanStack Query. Seule l'UI diffère. Il vit donc dans `@cmv/shared/api/<feature>.api.ts`, sous la forme d'une **fabrique qui reçoit le client** : `createNotificationApi(api)`, `createReminderApi(api)`. Chaque app n'y injecte que le sien (cookie de navigateur côté web, cookie SecureStore côté mobile) et réexporte les clés de cache — deux à trois lignes dans son `feature/<x>/api.ts`.
+
+> **Pourquoi c'est une règle** : dupliqué, un chemin d'API change d'un côté sans l'autre, et le seuil de duplication SonarCloud (`new_duplicated_lines_density` ≤ 3 %) fait échouer la PR. La bonne réponse est la promotion, **jamais** une exclusion Sonar. À faire dès le **premier** client si le second est prévu : l'écran mobile des rappels (#46) est reporté, sa plomberie est déjà partagée.
+
 ---
 
 ## 2. Backend (`apps/api`, NestJS)

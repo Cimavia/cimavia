@@ -23,6 +23,7 @@ import {
 import type { Plan, PlanWeek, Prisma } from "@prisma/client";
 import { InvoiceService } from "../../invoice/service/invoice.service";
 import { NotificationService } from "../../notification/notification.service";
+import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
@@ -42,6 +43,7 @@ export class PlanService {
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly notifications: NotificationService,
     private readonly invoices: InvoiceService,
+    private readonly reminders: ReminderService,
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
@@ -118,7 +120,14 @@ export class PlanService {
     await this.getOwnedOrThrow(id);
     // Semaines, séances, exercices et copies de documents partent en cascade (schéma). Les objets
     // S3 ne sont PAS touchés : ils appartiennent à la bibliothèque, les copies les partagent.
-    await this.db.plan.delete({ where: { id } });
+    //
+    // Les RAPPELS, eux, n'ont pas de clé étrangère vers leur cible (référence polymorphe) : rien en
+    // base ne les emporte. On les purge donc explicitement, dans la MÊME transaction — sinon un
+    // rappel « relancer ce cycle » survivrait au cycle et ne mènerait plus nulle part (#44).
+    await this.db.$transaction(async (tx) => {
+      await this.reminders.purgeForPlan(tx, id);
+      await tx.plan.delete({ where: { id } });
+    });
   }
 
   /**

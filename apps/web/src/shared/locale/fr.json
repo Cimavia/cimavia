@@ -245,7 +245,58 @@
     "plans": "Planifications",
     "feedbacks": "Débriefs",
     "messages": "Messages",
-    "invoices": "Facturation"
+    "invoices": "Facturation",
+    "reminders": "Rappels"
+  },
+  "reminder": {
+    "title": "Mes rappels",
+    "subtitle": "Ce que vous vous êtes promis de faire : renouvellements, relances, échéances.",
+    "dueLabel": "Échéance : {{date}}",
+    "targetLine": "{{kind}} — {{label}}",
+    "target": {
+      "plan": "Cycle",
+      "invoice": "Facture"
+    },
+    "state": {
+      "overdue": "En retard",
+      "pending": "À venir",
+      "done": "Fait",
+      "dismissed": "Abandonné"
+    },
+    "segment": {
+      "PENDING": "À traiter ({{count}})",
+      "HANDLED": "Traités ({{count}})"
+    },
+    "markDone": "Marquer fait",
+    "dismiss": "Abandonner",
+    "reopen": "Rouvrir",
+    "schedule": "Programmer un rappel",
+    "form": {
+      "title": "Programmer un rappel",
+      "description": "Sur : {{target}}",
+      "dueAt": "Échéance",
+      "note": "Ce dont il faut se souvenir",
+      "notePlaceholder": "Proposer le renouvellement du cycle avant la dernière semaine",
+      "hint": "Le jour de l'échéance, le rappel apparaît dans vos notifications. Vous pouvez aussi le retrouver à tout moment dans « Rappels ».",
+      "submit": "Programmer",
+      "submitting": "Enregistrement…"
+    },
+    "empty": {
+      "PENDING": {
+        "title": "Aucun rappel à traiter",
+        "description": "Programmez un rappel depuis un cycle ou une facture : il apparaîtra ici, et dans vos notifications le jour de son échéance."
+      },
+      "HANDLED": {
+        "title": "Aucun rappel traité",
+        "description": "Les rappels marqués faits ou abandonnés se rangent ici, sans disparaître."
+      }
+    },
+    "toast": {
+      "created": "Rappel programmé",
+      "DONE": "Rappel marqué fait",
+      "DISMISSED": "Rappel abandonné",
+      "PENDING": "Rappel rouvert"
+    }
   },
   "messages": {
     "title": "Messages",
@@ -434,7 +485,8 @@
       "planSessionRemoved": "Séance retirée : « {{subject}} »",
       "feedbackReceived": "{{actor}} a débriefé « {{subject}} »",
       "messageReceived": "Nouveau message de {{actor}}",
-      "invoiceIssued": "Nouvelle facture reçue"
+      "invoiceIssued": "Nouvelle facture reçue",
+      "reminderDue": "Rappel : {{subject}}"
     }
   }
 }

@@ -18,14 +18,35 @@ export const NotificationType = {
   FEEDBACK_RECEIVED: "FEEDBACK_RECEIVED",
   MESSAGE_RECEIVED: "MESSAGE_RECEIVED",
   INVOICE_ISSUED: "INVOICE_ISSUED",
+  /**
+   * Rappel du coach arrivé à échéance (#51). Le SEUL type qui n'existe pas dans l'enum Prisma : il
+   * n'est jamais persisté, l'entrée est calculée à chaque lecture depuis la table `reminder`
+   * (`reminderToNotificationDto`). Aucun push non plus — il n'y a pas de scheduler pour le déclencher
+   * au bon moment (#47).
+   */
+  REMINDER_DUE: "REMINDER_DUE",
 } as const;
 export type NotificationType = TypesValuesOf<typeof NotificationType>;
 export const notificationTypeSchema = z.enum(NotificationType);
 
 /**
- * Ce que la notification désigne, pour router à l'ouverture. Aujourd'hui dérivable du `type` — on
- * la garde explicite parce que les rappels (#51) casseront cette dérivation : un rappel dû porte
- * sur une facture OU une séance, selon ce qu'on rappelle.
+ * Les types réellement ÉCRITS en base — tous sauf `REMINDER_DUE`, qui est calculé à la lecture
+ * depuis la table `reminder` et absent de l'enum Prisma.
+ *
+ * C'est ce type que `NotificationService` manipule à l'émission : le compilateur refuse donc de
+ * persister un rappel dû par accident, plutôt que de laisser Prisma échouer à l'exécution. Le jour
+ * où #47 voudra vraiment en persister un, il devra retirer l'exclusion ici ET ajouter la valeur à
+ * l'enum Prisma — et choisir entre persister et calculer, jamais les deux.
+ */
+export type PersistedNotificationType = Exclude<
+  NotificationType,
+  typeof NotificationType.REMINDER_DUE
+>;
+
+/**
+ * Ce que la notification désigne, pour router à l'ouverture. Gardée explicite plutôt que dérivée du
+ * `type`, en prévision des rappels — et c'est arrivé (#51) : `REMINDER_DUE` pointe vers un cycle OU
+ * une facture, selon ce qu'on rappelle. Aucun `switch` sur le type n'aurait pu le deviner.
  */
 export const NotificationEntityType = {
   PLAN: "PLAN",
@@ -51,6 +72,7 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.FEEDBACK_RECEIVED]: "notification.type.feedbackReceived",
   [NotificationType.MESSAGE_RECEIVED]: "notification.type.messageReceived",
   [NotificationType.INVOICE_ISSUED]: "notification.type.invoiceIssued",
+  [NotificationType.REMINDER_DUE]: "notification.type.reminderDue",
 } as const satisfies Record<NotificationType, string>;
 
 // Bornage de la liste : le centre montre les récentes, pas l'historique complet. Pas de pagination

@@ -179,6 +179,8 @@ le PC étant un faux négatif en mode *mirrored* :
 - Argent : montants en **centimes entiers** (`amountCents`), jamais de float ; formatage localisé par `formatMoney` / `formatInvoicePeriod` (`@cmv/shared`) — source unique, pas de calcul dans le JSX
 - Médias : object storage privé, **URLs signées** (PUT à l'envoi, GET à la lecture) ; le binaire ne transite jamais par l'API
 - Notifications : **persistées + poussées** (mêmes déclencheurs, `NotificationService`) ; la base stocke le `type`, la cible et les paramètres (`actorName`, `subjectLabel`) — **jamais le libellé rendu**, qui est construit à l'affichage via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next
+- Rappels : outil **privé du coach** (scopé `coachId` seul, 403 pour l'athlète) ; « dû » est **calculé à la lecture** (`isReminderDue`), et un rappel dû remonte dans le centre de notifications comme entrée **non persistée** (`REMINDER_DUE`, id préfixé `reminder:`)
+- Appels HTTP communs web↔mobile : `create<X>Api(api)` dans `@cmv/shared` (routes + clés de cache partagées, client injecté par chaque app) — pas de duplication, pas d'exclusion Sonar
 
 Voir `docs/architecture-choice.md` pour les règles d'archi détaillées, et
 `CONTRIBUTING.md` pour le workflow de contribution (git flow, commits signés,

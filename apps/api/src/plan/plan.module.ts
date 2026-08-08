@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { StorageModule } from "../infra/storage/storage.module";
 import { InvoiceModule } from "../invoice/invoice.module";
+import { ReminderModule } from "../reminder/reminder.module";
 import { AthletePlanController } from "./controller/athlete-plan.controller";
 import { PlanController } from "./controller/plan.controller";
 import { PlanWeekController } from "./controller/plan-week.controller";
@@ -12,8 +13,10 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
 // Planifications (P3) : cycles, semaines et séances planifiées (copies éditables des modèles).
 // Écriture réservée au coach ; lecture athlète isolée dans AthletePlanService (filtre PUBLISHED).
 // StorageModule : les documents copiés sont servis en URLs GET signées, comme en bibliothèque.
+// ReminderModule : supprimer un cycle purge les rappels qui le visaient, dans la même transaction
+// (leur référence est polymorphe, donc sans FK — rien en base ne les emporte).
 @Module({
-  imports: [StorageModule, InvoiceModule],
+  imports: [StorageModule, InvoiceModule, ReminderModule],
   controllers: [
     PlanController,
     PlanWeekController,

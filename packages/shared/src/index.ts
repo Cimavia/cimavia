@@ -2,6 +2,8 @@ export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
 export type { NotificationApi } from "./api/notification.api";
 export { createNotificationApi, notificationKeys } from "./api/notification.api";
+export type { ReminderApi } from "./api/reminder.api";
+export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./auth";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
@@ -167,6 +169,7 @@ export type {
   NotificationDto,
   NotificationEntityType as NotificationEntityTypeType,
   NotificationType as NotificationTypeType,
+  PersistedNotificationType,
   UnreadCountDto,
 } from "./dto/notification.schema";
 export {
@@ -238,6 +241,24 @@ export {
   registerPushTokenSchema,
 } from "./dto/push-token.schema";
 export type {
+  CreateReminderInput,
+  ReminderDto,
+  ReminderEntityType as ReminderEntityTypeType,
+  ReminderStatus as ReminderStatusType,
+  UpdateReminderStatusInput,
+} from "./dto/reminder.schema";
+export {
+  createReminderSchema,
+  REMINDER_NOTE_MAX_LENGTH,
+  REMINDER_PAGE_SIZE,
+  ReminderEntityType,
+  ReminderStatus,
+  reminderDtoSchema,
+  reminderEntityTypeSchema,
+  reminderStatusSchema,
+  updateReminderStatusSchema,
+} from "./dto/reminder.schema";
+export type {
   CreateSessionInput,
   SessionDto,
   SessionExerciseDto,
@@ -296,3 +317,12 @@ export {
   planWeekRange,
   selectCurrentPlan,
 } from "./util/plan.util";
+export type { ReminderFeedSource, ReminderTiming } from "./util/reminder.util";
+export {
+  isReminderDue,
+  parseReminderFeedId,
+  REMINDER_FEED_ID_PREFIX,
+  REMINDER_TARGET_ENTITY_TYPE,
+  reminderToNotificationDto,
+  toReminderFeedId,
+} from "./util/reminder.util";

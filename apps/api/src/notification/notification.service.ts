@@ -1,4 +1,4 @@
-import type { EnvSchema } from "@cmv/shared";
+import type { EnvSchema, PersistedNotificationType } from "@cmv/shared";
 import { NotificationEntityType, NotificationType } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -60,10 +60,16 @@ type PushPayload =
 
 type PushContent = { title: string; body: string; data: PushPayload };
 
-/** Ce qu'on écrit en base : le libellé n'y est pas — seulement de quoi le rendre (cf. §3). */
+/**
+ * Ce qu'on écrit en base : le libellé n'y est pas — seulement de quoi le rendre (cf. §3).
+ *
+ * `PersistedNotificationType` et non `NotificationType` : `REMINDER_DUE` (#51) est calculé à la
+ * lecture depuis la table `reminder` et n'existe pas dans l'enum Prisma. L'exclusion est portée par
+ * le type plutôt que par une garde, pour que la faute se voie à la compilation.
+ */
 type NotificationRecord = {
   recipientId: string;
-  type: NotificationType;
+  type: PersistedNotificationType;
   entityType: NotificationEntityType;
   entityId: string;
   actorName: string | null;

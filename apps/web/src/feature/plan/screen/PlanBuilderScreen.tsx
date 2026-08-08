@@ -2,6 +2,7 @@ import {
   PlanStatus,
   type PlanWeekDto,
   PlanWeekType,
+  ReminderEntityType,
   Role,
   type ScheduledSessionDto,
   type ScheduledSessionSummaryDto,
@@ -18,6 +19,7 @@ import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
+import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
@@ -95,13 +97,24 @@ export function PlanBuilderScreen() {
         date: formatDate(plan.startDate),
       })}
       actions={
-        <PlanBuilderActions
-          planId={planId}
-          isPublished={isPublished}
-          hasWeeks={plan.weeks.length > 0}
-          isBillingFilled={billing != null}
-          isBusy={isBusy}
-        />
+        <>
+          {/* Rappel contextuel (#45) : posé ICI plutôt que dans PlanBuilderActions, qui ne porte
+              que les actions destructrices et leur gating. Un rappel se programme à tout moment,
+              brouillon comme cycle diffusé. */}
+          <ScheduleReminderButton
+            entityType={ReminderEntityType.PLAN}
+            entityId={planId}
+            targetLabel={plan.title}
+            variant="ghost"
+          />
+          <PlanBuilderActions
+            planId={planId}
+            isPublished={isPublished}
+            hasWeeks={plan.weeks.length > 0}
+            isBillingFilled={billing != null}
+            isBusy={isBusy}
+          />
+        </>
       }
     >
       <div className="mb-cmv-lg flex flex-col gap-cmv-sm">
