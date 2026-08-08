@@ -37,10 +37,3 @@ export function useMarkFeedbackRead() {
     onError: toast.onError,
   });
 }
-
-// Ce que compte la tuile « Débriefs à relire » : les non lus, et ceux que l'athlète a complétés
-// depuis (l'API repasse alors `coachReadAt` à null).
-export function unreadCount(feedbacks: CoachFeedbackSummaryDto[] | undefined): number | null {
-  if (feedbacks == null) return null;
-  return feedbacks.filter((feedback) => feedback.coachReadAt == null).length;
-}

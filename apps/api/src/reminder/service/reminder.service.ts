@@ -1,4 +1,9 @@
-import type { CreateReminderInput, ReminderDto, UpdateReminderStatusInput } from "@cmv/shared";
+import type {
+  CreateReminderInput,
+  ReminderDto,
+  ReminderSummaryDto,
+  UpdateReminderStatusInput,
+} from "@cmv/shared";
 import { REMINDER_PAGE_SIZE, ReminderEntityType, ReminderStatus } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, Reminder } from "@prisma/client";
@@ -49,6 +54,26 @@ export class ReminderService {
 
     const labels = await this.resolveTargetLabels(reminders);
     return reminders.map((reminder) => toReminderDto(reminder, labels));
+  }
+
+  /**
+   * Les deux compteurs d'une tuile de tableau de bord, sans charger une seule ligne : deux `count`
+   * sur l'index, là où `list()` renverrait jusqu'à 200 rappels pour qu'on en mesure deux.
+   *
+   * **`dueCount` ne filtre PAS sur `readAt`**, contrairement à `countDueUnread` qui alimente le badge
+   * de la cloche. La différence est le cœur de la méthode : `readAt` dit « vu dans le centre »,
+   * `status` dit « traité ». Compter les dus NON LUS viderait la tuile « à traiter » dès que le coach
+   * a déroulé ses notifications, sans qu'il ait rien fait.
+   *
+   * Les deux nombres s'emboîtent (`dueCount <= pendingCount`) : un rappel dû est un rappel à traiter
+   * dont l'échéance est passée. Les afficher côte à côte montrerait deux fois les mêmes rappels.
+   */
+  async summary(now: Date): Promise<ReminderSummaryDto> {
+    const [dueCount, pendingCount] = await Promise.all([
+      this.db.reminder.count({ where: dueWhere(now) }),
+      this.db.reminder.count({ where: { status: ReminderStatus.PENDING } }),
+    ]);
+    return { dueCount, pendingCount };
   }
 
   /**
@@ -123,12 +148,9 @@ export class ReminderService {
 
   // ── Rappels DUS, pour le centre de notifications (#51) ───────────────────────
   //
-  // Ces trois méthodes sont appelées par `NotificationFeedService`, jamais par un contrôleur : elles
-  // gardent la table `reminder` accessible depuis un seul module. Le prédicat « dû » est appliqué en
-  // SQL (`dueAt: { lte: now }`) et non par `isReminderDue` — sinon il faudrait charger tous les
-  // rappels PENDING pour en filtrer trois, en renonçant à l'index. Les deux moitiés doivent donc
-  // s'accorder sur une borne INCLUSIVE ; c'est ce que fixent le test unitaire du prédicat et l'e2e
-  // du centre.
+  // Ces méthodes sont appelées par `NotificationFeedService`, jamais par un contrôleur (à
+  // l'exception de `summary`, ci-dessus) : elles gardent la table `reminder` accessible depuis un
+  // seul module. Toutes s'appuient sur `dueWhere` (bas de fichier) pour le prédicat « dû ».
 
   /**
    * Les rappels dus du coach, le plus récemment échu en tête. `limit` est passé par l'appelant : la
@@ -137,16 +159,17 @@ export class ReminderService {
    */
   async listDue(now: Date, limit: number): Promise<Reminder[]> {
     return this.db.reminder.findMany({
-      where: { status: ReminderStatus.PENDING, dueAt: { lte: now } },
+      where: dueWhere(now),
       orderBy: { dueAt: "desc" },
       take: limit,
     });
   }
 
-  // Alimente le badge, aux côtés des notifications non lues.
+  // Alimente le badge, aux côtés des notifications non lues. Le `readAt: null` est ce qui distingue
+  // ce compteur de celui de `summary` : ici on compte ce qui n'a pas été VU, là ce qui reste à FAIRE.
   async countDueUnread(now: Date): Promise<number> {
     return this.db.reminder.count({
-      where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, readAt: null },
+      where: { ...dueWhere(now), readAt: null },
     });
   }
 
@@ -173,7 +196,7 @@ export class ReminderService {
    */
   async markAllDueRead(now: Date): Promise<void> {
     await this.db.reminder.updateMany({
-      where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, readAt: null },
+      where: { ...dueWhere(now), readAt: null },
       data: { readAt: new Date() },
     });
   }
@@ -250,4 +273,14 @@ export class ReminderService {
   private async toDto(reminder: Reminder): Promise<ReminderDto> {
     return toReminderDto(reminder, await this.resolveTargetLabels([reminder]));
   }
+}
+
+/**
+ * « Dû » en SQL — la moitié serveur d'`isReminderDue` (@cmv/shared), qui l'applique en mémoire.
+ *
+ * Appliqué en SQL et non par `isReminderDue` : filtrer en mémoire imposerait de charger tous les
+ * rappels à traiter pour en retenir trois, en renonçant à l'index.
+ */
+function dueWhere(now: Date): Prisma.ReminderWhereInput {
+  return { status: ReminderStatus.PENDING, dueAt: { lte: now } };
 }

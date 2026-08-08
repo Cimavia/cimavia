@@ -31,6 +31,15 @@ describe("createReminderApi", () => {
     expect(calls).toEqual([{ method: "GET", path: "/reminders", body: undefined }]);
   });
 
+  // Route SÉPARÉE de la liste, pour la même raison que `unread-count` côté notifications : une
+  // tuile veut un chiffre, pas 200 lignes.
+  it("lit le résumé sur sa propre route", async () => {
+    const { api, calls } = spyClient();
+    await createReminderApi(api).summary();
+
+    expect(calls).toEqual([{ method: "GET", path: "/reminders/summary", body: undefined }]);
+  });
+
   it("crée un rappel en transmettant la cible, l'échéance et la note", async () => {
     const { api, calls } = spyClient();
     const input = {
@@ -70,6 +79,16 @@ describe("reminderKeys", () => {
   // qui fait tomber la liste d'un seul geste.
   it("préfixe la liste par la racine", () => {
     expect(reminderKeys.list()[0]).toBe(reminderKeys.all[0]);
+  });
+
+  /**
+   * Le résumé partage la racine de la liste, DÉLIBÉRÉMENT : marquer un rappel fait doit périmer le
+   * compteur de la tuile en même temps que la liste. `useReminderMutation` invalidant déjà `all`,
+   * c'est cette racine commune qui évite une invalidation supplémentaire à ne pas oublier.
+   */
+  it("range le résumé sous la même racine que la liste", () => {
+    expect(reminderKeys.summary()[0]).toBe(reminderKeys.all[0]);
+    expect(reminderKeys.summary()).not.toEqual(reminderKeys.list());
   });
 
   // Racine distincte de celle des notifications : invalider les rappels ne doit pas vider le centre

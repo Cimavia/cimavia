@@ -120,10 +120,3 @@ export function useRemoveInvoiceDocument(planId: string) {
     onError: toast.onError,
   });
 }
-
-// Ce que compte la tuile « Factures en attente » : les factures encore impayées. `null` tant que
-// la liste n'est pas là (« — », jamais un 0 trompeur — règle nullable).
-export function pendingCount(invoices: InvoiceDto[] | undefined): number | null {
-  if (invoices == null) return null;
-  return invoices.filter((invoice) => invoice.status === InvoiceStatus.PENDING).length;
-}

@@ -5,6 +5,7 @@ import {
   ReminderEntityType,
   ReminderStatus,
   reminderDtoSchema,
+  reminderSummaryDtoSchema,
   updateReminderStatusSchema,
 } from "./reminder.schema";
 
@@ -115,5 +116,39 @@ describe("reminderDtoSchema", () => {
   // `targetLabel`.
   it("refuse un rappel sans note", () => {
     expect(reminderDtoSchema.safeParse({ ...DTO, note: null }).success).toBe(false);
+  });
+});
+
+describe("reminderSummaryDtoSchema", () => {
+  it("accepte un coach sans aucun rappel", () => {
+    expect(reminderSummaryDtoSchema.safeParse({ dueCount: 0, pendingCount: 0 }).success).toBe(true);
+  });
+
+  /**
+   * Un rappel dû EST un rappel à traiter dont l'échéance est passée : les deux nombres s'emboîtent,
+   * ils ne s'additionnent pas. Le schéma ne peut pas imposer `dueCount <= pendingCount` (ce serait
+   * une règle de service, pas de forme), mais ce test fige l'intention : lire ces deux champs comme
+   * deux ensembles disjoints est une erreur.
+   */
+  it("accepte des rappels dus qui sont un sous-ensemble des rappels à traiter", () => {
+    expect(reminderSummaryDtoSchema.safeParse({ dueCount: 2, pendingCount: 5 }).success).toBe(true);
+    expect(reminderSummaryDtoSchema.safeParse({ dueCount: 5, pendingCount: 5 }).success).toBe(true);
+  });
+
+  // Un compteur ne descend pas sous zéro et ne se fractionne pas : une valeur négative ou décimale
+  // trahit un bug de comptage, on la refuse au lieu de l'afficher.
+  it("refuse un compteur négatif ou décimal", () => {
+    expect(reminderSummaryDtoSchema.safeParse({ dueCount: -1, pendingCount: 0 }).success).toBe(
+      false,
+    );
+    expect(reminderSummaryDtoSchema.safeParse({ dueCount: 1.5, pendingCount: 2 }).success).toBe(
+      false,
+    );
+  });
+
+  // Les deux champs sont requis : une tuile qui reçoit `undefined` afficherait « — » alors que
+  // l'API a bien répondu — un silence pris pour une absence de données.
+  it("refuse un résumé partiel", () => {
+    expect(reminderSummaryDtoSchema.safeParse({ dueCount: 3 }).success).toBe(false);
   });
 });

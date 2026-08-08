@@ -2187,6 +2187,7 @@ describe("Rappels du coach (#44)", () => {
   };
 
   const reminders = async (agent: Agent): Promise<Rmd[]> => (await agent.get("/reminders")).body;
+  const summary = async (agent: Agent) => (await agent.get("/reminders/summary")).body;
 
   beforeAll(async () => {
     coachA = await signUp("rmd-coach-a@cmv.test", Role.COACH);
@@ -2246,6 +2247,33 @@ describe("Rappels du coach (#44)", () => {
   });
 
   /**
+   * Deux rappels à traiter, dont UN seul est dû (l'autre échoit dans 24 h). Les deux compteurs
+   * s'emboîtent — ils ne se complètent pas : les afficher côte à côte montrerait deux fois le même
+   * rappel en retard. C'est pourquoi le dashboard n'expose que `dueCount`.
+   */
+  it("le résumé compte les rappels dus, sous-ensemble des rappels à traiter", async () => {
+    expect(await summary(coachA)).toEqual({ dueCount: 1, pendingCount: 2 });
+  });
+
+  /**
+   * LE test qui protège la décision de #111 : `readAt` (« vu dans le centre ») n'est pas le statut
+   * (« traité »). Le badge de la cloche, lui, ne compte que les dus NON LUS — si `dueCount` faisait
+   * pareil, dérouler ses notifications viderait la tuile « à traiter » sans qu'un seul rappel n'ait
+   * été traité.
+   */
+  it("un rappel dû et VU reste compté : readAt ne vaut pas traité", async () => {
+    const due = (await reminders(coachA)).find((r) => r.note === "Facture impayée");
+    expect(due).toBeDefined();
+
+    // Marquage par le centre de notifications, où le rappel dû figure sous un id préfixé.
+    const read = await coachA.patch(`/me/notifications/reminder:${due?.id}/read`);
+    expect(read.status).toBe(200);
+    expect(read.body.readAt).not.toBeNull();
+
+    expect(await summary(coachA)).toEqual({ dueCount: 1, pendingCount: 2 });
+  });
+
+  /**
    * Le contrôle qui compte : `entityId` n'a pas de clé étrangère, et une FK n'imposerait de toute
    * façon pas le tenant. Sans lui, un coach posait un rappel sur le cycle d'un autre — et en lisait
    * le titre dans `targetLabel`. Le 400 ne distingue pas « absente » de « à quelqu'un d'autre ».
@@ -2292,6 +2320,9 @@ describe("Rappels du coach (#44)", () => {
    */
   it("l'athlète n'a aucun accès aux rappels (403, jamais 500)", async () => {
     expect((await athleteA1.get("/reminders")).status).toBe(403);
+    // Le résumé est sous le même `@Roles` de classe : un athlète ne doit pas plus compter les
+    // rappels que les lire. Sans la garde, l'extension Prisma lèverait — un 500, pas un 403.
+    expect((await athleteA1.get("/reminders/summary")).status).toBe(403);
     expect(
       (
         await athleteA1
@@ -2344,6 +2375,14 @@ describe("Rappels du coach (#44)", () => {
     expect(again.body.updatedAt).toBe(first.body.updatedAt);
   });
 
+  /**
+   * Le rappel en retard vient d'être abandonné : il sort des DEUX compteurs. Reste celui qui échoit
+   * dans 24 h — à traiter, mais pas encore dû. C'est ce qui distingue les deux nombres.
+   */
+  it("un rappel traité sort des deux compteurs", async () => {
+    expect(await summary(coachA)).toEqual({ dueCount: 0, pendingCount: 1 });
+  });
+
   it("refuse un statut inconnu (400)", async () => {
     const target = (await reminders(coachA))[0];
     expect(
@@ -2354,6 +2393,8 @@ describe("Rappels du coach (#44)", () => {
   it("isolation : un autre coach ne voit ni ne marque le rappel (404)", async () => {
     const mine = (await reminders(coachA))[0];
     expect(await reminders(coachB)).toHaveLength(0);
+    // Le résumé est scopé comme la liste : compter n'est pas un contournement de la lecture.
+    expect(await summary(coachB)).toEqual({ dueCount: 0, pendingCount: 0 });
     expect(
       (await coachB.patch(`/reminders/${mine.id}/status`).send({ status: "DONE" })).status,
     ).toBe(404);

@@ -245,6 +245,7 @@ export type {
   ReminderDto,
   ReminderEntityType as ReminderEntityTypeType,
   ReminderStatus as ReminderStatusType,
+  ReminderSummaryDto,
   UpdateReminderStatusInput,
 } from "./dto/reminder.schema";
 export {
@@ -256,6 +257,7 @@ export {
   reminderDtoSchema,
   reminderEntityTypeSchema,
   reminderStatusSchema,
+  reminderSummaryDtoSchema,
   updateReminderStatusSchema,
 } from "./dto/reminder.schema";
 export type {
@@ -306,8 +308,16 @@ export {
   RELATIVE_TIME_KEY,
   relativeTimeFrom,
 } from "./util/date-format.util";
+export type { FeedbackReadState } from "./util/feedback.util";
+export { countUnreadFeedbacks } from "./util/feedback.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
-export { INVOICE_STATE_BADGE, InvoiceState, resolveInvoiceState } from "./util/invoice.util";
+export {
+  countOverdueInvoices,
+  countPendingInvoices,
+  INVOICE_STATE_BADGE,
+  InvoiceState,
+  resolveInvoiceState,
+} from "./util/invoice.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
 export {

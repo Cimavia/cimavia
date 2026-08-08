@@ -1,4 +1,9 @@
-import type { CreateReminderInput, ReminderDto, ReminderStatusType } from "@cmv/shared";
+import type {
+  CreateReminderInput,
+  ReminderDto,
+  ReminderStatusType,
+  ReminderSummaryDto,
+} from "@cmv/shared";
 import { notificationKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { reminderApi, reminderKeys } from "@/feature/reminder/api";
@@ -8,6 +13,18 @@ export function useReminders() {
   return useQuery<ReminderDto[]>({
     queryKey: reminderKeys.list(),
     queryFn: reminderApi.list,
+  });
+}
+
+/**
+ * Les compteurs seuls, pour une tuile de tableau de bord : deux entiers plutôt que les 200 lignes
+ * de `useReminders`. Même racine de cache que la liste, donc toute mutation de rappel le périme
+ * déjà (cf. `useReminderMutation`) — il n'y a pas d'invalidation de plus à écrire.
+ */
+export function useReminderSummary() {
+  return useQuery<ReminderSummaryDto>({
+    queryKey: reminderKeys.summary(),
+    queryFn: reminderApi.summary,
   });
 }
 

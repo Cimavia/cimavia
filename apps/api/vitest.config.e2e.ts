@@ -26,9 +26,9 @@ export default defineConfig({
       PORT: process.env.PORT ?? "3001",
       // Origine navigateur fixée : le test de preflight CORS ne doit pas dépendre du .env local.
       CORS_ORIGINS: "http://localhost:5173",
-      // Object storage : le MinIO du docker-compose, sur un bucket e2e dédié. Les e2e
-      // dépendent déjà de ce compose (postgres_e2e) — le flux médias de P4 (upload signé,
-      // rattachement, purge) ne serait pas couvert sans un storage réel.
+      // Object storage : le MinIO de `docker-compose.yml`, sur un bucket e2e dédié. La suite a donc
+      // DEUX prérequis Docker — `docker-compose.test.yml` (la base e2e, port 5434) et ce MinIO —
+      // sans quoi le flux médias de P4 (upload signé, rattachement, purge) ne serait pas couvert.
       // Le fail-closed « API démarre sans storage → 503 » est couvert par le test unitaire
       // de StorageService (src/infra/storage/storage.service.test.ts).
       S3_ENDPOINT: "http://localhost:9000",

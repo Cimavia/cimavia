@@ -1,6 +1,7 @@
 import type {
   CreateReminderInput,
   ReminderDto,
+  ReminderSummaryDto,
   UpdateReminderStatusInput,
 } from "../dto/reminder.schema";
 import type { ApiClient } from "./client";
@@ -22,6 +23,10 @@ import type { ApiClient } from "./client";
 export const reminderKeys = {
   all: ["reminders"] as const,
   list: () => ["reminders", "list"] as const,
+  // Sous la MÊME racine que la liste : toute mutation de rappel doit périmer le résumé aussi, et
+  // `useReminderMutation` invalide déjà `all` d'un seul geste — le compteur suit sans une ligne de
+  // plus. Une racine à part aurait laissé une tuile figée après un « marquer fait ».
+  summary: () => ["reminders", "summary"] as const,
 };
 
 export type ReminderApi = {
@@ -30,6 +35,11 @@ export type ReminderApi = {
    * touchés en tête). L'ordre est imposé par l'API : le client segmente, il ne retrie pas.
    */
   list: () => Promise<ReminderDto[]>;
+  /**
+   * Les deux compteurs, sans les lignes : de quoi alimenter une tuile de tableau de bord. Le comptage
+   * est fait en SQL — charger la liste pour la mesurer renoncerait à l'index.
+   */
+  summary: () => Promise<ReminderSummaryDto>;
   /** 400 si la cible n'appartient pas au coach — elle n'est pas contrainte par une clé étrangère. */
   create: (input: CreateReminderInput) => Promise<ReminderDto>;
   /** Fait / abandonné / rouvert : un toggle, réversible dans les deux sens. Idempotent. */
@@ -39,6 +49,7 @@ export type ReminderApi = {
 export function createReminderApi(api: ApiClient): ReminderApi {
   return {
     list: () => api.get<ReminderDto[]>("/reminders"),
+    summary: () => api.get<ReminderSummaryDto>("/reminders/summary"),
     create: (input) => api.post<ReminderDto>("/reminders", input),
     updateStatus: (id, input) => api.patch<ReminderDto>(`/reminders/${id}/status`, input),
   };
