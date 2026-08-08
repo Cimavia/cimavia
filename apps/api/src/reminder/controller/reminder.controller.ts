@@ -28,6 +28,21 @@ export class ReminderController {
     return this.reminders.list();
   }
 
+  /**
+   * Les compteurs, servis À PART de la liste — même raison que `unread-count` côté notifications :
+   * une tuile de tableau de bord veut un chiffre, pas les 200 lignes de `GET /reminders`.
+   *
+   * `summary` est un segment LITTÉRAL : il doit rester déclaré avant toute route paramétrée. Nest
+   * résout dans l'ordre de déclaration — un futur `@Get(":id")` placé au-dessus l'avalerait et
+   * chercherait un rappel d'id « summary ».
+   */
+  @Get("summary")
+  summary() {
+    // `now` vient du contrôleur, pas du service : le service reste testable sans horloge, et c'est
+    // la même convention que `NotificationFeedService` pour les rappels dus.
+    return this.reminders.summary(new Date());
+  }
+
   @Post()
   create(@Body() dto: CreateReminderDto) {
     return this.reminders.create(dto);
