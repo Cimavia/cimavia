@@ -393,6 +393,10 @@
       "todo": "À traiter",
       "overview": "Vue d'ensemble"
     },
+    "error": {
+      "title": "Certaines données n'ont pas pu être chargées",
+      "description": "Les tuiles concernées affichent « — » plutôt qu'un chiffre faux. Les autres restent à jour."
+    },
     "tiles": {
       "athletes": "Athlètes suivis",
       "athletesHint": "Relations actives",

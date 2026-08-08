@@ -14,7 +14,7 @@ import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 import { useUnreadNotificationCount } from "@/feature/notification/hook/useNotifications";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
-import { CmvAppShell, CmvButton } from "@/shared/component";
+import { CmvAppShell, CmvButton, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -48,17 +48,24 @@ type OverviewTile = {
   hintKey: string;
 };
 
+/**
+ * Le strict nécessaire pour signaler une panne et la rejouer. Typé à la main plutôt qu'avec les
+ * génériques de TanStack : les six requêtes ne renvoient pas le même type, seul ce contrat leur est
+ * commun.
+ */
+type TileSource = { isError: boolean; refetch: () => unknown };
+
 export function DashboardScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession, isPending } = authClient.useSession();
-  const { data: athletes } = useAthletes();
-  const { data: plans } = usePlans();
-  const { data: feedbacks } = useFeedbacks();
-  const { data: invoices } = useInvoices();
-  const { data: reminderSummary } = useReminderSummary();
+  const athletes = useAthletes();
+  const plans = usePlans();
+  const feedbacks = useFeedbacks();
+  const invoices = useInvoices();
+  const reminderSummary = useReminderSummary();
   // Même clé de cache que la cloche : la tuile ne déclenche aucune requête de plus.
-  const { data: unreadNotifications } = useUnreadNotificationCount();
+  const unreadNotifications = useUnreadNotificationCount();
 
   if (isPending) {
     return (
@@ -91,10 +98,36 @@ export function DashboardScreen() {
   // locale ferait basculer de jour aux abords de minuit.
   const today = todayIsoDate();
 
+  /**
+   * Six requêtes, donc six pannes possibles — et le « — » d'une tuile ne les distingue pas d'un
+   * chargement. Sans ce bandeau, une API injoignable se lit exactement comme « rien à traiter » :
+   * le fallback silencieux que la règle nullable interdit.
+   *
+   * UN bandeau pour tout l'écran plutôt qu'un marqueur par tuile : un incident réseau touche
+   * rarement une source isolée, et sept pastilles d'erreur pour une seule panne feraient plus de
+   * bruit que d'information. Les tuiles concernées gardent leur « — » — c'est ce que dit le texte.
+   */
+  const sources: TileSource[] = [
+    athletes,
+    plans,
+    feedbacks,
+    invoices,
+    reminderSummary,
+    unreadNotifications,
+  ];
+  const hasFailedSource = sources.some((source) => source.isError);
+  // Ne rejoue QUE ce qui a échoué : réinterroger les sources saines gaspillerait des requêtes et
+  // ferait clignoter des tuiles qui n'ont jamais été fausses.
+  const retryFailedSources = () => {
+    for (const source of sources) {
+      if (source.isError) source.refetch();
+    }
+  };
+
   const todoTiles: TodoTile[] = [
     {
       labelKey: "dashboard.tiles.feedback",
-      count: countUnreadFeedbacks(feedbacks),
+      count: countUnreadFeedbacks(feedbacks.data),
       hintKey: "dashboard.tiles.feedbackHint",
       tone: "warning",
       to: "/feedbacks",
@@ -103,14 +136,14 @@ export function DashboardScreen() {
       labelKey: "dashboard.tiles.remindersDue",
       // `dueCount` compte les rappels NON TRAITÉS, pas les non lus : dérouler la cloche ne vide
       // pas cette tuile (cf. `ReminderService.summary`).
-      count: reminderSummary?.dueCount ?? null,
+      count: reminderSummary.data?.dueCount ?? null,
       hintKey: "dashboard.tiles.remindersDueHint",
       tone: "warning",
       to: "/reminders",
     },
     {
       labelKey: "dashboard.tiles.overdueInvoices",
-      count: countOverdueInvoices(invoices, today),
+      count: countOverdueInvoices(invoices.data, today),
       hintKey: "dashboard.tiles.overdueInvoicesHint",
       tone: "error",
       to: "/invoices",
@@ -120,19 +153,19 @@ export function DashboardScreen() {
   const overviewTiles: OverviewTile[] = [
     {
       labelKey: "dashboard.tiles.athletes",
-      count: athletes?.length ?? null,
+      count: athletes.data?.length ?? null,
       hintKey: "dashboard.tiles.athletesHint",
     },
     {
       labelKey: "dashboard.tiles.plans",
-      count: plans?.length ?? null,
+      count: plans.data?.length ?? null,
       hintKey: "dashboard.tiles.plansHint",
     },
     {
       labelKey: "dashboard.tiles.invoices",
       // EXCLUT les factures en retard : les deux tuiles partitionnent l'impayé, personne n'est
       // compté deux fois (cf. `countPendingInvoices`).
-      count: countPendingInvoices(invoices, today),
+      count: countPendingInvoices(invoices.data, today),
       hintKey: "dashboard.tiles.invoicesHint",
     },
     {
@@ -143,7 +176,7 @@ export function DashboardScreen() {
        * au-dessus serait plus déroutant que la redondance : la cloche est une union par
        * construction, cette tuile en est le panneau indicateur, et son indice le dit.
        */
-      count: unreadNotifications ?? null,
+      count: unreadNotifications.data ?? null,
       hintKey: "dashboard.tiles.notificationsHint",
     },
   ];
@@ -154,6 +187,18 @@ export function DashboardScreen() {
       subtitle={t("dashboard.welcome", { name: authSession.user.name })}
     >
       <div className="flex flex-col gap-cmv-xl">
+        {/* Au-dessus des rangées, jamais à leur place : les tuiles qui ONT répondu restent lisibles,
+            seules celles qui manquent affichent « — ». Une panne partielle ne doit pas effacer
+            l'écran entier. */}
+        {hasFailedSource ? (
+          <CmvErrorState
+            title={t("dashboard.error.title")}
+            description={t("dashboard.error.description")}
+            retryLabel={t("common.retry")}
+            onRetry={retryFailedSources}
+          />
+        ) : null}
+
         <section className="flex flex-col gap-cmv-md">
           <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
             {t("dashboard.section.todo")}
