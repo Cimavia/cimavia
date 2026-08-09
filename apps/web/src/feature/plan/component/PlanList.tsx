@@ -5,6 +5,10 @@ import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { CmvBadge, CmvCard } from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values plan.status: PlanStatus
+
 type PlanListProps = {
   plans: PlanSummaryDto[];
 };

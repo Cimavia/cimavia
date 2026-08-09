@@ -24,6 +24,7 @@
     "test": "turbo test",
     "format": "biome format --write .",
     "check": "biome check --write .",
+    "check:i18n": "node scripts/check-i18n-keys.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { CmvText } from "@/shared/component";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values plan.sessionStatus: ScheduledSessionStatus
+
 type SessionCardProps = {
   session: ScheduledSessionSummaryDto;
 };

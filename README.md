@@ -46,6 +46,7 @@ pnpm --filter @cmv/api dev               # API seule
 pnpm --filter @cmv/mobile start          # Mobile seule
 pnpm --filter @cmv/web dev               # Web seule
 pnpm turbo lint typecheck test           # qualité (= ce que la CI bloque)
+pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
 pnpm --filter @cmv/api exec prisma migrate dev
 # Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + MinIO sur son bucket e2e)
 docker compose -f apps/api/docker-compose.test.yml up -d
@@ -56,6 +57,29 @@ pnpm --filter @cmv/api test:e2e
 > Les e2e tournent contre le **MinIO du docker-compose** (bucket `cimavia-media-e2e`) : sans
 > storage réel, le flux d'upload des médias ne serait pas couvert. Le cas « storage non
 > configuré → 503 » est, lui, couvert par le test unitaire de `StorageService`.
+
+### Clés i18n assemblées
+
+Une clé écrite en dur est vue par TypeScript et par i18next. Une clé **assemblée** ne l'est par
+personne :
+
+```ts
+t(`reminder.toast.${reminder.status}`)
+```
+
+Renommer `reminder.toast.DONE`, ou ajouter une valeur à `ReminderStatus` sans clé correspondante :
+typecheck vert, tests verts — et l'UI affiche `reminder.toast.SNOOZED` en clair, en production.
+
+`pnpm check:i18n` (dans la CI) est le filet sous cette famille de bugs. Pour qu'il puisse vérifier
+les valeurs derrière le trou, chaque fichier qui assemble une clé les **déclare**, sous ses imports :
+
+```ts
+// i18n-values reminder.toast: ReminderStatus, created
+```
+
+Chaque terme est soit un **enum** (`export const X = { … } as const`, résolu automatiquement), soit
+une valeur littérale. Sans annotation, le script signale le préfixe comme non vérifié plutôt que de
+deviner. `--strict` fait aussi échouer sur les clés jamais mentionnées.
 
 ## Développer sur un téléphone (débrief, médias, notifications)
 

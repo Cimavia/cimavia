@@ -7,6 +7,11 @@ import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values plan.sessionStatus: ScheduledSessionStatus
+// i18n-values plan.category: ExerciseCategory
+
 /**
  * Détail d'une séance (p3-4) : consignes du coach, déroulé, documents.
  * Les documents sont des URLs signées à durée courte : ils exigent le réseau, contrairement au

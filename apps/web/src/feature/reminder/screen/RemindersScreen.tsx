@@ -13,6 +13,11 @@ import {
 } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values reminder.segment: SEGMENTS
+// i18n-values reminder.empty: SEGMENTS
+
 // Deux vues d'une même liste, servie en un appel : à traiter (l'ordre de travail, imposé par l'API)
 // et traités (l'historique). Un rappel abandonné n'est pas supprimé — il reste une information.
 const SEGMENTS = ["PENDING", "HANDLED"] as const;

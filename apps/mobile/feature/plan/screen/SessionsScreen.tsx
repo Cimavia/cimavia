@@ -9,6 +9,10 @@ import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values plan.sessions: upcoming, past
+
 type SessionsTab = "upcoming" | "past";
 
 // Onglet Séances (p3-4) : à venir / passées, dérivés du cycle courant — aucune requête de plus.
