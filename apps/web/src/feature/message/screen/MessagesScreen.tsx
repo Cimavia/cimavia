@@ -1,6 +1,6 @@
 import { Role } from "@cmv/shared";
-import { Navigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { getRouteApi, Navigate, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import {
@@ -12,18 +12,30 @@ import { useConversations } from "@/feature/message/hook/useMessages";
 import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
+// `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
+// fermerait le cycle. Le typage des search params est conservé.
+const route = getRouteApi("/messages");
+
 /**
  * Messagerie du coach (CDC §5.8) : la liste de SES athlètes à gauche (enrichie du dernier message
  * et des non-lus), le fil sélectionné à droite. Sélectionner un athlète jamais contacté crée le
  * fil à la volée.
+ *
+ * Le fil ouvert est porté par l'URL (`?athlete=<id>`) et non par un `useState` : c'est ce qui
+ * permet d'arriver directement sur une conversation depuis le tableau de suivi (#113), et ça évite
+ * de tenir deux sources de vérité en phase. `replace: true` — parcourir ses fils ne doit pas
+ * empiler vingt entrées d'historique à remonter une par une.
  */
 export function MessagesScreen() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const athletes = useAthletes();
   const conversations = useConversations();
 
-  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
+  const { athlete: selectedAthleteId } = route.useSearch();
+  const selectAthlete = (athleteId: string) =>
+    navigate({ to: "/messages", search: { athlete: athleteId }, replace: true });
 
   // Fusion athlètes × fils, triée : les fils les plus récemment actifs d'abord, puis les athlètes
   // sans échange (ordre de la liste d'athlètes).
@@ -84,8 +96,8 @@ export function MessagesScreen() {
         <div className="flex h-[calc(100vh-11rem)] overflow-hidden rounded-cmv-lg border border-cmv-border bg-cmv-bg-1">
           <ConversationList
             rows={rows}
-            selectedAthleteId={selectedAthleteId}
-            onSelect={setSelectedAthleteId}
+            selectedAthleteId={selectedAthleteId ?? null}
+            onSelect={selectAthlete}
           />
           {selected != null ? (
             <MessageThread
