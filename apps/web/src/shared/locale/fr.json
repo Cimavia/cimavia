@@ -186,7 +186,11 @@
       "number": "Semaine {{number}}",
       "sessionCount": "{{count}} séance(s)",
       "addSession": "+ Séance",
-      "delete": "Supprimer la semaine"
+      "delete": "Supprimer la semaine",
+      "copy": "Copier",
+      "paste": "Coller ici",
+      "pasteConfirm": "Remplacer {{count}} séance(s)",
+      "pasteDisabledPublished": "Un cycle diffusé ne peut pas recevoir de copie."
     },
     "session": {
       "createTitle": "Ajouter une séance",
@@ -235,7 +239,13 @@
       "weekDeleted": "Semaine supprimée",
       "sessionCreated": "Séance ajoutée au cycle",
       "sessionSaved": "Séance enregistrée",
-      "sessionDeleted": "Séance supprimée"
+      "sessionDeleted": "Séance supprimée",
+      "weekPasted": "Semaine collée — {{count}} séance(s)",
+      "weekPastedPlain": "Semaine collée"
+    },
+    "clipboard": {
+      "banner": "Semaine {{number}} de « {{plan}} » copiée — choisissez où la coller.",
+      "clear": "Annuler la copie"
     }
   },
   "nav": {

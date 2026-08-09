@@ -1,114 +1,113 @@
-Tu vas développer la feature dashboard coach (issue 52 sur gh).
+Tu vas développer la feature « copier/coller une semaine de planification » (issue 4 sur gh).
 
-Le système de rappels (#38 : #44, #45, #51) vient d'être livré, recetté et mergé sur main. #52
-« Dashboard coach : tuiles rappels, notifications, factures en retard » déclarait dépendre de #44 et
-#48 : les deux sont fermées, elle est donc débloquée — c'est la seule issue que ce merge a libérée,
-et la dernière `prio: high` du board.
+Le dashboard coach (#110 : #52, #111, #112, #113) vient d'être livré, recetté et mergé sur main, et
+le contrôle des clés i18n assemblées (#115) avec. Le board n'a plus d'issue `prio: high` ouverte :
+#4 est la suivante, en `Prêt` / Phase v1.0, milestone v0.9.
 
-Deux enfants de #38 restent ouverts et HORS périmètre : #46 (mobile) est reportée, bloquée par #35
-(nav par rôle) ; #47 (scheduler) attend une décision d'hébergement. Ne pas les traiter.
+⚠️ #4 porte le label `en attente beta` — elle attendait un retour d'usage réel. Confirme-moi que ce
+retour a bien eu lieu avant de partir, ou dis-moi ce qui te fait la déclencher maintenant.
+
+#5 (duplication d'une planification entière) est sa sœur : `Prêt`, v1.0, et son corps annonce
+explicitement de « mutualiser la brique de copie profonde côté API ». Elle est HORS périmètre de
+cette PR, mais tu dois me dire dans le plan si tu construis cette brique pour deux ou pour une.
 
 Avant de coder, lis :
 
-- docs/cahier-des-charges-mvp.md — §6 exigences non fonctionnelles, §7 architecture technique,
-  §11 internationalisation.
+- docs/cahier-des-charges-mvp.md — §5.4 planifications, §6 exigences non fonctionnelles,
+  §7 architecture technique, §11 internationalisation.
 - docs/architecture-choice.md — conventions (§1 règle de promotion + plomberie HTTP partagée
-  `create<X>Api`, §4 web, §5 design system, §6 pièges du scope automatique, §7 logique pure
-  partagée et règle « nullable, pas de fallback silencieux »).
-- docs/CONTEXT.cimavia.md — glossaire métier, dont les entrées `Reminder`, `Notification` et
-  `Invoice`.
-- docs/dette-technique.md — dettes ouvertes, en particulier R-1→R-5 (rappels) et N-1→N-7
-  (notifications).
-- docs/maquettes/web-coach/coach_dashboard_athletes.dc.html — la maquette de référence de l'écran
-  (les 4 tuiles actuelles en viennent). Dis-moi explicitement si tu t'en écartes et pourquoi.
-- README.md (setup, commandes) et CONTRIBUTING.md (git flow, commits signés, observabilité).
+  `create<X>Api`, §2 backend, §4 web, §6 pièges du scope automatique, §7 logique pure partagée et
+  règle « nullable, pas de fallback silencieux »).
+- docs/CONTEXT.cimavia.md — glossaire métier, dont `Plan`, `PlanWeek`, `ScheduledSession`,
+  `ScheduledSessionExercise — la copie, pas la référence`, `Session (séance) — modèle vs instance`.
+- docs/dette-technique.md — la décision « Tranché en P3 » sur la copie autonome, et les dettes
+  P2-1 / P3-2 (objets storage orphelins) et N-6 (aucun groupement des ajustements de cycle).
+- docs/maquettes/web-coach/coach_builder_planification.dc.html — l'écran concerné. ⚠️ Il ne prévoit
+  AUCUN geste de copie : tu es en terrain neuf sur l'UI, dis-moi ce que tu ajoutes et où.
+- README.md (setup, commandes, section « Clés i18n assemblées ») et CONTRIBUTING.md (git flow,
+  commits signés, observabilité).
 - Analyse le projet github Cimavia - Roadmap.
 
-Rappels — acquis P0→P7 + notifications + rappels à respecter :
+Rappels — acquis P0→P7 + notifications + rappels + dashboard à respecter :
 
 - Multi-tenant : toute entité métier est dans TENANT_SCOPES et accédée via TENANT_PRISMA. Les
-  include imbriqués ne sont PAS scopés ; les FK n'imposent pas le tenant.
-- `Reminder` est le SEUL modèle métier scopé à un seul rôle (`coachId`, sans `athleteId`).
-  Conséquence apprise en le construisant : un modèle absent de TENANT_SCOPES **pour un rôle** est
-  refusé par une ERREUR, pas par un 403 ni par une liste vide — lire les rappels depuis un chemin
-  servi aux deux rôles renvoie un 500. Deux gardes obligatoires : `@Roles([Role.COACH])` sur le
-  contrôleur, et un branchement par rôle partout où un chemin partagé y touche
-  (`NotificationFeedService` en est l'exemple).
-- « Dû » n'est PAS un statut stocké : c'est `isReminderDue` (@cmv/shared, borne INCLUSIVE), la même
-  règle que l'API applique en SQL (`dueAt: { lte: now }`). Même dispositif que « facture en
-  retard », dérivée par `resolveInvoiceState`. Ne pas réécrire ces dérivations dans le JSX.
-- Un rappel dû remonte dans le centre de notifications comme entrée CALCULÉE, jamais persistée :
-  `REMINDER_DUE` est le seul `NotificationType` absent de l'enum Prisma (le typecheck l'impose via
-  `PersistedNotificationType`), et son id porte le préfixe `reminder:`.
-- Le libellé n'est JAMAIS stocké — on persiste `type`, la cible et les paramètres (`actorName`,
-  `subjectLabel`), et le rendu se fait côté client via `NOTIFICATION_LABEL_KEY` + i18next. Idem pour
-  `Reminder.targetLabel`, servi BRUT (titre du cycle, période « YYYY-MM ») : c'est le client qui
-  compose et traduit.
-- Une notification n'est pas un lien : c'est le signal que l'état serveur a changé. L'ouvrir
-  invalide tout le cache client avant de naviguer (web ET mobile, y compris à l'ouverture d'un
-  push). Ne pas défaire ça.
-- Couplage de caches assumé : toute mutation de rappel invalide AUSSI `notificationKeys.all` (un
-  rappel dû compte dans le badge). Les deux racines de cache sont volontairement distinctes pour
-  qu'on ait à l'écrire à la main. Si le dashboard introduit d'autres croisements, même règle.
+  include imbriqués ne sont PAS scopés ; les FK n'imposent pas le tenant. Toute référence entrante
+  (`planWeekId` source ET cible) doit être validée comme POSSÉDÉE avant écriture → 400, jamais un
+  404 qui révélerait l'existence d'un id.
+- `PlanWeek` et `ScheduledSession` portent `coachId`/`athleteId` DÉNORMALISÉS, parce que l'extension
+  filtre par un champ du modèle interrogé et ne sait pas remonter la relation. L'extension les
+  injecte à la création — aucun service ne les renseigne. Une copie inter-planification doit donc
+  atterrir avec l'`athleteId` de la planification CIBLE, jamais celui de la source.
+- La copie est déjà un acquis du modèle : `ScheduledSessionExercise` est une **copie autonome**
+  (snapshot titre/description/catégorie/prescription + `sourceExerciseId` nullable en `SetNull`,
+  traçabilité seule), et les documents sont **copiés en lignes partageant la clé objet**. La brique
+  existe dans `ScheduledSessionService` (`loadSourceDocuments`, `insertExercises`) — ne la réécris
+  pas, réutilise-la ou promeus-la.
+- Les dates ne sont PAS stockées sur `PlanWeek` : elles se déduisent de `Plan.startDate` (toujours
+  un lundi) et de `weekNumber`, via `planWeekRange` / `isDateInPlanWeek` / `planWeekNumber`
+  (@cmv/shared, testées). `ScheduledSession.scheduledDate` est une DATE CIVILE contrainte à la plage
+  de sa semaine (invariant de service), et `@@unique([planWeekId, scheduledDate, position])`.
+- Diffusion : ajouter/retirer/modifier une séance sur un cycle `PUBLISHED` NOTIFIE l'athlète
+  (`notifyPlanSessionAdded` / `notifyPlanSessionRemoved` / `notifyPlanUpdated`) — et la dette N-6 dit
+  qu'il n'y a AUCUN groupement. Coller une semaine de 5 séances émettrait 5 notifications et 5 push.
+- Le libellé d'une notification n'est jamais stocké : on persiste `type`, la cible et les paramètres,
+  le rendu se fait côté client via `NOTIFICATION_LABEL_KEY` + i18next.
 - Plomberie partagée : `createNotificationApi(api)` puis `createReminderApi(api)` dans @cmv/shared
-  sont les deux appels HTTP partagés web↔mobile — c'est désormais une règle documentée
-  (architecture-choice §1), à appliquer à toute feature qui touchera les deux clients.
-- Règle de promotion : 2+ apps → `@cmv/*`, 1 seule app → reste dans l'app. `REMINDER_BADGE` est
-  resté côté web pour cette raison (il monte avec #46) ; `isReminderDue` est partagé.
-- Nullable, pas de fallback silencieux : un compteur rend `null` → l'UI affiche « — », JAMAIS `0`.
-  Les 4 tuiles actuelles le font déjà avec un commentaire explicite — c'est l'invariant central de
-  cet écran.
-- i18n : aucune string en dur, tout passe par i18next. Formats localisés = fonctions PURES de
-  @cmv/shared recevant la locale ; les apps n'ont qu'un adaptateur qui injecte `i18n.language`.
-  Piège timeZone "UTC" pour les dates civiles vs heure locale pour les instants — `Invoice.dueDate`
-  est une DATE CIVILE, `Reminder.dueAt` est un INSTANT.
-- Argent : centimes entiers, jamais de float ; aucun calcul dans le JSX.
+  sont la règle (architecture-choice §1) pour tout appel que les deux clients font. Le builder est
+  web-only aujourd'hui — dis-moi si tu promeus ou non.
+- Règle de promotion : 2+ apps → `@cmv/*`, 1 seule app → reste dans l'app. La logique de calendrier
+  (`plan.util.ts`) est partagée et testée ; toute dérivation de dates de copie y a sa place.
+- Nullable, pas de fallback silencieux : une fonction sur données manquantes rend `null`, jamais une
+  valeur de repli. `planWeekNumber` rend `null` hors du cycle — ne le contourne pas.
+- i18n : aucune string en dur. Toute clé ASSEMBLÉE doit être déclarée par une annotation
+  `// i18n-values <prefixe>: <Enum|valeurs>` sous les imports de son fichier, sinon `pnpm check:i18n`
+  la signale comme non vérifiée.
 - Observabilité : Pino → Axiom + Sentry sur les 3 couches.
 - Infra mail : le dernier `// MOCKED` (apps/api/src/auth/auth.config.ts) est tracé par l'épic #61 —
   hors périmètre, ne pas le traiter.
 
-Trois points d'attention — à trancher dans le plan, pas à découvrir en cours de route :
+Cinq points d'attention — à trancher dans le plan, pas à découvrir en cours de route. Ce sont
+exactement les « à préciser plus tard » de l'issue, ne me les renvoie pas en question ouverte :
 
-1. **Où vivent les nouveaux compteurs.** Les deux existants (`unreadCount` dans
-   `feature/feedback/hook/useFeedbacks.ts` et `pendingCount` dans
-   `feature/invoice/hook/useInvoices.ts`) sont des fonctions pures… posées côté web. Or la
-   couverture Sonar n'est mesurée QUE sur packages/shared. Dis-moi si tu les laisses côté app
-   (cohérence avec l'existant, zéro couverture) ou si tu les promeus dans @cmv/shared (testables,
-   mais tu déplaces du code existant). Les deux se défendent — je veux l'arbitrage explicite, pas
-   un choix par défaut.
-2. **La mise en page à 7 tuiles.** La grille est en `xl:grid-cols-4` : 4 + 3 tombe bancal. Et les
-   trois nouvelles ne sont pas de même nature que les existantes (« à traiter maintenant » vs
-   « volume »). Propose une organisation, ne te contente pas d'ajouter trois cartes à la suite.
-3. **« Factures en retard » ≠ « factures en attente »**, et la tuile « en attente » existe déjà.
-   L'état OVERDUE est déjà dérivé dans @cmv/shared. Dis comment tu évites que le coach lise deux
-   fois la même information.
+1. **Ce que la copie emporte, et ce qu'elle laisse.** Séances, exercices, documents, notes, type de
+   semaine — mais sûrement pas les débriefs (`SessionFeedback`), ni les messages rattachés, ni
+   `ScheduledSessionStatus` (une séance collée est `PLANNED`, pas `DONE`). Justifie chaque exclusion.
+   Et dis ce que le partage de clé objet des documents copiés ajoute aux dettes P2-1/P3-2.
+2. **Les dates.** Copier la semaine N vers la semaine M décale de (M−N)×7 jours. Dis ce qui se passe
+   si la cible n'existe pas encore, et comment tu respectes `@@unique([planWeekId, scheduledDate,
+   position])`.
+3. **La semaine cible non vide.** Fusion, remplacement, ou refus ? La contrainte d'unicité rend une
+   fusion naïve impossible. Tranche, et dis ce que voit le coach.
+4. **Le cycle diffusé.** Coller dans un `PUBLISHED` déclenche une notification et un push PAR
+   séance (dette N-6). C'est le point le plus visible côté athlète : soit tu groupes, soit tu
+   l'assumes explicitement, soit tu refuses le geste sur un cycle diffusé. Pas de quatrième option
+   silencieuse.
+5. **La brique partagée avec #5.** Tu écris un service de copie profonde réutilisable, ou tu fais le
+   minimum pour #4 quitte à le généraliser plus tard ? Les deux se défendent — je veux l'arbitrage
+   explicite, pas un choix par défaut.
 
 Portes de qualité — la PR échoue si l'une saute :
 
-- `pnpm turbo lint typecheck test` + les e2e (146 actuellement) doivent passer avant de conclure une
-  étape. Les e2e exigent le MinIO du docker-compose
-  (docker compose -f apps/api/docker-compose.yml up -d minio-setup).
+- `pnpm turbo lint typecheck test` + les e2e (149 actuellement) doivent passer avant de conclure une
+  étape. Les e2e exigent LES DEUX composes :
+  `docker compose -f apps/api/docker-compose.test.yml up -d` (base e2e sur 5434) et
+  `docker compose -f apps/api/docker-compose.yml up -d minio-setup`.
+- `pnpm check:i18n` doit sortir en 0 (branché dans la CI).
 - SonarCloud sur la PR : `new_coverage` ≥ 80 % et `new_duplicated_lines_density` ≤ 3 %.
   La couverture n'est mesurée QUE sur packages/shared — tout code neuf qui y entre doit être testé.
-  La duplication web↔mobile fait sauter le seuil : promouvoir la plomberie dans @cmv/shared plutôt
-  que d'ajouter des exclusions Sonar.
-- Les clés i18n construites dynamiquement (une clé assemblée à partir d'une variable) échappent au
-  typecheck : vérifie-les par script contre fr.json avant de conclure.
+  Une copie profonde est de la logique : si elle reste côté API, elle n'est couverte que par les e2e.
 
 Ménage de board à faire au passage (je valide avant que tu touches à quoi que ce soit) :
 
-- #53 `[qa_1]` semble DÉJÀ satisfaite : ses trois puces (isolation Reminder/Notification, refus
-  d'annuler une facture PAID ou CANCELLED, compteurs non lus après marquage) sont couvertes par des
-  e2e existants. Vérifie-le nommément dans apps/api/test/isolation.e2e-spec.ts et propose-moi de la
-  fermer ou de la réduire à une relecture post-#52.
-- #47 est encore `Status = En cours` sur le board alors qu'elle est hors périmètre et attend une
-  décision d'hébergement : elle devrait passer à `Idée`, comme #46.
+- #4 et #5 portent toutes deux `en attente beta` alors qu'elles sont en `Prêt` : dis-moi si le label
+  doit sauter, et sur laquelle.
+- Vérifie qu'aucune autre issue n'est débloquée par cette livraison, et signale-le-moi.
 
 Convention d'issues GitHub :
 
 - Pattern de nommage : [feature-name_numero] - titre. S'il faut plusieurs issues (découpage parent
   enfant) : une épic [feature-name] - titre et des enfants [feature-name_X].
-- Vérifie la numérotation existante de la famille avant de créer (`[pagination_4]`, `[storage_6]`…
+- Vérifie la numérotation existante de la famille avant de créer (`[dashboard_6]`, `[profil_2]`…
   se déduisent des issues déjà là, pas d'un compteur mental).
 - Les issues doivent être reliées par des relations directement dans GitHub (sub-issues) et être
   bloquantes les unes par rapport aux autres si l'ordre d'implémentation compte.

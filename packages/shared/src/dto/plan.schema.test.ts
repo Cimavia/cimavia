@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
   updateScheduledSessionSchema,
@@ -73,6 +74,28 @@ describe("updateScheduledSessionSchema", () => {
       title: "Bloc",
       scheduledDate: "2026-10-14",
       exercises: [{ title: "x", category: "CARDIO" }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("copyPlanWeekSchema", () => {
+  it("ne demande que la semaine source (la cible est la ressource de la route)", () => {
+    const parsed = copyPlanWeekSchema.parse({ sourcePlanWeekId: "pw_1" });
+    expect(parsed.sourcePlanWeekId).toBe("pw_1");
+  });
+
+  it("refuse une source absente ou vide", () => {
+    expect(copyPlanWeekSchema.safeParse({}).success).toBe(false);
+    expect(copyPlanWeekSchema.safeParse({ sourcePlanWeekId: "" }).success).toBe(false);
+  });
+
+  // Le client ne choisit AUCUNE date : elles se déduisent de la semaine cible. Les accepter,
+  // même ignorées, laisserait croire qu'on peut poser une séance hors de la plage de sa semaine.
+  it("refuse toute date proposée par le client (schéma strict)", () => {
+    const result = copyPlanWeekSchema.safeParse({
+      sourcePlanWeekId: "pw_1",
+      scheduledDate: "2026-10-14",
     });
     expect(result.success).toBe(false);
   });

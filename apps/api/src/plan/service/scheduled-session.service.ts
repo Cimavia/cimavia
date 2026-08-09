@@ -17,6 +17,7 @@ import {
   SESSION_DETAIL_INCLUDE,
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
+import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
 // La séance telle qu'elle sera écrite : un instantané, plus aucune référence à résoudre.
@@ -284,52 +285,23 @@ export class ScheduledSessionService {
     return bySource;
   }
 
-  // Écrit la composition : un exercice par ligne (position = ordre du tableau), et les documents
-  // de l'exercice source recopiés — mêmes clés objet, aucun binaire dupliqué.
-  private async insertExercises(
+  // Rattache à chaque exercice les documents de la BIBLIOTHÈQUE (via `sourceExerciseId`), puis
+  // délègue l'écriture. La copie de semaine (#4) rattache, elle, les documents de l'instance
+  // source — même écriture, source différente (cf. `scheduled-session.writer.ts`).
+  private insertExercises(
     tx: TenantTx,
     scheduledSessionId: string,
     athleteId: string,
     exercises: ScheduledSessionExerciseInput[],
     documentsBySource: DocumentsBySource,
   ): Promise<void> {
-    for (const [position, exercise] of exercises.entries()) {
-      const created = await tx.scheduledSessionExercise.create({
-        data: {
-          athleteId,
-          scheduledSessionId,
-          sourceExerciseId: exercise.sourceExerciseId ?? null,
-          title: exercise.title,
-          description: exercise.description ?? null,
-          category: exercise.category,
-          prescription: exercise.prescription ?? null,
-          position,
-        } satisfies Omit<
-          Prisma.ScheduledSessionExerciseUncheckedCreateInput,
-          "coachId"
-        > as Prisma.ScheduledSessionExerciseUncheckedCreateInput,
-      });
-
-      const documents =
+    const drafts = exercises.map((exercise) => ({
+      exercise,
+      documents:
         exercise.sourceExerciseId == null
           ? []
-          : (documentsBySource.get(exercise.sourceExerciseId) ?? []);
-      if (documents.length === 0) continue;
-
-      await tx.scheduledSessionExerciseDocument.createMany({
-        data: documents.map((document) => ({
-          athleteId,
-          scheduledSessionExerciseId: created.id,
-          type: document.type,
-          storagePath: document.storagePath,
-          url: document.url,
-          fileName: document.fileName,
-          mimeType: document.mimeType,
-        })) satisfies Omit<
-          Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput,
-          "coachId"
-        >[] as Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput[],
-      });
-    }
+          : (documentsBySource.get(exercise.sourceExerciseId) ?? []),
+    }));
+    return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
   }
 }

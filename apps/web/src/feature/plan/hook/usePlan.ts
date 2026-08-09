@@ -8,6 +8,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addPlanWeek,
+  copyPlanWeek,
   createScheduledSession,
   deletePlanWeek,
   deleteScheduledSession,
@@ -18,6 +19,10 @@ import {
   updateScheduledSession,
 } from "@/feature/plan/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+
+// La semaine QUI REÇOIT et celle qu'on recopie — nommées, parce que deux `string` côte à côte
+// s'inversent en silence.
+type PasteWeekVariables = { targetWeekId: string; sourcePlanWeekId: string };
 
 export function usePlan(planId: string) {
   return useQuery<PlanDto>({
@@ -66,6 +71,27 @@ export function usePlanMutations(planId: string) {
     onError: toast.onError,
   });
 
+  /**
+   * Colle une semaine ici — le contenu de la cible est REMPLACÉ (#4). Le toast annonce ce qui a
+   * atterri : sans ce chiffre, un collage qui remplace 4 séances par 2 passerait inaperçu.
+   */
+  const pasteWeek = useMutation({
+    mutationFn: ({ targetWeekId, sourcePlanWeekId }: PasteWeekVariables) =>
+      copyPlanWeek(targetWeekId, { sourcePlanWeekId }),
+    onSuccess: async (plan, { targetWeekId }) => {
+      await invalidate();
+      const pasted = plan.weeks.find((week) => week.id === targetWeekId);
+      // La semaine cible est forcément dans la réponse (l'API rend le plan cible). Si elle
+      // manquait, on confirme sans chiffre plutôt que d'annoncer un « 0 séance » inventé.
+      if (pasted == null) {
+        toast.onSuccess("plan.toast.weekPastedPlain");
+        return;
+      }
+      toast.onSuccess("plan.toast.weekPasted", { count: String(pasted.sessions.length) });
+    },
+    onError: toast.onError,
+  });
+
   const createSession = useMutation({
     mutationFn: ({ weekId, input }: { weekId: string; input: CreateScheduledSessionInput }) =>
       createScheduledSession(weekId, input),
@@ -90,6 +116,7 @@ export function usePlanMutations(planId: string) {
     addWeek.isPending ||
     updateWeek.isPending ||
     removeWeek.isPending ||
+    pasteWeek.isPending ||
     createSession.isPending ||
     saveSession.isPending ||
     removeSession.isPending;
@@ -98,6 +125,7 @@ export function usePlanMutations(planId: string) {
     addWeek,
     updateWeek,
     removeWeek,
+    pasteWeek,
     createSession,
     saveSession,
     removeSession,
