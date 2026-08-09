@@ -15,11 +15,17 @@ import { useMutationToast } from "@/shared/hook/useMutationToast";
 const CONVERSATIONS_POLL_MS = 15_000;
 const THREAD_POLL_MS = 10_000;
 
-export function useConversations() {
+/**
+ * `poll: false` pour les écrans qui n'en tirent qu'un COMPTEUR (le tableau de bord). Le sondage à
+ * 15 s existe pour la messagerie ouverte, où l'on attend une réponse ; sur la page d'accueil il
+ * ferait tourner quatre requêtes par minute en permanence pour un nombre que personne ne regarde
+ * changer. `refetchOnWindowFocus` (défaut TanStack) reste actif dans les deux cas.
+ */
+export function useConversations({ poll = true }: { poll?: boolean } = {}) {
   return useQuery<ConversationDto[]>({
     queryKey: messageKeys.conversations(),
     queryFn: listConversations,
-    refetchInterval: CONVERSATIONS_POLL_MS,
+    refetchInterval: poll ? CONVERSATIONS_POLL_MS : false,
   });
 }
 

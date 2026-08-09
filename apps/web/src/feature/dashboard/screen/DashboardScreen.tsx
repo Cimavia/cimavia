@@ -68,11 +68,18 @@ export function DashboardScreen() {
   const { data: authSession, isPending } = authClient.useSession();
   const athletes = useAthletes();
   const plans = usePlans();
-  const feedbacks = useFeedbacks();
+  /**
+   * `poll: false` sur les deux listes qui sondent : cet écran n'en tire que des compteurs, et la
+   * page d'accueil est celle qui reste ouverte le plus longtemps — laisser tourner 15 s et 30 s
+   * ferait six requêtes par minute en permanence pour des chiffres que personne ne regarde
+   * bouger. `refetchOnWindowFocus` les rafraîchit au moment où on les lit vraiment.
+   */
+  const feedbacks = useFeedbacks({ poll: false });
   const invoices = useInvoices();
-  const conversations = useConversations();
+  const conversations = useConversations({ poll: false });
   const reminderSummary = useReminderSummary();
-  // Même clé de cache que la cloche : la tuile ne déclenche aucune requête de plus.
+  // Le badge de la cloche, lui, GARDE son sondage : il vit dans la nav, sur tous les écrans, et
+  // c'est sa raison d'être. Même clé de cache — la tuile ne déclenche aucune requête de plus.
   const unreadNotifications = useUnreadNotificationCount();
 
   // La fiche s'ouvre depuis une ligne du tableau. On garde l'ID, pas l'objet : la liste peut être

@@ -10,11 +10,20 @@ import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 const FEEDBACKS_POLL_MS = 30_000;
 
-export function useFeedbacks() {
+/**
+ * `poll: false` pour les écrans qui n'affichent qu'un COMPTEUR tiré de cette liste (le tableau de
+ * bord). Le sondage existe pour l'écran des débriefs, où le coach attend un retour en direct ; le
+ * garder ailleurs ferait tourner une requête toutes les 30 s sur la page d'accueil, en permanence,
+ * pour un chiffre que personne ne regarde changer.
+ *
+ * Ce qui reste actif dans les deux cas : `refetchOnWindowFocus` (défaut TanStack sur le web) — le
+ * chiffre est donc à jour dès qu'on revient sur l'onglet, ce qui est le vrai moment où on le lit.
+ */
+export function useFeedbacks({ poll = true }: { poll?: boolean } = {}) {
   return useQuery<CoachFeedbackSummaryDto[]>({
     queryKey: feedbackKeys.list(),
     queryFn: listFeedbacks,
-    refetchInterval: FEEDBACKS_POLL_MS,
+    refetchInterval: poll ? FEEDBACKS_POLL_MS : false,
   });
 }
 
