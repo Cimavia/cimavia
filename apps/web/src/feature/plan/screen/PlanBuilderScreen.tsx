@@ -130,8 +130,8 @@ export function PlanBuilderScreen() {
             possible) : sans ce bandeau, des boutons « Coller ici » apparaîtraient sur un cycle
             sans que rien ne dise ce qui est armé, ni d'où il vient. */}
         {clipboard == null ? null : (
-          <div className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface-hi px-cmv-md py-cmv-sm">
-            <span className="text-cmv-caption text-cmv-text-mid">
+          <div className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-success-line bg-cmv-success-soft px-cmv-md py-cmv-sm">
+            <span className="text-cmv-caption text-cmv-success-on">
               {t("plan.clipboard.banner", {
                 number: clipboard.weekNumber,
                 plan: clipboard.planTitle,

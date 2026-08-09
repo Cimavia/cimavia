@@ -62,6 +62,14 @@ Une semaine d'un `Plan`. Porte un **type** (`TRAINING` | `DELOAD`), un `weekNumb
 
 ⚠️ **Aucune date n'est stockée sur la semaine** : ses bornes se calculent (`planWeekRange` = `plan.startDate + 7×(weekNumber−1)` → dimanche). Une seule source, donc aucune dérive possible. Corollaire : déplacer le `startDate` d'un plan, ou supprimer une semaine du milieu, **décale les séances** des semaines concernées (l'API s'en charge) — sinon une séance sortirait de la plage de sa semaine.
 
+### Copier une semaine (#4)
+Le coach reproduit ce qu'il a **composé** dans une autre semaine — du même cycle ou d'un autre, donc éventuellement pour **un autre athlète**. Emporté : type et note de semaine, séances, consignes, exercices, documents copiés. **Laissé** : tout ce qui appartient à l'athlète ou à l'exécution — `ScheduledSessionStatus` (la copie naît `PLANNED`), `SessionFeedback` et ses médias, les messages rattachés.
+
+Trois règles à connaître :
+- **Les dates ne sont pas recopiées, elles sont RECALCULÉES** depuis le lundi de la semaine cible (`planWeekCopyShiftDays`, `@cmv/shared`). Le décalage se prend entre les deux **lundis** et non entre les `weekNumber` — `(M−N)×7` ne vaut qu'intra-cycle, alors que la copie traverse aussi deux cycles aux `startDate` différents. Toujours un multiple de 7 : une séance du mardi reste le mardi, et l'unicité `(planWeekId, scheduledDate, position)` tient après translation.
+- **La cible est REMPLACÉE, jamais fusionnée** : deux semaines portant chacune une séance le mardi en position 0 collisionnent sur cette même unicité, et renuméroter réordonnerait la journée du coach sans règle pour arbitrer. La copie ne **crée** par ailleurs jamais la semaine cible (les `weekNumber` sont contigus).
+- **La cible doit être un brouillon** : coller dans un cycle `PUBLISHED` est refusé (409), parce que chaque séance écrite notifierait l'athlète séparément et que rien ne groupe ces notifications (dette N-6). Copier **depuis** un cycle diffusé, en revanche, est autorisé — lire ne mute rien.
+
 ### ScheduledSession
 Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte une `scheduledDate` (dans la plage de sa semaine — invariant vérifié à l'écriture) et une `position` = rang **dans la journée** (plusieurs séances le même jour). Statut `PLANNED` | `DONE` | `SKIPPED` — en P3 tout est créé `PLANNED` ; `DONE` arrive avec le débrief (P4). Se met à jour en **replace-all** (`PUT`), comme la séance modèle. **Pas d'historique des modifications** en MVP.
 

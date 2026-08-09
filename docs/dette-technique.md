@@ -151,6 +151,7 @@ autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur �
 |---|---|---|---|
 | Q-1 | **Couverture non mesurée hors `@cmv/shared`** : `sonar.coverage.exclusions` écarte les trois apps. L'API est couverte par les e2e, qui ne produisent aucun lcov. | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → [#57](https://github.com/Cimavia/cimavia/issues/57) [#58](https://github.com/Cimavia/cimavia/issues/58) [#59](https://github.com/Cimavia/cimavia/issues/59) |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
+| Q-3 | **Les e2e ne sont pas typecheckés** : `apps/api/test/` est hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tourne sans vérification de types — 16 erreurs y dorment. | 🟡 | [#126](https://github.com/Cimavia/cimavia/issues/126) |
 
 ---
 
@@ -290,6 +291,84 @@ autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur �
 > à sept, une strip unique redevient une grille indifférenciée où rien ne ressort ; et les tuiles
 > « à traiter » sont **cliquables**, alors que la strip de la maquette est décorative — une tuile qui
 > annonce du travail sans y mener est un cul-de-sac.
+
+---
+
+## Post-MVP — Copie d'une semaine ([#4](https://github.com/Cimavia/cimavia/issues/4))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~P2-1~~ / ~~P3-2~~ | **Nouveau déclencheur** : vider la semaine cible cascade ses `ScheduledSessionExerciseDocument` **sans** passer par `deleteObjectIfUnreferenced`. Si la cible portait la dernière copie d'une clé dont l'exercice de bibliothèque est déjà supprimé, l'objet reste orphelin. Le *collage*, lui, va dans le sens sûr (plus de copies = plus de références = objet retenu, jamais purgé pendant qu'il sert). | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
+
+> **Tranché en #4** (ce que la copie emporte, et ce qu'elle laisse) : elle reproduit ce que le
+> **coach a composé** — type et note de semaine, séances, consignes, exercices, documents — et laisse
+> tout ce qui appartient à l'athlète ou à l'exécution. Quatre exclusions, chacune pour sa raison :
+> **`ScheduledSessionStatus`** (la copie naît `PLANNED` ; `DONE` est posé par le débrief et la
+> transition est sans retour — une séance collée « déjà faite » serait indébriefable et fausserait
+> les tuiles du dashboard) ; **`SessionFeedback`** (`@unique` sur la séance, et écrit par l'athlète :
+> le copier lui attribuerait un texte qu'il n'a pas écrit, et `coachReadAt: null` ressusciterait une
+> ligne « à relire ») ; **`FeedbackMedia`** (seul média jamais partagé du projet — sa clé objet
+> n'appartient qu'à lui, donc le copier voudrait dire **dupliquer le binaire**) ; **les messages
+> rattachés** (un message est un événement daté et signé ; le repointer ferait mentir l'historique,
+> le dupliquer créerait un message que personne n'a envoyé). Le contenu copié est **le même que le
+> cycle source soit brouillon ou diffusé**.
+
+> **Tranché en #4** (les dates) : elles ne sont **pas recopiées** mais **recalculées** depuis le
+> lundi de la semaine cible (`planWeekCopyShiftDays`, `@cmv/shared`). Le décalage se prend entre les
+> deux **lundis**, jamais entre les numéros de semaine : `(M−N)×7` ne vaut qu'à l'intérieur d'un même
+> cycle, alors que la copie traverse aussi deux cycles aux `startDate` différents. Les deux étant des
+> lundis, le décalage est **toujours un multiple de 7** — le jour de la semaine tient, et
+> `@@unique([planWeekId, scheduledDate, position])` reste satisfaite après translation (l'application
+> est injective). Corollaire : **le collage ne crée jamais la semaine cible**. `weekNumber` est
+> contigu et `addWeek` n'ajoute qu'en `count + 1` ; coller sur « la semaine 9 » d'un cycle de 3
+> fabriquerait 4 à 8 vides en silence. Le coach ajoute sa semaine, puis colle.
+
+> **Tranché en #4** (la semaine cible non vide) : **remplacement**, jamais fusion. Ce n'est pas un
+> choix de confort — deux semaines portant chacune une séance le mardi en position 0 collisionnent
+> sur l'unicité, et renuméroter pour absorber réordonnerait la journée du coach sans qu'aucune règle
+> ne dise qui passe devant. L'API remplace sans état d'âme (elle est idempotente) ; c'est **l'UI** qui
+> porte la confirmation, armée à la manière d'une suppression et seulement quand il y a quelque chose
+> à écraser. Le toast annonce ensuite le nombre de séances qui ont atterri — sans quoi un collage
+> remplaçant 4 séances par 2 passerait inaperçu.
+
+> **Tranché en #4** (le cycle diffusé) : coller dans un `PUBLISHED` est **refusé** (409). Chaque
+> séance écrite notifierait l'athlète séparément et rien ne groupe ces notifications (dette **N-6**,
+> [#98](https://github.com/Cimavia/cimavia/issues/98)) : une semaine de cinq séances lui enverrait
+> cinq notifications et cinq push. Le geste n'existe donc pas sur un cycle diffusé plutôt que
+> d'exister en harcelant. **Ce n'est PAS de la dette** : c'est un choix de périmètre, et non une
+> feature reportée — aucune issue ne la porte. Le jour où on voudrait l'ouvrir, #98 devrait atterrir
+> d'abord. En revanche, **copier DEPUIS un cycle diffusé est autorisé** : lire ne mute rien, et
+> « reprendre le bloc du mois dernier » est le cas d'usage même de la feature.
+
+> **Tranché en #4** (la brique partagée avec [#5](https://github.com/Cimavia/cimavia/issues/5)) : on
+> n'écrit **pas** de service de copie profonde générique, mais on isole l'**atome** que #5 appellera N
+> fois. #5 a quatre exigences que #4 n'a pas — réassigner à un autre athlète, créer le plan cible qui
+> n'existe pas encore, décaler vers un lundi arbitraire, ne pas copier la facture (1:1 avec le cycle,
+> P6) — et son corps dit encore « à préciser plus tard » sur trois d'entre elles : généraliser
+> maintenant, ce serait concevoir contre une spec inventée. L'atome extrait est
+> `insertScheduledSessionExercises` (`plan/scheduled-session.writer.ts`), qui reçoit les documents
+> **déjà résolus par l'appelant** — c'est là tout le seam : une **création** les lit dans la
+> bibliothèque, une **copie** les lit sur l'instance source, parce que `sourceExerciseId` passe à
+> `null` (`SetNull`) si le coach a supprimé l'exercice entre-temps et que repasser par la bibliothèque
+> perdrait alors des documents que l'instance porte pourtant encore. Reste à #5 : la création du plan,
+> la réassignation d'athlète, le choix du lundi, la facturation.
+
+> **Tranché en #4** (le presse-papier, côté web) : il vit dans `sessionStorage` derrière
+> `useSyncExternalStore`, et non dans un `useState` ni un provider. Il doit survivre au **changement
+> de route** (copier dans un cycle pour coller dans un autre est la moitié de la feature, et un état
+> local mourrait au démontage du builder), **mourir avec l'onglet**, et être lu par des composants
+> **frères** (chaque carte de semaine, plus le bandeau) — le stockage *est* déjà l'état partagé, un
+> contexte ne ferait que le recopier. Deux conséquences assumées : aucun partage **entre onglets**
+> (déclencheur : aucun — un coach ne construit pas un cycle dans deux onglets), et **coller ne vide
+> pas** le presse-papier, parce que reproduire une même semaine sur plusieurs semaines d'affilée est
+> le geste courant.
+
+> **Écart de maquette assumé** : `coach_builder_planification.dc.html` ne prévoit **aucun** geste de
+> copie — l'en-tête de semaine n'y porte que le type, le compteur de séances et « Déplier ». Les deux
+> boutons (« Copier », « Coller ici ») y ont été ajoutés, plus un **bandeau** en tête du builder
+> nommant la semaine armée. Le bandeau n'est pas décoratif : le presse-papier survivant à la
+> navigation, des boutons « Coller ici » apparaîtraient sinon sur un autre cycle sans que rien ne dise
+> ce qui est armé ni d'où il vient.
 
 ---
 
