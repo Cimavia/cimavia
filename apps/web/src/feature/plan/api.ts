@@ -1,4 +1,5 @@
 import type {
+  CopyPlanWeekInput,
   CreatePlanInput,
   CreateScheduledSessionInput,
   PlanDto,
@@ -64,6 +65,12 @@ export function updatePlanWeek(weekId: string, input: UpdatePlanWeekInput): Prom
 
 export function deletePlanWeek(weekId: string): Promise<PlanDto> {
   return api.delete<PlanDto>(`/plan-weeks/${weekId}`);
+}
+
+// Colle le contenu d'une autre semaine ICI : la cible est la ressource, la source voyage dans le
+// corps. Aucune date n'est transmise — l'API les recalcule depuis le lundi de la semaine cible.
+export function copyPlanWeek(targetWeekId: string, input: CopyPlanWeekInput): Promise<PlanDto> {
+  return api.post<PlanDto>(`/plan-weeks/${targetWeekId}/copy-from`, input);
 }
 
 // ── Séances planifiées ───────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
+import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
@@ -34,6 +35,7 @@ export function PlanBuilderScreen() {
   const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
   const { addWeek, isBusy } = usePlanMutations(planId);
+  const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
   const { data: billing } = usePlanBilling(planId);
 
@@ -124,6 +126,23 @@ export function PlanBuilderScreen() {
 
         <PlanStatusLine status={plan.status} isBillingFilled={billing != null} />
 
+        {/* Le presse-papier survit à la navigation (c'est ce qui rend le collage inter-cycle
+            possible) : sans ce bandeau, des boutons « Coller ici » apparaîtraient sur un cycle
+            sans que rien ne dise ce qui est armé, ni d'où il vient. */}
+        {clipboard == null ? null : (
+          <div className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface-hi px-cmv-md py-cmv-sm">
+            <span className="text-cmv-caption text-cmv-text-mid">
+              {t("plan.clipboard.banner", {
+                number: clipboard.weekNumber,
+                plan: clipboard.planTitle,
+              })}
+            </span>
+            <CmvButton variant="ghost" onClick={clearClipboard}>
+              {t("plan.clipboard.clear")}
+            </CmvButton>
+          </div>
+        )}
+
         {plan.description == null ? null : (
           <p className="max-w-3xl text-cmv-body text-cmv-text-mid">{plan.description}</p>
         )}
@@ -141,6 +160,8 @@ export function PlanBuilderScreen() {
           <PlanWeekCard
             key={week.id}
             planId={planId}
+            planTitle={plan.title}
+            isPublished={isPublished}
             week={week}
             onAddSession={(date) => onOpenCreate(week, date)}
             onEditSession={(session) => onOpenEdit(week, session)}

@@ -3,6 +3,7 @@ import { PlanWeekType, planWeekDays } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
+import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDateRange, formatDayLabel } from "@/shared/util/date.util";
@@ -13,6 +14,8 @@ import { formatDateRange, formatDayLabel } from "@/shared/util/date.util";
 
 type PlanWeekCardProps = {
   planId: string;
+  planTitle: string;
+  isPublished: boolean;
   week: PlanWeekDto;
   onAddSession: (date: string) => void;
   onEditSession: (session: ScheduledSessionSummaryDto) => void;
@@ -20,12 +23,57 @@ type PlanWeekCardProps = {
 
 export function PlanWeekCard({
   planId,
+  planTitle,
+  isPublished,
   week,
   onAddSession,
   onEditSession,
 }: Readonly<PlanWeekCardProps>) {
   const { t } = useTranslation();
-  const { updateWeek, removeWeek, isBusy } = usePlanMutations(planId);
+  const { updateWeek, removeWeek, pasteWeek, isBusy } = usePlanMutations(planId);
+  const { clipboard, copyWeek } = usePlanClipboard();
+
+  /**
+   * Le bouton « Coller ici » n'apparaît qu'une fois une semaine copiée, et jamais sur celle qui
+   * l'a été. Trois formes, selon ce que le geste va faire :
+   *  - cycle DIFFUSÉ → désactivé, avec sa raison. Le masquer laisserait croire que la feature
+   *    n'existe pas, alors que le builder reste éditable sur un cycle diffusé (CDC §5.7) ;
+   *  - semaine cible VIDE → un clic suffit, rien n'est détruit ;
+   *  - semaine cible OCCUPÉE → confirmation armée annonçant le nombre de séances remplacées,
+   *    comme pour une suppression (le collage remplace, il ne fusionne pas).
+   */
+  function renderPasteAction() {
+    if (clipboard == null || clipboard.planWeekId === week.id) return null;
+
+    if (isPublished) {
+      return (
+        <CmvButton variant="ghost" disabled title={t("plan.week.pasteDisabledPublished")}>
+          {t("plan.week.paste")}
+        </CmvButton>
+      );
+    }
+
+    const onPaste = () =>
+      pasteWeek.mutate({ targetWeekId: week.id, sourcePlanWeekId: clipboard.planWeekId });
+
+    if (week.sessions.length === 0) {
+      return (
+        <CmvButton variant="secondary" disabled={isBusy} onClick={onPaste}>
+          {t("plan.week.paste")}
+        </CmvButton>
+      );
+    }
+
+    return (
+      <CmvConfirmButton
+        label={t("plan.week.paste")}
+        confirmLabel={t("plan.week.pasteConfirm", { count: week.sessions.length })}
+        cancelLabel={t("common.cancel")}
+        disabled={isBusy}
+        onConfirm={onPaste}
+      />
+    );
+  }
 
   const days = planWeekDays(week.startDate) ?? [];
   const sessionsByDay = new Map<string, ScheduledSessionSummaryDto[]>();
@@ -66,6 +114,24 @@ export function PlanWeekCard({
         <div className="flex-1" />
 
         <CmvBadge>{t("plan.week.sessionCount", { count: week.sessions.length })}</CmvBadge>
+
+        {/* Copier reste offert sur un cycle diffusé : lire une semaine ne la modifie pas, et
+            « reprendre le bloc du mois dernier » est le cas d'usage même de la feature. */}
+        <CmvButton
+          variant="ghost"
+          onClick={() =>
+            copyWeek({
+              planWeekId: week.id,
+              planId,
+              planTitle,
+              weekNumber: week.weekNumber,
+            })
+          }
+        >
+          {t("plan.week.copy")}
+        </CmvButton>
+        {renderPasteAction()}
+
         <CmvConfirmButton
           label={t("plan.week.delete")}
           confirmLabel={t("common.confirmDelete")}
