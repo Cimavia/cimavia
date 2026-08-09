@@ -3,6 +3,7 @@ import {
   isDateInPlanWeek,
   planEndDate,
   planWeekDays,
+  planWeekNumber,
   planWeekRange,
   selectCurrentPlan,
 } from "./plan.util";
@@ -96,5 +97,33 @@ describe("selectCurrentPlan", () => {
     expect(
       selectCurrentPlan([{ id: "empty", startDate: MONDAY, weekCount: 0 }], MONDAY),
     ).toBeNull();
+  });
+});
+
+describe("planWeekNumber", () => {
+  // Cycle de 4 semaines démarrant le lundi 2026-10-12 → dernier jour = dimanche 2026-11-08.
+  const PLAN = { startDate: MONDAY, weekCount: 4 };
+
+  it("compte les semaines à partir de 1, du lundi au dimanche", () => {
+    expect(planWeekNumber(PLAN, MONDAY)).toBe(1);
+    expect(planWeekNumber(PLAN, "2026-10-18")).toBe(1); // dimanche de S1
+    expect(planWeekNumber(PLAN, "2026-10-19")).toBe(2); // lundi de S2
+    expect(planWeekNumber(PLAN, "2026-11-08")).toBe(4); // dernier jour du cycle
+  });
+
+  /**
+   * Hors du cycle, `null` — jamais 1 ni `weekCount`. Un cycle qui commence lundi prochain n'en est
+   * pas à sa semaine 1, et un cycle terminé n'en est pas à sa dernière : afficher « S1/4 » ou
+   * « S4/4 » dans ces cas inventerait une progression que personne n'a.
+   */
+  it("rend null avant le début et après la fin du cycle", () => {
+    expect(planWeekNumber(PLAN, "2026-10-11")).toBeNull(); // la veille du départ
+    expect(planWeekNumber(PLAN, "2026-11-09")).toBeNull(); // le lendemain de la fin
+  });
+
+  it("rend null sur une date illisible ou un cycle sans semaine", () => {
+    expect(planWeekNumber(PLAN, "12/10/2026")).toBeNull();
+    expect(planWeekNumber({ startDate: MONDAY, weekCount: 0 }, MONDAY)).toBeNull();
+    expect(planWeekNumber({ startDate: "pas une date", weekCount: 4 }, MONDAY)).toBeNull();
   });
 });

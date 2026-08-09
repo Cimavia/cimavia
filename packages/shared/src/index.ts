@@ -283,6 +283,17 @@ export type { Locale as LocaleType } from "./locale";
 export { Locale } from "./locale";
 export type { Role as RoleType } from "./role";
 export { Role } from "./role";
+export type {
+  AthleteConversationSource,
+  AthleteFeedbackSource,
+  AthleteIdentity,
+  AthleteInvoiceSource,
+  AthletePlanSource,
+  AthleteRow,
+  AthleteRowPlan,
+  AthleteRowsInput,
+} from "./util/athlete-row.util";
+export { buildAthleteRows } from "./util/athlete-row.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,
@@ -319,11 +330,13 @@ export {
   resolveInvoiceState,
 } from "./util/invoice.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
+export { initialsOf } from "./util/name.util";
 export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
 export {
   isDateInPlanWeek,
   planEndDate,
   planWeekDays,
+  planWeekNumber,
   planWeekRange,
   selectCurrentPlan,
 } from "./util/plan.util";

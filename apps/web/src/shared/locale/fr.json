@@ -240,7 +240,6 @@
   },
   "nav": {
     "dashboard": "Tableau de bord",
-    "athletes": "Athlètes",
     "library": "Bibliothèque",
     "plans": "Planifications",
     "feedbacks": "Débriefs",
@@ -340,16 +339,7 @@
     }
   },
   "athlete": {
-    "title": "Mes athlètes",
-    "subtitle": "{{count}} athlète(s) suivi(s)",
     "invite": "Inviter un athlète",
-    "openSheet": "Fiche athlète",
-    "createPlan": "Créer un cycle",
-    "seePlans": "Voir les cycles",
-    "relationStatus": {
-      "PENDING": "En attente",
-      "ACTIVE": "Actif"
-    },
     "invitationStatus": {
       "PENDING": "En attente",
       "ACCEPTED": "Acceptée",
@@ -391,7 +381,21 @@
     "athleteHint": "Votre planning et vos séances vivent sur l'application mobile.",
     "section": {
       "todo": "À traiter",
-      "overview": "Vue d'ensemble"
+      "overview": "Vue d'ensemble",
+      "athletes": "Mes athlètes"
+    },
+    "table": {
+      "columns": {
+        "athlete": "Athlète",
+        "plan": "Planification",
+        "feedbacks": "Débriefs",
+        "messages": "Messages",
+        "invoice": "Facturation"
+      },
+      "weekProgress": "S{{current}}/{{total}}",
+      "planIdle": "{{total}} semaines",
+      "createPlan": "Créer un cycle",
+      "openSheet": "Fiche"
     },
     "error": {
       "title": "Certaines données n'ont pas pu être chargées",
