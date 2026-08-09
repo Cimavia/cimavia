@@ -3,6 +3,10 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvAvatar, CmvBadge, CmvButton, CmvProgressBar } from "@/shared/component";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values dashboard.table.columns: COLUMNS
+
 /**
  * Le tableau de suivi des athlètes (#113, maquette pd-4).
  *

@@ -7,6 +7,10 @@ import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/co
 import { cn } from "@/shared/util/cn.util";
 import { formatDateRange, formatDayLabel } from "@/shared/util/date.util";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values plan.weekType: PlanWeekType
+
 type PlanWeekCardProps = {
   planId: string;
   week: PlanWeekDto;

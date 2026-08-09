@@ -12,6 +12,10 @@ import {
 } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values athlete.invitationStatus: InvitationStatus
+
 type InvitationPanelProps = {
   onClose: () => void;
 };

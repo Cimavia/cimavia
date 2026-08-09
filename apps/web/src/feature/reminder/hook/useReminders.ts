@@ -9,6 +9,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { reminderApi, reminderKeys } from "@/feature/reminder/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values reminder.toast: ReminderStatus, created
+
 export function useReminders() {
   return useQuery<ReminderDto[]>({
     queryKey: reminderKeys.list(),

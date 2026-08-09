@@ -2,6 +2,10 @@ import type { ExerciseDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { CmvBadge, CmvCard } from "@/shared/component";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values library.category: ExerciseCategory
+
 type ExerciseCardProps = {
   exercise: ExerciseDto;
   onSelect: (exercise: ExerciseDto) => void;
