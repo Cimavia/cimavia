@@ -240,7 +240,6 @@
   },
   "nav": {
     "dashboard": "Tableau de bord",
-    "athletes": "Athlètes",
     "library": "Bibliothèque",
     "plans": "Planifications",
     "feedbacks": "Débriefs",
@@ -340,16 +339,7 @@
     }
   },
   "athlete": {
-    "title": "Mes athlètes",
-    "subtitle": "{{count}} athlète(s) suivi(s)",
     "invite": "Inviter un athlète",
-    "openSheet": "Fiche athlète",
-    "createPlan": "Créer un cycle",
-    "seePlans": "Voir les cycles",
-    "relationStatus": {
-      "PENDING": "En attente",
-      "ACTIVE": "Actif"
-    },
     "invitationStatus": {
       "PENDING": "En attente",
       "ACCEPTED": "Acceptée",

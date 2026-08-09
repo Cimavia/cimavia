@@ -5,10 +5,10 @@ import { NotificationBell } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { authClient } from "@/shared/lib/auth";
 
-// Sections du coach.
+// Sections du coach. Pas d'entrée « Athlètes » : la liste vit désormais dans le tableau de bord
+// (#113), et deux entrées menant au même écran ne feraient qu'hésiter.
 const NAV_ITEMS = [
   { to: "/", labelKey: "nav.dashboard" },
-  { to: "/athletes", labelKey: "nav.athletes" },
   { to: "/library", labelKey: "nav.library" },
   { to: "/plans", labelKey: "nav.plans" },
   { to: "/feedbacks", labelKey: "nav.feedbacks" },

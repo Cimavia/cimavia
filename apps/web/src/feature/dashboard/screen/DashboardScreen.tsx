@@ -11,6 +11,7 @@ import { Navigate, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
+import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { AthleteTrackingTable } from "@/feature/dashboard/component/AthleteTrackingTable";
 import { DashboardTile } from "@/feature/dashboard/component/DashboardTile";
@@ -20,7 +21,7 @@ import { useConversations } from "@/feature/message/hook/useMessages";
 import { useUnreadNotificationCount } from "@/feature/notification/hook/useNotifications";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
-import { CmvAppShell, CmvButton, CmvErrorState } from "@/shared/component";
+import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -77,6 +78,7 @@ export function DashboardScreen() {
   // La fiche s'ouvre depuis une ligne du tableau. On garde l'ID, pas l'objet : la liste peut être
   // rafraîchie sous le panneau, et une copie figée y afficherait un nom périmé.
   const [sheetAthleteId, setSheetAthleteId] = useState<string | null>(null);
+  const [invitationOpen, setInvitationOpen] = useState(false);
 
   if (isPending) {
     return (
@@ -213,6 +215,9 @@ export function DashboardScreen() {
     <CmvAppShell
       title={t("dashboard.title")}
       subtitle={t("dashboard.welcome", { name: authSession.user.name })}
+      // Action primaire de l'écran, comme la top bar de la maquette : inviter un athlète était le
+      // seul geste que `/athletes` portait et que les tuiles ne remplacent pas.
+      actions={<CmvButton onClick={() => setInvitationOpen(true)}>{t("athlete.invite")}</CmvButton>}
     >
       <div className="flex flex-col gap-cmv-xl">
         {/* Au-dessus des rangées, jamais à leur place : les tuiles qui ONT répondu restent lisibles,
@@ -262,23 +267,36 @@ export function DashboardScreen() {
           </div>
         </section>
 
-        {/* Le tableau n'est rendu QUE si la liste des athlètes a répondu et n'est pas vide : sans
-            elle, le bandeau d'erreur a déjà parlé ; vide, l'état vide de l'écran prendra le relais
-            (déménagé depuis `/athletes` au commit suivant). */}
-        {rows != null && rows.length > 0 ? (
+        {/* Trois états distincts, comme partout ailleurs : `rows` à `null` = liste indisponible (le
+            bandeau ci-dessus l'a déjà dit, on n'ajoute rien) ; vide = le coach n'a aucun athlète et
+            on l'invite ; sinon le tableau. */}
+        {rows == null ? null : (
           <section className="flex flex-col gap-cmv-md">
             <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
               {t("dashboard.section.athletes")}
             </h2>
-            <AthleteTrackingTable
-              rows={rows}
-              canOfferPlan={!plans.isError}
-              onOpenSheet={setSheetAthleteId}
-            />
+            {rows.length === 0 ? (
+              <CmvEmptyState
+                title={t("athlete.empty.title")}
+                description={t("athlete.empty.description")}
+                action={
+                  <CmvButton onClick={() => setInvitationOpen(true)}>
+                    {t("athlete.invite")}
+                  </CmvButton>
+                }
+              />
+            ) : (
+              <AthleteTrackingTable
+                rows={rows}
+                canOfferPlan={!plans.isError}
+                onOpenSheet={setSheetAthleteId}
+              />
+            )}
           </section>
-        ) : null}
+        )}
       </div>
 
+      {invitationOpen ? <InvitationPanel onClose={() => setInvitationOpen(false)} /> : null}
       {sheetAthlete == null ? null : (
         <AthleteSheetPanel athlete={sheetAthlete} onClose={() => setSheetAthleteId(null)} />
       )}
