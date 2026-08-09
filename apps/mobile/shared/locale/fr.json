@@ -1,9 +1,7 @@
 {
   "common": {
-    "appName": "cimavia",
     "email": "Adresse e-mail",
     "password": "Mot de passe",
-    "loading": "Chargement…",
     "logout": "Se déconnecter",
     "offline": "Hors-ligne — séances en cache, documents indisponibles",
     "errorTitle": "Chargement impossible",
@@ -45,15 +43,6 @@
       "sent": "Si un compte existe, un lien de réinitialisation vient d'être envoyé.",
       "back": "Retour à la connexion"
     },
-    "reset": {
-      "title": "Nouveau mot de passe",
-      "newPassword": "Nouveau mot de passe",
-      "submit": "Réinitialiser",
-      "submitting": "Réinitialisation…",
-      "success": "Mot de passe réinitialisé. Vous pouvez vous connecter.",
-      "invalidToken": "Lien invalide ou expiré.",
-      "toLogin": "Aller à la connexion"
-    },
     "errors": {
       "generic": "Une erreur est survenue. Réessayez.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",
@@ -92,7 +81,6 @@
       "TECHNIQUE": "Technique"
     },
     "week": {
-      "number": "Semaine {{number}}",
       "numberAndType": "Semaine {{number}} · {{type}}"
     },
     "empty": {
@@ -147,9 +135,7 @@
     }
   },
   "messages": {
-    "title": "Messages",
     "placeholder": "Écris un message…",
-    "send": "Envoyer",
     "sendError": "Message non envoyé. Vérifie ta connexion.",
     "empty": {
       "title": "Aucun message",
@@ -160,8 +146,6 @@
       "description": "Rejoins un coach pour échanger avec lui en messagerie."
     },
     "media": {
-      "audio": "🎤 Message vocal",
-      "image": "📷 Photo",
       "video": "🎥 Vidéo",
       "uploading": "Envoi en cours…",
       "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie.",
