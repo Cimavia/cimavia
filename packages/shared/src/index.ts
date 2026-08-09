@@ -330,6 +330,7 @@ export {
   resolveInvoiceState,
 } from "./util/invoice.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
+export { initialsOf } from "./util/name.util";
 export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
 export {
   isDateInPlanWeek,

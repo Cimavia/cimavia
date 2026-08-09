@@ -1,4 +1,6 @@
 import {
+  buildAthleteRows,
+  type CoachAthleteDto,
   countOverdueInvoices,
   countPendingInvoices,
   countUnreadFeedbacks,
@@ -6,11 +8,15 @@ import {
   todayIsoDate,
 } from "@cmv/shared";
 import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
+import { AthleteTrackingTable } from "@/feature/dashboard/component/AthleteTrackingTable";
 import { DashboardTile } from "@/feature/dashboard/component/DashboardTile";
 import { useFeedbacks } from "@/feature/feedback/hook/useFeedbacks";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
+import { useConversations } from "@/feature/message/hook/useMessages";
 import { useUnreadNotificationCount } from "@/feature/notification/hook/useNotifications";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
@@ -50,8 +56,8 @@ type OverviewTile = {
 
 /**
  * Le strict nécessaire pour signaler une panne et la rejouer. Typé à la main plutôt qu'avec les
- * génériques de TanStack : les six requêtes ne renvoient pas le même type, seul ce contrat leur est
- * commun.
+ * génériques de TanStack : les sept requêtes ne renvoient pas le même type, seul ce contrat leur
+ * est commun.
  */
 type TileSource = { isError: boolean; refetch: () => unknown };
 
@@ -63,9 +69,14 @@ export function DashboardScreen() {
   const plans = usePlans();
   const feedbacks = useFeedbacks();
   const invoices = useInvoices();
+  const conversations = useConversations();
   const reminderSummary = useReminderSummary();
   // Même clé de cache que la cloche : la tuile ne déclenche aucune requête de plus.
   const unreadNotifications = useUnreadNotificationCount();
+
+  // La fiche s'ouvre depuis une ligne du tableau. On garde l'ID, pas l'objet : la liste peut être
+  // rafraîchie sous le panneau, et une copie figée y afficherait un nom périmé.
+  const [sheetAthleteId, setSheetAthleteId] = useState<string | null>(null);
 
   if (isPending) {
     return (
@@ -112,6 +123,7 @@ export function DashboardScreen() {
     plans,
     feedbacks,
     invoices,
+    conversations,
     reminderSummary,
     unreadNotifications,
   ];
@@ -181,6 +193,22 @@ export function DashboardScreen() {
     },
   ];
 
+  /**
+   * La jointure des cinq listes vit dans `@cmv/shared`, testée : l'écran ne fait que la rendre.
+   * `null` = liste d'athlètes indisponible — le bandeau d'erreur le dit déjà, on n'affiche alors
+   * pas un tableau vide qui laisserait croire que le coach n'a aucun athlète.
+   */
+  const rows = buildAthleteRows({
+    athletes: athletes.data,
+    plans: plans.data,
+    feedbacks: feedbacks.data,
+    conversations: conversations.data,
+    invoices: invoices.data,
+    today,
+  });
+  const sheetAthlete: CoachAthleteDto | null =
+    (athletes.data ?? []).find((athlete) => athlete.athleteId === sheetAthleteId) ?? null;
+
   return (
     <CmvAppShell
       title={t("dashboard.title")}
@@ -233,7 +261,27 @@ export function DashboardScreen() {
             ))}
           </div>
         </section>
+
+        {/* Le tableau n'est rendu QUE si la liste des athlètes a répondu et n'est pas vide : sans
+            elle, le bandeau d'erreur a déjà parlé ; vide, l'état vide de l'écran prendra le relais
+            (déménagé depuis `/athletes` au commit suivant). */}
+        {rows != null && rows.length > 0 ? (
+          <section className="flex flex-col gap-cmv-md">
+            <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
+              {t("dashboard.section.athletes")}
+            </h2>
+            <AthleteTrackingTable
+              rows={rows}
+              canOfferPlan={!plans.isError}
+              onOpenSheet={setSheetAthleteId}
+            />
+          </section>
+        ) : null}
       </div>
+
+      {sheetAthlete == null ? null : (
+        <AthleteSheetPanel athlete={sheetAthlete} onClose={() => setSheetAthleteId(null)} />
+      )}
     </CmvAppShell>
   );
 }

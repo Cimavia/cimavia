@@ -391,7 +391,21 @@
     "athleteHint": "Votre planning et vos séances vivent sur l'application mobile.",
     "section": {
       "todo": "À traiter",
-      "overview": "Vue d'ensemble"
+      "overview": "Vue d'ensemble",
+      "athletes": "Mes athlètes"
+    },
+    "table": {
+      "columns": {
+        "athlete": "Athlète",
+        "plan": "Planification",
+        "feedbacks": "Débriefs",
+        "messages": "Messages",
+        "invoice": "Facturation"
+      },
+      "weekProgress": "S{{current}}/{{total}}",
+      "planIdle": "{{total}} semaines",
+      "createPlan": "Créer un cycle",
+      "openSheet": "Fiche"
     },
     "error": {
       "title": "Certaines données n'ont pas pu être chargées",
