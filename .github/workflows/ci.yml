@@ -61,3 +61,9 @@ jobs:
 
       - name: Test
         run: pnpm turbo test
+
+      # Les clés i18n assemblées (`t(`a.b.${x}`)`) échappent au typecheck : sans cette étape, une
+      # clé renommée s'affiche en clair dans l'UI sans qu'aucune porte de qualité ne bronche.
+      # Sans `--strict` : une clé morte est un signal, pas un blocage de PR.
+      - name: Check i18n keys
+        run: pnpm check:i18n
