@@ -183,6 +183,7 @@ export {
   unreadCountDtoSchema,
 } from "./dto/notification.schema";
 export type {
+  CopyPlanWeekInput,
   CreatePlanInput,
   CreateScheduledSessionInput,
   PlanDto,
@@ -201,6 +202,7 @@ export type {
   UpdateScheduledSessionInput,
 } from "./dto/plan.schema";
 export {
+  copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
   PLAN_DESCRIPTION_MAX_LENGTH,
@@ -331,10 +333,11 @@ export {
 } from "./util/invoice.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
-export type { PlanPeriod, PlanWeekRange } from "./util/plan.util";
+export type { PlanPeriod, PlanWeekRange, PlanWeekRef } from "./util/plan.util";
 export {
   isDateInPlanWeek,
   planEndDate,
+  planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,
   planWeekRange,

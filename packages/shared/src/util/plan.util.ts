@@ -9,6 +9,10 @@ export type PlanWeekRange = { startDate: string; endDate: string };
 // Le minimum pour situer un plan dans le temps : sa date de début et son nombre de semaines.
 export type PlanPeriod = { startDate: string; weekCount: number };
 
+// Une semaine désignée par son cycle : de quoi la situer dans le calendrier sans la charger.
+// Les deux champs sont nécessaires — le numéro seul ne dit rien tant qu'on ignore d'où il compte.
+export type PlanWeekRef = { planStartDate: string; weekNumber: number };
+
 // Plage de la semaine `weekNumber` (1-based) d'un plan démarrant à `planStartDate` (un lundi,
 // contrainte portée par planStartDateSchema) : aucune date n'est stockée sur PlanWeek, elle se
 // déduit du seul `startDate` du plan → pas de dérive possible entre les deux.
@@ -45,6 +49,30 @@ export function isDateInPlanWeek(planStartDate: string, weekNumber: number, date
   const range = planWeekRange(planStartDate, weekNumber);
   if (range == null || !isIsoDate(date)) return false;
   return date >= range.startDate && date <= range.endDate;
+}
+
+/**
+ * De combien de jours décaler le contenu d'une semaine copiée vers une autre (#4).
+ *
+ * Copier une semaine n'emporte PAS ses dates, seulement ce qui y est planifié : les
+ * `scheduledDate` sont recalculées à partir du lundi de la semaine cible. Une séance du mardi
+ * reste donc le mardi, mais du mardi de la semaine d'arrivée.
+ *
+ * Le décalage se prend entre les deux LUNDIS, jamais entre les numéros de semaine : `(M−N)×7`
+ * ne vaut qu'à l'intérieur d'un même cycle, alors que la copie traverse aussi deux cycles aux
+ * `startDate` différents. Les deux étant des lundis (`planStartDateSchema`), le résultat est
+ * toujours un multiple de 7 — c'est ce qui préserve le jour de la semaine, et ce qui garde
+ * `@@unique([planWeekId, scheduledDate, position])` satisfaite après translation.
+ *
+ * `null` si l'une des deux semaines n'est pas situable (date illisible, numéro hors bornes) —
+ * surtout pas `0`, qui est un décalage LÉGITIME (deux semaines alignées) et ne doit pas servir
+ * de repli à « je n'ai pas su calculer ».
+ */
+export function planWeekCopyShiftDays(source: PlanWeekRef, target: PlanWeekRef): number | null {
+  const from = planWeekRange(source.planStartDate, source.weekNumber);
+  const to = planWeekRange(target.planStartDate, target.weekNumber);
+  if (from == null || to == null) return null;
+  return daysBetweenIsoDates(from.startDate, to.startDate);
 }
 
 /**

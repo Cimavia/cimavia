@@ -94,6 +94,22 @@ export const updatePlanWeekSchema = z
   .strict();
 export type UpdatePlanWeekInput = z.infer<typeof updatePlanWeekSchema>;
 
+/**
+ * Copier une semaine dans une autre (#4). Seule la SOURCE voyage dans le corps : la semaine
+ * cible est la ressource de la route, et c'est elle qui est écrite.
+ *
+ * Aucune date n'est transmise — la copie n'emporte que ce qui est planifié, et les
+ * `scheduledDate` se recalculent depuis le lundi de la semaine cible (`planWeekCopyShiftDays`).
+ * Laisser le client proposer des dates rouvrirait la porte à une séance posée hors de la plage
+ * de sa semaine, invariant que l'API tient seule.
+ */
+export const copyPlanWeekSchema = z
+  .object({
+    sourcePlanWeekId: z.string().min(1),
+  })
+  .strict();
+export type CopyPlanWeekInput = z.infer<typeof copyPlanWeekSchema>;
+
 // Exercice d'une séance planifiée : une COPIE (titre/description/catégorie), pas une référence.
 // `sourceExerciseId` ne sert qu'à la traçabilité (et à recopier les documents de la
 // bibliothèque à l'écriture) : il peut être null, et l'affichage n'en dépend jamais.

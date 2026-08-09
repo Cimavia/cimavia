@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isDateInPlanWeek,
   planEndDate,
+  planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,
   planWeekRange,
@@ -66,6 +67,77 @@ describe("isDateInPlanWeek", () => {
     expect(isDateInPlanWeek(MONDAY, 1, "2026-10-19")).toBe(false);
     expect(isDateInPlanWeek(MONDAY, 2, "2026-10-19")).toBe(true);
     expect(isDateInPlanWeek(MONDAY, 1, "2026-10-11")).toBe(false);
+  });
+});
+
+describe("planWeekCopyShiftDays", () => {
+  // Un second cycle, démarrant 7 semaines après le premier (lundi lui aussi).
+  const OTHER_MONDAY = "2026-11-30";
+
+  it("décale du nombre de semaines franchies, à l'intérieur d'un même cycle", () => {
+    expect(
+      planWeekCopyShiftDays(
+        { planStartDate: MONDAY, weekNumber: 1 },
+        { planStartDate: MONDAY, weekNumber: 3 },
+      ),
+    ).toBe(14);
+  });
+
+  it("décale en arrière quand on colle vers une semaine antérieure", () => {
+    expect(
+      planWeekCopyShiftDays(
+        { planStartDate: MONDAY, weekNumber: 3 },
+        { planStartDate: MONDAY, weekNumber: 1 },
+      ),
+    ).toBe(-14);
+  });
+
+  // Le cas que `(M−N)×7` ne saurait pas traiter : deux cycles aux lundis différents.
+  it("prend l'écart entre les deux lundis, et non entre les numéros de semaine", () => {
+    expect(
+      planWeekCopyShiftDays(
+        { planStartDate: MONDAY, weekNumber: 2 },
+        { planStartDate: OTHER_MONDAY, weekNumber: 1 },
+      ),
+    ).toBe(42);
+  });
+
+  // 0 est un RÉSULTAT, pas un aveu d'échec : deux semaines tombant sur le même lundi ne décalent
+  // rien. C'est exactement pourquoi l'erreur se signale par `null` et jamais par cette valeur.
+  it("rend 0 quand les deux semaines tombent sur le même lundi", () => {
+    expect(
+      planWeekCopyShiftDays(
+        { planStartDate: MONDAY, weekNumber: 8 },
+        { planStartDate: OTHER_MONDAY, weekNumber: 1 },
+      ),
+    ).toBe(0);
+  });
+
+  // L'invariant qui fait tenir la copie : jour de semaine préservé, et donc unicité
+  // (planWeekId, scheduledDate, position) conservée après translation. Les deux sens sont
+  // couverts — au-delà de la semaine 11, la cible précède la source.
+  it("décale toujours d'un nombre ENTIER de semaines, entre deux cycles distincts", () => {
+    for (const weekNumber of [1, 2, 5, 12, 52]) {
+      const shift = planWeekCopyShiftDays(
+        { planStartDate: MONDAY, weekNumber },
+        { planStartDate: OTHER_MONDAY, weekNumber: 4 },
+      );
+      expect(shift).not.toBeNull();
+      expect(Number.isInteger((shift as number) / 7)).toBe(true);
+    }
+  });
+
+  it("rend null quand une semaine n'est pas situable, jamais 0", () => {
+    const target = { planStartDate: MONDAY, weekNumber: 1 };
+    expect(planWeekCopyShiftDays({ planStartDate: MONDAY, weekNumber: 0 }, target)).toBeNull();
+    expect(planWeekCopyShiftDays({ planStartDate: MONDAY, weekNumber: -3 }, target)).toBeNull();
+    expect(planWeekCopyShiftDays({ planStartDate: MONDAY, weekNumber: 1.5 }, target)).toBeNull();
+    expect(
+      planWeekCopyShiftDays({ planStartDate: "2026-02-31", weekNumber: 1 }, target),
+    ).toBeNull();
+    expect(
+      planWeekCopyShiftDays(target, { planStartDate: "pas-une-date", weekNumber: 1 }),
+    ).toBeNull();
   });
 });
 
