@@ -239,7 +239,8 @@ autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur �
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| D-1 | **Six requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, résumé des rappels, non-lues), dont deux en polling : la jointure est faite côté client, sans endpoint d'agrégat. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) |
+| D-1 | **Sept requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, conversations, résumé des rappels, non-lues) : la jointure du tableau est faite côté client, sans endpoint d'agrégat. Le **polling** de deux d'entre elles a été coupé sur cet écran (#113) — il ne reste que celui du badge, qui est sa raison d'être. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) |
+| D-2 | **Pas de recherche, de tri ni de filtre** sur le tableau de suivi, là où la maquette en prévoit (« À relancer », « Sans plan », tri par activité). Acceptable tant qu'un coach compte ses athlètes sur les doigts d'une main. | 🟢 | — *(déclencheur : un coach qui scrolle pour se retrouver)* |
 
 > **Tranché en #52** (aucune information lue deux fois) : c'est la contrainte qui a façonné l'écran,
 > parce que sept tuiles offrent sept occasions de recompter la même chose. Trois conséquences.
@@ -257,11 +258,32 @@ autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur �
 > cloche est une union par construction ; la tuile en est le panneau indicateur, et son libellé y
 > renvoie.
 
-> **Écart de maquette, consigné** : `coach_dashboard_athletes.dc.html` décrit **un seul écran** —
-> strip de statistiques **au-dessus d'un tableau d'athlètes**. L'implémentation avait scindé en `/`
-> (tuiles) et `/athletes` (grille de cartes), sans que l'écart soit noté nulle part. Il est réparé
-> par [#113](https://github.com/Cimavia/cimavia/issues/113), qui ramène le tableau sur `/` et
-> supprime `/athletes`.
+> **Écart de maquette, ~~consigné~~ RÉSOLU en #113** : `coach_dashboard_athletes.dc.html` décrivait
+> **un seul écran** — strip de statistiques **au-dessus d'un tableau d'athlètes** — là où
+> l'implémentation avait scindé en `/` (tuiles) et `/athletes` (grille de cartes). Le tableau est
+> revenu sur `/`, et `/athletes` a été **supprimé** : son invitation et sa fiche athlète ont
+> déménagé (en-tête et bouton de ligne), et la route survit en **redirection** vers `/` — un 404 sur
+> un chemin qu'on a soi-même publié serait une régression gratuite.
+
+> **Tranché en #113** (ce que le tableau montre, et ce qu'il ne montre pas) :
+> **(1)** la colonne **« Dernière activité » de la maquette est supprimée**, pas reportée. Les
+> colonnes « Débriefs » et « Messages » la remplacent en disant *quoi* attend une réponse et en y
+> **menant** ; elle aurait de toute façon été partiellement fausse, une séance faite **sans** débrief
+> n'apparaissant dans aucune liste que le coach charge.
+> **(2)** pas de **sous-titre « spécialité »** sous le nom : `AthleteSheetDto` n'a qu'un `content`
+> texte libre, il n'y a aucune donnée derrière.
+> **(3)** pas de **badge de statut de relation** : `CoachAthleteStatus.PENDING` n'est jamais écrit
+> (`@default(ACTIVE)`, et `InvitationService` pose `ACTIVE`), et les services filtrent sur `ACTIVE`.
+> Une colonne de badges tous identiques n'informe personne. Les clés i18n correspondantes ont été
+> purgées.
+> **(4)** la pastille d'identité est en **fond neutre** : colorer par personne demande une palette
+> *décorative* que `@cmv/tokens` n'a pas — ses familles sont des **états**, et les détourner ferait
+> lire une alerte là où il n'y a qu'un nom (cf. arbitrage #37). La couleur et la photo arrivent avec
+> l'épic [#117](https://github.com/Cimavia/cimavia/issues/117) ; `CmvAvatar` sait déjà rendre une
+> image, aucun DTO ne la sert encore.
+> **(5)** le **chevron de fin de ligne** attend sa destination : il reviendra avec une route
+> `/athletes/$athleteId`. En attendant, c'est le bouton « Fiche » qui ouvre le panneau — un chevron
+> qui n'ouvre qu'un tiroir mentirait sur ce qui suit.
 
 > **Deux écarts volontaires** à la même maquette : les tuiles sont réparties en **deux rangées**
 > nommées (« À traiter » / « Vue d'ensemble ») là où la maquette n'en prévoyait qu'une de quatre —
