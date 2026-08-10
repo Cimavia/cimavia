@@ -1,7 +1,7 @@
 import type { SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { feedbackKeys, getMyFeedback, upsertMyFeedback } from "@/feature/feedback/api";
-import { planKeys, scheduledSessionKeys } from "@/feature/plan/api";
+import { myPlanKeys } from "@/feature/plan/api";
 
 export function useSessionFeedback(sessionId: string) {
   return useQuery<SessionFeedbackDto | null>({
@@ -22,8 +22,8 @@ export function useUpsertFeedback(sessionId: string) {
     mutationFn: (input: UpsertSessionFeedbackInput) => upsertMyFeedback(sessionId, input),
     onSuccess: (feedback) => {
       queryClient.setQueryData(feedbackKeys.detail(sessionId), feedback);
-      queryClient.invalidateQueries({ queryKey: scheduledSessionKeys.detail(sessionId) });
-      queryClient.invalidateQueries({ queryKey: planKeys.current() });
+      queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
+      queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });
     },
   });
 }

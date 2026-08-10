@@ -1,7 +1,7 @@
 import type { AcceptInvitationInput, CoachAthleteDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, coachKeys } from "@/feature/coach/api";
-import { planKeys } from "@/feature/plan/api";
+import { myPlanKeys } from "@/feature/plan/api";
 
 export function useMyCoach() {
   return useQuery<CoachAthleteDto | null>({
@@ -23,7 +23,7 @@ export function useAcceptInvitation() {
     mutationFn: (input: AcceptInvitationInput) => accountApi.acceptInvitation(input),
     onSuccess: (relation) => {
       queryClient.setQueryData(coachKeys.mine(), relation);
-      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      queryClient.invalidateQueries({ queryKey: myPlanKeys.all });
     },
   });
 }

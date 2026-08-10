@@ -21,7 +21,7 @@ import {
   prepareAudio,
   prepareMedia,
 } from "@/feature/feedback/util/media.util";
-import { planKeys, scheduledSessionKeys } from "@/feature/plan/api";
+import { myPlanKeys } from "@/feature/plan/api";
 import type { RecordedAudio } from "@/shared/component";
 
 // Après un ajout/retrait de média, la séance a pu passer en DONE : le planning et le détail
@@ -30,8 +30,8 @@ function useInvalidateFeedback(sessionId: string) {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: feedbackKeys.detail(sessionId) });
-    queryClient.invalidateQueries({ queryKey: scheduledSessionKeys.detail(sessionId) });
-    queryClient.invalidateQueries({ queryKey: planKeys.current() });
+    queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
+    queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });
   };
 }
 
