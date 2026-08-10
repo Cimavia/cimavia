@@ -1,23 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { pickRecorderMimeType } from "@/shared/util/media.util";
 
 export type RecordedWebAudio = { blob: Blob; durationSeconds: number };
 
-// Types que MediaRecorder produit selon le navigateur, restreints à ce que le schéma accepte
-// (webm sur Chrome/Firefox, mp4 sur Safari). Le premier supporté gagne.
-const PREFERRED_MIME_TYPES = ["audio/webm", "audio/mp4"];
-
-function pickMimeType(): string | undefined {
-  return PREFERRED_MIME_TYPES.find((mime) => MediaRecorder.isTypeSupported(mime));
-}
+export type WebAudioRecorderOptions = {
+  /**
+   * Les mimes que le SCHÉMA de la feature accepte, pas ceux que le navigateur sait produire : la
+   * messagerie accepte `audio/webm`, le débrief non.
+   */
+  allowedMimeTypes: readonly string[];
+  /** Clés i18n LITTÉRALES, fournies par la feature — jamais assemblées ici. */
+  errorKeys: { permission: string; unsupported: string };
+  onRecorded: (audio: RecordedWebAudio) => void;
+  onError: (reasonKey: string) => void;
+};
 
 /**
  * Enregistreur audio navigateur (MediaRecorder) : démarrer, arrêter (envoyer) ou annuler. Libère
  * toujours le micro (pistes du flux) en fin de vie, y compris au démontage.
+ *
+ * Promu de `feature/message/` : la messagerie et le débrief l'utilisent tous les deux (#26).
+ *
+ * `isAvailable` à `false` veut dire que ce navigateur ne sait produire AUCUN format que la feature
+ * accepte — Firefox et le débrief, par exemple, qui refuse `audio/webm`. L'appelant doit alors ne
+ * pas proposer d'enregistrer, plutôt que de laisser capturer trente secondes pour un 400 à la
+ * signature de l'URL.
  */
-export function useWebAudioRecorder(
-  onRecorded: (audio: RecordedWebAudio) => void,
-  onError: (reasonKey: string) => void,
-) {
+export function useWebAudioRecorder({
+  allowedMimeTypes,
+  errorKeys,
+  onRecorded,
+  onError,
+}: WebAudioRecorderOptions) {
   const [isRecording, setIsRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
@@ -53,8 +67,15 @@ export function useWebAudioRecorder(
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const mimeType = pickMimeType();
-      const recorder = new MediaRecorder(stream, mimeType != null ? { mimeType } : undefined);
+      // `null` a déjà éteint le bouton via `isAvailable` ; la garde reste pour ne jamais
+      // laisser MediaRecorder choisir seul un format que le schéma refusera.
+      const mimeType = pickRecorderMimeType(allowedMimeTypes);
+      if (mimeType == null) {
+        cleanup();
+        onError(errorKeys.unsupported);
+        return;
+      }
+      const recorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
 
       recorder.ondataavailable = (event) => {
@@ -75,7 +96,7 @@ export function useWebAudioRecorder(
       intervalRef.current = window.setInterval(() => setSeconds((value) => value + 1), 1000);
     } catch {
       cleanup();
-      onError("messages.audio.permission");
+      onError(errorKeys.permission);
     }
   };
 
@@ -94,5 +115,11 @@ export function useWebAudioRecorder(
     setIsRecording(false);
   };
 
-  return { isRecording, seconds, start, stop };
+  return {
+    isRecording,
+    seconds,
+    start,
+    stop,
+    isAvailable: pickRecorderMimeType(allowedMimeTypes) != null,
+  };
 }

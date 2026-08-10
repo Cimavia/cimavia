@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as PlanningRouteImport } from './routes/planning'
+import { Route as MyCoachRouteImport } from './routes/my-coach'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LibraryRouteImport } from './routes/library'
@@ -20,8 +22,12 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
 import { Route as AthletesRouteImport } from './routes/athletes'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as PlansIndexRouteImport } from './routes/plans.index'
+import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
+import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -36,6 +42,16 @@ const RemindersRoute = RemindersRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanningRoute = PlanningRouteImport.update({
+  id: '/planning',
+  path: '/planning',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyCoachRoute = MyCoachRouteImport.update({
+  id: '/my-coach',
+  path: '/my-coach',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -78,9 +94,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionsIndexRoute = SessionsIndexRouteImport.update({
+  id: '/sessions/',
+  path: '/sessions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlansIndexRoute = PlansIndexRouteImport.update({
   id: '/plans/',
   path: '/plans/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
+  id: '/sessions/$sessionId',
+  path: '/sessions/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
@@ -88,6 +114,17 @@ const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   path: '/plans/$planId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionsSessionIdIndexRoute = SessionsSessionIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SessionsSessionIdRoute,
+} as any)
+const SessionsSessionIdFeedbackRoute =
+  SessionsSessionIdFeedbackRouteImport.update({
+    id: '/feedback',
+    path: '/feedback',
+    getParentRoute: () => SessionsSessionIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -98,11 +135,17 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/my-coach': typeof MyCoachRoute
+  '/planning': typeof PlanningRoute
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
   '/plans/': typeof PlansIndexRoute
+  '/sessions/': typeof SessionsIndexRoute
+  '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
+  '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -113,11 +156,16 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/my-coach': typeof MyCoachRoute
+  '/planning': typeof PlanningRoute
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/plans': typeof PlansIndexRoute
+  '/sessions': typeof SessionsIndexRoute
+  '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -129,11 +177,17 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/my-coach': typeof MyCoachRoute
+  '/planning': typeof PlanningRoute
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
   '/plans/': typeof PlansIndexRoute
+  '/sessions/': typeof SessionsIndexRoute
+  '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
+  '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -146,11 +200,17 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/messages'
+    | '/my-coach'
+    | '/planning'
     | '/register'
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
+    | '/sessions/$sessionId'
     | '/plans/'
+    | '/sessions/'
+    | '/sessions/$sessionId/feedback'
+    | '/sessions/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -161,11 +221,16 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/messages'
+    | '/my-coach'
+    | '/planning'
     | '/register'
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
     | '/plans'
+    | '/sessions'
+    | '/sessions/$sessionId/feedback'
+    | '/sessions/$sessionId'
   id:
     | '__root__'
     | '/'
@@ -176,11 +241,17 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/messages'
+    | '/my-coach'
+    | '/planning'
     | '/register'
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
+    | '/sessions/$sessionId'
     | '/plans/'
+    | '/sessions/'
+    | '/sessions/$sessionId/feedback'
+    | '/sessions/$sessionId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -192,11 +263,15 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
+  MyCoachRoute: typeof MyCoachRoute
+  PlanningRoute: typeof PlanningRoute
   RegisterRoute: typeof RegisterRoute
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
+  SessionsSessionIdRoute: typeof SessionsSessionIdRouteWithChildren
   PlansIndexRoute: typeof PlansIndexRoute
+  SessionsIndexRoute: typeof SessionsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -220,6 +295,20 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/planning': {
+      id: '/planning'
+      path: '/planning'
+      fullPath: '/planning'
+      preLoaderRoute: typeof PlanningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-coach': {
+      id: '/my-coach'
+      path: '/my-coach'
+      fullPath: '/my-coach'
+      preLoaderRoute: typeof MyCoachRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -278,11 +367,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sessions/': {
+      id: '/sessions/'
+      path: '/sessions'
+      fullPath: '/sessions/'
+      preLoaderRoute: typeof SessionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/plans/': {
       id: '/plans/'
       path: '/plans'
       fullPath: '/plans/'
       preLoaderRoute: typeof PlansIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/$sessionId': {
+      id: '/sessions/$sessionId'
+      path: '/sessions/$sessionId'
+      fullPath: '/sessions/$sessionId'
+      preLoaderRoute: typeof SessionsSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/plans/$planId': {
@@ -292,8 +395,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansPlanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sessions/$sessionId/': {
+      id: '/sessions/$sessionId/'
+      path: '/'
+      fullPath: '/sessions/$sessionId/'
+      preLoaderRoute: typeof SessionsSessionIdIndexRouteImport
+      parentRoute: typeof SessionsSessionIdRoute
+    }
+    '/sessions/$sessionId/feedback': {
+      id: '/sessions/$sessionId/feedback'
+      path: '/feedback'
+      fullPath: '/sessions/$sessionId/feedback'
+      preLoaderRoute: typeof SessionsSessionIdFeedbackRouteImport
+      parentRoute: typeof SessionsSessionIdRoute
+    }
   }
 }
+
+interface SessionsSessionIdRouteChildren {
+  SessionsSessionIdFeedbackRoute: typeof SessionsSessionIdFeedbackRoute
+  SessionsSessionIdIndexRoute: typeof SessionsSessionIdIndexRoute
+}
+
+const SessionsSessionIdRouteChildren: SessionsSessionIdRouteChildren = {
+  SessionsSessionIdFeedbackRoute: SessionsSessionIdFeedbackRoute,
+  SessionsSessionIdIndexRoute: SessionsSessionIdIndexRoute,
+}
+
+const SessionsSessionIdRouteWithChildren =
+  SessionsSessionIdRoute._addFileChildren(SessionsSessionIdRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -304,11 +434,15 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
+  MyCoachRoute: MyCoachRoute,
+  PlanningRoute: PlanningRoute,
   RegisterRoute: RegisterRoute,
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
+  SessionsSessionIdRoute: SessionsSessionIdRouteWithChildren,
   PlansIndexRoute: PlansIndexRoute,
+  SessionsIndexRoute: SessionsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

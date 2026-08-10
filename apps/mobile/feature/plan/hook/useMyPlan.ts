@@ -1,24 +1,19 @@
 import type { PlanDto, PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
 import { isDateInPlanWeek, todayIsoDate } from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getMyPlan,
-  getMyScheduledSession,
-  planKeys,
-  scheduledSessionKeys,
-} from "@/feature/plan/api";
+import { athletePlanApi, myPlanKeys } from "@/feature/plan/api";
 
 export function useMyPlan() {
   return useQuery<PlanDto | null>({
-    queryKey: planKeys.current(),
-    queryFn: getMyPlan,
+    queryKey: myPlanKeys.current(),
+    queryFn: athletePlanApi.current,
   });
 }
 
 export function useScheduledSession(sessionId: string) {
   return useQuery<ScheduledSessionDto>({
-    queryKey: scheduledSessionKeys.detail(sessionId),
-    queryFn: () => getMyScheduledSession(sessionId),
+    queryKey: myPlanKeys.session(sessionId),
+    queryFn: () => athletePlanApi.session(sessionId),
   });
 }
 

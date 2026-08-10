@@ -1,10 +1,38 @@
 // Logique pure des planifications (cycle → semaines → séances), partagée API ↔ web ↔ mobile.
 // S'appuie sur le calendrier générique (date.util) : ici, seule la notion de CYCLE est traitée.
 
+import { ScheduledSessionStatus } from "../dto/plan.schema";
 import { DAYS_PER_WEEK, daysBetweenIsoDates, isIsoDate, shiftIsoDate } from "./date.util";
 
 // Une semaine de plan, bornes incluses (lundi → dimanche).
 export type PlanWeekRange = { startDate: string; endDate: string };
+
+// Le strict nécessaire pour compter : le statut d'une séance planifiée.
+export type SessionProgressSource = { status: string };
+
+// Où en est une semaine : combien de séances faites sur combien de prévues.
+export type SessionProgress = { done: number; total: number };
+
+/**
+ * L'avancement d'une semaine — « 2/5 séances faites ».
+ *
+ * Les deux nombres ensemble plutôt que deux fonctions : ils sont toujours affichés ensemble, et un
+ * `done` sans son `total` ne veut rien dire. Un seul parcours, donc, et surtout **une seule
+ * définition de « fait »** : `DONE`, posé par le débrief et par lui seul (`SKIPPED` n'est pas un
+ * accomplissement, c'est une séance sautée).
+ *
+ * `null` sur une liste absente (chargement, panne) — jamais `{ done: 0, total: 0 }`, qui se lirait
+ * « semaine vide, rien à faire » et rendrait une API injoignable indiscernable d'un repos.
+ */
+export function weekSessionProgress(
+  sessions: readonly SessionProgressSource[] | null | undefined,
+): SessionProgress | null {
+  if (sessions == null) return null;
+  return {
+    done: sessions.filter((session) => session.status === ScheduledSessionStatus.DONE).length,
+    total: sessions.length,
+  };
+}
 
 // Le minimum pour situer un plan dans le temps : sa date de début et son nombre de semaines.
 export type PlanPeriod = { startDate: string; weekCount: number };

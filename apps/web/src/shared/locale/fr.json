@@ -150,6 +150,49 @@
   "plan": {
     "title": "Planifications",
     "subtitle": "Les cycles de vos athlètes : construisez, ajustez, diffusez.",
+    "athlete": {
+      "sessionFallbackTitle": "Séance",
+      "notes": "Consignes du coach",
+      "composition": "Déroulé · {{count}} exercice(s)",
+      "document": "Document",
+      "exerciseCount": "{{count}} exercice(s)",
+      "sessionStatus": {
+        "PLANNED": "À faire",
+        "DONE": "Fait",
+        "SKIPPED": "Sautée"
+      },
+      "category": {
+        "RENFO": "Renfo",
+        "GRIMPE": "Grimpe",
+        "TECHNIQUE": "Technique"
+      },
+      "title": "Mon planning",
+      "today": "Aujourd'hui",
+      "rest": "Repos",
+      "doneCount": "{{done}}/{{total}} séances faites",
+      "outOfCycle": "Ton cycle n'a pas encore commencé, ou il est terminé : cette semaine n'est pas la semaine courante.",
+      "week": {
+        "numberAndType": "Semaine {{number}} · {{type}}",
+        "previous": "Semaine précédente",
+        "today": "Aujourd'hui",
+        "next": "Semaine suivante"
+      },
+      "weekType": {
+        "TRAINING": "Entraînement",
+        "DELOAD": "Décharge"
+      },
+      "empty": {
+        "title": "Aucune planification publiée",
+        "description": "Ton coach n'a pas encore diffusé de planification. Dès qu'il le fera, tes séances de la semaine s'afficheront ici."
+      },
+      "sessions": {
+        "title": "Mes séances",
+        "upcoming": "À venir",
+        "past": "Passées",
+        "empty": "Aucune séance",
+        "emptyHint": "Rien à afficher dans cette période."
+      }
+    },
     "new": "Nouvelle planification",
     "status": {
       "DRAFT": "Brouillon",
@@ -255,7 +298,12 @@
     "feedbacks": "Débriefs",
     "messages": "Messages",
     "invoices": "Facturation",
-    "reminders": "Rappels"
+    "reminders": "Rappels",
+    "myInvoices": "Factures",
+    "myCoach": "Mon coach",
+    "planning": "Planning",
+    "sessions": "Séances",
+    "myMessages": "Messagerie"
   },
   "reminder": {
     "title": "Mes rappels",
@@ -330,7 +378,8 @@
       "unreadable": "Ce fichier est illisible."
     },
     "audio": {
-      "permission": "Autorise l'accès au micro pour enregistrer un message vocal."
+      "permission": "Autorise l'accès au micro pour enregistrer un message vocal.",
+      "unsupported": "Ton navigateur ne sait pas enregistrer dans un format accepté."
     },
     "empty": {
       "description": "Démarre la conversation."
@@ -346,6 +395,14 @@
       "AUDIO": "🎤 Message vocal",
       "IMAGE": "📷 Photo",
       "VIDEO": "🎥 Vidéo"
+    },
+    "athlete": {
+      "subtitle": "Ton fil avec ton coach.",
+      "noCoach": {
+        "title": "Aucun coach rattaché",
+        "description": "La messagerie n'est disponible qu'avec un coach. Rejoins-en un avec son code d'invitation pour commencer à échanger.",
+        "action": "Aller à « Mon coach »"
+      }
     }
   },
   "athlete": {
@@ -388,7 +445,11 @@
   "dashboard": {
     "title": "Tableau de bord",
     "welcome": "Bonjour {{name}}",
-    "athleteHint": "Votre planning et vos séances vivent sur l'application mobile.",
+    "athlete": {
+      "subtitle": "Ton espace athlète.",
+      "emptyTitle": "Rien à afficher ici pour l'instant",
+      "emptyDescription": "Ton planning et tes séances vivent sur l'application mobile. Ce qui est déjà disponible ici est listé dans le menu."
+    },
     "section": {
       "todo": "À traiter",
       "overview": "Vue d'ensemble",
@@ -429,9 +490,9 @@
     }
   },
   "feedback": {
-    "title": "Débriefs",
-    "subtitle": "Les retours de tes athlètes sur leurs séances.",
-    "open": "Ouvrir",
+    "title": "Débrief de la séance",
+    "subtitle": "Ton retour est visible immédiatement par ton coach.",
+    "open": "Débriefer la séance",
     "unread": "À relire",
     "mediaCount": "{{count}} média(s)",
     "empty": {
@@ -443,11 +504,51 @@
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
       "openFull": "Ouvrir en grand"
+    },
+    "openDone": "Voir / modifier mon débrief",
+    "contentLabel": "Retour sur la séance",
+    "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
+    "contentHint": "Tu peux compléter ton débrief plus tard.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saved": "Débrief enregistré.",
+    "saveError": "Impossible d'enregistrer le débrief. Vérifie ta connexion.",
+    "media": {
+      "title": "Photos, vidéos et notes vocales",
+      "addFile": "Ajouter une photo ou une vidéo",
+      "addAudio": "Note vocale",
+      "stopRecording": "Arrêter ({{seconds}} s)",
+      "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
+      "remove": "Retirer",
+      "uploading": "Envoi en cours… {{percent}} %",
+      "uploadProgress": "Progression de l'envoi",
+      "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie.",
+      "permission": "Autorise l'accès au micro pour enregistrer une note vocale.",
+      "recorderUnsupported": "Ton navigateur ne sait pas enregistrer une note vocale dans un format lisible par ton coach. Essaie avec Safari ou Chrome, ou joins une vidéo.",
+      "unsupported": "Ce type de fichier n'est pas géré.",
+      "imageFormat": "Ce format d'image n'est pas géré (JPEG, PNG ou WEBP).",
+      "imageTooBig": "Cette photo dépasse 10 Mo.",
+      "videoFormat": "Ce format de vidéo n'est pas géré (MP4 ou MOV).",
+      "videoTooBig": "Cette vidéo dépasse 50 Mo.",
+      "videoTooLong": "Cette vidéo dépasse 60 secondes.",
+      "audioFormat": "Ce format audio n'est pas accepté pour un débrief.",
+      "audioTooBig": "Cette note vocale est trop lourde.",
+      "audioTooLong": "Une note vocale ne peut pas dépasser 5 minutes.",
+      "unreadable": "Ce fichier est illisible."
     }
   },
   "invoice": {
     "title": "Facturation",
     "subtitle": "Suis le règlement des factures émises.",
+    "byCoach": "De {{name}}",
+    "athlete": {
+      "title": "Mes factures",
+      "subtitle": "Les factures émises par ton coach.",
+      "empty": {
+        "title": "Aucune facture",
+        "description": "Quand ton coach émettra une facture, elle apparaîtra ici."
+      }
+    },
     "markPaid": "Marquer payée",
     "reopen": "Marquer impayée",
     "reopenConfirm": "Confirmer",
@@ -514,6 +615,27 @@
       "messageReceived": "Nouveau message de {{actor}}",
       "invoiceIssued": "Nouvelle facture reçue",
       "reminderDue": "Rappel : {{subject}}"
+    }
+  },
+  "coach": {
+    "title": "Mon coach",
+    "subtitle": "La personne qui te suit.",
+    "linked": {
+      "since": "Coach · suivi depuis le {{date}}",
+      "sinceUnknown": "Coach · date de rattachement —",
+      "message": "Message"
+    },
+    "missing": {
+      "title": "Aucun coach pour l'instant",
+      "description": "Saisis le code d'invitation que ton coach t'a partagé pour rejoindre son espace."
+    },
+    "join": {
+      "codeLabel": "Code d'invitation",
+      "codePlaceholder": "Ex. 7QK4M2",
+      "submit": "Rejoindre ce coach",
+      "joining": "Connexion en cours…",
+      "errorTitle": "Code invalide ou expiré",
+      "errorDescription": "Vérifie le code, ou demande à ton coach de t'en générer un nouveau."
     }
   }
 }

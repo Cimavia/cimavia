@@ -3,6 +3,8 @@ import {
   formatIsoDateRange,
   formatIsoDateTime,
   formatIsoDayLabel,
+  formatIsoDayNumber,
+  formatIsoWeekday,
   formatRelativeOrDateTime,
 } from "@cmv/shared";
 import i18n from "@/shared/lib/i18n";
@@ -17,6 +19,15 @@ export function formatDate(isoDate: string): string {
 
 export function formatDayLabel(isoDate: string): string {
   return formatIsoDayLabel(isoDate, i18n.language);
+}
+
+// « LUN », « MAR » — en-tête de colonne de la grille de semaine.
+export function formatWeekday(isoDate: string): string {
+  return formatIsoWeekday(isoDate, i18n.language);
+}
+
+export function formatDayNumber(isoDate: string): string {
+  return formatIsoDayNumber(isoDate, i18n.language);
 }
 
 export function formatDateRange(startIsoDate: string, endIsoDate: string): string {

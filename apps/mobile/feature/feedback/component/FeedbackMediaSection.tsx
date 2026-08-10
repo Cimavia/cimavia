@@ -1,4 +1,4 @@
-import { MediaType, type SessionFeedbackDto } from "@cmv/shared";
+import { MediaType, remainingMediaSlots, type SessionFeedbackDto } from "@cmv/shared";
 import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,7 +6,6 @@ import { View } from "react-native";
 import { MediaGrid } from "@/feature/feedback/component/MediaGrid";
 import { MediaPicker } from "@/feature/feedback/component/MediaPicker";
 import {
-  remainingSlots,
   useAddFeedbackAudio,
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
@@ -63,9 +62,9 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
       />
 
       <MediaPicker
-        photosLeft={remainingSlots(feedback, MediaType.IMAGE)}
-        videosLeft={remainingSlots(feedback, MediaType.VIDEO)}
-        audiosLeft={remainingSlots(feedback, MediaType.AUDIO)}
+        photosLeft={remainingMediaSlots(feedback, MediaType.IMAGE)}
+        videosLeft={remainingMediaSlots(feedback, MediaType.VIDEO)}
+        audiosLeft={remainingMediaSlots(feedback, MediaType.AUDIO)}
         onAdd={(type) => {
           setRecorderErrorKey(null);
           addMedia.mutate(type);

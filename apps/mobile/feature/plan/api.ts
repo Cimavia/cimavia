@@ -1,27 +1,9 @@
-import type { PlanDto, ScheduledSessionDto } from "@cmv/shared";
+import { createAthletePlanApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
-// Clés de cache — ce sont elles qui sont persistées sur le disque (lecture hors-ligne).
-export const planKeys = {
-  all: ["plan"] as const,
-  current: () => ["plan", "current"] as const,
-};
+// Routes, DTO et clés de cache de la lecture athlète vivent dans @cmv/shared : le web appelle
+// exactement les mêmes (#25). Ne reste ici que l'injection du client mobile.
+// Ce sont ces clés qui sont persistées sur le disque (lecture hors-ligne).
+export const athletePlanApi = createAthletePlanApi(api);
 
-export const scheduledSessionKeys = {
-  all: ["scheduled-sessions"] as const,
-  detail: (sessionId: string) => ["scheduled-sessions", "detail", sessionId] as const,
-};
-
-/**
- * Le cycle courant de l'athlète, avec ses semaines et ses séances — `null` s'il n'a aucun plan
- * diffusé. Une seule requête porte la vue Planning ET l'onglet Séances : c'est ce qui rend le
- * cache hors-ligne simple (un objet, une clé).
- */
-export function getMyPlan(): Promise<PlanDto | null> {
-  return api.get<PlanDto | null>("/me/plan");
-}
-
-// Détail d'une séance : exercices, consignes, documents (URLs signées, donc réseau requis).
-export function getMyScheduledSession(sessionId: string): Promise<ScheduledSessionDto> {
-  return api.get<ScheduledSessionDto>(`/me/scheduled-sessions/${sessionId}`);
-}
+export { myPlanKeys } from "@cmv/shared";

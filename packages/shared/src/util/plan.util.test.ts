@@ -7,6 +7,7 @@ import {
   planWeekNumber,
   planWeekRange,
   selectCurrentPlan,
+  weekSessionProgress,
 } from "./plan.util";
 
 // 2026-10-12 est un lundi (date de début de cycle valide — cf. planStartDateSchema).
@@ -197,5 +198,38 @@ describe("planWeekNumber", () => {
     expect(planWeekNumber(PLAN, "12/10/2026")).toBeNull();
     expect(planWeekNumber({ startDate: MONDAY, weekCount: 0 }, MONDAY)).toBeNull();
     expect(planWeekNumber({ startDate: "pas une date", weekCount: 4 }, MONDAY)).toBeNull();
+  });
+});
+
+describe("weekSessionProgress", () => {
+  const PLANNED = { status: "PLANNED" };
+  const DONE = { status: "DONE" };
+  const SKIPPED = { status: "SKIPPED" };
+
+  it("compte les séances faites sur le total de la semaine", () => {
+    expect(weekSessionProgress([DONE, PLANNED, DONE, PLANNED, PLANNED])).toEqual({
+      done: 2,
+      total: 5,
+    });
+  });
+
+  /**
+   * `SKIPPED` n'est PAS un accomplissement : c'est une séance sautée. La compter comme faite
+   * gonflerait l'avancement de l'athlète de tout ce qu'il n'a pas fait — et « fait » n'a qu'une
+   * seule définition, celle que pose le débrief.
+   */
+  it("ne compte que DONE, jamais SKIPPED", () => {
+    expect(weekSessionProgress([DONE, SKIPPED, SKIPPED])).toEqual({ done: 1, total: 3 });
+  });
+
+  /**
+   * LA distinction qui justifie le `null` : une semaine VIDE rend `{0, 0}` (« repos, rien à
+   * faire »), une liste ABSENTE rend `null` (« je ne sais pas »). Les confondre afficherait
+   * « 0/0 séances faites » sur une API injoignable — le repli silencieux que la règle interdit.
+   */
+  it("distingue « semaine vide » de « je ne sais pas »", () => {
+    expect(weekSessionProgress([])).toEqual({ done: 0, total: 0 });
+    expect(weekSessionProgress(null)).toBeNull();
+    expect(weekSessionProgress(undefined)).toBeNull();
   });
 });

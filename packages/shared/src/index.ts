@@ -1,10 +1,22 @@
+export type { AccountApi } from "./api/account.api";
+export { athleteKeys, coachKeys, createAccountApi, invitationKeys } from "./api/account.api";
+export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
+export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
+export type { AthletePlanApi } from "./api/athlete-plan.api";
+export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
+export type { InvoiceApi } from "./api/invoice.api";
+export { createInvoiceApi, invoiceKeys } from "./api/invoice.api";
+export type { MessageApi } from "./api/message.api";
+export { createMessageApi, messageKeys } from "./api/message.api";
 export type { NotificationApi } from "./api/notification.api";
 export { createNotificationApi, notificationKeys } from "./api/notification.api";
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./auth";
+export type { Capabilities, CapabilityName, CapabilitySource } from "./capability";
+export { capabilitiesOf, hasCapability } from "./capability";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
 export type {
@@ -321,8 +333,8 @@ export {
   RELATIVE_TIME_KEY,
   relativeTimeFrom,
 } from "./util/date-format.util";
-export type { FeedbackReadState } from "./util/feedback.util";
-export { countUnreadFeedbacks } from "./util/feedback.util";
+export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
+export { countUnreadFeedbacks, remainingMediaSlots } from "./util/feedback.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
 export {
   countOverdueInvoices,
@@ -333,7 +345,13 @@ export {
 } from "./util/invoice.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
-export type { PlanPeriod, PlanWeekRange, PlanWeekRef } from "./util/plan.util";
+export type {
+  PlanPeriod,
+  PlanWeekRange,
+  PlanWeekRef,
+  SessionProgress,
+  SessionProgressSource,
+} from "./util/plan.util";
 export {
   isDateInPlanWeek,
   planEndDate,
@@ -342,6 +360,7 @@ export {
   planWeekNumber,
   planWeekRange,
   selectCurrentPlan,
+  weekSessionProgress,
 } from "./util/plan.util";
 export type { ReminderFeedSource, ReminderTiming } from "./util/reminder.util";
 export {

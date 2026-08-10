@@ -1,13 +1,6 @@
 import type { ConversationDto, MessageDto, SendMessageInput } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getMessages,
-  listConversations,
-  markConversationRead,
-  messageKeys,
-  openConversation,
-  sendMessage,
-} from "@/feature/message/api";
+import { messageApi, messageKeys } from "@/feature/message/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 // Messagerie asynchrone (CDC §5.8) : les nouveaux messages remontent par polling. Sur le web,
@@ -24,7 +17,7 @@ const THREAD_POLL_MS = 10_000;
 export function useConversations({ poll = true }: { poll?: boolean } = {}) {
   return useQuery<ConversationDto[]>({
     queryKey: messageKeys.conversations(),
-    queryFn: listConversations,
+    queryFn: messageApi.listConversations,
     refetchInterval: poll ? CONVERSATIONS_POLL_MS : false,
   });
 }
@@ -34,8 +27,21 @@ export function useConversations({ poll = true }: { poll?: boolean } = {}) {
 export function useConversationWith(athleteId: string | null) {
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWith(athleteId ?? ""),
-    queryFn: () => openConversation({ athleteId: athleteId as string }),
+    queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }),
     enabled: athleteId != null,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/**
+ * Ouvre (get-or-create) le fil de l'athlète courant avec SON coach : aucun id à donner, l'API le
+ * résout. `enabled` parce qu'un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait.
+ */
+export function useMyConversation(enabled: boolean) {
+  return useQuery<ConversationDto>({
+    queryKey: messageKeys.myConversation(),
+    queryFn: () => messageApi.openConversation({}),
+    enabled,
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
@@ -43,7 +49,7 @@ export function useConversationWith(athleteId: string | null) {
 export function useThreadMessages(conversationId: string | undefined) {
   return useQuery<MessageDto[]>({
     queryKey: messageKeys.thread(conversationId ?? ""),
-    queryFn: () => getMessages(conversationId as string),
+    queryFn: () => messageApi.getMessages(conversationId as string),
     enabled: conversationId != null,
     refetchInterval: conversationId != null ? THREAD_POLL_MS : false,
   });
@@ -53,7 +59,7 @@ export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
   return useMutation({
-    mutationFn: (input: SendMessageInput) => sendMessage(conversationId, input),
+    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
       queryClient.invalidateQueries({ queryKey: messageKeys.conversations() });
@@ -69,7 +75,7 @@ export function useSendMessage(conversationId: string) {
 export function useMarkRead(conversationId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => markConversationRead(conversationId as string),
+    mutationFn: () => messageApi.markRead(conversationId as string),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.conversations() });
     },

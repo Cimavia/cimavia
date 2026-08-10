@@ -1,14 +1,9 @@
-import type { InvoiceDto } from "@cmv/shared";
+import { createInvoiceApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
-// Clés de cache — persistées sur le disque (comme le reste, cf. lecture hors-ligne).
-export const invoiceKeys = {
-  all: ["invoices"] as const,
-  mine: () => ["invoices", "mine"] as const,
-};
+// Routes, DTO et clés de cache vivent dans @cmv/shared : le web appelle exactement les mêmes —
+// `GET /invoices` est servie aux DEUX rôles, c'est le scope tenant qui décide de son contenu.
+// Ne reste ici que l'injection du client mobile (cookie de session tenu par SecureStore).
+export const invoiceApi = createInvoiceApi(api);
 
-// Les factures de l'athlète courant (émises), de la plus récente à la plus ancienne. Le scope
-// tenant côté API ne renvoie que les siennes.
-export function listMyInvoices(): Promise<InvoiceDto[]> {
-  return api.get<InvoiceDto[]>("/invoices");
-}
+export { invoiceKeys } from "@cmv/shared";

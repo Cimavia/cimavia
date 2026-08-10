@@ -1,20 +1,42 @@
+import { hasCapability } from "@cmv/shared";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { NotificationBell } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
 
-// Sections du coach. Pas d'entrée « Athlètes » : la liste vit désormais dans le tableau de bord
-// (#113), et deux entrées menant au même écran ne feraient qu'hésiter.
+/**
+ * Chaque entrée porte la capacité qui la rend visible — la MÊME que celle exigée par la route
+ * correspondante (`CmvRoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà l'expérience :
+ * une nav qui propose ce que la route refuse, ou qui cache ce qui est accessible.
+ *
+ * Pas d'entrée « Athlètes » : la liste vit dans le tableau de bord depuis #113, et deux entrées
+ * menant au même écran ne feraient qu'hésiter.
+ *
+ * Une même route peut apparaître DEUX fois, une par capacité, avec un libellé différent : le coach
+ * « fait de la facturation », l'athlète « a des factures ». Ce n'est pas de la redondance, c'est la
+ * même ressource nommée depuis les deux bouts de la relation.
+ *
+ * Le jour où les DEUX groupes sont peuplés pour un même compte (double capacité, #7), c'est ici que
+ * les sections nommées « En tant que coach » / « En tant qu'athlète » se posent : une nav plate de
+ * quatorze entrées ne dirait plus à quel titre on fait quoi, et deux entrées vers `/invoices` s'y
+ * surligneraient ensemble.
+ */
 const NAV_ITEMS = [
-  { to: "/", labelKey: "nav.dashboard" },
-  { to: "/library", labelKey: "nav.library" },
-  { to: "/plans", labelKey: "nav.plans" },
-  { to: "/feedbacks", labelKey: "nav.feedbacks" },
-  { to: "/messages", labelKey: "nav.messages" },
-  { to: "/invoices", labelKey: "nav.invoices" },
-  { to: "/reminders", labelKey: "nav.reminders" },
+  { to: "/", labelKey: "nav.dashboard", capability: "coach" },
+  { to: "/library", labelKey: "nav.library", capability: "coach" },
+  { to: "/plans", labelKey: "nav.plans", capability: "coach" },
+  { to: "/feedbacks", labelKey: "nav.feedbacks", capability: "coach" },
+  { to: "/messages", labelKey: "nav.messages", capability: "coach" },
+  { to: "/invoices", labelKey: "nav.invoices", capability: "coach" },
+  { to: "/reminders", labelKey: "nav.reminders", capability: "coach" },
+  { to: "/planning", labelKey: "nav.planning", capability: "athlete" },
+  { to: "/sessions", labelKey: "nav.sessions", capability: "athlete" },
+  { to: "/messages", labelKey: "nav.myMessages", capability: "athlete" },
+  { to: "/invoices", labelKey: "nav.myInvoices", capability: "athlete" },
+  { to: "/my-coach", labelKey: "nav.myCoach", capability: "athlete" },
 ] as const;
 
 type CmvAppShellProps = {
@@ -28,6 +50,13 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession } = authClient.useSession();
+  /**
+   * Pas de garde sur `isPending` ici : ce composant n'est monté que par un écran, lui-même monté
+   * par `CmvRoleGate` — qui a déjà attendu la session. La nav ne peut donc pas se dessiner vide le
+   * temps d'un aller-retour.
+   */
+  const capabilities = useCapabilities();
+  const navItems = NAV_ITEMS.filter((item) => hasCapability(capabilities, item.capability));
 
   async function onLogout() {
     await authClient.signOut();
@@ -42,9 +71,11 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
         </Link>
 
         <nav className="flex flex-1 flex-col gap-cmv-xs">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
-              key={item.to}
+              // La capacité fait partie de la clé : une même route peut être listée deux fois,
+              // une par capacité (cf. `/invoices`).
+              key={`${item.capability}:${item.to}`}
               to={item.to}
               className="rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
               activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}

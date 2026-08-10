@@ -1,4 +1,4 @@
-import { type PlanWeekDto, PlanWeekType } from "@cmv/shared";
+import { type PlanWeekDto, PlanWeekType, weekSessionProgress } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
@@ -17,7 +17,9 @@ type CurrentWeekSectionProps = {
 // L'en-tête de la semaine en cours et ses séances.
 export function CurrentWeekSection({ week, today }: Readonly<CurrentWeekSectionProps>) {
   const { t } = useTranslation();
-  const doneCount = week.sessions.filter((session) => session.status === "DONE").length;
+  // La dérivation vit dans @cmv/shared, testée : « fait » n'a qu'une définition, et le web
+  // affiche le même compteur (#25).
+  const progress = weekSessionProgress(week.sessions);
 
   return (
     <>
@@ -38,7 +40,9 @@ export function CurrentWeekSection({ week, today }: Readonly<CurrentWeekSectionP
 
         <CmvText className="text-cmv-text-lo text-sm">
           {formatDateRange(week.startDate, week.endDate)} ·{" "}
-          {t("plan.doneCount", { done: doneCount, total: week.sessions.length })}
+          {progress == null
+            ? "—"
+            : t("plan.doneCount", { done: progress.done, total: progress.total })}
         </CmvText>
 
         {week.note == null ? null : (

@@ -3,21 +3,18 @@ import { MessageType } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { messageKeys, requestMessageUploadUrl, sendMessage } from "@/feature/message/api";
-import type { RecordedWebAudio } from "@/feature/message/hook/useWebAudioRecorder";
+import { messageApi, messageKeys } from "@/feature/message/api";
+import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
+import { useToast } from "@/shared/component";
+import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
+import { apiErrorMessage } from "@/shared/lib/api";
+import { uploadToSignedUrl } from "@/shared/lib/upload";
 import {
   MediaRejectedError,
   type PreparedWebMedia,
-  prepareAudioBlob,
-  prepareImageFile,
-  prepareVideoFile,
-} from "@/feature/message/util/media.util";
-import { useToast } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
-import { uploadToSignedUrl } from "@/shared/lib/upload";
-
-// Source avant préparation : un fichier joint (image/vidéo) ou une note vocale enregistrée.
-type MediaSource = { kind: "file"; file: File } | { kind: "audio"; audio: RecordedWebAudio };
+  prepareWebMedia,
+  type WebMediaSource,
+} from "@/shared/util/media.util";
 
 /**
  * Envoi d'un média depuis le web : préparation (validation, durée) → URL signée → upload direct
@@ -31,8 +28,8 @@ export function useSendMessageMedia(conversationId: string) {
   const [progress, setProgress] = useState(0);
 
   const send = useMutation({
-    mutationFn: async (source: MediaSource) => {
-      const prepared = await prepare(source);
+    mutationFn: async (source: WebMediaSource) => {
+      const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
       setProgress(0);
       return uploadAndSend(conversationId, prepared, setProgress);
     },
@@ -51,19 +48,11 @@ export function useSendMessageMedia(conversationId: string) {
 
   return {
     sendFile: (file: File) => send.mutate({ kind: "file", file }),
-    sendAudio: (audio: RecordedWebAudio) => send.mutate({ kind: "audio", audio }),
+    sendAudio: (audio: RecordedWebAudio) =>
+      send.mutate({ kind: "audio", blob: audio.blob, durationSeconds: audio.durationSeconds }),
     isUploading: send.isPending,
     progress,
   };
-}
-
-function prepare(source: MediaSource): Promise<PreparedWebMedia> | PreparedWebMedia {
-  if (source.kind === "audio") {
-    return prepareAudioBlob(source.audio.blob, source.audio.durationSeconds);
-  }
-  if (source.file.type.startsWith("image/")) return prepareImageFile(source.file);
-  if (source.file.type.startsWith("video/")) return prepareVideoFile(source.file);
-  throw new MediaRejectedError("messages.media.unsupported");
 }
 
 async function uploadAndSend(
@@ -72,10 +61,10 @@ async function uploadAndSend(
   onProgress: (percent: number) => void,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
-  const signed = await requestMessageUploadUrl(conversationId, uploadInput);
+  const signed = await messageApi.requestUploadUrl(conversationId, uploadInput);
   await uploadToSignedUrl(signed.uploadUrl, media.file, onProgress);
   const sendInput = { ...uploadInput, storagePath: signed.storagePath } as SendMessageInput;
-  return sendMessage(conversationId, sendInput);
+  return messageApi.sendMessage(conversationId, sendInput);
 }
 
 // Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive de taille.

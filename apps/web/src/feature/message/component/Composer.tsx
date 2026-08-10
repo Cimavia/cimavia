@@ -1,9 +1,10 @@
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
-import type { RecordedWebAudio } from "@/feature/message/hook/useWebAudioRecorder";
-import { useWebAudioRecorder } from "@/feature/message/hook/useWebAudioRecorder";
+import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useToast } from "@/shared/component";
+import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
+import { useWebAudioRecorder } from "@/shared/hook/useWebAudioRecorder";
 
 type ComposerProps = {
   onSendText: (text: string) => void;
@@ -35,7 +36,15 @@ export function Composer({
   const toast = useToast();
   const [text, setText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recorder = useWebAudioRecorder(onRecordedAudio, (key) => toast.error(t(key)));
+  const recorder = useWebAudioRecorder({
+    allowedMimeTypes: MESSAGE_MEDIA_PROFILE.audioMimeTypes,
+    errorKeys: {
+      permission: "messages.audio.permission",
+      unsupported: "messages.audio.unsupported",
+    },
+    onRecorded: onRecordedAudio,
+    onError: (key) => toast.error(t(key)),
+  });
 
   const trimmed = text.trim();
   const canSendText = trimmed.length > 0 && !sending;

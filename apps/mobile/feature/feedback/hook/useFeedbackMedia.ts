@@ -1,27 +1,21 @@
-import type { RequestFeedbackUploadUrlInput, SessionFeedbackDto } from "@cmv/shared";
+import type { RequestFeedbackUploadUrlInput } from "@cmv/shared";
 import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
   type MediaTypeType,
-  maxFeedbackMediaCount,
   maxFeedbackMediaSizeBytes,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
-import {
-  attachMedia,
-  deleteMedia,
-  feedbackKeys,
-  requestMediaUploadUrl,
-} from "@/feature/feedback/api";
+import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
 import {
   MediaRejectedError,
   type PreparedMedia,
   prepareAudio,
   prepareMedia,
 } from "@/feature/feedback/util/media.util";
-import { planKeys, scheduledSessionKeys } from "@/feature/plan/api";
+import { myPlanKeys } from "@/feature/plan/api";
 import type { RecordedAudio } from "@/shared/component";
 
 // Après un ajout/retrait de média, la séance a pu passer en DONE : le planning et le détail
@@ -29,9 +23,9 @@ import type { RecordedAudio } from "@/shared/component";
 function useInvalidateFeedback(sessionId: string) {
   const queryClient = useQueryClient();
   return () => {
-    queryClient.invalidateQueries({ queryKey: feedbackKeys.detail(sessionId) });
-    queryClient.invalidateQueries({ queryKey: scheduledSessionKeys.detail(sessionId) });
-    queryClient.invalidateQueries({ queryKey: planKeys.current() });
+    queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
+    queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
+    queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });
   };
 }
 
@@ -82,7 +76,7 @@ export function useDeleteFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
 
   return useMutation({
-    mutationFn: (mediaId: string) => deleteMedia(sessionId, mediaId),
+    mutationFn: (mediaId: string) => athleteFeedbackApi.deleteMedia(sessionId, mediaId),
     onSuccess: invalidate,
   });
 }
@@ -91,9 +85,9 @@ export function useDeleteFeedbackMedia(sessionId: string) {
 // crée le débrief s'il n'existait pas encore et passe la séance en DONE (côté API).
 async function uploadAndAttach(sessionId: string, media: PreparedMedia) {
   const input = toUploadUrlInput(media);
-  const signed = await requestMediaUploadUrl(sessionId, input);
+  const signed = await athleteFeedbackApi.requestMediaUploadUrl(sessionId, input);
   await uploadToStorage(signed.uploadUrl, media);
-  return attachMedia(sessionId, { ...input, storagePath: signed.storagePath });
+  return athleteFeedbackApi.attachMedia(sessionId, { ...input, storagePath: signed.storagePath });
 }
 
 /**
@@ -123,15 +117,6 @@ async function uploadToStorage(uploadUrl: string, media: PreparedMedia): Promise
   if (status < 200 || status >= 300) {
     throw new MediaRejectedError("feedback.media.storageRejected");
   }
-}
-
-// Ce qui reste comme place, par type — le bouton d'ajout s'éteint AVANT que l'API réponde 409.
-export function remainingSlots(
-  feedback: SessionFeedbackDto | null | undefined,
-  type: MediaTypeType,
-): number {
-  const used = feedback?.media.filter((item) => item.type === type).length ?? 0;
-  return maxFeedbackMediaCount(type) - used;
 }
 
 async function pickAsset(type: MediaTypeType): Promise<ImagePicker.ImagePickerAsset | null> {

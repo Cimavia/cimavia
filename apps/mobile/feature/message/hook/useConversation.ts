@@ -2,14 +2,7 @@ import type { ConversationDto, MessageDto, SendMessageInput } from "@cmv/shared"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import {
-  conversationKeys,
-  getMessages,
-  markConversationRead,
-  messageKeys,
-  openMyConversation,
-  sendMessage,
-} from "@/feature/message/api";
+import { messageApi, messageKeys } from "@/feature/message/api";
 
 // Le fil se rafraîchit toutes les 10 s en messagerie asynchrone (CDC §5.8) — mais seulement quand
 // l'écran est au premier plan : polling en continu viderait la batterie.
@@ -21,8 +14,8 @@ const POLL_INTERVAL_MS = 10_000;
  */
 export function useMyConversation(enabled: boolean) {
   return useQuery<ConversationDto>({
-    queryKey: conversationKeys.mine(),
-    queryFn: openMyConversation,
+    queryKey: messageKeys.myConversation(),
+    queryFn: () => messageApi.openConversation({}),
     enabled,
   });
 }
@@ -33,8 +26,8 @@ export function useMessages(conversationId: string | undefined) {
   const [focused, setFocused] = useState(false);
 
   const query = useQuery<MessageDto[]>({
-    queryKey: conversationId != null ? messageKeys.list(conversationId) : messageKeys.all,
-    queryFn: () => getMessages(conversationId as string),
+    queryKey: conversationId != null ? messageKeys.thread(conversationId) : messageKeys.all,
+    queryFn: () => messageApi.getMessages(conversationId as string),
     enabled: conversationId != null,
     refetchInterval: focused && conversationId != null ? POLL_INTERVAL_MS : false,
   });
@@ -62,10 +55,10 @@ export function useMessages(conversationId: string | undefined) {
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: SendMessageInput) => sendMessage(conversationId, input),
+    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.list(conversationId) });
-      queryClient.invalidateQueries({ queryKey: conversationKeys.mine() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
+      queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
     },
   });
 }
@@ -78,9 +71,9 @@ export function useSendMessage(conversationId: string) {
 export function useMarkRead(conversationId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => markConversationRead(conversationId as string),
+    mutationFn: () => messageApi.markRead(conversationId as string),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.mine() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
     },
   });
 }

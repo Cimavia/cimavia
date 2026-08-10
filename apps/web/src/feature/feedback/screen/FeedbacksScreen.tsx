@@ -1,5 +1,5 @@
-import { type CoachFeedbackSummaryDto, Role } from "@cmv/shared";
-import { getRouteApi, Navigate, useNavigate } from "@tanstack/react-router";
+import type { CoachFeedbackSummaryDto } from "@cmv/shared";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { FeedbackDetailPanel } from "@/feature/feedback/component/FeedbackDetailPanel";
@@ -12,7 +12,6 @@ import {
   CmvEmptyState,
   CmvErrorState,
 } from "@/shared/component";
-import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
@@ -31,7 +30,6 @@ const route = getRouteApi("/feedbacks");
 export function FeedbacksScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: feedbacks, isPending, isError, refetch } = useFeedbacks();
   const markRead = useMarkFeedbackRead();
 
@@ -55,17 +53,6 @@ export function FeedbacksScreen() {
   useEffect(() => {
     if (openedUnreadId != null) markRead.mutate(openedUnreadId);
   }, [openedUnreadId, markRead.mutate]);
-
-  if (isAuthPending) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
-  if (authSession?.user.role !== Role.COACH) {
-    return <Navigate to="/" />;
-  }
 
   // Erreur, vide et chargement sont trois états distincts : `feedbacks` est undefined dans les
   // deux premiers cas, et « Aucun débrief » sur une panne réseau serait un mensonge.

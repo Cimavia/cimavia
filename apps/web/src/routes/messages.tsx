@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MessagesScreen } from "@/feature/message";
+import { CmvRoleGate } from "@/shared/component";
 
 /**
  * `?athlete=<id>` — le fil ouvert vit dans l'URL, pas dans un `useState`.
@@ -18,5 +19,12 @@ export const Route = createFileRoute("/messages")({
     athlete:
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
   }),
-  component: MessagesScreen,
+  // Les DEUX rôles : `conversation.controller.ts` et `message.controller.ts` portent
+  // `@Roles([COACH, ATHLETE])`, et un fil est 1:1. Ce que chacun y voit diffère (N fils contre un
+  // seul), et c'est l'écran qui le tranche — pas la garde.
+  component: () => (
+    <CmvRoleGate capability={["coach", "athlete"]}>
+      <MessagesScreen />
+    </CmvRoleGate>
+  ),
 });
