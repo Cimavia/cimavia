@@ -8,6 +8,8 @@ export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
 export type { InvoiceApi } from "./api/invoice.api";
 export { createInvoiceApi, invoiceKeys } from "./api/invoice.api";
+export type { MessageApi } from "./api/message.api";
+export { createMessageApi, messageKeys } from "./api/message.api";
 export type { NotificationApi } from "./api/notification.api";
 export { createNotificationApi, notificationKeys } from "./api/notification.api";
 export type { ReminderApi } from "./api/reminder.api";

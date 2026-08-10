@@ -3,7 +3,7 @@ import { MessageType } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { messageKeys, requestMessageUploadUrl, sendMessage } from "@/feature/message/api";
+import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useToast } from "@/shared/component";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
@@ -61,10 +61,10 @@ async function uploadAndSend(
   onProgress: (percent: number) => void,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
-  const signed = await requestMessageUploadUrl(conversationId, uploadInput);
+  const signed = await messageApi.requestUploadUrl(conversationId, uploadInput);
   await uploadToSignedUrl(signed.uploadUrl, media.file, onProgress);
   const sendInput = { ...uploadInput, storagePath: signed.storagePath } as SendMessageInput;
-  return sendMessage(conversationId, sendInput);
+  return messageApi.sendMessage(conversationId, sendInput);
 }
 
 // Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive de taille.

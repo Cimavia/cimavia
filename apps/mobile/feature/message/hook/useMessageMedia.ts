@@ -3,12 +3,7 @@ import { MessageType } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
-import {
-  conversationKeys,
-  messageKeys,
-  requestMessageUploadUrl,
-  sendMessage,
-} from "@/feature/message/api";
+import { messageApi, messageKeys } from "@/feature/message/api";
 import {
   MediaRejectedError,
   type PreparedMessageMedia,
@@ -40,8 +35,8 @@ export function useSendMessageMedia(conversationId: string) {
       return uploadAndSend(conversationId, media);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.list(conversationId) });
-      queryClient.invalidateQueries({ queryKey: conversationKeys.mine() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
+      queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
     },
   });
 
@@ -68,12 +63,12 @@ async function uploadAndSend(
   media: PreparedMessageMedia,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
-  const signed = await requestMessageUploadUrl(conversationId, uploadInput);
+  const signed = await messageApi.requestUploadUrl(conversationId, uploadInput);
   await uploadToStorage(signed.uploadUrl, media.uri, media.mimeType);
   // Le message média = le même descripteur + la clé objet rendue par l'URL signée. Le cast couvre
   // la fusion de l'union discriminée, que TS ne sait pas prouver.
   const sendInput = { ...uploadInput, storagePath: signed.storagePath } as SendMessageInput;
-  return sendMessage(conversationId, sendInput);
+  return messageApi.sendMessage(conversationId, sendInput);
 }
 
 /**
