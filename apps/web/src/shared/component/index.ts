@@ -9,6 +9,7 @@ export { CmvEmptyState } from "./CmvEmptyState";
 export { CmvErrorState } from "./CmvErrorState";
 export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";
+export { CmvRoleGate } from "./CmvRoleGate";
 export type { CmvSegmentedOption } from "./CmvSegmented";
 export { CmvSegmented } from "./CmvSegmented";
 export type { CmvSelectOption } from "./CmvSelect";

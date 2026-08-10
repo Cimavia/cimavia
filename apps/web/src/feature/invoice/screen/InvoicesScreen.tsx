@@ -3,11 +3,9 @@ import {
   InvoiceState,
   InvoiceStatus,
   ReminderEntityType,
-  Role,
   resolveInvoiceState,
   todayIsoDate,
 } from "@cmv/shared";
-import { Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import {
@@ -24,7 +22,6 @@ import {
   CmvEmptyState,
   CmvErrorState,
 } from "@/shared/component";
-import { authClient } from "@/shared/lib/auth";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
@@ -35,24 +32,15 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  * marquage « payé » est manuel (paiement réel externe en MVP) ; le retour arrière « impayé » est
  * confirmé en deux temps (CmvConfirmButton) — poser un paiement à tort se corrige, mais pas à la
  * légère.
+ *
+ * L'écran ne sait pas qui le regarde : la capacité exigée est déclarée par sa route
+ * (`CmvRoleGate`), qui ne le monte pas si elle manque.
  */
 export function InvoicesScreen() {
   const { t } = useTranslation();
-  const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: invoices, isPending, isError, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
   const cancel = useCancelInvoice();
-
-  if (isAuthPending) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
-  if (authSession?.user.role !== Role.COACH) {
-    return <Navigate to="/" />;
-  }
 
   // Erreur, vide et chargement sont trois états distincts : « Aucune facture » sur une panne
   // réseau serait un mensonge.
