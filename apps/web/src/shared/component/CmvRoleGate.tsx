@@ -5,8 +5,12 @@ import { useTranslation } from "react-i18next";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 
 type CmvRoleGateProps = {
-  /** La capacité exigée pour monter l'écran. */
-  capability: CapabilityName;
+  /**
+   * La capacité exigée pour monter l'écran, ou la LISTE de celles qui suffisent — une seule
+   * suffit alors. Deux capacités ne veut pas dire « écran partagé » : `/invoices` sert la même
+   * route à des contenus différents, c'est l'écran qui choisit ce qu'il montre, pas la garde.
+   */
+  capability: CapabilityName | readonly CapabilityName[];
   children: ReactNode;
   /**
    * Rendu à la place de l'écran quand la capacité manque. Défaut : retour à l'accueil — le bon
@@ -61,7 +65,9 @@ export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRole
     return <Navigate to="/login" />;
   }
 
-  if (!hasCapability(capabilities, capability)) {
+  // `typeof` plutôt que `Array.isArray`, qui élargit un tableau readonly en `any[]`.
+  const accepted = typeof capability === "string" ? [capability] : capability;
+  if (!accepted.some((name) => hasCapability(capabilities, name))) {
     return fallback ?? <Navigate to="/" />;
   }
 

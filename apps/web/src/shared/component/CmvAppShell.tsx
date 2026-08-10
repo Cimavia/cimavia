@@ -15,10 +15,14 @@ import { authClient } from "@/shared/lib/auth";
  * Pas d'entrée « Athlètes » : la liste vit dans le tableau de bord depuis #113, et deux entrées
  * menant au même écran ne feraient qu'hésiter.
  *
- * Aucune entrée athlète pour l'instant — aucun écran athlète-sur-web n'existe encore. La première
- * arrive avec #27. Le jour où les DEUX groupes sont peuplés (compte à double capacité, #7), c'est
- * ici que les sections nommées « En tant que coach » / « En tant qu'athlète » se posent : une nav
- * plate de quatorze entrées ne dirait plus à quel titre on fait quoi.
+ * Une même route peut apparaître DEUX fois, une par capacité, avec un libellé différent : le coach
+ * « fait de la facturation », l'athlète « a des factures ». Ce n'est pas de la redondance, c'est la
+ * même ressource nommée depuis les deux bouts de la relation.
+ *
+ * Le jour où les DEUX groupes sont peuplés pour un même compte (double capacité, #7), c'est ici que
+ * les sections nommées « En tant que coach » / « En tant qu'athlète » se posent : une nav plate de
+ * quatorze entrées ne dirait plus à quel titre on fait quoi, et deux entrées vers `/invoices` s'y
+ * surligneraient ensemble.
  */
 const NAV_ITEMS = [
   { to: "/", labelKey: "nav.dashboard", capability: "coach" },
@@ -28,6 +32,7 @@ const NAV_ITEMS = [
   { to: "/messages", labelKey: "nav.messages", capability: "coach" },
   { to: "/invoices", labelKey: "nav.invoices", capability: "coach" },
   { to: "/reminders", labelKey: "nav.reminders", capability: "coach" },
+  { to: "/invoices", labelKey: "nav.myInvoices", capability: "athlete" },
 ] as const;
 
 type CmvAppShellProps = {
@@ -64,7 +69,9 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
         <nav className="flex flex-1 flex-col gap-cmv-xs">
           {navItems.map((item) => (
             <Link
-              key={item.to}
+              // La capacité fait partie de la clé : une même route peut être listée deux fois,
+              // une par capacité (cf. `/invoices`).
+              key={`${item.capability}:${item.to}`}
               to={item.to}
               className="rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
               activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}

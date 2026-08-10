@@ -255,7 +255,8 @@
     "feedbacks": "Débriefs",
     "messages": "Messages",
     "invoices": "Facturation",
-    "reminders": "Rappels"
+    "reminders": "Rappels",
+    "myInvoices": "Factures"
   },
   "reminder": {
     "title": "Mes rappels",
@@ -448,6 +449,15 @@
   "invoice": {
     "title": "Facturation",
     "subtitle": "Suis le règlement des factures émises.",
+    "byCoach": "De {{name}}",
+    "athlete": {
+      "title": "Mes factures",
+      "subtitle": "Les factures émises par ton coach.",
+      "empty": {
+        "title": "Aucune facture",
+        "description": "Quand ton coach émettra une facture, elle apparaîtra ici."
+      }
+    },
     "markPaid": "Marquer payée",
     "reopen": "Marquer impayée",
     "reopenConfirm": "Confirmer",

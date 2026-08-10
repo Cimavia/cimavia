@@ -3,13 +3,13 @@ import { InvoicesScreen } from "@/feature/invoice";
 import { CmvRoleGate } from "@/shared/component";
 
 /**
- * Suivi des factures émises — coach seul en l'état. #27 ouvrira cette route à l'athlète (vue
- * lecture seule) : c'est le `capability` d'ici qui bougera, l'écran ne saura toujours pas qui le
- * regarde.
+ * Factures émises : les DEUX rôles. Une seule route parce qu'il n'y a qu'une seule ressource —
+ * `GET /invoices` est scopée par le tenant, le coach y lit celles qu'il a émises et l'athlète les
+ * siennes. Ce que chacun peut en FAIRE diffère, et c'est l'écran qui le tranche (#27).
  */
 export const Route = createFileRoute("/invoices")({
   component: () => (
-    <CmvRoleGate capability="coach">
+    <CmvRoleGate capability={["coach", "athlete"]}>
       <InvoicesScreen />
     </CmvRoleGate>
   ),

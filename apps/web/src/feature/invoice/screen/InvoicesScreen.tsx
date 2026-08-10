@@ -22,6 +22,7 @@ import {
   CmvEmptyState,
   CmvErrorState,
 } from "@/shared/component";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
@@ -33,11 +34,17 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  * confirmé en deux temps (CmvConfirmButton) — poser un paiement à tort se corrige, mais pas à la
  * légère.
  *
- * L'écran ne sait pas qui le regarde : la capacité exigée est déclarée par sa route
- * (`CmvRoleGate`), qui ne le monte pas si elle manque.
+ * La MÊME ressource sert les deux rôles (#27) : `GET /invoices` est scopée par le tenant, le coach
+ * y lit ce qu'il a émis et l'athlète ce qu'il doit. Ce qui diffère, c'est ce qu'on peut en faire —
+ * d'où `canManage` plutôt qu'un second écran qui recopierait la lecture pour n'en changer que les
+ * boutons.
+ *
+ * `useCapabilities` est lu ici pour la PRÉSENTATION, jamais pour garder : qui entre est décidé par
+ * la route (`CmvRoleGate`), qui ne monte pas cet écran sans l'une des deux capacités.
  */
 export function InvoicesScreen() {
   const { t } = useTranslation();
+  const { isCoach } = useCapabilities();
   const { data: invoices, isPending, isError, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
   const cancel = useCancelInvoice();
@@ -47,7 +54,10 @@ export function InvoicesScreen() {
   const hasInvoices = invoices != null && invoices.length > 0;
 
   return (
-    <CmvAppShell title={t("invoice.title")} subtitle={t("invoice.subtitle")}>
+    <CmvAppShell
+      title={isCoach ? t("invoice.title") : t("invoice.athlete.title")}
+      subtitle={isCoach ? t("invoice.subtitle") : t("invoice.athlete.subtitle")}
+    >
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {isError ? (
@@ -59,10 +69,15 @@ export function InvoicesScreen() {
         />
       ) : null}
 
+      {/* Le vide ne dit pas la même chose des deux côtés : au coach qu'il n'a rien émis (et où le
+          faire), à l'athlète qu'on ne lui demande rien. Clés littérales et non assemblées — c'est
+          ce qui les rend visibles de TypeScript et de `check:i18n`. */}
       {!isPending && !isError && !hasInvoices ? (
         <CmvEmptyState
-          title={t("invoice.empty.title")}
-          description={t("invoice.empty.description")}
+          title={isCoach ? t("invoice.empty.title") : t("invoice.athlete.empty.title")}
+          description={
+            isCoach ? t("invoice.empty.description") : t("invoice.athlete.empty.description")
+          }
         />
       ) : null}
 
@@ -72,6 +87,7 @@ export function InvoicesScreen() {
             <InvoiceRow
               key={invoice.id}
               invoice={invoice}
+              canManage={isCoach}
               busy={updateStatus.isPending || cancel.isPending}
               onMarkPaid={() => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PAID })}
               onReopen={() =>
@@ -88,13 +104,26 @@ export function InvoicesScreen() {
 
 type InvoiceRowProps = {
   invoice: InvoiceDto;
+  /**
+   * Le coach pilote (marquer payée, rouvrir, annuler, se poser un rappel), l'athlète consulte. Un
+   * booléen plutôt que le rôle : la carte n'a pas à savoir QUI regarde, seulement ce qui lui est
+   * permis.
+   */
+  canManage: boolean;
   busy: boolean;
   onMarkPaid: () => void;
   onReopen: () => void;
   onCancel: () => void;
 };
 
-function InvoiceRow({ invoice, busy, onMarkPaid, onReopen, onCancel }: Readonly<InvoiceRowProps>) {
+function InvoiceRow({
+  invoice,
+  canManage,
+  busy,
+  onMarkPaid,
+  onReopen,
+  onCancel,
+}: Readonly<InvoiceRowProps>) {
   const { t } = useTranslation();
   const isPaid = invoice.status === InvoiceStatus.PAID;
   // Annulée = terminal (l'API refuse tout retour en 409) : la carte ne propose plus aucune action,
@@ -107,8 +136,13 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen, onCancel }: Readonly<
     <CmvCard>
       <div className="flex items-start gap-cmv-md">
         <div className="flex flex-1 flex-col gap-cmv-xs">
+          {/* La facture porte les deux noms : chacun lit celui de l'AUTRE partie. Le coach suit
+              N athlètes, l'athlète n'a qu'un coach — d'où le préfixe « De » de son côté, qui dit
+              d'où vient la facture plutôt que de répéter son propre nom sur chaque carte. */}
           <div className="flex items-center gap-cmv-sm">
-            <h3 className="text-cmv-subtitle text-cmv-text-hi">{invoice.athleteName}</h3>
+            <h3 className="text-cmv-subtitle text-cmv-text-hi">
+              {canManage ? invoice.athleteName : t("invoice.byCoach", { name: invoice.coachName })}
+            </h3>
             <InvoiceStatusBadge invoice={invoice} />
           </div>
 
@@ -141,7 +175,12 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen, onCancel }: Readonly<
         </div>
 
         <div className="flex flex-col gap-cmv-sm">
-          {isPaid ? (
+          {/* Tout ce qui suit jusqu'au justificatif est réservé au coach, et pas seulement par
+              politesse : `PATCH /invoices/:id/status` et `POST /invoices/:id/cancel` sont gardées
+              `@Roles([COACH])`, et surtout `ScheduleReminderButton` touche `Reminder` — la seule
+              entité scopée `coachId` SEUL. Un athlète qui l'atteint prend une *erreur*, pas un 403
+              (fail closed) : ce test est la seconde des deux gardes qu'exige ce modèle. */}
+          {canManage && isPaid ? (
             <div className="flex justify-end">
               <CmvConfirmButton
                 label={t("invoice.reopen")}
@@ -153,7 +192,7 @@ function InvoiceRow({ invoice, busy, onMarkPaid, onReopen, onCancel }: Readonly<
             </div>
           ) : null}
 
-          {!isPaid && !isCancelled ? (
+          {canManage && !isPaid && !isCancelled ? (
             <>
               <div className="flex justify-end">
                 <CmvButton variant="secondary" onClick={onMarkPaid} disabled={busy}>
