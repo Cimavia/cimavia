@@ -1,5 +1,4 @@
-import { type ReminderDto, ReminderStatus, Role } from "@cmv/shared";
-import { Navigate } from "@tanstack/react-router";
+import { type ReminderDto, ReminderStatus } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ReminderCard } from "@/feature/reminder/component/ReminderCard";
@@ -11,7 +10,6 @@ import {
   CmvSegmented,
   type CmvSegmentedOption,
 } from "@/shared/component";
-import { authClient } from "@/shared/lib/auth";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -29,21 +27,9 @@ type Segment = (typeof SEGMENTS)[number];
  */
 export function RemindersScreen() {
   const { t } = useTranslation();
-  const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: reminders, isPending, isError, refetch } = useReminders();
   const updateStatus = useUpdateReminderStatus();
   const [segment, setSegment] = useState<Segment>("PENDING");
-
-  if (isAuthPending) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
-  if (authSession?.user.role !== Role.COACH) {
-    return <Navigate to="/" />;
-  }
 
   const shown = (reminders ?? []).filter((reminder) =>
     segment === "PENDING"

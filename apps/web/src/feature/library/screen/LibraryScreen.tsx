@@ -1,5 +1,4 @@
-import { type ExerciseDto, Role, type SessionDto } from "@cmv/shared";
-import { Navigate } from "@tanstack/react-router";
+import type { ExerciseDto, SessionDto } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExerciseForm } from "@/feature/library/component/ExerciseForm";
@@ -9,14 +8,11 @@ import { SessionList } from "@/feature/library/component/SessionList";
 import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
 import { CmvAppShell, CmvButton, CmvTabs } from "@/shared/component";
-import { authClient } from "@/shared/lib/auth";
 
 type LibraryTab = "exercises" | "sessions";
 
 export function LibraryScreen() {
   const { t } = useTranslation();
-  // `authSession` = session d'authentification, à ne pas confondre avec la Session métier (séance).
-  const { data: authSession, isPending: isAuthPending } = authClient.useSession();
 
   const [tab, setTab] = useState<LibraryTab>("exercises");
   const [exercisePanelOpen, setExercisePanelOpen] = useState(false);
@@ -28,18 +24,6 @@ export function LibraryScreen() {
   // requête supplémentaire pour les séances ; les exercices non filtrés sont une entrée à part.
   const { data: allExercises } = useExercises({});
   const { data: allSessions } = useSessions();
-
-  if (isAuthPending) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
-  // Bibliothèque = surface coach uniquement (l'API refuse déjà l'athlète en 403).
-  if (authSession?.user.role !== Role.COACH) {
-    return <Navigate to="/" />;
-  }
 
   const isSessionsTab = tab === "sessions";
 

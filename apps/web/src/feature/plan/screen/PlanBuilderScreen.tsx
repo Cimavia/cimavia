@@ -3,7 +3,6 @@ import {
   type PlanWeekDto,
   PlanWeekType,
   ReminderEntityType,
-  Role,
   type ScheduledSessionDto,
   type ScheduledSessionSummaryDto,
 } from "@cmv/shared";
@@ -22,7 +21,6 @@ import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
-import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
 
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
@@ -32,7 +30,6 @@ export function PlanBuilderScreen() {
   const { t } = useTranslation();
   const { planId } = useParams({ from: "/plans/$planId" });
 
-  const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
   const { addWeek, isBusy } = usePlanMutations(planId);
   const { clipboard, clearClipboard } = usePlanClipboard();
@@ -48,15 +45,12 @@ export function PlanBuilderScreen() {
     enabled: edit?.sessionId != null,
   });
 
-  if (isAuthPending || isPending) {
+  if (isPending) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
         {t("common.loading")}
       </main>
     );
-  }
-  if (authSession?.user.role !== Role.COACH) {
-    return <Navigate to="/" />;
   }
   // Échec de chargement : on le DIT, avec un recours. Rediriger vers la liste (ce que faisait le
   // `plan == null` seul) laisserait croire que le cycle a disparu.

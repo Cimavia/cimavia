@@ -4,10 +4,9 @@ import {
   countOverdueInvoices,
   countPendingInvoices,
   countUnreadFeedbacks,
-  Role,
   todayIsoDate,
 } from "@cmv/shared";
-import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
@@ -65,7 +64,9 @@ type TileSource = { isError: boolean; refetch: () => unknown };
 export function DashboardScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: authSession, isPending } = authClient.useSession();
+  // Session lue pour l'AFFICHAGE seul (le nom dans le sous-titre) : la capacité exigée par cet
+  // écran est déclarée par sa route, qui ne le monte pas sans elle.
+  const { data: authSession } = authClient.useSession();
   const athletes = useAthletes();
   const plans = usePlans();
   /**
@@ -86,33 +87,6 @@ export function DashboardScreen() {
   // rafraîchie sous le panneau, et une copie figée y afficherait un nom périmé.
   const [sheetAthleteId, setSheetAthleteId] = useState<string | null>(null);
   const [invitationOpen, setInvitationOpen] = useState(false);
-
-  if (isPending) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
-  if (!authSession) {
-    return <Navigate to="/login" />;
-  }
-
-  // Le web est la surface du coach ; l'athlète vit sur mobile (il garde un accès de dépannage,
-  // qui sera construit avec les écrans athlète — hors périmètre de cette phase).
-  if (authSession.user.role !== Role.COACH) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-cmv-sm bg-cmv-bg-0 p-cmv-xl text-center">
-        <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">
-          {t("dashboard.welcome", { name: authSession.user.name })}
-        </h1>
-        <p className="max-w-sm text-cmv-body text-cmv-text-mid">{t("dashboard.athleteHint")}</p>
-        <CmvButton variant="secondary" onClick={() => authClient.signOut()}>
-          {t("common.logout")}
-        </CmvButton>
-      </main>
-    );
-  }
 
   // `todayIsoDate()` et non un instant : `Invoice.dueDate` est une date CIVILE, la lire en heure
   // locale ferait basculer de jour aux abords de minuit.
@@ -221,7 +195,7 @@ export function DashboardScreen() {
   return (
     <CmvAppShell
       title={t("dashboard.title")}
-      subtitle={t("dashboard.welcome", { name: authSession.user.name })}
+      subtitle={t("dashboard.welcome", { name: authSession?.user.name ?? "—" })}
       // Action primaire de l'écran, comme la top bar de la maquette : inviter un athlète était le
       // seul geste que `/athletes` portait et que les tuiles ne remplacent pas.
       actions={<CmvButton onClick={() => setInvitationOpen(true)}>{t("athlete.invite")}</CmvButton>}

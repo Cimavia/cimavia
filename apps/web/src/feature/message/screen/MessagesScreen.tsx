@@ -1,5 +1,4 @@
-import { Role } from "@cmv/shared";
-import { getRouteApi, Navigate, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
@@ -10,7 +9,6 @@ import {
 import { MessageThread } from "@/feature/message/component/MessageThread";
 import { useConversations } from "@/feature/message/hook/useMessages";
 import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
-import { authClient } from "@/shared/lib/auth";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle. Le typage des search params est conservé.
@@ -29,7 +27,6 @@ const route = getRouteApi("/messages");
 export function MessagesScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: authSession, isPending: isAuthPending } = authClient.useSession();
   const athletes = useAthletes();
   const conversations = useConversations();
 
@@ -53,17 +50,6 @@ export function MessagesScreen() {
         (b.conversation?.lastMessageAt ?? "").localeCompare(a.conversation?.lastMessageAt ?? ""),
       );
   }, [athletes.data, conversations.data]);
-
-  if (isAuthPending) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
-  if (authSession?.user.role !== Role.COACH) {
-    return <Navigate to="/" />;
-  }
 
   const selected = rows.find((row) => row.athleteId === selectedAthleteId) ?? null;
   const isPending = athletes.isPending || conversations.isPending;

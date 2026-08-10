@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MessagesScreen } from "@/feature/message";
+import { CmvRoleGate } from "@/shared/component";
 
 /**
  * `?athlete=<id>` — le fil ouvert vit dans l'URL, pas dans un `useState`.
@@ -18,5 +19,12 @@ export const Route = createFileRoute("/messages")({
     athlete:
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
   }),
-  component: MessagesScreen,
+  // Coach seul en l'état. #29 ouvre cette route à l'athlète (fil unique, sans colonne de fils) :
+  // c'est le seul endroit à changer, l'écran se branchera sur la capacité pour choisir sa mise en
+  // page — mais il ne sera toujours pas monté pour un rôle qui n'a rien à y faire.
+  component: () => (
+    <CmvRoleGate capability="coach">
+      <MessagesScreen />
+    </CmvRoleGate>
+  ),
 });
