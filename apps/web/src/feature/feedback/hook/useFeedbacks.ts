@@ -1,11 +1,6 @@
 import type { CoachFeedbackSummaryDto, SessionFeedbackDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  feedbackKeys,
-  getSessionFeedback,
-  listFeedbacks,
-  markFeedbackRead,
-} from "@/feature/feedback/api";
+import { coachFeedbackApi, coachFeedbackKeys } from "@/feature/feedback/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 const FEEDBACKS_POLL_MS = 30_000;
@@ -21,16 +16,16 @@ const FEEDBACKS_POLL_MS = 30_000;
  */
 export function useFeedbacks({ poll = true }: { poll?: boolean } = {}) {
   return useQuery<CoachFeedbackSummaryDto[]>({
-    queryKey: feedbackKeys.list(),
-    queryFn: listFeedbacks,
+    queryKey: coachFeedbackKeys.list(),
+    queryFn: coachFeedbackApi.list,
     refetchInterval: poll ? FEEDBACKS_POLL_MS : false,
   });
 }
 
 export function useSessionFeedback(sessionId: string) {
   return useQuery<SessionFeedbackDto | null>({
-    queryKey: feedbackKeys.bySession(sessionId),
-    queryFn: () => getSessionFeedback(sessionId),
+    queryKey: coachFeedbackKeys.bySession(sessionId),
+    queryFn: () => coachFeedbackApi.getBySession(sessionId),
   });
 }
 
@@ -39,9 +34,9 @@ export function useMarkFeedbackRead() {
   const toast = useMutationToast();
 
   return useMutation({
-    mutationFn: (id: string) => markFeedbackRead(id),
+    mutationFn: (id: string) => coachFeedbackApi.markRead(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: feedbackKeys.all });
+      queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
     },
     onError: toast.onError,
   });
