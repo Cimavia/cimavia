@@ -1,44 +1,8 @@
-import type {
-  AthleteSheetDto,
-  CoachAthleteDto,
-  CreateInvitationInput,
-  InvitationDto,
-  UpdateAthleteSheetInput,
-} from "@cmv/shared";
+import { createAccountApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
-export const athleteKeys = {
-  all: ["athletes"] as const,
-  list: () => ["athletes", "list"] as const,
-  sheet: (athleteId: string) => ["athletes", "sheet", athleteId] as const,
-};
+// Routes, DTO et clés de cache de la relation coach ↔ athlète vivent dans @cmv/shared : le mobile
+// appelle exactement les mêmes (#30, #31). Ne reste ici que l'injection du client web.
+export const accountApi = createAccountApi(api);
 
-export const invitationKeys = {
-  all: ["invitations"] as const,
-  list: () => ["invitations", "list"] as const,
-};
-
-export function listAthletes(): Promise<CoachAthleteDto[]> {
-  return api.get<CoachAthleteDto[]>("/athletes");
-}
-
-export function getAthleteSheet(athleteId: string): Promise<AthleteSheetDto | null> {
-  return api.get<AthleteSheetDto | null>(`/athletes/${athleteId}/sheet`);
-}
-
-export function saveAthleteSheet(
-  athleteId: string,
-  input: UpdateAthleteSheetInput,
-): Promise<AthleteSheetDto> {
-  return api.put<AthleteSheetDto>(`/athletes/${athleteId}/sheet`, input);
-}
-
-// ── Invitations ──────────────────────────────────────────────────────────────
-
-export function listInvitations(): Promise<InvitationDto[]> {
-  return api.get<InvitationDto[]>("/invitations");
-}
-
-export function createInvitation(input: CreateInvitationInput): Promise<InvitationDto> {
-  return api.post<InvitationDto>("/invitations", input);
-}
+export { athleteKeys, coachKeys, invitationKeys } from "@cmv/shared";
