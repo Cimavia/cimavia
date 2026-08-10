@@ -4,6 +4,7 @@ import {
   MediaType,
   type MediaTypeType,
   maxFeedbackMediaSizeBytes,
+  megabytesOf,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
@@ -48,6 +49,7 @@ export function useAddFeedbackMedia(sessionId: string) {
       if (media.size > maxFeedbackMediaSizeBytes(type)) {
         throw new MediaRejectedError(
           type === MediaType.VIDEO ? "feedback.media.videoTooBig" : "feedback.media.photoTooBig",
+          { max: megabytesOf(maxFeedbackMediaSizeBytes(type)) },
         );
       }
 

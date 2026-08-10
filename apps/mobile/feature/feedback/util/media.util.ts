@@ -8,6 +8,8 @@ import {
   MAX_FEEDBACK_AUDIO_SIZE_BYTES,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
+  megabytesOf,
+  minutesOf,
 } from "@cmv/shared";
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
@@ -44,7 +46,12 @@ export type PreparedMedia =
 // Erreur métier destinée à l'utilisateur (fichier trop lourd, format non géré) : le rendu la
 // traduit. Distincte d'une panne technique, qui remonte telle quelle.
 export class MediaRejectedError extends Error {
-  constructor(readonly reasonKey: string) {
+  constructor(
+    readonly reasonKey: string,
+    // Les plafonds cités par le message viennent des CONSTANTES, jamais écrits en dur : six
+    // chaînes s'étaient mises à mentir le jour où les limites ont changé.
+    readonly params: Record<string, string | number> = {},
+  ) {
     super(reasonKey);
   }
 }
@@ -103,7 +110,9 @@ function prepareVideo(asset: ImagePickerAsset): PreparedMedia {
   }
   const durationSeconds = Math.ceil(asset.duration / 1000);
   if (durationSeconds > MAX_FEEDBACK_VIDEO_DURATION_SECONDS) {
-    throw new MediaRejectedError("feedback.media.videoDuration");
+    throw new MediaRejectedError("feedback.media.videoDuration", {
+      max: MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
+    });
   }
 
   return {
@@ -124,11 +133,15 @@ export function prepareMedia(asset: ImagePickerAsset): Promise<PreparedMedia> {
 // mesurée sur le fichier ; durée déclarée par l'enregistreur (pas de décodage — cf. dette P4-2).
 export function prepareAudio(audio: RecordedAudio): PreparedMedia {
   if (audio.durationSeconds > MAX_FEEDBACK_AUDIO_DURATION_SECONDS) {
-    throw new MediaRejectedError("feedback.media.audioTooLong");
+    throw new MediaRejectedError("feedback.media.audioTooLong", {
+      max: minutesOf(MAX_FEEDBACK_AUDIO_DURATION_SECONDS),
+    });
   }
   const size = fileSize(audio.uri);
   if (size > MAX_FEEDBACK_AUDIO_SIZE_BYTES) {
-    throw new MediaRejectedError("feedback.media.audioTooBig");
+    throw new MediaRejectedError("feedback.media.audioTooBig", {
+      max: megabytesOf(MAX_FEEDBACK_AUDIO_SIZE_BYTES),
+    });
   }
   return {
     type: MediaType.AUDIO,

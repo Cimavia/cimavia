@@ -1,6 +1,7 @@
 import type { SessionFeedbackDto } from "@cmv/shared";
 import { FEEDBACK_CONTENT_MAX_LENGTH, MediaType, remainingMediaSlots } from "@cmv/shared";
 import { getRouteApi } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
 import { type ChangeEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FeedbackMediaGallery } from "@/feature/feedback/component/FeedbackMediaGallery";
@@ -255,13 +256,9 @@ function FeedbackMediaSection({
  * Un refus métier (fichier trop lourd, format non géré, micro refusé) porte sa propre clé i18n ;
  * une panne technique garde le message de l'API. Les deux se disent — aucune ne se masque.
  */
-function resolveMediaError(
-  error: unknown,
-  manualKey: string | null,
-  t: (key: string) => string,
-): string | null {
+function resolveMediaError(error: unknown, manualKey: string | null, t: TFunction): string | null {
   if (manualKey != null) return t(manualKey);
   if (error == null) return null;
-  if (error instanceof MediaRejectedError) return t(error.reasonKey);
+  if (error instanceof MediaRejectedError) return t(error.reasonKey, error.params);
   return apiErrorMessage(error) ?? t("feedback.media.uploadError");
 }

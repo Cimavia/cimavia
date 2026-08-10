@@ -4,6 +4,8 @@ import {
   isAllowedFeedbackImageMime,
   isAllowedFeedbackVideoMime,
   MediaType,
+  megabytesOf,
+  minutesOf,
 } from "@cmv/shared";
 
 /**
@@ -81,10 +83,19 @@ export type MediaProfile = {
   keys: MediaRejectionKeys;
 };
 
-// Refus métier destiné à l'utilisateur (format non géré, trop lourd) : porte une clé i18n.
-// Distinct d'une panne technique, qui remonte telle quelle.
+/**
+ * Refus métier destiné à l'utilisateur (format non géré, trop lourd) : porte une clé i18n et ses
+ * paramètres. Distinct d'une panne technique, qui remonte telle quelle.
+ *
+ * Les `params` ne sont pas du confort : sans eux, les messages citaient les plafonds EN DUR
+ * (« dépasse 50 Mo ») et se sont mis à mentir dès que les constantes ont bougé — sans qu'aucune
+ * porte ne le voie, `check:i18n` vérifiant l'existence des clés et non la véracité de leur contenu.
+ */
 export class MediaRejectedError extends Error {
-  constructor(readonly reasonKey: string) {
+  constructor(
+    readonly reasonKey: string,
+    readonly params: Record<string, string | number> = {},
+  ) {
     super(reasonKey);
   }
 }
@@ -115,7 +126,9 @@ export function prepareImageFile(file: File, profile: MediaProfile): PreparedWeb
     throw new MediaRejectedError(profile.keys.imageFormat);
   }
   if (file.size > profile.imageMaxBytes) {
-    throw new MediaRejectedError(profile.keys.imageTooBig);
+    throw new MediaRejectedError(profile.keys.imageTooBig, {
+      max: megabytesOf(profile.imageMaxBytes),
+    });
   }
   return {
     type: MediaType.IMAGE,
@@ -134,11 +147,15 @@ export async function prepareVideoFile(
     throw new MediaRejectedError(profile.keys.videoFormat);
   }
   if (file.size > profile.videoMaxBytes) {
-    throw new MediaRejectedError(profile.keys.videoTooBig);
+    throw new MediaRejectedError(profile.keys.videoTooBig, {
+      max: megabytesOf(profile.videoMaxBytes),
+    });
   }
   const durationSeconds = await readVideoDuration(file, profile);
   if (durationSeconds > profile.videoMaxDurationSeconds) {
-    throw new MediaRejectedError(profile.keys.videoTooLong);
+    throw new MediaRejectedError(profile.keys.videoTooLong, {
+      max: profile.videoMaxDurationSeconds,
+    });
   }
   return {
     type: MediaType.VIDEO,
@@ -165,13 +182,17 @@ export function prepareAudioBlob(
     throw new MediaRejectedError(profile.keys.audioFormat);
   }
   if (durationSeconds > profile.audioMaxDurationSeconds) {
-    throw new MediaRejectedError(profile.keys.audioTooLong);
+    throw new MediaRejectedError(profile.keys.audioTooLong, {
+      max: minutesOf(profile.audioMaxDurationSeconds),
+    });
   }
   const extension = mimeType === "audio/webm" ? "webm" : "m4a";
   const fileName = `note-${Date.now()}.${extension}`;
   const file = new File([blob], fileName, { type: mimeType });
   if (file.size > profile.audioMaxBytes) {
-    throw new MediaRejectedError(profile.keys.audioTooBig);
+    throw new MediaRejectedError(profile.keys.audioTooBig, {
+      max: megabytesOf(profile.audioMaxBytes),
+    });
   }
   return { type: MediaType.AUDIO, file, fileName, mimeType, size: file.size, durationSeconds };
 }

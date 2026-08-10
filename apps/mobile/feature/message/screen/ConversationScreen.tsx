@@ -25,7 +25,7 @@ import { authClient } from "@/shared/lib/auth";
 function mediaErrorMessage(error: unknown, manualKey: string | null, t: TFunction): string | null {
   if (manualKey != null) return t(manualKey);
   if (error == null) return null;
-  if (error instanceof MediaRejectedError) return t(error.reasonKey);
+  if (error instanceof MediaRejectedError) return t(error.reasonKey, error.params);
   return apiErrorMessage(error) ?? t("messages.media.uploadError");
 }
 

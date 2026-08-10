@@ -40,7 +40,7 @@ export function useSendMessageMedia(conversationId: string) {
     onError: (error) => {
       toast.error(
         error instanceof MediaRejectedError
-          ? t(error.reasonKey)
+          ? t(error.reasonKey, error.params)
           : (apiErrorMessage(error) ?? t("common.error")),
       );
     },

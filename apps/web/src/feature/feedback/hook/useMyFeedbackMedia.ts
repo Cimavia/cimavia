@@ -3,7 +3,7 @@ import type {
   MediaTypeType,
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
-import { maxFeedbackMediaSizeBytes, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
+import { maxFeedbackMediaSizeBytes, megabytesOf, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
@@ -47,7 +47,9 @@ export function useAddFeedbackMedia(sessionId: string) {
     mutationFn: async (source: WebMediaSource) => {
       const media = await prepareWebMedia(source, FEEDBACK_MEDIA_PROFILE);
       if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
-        throw new MediaRejectedError(tooBigKey(media.type));
+        throw new MediaRejectedError(tooBigKey(media.type), {
+          max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)),
+        });
       }
       setProgress(0);
       return uploadAndAttach(sessionId, media, setProgress);

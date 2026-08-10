@@ -22,7 +22,7 @@ import { apiErrorMessage } from "@/shared/lib/api";
 function mediaErrorMessage(error: unknown, manualKey: string | null, t: TFunction): string | null {
   if (manualKey != null) return t(manualKey);
   if (error == null) return null;
-  if (error instanceof MediaRejectedError) return t(error.reasonKey);
+  if (error instanceof MediaRejectedError) return t(error.reasonKey, error.params);
   return apiErrorMessage(error) ?? t("feedback.media.uploadError");
 }
 
