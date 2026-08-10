@@ -3,14 +3,12 @@ import { InvoiceStatus } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   attachInvoiceDocument,
-  cancelInvoice,
   getPlanBilling,
+  invoiceApi,
   invoiceKeys,
-  listInvoices,
   removeInvoiceDocument,
   requestInvoiceDocumentUploadUrl,
   savePlanBilling,
-  updateInvoiceStatus,
 } from "@/feature/invoice/api";
 import { planKeys } from "@/feature/plan/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
@@ -19,7 +17,7 @@ import { uploadToSignedUrl } from "@/shared/lib/upload";
 export function useInvoices() {
   return useQuery<InvoiceDto[]>({
     queryKey: invoiceKeys.list(),
-    queryFn: listInvoices,
+    queryFn: invoiceApi.list,
   });
 }
 
@@ -29,7 +27,7 @@ export function useUpdateInvoiceStatus() {
 
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: UpdateInvoiceStatusInput["status"] }) =>
-      updateInvoiceStatus(id, { status }),
+      invoiceApi.updateStatus(id, { status }),
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
       toast.onSuccess(
@@ -45,7 +43,7 @@ export function useCancelInvoice() {
   const toast = useMutationToast();
 
   return useMutation({
-    mutationFn: (id: string) => cancelInvoice(id),
+    mutationFn: (id: string) => invoiceApi.cancel(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
       toast.onSuccess("invoice.toast.cancelled");

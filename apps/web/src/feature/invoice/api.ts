@@ -3,36 +3,26 @@ import type {
   InvoiceDto,
   PlanBillingInput,
   RequestInvoiceDocumentUploadUrlInput,
-  UpdateInvoiceStatusInput,
   UploadUrlDto,
 } from "@cmv/shared";
+import { createInvoiceApi, invoiceKeys as sharedInvoiceKeys } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
+// Routes, DTO et clés de cache des factures émises vivent dans @cmv/shared : le mobile appelle
+// exactement les mêmes. Ne reste ici que l'injection du client web (cookie du navigateur).
+export const invoiceApi = createInvoiceApi(api);
+
+/**
+ * Clés partagées, plus celle que le web est seul à avoir : la **facturation d'un cycle** (DRAFT)
+ * se saisit dans le builder de planification, qui reste web-only (#20). Elle s'ajoute ici plutôt
+ * que de polluer le module partagé d'une clé qu'un seul client utilisera jamais.
+ */
 export const invoiceKeys = {
-  all: ["invoices"] as const,
-  list: () => ["invoices", "list"] as const,
-  // Facturation DRAFT d'un cycle (section du builder).
+  ...sharedInvoiceKeys,
   billing: (planId: string) => ["invoices", "billing", planId] as const,
 };
 
-// Toutes les factures ÉMISES, de la plus récente à la plus ancienne (ordre imposé par l'API).
-export function listInvoices(): Promise<InvoiceDto[]> {
-  return api.get<InvoiceDto[]>("/invoices");
-}
-
-// Toggle payé/impayé : le service pose ou efface `paidAt` selon le statut visé.
-export function updateInvoiceStatus(
-  id: string,
-  input: UpdateInvoiceStatusInput,
-): Promise<InvoiceDto> {
-  return api.patch<InvoiceDto>(`/invoices/${id}/status`, input);
-}
-
-// Annulation : route dédiée (et non une valeur du toggle) car gardée — 409 si la facture n'est
-// pas en attente de règlement — et irréversible.
-export function cancelInvoice(id: string): Promise<InvoiceDto> {
-  return api.post<InvoiceDto>(`/invoices/${id}/cancel`);
-}
+// ── Facturation d'un cycle (web-only) ────────────────────────────────────────
 
 // Termes de facturation (DRAFT) du cycle, ou null tant que le coach n'a rien saisi.
 export function getPlanBilling(planId: string): Promise<InvoiceDto | null> {

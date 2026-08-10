@@ -1,5 +1,7 @@
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
+export type { InvoiceApi } from "./api/invoice.api";
+export { createInvoiceApi, invoiceKeys } from "./api/invoice.api";
 export type { NotificationApi } from "./api/notification.api";
 export { createNotificationApi, notificationKeys } from "./api/notification.api";
 export type { ReminderApi } from "./api/reminder.api";
