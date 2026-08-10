@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { to: "/messages", labelKey: "nav.messages", capability: "coach" },
   { to: "/invoices", labelKey: "nav.invoices", capability: "coach" },
   { to: "/reminders", labelKey: "nav.reminders", capability: "coach" },
+  { to: "/planning", labelKey: "nav.planning", capability: "athlete" },
   { to: "/invoices", labelKey: "nav.myInvoices", capability: "athlete" },
   { to: "/my-coach", labelKey: "nav.myCoach", capability: "athlete" },
 ] as const;

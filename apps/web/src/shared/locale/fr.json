@@ -165,6 +165,25 @@
         "RENFO": "Renfo",
         "GRIMPE": "Grimpe",
         "TECHNIQUE": "Technique"
+      },
+      "title": "Mon planning",
+      "today": "Aujourd'hui",
+      "rest": "Repos",
+      "doneCount": "{{done}}/{{total}} séances faites",
+      "outOfCycle": "Ton cycle n'a pas encore commencé, ou il est terminé : cette semaine n'est pas la semaine courante.",
+      "week": {
+        "numberAndType": "Semaine {{number}} · {{type}}",
+        "previous": "Semaine précédente",
+        "today": "Aujourd'hui",
+        "next": "Semaine suivante"
+      },
+      "weekType": {
+        "TRAINING": "Entraînement",
+        "DELOAD": "Décharge"
+      },
+      "empty": {
+        "title": "Aucune planification publiée",
+        "description": "Ton coach n'a pas encore diffusé de planification. Dès qu'il le fera, tes séances de la semaine s'afficheront ici."
       }
     },
     "new": "Nouvelle planification",
@@ -274,7 +293,8 @@
     "invoices": "Facturation",
     "reminders": "Rappels",
     "myInvoices": "Factures",
-    "myCoach": "Mon coach"
+    "myCoach": "Mon coach",
+    "planning": "Planning"
   },
   "reminder": {
     "title": "Mes rappels",

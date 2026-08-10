@@ -341,7 +341,13 @@ export {
 } from "./util/invoice.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
-export type { PlanPeriod, PlanWeekRange, PlanWeekRef } from "./util/plan.util";
+export type {
+  PlanPeriod,
+  PlanWeekRange,
+  PlanWeekRef,
+  SessionProgress,
+  SessionProgressSource,
+} from "./util/plan.util";
 export {
   isDateInPlanWeek,
   planEndDate,
@@ -350,6 +356,7 @@ export {
   planWeekNumber,
   planWeekRange,
   selectCurrentPlan,
+  weekSessionProgress,
 } from "./util/plan.util";
 export type { ReminderFeedSource, ReminderTiming } from "./util/reminder.util";
 export {
