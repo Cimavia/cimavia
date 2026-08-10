@@ -184,6 +184,13 @@
       "empty": {
         "title": "Aucune planification publiée",
         "description": "Ton coach n'a pas encore diffusé de planification. Dès qu'il le fera, tes séances de la semaine s'afficheront ici."
+      },
+      "sessions": {
+        "title": "Mes séances",
+        "upcoming": "À venir",
+        "past": "Passées",
+        "empty": "Aucune séance",
+        "emptyHint": "Rien à afficher dans cette période."
       }
     },
     "new": "Nouvelle planification",
@@ -294,7 +301,8 @@
     "reminders": "Rappels",
     "myInvoices": "Factures",
     "myCoach": "Mon coach",
-    "planning": "Planning"
+    "planning": "Planning",
+    "sessions": "Séances"
   },
   "reminder": {
     "title": "Mes rappels",
