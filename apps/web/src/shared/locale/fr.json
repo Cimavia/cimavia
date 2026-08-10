@@ -377,7 +377,8 @@
       "unreadable": "Ce fichier est illisible."
     },
     "audio": {
-      "permission": "Autorise l'accès au micro pour enregistrer un message vocal."
+      "permission": "Autorise l'accès au micro pour enregistrer un message vocal.",
+      "unsupported": "Ton navigateur ne sait pas enregistrer dans un format accepté."
     },
     "empty": {
       "description": "Démarre la conversation."
