@@ -1,5 +1,7 @@
 export type { AccountApi } from "./api/account.api";
 export { athleteKeys, coachKeys, createAccountApi, invitationKeys } from "./api/account.api";
+export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
+export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
 export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";

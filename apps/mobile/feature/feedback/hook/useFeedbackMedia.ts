@@ -9,12 +9,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
-import {
-  attachMedia,
-  deleteMedia,
-  feedbackKeys,
-  requestMediaUploadUrl,
-} from "@/feature/feedback/api";
+import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
 import {
   MediaRejectedError,
   type PreparedMedia,
@@ -29,7 +24,7 @@ import type { RecordedAudio } from "@/shared/component";
 function useInvalidateFeedback(sessionId: string) {
   const queryClient = useQueryClient();
   return () => {
-    queryClient.invalidateQueries({ queryKey: feedbackKeys.detail(sessionId) });
+    queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
     queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
     queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });
   };
@@ -82,7 +77,7 @@ export function useDeleteFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
 
   return useMutation({
-    mutationFn: (mediaId: string) => deleteMedia(sessionId, mediaId),
+    mutationFn: (mediaId: string) => athleteFeedbackApi.deleteMedia(sessionId, mediaId),
     onSuccess: invalidate,
   });
 }
@@ -91,9 +86,9 @@ export function useDeleteFeedbackMedia(sessionId: string) {
 // crée le débrief s'il n'existait pas encore et passe la séance en DONE (côté API).
 async function uploadAndAttach(sessionId: string, media: PreparedMedia) {
   const input = toUploadUrlInput(media);
-  const signed = await requestMediaUploadUrl(sessionId, input);
+  const signed = await athleteFeedbackApi.requestMediaUploadUrl(sessionId, input);
   await uploadToStorage(signed.uploadUrl, media);
-  return attachMedia(sessionId, { ...input, storagePath: signed.storagePath });
+  return athleteFeedbackApi.attachMedia(sessionId, { ...input, storagePath: signed.storagePath });
 }
 
 /**
