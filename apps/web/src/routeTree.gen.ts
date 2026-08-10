@@ -22,6 +22,7 @@ import { Route as FeedbacksRouteImport } from './routes/feedbacks'
 import { Route as AthletesRouteImport } from './routes/athletes'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlansIndexRouteImport } from './routes/plans.index'
+import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -89,6 +90,11 @@ const PlansIndexRoute = PlansIndexRouteImport.update({
   path: '/plans/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
+  id: '/sessions/$sessionId',
+  path: '/sessions/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   id: '/plans/$planId',
   path: '/plans/$planId',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/plans/': typeof PlansIndexRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/plans': typeof PlansIndexRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/plans/': typeof PlansIndexRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
+    | '/sessions/$sessionId'
     | '/plans/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
+    | '/sessions/$sessionId'
     | '/plans'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
+    | '/sessions/$sessionId'
     | '/plans/'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
+  SessionsSessionIdRoute: typeof SessionsSessionIdRoute
   PlansIndexRoute: typeof PlansIndexRoute
 }
 
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sessions/$sessionId': {
+      id: '/sessions/$sessionId'
+      path: '/sessions/$sessionId'
+      fullPath: '/sessions/$sessionId'
+      preLoaderRoute: typeof SessionsSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/plans/$planId': {
       id: '/plans/$planId'
       path: '/plans/$planId'
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
+  SessionsSessionIdRoute: SessionsSessionIdRoute,
   PlansIndexRoute: PlansIndexRoute,
 }
 export const routeTree = rootRouteImport

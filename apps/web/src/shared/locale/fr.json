@@ -150,6 +150,23 @@
   "plan": {
     "title": "Planifications",
     "subtitle": "Les cycles de vos athlètes : construisez, ajustez, diffusez.",
+    "athlete": {
+      "sessionFallbackTitle": "Séance",
+      "notes": "Consignes du coach",
+      "composition": "Déroulé · {{count}} exercice(s)",
+      "document": "Document",
+      "exerciseCount": "{{count}} exercice(s)",
+      "sessionStatus": {
+        "PLANNED": "À faire",
+        "DONE": "Fait",
+        "SKIPPED": "Sautée"
+      },
+      "category": {
+        "RENFO": "Renfo",
+        "GRIMPE": "Grimpe",
+        "TECHNIQUE": "Technique"
+      }
+    },
     "new": "Nouvelle planification",
     "status": {
       "DRAFT": "Brouillon",

@@ -10,6 +10,7 @@ import type {
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
+import { createAthletePlanApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
 // Clés de cache TanStack Query — une racine `plans` pour tout invalider après une écriture.
@@ -97,3 +98,12 @@ export function getScheduledSession(sessionId: string): Promise<ScheduledSession
 export function deleteScheduledSession(sessionId: string): Promise<void> {
   return api.delete<void>(`/scheduled-sessions/${sessionId}`);
 }
+
+// ── Lecture athlète ──────────────────────────────────────────────────────────
+// Surface DISTINCTE de celle du coach ci-dessus : d'autres routes (`/me/…`), d'autres gardes
+// (`@Roles([ATHLETE])`), d'autres besoins — lire ce qu'on doit faire, contre composer ce qu'un
+// autre fera. Les deux cohabitent dans cette feature comme elles cohabitent dans le module `plan/`
+// de l'API (`plan.controller.ts` / `athlete-plan.controller.ts`).
+export const athletePlanApi = createAthletePlanApi(api);
+
+export { myPlanKeys } from "@cmv/shared";
