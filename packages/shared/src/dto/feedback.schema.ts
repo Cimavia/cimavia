@@ -19,10 +19,10 @@ export const mediaTypeSchema = z.enum(MediaType);
 // avant capture/upload) s'y réfèrent tous les deux.
 export const MAX_FEEDBACK_PHOTOS = 5;
 export const MAX_FEEDBACK_VIDEOS = 3;
-export const MAX_FEEDBACK_AUDIOS = 3;
-export const MAX_FEEDBACK_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
-export const MAX_FEEDBACK_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
-export const MAX_FEEDBACK_AUDIO_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_FEEDBACK_AUDIOS = 15;
+export const MAX_FEEDBACK_PHOTO_SIZE_BYTES = 100 * 1024 * 1024;
+export const MAX_FEEDBACK_VIDEO_SIZE_BYTES = 1000 * 1024 * 1024;
+export const MAX_FEEDBACK_AUDIO_SIZE_BYTES = 100 * 1024 * 1024;
 export const MAX_FEEDBACK_VIDEO_DURATION_SECONDS = 60;
 export const MAX_FEEDBACK_AUDIO_DURATION_SECONDS = 300;
 
