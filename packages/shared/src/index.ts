@@ -331,8 +331,8 @@ export {
   RELATIVE_TIME_KEY,
   relativeTimeFrom,
 } from "./util/date-format.util";
-export type { FeedbackReadState } from "./util/feedback.util";
-export { countUnreadFeedbacks } from "./util/feedback.util";
+export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
+export { countUnreadFeedbacks, remainingMediaSlots } from "./util/feedback.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
 export {
   countOverdueInvoices,

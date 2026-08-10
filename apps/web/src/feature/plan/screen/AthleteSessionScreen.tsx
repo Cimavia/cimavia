@@ -1,5 +1,6 @@
 import type { ScheduledSessionExerciseDto } from "@cmv/shared";
-import { getRouteApi } from "@tanstack/react-router";
+import { ScheduledSessionStatus } from "@cmv/shared";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvAppShell, CmvBadge, CmvButton, CmvCard, CmvErrorState } from "@/shared/component";
@@ -12,13 +13,17 @@ import { formatDate } from "@/shared/util/date.util";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle.
-const route = getRouteApi("/sessions/$sessionId");
+const route = getRouteApi("/sessions/$sessionId/");
 
 /**
  * Détail d'une séance, côté athlète (#25) : consignes du coach, déroulé, documents.
  *
  * Les documents sont des URLs signées à durée courte — ils exigent le réseau, contrairement au
  * déroulé (dette P3-3). Ils s'ouvrent dans un onglet, comme le justificatif de facture.
+ *
+ * Un écart de maquette RATTRAPÉ depuis #26 : le bouton « Débriefer la séance » est là, avec sa
+ * destination. Il manquait tant que l'écran de débrief n'existait pas — un bouton qui renvoie à
+ * l'accueil est le cul-de-sac que cette épic supprime.
  *
  * Deux écarts assumés avec la maquette `WEB · DÉTAIL DE SÉANCE` :
  *  - pas de durée (« 90 min ») : `ScheduledSession` n'en porte pas (dette P3-5, #94) ;
@@ -59,6 +64,20 @@ export function AthleteSessionScreen() {
 
       {session == null ? null : (
         <div className="flex max-w-3xl flex-col gap-cmv-lg">
+          {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
+              déroulé, pas enterrée sous la liste des exercices (même choix que sur mobile). */}
+          <div>
+            <Link
+              to="/sessions/$sessionId/feedback"
+              params={{ sessionId: session.id }}
+              className="inline-flex items-center rounded-cmv-md bg-cmv-accent px-cmv-lg py-cmv-sm text-cmv-body text-cmv-accent-fg transition-colors hover:bg-cmv-accent-hi"
+            >
+              {session.status === ScheduledSessionStatus.DONE
+                ? t("feedback.openDone")
+                : t("feedback.open")}
+            </Link>
+          </div>
+
           {/* Nullable : une séance sans consigne n'affiche pas un bloc vide. */}
           {session.notes == null ? null : (
             <CmvCard>

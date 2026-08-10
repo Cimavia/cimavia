@@ -481,9 +481,9 @@
     }
   },
   "feedback": {
-    "title": "Débriefs",
-    "subtitle": "Les retours de tes athlètes sur leurs séances.",
-    "open": "Ouvrir",
+    "title": "Débrief de la séance",
+    "subtitle": "Ton retour est visible immédiatement par ton coach.",
+    "open": "Débriefer la séance",
     "unread": "À relire",
     "mediaCount": "{{count}} média(s)",
     "empty": {
@@ -495,6 +495,37 @@
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
       "openFull": "Ouvrir en grand"
+    },
+    "openDone": "Voir / modifier mon débrief",
+    "contentLabel": "Retour sur la séance",
+    "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
+    "contentHint": "Tu peux compléter ton débrief plus tard.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saved": "Débrief enregistré.",
+    "saveError": "Impossible d'enregistrer le débrief. Vérifie ta connexion.",
+    "media": {
+      "title": "Photos, vidéos et notes vocales",
+      "addFile": "Ajouter une photo ou une vidéo",
+      "addAudio": "Note vocale",
+      "stopRecording": "Arrêter ({{seconds}} s)",
+      "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
+      "remove": "Retirer",
+      "uploading": "Envoi en cours… {{percent}} %",
+      "uploadProgress": "Progression de l'envoi",
+      "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie.",
+      "permission": "Autorise l'accès au micro pour enregistrer une note vocale.",
+      "recorderUnsupported": "Ton navigateur ne sait pas enregistrer une note vocale dans un format lisible par ton coach. Essaie avec Safari ou Chrome, ou joins une vidéo.",
+      "unsupported": "Ce type de fichier n'est pas géré.",
+      "imageFormat": "Ce format d'image n'est pas géré (JPEG, PNG ou WEBP).",
+      "imageTooBig": "Cette photo dépasse 10 Mo.",
+      "videoFormat": "Ce format de vidéo n'est pas géré (MP4 ou MOV).",
+      "videoTooBig": "Cette vidéo dépasse 50 Mo.",
+      "videoTooLong": "Cette vidéo dépasse 60 secondes.",
+      "audioFormat": "Ce format audio n'est pas accepté pour un débrief.",
+      "audioTooBig": "Cette note vocale est trop lourde.",
+      "audioTooLong": "Une note vocale ne peut pas dépasser 5 minutes.",
+      "unreadable": "Ce fichier est illisible."
     }
   },
   "invoice": {

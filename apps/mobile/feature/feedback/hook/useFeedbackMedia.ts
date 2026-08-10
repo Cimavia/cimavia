@@ -1,9 +1,8 @@
-import type { RequestFeedbackUploadUrlInput, SessionFeedbackDto } from "@cmv/shared";
+import type { RequestFeedbackUploadUrlInput } from "@cmv/shared";
 import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
   type MediaTypeType,
-  maxFeedbackMediaCount,
   maxFeedbackMediaSizeBytes,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -118,15 +117,6 @@ async function uploadToStorage(uploadUrl: string, media: PreparedMedia): Promise
   if (status < 200 || status >= 300) {
     throw new MediaRejectedError("feedback.media.storageRejected");
   }
-}
-
-// Ce qui reste comme place, par type — le bouton d'ajout s'éteint AVANT que l'API réponde 409.
-export function remainingSlots(
-  feedback: SessionFeedbackDto | null | undefined,
-  type: MediaTypeType,
-): number {
-  const used = feedback?.media.filter((item) => item.type === type).length ?? 0;
-  return maxFeedbackMediaCount(type) - used;
 }
 
 async function pickAsset(type: MediaTypeType): Promise<ImagePicker.ImagePickerAsset | null> {
