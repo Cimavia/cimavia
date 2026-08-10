@@ -29,8 +29,14 @@ function targetFor(
   entityId: string | undefined,
   capabilities: Capabilities,
 ): Href | null {
-  // Aucune destination coach sur mobile pour l'instant : les écrans arrivent avec #32 à #34.
-  if (capabilities.isCoach) return null;
+  /**
+   * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part. `INVOICE` en a un
+   * depuis #32 ; `SCHEDULED_SESSION` et `CONVERSATION` suivront en #33 et #34. `PLAN` restera
+   * `null` : le builder est web-only (#20), il n'y a pas d'écran mobile à viser.
+   */
+  if (capabilities.isCoach) {
+    return entityType === NotificationEntityType.INVOICE ? "/invoices" : null;
+  }
 
   switch (entityType) {
     case NotificationEntityType.PLAN:

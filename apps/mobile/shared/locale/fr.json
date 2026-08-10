@@ -204,7 +204,16 @@
       "title": "Aucune facture",
       "description": "Ton coach ne t'a pas encore émis de facture."
     },
-    "viewDocument": "Voir le PDF"
+    "viewDocument": "Voir le PDF",
+    "coach": {
+      "title": "Facturation",
+      "empty": {
+        "title": "Aucune facture émise",
+        "description": "Les factures sont émises à la diffusion d'un cycle — la facturation se saisit dans le builder, sur le web."
+      }
+    },
+    "markPaid": "Marquer payée",
+    "reopen": "Marquer impayée"
   },
   "notification": {
     "title": "Notifications",

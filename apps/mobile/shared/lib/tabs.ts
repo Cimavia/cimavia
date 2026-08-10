@@ -39,7 +39,9 @@ export const TABS: readonly TabDefinition[] = [
   { name: "planning", labelKey: "nav.planning", icon: "calendar-outline", capability: "athlete" },
   { name: "sessions", labelKey: "nav.sessions", icon: "barbell-outline", capability: "athlete" },
   { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline", capability: "athlete" },
-  { name: "invoices", labelKey: "nav.invoices", icon: "receipt-outline", capability: "athlete" },
+  // Servi aux DEUX : `GET /invoices` est une seule ressource scopée par le tenant, et l'écran
+  // branche ce qu'on peut en faire (#32).
+  { name: "invoices", labelKey: "nav.invoices", icon: "receipt-outline", capability: null },
   // Le centre de notifications et le compte servent les deux rôles : leurs routes API ne portent
   // aucun `@Roles`, et la lecture des rappels dus y est déjà branchée par rôle côté serveur.
   {

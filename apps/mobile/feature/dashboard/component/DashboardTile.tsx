@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { CmvText } from "@/shared/component";
 
 type DashboardTileProps = {
@@ -8,6 +8,12 @@ type DashboardTileProps = {
   hint: string;
   /** Signal d'ÉTAT, réservé aux tuiles qui annoncent du travail. Absent = tuile de contexte. */
   tone?: "warning" | "error";
+  /**
+   * Omis = tuile statique. Une tuile qui annonce du travail DOIT mener quelque part (arbitrage
+   * #52) — mais tant que l'écran cible n'existe pas sur mobile, mieux vaut une tuile muette qu'un
+   * cul-de-sac.
+   */
+  onPress?: () => void;
 };
 
 const TONE_CLASSES: Record<"warning" | "error", string> = {
@@ -32,11 +38,13 @@ const TONE_TEXT: Record<"warning" | "error", string> = {
  *    ambre ou un « — » en rouge crient au loup : le premier alors qu'il n'y a rien à faire, le
  *    second alors qu'on ne sait pas encore.
  */
-export function DashboardTile({ label, count, hint, tone }: Readonly<DashboardTileProps>) {
+export function DashboardTile({ label, count, hint, tone, onPress }: Readonly<DashboardTileProps>) {
   const signal = tone != null && count != null && count > 0 ? tone : null;
+  const Container = onPress == null ? View : Pressable;
 
   return (
-    <View
+    <Container
+      {...(onPress == null ? {} : { onPress })}
       className={`flex-1 gap-1 rounded-lg border p-4 ${signal == null ? "border-cmv-border bg-cmv-surface" : TONE_CLASSES[signal]}`}
     >
       <CmvText className="text-cmv-text-mid text-xs">{label}</CmvText>
@@ -48,6 +56,6 @@ export function DashboardTile({ label, count, hint, tone }: Readonly<DashboardTi
       <CmvText className={`text-xs ${signal == null ? "text-cmv-text-lo" : TONE_TEXT[signal]}`}>
         {hint}
       </CmvText>
-    </View>
+    </Container>
   );
 }

@@ -6,6 +6,7 @@ import {
   todayIsoDate,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
+import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { useAthletes } from "@/feature/athlete";
@@ -33,8 +34,8 @@ import { authClient } from "@/shared/lib/auth";
  *  - « Notifications non lues » ferait doublon avec la **pastille de l'onglet Notifs**, visible en
  *    permanence à 200 px de là.
  *
- * Les deux tuiles « à traiter » ne sont pas encore cliquables : leurs écrans arrivent en #32
- * (facturation) et #33 (débriefs). Elles le deviendront là, avec leur destination.
+ * « Factures en retard » mène à l'onglet Factures depuis #32. « Débriefs à relire » reste muette
+ * jusqu'à #33 : une tuile d'action est un cul-de-sac tant que sa destination n'existe pas.
  */
 export function CoachDashboardScreen() {
   const { t } = useTranslation();
@@ -124,6 +125,7 @@ export function CoachDashboardScreen() {
               count={countOverdueInvoices(invoices.data, today)}
               hint={t("dashboard.tiles.overdueInvoicesHint")}
               tone="error"
+              onPress={() => router.push("/invoices")}
             />
           </View>
         </View>
