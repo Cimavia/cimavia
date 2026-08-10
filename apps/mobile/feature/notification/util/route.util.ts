@@ -1,4 +1,9 @@
-import { type NotificationDto, NotificationEntityType, NotificationType } from "@cmv/shared";
+import {
+  type Capabilities,
+  type NotificationDto,
+  NotificationEntityType,
+  NotificationType,
+} from "@cmv/shared";
 import type { Href } from "expo-router";
 
 /**
@@ -6,9 +11,27 @@ import type { Href } from "expo-router";
  * ouvrir le push (payload Expo) et toucher une ligne du centre (#50). Les faire diverger, c'est
  * garantir qu'un jour l'une navigue et l'autre non.
  *
- * `null` = on ne navigue pas, plutôt que de deviner — le cas d'une app plus ancienne que l'API.
+ * **La destination dépend de la CAPACITÉ**, et pas seulement du type — comme côté web (#25). Les
+ * quatre destinations d'ici sont des écrans ATHLÈTE : `/planning`, `/session/:id` et `/messages`
+ * appellent des routes `@Roles([ATHLETE])`. Y envoyer un coach ne l'égare pas, ça lui donne un
+ * **403**. Tant que l'écran coach correspondant n'existe pas sur mobile, la bonne réponse est
+ * `null` : le centre marque alors la notification lue et rafraîchit le cache sans naviguer — « il
+ * s'est passé quelque chose », sans mentir sur l'endroit.
+ *
+ * Chaque écran mobile-coach branchera sa destination en arrivant : #32 pour `INVOICE`, #33 pour
+ * `SCHEDULED_SESSION`, #34 pour `CONVERSATION`. `PLAN` restera `null` côté coach : le builder est
+ * **web-only** (#20), il n'y a pas d'écran mobile à viser.
+ *
+ * `null` aussi sur un type inconnu — une app plus ancienne que l'API ne doit pas deviner.
  */
-function targetFor(entityType: string, entityId: string | undefined): Href | null {
+function targetFor(
+  entityType: string,
+  entityId: string | undefined,
+  capabilities: Capabilities,
+): Href | null {
+  // Aucune destination coach sur mobile pour l'instant : les écrans arrivent avec #32 à #34.
+  if (capabilities.isCoach) return null;
+
   switch (entityType) {
     case NotificationEntityType.PLAN:
       return "/planning";
@@ -23,8 +46,11 @@ function targetFor(entityType: string, entityId: string | undefined): Href | nul
   }
 }
 
-export function routeForNotification(notification: NotificationDto): Href | null {
-  return targetFor(notification.entityType, notification.entityId);
+export function routeForNotification(
+  notification: NotificationDto,
+  capabilities: Capabilities,
+): Href | null {
+  return targetFor(notification.entityType, notification.entityId, capabilities);
 }
 
 /**
@@ -33,7 +59,7 @@ export function routeForNotification(notification: NotificationDto): Href | null
  * on ne les renomme pas. D'où cette traduction vers la table commune plutôt qu'un second switch
  * de destinations.
  */
-export function routeForPushPayload(data: unknown): Href | null {
+export function routeForPushPayload(data: unknown, capabilities: Capabilities): Href | null {
   const payload = data as {
     type?: string;
     planId?: string;
@@ -47,13 +73,17 @@ export function routeForPushPayload(data: unknown): Href | null {
     case NotificationType.PLAN_UPDATED:
     case NotificationType.PLAN_SESSION_ADDED:
     case NotificationType.PLAN_SESSION_REMOVED:
-      return targetFor(NotificationEntityType.PLAN, payload.planId);
+      return targetFor(NotificationEntityType.PLAN, payload.planId, capabilities);
     case NotificationType.FEEDBACK_RECEIVED:
-      return targetFor(NotificationEntityType.SCHEDULED_SESSION, payload.scheduledSessionId);
+      return targetFor(
+        NotificationEntityType.SCHEDULED_SESSION,
+        payload.scheduledSessionId,
+        capabilities,
+      );
     case NotificationType.MESSAGE_RECEIVED:
-      return targetFor(NotificationEntityType.CONVERSATION, payload.conversationId);
+      return targetFor(NotificationEntityType.CONVERSATION, payload.conversationId, capabilities);
     case NotificationType.INVOICE_ISSUED:
-      return targetFor(NotificationEntityType.INVOICE, payload.invoiceId);
+      return targetFor(NotificationEntityType.INVOICE, payload.invoiceId, capabilities);
     default:
       return null;
   }

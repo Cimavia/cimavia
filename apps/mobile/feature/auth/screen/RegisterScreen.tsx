@@ -6,7 +6,9 @@ import { Pressable, View } from "react-native";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
+import { landingTab } from "@/shared/lib/tabs";
 
 const SELECTABLE_ROLES: RoleType[] = [Role.COACH, Role.ATHLETE];
 
@@ -14,6 +16,7 @@ export function RegisterScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
+  const capabilities = useCapabilities();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +25,9 @@ export function RegisterScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!isPending && session != null) {
-    return <Redirect href="/planning" />;
+    // Destination DÉRIVÉE de la capacité, comme sur l'écran d'entrée : `/planning` en dur
+    // envoyait un coach sur `GET /me/plan`, qui est `@Roles([ATHLETE])`.
+    return <Redirect href={landingTab(capabilities) ?? "/login"} />;
   }
 
   async function onSubmit() {
