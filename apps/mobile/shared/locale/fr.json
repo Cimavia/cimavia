@@ -228,7 +228,8 @@
     "welcome": "Bonjour {{name}}",
     "section": {
       "todo": "À traiter",
-      "overview": "Vue d'ensemble"
+      "overview": "Vue d'ensemble",
+      "athletes": "Mes athlètes"
     },
     "tiles": {
       "feedback": "Débriefs à relire",
@@ -239,6 +240,22 @@
       "athletesHint": "Relations actives",
       "invoices": "Factures en attente",
       "invoicesHint": "Émises, échéance pas encore dépassée."
+    },
+    "row": {
+      "pending": "{{feedbacks}} débrief(s) · {{messages}} message(s) non lus"
+    }
+  },
+  "athlete": {
+    "empty": "Aucun athlète pour l'instant. Invite-en un avec le code ci-dessus.",
+    "invite": {
+      "title": "Inviter un athlète",
+      "description": "Génère un code, puis transmets-le à ton athlète : il le saisira dans « Mon coach ».",
+      "action": "Générer un code",
+      "creating": "Génération…",
+      "pending": "En attente d'acceptation.",
+      "share": "Partager",
+      "message": "Rejoins-moi sur cimavia avec le code {{code}}.",
+      "error": "Impossible de générer un code. Vérifie ta connexion."
     }
   }
 }
