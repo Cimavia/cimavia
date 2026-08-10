@@ -33,6 +33,19 @@ export function useConversationWith(athleteId: string | null) {
   });
 }
 
+/**
+ * Ouvre (get-or-create) le fil de l'athlète courant avec SON coach : aucun id à donner, l'API le
+ * résout. `enabled` parce qu'un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait.
+ */
+export function useMyConversation(enabled: boolean) {
+  return useQuery<ConversationDto>({
+    queryKey: messageKeys.myConversation(),
+    queryFn: () => messageApi.openConversation({}),
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
 export function useThreadMessages(conversationId: string | undefined) {
   return useQuery<MessageDto[]>({
     queryKey: messageKeys.thread(conversationId ?? ""),

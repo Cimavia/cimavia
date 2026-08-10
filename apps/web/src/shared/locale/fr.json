@@ -302,7 +302,8 @@
     "myInvoices": "Factures",
     "myCoach": "Mon coach",
     "planning": "Planning",
-    "sessions": "Séances"
+    "sessions": "Séances",
+    "myMessages": "Messagerie"
   },
   "reminder": {
     "title": "Mes rappels",
@@ -394,6 +395,14 @@
       "AUDIO": "🎤 Message vocal",
       "IMAGE": "📷 Photo",
       "VIDEO": "🎥 Vidéo"
+    },
+    "athlete": {
+      "subtitle": "Ton fil avec ton coach.",
+      "noCoach": {
+        "title": "Aucun coach rattaché",
+        "description": "La messagerie n'est disponible qu'avec un coach. Rejoins-en un avec son code d'invitation pour commencer à échanger.",
+        "action": "Aller à « Mon coach »"
+      }
     }
   },
   "athlete": {
@@ -613,7 +622,8 @@
     "subtitle": "La personne qui te suit.",
     "linked": {
       "since": "Coach · suivi depuis le {{date}}",
-      "sinceUnknown": "Coach · date de rattachement —"
+      "sinceUnknown": "Coach · date de rattachement —",
+      "message": "Message"
     },
     "missing": {
       "title": "Aucun coach pour l'instant",

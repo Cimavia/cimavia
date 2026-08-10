@@ -19,11 +19,11 @@ export const Route = createFileRoute("/messages")({
     athlete:
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
   }),
-  // Coach seul en l'état. #29 ouvre cette route à l'athlète (fil unique, sans colonne de fils) :
-  // c'est le seul endroit à changer, l'écran se branchera sur la capacité pour choisir sa mise en
-  // page — mais il ne sera toujours pas monté pour un rôle qui n'a rien à y faire.
+  // Les DEUX rôles : `conversation.controller.ts` et `message.controller.ts` portent
+  // `@Roles([COACH, ATHLETE])`, et un fil est 1:1. Ce que chacun y voit diffère (N fils contre un
+  // seul), et c'est l'écran qui le tranche — pas la garde.
   component: () => (
-    <CmvRoleGate capability="coach">
+    <CmvRoleGate capability={["coach", "athlete"]}>
       <MessagesScreen />
     </CmvRoleGate>
   ),

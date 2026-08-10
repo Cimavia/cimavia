@@ -1,4 +1,5 @@
 import type { CoachAthleteDto } from "@cmv/shared";
+import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAcceptInvitation, useMyCoach } from "@/feature/coach/hook/useMyCoach";
@@ -53,9 +54,9 @@ export function MyCoachScreen() {
 }
 
 /**
- * L'athlète est lié. Pas de bouton « Message » ici, contrairement à la maquette : `/messages` est
- * encore fermée à l'athlète jusqu'à #29, et un bouton qui renvoie à l'accueil est exactement le
- * cul-de-sac que cette épic existe pour supprimer. Il arrivera avec sa destination.
+ * L'athlète est lié. Le bouton « Message » de la maquette est là depuis #29 — il attendait sa
+ * destination, `/messages` étant fermée à l'athlète jusque-là. Un bouton qui renvoie à l'accueil
+ * est exactement le cul-de-sac que cette épic supprime.
  */
 function LinkedCoachCard({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   const { t } = useTranslation();
@@ -64,7 +65,7 @@ function LinkedCoachCard({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
     <CmvCard>
       <div className="flex items-center gap-cmv-md">
         <CmvAvatar name={coach.coachName} />
-        <div className="flex flex-col gap-cmv-xs">
+        <div className="flex flex-1 flex-col gap-cmv-xs">
           <h2 className="text-cmv-subtitle text-cmv-text-hi">{coach.coachName}</h2>
           {/* `joinedAt` est nullable (la relation peut avoir été posée sans passer par une
               acceptation) : « — » plutôt qu'une date inventée. */}
@@ -74,6 +75,16 @@ function LinkedCoachCard({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
               : t("coach.linked.since", { date: formatDate(coach.joinedAt.slice(0, 10)) })}
           </p>
         </div>
+
+        <Link
+          to="/messages"
+          // `?athlete=` désigne le fil ouvert côté coach : l'athlète n'en a qu'un, le paramètre
+          // reste donc absent. La clé est REQUISE mais peut valoir undefined (cf. la route).
+          search={{ athlete: undefined }}
+          className="inline-flex items-center rounded-cmv-md border border-cmv-border px-cmv-lg py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:border-cmv-border-hi hover:text-cmv-text-hi"
+        >
+          {t("coach.linked.message")}
+        </Link>
       </div>
     </CmvCard>
   );

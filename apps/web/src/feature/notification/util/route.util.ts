@@ -21,10 +21,9 @@ type NotificationTarget =
  * la cloche marque alors la notification lue et rafraîchit le cache sans naviguer, ce qui est
  * exactement ce qu'on veut dire (« il s'est passé quelque chose », sans mentir sur l'endroit).
  *
- * Chaque écran athlète-sur-web branche sa destination en arrivant. `INVOICE` a été le premier servi
- * des deux côtés (#27), `PLAN` et `SCHEDULED_SESSION` ont suivi avec le planning et le détail de
- * séance (#25). Il ne reste que `CONVERSATION`, qui attend #29 — et son `null` n'est pas un oubli :
- * l'athlète n'a pas encore d'écran de messagerie sur web.
+ * Chaque écran athlète-sur-web a branché sa destination en arrivant : `INVOICE` en premier (#27),
+ * puis `PLAN` et `SCHEDULED_SESSION` avec le planning et le détail de séance (#25), enfin
+ * `CONVERSATION` avec la messagerie (#29). Plus aucune cible ne mène nulle part pour un athlète.
  *
  * Limite connue, laissée à #7 : une notification ne dit pas **à quel titre** on la reçoit. Sur un
  * compte à double capacité, un cycle diffusé « en tant qu'athlète » mènera quand même au builder.
@@ -59,8 +58,10 @@ export function routeForNotification(
       return isCoach
         ? { to: "/feedbacks" }
         : { to: "/sessions/$sessionId", params: { sessionId: notification.entityId } };
+    // Servie aux deux rôles depuis #29 : même route, contenu décidé par l'écran (N fils pour le
+    // coach, un seul pour l'athlète).
     case NotificationEntityType.CONVERSATION:
-      return isCoach ? { to: "/messages" } : null;
+      return { to: "/messages" };
     // Servie aux deux rôles depuis #27 : même route, contenu scopé par le tenant.
     case NotificationEntityType.INVOICE:
       return { to: "/invoices" };
