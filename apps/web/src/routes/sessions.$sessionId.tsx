@@ -1,16 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AthleteSessionScreen } from "@/feature/plan";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { CmvRoleGate } from "@/shared/component";
 
 /**
- * Détail d'une séance, côté ATHLÈTE : `/me/scheduled-sessions/:id`, gardée `@Roles([ATHLETE])`.
- * Le coach ouvre les siennes depuis son builder, sur une autre route et une autre surface — d'où
- * deux chemins plutôt qu'un écran qui devinerait.
+ * Layout du sous-arbre `/sessions/$sessionId/*` : le détail (`.index`) et le débrief (`feedback`).
+ *
+ * Ce fichier n'est pas facultatif — sans lui, le générateur de routes produit un parent
+ * `SessionsSessionIdRoute` **référencé mais jamais défini**, et toute route enfant répond
+ * « Not Found ». Un segment qui a des enfants doit avoir son layout, et ce layout doit rendre
+ * `<Outlet />`.
+ *
+ * La garde de capacité est posée ICI plutôt que sur chaque enfant : tout ce qui vit sous une séance
+ * de l'athlète lui est réservé, et une garde unique ne peut pas diverger entre deux frères.
  */
 export const Route = createFileRoute("/sessions/$sessionId")({
   component: () => (
     <CmvRoleGate capability="athlete">
-      <AthleteSessionScreen />
+      <Outlet />
     </CmvRoleGate>
   ),
 });

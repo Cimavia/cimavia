@@ -26,6 +26,8 @@ import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as PlansIndexRouteImport } from './routes/plans.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
+import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -112,6 +114,17 @@ const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   path: '/plans/$planId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionsSessionIdIndexRoute = SessionsSessionIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SessionsSessionIdRoute,
+} as any)
+const SessionsSessionIdFeedbackRoute =
+  SessionsSessionIdFeedbackRouteImport.update({
+    id: '/feedback',
+    path: '/feedback',
+    getParentRoute: () => SessionsSessionIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -128,9 +141,11 @@ export interface FileRoutesByFullPath {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
   '/plans/': typeof PlansIndexRoute
   '/sessions/': typeof SessionsIndexRoute
+  '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
+  '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -147,9 +162,10 @@ export interface FileRoutesByTo {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
   '/plans': typeof PlansIndexRoute
   '/sessions': typeof SessionsIndexRoute
+  '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -167,9 +183,11 @@ export interface FileRoutesById {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
-  '/sessions/$sessionId': typeof SessionsSessionIdRoute
+  '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
   '/plans/': typeof PlansIndexRoute
   '/sessions/': typeof SessionsIndexRoute
+  '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
+  '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -191,6 +209,8 @@ export interface FileRouteTypes {
     | '/sessions/$sessionId'
     | '/plans/'
     | '/sessions/'
+    | '/sessions/$sessionId/feedback'
+    | '/sessions/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -207,9 +227,10 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
-    | '/sessions/$sessionId'
     | '/plans'
     | '/sessions'
+    | '/sessions/$sessionId/feedback'
+    | '/sessions/$sessionId'
   id:
     | '__root__'
     | '/'
@@ -229,6 +250,8 @@ export interface FileRouteTypes {
     | '/sessions/$sessionId'
     | '/plans/'
     | '/sessions/'
+    | '/sessions/$sessionId/feedback'
+    | '/sessions/$sessionId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -246,7 +269,7 @@ export interface RootRouteChildren {
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
-  SessionsSessionIdRoute: typeof SessionsSessionIdRoute
+  SessionsSessionIdRoute: typeof SessionsSessionIdRouteWithChildren
   PlansIndexRoute: typeof PlansIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
 }
@@ -372,8 +395,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansPlanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sessions/$sessionId/': {
+      id: '/sessions/$sessionId/'
+      path: '/'
+      fullPath: '/sessions/$sessionId/'
+      preLoaderRoute: typeof SessionsSessionIdIndexRouteImport
+      parentRoute: typeof SessionsSessionIdRoute
+    }
+    '/sessions/$sessionId/feedback': {
+      id: '/sessions/$sessionId/feedback'
+      path: '/feedback'
+      fullPath: '/sessions/$sessionId/feedback'
+      preLoaderRoute: typeof SessionsSessionIdFeedbackRouteImport
+      parentRoute: typeof SessionsSessionIdRoute
+    }
   }
 }
+
+interface SessionsSessionIdRouteChildren {
+  SessionsSessionIdFeedbackRoute: typeof SessionsSessionIdFeedbackRoute
+  SessionsSessionIdIndexRoute: typeof SessionsSessionIdIndexRoute
+}
+
+const SessionsSessionIdRouteChildren: SessionsSessionIdRouteChildren = {
+  SessionsSessionIdFeedbackRoute: SessionsSessionIdFeedbackRoute,
+  SessionsSessionIdIndexRoute: SessionsSessionIdIndexRoute,
+}
+
+const SessionsSessionIdRouteWithChildren =
+  SessionsSessionIdRoute._addFileChildren(SessionsSessionIdRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -390,7 +440,7 @@ const rootRouteChildren: RootRouteChildren = {
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
-  SessionsSessionIdRoute: SessionsSessionIdRoute,
+  SessionsSessionIdRoute: SessionsSessionIdRouteWithChildren,
   PlansIndexRoute: PlansIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
 }
