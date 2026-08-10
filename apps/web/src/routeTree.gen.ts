@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as MyCoachRouteImport } from './routes/my-coach'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LibraryRouteImport } from './routes/library'
@@ -36,6 +37,11 @@ const RemindersRoute = RemindersRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyCoachRoute = MyCoachRouteImport.update({
+  id: '/my-coach',
+  path: '/my-coach',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/my-coach': typeof MyCoachRoute
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/my-coach': typeof MyCoachRoute
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -129,6 +137,7 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/my-coach': typeof MyCoachRoute
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/messages'
+    | '/my-coach'
     | '/register'
     | '/reminders'
     | '/reset-password'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/messages'
+    | '/my-coach'
     | '/register'
     | '/reminders'
     | '/reset-password'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/login'
     | '/messages'
+    | '/my-coach'
     | '/register'
     | '/reminders'
     | '/reset-password'
@@ -192,6 +204,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
+  MyCoachRoute: typeof MyCoachRoute
   RegisterRoute: typeof RegisterRoute
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -220,6 +233,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-coach': {
+      id: '/my-coach'
+      path: '/my-coach'
+      fullPath: '/my-coach'
+      preLoaderRoute: typeof MyCoachRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -304,6 +324,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
+  MyCoachRoute: MyCoachRoute,
   RegisterRoute: RegisterRoute,
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,

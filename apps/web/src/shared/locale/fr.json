@@ -256,7 +256,8 @@
     "messages": "Messages",
     "invoices": "Facturation",
     "reminders": "Rappels",
-    "myInvoices": "Factures"
+    "myInvoices": "Factures",
+    "myCoach": "Mon coach"
   },
   "reminder": {
     "title": "Mes rappels",
@@ -528,6 +529,26 @@
       "messageReceived": "Nouveau message de {{actor}}",
       "invoiceIssued": "Nouvelle facture reçue",
       "reminderDue": "Rappel : {{subject}}"
+    }
+  },
+  "coach": {
+    "title": "Mon coach",
+    "subtitle": "La personne qui te suit.",
+    "linked": {
+      "since": "Coach · suivi depuis le {{date}}",
+      "sinceUnknown": "Coach · date de rattachement —"
+    },
+    "missing": {
+      "title": "Aucun coach pour l'instant",
+      "description": "Saisis le code d'invitation que ton coach t'a partagé pour rejoindre son espace."
+    },
+    "join": {
+      "codeLabel": "Code d'invitation",
+      "codePlaceholder": "Ex. 7QK4M2",
+      "submit": "Rejoindre ce coach",
+      "joining": "Connexion en cours…",
+      "errorTitle": "Code invalide ou expiré",
+      "errorDescription": "Vérifie le code, ou demande à ton coach de t'en générer un nouveau."
     }
   }
 }
