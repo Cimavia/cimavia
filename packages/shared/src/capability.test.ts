@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capabilitiesOf } from "./capability";
+import { capabilitiesOf, hasCapability } from "./capability";
 import { Role } from "./role";
 
 describe("capabilitiesOf", () => {
@@ -42,5 +42,36 @@ describe("capabilitiesOf", () => {
     const coach = capabilitiesOf({ role: Role.COACH });
     expect(coach.isAthlete).toBe(false);
     expect(coach.isCoach).not.toBe(coach.isAthlete);
+  });
+});
+
+describe("hasCapability", () => {
+  it("répond à une exigence nommée", () => {
+    const coach = capabilitiesOf({ role: Role.COACH });
+    expect(hasCapability(coach, "coach")).toBe(true);
+    expect(hasCapability(coach, "athlete")).toBe(false);
+
+    const athlete = capabilitiesOf({ role: Role.ATHLETE });
+    expect(hasCapability(athlete, "athlete")).toBe(true);
+    expect(hasCapability(athlete, "coach")).toBe(false);
+  });
+
+  // Sans capacité, aucune exigence n'est satisfaite : c'est ce qui fait qu'une navigation dérivée
+  // de cette fonction est VIDE pour un compte non résolu, jamais complète « par défaut ».
+  it("ne satisfait aucune exigence sans capacité", () => {
+    const none = capabilitiesOf(null);
+    expect(hasCapability(none, "coach")).toBe(false);
+    expect(hasCapability(none, "athlete")).toBe(false);
+  });
+
+  /**
+   * Les deux capacités se lisent INDÉPENDAMMENT sur le même compte. Le rôle exclusif d'aujourd'hui
+   * n'en produit jamais deux, mais c'est le cas que #7 rendra courant — et la fonction doit déjà y
+   * répondre, sinon la nav double capacité se construira sur un ternaire faux.
+   */
+  it("satisfait les deux exigences d'un compte à double capacité", () => {
+    const both = { isCoach: true, isAthlete: true };
+    expect(hasCapability(both, "coach")).toBe(true);
+    expect(hasCapability(both, "athlete")).toBe(true);
   });
 });

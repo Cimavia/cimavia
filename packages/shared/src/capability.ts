@@ -21,6 +21,22 @@ export type Capabilities = {
 };
 
 /**
+ * Le nom d'une capacité, tel qu'une route ou une entrée de navigation l'exige — la forme sous
+ * laquelle une exigence s'ÉCRIT (`capability="coach"`), là où `Capabilities` est ce qu'un compte
+ * POSSÈDE.
+ */
+export type CapabilityName = "coach" | "athlete";
+
+/**
+ * Traduit une exigence en réponse. Une seule table de correspondance pour tous les consommateurs
+ * (garde de route, sidebar web, onglets mobile) : sans elle, chacun réécrit le même ternaire, et le
+ * jour où une troisième capacité existe il faut les retrouver tous.
+ */
+export function hasCapability(capabilities: Capabilities, name: CapabilityName): boolean {
+  return name === "coach" ? capabilities.isCoach : capabilities.isAthlete;
+}
+
+/**
  * Le strict nécessaire pour décider. `role` est typé `string` et non `RoleType` : Better Auth le
  * remonte en `additionalFields`, donc en scalaire non contraint côté client — le narrowing, c'est
  * cette fonction qui le fait, pas ses appelants.

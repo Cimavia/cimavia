@@ -1,20 +1,33 @@
+import { hasCapability } from "@cmv/shared";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { NotificationBell } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
 
-// Sections du coach. Pas d'entrée « Athlètes » : la liste vit désormais dans le tableau de bord
-// (#113), et deux entrées menant au même écran ne feraient qu'hésiter.
+/**
+ * Chaque entrée porte la capacité qui la rend visible — la MÊME que celle exigée par la route
+ * correspondante (`CmvRoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà l'expérience :
+ * une nav qui propose ce que la route refuse, ou qui cache ce qui est accessible.
+ *
+ * Pas d'entrée « Athlètes » : la liste vit dans le tableau de bord depuis #113, et deux entrées
+ * menant au même écran ne feraient qu'hésiter.
+ *
+ * Aucune entrée athlète pour l'instant — aucun écran athlète-sur-web n'existe encore. La première
+ * arrive avec #27. Le jour où les DEUX groupes sont peuplés (compte à double capacité, #7), c'est
+ * ici que les sections nommées « En tant que coach » / « En tant qu'athlète » se posent : une nav
+ * plate de quatorze entrées ne dirait plus à quel titre on fait quoi.
+ */
 const NAV_ITEMS = [
-  { to: "/", labelKey: "nav.dashboard" },
-  { to: "/library", labelKey: "nav.library" },
-  { to: "/plans", labelKey: "nav.plans" },
-  { to: "/feedbacks", labelKey: "nav.feedbacks" },
-  { to: "/messages", labelKey: "nav.messages" },
-  { to: "/invoices", labelKey: "nav.invoices" },
-  { to: "/reminders", labelKey: "nav.reminders" },
+  { to: "/", labelKey: "nav.dashboard", capability: "coach" },
+  { to: "/library", labelKey: "nav.library", capability: "coach" },
+  { to: "/plans", labelKey: "nav.plans", capability: "coach" },
+  { to: "/feedbacks", labelKey: "nav.feedbacks", capability: "coach" },
+  { to: "/messages", labelKey: "nav.messages", capability: "coach" },
+  { to: "/invoices", labelKey: "nav.invoices", capability: "coach" },
+  { to: "/reminders", labelKey: "nav.reminders", capability: "coach" },
 ] as const;
 
 type CmvAppShellProps = {
@@ -28,6 +41,13 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession } = authClient.useSession();
+  /**
+   * Pas de garde sur `isPending` ici : ce composant n'est monté que par un écran, lui-même monté
+   * par `CmvRoleGate` — qui a déjà attendu la session. La nav ne peut donc pas se dessiner vide le
+   * temps d'un aller-retour.
+   */
+  const capabilities = useCapabilities();
+  const navItems = NAV_ITEMS.filter((item) => hasCapability(capabilities, item.capability));
 
   async function onLogout() {
     await authClient.signOut();
@@ -42,7 +62,7 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
         </Link>
 
         <nav className="flex flex-1 flex-col gap-cmv-xs">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}

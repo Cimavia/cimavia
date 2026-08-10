@@ -1,3 +1,4 @@
+import { type CapabilityName, hasCapability } from "@cmv/shared";
 import { Navigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -5,7 +6,7 @@ import { useCapabilities } from "@/shared/hook/useCapabilities";
 
 type CmvRoleGateProps = {
   /** La capacité exigée pour monter l'écran. */
-  capability: "coach" | "athlete";
+  capability: CapabilityName;
   children: ReactNode;
   /**
    * Rendu à la place de l'écran quand la capacité manque. Défaut : retour à l'accueil — le bon
@@ -42,7 +43,7 @@ type CmvRoleGateProps = {
  */
 export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRoleGateProps>) {
   const { t } = useTranslation();
-  const { isCoach, isAthlete, isPending, isAuthenticated } = useCapabilities();
+  const { isPending, isAuthenticated, ...capabilities } = useCapabilities();
 
   // Session non résolue : on n'accorde ni ne refuse. Décider ici afficherait l'écran de refus le
   // temps d'un aller-retour, sur chaque chargement de page.
@@ -60,8 +61,7 @@ export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRole
     return <Navigate to="/login" />;
   }
 
-  const granted = capability === "coach" ? isCoach : isAthlete;
-  if (!granted) {
+  if (!hasCapability(capabilities, capability)) {
     return fallback ?? <Navigate to="/" />;
   }
 
