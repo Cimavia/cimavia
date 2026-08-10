@@ -54,6 +54,7 @@
     "athlete": "Athlète"
   },
   "nav": {
+    "dashboard": "Accueil",
     "planning": "Planning",
     "sessions": "Séances",
     "messages": "Messages",
@@ -221,6 +222,23 @@
       "messageReceived": "Nouveau message de {{actor}}",
       "invoiceIssued": "Nouvelle facture reçue",
       "reminderDue": "Rappel : {{subject}}"
+    }
+  },
+  "dashboard": {
+    "welcome": "Bonjour {{name}}",
+    "section": {
+      "todo": "À traiter",
+      "overview": "Vue d'ensemble"
+    },
+    "tiles": {
+      "feedback": "Débriefs à relire",
+      "feedbackHint": "Débriefs pas encore ouverts.",
+      "overdueInvoices": "Factures en retard",
+      "overdueInvoicesHint": "Échéance dépassée, à relancer.",
+      "athletes": "Athlètes suivis",
+      "athletesHint": "Relations actives",
+      "invoices": "Factures en attente",
+      "invoicesHint": "Émises, échéance pas encore dépassée."
     }
   }
 }

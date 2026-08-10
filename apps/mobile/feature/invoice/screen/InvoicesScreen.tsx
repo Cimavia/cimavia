@@ -18,7 +18,7 @@ import {
   View,
 } from "react-native";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
-import { useMyInvoices } from "@/feature/invoice/hook/useMyInvoices";
+import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatDate } from "@/shared/util/date.util";
@@ -28,7 +28,7 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 // le statut (payé/en attente) est posé par le coach.
 export function InvoicesScreen() {
   const { t } = useTranslation();
-  const { data: invoices, isPending, isError, isRefetching, refetch } = useMyInvoices();
+  const { data: invoices, isPending, isError, isRefetching, refetch } = useInvoices();
 
   // Refetch à chaque fois que l'écran passe au premier plan — notamment à l'ouverture depuis la
   // notification « Nouvelle facture » : sans ça, le cache persisté afficherait l'ancienne liste.

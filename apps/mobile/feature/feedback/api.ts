@@ -1,8 +1,12 @@
-import { createAthleteFeedbackApi } from "@cmv/shared";
+import { createAthleteFeedbackApi, createCoachFeedbackApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
-// Routes, DTO et clés de cache du débrief athlète vivent dans @cmv/shared : le web appelle
-// exactement les mêmes (#26). Ne reste ici que l'injection du client mobile.
+/**
+ * Les DEUX surfaces du débrief, injectées avec le client mobile — l'athlète écrit sous `/me`
+ * (`@Roles([ATHLETE])`), le coach lit sous `/feedbacks` (`@Roles([COACH])`). Deux contrôleurs,
+ * deux gardes ; c'est l'écran qui n'appelle que la sienne.
+ */
 export const athleteFeedbackApi = createAthleteFeedbackApi(api);
+export const coachFeedbackApi = createCoachFeedbackApi(api);
 
-export { myFeedbackKeys } from "@cmv/shared";
+export { coachFeedbackKeys, myFeedbackKeys } from "@cmv/shared";

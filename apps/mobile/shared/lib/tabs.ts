@@ -21,6 +21,7 @@ export type TabDefinition = {
   name: string;
   labelKey: string;
   icon:
+    | "grid-outline"
     | "calendar-outline"
     | "barbell-outline"
     | "chatbubble-outline"
@@ -32,6 +33,9 @@ export type TabDefinition = {
 };
 
 export const TABS: readonly TabDefinition[] = [
+  // En TÊTE de la table : c'est aussi ce qui fait du tableau de bord l'atterrissage du coach,
+  // `landingTab` prenant le premier onglet visible (cf. `app/index.tsx`).
+  { name: "dashboard", labelKey: "nav.dashboard", icon: "grid-outline", capability: "coach" },
   { name: "planning", labelKey: "nav.planning", icon: "calendar-outline", capability: "athlete" },
   { name: "sessions", labelKey: "nav.sessions", icon: "barbell-outline", capability: "athlete" },
   { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline", capability: "athlete" },
