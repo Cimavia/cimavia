@@ -7,6 +7,7 @@
     "errorTitle": "Chargement impossible",
     "errorDescription": "Tes séances n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
+    "cancel": "Annuler",
     "relativeTime": {
       "now": "à l'instant",
       "minute": "il y a {{count}} min",
@@ -256,6 +257,20 @@
       "share": "Partager",
       "message": "Rejoins-moi sur cimavia avec le code {{code}}.",
       "error": "Impossible de générer un code. Vérifie ta connexion."
+    },
+    "sheet": {
+      "title": "Note de suivi",
+      "private": "Privée : ton athlète ne la voit jamais.",
+      "since": "Suivi depuis le {{date}}",
+      "sinceUnknown": "Date de rattachement —",
+      "label": "Note de suivi",
+      "placeholder": "Objectifs, points de vigilance, blessures…",
+      "empty": "Aucune note pour l'instant.",
+      "add": "Ajouter une note",
+      "edit": "Modifier",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "error": "Impossible d'enregistrer la note. Vérifie ta connexion."
     }
   }
 }

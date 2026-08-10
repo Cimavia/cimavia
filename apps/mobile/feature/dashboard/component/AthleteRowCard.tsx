@@ -1,6 +1,7 @@
 import { type AthleteRow, INVOICE_STATE_BADGE, initialsOf } from "@cmv/shared";
+import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { CmvBadge, CmvText } from "@/shared/component";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -25,13 +26,20 @@ type AthleteRowCardProps = {
  *
  * La pastille d'identité est en fond NEUTRE : colorer par personne demanderait une palette
  * décorative que `@cmv/tokens` n'a pas — ses familles sont des ÉTATS (arbitrage #37).
+ *
+ * La ligne mène à la fiche (#31). Le web ouvre la sienne dans un tiroir depuis un bouton « Fiche » ;
+ * sur mobile c'est un écran, et toucher la ligne est le geste attendu — un bouton dans une ligne
+ * de 40 px serait une cible manquée une fois sur trois.
  */
 export function AthleteRowCard({ row }: Readonly<AthleteRowCardProps>) {
   const { t } = useTranslation();
   const invoiceBadge = row.invoiceState == null ? null : INVOICE_STATE_BADGE[row.invoiceState];
 
   return (
-    <View className="flex-row items-center gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3">
+    <Pressable
+      onPress={() => router.push(`/athlete/${row.athleteId}`)}
+      className="flex-row items-center gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3"
+    >
       <View className="h-9 w-9 items-center justify-center rounded-md bg-cmv-surface-hi">
         <CmvText className="font-cmv-display text-cmv-text-mid text-xs">
           {initialsOf(row.athleteName)}
@@ -55,6 +63,6 @@ export function AthleteRowCard({ row }: Readonly<AthleteRowCardProps>) {
       {invoiceBadge == null ? null : (
         <CmvBadge label={t(invoiceBadge.labelKey)} variant={invoiceBadge.variant} />
       )}
-    </View>
+    </Pressable>
   );
 }
