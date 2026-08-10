@@ -25,21 +25,29 @@ const TONE_TEXT: Record<"warning" | "error", string> = {
  * règles, implémentation distincte (architecture-choice §5).
  *
  * La couleur n'est pas décorative : les familles de `@cmv/tokens` sont des ÉTATS (arbitrage #37).
- * Une tuile de contexte reste donc neutre — colorer « Athlètes suivis » ferait lire une alerte là
- * où il n'y a qu'un nombre.
+ * Deux conséquences, et la seconde a été oubliée en première passe :
+ *  - une tuile de CONTEXTE reste neutre — colorer « Athlètes suivis » ferait lire une alerte là où
+ *    il n'y a qu'un nombre ;
+ *  - une tuile d'ALERTE ne se colore que si elle a réellement quelque chose à signaler. Un « 0 » en
+ *    ambre ou un « — » en rouge crient au loup : le premier alors qu'il n'y a rien à faire, le
+ *    second alors qu'on ne sait pas encore.
  */
 export function DashboardTile({ label, count, hint, tone }: Readonly<DashboardTileProps>) {
+  const signal = tone != null && count != null && count > 0 ? tone : null;
+
   return (
     <View
-      className={`flex-1 gap-1 rounded-lg border p-4 ${tone == null ? "border-cmv-border bg-cmv-surface" : TONE_CLASSES[tone]}`}
+      className={`flex-1 gap-1 rounded-lg border p-4 ${signal == null ? "border-cmv-border bg-cmv-surface" : TONE_CLASSES[signal]}`}
     >
       <CmvText className="text-cmv-text-mid text-xs">{label}</CmvText>
       <CmvText
-        className={`font-cmv-display text-2xl ${tone == null ? "text-cmv-text-hi" : TONE_TEXT[tone]}`}
+        className={`font-cmv-display text-2xl ${signal == null ? "text-cmv-text-hi" : TONE_TEXT[signal]}`}
       >
         {count == null ? "—" : count}
       </CmvText>
-      <CmvText className="text-cmv-text-lo text-xs">{hint}</CmvText>
+      <CmvText className={`text-xs ${signal == null ? "text-cmv-text-lo" : TONE_TEXT[signal]}`}>
+        {hint}
+      </CmvText>
     </View>
   );
 }
