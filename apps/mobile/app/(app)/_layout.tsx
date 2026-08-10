@@ -1,18 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs, usePathname } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { usePushToken, useUnreadNotificationCount } from "@/feature/notification";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { redirectForPath, TABS } from "@/shared/lib/tabs";
 import { tabBarTheme } from "@/shared/theme/navigation";
-
-// Onglets de l'athlète (routing only — cf. règle « pure shells »).
-const TABS = [
-  { name: "planning", labelKey: "nav.planning", icon: "calendar-outline" },
-  { name: "sessions", labelKey: "nav.sessions", icon: "barbell-outline" },
-  { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline" },
-  { name: "invoices", labelKey: "nav.invoices", icon: "receipt-outline" },
-  { name: "notifications", labelKey: "nav.notifications", icon: "notifications-outline" },
-  { name: "profile", labelKey: "nav.profile", icon: "person-outline" },
-] as const;
 
 // Un seul onglet porte un compteur ; le nommer ici évite un drapeau sur chaque entrée de TABS.
 const BADGED_TAB = "notifications";
@@ -29,11 +21,30 @@ function badgeOptionFor(unreadCount: number | undefined): { tabBarBadge?: string
   return { tabBarBadge: unreadCount > BADGE_MAX ? `${BADGE_MAX}+` : unreadCount };
 }
 
+/**
+ * Onglets filtrés par capacité (routing only — cf. règle « pure shells »).
+ *
+ * ⚠️ Expo Router enregistre **tout** fichier de ce dossier comme onglet : masquer ceux de l'autre
+ * capacité passe par `href: null`, jamais par l'omission d'un `<Tabs.Screen>`. Ce n'est pas
+ * cosmétique — `/planning`, `/sessions` et `/messages` appellent des routes `@Roles([ATHLETE])`,
+ * et un coach qui les atteignait prenait un 403 sur son propre écran.
+ */
 export default function AppTabsLayout() {
   const { t } = useTranslation();
   // Enregistre l'appareil pour les push, une fois l'utilisateur connecté (zone authentifiée).
   usePushToken();
   const { data: unreadCount } = useUnreadNotificationCount();
+  const capabilities = useCapabilities();
+  const pathname = usePathname();
+
+  /**
+   * `href: null` masque l'onglet mais ne choisit pas la route INITIALE du navigateur : sans cette
+   * garde, un coach atterrit sur `/planning` (premier écran déclaré) avec une barre d'onglets
+   * pourtant correcte. Tant que la session n'est pas résolue, on ne redirige pas — sinon toute
+   * capacité paraîtrait absente le temps d'un aller-retour.
+   */
+  const redirect = capabilities.isPending ? null : redirectForPath(pathname, capabilities);
+  if (redirect != null) return <Redirect href={redirect} />;
 
   return (
     <Tabs
@@ -52,17 +63,27 @@ export default function AppTabsLayout() {
         },
       }}
     >
-      {TABS.map((tab) => (
-        <Tabs.Screen
-          key={tab.name}
-          name={tab.name}
-          options={{
-            title: t(tab.labelKey),
-            tabBarIcon: ({ color, size }) => <Ionicons name={tab.icon} color={color} size={size} />,
-            ...(tab.name === BADGED_TAB ? badgeOptionFor(unreadCount) : {}),
-          }}
-        />
-      ))}
+      {TABS.map((tab) => {
+        const granted =
+          tab.capability == null ||
+          (tab.capability === "coach" ? capabilities.isCoach : capabilities.isAthlete);
+
+        return (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              title: t(tab.labelKey),
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name={tab.icon} color={color} size={size} />
+              ),
+              // `href: null` retire l'onglet de la barre ET rend sa route inatteignable.
+              ...(granted ? {} : { href: null }),
+              ...(tab.name === BADGED_TAB ? badgeOptionFor(unreadCount) : {}),
+            }}
+          />
+        );
+      })}
     </Tabs>
   );
 }
