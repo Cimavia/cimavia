@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { CmvButton } from "@/shared/component";
+import { CmvAppShell, CmvEmptyState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -7,25 +7,29 @@ import { authClient } from "@/shared/lib/auth";
  * est la surface du coach, l'athlète vit sur mobile.
  *
  * Extrait de `DashboardScreen` où il vivait en `return` anticipé — il n'a jamais été un état du
- * tableau de bord, mais l'écran d'un autre rôle sur la même route. Le `fallback` de `CmvRoleGate`
- * lui donne enfin sa place.
+ * tableau de bord, mais l'écran d'un autre rôle sur la même route.
  *
- * Provisoire par construction : dès que les écrans athlète-sur-web existent (#25–#29), `/` doit
- * mener l'athlète à SON planning plutôt que lui souhaiter la bienvenue dans le vide.
+ * Il passe par `CmvAppShell` et ce n'est pas cosmétique : c'est la SIDEBAR qui compte. Sans elle,
+ * les écrans athlète-sur-web existent sans qu'aucun athlète ne puisse y arriver autrement qu'en
+ * tapant une URL. Chaque écran livré (#25–#29) y ajoutera son entrée ; la page, elle, ne fait que
+ * dire pourquoi il n'y en a pas encore beaucoup.
+ *
+ * Provisoire par construction : le jour où le planning existe (#25), `/` doit mener l'athlète à SON
+ * planning plutôt que lui expliquer qu'il n'y en a pas.
  */
 export function AthleteHomeScreen() {
   const { t } = useTranslation();
   const { data: authSession } = authClient.useSession();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-cmv-sm bg-cmv-bg-0 p-cmv-xl text-center">
-      <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">
-        {t("dashboard.welcome", { name: authSession?.user.name ?? "—" })}
-      </h1>
-      <p className="max-w-sm text-cmv-body text-cmv-text-mid">{t("dashboard.athleteHint")}</p>
-      <CmvButton variant="secondary" onClick={() => authClient.signOut()}>
-        {t("common.logout")}
-      </CmvButton>
-    </main>
+    <CmvAppShell
+      title={t("dashboard.welcome", { name: authSession?.user.name ?? "—" })}
+      subtitle={t("dashboard.athlete.subtitle")}
+    >
+      <CmvEmptyState
+        title={t("dashboard.athlete.emptyTitle")}
+        description={t("dashboard.athlete.emptyDescription")}
+      />
+    </CmvAppShell>
   );
 }

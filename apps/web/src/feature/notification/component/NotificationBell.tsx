@@ -12,6 +12,7 @@ import {
 } from "@/feature/notification/hook/useNotifications";
 import { routeForNotification } from "@/feature/notification/util/route.util";
 import { CmvButton } from "@/shared/component";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { cn } from "@/shared/util/cn.util";
 import { formatRelativeTime } from "@/shared/util/date.util";
 
@@ -26,6 +27,9 @@ export function NotificationBell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // La destination d'une notification dépend des écrans dont ce rôle dispose, pas seulement du
+  // type de la cible : sans ça, un athlète serait envoyé vers le builder du coach.
+  const capabilities = useCapabilities();
   const [open, setOpen] = useState(false);
 
   const { data: unreadCount } = useUnreadNotificationCount();
@@ -63,7 +67,7 @@ export function NotificationBell() {
     setOpen(false);
     if (notification.readAt == null) markRead.mutate(notification.id);
     queryClient.invalidateQueries();
-    const target = routeForNotification(notification);
+    const target = routeForNotification(notification, capabilities);
     if (target != null) navigate(target);
   }
 
