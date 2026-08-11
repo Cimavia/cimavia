@@ -1,4 +1,11 @@
-import { mondayOfIsoWeek, Role, shiftIsoDate } from "@cmv/shared";
+import {
+  MAX_FEEDBACK_AUDIOS,
+  MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
+  MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+  mondayOfIsoWeek,
+  Role,
+  shiftIsoDate,
+} from "@cmv/shared";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
@@ -910,15 +917,21 @@ describe("Médias de débrief (P4)", () => {
     expect(attached.body.url).toContain("X-Amz-Signature");
   });
 
-  it("plafonne les notes vocales à 3 par débrief (409)", async () => {
-    for (let index = 0; index < 2; index += 1) {
+  /**
+   * Le plafond vient de la CONSTANTE, jamais d'un chiffre écrit ici : `MAX_FEEDBACK_AUDIOS` est
+   * passé de 3 à 15 en cours de route, et ce test s'est mis à échouer sans que rien ne le signale
+   * — les e2e ne tournent pas dans la CI (`turbo test` n'appelle pas `test:e2e`).
+   */
+  it("plafonne les notes vocales par débrief (409)", async () => {
+    // Une note est déjà posée par le test précédent.
+    for (let index = 0; index < MAX_FEEDBACK_AUDIOS - 1; index += 1) {
       const storagePath = await upload(athleteA1, audio(`note-${index}.m4a`));
       const res = await athleteA1
         .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
         .send({ ...audio(`note-${index}.m4a`), storagePath });
       expect(res.status).toBe(201);
     }
-    // La 4e (une déjà posée au test précédent + 2 ici = 3) dépasse le plafond.
+    // La suivante dépasse le plafond.
     const overflow = await athleteA1
       .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
       .send(audio("trop.m4a"));
@@ -1026,10 +1039,19 @@ describe("Médias de débrief (P4)", () => {
     expect((await athleteA1.post(url).send({ ...video(), mimeType: "video/avi" })).status).toBe(
       400,
     );
-    expect((await athleteA1.post(url).send({ ...video(), size: 51 * 1024 * 1024 })).status).toBe(
-      400,
-    );
-    expect((await athleteA1.post(url).send({ ...video(), durationSeconds: 61 })).status).toBe(400);
+    // Bornes dérivées des constantes : écrites en dur, elles cesseraient de tester le plafond
+    // réel au premier ajustement — c'est exactement ce qui est arrivé (50 Mo → 1 Go).
+    expect(
+      (await athleteA1.post(url).send({ ...video(), size: MAX_FEEDBACK_VIDEO_SIZE_BYTES + 1 }))
+        .status,
+    ).toBe(400);
+    expect(
+      (
+        await athleteA1
+          .post(url)
+          .send({ ...video(), durationSeconds: MAX_FEEDBACK_VIDEO_DURATION_SECONDS + 1 })
+      ).status,
+    ).toBe(400);
     // Une vidéo sans durée déclarée : la branche VIDEO l'exige.
     expect(
       (await athleteA1.post(url).send({ ...video(), durationSeconds: undefined })).status,
@@ -2915,5 +2937,126 @@ describe("Copie d'une semaine de planification (#4)", () => {
 
   it("la route reste fermée à l'athlète", async () => {
     expect((await athleteA1.post(`/plan-weeks/${w3Id}/copy-from`).send({})).status).toBe(403);
+  });
+});
+
+/**
+ * Parité multi-plateforme (#36) — les MURS que les clients ne doivent jamais toucher.
+ *
+ * Rien de nouveau côté API : cette épic n'a ajouté aucun endpoint. Ce qu'elle a changé, c'est que
+ * les DEUX rôles atteignent désormais les deux plateformes — et donc que chaque client peut, par
+ * un lien profond, une notification ou un onglet mal filtré, appeler une route qui n'est pas la
+ * sienne. Ces cas étaient jusqu'ici impossibles par construction (un rôle = une plateforme), donc
+ * non couverts.
+ *
+ * Ce bloc fige où sont les murs. Il ne teste pas l'UI — aucun e2e ne le peut — mais il garantit que
+ * les gardes sur lesquelles l'UI s'appuie existent bien, et qu'elles répondent 403 plutôt que de
+ * servir la donnée d'un autre rôle.
+ */
+describe("Parité multi-plateforme : les surfaces restent fermées à l'autre rôle (#36)", () => {
+  let coach: Agent;
+  let athlete: Agent;
+  let athleteId: string;
+
+  beforeAll(async () => {
+    coach = await signUp("coach-parity@cmv.test", Role.COACH);
+    athlete = await signUp("athlete-parity@cmv.test", Role.ATHLETE);
+
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    athleteId = accepted.body.athleteId;
+  });
+
+  /**
+   * `GET /me/plan` est `@Roles([ATHLETE])`. C'est le mur sur lequel le mobile s'est cassé : trois
+   * redirections envoyaient tout le monde sur `/planning`, et un coach y prenait un 403 dès la
+   * connexion.
+   */
+  it("refuse au coach les surfaces /me de l'athlète", async () => {
+    expect((await coach.get("/me/plan")).status).toBe(403);
+    expect((await coach.get("/me/coach")).status).toBe(403);
+  });
+
+  /**
+   * Le débrief est ÉCRIT par l'athlète et LU par le coach, sur deux contrôleurs distincts. Un
+   * client qui se trompe de surface prend un 403 — pas une liste vide, qui laisserait croire qu'il
+   * n'y a rien à lire.
+   */
+  it("sépare l'écriture du débrief (athlète) de sa lecture (coach)", async () => {
+    expect((await coach.get("/me/scheduled-sessions/ss_inexistante/feedback")).status).toBe(403);
+    expect((await athlete.get("/feedbacks")).status).toBe(403);
+  });
+
+  // La bibliothèque et le builder restent web-only ET coach-only (décision explicite de #20) :
+  // l'athlète n'a aucun scope dessus, il ne voit que les copies que la planification lui expose.
+  it("garde la bibliothèque et les cycles fermés à l'athlète", async () => {
+    expect((await athlete.get("/exercises")).status).toBe(403);
+    expect((await athlete.get("/sessions")).status).toBe(403);
+    expect((await athlete.get("/plans")).status).toBe(403);
+    expect((await athlete.get("/athletes")).status).toBe(403);
+  });
+
+  /**
+   * `Reminder` est la SEULE entité scopée `coachId` seul : un athlète qui l'atteint est refusé par
+   * une **erreur** (fail closed), pas par un 403. C'est pourquoi le contrôleur porte `@Roles` — il
+   * est la garde qui transforme ce refus en réponse propre. Sans lui, l'écran de facturation web
+   * ouvert à l'athlète (#27) aurait fait un 500 par son bouton « Programmer un rappel ».
+   */
+  it("refuse les rappels à l'athlète par un 403, jamais par une erreur", async () => {
+    const list = await athlete.get("/reminders");
+    expect(list.status).toBe(403);
+    expect((await athlete.get("/reminders/summary")).status).toBe(403);
+    expect((await athlete.post("/reminders").send({})).status).toBe(403);
+  });
+
+  /**
+   * La facture est LUE par les deux (une seule route, scopée par le tenant) mais son statut n'est
+   * piloté que par le coach. C'est ce qui permet un seul écran par plateforme, branché sur un
+   * booléen plutôt que dupliqué.
+   */
+  it("ouvre la lecture des factures aux deux rôles, le statut au coach seul", async () => {
+    expect((await coach.get("/invoices")).status).toBe(200);
+    expect((await athlete.get("/invoices")).status).toBe(200);
+    expect(
+      (await athlete.patch("/invoices/inv_inexistante/status").send({ status: "PAID" })).status,
+    ).toBe(403);
+  });
+
+  /**
+   * La messagerie est le seul domaine ouvert aux deux rôles de bout en bout. L'ouverture d'un fil
+   * se distingue par le seul CORPS : `athleteId` présent côté coach, absent côté athlète — et un
+   * athlète qui tenterait de cibler quelqu'un d'autre ne doit pas y arriver.
+   */
+  it("ouvre la messagerie aux deux rôles, chacun de son côté", async () => {
+    const opened = await coach.post("/conversations").send({ athleteId });
+    expect(opened.status).toBe(201);
+    expect(opened.body.counterpartId).toBe(athleteId);
+
+    const mine = await athlete.post("/conversations").send({});
+    expect(mine.status).toBe(201);
+    expect(mine.body.id).toBe(opened.body.id);
+  });
+
+  /**
+   * Côté athlète, `athleteId` est **ignoré** — pas refusé : `resolvePair` lit sa relation scopée et
+   * pose `athleteId: actor.userId`. Un athlète qui viserait quelqu'un d'autre récupère donc SON
+   * propre fil, pas celui d'un tiers. C'est le comportement voulu, et ce test le fige : le jour où
+   * quelqu'un « corrigerait » le service pour honorer le champ, il ouvrirait une fuite entre
+   * tenants.
+   */
+  it("ignore un athleteId ciblé par un athlète, au lieu de l'honorer", async () => {
+    const other = await signUp("athlete-parity-2@cmv.test", Role.ATHLETE);
+    const otherInvitation = await coach.post("/invitations").send({});
+    const otherAccepted = await other
+      .post("/invitations/accept")
+      .send({ code: otherInvitation.body.code });
+
+    const hijack = await athlete
+      .post("/conversations")
+      .send({ athleteId: otherAccepted.body.athleteId });
+    expect(hijack.status).toBe(201);
+    // Le fil rendu est celui de l'athlète courant avec SON coach, jamais celui du tiers visé.
+    expect(hijack.body.counterpartId).not.toBe(otherAccepted.body.athleteId);
+    expect(hijack.body.counterpartId).toBe(otherAccepted.body.coachId);
   });
 });
