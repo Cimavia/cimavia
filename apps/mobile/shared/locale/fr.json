@@ -177,6 +177,17 @@
     "audio": {
       "permission": "cimavia a besoin du micro pour enregistrer un message vocal.",
       "recordError": "L'enregistrement a échoué. Réessaie."
+    },
+    "title": "Messages",
+    "noMessageYet": "Pas encore de message",
+    "noAthletes": {
+      "title": "Aucun athlète pour l'instant",
+      "description": "Invite un premier athlète depuis l'accueil pour commencer à échanger."
+    },
+    "preview": {
+      "IMAGE": "Photo",
+      "VIDEO": "Vidéo",
+      "AUDIO": "Note vocale"
     }
   },
   "coach": {

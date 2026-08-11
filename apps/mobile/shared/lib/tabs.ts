@@ -38,7 +38,9 @@ export const TABS: readonly TabDefinition[] = [
   { name: "dashboard", labelKey: "nav.dashboard", icon: "grid-outline", capability: "coach" },
   { name: "planning", labelKey: "nav.planning", icon: "calendar-outline", capability: "athlete" },
   { name: "sessions", labelKey: "nav.sessions", icon: "barbell-outline", capability: "athlete" },
-  { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline", capability: "athlete" },
+  // Servi aux DEUX : `Conversation`/`Message` sont scopés symétriquement, et l'écran branche ce
+  // que chacun y voit — N fils pour le coach, un seul pour l'athlète (#34).
+  { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline", capability: null },
   // Servi aux DEUX : `GET /invoices` est une seule ressource scopée par le tenant, et l'écran
   // branche ce qu'on peut en faire (#32).
   { name: "invoices", labelKey: "nav.invoices", icon: "receipt-outline", capability: null },

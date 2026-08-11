@@ -30,9 +30,9 @@ function targetFor(
   capabilities: Capabilities,
 ): Href | null {
   /**
-   * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part. `INVOICE` depuis
-   * #32, `SCHEDULED_SESSION` depuis #33 ; `CONVERSATION` suivra en #34. `PLAN` restera `null` :
-   * le builder est web-only (#20), il n'y a pas d'écran mobile à viser.
+   * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part : `INVOICE` (#32),
+   * `SCHEDULED_SESSION` (#33) et `CONVERSATION` (#34). `PLAN` reste `null` définitivement — le
+   * builder est web-only (#20), il n'y a pas d'écran mobile à viser.
    */
   if (capabilities.isCoach) {
     if (entityType === NotificationEntityType.INVOICE) return "/invoices";
@@ -40,6 +40,9 @@ function targetFor(
     if (entityType === NotificationEntityType.SCHEDULED_SESSION) {
       return entityId == null ? null : `/feedbacks/${entityId}`;
     }
+    // La liste des fils, pas un fil précis : `entityId` est l'id de la CONVERSATION, alors que la
+    // route du coach attend l'id de l'ATHLÈTE. Ouvrir la liste reste très au-dessus de rien.
+    if (entityType === NotificationEntityType.CONVERSATION) return "/messages";
     return null;
   }
 
