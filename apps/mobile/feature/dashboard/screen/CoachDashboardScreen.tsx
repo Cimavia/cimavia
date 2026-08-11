@@ -34,8 +34,8 @@ import { authClient } from "@/shared/lib/auth";
  *  - « Notifications non lues » ferait doublon avec la **pastille de l'onglet Notifs**, visible en
  *    permanence à 200 px de là.
  *
- * « Factures en retard » mène à l'onglet Factures depuis #32. « Débriefs à relire » reste muette
- * jusqu'à #33 : une tuile d'action est un cul-de-sac tant que sa destination n'existe pas.
+ * Les deux tuiles « à traiter » mènent à leur écran : la facturation depuis #32, les débriefs
+ * depuis #33. Une tuile qui annonce du travail sans y mener serait un cul-de-sac (#52).
  */
 export function CoachDashboardScreen() {
   const { t } = useTranslation();
@@ -119,6 +119,7 @@ export function CoachDashboardScreen() {
               count={countUnreadFeedbacks(feedbacks.data)}
               hint={t("dashboard.tiles.feedbackHint")}
               tone="warning"
+              onPress={() => router.push("/feedbacks")}
             />
             <DashboardTile
               label={t("dashboard.tiles.overdueInvoices")}

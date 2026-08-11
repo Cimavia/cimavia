@@ -30,12 +30,17 @@ function targetFor(
   capabilities: Capabilities,
 ): Href | null {
   /**
-   * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part. `INVOICE` en a un
-   * depuis #32 ; `SCHEDULED_SESSION` et `CONVERSATION` suivront en #33 et #34. `PLAN` restera
-   * `null` : le builder est web-only (#20), il n'y a pas d'écran mobile à viser.
+   * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part. `INVOICE` depuis
+   * #32, `SCHEDULED_SESSION` depuis #33 ; `CONVERSATION` suivra en #34. `PLAN` restera `null` :
+   * le builder est web-only (#20), il n'y a pas d'écran mobile à viser.
    */
   if (capabilities.isCoach) {
-    return entityType === NotificationEntityType.INVOICE ? "/invoices" : null;
+    if (entityType === NotificationEntityType.INVOICE) return "/invoices";
+    // Le coach reçoit `SCHEDULED_SESSION` pour un débrief reçu : on ouvre CE débrief, pas la liste.
+    if (entityType === NotificationEntityType.SCHEDULED_SESSION) {
+      return entityId == null ? null : `/feedbacks/${entityId}`;
+    }
+    return null;
   }
 
   switch (entityType) {
