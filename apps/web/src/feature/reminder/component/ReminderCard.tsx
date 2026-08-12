@@ -1,8 +1,14 @@
-import { isReminderDue, type ReminderDto, ReminderEntityType, ReminderStatus } from "@cmv/shared";
+import {
+  REMINDER_BADGE,
+  REMINDER_TARGET_LABEL_KEY,
+  type ReminderDto,
+  ReminderEntityType,
+  ReminderStatus,
+  reminderBadgeState,
+} from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminderButton";
-import { REMINDER_BADGE, REMINDER_TARGET_LABEL_KEY } from "@/feature/reminder/constant";
 import { CmvBadge, CmvButton, CmvCard } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
 import { formatPeriod } from "@/shared/util/money.util";
@@ -76,8 +82,7 @@ export function ReminderCard({
 // La dérivation vient de @cmv/shared, la même que celle appliquée en SQL par le centre (#51).
 function ReminderStateBadge({ reminder }: Readonly<{ reminder: ReminderDto }>) {
   const { t } = useTranslation();
-  const state = isReminderDue(reminder, new Date()) ? "OVERDUE" : reminder.status;
-  const { variant, labelKey } = REMINDER_BADGE[state];
+  const { variant, labelKey } = REMINDER_BADGE[reminderBadgeState(reminder, new Date())];
 
   return (
     <CmvBadge variant={variant} dot>

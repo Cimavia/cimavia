@@ -37,6 +37,53 @@ export function isReminderDue(reminder: ReminderTiming, now: Date): boolean {
   return dueAt <= now.getTime();
 }
 
+// ── Rendu d'un rappel, partagé web ↔ mobile ─────────────────────────────────
+
+/**
+ * Pastille d'état d'un rappel : variant + clé i18n, sur le modèle exact d'`INVOICE_STATE_BADGE`.
+ *
+ * `OVERDUE` n'est **pas** un statut stocké — c'est un rappel `PENDING` dont l'échéance est passée
+ * (`isReminderDue`, ci-dessus). Même dispositif que les factures, où « en retard » est dérivé : la
+ * table décrit quatre états d'AFFICHAGE là où l'enum n'en stocke que trois.
+ *
+ * Promue ici en #46, conformément à la règle (2+ apps → package) : elle a vécu dans
+ * `apps/web/src/feature/reminder/` tant que le web était le seul à la rendre. L'écran mobile est le
+ * second client, et deux `switch` parallèles auraient divergé au premier ajout d'état.
+ */
+export type ReminderStateBadge = {
+  variant: "success" | "warning" | "error" | "neutral";
+  labelKey: string;
+};
+
+export const REMINDER_BADGE = {
+  OVERDUE: { variant: "error", labelKey: "reminder.state.overdue" },
+  [ReminderStatus.PENDING]: { variant: "warning", labelKey: "reminder.state.pending" },
+  [ReminderStatus.DONE]: { variant: "success", labelKey: "reminder.state.done" },
+  [ReminderStatus.DISMISSED]: { variant: "neutral", labelKey: "reminder.state.dismissed" },
+} as const satisfies Record<ReminderStatus | "OVERDUE", ReminderStateBadge>;
+
+/**
+ * L'état d'AFFICHAGE d'un rappel : son statut, sauf s'il est dû — auquel cas « en retard » prime.
+ *
+ * Extrait des deux clients plutôt que recopié : chacun calculait `isReminderDue(...) ? "OVERDUE" :
+ * status` avant d'indexer la table, ce qui est la dérivation elle-même, pas du rendu.
+ */
+export function reminderBadgeState(
+  reminder: ReminderTiming,
+  now: Date,
+): keyof typeof REMINDER_BADGE {
+  return isReminderDue(reminder, now) ? "OVERDUE" : reminder.status;
+}
+
+/**
+ * Clé i18n du type de cible, pour composer « Cycle — … » / « Facture — mars 2026 » à l'affichage.
+ * Le DTO ne porte que le libellé BRUT : un intitulé assemblé côté API serait figé en français.
+ */
+export const REMINDER_TARGET_LABEL_KEY = {
+  PLAN: "reminder.target.plan",
+  INVOICE: "reminder.target.invoice",
+} as const satisfies Record<ReminderEntityType, string>;
+
 // ── Report d'échéance (#105) ─────────────────────────────────────────────────
 
 /**

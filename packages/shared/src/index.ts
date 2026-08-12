@@ -370,14 +370,18 @@ export {
 export type {
   ReminderFeedSource,
   ReminderSnoozeOption,
+  ReminderStateBadge,
   ReminderTiming,
 } from "./util/reminder.util";
 export {
   isReminderDue,
   parseReminderFeedId,
+  REMINDER_BADGE,
   REMINDER_FEED_ID_PREFIX,
   REMINDER_SNOOZE_OPTIONS,
   REMINDER_TARGET_ENTITY_TYPE,
+  REMINDER_TARGET_LABEL_KEY,
+  reminderBadgeState,
   reminderToNotificationDto,
   snoozedDueAt,
   toReminderFeedId,

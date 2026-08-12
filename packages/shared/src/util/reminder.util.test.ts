@@ -4,8 +4,10 @@ import { ReminderEntityType, ReminderStatus } from "../dto/reminder.schema";
 import {
   isReminderDue,
   parseReminderFeedId,
+  REMINDER_BADGE,
   REMINDER_SNOOZE_OPTIONS,
   REMINDER_TARGET_ENTITY_TYPE,
+  reminderBadgeState,
   reminderToNotificationDto,
   snoozedDueAt,
   toReminderFeedId,
@@ -104,6 +106,39 @@ describe("id d'entrée de flux", () => {
   // Le préfixe doit être en TÊTE : un id qui contient « reminder: » ailleurs n'en est pas un.
   it("n'accepte pas le préfixe ailleurs qu'au début", () => {
     expect(parseReminderFeedId("ntf_reminder:rmd_1")).toBeNull();
+  });
+});
+
+describe("reminderBadgeState", () => {
+  const pending = { dueAt: "2026-08-15T07:00:00.000Z", status: ReminderStatus.PENDING };
+
+  /**
+   * « En retard » prime sur le statut, et c'est toute la raison d'être de cette dérivation :
+   * `OVERDUE` n'existe pas dans l'enum stocké, c'est un `PENDING` dont l'échéance est passée. Les
+   * deux clients l'indexaient chacun de son côté avant #46.
+   */
+  it("rend OVERDUE pour un rappel à traiter dont l'échéance est passée", () => {
+    expect(reminderBadgeState({ ...pending, dueAt: "2026-08-01T07:00:00.000Z" }, NOW)).toBe(
+      "OVERDUE",
+    );
+    expect(reminderBadgeState(pending, NOW)).toBe(ReminderStatus.PENDING);
+  });
+
+  // Le temps ne rouvre pas ce qui a été traité : un rappel fait ou abandonné garde son état, même
+  // avec une échéance largement dépassée.
+  it("ne rend jamais OVERDUE un rappel traité", () => {
+    for (const status of [ReminderStatus.DONE, ReminderStatus.DISMISSED]) {
+      expect(reminderBadgeState({ dueAt: "2020-01-01T00:00:00.000Z", status }, NOW)).toBe(status);
+    }
+  });
+
+  // Le `satisfies` garantit la complétude à la compilation ; ce test la garantit à l'exécution —
+  // chaque état d'affichage a bien une pastille, donc aucun indexage ne rend `undefined`.
+  it("chaque état d'affichage a une pastille", () => {
+    for (const status of Object.values(ReminderStatus)) {
+      expect(REMINDER_BADGE[status]).toBeDefined();
+    }
+    expect(REMINDER_BADGE.OVERDUE.variant).toBe("error");
   });
 });
 

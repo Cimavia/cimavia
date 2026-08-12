@@ -238,6 +238,18 @@
     "markPaid": "Marquer payée",
     "reopen": "Marquer impayée"
   },
+  "reminder": {
+    "state": {
+      "overdue": "En retard",
+      "pending": "À venir",
+      "done": "Fait",
+      "dismissed": "Abandonné"
+    },
+    "target": {
+      "plan": "Cycle",
+      "invoice": "Facture"
+    }
+  },
   "notification": {
     "title": "Notifications",
     "markAllRead": "Tout marquer comme lu",
