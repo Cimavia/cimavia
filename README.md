@@ -45,7 +45,7 @@ pnpm turbo dev                           # toutes les apps
 pnpm --filter @cmv/api dev               # API seule
 pnpm --filter @cmv/mobile start          # Mobile seule
 pnpm --filter @cmv/web dev               # Web seule
-pnpm turbo lint typecheck test           # qualité (= ce que la CI bloque)
+pnpm turbo lint typecheck test           # qualité (la CI bloque aussi sur les e2e, plus bas)
 pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
 pnpm --filter @cmv/api exec prisma migrate dev
 # Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + MinIO sur son bucket e2e)

@@ -150,9 +150,9 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| Q-1 | **Couverture non mesurée hors `@cmv/shared`** : `sonar.coverage.exclusions` écarte les trois apps. L'API est couverte par les e2e, qui ne produisent aucun lcov. Le verrou amont a sauté en **#130** (ils tournent en CI) ; reste à les instrumenter. | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → [#57](https://github.com/Cimavia/cimavia/issues/57) [#58](https://github.com/Cimavia/cimavia/issues/58) [#59](https://github.com/Cimavia/cimavia/issues/59) |
+| Q-1 | **Couverture non mesurée sur le web et le mobile** : `sonar.coverage.exclusions` écarte encore `apps/web` et `apps/mobile`, faute de harnais de test d'UI. Le tiers API est levé en **#57** (les e2e sont instrumentés : 2,6 % → ~86 %). | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ [#58](https://github.com/Cimavia/cimavia/issues/58) [#59](https://github.com/Cimavia/cimavia/issues/59) |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
-| ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)) — `tsconfig.e2e.json` dédié, branché sur le script `typecheck` de l'API |
+| ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 
 > **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
 > tient à des choix qui ressemblent, de loin, à des maladresses à corriger :
@@ -171,6 +171,30 @@ survienne).
 >   GitHub n'exécute pas l'entrypoint de `minio-setup` : le bucket `cimavia-media-e2e` n'existerait
 >   pas et la moitié médias de la suite tomberait. Les recréer en YAML donnerait deux copies de la
 >   même logique, qui divergeraient.
+
+> **Tranché en #57** (un fichier absent de tous les lcov vaut 0 %, pas « non mesuré ») : c'est la
+> règle qui gouverne les deux périmètres de couverture, et elle est contre-intuitive. Conséquences
+> à ne pas défaire : `main.ts` et `instrument.ts` sont exclus **des deux côtés** — de l'`exclude`
+> de `vitest.config.e2e.ts` *et* de `sonar.coverage.exclusions` — parce que les sortir du seul lcov
+> les ferait compter zéro au lieu de les retirer du calcul. Et à l'inverse, la config e2e ne
+> s'aligne **pas** sur l'exclusion des `*.module.ts` / `*.dto.ts` de la config unitaire, alors que
+> l'écart de chiffre serait négligeable (0,45 pt) : aligner ferait chuter une quinzaine de modules
+> à 0 % dans Sonar, puisqu'aucun rapport ne les porterait plus.
+
+> **Appris en #57** (deux commentaires décourageaient une manœuvre pour une raison fausse) :
+> `sonar-project.properties` et le docblock de `vitest.config.ts` affirmaient tous deux que les e2e
+> tournaient dans « un process Nest à part » et ne pouvaient donc pas être instrumentés. Ils font
+> `app.listen()` **dans le process du worker Vitest**, que v8 mesure : la couverture de l'API est
+> passée de 2,6 % à ~86 % sans écrire une ligne de test. Un commentaire qui explique pourquoi on
+> n'a pas fait quelque chose se relit comme une porte fermée — il vaut donc d'être vérifié quand on
+> s'y heurte, pas cru sur parole.
+
+> **Appris en #57** (un typecheck peut être vert sans rien vérifier) : `vitest.config.ts` ne pouvait
+> pas rejoindre l'`include` de `tsconfig.json` — sous son `moduleResolution: Node10`, les types de
+> `vitest/config` ne se résolvent pas, `defineConfig` vaut `any`, et une propriété **inventée** y
+> passe sans erreur. C'est `Bundler` qui a attrapé `coverage.all` et `minWorkers`, deux options
+> mortes depuis Vitest 4 qu'on croyait actives. Corollaire : ajouter un fichier à un tsconfig ne
+> prouve rien tant qu'on n'a pas vérifié qu'une faute délibérée y échoue.
 
 > **Appris en #130** (un check requis se nomme par le JOB, jamais par le workflow) : le
 > `Production ruleset` exigeait les contextes `CI` et `SonarCloud` — les noms des **workflows**.
