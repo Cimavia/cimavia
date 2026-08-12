@@ -328,6 +328,11 @@
     "markDone": "Marquer fait",
     "dismiss": "Abandonner",
     "reopen": "Rouvrir",
+    "snooze": {
+      "label": "Repousser",
+      "TOMORROW": "Demain",
+      "NEXT_WEEK": "Dans une semaine"
+    },
     "schedule": "Programmer un rappel",
     "form": {
       "title": "Programmer un rappel",
@@ -353,7 +358,8 @@
       "created": "Rappel programmé",
       "DONE": "Rappel marqué fait",
       "DISMISSED": "Rappel abandonné",
-      "PENDING": "Rappel rouvert"
+      "PENDING": "Rappel rouvert",
+      "snoozed": "Rappel repoussé au {{date}}"
     }
   },
   "messages": {

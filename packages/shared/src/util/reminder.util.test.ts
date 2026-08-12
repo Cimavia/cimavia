@@ -4,8 +4,10 @@ import { ReminderEntityType, ReminderStatus } from "../dto/reminder.schema";
 import {
   isReminderDue,
   parseReminderFeedId,
+  REMINDER_SNOOZE_OPTIONS,
   REMINDER_TARGET_ENTITY_TYPE,
   reminderToNotificationDto,
+  snoozedDueAt,
   toReminderFeedId,
 } from "./reminder.util";
 
@@ -102,6 +104,43 @@ describe("id d'entrée de flux", () => {
   // Le préfixe doit être en TÊTE : un id qui contient « reminder: » ailleurs n'en est pas un.
   it("n'accepte pas le préfixe ailleurs qu'au début", () => {
     expect(parseReminderFeedId("ntf_reminder:rmd_1")).toBeNull();
+  });
+});
+
+describe("snoozedDueAt", () => {
+  /**
+   * Calculé depuis MAINTENANT, jamais depuis l'échéance courante. C'est le cas qui décide de la
+   * formule : un rappel en retard de trois jours, repoussé « à demain », doit tomber demain — pas
+   * il y a deux jours. Partir de `dueAt` produirait une échéance encore passée, donc un rappel qui
+   * reste dû juste après qu'on a demandé à ne plus le voir.
+   */
+  it("part de maintenant, pas de l'échéance courante", () => {
+    expect(snoozedDueAt("TOMORROW", NOW)).toBe("2026-08-08T10:00:00.000Z");
+    expect(snoozedDueAt("NEXT_WEEK", NOW)).toBe("2026-08-14T10:00:00.000Z");
+  });
+
+  /**
+   * « Demain » est une opération de CALENDRIER, pas une durée : `setDate` conserve l'heure locale au
+   * passage à l'heure d'hiver, là où `+ 24 × 3600 × 1000` la décalerait d'une heure. Le test
+   * l'exprime dans le fuseau du système, seul endroit où la distinction est observable — et se
+   * contente donc de vérifier l'heure LOCALE, identique de part et d'autre du changement.
+   */
+  it("conserve l'heure locale à travers un changement d'heure", () => {
+    // 2026 : l'heure d'hiver arrive le dimanche 25 octobre en Europe.
+    const beforeDstChange = new Date(2026, 9, 24, 9, 30);
+    const snoozed = new Date(snoozedDueAt("TOMORROW", beforeDstChange));
+
+    expect(snoozed.getHours()).toBe(9);
+    expect(snoozed.getMinutes()).toBe(30);
+    expect(snoozed.getDate()).toBe(25);
+  });
+
+  // Un report tombe toujours dans le futur : c'est ce qui garantit que le rappel quitte le centre
+  // et cesse d'être compté par le badge, sinon le geste n'aurait aucun effet visible.
+  it("rend toujours une échéance future", () => {
+    for (const option of REMINDER_SNOOZE_OPTIONS) {
+      expect(Date.parse(snoozedDueAt(option, NOW))).toBeGreaterThan(NOW.getTime());
+    }
   });
 });
 

@@ -367,12 +367,18 @@ export {
   selectCurrentPlan,
   weekSessionProgress,
 } from "./util/plan.util";
-export type { ReminderFeedSource, ReminderTiming } from "./util/reminder.util";
+export type {
+  ReminderFeedSource,
+  ReminderSnoozeOption,
+  ReminderTiming,
+} from "./util/reminder.util";
 export {
   isReminderDue,
   parseReminderFeedId,
   REMINDER_FEED_ID_PREFIX,
+  REMINDER_SNOOZE_OPTIONS,
   REMINDER_TARGET_ENTITY_TYPE,
   reminderToNotificationDto,
+  snoozedDueAt,
   toReminderFeedId,
 } from "./util/reminder.util";

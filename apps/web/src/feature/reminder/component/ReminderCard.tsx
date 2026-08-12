@@ -1,6 +1,7 @@
 import { isReminderDue, type ReminderDto, ReminderEntityType, ReminderStatus } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminderButton";
 import { REMINDER_BADGE, REMINDER_TARGET_LABEL_KEY } from "@/feature/reminder/constant";
 import { CmvBadge, CmvButton, CmvCard } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
@@ -52,6 +53,9 @@ export function ReminderCard({
               <CmvButton variant="secondary" onClick={onMarkDone} disabled={busy}>
                 {t("reminder.markDone")}
               </CmvButton>
+              {/* Réservé aux rappels À TRAITER : repousser un rappel déjà traité n'a pas de sens,
+                  et l'API l'accepterait pourtant (c'est une édition, pas une transition). */}
+              <SnoozeReminderButton reminderId={reminder.id} />
               <CmvButton variant="ghost" onClick={onDismiss} disabled={busy}>
                 {t("reminder.dismiss")}
               </CmvButton>

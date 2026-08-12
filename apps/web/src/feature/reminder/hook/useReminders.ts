@@ -3,15 +3,17 @@ import type {
   ReminderDto,
   ReminderStatusType,
   ReminderSummaryDto,
+  UpdateReminderInput,
 } from "@cmv/shared";
 import { notificationKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { reminderApi, reminderKeys } from "@/feature/reminder/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { formatDateTime } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
-// i18n-values reminder.toast: ReminderStatus, created
+// i18n-values reminder.toast: ReminderStatus, created, snoozed
 
 export function useReminders() {
   return useQuery<ReminderDto[]>({
@@ -66,6 +68,30 @@ export function useCreateReminder() {
           toast.onSuccess("reminder.toast.created");
           onDone?.();
         },
+      }),
+  };
+}
+
+/**
+ * Report d'échéance et correction de note (#105). Le toast nomme la NOUVELLE échéance plutôt que de
+ * dire « rappel mis à jour » : le geste se fait en un clic depuis un raccourci, sans que le coach
+ * ait vu la date qu'il vient de choisir — la lui montrer est le seul moyen de la vérifier.
+ *
+ * `readAt` n'est pas transmis : c'est l'API qui l'efface quand l'échéance bouge. Le laisser au
+ * client permettrait à « repousser » d'éteindre son propre badge.
+ */
+export function useUpdateReminder() {
+  const toast = useMutationToast();
+  const mutation = useReminderMutation(
+    ({ id, input }: { id: string; input: UpdateReminderInput }) => reminderApi.update(id, input),
+  );
+
+  return {
+    ...mutation,
+    mutate: (input: { id: string; input: UpdateReminderInput }) =>
+      mutation.mutate(input, {
+        onSuccess: (reminder) =>
+          toast.onSuccess("reminder.toast.snoozed", { date: formatDateTime(reminder.dueAt) }),
       }),
   };
 }

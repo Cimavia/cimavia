@@ -37,6 +37,42 @@ export function isReminderDue(reminder: ReminderTiming, now: Date): boolean {
   return dueAt <= now.getTime();
 }
 
+// ── Report d'échéance (#105) ─────────────────────────────────────────────────
+
+/**
+ * Les raccourcis de report offerts par l'UI. Une table de deux valeurs plutôt qu'un champ libre :
+ * « repousser » est le geste qu'on fait sans réfléchir quand un rappel tombe au mauvais moment, et
+ * lui demander de saisir une date le transformerait en formulaire. L'édition fine reste possible
+ * par le même `PATCH`, avec une échéance absolue.
+ */
+export const REMINDER_SNOOZE_OPTIONS = ["TOMORROW", "NEXT_WEEK"] as const;
+export type ReminderSnoozeOption = (typeof REMINDER_SNOOZE_OPTIONS)[number];
+
+const SNOOZE_DAYS = { TOMORROW: 1, NEXT_WEEK: 7 } as const satisfies Record<
+  ReminderSnoozeOption,
+  number
+>;
+
+/**
+ * La nouvelle échéance d'un rappel repoussé, en instant ISO.
+ *
+ * Calculée depuis **maintenant**, pas depuis l'échéance courante : repousser un rappel en retard de
+ * trois jours « à demain » doit donner demain, pas il y a deux jours. C'est le sens ordinaire du
+ * geste, et le seul qui garantisse que le rappel ressorte bien dans le futur.
+ *
+ * Le décalage passe par `setDate` et non par une addition de millisecondes : ajouter 24 × 3600 × 1000
+ * ferait dériver l'heure d'une heure aux changements d'heure d'été. On veut « demain à la même
+ * heure », ce qui est une opération de calendrier, pas de durée.
+ *
+ * Côté CLIENT et non côté API, délibérément : `dueAt` est un instant absolu et l'API n'a aucun
+ * fuseau — c'est le navigateur qui sait ce que « demain » veut dire pour son lecteur.
+ */
+export function snoozedDueAt(option: ReminderSnoozeOption, now: Date): string {
+  const next = new Date(now);
+  next.setDate(next.getDate() + SNOOZE_DAYS[option]);
+  return next.toISOString();
+}
+
 // ── Rappel dû → entrée du centre de notifications (#51) ──────────────────────
 
 /**

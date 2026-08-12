@@ -1,4 +1,4 @@
-import { NOTIFICATION_LABEL_KEY, type NotificationDto } from "@cmv/shared";
+import { NOTIFICATION_LABEL_KEY, type NotificationDto, parseReminderFeedId } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import {
   useUnreadNotificationCount,
 } from "@/feature/notification/hook/useNotifications";
 import { routeForNotification } from "@/feature/notification/util/route.util";
+import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminderButton";
 import { CmvButton } from "@/shared/component";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { cn } from "@/shared/util/cn.util";
@@ -194,26 +195,47 @@ function NotificationRow({ notification, onSelect }: Readonly<NotificationRowPro
     subject: notification.subjectLabel ?? "—",
   });
 
+  /**
+   * Un rappel dû (#51) porte un id d'ENTRÉE préfixé, pas un id de table : c'est lui qui distingue
+   * les deux sources du centre, et c'est le seul type sur lequel « repousser » a un sens (#105).
+   * `null` = notification persistée ordinaire, aucun geste à offrir.
+   */
+  const reminderId = parseReminderFeedId(notification.id);
+
+  /**
+   * La ligne est un `div` et non un `button`, contrairement à sa première version : le report est
+   * lui-même un bouton, et imbriquer deux boutons produit du HTML invalide (comportement de clic
+   * indéfini, et le bouton interne devient inatteignable au clavier dans certains navigateurs).
+   * Le survol et la bordure vivent donc sur le conteneur, la zone cliquable restant le `button`
+   * interne qui porte le texte.
+   */
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(notification)}
-      className="flex w-full items-start gap-cmv-sm border-cmv-border border-b px-cmv-md py-cmv-sm text-left transition-colors last:border-b-0 hover:bg-cmv-surface-hi"
-    >
-      {/* La pastille marque le non-lu ; l'espace reste réservé pour que les lignes s'alignent. */}
-      <span
-        className={cn(
-          "mt-1.5 size-2 shrink-0 rounded-cmv-pill",
-          notification.readAt == null ? "bg-cmv-accent" : "bg-transparent",
-        )}
-        aria-hidden="true"
-      />
-      <span className="flex flex-1 flex-col gap-cmv-xs">
-        <span className="text-cmv-caption text-cmv-text-hi">{label}</span>
-        <span className="text-cmv-caption text-cmv-text-mid">
-          {formatRelativeTime(notification.createdAt)}
+    <div className="flex items-start gap-cmv-sm border-cmv-border border-b px-cmv-md py-cmv-sm transition-colors last:border-b-0 hover:bg-cmv-surface-hi">
+      <button
+        type="button"
+        onClick={() => onSelect(notification)}
+        className="flex flex-1 items-start gap-cmv-sm text-left"
+      >
+        {/* La pastille marque le non-lu ; l'espace reste réservé pour que les lignes s'alignent. */}
+        <span
+          className={cn(
+            "mt-1.5 size-2 shrink-0 rounded-cmv-pill",
+            notification.readAt == null ? "bg-cmv-accent" : "bg-transparent",
+          )}
+          aria-hidden="true"
+        />
+        <span className="flex flex-1 flex-col gap-cmv-xs">
+          <span className="text-cmv-caption text-cmv-text-hi">{label}</span>
+          <span className="text-cmv-caption text-cmv-text-mid">
+            {formatRelativeTime(notification.createdAt)}
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+
+      {/* Le geste vient au rappel, plutôt que d'obliger à ouvrir « Mes rappels » pour décaler
+          d'un jour ce qu'on vient de lire. Le panneau reste ouvert : l'entrée disparaît d'elle-même
+          au refetch, le rappel n'étant plus dû. */}
+      {reminderId == null ? null : <SnoozeReminderButton reminderId={reminderId} />}
+    </div>
   );
 }
