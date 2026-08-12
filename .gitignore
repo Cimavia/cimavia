@@ -17,6 +17,10 @@ out/
 .env
 .env.*
 !.env.example
+# Le modèle du .env.test des e2e : que des conteneurs jetables, aucun secret. Versionné pour que
+# la CI le copie sans qu'un identifiant entre dans le workflow — et qu'un clone frais puisse
+# lancer les e2e, qui sont la seule couverture de la couche API.
+!.env.test.example
 
 # Editors
 .idea/
@@ -42,6 +46,8 @@ ios/
 
 # Couverture de tests (régénérée à chaque `pnpm test`, lue par SonarCloud en CI)
 coverage/
+# Couverture des e2e — répertoire distinct, sinon les deux rapports s'effacent l'un l'autre.
+coverage-e2e/
 
 # Prisma
 prisma/migrations/.gitkeep

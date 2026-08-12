@@ -16,5 +16,8 @@
   "[jsonc]": { "editor.defaultFormatter": "biomejs.biome" },
   "[css]": { "editor.defaultFormatter": "biomejs.biome" },
   // Neutralise Prettier sur ce workspace (l'extension reste installée pour d'autres projets).
-  "prettier.enable": false
+  "prettier.enable": false,
+  // turbo.json accepte les commentaires — Turborepo le parse en JSONC, biome aussi. VS Code, lui,
+  // le lit en JSON strict et signale chaque commentaire comme une erreur de syntaxe.
+  "files.associations": { "turbo.json": "jsonc" }
 }

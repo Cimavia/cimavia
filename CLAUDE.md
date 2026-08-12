@@ -73,7 +73,8 @@ pnpm turbo dev                 # tous les apps
 pnpm --filter @cmv/api dev    # API seule
 pnpm --filter @cmv/mobile start
 pnpm --filter @cmv/web dev
-pnpm turbo lint typecheck test # qualité (= ce que la CI bloque)
+pnpm turbo lint typecheck test # qualité
+pnpm turbo test:e2e --filter=@cmv/api  # e2e (2 composes requis — cf. README)
 pnpm --filter @cmv/api exec prisma migrate dev   # migrations (Neon/local)
 ```
 
