@@ -75,13 +75,13 @@ t(`reminder.toast.${reminder.status}`)
 ```
 
 Renommer `reminder.toast.DONE`, ou ajouter une valeur à `ReminderStatus` sans clé correspondante :
-typecheck vert, tests verts — et l'UI affiche `reminder.toast.SNOOZED` en clair, en production.
+typecheck vert, tests verts — et l'UI affiche `reminder.toast.ARCHIVED` en clair, en production.
 
 `pnpm check:i18n` (dans la CI) est le filet sous cette famille de bugs. Pour qu'il puisse vérifier
 les valeurs derrière le trou, chaque fichier qui assemble une clé les **déclare**, sous ses imports :
 
 ```ts
-// i18n-values reminder.toast: ReminderStatus, created
+// i18n-values reminder.toast: ReminderStatus, created, snoozed
 ```
 
 Chaque terme est soit un **enum** (`export const X = { … } as const`, résolu automatiquement), soit
@@ -210,7 +210,7 @@ le PC étant un faux négatif en mode *mirrored* :
 - Argent : montants en **centimes entiers** (`amountCents`), jamais de float ; formatage localisé par `formatMoney` / `formatInvoicePeriod` (`@cmv/shared`) — source unique, pas de calcul dans le JSX
 - Médias : object storage privé, **URLs signées** (PUT à l'envoi, GET à la lecture) ; le binaire ne transite jamais par l'API
 - Notifications : **persistées + poussées** (mêmes déclencheurs, `NotificationService`) ; la base stocke le `type`, la cible et les paramètres (`actorName`, `subjectLabel`) — **jamais le libellé rendu**, qui est construit à l'affichage via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next
-- Rappels : outil **privé du coach** (scopé `coachId` seul, 403 pour l'athlète) ; « dû » est **calculé à la lecture** (`isReminderDue`), et un rappel dû remonte dans le centre de notifications comme entrée **non persistée** (`REMINDER_DUE`, id préfixé `reminder:`)
+- Rappels : outil **privé du coach** (scopé `coachId` seul, 403 pour l'athlète) ; « dû » est **calculé à la lecture** (`isReminderDue`), et un rappel dû remonte dans le centre de notifications comme entrée **non persistée** (`REMINDER_DUE`, id préfixé `reminder:`). Repousser un rappel (`PATCH /reminders/:id`) **efface son `readAt`** dès que l'échéance bouge : `readAt` dit « vu à cette échéance-là », sans quoi le rappel reviendrait déjà lu et son badge ne s'allumerait jamais
 - Appels HTTP communs web↔mobile : `create<X>Api(api)` dans `@cmv/shared` (routes + clés de cache partagées, client injecté par chaque app) — pas de duplication, pas d'exclusion Sonar
 
 Voir `docs/architecture-choice.md` pour les règles d'archi détaillées, et

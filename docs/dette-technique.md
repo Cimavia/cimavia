@@ -159,7 +159,7 @@ survienne).
 >
 > - **`test:e2e` porte `cache: false` dans `turbo.json`.** Ce n'est pas un oubli d'optimisation.
 >   Les vraies entrées de cette suite sont un Postgres et un MinIO **vivants**, plus l'état de la
->   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 168 passed » sans
+>   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 178 passed » sans
 >   exécuter une requête : une porte verte qui n'a rien vérifié, soit la panne M-1 en pire, parce
 >   qu'invisible.
 > - **`vitest.config.e2e.ts` doit continuer de LEVER si `.env.test` manque.** Rendre le
@@ -243,7 +243,7 @@ survienne).
 |---|---|---|---|
 | R-1 | **Aucun push quand un rappel devient dû** : sans scheduler, il n'apparaît qu'au prochain chargement du centre. | 🟢 | [#47](https://github.com/Cimavia/cimavia/issues/47) |
 | R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | [#106](https://github.com/Cimavia/cimavia/issues/106) |
-| R-3 | **Pas de report d'échéance ni d'édition** : reprogrammer un rappel = en créer un autre. | 🟢 | [#105](https://github.com/Cimavia/cimavia/issues/105) |
+| ~~R-3~~ | ~~**Pas de report d'échéance ni d'édition**~~ : reprogrammer un rappel demandait de le traiter puis d'en créer un autre — deux gestes, et un historique de doublons. | ✅ | résolu en **#105** — `PATCH /reminders/:id` (échéance et/ou note) + bouton « Repousser » sur l'écran **et** dans le centre de notifications |
 | R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts. | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | R-5 | **Aucune rétention** des rappels `DONE`/`DISMISSED` : la table grossit indéfiniment (même famille que N-2). | 🟢 | [#107](https://github.com/Cimavia/cimavia/issues/107) |
 
@@ -271,6 +271,25 @@ survienne).
 > longtemps à l'avance serait enterré sous des semaines de notifications le jour où il compte.
 > **Le jour où #47 poussera un rappel dû, il devra choisir entre persister et calculer**, jamais les
 > deux, sinon le même rappel apparaîtra en double.
+
+> **Tranché en #105** (ce que devient `readAt` au report) : il est remis à **`null` dès que `dueAt`
+> bouge**, et seulement alors. `readAt` dit « vu à CETTE échéance-là » — une nouvelle échéance est
+> une nouvelle occurrence. Le laisser en place produisait le scénario suivant : un rappel dû, vu
+> dans le centre, repoussé à la semaine prochaine, en sort (il n'est plus dû) et y revient huit
+> jours plus tard **déjà lu** — son badge ne s'allume jamais, le jour même où il devient utile.
+> C'est la règle que `markAllDueRead` applique par l'autre bout en épargnant les rappels à venir.
+> Trois corollaires : la comparaison porte sur les **valeurs** et non sur la présence du champ
+> (réenregistrer un formulaire sans changer la date ne rallume pas un badge éteint) ; corriger la
+> **note seule** ne touche pas `readAt` (rectifier une faute de frappe n'est pas une nouvelle
+> occurrence) ; et le `PATCH` est **idempotent** comme `updateStatus`, l'historique étant trié par
+> `updatedAt`.
+
+> **Conséquence sur #51, assumée** : l'entrée du centre étant datée du `dueAt` du rappel, **reporter
+> un rappel le déplace dans le tri du centre**. C'est exactement l'intention de #51 (« il se range au
+> moment où il commence à compter »), et l'e2e qui fige cet invariant n'a pas eu à changer — il
+> teste la règle, que le report préserve par construction. Le statut, lui, n'est **pas** modifiable
+> par cette route (`.strict()` refuse `status`) : il garde la sienne, pour qu'il n'existe qu'un seul
+> chemin vers une transition.
 
 > **Appris en construisant #44/#51** (le coût réel d'un scope à un seul rôle) : un modèle absent de
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
@@ -442,7 +461,7 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 168 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
+| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 178 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |

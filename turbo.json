@@ -26,7 +26,7 @@
       "dependsOn": ["^build"],
       // JAMAIS de cache ici. Les vraies entrées de cette suite sont un Postgres et un MinIO
       // vivants, plus l'état de la base — rien de tout cela n'entre dans le hash de Turbo. Un
-      // cache hit rejouerait « 168 passed » sans exécuter une seule requête : une porte qui
+      // cache hit rejouerait « 178 passed » sans exécuter une seule requête : une porte qui
       // affiche vert sans avoir rien vérifié, soit exactement la panne qu'elle doit empêcher.
       // Pas d'`outputs` non plus, bien que la tâche produise `coverage-e2e/` depuis #57 :
       // `outputs` ne sert qu'à restaurer depuis le cache, qui est désactivé ici. Les déclarer
