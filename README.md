@@ -49,14 +49,19 @@ pnpm turbo lint typecheck test           # qualité (= ce que la CI bloque)
 pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
 pnpm --filter @cmv/api exec prisma migrate dev
 # Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + MinIO sur son bucket e2e)
+cp apps/api/.env.test.example apps/api/.env.test   # une fois — rien à renseigner
 docker compose -f apps/api/docker-compose.test.yml up -d
-docker compose -f apps/api/docker-compose.yml up minio-setup   # crée les buckets (idempotent)
+docker compose -f apps/api/docker-compose.yml run --rm minio-setup   # crée les buckets (idempotent)
 pnpm --filter @cmv/api test:e2e
 ```
 
 > Les e2e tournent contre le **MinIO du docker-compose** (bucket `cimavia-media-e2e`) : sans
 > storage réel, le flux d'upload des médias ne serait pas couvert. Le cas « storage non
 > configuré → 503 » est, lui, couvert par le test unitaire de `StorageService`.
+
+> ⚠️ La suite **TRUNCATE toutes les tables** à l'ouverture. `.env.test` doit donc pointer sur la
+> base jetable du `docker-compose.test.yml` (5434), jamais sur celle de dev ni sur Neon — d'où le
+> modèle à copier tel quel, et le refus de démarrer si le nom de base ne finit pas par `_e2e`.
 
 ### Clés i18n assemblées
 
