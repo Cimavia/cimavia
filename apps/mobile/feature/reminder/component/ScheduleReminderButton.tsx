@@ -4,6 +4,7 @@ import {
   type ReminderEntityTypeType,
   snoozedDueAt,
 } from "@cmv/shared";
+import { cmvColors } from "@cmv/tokens";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal, Pressable, TextInput, View } from "react-native";
@@ -91,8 +92,14 @@ export function ScheduleReminderButton({
                 value={note}
                 onChangeText={setNote}
                 multiline
+                // Sur Android, un champ multiligne centre son texte verticalement sans ceci.
+                textAlignVertical="top"
                 maxLength={REMINDER_NOTE_MAX_LENGTH}
                 placeholder={t("reminder.form.notePlaceholder")}
+                // Le défaut de React Native est bien trop clair sur fond sombre : le placeholder
+                // passait pour une note DÉJÀ saisie, et le bouton « Programmer » restait éteint
+                // sans qu'on comprenne pourquoi. `text.lo` est le ton des textes secondaires.
+                placeholderTextColor={cmvColors.text.lo}
                 className="min-h-24 rounded-lg border border-cmv-border bg-cmv-bg-1 p-3 text-cmv-text-hi"
               />
             </View>

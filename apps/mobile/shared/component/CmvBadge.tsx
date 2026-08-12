@@ -57,10 +57,17 @@ export function CmvBadge({ label, variant = "neutral", dot = false }: Readonly<C
 
   return (
     <View
-      className={`flex-row items-center gap-1.5 self-start rounded-md border px-3 py-1 ${classes.container}`}
+      // `shrink-0` : une pastille ne se comprime JAMAIS. Posée en bout d'une ligne dont le titre
+      // porte `flex-1`, elle se laissait rétrécir jusqu'à couper son libellé au premier espace —
+      // « À venir » s'affichait « À ». C'est le titre qui doit céder de la place, pas l'état.
+      // Révélé sur téléphone en #46 ; ni `tsc`, ni `expo export` ne voient ce genre de cas.
+      className={`shrink-0 flex-row items-center gap-1.5 self-start rounded-md border px-3 py-1 ${classes.container}`}
     >
       {dot ? <View className={`h-1.5 w-1.5 rounded-full ${classes.dot}`} /> : null}
-      <CmvText className={`text-xs ${classes.text}`}>{label}</CmvText>
+      {/* Une pastille tient sur UNE ligne : un état qui passe à la ligne n'est plus une pastille. */}
+      <CmvText className={`text-xs ${classes.text}`} numberOfLines={1}>
+        {label}
+      </CmvText>
     </View>
   );
 }
