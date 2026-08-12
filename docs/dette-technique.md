@@ -298,11 +298,35 @@ survienne).
 > future entité mono-rôle devra porter les deux gardes : `@Roles` sur le contrôleur, et un
 > branchement explicite partout où un chemin partagé la touche.
 
-> **Écart de promotion assumé** : `REMINDER_BADGE` (variant + clé i18n par état) reste dans
-> `apps/web/src/feature/reminder/`, alors que son équivalent facture `INVOICE_STATE_BADGE` vit dans
-> `@cmv/shared`. Raison : un seul client la rend aujourd'hui, #46 étant reportée (règle de promotion
-> — 2+ apps → package). La **dérivation** (`isReminderDue`), elle, est bien partagée. La table monte
-> avec l'écran mobile.
+> ~~**Écart de promotion assumé**~~ **RÉSOLU en #46** : `REMINDER_BADGE` et
+> `REMINDER_TARGET_LABEL_KEY` vivaient dans `apps/web/src/feature/reminder/`, faute d'un second
+> client (règle : 2+ apps → package). L'écran mobile est arrivé, elles ont rejoint
+> `INVOICE_STATE_BADGE` dans `@cmv/shared`. Une **troisième** chose est montée au passage, qui n'y
+> était pas prévue : `reminderBadgeState`, parce que les deux clients allaient écrire
+> `isReminderDue(…) ? "OVERDUE" : status` chacun de son côté — c'est la dérivation, pas du rendu.
+
+> **Tranché en #46** (où se pose un écran coach sur mobile) : **ni onglet, ni entrée du Profil** —
+> un **sous-écran du tableau de bord** (`app/reminders/`), sur le patron de `/feedbacks` (#33) et
+> `/athlete/[id]`. Les deux alternatives examinées quand l'issue a été reportée (2026-08-07) sont
+> caduques pour des raisons révisées : l'onglet conditionné par le rôle ne préempte plus rien
+> (`tabs.ts` sait le faire depuis #35), mais ferait un **6ᵉ onglet** pour un écran hebdomadaire ; le
+> Profil enterrerait toujours un outil de travail dans les réglages de compte. Le dashboard, lui,
+> réservait déjà la tuile.
+>
+> Deux écarts au web en découlent, tous deux issus de la même règle appliquée à une plateforme qui a
+> moins d'écrans — pas d'un périmètre rogné : **(1)** la création est contextuelle, donc offerte sur
+> la **facture seulement**, un rappel de cycle se posant depuis le builder (web-only) ; **(2)**
+> l'échéance se choisit parmi les raccourcis de `snoozedDueAt`, faute d'équivalent mobile à
+> `<input type="datetime-local">` — l'heure précise reste réglable depuis le web.
+
+> **Tranché en #46** (le repli de `REMINDER_DUE`, et pourquoi le web n'en a pas) : un rappel dû est
+> le **seul** type du centre dont la cible ait une seconde maison — l'écran « Mes rappels », où
+> vivent les gestes. Sur mobile, `PLAN` rendant `null` côté coach, un rappel dû sur un cycle ne
+> menait **nulle part** ; l'écran devient donc le repli **quand la destination est absente**, sans
+> jamais remplacer celle qui existe (`INVOICE` continue de mener à `/invoices`). Côté **web**, aucune
+> entrée n'est ajoutée et ce n'est pas un oubli : les deux cibles y résolvent déjà pour un coach, un
+> repli y serait du code mort, et brancher le type ferait **perdre l'accès direct au builder** —
+> une régression, pas un alignement.
 
 ---
 
@@ -503,6 +527,11 @@ survienne).
 > sa destination en arrivant. `PLAN` reste `null` côté coach **définitivement** — le builder est
 > web-only. Corollaire pour toute nouvelle cible : elle se branche dans la PR qui crée son écran,
 > jamais avant.
+>
+> **Nuance apportée en #46** : `PLAN` rend toujours `null` pour une notification de cycle, mais une
+> entrée `REMINDER_DUE` qui vise un cycle mène désormais à « Mes rappels ». Ce n'est pas un
+> revirement — la cible reste sans écran mobile, c'est le **rappel** qui en a un. Le repli
+> s'applique donc au type, pas à la cible, et seulement là où la destination manque.
 
 > **Tranché en #20** (les plafonds ne s'écrivent jamais en dur) : onze messages de refus et deux
 > e2e citaient les limites média en clair (« dépasse 50 Mo », « 3 notes »). Le jour où elles ont
