@@ -1,6 +1,6 @@
 import type { SessionFeedbackDto } from "@cmv/shared";
 import { FEEDBACK_CONTENT_MAX_LENGTH, MediaType, remainingMediaSlots } from "@cmv/shared";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { type ChangeEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -60,6 +60,16 @@ export function AthleteFeedbackScreen() {
 
       {isPending || isError ? null : (
         <div className="flex max-w-3xl flex-col gap-cmv-lg">
+          {/* Retour vers LA SÉANCE et non le planning : le débrief est son enfant, et c'est de là
+              qu'on vient. */}
+          <Link
+            to="/sessions/$sessionId"
+            params={{ sessionId }}
+            className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
+          >
+            {t("feedback.backToSession")}
+          </Link>
+
           <FeedbackTextSection sessionId={sessionId} feedback={feedback ?? null} />
           <FeedbackMediaSection sessionId={sessionId} feedback={feedback ?? null} />
         </div>

@@ -191,7 +191,8 @@
         "past": "Passées",
         "empty": "Aucune séance",
         "emptyHint": "Rien à afficher dans cette période."
-      }
+      },
+      "backToPlanning": "← Mon planning"
     },
     "new": "Nouvelle planification",
     "status": {
@@ -445,11 +446,6 @@
   "dashboard": {
     "title": "Tableau de bord",
     "welcome": "Bonjour {{name}}",
-    "athlete": {
-      "subtitle": "Ton espace athlète.",
-      "emptyTitle": "Rien à afficher ici pour l'instant",
-      "emptyDescription": "Ton planning et tes séances vivent sur l'application mobile. Ce qui est déjà disponible ici est listé dans le menu."
-    },
     "section": {
       "todo": "À traiter",
       "overview": "Vue d'ensemble",
@@ -535,7 +531,8 @@
       "audioTooBig": "Cette note vocale dépasse {{max}} Mo.",
       "audioTooLong": "Une note vocale ne peut pas dépasser {{max}} minutes.",
       "unreadable": "Ce fichier est illisible."
-    }
+    },
+    "backToSession": "← Retour à la séance"
   },
   "invoice": {
     "title": "Facturation",
