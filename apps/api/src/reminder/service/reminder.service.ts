@@ -2,6 +2,7 @@ import type {
   CreateReminderInput,
   ReminderDto,
   ReminderSummaryDto,
+  UpdateReminderInput,
   UpdateReminderStatusInput,
 } from "@cmv/shared";
 import { REMINDER_PAGE_SIZE, ReminderEntityType, ReminderStatus } from "@cmv/shared";
@@ -12,7 +13,7 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { type ReminderTargetLabels, toReminderDto } from "../reminder.mapper";
 
 /**
- * Rappels du coach (#44) — création manuelle, liste, marquage.
+ * Rappels du coach (#44) — création manuelle, liste, marquage, report d'échéance (#105).
  *
  * Outil PRIVÉ du coach : le scope tenant est `coachId` seul, sans `athleteId`. Un athlète qui
  * atteindrait ce service serait refusé par l'extension Prisma — mais par une ERREUR, pas un 403,
@@ -119,6 +120,48 @@ export class ReminderService {
     const updated = await this.db.reminder.update({
       where: { id },
       data: { status: input.status },
+    });
+    return this.toDto(updated);
+  }
+
+  /**
+   * Repousse l'échéance, corrige la note, ou les deux (#105) — la dette **R-3**. Sans cette route,
+   * reprogrammer un rappel demandait de le traiter puis d'en créer un autre : deux gestes, et un
+   * historique de doublons.
+   *
+   * **`readAt` est remis à `null` quand l'échéance BOUGE**, et c'est la décision de cette issue.
+   * `readAt` dit « vu à CETTE échéance-là » : une nouvelle échéance est une nouvelle occurrence.
+   * Le laisser en place produirait le scénario suivant — je reporte un rappel d'hier à la semaine
+   * prochaine, il sort du centre (il n'est plus dû), il y revient dans huit jours **déjà lu**, et
+   * son badge ne s'allume jamais. C'est exactement ce que `markAllDueRead` s'interdit par l'autre
+   * bout, en épargnant les rappels encore à venir.
+   *
+   * La comparaison porte sur les VALEURS, pas sur la présence du champ : renvoyer l'échéance
+   * inchangée depuis un formulaire d'édition ne doit pas rallumer le badge d'un rappel déjà vu.
+   *
+   * Idempotent comme `updateStatus`, et pour la même raison : un corps qui ne change rien ne
+   * réécrit pas, donc ne redate pas `updatedAt` — sans quoi un rappel traité remonterait en tête de
+   * l'historique, qui est trié dessus.
+   *
+   * Le statut n'est PAS modifiable ici (`.strict()` le refuse) : il a sa propre route, et deux
+   * chemins vers la même transition en laisseraient un seul testé.
+   */
+  async update(id: string, input: UpdateReminderInput): Promise<ReminderDto> {
+    const reminder = await this.getOwnedOrThrow(id);
+
+    const nextDueAt = input.dueAt == null ? null : new Date(input.dueAt);
+    const dueAtChange =
+      nextDueAt != null && nextDueAt.getTime() !== reminder.dueAt.getTime()
+        ? { dueAt: nextDueAt, readAt: null }
+        : null;
+    const noteChange =
+      input.note != null && input.note !== reminder.note ? { note: input.note } : null;
+
+    if (dueAtChange == null && noteChange == null) return this.toDto(reminder);
+
+    const updated = await this.db.reminder.update({
+      where: { id },
+      data: { ...dueAtChange, ...noteChange },
     });
     return this.toDto(updated);
   }
