@@ -248,6 +248,42 @@
     "target": {
       "plan": "Cycle",
       "invoice": "Facture"
+    },
+    "title": "Mes rappels",
+    "dueLabel": "Échéance : {{date}}",
+    "targetLine": "{{kind}} — {{label}}",
+    "segment": {
+      "PENDING": "À traiter ({{count}})",
+      "HANDLED": "Traités ({{count}})"
+    },
+    "markDone": "Marquer fait",
+    "dismiss": "Abandonner",
+    "reopen": "Rouvrir",
+    "snooze": {
+      "label": "Repousser",
+      "TOMORROW": "Demain",
+      "NEXT_WEEK": "Dans une semaine"
+    },
+    "empty": {
+      "PENDING": {
+        "title": "Aucun rappel à traiter",
+        "description": "Programmez un rappel depuis une facture : il apparaîtra ici, et dans vos notifications le jour de son échéance."
+      },
+      "HANDLED": {
+        "title": "Aucun rappel traité",
+        "description": "Les rappels marqués faits ou abandonnés se rangent ici, sans disparaître."
+      }
+    },
+    "schedule": "Programmer un rappel",
+    "form": {
+      "title": "Programmer un rappel",
+      "description": "Sur : {{target}}",
+      "dueAt": "Échéance",
+      "note": "Ce dont il faut se souvenir",
+      "notePlaceholder": "Relancer la facture avant la fin du mois",
+      "hint": "Le jour de l'échéance, le rappel apparaît dans vos notifications. Vous le retrouvez à tout moment dans « Mes rappels ».",
+      "submit": "Programmer",
+      "submitting": "Enregistrement…"
     }
   },
   "notification": {
@@ -284,7 +320,9 @@
       "athletes": "Athlètes suivis",
       "athletesHint": "Relations actives",
       "invoices": "Factures en attente",
-      "invoicesHint": "Émises, échéance pas encore dépassée."
+      "invoicesHint": "Émises, échéance pas encore dépassée.",
+      "reminders": "Rappels dus",
+      "remindersHint": "Échéance passée, à traiter."
     },
     "row": {
       "pending": "{{feedbacks}} débrief(s) · {{messages}} message(s) non lus"

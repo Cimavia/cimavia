@@ -1,6 +1,7 @@
 import {
   formatIsoDate,
   formatIsoDateRange,
+  formatIsoDateTime,
   formatIsoDayNumber,
   formatIsoFullDay,
   formatIsoWeekday,
@@ -19,6 +20,14 @@ export function formatWeekday(isoDate: string): string {
 // « 14 oct. 2026 » — date civile (échéance de facture…).
 export function formatDate(isoDate: string): string {
   return formatIsoDate(isoDate, i18n.language);
+}
+
+/**
+ * Un INSTANT (`Reminder.dueAt`…), affiché dans le fuseau du lecteur — jamais `formatDate`, qui lit
+ * les dates CIVILES en UTC et décalerait donc d'un jour aux abords de minuit.
+ */
+export function formatDateTime(isoDateTime: string): string {
+  return formatIsoDateTime(isoDateTime, i18n.language);
 }
 
 export function formatDayNumber(isoDate: string): string {
