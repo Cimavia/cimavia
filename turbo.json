@@ -18,6 +18,18 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"]
+    },
+    "test:e2e": {
+      // `^build` : les e2e bootent le vrai AppModule, qui importe @cmv/shared depuis son dist.
+      // Sans cette dépendance, une installation `--ignore-scripts` (la CI) casse à l'import et
+      // non sur une assertion.
+      "dependsOn": ["^build"],
+      // JAMAIS de cache ici. Les vraies entrées de cette suite sont un Postgres et un MinIO
+      // vivants, plus l'état de la base — rien de tout cela n'entre dans le hash de Turbo. Un
+      // cache hit rejouerait « 168 passed » sans exécuter une seule requête : une porte qui
+      // affiche vert sans avoir rien vérifié, soit exactement la panne qu'elle doit empêcher.
+      // Pas d'`outputs` : la suite ne produit rien aujourd'hui (le lcov viendra avec #57).
+      "cache": false
     }
   }
 }
