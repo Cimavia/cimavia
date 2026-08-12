@@ -15,7 +15,6 @@ export default defineConfig({
     pool: "forks",
     fileParallelism: false,
     maxWorkers: 1,
-    minWorkers: 1,
     globalSetup: ["test/global-setup.e2e.ts"],
     // Propage l'env e2e aux workers (process séparés).
     env: {

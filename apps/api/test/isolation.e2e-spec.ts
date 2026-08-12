@@ -45,6 +45,17 @@ const PASSWORD = "password123";
 
 type Agent = ReturnType<typeof request.agent>;
 
+/**
+ * Sous `noUncheckedIndexedAccess`, `list[0]` et `.find()` rendent `T | undefined`. La correction
+ * réflexe — `list[0]?.id` — est un piège : une liste vide produirait alors une requête sur
+ * `/undefined` dont le 404 ferait PASSER un test d'isolation qui ne teste plus rien. On échoue
+ * donc ici, à l'endroit exact où la donnée manque, avec le nom de ce qu'on attendait.
+ */
+function required<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`Donnée de test absente : ${what}`);
+  return value;
+}
+
 let app: NestFastifyApplication;
 let baseURL: string;
 
@@ -2141,7 +2152,7 @@ describe("Centre de notifications (#48)", () => {
     const list = await inbox(athleteA1);
     expect(await unread(athleteA1)).toBe(list.length);
 
-    const first = list[0];
+    const first = required(list[0], "notification à marquer lue");
     const read = await athleteA1.patch(`/me/notifications/${first.id}/read`);
     expect(read.status).toBe(200);
     expect(read.body.readAt).not.toBeNull();
@@ -2158,13 +2169,12 @@ describe("Centre de notifications (#48)", () => {
   });
 
   it("marquer lue la notification d'un autre est un 404 (le scope ne la voit pas)", async () => {
-    const target = (await inbox(coachA))[0];
-    expect(target).toBeDefined();
+    const target = required((await inbox(coachA))[0], "notification du coach A");
 
     expect((await athleteA1.patch(`/me/notifications/${target.id}/read`)).status).toBe(404);
     expect((await coachB.patch(`/me/notifications/${target.id}/read`)).status).toBe(404);
     // Et elle est restée non lue chez son destinataire.
-    expect((await inbox(coachA))[0].readAt).toBeNull();
+    expect(required((await inbox(coachA))[0], "notification du coach A").readAt).toBeNull();
   });
 
   it("« tout marquer comme lu » vide le badge sans rien supprimer", async () => {
@@ -2352,7 +2362,7 @@ describe("Rappels du coach (#44)", () => {
           .send({ entityType: "PLAN", entityId: planId, dueAt: inFuture(1), note: "x" })
       ).status,
     ).toBe(403);
-    const mine = (await reminders(coachA))[0];
+    const mine = required((await reminders(coachA))[0], "rappel du coach A");
     expect(
       (await athleteA1.patch(`/reminders/${mine.id}/status`).send({ status: "DONE" })).status,
     ).toBe(403);
@@ -2366,12 +2376,12 @@ describe("Rappels du coach (#44)", () => {
   it("liste les rappels à traiter d'abord, le plus en retard en tête", async () => {
     const list = await reminders(coachA);
     expect(list.every((r) => r.status === "PENDING")).toBe(true);
-    expect(list[0].note).toBe("Facture impayée"); // dû il y a 2 h
-    expect(list[1].note).toBe("Relancer le renouvellement"); // dû dans 24 h
+    expect(required(list[0], "rappel en tête").note).toBe("Facture impayée"); // dû il y a 2 h
+    expect(required(list[1], "2e rappel").note).toBe("Relancer le renouvellement"); // dû dans 24 h
   });
 
   it("marque fait, puis rouvre : le toggle est réversible dans les deux sens", async () => {
-    const target = (await reminders(coachA))[0];
+    const target = required((await reminders(coachA))[0], "rappel à basculer");
 
     const done = await coachA.patch(`/reminders/${target.id}/status`).send({ status: "DONE" });
     expect(done.status).toBe(200);
@@ -2386,7 +2396,7 @@ describe("Rappels du coach (#44)", () => {
 
   // Sans idempotence, un rappel traité remonterait en tête de l'historique à chaque clic répété.
   it("remarquer le même statut ne redate pas le rappel", async () => {
-    const target = (await reminders(coachA))[0];
+    const target = required((await reminders(coachA))[0], "rappel à re-marquer");
     const first = await coachA
       .patch(`/reminders/${target.id}/status`)
       .send({ status: "DISMISSED" });
@@ -2406,14 +2416,14 @@ describe("Rappels du coach (#44)", () => {
   });
 
   it("refuse un statut inconnu (400)", async () => {
-    const target = (await reminders(coachA))[0];
+    const target = required((await reminders(coachA))[0], "rappel au statut inconnu");
     expect(
       (await coachA.patch(`/reminders/${target.id}/status`).send({ status: "SNOOZED" })).status,
     ).toBe(400);
   });
 
   it("isolation : un autre coach ne voit ni ne marque le rappel (404)", async () => {
-    const mine = (await reminders(coachA))[0];
+    const mine = required((await reminders(coachA))[0], "rappel du coach A");
     expect(await reminders(coachB)).toHaveLength(0);
     // Le résumé est scopé comme la liste : compter n'est pas un contournement de la lecture.
     expect(await summary(coachB)).toEqual({ dueCount: 0, pendingCount: 0 });
@@ -2486,7 +2496,9 @@ describe("Rappels dus dans le centre de notifications (#51)", () => {
   const unread = async (agent: Agent): Promise<number> =>
     (await agent.get("/me/notifications/unread-count")).body.count;
   const reminderOf = async (agent: Agent, id: string) =>
-    ((await agent.get("/reminders")).body as { id: string }[]).find((r) => r.id === id);
+    ((await agent.get("/reminders")).body as { id: string; dueAt: string }[]).find(
+      (r) => r.id === id,
+    );
 
   const DUE_NOTE = "Relancer le renouvellement du cycle";
 
@@ -2553,15 +2565,18 @@ describe("Rappels dus dans le centre de notifications (#51)", () => {
   // Le tri du centre se fait sur `createdAt`, et pour un rappel `createdAt` EST son échéance : il se
   // range au moment où il commence à compter, pas à celui où il a été saisi.
   it("l'entrée est datée de l'échéance du rappel, pas de sa création", async () => {
-    const entry = (await inbox(coachC)).find((e) => e.type === "REMINDER_DUE");
-    const reminder = (await reminderOf(coachC, dueId)) as { dueAt: string };
-    expect(entry?.createdAt).toBe(reminder.dueAt);
+    const entry = required(
+      (await inbox(coachC)).find((e) => e.type === "REMINDER_DUE"),
+      "entrée REMINDER_DUE",
+    );
+    const reminder = required(await reminderOf(coachC, dueId), "rappel dû");
+    expect(entry.createdAt).toBe(reminder.dueAt);
   });
 
   it("un rappel encore à venir ne remonte pas", async () => {
     const entries = (await inbox(coachC)).filter((e) => e.type === "REMINDER_DUE");
     expect(entries).toHaveLength(1);
-    expect(entries[0].id).toBe(`reminder:${dueId}`);
+    expect(required(entries[0], "entrée REMINDER_DUE").id).toBe(`reminder:${dueId}`);
   });
 
   it("le compteur additionne les notifications non lues et les rappels dus non lus", async () => {
