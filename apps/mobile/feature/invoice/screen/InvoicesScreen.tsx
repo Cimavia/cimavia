@@ -2,6 +2,7 @@ import {
   type InvoiceDto,
   InvoiceState,
   InvoiceStatus,
+  ReminderEntityType,
   resolveInvoiceState,
   todayIsoDate,
 } from "@cmv/shared";
@@ -19,6 +20,7 @@ import {
 } from "react-native";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { useInvoices, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
+import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
@@ -169,6 +171,23 @@ function InvoiceCard({ invoice, canManage, busy, onSetStatus }: Readonly<Invoice
           onPress={() => onSetStatus(isPaid ? InvoiceStatus.PENDING : InvoiceStatus.PAID)}
           disabled={busy}
         />
+      ) : null}
+
+      {/* Rappel contextuel (#46), offert sur les factures qui restent à régler SEULEMENT : se
+          rappeler de relancer une facture payée ou annulée n'a aucun sens. La période nomme la
+          cible, comme dans la liste des rappels.
+
+          Réservé au coach, et pas par politesse : `Reminder` est la seule entité scopée `coachId`
+          SEUL. Un athlète qui l'atteint prend une *erreur* (fail closed), pas un 403 — d'où le
+          `canManage`, seconde des deux gardes qu'exige ce modèle. */}
+      {canManage && !isPaid && !isCancelled ? (
+        <View className="self-start">
+          <ScheduleReminderButton
+            entityType={ReminderEntityType.INVOICE}
+            entityId={invoice.id}
+            targetLabel={formatPeriod(invoice.period)}
+          />
+        </View>
       ) : null}
 
       {/* Justificatif PDF : URL GET signée (TTL court), ouverte par le lecteur du téléphone. */}
