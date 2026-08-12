@@ -1,9 +1,16 @@
 {
-  // Les e2e ne peuvent pas entrer dans l'`include` de tsconfig.json : celui-ci compile en
-  // CommonJS (cible Nest), or `global-setup.e2e.ts` utilise `import.meta.url` — TS1343. Ce
-  // n'est pas un détail de config, c'est une différence de runtime réelle : ces fichiers ne
-  // sont jamais chargés par Node, mais transformés en ESM par Vitest. On les typecheck donc
-  // dans le module system où ils s'exécutent VRAIMENT, sinon on vérifierait le mauvais code.
+  // Typecheck du HARNAIS de test : les specs e2e et les deux configs Vitest. Aucun ne peut entrer
+  // dans l'`include` de tsconfig.json, et pour deux raisons distinctes :
+  //
+  //  1. `global-setup.e2e.ts` utilise `import.meta.url`, interdit par le `module: CommonJS` de la
+  //     cible Nest (TS1343). Ces fichiers ne sont jamais chargés par le require de Node : Vitest
+  //     les transforme en ESM. On les vérifie donc dans le système de modules où ils s'exécutent
+  //     vraiment, sinon on vérifierait le mauvais code.
+  //  2. Plus insidieux : sous le `moduleResolution: Node10` de la cible Nest, les types de
+  //     `vitest/config` ne se résolvent pas — `defineConfig` vaut `any`, et une propriété
+  //     totalement inventée passe SANS erreur. Un typecheck sous ce tsconfig-là serait vert et ne
+  //     vérifierait rien. C'est `Bundler` qui a attrapé `coverage.all` et `minWorkers`, deux
+  //     options mortes depuis Vitest 4 qui étaient ignorées en silence.
   //
   // `src` est tiré transitivement par les imports du spec (AppModule, configureApp, Prisma) :
   // c'est voulu — c'est ce qui fait qu'un DTO renommé casse ici au lieu de passer en silence.
@@ -13,6 +20,6 @@
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["test", "vitest.config.e2e.ts"],
+  "include": ["test", "vitest.config.ts", "vitest.config.e2e.ts"],
   "exclude": ["node_modules", "dist"]
 }

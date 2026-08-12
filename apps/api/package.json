@@ -7,7 +7,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "lint": "biome check src",
     "test": "vitest run --passWithNoTests --coverage",
     "test:watch": "vitest",
