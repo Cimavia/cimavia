@@ -28,7 +28,9 @@
       // vivants, plus l'état de la base — rien de tout cela n'entre dans le hash de Turbo. Un
       // cache hit rejouerait « 168 passed » sans exécuter une seule requête : une porte qui
       // affiche vert sans avoir rien vérifié, soit exactement la panne qu'elle doit empêcher.
-      // Pas d'`outputs` : la suite ne produit rien aujourd'hui (le lcov viendra avec #57).
+      // Pas d'`outputs` non plus, bien que la tâche produise `coverage-e2e/` depuis #57 :
+      // `outputs` ne sert qu'à restaurer depuis le cache, qui est désactivé ici. Les déclarer
+      // laisserait croire que ce rapport peut être rejoué sans exécuter la suite.
       "cache": false
     }
   }

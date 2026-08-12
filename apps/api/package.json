@@ -11,7 +11,7 @@
     "lint": "biome check src",
     "test": "vitest run --passWithNoTests --coverage",
     "test:watch": "vitest",
-    "test:e2e": "vitest run --config vitest.config.e2e.ts",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts --coverage",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio"

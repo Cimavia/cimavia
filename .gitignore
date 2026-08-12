@@ -46,6 +46,8 @@ ios/
 
 # Couverture de tests (régénérée à chaque `pnpm test`, lue par SonarCloud en CI)
 coverage/
+# Couverture des e2e — répertoire distinct, sinon les deux rapports s'effacent l'un l'autre.
+coverage-e2e/
 
 # Prisma
 prisma/migrations/.gitkeep

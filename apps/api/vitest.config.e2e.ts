@@ -16,6 +16,26 @@ export default defineConfig({
     fileParallelism: false,
     maxWorkers: 1,
     globalSetup: ["test/global-setup.e2e.ts"],
+    // Les e2e démarrent Nest DANS le process du worker (`app.listen`) : les requêtes font un
+    // aller-retour par la boucle locale, mais `src/` s'exécute ici. V8 relève donc les handlers
+    // HTTP, ce qui fait passer la mesure de l'API de 2,6 % à ~86 % sans écrire un test.
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+      exclude: [
+        "**/*.test.ts",
+        "src/generated/**",
+        // Bootstrap : les e2e passent par `Test.createTestingModule`, jamais par `main.ts`. Ces
+        // lignes ne sont pas « non testées », elles sont hors d'atteinte de ce harnais — les
+        // compter ferait mentir le chiffre autant que de les ignorer à tort.
+        "src/main.ts",
+        "src/instrument.ts",
+      ],
+      // Répertoire distinct de `coverage/` (tests unitaires) : Vitest nettoie son
+      // `reportsDirectory` au démarrage, et l'un effacerait le rapport de l'autre.
+      reportsDirectory: "coverage-e2e",
+      reporter: ["text-summary", "lcov"],
+    },
     // Propage l'env e2e aux workers (process séparés).
     env: {
       NODE_ENV: "test",
