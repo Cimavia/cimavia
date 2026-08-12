@@ -1,3 +1,4 @@
+import { cmvColors } from "@cmv/tokens";
 import { Text, TextInput, type TextInputProps, View } from "react-native";
 
 type CmvTextFieldProps = Pick<
@@ -23,6 +24,7 @@ export function CmvTextField({ label, multiline, ...rest }: CmvTextFieldProps) {
         // Un champ multiligne doit laisser le texte partir du HAUT : sinon, sur Android, le
         // débrief s'écrit centré verticalement dans la boîte.
         textAlignVertical={multiline === true ? "top" : "center"}
+        placeholderTextColor={cmvColors.text.lo}
         className={`rounded-lg border border-cmv-border bg-cmv-surface px-3 py-3 text-cmv-text-hi ${
           multiline === true ? "min-h-32" : ""
         }`}
