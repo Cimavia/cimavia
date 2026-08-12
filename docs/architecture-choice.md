@@ -136,7 +136,7 @@ L'isolation des données est garantie **à la couche données**, pas par la seul
 - **Pas de duplication** : si une feature recompose une formule déjà dans `@cmv/shared`, c'est un bug.
 
 ### Médias
-- Photos/vidéos/audio → **object storage** (S3-compatible) via `@aws-sdk/client-s3` + **URLs signées**. Jamais le binaire en BDD. Compression côté client. Limites : vidéo 60 s/720p/~50 Mo, 3 vidéos + 5 photos par débrief.
+- Photos/vidéos/audio → **object storage** (S3-compatible) via `@aws-sdk/client-s3` + **URLs signées**. Jamais le binaire en BDD. Compression côté client. Limites : vidéo **60 s / 720p / 1 Go**, **3 vidéos + 5 photos (100 Mo) + 15 notes vocales (5 min / 100 Mo)** par débrief. Les valeurs vivent dans `@cmv/shared` (`MAX_FEEDBACK_*`) et sont **interpolées** dans les messages de refus — jamais réécrites en dur, sous peine de mentir au premier ajustement.
 - Backend abstrait par `infra/storage/StorageService` : endpoint/credentials par variables `S3_*` → **MinIO** en dev local (docker-compose), **Scaleway** en prod, **Cellar** (Clever Cloud) en v1.0, sans changer le code. Path-style (`S3_FORCE_PATH_STYLE`) pour MinIO, virtual-hosted pour Scaleway.
 - **Flux d'upload** : le client demande une **URL PUT signée** à l'API (jamais le binaire via l'API), l'envoie directement au bucket **privé**, puis confirme le rattachement. Lecture via **URL GET signée** courte régénérée à chaque requête.
 

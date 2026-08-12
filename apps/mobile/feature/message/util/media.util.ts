@@ -10,6 +10,8 @@ import {
   MAX_MESSAGE_VIDEO_SIZE_BYTES,
   type MessageAudioMimeType,
   MessageType,
+  megabytesOf,
+  minutesOf,
 } from "@cmv/shared";
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
@@ -47,7 +49,12 @@ export type PreparedMessageMedia =
 // Refus métier destiné à l'utilisateur (trop lourd, format non géré) : le rendu le traduit.
 // Distinct d'une panne technique, qui remonte telle quelle.
 export class MediaRejectedError extends Error {
-  constructor(readonly reasonKey: string) {
+  constructor(
+    readonly reasonKey: string,
+    // Les plafonds cités par le message viennent des CONSTANTES, jamais écrits en dur : six
+    // chaînes s'étaient mises à mentir le jour où les limites ont changé.
+    readonly params: Record<string, string | number> = {},
+  ) {
     super(reasonKey);
   }
 }
@@ -64,11 +71,15 @@ function fileSize(uri: string): number {
 // fichier ; durée déclarée par l'enregistreur (pas de décodage — cf. dette P4-2).
 export function prepareAudio(audio: RecordedAudio): PreparedMessageMedia {
   if (audio.durationSeconds > MAX_MESSAGE_AUDIO_DURATION_SECONDS) {
-    throw new MediaRejectedError("messages.media.audioTooLong");
+    throw new MediaRejectedError("messages.media.audioTooLong", {
+      max: minutesOf(MAX_MESSAGE_AUDIO_DURATION_SECONDS),
+    });
   }
   const size = fileSize(audio.uri);
   if (size > MAX_MESSAGE_AUDIO_SIZE_BYTES) {
-    throw new MediaRejectedError("messages.media.audioTooBig");
+    throw new MediaRejectedError("messages.media.audioTooBig", {
+      max: megabytesOf(MAX_MESSAGE_AUDIO_SIZE_BYTES),
+    });
   }
   return {
     type: MessageType.AUDIO,
@@ -94,7 +105,9 @@ async function preparePhoto(asset: ImagePickerAsset): Promise<PreparedMessageMed
 
   const size = fileSize(saved.uri);
   if (size > MAX_MESSAGE_IMAGE_SIZE_BYTES) {
-    throw new MediaRejectedError("messages.media.imageTooBig");
+    throw new MediaRejectedError("messages.media.imageTooBig", {
+      max: megabytesOf(MAX_MESSAGE_IMAGE_SIZE_BYTES),
+    });
   }
   return {
     type: MessageType.IMAGE,
@@ -117,11 +130,15 @@ function prepareVideo(asset: ImagePickerAsset): PreparedMessageMedia {
   }
   const durationSeconds = Math.ceil(asset.duration / 1000);
   if (durationSeconds > MAX_MESSAGE_VIDEO_DURATION_SECONDS) {
-    throw new MediaRejectedError("messages.media.videoTooLong");
+    throw new MediaRejectedError("messages.media.videoTooLong", {
+      max: MAX_MESSAGE_VIDEO_DURATION_SECONDS,
+    });
   }
   const size = fileSize(asset.uri);
   if (size > MAX_MESSAGE_VIDEO_SIZE_BYTES) {
-    throw new MediaRejectedError("messages.media.videoTooBig");
+    throw new MediaRejectedError("messages.media.videoTooBig", {
+      max: megabytesOf(MAX_MESSAGE_VIDEO_SIZE_BYTES),
+    });
   }
   return {
     type: MessageType.VIDEO,

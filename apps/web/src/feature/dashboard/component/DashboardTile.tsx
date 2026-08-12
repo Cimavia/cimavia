@@ -30,6 +30,17 @@ const TONE_CLASS: Record<DashboardTileTone, string> = {
   error: "text-cmv-error-on",
 };
 
+/**
+ * Fond et bordure d'une tuile qui SIGNALE. Même trio de tokens qu'une pastille (`soft` + `line` +
+ * `on`, cf. `CmvBadge`) : une tuile qui alerte est une pastille en grand, pas une couleur inventée
+ * pour l'occasion.
+ */
+const TONE_SURFACE_CLASS: Record<DashboardTileTone, string> = {
+  neutral: "",
+  warning: "border-cmv-warning-line bg-cmv-warning-soft",
+  error: "border-cmv-error-line bg-cmv-error-soft",
+};
+
 type DashboardTileProps = {
   label: string;
   /**
@@ -58,6 +69,10 @@ export function DashboardTile({
    * n'apparaît que si la tuile a réellement quelque chose à signaler. Un « 0 » en ambre ou un
    * « — » en rouge crieraient au loup — le premier alors qu'il n'y a rien, le second alors qu'on
    * ne sait pas.
+   *
+   * Ce qui se colore : la CARTE entière (fond + bordure) et le chiffre, pas seulement l'indice.
+   * Repris du mobile, où la lecture en diagonale sur petit écran l'exigeait — et où l'on avait à
+   * l'inverse oublié la condition ci-dessus.
    */
   const isSignalling = tone !== "neutral" && count != null && count > 0;
 
@@ -65,10 +80,19 @@ export function DashboardTile({
     // Prop OMISE plutôt que passée à `undefined` : sous `exactOptionalPropertyTypes`, les deux ne
     // sont pas la même chose, et c'est l'absence qui fait rendre un `div` statique à `CmvCard`
     // (spread typé sur une prop connue, pas un `...rest` fourre-tout — cf. archi §5).
-    <CmvCard {...(onClick == null ? {} : { onClick })}>
+    <CmvCard
+      {...(onClick == null ? {} : { onClick })}
+      {...(isSignalling ? { className: TONE_SURFACE_CLASS[tone] } : {})}
+    >
       <div className="flex flex-col gap-cmv-xs">
         <span className="text-cmv-caption text-cmv-text-mid">{label}</span>
-        <span className={cn("font-cmv-display text-cmv-text-hi", VALUE_CLASS[variant])}>
+        <span
+          className={cn(
+            "font-cmv-display",
+            VALUE_CLASS[variant],
+            isSignalling ? TONE_CLASS[tone] : "text-cmv-text-hi",
+          )}
+        >
           {count == null ? UNKNOWN_VALUE : String(count)}
         </span>
         <span

@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import { registerPushToken, revokePushToken } from "@/feature/notification/api";
 import { routeForPushPayload } from "@/feature/notification/util/route.util";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 
 /**
  * Enregistre l'appareil pour les notifications push (p4-4).
@@ -20,6 +21,12 @@ import { routeForPushPayload } from "@/feature/notification/util/route.util";
  */
 export function usePushToken() {
   const queryClient = useQueryClient();
+  /**
+   * Décomposé en primitives et non gardé comme objet : `useCapabilities` en construit un neuf à
+   * chaque rendu, et le mettre en dépendance de l'effet réabonnerait le listener de push à chaque
+   * fois — donc perdrait la réponse à une notification ouverte au mauvais moment.
+   */
+  const { isCoach, isAthlete } = useCapabilities();
 
   useEffect(() => {
     void registerDevice();
@@ -33,11 +40,14 @@ export function usePushToken() {
       queryClient.invalidateQueries();
       // Destinations partagées avec le centre de notifications (#50) : ouvrir le push et toucher
       // la ligne correspondante mènent au même endroit, par construction.
-      const target = routeForPushPayload(response.notification.request.content.data);
+      const target = routeForPushPayload(response.notification.request.content.data, {
+        isCoach,
+        isAthlete,
+      });
       if (target != null) router.push(target);
     });
     return () => subscription.remove();
-  }, [queryClient]);
+  }, [queryClient, isCoach, isAthlete]);
 }
 
 async function registerDevice(): Promise<void> {

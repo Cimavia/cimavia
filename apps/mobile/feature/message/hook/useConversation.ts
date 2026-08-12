@@ -20,6 +20,31 @@ export function useMyConversation(enabled: boolean) {
   });
 }
 
+/**
+ * Les fils du coach — un par athlète avec qui il a échangé. Le tableau de bord n'en tire que des
+ * compteurs de non-lus : pas de sondage, le retour au premier plan et le tirer-pour-rafraîchir
+ * suffisent (un intervalle permanent viderait la batterie pour un chiffre qu'on ne regarde pas
+ * changer).
+ */
+export function useConversations() {
+  return useQuery<ConversationDto[]>({
+    queryKey: messageKeys.conversations(),
+    queryFn: messageApi.listConversations,
+  });
+}
+
+/**
+ * Ouvre (get-or-create) le fil du coach avec UN athlète désigné. Idempotent → sûr comme query.
+ * `staleTime` infini : c'est une résolution stable, le sondage vit sur les messages.
+ */
+export function useConversationWith(athleteId: string) {
+  return useQuery<ConversationDto>({
+    queryKey: messageKeys.conversationWith(athleteId),
+    queryFn: () => messageApi.openConversation({ athleteId }),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
 export function useMessages(conversationId: string | undefined) {
   // Polling gated par le focus de l'écran (useFocusEffect) : pas de refetch quand l'onglet est
   // en arrière-plan. Le focusManager global (retour au premier plan) reste en plus actif.

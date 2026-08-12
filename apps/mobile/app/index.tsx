@@ -1,10 +1,21 @@
 import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
-import { authClient } from "@/shared/lib/auth";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { landingTab } from "@/shared/lib/tabs";
 
-// Gate de session : aiguille vers le planning (connecté) ou le login (déconnecté).
+/**
+ * Gate de session : aiguille vers le login (déconnecté) ou vers le premier onglet de la capacité
+ * (connecté).
+ *
+ * La destination est DÉRIVÉE de la table d'onglets et non codée en dur : envoyer tout le monde sur
+ * `/planning` faisait prendre un 403 à un coach, `GET /me/plan` étant `@Roles([ATHLETE])`. Le jour
+ * où un onglet coach est ajouté en tête, l'entrée le suit sans qu'on y touche.
+ *
+ * `null` = aucun onglet visible, donc aucune capacité connue (fail closed de `capabilitiesOf`) :
+ * on déconnecte plutôt que d'ouvrir une app vide dont on ne pourrait plus sortir.
+ */
 export default function Index() {
-  const { data: session, isPending } = authClient.useSession();
+  const { isPending, isAuthenticated, isCoach, isAthlete } = useCapabilities();
 
   if (isPending) {
     return (
@@ -14,5 +25,8 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={session == null ? "/login" : "/planning"} />;
+  if (!isAuthenticated) return <Redirect href="/login" />;
+
+  const landing = landingTab({ isCoach, isAthlete });
+  return <Redirect href={landing ?? "/login"} />;
 }

@@ -64,6 +64,17 @@ export function AthleteSessionScreen() {
 
       {session == null ? null : (
         <div className="flex max-w-3xl flex-col gap-cmv-lg">
+          {/* Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
+              liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
+              dernier cas. Le planning est le parent naturel d'une séance. */}
+          <Link
+            to="/planning"
+            search={{ week: undefined }}
+            className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
+          >
+            {t("plan.athlete.backToPlanning")}
+          </Link>
+
           {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
               déroulé, pas enterrée sous la liste des exercices (même choix que sur mobile). */}
           <div>

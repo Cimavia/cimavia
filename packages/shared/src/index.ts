@@ -6,6 +6,8 @@ export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
+export type { CoachFeedbackApi } from "./api/coach-feedback.api";
+export { coachFeedbackKeys, createCoachFeedbackApi } from "./api/coach-feedback.api";
 export type { InvoiceApi } from "./api/invoice.api";
 export { createInvoiceApi, invoiceKeys } from "./api/invoice.api";
 export type { MessageApi } from "./api/message.api";
@@ -343,6 +345,7 @@ export {
   InvoiceState,
   resolveInvoiceState,
 } from "./util/invoice.util";
+export { megabytesOf, minutesOf } from "./util/media-format.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
 export type {

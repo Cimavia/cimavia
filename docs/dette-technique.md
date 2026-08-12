@@ -19,9 +19,11 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#67](https://github.com/Cimavia/cimavia/issues/67) cohérence base ↔ storage ·
 [#68](https://github.com/Cimavia/cimavia/issues/68) pagination ·
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
-[#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod — plus dix issues
-autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur étant explicitement
-« aucun » : **P2-4** et **N-3**.
+[#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
+[#130](https://github.com/Cimavia/cimavia/issues/130) exécuter les e2e dans la CI — plus dix issues
+autonomes. Quatre dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
+explicitement « aucun »), **D-2** et **M-5** (déclencheur nommé, mais rien à préparer avant qu'il
+survienne).
 
 ---
 
@@ -384,6 +386,73 @@ autonomes. Deux dettes n'ont **volontairement pas** d'issue, leur déclencheur �
 > couleur du DS est préservée, le terracotta reste réservé à l'action primaire. Sur ce point
 > précis, les maquettes ne font donc plus référence. Les statuts de facture, eux, restent
 > conformes — le DS les colore déjà (`success`/`warning`/`error`).
+
+---
+
+## Post-MVP — Parité multi-plateforme ([#20](https://github.com/Cimavia/cimavia/issues/20))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| M-1 | **Les e2e ne tournent dans aucune porte** : la CI lance `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 168 e2e ont le leur (`test:e2e`, config vitest distincte) et ne sont donc **jamais exécutés** en PR. Une régression d'API traverse une PR verte. Découvert en #36 : deux e2e étaient cassés depuis le relèvement des plafonds média, sans que rien ne le signale. | 🔴 | [#130](https://github.com/Cimavia/cimavia/issues/130) |
+| M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
+| M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
+| M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
+| M-5 | **Pas de presse-papier sur mobile** : l'invitation se transmet par `Share` (SMS, WhatsApp) et non par « Copier le code » comme la maquette. `expo-clipboard` n'est pas une dépendance du projet. | 🟢 | — *(déclencheur : un coach qui veut coller le code ailleurs)* |
+
+> **Tranché en #20** (la garde vit sur la ROUTE, pas dans l'écran) : les hooks React s'exécutent
+> **avant tout `return`**. Une garde en tête d'écran laisse donc partir ses requêtes — `MessagesScreen`
+> appelle `useAthletes()` (`GET /athletes`, coach seul) et `ConversationScreen` appelait
+> `useMyCoach()` (`GET /me/coach`, athlète seul). Ouvrir ces écrans à l'autre rôle avec une garde
+> interne aurait donné **un 403 à chacun sur sa propre page**. D'où `CmvRoleGate` dans le fichier de
+> route (web) et `CmvCapabilityGate` dans le `_layout.tsx` (mobile) : l'écran n'est pas monté du
+> tout tant que la capacité n'est pas confirmée. Corollaire appliqué partout ensuite : quand deux
+> rôles partagent une route, on écrit **deux composants**, jamais un `if` interne.
+
+> **Tranché en #20** (`capabilitiesOf` plutôt que #10) : la nav devait dépendre de #9/#10, qui
+> remplacent le rôle exclusif par `isCoach`/`isAthlete` — une migration Prisma et la réécriture de
+> `tenantField`, en milestone `v1.0`, dans une épic qui annonce « aucun changement backend ». La
+> dépendance a été **supprimée** au profit d'un adaptateur : `capabilitiesOf(user)` dans
+> `@cmv/shared` est le **seul** endroit du monorepo qui lise `role` pour en déduire un droit. Gardes,
+> navigation et routage des notifications consomment son résultat. Le jour de #10, un corps de
+> fonction change, dans un package testé. Le prix assumé : le cas **double capacité** est écrit mais
+> inatteignable, et ses sections de nav sont parties dans
+> [#129](https://github.com/Cimavia/cimavia/issues/129) — les écrire ici aurait produit des clés
+> i18n mortes que `check:i18n --strict` aurait signalées à raison.
+
+> **Tranché en #20** (une ressource = un écran, jamais deux) : `GET /invoices` et
+> `GET /conversations` sont scopées par le tenant et servent les deux rôles. Chaque plateforme a
+> donc **un** écran, branché sur un booléen (`canManage`) ou séparé en deux composants quand les
+> requêtes diffèrent — jamais un second écran qui recopierait la lecture pour n'en changer que les
+> boutons. C'est ce qui garde `new_duplicated_lines_density` sous le seuil sans une seule exclusion
+> Sonar.
+
+> **Tranché en #20** (rien ne mène nulle part) : `routeForNotification` était **aveugle au rôle**
+> des deux côtés, parce que chaque plateforme ne servait qu'un rôle. Ouvrir l'autre transformait
+> quatre destinations en culs-de-sac — dont deux en **403** (`/session/:id` et `/messages` mobile
+> pour un coach). La table dépend désormais de la capacité, et rend `null` tant que l'écran n'existe
+> pas de ce côté : la cloche marque alors lu et invalide le cache **sans naviguer**, ce qui est le
+> message exact (« il s'est passé quelque chose »), sans mentir sur l'endroit. Chaque écran a branché
+> sa destination en arrivant. `PLAN` reste `null` côté coach **définitivement** — le builder est
+> web-only. Corollaire pour toute nouvelle cible : elle se branche dans la PR qui crée son écran,
+> jamais avant.
+
+> **Tranché en #20** (les plafonds ne s'écrivent jamais en dur) : onze messages de refus et deux
+> e2e citaient les limites média en clair (« dépasse 50 Mo », « 3 notes »). Le jour où elles ont
+> bougé, **tout est resté vert** : le typecheck ne lit pas le français, `check:i18n` vérifie
+> l'existence des clés et non la véracité de leur contenu, et les e2e ne tournent pas en CI (M-1).
+> `MediaRejectedError` porte désormais ses paramètres, et `megabytesOf`/`minutesOf` vivent dans
+> `@cmv/shared`. Toute borne affichée ou testée se dérive de sa constante.
+
+> **Appris en #20** (le câblage de navigation n'a aucune porte) : trois pannes n'ont été révélées
+> que par un clic. **Web** — un fichier de segment devient une route *layout* dès qu'un enfant
+> existe, et sans `<Outlet />` l'enfant ne s'affiche jamais : l'URL changeait, la page non
+> (`routeTree.gen.ts` porte `@ts-nocheck`, et la référence morte vivait dans une closure). **Mobile**
+> — `href: null` masque un onglet mais ne choisit pas la **route initiale** du navigateur : un coach
+> atterrissait sur `/planning` sous une barre d'onglets pourtant correcte. **Mobile** — les routes
+> hors onglets (`/athlete/[id]`, `/session/[id]`, `/join`) n'avaient **aucune** garde de capacité.
+> Ni `tsc`, ni `biome`, ni `vite build`, ni `expo export` ne voient ces cas. Deux conséquences
+> pratiques : toute PR qui ajoute une route se teste **en cliquant**, et les types de routes Expo
+> (`.expo/types/router.d.ts`) ne sont régénérés que par le **serveur de dev** — pas par `expo export`.
 
 ---
 

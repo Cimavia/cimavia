@@ -13,6 +13,7 @@ import {
 import { routeForNotification } from "@/feature/notification/util/route.util";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { formatRelativeTime } from "@/shared/util/date.util";
 
 /**
@@ -22,6 +23,8 @@ import { formatRelativeTime } from "@/shared/util/date.util";
 export function NotificationsScreen() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  // Les destinations dépendent des écrans dont ce rôle dispose, pas seulement du type de la cible.
+  const capabilities = useCapabilities();
   const { data: notifications, isPending, isError, isRefetching, refetch } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -50,7 +53,7 @@ export function NotificationsScreen() {
   function onSelect(notification: NotificationDto) {
     if (notification.readAt == null) markRead.mutate(notification.id);
     queryClient.invalidateQueries();
-    const target = routeForNotification(notification);
+    const target = routeForNotification(notification, capabilities);
     if (target != null) router.push(target);
   }
 
