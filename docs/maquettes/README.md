@@ -91,6 +91,17 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   `/athletes` a été **supprimée** en [#113](https://github.com/Cimavia/cimavia/issues/113) (le
   tableau vit sur `/`), et pas d'entrée « Rappels ». La sidebar de référence est celle du code
   (`CmvAppShell`), pas celle de cette planche.
+- **`coach_mobile.dc.html` — pas d'écran de détail de facture** : la maquette en prévoit un, la
+  carte de la liste affiche déjà tout ce qu'il montrerait (montant, période, échéance, note,
+  justificatif, statut). Le web coach fonctionne à l'identique — liste de cartes, actions sur la
+  carte. La planche a été dessinée avant que ce motif se fixe.
+- **`coach_mobile.dc.html` — pas d'onglet « Débriefs »** : la barre en compte quatre, et les
+  débriefs s'atteignent par la tuile du tableau de bord (comme la maquette le montre). En revanche
+  l'onglet **Notifications** a été AJOUTÉ, absent de la planche : c'est la seule surface où le coach
+  voit ses `REMINDER_DUE`.
+- **`coach_mobile.dc.html` — invitation partagée, pas copiée** : la planche a « Copier le code »,
+  l'implémentation propose « Partager » (`Share` de React Native). `expo-clipboard` n'est pas une
+  dépendance du projet, et partager couvre mieux le cas réel (SMS, WhatsApp). Dette **M-5**.
 - **`coach_debrief.dc.html` — répondre depuis le volet de lecture** : `SessionFeedback` n'a **pas**
   de réponse au modèle ; le coach répond aujourd'hui par la messagerie. C'est une **fonctionnalité
   nouvelle**, pas un rendu — à cadrer avant toute implémentation.
