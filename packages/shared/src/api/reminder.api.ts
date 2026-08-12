@@ -2,6 +2,7 @@ import type {
   CreateReminderInput,
   ReminderDto,
   ReminderSummaryDto,
+  UpdateReminderInput,
   UpdateReminderStatusInput,
 } from "../dto/reminder.schema";
 import type { ApiClient } from "./client";
@@ -44,6 +45,15 @@ export type ReminderApi = {
   create: (input: CreateReminderInput) => Promise<ReminderDto>;
   /** Fait / abandonné / rouvert : un toggle, réversible dans les deux sens. Idempotent. */
   updateStatus: (id: string, input: UpdateReminderStatusInput) => Promise<ReminderDto>;
+  /**
+   * Repousser l'échéance, corriger la note, ou les deux (#105). PATCH sur la RESSOURCE, là où le
+   * statut a sa propre sous-route : ce sont deux gestes distincts, et les fondre obligerait un
+   * simple report à transmettre un statut qu'il ne change pas.
+   *
+   * Idempotent lui aussi : un corps qui ne change rien ne redate pas le rappel. 404 si le rappel
+   * n'est pas au coach courant — le scope ne le voit pas, il n'existe donc pas pour lui.
+   */
+  update: (id: string, input: UpdateReminderInput) => Promise<ReminderDto>;
 };
 
 export function createReminderApi(api: ApiClient): ReminderApi {
@@ -52,5 +62,6 @@ export function createReminderApi(api: ApiClient): ReminderApi {
     summary: () => api.get<ReminderSummaryDto>("/reminders/summary"),
     create: (input) => api.post<ReminderDto>("/reminders", input),
     updateStatus: (id, input) => api.patch<ReminderDto>(`/reminders/${id}/status`, input),
+    update: (id, input) => api.patch<ReminderDto>(`/reminders/${id}`, input),
   };
 }

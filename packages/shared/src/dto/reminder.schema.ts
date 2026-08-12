@@ -83,6 +83,37 @@ export type CreateReminderInput = z.infer<typeof createReminderSchema>;
 export const updateReminderStatusSchema = z.object({ status: reminderStatusSchema }).strict();
 export type UpdateReminderStatusInput = z.infer<typeof updateReminderStatusSchema>;
 
+/**
+ * Édition d'un rappel (#105) — l'échéance, la note, ou les deux. C'est la dette **R-3** : sans
+ * elle, reprogrammer un rappel demandait de le marquer traité puis d'en créer un autre, et
+ * l'historique se remplissait de doublons. Or « repousser » est le geste naturel quand un rappel
+ * tombe et qu'on n'est pas prêt.
+ *
+ * **PARTIEL, les deux champs sont optionnels** : « repousser » ne touche que `dueAt`, corriger un
+ * libellé que `note`. Un corps VIDE est refusé — il ne demande rien, et l'accepter ferait une
+ * écriture (donc un `updatedAt` redaté, donc un rappel qui remonte en tête de l'historique) pour
+ * une requête sans intention.
+ *
+ * `dueAt` garde exactement les règles de la création : un INSTANT, sans contrainte de futur —
+ * repousser à hier est licite, le rappel est simplement dû tout de suite. Les raccourcis
+ * (« demain », « dans une semaine ») sont calculés **côté client** et envoyés en absolu : l'API ne
+ * possède aucun fuseau, et c'est ce qui lui évite d'avoir à en deviner un.
+ *
+ * `note` reste NON VIDE quand elle est fournie : la vider reviendrait à effacer le contenu du
+ * rappel. Elle deviendra nullable en #47, pour les rappels auto-générés qui porteront un `reason`
+ * à la place — jamais une note fabriquée par l'API.
+ */
+export const updateReminderSchema = z
+  .object({
+    dueAt: z.iso.datetime().optional(),
+    note: z.string().min(1).max(REMINDER_NOTE_MAX_LENGTH).optional(),
+  })
+  .strict()
+  .refine((input) => input.dueAt !== undefined || input.note !== undefined, {
+    message: "Renseigner au moins l'échéance ou la note",
+  });
+export type UpdateReminderInput = z.infer<typeof updateReminderSchema>;
+
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 
 export const reminderDtoSchema = z.object({
