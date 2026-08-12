@@ -52,7 +52,9 @@ pnpm --filter @cmv/api exec prisma migrate dev
 cp apps/api/.env.test.example apps/api/.env.test   # une fois — rien à renseigner
 docker compose -f apps/api/docker-compose.test.yml up -d
 docker compose -f apps/api/docker-compose.yml run --rm minio-setup   # crée les buckets (idempotent)
-pnpm --filter @cmv/api test:e2e
+# Via turbo, pas `pnpm --filter` : la tâche dépend de `^build`, et les e2e bootent le vrai
+# AppModule — qui importe @cmv/shared depuis son `dist`. Sans build préalable, ça casse à l'import.
+pnpm turbo test:e2e --filter=@cmv/api
 ```
 
 > Les e2e tournent contre le **MinIO du docker-compose** (bucket `cimavia-media-e2e`) : sans

@@ -7,15 +7,26 @@ d'architecture, voir `docs/architecture-choice.md`.
 
 Merge unidirectionnel `feature/* → main → staging → production` (jamais en sens inverse).
 
-- `main` : branche de dev. **Push direct autorisé** (dev solo). **Commits signés obligatoires.** CI + SonarCloud tournent à chaque push (feedback, non bloquant).
-- `staging` / `production` : cibles de promotion **protégées** — PR obligatoire, checks `CI` + `SonarCloud` verts requis, historique linéaire, commits signés, ni force-push ni suppression.
+- `main` : branche de dev, **protégée** (ruleset « Main ») — PR obligatoire, les trois checks
+  ci-dessous verts requis, commits signés, ni force-push ni suppression. Le push direct, autorisé
+  jusqu'en #130, ne l'est plus : une porte qu'on peut contourner ne garde rien.
+- `staging` / `production` : cibles de promotion **protégées** (ruleset « Production ») — mêmes
+  exigences, plus l'historique linéaire.
 
 CI (`.github/workflows/`) :
 
-- `ci.yml` — lint + typecheck + test (Biome, Turbo).
-- `sonar.yml` — analyse SonarCloud (qualité + sécurité).
+- `ci.yml`, job **`Lint + Typecheck + Test`** — Biome, `turbo typecheck test`, `check:i18n`.
+- `ci.yml`, job **`E2E (isolation multi-tenant)`** — les 168 e2e de l'API, contre un Postgres et un
+  MinIO jetables montés par les composes du dépôt. Seul filet de la couche API (2,6 % de couverture
+  unitaire), donc bloquant.
+- `sonar.yml`, job **`SonarCloud Analysis`** — qualité + sécurité.
 
-Les deux tournent sur push/PR vers `main`, `staging`, `production`.
+Les trois tournent sur push/PR vers `main`, `staging`, `production`.
+
+> Ces libellés sont ceux des **jobs**, et c'est sous ce nom exact que les rulesets les exigent —
+> pas sous le nom du workflow. Renommer un job décroche donc la porte qui le référence : le check
+> requis n'arrive jamais et la PR reste bloquée sur « Waiting for status to be reported ». Toute
+> renommage se répercute dans les deux rulesets (Settings → Rules).
 
 ## Commits
 

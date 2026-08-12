@@ -19,8 +19,7 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#67](https://github.com/Cimavia/cimavia/issues/67) cohérence base ↔ storage ·
 [#68](https://github.com/Cimavia/cimavia/issues/68) pagination ·
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
-[#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
-[#130](https://github.com/Cimavia/cimavia/issues/130) exécuter les e2e dans la CI — plus dix issues
+[#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod — plus dix issues
 autonomes. Quatre dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
 explicitement « aucun »), **D-2** et **M-5** (déclencheur nommé, mais rien à préparer avant qu'il
 survienne).
@@ -151,9 +150,35 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| Q-1 | **Couverture non mesurée hors `@cmv/shared`** : `sonar.coverage.exclusions` écarte les trois apps. L'API est couverte par les e2e, qui ne produisent aucun lcov. | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → [#57](https://github.com/Cimavia/cimavia/issues/57) [#58](https://github.com/Cimavia/cimavia/issues/58) [#59](https://github.com/Cimavia/cimavia/issues/59) |
+| Q-1 | **Couverture non mesurée hors `@cmv/shared`** : `sonar.coverage.exclusions` écarte les trois apps. L'API est couverte par les e2e, qui ne produisent aucun lcov. Le verrou amont a sauté en **#130** (ils tournent en CI) ; reste à les instrumenter. | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → [#57](https://github.com/Cimavia/cimavia/issues/57) [#58](https://github.com/Cimavia/cimavia/issues/58) [#59](https://github.com/Cimavia/cimavia/issues/59) |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
-| Q-3 | **Les e2e ne sont pas typecheckés** : `apps/api/test/` est hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tourne sans vérification de types — 16 erreurs y dorment. | 🟡 | [#126](https://github.com/Cimavia/cimavia/issues/126) |
+| ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)) — `tsconfig.e2e.json` dédié, branché sur le script `typecheck` de l'API |
+
+> **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
+> tient à des choix qui ressemblent, de loin, à des maladresses à corriger :
+>
+> - **`test:e2e` porte `cache: false` dans `turbo.json`.** Ce n'est pas un oubli d'optimisation.
+>   Les vraies entrées de cette suite sont un Postgres et un MinIO **vivants**, plus l'état de la
+>   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 168 passed » sans
+>   exécuter une requête : une porte verte qui n'a rien vérifié, soit la panne M-1 en pire, parce
+>   qu'invisible.
+> - **`vitest.config.e2e.ts` doit continuer de LEVER si `.env.test` manque.** Rendre le
+>   `loadEnvFile` tolérant paraît robuste et ne l'est pas : la suite `TRUNCATE` toutes les tables à
+>   l'ouverture, et un `DATABASE_URL` traînant dans le shell prendrait alors le relais du fichier
+>   absent. Le fichier se fabrique par `cp apps/api/.env.test.example apps/api/.env.test` — et
+>   `global-setup.e2e.ts` refuse en plus toute base dont le nom ne finit pas par `_e2e`.
+> - **La CI monte les services par `docker compose`, pas par `services:`.** Un conteneur de service
+>   GitHub n'exécute pas l'entrypoint de `minio-setup` : le bucket `cimavia-media-e2e` n'existerait
+>   pas et la moitié médias de la suite tomberait. Les recréer en YAML donnerait deux copies de la
+>   même logique, qui divergeraient.
+
+> **Appris en #130** (un check requis se nomme par le JOB, jamais par le workflow) : le
+> `Production ruleset` exigeait les contextes `CI` et `SonarCloud` — les noms des **workflows**.
+> Les check runs publiés s'appellent `Lint + Typecheck + Test` et `SonarCloud Analysis`, d'après
+> les noms de **jobs**. Ces deux checks n'arrivaient donc jamais : une PR vers `staging` ou
+> `production` serait restée bloquée sur « Waiting for status to be reported ». Latent — aucune PR
+> n'avait encore visé ces branches. Corollaire : **renommer un job décroche silencieusement la
+> porte** qui le référence, dans un sens (elle n'arrive jamais) comme dans l'autre.
 
 ---
 
@@ -393,7 +418,7 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| M-1 | **Les e2e ne tournent dans aucune porte** : la CI lance `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 168 e2e ont le leur (`test:e2e`, config vitest distincte) et ne sont donc **jamais exécutés** en PR. Une régression d'API traverse une PR verte. Découvert en #36 : deux e2e étaient cassés depuis le relèvement des plafonds média, sans que rien ne le signale. | 🔴 | [#130](https://github.com/Cimavia/cimavia/issues/130) |
+| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 168 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
