@@ -1,6 +1,5 @@
 import { PlanStatus } from "../dto/plan.schema";
 import { type InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
-import { comparableName } from "./name.util";
 import {
   type PlanPeriod,
   type PlanPhase,
@@ -9,6 +8,7 @@ import {
   planWeekNumber,
   selectCurrentPlan,
 } from "./plan.util";
+import { comparableText } from "./search.util";
 
 /**
  * Le tableau de suivi des athlètes du coach (#113) : une ligne par athlète, composée de cinq
@@ -213,7 +213,7 @@ export function visibleAthleteRows(
   rows: readonly AthleteRow[],
   query: AthleteRowQuery,
 ): AthleteRow[] {
-  const needle = comparableName(query.search);
+  const needle = comparableText(query.search);
 
   return rows
     .filter((row) => matchesFilter(row, query.filter) && matchesSearch(row, needle))
@@ -222,7 +222,7 @@ export function visibleAthleteRows(
 
 function matchesSearch(row: AthleteRow, needle: string): boolean {
   // Sous-chaîne et non préfixe : un coach tape aussi bien le nom de famille que le prénom.
-  return needle === "" || comparableName(row.athleteName).includes(needle);
+  return needle === "" || comparableText(row.athleteName).includes(needle);
 }
 
 function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {

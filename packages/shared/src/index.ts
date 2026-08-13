@@ -403,3 +403,4 @@ export {
   snoozedDueAt,
   toReminderFeedId,
 } from "./util/reminder.util";
+export { comparableText } from "./util/search.util";

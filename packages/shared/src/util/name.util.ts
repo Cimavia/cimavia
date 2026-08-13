@@ -22,23 +22,3 @@ export function initialsOf(name: string): string {
   const initials = words.length === 1 ? first.charAt(0) : first.charAt(0) + last.charAt(0);
   return initials.toLocaleUpperCase();
 }
-
-/**
- * La forme COMPARABLE d'un nom : sans casse, sans accent, sans espaces de bord.
- *
- * Un coach tape « lea » pour trouver « Léa ». Exiger l'accent ferait échouer la recherche sur
- * exactement les noms que le clavier rend pénibles à écrire — et « MOREAU » doit trouver
- * « Moreau ». C'est une clé de COMPARAISON, jamais un affichage : `initialsOf`, lui, garde ses
- * accents, et les deux ne doivent pas être confondues.
- *
- * NFD sépare la lettre de son signe diacritique, le bloc U+0300–U+036F retire les signes. Pas de
- * `\p{Diacritic}` : ce fichier est aussi compilé dans le bundle mobile, et un échappement de
- * propriété Unicode se paierait au parsing du module, pas à l'appel.
- */
-export function comparableName(name: string): string {
-  return name
-    .trim()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase();
-}

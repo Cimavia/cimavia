@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparableName, initialsOf } from "./name.util";
+import { initialsOf } from "./name.util";
 
 describe("initialsOf", () => {
   it("prend la première lettre du prénom et du nom", () => {
@@ -40,27 +40,5 @@ describe("initialsOf", () => {
   it("rend une chaîne vide sur un nom vide", () => {
     expect(initialsOf("")).toBe("");
     expect(initialsOf("   ")).toBe("");
-  });
-});
-
-describe("comparableName", () => {
-  /**
-   * Le cas qui justifie la fonction : un coach tape « lea » et doit trouver « Léa ». Sans le
-   * dépliage NFD, la recherche échouerait sur exactement les noms qu'un clavier rend pénibles.
-   */
-  it("efface la casse et les accents", () => {
-    expect(comparableName("Léa Moreau")).toBe("lea moreau");
-    expect(comparableName("MOREAU")).toBe("moreau");
-    expect(comparableName("Élodie Noël")).toBe("elodie noel");
-  });
-
-  it("ignore les espaces de bord, jamais ceux du milieu", () => {
-    expect(comparableName("  Léa Moreau  ")).toBe("lea moreau");
-  });
-
-  // Une clé de comparaison, pas un affichage : `initialsOf` garde ses accents, lui.
-  it("ne partage pas la règle d'affichage d'initialsOf", () => {
-    expect(initialsOf("Élodie Noël")).toBe("ÉN");
-    expect(comparableName("")).toBe("");
   });
 });
