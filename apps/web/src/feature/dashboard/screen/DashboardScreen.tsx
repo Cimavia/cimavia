@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
 import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
-import { AthleteTrackingTable } from "@/feature/dashboard/component/AthleteTrackingTable";
+import { AthleteTrackingSection } from "@/feature/dashboard/component/AthleteTrackingSection";
 import { DashboardTile } from "@/feature/dashboard/component/DashboardTile";
 import { useFeedbacks } from "@/feature/feedback/hook/useFeedbacks";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
@@ -20,7 +20,7 @@ import { useConversations } from "@/feature/message/hook/useMessages";
 import { useUnreadNotificationCount } from "@/feature/notification/hook/useNotifications";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
-import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { CmvAppShell, CmvButton, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -189,6 +189,16 @@ export function DashboardScreen() {
     invoices: invoices.data,
     today,
   });
+
+  /**
+   * UNE seule réponse à « peut-on parler des cycles ? », partagée par le lien « Créer un cycle » et
+   * par les deux filtres de la barre d'outils — qui portent tous sur la même donnée.
+   *
+   * `data != null` et non `!isError` : une liste encore en vol ne dit pas plus qu'une liste en
+   * panne, et `AthleteRow.plan` vaut `null` dans les deux cas.
+   */
+  const plansLoaded = plans.data != null;
+
   const sheetAthlete: CoachAthleteDto | null =
     (athletes.data ?? []).find((athlete) => athlete.athleteId === sheetAthleteId) ?? null;
 
@@ -248,32 +258,16 @@ export function DashboardScreen() {
           </div>
         </section>
 
-        {/* Trois états distincts, comme partout ailleurs : `rows` à `null` = liste indisponible (le
-            bandeau ci-dessus l'a déjà dit, on n'ajoute rien) ; vide = le coach n'a aucun athlète et
-            on l'invite ; sinon le tableau. */}
+        {/* `rows` à `null` = liste des athlètes indisponible : le bandeau ci-dessus l'a déjà dit,
+            on n'ajoute rien et surtout pas un tableau vide. Le reste des états (aucun athlète,
+            aucun résultat, le tableau) est tenu par la section elle-même. */}
         {rows == null ? null : (
-          <section className="flex flex-col gap-cmv-md">
-            <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
-              {t("dashboard.section.athletes")}
-            </h2>
-            {rows.length === 0 ? (
-              <CmvEmptyState
-                title={t("athlete.empty.title")}
-                description={t("athlete.empty.description")}
-                action={
-                  <CmvButton onClick={() => setInvitationOpen(true)}>
-                    {t("athlete.invite")}
-                  </CmvButton>
-                }
-              />
-            ) : (
-              <AthleteTrackingTable
-                rows={rows}
-                canOfferPlan={!plans.isError}
-                onOpenSheet={setSheetAthleteId}
-              />
-            )}
-          </section>
+          <AthleteTrackingSection
+            rows={rows}
+            plansLoaded={plansLoaded}
+            onOpenSheet={setSheetAthleteId}
+            onInvite={() => setInvitationOpen(true)}
+          />
         )}
       </div>
 

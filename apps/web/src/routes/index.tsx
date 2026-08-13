@@ -1,3 +1,4 @@
+import { ATHLETE_ROW_FILTERS, type AthleteRowFilter } from "@cmv/shared";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { DashboardScreen } from "@/feature/dashboard";
 import { CmvRoleGate } from "@/shared/component";
@@ -12,7 +13,39 @@ import { CmvRoleGate } from "@/shared/component";
  * `search` est requis mais peut valoir `undefined` : sans paramètre, le planning ouvre la semaine
  * courante, ce qui est exactement ce qu'on veut d'un accueil.
  */
+
+/**
+ * `?q=` et `?filter=` — l'état de la barre d'outils du tableau vit dans l'URL, pas dans un
+ * `useState` (#123).
+ *
+ * Cet écran DISTRIBUE déjà des liens à paramètres (`/feedbacks?feedback=`, `/messages?athlete=`) ;
+ * n'en accepter aucun serait incohérent. Et une vue filtrée se recharge, se met en favori, et
+ * survit à un aller-retour vers un autre écran — un filtre qui ne passe pas F5 n'est pas le même
+ * produit.
+ *
+ * Clés REQUISES mais possiblement `undefined` (et non `q?: string`) : sous
+ * `exactOptionalPropertyTypes`, « absente » et « présente à undefined » ne sont pas la même chose,
+ * et TanStack construit toujours l'objet.
+ *
+ * `filter` absent vaut « Tous ». Une valeur inconnue est ramenée là : un paramètre d'URL malformé
+ * n'est pas une mesure métier manquante, et refuser de rendre l'écran pour ça serait disproportionné.
+ */
+export type DashboardSearch = {
+  q: string | undefined;
+  filter: AthleteRowFilter | undefined;
+};
+
+// `some` plutôt que `includes` : `ATHLETE_ROW_FILTERS.includes(x)` exigerait de forcer le type de
+// `x` avant de l'avoir vérifié, ce qui vide le contrôle de son sens.
+function toFilter(value: unknown): AthleteRowFilter | undefined {
+  return ATHLETE_ROW_FILTERS.find((known) => known === value);
+}
+
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): DashboardSearch => ({
+    q: typeof search.q === "string" && search.q.length > 0 ? search.q : undefined,
+    filter: toFilter(search.filter),
+  }),
   component: () => (
     <CmvRoleGate
       capability="coach"

@@ -470,9 +470,24 @@
         "invoice": "Facturation"
       },
       "weekProgress": "S{{current}}/{{total}}",
-      "planIdle": "{{total}} semaines",
       "createPlan": "Créer un cycle",
-      "openSheet": "Fiche"
+      "openSheet": "Fiche",
+      "planEnded": "Terminé le {{date}}",
+      "planUpcoming": "Démarre le {{date}}",
+      "searchLabel": "Rechercher",
+      "searchPlaceholder": "Rechercher un athlète…",
+      "filter": {
+        "ALL": "Tous",
+        "ENDED_PLAN": "Cycle terminé",
+        "NO_PLAN": "Sans plan"
+      },
+      "matchCount": "{{count}} athlète",
+      "matchCount_other": "{{count}} athlètes",
+      "noMatch": {
+        "title": "Aucun athlète ne correspond",
+        "description": "Modifiez votre recherche, ou revenez à « Tous » pour revoir toute votre écurie.",
+        "reset": "Réinitialiser"
+      }
     },
     "error": {
       "title": "Certaines données n'ont pas pu être chargées",
