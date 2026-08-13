@@ -16,6 +16,7 @@ import { InvitationSection } from "@/feature/dashboard/component/InvitationSecti
 import { useCoachFeedbacks } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 import { useConversations } from "@/feature/message/hook/useConversation";
+import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { authClient } from "@/shared/lib/auth";
@@ -27,15 +28,17 @@ import { authClient } from "@/shared/lib/auth";
  * les MÊMES que celles du tableau de bord web (#52). L'écran choisit quoi montrer, pas quoi
  * compter — sinon deux plateformes finiraient par ne pas compter pareil.
  *
- * Quatre tuiles et non les sept du web, pour deux raisons distinctes :
- *  - « Rappels dus » et « Planifications » n'ont **pas d'écran mobile** (#46 est reportée, le
- *    builder est web-only) — une tuile qui annonce du travail sans y mener est un cul-de-sac
- *    (arbitrage #52) ;
+ * Cinq tuiles et non les sept du web :
+ *  - « Rappels dus » a rejoint le lot en #46, l'écran mobile existant désormais — c'est cette
+ *    tuile qui en est la porte d'entrée, l'écran ne vivant pas dans la barre d'onglets ;
+ *  - « Planifications » n'a toujours **pas d'écran mobile** (le builder est web-only, #20) — une
+ *    tuile qui annonce du travail sans y mener est un cul-de-sac (arbitrage #52) ;
  *  - « Notifications non lues » ferait doublon avec la **pastille de l'onglet Notifs**, visible en
  *    permanence à 200 px de là.
  *
- * Les deux tuiles « à traiter » mènent à leur écran : la facturation depuis #32, les débriefs
- * depuis #33. Une tuile qui annonce du travail sans y mener serait un cul-de-sac (#52).
+ * Les trois tuiles « à traiter » mènent à leur écran : la facturation depuis #32, les débriefs
+ * depuis #33, les rappels depuis #46. Une tuile qui annonce du travail sans y mener serait un
+ * cul-de-sac (#52).
  */
 export function CoachDashboardScreen() {
   const { t } = useTranslation();
@@ -45,6 +48,9 @@ export function CoachDashboardScreen() {
   const feedbacks = useCoachFeedbacks();
   const invoices = useInvoices();
   const conversations = useConversations();
+  // Le RÉSUMÉ, pas la liste : deux entiers comptés en SQL, là où `useReminders` rapporterait
+  // jusqu'à 200 lignes pour qu'on en mesure une.
+  const reminders = useReminderSummary();
 
   // `todayIsoDate()` et non un instant : `Invoice.dueDate` est une date CIVILE, la lire en heure
   // locale ferait basculer de jour aux abords de minuit.
@@ -65,7 +71,9 @@ export function CoachDashboardScreen() {
     today,
   });
 
-  const sources = [athletes, feedbacks, invoices, conversations];
+  // `reminders` en fait partie bien qu'il n'alimente aucune ligne du tableau : c'est ce qui lui vaut
+  // le bandeau d'erreur, le tirer-pour-rafraîchir et la reprise après panne, comme les autres.
+  const sources = [athletes, feedbacks, invoices, conversations, reminders];
   const isPending = sources.some((source) => source.isPending);
   const hasFailedSource = sources.some((source) => source.isError);
   const isRefetching = sources.some((source) => source.isRefetching);
@@ -127,6 +135,19 @@ export function CoachDashboardScreen() {
               hint={t("dashboard.tiles.overdueInvoicesHint")}
               tone="error"
               onPress={() => router.push("/invoices")}
+            />
+          </View>
+
+          {/* `dueCount` et non `pendingCount` : les deux nombres s'EMBOÎTENT (un rappel dû est un
+              rappel à traiter dont l'échéance est passée), les afficher tous deux montrerait deux
+              fois les mêmes rappels. Le web n'expose que celui-ci pour la même raison (#52). */}
+          <View className="flex-row gap-3">
+            <DashboardTile
+              label={t("dashboard.tiles.reminders")}
+              count={reminders.data?.dueCount ?? null}
+              hint={t("dashboard.tiles.remindersHint")}
+              tone="warning"
+              onPress={() => router.push("/reminders")}
             />
           </View>
         </View>

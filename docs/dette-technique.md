@@ -159,7 +159,7 @@ survienne).
 >
 > - **`test:e2e` porte `cache: false` dans `turbo.json`.** Ce n'est pas un oubli d'optimisation.
 >   Les vraies entrées de cette suite sont un Postgres et un MinIO **vivants**, plus l'état de la
->   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 168 passed » sans
+>   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 186 passed » sans
 >   exécuter une requête : une porte verte qui n'a rien vérifié, soit la panne M-1 en pire, parce
 >   qu'invisible.
 > - **`vitest.config.e2e.ts` doit continuer de LEVER si `.env.test` manque.** Rendre le
@@ -241,9 +241,9 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| R-1 | **Aucun push quand un rappel devient dû** : sans scheduler, il n'apparaît qu'au prochain chargement du centre. | 🟢 | [#47](https://github.com/Cimavia/cimavia/issues/47) |
+| ~~R-1~~ | ~~**Aucun push quand un rappel devient dû**~~ : sans scheduler, il n'apparaissait qu'au prochain chargement du centre. | ✅ | résolu en **#47** — tick externe horaire (`POST /internal/reminders/tick`), push idempotent via `pushedAt` |
 | R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | [#106](https://github.com/Cimavia/cimavia/issues/106) |
-| R-3 | **Pas de report d'échéance ni d'édition** : reprogrammer un rappel = en créer un autre. | 🟢 | [#105](https://github.com/Cimavia/cimavia/issues/105) |
+| ~~R-3~~ | ~~**Pas de report d'échéance ni d'édition**~~ : reprogrammer un rappel demandait de le traiter puis d'en créer un autre — deux gestes, et un historique de doublons. | ✅ | résolu en **#105** — `PATCH /reminders/:id` (échéance et/ou note) + bouton « Repousser » sur l'écran **et** dans le centre de notifications |
 | R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts. | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | R-5 | **Aucune rétention** des rappels `DONE`/`DISMISSED` : la table grossit indéfiniment (même famille que N-2). | 🟢 | [#107](https://github.com/Cimavia/cimavia/issues/107) |
 
@@ -272,6 +272,66 @@ survienne).
 > **Le jour où #47 poussera un rappel dû, il devra choisir entre persister et calculer**, jamais les
 > deux, sinon le même rappel apparaîtra en double.
 
+> **Tranché en #47** (le support d'exécution, et pourquoi ce n'était pas une question de code) : un
+> cron in-process ne se déclenche **pas** sur du scale-to-zero — aucun process ne tourne pour tirer
+> le tick. Il aurait marché sur le NAS et serait mort en silence en production, le pire des deux
+> mondes puisque tout test manuel passait. Retenu : **déclencheur externe** (workflow `schedule`)
+> appelant une route à secret partagé, contre un conteneur always-on, pour trois raisons — c'est
+> gratuit là où `min-scale=1` sort du palier ; c'est **testable par la porte e2e** devenue requise en
+> #130, alors qu'un tick interne ne se déclenche pas sous test ; et sa panne est **bruyante** (job
+> rouge) là où le scale-to-zero avale le tick sans un mot.
+>
+> Deux contreparties écrites dans le workflow : GitHub désactive les `schedule` d'un dépôt public
+> après **60 jours sans commit**, et ses crons ont plusieurs minutes de retard. La seconde est sans
+> effet — les échéances sont dérivées de la donnée, pas de l'heure du tick. La première ferait
+> cesser les rappels en silence sur un projet en pause ; le jour où ça mord, le même appel se
+> déplace sur un cron Cloudflare, la route ne bouge pas.
+
+> **Tranché en #47** (le scope tenant hors requête) : un tick n'a ni session ni acteur, là où
+> l'extension Prisma refuse tout modèle sans scope. **On ne la contourne pas, on lui donne un
+> acteur** : le balayage ouvre un contexte CLS par coach (`cls.run` + `set`, le même contrat que
+> `TenancyInterceptor`), si bien que les lectures restent filtrées et que le `coachId` des rappels
+> créés est **injecté**, jamais écrit par le service. Une seule lecture reste hors scope et elle est
+> nommée — la liste des coachs, `User` n'étant pas dans `TENANT_SCOPES` — via le `PrismaService` de
+> base, précédent de `UserDirectoryService`. Un e2e le fige sur le chemin qui n'a aucun acteur : ce
+> que le tick génère pour un coach n'atterrit jamais chez un autre.
+
+> **Tranché en #47** (persister ou calculer, la question laissée ouverte par #51) : **calculer**.
+> Le tick pousse un rappel dû mais n'écrit **aucune ligne `notification`** — en écrire une le ferait
+> apparaître deux fois dans le centre, une fois persistée et une fois calculée depuis la table
+> `reminder`. `REMINDER_DUE` reste donc absent de l'enum Prisma, et `PersistedNotificationType`
+> l'interdit à la compilation. Ce qui est persisté, c'est **`pushedAt`** : un marqueur de livraison,
+> même famille que `readAt`, qui rend le tick idempotent (deux passages rapprochés ne poussent pas
+> deux fois, un tick manqué rattrape au suivant). L'estampille est posée **après** l'envoi : un
+> arrêt brutal entre les deux repousse au tick suivant, et un doublon vaut mieux qu'un silence.
+>
+> Corollaire assumé sur l'**idempotence de la génération** : elle vit dans l'index unique
+> `(coachId, entityType, entityId, reason)` plus `skipDuplicates`, pas dans le code — une
+> vérification préalable en JavaScript laisserait une fenêtre entre la lecture et l'écriture. Les
+> rappels **manuels** y échappent sans qu'on l'écrive, PostgreSQL traitant deux `NULL` comme
+> distincts. Et un rappel généré puis **traité n'est jamais régénéré**, même si la facture reste
+> impayée : le coach a tranché, on ne le relance pas. Un e2e le fige, sans quoi l'index passerait un
+> jour pour un oubli.
+
+> **Tranché en #105** (ce que devient `readAt` au report) : il est remis à **`null` dès que `dueAt`
+> bouge**, et seulement alors. `readAt` dit « vu à CETTE échéance-là » — une nouvelle échéance est
+> une nouvelle occurrence. Le laisser en place produisait le scénario suivant : un rappel dû, vu
+> dans le centre, repoussé à la semaine prochaine, en sort (il n'est plus dû) et y revient huit
+> jours plus tard **déjà lu** — son badge ne s'allume jamais, le jour même où il devient utile.
+> C'est la règle que `markAllDueRead` applique par l'autre bout en épargnant les rappels à venir.
+> Trois corollaires : la comparaison porte sur les **valeurs** et non sur la présence du champ
+> (réenregistrer un formulaire sans changer la date ne rallume pas un badge éteint) ; corriger la
+> **note seule** ne touche pas `readAt` (rectifier une faute de frappe n'est pas une nouvelle
+> occurrence) ; et le `PATCH` est **idempotent** comme `updateStatus`, l'historique étant trié par
+> `updatedAt`.
+
+> **Conséquence sur #51, assumée** : l'entrée du centre étant datée du `dueAt` du rappel, **reporter
+> un rappel le déplace dans le tri du centre**. C'est exactement l'intention de #51 (« il se range au
+> moment où il commence à compter »), et l'e2e qui fige cet invariant n'a pas eu à changer — il
+> teste la règle, que le report préserve par construction. Le statut, lui, n'est **pas** modifiable
+> par cette route (`.strict()` refuse `status`) : il garde la sienne, pour qu'il n'existe qu'un seul
+> chemin vers une transition.
+
 > **Appris en construisant #44/#51** (le coût réel d'un scope à un seul rôle) : un modèle absent de
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
 > Lire la table `reminder` depuis le centre de notifications — écran servi aux **deux** rôles —
@@ -279,11 +339,35 @@ survienne).
 > future entité mono-rôle devra porter les deux gardes : `@Roles` sur le contrôleur, et un
 > branchement explicite partout où un chemin partagé la touche.
 
-> **Écart de promotion assumé** : `REMINDER_BADGE` (variant + clé i18n par état) reste dans
-> `apps/web/src/feature/reminder/`, alors que son équivalent facture `INVOICE_STATE_BADGE` vit dans
-> `@cmv/shared`. Raison : un seul client la rend aujourd'hui, #46 étant reportée (règle de promotion
-> — 2+ apps → package). La **dérivation** (`isReminderDue`), elle, est bien partagée. La table monte
-> avec l'écran mobile.
+> ~~**Écart de promotion assumé**~~ **RÉSOLU en #46** : `REMINDER_BADGE` et
+> `REMINDER_TARGET_LABEL_KEY` vivaient dans `apps/web/src/feature/reminder/`, faute d'un second
+> client (règle : 2+ apps → package). L'écran mobile est arrivé, elles ont rejoint
+> `INVOICE_STATE_BADGE` dans `@cmv/shared`. Une **troisième** chose est montée au passage, qui n'y
+> était pas prévue : `reminderBadgeState`, parce que les deux clients allaient écrire
+> `isReminderDue(…) ? "OVERDUE" : status` chacun de son côté — c'est la dérivation, pas du rendu.
+
+> **Tranché en #46** (où se pose un écran coach sur mobile) : **ni onglet, ni entrée du Profil** —
+> un **sous-écran du tableau de bord** (`app/reminders/`), sur le patron de `/feedbacks` (#33) et
+> `/athlete/[id]`. Les deux alternatives examinées quand l'issue a été reportée (2026-08-07) sont
+> caduques pour des raisons révisées : l'onglet conditionné par le rôle ne préempte plus rien
+> (`tabs.ts` sait le faire depuis #35), mais ferait un **6ᵉ onglet** pour un écran hebdomadaire ; le
+> Profil enterrerait toujours un outil de travail dans les réglages de compte. Le dashboard, lui,
+> réservait déjà la tuile.
+>
+> Deux écarts au web en découlent, tous deux issus de la même règle appliquée à une plateforme qui a
+> moins d'écrans — pas d'un périmètre rogné : **(1)** la création est contextuelle, donc offerte sur
+> la **facture seulement**, un rappel de cycle se posant depuis le builder (web-only) ; **(2)**
+> l'échéance se choisit parmi les raccourcis de `snoozedDueAt`, faute d'équivalent mobile à
+> `<input type="datetime-local">` — l'heure précise reste réglable depuis le web.
+
+> **Tranché en #46** (le repli de `REMINDER_DUE`, et pourquoi le web n'en a pas) : un rappel dû est
+> le **seul** type du centre dont la cible ait une seconde maison — l'écran « Mes rappels », où
+> vivent les gestes. Sur mobile, `PLAN` rendant `null` côté coach, un rappel dû sur un cycle ne
+> menait **nulle part** ; l'écran devient donc le repli **quand la destination est absente**, sans
+> jamais remplacer celle qui existe (`INVOICE` continue de mener à `/invoices`). Côté **web**, aucune
+> entrée n'est ajoutée et ce n'est pas un oubli : les deux cibles y résolvent déjà pour un coach, un
+> repli y serait du code mort, et brancher le type ferait **perdre l'accès direct au builder** —
+> une régression, pas un alignement.
 
 ---
 
@@ -442,7 +526,7 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 168 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
+| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 186 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
@@ -484,6 +568,11 @@ survienne).
 > sa destination en arrivant. `PLAN` reste `null` côté coach **définitivement** — le builder est
 > web-only. Corollaire pour toute nouvelle cible : elle se branche dans la PR qui crée son écran,
 > jamais avant.
+>
+> **Nuance apportée en #46** : `PLAN` rend toujours `null` pour une notification de cycle, mais une
+> entrée `REMINDER_DUE` qui vise un cycle mène désormais à « Mes rappels ». Ce n'est pas un
+> revirement — la cible reste sans écran mobile, c'est le **rappel** qui en a un. Le repli
+> s'applique donc au type, pas à la cible, et seulement là où la destination manque.
 
 > **Tranché en #20** (les plafonds ne s'écrivent jamais en dur) : onze messages de refus et deux
 > e2e citaient les limites média en clair (« dépasse 50 Mo », « 3 notes »). Le jour où elles ont

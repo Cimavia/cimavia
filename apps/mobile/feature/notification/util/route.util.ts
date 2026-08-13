@@ -60,11 +60,32 @@ function targetFor(
   }
 }
 
+/**
+ * Le REPLI des rappels dus (#46). `REMINDER_DUE` est le seul type du centre dont la cible a une
+ * seconde maison : l'écran « Mes rappels », où vivent les gestes (fait, abandonné, repoussé).
+ *
+ * Il ne REMPLACE pas la destination, il comble son absence. Une facture continue de mener à
+ * `/invoices`, où le coach agit sur l'impayé ; un CYCLE, lui, ne menait **nulle part** — `PLAN` rend
+ * `null` définitivement côté coach, le builder étant web-only (#20). Un rappel dû sur un cycle était
+ * donc un cul-de-sac, exactement le cas que l'encadré « Appris en #20 » du journal de dette dit de
+ * ne plus laisser passer.
+ *
+ * Écrit comme un repli et non comme un branchement sur le type : le jour où `ReminderEntityType`
+ * gagne une valeur sans écran mobile, elle tombe ici plutôt que dans le vide.
+ *
+ * Côté WEB, rien d'équivalent n'est nécessaire : les deux cibles y résolvent déjà pour un coach
+ * (`PLAN` → le builder, `INVOICE` → le suivi). Y ajouter ce repli serait du code mort, et y brancher
+ * le type ferait perdre l'accès direct au builder — une régression, pas un alignement.
+ */
 export function routeForNotification(
   notification: NotificationDto,
   capabilities: Capabilities,
 ): Href | null {
-  return targetFor(notification.entityType, notification.entityId, capabilities);
+  const target = targetFor(notification.entityType, notification.entityId, capabilities);
+  if (target != null) return target;
+
+  const isDueReminder = notification.type === NotificationType.REMINDER_DUE;
+  return isDueReminder && capabilities.isCoach ? "/reminders" : null;
 }
 
 /**
@@ -80,9 +101,19 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
     scheduledSessionId?: string;
     conversationId?: string;
     invoiceId?: string;
+    reminderId?: string;
   } | null;
 
   switch (payload?.type) {
+    /**
+     * Un rappel dû (#47) ne passe PAS par `targetFor` : sa charge utile porte un `reminderId`, pas
+     * l'id de sa cible — le push est émis sans lire le cycle ni la facture visés. Il mène donc
+     * directement à « Mes rappels », qui est de toute façon le repli du centre pour ce type.
+     *
+     * Coach seul : l'écran est gardé par capacité, et un athlète n'a aucun rappel.
+     */
+    case NotificationType.REMINDER_DUE:
+      return capabilities.isCoach ? "/reminders" : null;
     case NotificationType.PLAN_PUBLISHED:
     case NotificationType.PLAN_UPDATED:
     case NotificationType.PLAN_SESSION_ADDED:

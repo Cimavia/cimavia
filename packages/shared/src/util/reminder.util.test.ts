@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { NotificationEntityType, NotificationType } from "../dto/notification.schema";
-import { ReminderEntityType, ReminderStatus } from "../dto/reminder.schema";
+import { ReminderEntityType, ReminderReason, ReminderStatus } from "../dto/reminder.schema";
 import {
   isReminderDue,
   parseReminderFeedId,
+  REMINDER_BADGE,
+  REMINDER_SNOOZE_OPTIONS,
   REMINDER_TARGET_ENTITY_TYPE,
+  reminderBadgeState,
   reminderToNotificationDto,
+  snoozedDueAt,
   toReminderFeedId,
 } from "./reminder.util";
 
@@ -105,12 +109,83 @@ describe("id d'entrée de flux", () => {
   });
 });
 
+describe("reminderBadgeState", () => {
+  const pending = { dueAt: "2026-08-15T07:00:00.000Z", status: ReminderStatus.PENDING };
+
+  /**
+   * « En retard » prime sur le statut, et c'est toute la raison d'être de cette dérivation :
+   * `OVERDUE` n'existe pas dans l'enum stocké, c'est un `PENDING` dont l'échéance est passée. Les
+   * deux clients l'indexaient chacun de son côté avant #46.
+   */
+  it("rend OVERDUE pour un rappel à traiter dont l'échéance est passée", () => {
+    expect(reminderBadgeState({ ...pending, dueAt: "2026-08-01T07:00:00.000Z" }, NOW)).toBe(
+      "OVERDUE",
+    );
+    expect(reminderBadgeState(pending, NOW)).toBe(ReminderStatus.PENDING);
+  });
+
+  // Le temps ne rouvre pas ce qui a été traité : un rappel fait ou abandonné garde son état, même
+  // avec une échéance largement dépassée.
+  it("ne rend jamais OVERDUE un rappel traité", () => {
+    for (const status of [ReminderStatus.DONE, ReminderStatus.DISMISSED]) {
+      expect(reminderBadgeState({ dueAt: "2020-01-01T00:00:00.000Z", status }, NOW)).toBe(status);
+    }
+  });
+
+  // Le `satisfies` garantit la complétude à la compilation ; ce test la garantit à l'exécution —
+  // chaque état d'affichage a bien une pastille, donc aucun indexage ne rend `undefined`.
+  it("chaque état d'affichage a une pastille", () => {
+    for (const status of Object.values(ReminderStatus)) {
+      expect(REMINDER_BADGE[status]).toBeDefined();
+    }
+    expect(REMINDER_BADGE.OVERDUE.variant).toBe("error");
+  });
+});
+
+describe("snoozedDueAt", () => {
+  /**
+   * Calculé depuis MAINTENANT, jamais depuis l'échéance courante. C'est le cas qui décide de la
+   * formule : un rappel en retard de trois jours, repoussé « à demain », doit tomber demain — pas
+   * il y a deux jours. Partir de `dueAt` produirait une échéance encore passée, donc un rappel qui
+   * reste dû juste après qu'on a demandé à ne plus le voir.
+   */
+  it("part de maintenant, pas de l'échéance courante", () => {
+    expect(snoozedDueAt("TOMORROW", NOW)).toBe("2026-08-08T10:00:00.000Z");
+    expect(snoozedDueAt("NEXT_WEEK", NOW)).toBe("2026-08-14T10:00:00.000Z");
+  });
+
+  /**
+   * « Demain » est une opération de CALENDRIER, pas une durée : `setDate` conserve l'heure locale au
+   * passage à l'heure d'hiver, là où `+ 24 × 3600 × 1000` la décalerait d'une heure. Le test
+   * l'exprime dans le fuseau du système, seul endroit où la distinction est observable — et se
+   * contente donc de vérifier l'heure LOCALE, identique de part et d'autre du changement.
+   */
+  it("conserve l'heure locale à travers un changement d'heure", () => {
+    // 2026 : l'heure d'hiver arrive le dimanche 25 octobre en Europe.
+    const beforeDstChange = new Date(2026, 9, 24, 9, 30);
+    const snoozed = new Date(snoozedDueAt("TOMORROW", beforeDstChange));
+
+    expect(snoozed.getHours()).toBe(9);
+    expect(snoozed.getMinutes()).toBe(30);
+    expect(snoozed.getDate()).toBe(25);
+  });
+
+  // Un report tombe toujours dans le futur : c'est ce qui garantit que le rappel quitte le centre
+  // et cesse d'être compté par le badge, sinon le geste n'aurait aucun effet visible.
+  it("rend toujours une échéance future", () => {
+    for (const option of REMINDER_SNOOZE_OPTIONS) {
+      expect(Date.parse(snoozedDueAt(option, NOW))).toBeGreaterThan(NOW.getTime());
+    }
+  });
+});
+
 describe("reminderToNotificationDto", () => {
   const DUE = {
     id: "rmd_1",
     entityType: ReminderEntityType.INVOICE,
     entityId: "inv_1",
     note: "Facture de mars toujours impayée",
+    reason: null,
     readAt: null,
     dueAt: "2026-08-07T09:00:00.000Z",
   };
@@ -123,9 +198,39 @@ describe("reminderToNotificationDto", () => {
       entityId: "inv_1",
       actorName: null,
       subjectLabel: "Facture de mars toujours impayée",
+      subjectKey: null,
       readAt: null,
       createdAt: "2026-08-07T09:00:00.000Z",
     });
+  });
+
+  /**
+   * Le rappel AUTO-GÉNÉRÉ (#47) : pas de note, donc le sujet part comme **clé** et non comme
+   * valeur. C'est ce qui empêche « le cycle se termine » de voyager figé en français dans une
+   * charge utile d'API — la faute exacte que `NOTIFICATION_LABEL_KEY` existe pour interdire.
+   */
+  it("fait voyager le motif d'un rappel généré comme clé, pas comme libellé", () => {
+    const entry = reminderToNotificationDto({
+      ...DUE,
+      note: null,
+      reason: ReminderReason.PLAN_ENDING,
+    });
+
+    expect(entry.subjectLabel).toBeNull();
+    expect(entry.subjectKey).toBe("reminder.reason.planEnding");
+  });
+
+  // La note l'emporte : un rappel généré que le coach s'est approprié en y écrivant sa phrase (#105)
+  // doit montrer SA phrase dans le centre, pas l'intitulé système qui l'a fait naître.
+  it("préfère la note du coach au motif quand les deux existent", () => {
+    const entry = reminderToNotificationDto({
+      ...DUE,
+      note: "Relancer Marie avant vendredi",
+      reason: ReminderReason.INVOICE_OVERDUE,
+    });
+
+    expect(entry.subjectLabel).toBe("Relancer Marie avant vendredi");
+    expect(entry.subjectKey).toBeNull();
   });
 
   /**

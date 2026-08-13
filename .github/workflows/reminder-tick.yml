@@ -1,0 +1,64 @@
+name: Rappels — tick
+
+# Déclencheur EXTERNE des rappels automatiques (#47).
+#
+# Pourquoi ici et pas dans l'API : un cron in-process (`@nestjs/schedule`) ne se déclenche pas sur
+# la cible MVP Scaleway Serverless Containers. En scale-to-zero, aucun process ne tourne pour tirer
+# le tick — il marcherait sur le NAS et serait SILENCIEUSEMENT mort en production, le pire des deux
+# mondes puisque tout test manuel passerait. Arbitrage du 2026-08-12 : déclencheur externe appelant
+# une route protégée par secret partagé.
+#
+# ⚠️ GitHub désactive les workflows `schedule` d'un dépôt public après 60 jours SANS COMMIT. Sur un
+# projet en pause, les rappels cesseraient donc de partir sans un bruit. C'est la contrepartie
+# assumée du choix « gratuit » ; le jour où ça mord, le même appel se déplace sur un cron Cloudflare
+# Worker — la route, elle, ne bouge pas.
+#
+# ⚠️ Les crons GitHub ne sont pas ponctuels : un retard de plusieurs minutes est normal, et une
+# exécution peut être sautée en cas de charge. C'est sans conséquence ici, les échéances des rappels
+# étant dérivées de la donnée et non de l'heure du tick (cf. `ReminderTickService`).
+
+on:
+  schedule:
+    # Toutes les heures. Un rappel se pose à la minute par un humain, mais se traite dans la
+    # journée : viser plus fin ferait tourner 1 440 jobs par jour pour un gain que personne ne voit.
+    - cron: "0 * * * *"
+  # Pour déclencher à la main — c'est aussi ce qui permet de vérifier le secret sans attendre l'heure.
+  workflow_dispatch:
+
+# Un tick à la fois : deux exécutions concurrentes ne corrompraient rien (l'index unique et
+# `pushedAt` rendent le tick idempotent), mais elles se disputeraient la base pour rien.
+concurrency:
+  group: reminder-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    name: Déclenche les rappels dus
+    runs-on: ubuntu-latest
+    steps:
+      # Les deux valeurs sont posées à la main dans l'interface GitHub (variable de dépôt + secret).
+      # Sans elles, on échoue ICI avec un message qui dit quoi faire, plutôt que sur un 401 opaque.
+      - name: Vérifier la configuration
+        run: |
+          if [ -z "${{ vars.DEV_PUBLIC_API_URL }}" ]; then
+            echo "::error::Variable de dépôt DEV_PUBLIC_API_URL vide — le tick n'a aucune API à appeler."
+            exit 1
+          fi
+          if [ -z "${{ secrets.REMINDER_TICK_SECRET }}" ]; then
+            echo "::error::Secret REMINDER_TICK_SECRET absent — la route répondrait 401."
+            exit 1
+          fi
+
+      # `--fail-with-body` : un 4xx/5xx fait échouer l'étape MAIS affiche la réponse. C'est ce qui
+      # rend le mode de panne bruyant — un job rouge, avec le corps de l'erreur — là où un cron
+      # in-process se serait tu. Le secret voyage en en-tête et n'apparaît dans aucun log.
+      - name: POST /internal/reminders/tick
+        env:
+          API_URL: ${{ vars.DEV_PUBLIC_API_URL }}
+          TICK_SECRET: ${{ secrets.REMINDER_TICK_SECRET }}
+        run: |
+          curl --silent --show-error --fail-with-body \
+               --max-time 60 \
+               -X POST "${API_URL%/}/internal/reminders/tick" \
+               -H "x-cimavia-tick-secret: ${TICK_SECRET}" \
+               -w '\n'

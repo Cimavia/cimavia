@@ -8,7 +8,7 @@
  *     t(`reminder.toast.${reminder.status}`)
  *
  * Renommer `reminder.toast.DONE`, ou ajouter une valeur à `ReminderStatus` sans clé correspondante :
- * typecheck vert, tests verts, lint vert — et l'UI affiche `reminder.toast.SNOOZED` en clair, en
+ * typecheck vert, tests verts, lint vert — et l'UI affiche `reminder.toast.ARCHIVED` en clair, en
  * production. Ce script est le seul filet sous cette famille de bugs.
  *
  * CE QU'IL VÉRIFIE
@@ -104,7 +104,7 @@ const PREFIX_NAME = /[Pp]refix$/;
  *     toast.onSuccess(`reminder.toast.${reminder.status}`)
  *
  * Sans elles, ce script ne vérifiait que l'existence du NŒUD parent — et laissait donc passer
- * exactement le bug qu'il existe pour attraper : renommer `reminder.toast.DONE` en `SNOOZED` garde
+ * exactement le bug qu'il existe pour attraper : renommer `reminder.toast.DONE` en `ARCHIVED` garde
  * un nœud à quatre enfants, et rien ne bronchait.
  *
  * Chaque terme est soit un enum (`export const X = {…} as const`, résolu par le registre), soit une

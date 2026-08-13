@@ -749,6 +749,15 @@ enum ReminderEntityType {
   INVOICE
 }
 
+// Pourquoi un rappel a été généré AUTOMATIQUEMENT (#47) ; NULL = saisi par le coach.
+// On persiste le MOTIF, jamais son libellé : une note écrite par l'API serait un texte rendu puis
+// stocké, ce que le modèle de notification interdit (#48). Le rendu se fait côté client, via
+// REMINDER_REASON_KEY (@cmv/shared) — même dispositif que NOTIFICATION_LABEL_KEY.
+enum ReminderReason {
+  PLAN_ENDING
+  INVOICE_OVERDUE
+}
+
 model Reminder {
   id         String             @id @default(cuid())
   coachId    String
@@ -762,11 +771,21 @@ model Reminder {
   // INSTANT, pas une date civile comme Plan.startDate ou Invoice.dueDate : un rappel se déclenche à
   // une heure, et s'affiche dans le fuseau de son lecteur (formatIsoDateTime, jamais formatIsoDate).
   dueAt      DateTime
-  // Le contenu ENTIER du rappel, et le libellé de sa ligne. Obligatoire, et c'est du texte du COACH
-  // (comme Plan.title) — pas un libellé système : le stocker ne contredit pas la règle « le libellé
-  // d'une notification n'est jamais stocké ». Corollaire pour #47 : un rappel auto-généré ne devra
-  // pas fabriquer de note, mais porter un `reason` rendu côté client.
-  note       String
+  // Le contenu du rappel quand c'est le COACH qui l'écrit (comme Plan.title) — pas un libellé
+  // système : le stocker ne contredit pas la règle « le libellé d'une notification n'est jamais
+  // stocké ». NULL sur un rappel auto-généré (#47), qui porte un `reason` à la place : une note
+  // fabriquée par l'API serait précisément le libellé figé en français qu'on s'interdit.
+  note       String?
+  // NULL = rappel saisi à la main. Les deux champs ne s'excluent pas : le coach peut ajouter sa
+  // note à un rappel généré (#105) et se l'approprier — la note l'emporte alors à l'affichage
+  // (`reminderLabel`, @cmv/shared).
+  reason     ReminderReason?
+  // Quand le push « ce rappel est dû » a été émis (#47, dette R-1). NULL = jamais poussé.
+  // Ce n'est PAS une notification persistée — l'entrée du centre reste calculée à la lecture, et
+  // `REMINDER_DUE` reste absent de NotificationType côté Prisma. C'est un marqueur de LIVRAISON,
+  // même famille que readAt : il rend le tick idempotent (deux passages rapprochés ne poussent pas
+  // deux fois, un tick manqué rattrape au suivant).
+  pushedAt   DateTime?
   status     ReminderStatus     @default(PENDING)
   // « Vu dans le centre de notifications » (#51) — DISTINCT du statut : jeter un œil à un rappel dû
   // ne le traite pas. Sans ce champ, le badge d'un rappel dû ne se viderait jamais et le compteur
@@ -776,9 +795,22 @@ model Reminder {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
+  // Idempotence de la GÉNÉRATION (#47) : un seul rappel automatique par (coach, cible, motif).
+  // Sans elle, chaque tick recréerait le même rappel — toutes les cinq minutes.
+  //
+  // Les rappels MANUELS échappent à la contrainte sans qu'on ait à l'écrire : PostgreSQL considère
+  // deux NULL comme distincts dans un index unique, et `reason` y est NULL. Le coach peut donc
+  // poser autant de rappels qu'il veut sur le même cycle.
+  //
+  // Conséquence assumée : un rappel généré puis TRAITÉ n'est jamais régénéré, même si la condition
+  // persiste (facture toujours impayée le mois suivant). C'est voulu — le coach a tranché, on ne le
+  // relance pas.
+  @@unique([coachId, entityType, entityId, reason])
   @@index([coachId, status, dueAt]) // liste « mes rappels » + sélection des rappels dus
   @@index([coachId, status, readAt]) // compteur de rappels dus non lus (badge)
   // Purge des rappels d'une cible supprimée : le service filtre par (entityType, entityId).
   @@index([entityType, entityId])
+  // Sélection des rappels à POUSSER : dus, non encore poussés (#47).
+  @@index([status, dueAt, pushedAt])
   @@map("reminder")
 }

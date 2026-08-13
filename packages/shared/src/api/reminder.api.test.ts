@@ -72,6 +72,34 @@ describe("createReminderApi", () => {
 
     expect(calls[0]?.body).toEqual({ status: "PENDING" });
   });
+
+  /**
+   * Le report vise la RESSOURCE (`/reminders/:id`), là où le statut a sa sous-route
+   * (`/reminders/:id/status`). Ce test existe pour figer cette frontière : c'est exactement le genre
+   * de chemin qu'on « simplifie » un jour en fondant les deux, ce qui obligerait un simple report à
+   * transmettre un statut qu'il ne change pas.
+   */
+  it("repousse un rappel par PATCH sur la ressource, pas sur sa route de statut", async () => {
+    const { api, calls } = spyClient();
+    await createReminderApi(api).update("rmd_1", { dueAt: "2026-09-01T07:00:00.000Z" });
+
+    expect(calls).toEqual([
+      {
+        method: "PATCH",
+        path: "/reminders/rmd_1",
+        body: { dueAt: "2026-09-01T07:00:00.000Z" },
+      },
+    ]);
+  });
+
+  // Le corps est transmis TEL QUEL : l'API distingue « champ absent » (inchangé) de « champ
+  // fourni ». Ajouter ici une note vide ou un `undefined` explicite effacerait cette distinction.
+  it("transmet la note seule sans inventer d'échéance", async () => {
+    const { api, calls } = spyClient();
+    await createReminderApi(api).update("rmd_1", { note: "Relancer plutôt en septembre" });
+
+    expect(calls[0]?.body).toEqual({ note: "Relancer plutôt en septembre" });
+  });
 });
 
 describe("reminderKeys", () => {

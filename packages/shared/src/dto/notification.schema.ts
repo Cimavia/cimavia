@@ -89,6 +89,20 @@ export const notificationDtoSchema = z.object({
   // nommer. Ce sont des INSTANTANÉS : renommer un cycle ne réécrit pas l'historique.
   actorName: z.string().nullable(),
   subjectLabel: z.string().nullable(),
+  /**
+   * Le sujet exprimé comme **clé i18n** plutôt que comme valeur — pour les entrées dont le sujet
+   * n'est pas du texte d'utilisateur mais un intitulé système (#47).
+   *
+   * Né du rappel AUTO-GÉNÉRÉ : il n'a pas de `note` (l'API n'en fabrique pas, cf. #48), seulement
+   * un `reason`. Y mettre le libellé rendu aurait figé « la planification se termine » en français
+   * dans une charge utile d'API — précisément la faute que `NOTIFICATION_LABEL_KEY` existe pour
+   * empêcher. Une clé, elle, reste un PARAMÈTRE : le rendu se fait toujours côté client.
+   *
+   * `subjectLabel` reste la valeur à interpoler telle quelle (nom d'athlète, titre de cycle, note
+   * du coach). Les deux ne coexistent pas sur une même entrée ; quand `subjectKey` est renseignée,
+   * c'est elle qu'on traduit pour obtenir le sujet.
+   */
+  subjectKey: z.string().nullable(),
   // `null` = non lue. C'est ce qui alimente le badge.
   readAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),

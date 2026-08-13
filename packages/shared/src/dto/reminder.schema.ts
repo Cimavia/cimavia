@@ -52,6 +52,27 @@ export const ReminderEntityType = {
 export type ReminderEntityType = TypesValuesOf<typeof ReminderEntityType>;
 export const reminderEntityTypeSchema = z.enum(ReminderEntityType);
 
+/**
+ * Pourquoi un rappel a été généré AUTOMATIQUEMENT (#47). `null` = rappel saisi par le coach.
+ *
+ * C'est la réponse à la contrainte relevée en construisant #44 : un rappel auto-généré ne doit pas
+ * **fabriquer sa `note`**. La note est du texte du COACH (comme `Plan.title`) ; une note écrite par
+ * l'API serait un **libellé rendu puis persisté**, exactement ce que le modèle de notification
+ * interdit (#48 : on persiste le type et les paramètres, le rendu se fait côté client).
+ *
+ * On persiste donc le MOTIF, et le libellé se rend à l'affichage via `REMINDER_REASON_KEY` — même
+ * dispositif que `NOTIFICATION_LABEL_KEY`. Conséquence voulue : un rappel généré aujourd'hui
+ * s'affichera en anglais le jour où `en.json` arrive.
+ */
+export const ReminderReason = {
+  /** La dernière semaine du cycle approche — proposer le renouvellement avant qu'il ne s'arrête. */
+  PLAN_ENDING: "PLAN_ENDING",
+  /** Facture émise dont l'échéance est dépassée — relancer. */
+  INVOICE_OVERDUE: "INVOICE_OVERDUE",
+} as const;
+export type ReminderReason = TypesValuesOf<typeof ReminderReason>;
+export const reminderReasonSchema = z.enum(ReminderReason);
+
 // ── Entrée coach ─────────────────────────────────────────────────────────────
 
 /**
@@ -83,6 +104,37 @@ export type CreateReminderInput = z.infer<typeof createReminderSchema>;
 export const updateReminderStatusSchema = z.object({ status: reminderStatusSchema }).strict();
 export type UpdateReminderStatusInput = z.infer<typeof updateReminderStatusSchema>;
 
+/**
+ * Édition d'un rappel (#105) — l'échéance, la note, ou les deux. C'est la dette **R-3** : sans
+ * elle, reprogrammer un rappel demandait de le marquer traité puis d'en créer un autre, et
+ * l'historique se remplissait de doublons. Or « repousser » est le geste naturel quand un rappel
+ * tombe et qu'on n'est pas prêt.
+ *
+ * **PARTIEL, les deux champs sont optionnels** : « repousser » ne touche que `dueAt`, corriger un
+ * libellé que `note`. Un corps VIDE est refusé — il ne demande rien, et l'accepter ferait une
+ * écriture (donc un `updatedAt` redaté, donc un rappel qui remonte en tête de l'historique) pour
+ * une requête sans intention.
+ *
+ * `dueAt` garde exactement les règles de la création : un INSTANT, sans contrainte de futur —
+ * repousser à hier est licite, le rappel est simplement dû tout de suite. Les raccourcis
+ * (« demain », « dans une semaine ») sont calculés **côté client** et envoyés en absolu : l'API ne
+ * possède aucun fuseau, et c'est ce qui lui évite d'avoir à en deviner un.
+ *
+ * `note` reste NON VIDE quand elle est fournie : la vider reviendrait à effacer le contenu du
+ * rappel. Elle deviendra nullable en #47, pour les rappels auto-générés qui porteront un `reason`
+ * à la place — jamais une note fabriquée par l'API.
+ */
+export const updateReminderSchema = z
+  .object({
+    dueAt: z.iso.datetime().optional(),
+    note: z.string().min(1).max(REMINDER_NOTE_MAX_LENGTH).optional(),
+  })
+  .strict()
+  .refine((input) => input.dueAt !== undefined || input.note !== undefined, {
+    message: "Renseigner au moins l'échéance ou la note",
+  });
+export type UpdateReminderInput = z.infer<typeof updateReminderSchema>;
+
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 
 export const reminderDtoSchema = z.object({
@@ -102,7 +154,22 @@ export const reminderDtoSchema = z.object({
    */
   targetLabel: z.string().nullable(),
   dueAt: z.iso.datetime(),
-  note: z.string(),
+  /**
+   * Le texte du coach — `null` sur un rappel **auto-généré**, qui porte un `reason` à la place
+   * (#47). Nullable depuis, et seulement depuis, l'arrivée de la génération : c'est ce qui évite à
+   * l'API d'écrire un libellé français en base.
+   */
+  note: z.string().nullable(),
+  /**
+   * Le motif d'une génération automatique, `null` sur un rappel saisi à la main.
+   *
+   * **Les deux champs ne s'excluent pas** : le coach peut ajouter une note à un rappel généré
+   * (`PATCH /reminders/:id`, #105), et c'est utile — il se l'approprie. La règle d'affichage est
+   * donc une PRÉCÉDENCE, pas une alternative : la note l'emporte quand elle existe, le motif sert
+   * de libellé sinon (`reminderLabel`). Ce qui est garanti, c'est qu'au moins l'un des deux est
+   * renseigné.
+   */
+  reason: reminderReasonSchema.nullable(),
   status: reminderStatusSchema,
   // null = pas encore vu dans le centre de notifications (#51). Distinct du statut : jeter un œil
   // à un rappel dû ne le traite pas.
@@ -127,6 +194,24 @@ export type ReminderDto = z.infer<typeof reminderDtoSchema>;
  * côte présenterait deux fois les mêmes rappels — c'est pourquoi le dashboard n'expose que
  * `dueCount`.
  */
+/**
+ * Ce que rend un tick du déclencheur (#47). Aucun client ne le lit : il est là pour que le cron
+ * externe et les logs disent quelque chose de vérifiable — un job qui répond 200 sans rien annoncer
+ * ne distingue pas « rien à faire » de « n'a rien fait ».
+ *
+ * Vit dans `@cmv/shared` comme tout ce qui transite par l'API HTTP (règle dure n°2), même sans
+ * consommateur d'app : c'est aussi ce qui donne un type à l'e2e qui l'exerce.
+ */
+export const reminderTickResultDtoSchema = z.object({
+  /** Coachs balayés — un contexte tenant a été ouvert pour chacun. */
+  scannedCoaches: z.number().int().min(0),
+  /** Rappels automatiques créés. Les doublons sont ignorés par l'index unique, pas comptés ici. */
+  createdReminders: z.number().int().min(0),
+  /** Rappels devenus dus dont le push est parti. */
+  pushedReminders: z.number().int().min(0),
+});
+export type ReminderTickResultDto = z.infer<typeof reminderTickResultDtoSchema>;
+
 export const reminderSummaryDtoSchema = z.object({
   dueCount: z.number().int().min(0),
   pendingCount: z.number().int().min(0),

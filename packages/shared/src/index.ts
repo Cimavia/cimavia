@@ -260,8 +260,11 @@ export type {
   CreateReminderInput,
   ReminderDto,
   ReminderEntityType as ReminderEntityTypeType,
+  ReminderReason as ReminderReasonType,
   ReminderStatus as ReminderStatusType,
   ReminderSummaryDto,
+  ReminderTickResultDto,
+  UpdateReminderInput,
   UpdateReminderStatusInput,
 } from "./dto/reminder.schema";
 export {
@@ -269,11 +272,15 @@ export {
   REMINDER_NOTE_MAX_LENGTH,
   REMINDER_PAGE_SIZE,
   ReminderEntityType,
+  ReminderReason,
   ReminderStatus,
   reminderDtoSchema,
   reminderEntityTypeSchema,
+  reminderReasonSchema,
   reminderStatusSchema,
   reminderSummaryDtoSchema,
+  reminderTickResultDtoSchema,
+  updateReminderSchema,
   updateReminderStatusSchema,
 } from "./dto/reminder.schema";
 export type {
@@ -348,6 +355,7 @@ export {
 export { megabytesOf, minutesOf } from "./util/media-format.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
+export { notificationSubject } from "./util/notification.util";
 export type {
   PlanPeriod,
   PlanWeekRange,
@@ -365,12 +373,25 @@ export {
   selectCurrentPlan,
   weekSessionProgress,
 } from "./util/plan.util";
-export type { ReminderFeedSource, ReminderTiming } from "./util/reminder.util";
+export type {
+  ReminderFeedSource,
+  ReminderLabel,
+  ReminderSnoozeOption,
+  ReminderStateBadge,
+  ReminderTiming,
+} from "./util/reminder.util";
 export {
   isReminderDue,
   parseReminderFeedId,
+  REMINDER_BADGE,
   REMINDER_FEED_ID_PREFIX,
+  REMINDER_REASON_KEY,
+  REMINDER_SNOOZE_OPTIONS,
   REMINDER_TARGET_ENTITY_TYPE,
+  REMINDER_TARGET_LABEL_KEY,
+  reminderBadgeState,
+  reminderLabel,
   reminderToNotificationDto,
+  snoozedDueAt,
   toReminderFeedId,
 } from "./util/reminder.util";

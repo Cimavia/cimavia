@@ -3,6 +3,7 @@ import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Roles } from "@thallesp/nestjs-better-auth";
 import { CreateReminderDto } from "../dto/create-reminder.dto";
+import { UpdateReminderDto } from "../dto/update-reminder.dto";
 import { UpdateReminderStatusDto } from "../dto/update-reminder-status.dto";
 import { ReminderService } from "../service/reminder.service";
 
@@ -12,8 +13,9 @@ import { ReminderService } from "../service/reminder.service";
  * Sans cette garde, une requête d'athlète atteindrait l'extension Prisma, qui refuse par une
  * ERREUR — un 500 là où le client attend un 403.
  *
- * Pas de `DELETE` : `DISMISSED` est la suppression douce (cf. `ReminderStatus`). Pas de route
- * d'édition non plus en première passe — reporter une échéance passe par un nouveau rappel.
+ * Pas de `DELETE` : `DISMISSED` est la suppression douce (cf. `ReminderStatus`). L'édition, elle,
+ * est arrivée en #105 — l'absence de report d'échéance (dette R-3) obligeait à traiter un rappel
+ * puis à en créer un autre.
  */
 @ApiTags("reminders")
 @Controller("reminders")
@@ -53,5 +55,19 @@ export class ReminderController {
   @Patch(":id/status")
   updateStatus(@Param("id") id: string, @Body() dto: UpdateReminderStatusDto) {
     return this.reminders.updateStatus(id, dto);
+  }
+
+  /**
+   * Report d'échéance et correction de note (#105). Déclarée APRÈS `@Patch(":id/status")` : les
+   * deux chemins n'ont pas le même nombre de segments, donc ne se disputent rien aujourd'hui — mais
+   * l'ordre de déclaration reste la seule chose qui départage deux routes chez Nest, et l'inverser
+   * un jour ferait avaler `/status` par le paramètre.
+   *
+   * Le statut n'est pas modifiable ici : le schéma le refuse (`.strict()`), pour qu'il n'existe
+   * qu'un seul chemin vers une transition.
+   */
+  @Patch(":id")
+  update(@Param("id") id: string, @Body() dto: UpdateReminderDto) {
+    return this.reminders.update(id, dto);
   }
 }

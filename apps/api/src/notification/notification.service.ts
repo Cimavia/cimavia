@@ -43,6 +43,18 @@ export type InvoiceIssuedEvent = {
   invoiceId: string;
 };
 
+export type ReminderDueEvent = {
+  // Le coach qui s'est écrit ce rappel — un rappel n'a pas d'autre destinataire.
+  coachId: string;
+  reminderId: string;
+  /**
+   * Le texte du push, DÉJÀ composé par l'appelant : sa note, ou le libellé français de son motif.
+   * Rendu côté serveur, contrairement à tout le reste du centre — c'est l'exception assumée du
+   * push, qui n'a pas de client pour traduire au moment de la livraison (cf. #63).
+   */
+  label: string;
+};
+
 /**
  * Ce que le client reçoit dans les données de la notification : de quoi router vers le bon écran à
  * l'ouverture. Le `type` est typé depuis `NotificationType` pour que le push et la ligne persistée
@@ -56,7 +68,10 @@ type PushPayload =
   | { type: typeof NotificationType.PLAN_SESSION_REMOVED; planId: string }
   | { type: typeof NotificationType.FEEDBACK_RECEIVED; scheduledSessionId: string }
   | { type: typeof NotificationType.MESSAGE_RECEIVED; conversationId: string }
-  | { type: typeof NotificationType.INVOICE_ISSUED; invoiceId: string };
+  | { type: typeof NotificationType.INVOICE_ISSUED; invoiceId: string }
+  // Le seul type poussé SANS ligne en base (#47) : l'entrée du centre reste calculée à la lecture.
+  // Sa clé d'id est `reminderId`, comme les autres sont `planId` ou `invoiceId`.
+  | { type: typeof NotificationType.REMINDER_DUE; reminderId: string };
 
 type PushContent = { title: string; body: string; data: PushPayload };
 
@@ -270,6 +285,34 @@ export class NotificationService {
         data: { type: NotificationType.INVOICE_ISSUED, invoiceId: event.invoiceId },
       },
     );
+  }
+
+  /**
+   * Rappel arrivé à échéance (#47) — la dette **R-1**. Sans lui, un rappel qui devient dû n'émettait
+   * aucun signal : il n'apparaissait qu'au prochain chargement du centre.
+   *
+   * **La seule émission qui ne passe PAS par `emit`, et c'est le cœur de la décision.** Écrire une
+   * ligne `notification` ici ferait apparaître le rappel DEUX FOIS dans le centre — une fois
+   * persistée, une fois calculée depuis la table `reminder` (#51). Le choix « calculer plutôt que
+   * persister » reste donc entier ; ce push n'en est qu'un canal de plus, et le typecheck
+   * l'interdirait de toute façon (`REMINDER_DUE` est exclu de `PersistedNotificationType`).
+   *
+   * Conséquence assumée : un rappel dû n'a pas de trace « livrée » côté notifications, seulement le
+   * `pushedAt` du rappel lui-même. C'est suffisant — l'entrée du centre, elle, ne dépend d'aucun
+   * envoi.
+   */
+  async notifyReminderDue(event: ReminderDueEvent): Promise<void> {
+    this.logger.info(
+      { event: "reminder.due", coachId: event.coachId, reminderId: event.reminderId },
+      "Rappel arrivé à échéance",
+    );
+    await this.push(event.coachId, {
+      // Titre générique, contenu dans le corps : la note du coach EST le rappel, la mettre en titre
+      // la tronquerait sur la plupart des appareils.
+      title: "Rappel",
+      body: event.label,
+      data: { type: NotificationType.REMINDER_DUE, reminderId: event.reminderId },
+    });
   }
 
   /**

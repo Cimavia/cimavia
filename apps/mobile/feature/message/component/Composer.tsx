@@ -66,6 +66,7 @@ export function Composer({
               value={text}
               onChangeText={setText}
               placeholder={t("messages.placeholder")}
+              placeholderTextColor={cmvColors.text.lo}
               multiline
               textAlignVertical="center"
               className="max-h-32 flex-1 rounded-2xl border border-cmv-border bg-cmv-surface px-4 py-2 text-cmv-text-hi"

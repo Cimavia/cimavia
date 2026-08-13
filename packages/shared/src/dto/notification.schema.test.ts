@@ -14,6 +14,7 @@ const NOTIFICATION = {
   entityId: "ss_1",
   actorName: "Léa",
   subjectLabel: "Séance du mardi",
+  subjectKey: null,
   readAt: null,
   createdAt: "2026-08-05T09:00:00.000Z",
 };
@@ -65,6 +66,32 @@ describe("notificationDtoSchema", () => {
       subjectLabel: "Relancer le renouvellement",
     });
     expect(result.success).toBe(true);
+  });
+
+  /**
+   * Un rappel AUTO-GÉNÉRÉ (#47) n'a pas de note : son sujet voyage comme **clé i18n**
+   * (`subjectKey`), jamais comme libellé rendu. C'est la même règle que `NOTIFICATION_LABEL_KEY`
+   * appliquée au paramètre plutôt qu'à la phrase — sans quoi « le cycle se termine » partirait figé
+   * en français dans une charge utile d'API.
+   */
+  it("accepte une entrée dont le sujet est une clé et non une valeur", () => {
+    const result = notificationDtoSchema.safeParse({
+      ...NOTIFICATION,
+      id: "reminder:rmd_2",
+      type: NotificationType.REMINDER_DUE,
+      entityType: NotificationEntityType.PLAN,
+      actorName: null,
+      subjectLabel: null,
+      subjectKey: "reminder.reason.planEnding",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // Les deux champs sont requis, même à `null` : un client qui reçoit `undefined` ne saurait pas
+  // distinguer « pas de sujet » d'un champ que l'API a oublié d'envoyer.
+  it("refuse une notification sans subjectKey", () => {
+    const { subjectKey: _omitted, ...withoutKey } = NOTIFICATION;
+    expect(notificationDtoSchema.safeParse(withoutKey).success).toBe(false);
   });
 
   it("refuse un horodatage qui n'est pas une date ISO", () => {

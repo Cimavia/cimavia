@@ -2652,6 +2652,407 @@ describe("Rappels dus dans le centre de notifications (#51)", () => {
 });
 
 /**
+ * Report d'échéance d'un rappel (#105) — dette R-3.
+ *
+ * L'enjeu de ce bloc n'est pas la route, c'est le sort de `readAt`. Un rappel dû, VU dans le centre,
+ * puis repoussé à la semaine prochaine : s'il revient « déjà lu », son badge ne s'allume jamais le
+ * jour où il compte. `readAt` dit « vu à CETTE échéance-là » — il est donc remis à `null` dès que
+ * l'échéance bouge, et seulement alors.
+ *
+ * C'est la même règle que celle appliquée par l'autre bout dans « tout marquer comme lu », qui
+ * épargne les rappels encore à venir pour ne pas éteindre leur badge par avance.
+ */
+describe("Report d'échéance d'un rappel (#105)", () => {
+  let coachE: Agent;
+  let coachF: Agent;
+  let athleteE1: Agent;
+  let planId: string;
+  let reminderId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const inPast = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+  const inFuture = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+
+  type Rmd = {
+    id: string;
+    dueAt: string;
+    note: string;
+    status: string;
+    readAt: string | null;
+    updatedAt: string;
+  };
+
+  const reminderOf = async (agent: Agent, id: string): Promise<Rmd | undefined> =>
+    ((await agent.get("/reminders")).body as Rmd[]).find((r) => r.id === id);
+  const inboxIds = async (agent: Agent): Promise<string[]> =>
+    ((await agent.get("/me/notifications")).body as { id: string }[]).map((e) => e.id);
+  const unread = async (agent: Agent): Promise<number> =>
+    (await agent.get("/me/notifications/unread-count")).body.count;
+
+  beforeAll(async () => {
+    coachE = await signUp("snz-coach-e@cmv.test", Role.COACH);
+    coachF = await signUp("snz-coach-f@cmv.test", Role.COACH);
+    athleteE1 = await signUp("snz-athlete-e1@cmv.test", Role.ATHLETE);
+
+    const invitation = await coachE.post("/invitations").send({});
+    const accepted = await athleteE1
+      .post("/invitations/accept")
+      .send({ code: invitation.body.code });
+
+    const plan = await coachE.post("/plans").send({
+      athleteId: accepted.body.athleteId,
+      title: "Cycle à repousser",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    planId = plan.body.id;
+
+    // Dû depuis 2 h : il est donc DANS le centre, et non lu.
+    const created = await coachE
+      .post("/reminders")
+      .send({ entityType: "PLAN", entityId: planId, dueAt: inPast(2), note: "Relancer" });
+    reminderId = created.body.id;
+  });
+
+  it("le rappel dû est bien dans le centre, non lu, avant tout report", async () => {
+    expect(await inboxIds(coachE)).toContain(`reminder:${reminderId}`);
+    expect(await reminderOf(coachE, reminderId)).toMatchObject({ readAt: null });
+  });
+
+  /**
+   * LE test de cette issue. Le rappel est d'abord VU dans le centre (`readAt` posé), puis repoussé :
+   * il en sort, et son `readAt` est effacé. Sans cet effacement, il reviendrait la semaine prochaine
+   * marqué comme lu — silencieux le jour même où il devient utile.
+   */
+  it("repousser un rappel VU efface son readAt et le sort du centre", async () => {
+    expect((await coachE.patch(`/me/notifications/reminder:${reminderId}/read`)).status).toBe(200);
+    expect(await reminderOf(coachE, reminderId)).toMatchObject({ readAt: expect.any(String) });
+
+    const res = await coachE.patch(`/reminders/${reminderId}`).send({ dueAt: inFuture(168) });
+    expect(res.status).toBe(200);
+    expect(res.body.readAt).toBeNull();
+    expect(res.body.status).toBe("PENDING"); // repousser ne traite pas
+
+    // Plus dû : il quitte le centre, et cesse d'être compté par le badge.
+    expect(await inboxIds(coachE)).not.toContain(`reminder:${reminderId}`);
+  });
+
+  /**
+   * L'autre moitié de la règle : à sa NOUVELLE échéance, le rappel revient comme une nouveauté. On
+   * simule le passage du temps en le repoussant dans le passé — c'est le même chemin de code, et
+   * c'est aussi ce qui permet d'avancer volontairement un rappel.
+   */
+  it("à sa nouvelle échéance, il revient dans le centre comme NON lu", async () => {
+    const before = await unread(coachE);
+
+    const res = await coachE.patch(`/reminders/${reminderId}`).send({ dueAt: inPast(1) });
+    expect(res.status).toBe(200);
+    expect(res.body.readAt).toBeNull();
+
+    expect(await inboxIds(coachE)).toContain(`reminder:${reminderId}`);
+    expect(await unread(coachE)).toBe(before + 1);
+  });
+
+  /**
+   * L'entrée du centre est datée de l'ÉCHÉANCE (#51) : reporter un rappel le déplace donc dans le
+   * tri du centre. C'est voulu — un rappel se range au moment où il commence à compter — et ce test
+   * fige le fait que le report ne casse pas cet invariant.
+   */
+  it("l'entrée du centre suit la nouvelle échéance", async () => {
+    const reminder = required(await reminderOf(coachE, reminderId), "rappel reporté");
+    const entry = (
+      (await coachE.get("/me/notifications")).body as { id: string; createdAt: string }[]
+    ).find((e) => e.id === `reminder:${reminderId}`);
+    expect(required(entry, "entrée du rappel reporté").createdAt).toBe(reminder.dueAt);
+  });
+
+  // Corriger la note n'est pas une nouvelle occurrence : le rappel a déjà été vu à cette échéance,
+  // le rallumer dans le badge parce qu'on a rectifié une faute de frappe serait du bruit.
+  it("corriger la note seule ne touche pas readAt", async () => {
+    expect((await coachE.patch(`/me/notifications/reminder:${reminderId}/read`)).status).toBe(200);
+
+    const res = await coachE.patch(`/reminders/${reminderId}`).send({ note: "Relancer lundi" });
+    expect(res.status).toBe(200);
+    expect(res.body.note).toBe("Relancer lundi");
+    expect(res.body.readAt).not.toBeNull();
+  });
+
+  /**
+   * Idempotence, même raison que pour `updateStatus` : l'historique est trié par `updatedAt`
+   * décroissant. Sans ce court-circuit, réenregistrer un formulaire sans rien changer ferait
+   * remonter le rappel en tête — et, pire, rallumerait son badge en effaçant `readAt`.
+   */
+  it("renvoyer les mêmes valeurs ne redate rien et ne rallume pas le badge", async () => {
+    const before = required(await reminderOf(coachE, reminderId), "rappel avant no-op");
+    const res = await coachE
+      .patch(`/reminders/${reminderId}`)
+      .send({ dueAt: before.dueAt, note: before.note });
+
+    expect(res.status).toBe(200);
+    expect(res.body.updatedAt).toBe(before.updatedAt);
+    expect(res.body.readAt).not.toBeNull();
+  });
+
+  it("le schéma partagé refuse un corps vide, une échéance sans heure, un statut, un tenant", async () => {
+    const patch = (body: object) => coachE.patch(`/reminders/${reminderId}`).send(body);
+
+    // Un corps vide ne demande rien : l'accepter écrirait pour une requête sans intention.
+    expect((await patch({})).status).toBe(400);
+    expect((await patch({ dueAt: monday })).status).toBe(400);
+    expect((await patch({ note: "" })).status).toBe(400);
+    // `.strict()` — le statut a SA route, et le tenant est injecté, jamais transmis.
+    expect((await patch({ status: "DONE" })).status).toBe(400);
+    expect((await patch({ note: "x", coachId: "usr_1" })).status).toBe(400);
+    // `readAt` est décidé par l'API : le piloter permettrait d'éteindre son propre badge.
+    expect((await patch({ dueAt: inFuture(1), readAt: null })).status).toBe(400);
+  });
+
+  /**
+   * L'isolation, dans ses deux formes. Un autre coach ne VOIT pas le rappel — le scope ne le lui
+   * montre pas, c'est donc un 404 et non un 403 : lui répondre « interdit » confirmerait que cet id
+   * existe. Un athlète, lui, prend un 403 du `@Roles` de classe, et surtout PAS le 500 que
+   * produirait l'extension Prisma sur un modèle sans scope athlète.
+   */
+  it("isolation : un autre coach ne peut pas repousser le rappel (404)", async () => {
+    const res = await coachF.patch(`/reminders/${reminderId}`).send({ dueAt: inFuture(24) });
+    expect(res.status).toBe(404);
+
+    // Et le rappel n'a pas bougé.
+    expect(await reminderOf(coachE, reminderId)).toMatchObject({ note: "Relancer lundi" });
+  });
+
+  it("l'athlète n'atteint pas la route d'édition (403, jamais 500)", async () => {
+    const res = await athleteE1.patch(`/reminders/${reminderId}`).send({ dueAt: inFuture(24) });
+    expect(res.status).toBe(403);
+  });
+
+  // La route paramétrée ne doit pas avoir avalé `summary`, déclaré au-dessus : c'est la contrainte
+  // d'ordre inscrite dans le contrôleur, et elle ne casse que si on réordonne les décorateurs.
+  it("l'ajout d'une route paramétrée n'a pas avalé /reminders/summary", async () => {
+    const res = await coachE.get("/reminders/summary");
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      dueCount: expect.any(Number),
+      pendingCount: expect.any(Number),
+    });
+  });
+});
+
+/**
+ * Génération automatique des rappels et push à l'échéance (#47) — dette R-1.
+ *
+ * Le tick est appelé **sans session** : c'est un cron externe, pas un utilisateur. Il n'a donc ni
+ * acteur courant ni scope tenant — et l'extension Prisma refuse (fail closed) tout modèle sans
+ * scope. Ce bloc vérifie que le service ne la contourne pas mais lui **donne un acteur**, coach par
+ * coach : ce que génère le tick pour l'un ne doit jamais atterrir chez l'autre.
+ *
+ * ⚠️ Le tick balaie TOUS les coachs de la base, y compris ceux des blocs précédents. Les assertions
+ * portent donc sur ce que voit un coach donné, et sur des DELTAS entre deux ticks — jamais sur un
+ * compteur global, qui dépendrait de l'ordre des blocs.
+ */
+describe("Génération automatique des rappels (#47)", () => {
+  // Le secret fixé par `vitest.config.e2e.ts` — une valeur de fixture, pas un environnement.
+  const SECRET = "e2e-tick-secret-not-for-production";
+  const HEADER = "x-cimavia-tick-secret";
+
+  let coachG: Agent;
+  let coachH: Agent;
+  let athleteG1: Agent;
+  let planId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  type Rmd = {
+    id: string;
+    entityType: string;
+    entityId: string;
+    note: string | null;
+    reason: string | null;
+    status: string;
+    dueAt: string;
+  };
+
+  // Le tick n'est PAS authentifié : pas d'agent, une requête nue avec l'en-tête.
+  const tick = (secret?: string) => {
+    const req = request(baseURL).post("/internal/reminders/tick");
+    return secret == null ? req : req.set(HEADER, secret);
+  };
+
+  const reminders = async (agent: Agent): Promise<Rmd[]> => (await agent.get("/reminders")).body;
+  const reasonsOf = async (agent: Agent): Promise<string[]> =>
+    (await reminders(agent))
+      .map((r) => r.reason)
+      .filter((reason): reason is string => reason != null)
+      .sort();
+
+  beforeAll(async () => {
+    coachG = await signUp("tick-coach-g@cmv.test", Role.COACH);
+    coachH = await signUp("tick-coach-h@cmv.test", Role.COACH);
+    athleteG1 = await signUp("tick-athlete-g1@cmv.test", Role.ATHLETE);
+
+    const invitation = await coachG.post("/invitations").send({});
+    const accepted = await athleteG1
+      .post("/invitations/accept")
+      .send({ code: invitation.body.code });
+
+    /**
+     * Un cycle d'UNE semaine démarrant ce lundi : sa fin tombe dimanche, donc l'échéance du rappel
+     * (fin moins sept jours) est déjà passée. `billAndPublish` l'assortit d'une facture à échéance
+     * 2026-01-05, largement dépassée — les deux motifs sont donc exerçables d'un seul cycle.
+     */
+    const plan = await coachG.post("/plans").send({
+      athleteId: accepted.body.athleteId,
+      title: "Cycle qui se termine",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    planId = plan.body.id;
+    expect((await billAndPublish(coachG, planId)).status).toBe(200);
+  });
+
+  /**
+   * La garde, montrée EN ÉCHEC avant tout le reste. Aucune distinction entre « en-tête absent » et
+   * « en-tête faux » : dire « il manque un en-tête » à qui n'a pas le secret lui apprendrait le nom
+   * du champ à forger.
+   *
+   * Le fail-closed « secret non configuré → 503 » ne peut pas se jouer ici — l'app e2e est montée
+   * une seule fois pour toute la suite — il est couvert par `reminder-tick.guard.test.ts`.
+   */
+  it("refuse un tick sans secret, avec un mauvais secret, ou via Authorization (401)", async () => {
+    expect((await tick()).status).toBe(401);
+    expect((await tick("")).status).toBe(401);
+    expect((await tick("mauvais-secret")).status).toBe(401);
+    expect(
+      (
+        await request(baseURL)
+          .post("/internal/reminders/tick")
+          .set("authorization", `Bearer ${SECRET}`)
+      ).status,
+    ).toBe(401);
+
+    // Et surtout : rien n'a été généré au passage.
+    expect(await reminders(coachG)).toHaveLength(0);
+  });
+
+  /**
+   * La génération des deux cas d'exemple. Le rappel auto-généré n'a **pas de note** : c'est toute la
+   * contrainte relevée en construisant #44 — une note écrite par l'API serait un libellé rendu puis
+   * persisté, ce que le modèle de notification interdit (#48). Il porte un `reason` à la place.
+   */
+  it("génère un rappel de fin de cycle et un rappel de facture en retard", async () => {
+    const res = await tick(SECRET);
+    expect(res.status).toBe(200);
+    expect(res.body.scannedCoaches).toBeGreaterThan(0);
+
+    expect(await reasonsOf(coachG)).toEqual(["INVOICE_OVERDUE", "PLAN_ENDING"]);
+
+    const planReminder = required(
+      (await reminders(coachG)).find((r) => r.reason === "PLAN_ENDING"),
+      "rappel de fin de cycle",
+    );
+    expect(planReminder).toMatchObject({
+      entityType: "PLAN",
+      entityId: planId,
+      note: null, // l'API ne fabrique JAMAIS de note
+      status: "PENDING",
+    });
+  });
+
+  /**
+   * L'échéance est dérivée de la DONNÉE, pas de l'heure du tick : la fin du cycle moins sept jours.
+   * C'est ce qui rend la granularité du cron externe sans conséquence — un tick en retard d'une
+   * heure produit exactement le même rappel.
+   */
+  it("date le rappel de fin de cycle une semaine avant la fin, pas à l'heure du tick", async () => {
+    const planReminder = required(
+      (await reminders(coachG)).find((r) => r.reason === "PLAN_ENDING"),
+      "rappel de fin de cycle",
+    );
+    // Cycle d'une semaine depuis lundi → fin le dimanche (lundi + 6), échéance sept jours avant.
+    const expected = new Date(`${monday}T00:00:00.000Z`);
+    expected.setUTCDate(expected.getUTCDate() + 6 - 7);
+    expect(planReminder.dueAt).toBe(expected.toISOString());
+  });
+
+  /**
+   * L'idempotence n'est pas dans le code mais dans l'index unique + `skipDuplicates`. Sans elle, un
+   * tick toutes les cinq minutes recréerait les mêmes rappels indéfiniment — c'est LE mode de panne
+   * d'un scheduler, et il ne se voit qu'au second passage.
+   */
+  it("un second tick ne recrée rien et ne repousse rien", async () => {
+    const before = await reminders(coachG);
+    const res = await tick(SECRET);
+
+    expect(res.body.createdReminders).toBe(0);
+    // `pushedAt` est posé au premier tick : la sélection ne voit plus ces rappels.
+    expect(res.body.pushedReminders).toBe(0);
+    expect(await reminders(coachG)).toHaveLength(before.length);
+  });
+
+  /**
+   * L'isolation, sur le chemin qui n'a AUCUN acteur courant. `coachH` n'a ni cycle ni facture : il
+   * ne doit rien voir. Si le balayage écrivait hors du contexte CLS de chaque coach, ses rappels
+   * atterriraient ici ou nulle part — les deux se verraient.
+   */
+  it("isolation : les rappels générés n'atterrissent que chez leur coach", async () => {
+    expect(await reminders(coachH)).toHaveLength(0);
+    expect(await coachH.get("/reminders/summary").then((r) => r.body)).toEqual({
+      dueCount: 0,
+      pendingCount: 0,
+    });
+  });
+
+  // Le tick reste une route d'API : un athlète ne doit pas plus la déclencher qu'un visiteur. Il n'a
+  // pas le secret, donc 401 — et surtout pas un 500 de l'extension Prisma.
+  it("l'athlète ne déclenche pas le tick, même connecté (401)", async () => {
+    expect((await athleteG1.post("/internal/reminders/tick")).status).toBe(401);
+  });
+
+  /**
+   * Le rappel généré remonte dans le centre AVEC un sujet transporté comme CLÉ, pas comme libellé
+   * rendu. C'est ce qui empêche « le cycle se termine » de partir figé en français dans une charge
+   * utile d'API — la faute que `NOTIFICATION_LABEL_KEY` existe pour interdire.
+   */
+  it("le rappel généré entre dans le centre avec une clé de sujet, pas un libellé", async () => {
+    const entries = (await coachG.get("/me/notifications")).body as {
+      type: string;
+      subjectLabel: string | null;
+      subjectKey: string | null;
+    }[];
+
+    const entry = required(
+      entries.find((e) => e.subjectKey === "reminder.reason.planEnding"),
+      "entrée du rappel généré",
+    );
+    expect(entry.type).toBe("REMINDER_DUE");
+    expect(entry.subjectLabel).toBeNull();
+  });
+
+  /**
+   * Un rappel généré puis TRAITÉ n'est jamais régénéré, même si la condition persiste — la facture
+   * reste impayée. C'est la conséquence assumée de l'index unique : le coach a tranché, on ne le
+   * relance pas. Sans ce test, quelqu'un « corrigerait » un jour l'index en croyant à un oubli.
+   */
+  it("ne régénère pas un rappel que le coach a traité", async () => {
+    const invoiceReminder = required(
+      (await reminders(coachG)).find((r) => r.reason === "INVOICE_OVERDUE"),
+      "rappel de facture en retard",
+    );
+    expect(
+      (await coachG.patch(`/reminders/${invoiceReminder.id}/status`).send({ status: "DISMISSED" }))
+        .status,
+    ).toBe(200);
+
+    const res = await tick(SECRET);
+    expect(res.body.createdReminders).toBe(0);
+
+    const after = (await reminders(coachG)).filter((r) => r.reason === "INVOICE_OVERDUE");
+    expect(after).toHaveLength(1);
+    expect(required(after[0], "rappel traité").status).toBe("DISMISSED");
+  });
+});
+
+/**
  * Copier/coller une semaine (#4).
  *
  * Ce que la copie emporte est ce que le COACH a composé ; ce qu'elle laisse appartient à l'athlète

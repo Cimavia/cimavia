@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { ReminderController } from "./controller/reminder.controller";
+import { ReminderTickController } from "./controller/reminder-tick.controller";
 import { ReminderService } from "./service/reminder.service";
+import { ReminderTickService } from "./service/reminder-tick.service";
 
 /**
  * Rappels (#44) — outil privé du coach, création manuelle.
@@ -14,8 +16,10 @@ import { ReminderService } from "./service/reminder.service";
  * dépend de celui-ci.
  */
 @Module({
-  controllers: [ReminderController],
-  providers: [ReminderService],
+  // `ReminderTickController` est à part de `ReminderController` : celui-ci porte `@Roles([COACH])`
+  // au niveau classe, le tick n'a aucun acteur (cf. son en-tête).
+  controllers: [ReminderController, ReminderTickController],
+  providers: [ReminderService, ReminderTickService],
   exports: [ReminderService],
 })
 export class ReminderModule {}

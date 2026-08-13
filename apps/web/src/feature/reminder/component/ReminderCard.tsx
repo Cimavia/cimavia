@@ -1,7 +1,15 @@
-import { isReminderDue, type ReminderDto, ReminderEntityType, ReminderStatus } from "@cmv/shared";
+import {
+  REMINDER_BADGE,
+  REMINDER_TARGET_LABEL_KEY,
+  type ReminderDto,
+  ReminderEntityType,
+  ReminderStatus,
+  reminderBadgeState,
+  reminderLabel,
+} from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { REMINDER_BADGE, REMINDER_TARGET_LABEL_KEY } from "@/feature/reminder/constant";
+import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminderButton";
 import { CmvBadge, CmvButton, CmvCard } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
 import { formatPeriod } from "@/shared/util/money.util";
@@ -33,7 +41,9 @@ export function ReminderCard({
       <div className="flex items-start gap-cmv-md">
         <div className="flex flex-1 flex-col gap-cmv-xs">
           <div className="flex items-center gap-cmv-sm">
-            <h3 className="text-cmv-subtitle text-cmv-text-hi">{reminder.note}</h3>
+            <h3 className="text-cmv-subtitle text-cmv-text-hi">
+              <ReminderTitle reminder={reminder} />
+            </h3>
             <ReminderStateBadge reminder={reminder} />
           </div>
 
@@ -52,6 +62,9 @@ export function ReminderCard({
               <CmvButton variant="secondary" onClick={onMarkDone} disabled={busy}>
                 {t("reminder.markDone")}
               </CmvButton>
+              {/* Réservé aux rappels À TRAITER : repousser un rappel déjà traité n'a pas de sens,
+                  et l'API l'accepterait pourtant (c'est une édition, pas une transition). */}
+              <SnoozeReminderButton reminderId={reminder.id} />
               <CmvButton variant="ghost" onClick={onDismiss} disabled={busy}>
                 {t("reminder.dismiss")}
               </CmvButton>
@@ -68,12 +81,27 @@ export function ReminderCard({
   );
 }
 
+/**
+ * Le titre d'un rappel : la note du coach, ou le libellé de son MOTIF s'il a été auto-généré (#47).
+ *
+ * La dérivation vient de `@cmv/shared` (`reminderLabel`), qui porte la précédence : un rappel généré
+ * auquel le coach a ajouté une note montre SA phrase, pas l'intitulé système qui l'a fait naître.
+ * Le motif voyage comme clé i18n et se traduit ICI — l'API ne persiste jamais de libellé rendu.
+ */
+function ReminderTitle({ reminder }: Readonly<{ reminder: ReminderDto }>) {
+  const { t } = useTranslation();
+  const label = reminderLabel(reminder);
+
+  // Ni note ni motif : l'API garantit que ça n'arrive pas, on ne fabrique pas de texte pour autant.
+  if (label == null) return <>—</>;
+  return <>{label.kind === "key" ? t(label.value) : label.value}</>;
+}
+
 // « En retard » n'est pas un statut stocké : c'est un rappel à traiter dont l'échéance est passée.
 // La dérivation vient de @cmv/shared, la même que celle appliquée en SQL par le centre (#51).
 function ReminderStateBadge({ reminder }: Readonly<{ reminder: ReminderDto }>) {
   const { t } = useTranslation();
-  const state = isReminderDue(reminder, new Date()) ? "OVERDUE" : reminder.status;
-  const { variant, labelKey } = REMINDER_BADGE[state];
+  const { variant, labelKey } = REMINDER_BADGE[reminderBadgeState(reminder, new Date())];
 
   return (
     <CmvBadge variant={variant} dot>

@@ -56,6 +56,16 @@ export default defineConfig({
       S3_ACCESS_KEY_ID: "cimavia",
       S3_SECRET_ACCESS_KEY: "cimavia_dev_secret",
       S3_FORCE_PATH_STYLE: "true",
+      /**
+       * Secret du déclencheur de rappels (#47), fixé ici comme les `S3_*` : c'est une VALEUR DE
+       * FIXTURE, pas un environnement — la mettre dans `.env.test` la ferait passer pour un
+       * réglage à renseigner, alors que ce fichier n'a aucun trou à remplir.
+       *
+       * Sa présence est ce qui rend le chemin NOMINAL testable (le tick s'exécute). Le fail-closed
+       * « secret absent → 503 » ne peut pas se tester ici, l'app e2e étant montée une fois pour
+       * toute la suite : il est couvert par le test unitaire de `ReminderTickGuard`.
+       */
+      REMINDER_TICK_SECRET: "e2e-tick-secret-not-for-production",
     },
   },
 });

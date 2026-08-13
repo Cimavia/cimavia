@@ -3,9 +3,11 @@ import {
   createReminderSchema,
   REMINDER_NOTE_MAX_LENGTH,
   ReminderEntityType,
+  ReminderReason,
   ReminderStatus,
   reminderDtoSchema,
   reminderSummaryDtoSchema,
+  updateReminderSchema,
   updateReminderStatusSchema,
 } from "./reminder.schema";
 
@@ -86,6 +88,85 @@ describe("updateReminderStatusSchema", () => {
   });
 });
 
+describe("updateReminderSchema", () => {
+  /**
+   * PARTIEL, et c'est le point : « repousser » n'envoie qu'une échéance. Exiger la note obligerait
+   * chaque raccourci à réémettre un texte qu'il ne modifie pas — et à écraser, au passage, une note
+   * corrigée entre-temps dans un autre onglet.
+   */
+  it("accepte l'échéance seule, la note seule, ou les deux", () => {
+    expect(updateReminderSchema.safeParse({ dueAt: "2026-09-01T07:00:00.000Z" }).success).toBe(
+      true,
+    );
+    expect(updateReminderSchema.safeParse({ note: "Relancer plutôt en septembre" }).success).toBe(
+      true,
+    );
+    expect(
+      updateReminderSchema.safeParse({ dueAt: "2026-09-01T07:00:00.000Z", note: "Relancer" })
+        .success,
+    ).toBe(true);
+  });
+
+  /**
+   * Un corps vide ne demande rien. L'accepter ferait une écriture pour une requête sans intention,
+   * donc un `updatedAt` redaté — et l'historique est trié par `updatedAt` décroissant, si bien
+   * qu'un rappel traité remonterait en tête sans que rien n'ait changé. Même raison que
+   * l'idempotence de `updateStatus`.
+   */
+  it("refuse un corps vide", () => {
+    expect(updateReminderSchema.safeParse({}).success).toBe(false);
+  });
+
+  // Mêmes règles que la création : un INSTANT, pas une date civile — sans quoi l'API choisirait un
+  // fuseau à la place du client.
+  it("refuse une échéance sans heure", () => {
+    expect(updateReminderSchema.safeParse({ dueAt: "2026-09-01" }).success).toBe(false);
+  });
+
+  /**
+   * Aucune contrainte de futur : repousser à hier est licite, le rappel est simplement dû tout de
+   * suite. C'est aussi ce qui permet d'AVANCER une échéance — l'issue parle de « repousser », mais
+   * rien ne justifie d'interdire l'inverse.
+   */
+  it("accepte une échéance passée : on peut aussi avancer un rappel", () => {
+    expect(updateReminderSchema.safeParse({ dueAt: "2020-01-01T00:00:00.000Z" }).success).toBe(
+      true,
+    );
+  });
+
+  // La note reste le contenu du rappel : la fournir vide l'effacerait. Ne pas la fournir du tout
+  // est en revanche le cas normal d'un report.
+  it("refuse une note vide, et la borne comme à la création", () => {
+    expect(updateReminderSchema.safeParse({ note: "" }).success).toBe(false);
+    expect(
+      updateReminderSchema.safeParse({ note: "x".repeat(REMINDER_NOTE_MAX_LENGTH) }).success,
+    ).toBe(true);
+    expect(
+      updateReminderSchema.safeParse({ note: "x".repeat(REMINDER_NOTE_MAX_LENGTH + 1) }).success,
+    ).toBe(false);
+  });
+
+  /**
+   * `.strict()`, avec deux refus qui comptent ici. Le tenant, comme partout : il est injecté, jamais
+   * transmis. Et le STATUT : le laisser passer sur cette route ouvrirait un second chemin vers une
+   * transition, à côté de `PATCH /reminders/:id/status` — deux façons de faire la même chose, dont
+   * une seule est testée.
+   */
+  it("refuse un coachId ou un statut transmis par le client", () => {
+    expect(updateReminderSchema.safeParse({ note: "x", coachId: "usr_1" }).success).toBe(false);
+    expect(updateReminderSchema.safeParse({ note: "x", status: "DONE" }).success).toBe(false);
+  });
+
+  // `readAt` est décidé par l'API (remis à `null` quand l'échéance bouge, cf. `ReminderService`), il
+  // n'est pas un champ que le client pilote — sans quoi « repousser » pourrait éteindre son propre
+  // badge.
+  it("refuse un readAt transmis par le client", () => {
+    expect(updateReminderSchema.safeParse({ dueAt: CREATE.dueAt, readAt: null }).success).toBe(
+      false,
+    );
+  });
+});
+
 describe("reminderDtoSchema", () => {
   const DTO = {
     id: "rmd_1",
@@ -94,6 +175,7 @@ describe("reminderDtoSchema", () => {
     targetLabel: "Cycle bloc — automne",
     dueAt: "2026-08-15T07:00:00.000Z",
     note: "Relancer le renouvellement du cycle",
+    reason: null,
     status: ReminderStatus.PENDING,
     readAt: null,
     createdAt: "2026-08-07T10:00:00.000Z",
@@ -112,10 +194,33 @@ describe("reminderDtoSchema", () => {
     expect(reminderDtoSchema.safeParse({ ...DTO, targetLabel: null }).success).toBe(true);
   });
 
-  // La note est le contenu du rappel : le DTO ne la rend jamais nullable, contrairement à
-  // `targetLabel`.
-  it("refuse un rappel sans note", () => {
-    expect(reminderDtoSchema.safeParse({ ...DTO, note: null }).success).toBe(false);
+  /**
+   * Depuis #47, la note est NULLABLE — mais seulement parce qu'un rappel auto-généré porte un
+   * `reason` à la place. C'est ce qui évite à l'API d'écrire un libellé français en base, faute
+   * qu'interdit le modèle de notification (#48).
+   */
+  it("accepte un rappel auto-généré : pas de note, mais un motif", () => {
+    const result = reminderDtoSchema.safeParse({
+      ...DTO,
+      note: null,
+      reason: ReminderReason.PLAN_ENDING,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // Les deux ne s'excluent pas : le coach peut ajouter sa note à un rappel généré (#105), et se
+  // l'approprier. La règle d'affichage est une précédence, pas une alternative (cf. `reminderLabel`).
+  it("accepte un rappel généré auquel le coach a ajouté une note", () => {
+    const result = reminderDtoSchema.safeParse({
+      ...DTO,
+      note: "Relancer plutôt lundi",
+      reason: ReminderReason.INVOICE_OVERDUE,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("refuse un motif inconnu", () => {
+    expect(reminderDtoSchema.safeParse({ ...DTO, reason: "PLAN_STARTING" }).success).toBe(false);
   });
 });
 
