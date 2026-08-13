@@ -12,6 +12,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { TENANT_CLS_KEY, type TenantContext } from "../../tenancy/tenant-context.type";
@@ -22,6 +23,19 @@ import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
  * assez tôt pour composer la suite, assez tard pour que la question soit d'actualité.
  */
 const PLAN_ENDING_LEAD_DAYS = 7;
+
+/**
+ * Libellé FRANÇAIS d'un motif, pour le corps du push — et uniquement pour lui.
+ *
+ * C'est l'exception assumée du push, déjà consignée en #48 : il n'y a aucun client pour traduire au
+ * moment de la livraison, le texte part donc rendu et en français. Partout ailleurs — écran des
+ * rappels, centre de notifications — c'est `REMINDER_REASON_KEY` qui voyage, et le rendu se fait
+ * côté client. Le jour du catalogue serveur (#63), cette table le rejoindra.
+ */
+const REASON_PUSH_LABEL: Record<ReminderReason, string> = {
+  [ReminderReason.PLAN_ENDING]: "Un cycle se termine — proposer le renouvellement.",
+  [ReminderReason.INVOICE_OVERDUE]: "Une facture est en retard — relancer.",
+};
 
 /**
  * Génération automatique des rappels (#47) — le « scheduler », déclenché de l'extérieur.
@@ -62,6 +76,7 @@ export class ReminderTickService {
     private readonly prisma: PrismaService,
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly cls: ClsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async run(now: Date): Promise<ReminderTickResultDto> {
@@ -71,38 +86,98 @@ export class ReminderTickService {
     });
 
     let createdReminders = 0;
+    let pushedReminders = 0;
     // Séquentiel, et non `Promise.all` : chaque itération pose un contexte CLS distinct, et les
     // paralléliser ferait courir N balayages sur la même connexion pour un gain nul à l'échelle du
     // MVP. Le jour où ça compte, c'est le nombre de coachs par tick qu'on bornera, pas ceci.
     for (const coach of coaches) {
-      createdReminders += await this.runForCoach(coach.id, now);
+      const result = await this.runForCoach(coach.id, now);
+      createdReminders += result.created;
+      pushedReminders += result.pushed;
     }
 
-    return { scannedCoaches: coaches.length, createdReminders, pushedReminders: 0 };
+    return { scannedCoaches: coaches.length, createdReminders, pushedReminders };
   }
 
   /** Un contexte tenant pour CE coach : tout ce qui suit passe par l'extension, filtré et injecté. */
-  private runForCoach(coachId: string, now: Date): Promise<number> {
+  private runForCoach(coachId: string, now: Date): Promise<{ created: number; pushed: number }> {
     const actor: TenantContext = { userId: coachId, role: Role.COACH };
 
     // `run` + `set`, exactement comme `TenancyInterceptor` le fait pour une requête HTTP : c'est le
     // MÊME contrat, avec un acteur choisi au lieu d'un acteur résolu depuis une session.
     return this.cls.run(async () => {
       this.cls.set(TENANT_CLS_KEY, actor);
-      const candidates = [
-        ...(await this.planEndingRows(now)),
-        ...(await this.invoiceOverdueRows(now)),
-      ];
-      if (candidates.length === 0) return 0;
-
-      // `coachId` n'est PAS dans les données : l'extension l'injecte (`scopeData`). C'est la
-      // garantie que ce service ne peut pas écrire chez un autre coach, même en se trompant.
-      const { count } = await this.db.reminder.createMany({
-        data: candidates as Prisma.ReminderCreateManyInput[],
-        skipDuplicates: true,
-      });
-      return count;
+      // La génération d'abord : un rappel créé par CE tick et déjà dû doit partir en push dans la
+      // foulée, pas au tick suivant.
+      const created = await this.generate(now);
+      const pushed = await this.pushDue(coachId, now);
+      return { created, pushed };
     });
+  }
+
+  private async generate(now: Date): Promise<number> {
+    const candidates = [
+      ...(await this.planEndingRows(now)),
+      ...(await this.invoiceOverdueRows(now)),
+    ];
+    if (candidates.length === 0) return 0;
+
+    // `coachId` n'est PAS dans les données : l'extension l'injecte (`scopeData`). C'est la
+    // garantie que ce service ne peut pas écrire chez un autre coach, même en se trompant.
+    const { count } = await this.db.reminder.createMany({
+      data: candidates as Prisma.ReminderCreateManyInput[],
+      skipDuplicates: true,
+    });
+    return count;
+  }
+
+  /**
+   * Le push à l'échéance (#47) — la dette **R-1**. Sans lui, un rappel qui devient dû n'émettait
+   * aucun signal : il n'apparaissait qu'au prochain chargement du centre.
+   *
+   * `pushedAt: null` est ce qui rend le tick idempotent : la sélection ne voit que ce qui n'est pas
+   * encore parti, deux passages rapprochés ne poussent donc pas deux fois, et un tick manqué
+   * rattrape au suivant. Rien n'est persisté côté notifications — l'entrée du centre reste
+   * CALCULÉE, sinon le rappel apparaîtrait en double (cf. `NotificationService.notifyReminderDue`).
+   *
+   * L'estampille est posée APRÈS l'envoi, en un seul `updateMany`. Le compromis se lit dans cet
+   * ordre : un arrêt brutal entre les deux fait repartir le push au tick suivant. Un doublon vaut
+   * mieux qu'un rappel silencieux — et `push()` ne lève jamais (règle 2 de `NotificationService`),
+   * donc le cas ne peut venir que d'un process tué.
+   */
+  private async pushDue(coachId: string, now: Date): Promise<number> {
+    const due = await this.db.reminder.findMany({
+      where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, pushedAt: null },
+      select: { id: true, note: true, reason: true },
+    });
+    /**
+     * La note du coach l'emporte sur le motif — même précédence que `reminderLabel`, appliquée ici
+     * au texte français du push plutôt qu'à une clé i18n.
+     *
+     * Un rappel sans note NI motif est écarté, pas rattrapé par un libellé par défaut : l'API
+     * garantit qu'au moins l'un des deux existe, et inventer un texte ferait pousser une phrase que
+     * personne n'a écrite (règle « nullable, pas de repli silencieux »). Il reste alors non poussé,
+     * donc visible comme anomalie plutôt que déguisé en notification plausible.
+     */
+    const pushable = due.flatMap((reminder) => {
+      const label = reminder.note ?? (reminder.reason && REASON_PUSH_LABEL[reminder.reason]);
+      return label == null ? [] : [{ id: reminder.id, label }];
+    });
+    if (pushable.length === 0) return 0;
+
+    for (const reminder of pushable) {
+      await this.notifications.notifyReminderDue({
+        coachId,
+        reminderId: reminder.id,
+        label: reminder.label,
+      });
+    }
+
+    await this.db.reminder.updateMany({
+      where: { id: { in: pushable.map((reminder) => reminder.id) } },
+      data: { pushedAt: now },
+    });
+    return pushable.length;
   }
 
   /**

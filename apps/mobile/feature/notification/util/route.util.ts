@@ -101,9 +101,19 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
     scheduledSessionId?: string;
     conversationId?: string;
     invoiceId?: string;
+    reminderId?: string;
   } | null;
 
   switch (payload?.type) {
+    /**
+     * Un rappel dû (#47) ne passe PAS par `targetFor` : sa charge utile porte un `reminderId`, pas
+     * l'id de sa cible — le push est émis sans lire le cycle ni la facture visés. Il mène donc
+     * directement à « Mes rappels », qui est de toute façon le repli du centre pour ce type.
+     *
+     * Coach seul : l'écran est gardé par capacité, et un athlète n'a aucun rappel.
+     */
+    case NotificationType.REMINDER_DUE:
+      return capabilities.isCoach ? "/reminders" : null;
     case NotificationType.PLAN_PUBLISHED:
     case NotificationType.PLAN_UPDATED:
     case NotificationType.PLAN_SESSION_ADDED:
