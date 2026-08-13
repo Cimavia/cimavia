@@ -194,6 +194,24 @@ export type ReminderDto = z.infer<typeof reminderDtoSchema>;
  * côte présenterait deux fois les mêmes rappels — c'est pourquoi le dashboard n'expose que
  * `dueCount`.
  */
+/**
+ * Ce que rend un tick du déclencheur (#47). Aucun client ne le lit : il est là pour que le cron
+ * externe et les logs disent quelque chose de vérifiable — un job qui répond 200 sans rien annoncer
+ * ne distingue pas « rien à faire » de « n'a rien fait ».
+ *
+ * Vit dans `@cmv/shared` comme tout ce qui transite par l'API HTTP (règle dure n°2), même sans
+ * consommateur d'app : c'est aussi ce qui donne un type à l'e2e qui l'exerce.
+ */
+export const reminderTickResultDtoSchema = z.object({
+  /** Coachs balayés — un contexte tenant a été ouvert pour chacun. */
+  scannedCoaches: z.number().int().min(0),
+  /** Rappels automatiques créés. Les doublons sont ignorés par l'index unique, pas comptés ici. */
+  createdReminders: z.number().int().min(0),
+  /** Rappels devenus dus dont le push est parti. */
+  pushedReminders: z.number().int().min(0),
+});
+export type ReminderTickResultDto = z.infer<typeof reminderTickResultDtoSchema>;
+
 export const reminderSummaryDtoSchema = z.object({
   dueCount: z.number().int().min(0),
   pendingCount: z.number().int().min(0),

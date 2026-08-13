@@ -38,6 +38,16 @@ export const envSchema = z.object({
   // devient nécessaire que si l'on active « Enhanced Security » sur le compte Expo. Absent,
   // les push partent quand même — d'où l'optionnalité (et non un fail-fast au boot).
   EXPO_ACCESS_TOKEN: z.preprocess(emptyAsUndefined, z.string().optional()),
+  /**
+   * Secret partagé du déclencheur de rappels (#47). Le tick est appelé de l'EXTÉRIEUR — un cron
+   * in-process ne se déclenche pas sur du scale-to-zero, où aucun process ne tourne pour le tirer.
+   *
+   * Optionnel au boot, comme les `S3_*` : l'API démarre sans, tout le reste fonctionne. Mais son
+   * absence **ferme la route** (503), elle ne l'ouvre pas — jamais « pas de secret, pas de
+   * contrôle ». La même valeur doit exister aux trois endroits : secrets GitHub Actions, `.env` du
+   * NAS, env Scaleway.
+   */
+  REMINDER_TICK_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
 });
 
 export type EnvSchema = z.infer<typeof envSchema>;

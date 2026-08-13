@@ -263,6 +263,7 @@ export type {
   ReminderReason as ReminderReasonType,
   ReminderStatus as ReminderStatusType,
   ReminderSummaryDto,
+  ReminderTickResultDto,
   UpdateReminderInput,
   UpdateReminderStatusInput,
 } from "./dto/reminder.schema";
@@ -278,6 +279,7 @@ export {
   reminderReasonSchema,
   reminderStatusSchema,
   reminderSummaryDtoSchema,
+  reminderTickResultDtoSchema,
   updateReminderSchema,
   updateReminderStatusSchema,
 } from "./dto/reminder.schema";
