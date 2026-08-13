@@ -64,7 +64,43 @@ describe("buildAthleteRows", () => {
       title: "Cycle Bloc — Oct./Nov.",
       weekCount: 4,
       currentWeek: 2,
+      phase: "ONGOING",
+      startDate: "2026-10-19",
+      endDate: "2026-11-15",
     });
+  });
+
+  /**
+   * « Pas encore commencé » et « terminé » partagent `currentWeek: null` et ne demandent pas le même
+   * geste : le premier est un cycle que le coach a DÉJÀ posé, le second un athlète qui attend une
+   * suite. C'est `phase` qui les sépare, et c'est ce qui rend le filtre du tableau défendable.
+   */
+  it("distingue un cycle à venir d'un cycle terminé, là où currentWeek les confond", () => {
+    const upcoming = { ...LEA_PLAN, startDate: "2026-11-02" }; // démarre la semaine prochaine
+    const ended = { ...LEA_PLAN, startDate: "2026-09-07" }; // 4 semaines closes le 2026-10-04
+
+    const [ahead] = buildAthleteRows({ ...FULL, plans: [upcoming] }) ?? [];
+    expect(ahead?.plan).toMatchObject({ currentWeek: null, phase: "UPCOMING" });
+
+    const [behind] = buildAthleteRows({ ...FULL, plans: [ended] }) ?? [];
+    expect(behind?.plan).toMatchObject({
+      currentWeek: null,
+      phase: "ENDED",
+      endDate: "2026-10-04",
+    });
+  });
+
+  /**
+   * `selectCurrentPlan` élit un cycle à venir avant un cycle terminé. Conséquence directe, et c'est
+   * ce qui autorise à lire `ENDED` comme « athlète à relancer » : un athlète dont la suite est déjà
+   * planifiée ne peut PAS ressortir terminé.
+   */
+  it("ne rend jamais ENDED quand un cycle à venir existe", () => {
+    const ended = { ...LEA_PLAN, id: "pln_ended", startDate: "2026-09-07" };
+    const next = { ...LEA_PLAN, id: "pln_next", startDate: "2026-11-02" };
+
+    const [lea] = buildAthleteRows({ ...FULL, plans: [ended, next] }) ?? [];
+    expect(lea?.plan).toMatchObject({ id: "pln_next", phase: "UPCOMING" });
   });
 
   // Un brouillon n'est pas le cycle de l'athlète : il ne le voit pas, la colonne ne le montre pas.

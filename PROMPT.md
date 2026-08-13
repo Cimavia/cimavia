@@ -1,182 +1,156 @@
-Tu vas terminer l'épic **#38 « [rappels] — Système de rappels génériques »**, c'est-à-dire ses
-trois enfants encore ouverts : **#46 (mobile)**, **#47 (scheduler)** et **#105 (report
-d'échéance)**. Lis-les par `gh api repos/Cimavia/cimavia/issues/<n>`.
+Tu vas terminer l'issue **#123 « [dashboard_5] — Recherche, tri et filtres du tableau de suivi »**.
+Lis-la par `gh api repos/Cimavia/cimavia/issues/123`.
 
-**Ce que ça représente** : `gh api "repos/Cimavia/cimavia/issues?state=open&milestone=1"` ne renvoie
-que quatre issues — #38, #46, #47, #105. Autrement dit, **ces trois enfants sont tout ce qui reste
-du jalon `v0.9 — MVP`**. Ne l'oublie pas au moment d'arbitrer le périmètre : ce qu'on repousse ici
-ne repousse pas une feature, ça repousse la clôture du MVP.
-
-Contexte récent : #130 (les e2e tournent en CI, requis dans les rulesets) et #57 (les e2e sont
-instrumentés, `apps/api` mesurée à ~86 %) viennent d'être livrées. **Toute régression d'API est
-désormais bloquante en PR** — c'est nouveau, et ça change ce que tu peux te permettre de casser.
+**Ce que ça représente** : c'est le **dernier enfant ouvert de l'épic #110 (dashboard coach)**, dont
+les quatre autres (#52, #111, #112, #113) sont fermés — l'épic elle-même est déjà fermée. Le jalon
+`v0.9 — MVP` est clos (47 issues, 0 ouverte). On est donc en `v1.0 — Ready for prod`, sur une issue
+`prio: low` étiquetée `type: dette` : rien ne presse, et c'est précisément ce qui autorise à faire
+les choses proprement plutôt qu'à livrer une barre d'outils cosmétique.
 
 ⚠️ **Quatre choses à vérifier AVANT de me proposer quoi que ce soit** — je ne veux pas les
 découvrir en cours de route :
 
-1. **Le blocage de #46 n'existe plus, et son issue ne le sait pas.** Son corps dit « Reportée —
-   l'écran n'a aucun endroit où se poser », bloquée par **#35**. #35 et #20 sont **fermées** : la
-   nav mobile est désormais pilotée par capacité (`apps/mobile/shared/lib/tabs.ts`, champ
-   `capability: "coach" | "athlete" | null`) et un onglet coach existe déjà (`dashboard`). Vérifie
-   l'état réel de cette surface avant de planifier, et dis-moi si l'écran « Mes rappels » devient un
-   onglet, un sous-écran du dashboard coach, ou autre chose — **avec** la raison. Les deux
-   alternatives écartées en 2026-08-07 le sont pour des motifs qui ne tiennent peut-être plus.
-2. **Un écran mobile qui arrive doit brancher sa destination de notification dans la MÊME PR.**
-   C'est le corollaire écrit noir sur blanc dans l'encadré « Appris en #20 » de
-   `docs/dette-technique.md`, après trois pannes révélées par un simple clic. Regarde
-   `apps/mobile/feature/notification/util/route.util.ts` : il route par `entityType`, et `PLAN` rend
-   `null` **définitivement** côté coach. Un rappel dû sur un cycle mène donc aujourd'hui nulle part
-   sur mobile. Dis-moi si l'écran « Mes rappels » devient la bonne destination pour un
-   `REMINDER_DUE`, et ce que ça implique pour le web (`apps/web/src/feature/notification/util/`),
-   qui n'a pas non plus d'entrée `REMINDER_DUE`.
-3. **#47 n'est pas d'abord un problème de code, c'est une décision d'hébergement — et elle est à
-   moi.** Un cron in-process (`@nestjs/schedule`) tournerait très bien sur le NAS de dev
-   (`deploy/dev/docker-compose.yml`, conteneur long-lived) et serait **silencieusement mort** sur la
-   cible MVP Scaleway Serverless Containers, en scale-to-zero : aucun process ne tire le tick. Le
-   pire des deux mondes, puisque tout test manuel passerait. Présente-moi les options (déclencheur
-   externe appelant une route protégée, versus conteneur always-on) avec leurs conséquences —
-   secret de dépôt, authentification de la route, coût — et **attends mon arbitrage**. Ne code pas
-   le socle avant.
-4. **Vérifie que les 168 e2e passent, avant de toucher à quoi que ce soit.** Deux composes requis :
-   `docker compose -f apps/api/docker-compose.test.yml up -d` et
-   `docker compose -f apps/api/docker-compose.yml run --rm minio-setup`. Si tu trouves un test
-   cassé, c'est un RÉSULTAT à me signaler, pas quelque chose à corriger en douce dans la même PR.
+1. **Le journal de dette ment sur cette issue.** `docs/dette-technique.md` porte la dette **D-2**
+   (ligne ~379) avec, en colonne « Suivi », `— *(déclencheur : un coach qui scrolle pour se
+   retrouver)*` — autrement dit **aucune issue**. Pire : l'en-tête du fichier (ligne ~24) range
+   explicitement **D-2** parmi les « quatre dettes qui n'ont volontairement pas d'issue ». Or #123
+   **est** cette dette, et elle existe. Deux endroits à corriger, et il faut le faire dans la PR
+   qui traite D-2, pas plus tard.
+
+2. **La colonne « Dernière activité » a été SUPPRIMÉE en #113, pour une raison — et #123 la
+   réintroduit par la bande.** Le journal (encadré « Tranché en #113 ») dit : *« la colonne
+   Dernière activité de la maquette est supprimée, pas reportée […] elle aurait de toute façon été
+   partiellement fausse, une séance faite **sans** débrief n'apparaissant dans aucune liste que le
+   coach charge »*. Or le tri « activité récente » et le filtre « À relancer » demandent exactement
+   cette donnée. **Vérifie ce qui existe réellement avant de conclure** : `ConversationDto` porte
+   un `lastMessageAt` (nullable) et `CoachFeedbackSummaryDto` porte `createdAt`/`updatedAt` — les
+   deux sont **déjà chargés** par le `DashboardScreen`. Une dérivation « dernière activité » est
+   donc calculable côté client dès aujourd'hui, mais elle héritera du même angle mort. Dis-moi si
+   tu la construis quand même, ce qu'elle vaut, et comment tu empêches qu'on la lise comme une
+   vérité — ou si tu sors le tri du périmètre. Ne fais pas semblant que le problème n'existe pas.
+
+3. **`AthleteRow` est partagé web ↔ mobile, alors que #123 est étiquetée `area: web`.**
+   `buildAthleteRows` (`packages/shared/src/util/athlete-row.util.ts`) sert le tableau web (#113)
+   **et** l'écran mobile (`apps/mobile/feature/dashboard/screen/CoachDashboardScreen.tsx`). Y
+   ajouter un champ d'activité touche donc les deux. Dis-moi si le mobile suit, reste en l'état, ou
+   reçoit sa propre issue — et vérifie l'état réel de cet écran avant de trancher.
+
+4. **Le déclencheur écrit dans l'issue est « un coach qui scrolle pour se retrouver ».** Demande-toi
+   si des filtres sont bien la réponse à ça. **Il n'existe aucune issue de pagination des
+   athlètes** : les quatre enfants de l'épic #68 couvrent les messages (#77), les notifications
+   (#78), les exercices/séances (#79) et les rappels (#106) — pas la liste d'athlètes, qui est
+   servie entière par `GET /athletes`. Si le vrai problème est le volume, filtrer côté client ne le
+   règle pas, ça le déguise. Dis-moi ce que tu en penses ; si une issue manque, propose-la.
 
 Avant de coder, lis :
 
-- Les corps de **#38** (le découpage et l'ordre revu le 2026-08-07), **#46**, **#47** et **#105**.
-  Chacun porte le raisonnement que le code ne justifie pas seul — notamment les **deux contraintes
-  relevées en construisant #44** dans #47, qui sont la moitié du travail de cette issue.
-- `docs/dette-technique.md` — les dettes **R-1 à R-5** (R-1 = pas de push à l'échéance → #47 ;
-  R-3 = pas de report ni d'édition → #105), l'encadré **« Appris en #20 »** (les portes qui
-  n'existent pas), et les encadrés **« Tranché en #130 »** et **« Tranché en #57 »** si tu touches
-  aux configs de test ou de couverture.
-- `docs/architecture-choice.md` — **§6 multi-tenant** et ses quatre pièges du scope automatique
-  (un rappel généré par un scheduler n'a **pas** d'acteur courant : demande-toi ce que devient le
-  scope Prisma dans un contexte hors requête), **§2** (`app.setup.ts`, validation Zod),
-  **§10 i18n**, **§11 qualité & CI**.
-- `docs/CONTEXT.cimavia.md` — les termes canoniques. Un `Reminder` est un outil **privé du coach**,
-  jamais partagé avec l'athlète.
-- Le code existant des rappels, qui est le patron à suivre :
-  `apps/api/src/reminder/` (module, controller, service, mapper, dto),
-  `packages/shared/src/api/reminder.api.ts` (+ son `.test.ts`),
-  `packages/shared/src/util/reminder.util.ts`,
-  `apps/web/src/feature/reminder/` et `apps/web/src/routes/reminders.tsx`.
-- `packages/shared/src/dto/notification.schema.ts` — en particulier `NOTIFICATION_LABEL_KEY` et le
-  commentaire qui explique pourquoi `REMINDER_DUE` **n'existe pas** dans l'enum Prisma (il est
-  calculé à la lecture, pas écrit). C'est exactement le modèle que #47 doit suivre pour son champ
-  `reason`.
-- `apps/api/test/isolation.e2e-spec.ts`, blocs `describe("Rappels du coach (#44)")` et
-  `describe("Rappels dus dans le centre de notifications (#51)")`.
-- `apps/mobile/shared/lib/tabs.ts`, `apps/mobile/app/(app)/_layout.tsx`, et une feature mobile coach
-  déjà livrée (`apps/mobile/feature/dashboard/`) comme gabarit.
-- `README.md`, `CONTRIBUTING.md` (git flow, `main` est protégé : PR obligatoire, trois checks
-  requis, commits signés).
+- Les corps de **#123**, de l'épic **#110** (ses trois « décisions structurantes », qui contraignent
+  tout ce qui touche cet écran) et de **#113**, qui a construit le tableau.
+- `docs/dette-technique.md` — la section **Dashboard coach** : les dettes **D-1** (sept requêtes au
+  chargement, suivie par #114) et **D-2**, et les encadrés **« Tranché en #52 »** (aucune
+  information lue deux fois) et **« Tranché en #113 »** (ce que le tableau montre et ce qu'il ne
+  montre pas — cinq points, dont la colonne supprimée).
+- `docs/architecture-choice.md` — **§4** (web), **§5** (design system), **§7** (logique pure dans
+  `@cmv/shared`), **§10** (i18n), **§11** (qualité & CI).
+- `docs/CONTEXT.cimavia.md` — les termes canoniques.
+- La **maquette** `docs/maquettes/web-coach/coach_dashboard_athletes.dc.html`. Sa barre d'outils est
+  au-dessus du tableau : un champ « Rechercher un athlète… », un groupe segmenté
+  **Tous / À relancer / Sans plan**, et à droite un sélecteur « Trier : activité récente ». Regarde
+  ce qu'elle prévoit vraiment plutôt que de t'en tenir au résumé de l'issue.
+- Le code existant, qui est le patron à suivre :
+  `apps/web/src/feature/dashboard/` (`DashboardScreen.tsx`, `AthleteTrackingTable.tsx`),
+  `packages/shared/src/util/athlete-row.util.ts` (+ son `.test.ts`),
+  `apps/web/src/shared/component/CmvSegmented.tsx` (déjà utilisé par l'écran des rappels — le
+  groupe Tous/À relancer/Sans plan a son composant),
+  et `apps/mobile/feature/dashboard/` pour la question de parité.
 
-Rappels — l'existant à respecter :
+L'existant à respecter :
 
-- **L'API des rappels n'expose aujourd'hui que quatre routes** : `GET /reminders`,
-  `GET /reminders/summary`, `POST /reminders`, `PATCH /reminders/:id/status`. Le contrôleur porte
-  `@Roles([Role.COACH])` **au niveau classe**, et ce n'est pas décoratif : sans lui, la requête d'un
-  athlète atteindrait l'extension Prisma, qui refuse par une **erreur** — l'athlète recevrait un 500
-  au lieu d'un 403. Toute route ajoutée hérite de cette garde ; un e2e doit le figer.
-- **L'ordre de déclaration des routes compte** : `@Get("summary")` est placé avant tout paramétré,
-  et un futur `@Get(":id")` l'avalerait. Le commentaire est dans le contrôleur, respecte-le.
-- **`Reminder.note` est du texte du coach**, saisi à la main, obligatoire aujourd'hui. Un rappel
-  **auto-généré ne doit pas fabriquer sa note** : ce serait un libellé rendu puis persisté, ce que
-  le modèle de notification interdit explicitement (#48 : on persiste le type et les paramètres, le
-  rendu se fait côté client). D'où le champ `reason` (enum) + `note` nullable prévus par #47 — donc
-  **une migration Prisma** et un DTO `@cmv/shared` qui change de forme.
-- **La plomberie HTTP est déjà promue dans `@cmv/shared`** (`createReminderApi`, `reminderKeys`).
-  Ne la redéfinis pas côté app : mobile et web consomment le même module, avec leur propre client.
-- **Zéro string en dur** : tout passe par i18next, `check:i18n` doit sortir en 0 (lance-le aussi en
-  `--strict`).
-- **Pure shells sur mobile** : les fichiers sous `app/` sont du routing ou un shell d'une ligne
-  `export { Screen as default } from "@/feature/<x>"`.
-- **Une ressource = un écran** (tranché en #20) : si le web et le mobile affichent la même liste de
-  rappels, ce n'est pas une raison pour dupliquer la lecture — regarde ce qui est déjà partagé avant
-  d'écrire un second composant.
-- Les e2e **TRUNCATE la base** au démarrage et `global-setup.e2e.ts` refuse toute base dont le nom
-  ne finit pas par `_e2e`. Un seul worker, séquentiel : ne parallélise pas.
+- **Aucune information lue deux fois** (tranché en #52) : c'est la contrainte qui a façonné cet
+  écran. Un filtre qui recompterait ce qu'une tuile annonce déjà serait un doublon d'information,
+  pas une fonctionnalité.
+- **`null` ne veut pas dire zéro.** `AthleteRow` distingue partout « source indisponible » (`null`,
+  rendu « — ») de « rien à signaler » (`0`). Un filtre « Sans plan » qui attraperait les `null`
+  mélangerait « cet athlète n'a pas de cycle » et « la liste des cycles n'a pas pu être lue » — le
+  DTO documente explicitement ce piège sur `AthleteRow.plan`.
+- **Logique pure dans `@cmv/shared`** (§7). Le web **n'est pas mesuré en couverture** (§11) : toute
+  dérivation laissée dans un composant React n'aura aucun test. Le précédent est `buildAthleteRows`
+  lui-même, et `reminderBadgeState`, extraite en #46 pour cette raison exacte.
+- **Zéro string en dur** : tout passe par i18next, `pnpm check:i18n` doit sortir en 0 (lance-le
+  aussi en `--strict`). Les clés assemblées demandent une annotation `// i18n-values` — le patron
+  est en tête d'`AthleteTrackingTable.tsx`.
+- **Design system** : composants préfixés `Cmv`, zéro `#xxxxxx` hors `@cmv/tokens`.
 
-Quatre points à trancher **dans le plan**, pas à découvrir en cours de route :
+Points à trancher **dans le plan**, pas à découvrir en cours de route :
 
-1. **L'ordre et le découpage en PR.** Trois issues de natures très différentes : #105 est petite
-   (API + web), #46 est un écran mobile, #47 est de l'infrastructure et attend une décision
-   d'hébergement. Une PR par issue, ou un regroupement ? Dis ce que tu choisis et pourquoi — en
-   sachant que #47 peut rester bloquée sur mon arbitrage pendant que le reste avance.
-2. **#105 : ce que devient `readAt` au report.** L'issue pose la question sans la trancher. Attention
-   au couplage avec #51 : le centre de notifications **synthétise** une entrée `reminder:<id>` dont
-   le `createdAt` **est** l'échéance du rappel (un e2e le fige : « l'entrée est datée de l'échéance
-   du rappel, pas de sa création »). Reporter un rappel déplace donc son entrée dans le tri du
-   centre. Dis ce que tu fais de `readAt` **et** ce que ça produit sur cet e2e.
-3. **#47 : le scope tenant hors requête.** L'isolation est garantie par un tenancy guard qui résout
-   l'acteur courant depuis la session Better Auth, et par une extension Prisma qui **refuse**
-   (fail-closed) tout modèle sans scope. Un scheduler n'a ni session ni acteur. Dis comment tu
-   génères des rappels pour N coachs sans contourner l'extension — et si ta réponse est « on la
-   contourne », dis-le explicitement et propose comment on le teste.
-4. **#47 : le push à l'échéance.** C'est la dette R-1, et c'est la moitié de la valeur de l'issue :
-   sans scheduler, un rappel qui devient dû n'émet **aucun push**, il n'apparaît qu'au prochain
-   chargement du centre. Dis si tu le livres ici ou si tu le sors du périmètre — et dans ce cas,
-   R-1 reste ouverte et il faut le dire.
+1. **Ce que devient « À relancer ».** L'issue le dit elle-même : ce filtre n'a **pas de définition
+   métier** aujourd'hui. Donne-lui une définition défendable, ou sors-le — mais ne livre pas un
+   bouton dont personne ne sait ce qu'il sélectionne.
+2. **Où vit l'état de la barre d'outils.** Dans le composant, dans l'URL (`search` de TanStack
+   Router, comme `/feedbacks?feedback=` et `/messages?athlete=` que le tableau produit déjà), ou
+   ailleurs ? Un filtre qui ne survit pas à un rechargement n'est pas le même produit.
+3. **Le comportement à vide.** Un filtre qui ne rend aucune ligne doit dire *pourquoi* — « aucun
+   athlète ne correspond » n'est pas « vous n'avez aucun athlète ». C'est la même distinction que
+   les trois états (chargement / erreur / vide) déjà tenue par cet écran.
+4. **Le découpage en PR** et si le mobile est concerné (cf. point ⚠️ 3).
 
 Portes de qualité — la PR échoue si l'une saute :
 
-- `pnpm turbo lint typecheck test` + **les e2e** (168 aujourd'hui) doivent passer. Les e2e sont
-  maintenant un check **requis** sur `main` : une régression bloque le merge, elle ne se découvre
-  plus trois jours après.
+- `pnpm turbo lint typecheck test` + **les e2e** (186 aujourd'hui) doivent passer. Les e2e sont un
+  check **requis** sur `main`.
 - `pnpm check:i18n` **et** `pnpm check:i18n --strict` doivent sortir en 0.
-- Le build de production des deux apps : `pnpm --filter @cmv/web exec vite build` et
-  `npx expo export --platform android`.
-- SonarCloud : `new_coverage` ≥ 80 % et `new_duplicated_lines_density` ≤ 3 %. **Nouveau depuis
-  #57** : `apps/api` est désormais **mesurée** (~86 %). Du code d'API non couvert par un e2e fera
-  donc échouer la Quality Gate — écris les e2e en même temps que le code, pas après.
-- Toute nouvelle route d'API se couvre par un e2e d'isolation : un coach ne doit jamais atteindre le
-  rappel d'un autre (404, pas 403 — le scope ne le voit pas), un athlète jamais la ressource (403).
-- Si tu ajoutes une porte ou une garde, **montre-la en échec**, pas seulement en succès.
+- Le build de production des deux apps : `pnpm --filter @cmv/web exec vite build` et, **si tu
+  touches au mobile**, `npx expo export --platform android`.
+- SonarCloud : `new_coverage` ≥ 80 % et `new_duplicated_lines_density` ≤ 3 %. `apps/api` et
+  `@cmv/shared` sont mesurés, **le web ne l'est pas** — d'où la règle ci-dessus sur la logique pure.
+- Si tu ajoutes une route d'API, elle se couvre par un e2e d'isolation. Si tu ajoutes une garde,
+  **montre-la en échec**, pas seulement en succès.
+
+Prérequis pour lancer les e2e (deux composes) :
+
+```bash
+docker compose -f apps/api/docker-compose.test.yml up -d
+docker compose -f apps/api/docker-compose.yml run --rm minio-setup
+pnpm --filter @cmv/api test:e2e
+```
+
+Si tu trouves un test cassé, c'est un **résultat à me signaler**, pas quelque chose à corriger en
+douce dans la même PR.
 
 Ménage de board à faire au passage (je valide avant que tu touches à quoi que ce soit) :
 
-- Le corps de **#46** décrit un blocage levé et une issue « reportée » qui ne l'est plus. Propose-moi
-  le texte corrigé — je ne veux pas d'une issue qui ment sur son propre état.
-- Le corps de **#38** porte une section « Ordre (revu le 2026-08-07) » devenue fausse sur #46, et sa
-  liste de découpage ne mentionne pas #105. À reprendre.
-- **#46** est déclarée bloquée par #35 dans GitHub : si la relation existe encore, retire-la.
-- Vérifie les milestones : #38, #46, #47 et #105 sont sur `v0.9 — MVP`, Phase `v1.0`, Status `Prêt`
-  (#38 est `En cours`). Dis-moi si quelque chose détonne.
-- **#106, #107, #108** touchent aux rappels mais appartiennent à d'autres épics (#68 pagination,
-  #67 storage, #100 notifications-suite) : elles ne bloquent **pas** la clôture de #38. Confirme-le
-  plutôt que de le supposer.
-- Vérifie qu'aucune autre issue n'est débloquée par cette livraison, et signale-le-moi.
+- Corriger **D-2** dans `docs/dette-technique.md` : la ligne du tableau **et** l'en-tête qui la
+  range parmi les dettes sans issue (cf. ⚠️ 1).
+- Vérifier les champs de #123 sur le board « Cimavia — Roadmap » et me dire si quelque chose détonne.
+- Vérifier qu'aucune autre issue n'est débloquée ou rendue caduque par cette livraison — regarde en
+  particulier **#114** (endpoint d'agrégat, dette D-1) : si ton travail change le nombre de
+  requêtes ou la façon dont les lignes sont composées, dis-le.
 
 Convention d'issues GitHub :
 
-- Pattern de nommage : `[feature-name_numero] - titre`. S'il faut plusieurs issues (découpage parent
-  enfant) : une épic `[feature-name] - titre` et des enfants `[feature-name_X]`.
-- Vérifie la numérotation existante de la famille avant de créer — la famille `[rappels]` va
-  aujourd'hui de `_1` (#44) à `_5` (#105), donc le prochain libre est `_6`. Ça se déduit des issues
-  déjà là, pas d'un compteur mental.
-- Les issues doivent être reliées par des relations directement dans GitHub (sub-issues) et être
-  bloquantes les unes par rapport aux autres si l'ordre d'implémentation compte.
+- Pattern de nommage : `[feature-name_numero] - titre`. Épic parente `[feature-name] - titre`,
+  enfants `[feature-name_X]`. Vérifie la numérotation existante de la famille avant de créer — la
+  famille `[dashboard]` va de `_1` (#52) à `_5` (#123), plus `[dashboard_opti]` (#114).
+- Relier les issues par des relations GitHub (sub-issues), et les rendre bloquantes entre elles si
+  l'ordre d'implémentation compte.
 - `gh issue view` est cassé sur ce dépôt (dépréciation Projects classic) : passer par
   `gh api repos/Cimavia/cimavia/issues/<n>`.
-- Les issues créées sont aussi à ajouter au board « Cimavia — Roadmap » (Status = Idée, Phase à
-  choisir selon le jalon).
+- Les issues créées sont à ajouter au board « Cimavia — Roadmap » (Status = Idée, Phase selon le
+  jalon).
 
-Façon de travailler (inchangée) :
+Façon de travailler :
 
-- D'abord un plan → j'attends ta validation avant que tu codes.
-- Puis tu me donnes des commits atomiques que je valide 1 par 1 et je fais les commandes moi-même
-  (git add, git commit, git push). **Mets les `Closes #<n>` / `Refs #<n>` dans le corps du commit**
-  et rappelle-le-moi : sur la livraison précédente les corps sont partis vides, et aucune issue ne
-  s'est fermée toute seule.
-- Les actions sur interfaces web (Scaleway, Neon, Cloudflare, EAS, SonarCloud, **secrets GitHub**,
-  branch protection, DNS) c'est MOI qui les fais : liste-les explicitement, ne tente pas de les
-  exécuter. #47 en demandera très probablement une — dis-le noir sur blanc, et dis ce qui ne marche
-  pas tant qu'elle n'est pas faite.
-- Je teste moi-même (migrations, e2e, app sur téléphone physique) : prépare-moi de quoi tester,
-  je lance et je rapporte. Pour #46, prévois un scénario de test **sur téléphone**, pas seulement
-  en émulateur.
-- Pour la dette : tu me proposeras les issues GitHub, je valide, tu les crées.
+- **D'abord un plan** → j'attends ma validation avant que tu codes.
+- Puis des **commits atomiques que je valide 1 par 1**. Pour chacun, donne-moi la commande
+  `git add` **et** la commande `git commit -m "..."` complète, respectant le hook commitlint
+  (Conventional Commits, **sujet en minuscule**, header ≤ 100, corps ≤ 100 par ligne, ligne vide
+  avant corps et footer). Mets les `Closes #<n>` / `Refs #<n>` **dans le corps**.
+- C'est **moi** qui exécute git (add, commit, push) et les actions sur interfaces web (GitHub,
+  Scaleway, Neon, Cloudflare, EAS, SonarCloud, secrets, branch protection, DNS) : liste-les
+  explicitement, ne tente pas de les exécuter.
+- **Je teste moi-même** (migrations, e2e, app) : prépare-moi de quoi tester, je lance et je
+  rapporte. Cet écran est **web-only sauf décision contraire** — prévois un scénario de test au
+  clavier et à la souris, pas seulement une liste de cas.
+- Pour la dette : tu me proposes les issues GitHub, je valide, tu les crées.
 
 Commence par me proposer le plan. Ne code pas avant que je valide.

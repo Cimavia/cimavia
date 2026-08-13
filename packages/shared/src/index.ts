@@ -358,6 +358,7 @@ export { initialsOf } from "./util/name.util";
 export { notificationSubject } from "./util/notification.util";
 export type {
   PlanPeriod,
+  PlanPhase,
   PlanWeekRange,
   PlanWeekRef,
   SessionProgress,
@@ -366,6 +367,7 @@ export type {
 export {
   isDateInPlanWeek,
   planEndDate,
+  planPhase,
   planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,

@@ -1,6 +1,13 @@
 import { PlanStatus } from "../dto/plan.schema";
 import { type InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
-import { type PlanPeriod, planWeekNumber, selectCurrentPlan } from "./plan.util";
+import {
+  type PlanPeriod,
+  type PlanPhase,
+  planEndDate,
+  planPhase,
+  planWeekNumber,
+  selectCurrentPlan,
+} from "./plan.util";
 
 /**
  * Le tableau de suivi des athlètes du coach (#113) : une ligne par athlète, composée de cinq
@@ -47,6 +54,20 @@ export type AthleteRowPlan = {
   weekCount: number;
   /** `null` = cycle pas encore commencé, ou terminé (cf. `planWeekNumber`). */
   currentWeek: number | null;
+  /**
+   * Ce que `currentWeek: null` ne dit pas : « pas encore commencé » et « terminé » sont deux
+   * situations contraires, et seule la seconde appelle un geste du coach. `null` = cycle non
+   * situable (dates illisibles) — ni l'une ni l'autre, et surtout pas rangé d'office parmi les
+   * terminés.
+   *
+   * Recoupe `currentWeek` sur un point (`ONGOING` ⟺ `currentWeek != null`) sans le dupliquer :
+   * `planPhase` est la source UNIQUE de l'époque, `planWeekNumber` celle du numéro de semaine, et
+   * un test tient l'équivalence pour qu'elles ne dérivent jamais.
+   */
+  phase: PlanPhase | null;
+  startDate: string;
+  /** Dernier jour du cycle. `null` si `weekCount` est illisible (cf. `planEndDate`). */
+  endDate: string | null;
 };
 
 export type AthleteRow = {
@@ -134,6 +155,10 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
 /**
  * Le cycle à afficher, choisi par `selectCurrentPlan` — source UNIQUE de ce choix (en cours > à
  * venir > terminé), qu'on ne reconstitue pas ici.
+ *
+ * Sa priorité donne à `phase` une propriété qu'elle n'aurait pas sur un cycle isolé : un
+ * `ENDED` ici signifie « terminé ET rien derrière », puisqu'un cycle à venir aurait été élu à sa
+ * place. C'est ce qui rend « ce cycle est fini » lisible comme « cet athlète attend une suite ».
  */
 function toRowPlan(plans: readonly AthletePlanSource[], today: string): AthleteRowPlan | null {
   const plan = selectCurrentPlan(plans, today);
@@ -143,6 +168,9 @@ function toRowPlan(plans: readonly AthletePlanSource[], today: string): AthleteR
     title: plan.title,
     weekCount: plan.weekCount,
     currentWeek: planWeekNumber(plan, today),
+    phase: planPhase(plan, today),
+    startDate: plan.startDate,
+    endDate: planEndDate(plan.startDate, plan.weekCount),
   };
 }
 
