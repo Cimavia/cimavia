@@ -1,4 +1,4 @@
-import { NOTIFICATION_LABEL_KEY, type NotificationDto } from "@cmv/shared";
+import { NOTIFICATION_LABEL_KEY, type NotificationDto, notificationSubject } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useFocusEffect } from "expo-router";
@@ -118,9 +118,12 @@ function NotificationCard({ notification, onSelect }: Readonly<NotificationCardP
   // Le libellé est rendu ICI, pas stocké : c'est ce qui permettra à une notification déjà reçue
   // de s'afficher en anglais le jour où en.json arrive. `actorName` peut manquer (utilisateur
   // introuvable à l'émission) — on nomme alors personne plutôt que d'afficher un trou.
+  // Le sujet passe par `notificationSubject` : il peut être une VALEUR (note du coach, titre de
+  // cycle) ou une CLÉ à traduire (motif d'un rappel auto-généré, #47). La précédence vit dans
+  // @cmv/shared pour que les deux clients ne la réécrivent pas chacun de son côté.
   const label = t(NOTIFICATION_LABEL_KEY[notification.type], {
     actor: notification.actorName ?? t("notification.someone"),
-    subject: notification.subjectLabel ?? "—",
+    subject: notificationSubject(notification, t) ?? "—",
   });
 
   return (

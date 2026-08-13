@@ -3,7 +3,12 @@ import {
   NotificationEntityType,
   NotificationType,
 } from "../dto/notification.schema";
-import { type ReminderDto, type ReminderEntityType, ReminderStatus } from "../dto/reminder.schema";
+import {
+  type ReminderDto,
+  type ReminderEntityType,
+  type ReminderReason,
+  ReminderStatus,
+} from "../dto/reminder.schema";
 
 // Ce dont dépend l'échéance d'un rappel, et rien de plus (même forme structurelle qu'`InvoiceTiming`
 // pour `resolveInvoiceState`) : la fonction accepte donc aussi bien un `ReminderDto` qu'une ligne.
@@ -73,6 +78,38 @@ export function reminderBadgeState(
   now: Date,
 ): keyof typeof REMINDER_BADGE {
   return isReminderDue(reminder, now) ? "OVERDUE" : reminder.status;
+}
+
+/**
+ * Clé i18n du libellé d'un rappel AUTO-GÉNÉRÉ, par motif (#47). Strict pendant de
+ * `NOTIFICATION_LABEL_KEY`, et pour la même raison : l'API persiste le motif, jamais son libellé —
+ * sans quoi un rappel généré aujourd'hui resterait en français le jour où `en.json` arrive.
+ */
+export const REMINDER_REASON_KEY = {
+  PLAN_ENDING: "reminder.reason.planEnding",
+  INVOICE_OVERDUE: "reminder.reason.invoiceOverdue",
+} as const satisfies Record<ReminderReason, string>;
+
+/**
+ * Ce qu'une ligne de rappel affiche comme titre, sous forme de **clé i18n ou de texte brut** —
+ * jamais rendu ici, `@cmv/shared` n'a pas de traducteur.
+ *
+ * La note l'emporte sur le motif : un rappel généré auquel le coach a ajouté une note (#105) doit
+ * montrer SA phrase, pas l'intitulé système qui l'a fait naître. Les deux champs ne s'excluent donc
+ * pas, ils se classent.
+ *
+ * `null`/`null` ne devrait pas arriver (l'API garantit qu'au moins l'un des deux existe) — on rend
+ * alors `null` plutôt qu'une chaîne vide, à charge pour le client d'afficher « — ». Pas de repli
+ * silencieux.
+ */
+export type ReminderLabel = { kind: "text"; value: string } | { kind: "key"; value: string };
+
+export function reminderLabel(
+  reminder: Pick<ReminderDto, "note" | "reason">,
+): ReminderLabel | null {
+  if (reminder.note != null) return { kind: "text", value: reminder.note };
+  if (reminder.reason != null) return { kind: "key", value: REMINDER_REASON_KEY[reminder.reason] };
+  return null;
 }
 
 /**
@@ -174,7 +211,7 @@ export function parseReminderFeedId(feedId: string): string | null {
 // évite ainsi de résoudre les libellés de cible pour rien. Un `ReminderDto` complet convient aussi.
 export type ReminderFeedSource = Pick<
   ReminderDto,
-  "id" | "entityType" | "entityId" | "note" | "readAt" | "dueAt"
+  "id" | "entityType" | "entityId" | "note" | "reason" | "readAt" | "dueAt"
 >;
 
 /**
@@ -186,23 +223,27 @@ export type ReminderFeedSource = Pick<
  *    au moment où il devient dû, pas au moment où il a été créé. Sinon un rappel posé en janvier
  *    pour mars se rangerait en janvier, sous six semaines de notifications, et personne ne le
  *    verrait le jour où il compte.
- * 2. **`subjectLabel` vaut la note**, et `actorName` est `null` : un rappel n'a pas d'acteur, le
- *    coach se le rappelle à lui-même. La note est du texte du coach, donc affichable telle quelle —
- *    le libellé, lui, reste rendu côté client (`NOTIFICATION_LABEL_KEY[REMINDER_DUE]`), comme pour
- *    tout le reste du centre.
- * 3. **Aucune ligne `notification` n'est écrite.** L'entrée est CALCULÉE à chaque lecture — c'est
- *    pourquoi `REMINDER_DUE` n'existe pas dans l'enum Prisma : la base ne peut pas le stocker, et
- *    c'est volontaire. Le jour où #47 poussera un rappel dû, il faudra choisir entre persister et
- *    calculer, jamais les deux — sinon le même rappel apparaîtrait en double.
+ * 2. **Le sujet suit `reminderLabel`**, et `actorName` est `null` : un rappel n'a pas d'acteur, le
+ *    coach se le rappelle à lui-même. Une note est du texte du coach, donc voyage comme VALEUR
+ *    (`subjectLabel`) ; un motif auto-généré voyage comme CLÉ (`subjectKey`), pour que son libellé
+ *    ne soit pas figé en français dans une charge utile d'API. Le libellé de l'entrée, lui, reste
+ *    rendu côté client (`NOTIFICATION_LABEL_KEY[REMINDER_DUE]`), comme tout le reste du centre.
+ * 3. **Aucune ligne `notification` n'est écrite**, y compris depuis #47 : le scheduler POUSSE un
+ *    rappel dû mais ne le persiste pas — c'est le choix « calculer », jamais les deux, sinon le
+ *    même rappel apparaîtrait en double. `REMINDER_DUE` reste donc absent de l'enum Prisma, et le
+ *    typecheck l'impose via `PersistedNotificationType`.
  */
 export function reminderToNotificationDto(reminder: ReminderFeedSource): NotificationDto {
+  const label = reminderLabel(reminder);
+
   return {
     id: toReminderFeedId(reminder.id),
     type: NotificationType.REMINDER_DUE,
     entityType: REMINDER_TARGET_ENTITY_TYPE[reminder.entityType],
     entityId: reminder.entityId,
     actorName: null,
-    subjectLabel: reminder.note,
+    subjectLabel: label?.kind === "text" ? label.value : null,
+    subjectKey: label?.kind === "key" ? label.value : null,
     readAt: reminder.readAt,
     createdAt: reminder.dueAt,
   };

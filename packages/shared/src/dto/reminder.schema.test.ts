@@ -3,6 +3,7 @@ import {
   createReminderSchema,
   REMINDER_NOTE_MAX_LENGTH,
   ReminderEntityType,
+  ReminderReason,
   ReminderStatus,
   reminderDtoSchema,
   reminderSummaryDtoSchema,
@@ -174,6 +175,7 @@ describe("reminderDtoSchema", () => {
     targetLabel: "Cycle bloc — automne",
     dueAt: "2026-08-15T07:00:00.000Z",
     note: "Relancer le renouvellement du cycle",
+    reason: null,
     status: ReminderStatus.PENDING,
     readAt: null,
     createdAt: "2026-08-07T10:00:00.000Z",
@@ -192,10 +194,33 @@ describe("reminderDtoSchema", () => {
     expect(reminderDtoSchema.safeParse({ ...DTO, targetLabel: null }).success).toBe(true);
   });
 
-  // La note est le contenu du rappel : le DTO ne la rend jamais nullable, contrairement à
-  // `targetLabel`.
-  it("refuse un rappel sans note", () => {
-    expect(reminderDtoSchema.safeParse({ ...DTO, note: null }).success).toBe(false);
+  /**
+   * Depuis #47, la note est NULLABLE — mais seulement parce qu'un rappel auto-généré porte un
+   * `reason` à la place. C'est ce qui évite à l'API d'écrire un libellé français en base, faute
+   * qu'interdit le modèle de notification (#48).
+   */
+  it("accepte un rappel auto-généré : pas de note, mais un motif", () => {
+    const result = reminderDtoSchema.safeParse({
+      ...DTO,
+      note: null,
+      reason: ReminderReason.PLAN_ENDING,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // Les deux ne s'excluent pas : le coach peut ajouter sa note à un rappel généré (#105), et se
+  // l'approprier. La règle d'affichage est une précédence, pas une alternative (cf. `reminderLabel`).
+  it("accepte un rappel généré auquel le coach a ajouté une note", () => {
+    const result = reminderDtoSchema.safeParse({
+      ...DTO,
+      note: "Relancer plutôt lundi",
+      reason: ReminderReason.INVOICE_OVERDUE,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("refuse un motif inconnu", () => {
+    expect(reminderDtoSchema.safeParse({ ...DTO, reason: "PLAN_STARTING" }).success).toBe(false);
   });
 });
 

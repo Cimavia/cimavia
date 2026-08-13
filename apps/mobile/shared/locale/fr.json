@@ -284,6 +284,10 @@
       "hint": "Le jour de l'échéance, le rappel apparaît dans vos notifications. Vous le retrouvez à tout moment dans « Mes rappels ».",
       "submit": "Programmer",
       "submitting": "Enregistrement…"
+    },
+    "reason": {
+      "planEnding": "Le cycle se termine — proposer le renouvellement",
+      "invoiceOverdue": "Facture en retard — relancer"
     }
   },
   "notification": {

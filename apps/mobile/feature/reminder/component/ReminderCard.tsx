@@ -5,6 +5,7 @@ import {
   ReminderEntityType,
   ReminderStatus,
   reminderBadgeState,
+  reminderLabel,
 } from "@cmv/shared";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,17 @@ import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminde
 import { CmvBadge, CmvText } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
 import { formatPeriod } from "@/shared/util/money.util";
+
+/**
+ * Le titre d'un rappel : la note du coach, ou le libellé de son MOTIF s'il a été auto-généré (#47).
+ * `null` si ni l'un ni l'autre — l'API garantit que ça n'arrive pas, on n'invente pas de texte pour
+ * autant, la carte rend « — ».
+ */
+function reminderTitle(reminder: ReminderDto, t: (key: string) => string): string | null {
+  const label = reminderLabel(reminder);
+  if (label == null) return null;
+  return label.kind === "key" ? t(label.value) : label.value;
+}
 
 type ReminderCardProps = {
   reminder: ReminderDto;
@@ -36,11 +48,15 @@ export function ReminderCard({
   const { t } = useTranslation();
   const isPending = reminder.status === ReminderStatus.PENDING;
   const { variant, labelKey } = REMINDER_BADGE[reminderBadgeState(reminder, new Date())];
+  const title = reminderTitle(reminder, t);
 
   return (
     <View className="gap-2 rounded-lg border border-cmv-border bg-cmv-bg-1 p-4">
       <View className="flex-row items-start justify-between gap-2">
-        <CmvText className="flex-1 text-cmv-text-hi">{reminder.note}</CmvText>
+        {/* La note du coach, ou le libellé du MOTIF si le rappel a été auto-généré (#47). La
+            précédence vit dans @cmv/shared : une note ajoutée à un rappel généré l'emporte sur
+            l'intitulé système. Le motif voyage comme clé i18n et se traduit ici. */}
+        <CmvText className="flex-1 text-cmv-text-hi">{title ?? "—"}</CmvText>
         <CmvBadge label={t(labelKey)} variant={variant} dot />
       </View>
 

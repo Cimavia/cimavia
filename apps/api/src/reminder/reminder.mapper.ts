@@ -26,6 +26,10 @@ export function toReminderDto(row: Reminder, labels: ReminderTargetLabels): Remi
     targetLabel: labels[row.entityType].get(row.entityId) ?? null,
     dueAt: row.dueAt.toISOString(),
     note: row.note,
+    // `null` sur un rappel saisi à la main. Le libellé du motif n'est PAS construit ici : c'est le
+    // client qui le rend via `REMINDER_REASON_KEY`, sinon on réintroduirait le texte figé en
+    // français que #47 existe pour éviter.
+    reason: row.reason,
     status: row.status,
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -45,6 +49,10 @@ export function toReminderFeedEntry(row: Reminder): NotificationDto {
     entityType: row.entityType,
     entityId: row.entityId,
     note: row.note,
+    // Sans le motif, un rappel auto-généré n'aurait RIEN à afficher dans le centre : sa note est
+    // nulle par construction. C'est `reminderToNotificationDto` qui décide lequel des deux voyage,
+    // et sous quelle forme — valeur pour la note, clé i18n pour le motif.
+    reason: row.reason,
     readAt: row.readAt?.toISOString() ?? null,
     dueAt: row.dueAt.toISOString(),
   });

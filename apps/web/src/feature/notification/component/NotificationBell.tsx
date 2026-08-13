@@ -1,4 +1,9 @@
-import { NOTIFICATION_LABEL_KEY, type NotificationDto, parseReminderFeedId } from "@cmv/shared";
+import {
+  NOTIFICATION_LABEL_KEY,
+  type NotificationDto,
+  notificationSubject,
+  parseReminderFeedId,
+} from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -190,9 +195,13 @@ function NotificationRow({ notification, onSelect }: Readonly<NotificationRowPro
   // Le libellé est rendu ICI, pas stocké : c'est ce qui permettra à la même ligne de s'afficher en
   // anglais le jour où en.json arrive. `actorName` peut manquer (utilisateur introuvable au moment
   // de l'émission) — on nomme alors personne plutôt que d'afficher un trou.
+  //
+  // Le sujet passe par `notificationSubject` : il peut être une VALEUR (note du coach, titre de
+  // cycle) ou une CLÉ à traduire (motif d'un rappel auto-généré, #47). La précédence vit dans
+  // @cmv/shared pour que les deux clients ne la réécrivent pas chacun de son côté.
   const label = t(NOTIFICATION_LABEL_KEY[notification.type], {
     actor: notification.actorName ?? t("notification.someone"),
-    subject: notification.subjectLabel ?? "—",
+    subject: notificationSubject(notification, t) ?? "—",
   });
 
   /**

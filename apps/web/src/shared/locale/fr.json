@@ -360,6 +360,10 @@
       "DISMISSED": "Rappel abandonné",
       "PENDING": "Rappel rouvert",
       "snoozed": "Rappel repoussé au {{date}}"
+    },
+    "reason": {
+      "planEnding": "Le cycle se termine — proposer le renouvellement",
+      "invoiceOverdue": "Facture en retard — relancer"
     }
   },
   "messages": {

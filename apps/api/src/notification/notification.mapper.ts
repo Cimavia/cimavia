@@ -14,6 +14,13 @@ export function toNotificationDto(row: Notification): NotificationDto {
     entityId: row.entityId,
     actorName: row.actorName,
     subjectLabel: row.subjectLabel,
+    /**
+     * Toujours `null` pour une notification PERSISTÉE : son sujet est une valeur (nom d'athlète,
+     * titre de cycle), jamais une clé i18n. `subjectKey` n'existe que pour les entrées CALCULÉES —
+     * aujourd'hui le seul rappel auto-généré, qui n'a pas de note à porter (#47). Aucune colonne
+     * ne lui correspond en base, et c'est voulu.
+     */
+    subjectKey: null,
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };

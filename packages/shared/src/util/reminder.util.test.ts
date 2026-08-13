@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NotificationEntityType, NotificationType } from "../dto/notification.schema";
-import { ReminderEntityType, ReminderStatus } from "../dto/reminder.schema";
+import { ReminderEntityType, ReminderReason, ReminderStatus } from "../dto/reminder.schema";
 import {
   isReminderDue,
   parseReminderFeedId,
@@ -185,6 +185,7 @@ describe("reminderToNotificationDto", () => {
     entityType: ReminderEntityType.INVOICE,
     entityId: "inv_1",
     note: "Facture de mars toujours impayée",
+    reason: null,
     readAt: null,
     dueAt: "2026-08-07T09:00:00.000Z",
   };
@@ -197,9 +198,39 @@ describe("reminderToNotificationDto", () => {
       entityId: "inv_1",
       actorName: null,
       subjectLabel: "Facture de mars toujours impayée",
+      subjectKey: null,
       readAt: null,
       createdAt: "2026-08-07T09:00:00.000Z",
     });
+  });
+
+  /**
+   * Le rappel AUTO-GÉNÉRÉ (#47) : pas de note, donc le sujet part comme **clé** et non comme
+   * valeur. C'est ce qui empêche « le cycle se termine » de voyager figé en français dans une
+   * charge utile d'API — la faute exacte que `NOTIFICATION_LABEL_KEY` existe pour interdire.
+   */
+  it("fait voyager le motif d'un rappel généré comme clé, pas comme libellé", () => {
+    const entry = reminderToNotificationDto({
+      ...DUE,
+      note: null,
+      reason: ReminderReason.PLAN_ENDING,
+    });
+
+    expect(entry.subjectLabel).toBeNull();
+    expect(entry.subjectKey).toBe("reminder.reason.planEnding");
+  });
+
+  // La note l'emporte : un rappel généré que le coach s'est approprié en y écrivant sa phrase (#105)
+  // doit montrer SA phrase dans le centre, pas l'intitulé système qui l'a fait naître.
+  it("préfère la note du coach au motif quand les deux existent", () => {
+    const entry = reminderToNotificationDto({
+      ...DUE,
+      note: "Relancer Marie avant vendredi",
+      reason: ReminderReason.INVOICE_OVERDUE,
+    });
+
+    expect(entry.subjectLabel).toBe("Relancer Marie avant vendredi");
+    expect(entry.subjectKey).toBeNull();
   });
 
   /**

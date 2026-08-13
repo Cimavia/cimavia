@@ -52,6 +52,27 @@ export const ReminderEntityType = {
 export type ReminderEntityType = TypesValuesOf<typeof ReminderEntityType>;
 export const reminderEntityTypeSchema = z.enum(ReminderEntityType);
 
+/**
+ * Pourquoi un rappel a été généré AUTOMATIQUEMENT (#47). `null` = rappel saisi par le coach.
+ *
+ * C'est la réponse à la contrainte relevée en construisant #44 : un rappel auto-généré ne doit pas
+ * **fabriquer sa `note`**. La note est du texte du COACH (comme `Plan.title`) ; une note écrite par
+ * l'API serait un **libellé rendu puis persisté**, exactement ce que le modèle de notification
+ * interdit (#48 : on persiste le type et les paramètres, le rendu se fait côté client).
+ *
+ * On persiste donc le MOTIF, et le libellé se rend à l'affichage via `REMINDER_REASON_KEY` — même
+ * dispositif que `NOTIFICATION_LABEL_KEY`. Conséquence voulue : un rappel généré aujourd'hui
+ * s'affichera en anglais le jour où `en.json` arrive.
+ */
+export const ReminderReason = {
+  /** La dernière semaine du cycle approche — proposer le renouvellement avant qu'il ne s'arrête. */
+  PLAN_ENDING: "PLAN_ENDING",
+  /** Facture émise dont l'échéance est dépassée — relancer. */
+  INVOICE_OVERDUE: "INVOICE_OVERDUE",
+} as const;
+export type ReminderReason = TypesValuesOf<typeof ReminderReason>;
+export const reminderReasonSchema = z.enum(ReminderReason);
+
 // ── Entrée coach ─────────────────────────────────────────────────────────────
 
 /**
@@ -133,7 +154,22 @@ export const reminderDtoSchema = z.object({
    */
   targetLabel: z.string().nullable(),
   dueAt: z.iso.datetime(),
-  note: z.string(),
+  /**
+   * Le texte du coach — `null` sur un rappel **auto-généré**, qui porte un `reason` à la place
+   * (#47). Nullable depuis, et seulement depuis, l'arrivée de la génération : c'est ce qui évite à
+   * l'API d'écrire un libellé français en base.
+   */
+  note: z.string().nullable(),
+  /**
+   * Le motif d'une génération automatique, `null` sur un rappel saisi à la main.
+   *
+   * **Les deux champs ne s'excluent pas** : le coach peut ajouter une note à un rappel généré
+   * (`PATCH /reminders/:id`, #105), et c'est utile — il se l'approprie. La règle d'affichage est
+   * donc une PRÉCÉDENCE, pas une alternative : la note l'emporte quand elle existe, le motif sert
+   * de libellé sinon (`reminderLabel`). Ce qui est garanti, c'est qu'au moins l'un des deux est
+   * renseigné.
+   */
+  reason: reminderReasonSchema.nullable(),
   status: reminderStatusSchema,
   // null = pas encore vu dans le centre de notifications (#51). Distinct du statut : jeter un œil
   // à un rappel dû ne le traite pas.
