@@ -159,7 +159,7 @@ survienne).
 >
 > - **`test:e2e` porte `cache: false` dans `turbo.json`.** Ce n'est pas un oubli d'optimisation.
 >   Les vraies entrées de cette suite sont un Postgres et un MinIO **vivants**, plus l'état de la
->   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 178 passed » sans
+>   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 186 passed » sans
 >   exécuter une requête : une porte verte qui n'a rien vérifié, soit la panne M-1 en pire, parce
 >   qu'invisible.
 > - **`vitest.config.e2e.ts` doit continuer de LEVER si `.env.test` manque.** Rendre le
@@ -241,7 +241,7 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| R-1 | **Aucun push quand un rappel devient dû** : sans scheduler, il n'apparaît qu'au prochain chargement du centre. | 🟢 | [#47](https://github.com/Cimavia/cimavia/issues/47) |
+| ~~R-1~~ | ~~**Aucun push quand un rappel devient dû**~~ : sans scheduler, il n'apparaissait qu'au prochain chargement du centre. | ✅ | résolu en **#47** — tick externe horaire (`POST /internal/reminders/tick`), push idempotent via `pushedAt` |
 | R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | [#106](https://github.com/Cimavia/cimavia/issues/106) |
 | ~~R-3~~ | ~~**Pas de report d'échéance ni d'édition**~~ : reprogrammer un rappel demandait de le traiter puis d'en créer un autre — deux gestes, et un historique de doublons. | ✅ | résolu en **#105** — `PATCH /reminders/:id` (échéance et/ou note) + bouton « Repousser » sur l'écran **et** dans le centre de notifications |
 | R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts. | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
@@ -271,6 +271,47 @@ survienne).
 > longtemps à l'avance serait enterré sous des semaines de notifications le jour où il compte.
 > **Le jour où #47 poussera un rappel dû, il devra choisir entre persister et calculer**, jamais les
 > deux, sinon le même rappel apparaîtra en double.
+
+> **Tranché en #47** (le support d'exécution, et pourquoi ce n'était pas une question de code) : un
+> cron in-process ne se déclenche **pas** sur du scale-to-zero — aucun process ne tourne pour tirer
+> le tick. Il aurait marché sur le NAS et serait mort en silence en production, le pire des deux
+> mondes puisque tout test manuel passait. Retenu : **déclencheur externe** (workflow `schedule`)
+> appelant une route à secret partagé, contre un conteneur always-on, pour trois raisons — c'est
+> gratuit là où `min-scale=1` sort du palier ; c'est **testable par la porte e2e** devenue requise en
+> #130, alors qu'un tick interne ne se déclenche pas sous test ; et sa panne est **bruyante** (job
+> rouge) là où le scale-to-zero avale le tick sans un mot.
+>
+> Deux contreparties écrites dans le workflow : GitHub désactive les `schedule` d'un dépôt public
+> après **60 jours sans commit**, et ses crons ont plusieurs minutes de retard. La seconde est sans
+> effet — les échéances sont dérivées de la donnée, pas de l'heure du tick. La première ferait
+> cesser les rappels en silence sur un projet en pause ; le jour où ça mord, le même appel se
+> déplace sur un cron Cloudflare, la route ne bouge pas.
+
+> **Tranché en #47** (le scope tenant hors requête) : un tick n'a ni session ni acteur, là où
+> l'extension Prisma refuse tout modèle sans scope. **On ne la contourne pas, on lui donne un
+> acteur** : le balayage ouvre un contexte CLS par coach (`cls.run` + `set`, le même contrat que
+> `TenancyInterceptor`), si bien que les lectures restent filtrées et que le `coachId` des rappels
+> créés est **injecté**, jamais écrit par le service. Une seule lecture reste hors scope et elle est
+> nommée — la liste des coachs, `User` n'étant pas dans `TENANT_SCOPES` — via le `PrismaService` de
+> base, précédent de `UserDirectoryService`. Un e2e le fige sur le chemin qui n'a aucun acteur : ce
+> que le tick génère pour un coach n'atterrit jamais chez un autre.
+
+> **Tranché en #47** (persister ou calculer, la question laissée ouverte par #51) : **calculer**.
+> Le tick pousse un rappel dû mais n'écrit **aucune ligne `notification`** — en écrire une le ferait
+> apparaître deux fois dans le centre, une fois persistée et une fois calculée depuis la table
+> `reminder`. `REMINDER_DUE` reste donc absent de l'enum Prisma, et `PersistedNotificationType`
+> l'interdit à la compilation. Ce qui est persisté, c'est **`pushedAt`** : un marqueur de livraison,
+> même famille que `readAt`, qui rend le tick idempotent (deux passages rapprochés ne poussent pas
+> deux fois, un tick manqué rattrape au suivant). L'estampille est posée **après** l'envoi : un
+> arrêt brutal entre les deux repousse au tick suivant, et un doublon vaut mieux qu'un silence.
+>
+> Corollaire assumé sur l'**idempotence de la génération** : elle vit dans l'index unique
+> `(coachId, entityType, entityId, reason)` plus `skipDuplicates`, pas dans le code — une
+> vérification préalable en JavaScript laisserait une fenêtre entre la lecture et l'écriture. Les
+> rappels **manuels** y échappent sans qu'on l'écrive, PostgreSQL traitant deux `NULL` comme
+> distincts. Et un rappel généré puis **traité n'est jamais régénéré**, même si la facture reste
+> impayée : le coach a tranché, on ne le relance pas. Un e2e le fige, sans quoi l'index passerait un
+> jour pour un oubli.
 
 > **Tranché en #105** (ce que devient `readAt` au report) : il est remis à **`null` dès que `dueAt`
 > bouge**, et seulement alors. `readAt` dit « vu à CETTE échéance-là » — une nouvelle échéance est
@@ -485,7 +526,7 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 178 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
+| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 186 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |

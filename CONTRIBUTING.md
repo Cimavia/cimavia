@@ -16,7 +16,7 @@ Merge unidirectionnel `feature/* → main → staging → production` (jamais en
 CI (`.github/workflows/`) :
 
 - `ci.yml`, job **`Lint + Typecheck + Test`** — Biome, `turbo typecheck test`, `check:i18n`.
-- `ci.yml`, job **`E2E (isolation multi-tenant)`** — les 178 e2e de l'API, contre un Postgres et un
+- `ci.yml`, job **`E2E (isolation multi-tenant)`** — les 186 e2e de l'API, contre un Postgres et un
   MinIO jetables montés par les composes du dépôt. Seul filet de la couche API (2,6 % de couverture
   unitaire), donc bloquant.
 - `sonar.yml`, job **`SonarCloud Analysis`** — qualité + sécurité.

@@ -169,6 +169,6 @@ L'isolation des données est garantie **à la couche données**, pas par la seul
 ## 11. Qualité & CI
 
 - **Biome** (lint + format) ; pas d'ESLint/Prettier. **Vitest** pour les tests. Hooks **Husky + lint-staged + commitlint** : Conventional Commits, **sujet en minuscule**.
-- CI GitHub Actions (`ci.yml`, trois jobs, tous **requis** pour merger) : `Lint + Typecheck + Test` (`biome ci`, `turbo typecheck test`, `check:i18n`) · `E2E (isolation multi-tenant)` (les 178 e2e contre un Postgres et un MinIO jetables) · `SonarCloud Analysis` (les 3 couches, `sonar-project.properties`). Ces libellés sont les noms de **jobs** : les rulesets les exigent sous ce nom exact, en renommer un décroche la porte. **Sentry** sur les 3 couches.
+- CI GitHub Actions (`ci.yml`, trois jobs, tous **requis** pour merger) : `Lint + Typecheck + Test` (`biome ci`, `turbo typecheck test`, `check:i18n`) · `E2E (isolation multi-tenant)` (les 186 e2e contre un Postgres et un MinIO jetables) · `SonarCloud Analysis` (les 3 couches, `sonar-project.properties`). Ces libellés sont les noms de **jobs** : les rulesets les exigent sous ce nom exact, en renommer un décroche la porte. **Sentry** sur les 3 couches.
 - **Couverture** : mesurée sur `@cmv/shared` (tests unitaires) et sur `apps/api` (les e2e, instrumentés en v8 — ils lancent Nest dans le process du worker). Web et mobile restent hors mesure, faute de harnais d'UI.
 - Écrans/données mockés : commentaire `// MOCKED — <desc>. À connecter en P<X>.` (`grep -r MOCKED` doit tous les lister).
