@@ -313,10 +313,16 @@ export type {
   AthleteInvoiceSource,
   AthletePlanSource,
   AthleteRow,
+  AthleteRowFilter,
   AthleteRowPlan,
+  AthleteRowQuery,
   AthleteRowsInput,
 } from "./util/athlete-row.util";
-export { buildAthleteRows } from "./util/athlete-row.util";
+export {
+  ATHLETE_ROW_FILTERS,
+  buildAthleteRows,
+  visibleAthleteRows,
+} from "./util/athlete-row.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,

@@ -1,5 +1,6 @@
 import { PlanStatus } from "../dto/plan.schema";
 import { type InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
+import { comparableName } from "./name.util";
 import {
   type PlanPeriod,
   type PlanPhase,
@@ -172,6 +173,77 @@ function toRowPlan(plans: readonly AthletePlanSource[], today: string): AthleteR
     startDate: plan.startDate,
     endDate: planEndDate(plan.startDate, plan.weekCount),
   };
+}
+
+/**
+ * Les segments de la barre d'outils du tableau (#123).
+ *
+ * Les deux filtres décrivent le MÊME axe — l'état du cycle — et sont **disjoints par
+ * construction** : une ligne a un cycle courant ou n'en a pas. Aucun athlète ne peut apparaître
+ * sous les deux, et aucun ne recompte ce qu'une tuile annonce déjà (les tuiles comptent des
+ * cycles, pas des athlètes qui en manquent).
+ */
+export const ATHLETE_ROW_FILTERS = ["ALL", "ENDED_PLAN", "NO_PLAN"] as const;
+
+export type AthleteRowFilter = (typeof ATHLETE_ROW_FILTERS)[number];
+
+export type AthleteRowQuery = {
+  /** Recherche par nom. Vide = aucune restriction. */
+  search: string;
+  filter: AthleteRowFilter;
+  /** Locale de tri, fournie par l'appelant (i18next) — comme les formateurs de `date-format.util`. */
+  locale: string;
+};
+
+/**
+ * Ce que le tableau affiche : les lignes retenues, **dans l'ordre où les afficher**.
+ *
+ * Sélection et tri dans la MÊME fonction, délibérément. Les composer dans le composant laisserait
+ * la moitié de la décision hors de toute mesure de couverture (le web n'est pas instrumenté, §11) —
+ * or l'ordre est une décision produit, pas un détail de rendu : il remplace le tri « activité
+ * récente » de la maquette, écarté faute de donnée honnête (cf. #123).
+ *
+ * L'ordre est **alphabétique**, et c'est le pendant de la recherche par nom : on cherche quelqu'un
+ * par son nom, la liste est rangée par nom. L'ordre d'arrivée servi par l'API (`joinedAt desc`)
+ * n'est perceptible par personne.
+ *
+ * N'altère jamais `rows` : `filter` produit un nouveau tableau, que `sort` trie sur place.
+ */
+export function visibleAthleteRows(
+  rows: readonly AthleteRow[],
+  query: AthleteRowQuery,
+): AthleteRow[] {
+  const needle = comparableName(query.search);
+
+  return rows
+    .filter((row) => matchesFilter(row, query.filter) && matchesSearch(row, needle))
+    .sort((left, right) => left.athleteName.localeCompare(right.athleteName, query.locale));
+}
+
+function matchesSearch(row: AthleteRow, needle: string): boolean {
+  // Sous-chaîne et non préfixe : un coach tape aussi bien le nom de famille que le prénom.
+  return needle === "" || comparableName(row.athleteName).includes(needle);
+}
+
+function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {
+  switch (filter) {
+    case "ALL":
+      return true;
+    /**
+     * Aucun cycle diffusé. ⚠️ `plan: null` recouvre AUSSI « liste des cycles indisponible » : c'est
+     * l'écran, seul à connaître l'état de ses requêtes, qui garantit de ne pas proposer ce filtre
+     * quand la source a échoué — sinon il annoncerait toute l'écurie comme étant sans plan.
+     */
+    case "NO_PLAN":
+      return row.plan == null;
+    /**
+     * Cycle terminé, et rien derrière — `selectCurrentPlan` aurait élu un cycle à venir s'il en
+     * existait un (cf. `toRowPlan`). Un `phase: null` (cycle non situable) n'est PAS capturé : on
+     * ne range pas un cycle illisible parmi les terminés, ce serait inventer un travail au coach.
+     */
+    case "ENDED_PLAN":
+      return row.plan?.phase === "ENDED";
+  }
 }
 
 // Le débrief non lu le plus RÉCENT : c'est celui qu'ouvre le lien de la colonne, pas le plus ancien.
