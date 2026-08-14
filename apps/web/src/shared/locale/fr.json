@@ -485,7 +485,7 @@
       "matchCount_other": "{{count}} athlètes",
       "noMatch": {
         "title": "Aucun athlète ne correspond",
-        "description": "Modifiez votre recherche, ou revenez à « Tous » pour revoir toute votre écurie.",
+        "description": "Modifiez votre recherche, ou revenez à « Tous » pour revoir tous vos athlètes.",
         "reset": "Réinitialiser"
       }
     },
