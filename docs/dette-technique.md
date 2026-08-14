@@ -443,7 +443,7 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > manquent. C'est la contrainte de #52 appliquée au filtrage.
 > **(5)** ils **disparaissent** quand `GET /plans` n'a pas répondu, et un `?filter=` hérité est
 > ignoré : `AthleteRow.plan` vaut alors `null` pour tout le monde, et « Sans plan » annoncerait
-> l'écurie entière. `null` n'est pas zéro, y compris dans un filtre.
+> **tous** les athlètes. `null` n'est pas zéro, y compris dans un filtre.
 > **(6)** l'état de la barre vit dans **l'URL** (`?q=`, `?filter=`), en `replace` : un filtre qui ne
 > survit pas à F5 n'est pas le même produit, mais ce n'est pas une étape de navigation — le bouton
 > Retour doit quitter l'écran, pas rembobiner la frappe.
