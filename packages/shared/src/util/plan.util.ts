@@ -124,6 +124,35 @@ export function planWeekNumber(plan: PlanPeriod, date: string): number | null {
   return weekNumber > plan.weekCount ? null : weekNumber;
 }
 
+// Où un cycle se situe par rapport à une date : il l'attend, il la contient, il l'a dépassée.
+export type PlanPhase = "UPCOMING" | "ONGOING" | "ENDED";
+
+/**
+ * L'époque d'un cycle — ce que `planWeekNumber` ne dit pas.
+ *
+ * `planWeekNumber` répond « quelle semaine », et son `null` recouvre DEUX situations contraires :
+ * pas encore commencé, et déjà fini. L'affichage comme le filtrage doivent les séparer — un cycle
+ * à venir est un cycle que le coach a DÉJÀ planifié, un cycle terminé est un athlète à relancer.
+ * Les confondre reviendrait à dire la même chose de deux états opposés.
+ *
+ * Les deux fonctions ne peuvent pas diverger : `ONGOING` vaut exactement quand `planWeekNumber`
+ * rend un numéro — mêmes bornes de part et d'autre, invariant tenu par un test.
+ *
+ * `null` quand le cycle n'est pas situable (date illisible, `weekCount` invalide) — surtout pas une
+ * époque par défaut, qui rangerait un cycle illisible parmi les terminés et le ferait ressortir
+ * dans un filtre « à relancer ».
+ */
+export function planPhase(plan: PlanPeriod, date: string): PlanPhase | null {
+  // `planEndDate` rend `null` sur un `startDate` illisible comme sur un `weekCount` invalide : les
+  // deux causes d'un cycle non situable passent par ce seul test.
+  const endDate = planEndDate(plan.startDate, plan.weekCount);
+  if (endDate == null || !isIsoDate(date)) return null;
+
+  if (date < plan.startDate) return "UPCOMING";
+  if (date > endDate) return "ENDED";
+  return "ONGOING";
+}
+
 /**
  * Le plan « courant » d'un athlète parmi ses plans diffusés, à la date `today` :
  * en cours > à venir (le plus proche) > terminé (le plus récent) > `null`.

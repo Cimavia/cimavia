@@ -66,7 +66,11 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
   return (
     <div className="flex min-h-screen bg-cmv-bg-0">
       <aside className="flex w-60 shrink-0 flex-col gap-cmv-xl border-cmv-border border-r bg-cmv-bg-1 p-cmv-lg">
-        <Link to="/" className="font-cmv-display text-cmv-subtitle text-cmv-text-hi">
+        <Link
+          to="/"
+          search={{ q: undefined, filter: undefined }}
+          className="font-cmv-display text-cmv-subtitle text-cmv-text-hi"
+        >
           {t("common.appName")}
         </Link>
 

@@ -17,7 +17,7 @@ export function LoginScreen() {
 
   // Déjà connecté → on ne montre pas l'écran de connexion.
   if (!isPending && session) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" search={{ q: undefined, filter: undefined }} />;
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -30,7 +30,7 @@ export function LoginScreen() {
         setError(t("auth.errors.invalidCredentials"));
         return;
       }
-      navigate({ to: "/" });
+      navigate({ to: "/", search: { q: undefined, filter: undefined } });
     } catch {
       // Échec réseau / CORS : la promesse rejette → on affiche une erreur générique.
       setError(t("auth.errors.generic"));

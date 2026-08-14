@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { shiftIsoDate } from "./date.util";
 import {
   isDateInPlanWeek,
   planEndDate,
+  planPhase,
   planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,
@@ -198,6 +200,40 @@ describe("planWeekNumber", () => {
     expect(planWeekNumber(PLAN, "12/10/2026")).toBeNull();
     expect(planWeekNumber({ startDate: MONDAY, weekCount: 0 }, MONDAY)).toBeNull();
     expect(planWeekNumber({ startDate: "pas une date", weekCount: 4 }, MONDAY)).toBeNull();
+  });
+});
+
+describe("planPhase", () => {
+  // Cycle de 4 semaines démarrant le lundi 2026-10-12 → dernier jour = dimanche 2026-11-08.
+  const PLAN = { startDate: MONDAY, weekCount: 4 };
+
+  it("situe le cycle avant, pendant et après — bornes incluses", () => {
+    expect(planPhase(PLAN, "2026-10-11")).toBe("UPCOMING"); // la veille du départ
+    expect(planPhase(PLAN, MONDAY)).toBe("ONGOING"); // premier jour, inclus
+    expect(planPhase(PLAN, "2026-11-08")).toBe("ONGOING"); // dernier jour, inclus
+    expect(planPhase(PLAN, "2026-11-09")).toBe("ENDED"); // le lendemain de la fin
+  });
+
+  it("rend null sur un cycle non situable, jamais une époque par défaut", () => {
+    expect(planPhase(PLAN, "12/10/2026")).toBeNull();
+    expect(planPhase({ startDate: MONDAY, weekCount: 0 }, MONDAY)).toBeNull();
+    expect(planPhase({ startDate: "pas une date", weekCount: 4 }, MONDAY)).toBeNull();
+  });
+
+  /**
+   * L'invariant qui interdit aux deux fonctions de diverger : elles décrivent le même cycle par
+   * deux angles, et un écart de bornes ferait afficher « S4/4 » à un cycle rangé parmi les
+   * terminés — ou l'inverse. Balayé sur toute la durée du cycle, débordement des deux côtés
+   * compris.
+   */
+  it("vaut ONGOING exactement quand planWeekNumber rend un numéro", () => {
+    for (let offset = -3; offset <= 4 * 7 + 3; offset++) {
+      const date = shiftIsoDate(MONDAY, offset) ?? "";
+      expect([date, planPhase(PLAN, date) === "ONGOING"]).toEqual([
+        date,
+        planWeekNumber(PLAN, date) !== null,
+      ]);
+    }
   });
 });
 

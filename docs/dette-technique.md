@@ -20,9 +20,8 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#68](https://github.com/Cimavia/cimavia/issues/68) pagination ·
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod — plus dix issues
-autonomes. Quatre dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
-explicitement « aucun »), **D-2** et **M-5** (déclencheur nommé, mais rien à préparer avant qu'il
-survienne).
+autonomes. Trois dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
+explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne).
 
 ---
 
@@ -375,8 +374,8 @@ survienne).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| D-1 | **Sept requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, conversations, résumé des rappels, non-lues) : la jointure du tableau est faite côté client, sans endpoint d'agrégat. Le **polling** de deux d'entre elles a été coupé sur cet écran (#113) — il ne reste que celui du badge, qui est sa raison d'être. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) |
-| D-2 | **Pas de recherche, de tri ni de filtre** sur le tableau de suivi, là où la maquette en prévoit (« À relancer », « Sans plan », tri par activité). Acceptable tant qu'un coach compte ses athlètes sur les doigts d'une main. | 🟢 | — *(déclencheur : un coach qui scrolle pour se retrouver)* |
+| D-1 | **Sept requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, conversations, résumé des rappels, non-lues) : la jointure du tableau est faite côté client, sans endpoint d'agrégat. Le **polling** de deux d'entre elles a été coupé sur cet écran (#113) — il ne reste que celui du badge, qui est sa raison d'être. Le tableau rend par ailleurs **toutes** ses lignes, `GET /athletes` n'étant pas borné : même déclencheur, même épic. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) *(épic : [#139](https://github.com/Cimavia/cimavia/issues/139) agrégat · [#140](https://github.com/Cimavia/cimavia/issues/140) pagination)* |
+| ~~D-2~~ | ~~**Pas de recherche, de tri ni de filtre** sur le tableau de suivi, là où la maquette en prévoit.~~ | ✅ | résolue en **#123** — recherche par nom, filtres *Cycle terminé* / *Sans plan*, ordre alphabétique. Le **tri par activité** est resté dehors (cf. encadré ci-dessous) |
 
 > **Tranché en #52** (aucune information lue deux fois) : c'est la contrainte qui a façonné l'écran,
 > parce que sept tuiles offrent sept occasions de recompter la même chose. Trois conséquences.
@@ -420,6 +419,34 @@ survienne).
 > **(5)** le **chevron de fin de ligne** attend sa destination : il reviendra avec une route
 > `/athletes/$athleteId`. En attendant, c'est le bouton « Fiche » qui ouvre le panneau — un chevron
 > qui n'ouvre qu'un tiroir mentirait sur ce qui suit.
+
+> **Tranché en #123** (ce que la barre d'outils filtre, et ce qu'elle refuse de trier) :
+> **(1)** le sélecteur **« Trier : activité récente » de la maquette n'est pas livré**, et pas par
+> paresse : l'activité d'un athlète n'est mesurable par **aucune** donnée que cet écran charge. Les
+> deux candidates ont été vérifiées — `ConversationDto.lastMessageAt` ne porte pas l'auteur du
+> dernier message, donc un coach qui écrit dans le vide **remet à zéro** le compteur d'inactivité de
+> l'athlète qu'il vient de relancer ; `CoachFeedbackSummaryDto.createdAt` est exact mais garde
+> l'angle mort de #113, une séance faite **sans** débrief n'apparaissant nulle part. Trier là-dessus
+> mettrait **en bas** de liste l'athlète qui s'entraîne sans débriefer — et un *ordre* faux ne se
+> voit pas, là où une colonne manquante affiche au moins « — ». La donnée honnête (dernière séance
+> `DONE`, dernier débrief, dernier message **de l'athlète**) se calcule côté serveur ; aucune issue
+> ne la porte, c'est délibéré.
+> **(2)** l'ordre est donc **alphabétique**, ce qui est le pendant d'une recherche par nom. L'ordre
+> d'arrivée servi par l'API (`joinedAt desc`) n'était perceptible par personne.
+> **(3)** **« À relancer » a été redéfini en « Cycle terminé »** : le libellé de la maquette n'avait
+> aucune définition métier, celui-ci en a une, entièrement calculable — *son cycle est terminé et
+> rien ne lui succède*. La seconde moitié est **garantie par `selectCurrentPlan`**, qui élit un cycle
+> à venir avant un cycle terminé : un athlète déjà replanifié ne peut pas y tomber. Le libellé dit le
+> fait, comme « Sans plan » à côté de lui ; c'est l'état vide qui porte l'action.
+> **(4)** les deux filtres sont **disjoints par construction** (une ligne a un cycle courant ou n'en
+> a pas) et ne recomptent aucune tuile — celles-ci comptent des *cycles*, pas des athlètes qui en
+> manquent. C'est la contrainte de #52 appliquée au filtrage.
+> **(5)** ils **disparaissent** quand `GET /plans` n'a pas répondu, et un `?filter=` hérité est
+> ignoré : `AthleteRow.plan` vaut alors `null` pour tout le monde, et « Sans plan » annoncerait
+> **tous** les athlètes. `null` n'est pas zéro, y compris dans un filtre.
+> **(6)** l'état de la barre vit dans **l'URL** (`?q=`, `?filter=`), en `replace` : un filtre qui ne
+> survit pas à F5 n'est pas le même produit, mais ce n'est pas une étape de navigation — le bouton
+> Retour doit quitter l'écran, pas rembobiner la frappe.
 
 > **Deux écarts volontaires** à la même maquette : les tuiles sont réparties en **deux rangées**
 > nommées (« À traiter » / « Vue d'ensemble ») là où la maquette n'en prévoyait qu'une de quatre —

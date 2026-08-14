@@ -2,6 +2,7 @@ import { type AthleteRow, type AthleteRowPlan, INVOICE_STATE_BADGE } from "@cmv/
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvAvatar, CmvBadge, CmvButton, CmvProgressBar } from "@/shared/component";
+import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -112,9 +113,8 @@ export function AthleteTrackingTable({
 }
 
 /**
- * Le cycle courant et sa progression. `currentWeek` est `null` quand le cycle n'a pas commencé ou
- * est terminé (cf. `planWeekNumber`) : on montre alors son titre sans barre, plutôt qu'une
- * progression inventée.
+ * Le cycle courant, son titre et où il en est. `null` = aucun cycle **ou** liste des cycles
+ * illisible — d'où `canOfferPlan`, qui décide si on ose proposer d'en créer un.
  */
 function PlanCell({
   plan,
@@ -125,16 +125,11 @@ function PlanCell({
   if (plan == null) {
     if (!canOfferPlan) return <span className="text-cmv-text-lo">—</span>;
     return (
-      <Link to="/plans" className="text-cmv-caption text-cmv-accent-on hover:underline">
+      <Link to="/plans" className="text-cmv-accent-on text-cmv-caption hover:underline">
         {t("dashboard.table.createPlan")}
       </Link>
     );
   }
-
-  const progress = t("dashboard.table.weekProgress", {
-    current: plan.currentWeek,
-    total: plan.weekCount,
-  });
 
   return (
     <div className="flex flex-col gap-cmv-xs">
@@ -144,18 +139,53 @@ function PlanCell({
       >
         {plan.title}
       </Link>
-      {plan.currentWeek == null ? (
-        <span className="text-cmv-caption text-cmv-text-lo">
-          {t("dashboard.table.planIdle", { total: plan.weekCount })}
-        </span>
-      ) : (
-        <div className="flex items-center gap-cmv-sm">
-          <span className="w-36 shrink-0">
-            <CmvProgressBar percent={(plan.currentWeek / plan.weekCount) * 100} label={progress} />
-          </span>
-          <span className="shrink-0 text-cmv-caption text-cmv-text-lo">{progress}</span>
-        </div>
-      )}
+      <PlanTiming plan={plan} />
+    </div>
+  );
+}
+
+/**
+ * Où le cycle en est : sa progression s'il court, sa date de fin s'il est clos, sa date de départ
+ * s'il attend.
+ *
+ * Ces deux dernières étaient confondues sous « N semaines » tant que seule `currentWeek` distinguait
+ * les cas — or « ce cycle est fini » et « ce cycle commence lundi » sont deux situations contraires,
+ * et une seule appelle un geste du coach. `phase` les sépare depuis #123, et c'est la même donnée
+ * qui alimente le filtre « Cycle terminé » de la barre d'outils.
+ */
+function PlanTiming({ plan }: Readonly<{ plan: AthleteRowPlan }>) {
+  const { t } = useTranslation();
+
+  if (plan.phase === "ENDED" && plan.endDate != null) {
+    return (
+      <span className="text-cmv-caption text-cmv-text-lo">
+        {t("dashboard.table.planEnded", { date: formatDate(plan.endDate) })}
+      </span>
+    );
+  }
+
+  if (plan.phase === "UPCOMING") {
+    return (
+      <span className="text-cmv-caption text-cmv-text-lo">
+        {t("dashboard.table.planUpcoming", { date: formatDate(plan.startDate) })}
+      </span>
+    );
+  }
+
+  // Cycle non situable (dates illisibles) : ni progression ni échéance inventée.
+  if (plan.currentWeek == null) return <span className="text-cmv-text-lo">—</span>;
+
+  const progress = t("dashboard.table.weekProgress", {
+    current: plan.currentWeek,
+    total: plan.weekCount,
+  });
+
+  return (
+    <div className="flex items-center gap-cmv-sm">
+      <span className="w-36 shrink-0">
+        <CmvProgressBar percent={(plan.currentWeek / plan.weekCount) * 100} label={progress} />
+      </span>
+      <span className="shrink-0 text-cmv-caption text-cmv-text-lo">{progress}</span>
     </div>
   );
 }

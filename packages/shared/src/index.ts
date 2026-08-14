@@ -313,10 +313,16 @@ export type {
   AthleteInvoiceSource,
   AthletePlanSource,
   AthleteRow,
+  AthleteRowFilter,
   AthleteRowPlan,
+  AthleteRowQuery,
   AthleteRowsInput,
 } from "./util/athlete-row.util";
-export { buildAthleteRows } from "./util/athlete-row.util";
+export {
+  ATHLETE_ROW_FILTERS,
+  buildAthleteRows,
+  visibleAthleteRows,
+} from "./util/athlete-row.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,
@@ -358,6 +364,7 @@ export { initialsOf } from "./util/name.util";
 export { notificationSubject } from "./util/notification.util";
 export type {
   PlanPeriod,
+  PlanPhase,
   PlanWeekRange,
   PlanWeekRef,
   SessionProgress,
@@ -366,6 +373,7 @@ export type {
 export {
   isDateInPlanWeek,
   planEndDate,
+  planPhase,
   planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,
@@ -395,3 +403,4 @@ export {
   snoozedDueAt,
   toReminderFeedId,
 } from "./util/reminder.util";
+export { comparableText } from "./util/search.util";

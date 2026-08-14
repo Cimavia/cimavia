@@ -1,4 +1,4 @@
-import type { ExerciseDto } from "@cmv/shared";
+import { comparableText, type ExerciseDto } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvBadge, CmvTextField } from "@/shared/component";
@@ -26,11 +26,14 @@ export function ExercisePicker({
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
 
-  const needle = search.trim().toLowerCase();
+  // `comparableText` des DEUX côtés : le coach tape « echauffement » et doit trouver
+  // « Échauffement ». Exiger l'accent ferait échouer la recherche sur exactement les titres que le
+  // clavier rend pénibles à écrire, sans que rien à l'écran n'explique la liste vide.
+  const needle = comparableText(search);
   const pickable =
     needle === ""
       ? exercises
-      : exercises.filter((exercise) => exercise.title.toLowerCase().includes(needle));
+      : exercises.filter((exercise) => comparableText(exercise.title).includes(needle));
 
   return (
     <aside className="flex w-full flex-col gap-cmv-sm lg:w-72">

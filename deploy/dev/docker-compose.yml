@@ -111,6 +111,11 @@ services:
       AXIOM_TOKEN: ${AXIOM_TOKEN:-}
       AXIOM_DATASET: ${AXIOM_DATASET:-}
       EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+      # Déclencheur des rappels automatiques (#47). À déclarer ICI et pas seulement dans le `.env` :
+      # ce fichier n'est lu que pour l'interpolation `${…}`, le conteneur ne reçoit QUE les
+      # variables listées dans ce bloc. Absente, la route de tick répond 503 alors que la valeur est
+      # pourtant bien dans le `.env` — le symptôme ne désigne pas sa cause.
+      REMINDER_TICK_SECRET: ${REMINDER_TICK_SECRET:-}
 
   web:
     image: ${WEB_IMAGE}
