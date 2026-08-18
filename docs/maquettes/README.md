@@ -51,6 +51,10 @@ l'**issue** qui les a commandées (tableau suivant).
 | `shared/messagerie_web_athlete_mobile_coach.dc.html` | [#20](https://github.com/Cimavia/cimavia/issues/20) | **6 frames** — les deux combinaisons que `conversation_1_1.dc.html` ne couvrait **pas** : web × athlète (fil unique / fil vide / aucun coach) et mobile × coach (liste des fils / liste vide / fil ouvert) | [#29](https://github.com/Cimavia/cimavia/issues/29) [#34](https://github.com/Cimavia/cimavia/issues/34) | ✅ |
 | `shared/design_system_white.dc.html` | [#1](https://github.com/Cimavia/cimavia/issues/1) | Design system en thème **clair** (couleurs, typo, composants, radii/spacing) | thème clair (v1.0) | ⏳ |
 | `web-coach/coach_debrief.dc.html` | — | Débriefs coach sur **web** : boîte de réception (liste + volet de lecture) + état vide | refonte de `/feedbacks` — **non planifiée** | ⏳ |
+| `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
+| `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
+| `mobile-athlete/athlete_seance_lecture.dc.html` | — | **12 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
+| `mobile-athlete/athlete_timers_suivi.dc.html` | — | **10 écrans** — même écran, volet **exécution** : séance en cours, cocher les séries d'un bloc groupé, repos en bandeau / agrandi, effort-repos alterné, EMOM, AMRAP, notification sur écran verrouillé, débrief avec décompte, encart des trois états | **fonctionnalité nouvelle** (timers + suivi) — cf. section dédiée ci-dessous | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
 
@@ -105,3 +109,157 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
 - **`coach_debrief.dc.html` — répondre depuis le volet de lecture** : `SessionFeedback` n'a **pas**
   de réponse au modèle ; le coach répond aujourd'hui par la messagerie. C'est une **fonctionnalité
   nouvelle**, pas un rendu — à cadrer avant toute implémentation.
+
+## Constructeur d'exercice — modèle et changements requis
+
+`coach_constructeur_exercice.dc.html` n'est **pas** un rendu du modèle actuel : c'est une refonte
+qui suppose six changements backend. Aucun n'est planifié. Le modèle retenu, en bref :
+
+Un exercice = titre + **tags** + **consigne riche** + **N blocs de structure ordonnés**. Chaque bloc
+porte un type, ses **paramètres de structure** (bandeau, propres au type), ses **métriques**
+(colonnes, propres au bloc) et ses **lignes**. Cinq types — Séries · EMOM · AMRAP · Circuit · Libre
+— et deux **raccourcis** de saisie (Pyramide, Intervalles) qui ne sont pas des types : ils génèrent
+des Séries. Une colonne dont toutes les valeurs sont identiques se **replie en valeur commune** dans
+le bandeau et se redéploie à la demande — c'est un état d'affichage, pas une nature de donnée.
+
+1. **`ExerciseCategory` (enum `RENFO`/`GRIMPE`/`TECHNIQUE`) disparaît** au profit de **tags libres**
+   avec autocomplétion. Migration : les trois valeurs deviennent des tags.
+2. **`Exercise.description: String` devient un document structuré** (JSON de blocs typés, validé par
+   Zod dans `@cmv/shared`) — titres de section, listes, encadré neutre, images, liens. Rendu natif
+   attendu côté web ET React Native : **pas de HTML**, pas de WebView.
+3. **Les images de la consigne sont stockées par RÉFÉRENCE**, jamais par URL : les URLs S3 sont
+   signées et expirent (règle dure n°7). Le document porte l'id du média, résolu à l'affichage.
+4. **Nouveaux modèles** : bloc de structure (ordonné, type, libellé optionnel), métriques du bloc
+   (ordonnées — l'ordre est celui des colonnes), lignes et leurs valeurs. Une valeur absente reste
+   `null` — l'affichage rend « — ».
+5. **Échelles ordonnées définies par le coach** : la métrique personnalisée a un *type de valeur*
+   (nombre · durée · texte · **échelle ordonnée**). Les cotations livrées (française, V) sont des
+   échelles pré-remplies duplicables, pas des constantes — c'est l'ordre des paliers qui rend
+   possible « progression sur l'échelle ».
+6. **Snapshot P3** : `ScheduledSessionExercise` doit copier la **liste ordonnée de blocs** et les
+   **références d'images** de la consigne, comme il copie déjà les documents (même clé objet, aucun
+   binaire dupliqué). Sans ça, une planif diffusée se dégrade.
+
+Donnée sans source, comme la famille **D-1** : le bandeau « **Utilisé dans 3 séances actives** » de
+la frame d'édition — `ExerciseDto` ne porte aucun compteur d'usage.
+
+L'aperçu athlète du constructeur est en **lecture seule** : le coach ne configure ni les timers ni le
+suivi d'exécution, ils découlent des valeurs qu'il saisit (cf. section athlète ci-dessous). Rien ne
+doit y laisser croire qu'il les paramètre.
+
+## Constructeur de séance — le dosage à trois niveaux
+
+`coach_constructeur_seance.dc.html` suppose la refonte de l'exercice ci-dessus : à lire après elle.
+La règle qui structure tout l'écran :
+
+    EXERCICE (bibliothèque)   le défaut, valable partout
+    SÉANCE                    ajusté pour cette séance-type
+    SÉANCE PLANIFIÉE          ajusté pour UN athlète, une semaine donnée
+
+Chaque niveau part du précédent. Une valeur modifiée est marquée — **rond accent** au niveau séance,
+**carré info** au niveau planifié — avec « Revenir au défaut » sur la ligne et « Tout réinitialiser »
+sur l'exercice. La forme distingue les deux niveaux autant que la couleur : les deux marqueurs
+peuvent coexister sur la même grille.
+
+Décisions tranchées pendant la conception, que le code ne justifierait pas seul :
+
+1. **Sont VERROUILLÉS au niveau séance** : le type de structure, le jeu de métriques (donc les
+   colonnes), le nombre de blocs et leurs libellés, la consigne. Restent modifiables : les valeurs
+   des cellules, les paramètres du bandeau, le nombre de lignes. Pour changer le reste, le coach
+   passe par « Dupliquer en variante » dans la bibliothèque. Sans ce verrou, le SessionBuilder
+   redevient le constructeur et la notion de défaut se dilue.
+2. **Une séance est indépendante une fois composée** : les valeurs sont **copiées à l'ajout**.
+   Modifier un exercice dans la bibliothèque ne touche aucune séance existante, et la séance ne
+   détecte pas ce changement — pas d'empreinte de version à mémoriser ni à comparer. Le coach qui
+   veut la nouveauté déclenche **« Recharger depuis la bibliothèque »** (menu de la carte), qui
+   relit l'exercice tel qu'il est aujourd'hui et écrase la carte en place, après confirmation.
+   À ne pas confondre avec « Tout réinitialiser », qui revient aux valeurs copiées à l'ajout.
+3. **Chaque valeur stockée porte un marqueur héritée / ajustée.** Nécessaire au marquage comme à
+   « Revenir au défaut » : le stockage n'est donc pas une copie plate des valeurs.
+
+Changements requis, aucun planifié :
+
+- **`SessionExercise.prescription: String?`** (texte libre, `SESSION_PRESCRIPTION_MAX_LENGTH`)
+  devient une **structure de valeurs surchargées** alignée sur les blocs de l'exercice. La **note
+  par exercice** — le contexte que la grille ne dit pas — reste un champ texte distinct.
+- **`ScheduledSessionExercise`** porte la même structure pour le troisième niveau, en plus du
+  snapshot déjà requis par la refonte de l'exercice.
+- **`SessionExerciseDto`** expose aujourd'hui `title` + `category` : `category` suit la migration
+  vers les tags.
+
+Écart de token à corriger à l'implémentation : les lignes sélectionnées du sélecteur d'exercice
+utilisent `rgba(194,96,58,.1)` au lieu de `accent.soft` (`.16`).
+
+L'aperçu athlète du SessionBuilder reste en lecture seule, pour la même raison que ci-dessus. La
+durée estimée de séance a été **retirée** — elle n'a aucune source et son calcul n'a pas de réponse
+pour un AMRAP ou un exercice « au ressenti » (même famille que **P3-5** /
+[#94](https://github.com/Cimavia/cimavia/issues/94)).
+
+## Séance côté athlète — lecture, puis exécution
+
+`athlete_seance_lecture.dc.html` et `athlete_timers_suivi.dc.html` sont **deux volets du même
+écran** : la première dit comment la séance se lit, la seconde ce qui se passe pendant qu'on la
+fait. Elles supposent les deux refontes ci-dessus et se lisent après elles.
+
+### Volet lecture — le seuil de colonnes
+
+La règle centrale, chiffrée sur la planche : 402 px moins les marges laissent 362 px utiles, une
+colonne de valeur en mono demande 90 px, l'index 28 px.
+
+    1 ligne            →  une PHRASE, quel que soit le nombre de colonnes
+    2 à 3 colonnes     →  mini-tableau, les valeurs s'alignent
+    4 colonnes et plus →  une carte par ligne
+
+**Jamais de scroll horizontal** : inutilisable une main sur la barre. Les frames à 3 et 4 colonnes
+montrent le MÊME exercice — c'est l'ajout d'une colonne qui fait basculer la forme.
+
+### Volet exécution — timers et suivi
+
+**Décision de périmètre** : cette planche RENVERSE la règle « l'athlète lit, il ne coche rien » qui
+tenait jusque-là. Validée explicitement. Elle touche la zone que `CLAUDE.md` garde hors MVP (*débrief
+par exercice*) : ce n'est pas un ressenti par exercice, seulement un décompte, mais ça ouvre la même
+porte et ajoute un modèle, des endpoints et de la synchronisation.
+
+1. **Le timer ne demande AUCUNE donnée nouvelle** — il joue les durées déjà saisies par le coach et
+   sa forme découle du type de structure : Séries → repos ; durée d'effort → alternance effort /
+   repos ; EMOM → top chaque intervalle ; AMRAP → compte à rebours ; Circuit → repos entre tours ;
+   Libre → aucun timer imposé. Règle générale : **toute durée affichée est lançable d'un tap**, le
+   chiffre EST le bouton. Le timer ne démarre jamais seul.
+2. **Le suivi ne suit pas le groupement du coach.** Un bloc écrit « ×4 séries » n'a qu'une ligne
+   dans la grille : côté athlète il faut QUATRE cases. L'unité est nommée par type — séries, tops,
+   tours, étapes — et l'AMRAP se compte au lieu de se cocher (l'objectif est indicatif).
+3. **Ne rien cocher ≠ ne rien faire.** Trois états : *tout terminé* · *X sur Y* · *non suivi*. Le
+   troisième est SILENCIEUX — jamais « 0 sur 4 », jamais de rouge, jamais de relance.
+4. **Le suivi vit en LOCAL** (l'athlète est souvent sans réseau en salle) et ne remonte au serveur
+   qu'avec le débrief. Il informe le débrief en lecture seule, corrigeable d'un tap — il ne le
+   remplit pas.
+5. **Notification locale + vibration** à la fin d'un timer : le cas d'usage réel est téléphone en
+   poche, et on n'entend rien en salle. `expo-server-sdk` / `expo-notifications` sont déjà au stack.
+6. **Le bandeau plutôt que le plein écran** pour le repos : c'est le moment où l'athlète relit la
+   consigne suivante. Il porte le temps, la pause et « Passer » ; « + 30 s » vit dans l'agrandi.
+7. La barre de progression montre le **temps restant**, elle se vide.
+
+### Changements requis
+
+- **Nouveau modèle de suivi d'exécution** rattaché à `ScheduledSession` : par exercice et par unité,
+  l'état coché / non coché, avec la distinction *non suivi* qui n'est PAS « zéro ».
+- **`SessionFeedback`** reçoit le décompte au moment de l'envoi. Le ressenti textuel reste ce qu'il
+  est ; le décompte l'accompagne sans le remplacer.
+- **Stockage local** puis remontée à l'envoi du débrief — pas de synchronisation temps réel.
+- **Un token typographique `chrono`** (96 px) à ajouter à l'échelle de `@cmv/tokens`, qui s'arrête
+  aujourd'hui à 40 px. Le compteur de tours utilise `cmv-display` (40) et le bandeau `cmv-title` (24).
+
+### Écarts et points d'attention
+
+- Le lien de la liste dit **« Suivre mes séries » sur tous les exercices**, alors que la planche pose
+  elle-même que l'unité est nommée. À l'implémentation : *mes séries · mes tops · mes tours ·
+  mes étapes* selon le type.
+- La planche lecture se termine par « **Rien à cocher pendant la séance** » — phrase antérieure au
+  renversement, **fausse depuis**. À retirer.
+- Les **pastilles de durée font 32 px** de haut, sous les 44 px recommandés : inline dans un texte à
+  25 px d'interligne on ne peut pas faire mieux, la zone tactile sera étendue par `hitSlop`.
+- Le **bandeau réduit est serré** une fois « Passer » ajouté : « repos · série 3 sur 4 » tronquera
+  sur les petits écrans.
+- La notification sur écran verrouillé utilise `rgba(28,38,48,.92)`, hors tokens — effet système,
+  écart assumé. Les tirets de progression d'un exercice terminé utilisent `success.on` comme aplat
+  là où `success` DEFAULT serait le rôle exact.
