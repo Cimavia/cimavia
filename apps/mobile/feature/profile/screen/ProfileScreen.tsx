@@ -30,10 +30,6 @@ export function ProfileScreen() {
         </View>
 
         <CmvButton label={t("common.logout")} onPress={onLogout} />
-
-        {/* SPIKE JETABLE — unique porte d'entrée de `app/spike`, à retirer avec lui. Libellé en
-            dur assumé : la clé i18n n'a pas à survivre au spike. */}
-        <CmvButton label="Spike — upload multipart" onPress={() => router.push("/spike")} />
       </View>
     </CmvScreen>
   );

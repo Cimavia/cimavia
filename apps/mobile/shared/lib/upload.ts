@@ -4,7 +4,8 @@ import { File, FileMode, Paths, UploadType } from "expo-file-system";
  * Envoi DÉCOUPÉ d'un fichier local vers l'object storage : une requête PUT par part.
  *
  * Pourquoi ce détour par un fichier de cache plutôt que `File.slice()`, qui rendrait un `Blob`
- * directement envoyable — MESURÉ sur appareil (spike, vidéo de 398 Mo) :
+ * directement envoyable — MESURÉ sur appareil, vidéo de 398 Mo
+ * (`docs/dette-technique.md` §« Envoi découpé des médias ») :
  *
  *     Call to function 'FileSystemFile.bytesSync' has been rejected.
  *     java.lang.OutOfMemoryError: Failed to allocate a 418159312 byte allocation
