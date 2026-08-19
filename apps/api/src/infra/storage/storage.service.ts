@@ -16,6 +16,7 @@ import {
   MULTIPART_PART_SIZE_BYTES,
   multipartPartSizes,
   requiresMultipart,
+  SIGNED_URL_TTL_SECONDS,
   UploadMode,
 } from "@cmv/shared";
 import {
@@ -26,10 +27,6 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-
-// Durée de validité par défaut des URLs signées (secondes). Courte : l'URL n'est qu'un
-// ticket d'accès ponctuel (upload direct ou lecture), régénéré à chaque requête.
-export const SIGNED_URL_TTL_SECONDS = 300;
 
 /**
  * TTL des URLs de parts — nettement plus long, et ce n'est pas du confort.
