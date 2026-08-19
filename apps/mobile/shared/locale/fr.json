@@ -121,7 +121,7 @@
       "addAudio": "Note vocale",
       "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
       "remove": "Retirer",
-      "uploading": "Envoi en cours…",
+      "uploading": "Envoi en cours… {{percent}} %",
       "videoBadge": "Vidéo · {{seconds}} s",
       "permission": "cimavia a besoin d'accéder à tes photos pour les joindre au débrief.",
       "photoTooBig": "Cette photo dépasse {{max}} Mo, même après compression.",
