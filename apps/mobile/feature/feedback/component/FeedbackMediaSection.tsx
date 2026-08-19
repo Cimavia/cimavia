@@ -75,6 +75,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
         }}
         onRecorderError={setRecorderErrorKey}
         isUploading={addMedia.isPending || addAudio.isPending}
+        progress={addMedia.isPending ? addMedia.progress : addAudio.progress}
       />
 
       {error == null ? null : <CmvText className="text-cmv-error text-sm">{error}</CmvText>}

@@ -1,8 +1,9 @@
 import type { EnvSchema } from "@cmv/shared";
+import { MULTIPART_THRESHOLD_BYTES } from "@cmv/shared";
 import { ServiceUnavailableException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it } from "vitest";
-import { StorageService } from "./storage.service";
+import { MULTIPART_SIGNED_URL_TTL_SECONDS, StorageService } from "./storage.service";
 
 // ConfigService réduit à ce que lit StorageService : un getteur sur les variables S3_*.
 function configWith(values: Record<string, string>): ConfigService<EnvSchema, true> {
@@ -38,6 +39,22 @@ describe("StorageService — storage non configuré", () => {
     await expect(storage.deleteObject("k")).rejects.toThrow(ServiceUnavailableException);
   });
 
+  it("répond 503 sur les quatre étapes d'un upload découpé", async () => {
+    const storage = new StorageService(configWith({}));
+    await expect(storage.createMultipartUpload("k", "video/mp4")).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    await expect(storage.createPartUploadUrls("k", "u", [1024])).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    await expect(storage.completeMultipartUpload("k", "u", 1)).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    await expect(storage.abortMultipartUpload("k", "u")).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+  });
+
   // Les cinq variables vont ensemble : une config partielle est une erreur de déploiement, pas
   // un demi-storage. Mieux vaut un 503 franc qu'un client S3 qui échoue à l'exécution.
   it("considère une configuration partielle comme absente", () => {
@@ -55,5 +72,51 @@ describe("StorageService — storage configuré", () => {
     // La taille entre dans la signature : le storage rejettera un envoi d'un autre poids.
     expect(url).toContain("content-length");
     expect(url).toContain("X-Amz-Expires=300");
+  });
+
+  it("signe une URL par part, numérotée à partir de 1 et portant sa propre taille", async () => {
+    const storage = new StorageService(configWith(FULL_CONFIG));
+    const urls = await storage.createPartUploadUrls("media.mp4", "upload-1", [2048, 1024]);
+
+    expect(urls).toHaveLength(2);
+    // `PartNumber` est 1-based côté S3 : un décalage ici produirait un objet recollé à l'envers.
+    expect(urls[0]).toContain("partNumber=1");
+    expect(urls[1]).toContain("partNumber=2");
+    for (const url of urls) {
+      expect(url).toContain("uploadId=upload-1");
+      // Chaque part porte SA taille dans la signature, pas seulement le total annoncé.
+      expect(url).toContain("content-length");
+    }
+  });
+
+  /**
+   * L'arbitrage du mode vit ICI et pas dans les services de feature : le débrief et la messagerie
+   * ne diffèrent que par la clé objet, et le dupliquer chez chacun aurait dérivé au premier
+   * ajustement du seuil.
+   */
+  describe("createUploadTicket", () => {
+    it("rend un ticket SINGLE au seuil — le seuil est inclusif", async () => {
+      const storage = new StorageService(configWith(FULL_CONFIG));
+      const ticket = await storage.createUploadTicket(
+        "media.mp4",
+        "video/mp4",
+        MULTIPART_THRESHOLD_BYTES,
+      );
+
+      expect(ticket.mode).toBe("SINGLE");
+      // Le mode dicte la forme : aucun champ de l'autre branche à lire par erreur.
+      expect("partUrls" in ticket).toBe(false);
+    });
+
+    // La branche MULTIPART n'est PAS testée ici : `CreateMultipartUpload` est un vrai appel au
+    // storage, là où la signature d'une URL est purement locale. Elle est couverte de bout en bout
+    // par les e2e (débrief et messagerie), qui tournent contre le MinIO du docker-compose.
+  });
+
+  it("laisse aux parts un TTL plus long qu'au PUT unique", async () => {
+    const storage = new StorageService(configWith(FULL_CONFIG));
+    const [url] = await storage.createPartUploadUrls("media.mp4", "upload-1", [1024]);
+    // Sinon la dernière part d'un gros fichier expire pendant que les précédentes montent.
+    expect(url).toContain(`X-Amz-Expires=${MULTIPART_SIGNED_URL_TTL_SECONDS}`);
   });
 });

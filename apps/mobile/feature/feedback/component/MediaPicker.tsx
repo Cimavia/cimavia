@@ -11,6 +11,8 @@ type MediaPickerProps = {
   onRecordAudio: (audio: RecordedAudio) => void;
   onRecorderError: (reasonKey: string) => void;
   isUploading: boolean;
+  /** Avancement de l'envoi en cours, 0-100. */
+  progress: number;
 };
 
 /**
@@ -26,6 +28,7 @@ export function MediaPicker({
   onRecordAudio,
   onRecorderError,
   isUploading,
+  progress,
 }: Readonly<MediaPickerProps>) {
   const { t } = useTranslation();
 
@@ -68,11 +71,14 @@ export function MediaPicker({
         />
       </View>
 
-      {/* Un upload de 50 Mo en 4G prend du temps : sans indicateur, l'écran paraît figé. */}
+      {/* Une vidéo longue en 4G prend des dizaines de secondes, et davantage encore depuis que
+          l'envoi découpé lève le plafond : sans indicateur, l'écran paraît figé. */}
       {isUploading ? (
         <View className="flex-row items-center gap-2">
           <ActivityIndicator />
-          <CmvText className="text-cmv-text-mid text-xs">{t("feedback.media.uploading")}</CmvText>
+          <CmvText className="text-cmv-text-mid text-xs">
+            {t("feedback.media.uploading", { percent: progress })}
+          </CmvText>
         </View>
       ) : null}
     </View>

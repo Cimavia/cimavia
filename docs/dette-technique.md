@@ -621,6 +621,67 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 
 ---
 
+## Post-MVP — Envoi découpé des médias (branche `fix/increase-size-video`)
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| U-1 | **Aucune reprise d'un envoi interrompu** : toute erreur abandonne l'upload entier, l'utilisateur recommence de zéro. Une coupure à la part 38/40 jette 380 Mo déjà montés. | 🟡 | [#152](https://github.com/Cimavia/cimavia/issues/152) |
+| U-2 | **`sendInParts` écrit quatre fois** (débrief ↔ messagerie × web ↔ mobile) : même corps, seuls l'API appelée et les clés i18n diffèrent. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
+| U-3 | **Pas de progression sur la messagerie mobile** : le fil n'expose que `mediaBusy` (désactivation), sans indicateur chiffré — contrairement au débrief mobile et aux deux surfaces web. | 🟢 | — *(déclencheur : un envoi de vidéo lourde jugé « figé » dans un fil)* |
+| U-4 | **Le seuil de découpage est calé sur un plafond d'hébergeur, non vérifié automatiquement** : `MULTIPART_THRESHOLD_BYTES` (80 Mo) tient sa valeur des 100 Mo mesurés au bord Cloudflare. Aucun test ne le confronte à la réalité. | 🟢 | — *(déclencheur : changement de plan Cloudflare ou d'hébergement)* |
+
+> **Mesuré** (les deux faits qui dictent toute la conception, et qu'aucune lecture du code ne
+> donnerait) :
+>
+> **1. Le bord réseau refuse au-delà de 100 Mo.** Corps PUT de taille croissante poussés sur
+> `s3-dev` à travers le tunnel : 40, 60, 95 et 100 Mo atteignent MinIO (403 *avec* `x-amz-request-id`),
+> **101 Mo revient en 413 sans `x-amz-request-id`** — bloqué à l'edge, jamais arrivé. C'est la limite
+> de corps de requête du plan Cloudflare gratuit. La constante `MAX_FEEDBACK_VIDEO_SIZE_BYTES`
+> promettait alors 1 Go, soit **dix fois ce que l'infrastructure autorisait** : entre 100 Mo et 1 Go,
+> le fichier mourait à l'edge et le mobile n'affichait qu'un « le serveur a refusé ce fichier ».
+>
+> **2. `File.slice()` n'est pas paresseux sur Android.** Mesuré sur appareil avec une vidéo de
+> 398 Mo : `Call to function 'FileSystemFile.bytesSync' has been rejected. → java.lang.OutOfMemoryError:
+> Failed to allocate a 418159312 byte allocation`. L'allocation vaut le **fichier entier**, pas la
+> tranche — `slice()` matérialise tout puis découpe, contre un tas plafonné à 256 Mo. D'où la lecture
+> par plage (`FileHandle.readBytes`) via un fichier de cache, et non le `Blob` que l'API suggère.
+> `UploadOptions` d'`expo-file-system` n'offre par ailleurs **aucune** option de plage d'octets.
+
+> **Tranché** (ce que le code ne justifie pas seul) :
+>
+> **Le client n'envoie aucun ETag.** S3 en produit un par part, que `CompleteMultipartUpload` doit
+> citer — mais les lire côté navigateur exigerait que le storage expose l'en-tête `ETag` en CORS, ce
+> que MinIO ne fait pas par défaut (vérifié : le préflight ne renvoie **aucun**
+> `access-control-expose-headers`). L'API les relit donc elle-même par `ListParts`. Effet de bord
+> heureux : web et mobile sont traités à l'identique, et c'est le **serveur** qui constate ce qui a
+> réellement atterri au lieu de croire le client.
+>
+> **`partCount` est obligatoire à la clôture.** S3 recolle sans broncher ce qu'on lui donne : une
+> part perdue produirait une vidéo tronquée que **rien ne distingue** d'une vidéo entière — ni le
+> storage, ni le rattachement, ni la lecture par le coach. Le serveur compare donc l'annoncé au réel
+> et refuse en 409. Sans cette garde, le mode de défaillance le plus probable était aussi le plus
+> silencieux.
+>
+> **Deux modes plutôt qu'un seul chemin découpé.** Sous 80 Mo, le PUT unique est conservé : imposer
+> le détour à une photo de 300 Ko ou à une note vocale n'achèterait rien contre des allers-retours
+> supplémentaires. Le mode est décidé par l'API à partir de la seule taille — le client n'a pas voix
+> au chapitre, le seuil étant une contrainte d'infrastructure et non une préférence.
+>
+> **Tout échec abandonne l'upload.** Les parts d'un upload jamais clos restent facturées **sans
+> apparaître à l'inventaire du bucket** : personne ne les retrouverait pour les purger. On paie un
+> envoi à refaire (U-1) plutôt qu'une fuite invisible.
+
+> **Appris** (le symptôme ne désignait pas sa cause) : le rapport initial était « les vidéos de plus
+> de 50 Mo ne passent pas, alors que j'ai augmenté la taille ». Les deux moitiés étaient trompeuses.
+> La taille avait bien été relevée (50 Mo → 1 Go), mais `MAX_FEEDBACK_VIDEO_DURATION_SECONDS` était
+> **resté à 60 s** — or une vidéo de plus de 50 Mo dure presque toujours plus d'une minute. Le refus
+> venait donc de la **durée**, et son message parlait de secondes, ce qui masquait le lien avec la
+> modification de taille. Derrière ce premier obstacle en attendait un second, sans rapport : le
+> plafond de 100 Mo ci-dessus. Deux causes indépendantes derrière un seul symptôme — d'où la mesure
+> systématique avant toute correction.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

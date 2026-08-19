@@ -23,7 +23,7 @@ export const MAX_FEEDBACK_AUDIOS = 15;
 export const MAX_FEEDBACK_PHOTO_SIZE_BYTES = 100 * 1024 * 1024;
 export const MAX_FEEDBACK_VIDEO_SIZE_BYTES = 1000 * 1024 * 1024;
 export const MAX_FEEDBACK_AUDIO_SIZE_BYTES = 100 * 1024 * 1024;
-export const MAX_FEEDBACK_VIDEO_DURATION_SECONDS = 60;
+export const MAX_FEEDBACK_VIDEO_DURATION_SECONDS = 180;
 export const MAX_FEEDBACK_AUDIO_DURATION_SECONDS = 300;
 
 // Cibles de compression CLIENT (le serveur ne transcode pas — cf. dette P4) : la photo est
