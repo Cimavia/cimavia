@@ -21,3 +21,25 @@ export function megabytesOf(bytes: number): number {
 export function minutesOf(seconds: number): number {
   return Math.round(seconds / SECONDS_PER_MINUTE);
 }
+
+/**
+ * Une durée en secondes → « m:ss ». Le compteur d'un lecteur ou d'un enregistreur, qui connaît
+ * toujours sa valeur : la durée y est une mesure en cours, jamais une donnée manquante.
+ */
+export function formatMmSs(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(total / 60);
+  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/**
+ * La durée d'un média rattaché → « m:ss », ou `null` quand elle est inconnue.
+ *
+ * `durationSeconds` est nullable sur `FeedbackMediaDto` et `MessageMediaDto` : une photo n'en a
+ * pas, et la valeur est déclarée par le client (dette P4-2), donc absente dès qu'il ne l'a pas
+ * mesurée. `null` en entrée → `null` en sortie (règle nullable) : au rendu de décider quoi montrer
+ * à la place — surtout pas « 0:00 », qui ferait passer une durée INCONNUE pour une durée NULLE.
+ */
+export function formatMediaDuration(seconds: number | null | undefined): string | null {
+  return seconds == null ? null : formatMmSs(seconds);
+}

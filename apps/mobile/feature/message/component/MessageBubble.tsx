@@ -1,12 +1,11 @@
 import type { MessageDto } from "@cmv/shared";
-import { MessageType } from "@cmv/shared";
+import { formatMediaDuration, MessageType } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Linking, Pressable, View } from "react-native";
 import { ImageMessage } from "@/feature/message/component/ImageMessage";
 import { CmvAudioPlayer, CmvText } from "@/shared/component";
-import { formatMmSs } from "@/shared/util/time";
 
 type MessageBubbleProps = {
   message: MessageDto;
@@ -18,6 +17,9 @@ function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
   const { t } = useTranslation();
   const media = message.media;
   if (media == null) return null;
+
+  // `null` = durée non déclarée par l'envoyeur : on n'affiche rien, pas un « 0:00 » inventé.
+  const duration = formatMediaDuration(media.durationSeconds);
 
   if (message.type === MessageType.AUDIO) {
     return <CmvAudioPlayer url={media.url} durationSeconds={media.durationSeconds} />;
@@ -31,9 +33,9 @@ function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
     <Pressable onPress={() => Linking.openURL(media.url)} className="flex-row items-center gap-2">
       <Ionicons name="play-circle" size={22} color={cmvColors.text.hi} />
       <CmvText className="text-cmv-text-hi">{t("messages.media.video")}</CmvText>
-      {media.durationSeconds != null ? (
-        <CmvText className="text-cmv-text-mid text-xs">{formatMmSs(media.durationSeconds)}</CmvText>
-      ) : null}
+      {duration == null ? null : (
+        <CmvText className="text-cmv-text-mid text-xs">{duration}</CmvText>
+      )}
     </Pressable>
   );
 }
