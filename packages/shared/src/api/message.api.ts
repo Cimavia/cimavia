@@ -1,4 +1,3 @@
-import type { UploadUrlDto } from "../dto/exercise.schema";
 import type {
   ConversationDto,
   MessageDto,
@@ -6,6 +5,11 @@ import type {
   RequestMessageUploadUrlInput,
   SendMessageInput,
 } from "../dto/message.schema";
+import type {
+  AbortMultipartUploadInput,
+  CompleteMultipartUploadInput,
+  MediaUploadTicketDto,
+} from "../dto/upload.schema";
 import type { ApiClient } from "./client";
 
 /**
@@ -53,11 +57,25 @@ export type MessageApi = {
   sendMessage: (conversationId: string, input: SendMessageInput) => Promise<MessageDto>;
   /** Marque lus les messages ENTRANTS du fil. 204, pas de corps. */
   markRead: (conversationId: string) => Promise<void>;
-  /** URL PUT signée (audio/image/vidéo) avant l'upload direct vers le storage. */
+  /**
+   * Ticket d'upload (audio/image/vidéo) avant l'envoi direct vers le storage. Son MODE dicte la
+   * forme de l'envoi : un PUT unique pour les fichiers courants, un envoi part par part suivi
+   * d'une clôture au-delà du seuil (cf. `upload.schema.ts`).
+   */
   requestUploadUrl: (
     conversationId: string,
     input: RequestMessageUploadUrlInput,
-  ) => Promise<UploadUrlDto>;
+  ) => Promise<MediaUploadTicketDto>;
+  /**
+   * Mode découpé UNIQUEMENT : recoller les parts en un objet. Tant que ce n'est pas fait, rien
+   * n'existe dans le bucket — le message porterait un chemin vide.
+   */
+  completeMediaUpload: (
+    conversationId: string,
+    input: CompleteMultipartUploadInput,
+  ) => Promise<void>;
+  /** Renoncer à un envoi découpé : sans quoi ses parts restent facturées, invisibles au bucket. */
+  abortMediaUpload: (conversationId: string, input: AbortMultipartUploadInput) => Promise<void>;
 };
 
 export function createMessageApi(api: ApiClient): MessageApi {
@@ -72,6 +90,10 @@ export function createMessageApi(api: ApiClient): MessageApi {
     // POST sans corps déclaré (même raison que `markAllRead` des notifications).
     markRead: (conversationId) => api.post<void>(`/conversations/${conversationId}/read`, {}),
     requestUploadUrl: (conversationId, input) =>
-      api.post<UploadUrlDto>(`/conversations/${conversationId}/messages/upload-url`, input),
+      api.post<MediaUploadTicketDto>(`/conversations/${conversationId}/messages/upload-url`, input),
+    completeMediaUpload: (conversationId, input) =>
+      api.post<void>(`/conversations/${conversationId}/messages/upload/complete`, input),
+    abortMediaUpload: (conversationId, input) =>
+      api.post<void>(`/conversations/${conversationId}/messages/upload/abort`, input),
   };
 }

@@ -1,11 +1,15 @@
 import {
+  type AbortMultipartUploadInput,
+  abortMultipartUploadSchema,
+  type CompleteMultipartUploadInput,
+  completeMultipartUploadSchema,
   type RequestMessageUploadUrlInput,
   Role,
   requestMessageUploadUrlSchema,
   type SendMessageInput,
   sendMessageSchema,
 } from "@cmv/shared";
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Roles } from "@thallesp/nestjs-better-auth";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
@@ -29,13 +33,36 @@ export class MessageController {
     return this.messages.listMessages(conversationId);
   }
 
-  // Média : demander une URL PUT signée avant d'envoyer le fichier vers l'object storage.
+  // Média : demander un ticket d'upload avant d'envoyer le fichier vers l'object storage. Le
+  // ticket dit au client s'il pousse en un PUT ou part par part (cf. `upload.schema.ts`).
   @Post("upload-url")
   createUploadUrl(
     @Param("conversationId") conversationId: string,
     @Body(new ZodSchemaPipe(requestMessageUploadUrlSchema)) dto: RequestMessageUploadUrlInput,
   ) {
     return this.media.createUploadUrl(conversationId, dto);
+  }
+
+  // Mode découpé UNIQUEMENT : recoller les parts en un objet. 204 — l'objet est désigné par le
+  // `storagePath` que le client détient déjà.
+  @Post("upload/complete")
+  @HttpCode(204)
+  completeUpload(
+    @Param("conversationId") conversationId: string,
+    @Body(new ZodSchemaPipe(completeMultipartUploadSchema)) dto: CompleteMultipartUploadInput,
+  ) {
+    return this.media.completeUpload(conversationId, dto);
+  }
+
+  // Renoncer à un envoi découpé : rien n'a jamais existé côté bucket, il n'y a que des parts à
+  // purger.
+  @Post("upload/abort")
+  @HttpCode(204)
+  abortUpload(
+    @Param("conversationId") conversationId: string,
+    @Body(new ZodSchemaPipe(abortMultipartUploadSchema)) dto: AbortMultipartUploadInput,
+  ) {
+    return this.media.abortUpload(conversationId, dto);
   }
 
   @Post()

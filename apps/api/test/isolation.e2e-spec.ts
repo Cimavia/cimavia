@@ -1723,6 +1723,104 @@ describe("Messagerie : médias (P5)", () => {
       .send(audio());
     expect(res.status).toBe(404);
   });
+
+  /**
+   * Envoi découpé dans un fil. Le storage lui-même est déjà couvert côté débrief : on vérifie ici
+   * le CÂBLAGE propre à la messagerie — la clé segmentée par conversation, et la garde qui
+   * l'oppose au chemin annoncé par le client.
+   */
+  describe("upload découpé", () => {
+    const bigVideo = (fileName = "longue.mp4") => ({
+      type: "VIDEO",
+      fileName,
+      mimeType: "video/mp4",
+      // La plus petite vidéo qui force le découpage : un octet de plus que le seuil.
+      size: MULTIPART_THRESHOLD_BYTES + 1,
+      durationSeconds: 120,
+    });
+
+    async function ticketFor(input: Record<string, unknown>) {
+      const signed = await athleteA1
+        .post(`/conversations/${conversationId}/messages/upload-url`)
+        .send(input);
+      expect(signed.status).toBe(201);
+      return signed.body;
+    }
+
+    it("parcours complet : parts, clôture, puis message", async () => {
+      const input = bigVideo("parcours.mp4");
+      const ticket = await ticketFor(input);
+      expect(ticket.mode).toBe("MULTIPART");
+      // La clé reste segmentée par CONVERSATION (le fichier appartient au fil, pas à un athlète).
+      expect(ticket.storagePath).toContain(`conversation/${conversationId}/`);
+
+      const sizes = multipartPartSizes(input.size) ?? [];
+      for (const [index, partUrl] of (ticket.partUrls as string[]).entries()) {
+        // Pas de `content-type` : `UploadPartCommand` ne le signe pas.
+        const put = await fetch(partUrl, {
+          method: "PUT",
+          body: Buffer.alloc(sizes[index] ?? 0, 1),
+        });
+        expect(put.status).toBe(200);
+      }
+
+      const completed = await athleteA1
+        .post(`/conversations/${conversationId}/messages/upload/complete`)
+        .send({
+          storagePath: ticket.storagePath,
+          uploadId: ticket.uploadId,
+          partCount: ticket.partUrls.length,
+        });
+      expect(completed.status).toBe(204);
+
+      // L'objet recollé s'envoie comme n'importe quel média : le découpage ne se voit plus.
+      const sent = await athleteA1
+        .post(`/conversations/${conversationId}/messages`)
+        .send({ ...input, storagePath: ticket.storagePath });
+      expect(sent.status).toBe(201);
+      expect(sent.body.type).toBe("VIDEO");
+      expect(sent.body.media.url).toContain("X-Amz-Signature");
+    });
+
+    it("refuse un chemin de storage hors du périmètre du fil (403)", async () => {
+      const ticket = await ticketFor(bigVideo("evasion.mp4"));
+
+      const completed = await athleteA1
+        .post(`/conversations/${conversationId}/messages/upload/complete`)
+        .send({
+          storagePath: "conversation/un-autre-fil/objet.mp4",
+          uploadId: ticket.uploadId,
+          partCount: 1,
+        });
+      expect(completed.status).toBe(403);
+    });
+
+    it("un tiers ne clôt ni n'abandonne l'upload de ce fil (404)", async () => {
+      const ticket = await ticketFor(bigVideo("convoitee.mp4"));
+      const payload = {
+        storagePath: ticket.storagePath,
+        uploadId: ticket.uploadId,
+        partCount: 1,
+      };
+
+      // 404 et non 403 : le fil lui-même n'existe pas pour coachB.
+      expect(
+        (
+          await coachB
+            .post(`/conversations/${conversationId}/messages/upload/complete`)
+            .send(payload)
+        ).status,
+      ).toBe(404);
+      expect(
+        (
+          await coachB.post(`/conversations/${conversationId}/messages/upload/abort`).send({
+            storagePath: ticket.storagePath,
+            uploadId: ticket.uploadId,
+          })
+        ).status,
+      ).toBe(404);
+    });
+  });
 });
 
 describe("Messagerie : rattachement séance / débrief (P5)", () => {

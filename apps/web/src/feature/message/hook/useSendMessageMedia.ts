@@ -1,5 +1,10 @@
-import type { MessageDto, RequestMessageUploadUrlInput, SendMessageInput } from "@cmv/shared";
-import { MessageType } from "@cmv/shared";
+import type {
+  MessageDto,
+  MultipartUploadTicket,
+  RequestMessageUploadUrlInput,
+  SendMessageInput,
+} from "@cmv/shared";
+import { MessageType, UploadMode } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,7 +13,7 @@ import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useToast } from "@/shared/component";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
-import { uploadToSignedUrl } from "@/shared/lib/upload";
+import { uploadInParts, uploadToSignedUrl } from "@/shared/lib/upload";
 import {
   MediaRejectedError,
   type PreparedWebMedia,
@@ -61,10 +66,44 @@ async function uploadAndSend(
   onProgress: (percent: number) => void,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
-  const signed = await messageApi.requestUploadUrl(conversationId, uploadInput);
-  await uploadToSignedUrl(signed.uploadUrl, media.file, onProgress);
-  const sendInput = { ...uploadInput, storagePath: signed.storagePath } as SendMessageInput;
+  // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
+  // un PUT unique ne franchirait pas le bord réseau (cf. `upload.schema.ts`).
+  const ticket = await messageApi.requestUploadUrl(conversationId, uploadInput);
+  if (ticket.mode === UploadMode.SINGLE) {
+    await uploadToSignedUrl(ticket.uploadUrl, media.file, onProgress);
+  } else {
+    await sendInParts(conversationId, ticket, media.file, onProgress);
+  }
+
+  const sendInput = { ...uploadInput, storagePath: ticket.storagePath } as SendMessageInput;
   return messageApi.sendMessage(conversationId, sendInput);
+}
+
+/**
+ * Envoi découpé : les parts, puis la clôture qui les recolle. Tout échec ABANDONNE l'upload — les
+ * parts d'un upload jamais clos restent facturées SANS apparaître à l'inventaire du bucket, donc
+ * personne ne les retrouverait pour les purger. Jumeau de `sendInParts` du débrief ; à promouvoir
+ * en util partagé si un 3ᵉ appelant apparaît (cf. #96).
+ */
+async function sendInParts(
+  conversationId: string,
+  ticket: MultipartUploadTicket,
+  file: File,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
+  try {
+    await uploadInParts(file, ticket.partUrls, ticket.partSize, onProgress);
+    await messageApi.completeMediaUpload(conversationId, {
+      ...upload,
+      partCount: ticket.partUrls.length,
+    });
+  } catch (error) {
+    // L'échec de l'abandon est avalé : il ne doit pas masquer l'erreur d'origine, la seule sur
+    // laquelle l'utilisateur peut agir.
+    await messageApi.abortMediaUpload(conversationId, upload).catch(() => undefined);
+    throw error;
+  }
 }
 
 // Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive de taille.
