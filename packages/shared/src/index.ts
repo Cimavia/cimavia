@@ -304,6 +304,7 @@ export type {
   AbortMultipartUploadInput,
   CompleteMultipartUploadInput,
   MediaUploadTicketDto,
+  MultipartUploadTicket,
   UploadMode as UploadModeType,
 } from "./dto/upload.schema";
 export {

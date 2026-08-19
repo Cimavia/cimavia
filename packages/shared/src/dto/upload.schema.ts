@@ -111,6 +111,15 @@ export const mediaUploadTicketDtoSchema = z.discriminatedUnion("mode", [
 export type MediaUploadTicketDto = z.infer<typeof mediaUploadTicketDtoSchema>;
 
 /**
+ * La branche découpée du ticket, nommée : web et mobile la passent tous deux à leur fonction
+ * d'envoi, et `Extract<…>` écrit deux fois dériverait à la première évolution du DTO.
+ */
+export type MultipartUploadTicket = Extract<
+  MediaUploadTicketDto,
+  { mode: typeof UploadMode.MULTIPART }
+>;
+
+/**
  * Clôture d'un upload découpé : le storage recolle les parts en UN objet.
  *
  * Aucun ETag ici, et c'est délibéré. S3 en produit un par part, que le `complete` doit citer — mais
