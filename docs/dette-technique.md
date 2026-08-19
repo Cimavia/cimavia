@@ -61,7 +61,7 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 | P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P4-3 | **Vol de token push possible** : `POST /me/push-tokens` réaffecte au compte courant un token déjà enregistré. | 🟡 | [#90](https://github.com/Cimavia/cimavia/issues/90) |
-| P4-4 | **Pas de miniature vidéo** dans la galerie mobile : une pastille « Vidéo · 42 s » tient lieu d'aperçu. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) |
+| P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo dans le lecteur système depuis **#151**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
 | P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
 | ~~P2-1~~ / ~~P3-2~~ | *(inchangées)* P4 n'ajoute **aucun** nouveau cas : un média de débrief n'est jamais copié ni partagé, sa suppression purge l'objet directement. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
@@ -679,6 +679,53 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > modification de taille. Derrière ce premier obstacle en attendait un second, sans rapport : le
 > plafond de 100 Mo ci-dessus. Deux causes indépendantes derrière un seul symptôme — d'où la mesure
 > systématique avant toute correction.
+
+---
+
+## Post-MVP — Lecture vidéo sur mobile ([#151](https://github.com/Cimavia/cimavia/issues/151))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| V-1 | **Pas de lecture vidéo EN LIGNE sur mobile** : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | 🟢 | — *(déclencheur : le coach beta juge la sortie de l'app gênante → voie `expo-video`)* |
+| V-2 | **URL signée périmée non vérifiée hors du débrief** : les documents de séance et le justificatif de facture ouvrent l'URL du cache telle quelle. Le débrief la vérifie depuis #151 (`isSignedUrlUsable`), pas eux — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
+
+> **Tranché** (le lecteur système plutôt qu'`expo-video`) : lire la vidéo **dans** l'app demande
+> `expo-video`, donc un module natif, donc un nouveau **client de dev** en plus de l'APK preview —
+> pour une vidéo plafonnée à 3 min. Ce qui départage les deux voies n'est PAS l'absence d'OTA
+> (`expo-updates` n'est pas une dépendance : tout changement mobile impose déjà un rebuild pour
+> atteindre le coach beta), c'est le blocage de l'itération locale, avec le piège
+> `Cannot find native module` documenté en [#92](https://github.com/Cimavia/cimavia/issues/92).
+> Le manque résiduel est **V-1**, et la voie B reste ouverte derrière son déclencheur.
+>
+> **Un composant partagé, pas une copie** : le rendu vidéo vit dans `CmvVideoLink`
+> (`shared/component/`), servi par la messagerie **et** les deux surfaces du débrief. Copier la
+> pastille de `MessageBubble` était le geste naturel — et exactement celui qui a coûté un refactor
+> sous contrainte de gate en #153 (`new_duplicated_lines_density` ≤ 3 %, et `apps/mobile` **est**
+> analysé par Sonar). Précédent suivi : `CmvAudioPlayer`/`CmvAudioRecorder`, promus en P5.
+>
+> **Découvert en route** (ce qu'aucune lecture du code ne donnait) : le `staleTime` de l'app vaut
+> **exactement** le TTL des URLs signées — 5 min des deux côtés — et « périmé » ne veut pas dire
+> « redemandé » : TanStack ne refetche que sur un déclencheur (montage, premier plan, retour
+> réseau). Un coach immobile six minutes sur un débrief ouvrait donc une URL morte, et l'échec est
+> **silencieux** : `Linking.openURL` réussit (le navigateur s'est bien lancé), c'est le storage qui
+> répond 403 en XML. Le cache étant persisté sept jours, un démarrage à froid ressortait des URLs
+> signées la semaine passée. D'où `SIGNED_URL_TTL_SECONDS` et `isSignedUrlUsable` promus dans
+> `@cmv/shared` — la valeur est déjà un élément de contrat (`UploadUrlDto.expiresIn`) — et une
+> re-signature **avant** ouverture, avec refus explicite quand elle échoue. Le TTL, lui, ne bouge
+> pas : sa brièveté est ce qui rend le bucket privé sûr (P3-3). Le même trou subsiste ailleurs, en
+> **V-2**.
+>
+> **Corrigé au passage** (trouvé en vérifiant sur appareil) : les photos de débrief ne
+> s'agrandissaient PAS sur mobile — le visionneur plein écran existait, mais dans
+> `feature/message/`, et ne servait que la messagerie ; le web, lui, ouvre la photo en pleine
+> taille depuis toujours. Promu en `CmvImageViewer` (`shared/component/`) et branché sur les deux
+> surfaces du débrief. Le geste est le même que pour la vidéo, et pour la même raison : un
+> composant que la messagerie possédait déjà valait mieux qu'un `<Image>` nu recopié.
+>
+> **Corrigé au passage** : la galerie athlète affichait « Vidéo · 0 s » sur un média sans durée
+> déclarée (`durationSeconds ?? 0`) — la règle nullable prise à revers. `formatMediaDuration` rend
+> désormais `null` sur une durée inconnue, et le rendu n'affiche rien. La messagerie et le débrief
+> parlent en outre le même format (`m:ss`), au lieu de secondes brutes d'un côté.
 
 ---
 

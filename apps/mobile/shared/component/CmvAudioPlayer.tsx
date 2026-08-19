@@ -1,8 +1,8 @@
+import { formatMmSs } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { Pressable, View } from "react-native";
-import { formatMmSs } from "@/shared/util/time";
 import { CmvText } from "./CmvText";
 
 type CmvAudioPlayerProps = {

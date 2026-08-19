@@ -102,6 +102,13 @@
       "link": "Document"
     }
   },
+  "media": {
+    "video": {
+      "label": "Vidéo",
+      "openError": "Aucune application de ton téléphone ne peut lire cette vidéo.",
+      "refreshError": "Impossible d'ouvrir la vidéo. Vérifie ta connexion et réessaie."
+    }
+  },
   "feedback": {
     "title": "Débrief de la séance",
     "subtitle": "Ton retour est visible immédiatement par ton coach.",
@@ -122,7 +129,6 @@
       "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
       "remove": "Retirer",
       "uploading": "Envoi en cours… {{percent}} %",
-      "videoBadge": "Vidéo · {{seconds}} s",
       "permission": "cimavia a besoin d'accéder à tes photos pour les joindre au débrief.",
       "photoTooBig": "Cette photo dépasse {{max}} Mo, même après compression.",
       "videoTooBig": "Cette vidéo dépasse {{max}} Mo. Filme plus court ou baisse la qualité dans l'appareil photo.",
@@ -160,7 +166,6 @@
       "description": "Rejoins un coach pour échanger avec lui en messagerie."
     },
     "media": {
-      "video": "🎥 Vidéo",
       "uploading": "Envoi en cours…",
       "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie.",
       "permission": "cimavia a besoin d'accéder à tes photos pour les joindre.",

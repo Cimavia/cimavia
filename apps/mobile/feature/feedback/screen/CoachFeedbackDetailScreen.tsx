@@ -2,13 +2,22 @@ import { type FeedbackMediaDto, MediaType } from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Image, ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
+import { coachFeedbackKeys } from "@/feature/feedback/api";
 import {
   useCoachFeedbackDetail,
   useCoachFeedbacks,
   useMarkFeedbackRead,
 } from "@/feature/feedback/hook/useCoachFeedbacks";
-import { CmvAudioPlayer, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { useFreshFeedbackMediaUrl } from "@/feature/feedback/hook/useFreshFeedbackMediaUrl";
+import {
+  CmvAudioPlayer,
+  CmvErrorState,
+  CmvImageViewer,
+  CmvScreen,
+  CmvText,
+  CmvVideoLink,
+} from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -66,7 +75,7 @@ export function CoachFeedbackDetailScreen() {
               {feedback?.content ?? t("feedback.coach.mediaOnly")}
             </CmvText>
 
-            <FeedbackMedia media={feedback?.media ?? []} />
+            <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
           </>
         )}
       </ScrollView>
@@ -75,29 +84,49 @@ export function CoachFeedbackDetailScreen() {
 }
 
 /**
- * Les médias joints. Pas de lecteur vidéo : la vignette est l'URL signée — c'est la dette P4-4,
- * déjà assumée côté athlète, et elle vaut à l'identique pour cette vue.
+ * Les médias joints, un rendu par type.
+ *
+ * Le branchement est EXHAUSTIF, et pas « audio d'un côté, tout le reste en image » : c'est
+ * exactement ce qui rendait une vidéo par `<Image>` — un bloc vide, sans erreur ni indice, là où
+ * l'athlète avait déposé sa voie (#151).
  */
-function FeedbackMedia({ media }: Readonly<{ media: readonly FeedbackMediaDto[] }>) {
+function FeedbackMedia({
+  media,
+  sessionId,
+}: Readonly<{ media: readonly FeedbackMediaDto[]; sessionId: string }>) {
   const { t } = useTranslation();
+  const freshUrl = useFreshFeedbackMediaUrl(coachFeedbackKeys.bySession(sessionId));
 
   if (media.length === 0) return null;
 
   return (
     <View className="gap-3 border-cmv-border border-t pt-4">
       <CmvText className="text-cmv-text-mid text-xs uppercase">{t("feedback.coach.media")}</CmvText>
-      {media.map((item) =>
-        item.type === MediaType.AUDIO ? (
-          <CmvAudioPlayer key={item.id} url={item.url} durationSeconds={item.durationSeconds} />
-        ) : (
-          <Image
+      {media.map((item) => {
+        if (item.type === MediaType.AUDIO) {
+          return (
+            <CmvAudioPlayer key={item.id} url={item.url} durationSeconds={item.durationSeconds} />
+          );
+        }
+        if (item.type === MediaType.VIDEO) {
+          return (
+            <CmvVideoLink
+              key={item.id}
+              url={item.url}
+              durationSeconds={item.durationSeconds}
+              resolveUrl={() => freshUrl(item.id, item.url)}
+              containerClassName="h-48 w-full items-center justify-center gap-2 rounded-lg border border-cmv-border bg-cmv-surface"
+            />
+          );
+        }
+        return (
+          <CmvImageViewer
             key={item.id}
-            source={{ uri: item.url }}
-            className="h-48 w-full rounded-lg"
-            resizeMode="cover"
+            url={item.url}
+            containerClassName="h-48 w-full overflow-hidden rounded-lg"
           />
-        ),
-      )}
+        );
+      })}
     </View>
   );
 }

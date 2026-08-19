@@ -1,3 +1,4 @@
+import { formatMmSs } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -9,7 +10,6 @@ import {
 } from "expo-audio";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { formatMmSs } from "@/shared/util/time";
 import { CmvText } from "./CmvText";
 
 export type RecordedAudio = { uri: string; durationSeconds: number };

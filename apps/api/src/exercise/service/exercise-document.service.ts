@@ -4,12 +4,13 @@ import {
   DocumentType,
   type ExerciseDocumentDto,
   type RequestUploadUrlInput,
+  SIGNED_URL_TTL_SECONDS,
   type UploadUrlDto,
 } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { toDocumentDto } from "../../infra/storage/document.mapper";
-import { SIGNED_URL_TTL_SECONDS, StorageService } from "../../infra/storage/storage.service";
+import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { DocumentCleanupService } from "./document-cleanup.service";

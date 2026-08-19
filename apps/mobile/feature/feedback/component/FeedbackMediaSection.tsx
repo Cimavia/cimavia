@@ -57,6 +57,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
 
       <MediaGrid
         media={feedback?.media ?? []}
+        sessionId={sessionId}
         onRemove={(mediaId) => removeMedia.mutate(mediaId)}
         isRemoving={removeMedia.isPending}
       />
