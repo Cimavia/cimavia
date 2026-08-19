@@ -55,6 +55,9 @@ export async function uploadFileToStorage(
   );
 }
 
+// Discriminant des fichiers de cache, monotone pour la durée de vie du process.
+let uploadSequence = 0;
+
 export async function uploadPartsToStorage(
   sourceUri: string,
   partUrls: readonly string[],
@@ -64,8 +67,11 @@ export async function uploadPartsToStorage(
   const source = new File(sourceUri);
   const totalBytes = source.size;
   // Deux envois simultanés (un débrief et un message, par exemple) écriraient sinon dans le même
-  // fichier de cache et se corrompraient l'un l'autre.
-  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  // fichier de cache et se corrompraient l'un l'autre. Un COMPTEUR et non un tirage aléatoire :
+  // on cherche l'unicité au sein du process, pas de l'imprévisibilité — un générateur
+  // pseudo-aléatoire n'apporterait ici qu'une collision possible et une alerte de sécurité.
+  uploadSequence += 1;
+  const token = `${Date.now().toString(36)}-${uploadSequence}`;
 
   for (const [index, url] of partUrls.entries()) {
     const start = index * partSize;

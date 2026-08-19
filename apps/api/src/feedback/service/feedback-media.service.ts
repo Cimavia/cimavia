@@ -8,16 +8,8 @@ import type {
   MediaUploadTicketDto,
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
+import { MediaType, maxFeedbackMediaCount } from "@cmv/shared";
 import {
-  MediaType,
-  MULTIPART_PART_SIZE_BYTES,
-  maxFeedbackMediaCount,
-  multipartPartSizes,
-  requiresMultipart,
-  UploadMode,
-} from "@cmv/shared";
-import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -25,11 +17,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import {
-  MULTIPART_SIGNED_URL_TTL_SECONDS,
-  SIGNED_URL_TTL_SECONDS,
-  StorageService,
-} from "../../infra/storage/storage.service";
+import { StorageService } from "../../infra/storage/storage.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -60,9 +48,8 @@ export class FeedbackMediaService {
    * (@cmv/shared) ; le quota, lui, dépend de l'état en base — on le vérifie ICI plutôt qu'au
    * rattachement seul, pour ne pas laisser l'athlète uploader 100 Mo avant de lui dire non.
    *
-   * Le MODE est décidé par la seule taille : un PUT unique tant qu'elle passe le bord réseau, un
-   * envoi découpé au-delà. Le client n'a pas voix au chapitre — le seuil est une contrainte
-   * d'infrastructure, pas une préférence.
+   * La FORME de l'envoi (PUT unique ou découpé) est arbitrée par `createUploadTicket` : elle ne
+   * dépend que de la taille, donc de rien qui soit propre au débrief.
    *
    * Aucun débrief n'est créé à cette étape : demander un ticket n'est pas débriefer (sinon une
    * capture abandonnée marquerait la séance DONE). C'est le rattachement qui engage.
@@ -75,38 +62,7 @@ export class FeedbackMediaService {
     await this.assertQuotaLeft(scheduledSessionId, input.type);
 
     const storagePath = buildMediaKey(session.athleteId, scheduledSessionId, input.fileName);
-    if (!requiresMultipart(input.size)) {
-      const uploadUrl = await this.storage.createUploadUrl(
-        storagePath,
-        input.mimeType,
-        SIGNED_URL_TTL_SECONDS,
-        input.size,
-      );
-      return {
-        mode: UploadMode.SINGLE,
-        uploadUrl,
-        storagePath,
-        expiresIn: SIGNED_URL_TTL_SECONDS,
-      };
-    }
-
-    const partSizes = multipartPartSizes(input.size);
-    // Inatteignable : le schéma a déjà borné `size` à un entier positif. On refuse franchement
-    // plutôt que d'ouvrir un upload sans part, qui ne pourrait jamais être clos.
-    if (partSizes == null) {
-      throw new BadRequestException("Taille de fichier inexploitable");
-    }
-
-    const uploadId = await this.storage.createMultipartUpload(storagePath, input.mimeType);
-    const partUrls = await this.storage.createPartUploadUrls(storagePath, uploadId, partSizes);
-    return {
-      mode: UploadMode.MULTIPART,
-      storagePath,
-      expiresIn: MULTIPART_SIGNED_URL_TTL_SECONDS,
-      uploadId,
-      partSize: MULTIPART_PART_SIZE_BYTES,
-      partUrls,
-    };
+    return this.storage.createUploadTicket(storagePath, input.mimeType, input.size);
   }
 
   /**

@@ -11,8 +11,15 @@ import {
   UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { EnvSchema } from "@cmv/shared";
+import type { EnvSchema, MediaUploadTicketDto } from "@cmv/shared";
 import {
+  MULTIPART_PART_SIZE_BYTES,
+  multipartPartSizes,
+  requiresMultipart,
+  UploadMode,
+} from "@cmv/shared";
+import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -120,6 +127,56 @@ export class StorageService {
       ContentLength: contentLength,
     });
     return getSignedUrl(client, command, { expiresIn: ttl });
+  }
+
+  /**
+   * Comment envoyer `sizeBytes` octets vers `key` — l'arbitrage du MODE et la signature qui va avec.
+   *
+   * Écrit ICI et nulle part ailleurs : le débrief et la messagerie ne diffèrent que par la clé
+   * objet qu'ils fabriquent, et l'arbitrage dupliqué chez chacun aurait dérivé au premier
+   * ajustement du seuil.
+   *
+   * Le mode ne dépend QUE de la taille, et le client n'a pas voix au chapitre : le seuil traduit
+   * une contrainte d'infrastructure (le bord réseau refuse tout corps de plus de 100 Mo), pas une
+   * préférence.
+   */
+  async createUploadTicket(
+    key: string,
+    contentType: string,
+    sizeBytes: number,
+  ): Promise<MediaUploadTicketDto> {
+    if (!requiresMultipart(sizeBytes)) {
+      const uploadUrl = await this.createUploadUrl(
+        key,
+        contentType,
+        SIGNED_URL_TTL_SECONDS,
+        sizeBytes,
+      );
+      return {
+        mode: UploadMode.SINGLE,
+        uploadUrl,
+        storagePath: key,
+        expiresIn: SIGNED_URL_TTL_SECONDS,
+      };
+    }
+
+    const partSizes = multipartPartSizes(sizeBytes);
+    // Inatteignable : les schémas bornent déjà `size` à un entier positif. On refuse franchement
+    // plutôt que d'ouvrir un upload sans part, qui ne pourrait jamais être clos.
+    if (partSizes == null) {
+      throw new BadRequestException("Taille de fichier inexploitable");
+    }
+
+    const uploadId = await this.createMultipartUpload(key, contentType);
+    const partUrls = await this.createPartUploadUrls(key, uploadId, partSizes);
+    return {
+      mode: UploadMode.MULTIPART,
+      storagePath: key,
+      expiresIn: MULTIPART_SIGNED_URL_TTL_SECONDS,
+      uploadId,
+      partSize: MULTIPART_PART_SIZE_BYTES,
+      partUrls,
+    };
   }
 
   /**

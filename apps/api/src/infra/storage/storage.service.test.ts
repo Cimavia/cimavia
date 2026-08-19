@@ -1,4 +1,5 @@
 import type { EnvSchema } from "@cmv/shared";
+import { MULTIPART_THRESHOLD_BYTES } from "@cmv/shared";
 import { ServiceUnavailableException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it } from "vitest";
@@ -86,6 +87,30 @@ describe("StorageService — storage configuré", () => {
       // Chaque part porte SA taille dans la signature, pas seulement le total annoncé.
       expect(url).toContain("content-length");
     }
+  });
+
+  /**
+   * L'arbitrage du mode vit ICI et pas dans les services de feature : le débrief et la messagerie
+   * ne diffèrent que par la clé objet, et le dupliquer chez chacun aurait dérivé au premier
+   * ajustement du seuil.
+   */
+  describe("createUploadTicket", () => {
+    it("rend un ticket SINGLE au seuil — le seuil est inclusif", async () => {
+      const storage = new StorageService(configWith(FULL_CONFIG));
+      const ticket = await storage.createUploadTicket(
+        "media.mp4",
+        "video/mp4",
+        MULTIPART_THRESHOLD_BYTES,
+      );
+
+      expect(ticket.mode).toBe("SINGLE");
+      // Le mode dicte la forme : aucun champ de l'autre branche à lire par erreur.
+      expect("partUrls" in ticket).toBe(false);
+    });
+
+    // La branche MULTIPART n'est PAS testée ici : `CreateMultipartUpload` est un vrai appel au
+    // storage, là où la signature d'une URL est purement locale. Elle est couverte de bout en bout
+    // par les e2e (débrief et messagerie), qui tournent contre le MinIO du docker-compose.
   });
 
   it("laisse aux parts un TTL plus long qu'au PUT unique", async () => {

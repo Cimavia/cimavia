@@ -5,18 +5,8 @@ import type {
   MediaUploadTicketDto,
   RequestMessageUploadUrlInput,
 } from "@cmv/shared";
-import {
-  MULTIPART_PART_SIZE_BYTES,
-  multipartPartSizes,
-  requiresMultipart,
-  UploadMode,
-} from "@cmv/shared";
-import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
-import {
-  MULTIPART_SIGNED_URL_TTL_SECONDS,
-  SIGNED_URL_TTL_SECONDS,
-  StorageService,
-} from "../../infra/storage/storage.service";
+import { ForbiddenException, Injectable } from "@nestjs/common";
+import { StorageService } from "../../infra/storage/storage.service";
 import { ConversationService } from "./conversation.service";
 
 /**
@@ -42,8 +32,8 @@ export class MessageMediaService {
    * taille est en plus SIGNÉE dans l'URL (ContentLength) donc opposable par le storage. Le fil est
    * résolu par ConversationService → 404 si l'acteur n'en est pas participant.
    *
-   * Le MODE est décidé par la seule taille : un PUT unique tant qu'elle passe le bord réseau, un
-   * envoi découpé au-delà. Même arbitrage que le débrief, et pour la même raison d'infrastructure.
+   * La FORME de l'envoi (PUT unique ou découpé) est arbitrée par `createUploadTicket` : elle ne
+   * dépend que de la taille, donc de rien qui soit propre à la messagerie.
    *
    * Aucun message n'est créé ici : demander un ticket n'est pas envoyer (une capture abandonnée ne
    * laisse rien dans le fil). C'est l'envoi qui engage.
@@ -55,38 +45,7 @@ export class MessageMediaService {
     await this.conversations.getOwnedOrThrow(conversationId);
 
     const storagePath = buildMessageMediaKey(conversationId, input.fileName);
-    if (!requiresMultipart(input.size)) {
-      const uploadUrl = await this.storage.createUploadUrl(
-        storagePath,
-        input.mimeType,
-        SIGNED_URL_TTL_SECONDS,
-        input.size,
-      );
-      return {
-        mode: UploadMode.SINGLE,
-        uploadUrl,
-        storagePath,
-        expiresIn: SIGNED_URL_TTL_SECONDS,
-      };
-    }
-
-    const partSizes = multipartPartSizes(input.size);
-    // Inatteignable : le schéma a déjà borné `size` à un entier positif. On refuse franchement
-    // plutôt que d'ouvrir un upload sans part, qui ne pourrait jamais être clos.
-    if (partSizes == null) {
-      throw new BadRequestException("Taille de fichier inexploitable");
-    }
-
-    const uploadId = await this.storage.createMultipartUpload(storagePath, input.mimeType);
-    const partUrls = await this.storage.createPartUploadUrls(storagePath, uploadId, partSizes);
-    return {
-      mode: UploadMode.MULTIPART,
-      storagePath,
-      expiresIn: MULTIPART_SIGNED_URL_TTL_SECONDS,
-      uploadId,
-      partSize: MULTIPART_PART_SIZE_BYTES,
-      partUrls,
-    };
+    return this.storage.createUploadTicket(storagePath, input.mimeType, input.size);
   }
 
   /** Recoller les parts. Le storage refuse en 409 s'il en manque une (cf. StorageService). */
