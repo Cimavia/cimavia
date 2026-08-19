@@ -1,17 +1,34 @@
 import {
+  AbortMultipartUploadCommand,
+  type CompletedPart,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { EnvSchema } from "@cmv/shared";
-import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { ConflictException, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 // Durée de validité par défaut des URLs signées (secondes). Courte : l'URL n'est qu'un
 // ticket d'accès ponctuel (upload direct ou lecture), régénéré à chaque requête.
 export const SIGNED_URL_TTL_SECONDS = 300;
+
+/**
+ * TTL des URLs de parts — nettement plus long, et ce n'est pas du confort.
+ *
+ * Toutes les parts sont signées EN UNE FOIS à l'ouverture de l'upload, mais envoyées
+ * séquentiellement. La dernière doit donc rester valide le temps que toutes les précédentes soient
+ * montées : à ~5 Mo/s (débit mesuré depuis un mobile à travers le tunnel), 1 Go prend plus de trois
+ * minutes — les 300 s du PUT unique expireraient en cours de route, et l'athlète verrait échouer un
+ * envoi presque terminé. Une heure couvre un gros fichier sur une 4G médiocre depuis une salle.
+ */
+export const MULTIPART_SIGNED_URL_TTL_SECONDS = 3600;
 
 type S3Config = {
   endpoint: string;
@@ -98,6 +115,133 @@ export class StorageService {
       ContentLength: contentLength,
     });
     return getSignedUrl(client, command, { expiresIn: ttl });
+  }
+
+  /**
+   * Ouvre un upload découpé et rend son identifiant. Rien n'est visible dans le bucket tant que
+   * `completeMultipartUpload` n'a pas recollé les parts : un upload ouvert puis oublié ne produit
+   * aucun objet — seulement des parts facturées, d'où `abortMultipartUpload`.
+   */
+  async createMultipartUpload(key: string, contentType: string): Promise<string> {
+    const { client, bucket } = this.require();
+    const result = await client.send(
+      new CreateMultipartUploadCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
+    );
+    // Le SDK type `UploadId` comme optionnel. Sans lui, aucune part ne peut être signée : on
+    // échoue ici plutôt que de propager un `undefined` qui casserait trois appels plus loin.
+    if (result.UploadId == null) {
+      throw new ServiceUnavailableException("Le storage n'a pas ouvert d'upload découpé");
+    }
+    return result.UploadId;
+  }
+
+  /**
+   * Une URL PUT signée par part, dans l'ordre : l'URL d'indice `i` signe la part `i + 1`.
+   *
+   * Chaque taille entre dans SA signature, exactement comme pour le PUT unique — le storage
+   * refuse alors une part d'un autre poids. C'est ce qui rend les plafonds opposables plutôt que
+   * déclaratifs, part par part et pas seulement sur le total annoncé.
+   */
+  async createPartUploadUrls(
+    key: string,
+    uploadId: string,
+    partSizes: readonly number[],
+    ttl = MULTIPART_SIGNED_URL_TTL_SECONDS,
+  ): Promise<string[]> {
+    const { client, bucket } = this.require();
+    return Promise.all(
+      partSizes.map((size, index) =>
+        getSignedUrl(
+          client,
+          new UploadPartCommand({
+            Bucket: bucket,
+            Key: key,
+            UploadId: uploadId,
+            PartNumber: index + 1,
+            ContentLength: size,
+          }),
+          { expiresIn: ttl },
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Recolle les parts en UN objet. Les ETags sont relus par `ListParts` côté serveur plutôt que
+   * fournis par le client (cf. `upload.schema.ts` — MinIO n'expose pas l'en-tête `ETag` en CORS).
+   *
+   * `expectedPartCount` n'est pas une ceinture de sécurité optionnelle : S3 recolle SANS BRONCHER
+   * ce qu'on lui donne. Une part manquante produirait une vidéo tronquée, parfaitement valide aux
+   * yeux du storage et rattachée comme si de rien n'était. On refuse donc de clore un upload
+   * incomplet — sans l'abandonner pour autant, afin que le client puisse renvoyer la part perdue
+   * et rappeler `complete`.
+   */
+  async completeMultipartUpload(
+    key: string,
+    uploadId: string,
+    expectedPartCount: number,
+  ): Promise<void> {
+    const { client, bucket } = this.require();
+    const parts = await this.listParts(key, uploadId);
+    if (parts.length !== expectedPartCount) {
+      throw new ConflictException(
+        `Upload incomplet : ${parts.length} part(s) reçue(s) sur ${expectedPartCount} attendue(s)`,
+      );
+    }
+    await client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: { Parts: parts },
+      }),
+    );
+  }
+
+  /**
+   * Abandonne un upload découpé et purge ses parts. À appeler dès qu'on renonce : les parts d'un
+   * upload jamais clos restent facturées SANS apparaître à l'inventaire du bucket — invisibles,
+   * donc jamais nettoyées à la main.
+   */
+  async abortMultipartUpload(key: string, uploadId: string): Promise<void> {
+    const { client, bucket } = this.require();
+    await client.send(
+      new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: uploadId }),
+    );
+  }
+
+  /**
+   * Les parts réellement montées, triées par numéro.
+   *
+   * Paginé bien que nos fichiers tiennent en ~100 parts (une page en compte 1000) : le jour où la
+   * taille de part baisse, une troncature silencieuse produirait ici un objet incomplet — le pire
+   * mode de défaillance possible, puisqu'il ne lève rien. Le tri explicite pour la même raison :
+   * S3 rend les parts dans l'ordre, `CompleteMultipartUpload` l'EXIGE, et rien ne le garantit
+   * dans le contrat.
+   */
+  private async listParts(key: string, uploadId: string): Promise<CompletedPart[]> {
+    const { client, bucket } = this.require();
+    const parts: CompletedPart[] = [];
+    let marker: string | undefined;
+
+    do {
+      const page = await client.send(
+        new ListPartsCommand({
+          Bucket: bucket,
+          Key: key,
+          UploadId: uploadId,
+          ...(marker != null && { PartNumberMarker: marker }),
+        }),
+      );
+      for (const part of page.Parts ?? []) {
+        if (part.PartNumber != null && part.ETag != null) {
+          parts.push({ PartNumber: part.PartNumber, ETag: part.ETag });
+        }
+      }
+      marker = page.IsTruncated === true ? page.NextPartNumberMarker : undefined;
+    } while (marker != null);
+
+    return parts.sort((a, b) => (a.PartNumber ?? 0) - (b.PartNumber ?? 0));
   }
 
   // URL GET signée : lecture ponctuelle d'un objet privé.
