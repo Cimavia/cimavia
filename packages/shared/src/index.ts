@@ -300,6 +300,25 @@ export {
   sessionExerciseInputSchema,
   updateSessionSchema,
 } from "./dto/session.schema";
+export type {
+  AbortMultipartUploadInput,
+  CompleteMultipartUploadInput,
+  MediaUploadTicketDto,
+  UploadMode as UploadModeType,
+} from "./dto/upload.schema";
+export {
+  abortMultipartUploadSchema,
+  completeMultipartUploadSchema,
+  MULTIPART_PART_SIZE_BYTES,
+  MULTIPART_THRESHOLD_BYTES,
+  mediaUploadTicketDtoSchema,
+  multipartPartCount,
+  multipartPartRange,
+  requiresMultipart,
+  S3_MAX_PART_COUNT,
+  S3_MIN_PART_SIZE_BYTES,
+  UploadMode,
+} from "./dto/upload.schema";
 export type { EnvSchema } from "./env.schema";
 export { envSchema } from "./env.schema";
 export type { Locale as LocaleType } from "./locale";
