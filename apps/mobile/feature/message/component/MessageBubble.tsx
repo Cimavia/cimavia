@@ -1,11 +1,8 @@
 import type { MessageDto } from "@cmv/shared";
-import { formatMediaDuration, MessageType } from "@cmv/shared";
-import { cmvColors } from "@cmv/tokens";
-import { Ionicons } from "@expo/vector-icons";
-import { useTranslation } from "react-i18next";
-import { Linking, Pressable, View } from "react-native";
+import { MessageType } from "@cmv/shared";
+import { View } from "react-native";
 import { ImageMessage } from "@/feature/message/component/ImageMessage";
-import { CmvAudioPlayer, CmvText } from "@/shared/component";
+import { CmvAudioPlayer, CmvText, CmvVideoLink } from "@/shared/component";
 
 type MessageBubbleProps = {
   message: MessageDto;
@@ -14,12 +11,8 @@ type MessageBubbleProps = {
 
 // Rendu du contenu média. L'URL est signée (bucket privé), régénérée à chaque lecture.
 function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
-  const { t } = useTranslation();
   const media = message.media;
   if (media == null) return null;
-
-  // `null` = durée non déclarée par l'envoyeur : on n'affiche rien, pas un « 0:00 » inventé.
-  const duration = formatMediaDuration(media.durationSeconds);
 
   if (message.type === MessageType.AUDIO) {
     return <CmvAudioPlayer url={media.url} durationSeconds={media.durationSeconds} />;
@@ -27,17 +20,9 @@ function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
   if (message.type === MessageType.IMAGE) {
     return <ImageMessage url={media.url} />;
   }
-  // Vidéo : pas de lecteur intégré côté mobile en MVP (dette P4-4). La pastille ouvre la vidéo dans
-  // le lecteur système (l'URL signée est un GET direct) — aucun module natif ajouté.
-  return (
-    <Pressable onPress={() => Linking.openURL(media.url)} className="flex-row items-center gap-2">
-      <Ionicons name="play-circle" size={22} color={cmvColors.text.hi} />
-      <CmvText className="text-cmv-text-hi">{t("messages.media.video")}</CmvText>
-      {duration == null ? null : (
-        <CmvText className="text-cmv-text-mid text-xs">{duration}</CmvText>
-      )}
-    </Pressable>
-  );
+  // Vidéo : ouverte dans le lecteur système. Pas de `resolveUrl` — le fil sonde toutes les 10 s,
+  // ses URLs signées n'ont pas le temps d'expirer sous la main de l'utilisateur.
+  return <CmvVideoLink url={media.url} durationSeconds={media.durationSeconds} />;
 }
 
 export function MessageBubble({ message, mine }: Readonly<MessageBubbleProps>) {
