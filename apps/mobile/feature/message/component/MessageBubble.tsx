@@ -1,8 +1,7 @@
 import type { MessageDto } from "@cmv/shared";
 import { MessageType } from "@cmv/shared";
 import { View } from "react-native";
-import { ImageMessage } from "@/feature/message/component/ImageMessage";
-import { CmvAudioPlayer, CmvText, CmvVideoLink } from "@/shared/component";
+import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoLink } from "@/shared/component";
 
 type MessageBubbleProps = {
   message: MessageDto;
@@ -18,7 +17,7 @@ function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
     return <CmvAudioPlayer url={media.url} durationSeconds={media.durationSeconds} />;
   }
   if (message.type === MessageType.IMAGE) {
-    return <ImageMessage url={media.url} />;
+    return <CmvImageViewer url={media.url} />;
   }
   // Vidéo : ouverte dans le lecteur système. Pas de `resolveUrl` — le fil sonde toutes les 10 s,
   // ses URLs signées n'ont pas le temps d'expirer sous la main de l'utilisateur.

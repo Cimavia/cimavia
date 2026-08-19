@@ -2,7 +2,7 @@ import { type FeedbackMediaDto, MediaType } from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Image, ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { coachFeedbackKeys } from "@/feature/feedback/api";
 import {
   useCoachFeedbackDetail,
@@ -13,6 +13,7 @@ import { useFreshFeedbackMediaUrl } from "@/feature/feedback/hook/useFreshFeedba
 import {
   CmvAudioPlayer,
   CmvErrorState,
+  CmvImageViewer,
   CmvScreen,
   CmvText,
   CmvVideoLink,
@@ -119,11 +120,10 @@ function FeedbackMedia({
           );
         }
         return (
-          <Image
+          <CmvImageViewer
             key={item.id}
-            source={{ uri: item.url }}
-            className="h-48 w-full rounded-lg"
-            resizeMode="cover"
+            url={item.url}
+            containerClassName="h-48 w-full overflow-hidden rounded-lg"
           />
         );
       })}

@@ -61,7 +61,7 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 | P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P4-3 | **Vol de token push possible** : `POST /me/push-tokens` réaffecte au compte courant un token déjà enregistré. | 🟡 | [#90](https://github.com/Cimavia/cimavia/issues/90) |
-| P4-4 | **Pas de miniature vidéo** dans la galerie mobile : la pastille ouvre la vidéo dans le lecteur système depuis **#151**, mais reste un libellé — aucun aperçu de l'image. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) |
+| P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo dans le lecteur système depuis **#151**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
 | P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
 | ~~P2-1~~ / ~~P3-2~~ | *(inchangées)* P4 n'ajoute **aucun** nouveau cas : un média de débrief n'est jamais copié ni partagé, sa suppression purge l'objet directement. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
@@ -714,6 +714,13 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > re-signature **avant** ouverture, avec refus explicite quand elle échoue. Le TTL, lui, ne bouge
 > pas : sa brièveté est ce qui rend le bucket privé sûr (P3-3). Le même trou subsiste ailleurs, en
 > **V-2**.
+>
+> **Corrigé au passage** (trouvé en vérifiant sur appareil) : les photos de débrief ne
+> s'agrandissaient PAS sur mobile — le visionneur plein écran existait, mais dans
+> `feature/message/`, et ne servait que la messagerie ; le web, lui, ouvre la photo en pleine
+> taille depuis toujours. Promu en `CmvImageViewer` (`shared/component/`) et branché sur les deux
+> surfaces du débrief. Le geste est le même que pour la vidéo, et pour la même raison : un
+> composant que la messagerie possédait déjà valait mieux qu'un `<Image>` nu recopié.
 >
 > **Corrigé au passage** : la galerie athlète affichait « Vidéo · 0 s » sur un média sans durée
 > déclarée (`durationSeconds ?? 0`) — la règle nullable prise à revers. `formatMediaDuration` rend

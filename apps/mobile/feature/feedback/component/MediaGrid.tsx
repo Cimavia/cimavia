@@ -1,10 +1,10 @@
 import type { FeedbackMediaDto } from "@cmv/shared";
 import { MediaType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { Image, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { myFeedbackKeys } from "@/feature/feedback/api";
 import { useFreshFeedbackMediaUrl } from "@/feature/feedback/hook/useFreshFeedbackMediaUrl";
-import { CmvAudioPlayer, CmvText, CmvVideoLink } from "@/shared/component";
+import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoLink } from "@/shared/component";
 
 type MediaGridProps = {
   media: FeedbackMediaDto[];
@@ -37,9 +37,10 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
           {tiles.map((item) => (
             <View key={item.id} className="gap-1">
               {item.type === MediaType.IMAGE ? (
-                <View className="h-24 w-24 overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface">
-                  <Image source={{ uri: item.url }} className="h-full w-full" resizeMode="cover" />
-                </View>
+                <CmvImageViewer
+                  url={item.url}
+                  containerClassName="h-24 w-24 overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface"
+                />
               ) : (
                 // Toujours pas de MINIATURE vidéo (dette P4-4, [#92]) : la générer demanderait un
                 // module natif de plus. La tuile est en revanche actionnable — elle ouvre la vidéo
