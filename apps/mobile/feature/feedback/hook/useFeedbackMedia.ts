@@ -5,6 +5,7 @@ import {
   type MediaTypeType,
   maxFeedbackMediaSizeBytes,
   megabytesOf,
+  UploadMode,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileSystemUploadType, uploadAsync } from "expo-file-system/legacy";
@@ -87,9 +88,17 @@ export function useDeleteFeedbackMedia(sessionId: string) {
 // crée le débrief s'il n'existait pas encore et passe la séance en DONE (côté API).
 async function uploadAndAttach(sessionId: string, media: PreparedMedia) {
   const input = toUploadUrlInput(media);
-  const signed = await athleteFeedbackApi.requestMediaUploadUrl(sessionId, input);
-  await uploadToStorage(signed.uploadUrl, media);
-  return athleteFeedbackApi.attachMedia(sessionId, { ...input, storagePath: signed.storagePath });
+  const ticket = await athleteFeedbackApi.requestMediaUploadUrl(sessionId, input);
+  // TRANSITOIRE — l'envoi découpé arrive dans son propre commit. Jusque-là ce client ne sait
+  // traiter que le mode SINGLE ; on échoue franchement plutôt que de lire un `uploadUrl` absent,
+  // ce qui partirait en `PUT undefined`. Aucune régression : au-delà du seuil, le PUT unique se
+  // faisait déjà refuser par le bord réseau, en 413 et sans explication.
+  if (ticket.mode !== UploadMode.SINGLE) {
+    throw new Error("Envoi découpé pas encore pris en charge par le mobile");
+  }
+
+  await uploadToStorage(ticket.uploadUrl, media);
+  return athleteFeedbackApi.attachMedia(sessionId, { ...input, storagePath: ticket.storagePath });
 }
 
 /**

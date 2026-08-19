@@ -2,7 +2,11 @@ import {
   MAX_FEEDBACK_AUDIOS,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+  MULTIPART_PART_SIZE_BYTES,
+  MULTIPART_THRESHOLD_BYTES,
   mondayOfIsoWeek,
+  multipartPartCount,
+  multipartPartSizes,
   Role,
   shiftIsoDate,
 } from "@cmv/shared";
@@ -1084,6 +1088,175 @@ describe("Médias de débrief (P4)", () => {
   it("le dépôt de médias reste interdit au coach", async () => {
     const url = `/me/scheduled-sessions/${sessionId}/feedback/media`;
     expect((await coachA.post(`${url}/upload-url`).send(photo())).status).toBe(403);
+  });
+
+  /**
+   * Envoi découpé — ce qui se passe au-delà du seuil, le PUT unique ne franchissant pas le bord
+   * réseau (100 Mo mesurés). Séance DÉDIÉE : les tests de quota ci-dessus ont déjà attaché 3
+   * vidéos à `sessionId`, et toute demande d'URL y répondrait 409 avant d'atteindre ce qu'on veut
+   * tester.
+   */
+  describe("upload découpé", () => {
+    let bigSessionId: string;
+    let mediaUrl: string;
+
+    // La plus petite vidéo qui force le découpage : un octet de plus que le seuil.
+    const bigVideo = (fileName = "longue.mp4") => ({
+      type: "VIDEO",
+      fileName,
+      mimeType: "video/mp4",
+      size: MULTIPART_THRESHOLD_BYTES + 1,
+      durationSeconds: 120,
+    });
+
+    async function ticketFor(input: Record<string, unknown>) {
+      const signed = await athleteA1.post(`${mediaUrl}/upload-url`).send(input);
+      expect(signed.status).toBe(201);
+      return signed.body;
+    }
+
+    // `content-type` n'est PAS envoyé : `UploadPartCommand` ne le signe pas (le type de l'objet
+    // est fixé à l'ouverture de l'upload). Seul `content-length` l'est, et undici le calcule.
+    async function putPart(url: string, size: number): Promise<number> {
+      const put = await fetch(url, { method: "PUT", body: Buffer.alloc(size, 1) });
+      return put.status;
+    }
+
+    beforeAll(async () => {
+      const plan = await coachA.post("/plans").send({
+        athleteId: a1Id,
+        title: "Cycle envoi découpé",
+        startDate: monday,
+        weeks: [{ type: "TRAINING" }],
+      });
+      const session = await coachA
+        .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+        .send({ title: "Séance vidéo longue", scheduledDate: monday });
+      await billAndPublish(coachA, plan.body.id);
+
+      bigSessionId = session.body.id;
+      mediaUrl = `/me/scheduled-sessions/${bigSessionId}/feedback/media`;
+    });
+
+    it("bascule en découpé au-delà du seuil, et pas avant", async () => {
+      // Le seuil est INCLUSIF : pile dessus, le PUT unique passe encore.
+      const single = await ticketFor({ ...video("juste.mp4"), size: MULTIPART_THRESHOLD_BYTES });
+      expect(single.mode).toBe("SINGLE");
+      expect(single.uploadUrl).toBeDefined();
+
+      const multi = await ticketFor(bigVideo());
+      expect(multi.mode).toBe("MULTIPART");
+      expect(multi.partSize).toBe(MULTIPART_PART_SIZE_BYTES);
+      const expectedParts = multipartPartCount(MULTIPART_THRESHOLD_BYTES + 1);
+      expect(expectedParts).not.toBeNull();
+      expect(multi.partUrls).toHaveLength(expectedParts ?? 0);
+      // Le mode dicte la forme : aucun `uploadUrl` unique à envoyer par erreur.
+      expect(multi.uploadUrl).toBeUndefined();
+    });
+
+    it("parcours complet : parts, clôture, puis rattachement", async () => {
+      const input = bigVideo("parcours.mp4");
+      const ticket = await ticketFor(input);
+      const sizes = multipartPartSizes(input.size) ?? [];
+
+      for (const [index, partUrl] of (ticket.partUrls as string[]).entries()) {
+        expect(await putPart(partUrl, sizes[index] ?? 0)).toBe(200);
+      }
+
+      const completed = await athleteA1.post(`${mediaUrl}/upload/complete`).send({
+        storagePath: ticket.storagePath,
+        uploadId: ticket.uploadId,
+        partCount: ticket.partUrls.length,
+      });
+      expect(completed.status).toBe(204);
+
+      // L'objet recollé se rattache comme n'importe quel média : le découpage ne se voit plus.
+      const attached = await athleteA1
+        .post(mediaUrl)
+        .send({ ...input, storagePath: ticket.storagePath });
+      expect(attached.status).toBe(201);
+    });
+
+    /**
+     * LE test de ce commit. S3 recolle sans broncher ce qu'on lui donne : sans ce refus, une part
+     * perdue produirait une vidéo tronquée que rien ne distingue d'une vidéo entière — ni le
+     * storage, ni le rattachement, ni la lecture par le coach.
+     */
+    it("refuse de clore un upload auquel il manque une part (409)", async () => {
+      const input = bigVideo("tronquee.mp4");
+      const ticket = await ticketFor(input);
+      const sizes = multipartPartSizes(input.size) ?? [];
+
+      expect(await putPart(ticket.partUrls[0], sizes[0] ?? 0)).toBe(200);
+
+      const completed = await athleteA1.post(`${mediaUrl}/upload/complete`).send({
+        storagePath: ticket.storagePath,
+        uploadId: ticket.uploadId,
+        // Une seule part envoyée, mais on prétend les avoir toutes montées.
+        partCount: ticket.partUrls.length,
+      });
+      expect(completed.status).toBe(409);
+    });
+
+    it("l'abandon purge les parts, et la clôture répond alors 404", async () => {
+      const input = bigVideo("abandonnee.mp4");
+      const ticket = await ticketFor(input);
+      const sizes = multipartPartSizes(input.size) ?? [];
+      expect(await putPart(ticket.partUrls[0], sizes[0] ?? 0)).toBe(200);
+
+      const aborted = await athleteA1
+        .post(`${mediaUrl}/upload/abort`)
+        .send({ storagePath: ticket.storagePath, uploadId: ticket.uploadId });
+      expect(aborted.status).toBe(204);
+
+      const completed = await athleteA1.post(`${mediaUrl}/upload/complete`).send({
+        storagePath: ticket.storagePath,
+        uploadId: ticket.uploadId,
+        partCount: 1,
+      });
+      expect(completed.status).toBe(404);
+    });
+
+    /**
+     * Le `storagePath` de la clôture est la SEULE entrée de ce module qui désigne un objet du
+     * bucket sans être construite par l'API. Le tenancy guard protège la base, pas le storage.
+     */
+    it("refuse un chemin de storage hors du périmètre de la séance (403)", async () => {
+      const ticket = await ticketFor(bigVideo("evasion.mp4"));
+
+      const completed = await athleteA1.post(`${mediaUrl}/upload/complete`).send({
+        storagePath: "athlete/quelqu-un-dautre/feedback/ailleurs/objet.mp4",
+        uploadId: ticket.uploadId,
+        partCount: 1,
+      });
+      expect(completed.status).toBe(403);
+    });
+
+    it("un athlète ne clôt ni n'abandonne l'upload d'un autre", async () => {
+      const ticket = await ticketFor(bigVideo("convoitee.mp4"));
+      const payload = {
+        storagePath: ticket.storagePath,
+        uploadId: ticket.uploadId,
+        partCount: 1,
+      };
+
+      // 404 et non 403 : la séance elle-même n'existe pas pour B1.
+      expect((await athleteB1.post(`${mediaUrl}/upload/complete`).send(payload)).status).toBe(404);
+      expect(
+        (
+          await athleteB1
+            .post(`${mediaUrl}/upload/abort`)
+            .send({ storagePath: ticket.storagePath, uploadId: ticket.uploadId })
+        ).status,
+      ).toBe(404);
+    });
+
+    it("la clôture reste interdite au coach", async () => {
+      const res = await coachA
+        .post(`${mediaUrl}/upload/complete`)
+        .send({ storagePath: "athlete/x/feedback/y/z.mp4", uploadId: "u", partCount: 1 });
+      expect(res.status).toBe(403);
+    });
   });
 });
 

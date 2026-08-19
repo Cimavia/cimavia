@@ -1,4 +1,4 @@
-import { isAllowedFeedbackVideoMime, MediaType } from "@cmv/shared";
+import { isAllowedFeedbackVideoMime, MediaType, UploadMode } from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
 import { File } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
@@ -167,6 +167,12 @@ async function runProbe(
       size: length,
       durationSeconds: 1,
     });
+
+    // Le spike annonce la taille d'UNE part, toujours sous le seuil : le ticket est donc SINGLE.
+    if (signed.mode !== UploadMode.SINGLE) {
+      append("✗ ticket découpé inattendu pour une part");
+      return;
+    }
 
     const outcome = await uploadPart(
       strategy,

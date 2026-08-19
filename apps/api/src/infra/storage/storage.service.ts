@@ -12,7 +12,12 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { EnvSchema } from "@cmv/shared";
-import { ConflictException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 // Durée de validité par défaut des URLs signées (secondes). Courte : l'URL n'est qu'un
@@ -225,14 +230,25 @@ export class StorageService {
     let marker: string | undefined;
 
     do {
-      const page = await client.send(
-        new ListPartsCommand({
-          Bucket: bucket,
-          Key: key,
-          UploadId: uploadId,
-          ...(marker != null && { PartNumberMarker: marker }),
-        }),
-      );
+      // Un upload abandonné, expiré, ou déjà clos n'existe plus : le storage lève `NoSuchUpload`.
+      // C'est une situation NORMALE côté client (il réessaie après un abandon, ou après le délai
+      // de rétention du bucket) — un 404 le dit, là où l'erreur brute donnerait un 500 qui
+      // ferait chercher une panne serveur.
+      const page = await client
+        .send(
+          new ListPartsCommand({
+            Bucket: bucket,
+            Key: key,
+            UploadId: uploadId,
+            ...(marker != null && { PartNumberMarker: marker }),
+          }),
+        )
+        .catch((error: unknown) => {
+          if (error instanceof Error && error.name === "NoSuchUpload") {
+            throw new NotFoundException("Upload découpé introuvable (abandonné ou expiré)");
+          }
+          throw error;
+        });
       for (const part of page.Parts ?? []) {
         if (part.PartNumber != null && part.ETag != null) {
           parts.push({ PartNumber: part.PartNumber, ETag: part.ETag });

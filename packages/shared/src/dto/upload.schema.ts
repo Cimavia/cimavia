@@ -66,6 +66,24 @@ export function multipartPartRange(
 }
 
 /**
+ * La taille de CHAQUE part, dans l'ordre. Le serveur s'en sert pour signer les URLs — chaque part
+ * portant son propre `ContentLength` — et le client pour découper. Une seule source, donc aucune
+ * dérive possible entre ce qui est signé et ce qui est envoyé.
+ */
+export function multipartPartSizes(totalBytes: number): number[] | null {
+  const count = multipartPartCount(totalBytes);
+  if (count == null) return null;
+
+  const sizes: number[] = [];
+  for (let partNumber = 1; partNumber <= count; partNumber += 1) {
+    const range = multipartPartRange(partNumber, totalBytes);
+    if (range == null) return null;
+    sizes.push(range.length);
+  }
+  return sizes;
+}
+
+/**
  * Ce que l'API répond à une demande d'upload de MÉDIA. Les documents (bibliothèque, factures)
  * gardent `uploadUrlDtoSchema` : ils ne dépassent jamais le seuil, et leur faire porter une union
  * discriminée coûterait un `switch` à chaque appel pour une branche morte.
@@ -106,6 +124,15 @@ export const completeMultipartUploadSchema = z
   .object({
     storagePath: z.string().min(1),
     uploadId: z.string().min(1),
+    /**
+     * Combien de parts le client CROIT avoir envoyées. Le serveur compare au décompte réel du
+     * storage et refuse de clore si ça diverge.
+     *
+     * Sans ce nombre, la vérification serait impossible : S3 recolle sans broncher ce qu'on lui
+     * donne, et une part silencieusement perdue produirait une vidéo tronquée que rien ne
+     * distingue d'une vidéo entière — ni le storage, ni le rattachement, ni la lecture.
+     */
+    partCount: z.number().int().positive().max(S3_MAX_PART_COUNT),
   })
   .strict();
 export type CompleteMultipartUploadInput = z.infer<typeof completeMultipartUploadSchema>;
@@ -115,5 +142,10 @@ export type CompleteMultipartUploadInput = z.infer<typeof completeMultipartUploa
  * déjà poussées restent facturées indéfiniment par le storage sans former d'objet visible —
  * invisibles à l'inventaire, donc jamais nettoyées à la main.
  */
-export const abortMultipartUploadSchema = completeMultipartUploadSchema;
-export type AbortMultipartUploadInput = CompleteMultipartUploadInput;
+export const abortMultipartUploadSchema = z
+  .object({
+    storagePath: z.string().min(1),
+    uploadId: z.string().min(1),
+  })
+  .strict();
+export type AbortMultipartUploadInput = z.infer<typeof abortMultipartUploadSchema>;

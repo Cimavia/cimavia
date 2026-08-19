@@ -1,15 +1,35 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AbortMultipartUploadInput,
   AttachFeedbackMediaInput,
+  CompleteMultipartUploadInput,
   FeedbackMediaDto,
   MediaTypeType,
+  MediaUploadTicketDto,
   RequestFeedbackUploadUrlInput,
-  UploadUrlDto,
 } from "@cmv/shared";
-import { MediaType, maxFeedbackMediaCount } from "@cmv/shared";
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  MediaType,
+  MULTIPART_PART_SIZE_BYTES,
+  maxFeedbackMediaCount,
+  multipartPartSizes,
+  requiresMultipart,
+  UploadMode,
+} from "@cmv/shared";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import { SIGNED_URL_TTL_SECONDS, StorageService } from "../../infra/storage/storage.service";
+import {
+  MULTIPART_SIGNED_URL_TTL_SECONDS,
+  SIGNED_URL_TTL_SECONDS,
+  StorageService,
+} from "../../infra/storage/storage.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -36,28 +56,91 @@ export class FeedbackMediaService {
   ) {}
 
   /**
-   * Étape 1 : URL PUT signée. Mime, taille et durée sont validés en amont par le schéma
+   * Étape 1 : le ticket d'upload. Mime, taille et durée sont validés en amont par le schéma
    * (@cmv/shared) ; le quota, lui, dépend de l'état en base — on le vérifie ICI plutôt qu'au
-   * rattachement seul, pour ne pas laisser l'athlète uploader 50 Mo avant de lui dire non.
+   * rattachement seul, pour ne pas laisser l'athlète uploader 100 Mo avant de lui dire non.
    *
-   * Aucun débrief n'est créé à cette étape : demander une URL n'est pas débriefer (sinon une
+   * Le MODE est décidé par la seule taille : un PUT unique tant qu'elle passe le bord réseau, un
+   * envoi découpé au-delà. Le client n'a pas voix au chapitre — le seuil est une contrainte
+   * d'infrastructure, pas une préférence.
+   *
+   * Aucun débrief n'est créé à cette étape : demander un ticket n'est pas débriefer (sinon une
    * capture abandonnée marquerait la séance DONE). C'est le rattachement qui engage.
    */
   async createUploadUrl(
     scheduledSessionId: string,
     input: RequestFeedbackUploadUrlInput,
-  ): Promise<UploadUrlDto> {
+  ): Promise<MediaUploadTicketDto> {
     const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
     await this.assertQuotaLeft(scheduledSessionId, input.type);
 
     const storagePath = buildMediaKey(session.athleteId, scheduledSessionId, input.fileName);
-    const uploadUrl = await this.storage.createUploadUrl(
+    if (!requiresMultipart(input.size)) {
+      const uploadUrl = await this.storage.createUploadUrl(
+        storagePath,
+        input.mimeType,
+        SIGNED_URL_TTL_SECONDS,
+        input.size,
+      );
+      return {
+        mode: UploadMode.SINGLE,
+        uploadUrl,
+        storagePath,
+        expiresIn: SIGNED_URL_TTL_SECONDS,
+      };
+    }
+
+    const partSizes = multipartPartSizes(input.size);
+    // Inatteignable : le schéma a déjà borné `size` à un entier positif. On refuse franchement
+    // plutôt que d'ouvrir un upload sans part, qui ne pourrait jamais être clos.
+    if (partSizes == null) {
+      throw new BadRequestException("Taille de fichier inexploitable");
+    }
+
+    const uploadId = await this.storage.createMultipartUpload(storagePath, input.mimeType);
+    const partUrls = await this.storage.createPartUploadUrls(storagePath, uploadId, partSizes);
+    return {
+      mode: UploadMode.MULTIPART,
       storagePath,
-      input.mimeType,
-      SIGNED_URL_TTL_SECONDS,
-      input.size,
-    );
-    return { uploadUrl, storagePath, expiresIn: SIGNED_URL_TTL_SECONDS };
+      expiresIn: MULTIPART_SIGNED_URL_TTL_SECONDS,
+      uploadId,
+      partSize: MULTIPART_PART_SIZE_BYTES,
+      partUrls,
+    };
+  }
+
+  /**
+   * Étape 2 bis : recoller les parts. Le storage compare le décompte annoncé à ce qu'il a
+   * réellement reçu et refuse en 409 si ça diverge (cf. `completeMultipartUpload`).
+   */
+  async completeUpload(
+    scheduledSessionId: string,
+    input: CompleteMultipartUploadInput,
+  ): Promise<void> {
+    await this.assertOwnedKey(scheduledSessionId, input.storagePath);
+    await this.storage.completeMultipartUpload(input.storagePath, input.uploadId, input.partCount);
+  }
+
+  /** Renoncer à un envoi découpé et purger ses parts. */
+  async abortUpload(scheduledSessionId: string, input: AbortMultipartUploadInput): Promise<void> {
+    await this.assertOwnedKey(scheduledSessionId, input.storagePath);
+    await this.storage.abortMultipartUpload(input.storagePath, input.uploadId);
+  }
+
+  /**
+   * Le `storagePath` de la clôture vient du CLIENT — c'est la seule entrée de ce module qui
+   * désigne un objet du bucket sans être construite par nous. Sans cette garde, un athlète
+   * pourrait clore (ou abandonner) un upload visant n'importe quelle clé, y compris hors de son
+   * périmètre : le tenancy guard protège la base, pas le storage.
+   *
+   * On le confronte donc au préfixe que `buildMediaKey` aurait produit pour CETTE séance, dont
+   * l'athlète est résolu côté serveur — jamais lu dans la requête.
+   */
+  private async assertOwnedKey(scheduledSessionId: string, storagePath: string): Promise<void> {
+    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    if (!storagePath.startsWith(mediaKeyPrefix(session.athleteId, scheduledSessionId))) {
+      throw new ForbiddenException("Ce chemin de storage n'appartient pas à cette séance");
+    }
   }
 
   /**
@@ -130,9 +213,16 @@ const QUOTA_LABEL: Record<MediaTypeType, string> = {
   [MediaType.AUDIO]: "notes vocales",
 };
 
+// Segment commun à tous les médias d'une séance. Extrait pour que la construction de la clé et sa
+// VÉRIFICATION (assertOwnedKey) ne puissent pas diverger : deux littéraux se seraient désynchronisés
+// au premier changement de segmentation, et la garde serait devenue passante sans que rien n'échoue.
+function mediaKeyPrefix(athleteId: string, scheduledSessionId: string): string {
+  return `athlete/${athleteId}/feedback/${scheduledSessionId}/`;
+}
+
 // Clé objet : segmentée par athlète puis séance, préfixe UUID contre les collisions de noms.
 // Le nom de fichier est assaini (caractères sûrs uniquement), comme pour les documents.
 function buildMediaKey(athleteId: string, scheduledSessionId: string, fileName: string): string {
   const safeName = fileName.replace(/[^\w.-]+/g, "_");
-  return `athlete/${athleteId}/feedback/${scheduledSessionId}/${randomUUID()}-${safeName}`;
+  return `${mediaKeyPrefix(athleteId, scheduledSessionId)}${randomUUID()}-${safeName}`;
 }

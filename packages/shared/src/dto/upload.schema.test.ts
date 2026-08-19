@@ -6,6 +6,7 @@ import {
   mediaUploadTicketDtoSchema,
   multipartPartCount,
   multipartPartRange,
+  multipartPartSizes,
   requiresMultipart,
   S3_MAX_PART_COUNT,
   S3_MIN_PART_SIZE_BYTES,
@@ -85,6 +86,20 @@ describe("multipartPartRange", () => {
   });
 });
 
+describe("multipartPartSizes", () => {
+  it("donne une taille par part, la dernière tronquée, dont la somme fait le fichier", () => {
+    const total = MULTIPART_PART_SIZE_BYTES * 2 + 1024;
+    const sizes = multipartPartSizes(total);
+
+    expect(sizes).toEqual([MULTIPART_PART_SIZE_BYTES, MULTIPART_PART_SIZE_BYTES, 1024]);
+    expect(sizes?.reduce((sum, size) => sum + size, 0)).toBe(total);
+  });
+
+  it("rend null sur une taille qui n'a pas de sens", () => {
+    expect(multipartPartSizes(0)).toBeNull();
+  });
+});
+
 describe("mediaUploadTicketDtoSchema", () => {
   it("accepte un ticket SINGLE", () => {
     const ticket = {
@@ -132,10 +147,24 @@ describe("mediaUploadTicketDtoSchema", () => {
 });
 
 describe("completeMultipartUploadSchema", () => {
+  const complete = {
+    storagePath: "athlete/a/feedback/s/x.mp4",
+    uploadId: "upload-1",
+    partCount: 3,
+  };
+
+  it("accepte une clôture complète", () => {
+    expect(completeMultipartUploadSchema.safeParse(complete).success).toBe(true);
+  });
+
+  it("exige le nombre de parts — sans lui, une troncature passerait inaperçue", () => {
+    const { partCount: _omitted, ...withoutCount } = complete;
+    expect(completeMultipartUploadSchema.safeParse(withoutCount).success).toBe(false);
+  });
+
   it("refuse un champ inconnu — notamment des ETags que le client n'a pas à fournir", () => {
     const result = completeMultipartUploadSchema.safeParse({
-      storagePath: "athlete/a/feedback/s/x.mp4",
-      uploadId: "upload-1",
+      ...complete,
       parts: [{ partNumber: 1, eTag: "abc" }],
     });
     expect(result.success).toBe(false);

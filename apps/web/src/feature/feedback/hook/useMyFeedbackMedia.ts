@@ -3,7 +3,13 @@ import type {
   MediaTypeType,
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
-import { maxFeedbackMediaSizeBytes, megabytesOf, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
+import {
+  maxFeedbackMediaSizeBytes,
+  megabytesOf,
+  myFeedbackKeys,
+  myPlanKeys,
+  UploadMode,
+} from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
@@ -98,10 +104,18 @@ async function uploadAndAttach(
     ...("durationSeconds" in media ? { durationSeconds: media.durationSeconds } : {}),
   } as RequestFeedbackUploadUrlInput;
 
-  const signed = await athleteFeedbackApi.requestMediaUploadUrl(sessionId, descriptor);
-  await uploadToSignedUrl(signed.uploadUrl, media.file, onProgress);
+  const ticket = await athleteFeedbackApi.requestMediaUploadUrl(sessionId, descriptor);
+  // TRANSITOIRE — l'envoi découpé arrive dans son propre commit. Jusque-là ce client ne sait
+  // traiter que le mode SINGLE ; on échoue franchement plutôt que de lire un `uploadUrl` absent,
+  // ce qui partirait en `PUT undefined`. Aucune régression : au-delà du seuil, le PUT unique se
+  // faisait déjà refuser par le bord réseau, en 413 et sans explication.
+  if (ticket.mode !== UploadMode.SINGLE) {
+    throw new Error("Envoi découpé pas encore pris en charge par le web");
+  }
+
+  await uploadToSignedUrl(ticket.uploadUrl, media.file, onProgress);
   await athleteFeedbackApi.attachMedia(sessionId, {
     ...descriptor,
-    storagePath: signed.storagePath,
+    storagePath: ticket.storagePath,
   } as AttachFeedbackMediaInput);
 }

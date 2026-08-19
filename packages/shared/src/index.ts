@@ -314,6 +314,7 @@ export {
   mediaUploadTicketDtoSchema,
   multipartPartCount,
   multipartPartRange,
+  multipartPartSizes,
   requiresMultipart,
   S3_MAX_PART_COUNT,
   S3_MIN_PART_SIZE_BYTES,
