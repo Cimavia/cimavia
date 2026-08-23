@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; background:#0a0f14; }
+  a { color:#e8966f; text-decoration:none; }
+  a:hover { color:#d07049; }
+  *::-webkit-scrollbar { width:10px; height:10px; }
+  *::-webkit-scrollbar-thumb { background:#2b3742; border-radius:8px; border:3px solid #0a0f14; }
+</style>
+</helmet>
+
+<div style="position:absolute; left:0px; top:0px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:18px; cursor:grab">RANGÉE 1 — LIRE LA SÉANCE, PUIS LA CONSIGNE</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">1 · SÉANCE DU JOUR</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force haut du corps</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Mardi 18 août · 4 exercices</div></div>
+        <div>
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:6px">Note du coach</div>
+          <div style="background:#141d25; border-left:3px solid #c2603a; border-radius:6px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Échauffement complet avant la première série lestée. Couper si la technique se dégrade.</span></div>
+        </div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Tractions lestées</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">4 séries de <b style="font-weight:600; color:#dceff3">6 répétitions</b> à <b style="font-weight:600; color:#dceff3">+12 kg</b>, 3' de repos entre les séries.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        <div>
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:6px">Pour cette séance</div>
+          <div style="background:#141d25; border-left:3px solid #c2603a; border-radius:6px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Monte d'un cran si la première série passe bien.</span></div>
+        </div>
+        </div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">2</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Gainage dynamique</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">10 × <b style="font-weight:600; color:#dceff3">30 s</b> d'effort à <b style="font-weight:600; color:#dceff3">RPE 7</b>, 30 s de récupération.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        </div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">3</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">4×4 bloc</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3"><b style="font-weight:600; color:#dceff3">4 étapes</b> — 7a / 7a / 7a / <b style="font-weight:600; color:#dceff3">6c+</b>, bloc répété 4 fois, 3' de repos entre les tours.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">2 · CONSIGNE DÉPLIÉE</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions lestées</div>
+        <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">4 séries de <b style="font-weight:600; color:#dceff3">6 répétitions</b> à <b style="font-weight:600; color:#dceff3">+12 kg</b>, 3' de repos entre les séries.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Masquer la consigne</span></div>
+        <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:12px; padding-right:2px">
+          <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mise en place</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Barre de traction en pronation, ceinture lestée réglée à +12 kg.</div>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div style="display:flex; gap:10px; align-items:flex-start"><span style="width:4px; height:4px; border-radius:50%; background:#6b93a0; margin-top:10px; flex-shrink:0"></span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Prise en pronation, largeur épaules</span></div>
+            <div style="display:flex; gap:10px; align-items:flex-start"><span style="width:4px; height:4px; border-radius:50%; background:#6b93a0; margin-top:10px; flex-shrink:0"></span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Suspension complète avant de tirer</span></div>
+            <div style="display:flex; gap:10px; align-items:flex-start"><span style="width:4px; height:4px; border-radius:50%; background:#6b93a0; margin-top:10px; flex-shrink:0"></span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Gainage actif avant le premier tirage</span></div>
+          </div>
+          <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; margin-top:4px">Exécution</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Traction jusqu'au menton au-dessus de la barre, puis descente contrôlée jusqu'à <b style="font-weight:600; color:#dceff3">extension complète des bras</b>. Pas de balancement du buste.</div>
+          <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; margin-top:4px">Erreurs fréquentes</div>
+          <div style="background:#141d25; border-left:3px solid #c2603a; border-radius:6px; padding:12px 14px"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Balancement du buste — </span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">utilisé pour tricher l'amplitude. Ralentir la descente si ça apparaît.</span></div>
+          <div style="display:flex; gap:10px; align-items:flex-start"><span style="width:4px; height:4px; border-radius:50%; background:#6b93a0; margin-top:10px; flex-shrink:0"></span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Amplitude partielle en fin de série</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">3 · IMAGE DANS LA CONSIGNE</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions lestées</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Masquer la consigne</span></div>
+        <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:12px">
+          <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Exécution</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Traction jusqu'au menton au-dessus de la barre, puis descente contrôlée jusqu'à extension complète des bras.</div>
+          <div>
+            <image-slot id="ath-consigne-img" style="width:100%; height:210px; display:block" shape="rounded" radius="8" placeholder="Photo — position basse, bras tendus"></image-slot>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:8px; text-align:center">Position basse : extension complète, épaules relâchées.</div>
+          </div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Pas de balancement du buste : si le bassin part en avant, la série est finie.</div>
+          <div>
+            <div style="width:100%; height:150px; border-radius:8px; background:#141d25; border:1px solid #2b3742; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="8.5" cy="10" r="1.4"></circle><path d="M21 16l-5.5-5.5a1.5 1.5 0 00-2.1 0L4 19"></path></svg>
+              <div style="width:120px; height:4px; border-radius:999px; background:#2b3742; overflow:hidden"><div style="width:46%; height:100%; background:#3a4854"></div></div>
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Chargement de l'image…</span>
+            </div>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:8px; text-align:center">Prise de main sur la ceinture de lest.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<div style="position:absolute; left:0px; top:1040px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:18px; cursor:grab">RANGÉE 2 — LES GRILLES À PLUSIEURS LIGNES</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">4 · PLUSIEURS LIGNES, 2 COLONNES → MINI-TABLEAU</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">3</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">4×4 bloc</span></div>
+        <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3"><b style="font-weight:600; color:#dceff3">4 étapes</b> enchaînées, bloc répété <b style="font-weight:600; color:#dceff3">4 fois</b>, 3' de repos entre les tours.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div>
+          <div style="display:grid; grid-template-columns:28px 1fr 1fr; gap:12px; padding:0 12px 8px"><span></span><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Voie</span><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Cotation</span></div>
+          <div style="border:1px solid #2b3742; border-radius:8px; overflow:hidden">
+            <div style="display:grid; grid-template-columns:28px 1fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; ; border-bottom:1px solid #2b3742"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Dalle gauche</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">7a</span></div>
+            <div style="display:grid; grid-template-columns:28px 1fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; background:#141d25; border-bottom:1px solid #2b3742"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">2</span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Dévers rouge</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">7a</span></div>
+            <div style="display:grid; grid-template-columns:28px 1fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; ; border-bottom:1px solid #2b3742"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">3</span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Bloc jaune</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">7a</span></div>
+            <div style="display:grid; grid-template-columns:28px 1fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; background:#141d25"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">4</span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Traversée</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">6c+</span></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Quatre étapes, deux colonnes : le tableau tient dans la largeur, les cotations s'alignent.</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">5 · PLUSIEURS LIGNES, 3 COLONNES → LA LIMITE DU SEUIL</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions lestées — dégressif</span></div>
+        <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3"><b style="font-weight:600; color:#dceff3">4 séries</b>, charge et repos dégressifs.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div>
+          <div style="display:grid; grid-template-columns:28px 1fr 1.15fr 1fr; gap:12px; padding:0 12px 8px"><span></span><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Reps</span><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Charge</span><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Repos</span></div>
+          <div style="border:1px solid #2b3742; border-radius:8px; overflow:hidden">
+            <div style="display:grid; grid-template-columns:28px 1fr 1.15fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; border-bottom:1px solid #2b3742"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">6</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">+14 kg</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">3'</span></div>
+            <div style="display:grid; grid-template-columns:28px 1fr 1.15fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; background:#141d25; border-bottom:1px solid #2b3742"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">2</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">6</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">+12 kg</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">2'30</span></div>
+            <div style="display:grid; grid-template-columns:28px 1fr 1.15fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; border-bottom:1px solid #2b3742"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">3</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">5</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">+12 kg</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">2'30</span></div>
+            <div style="display:grid; grid-template-columns:28px 1fr 1.15fr 1fr; gap:12px; align-items:center; min-height:44px; padding:0 12px; background:#141d25"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">4</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">4</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">+10 kg</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#6b93a0">—</span></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Trois colonnes tiennent encore : les charges s'alignent, on lit la dégressivité de haut en bas. Une quatrième forcerait la troncature.</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">6 · PLUSIEURS LIGNES, 4 COLONNES → UNE CARTE PAR SÉRIE</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions lestées — dégressif</span></div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="flex:1; min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:10px">
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:10px 12px">
+            <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:6px">Série 1</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px"><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Répétitions</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">6</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Charge</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">+14 kg</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Repos</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">3'</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">RPE</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">8</div></div></div>
+          </div>
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:10px 12px">
+            <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:6px">Série 2</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px"><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Répétitions</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">6</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Charge</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">+12 kg</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Repos</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">2'30</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">RPE</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">8</div></div></div>
+          </div>
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:10px 12px">
+            <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:6px">Série 3</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px"><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Répétitions</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">5</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Charge</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">+12 kg</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Repos</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">2'30</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">RPE</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">9</div></div></div>
+          </div>
+          <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:10px 12px">
+            <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:6px">Série 4</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 16px"><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Répétitions</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">4</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Charge</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">+10 kg</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Repos</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#6b93a0; margin-top:2px">—</div></div><div><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">RPE</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3; margin-top:2px">9</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">LE SEUIL PROPOSÉ</div>
+    <div style="background:#0a0f14; border:1px solid #3a4854; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:16px">
+      <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Trois colonnes, pas quatre</div>
+      <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">402 px moins les marges laissent 362 px. Une colonne de valeur lisible en mono demande 90 px, plus 28 px d'index : trois colonnes tiennent, la quatrième force soit la troncature, soit le scroll horizontal.</div>
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">1 ligne → phrase</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:2px">quel que soit le nombre de colonnes</div></div>
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">2–3 colonnes → mini-tableau</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:2px">les valeurs s'alignent, la comparaison entre lignes est immédiate</div></div>
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">4 colonnes et plus → une carte par ligne</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:2px">on perd l'alignement vertical, on garde la lisibilité de chaque série</div></div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Jamais de scroll horizontal : inutilisable une main sur la barre.</span></div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<div style="position:absolute; left:0px; top:2080px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:18px; cursor:grab">RANGÉE 3 — LES AUTRES STRUCTURES, LES BLOCS, LES PIÈCES JOINTES</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">7 · EMOM · AMRAP · LIBRE</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">2</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Tractions — EMOM</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3"><b style="font-weight:600; color:#dceff3">Toutes les minutes pendant 10 min</b> : 3 tractions.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        </div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">3</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Tractions — AMRAP</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3"><b style="font-weight:600; color:#dceff3">En 8 min</b>, un maximum de tours de <b style="font-weight:600; color:#dceff3">5 tractions</b>. Objectif : 12 tours.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        </div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">4</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Routine de mobilité</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">3 étapes, à réaliser dans l'ordre, sans chronométrage strict.</div>
+          <div style="display:flex; flex-direction:column; gap:12px; margin-top:2px">
+            <div>
+              <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mobilité épaules</div>
+              <div style="display:flex; gap:16px; margin-top:2px"><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">2 min</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#6b93a0">—</span></div>
+              <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Bras tendus, amplitude complète</div>
+            </div>
+            <div>
+              <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Rotations de hanche</div>
+              <div style="display:flex; gap:16px; margin-top:2px"><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#6b93a0">—</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">10 reps</span></div>
+              <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Chaque sens</div>
+            </div>
+            <div>
+              <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Auto-massage avant-bras</div>
+              <div style="display:flex; gap:16px; margin-top:2px"><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#6b93a0">—</span><span style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#6b93a0">—</span></div>
+              <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Au ressenti, 1 à 2 min</div>
+            </div>
+          </div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">8 · EXERCICE À PLUSIEURS BLOCS</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions</span></div>
+        <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Deux temps : on échauffe, puis on charge.</div>
+        <div style="border-left:2px solid #2b3742; padding-left:14px; display:flex; flex-direction:column; gap:6px">
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Échauffement</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3"><b style="font-weight:600; color:#dceff3">2 séries</b> de <b style="font-weight:600; color:#dceff3">5 répétitions</b> à vide, 1' de repos entre les séries.</div>
+        </div>
+        <div style="border-left:2px solid #2b3742; padding-left:14px; display:flex; flex-direction:column; gap:6px">
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Travail</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3"><b style="font-weight:600; color:#dceff3">4 séries</b> de <b style="font-weight:600; color:#dceff3">6 répétitions</b> à <b style="font-weight:600; color:#dceff3">+12 kg</b>, 2'30 de repos entre les séries.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">2</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Gainage dynamique</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">10 × <b style="font-weight:600; color:#dceff3">30 s</b> d'effort à <b style="font-weight:600; color:#dceff3">RPE 7</b>, 30 s de récupération.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">9 · PIÈCES JOINTES ET LIENS</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions lestées</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Masquer la consigne</span></div>
+        <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Traction jusqu'au menton au-dessus de la barre, puis descente contrôlée jusqu'à extension complète des bras.</div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">À consulter</div>
+          <div style="display:flex; align-items:center; gap:14px; min-height:44px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px">
+            <span style="width:40px; height:40px; border-radius:8px; background:#1c2630; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="#dceff3"><path d="M8 5v14l11-7z"></path></svg></span>
+            <div style="flex:1; min-width:0"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#e8966f">Vidéo de démonstration</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">youtube.com · ouvre l'application</div></div>
+            <span style="color:#e8966f; flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5"></path><path d="M19 5l-8 8"></path><path d="M18 14v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h4"></path></svg></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px; min-height:44px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px">
+            <span style="width:40px; height:40px; border-radius:8px; background:#1c2630; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e89089" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><path d="M14 2v6h6"></path></svg></span>
+            <div style="flex:1; min-width:0"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">progression-charge.pdf</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">1,1 Mo · PDF</div></div>
+            <span style="flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px; min-height:44px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px">
+            <span style="width:40px; height:40px; border-radius:8px; background:#1c2630; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5"></path><path d="M19 5l-8 8"></path><path d="M18 14v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h4"></path></svg></span>
+            <div style="flex:1; min-width:0"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#e8966f">Article — progression du lest</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">blog-entrainement.fr</div></div>
+            <span style="color:#e8966f; flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5h5v5"></path><path d="M19 5l-8 8"></path><path d="M18 14v4a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h4"></path></svg></span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Les liens externes ouvrent l'application concernée ; le PDF s'ouvre dans Cimavia.</span></div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<div style="position:absolute; left:0px; top:3120px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:18px; cursor:grab">RANGÉE 4 — FIN DE SÉANCE ET ÉTATS</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">10 · FIN DE SÉANCE</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force haut du corps</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">4</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Routine de mobilité</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">3 étapes, à réaliser dans l'ordre, sans chronométrage strict.</div>
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:2px">
+            <div><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mobilité épaules</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">2 min</div></div>
+            <div><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Rotations de hanche</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">10 reps</div></div>
+            <div><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Auto-massage avant-bras</div><div style="font:500 15px/25px 'IBM Plex Mono',monospace; color:#dceff3">au ressenti</div></div>
+          </div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div>
+        </div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:12px; padding-top:4px">
+          <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">C'est la fin de la séance</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Quand tu as terminé, raconte comment ça s'est passé : c'est ce que ton coach lira avant la prochaine.</div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:10px; min-height:52px; background:#c2603a; border-radius:8px"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Faire mon débrief</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+          <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:center">Rien à cocher pendant la séance — le débrief se fait une seule fois, à la fin.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">11a · SÉANCE À VENIR</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force haut du corps</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Jeudi 20 août · 4 exercices</div></div>
+        <div style="display:inline-flex; align-self:flex-start; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:rgba(95,143,168,.16); border:1px solid rgba(95,143,168,.34)"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fb8cc">Dans 2 jours</span></div>
+        <div style="display:flex; flex-direction:column; gap:16px">
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">La séance est prête. Tu peux la lire dès maintenant pour savoir ce qui t'attend.</div>
+          <div><div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions lestées</span></div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">4 séries de 6 répétitions à +12 kg, 3' de repos.</div><div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div></div>
+          <div><div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">2</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Gainage dynamique</span></div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">10 × 30 s d'effort à RPE 7, 30 s de récupération.</div><div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div></div>
+          <div><div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">3</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">4×4 bloc</span></div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">4 étapes — 7a / 7a / 7a / 6c+, bloc répété 4 fois.</div><div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">11b · SÉANCE DÉJÀ DÉBRIEFÉE</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0"></span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force haut du corps</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Mardi 11 août · 4 exercices</div></div>
+        <div style="display:inline-flex; align-self:flex-start; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9fcdb1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1">Débrief envoyé</span></div>
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; gap:8px">
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Ton débrief · 11 août</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Les trois premières séries bien, la dernière plus dure que prévu. Épaule droite un peu sensible en fin de séance.</div>
+          <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin-bottom:-10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir le débrief complet</span></div>
+        </div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:14px">
+          <div><div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tractions lestées</span></div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">4 séries de 6 répétitions à +12 kg.</div><div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div></div>
+          <div><div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">2</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Gainage dynamique</span></div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">10 × 30 s d'effort à RPE 7.</div><div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:402px; flex-shrink:0">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:12px">11c · SANS RÉSEAU</div>
+    <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+      <div style="height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Hors ligne</span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0">
+        <span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+        <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force haut du corps</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Mardi 18 août · 4 exercices</div></div>
+        <div style="display:flex; align-items:center; gap:10px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"></path><path d="M5 12.5a10 10 0 014.5-2.6M2 8.8a15 15 0 015.5-3.3M16.5 10a10 10 0 013 2M12 20v.01"></path><path d="M8.5 16a5 5 0 016-.8"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Hors ligne — les images arriveront au retour du réseau.</span></div>
+        <div style="height:1px; background:#2b3742"></div>
+        <div style="display:flex; flex-direction:column; gap:10px">
+        <div style="display:flex; align-items:baseline; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">1</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; flex:1">Tractions lestées</span></div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">4 séries de <b style="font-weight:600; color:#dceff3">6 répétitions</b> à <b style="font-weight:600; color:#dceff3">+12 kg</b>, 3' de repos entre les séries.</div>
+        <div style="display:flex; align-items:center; gap:8px; min-height:44px; margin:-8px 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Masquer la consigne</span></div>
+          <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Exécution</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Traction jusqu'au menton au-dessus de la barre, puis descente contrôlée jusqu'à extension complète des bras.</div>
+          <div>
+            <div style="width:100%; height:130px; border-radius:8px; background:#141d25; border:1px dashed #2b3742; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="8.5" cy="10" r="1.4"></circle><path d="M21 16l-5.5-5.5a1.5 1.5 0 00-2.1 0L4 19"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Image indisponible hors ligne</span></div>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:8px; text-align:center">Position basse : extension complète, épaules relâchées.</div>
+          </div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Pas de balancement du buste : si le bassin part en avant, la série est finie.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script type="text/plain"></script>
+</body>
+</html>

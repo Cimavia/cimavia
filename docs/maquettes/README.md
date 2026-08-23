@@ -53,9 +53,10 @@ l'**issue** qui les a commandées (tableau suivant).
 | `web-coach/coach_debrief.dc.html` | — | Débriefs coach sur **web** : boîte de réception (liste + volet de lecture) + état vide | refonte de `/feedbacks` — **non planifiée** | ⏳ |
 | `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
-| `mobile-athlete/athlete_seance_lecture.dc.html` | — | **12 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
+| `mobile-athlete/athlete_seance_lecture.dc.html` | — | **13 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `mobile-athlete/athlete_timers_suivi.dc.html` | — | **10 écrans** — même écran, volet **exécution** : séance en cours, cocher les séries d'un bloc groupé, repos en bandeau / agrandi, effort-repos alterné, EMOM, AMRAP, notification sur écran verrouillé, débrief avec décompte, encart des trois états | **fonctionnalité nouvelle** (timers + suivi) — cf. section dédiée ci-dessous | ⏳ |
 | `web-athlete/athlete_seance_web.dc.html` | — | **7 frames** — le même écran côté web, avec rail de droite : détail de séance (consignes dépliées, cases visibles), grilles à 2 et 4 colonnes, exercice à plusieurs blocs + pièces jointes, suivi en cours, débrief, séance à venir, séance déjà débriefée | refonte du détail de séance de `athlete_web.dc.html` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
+| `shared/coach_athlete_etats_vides.dc.html` | — | **11 écrans** — les vides que la refonte fait apparaître, sur les deux plateformes : bibliothèque vide, onglet Séances vide, grille sans ligne, exercice sans structure, recherche sans résultat · aucune séance, séance sans exercice, exercice sans consigne, amorçage du suivi · aucune séance et débrief vide côté web | **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
 
@@ -298,3 +299,42 @@ ses cases visibles mais **figées** — « le suivi reste consultable, il ne se 
   planche, pas de la règle.
 - **Le web ne montre aucun timer** : ils sont mobiles, et rien n'impose de les y porter — l'athlète
   au mur a son téléphone. À trancher explicitement plutôt qu'à supposer.
+
+## États vides et amorçage
+
+`coach_athlete_etats_vides.dc.html` couvre les onze vides que la refonte fait apparaître, sur les
+deux plateformes. Principe : un vide n'est pas une absence, c'est une **porte** — un titre, une
+phrase, UNE action primaire. Pas d'illustration décorative : le reste des planches est sobre, celle-ci
+ne fait pas exception. Le vide de **départ** et le vide de **filtre** ne se ressemblent pas — le
+premier amorce, le second constate que la recherche ne trouve rien alors que la bibliothèque est
+pleine, et propose de créer l'exercice manquant en reprenant le texte tapé comme titre, sans perdre
+la séance en cours.
+
+### Ce qui est tranché
+
+- **Pas de presets à l'amorçage.** La bibliothèque vide propose « Créer un exercice », point ; le
+  constructeur s'ouvre comme il s'ouvre toujours. Trois entrées par cas d'usage (renfo · circuit ·
+  partir de zéro) avaient été dessinées, puis écartées : elles dupliquaient le choix de structure.
+- **Un exercice sans aucun bloc de structure est LÉGITIME** — « étirements au ressenti ». Le
+  constructeur le dit sans alarme (« Aucune structure… c'est un état valide, tu peux enregistrer »)
+  et l'athlète voit titre + consigne, rien d'autre : pas de grille vide, pas de phrase de dosage,
+  pas de case à cocher. Une grille SANS LIGNE, elle, garde ses en-têtes — le coach voit ce qu'on
+  va lui demander — et l'aperçu athlète annonce « le dosage apparaîtra ici dès la première ligne ».
+- **Une séance vide côté athlète est l'anomalie du COACH.** On ne culpabilise pas l'athlète et on
+  ne lui demande pas de la réparer : on constate, et on offre de la signaler. Le bouton de débrief
+  est **retiré, pas grisé** — un bouton mort se tape quand même.
+- **Un débrief entièrement vide s'envoie.** « J'ai fait la séance, rien à dire » est une réponse
+  valable, et forcer du texte n'en produit que de creux. Le bouton reste actif ; une ligne dit ce
+  qui partira, et le rail le détaille : séance faite, aucun commentaire, aucun décompte.
+- **Jamais de lien vers du vide.** Un exercice sans consigne ni pièce jointe n'affiche pas « Voir la
+  consigne ». Et le lien de suivi **nomme son unité** : « Suivre mes séries », « Suivre mes tours ».
+- **L'amorçage du suivi tient en un indice** — « Coche au fur et à mesure », en pastille accent,
+  au-dessus de la liste, dans l'écran de suivi ouvert. Première séance seulement, disparaît au
+  premier tap, définitivement. Pas de visite guidée, pas de modale, pas de série d'infobulles.
+- **Le rail web se réduit à ce qui existe encore.** Sans sommaire, sans progression, sans débrief,
+  il ne garde que le lien vers le coach — et l'action n'apparaît qu'une fois, dans le rail.
+
+### Vocabulaire
+
+Le coach diffuse une **planification**, pas des séances une par une : « Ton coach n'a pas encore
+diffusé de planification. Elle apparaîtra ici dès qu'il la publiera. »
