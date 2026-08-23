@@ -62,6 +62,42 @@ export {
   uploadUrlDtoSchema,
 } from "./dto/exercise.schema";
 export type {
+  CustomMetric,
+  MetricFamily as MetricFamilyType,
+  MetricKey as MetricKeyType,
+  MetricUnit as MetricUnitType,
+  MetricValue,
+  MetricValueType as MetricValueTypeType,
+  OrderedScale,
+} from "./dto/exercise-metric.schema";
+export {
+  CUSTOM_METRIC_LABEL_MAX_LENGTH,
+  CUSTOM_METRIC_UNIT_MAX_LENGTH,
+  customMetricSchema,
+  defaultUnitOf,
+  FRENCH_CLIMBING_SCALE,
+  METRIC_CATALOG,
+  METRIC_LABEL_KEY,
+  METRIC_TEXT_VALUE_MAX_LENGTH,
+  METRIC_UNIT_LABEL_KEY,
+  MetricFamily,
+  MetricKey,
+  MetricUnit,
+  MetricValueType,
+  metricAcceptsUnit,
+  metricFamilySchema,
+  metricKeySchema,
+  metricUnitSchema,
+  metricValueSchema,
+  metricValueSchemaFor,
+  metricValueTypeSchema,
+  orderedScaleSchema,
+  SCALE_MAX_STEPS,
+  SCALE_STEP_MAX_LENGTH,
+  scaleStepIndex,
+  V_BOULDERING_SCALE,
+} from "./dto/exercise-metric.schema";
+export type {
   AttachFeedbackMediaInput,
   CoachFeedbackSummaryDto,
   FeedbackAudioMimeType,
@@ -454,3 +490,8 @@ export {
 } from "./util/reminder.util";
 export { comparableText } from "./util/search.util";
 export { isSignedUrlUsable, SIGNED_URL_TTL_SECONDS } from "./util/signed-url.util";
+export {
+  formatTrainingDuration,
+  parseTrainingDuration,
+  TRAINING_DURATION_MAX_SECONDS,
+} from "./util/training-duration.util";
