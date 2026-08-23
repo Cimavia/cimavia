@@ -55,6 +55,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `mobile-athlete/athlete_seance_lecture.dc.html` | — | **12 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `mobile-athlete/athlete_timers_suivi.dc.html` | — | **10 écrans** — même écran, volet **exécution** : séance en cours, cocher les séries d'un bloc groupé, repos en bandeau / agrandi, effort-repos alterné, EMOM, AMRAP, notification sur écran verrouillé, débrief avec décompte, encart des trois états | **fonctionnalité nouvelle** (timers + suivi) — cf. section dédiée ci-dessous | ⏳ |
+| `web-athlete/athlete_seance_web.dc.html` | — | **7 frames** — le même écran côté web, avec rail de droite : détail de séance (consignes dépliées, cases visibles), grilles à 2 et 4 colonnes, exercice à plusieurs blocs + pièces jointes, suivi en cours, débrief, séance à venir, séance déjà débriefée | refonte du détail de séance de `athlete_web.dc.html` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
 
@@ -127,6 +128,12 @@ le bandeau et se redéploie à la demande — c'est un état d'affichage, pas un
 2. **`Exercise.description: String` devient un document structuré** (JSON de blocs typés, validé par
    Zod dans `@cmv/shared`) — titres de section, listes, encadré neutre, images, liens. Rendu natif
    attendu côté web ET React Native : **pas de HTML**, pas de WebView.
+   L'**encadré** à barre accent a son type de bloc — `callout`, **un seul**, sans variante de
+   couleur : trois encadrés colorés feraient rentrer par la fenêtre la coloration de texte qu'on a
+   écartée. Il est rendu sur les trois surfaces mais n'était créable nulle part — la barre compte
+   désormais neuf outils : B · I · U │ Titre │ liste à puces · liste numérotée │ **encadré** ·
+   image · lien. Un bouton s'allume quand le curseur est dans le bloc correspondant : la planche le
+   montre pour l'image (frame 13), pas encore pour l'encadré (frame 12).
 3. **Les images de la consigne sont stockées par RÉFÉRENCE**, jamais par URL : les URLs S3 sont
    signées et expirent (règle dure n°7). Le document porte l'id du média, résolu à l'affichage.
 4. **Nouveaux modèles** : bloc de structure (ordonné, type, libellé optionnel), métriques du bloc
@@ -199,7 +206,9 @@ pour un AMRAP ou un exercice « au ressenti » (même famille que **P3-5** /
 
 `athlete_seance_lecture.dc.html` et `athlete_timers_suivi.dc.html` sont **deux volets du même
 écran** : la première dit comment la séance se lit, la seconde ce qui se passe pendant qu'on la
-fait. Elles supposent les deux refontes ci-dessus et se lisent après elles.
+fait. `athlete_seance_web.dc.html` porte le même écran sur grand écran : les règles ci-dessous
+valent pour les deux plateformes, sauf mention contraire. Les trois supposent les deux refontes
+ci-dessus et se lisent après elles.
 
 ### Volet lecture — le seuil de colonnes
 
@@ -239,6 +248,27 @@ porte et ajoute un modèle, des endpoints et de la synchronisation.
    consigne suivante. Il porte le temps, la pause et « Passer » ; « + 30 s » vit dans l'agrandi.
 7. La barre de progression montre le **temps restant**, elle se vide.
 
+### Volet web — les mêmes règles, quatre décisions propres
+
+`athlete_seance_web.dc.html` porte le même écran sur grand écran, avec un rail de droite :
+sommaire qui suit le défilement, progression, note du coach, bouton de débrief collé en bas.
+
+1. **Le seuil de colonnes est une spécificité MOBILE.** Le web garde le tableau aligné quel que
+   soit le nombre de colonnes — quatre s'y lisent sans peine. Les deux planches montrent le même
+   exercice pour que l'écart soit visible.
+2. **Les cases sont toujours affichées**, sans bascule ni écran séparé. L'ordre dans un exercice :
+   titre · dosage · grille · cases · lien de consigne · consigne. Le mobile, lui, les ouvre par
+   « Suivre mes séries » — la place n'y est pas.
+3. **Un seul compteur, porté par le rail.** L'en-tête ne compte rien (« Mardi 18 août · 4
+   exercices », toujours) ; la progression vit dans le rail et nulle part ailleurs.
+4. **Pas de note vocale sur web** : le débrief y accepte photos et vidéos, l'audio reste mobile —
+   `feedback.schema.ts` n'admet que m4a/mp4/aac, pas le webm d'un enregistrement navigateur. Les
+   plafonds affichés viennent du schéma : 5 photos (JPEG/PNG/WebP), 3 vidéos (MP4/MOV) de 3 min.
+
+Deux états que le mobile ne montre pas : la séance **à venir** n'affiche aucune case (le suivi
+s'ouvre le jour venu, le bouton de débrief est désactivé et daté) ; la séance **débriefée** garde
+ses cases visibles mais **figées** — « le suivi reste consultable, il ne se modifie plus ».
+
 ### Changements requis
 
 - **Nouveau modèle de suivi d'exécution** rattaché à `ScheduledSession` : par exercice et par unité,
@@ -263,3 +293,8 @@ porte et ajoute un modèle, des endpoints et de la synchronisation.
 - La notification sur écran verrouillé utilise `rgba(28,38,48,.92)`, hors tokens — effet système,
   écart assumé. Les tirets de progression d'un exercice terminé utilisent `success.on` comme aplat
   là où `success` DEFAULT serait le rôle exact.
+- **Une case cochée ⇒ une pastille.** Dès qu'au moins une unité est cochée, l'exercice porte
+  « X sur Y ». La frame 2 de la planche web montre deux cases cochées sans pastille — écart de la
+  planche, pas de la règle.
+- **Le web ne montre aucun timer** : ils sont mobiles, et rien n'impose de les y porter — l'athlète
+  au mur a son téléphone. À trancher explicitement plutôt qu'à supposer.
