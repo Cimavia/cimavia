@@ -283,6 +283,29 @@ export {
   updateReminderSchema,
   updateReminderStatusSchema,
 } from "./dto/reminder.schema";
+export type { InlineNode, RichBlock, RichDocument } from "./dto/rich-document.schema";
+export {
+  calloutBlockSchema,
+  headingBlockSchema,
+  InlineMark,
+  imageBlockSchema,
+  inlineMarkSchema,
+  inlineNodeSchema,
+  listBlockSchema,
+  paragraphBlockSchema,
+  RICH_DOCUMENT_MAX_BLOCKS,
+  RICH_DOCUMENT_MAX_TEXT_LENGTH,
+  RICH_IMAGE_CAPTION_MAX_LENGTH,
+  RICH_LIST_MAX_ITEMS,
+  RICH_TEXT_MAX_LENGTH,
+  RichBlockType,
+  richBlockSchema,
+  richBlockTypeSchema,
+  richDocumentFromPlainText,
+  richDocumentSchema,
+  richDocumentTextLength,
+  richDocumentToPlainText,
+} from "./dto/rich-document.schema";
 export type {
   CreateSessionInput,
   SessionDto,
