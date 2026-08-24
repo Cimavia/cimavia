@@ -1,6 +1,7 @@
 import {
   BLOCK_LABEL_MAX_LENGTH,
   type BlockStructure,
+  type CustomMetric,
   EXERCISE_MAX_BLOCKS,
   type ExerciseBlock,
   type ExerciseBlocks,
@@ -9,6 +10,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoArrowDown, IoArrowUp, IoTrashOutline } from "react-icons/io5";
 import { BlockBandeau } from "@/feature/library/component/BlockBandeau";
+import { BlockGrid } from "@/feature/library/component/BlockGrid";
 import { BlockTypePicker } from "@/feature/library/component/BlockTypePicker";
 import { createBlock, createShortcutBlock } from "@/feature/library/util/block-factory.util";
 import { CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
@@ -17,10 +19,15 @@ import { CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
 
 type StructureSectionProps = {
   blocks: ExerciseBlocks;
+  customMetrics: readonly CustomMetric[];
   onChange: (blocks: ExerciseBlocks) => void;
 };
 
-export function StructureSection({ blocks, onChange }: Readonly<StructureSectionProps>) {
+export function StructureSection({
+  blocks,
+  customMetrics,
+  onChange,
+}: Readonly<StructureSectionProps>) {
   const { t } = useTranslation();
   const [picking, setPicking] = useState(false);
 
@@ -70,6 +77,7 @@ export function StructureSection({ blocks, onChange }: Readonly<StructureSection
         <BlockCard
           key={block.id}
           block={block}
+          customMetrics={customMetrics}
           index={index}
           isFirst={index === 0}
           isLast={index === blocks.length - 1}
@@ -107,6 +115,7 @@ export function StructureSection({ blocks, onChange }: Readonly<StructureSection
 
 type BlockCardProps = {
   block: ExerciseBlock;
+  customMetrics: readonly CustomMetric[];
   index: number;
   isFirst: boolean;
   isLast: boolean;
@@ -119,6 +128,7 @@ type BlockCardProps = {
 
 function BlockCard({
   block,
+  customMetrics,
   index,
   isFirst,
   isLast,
@@ -181,6 +191,8 @@ function BlockCard({
         structure={block.structure}
         onChange={(structure: BlockStructure) => onChange({ ...block, structure })}
       />
+
+      <BlockGrid block={block} customMetrics={customMetrics} onChange={onChange} />
     </article>
   );
 }

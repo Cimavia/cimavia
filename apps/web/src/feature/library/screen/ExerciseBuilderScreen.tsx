@@ -1,18 +1,13 @@
-import {
-  EXERCISE_MAX_TAGS,
-  type ExerciseBlocks,
-  type ExerciseDto,
-  type RichDocument,
-} from "@cmv/shared";
+import { EXERCISE_MAX_TAGS, type ExerciseDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { StructureSection } from "@/feature/library/component/StructureSection";
+import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
+import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
 import { useExercise, useExerciseTags } from "@/feature/library/hook/useExercises";
-import { useInstructionMedia } from "@/feature/library/hook/useInstructionMedia";
-import { useSaveExercise } from "@/feature/library/hook/useSaveExercise";
 import {
   CmvAppShell,
   CmvButton,
@@ -90,34 +85,16 @@ type ExerciseBuilderProps = {
 
 function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) {
   const { t } = useTranslation();
-  const { save, isSaving, error } = useSaveExercise();
   const { data: knownTags } = useExerciseTags();
-
-  const [title, setTitle] = useState(exercise?.title ?? "");
-  const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
-  const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
-  const [blocks, setBlocks] = useState<ExerciseBlocks>(exercise?.blocks ?? []);
-  const media = useInstructionMedia(exercise?.documents ?? []);
+  // Les colonnes maison résolvent leur type de valeur et leur échelle ici : sans elles, une
+  // cotation du coach se saisirait comme du texte libre.
+  const { data: customMetrics } = useCustomMetrics();
+  const draft = useExerciseDraft(exercise);
 
   const isEditing = exercise != null;
-  const trimmedTitle = title.trim();
 
   async function onSubmit() {
-    await save({
-      exercise,
-      // Document vide → `null` et non `[]` : « pas de consigne » est une absence, pas un document
-      // sans bloc (règle nullable n°5).
-      input: {
-        title: trimmedTitle,
-        tags,
-        instructions: instructions.length === 0 ? null : instructions,
-        blocks,
-      },
-      pendingFiles: [],
-      pendingLinks: [],
-      pendingImages: media.pending,
-      onImageProgress: media.setProgress,
-    });
+    await draft.submit();
     onLeave();
   }
 
@@ -136,30 +113,27 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
       title={isEditing ? t("library.builder.editTitle") : t("library.builder.createTitle")}
       subtitle={subtitle}
       actions={
-        <>
-          <CmvButton variant="ghost" onClick={onLeave} disabled={isSaving}>
-            {t("library.builder.cancel")}
-          </CmvButton>
-          <CmvButton onClick={onSubmit} disabled={isSaving || trimmedTitle === ""}>
-            {isSaving
-              ? t("library.builder.saving")
-              : t(isEditing ? "library.builder.submitEdit" : "library.builder.submitCreate")}
-          </CmvButton>
-        </>
+        <BuilderActions
+          isEditing={isEditing}
+          isSaving={draft.isSaving}
+          canSubmit={draft.trimmedTitle !== ""}
+          onCancel={onLeave}
+          onSubmit={onSubmit}
+        />
       }
     >
       {/* Deux colonnes dès `xl` seulement : en dessous, l'aperçu passe SOUS le formulaire plutôt
           que de le comprimer — une grille de dosage étroite devient illisible. */}
       {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
           doit montrer l'image dès qu'elle est posée — pas seulement après enregistrement. */}
-      <InstructionMediaProvider media={media}>
+      <InstructionMediaProvider media={draft.media}>
         <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex flex-col gap-cmv-xl">
             <CmvTextField
               label={t("library.builder.titleLabel")}
               name="title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              value={draft.title}
+              onChange={(event) => draft.setTitle(event.target.value)}
               placeholder={t("library.builder.titlePlaceholder")}
               required
               requiredMark
@@ -167,8 +141,8 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
 
             <CmvTagInput
               label={t("library.tags.label")}
-              value={tags}
-              onChange={setTags}
+              value={draft.tags}
+              onChange={draft.setTags}
               suggestions={knownTags ?? []}
               placeholder={t("library.tags.placeholder")}
               removeLabel={t("library.tags.remove")}
@@ -178,29 +152,63 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
             <Suspense fallback={<p className="text-cmv-text-mid">{t("common.loading")}</p>}>
               <InstructionsEditor
                 initialValue={exercise?.instructions ?? null}
-                onChange={setInstructions}
+                onChange={draft.setInstructions}
               />
             </Suspense>
 
-            <StructureSection blocks={blocks} onChange={setBlocks} />
+            <StructureSection
+              blocks={draft.blocks}
+              customMetrics={customMetrics ?? []}
+              onChange={draft.setBlocks}
+            />
 
-            {error == null ? null : (
-              <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(error)}</p>
+            {draft.error == null ? null : (
+              <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(draft.error)}</p>
             )}
           </div>
 
           {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
           <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
             <ExercisePreview
-              title={trimmedTitle}
-              tags={tags}
-              instructions={instructions}
-              blocks={blocks}
-              resolveImage={media.resolve}
+              title={draft.trimmedTitle}
+              tags={draft.tags}
+              instructions={draft.instructions}
+              blocks={draft.blocks}
+              resolveImage={draft.media.resolve}
             />
           </aside>
         </div>
       </InstructionMediaProvider>
     </CmvAppShell>
+  );
+}
+
+type BuilderActionsProps = {
+  isEditing: boolean;
+  isSaving: boolean;
+  canSubmit: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+};
+
+function BuilderActions({
+  isEditing,
+  isSaving,
+  canSubmit,
+  onCancel,
+  onSubmit,
+}: Readonly<BuilderActionsProps>) {
+  const { t } = useTranslation();
+  const submitKey = isEditing ? "library.builder.submitEdit" : "library.builder.submitCreate";
+
+  return (
+    <>
+      <CmvButton variant="ghost" onClick={onCancel} disabled={isSaving}>
+        {t("library.builder.cancel")}
+      </CmvButton>
+      <CmvButton onClick={onSubmit} disabled={isSaving || !canSubmit}>
+        {isSaving ? t("library.builder.saving") : t(submitKey)}
+      </CmvButton>
+    </>
   );
 }

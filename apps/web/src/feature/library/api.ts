@@ -2,6 +2,7 @@ import type {
   AttachDocumentInput,
   CreateExerciseInput,
   CreateSessionInput,
+  CustomMetric,
   ExerciseDocumentDto,
   ExerciseDto,
   RequestUploadUrlInput,
@@ -81,6 +82,17 @@ export function attachDocument(
 
 export function deleteDocument(exerciseId: string, documentId: string): Promise<void> {
   return api.delete<void>(`/exercises/${exerciseId}/documents/${documentId}`);
+}
+
+// ── Métriques maison du coach ────────────────────────────────────────────────
+
+export const customMetricKeys = {
+  all: ["custom-metrics"] as const,
+  list: () => ["custom-metrics", "list"] as const,
+};
+
+export function listCustomMetrics(): Promise<CustomMetric[]> {
+  return api.get<CustomMetric[]>("/custom-metrics");
 }
 
 // ── Séances (modèles) ────────────────────────────────────────────────────────

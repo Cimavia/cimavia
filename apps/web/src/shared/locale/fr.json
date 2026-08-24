@@ -264,6 +264,15 @@
         "targetRounds": "Objectif de tours",
         "roundCount": "Répéter le bloc",
         "restBetweenRounds": "Repos entre tours"
+      },
+      "grid": {
+        "rowIndex": "Ligne",
+        "rowActions": "Actions",
+        "moveRow": "Déplacer la ligne",
+        "removeRow": "Retirer la ligne",
+        "addRow": "Ajouter une ligne",
+        "emptyValue": "—",
+        "keyboardHint": "Tabulation → cellule suivante · Entrée → valide et crée la ligne suivante."
       }
     }
   },
