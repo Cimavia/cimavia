@@ -1,0 +1,327 @@
+import { z } from "zod";
+import type { TypesValuesOf } from "../type/generics.type";
+import { TRAINING_DURATION_MAX_SECONDS } from "../util/training-duration.util";
+import {
+  type CustomMetric,
+  METRIC_CATALOG,
+  type MetricValue,
+  type MetricValueType,
+  metricAcceptsUnit,
+  metricKeySchema,
+  metricUnitSchema,
+  metricValueSchema,
+  metricValueSchemaFor,
+  type OrderedScale,
+} from "./exercise-metric.schema";
+
+// Blocs de structure d'un exercice (refonte #162).
+//
+// Un exercice porte N blocs ORDONNÉS. Chaque bloc a un type, ses paramètres propres — ce que la
+// maquette appelle le « bandeau » —, ses colonnes et ses lignes. Un exercice à deux blocs, c'est
+// « Échauffement » puis « Travail » : deux dosages sous un même titre, avec chacun SES colonnes.
+//
+// Cinq types, et cinq seulement. Pyramide et Intervalles ne sont PAS des types : ce sont des
+// raccourcis de saisie du constructeur qui engendrent des Séries. Rien ici ne les connaît.
+
+export const BLOCK_LABEL_MAX_LENGTH = 60;
+export const BLOCK_MAX_METRICS = 12;
+export const BLOCK_MAX_ROWS = 200;
+export const BLOCK_MAX_SET_COUNT = 100;
+export const BLOCK_MAX_ROUND_COUNT = 100;
+export const BLOCK_MAX_TARGET_ROUNDS = 999;
+export const EMOM_MIN_INTERVAL_SECONDS = 5;
+
+export const BlockType = {
+  SERIES: "SERIES",
+  EMOM: "EMOM",
+  AMRAP: "AMRAP",
+  CIRCUIT: "CIRCUIT",
+  FREE: "FREE",
+} as const;
+export type BlockType = TypesValuesOf<typeof BlockType>;
+export const blockTypeSchema = z.enum(BlockType);
+
+const durationSecondsSchema = z.number().int().min(0).max(TRAINING_DURATION_MAX_SECONDS);
+
+// ── Le bandeau, propre à chaque type ────────────────────────────────────────────────────────
+
+// Séries : N répétitions du même effort, avec un repos entre elles. Le repos est nullable — la
+// dernière série n'en a pas, et certains coachs ne l'imposent pas du tout.
+export const seriesStructureSchema = z
+  .object({
+    type: z.literal(BlockType.SERIES),
+    setCount: z.number().int().min(1).max(BLOCK_MAX_SET_COUNT),
+    restBetweenSetsSeconds: durationSecondsSchema.nullable(),
+  })
+  .strict();
+
+// EMOM : un effort au début de chaque intervalle, pendant une durée totale. Le nombre de tops
+// n'est PAS stocké — il se dérive (`emomTopCount`), sinon il finirait par mentir.
+export const emomStructureSchema = z
+  .object({
+    type: z.literal(BlockType.EMOM),
+    intervalSeconds: z
+      .number()
+      .int()
+      .min(EMOM_MIN_INTERVAL_SECONDS)
+      .max(TRAINING_DURATION_MAX_SECONDS),
+    totalDurationSeconds: durationSecondsSchema,
+  })
+  .strict()
+  .refine((structure) => structure.totalDurationSeconds >= structure.intervalSeconds, {
+    message: "La durée totale d'un EMOM doit couvrir au moins un intervalle.",
+    path: ["totalDurationSeconds"],
+  });
+
+// AMRAP : un maximum de tours dans un temps imparti. L'objectif est INDICATIF — il oriente
+// l'athlète, il ne définit pas une réussite, et reste donc nullable.
+export const amrapStructureSchema = z
+  .object({
+    type: z.literal(BlockType.AMRAP),
+    totalDurationSeconds: durationSecondsSchema,
+    targetRounds: z.number().int().min(1).max(BLOCK_MAX_TARGET_ROUNDS).nullable(),
+  })
+  .strict();
+
+// Circuit : une suite d'étapes enchaînées, répétée en tours.
+export const circuitStructureSchema = z
+  .object({
+    type: z.literal(BlockType.CIRCUIT),
+    roundCount: z.number().int().min(1).max(BLOCK_MAX_ROUND_COUNT),
+    restBetweenRoundsSeconds: durationSecondsSchema.nullable(),
+  })
+  .strict();
+
+// Libre : aucun paramètre d'ensemble. Ce n'est pas un manque — c'est le cas où rien ne vaut pour
+// toutes les lignes, et où le bandeau n'a donc rien à montrer.
+export const freeStructureSchema = z.object({ type: z.literal(BlockType.FREE) }).strict();
+
+export const blockStructureSchema = z.discriminatedUnion("type", [
+  seriesStructureSchema,
+  emomStructureSchema,
+  amrapStructureSchema,
+  circuitStructureSchema,
+  freeStructureSchema,
+]);
+export type BlockStructure = z.infer<typeof blockStructureSchema>;
+
+/** Nombre de tops d'un EMOM — dérivé, jamais stocké. */
+export function emomTopCount(structure: z.infer<typeof emomStructureSchema>): number {
+  return Math.floor(structure.totalDurationSeconds / structure.intervalSeconds);
+}
+
+// ── Les colonnes ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Une colonne du bloc. Elle référence soit le catalogue livré, soit une métrique du coach.
+ *
+ * `label` remplace l'en-tête par défaut quand le coach le renseigne — un circuit d'escalade
+ * appelle ses étapes « Voie », pas « Étape ».
+ *
+ * `collapsed` est un état d'AFFICHAGE : la colonne dont toutes les valeurs sont identiques se
+ * montre dans le bandeau au lieu d'une colonne. Les valeurs restent dans les lignes, ce qui rend
+ * l'opération réversible sans perte — cf. `canCollapseMetric`.
+ */
+const blockMetricBaseSchema = {
+  id: z.string().min(1),
+  label: z.string().min(1).max(BLOCK_LABEL_MAX_LENGTH).nullable(),
+  collapsed: z.boolean(),
+};
+
+export const MetricSource = {
+  CATALOG: "CATALOG",
+  CUSTOM: "CUSTOM",
+} as const;
+export type MetricSource = TypesValuesOf<typeof MetricSource>;
+
+export const catalogBlockMetricSchema = z
+  .object({
+    ...blockMetricBaseSchema,
+    source: z.literal(MetricSource.CATALOG),
+    key: metricKeySchema,
+    unit: metricUnitSchema,
+  })
+  .strict()
+  .refine((metric) => metricAcceptsUnit(metric.key, metric.unit), {
+    message: "Cette unité n'est pas admise par la métrique.",
+    path: ["unit"],
+  });
+
+export const customBlockMetricSchema = z
+  .object({
+    ...blockMetricBaseSchema,
+    source: z.literal(MetricSource.CUSTOM),
+    customMetricId: z.string().min(1),
+  })
+  .strict();
+
+export const blockMetricSchema = z.discriminatedUnion("source", [
+  catalogBlockMetricSchema,
+  customBlockMetricSchema,
+]);
+export type BlockMetric = z.infer<typeof blockMetricSchema>;
+
+// ── Les lignes ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Une ligne de la grille. Les valeurs sont indexées par l'`id` de la colonne, jamais par sa
+ * position : réordonner les colonnes ne doit pas redistribuer les valeurs.
+ */
+export const blockRowSchema = z
+  .object({
+    id: z.string().min(1),
+    values: z.record(z.string(), metricValueSchema),
+  })
+  .strict();
+export type BlockRow = z.infer<typeof blockRowSchema>;
+
+// ── Le bloc ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `rows` peut être VIDE : le coach qui vient d'ajouter un bloc a ses colonnes et pas encore ses
+ * valeurs, et cet état s'enregistre (cf. les états vides du constructeur).
+ */
+export const exerciseBlockSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().min(1).max(BLOCK_LABEL_MAX_LENGTH).nullable(),
+    structure: blockStructureSchema,
+    metrics: z.array(blockMetricSchema).min(1).max(BLOCK_MAX_METRICS),
+    rows: z.array(blockRowSchema).max(BLOCK_MAX_ROWS),
+  })
+  .strict()
+  .refine((block) => new Set(block.metrics.map((m) => m.id)).size === block.metrics.length, {
+    message: "Deux colonnes ne peuvent pas partager le même identifiant.",
+    path: ["metrics"],
+  })
+  .refine((block) => new Set(block.rows.map((r) => r.id)).size === block.rows.length, {
+    message: "Deux lignes ne peuvent pas partager le même identifiant.",
+    path: ["rows"],
+  });
+export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
+
+export const exerciseBlocksSchema = z.array(exerciseBlockSchema);
+export type ExerciseBlocks = z.infer<typeof exerciseBlocksSchema>;
+
+// ── Invariants qui dépendent du contenu ─────────────────────────────────────────────────────
+
+/** Le type de valeur d'une colonne — catalogue ou métrique du coach. */
+export function metricValueTypeOf(
+  metric: BlockMetric,
+  customMetrics: readonly CustomMetric[] = [],
+): MetricValueType | null {
+  if (metric.source === MetricSource.CATALOG) return METRIC_CATALOG[metric.key].valueType;
+  return customMetrics.find((c) => c.id === metric.customMetricId)?.valueType ?? null;
+}
+
+/** Les valeurs d'une colonne, ligne à ligne. */
+export function columnValues(block: ExerciseBlock, metricId: string): MetricValue[] {
+  return block.rows.map((row) => row.values[metricId] ?? null);
+}
+
+/**
+ * Une colonne ne se replie que si toutes ses valeurs sont identiques — sinon le bandeau
+ * afficherait une valeur commune qui n'en est pas une, et le dépliage inventerait des données.
+ * Une grille sans ligne se replie librement : il n'y a rien à contredire.
+ */
+export function canCollapseMetric(block: ExerciseBlock, metricId: string): boolean {
+  const values = columnValues(block, metricId);
+  if (values.length === 0) return true;
+  const [first, ...rest] = values;
+  return rest.every((value) => value === first);
+}
+
+export type BlockValidationIssue = {
+  readonly rowId: string;
+  readonly metricId: string;
+  readonly message: string;
+};
+
+// `rowId` vide : l'anomalie porte sur la colonne entière, pas sur une cellule.
+const COLUMN_WIDE = "";
+
+function scaleOf(metric: BlockMetric, customMetrics: readonly CustomMetric[]): OrderedScale | null {
+  if (metric.source === MetricSource.CATALOG) return null;
+  return customMetrics.find((custom) => custom.id === metric.customMetricId)?.scale ?? null;
+}
+
+function cellIssues(
+  block: ExerciseBlock,
+  metric: BlockMetric,
+  valueSchema: z.ZodType<MetricValue>,
+): BlockValidationIssue[] {
+  return block.rows.flatMap((row) => {
+    const parsed = valueSchema.safeParse(row.values[metric.id] ?? null);
+    if (parsed.success) return [];
+    return [
+      {
+        rowId: row.id,
+        metricId: metric.id,
+        message: parsed.error.issues[0]?.message ?? "Valeur invalide pour cette colonne.",
+      },
+    ];
+  });
+}
+
+function columnIssues(
+  block: ExerciseBlock,
+  metric: BlockMetric,
+  customMetrics: readonly CustomMetric[],
+): BlockValidationIssue[] {
+  const valueType = metricValueTypeOf(metric, customMetrics);
+  if (valueType === null) {
+    return [
+      {
+        rowId: COLUMN_WIDE,
+        metricId: metric.id,
+        message: "Cette colonne référence une métrique introuvable.",
+      },
+    ];
+  }
+
+  const valueSchema = metricValueSchemaFor(valueType, scaleOf(metric, customMetrics));
+  const collapseIssue =
+    metric.collapsed && !canCollapseMetric(block, metric.id)
+      ? [
+          {
+            rowId: COLUMN_WIDE,
+            metricId: metric.id,
+            message: "Une colonne aux valeurs différentes ne peut pas être repliée.",
+          },
+        ]
+      : [];
+
+  return [...cellIssues(block, metric, valueSchema), ...collapseIssue];
+}
+
+// Une valeur dont la colonne n'existe plus — colonne retirée sans nettoyer les lignes.
+function orphanValueIssues(block: ExerciseBlock): BlockValidationIssue[] {
+  const known = new Set(block.metrics.map((metric) => metric.id));
+  return block.rows.flatMap((row) =>
+    Object.keys(row.values)
+      .filter((metricId) => !known.has(metricId))
+      .map((metricId) => ({
+        rowId: row.id,
+        metricId,
+        message: "Cette ligne porte une valeur pour une colonne inexistante.",
+      })),
+  );
+}
+
+/**
+ * Croise chaque cellule avec le type de sa colonne. Ce contrôle ne peut pas vivre dans le schéma
+ * Zod du bloc : le type d'une colonne personnalisée n'est connu qu'avec les métriques du coach,
+ * qui vivent à côté de l'exercice.
+ *
+ * Rend une liste d'anomalies LOCALISÉES plutôt qu'un booléen — l'éditeur doit pouvoir surligner
+ * la bonne cellule.
+ */
+export function validateBlockValues(
+  block: ExerciseBlock,
+  customMetrics: readonly CustomMetric[] = [],
+): BlockValidationIssue[] {
+  return [
+    ...block.metrics.flatMap((metric) => columnIssues(block, metric, customMetrics)),
+    ...orphanValueIssues(block),
+  ];
+}

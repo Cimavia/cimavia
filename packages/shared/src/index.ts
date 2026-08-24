@@ -62,6 +62,38 @@ export {
   uploadUrlDtoSchema,
 } from "./dto/exercise.schema";
 export type {
+  BlockMetric,
+  BlockRow,
+  BlockStructure,
+  BlockType as BlockTypeType,
+  BlockValidationIssue,
+  ExerciseBlock,
+  ExerciseBlocks,
+  MetricSource as MetricSourceType,
+} from "./dto/exercise-block.schema";
+export {
+  BLOCK_LABEL_MAX_LENGTH,
+  BLOCK_MAX_METRICS,
+  BLOCK_MAX_ROUND_COUNT,
+  BLOCK_MAX_ROWS,
+  BLOCK_MAX_SET_COUNT,
+  BLOCK_MAX_TARGET_ROUNDS,
+  BlockType,
+  blockMetricSchema,
+  blockRowSchema,
+  blockStructureSchema,
+  blockTypeSchema,
+  canCollapseMetric,
+  columnValues,
+  EMOM_MIN_INTERVAL_SECONDS,
+  emomTopCount,
+  exerciseBlockSchema,
+  exerciseBlocksSchema,
+  MetricSource,
+  metricValueTypeOf,
+  validateBlockValues,
+} from "./dto/exercise-block.schema";
+export type {
   CustomMetric,
   MetricFamily as MetricFamilyType,
   MetricKey as MetricKeyType,

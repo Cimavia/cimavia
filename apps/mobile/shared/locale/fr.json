@@ -50,6 +50,44 @@
       "invalidCredentials": "E-mail ou mot de passe incorrect."
     }
   },
+  "exercise": {
+    "metric": {
+      "repetitions": "Répétitions",
+      "effortDuration": "Durée d'effort",
+      "distance": "Distance",
+      "rounds": "Tours",
+      "load": "Charge",
+      "percentRm": "% RM",
+      "rpe": "RPE",
+      "heartRate": "Fréquence cardiaque",
+      "pace": "Allure",
+      "grade": "Cotation",
+      "incline": "Inclinaison",
+      "restBetweenSets": "Repos entre séries",
+      "restBetweenRounds": "Repos entre tours",
+      "tempo": "Tempo",
+      "edgeSize": "Taille de réglette",
+      "passCount": "Nombre de passages",
+      "label": "Libellé",
+      "note": "Note"
+    },
+    "unit": {
+      "none": "Sans unité",
+      "reps": "répétitions",
+      "repsPerSide": "répétitions par côté",
+      "rounds": "tours",
+      "meters": "m",
+      "kilometers": "km",
+      "millimeters": "mm",
+      "kilograms": "kg",
+      "kilogramsAdded": "+kg",
+      "percent": "%",
+      "percentBodyweight": "% du poids de corps",
+      "percentHrMax": "% FCM",
+      "bpm": "bpm",
+      "degrees": "°"
+    }
+  },
   "role": {
     "coach": "Coach",
     "athlete": "Athlète"
