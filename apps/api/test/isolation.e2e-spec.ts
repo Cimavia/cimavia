@@ -38,6 +38,7 @@ const TABLES = [
   "exercise_tag",
   "sessions",
   "exercise",
+  "custom_metric",
   "athlete_sheet",
   "coach_invitation",
   "coach_athlete",
@@ -281,6 +282,69 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
   it("un coach ne peut PAS lire l'exercice d'un autre coach", async () => {
     const res = await coachB.get(`/exercises/${exerciseAId}`);
     expect(res.status).toBe(404);
+  });
+
+  it("consigne structurée et blocs font l'aller-retour sans perte", async () => {
+    const instructions = [
+      { type: "HEADING", content: [{ text: "Mise en place" }] },
+      { type: "PARAGRAPH", content: [{ text: "Coudes ", marks: ["BOLD"] }, { text: "serrés." }] },
+    ];
+    const blocks = [
+      {
+        id: "blk_1",
+        label: "Travail",
+        structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+        metrics: [
+          {
+            id: "col_reps",
+            source: "CATALOG",
+            key: "REPETITIONS",
+            unit: "REPS",
+            label: null,
+            collapsed: false,
+          },
+        ],
+        rows: [{ id: "r1", values: { col_reps: 6 } }],
+      },
+    ];
+
+    const created = await coachA
+      .post("/exercises")
+      .send({ title: "Tractions lestées", category: "RENFO", instructions, blocks });
+    expect(created.status).toBe(201);
+
+    // Relecture : le JSON ne doit ni se réordonner ni perdre ses marques d'inline.
+    const read = await coachA.get(`/exercises/${created.body.id}`);
+    expect(read.body.instructions).toEqual(instructions);
+    expect(read.body.blocks).toEqual(blocks);
+  });
+
+  it("refuse un bloc dont la structure ne tient pas", async () => {
+    // EMOM dont la durée totale ne couvre pas un intervalle : refusé par exerciseBlockSchema,
+    // donc 400 — jamais écrit en base, où plus rien ne le rattraperait.
+    const res = await coachA.post("/exercises").send({
+      title: "EMOM impossible",
+      category: "RENFO",
+      blocks: [
+        {
+          id: "blk_1",
+          label: null,
+          structure: { type: "EMOM", intervalSeconds: 60, totalDurationSeconds: 30 },
+          metrics: [
+            {
+              id: "c1",
+              source: "CATALOG",
+              key: "REPETITIONS",
+              unit: "REPS",
+              label: null,
+              collapsed: false,
+            },
+          ],
+          rows: [],
+        },
+      ],
+    });
+    expect(res.status).toBe(400);
   });
 
   it("un coach ne peut PAS modifier ni supprimer l'exercice d'un autre coach", async () => {

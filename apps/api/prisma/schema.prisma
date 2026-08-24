@@ -39,8 +39,9 @@ model User {
   coachSheets         AthleteSheet[] @relation("AthleteSheetCoach") // fiches rédigées par le coach
 
   // Métier — bibliothèque du coach (P2)
-  exercises     Exercise[] @relation("CoachExercises") // exercices du coach
-  coachSessions Session[]  @relation("CoachSessions") // séances (modèles) du coach
+  exercises     Exercise[]     @relation("CoachExercises") // exercices du coach
+  coachSessions Session[]      @relation("CoachSessions") // séances (modèles) du coach
+  customMetrics CustomMetric[] @relation("CoachMetrics") // métriques et échelles maison
 
   // Métier — planifications (P3) : premier objet lu par les DEUX rôles.
   coachPlans   Plan[] @relation("CoachPlans") // planifs écrites par le coach
@@ -199,6 +200,15 @@ enum ExerciseCategory {
   TECHNIQUE
 }
 
+/// Nature de la valeur portée par une colonne. SCALE désigne une échelle ORDONNÉE : ses paliers
+/// se comparent, ce qu'un simple texte ne permet pas.
+enum MetricValueType {
+  NUMBER
+  DURATION
+  TEXT
+  SCALE
+}
+
 enum DocumentType {
   FILE // fichier uploadé en object storage (storagePath)
   LINK // lien externe (url) — ex. vidéo YouTube
@@ -213,6 +223,15 @@ model Exercise {
   category    ExerciseCategory
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+
+  /// Consigne structurée (`RichDocument` de @cmv/shared) qui remplace `description`. Les deux
+  /// cohabitent le temps que le constructeur web bascule (#163) : phase *expand* de
+  /// expand/migrate/contract. `description` tombe au *contract*.
+  instructions Json?
+  /// Blocs de structure ordonnés (`ExerciseBlocks` de @cmv/shared) : l'ordre du tableau EST
+  /// l'ordre d'affichage. Stocké en JSON et non en tables — aucune requête n'interroge une
+  /// cellule, et le snapshot de planification se réduit à la copie du blob.
+  blocks       Json  @default("[]")
 
   documents        ExerciseDocument[]
   tags             ExerciseTag[]
@@ -258,6 +277,28 @@ model ExerciseTag {
   @@index([coachId])
   @@index([coachId, name]) // autocomplétion et filtre par tag
   @@map("exercise_tag")
+}
+
+/// Métrique inventée par le coach — nom, unité libre, type de valeur, et pour une échelle
+/// ordonnée ses paliers du plus faible au plus fort. Vit au niveau du COACH et non de l'exercice :
+/// une cotation maison sert dans toute la bibliothèque. Les blocs la référencent par
+/// `customMetricId` ; la référence n'est pas une clé étrangère puisqu'elle vit dans du JSON, donc
+/// une métrique supprimée laisse une colonne orpheline — `validateBlockValues` la signale.
+model CustomMetric {
+  id        String          @id @default(cuid())
+  coachId   String
+  coach     User            @relation("CoachMetrics", fields: [coachId], references: [id], onDelete: Cascade)
+  label     String
+  unit      String?
+  valueType MetricValueType
+  /// Paliers ordonnés (`OrderedScale`), non nul si et seulement si `valueType` vaut SCALE.
+  scale     Json?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([coachId, label])
+  @@index([coachId])
+  @@map("custom_metric")
 }
 
 model Session {
@@ -418,6 +459,10 @@ model ScheduledSessionExercise {
   sourceExercise     Exercise?        @relation(fields: [sourceExerciseId], references: [id], onDelete: SetNull)
   title              String // snapshot : l'affichage ne dépend jamais de sourceExercise
   description        String?
+  /// Mêmes champs que l'Exercise source, copiés au moment de la diffusion. Sans eux une planif
+  /// diffusée se dégraderait : l'athlète verrait le titre mais perdrait consigne et structure.
+  instructions       Json?
+  blocks             Json             @default("[]")
   category           ExerciseCategory
   prescription       String? // prescription pour cet athlète — nullable
   position           Int // ordre dans la séance (0-based)

@@ -729,6 +729,37 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 
 ---
 
+## Post-MVP — Refonte du modèle d'exercice ([#157](https://github.com/Cimavia/cimavia/issues/157))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| R-1 | **`category` et `description` survivent à côté de `tags` et `instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même information tant que le web n'a pas basculé — l'API écrit les deux, et rien n'empêche qu'elles divergent. | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) / [#165](https://github.com/Cimavia/cimavia/issues/165) *(le contract est la dernière étape des deux)* |
+| R-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient. | 🟢 | — *(`validateBlockValues` la signale au coach ; le nettoyage en masse attend un besoin réel)* |
+
+> **Tranché — les blocs en JSON, pas en tables.** Quatre tables (bloc / métrique / ligne / valeur)
+> donnaient l'intégrité référentielle sur `customMetricId` et des cellules interrogeables en SQL.
+> Aucune des deux ne sert : rien ne filtre sur une valeur de cellule, et la valeur est polymorphe
+> (nombre · durée · texte · échelle), donc finit en colonne typée ou en JSON de toute façon. Ce qui
+> départage, c'est le **snapshot de diffusion** (P3) : en JSON c'est la copie d'un champ, en
+> relationnel c'est quatre SELECT/INSERT imbriqués avec remapping des identifiants de colonnes
+> dans chaque ligne — soit exactement l'endroit où une planif diffusée se dégrade en silence. Le
+> contrat est tenu par `exerciseBlocksSchema` à l'entrée. Coût accepté : **R-2**.
+>
+> **Tranché — aucun rattrapage des descriptions.** `description → instructions` touche tous les
+> exercices existants. La base en contient 7, dont 4 avec description, d'une longueur moyenne de
+> **10 caractères** (« a », « z »), plus 2 prescriptions (« 1kg », « 2kg ») : ce sont des données
+> de test. Chaque `description` non nulle devient **un unique bloc paragraphe**, sans parsing ni
+> rapport de reprise. Le `down` restitue le texte brut par concaténation
+> (`richDocumentToPlainText`). À reconsidérer **uniquement** si la refonte est livrée après une
+> mise en production réelle.
+>
+> **Découvert en route** : `pnpm turbo lint` ne voit pas `packages/shared` — seuls `api`, `web` et
+> `mobile` ont un script `lint`. Une fonction à complexité cognitive 22 (max 15, niveau `error`)
+> est passée sous le radar jusqu'au `biome ci` complet. La porte réelle est
+> `pnpm exec biome ci . && pnpm turbo typecheck test && pnpm check:i18n`.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

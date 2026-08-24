@@ -15,6 +15,7 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   Exercise: { coach: "coachId" },
   ExerciseDocument: { coach: "coachId" },
   ExerciseTag: { coach: "coachId" },
+  CustomMetric: { coach: "coachId" },
   Session: { coach: "coachId" },
   SessionExercise: { coach: "coachId" },
   Plan: { coach: "coachId", athlete: "athleteId" },
