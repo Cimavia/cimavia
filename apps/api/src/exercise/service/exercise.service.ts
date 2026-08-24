@@ -37,7 +37,7 @@ export class ExerciseService {
   async getOwnedOrThrow(id: string): Promise<ExerciseWithDocuments> {
     const exercise = await this.db.exercise.findFirst({
       where: { id },
-      include: { documents: true },
+      include: { documents: true, tags: true },
     });
     if (exercise == null) {
       throw new NotFoundException("Exercice introuvable");
@@ -46,7 +46,7 @@ export class ExerciseService {
   }
 
   async create(input: CreateExerciseInput): Promise<ExerciseDto> {
-    const exercise = await this.db.exercise.create({
+    const created = await this.db.exercise.create({
       data: {
         title: input.title,
         description: input.description ?? null,
@@ -55,9 +55,32 @@ export class ExerciseService {
         Prisma.ExerciseUncheckedCreateInput,
         "coachId"
       > as Prisma.ExerciseUncheckedCreateInput,
-      include: { documents: true },
+      include: { documents: true, tags: true },
     });
-    return this.toDto(exercise);
+    if (!input.tags?.length) return this.toDto(created);
+    return this.toDto(await this.replaceTags(created.id, input.tags));
+  }
+
+  /**
+   * Remplace l'ensemble des tags d'un exercice. Un `deleteMany` puis un `createMany` plutôt qu'un
+   * diff : la liste est courte (10 au plus), et calculer l'écart coûterait plus que de la réécrire.
+   *
+   * `coachId` n'est pas passé — l'extension tenant l'injecte, comme sur toute écriture directe.
+   */
+  private async replaceTags(
+    exerciseId: string,
+    tags: readonly string[],
+  ): Promise<ExerciseWithDocuments> {
+    await this.db.exerciseTag.deleteMany({ where: { exerciseId } });
+    if (tags.length > 0) {
+      await this.db.exerciseTag.createMany({
+        data: tags.map((name) => ({ exerciseId, name })) satisfies Omit<
+          Prisma.ExerciseTagUncheckedCreateInput,
+          "coachId"
+        >[] as Prisma.ExerciseTagUncheckedCreateInput[],
+      });
+    }
+    return this.getOwnedOrThrow(exerciseId);
   }
 
   async list(filters: ListExercisesFilters): Promise<ExerciseDto[]> {
@@ -67,7 +90,7 @@ export class ExerciseService {
 
     const exercises = await this.db.exercise.findMany({
       where,
-      include: { documents: true },
+      include: { documents: true, tags: true },
       orderBy: { createdAt: "desc" },
     });
     return Promise.all(exercises.map((exercise) => this.toDto(exercise)));
@@ -87,9 +110,10 @@ export class ExerciseService {
     const exercise = await this.db.exercise.update({
       where: { id },
       data,
-      include: { documents: true },
+      include: { documents: true, tags: true },
     });
-    return this.toDto(exercise);
+    if (input.tags === undefined) return this.toDto(exercise);
+    return this.toDto(await this.replaceTags(id, input.tags));
   }
 
   async delete(id: string): Promise<void> {

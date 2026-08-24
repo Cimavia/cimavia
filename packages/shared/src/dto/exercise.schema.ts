@@ -13,6 +13,35 @@ export type ExerciseCategory = TypesValuesOf<typeof ExerciseCategory>;
 
 export const exerciseCategorySchema = z.enum(ExerciseCategory);
 
+export const EXERCISE_TAG_MAX_LENGTH = 30;
+export const EXERCISE_MAX_TAGS = 10;
+
+/**
+ * Un tag libre, remplaçant d'`ExerciseCategory` (#162).
+ *
+ * NORMALISÉ à la saisie — coupé et mis en minuscules — pour que « Renfo », « renfo » et « renfo »
+ * soient le MÊME tag. Sans ça, l'autocomplétion proposerait trois entrées pour une seule intention
+ * et le filtre par tag en raterait deux sur trois.
+ */
+export const exerciseTagSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1)
+  .max(EXERCISE_TAG_MAX_LENGTH);
+
+/**
+ * Les doublons sont REFUSÉS, pas silencieusement fusionnés : après normalisation, envoyer deux
+ * fois le même tag est une erreur d'appel, et la contrainte d'unicité en base la refuserait de
+ * toute façon — autant la signaler ici, avec un message.
+ */
+export const exerciseTagsSchema = z
+  .array(exerciseTagSchema)
+  .max(EXERCISE_MAX_TAGS)
+  .refine((tags) => new Set(tags).size === tags.length, {
+    message: "Un exercice ne peut pas porter deux fois le même tag.",
+  });
+
 export const DocumentType = {
   FILE: "FILE",
   LINK: "LINK",
@@ -26,6 +55,7 @@ export const createExerciseSchema = z
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     category: exerciseCategorySchema,
+    tags: exerciseTagsSchema.optional(),
   })
   .strict();
 export type CreateExerciseInput = z.infer<typeof createExerciseSchema>;
@@ -35,6 +65,7 @@ export const updateExerciseSchema = z
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH).optional(),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     category: exerciseCategorySchema.optional(),
+    tags: exerciseTagsSchema.optional(),
   })
   .strict();
 export type UpdateExerciseInput = z.infer<typeof updateExerciseSchema>;
@@ -111,6 +142,7 @@ export const exerciseDtoSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   category: exerciseCategorySchema,
+  tags: z.array(z.string()),
   documents: z.array(exerciseDocumentDtoSchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
