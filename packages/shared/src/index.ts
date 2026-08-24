@@ -364,6 +364,7 @@ export {
   imageBlockSchema,
   inlineMarkSchema,
   inlineNodeSchema,
+  linkHrefSchema,
   listBlockSchema,
   paragraphBlockSchema,
   RICH_DOCUMENT_MAX_BLOCKS,

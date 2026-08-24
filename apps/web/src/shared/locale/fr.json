@@ -197,7 +197,21 @@
       "cancel": "Annuler",
       "submitCreate": "Créer l'exercice",
       "submitEdit": "Enregistrer",
-      "saving": "Enregistrement…"
+      "saving": "Enregistrement…",
+      "instructions": "Consigne",
+      "tool": {
+        "bold": "Gras",
+        "italic": "Italique",
+        "underline": "Souligné",
+        "heading": "Titre de section",
+        "bulletList": "Liste à puces",
+        "orderedList": "Liste numérotée",
+        "callout": "Encadré",
+        "link": "Lien",
+        "linkUrl": "Adresse du lien",
+        "linkApply": "Appliquer le lien",
+        "linkCancel": "Annuler le lien"
+      }
     }
   },
   "plan": {

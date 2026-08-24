@@ -1,6 +1,6 @@
-import { EXERCISE_MAX_TAGS, type ExerciseDto } from "@cmv/shared";
+import { EXERCISE_MAX_TAGS, type ExerciseDto, type RichDocument } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { useExercise, useExerciseTags } from "@/feature/library/hook/useExercises";
@@ -13,6 +13,17 @@ import {
   CmvTextField,
 } from "@/shared/component";
 import { apiErrorMessage } from "@/shared/lib/api";
+
+/**
+ * Chargé à la demande : TipTap et ProseMirror pèsent ~120 kB gzip, pour un éditeur que seul le
+ * coach ouvre, et seulement sur cette route. Les laisser dans le bundle initial les ferait payer
+ * à l'athlète, qui n'y touchera jamais.
+ */
+const InstructionsEditor = lazy(() =>
+  import("@/feature/library/component/InstructionsEditor").then((module) => ({
+    default: module.InstructionsEditor,
+  })),
+);
 
 type ExerciseBuilderScreenProps = {
   /** Absent = création. Sinon l'exercice est chargé depuis l'URL. */
@@ -76,6 +87,7 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
 
   const [title, setTitle] = useState(exercise?.title ?? "");
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
+  const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
 
   const isEditing = exercise != null;
   const trimmedTitle = title.trim();
@@ -83,7 +95,13 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
   async function onSubmit() {
     await save({
       exercise,
-      input: { title: trimmedTitle, tags },
+      // Document vide → `null` et non `[]` : « pas de consigne » est une absence, pas un document
+      // sans bloc (règle nullable n°5).
+      input: {
+        title: trimmedTitle,
+        tags,
+        instructions: instructions.length === 0 ? null : instructions,
+      },
       pendingFiles: [],
       pendingLinks: [],
     });
@@ -141,6 +159,13 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
             max={EXERCISE_MAX_TAGS}
           />
 
+          <Suspense fallback={<p className="text-cmv-text-mid">{t("common.loading")}</p>}>
+            <InstructionsEditor
+              initialValue={exercise?.instructions ?? null}
+              onChange={setInstructions}
+            />
+          </Suspense>
+
           {error == null ? null : (
             <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(error)}</p>
           )}
@@ -148,7 +173,7 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
 
         {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
         <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
-          <ExercisePreview title={trimmedTitle} tags={tags} />
+          <ExercisePreview title={trimmedTitle} tags={tags} instructions={instructions} />
         </aside>
       </div>
     </CmvAppShell>

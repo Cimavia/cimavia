@@ -1,9 +1,11 @@
+import type { RichDocument } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { CmvCard, CmvTagList } from "@/shared/component";
+import { CmvCard, CmvRichDocument, CmvTagList } from "@/shared/component";
 
 type ExercisePreviewProps = {
   title: string;
   tags: readonly string[];
+  instructions: RichDocument;
 };
 
 /**
@@ -13,7 +15,7 @@ type ExercisePreviewProps = {
  *
  * Tant qu'il n'y a pas de titre, l'aperçu ne montre pas une carte vide : il dit ce qu'il attend.
  */
-export function ExercisePreview({ title, tags }: Readonly<ExercisePreviewProps>) {
+export function ExercisePreview({ title, tags, instructions }: Readonly<ExercisePreviewProps>) {
   const { t } = useTranslation();
 
   return (
@@ -30,6 +32,7 @@ export function ExercisePreview({ title, tags }: Readonly<ExercisePreviewProps>)
         <CmvCard className="flex flex-col gap-cmv-sm">
           <h3 className="text-cmv-subtitle text-cmv-text-hi">{title}</h3>
           <CmvTagList tags={tags} />
+          <CmvRichDocument blocks={instructions} />
         </CmvCard>
       )}
     </section>
