@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BlockShortcut,
   BlockType,
+  ColumnFillMode,
   canCollapseMetric,
   columnValues,
   DEFAULT_BLOCK_METRIC_KEYS,
@@ -11,6 +12,7 @@ import {
   emomTopCount,
   exerciseBlockSchema,
   exerciseBlocksSchema,
+  fillColumn,
   MetricSource,
   metricValueTypeOf,
   SHORTCUT_PRESETS,
@@ -367,5 +369,75 @@ describe("valeurs de départ", () => {
     expect(DEFAULT_BLOCK_STRUCTURE.SERIES.restBetweenSetsSeconds).toBeNull();
     expect(DEFAULT_BLOCK_STRUCTURE.CIRCUIT.restBetweenRoundsSeconds).toBeNull();
     expect(DEFAULT_BLOCK_STRUCTURE.AMRAP.targetRounds).toBeNull();
+  });
+});
+
+describe("fillColumn", () => {
+  const rows = (...reps: (number | string | null)[]) =>
+    reps.map((value, index) => ({ id: `r${index}`, values: { col_reps: value } }));
+
+  const read = (block: ExerciseBlock) => columnValues(block, "col_reps");
+
+  it("pose la même valeur partout", () => {
+    const block = seriesBlock(rows(6, 5, 4), [reps]);
+    const filled = fillColumn(block, "col_reps", { mode: ColumnFillMode.SAME, value: 8 });
+    expect(read({ ...block, rows: filled })).toEqual([8, 8, 8]);
+  });
+
+  it("construit une progression régulière", () => {
+    const block = seriesBlock(rows(null, null, null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", { mode: ColumnFillMode.STEP, start: 8, step: 2 });
+    expect(read({ ...block, rows: filled })).toEqual([8, 10, 12, 14]);
+  });
+
+  it("accepte un pas négatif — une série dégressive est un cas courant", () => {
+    const block = seriesBlock(rows(null, null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", {
+      mode: ColumnFillMode.STEP,
+      start: 12,
+      step: -2,
+    });
+    expect(read({ ...block, rows: filled })).toEqual([12, 10, 8]);
+  });
+
+  it("progresse sur l'échelle et BUTE sur le dernier palier", () => {
+    // Reboucler à « 5a » après le sommet produirait une consigne absurde que rien ne signalerait.
+    const block = seriesBlock(rows(null, null, null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", {
+      mode: ColumnFillMode.SCALE_STEP,
+      scale: ["5a", "5b", "6a"],
+      start: "5a",
+      step: 1,
+    });
+    expect(read({ ...block, rows: filled })).toEqual(["5a", "5b", "6a", "6a"]);
+  });
+
+  it("vide la colonne si le palier de départ n'est pas dans l'échelle", () => {
+    const block = seriesBlock(rows(null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", {
+      mode: ColumnFillMode.SCALE_STEP,
+      scale: ["5a", "5b"],
+      start: "V4",
+      step: 1,
+    });
+    expect(read({ ...block, rows: filled })).toEqual([null, null]);
+  });
+
+  it("reflète la première moitié, sans dupliquer le sommet d'une pyramide impaire", () => {
+    const block = seriesBlock(rows(4, 6, 8, null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", { mode: ColumnFillMode.MIRROR });
+    expect(read({ ...block, rows: filled })).toEqual([4, 6, 8, 6, 4]);
+  });
+
+  it("ne touche PAS aux autres colonnes", () => {
+    const block = seriesBlock(
+      [
+        { id: "r1", values: { col_reps: 6, col_load: 12 } },
+        { id: "r2", values: { col_reps: 5, col_load: 14 } },
+      ],
+      [reps, load],
+    );
+    const filled = fillColumn(block, "col_reps", { mode: ColumnFillMode.SAME, value: 9 });
+    expect(columnValues({ ...block, rows: filled }, "col_load")).toEqual([12, 14]);
   });
 });

@@ -13,6 +13,7 @@ import {
   metricValueSchema,
   metricValueSchemaFor,
   type OrderedScale,
+  scaleStepIndex,
 } from "./exercise-metric.schema";
 
 // Blocs de structure d'un exercice (refonte #162).
@@ -204,6 +205,94 @@ export const exerciseBlockSchema = z
     path: ["rows"],
   });
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
+
+// ── Remplissage d'une colonne ───────────────────────────────────────────────────────────────
+
+/**
+ * Les quatre façons de remplir une colonne d'un coup. Elles existent parce que la saisie
+ * cellule par cellule est le vrai coût du dosage : « 6 · 6 · 6 · 6 », « 8 · 10 · 12 · 14 » et
+ * « 5a · 5b · 6a · 6b » sont trois gestes que le coach refait à chaque exercice.
+ *
+ * `MIRROR` n'est pas réservé au raccourci Pyramide : c'est une opération de colonne comme les
+ * autres, et le bloc ne garde aucune trace du raccourci dont il est issu.
+ */
+export const ColumnFillMode = {
+  SAME: "SAME",
+  STEP: "STEP",
+  SCALE_STEP: "SCALE_STEP",
+  MIRROR: "MIRROR",
+} as const;
+export type ColumnFillMode = TypesValuesOf<typeof ColumnFillMode>;
+
+export type ColumnFillPlan =
+  | { mode: typeof ColumnFillMode.SAME; value: MetricValue }
+  | { mode: typeof ColumnFillMode.STEP; start: number; step: number }
+  | { mode: typeof ColumnFillMode.SCALE_STEP; scale: OrderedScale; start: string; step: number }
+  | { mode: typeof ColumnFillMode.MIRROR };
+
+function fillSame(count: number, value: MetricValue): MetricValue[] {
+  return Array.from({ length: count }, () => value);
+}
+
+function fillStep(count: number, start: number, step: number): MetricValue[] {
+  return Array.from({ length: count }, (_, index) => start + index * step);
+}
+
+/**
+ * Progression sur une échelle ORDONNÉE. Elle BUTE sur le dernier palier au lieu de boucler :
+ * repasser à « 5a » après « 9c » produirait une consigne absurde que rien ne signalerait.
+ */
+function fillScaleStep(
+  count: number,
+  scale: OrderedScale,
+  start: string,
+  step: number,
+): MetricValue[] {
+  const from = scaleStepIndex(scale, start);
+  if (from == null) return fillSame(count, null);
+  return Array.from({ length: count }, (_, index) => {
+    const position = Math.min(Math.max(from + index * step, 0), scale.length - 1);
+    return scale[position] ?? null;
+  });
+}
+
+/**
+ * Miroir : la première moitié saisie, la seconde qui la reflète. Sur un nombre IMPAIR de lignes,
+ * le palier du milieu n'est pas dupliqué — c'est le sommet de la pyramide.
+ */
+function fillMirror(values: readonly MetricValue[]): MetricValue[] {
+  const count = values.length;
+  const half = Math.ceil(count / 2);
+  return Array.from({ length: count }, (_, index) =>
+    index < half ? (values[index] ?? null) : (values[count - 1 - index] ?? null),
+  );
+}
+
+function plannedValues(current: readonly MetricValue[], plan: ColumnFillPlan): MetricValue[] {
+  const count = current.length;
+  if (plan.mode === ColumnFillMode.SAME) return fillSame(count, plan.value);
+  if (plan.mode === ColumnFillMode.STEP) return fillStep(count, plan.start, plan.step);
+  if (plan.mode === ColumnFillMode.SCALE_STEP) {
+    return fillScaleStep(count, plan.scale, plan.start, plan.step);
+  }
+  return fillMirror(current);
+}
+
+/**
+ * Les lignes du bloc, une colonne réécrite. Les AUTRES colonnes ne bougent pas : remplir « Charge »
+ * ne doit rien faire aux répétitions déjà saisies.
+ */
+export function fillColumn(
+  block: ExerciseBlock,
+  metricId: string,
+  plan: ColumnFillPlan,
+): ExerciseBlock["rows"] {
+  const next = plannedValues(columnValues(block, metricId), plan);
+  return block.rows.map((row, index) => ({
+    ...row,
+    values: { ...row.values, [metricId]: next[index] ?? null },
+  }));
+}
 
 // ── Valeurs de départ ───────────────────────────────────────────────────────────────────────
 

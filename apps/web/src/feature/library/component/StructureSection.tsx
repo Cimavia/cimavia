@@ -12,6 +12,7 @@ import { IoArrowDown, IoArrowUp, IoTrashOutline } from "react-icons/io5";
 import { BlockBandeau } from "@/feature/library/component/BlockBandeau";
 import { BlockGrid } from "@/feature/library/component/BlockGrid";
 import { BlockTypePicker } from "@/feature/library/component/BlockTypePicker";
+import { CollapsedColumns } from "@/feature/library/component/CollapsedColumns";
 import { createBlock, createShortcutBlock } from "@/feature/library/util/block-factory.util";
 import { CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
 
@@ -191,6 +192,8 @@ function BlockCard({
         structure={block.structure}
         onChange={(structure: BlockStructure) => onChange({ ...block, structure })}
       />
+
+      <CollapsedColumns block={block} customMetrics={customMetrics} onChange={onChange} />
 
       <BlockGrid block={block} customMetrics={customMetrics} onChange={onChange} />
     </article>

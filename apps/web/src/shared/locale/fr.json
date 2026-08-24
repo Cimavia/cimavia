@@ -273,6 +273,18 @@
         "addRow": "Ajouter une ligne",
         "emptyValue": "—",
         "keyboardHint": "Tabulation → cellule suivante · Entrée → valide et crée la ligne suivante."
+      },
+      "column": {
+        "unit": "Unité de la colonne",
+        "fill": "Remplir la colonne",
+        "fillSame": "Même valeur partout",
+        "fillStep": "Progression régulière",
+        "fillScaleStep": "Progression sur l'échelle",
+        "fillMirror": "Miroir",
+        "stepLabel": "Pas",
+        "collapse": "Replier en valeur commune",
+        "expand": "Afficher en colonne",
+        "cannotCollapse": "La valeur change d'une ligne à l'autre."
       }
     }
   },

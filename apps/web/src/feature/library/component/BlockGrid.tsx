@@ -7,8 +7,9 @@ import {
 import { type KeyboardEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoReorderTwo, IoTrashOutline } from "react-icons/io5";
+import { ColumnMenu } from "@/feature/library/component/ColumnMenu";
 import { GridCell } from "@/feature/library/component/GridCell";
-import { metricLabel, metricUnitLabel } from "@/feature/library/util/metric-label.util";
+import { metricUnitLabel } from "@/feature/library/util/metric-label.util";
 import { CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
@@ -33,6 +34,9 @@ export function BlockGrid({ block, customMetrics, onChange }: Readonly<BlockGrid
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const isFull = block.rows.length >= BLOCK_MAX_ROWS;
+  // Une colonne repliée quitte la grille et rejoint le bandeau : elle n'y répéterait que la
+  // même valeur autant de fois qu'il y a de lignes.
+  const shown = block.metrics.filter((metric) => !metric.collapsed);
 
   function setRows(rows: Row[]) {
     onChange({ ...block, rows });
@@ -78,16 +82,19 @@ export function BlockGrid({ block, customMetrics, onChange }: Readonly<BlockGrid
               <th className="w-8 pb-cmv-xs text-cmv-caption text-cmv-text-lo" scope="col">
                 <span className="sr-only">{t("library.builder.grid.rowIndex")}</span>
               </th>
-              {block.metrics.map((metric) => {
+              {shown.map((metric) => {
                 const unit = metricUnitLabel(metric, customMetrics, t);
                 return (
-                  <th
-                    key={metric.id}
-                    scope="col"
-                    className="pb-cmv-xs pl-cmv-sm text-cmv-caption text-cmv-text-mid"
-                  >
-                    {metricLabel(metric, customMetrics, t)}
-                    {unit == null ? null : <span className="text-cmv-text-lo"> · {unit}</span>}
+                  <th key={metric.id} scope="col" className="pb-cmv-xs pl-cmv-sm">
+                    <ColumnMenu
+                      block={block}
+                      metric={metric}
+                      customMetrics={customMetrics}
+                      onChange={onChange}
+                    />
+                    {unit == null ? null : (
+                      <span className="text-cmv-caption text-cmv-text-lo"> · {unit}</span>
+                    )}
                   </th>
                 );
               })}
@@ -118,7 +125,7 @@ export function BlockGrid({ block, customMetrics, onChange }: Readonly<BlockGrid
                   />
                 </td>
 
-                {block.metrics.map((metric) => (
+                {shown.map((metric) => (
                   <td key={metric.id} className="pl-cmv-xs">
                     <GridCell
                       metric={metric}
