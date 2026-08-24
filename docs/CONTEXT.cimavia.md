@@ -41,7 +41,7 @@ Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement
 ## Entraînement
 
 ### Exercise
-Brique de la bibliothèque du coach : `title`, `description` (nullable), `category` ∈ **`RENFO` | `GRIMPE` | `TECHNIQUE`**. Peut porter des **documents** joints. Scopé au coach (`coachId`). Réutilisable dans plusieurs `Session`.
+Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Scopé au coach (`coachId`). Réutilisable dans plusieurs `Session`.
 
 ### Document
 Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
@@ -74,7 +74,7 @@ Trois règles à connaître :
 Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte une `scheduledDate` (dans la plage de sa semaine — invariant vérifié à l'écriture) et une `position` = rang **dans la journée** (plusieurs séances le même jour). Statut `PLANNED` | `DONE` | `SKIPPED` — en P3 tout est créé `PLANNED` ; `DONE` arrive avec le débrief (P4). Se met à jour en **replace-all** (`PUT`), comme la séance modèle. **Pas d'historique des modifications** en MVP.
 
 ### ScheduledSessionExercise — la copie, pas la référence
-**Décision structurante (P3).** L'instance est un **instantané autonome** : `title`, `description`, `category`, `prescription` sont **copiés** de l'`Exercise`, et ses documents sont **dupliqués en lignes** (`ScheduledSessionExerciseDocument`) partageant la **même clé objet S3** (aucun binaire dupliqué).
+**Décision structurante (P3).** L'instance est un **instantané autonome** : `title`, `description`, `instructions`, `blocks`, `prescription` et les **tags** sont **copiés** de l'`Exercise`, et ses documents sont **dupliqués en lignes** (`ScheduledSessionExerciseDocument`) partageant la **même clé objet S3** (aucun binaire dupliqué).
 
 Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: SetNull`)** et ne servent qu'à la traçabilité : **l'affichage n'en dépend jamais**. Conséquences voulues :
 - le coach peut supprimer un exercice de sa bibliothèque **sans jamais bloquer** (pas de `Restrict`, pas de 409 à vie) ni dégrader une planif déjà diffusée ;

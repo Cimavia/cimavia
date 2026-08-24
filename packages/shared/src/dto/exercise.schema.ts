@@ -6,20 +6,12 @@ import { richDocumentSchema } from "./rich-document.schema";
 export const EXERCISE_TITLE_MAX_LENGTH = 200;
 export const EXERCISE_DESCRIPTION_MAX_LENGTH = 5000;
 
-export const ExerciseCategory = {
-  RENFO: "RENFO",
-  GRIMPE: "GRIMPE",
-  TECHNIQUE: "TECHNIQUE",
-} as const;
-export type ExerciseCategory = TypesValuesOf<typeof ExerciseCategory>;
-
-export const exerciseCategorySchema = z.enum(ExerciseCategory);
-
 export const EXERCISE_TAG_MAX_LENGTH = 30;
 export const EXERCISE_MAX_TAGS = 10;
 
 /**
- * Un tag libre, remplaçant d'`ExerciseCategory` (#162).
+ * Un tag libre. Remplace l'enum `ExerciseCategory` (RENFO/GRIMPE/TECHNIQUE), retirée en #163 :
+ * trois cases fermées ne décrivaient pas un catalogue d'exercices réel.
  *
  * NORMALISÉ à la saisie — coupé et mis en minuscules — pour que « Renfo », « renfo » et « renfo »
  * soient le MÊME tag. Sans ça, l'autocomplétion proposerait trois entrées pour une seule intention
@@ -62,7 +54,6 @@ export const createExerciseSchema = z
     // Absent = aucun bloc, ce qui est un exercice LÉGITIME : un coach peut n'écrire qu'une
     // consigne. Pas de bloc par défaut, qui obligerait ensuite à le supprimer.
     blocks: exerciseBlocksSchema.optional(),
-    category: exerciseCategorySchema,
     tags: exerciseTagsSchema.optional(),
   })
   .strict();
@@ -76,7 +67,6 @@ export const updateExerciseSchema = z
     // intentions distinctes que le service doit pouvoir séparer.
     instructions: richDocumentSchema.nullable().optional(),
     blocks: exerciseBlocksSchema.optional(),
-    category: exerciseCategorySchema.optional(),
     tags: exerciseTagsSchema.optional(),
   })
   .strict();
@@ -155,7 +145,6 @@ export const exerciseDtoSchema = z.object({
   description: z.string().nullable(),
   instructions: richDocumentSchema.nullable(),
   blocks: exerciseBlocksSchema,
-  category: exerciseCategorySchema,
   tags: z.array(z.string()),
   documents: z.array(exerciseDocumentDtoSchema),
   createdAt: z.iso.datetime(),

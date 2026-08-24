@@ -5,6 +5,7 @@ import {
   type ExerciseFilters,
   exerciseKeys,
   listExercises,
+  listExerciseTags,
 } from "@/feature/library/api";
 
 export function useExercises(filters: ExerciseFilters) {
@@ -12,6 +13,10 @@ export function useExercises(filters: ExerciseFilters) {
     queryKey: exerciseKeys.list(filters),
     queryFn: () => listExercises(filters),
   });
+}
+
+export function useExerciseTags() {
+  return useQuery<string[]>({ queryKey: exerciseKeys.tags(), queryFn: listExerciseTags });
 }
 
 export function useDeleteExercise() {

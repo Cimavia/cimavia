@@ -61,19 +61,21 @@ describe("updateScheduledSessionSchema", () => {
       notes: null,
       scheduledDate: "2026-10-14",
       exercises: [
-        { sourceExerciseId: "ex_1", title: "Échauffement", category: "RENFO" },
-        { title: "Tractions", category: "RENFO", prescription: "5×5" },
+        { sourceExerciseId: "ex_1", title: "Échauffement" },
+        { title: "Tractions", tags: ["renfo"], prescription: "5×5" },
       ],
     });
     expect(parsed.exercises).toHaveLength(2);
     expect(parsed.exercises[1]?.sourceExerciseId).toBeUndefined();
   });
 
-  it("refuse une catégorie inconnue", () => {
+  it("refuse un champ inconnu dans la composition (schéma strict)", () => {
+    // `category` en fait partie depuis #163 : l'envoyer encore est une erreur d'appel, pas une
+    // donnée ignorée en silence.
     const result = updateScheduledSessionSchema.safeParse({
       title: "Bloc",
       scheduledDate: "2026-10-14",
-      exercises: [{ title: "x", category: "CARDIO" }],
+      exercises: [{ title: "x", category: "RENFO" }],
     });
     expect(result.success).toBe(false);
   });

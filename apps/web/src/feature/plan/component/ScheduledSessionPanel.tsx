@@ -41,7 +41,7 @@ function toSaveInput(
       sourceExerciseId: item.sourceExerciseId,
       title: item.title,
       description: item.description,
-      category: item.category,
+      tags: item.tags,
       prescription: item.prescription.trim() || null,
     })),
   };

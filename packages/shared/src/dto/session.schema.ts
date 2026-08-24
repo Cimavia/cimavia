@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { exerciseCategorySchema } from "./exercise.schema";
 
 export const SESSION_TITLE_MAX_LENGTH = 200;
 export const SESSION_NOTES_MAX_LENGTH = 5000;
@@ -37,7 +36,9 @@ export const sessionExerciseDtoSchema = z.object({
   position: z.number().int(),
   prescription: z.string().nullable(),
   title: z.string(),
-  category: exerciseCategorySchema,
+  // Tags de l'exercice RÉFÉRENCÉ, lus à chaque lecture : une séance modèle pointe vers la
+  // bibliothèque, elle n'en fige rien (contrairement à la séance planifiée, qui copie).
+  tags: z.array(z.string()),
 });
 export type SessionExerciseDto = z.infer<typeof sessionExerciseDtoSchema>;
 

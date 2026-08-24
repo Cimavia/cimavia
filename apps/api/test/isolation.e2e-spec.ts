@@ -232,7 +232,6 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     const created = await coachA.post("/exercises").send({
       title: "Gainage dynamique",
       description: "4×45 s",
-      category: "RENFO",
       tags: ["Gainage", "renfo"],
     });
     expect(created.status).toBe(201);
@@ -243,7 +242,6 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
     const decoy = await coachB.post("/exercises").send({
       title: "Traction",
-      category: "RENFO",
       tags: ["poulie"],
     });
     expect(decoy.status).toBe(201);
@@ -310,7 +308,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
     const created = await coachA
       .post("/exercises")
-      .send({ title: "Tractions lestées", category: "RENFO", instructions, blocks });
+      .send({ title: "Tractions lestées", instructions, blocks });
     expect(created.status).toBe(201);
 
     // Relecture : le JSON ne doit ni se réordonner ni perdre ses marques d'inline.
@@ -324,7 +322,6 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     // donc 400 — jamais écrit en base, où plus rien ne le rattraperait.
     const res = await coachA.post("/exercises").send({
       title: "EMOM impossible",
-      category: "RENFO",
       blocks: [
         {
           id: "blk_1",
@@ -358,9 +355,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
   it("un athlète n'a aucun accès à la bibliothèque (route coach)", async () => {
     expect((await athlete.get("/exercises")).status).toBe(403);
-    expect((await athlete.post("/exercises").send({ title: "x", category: "RENFO" })).status).toBe(
-      403,
-    );
+    expect((await athlete.post("/exercises").send({ title: "x" })).status).toBe(403);
   });
 
   it("attache un document LINK, visible dans le détail de l'exercice", async () => {
@@ -414,11 +409,10 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(tooBig.status).toBe(400);
   });
 
-  it("le pipe de validation global est actif (titre vide, catégorie inconnue → 400)", async () => {
-    expect((await coachA.post("/exercises").send({ title: "", category: "RENFO" })).status).toBe(
-      400,
-    );
-    expect((await coachA.post("/exercises").send({ title: "x", category: "CARDIO" })).status).toBe(
+  it("le pipe de validation global est actif (titre vide, champ inconnu → 400)", async () => {
+    expect((await coachA.post("/exercises").send({ title: "" })).status).toBe(400);
+    // `category` a disparu du contrat en #163 : le schéma est strict, l'envoyer encore est un 400.
+    expect((await coachA.post("/exercises").send({ title: "x", category: "RENFO" })).status).toBe(
       400,
     );
   });
@@ -518,7 +512,7 @@ describe("Composition & isolation des séances (P2)", () => {
 
   // Crée un exercice pour le coach donné et retourne son id.
   async function createExercise(coach: Agent, title: string): Promise<string> {
-    const res = await coach.post("/exercises").send({ title, category: "RENFO" });
+    const res = await coach.post("/exercises").send({ title });
     expect(res.status).toBe(201);
     return res.body.id;
   }
@@ -549,7 +543,6 @@ describe("Composition & isolation des séances (P2)", () => {
       exerciseId: exA1,
       position: 0,
       title: "Échauffement épaules",
-      category: "RENFO",
     });
     expect(res.body.exercises[1]).toMatchObject({ exerciseId: exA2, position: 1 });
   });
@@ -684,7 +677,6 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const exercise = await coachA.post("/exercises").send({
       title: "Tractions lestées",
       description: "Prise large",
-      category: "RENFO",
       instructions: LIBRARY_INSTRUCTIONS,
       blocks: LIBRARY_BLOCKS,
     });
@@ -700,7 +692,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     });
     templateId = template.body.id;
 
-    const exerciseB = await coachB.post("/exercises").send({ title: "Chez B", category: "GRIMPE" });
+    const exerciseB = await coachB.post("/exercises").send({ title: "Chez B", tags: ["grimpe"] });
     exerciseBId = exerciseB.body.id;
   });
 
@@ -749,7 +741,6 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(res.body.exercises[0]).toMatchObject({
       sourceExerciseId: exerciseAId,
       title: "Tractions lestées",
-      category: "RENFO",
       prescription: "5×5",
       position: 0,
     });
@@ -784,7 +775,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const foreignExercise = await coachA.post(`/plan-weeks/${week1Id}/sessions`).send({
       title: "Intrusion",
       scheduledDate: monday,
-      exercises: [{ sourceExerciseId: exerciseBId, title: "Volé", category: "GRIMPE" }],
+      exercises: [{ sourceExerciseId: exerciseBId, title: "Volé" }],
     });
     expect(foreignExercise.status).toBe(400);
   });
@@ -798,7 +789,6 @@ describe("Planifications : diffusion & isolation (P3)", () => {
         {
           sourceExerciseId: exerciseAId,
           title: "Tractions lestées",
-          category: "RENFO",
           prescription: "4×6 — épaule sensible",
         },
       ],
@@ -3609,7 +3599,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     // Bibliothèque de A : un exercice documenté, composé dans une séance modèle.
     const exercise = await coachA
       .post("/exercises")
-      .send({ title: "Suspensions", description: "Réglette 20 mm", category: "GRIMPE" });
+      .send({ title: "Suspensions", description: "Réglette 20 mm", tags: ["grimpe"] });
     exerciseId = exercise.body.id;
     await coachA
       .post(`/exercises/${exerciseId}/documents`)
@@ -3723,7 +3713,6 @@ describe("Copie d'une semaine de planification (#4)", () => {
     expect(detail.body.exercises[0]).toMatchObject({
       sourceExerciseId: exerciseId,
       title: "Suspensions",
-      category: "GRIMPE",
       prescription: "6×10 s",
       position: 0,
     });

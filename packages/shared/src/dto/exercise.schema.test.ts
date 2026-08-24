@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   createExerciseSchema,
   EXERCISE_MAX_TAGS,
-  ExerciseCategory,
   exerciseTagsSchema,
   updateExerciseSchema,
 } from "./exercise.schema";
@@ -32,7 +31,7 @@ describe("exerciseTagsSchema", () => {
 });
 
 describe("createExerciseSchema", () => {
-  const base = { title: "Tractions lestées", category: ExerciseCategory.RENFO };
+  const base = { title: "Tractions lestées" };
 
   it("accepte un exercice sans tags — le champ est facultatif", () => {
     expect(createExerciseSchema.parse(base).tags).toBeUndefined();
@@ -57,7 +56,7 @@ describe("updateExerciseSchema", () => {
 });
 
 describe("consigne structurée et blocs", () => {
-  const base = { title: "Tractions lestées", category: ExerciseCategory.RENFO };
+  const base = { title: "Tractions lestées" };
   const paragraph = [{ type: "PARAGRAPH", content: [{ text: "Coudes serrés." }] }];
 
   it("accepte un exercice sans consigne ni bloc", () => {

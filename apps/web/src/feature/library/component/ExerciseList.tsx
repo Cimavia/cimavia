@@ -1,19 +1,19 @@
-import type { ExerciseCategory, ExerciseDto } from "@cmv/shared";
+import type { ExerciseDto } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExerciseCard } from "@/feature/library/component/ExerciseCard";
-import { EXERCISE_CATEGORIES } from "@/feature/library/constant";
-import { useExercises } from "@/feature/library/hook/useExercises";
+import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import {
   CmvButton,
+  CmvChoiceChips,
   CmvEmptyState,
   CmvErrorState,
-  CmvSegmented,
   CmvTextField,
 } from "@/shared/component";
 
-// "ALL" = pas de filtre catégorie (valeur sentinelle locale, jamais envoyée à l'API).
-type CategoryFilter = ExerciseCategory | "ALL";
+// "" = pas de filtre. Un tag ne peut pas être vide (`exerciseTagSchema` impose min 1), la valeur
+// est donc libre de toute collision — pas besoin d'une sentinelle qui pourrait être un vrai tag.
+const NO_TAG_FILTER = "";
 
 type ExerciseListProps = {
   onCreate: () => void;
@@ -22,14 +22,17 @@ type ExerciseListProps = {
 
 export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) {
   const { t } = useTranslation();
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
+  const [tagFilter, setTagFilter] = useState(NO_TAG_FILTER);
   const [search, setSearch] = useState("");
 
   const filters = {
-    ...(categoryFilter === "ALL" ? {} : { category: categoryFilter }),
+    ...(tagFilter === NO_TAG_FILTER ? {} : { tag: tagFilter }),
     ...(search.trim() ? { search: search.trim() } : {}),
   };
   const { data: exercises, isPending, isError, refetch } = useExercises(filters);
+  // Tous les tags du coach, pas ceux des exercices affichés : dérivés de la liste filtrée, ils
+  // rétréciraient à chaque clic et le filtre deviendrait un aller sans retour.
+  const { data: tags } = useExerciseTags();
 
   return (
     <>
@@ -44,17 +47,17 @@ export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) 
             placeholder={t("library.searchExercise")}
           />
         </div>
-        <CmvSegmented<CategoryFilter>
-          value={categoryFilter}
-          onChange={setCategoryFilter}
-          options={[
-            { value: "ALL", label: t("library.filterAll") },
-            ...EXERCISE_CATEGORIES.map((value) => ({
-              value: value as CategoryFilter,
-              label: t(`library.category.${value}`),
-            })),
-          ]}
-        />
+        {/* Aucun tag chez le coach : pas de filtre à un seul bouton « Tous », qui ne filtrerait rien. */}
+        {tags == null || tags.length === 0 ? null : (
+          <CmvChoiceChips
+            value={tagFilter}
+            onChange={setTagFilter}
+            options={[
+              { value: NO_TAG_FILTER, label: t("library.filterAllTags") },
+              ...tags.map((tag) => ({ value: tag, label: tag })),
+            ]}
+          />
+        )}
       </div>
 
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}

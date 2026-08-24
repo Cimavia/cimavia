@@ -1,4 +1,4 @@
-import type { ExerciseCategory, ExerciseDto } from "@cmv/shared";
+import type { ExerciseDto } from "@cmv/shared";
 import { useState } from "react";
 
 /**
@@ -15,7 +15,7 @@ import { useState } from "react";
 export type CompositionRow = {
   key: string;
   title: string;
-  category: ExerciseCategory;
+  tags: string[];
   prescription: string;
 };
 

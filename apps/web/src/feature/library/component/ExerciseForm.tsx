@@ -1,14 +1,14 @@
 import {
   DocumentType,
-  type ExerciseCategory,
+  EXERCISE_MAX_TAGS,
   type ExerciseDto,
   isAllowedDocumentMime,
   MAX_DOCUMENT_SIZE_BYTES,
 } from "@cmv/shared";
 import { type ChangeEvent, type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ACCEPTED_DOCUMENT_ATTR, EXERCISE_CATEGORIES } from "@/feature/library/constant";
-import { useDeleteExercise } from "@/feature/library/hook/useExercises";
+import { ACCEPTED_DOCUMENT_ATTR } from "@/feature/library/constant";
+import { useDeleteExercise, useExerciseTags } from "@/feature/library/hook/useExercises";
 import {
   type PendingFile,
   useDeleteDocument,
@@ -20,7 +20,7 @@ import {
   CmvConfirmButton,
   CmvPanel,
   CmvProgressBar,
-  CmvSegmented,
+  CmvTagInput,
   CmvTextArea,
   CmvTextField,
 } from "@/shared/component";
@@ -37,12 +37,11 @@ export function ExerciseForm({ open, exercise, onClose }: Readonly<ExerciseFormP
   const { save, isSaving, error, progress } = useSaveExercise();
   const removeDocument = useDeleteDocument();
   const removeExercise = useDeleteExercise();
+  const { data: knownTags } = useExerciseTags();
 
   const [title, setTitle] = useState(exercise?.title ?? "");
   const [description, setDescription] = useState(exercise?.description ?? "");
-  const [category, setCategory] = useState<ExerciseCategory>(
-    exercise?.category ?? EXERCISE_CATEGORIES[0],
-  );
+  const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [pendingLinks, setPendingLinks] = useState<string[]>([]);
   const [linkDraft, setLinkDraft] = useState("");
@@ -82,7 +81,7 @@ export function ExerciseForm({ open, exercise, onClose }: Readonly<ExerciseFormP
     await save({
       exercise,
       // Description vide → null (nullable, pas de fallback silencieux).
-      input: { title: title.trim(), description: description.trim() || null, category },
+      input: { title: title.trim(), description: description.trim() || null, tags },
       pendingFiles,
       pendingLinks,
     });
@@ -143,14 +142,14 @@ export function ExerciseForm({ open, exercise, onClose }: Readonly<ExerciseFormP
           required
         />
 
-        <CmvSegmented
-          label={t("library.exercise.categoryLabel")}
-          value={category}
-          onChange={setCategory}
-          options={EXERCISE_CATEGORIES.map((value) => ({
-            value,
-            label: t(`library.category.${value}`),
-          }))}
+        <CmvTagInput
+          label={t("library.tags.label")}
+          value={tags}
+          onChange={setTags}
+          suggestions={knownTags ?? []}
+          placeholder={t("library.tags.placeholder")}
+          removeLabel={t("library.tags.remove")}
+          max={EXERCISE_MAX_TAGS}
         />
 
         <CmvTextArea

@@ -10,7 +10,6 @@ import { formatFullDay } from "@/shared/util/date.util";
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values plan.sessionStatus: ScheduledSessionStatus
-// i18n-values plan.category: ExerciseCategory
 
 /**
  * Détail d'une séance (p3-4) : consignes du coach, déroulé, documents.
@@ -76,9 +75,12 @@ export function SessionDetailScreen() {
                   <View className="flex-row gap-2">
                     <CmvText className="text-cmv-text-lo">{index + 1}</CmvText>
                     <CmvText className="flex-1 text-cmv-text-hi">{exercise.title}</CmvText>
-                    <CmvText className="text-cmv-accent text-xs">
-                      {t(`plan.category.${exercise.category}`)}
-                    </CmvText>
+                    {/* Tags copiés à la diffusion — un exercice sans tag n'affiche rien. */}
+                    {exercise.tags.map((tag) => (
+                      <CmvText key={tag} className="text-cmv-accent text-xs">
+                        {tag}
+                      </CmvText>
+                    ))}
                   </View>
 
                   {/* Description et prescription sont nullables : rien à afficher, on n'affiche rien. */}

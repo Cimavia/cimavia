@@ -2,7 +2,6 @@ import type {
   AttachDocumentInput,
   CreateExerciseInput,
   CreateSessionInput,
-  ExerciseCategory,
   ExerciseDocumentDto,
   ExerciseDto,
   RequestUploadUrlInput,
@@ -14,7 +13,7 @@ import type {
 import { api } from "@/shared/lib/api";
 
 export type ExerciseFilters = {
-  category?: ExerciseCategory;
+  tag?: string;
   search?: string;
 };
 
@@ -22,15 +21,25 @@ export type ExerciseFilters = {
 export const exerciseKeys = {
   all: ["exercises"] as const,
   list: (filters: ExerciseFilters) => ["exercises", "list", filters] as const,
+  tags: () => ["exercises", "tags"] as const,
 };
 
 export function listExercises(filters: ExerciseFilters): Promise<ExerciseDto[]> {
   const params = new URLSearchParams();
-  if (filters.category) params.set("category", filters.category);
+  if (filters.tag) params.set("tag", filters.tag);
   if (filters.search) params.set("search", filters.search);
   const query = params.toString();
   const path = query ? `/exercises?${query}` : "/exercises";
   return api.get<ExerciseDto[]>(path);
+}
+
+/**
+ * Les tags du coach, pour l'autocomplétion et le filtre. Servis par une route dédiée et non
+ * dérivés de la liste affichée : dérivés, ils rétréciraient à chaque clic de filtre, et le coach
+ * ne pourrait plus revenir en arrière.
+ */
+export function listExerciseTags(): Promise<string[]> {
+  return api.get<string[]>("/exercises/tags");
 }
 
 export function createExercise(input: CreateExerciseInput): Promise<ExerciseDto> {

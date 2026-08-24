@@ -32,7 +32,6 @@ async function toExerciseDto(
     description: exercise.description,
     instructions: parseInstructions(exercise.instructions),
     blocks: parseBlocks(exercise.blocks),
-    category: exercise.category,
     tags: exercise.tags.map((tag) => tag.name).sort(),
     prescription: exercise.prescription,
     position: exercise.position,

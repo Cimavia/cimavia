@@ -1,9 +1,4 @@
-import type {
-  CreateExerciseInput,
-  ExerciseCategory,
-  ExerciseDto,
-  UpdateExerciseInput,
-} from "@cmv/shared";
+import type { CreateExerciseInput, ExerciseDto, UpdateExerciseInput } from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
@@ -14,7 +9,6 @@ import { type ExerciseWithDocuments, toExerciseDto } from "../exercise.mapper";
 import { DocumentCleanupService } from "./document-cleanup.service";
 
 export type ListExercisesFilters = {
-  category?: ExerciseCategory;
   tag?: string;
   search?: string;
 };
@@ -72,7 +66,6 @@ export class ExerciseService {
         // C'est à la mise à jour qu'ils divergent — là, `undefined` veut dire « ne touche pas ».
         instructions: toInstructionsInput(input.instructions ?? null),
         blocks: toBlocksInput(input.blocks ?? []),
-        category: input.category,
       } satisfies Omit<
         Prisma.ExerciseUncheckedCreateInput,
         "coachId"
@@ -107,7 +100,6 @@ export class ExerciseService {
 
   async list(filters: ListExercisesFilters): Promise<ExerciseDto[]> {
     const where: Prisma.ExerciseWhereInput = {};
-    if (filters.category) where.category = filters.category;
     // `some` et non `every` : un exercice porte plusieurs tags, filtrer sur l'un d'eux le retient.
     if (filters.tag) where.tags = { some: { name: filters.tag } };
     if (filters.search) where.title = { contains: filters.search, mode: "insensitive" };
@@ -132,7 +124,6 @@ export class ExerciseService {
     if (input.instructions !== undefined)
       data.instructions = toInstructionsInput(input.instructions);
     if (input.blocks !== undefined) data.blocks = toBlocksInput(input.blocks);
-    if (input.category !== undefined) data.category = input.category;
 
     const exercise = await this.db.exercise.update({
       where: { id },

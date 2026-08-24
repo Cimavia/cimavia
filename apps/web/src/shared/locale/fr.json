@@ -111,15 +111,9 @@
     "newExercise": "Nouvel exercice",
     "searchLabel": "Rechercher",
     "searchExercise": "Rechercher un exercice…",
-    "filterAll": "Toutes",
     "tabs": {
       "exercises": "Exercices",
       "sessions": "Séances"
-    },
-    "category": {
-      "RENFO": "Renfo",
-      "GRIMPE": "Grimpe",
-      "TECHNIQUE": "Technique"
     },
     "newSession": "Nouvelle séance",
     "empty": {
@@ -161,7 +155,6 @@
       "panelDescription": "Réutilisable dans toutes vos séances.",
       "titleLabel": "Titre",
       "titlePlaceholder": "Gainage dynamique",
-      "categoryLabel": "Catégorie",
       "descriptionLabel": "Description & consignes",
       "descriptionPlaceholder": "Planche + bascule du bassin, 4 séries de 45 s…",
       "documents": "Documents joints",
@@ -183,6 +176,12 @@
       "submitting": "Enregistrement…",
       "errorFileType": "Type de fichier non autorisé (PDF, JPG, PNG, WEBP).",
       "errorFileSize": "Fichier trop volumineux (20 Mo max)."
+    },
+    "filterAllTags": "Tous",
+    "tags": {
+      "label": "Tags",
+      "placeholder": "Ajouter un tag — renfo, grimpe, technique…",
+      "remove": "Retirer le tag"
     }
   },
   "plan": {
@@ -198,11 +197,6 @@
         "PLANNED": "À faire",
         "DONE": "Fait",
         "SKIPPED": "Sautée"
-      },
-      "category": {
-        "RENFO": "Renfo",
-        "GRIMPE": "Grimpe",
-        "TECHNIQUE": "Technique"
       },
       "title": "Mon planning",
       "today": "Aujourd'hui",

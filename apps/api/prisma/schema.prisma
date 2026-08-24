@@ -194,12 +194,6 @@ model AthleteSheet {
 // donc toute entité métier porte son propre champ tenant (règle dure multi-tenant).
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum ExerciseCategory {
-  RENFO
-  GRIMPE
-  TECHNIQUE
-}
-
 /// Nature de la valeur portée par une colonne. SCALE désigne une échelle ORDONNÉE : ses paliers
 /// se comparent, ce qu'un simple texte ne permet pas.
 enum MetricValueType {
@@ -215,14 +209,13 @@ enum DocumentType {
 }
 
 model Exercise {
-  id          String           @id @default(cuid())
+  id          String   @id @default(cuid())
   coachId     String
-  coach       User             @relation("CoachExercises", fields: [coachId], references: [id], onDelete: Cascade)
+  coach       User     @relation("CoachExercises", fields: [coachId], references: [id], onDelete: Cascade)
   title       String
   description String? // consignes — nullable, pas de fallback (règle dure n°5)
-  category    ExerciseCategory
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   /// Consigne structurée (`RichDocument` de @cmv/shared) qui remplace `description`. Les deux
   /// cohabitent le temps que le constructeur web bascule (#163) : phase *expand* de
@@ -463,7 +456,6 @@ model ScheduledSessionExercise {
   /// diffusée se dégraderait : l'athlète verrait le titre mais perdrait consigne et structure.
   instructions       Json?
   blocks             Json             @default("[]")
-  category           ExerciseCategory
   prescription       String? // prescription pour cet athlète — nullable
   position           Int // ordre dans la séance (0-based)
   createdAt          DateTime         @default(now())

@@ -65,7 +65,6 @@ export async function insertScheduledSessionExercises(
         // l'athlète garderait le titre et perdrait ce qu'il doit faire.
         instructions: toInstructionsInput(draft.exercise.instructions ?? null),
         blocks: toBlocksInput(draft.exercise.blocks ?? []),
-        category: draft.exercise.category,
         prescription: draft.exercise.prescription ?? null,
         position,
       } satisfies Omit<

@@ -1,10 +1,6 @@
 import type { ExerciseDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { CmvBadge, CmvCard } from "@/shared/component";
-
-// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
-// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
-// i18n-values library.category: ExerciseCategory
+import { CmvBadge, CmvCard, CmvTagList } from "@/shared/component";
 
 type ExerciseCardProps = {
   exercise: ExerciseDto;
@@ -20,8 +16,8 @@ export function ExerciseCard({ exercise, onSelect }: Readonly<ExerciseCardProps>
 
       <p className="line-clamp-2 text-cmv-body text-cmv-text-mid">{exercise.description ?? "—"}</p>
 
-      <div className="flex items-center gap-cmv-sm">
-        <CmvBadge variant="accent">{t(`library.category.${exercise.category}`)}</CmvBadge>
+      <div className="flex flex-wrap items-center gap-cmv-sm">
+        <CmvTagList tags={exercise.tags} variant="accent" />
         {exercise.documents.length === 0 ? null : (
           <CmvBadge>
             {t("library.exercise.documentCount", { count: exercise.documents.length })}

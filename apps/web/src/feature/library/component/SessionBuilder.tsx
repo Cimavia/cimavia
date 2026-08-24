@@ -28,7 +28,7 @@ function toBuilderItems(session: SessionDto | null): BuilderItem[] {
     key: exercise.id,
     exerciseId: exercise.exerciseId,
     title: exercise.title,
-    category: exercise.category,
+    tags: exercise.tags,
     prescription: exercise.prescription ?? "",
   }));
 }
@@ -37,7 +37,7 @@ function toBuilderRow(exercise: ExerciseDto): Omit<BuilderItem, "key"> {
   return {
     exerciseId: exercise.id,
     title: exercise.title,
-    category: exercise.category,
+    tags: exercise.tags,
     prescription: "",
   };
 }

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { CompositionRow } from "@/feature/library/hook/useComposition";
-import { CmvBadge, CmvButton, CmvEmptyState, CmvTextField } from "@/shared/component";
+import { CmvButton, CmvEmptyState, CmvTagList, CmvTextField } from "@/shared/component";
 
 type CompositionEditorProps = {
   items: readonly CompositionRow[];
@@ -80,7 +80,7 @@ function CompositionEditorRow({
       <div className="flex items-center gap-cmv-sm">
         <span className="text-cmv-caption text-cmv-text-lo">{index + 1}</span>
         <span className="flex-1 truncate text-cmv-body text-cmv-text-hi">{item.title}</span>
-        <CmvBadge variant="accent">{t(`library.category.${item.category}`)}</CmvBadge>
+        <CmvTagList tags={item.tags} variant="accent" />
         <CmvButton
           variant="ghost"
           title={t(`${labelPrefix}.moveUp`)}

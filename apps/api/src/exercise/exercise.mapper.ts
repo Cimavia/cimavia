@@ -26,7 +26,6 @@ export async function toExerciseDto(
     description: exercise.description,
     instructions: parseInstructions(exercise.instructions),
     blocks: parseBlocks(exercise.blocks),
-    category: exercise.category,
     // Triés : l'ordre d'insertion n'a aucun sens pour un tag, et une liste stable évite un
     // faux diff à chaque relecture côté client.
     tags: exercise.tags.map((tag) => tag.name).sort(),

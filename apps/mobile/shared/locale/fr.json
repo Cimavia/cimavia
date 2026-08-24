@@ -115,11 +115,6 @@
       "DONE": "Fait",
       "SKIPPED": "Sautée"
     },
-    "category": {
-      "RENFO": "Renfo",
-      "GRIMPE": "Grimpe",
-      "TECHNIQUE": "Technique"
-    },
     "week": {
       "numberAndType": "Semaine {{number}} · {{type}}"
     },

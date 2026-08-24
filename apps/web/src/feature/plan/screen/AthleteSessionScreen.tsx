@@ -3,13 +3,19 @@ import { ScheduledSessionStatus } from "@cmv/shared";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { CmvAppShell, CmvBadge, CmvButton, CmvCard, CmvErrorState } from "@/shared/component";
+import {
+  CmvAppShell,
+  CmvBadge,
+  CmvButton,
+  CmvCard,
+  CmvErrorState,
+  CmvTagList,
+} from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values plan.athlete.sessionStatus: ScheduledSessionStatus
-// i18n-values plan.athlete.category: ExerciseCategory
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle.
@@ -128,7 +134,7 @@ function ExerciseCard({
         <div className="flex items-baseline gap-cmv-sm">
           <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{position}</span>
           <h3 className="flex-1 text-cmv-subtitle text-cmv-text-hi">{exercise.title}</h3>
-          <CmvBadge>{t(`plan.athlete.category.${exercise.category}`)}</CmvBadge>
+          <CmvTagList tags={exercise.tags} />
         </div>
 
         {/* Description et prescription sont nullables et distinctes : la première dit QUOI,

@@ -50,7 +50,7 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 
 ---
 
-> **Tranché en P3** (la question ouverte du modèle) : `ScheduledSessionExercise` est une **copie autonome** — snapshot `title`/`description`/`category`/`prescription` + `sourceExerciseId` **nullable en `SetNull`** (traçabilité seule), et les documents sont **copiés en lignes** partageant la clé objet. Conséquence : le coach peut supprimer un exercice de sa bibliothèque **sans jamais casser ni bloquer** une planification diffusée (pas de `Restrict`, pas de 409 à vie). La bibliothèque (`SessionExercise`) garde, elle, son `Restrict`/409 : un modèle de séance doit rester cohérent.
+> **Tranché en P3** (la question ouverte du modèle) : `ScheduledSessionExercise` est une **copie autonome** — snapshot `title`/`description`/`prescription` + `sourceExerciseId` **nullable en `SetNull`** (traçabilité seule), et les documents sont **copiés en lignes** partageant la clé objet. Conséquence : le coach peut supprimer un exercice de sa bibliothèque **sans jamais casser ni bloquer** une planification diffusée (pas de `Restrict`, pas de 409 à vie). La bibliothèque (`SessionExercise`) garde, elle, son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
 ---
 
@@ -733,7 +733,7 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| R-1 | **`category` et `description` survivent à côté de `tags` et `instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même information tant que le web n'a pas basculé — l'API écrit les deux, et rien n'empêche qu'elles divergent. | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) / [#165](https://github.com/Cimavia/cimavia/issues/165) *(le contract est la dernière étape des deux)* |
+| R-1 | **`description` survit à côté d'`instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même consigne tant que le constructeur n'écrit pas la version structurée — l'API alimente les deux, et rien n'empêche qu'elles divergent. La moitié `category` → `tags` est **close** (#163, migration `20260824120000_retrait_categorie_exercice`). | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) *(le contract est sa dernière étape)* |
 | R-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient. | 🟢 | — *(`validateBlockValues` la signale au coach ; le nettoyage en masse attend un besoin réel)* |
 
 > **Tranché — les blocs en JSON, pas en tables.** Quatre tables (bloc / métrique / ligne / valeur)

@@ -4,7 +4,6 @@ import { isMondayIsoDate } from "../util/date.util";
 import {
   EXERCISE_DESCRIPTION_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
-  exerciseCategorySchema,
   exerciseDocumentDtoSchema,
   exerciseTagsSchema,
 } from "./exercise.schema";
@@ -124,7 +123,6 @@ export const scheduledSessionExerciseInputSchema = z
     // Copiés de l'exercice source au moment de la diffusion, comme les documents et les tags.
     instructions: richDocumentSchema.nullable().optional(),
     blocks: exerciseBlocksSchema.optional(),
-    category: exerciseCategorySchema,
     tags: exerciseTagsSchema.optional(),
     prescription: z.string().max(SESSION_PRESCRIPTION_MAX_LENGTH).nullable().optional(),
   })
@@ -173,7 +171,6 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   // à la diffusion, même si le coach a retravaillé l'exercice de sa bibliothèque depuis.
   instructions: richDocumentSchema.nullable(),
   blocks: exerciseBlocksSchema,
-  category: exerciseCategorySchema,
   // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
   // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.
   tags: z.array(z.string()),

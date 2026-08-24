@@ -5,10 +5,10 @@ import type {
   UpdateSessionInput,
 } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Exercise, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { type SessionWithExercises, toSessionDto } from "../session.mapper";
+import { type ExerciseWithTags, type SessionWithExercises, toSessionDto } from "../session.mapper";
 
 @Injectable()
 export class SessionService {
@@ -99,11 +99,14 @@ export class SessionService {
     }
   }
 
-  // Charge (scopé) les exercices par id → map pour l'enrichissement titre/catégorie.
-  private async loadExerciseMap(exerciseIds: string[]): Promise<Map<string, Exercise>> {
+  // Charge (scopé) les exercices par id → map pour l'enrichissement titre/tags.
+  private async loadExerciseMap(exerciseIds: string[]): Promise<Map<string, ExerciseWithTags>> {
     const ids = [...new Set(exerciseIds)];
     if (ids.length === 0) return new Map();
-    const exercises = await this.db.exercise.findMany({ where: { id: { in: ids } } });
+    const exercises = await this.db.exercise.findMany({
+      where: { id: { in: ids } },
+      include: { tags: true },
+    });
     return new Map(exercises.map((e) => [e.id, e]));
   }
 
