@@ -10,6 +10,7 @@ import {
   EXERCISE_MAX_BLOCKS,
   type ExerciseBlock,
   emomTopCount,
+  emptyRowIndexes,
   exerciseBlockSchema,
   exerciseBlocksSchema,
   fillColumn,
@@ -489,5 +490,29 @@ describe("structurePhrase / restPhrase", () => {
   it("ne dit RIEN d'un bloc libre — il n'a aucun paramètre d'ensemble", () => {
     expect(structurePhrase({ type: BlockType.FREE })).toBeNull();
     expect(restPhrase({ type: BlockType.FREE })).toBeNull();
+  });
+});
+
+describe("emptyRowIndexes", () => {
+  it("repère les lignes sans aucune valeur", () => {
+    const block = seriesBlock([
+      { id: "r1", values: { col_reps: 6 } },
+      { id: "r2", values: {} },
+      { id: "r3", values: { col_reps: null, col_load: null } },
+    ]);
+    expect(emptyRowIndexes(block)).toEqual([1, 2]);
+  });
+
+  it("ne signale pas une ligne partiellement remplie — une cellule vide est légitime", () => {
+    // La dernière série n'a pas de repos, un étirement n'a pas de charge : l'incomplet normal
+    // n'est pas un défaut.
+    const block = seriesBlock([{ id: "r1", values: { col_reps: 6, col_load: null } }]);
+    expect(emptyRowIndexes(block)).toEqual([]);
+  });
+
+  it("ignore les valeurs de colonnes disparues", () => {
+    // Une valeur orpheline ne rend pas la ligne « remplie » : elle ne s'affiche nulle part.
+    const block = seriesBlock([{ id: "r1", values: { col_fantome: 3 } }]);
+    expect(emptyRowIndexes(block)).toEqual([0]);
   });
 });

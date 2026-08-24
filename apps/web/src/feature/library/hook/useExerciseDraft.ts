@@ -11,10 +11,11 @@ import { useSaveExercise } from "@/feature/library/hook/useSaveExercise";
  * L'état naît de l'exercice chargé et n'y retourne pas : l'écran remonte le composant (par sa
  * `key`) quand l'URL change d'exercice.
  */
-export function useExerciseDraft(exercise: ExerciseDto | null) {
+export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: string) {
   const { save, isSaving, error } = useSaveExercise();
 
-  const [title, setTitle] = useState(exercise?.title ?? "");
+  // L'exercice chargé l'emporte : `initialTitle` ne sert qu'à la création.
+  const [title, setTitle] = useState(exercise?.title ?? initialTitle ?? "");
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
   const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
   const [blocks, setBlocks] = useState<ExerciseBlocks>(exercise?.blocks ?? []);

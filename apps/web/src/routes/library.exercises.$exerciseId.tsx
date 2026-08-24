@@ -10,7 +10,7 @@ function RouteComponent() {
   const { exerciseId } = Route.useParams();
   return (
     <CmvRoleGate capability="coach">
-      <ExerciseBuilderScreen exerciseId={exerciseId} />
+      <ExerciseBuilderScreen exerciseId={exerciseId} initialTitle={undefined} />
     </CmvRoleGate>
   );
 }

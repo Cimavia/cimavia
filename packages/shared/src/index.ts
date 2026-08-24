@@ -103,6 +103,7 @@ export {
   EMOM_MIN_INTERVAL_SECONDS,
   EXERCISE_MAX_BLOCKS,
   emomTopCount,
+  emptyRowIndexes,
   exerciseBlockSchema,
   exerciseBlocksSchema,
   fillColumn,

@@ -209,6 +209,23 @@ export const exerciseBlockSchema = z
   });
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
+// ── Lignes incomplètes ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Les positions (0-based) des lignes qui ne portent AUCUNE valeur.
+ *
+ * Ce n'est pas une erreur de schéma — `blockRowSchema` accepte `values: {}` — et ça ne doit pas
+ * l'être : une ligne se crée vide, et le coach la remplit ensuite. Mais une ligne restée vide à
+ * l'enregistrement ne dit rien à l'athlète, qui verrait « — » sur toute la ligne. D'où un
+ * AVERTISSEMENT, jamais un blocage : c'est au coach de choisir entre la remplir et la retirer.
+ */
+export function emptyRowIndexes(block: ExerciseBlock): number[] {
+  return block.rows.flatMap((row, index) => {
+    const hasValue = block.metrics.some((metric) => (row.values[metric.id] ?? null) !== null);
+    return hasValue ? [] : [index];
+  });
+}
+
 // ── La phrase de dosage ─────────────────────────────────────────────────────────────────────
 
 /**

@@ -1,4 +1,5 @@
 import type { ExerciseDto } from "@cmv/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExerciseCard } from "@/feature/library/component/ExerciseCard";
@@ -22,6 +23,7 @@ type ExerciseListProps = {
 
 export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [tagFilter, setTagFilter] = useState(NO_TAG_FILTER);
   const [search, setSearch] = useState("");
 
@@ -70,7 +72,25 @@ export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) 
         />
       ) : null}
 
-      {exercises?.length === 0 ? (
+      {/* Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
+          bibliothèque neuve, le second constate qu'une recherche ne trouve rien alors que la
+          bibliothèque est pleine — et propose de créer l'exercice manquant. */}
+      {exercises?.length === 0 && search.trim() !== "" ? (
+        <CmvEmptyState
+          title={t("library.noMatch.title", { search: search.trim() })}
+          action={
+            <CmvButton
+              onClick={() =>
+                navigate({ to: "/library/exercises/new", search: { title: search.trim() } })
+              }
+            >
+              {t("library.noMatch.create", { search: search.trim() })}
+            </CmvButton>
+          }
+        />
+      ) : null}
+
+      {exercises?.length === 0 && search.trim() === "" ? (
         <CmvEmptyState
           title={t("library.empty.title")}
           description={t("library.empty.description")}

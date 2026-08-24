@@ -230,7 +230,7 @@
         "missing": "Image indisponible",
         "uploading": "Envoi… {{percent}} %",
         "errorType": "Format non accepté : PNG, JPEG ou WebP.",
-        "errorSize": "Image trop lourde : 20 Mo maximum."
+        "errorSize": "{{size}} Mo — dépasse la limite de {{limit}} Mo."
       },
       "structure": "Structure",
       "addBlock": "Ajouter une structure",
@@ -343,7 +343,17 @@
       },
       "preview": {
         "noRow": "Le dosage apparaîtra ici dès la première ligne."
+      },
+      "titleRequired": "Le titre est requis pour enregistrer l'exercice.",
+      "issue": {
+        "emptyRow": "Ligne {{index}} incomplète — renseigne au moins une valeur, ou supprime la ligne.",
+        "badValue": "Colonne « {{column}} » : une valeur ne correspond pas au type attendu.",
+        "orphanValue": "Une valeur appartient à une colonne qui n'existe plus."
       }
+    },
+    "noMatch": {
+      "title": "Aucun exercice ne correspond à « {{search}} »",
+      "create": "Créer « {{search}} »"
     }
   },
   "plan": {

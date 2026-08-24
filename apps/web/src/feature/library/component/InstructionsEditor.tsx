@@ -160,7 +160,14 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
       return;
     }
     if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
-      setFileError(t("library.builder.image.errorSize"));
+      // Le poids RÉEL, pas seulement la limite : « 34 Mo » dit au coach de quoi il s'agit, là où
+      // « trop lourde » le laisse deviner s'il doit recadrer ou recompresser.
+      setFileError(
+        t("library.builder.image.errorSize", {
+          size: formatMegabytes(file.size),
+          limit: formatMegabytes(MAX_DOCUMENT_SIZE_BYTES),
+        }),
+      );
       return;
     }
     const mediaId = media.register(file, file.type);
@@ -342,4 +349,10 @@ function LinkField({ value, onChange, onSubmit, onCancel }: Readonly<LinkFieldPr
       </button>
     </div>
   );
+}
+
+const BYTES_PER_MEGABYTE = 1024 * 1024;
+
+function formatMegabytes(bytes: number): string {
+  return (bytes / BYTES_PER_MEGABYTE).toFixed(1).replace(".", ",");
 }

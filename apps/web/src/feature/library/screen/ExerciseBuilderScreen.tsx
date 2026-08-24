@@ -1,6 +1,6 @@
 import { EXERCISE_MAX_TAGS, type ExerciseDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
@@ -30,7 +30,9 @@ const InstructionsEditor = lazy(() =>
 
 type ExerciseBuilderScreenProps = {
   /** Absent = création. Sinon l'exercice est chargé depuis l'URL. */
-  exerciseId?: string;
+  exerciseId?: string | undefined;
+  /** Titre pré-rempli, repris de la recherche restée sans résultat. */
+  initialTitle: string | undefined;
 };
 
 /**
@@ -41,7 +43,10 @@ type ExerciseBuilderScreenProps = {
  * L'aperçu est en LECTURE SEULE, et le restera : le coach n'y configure ni les timers ni le suivi
  * d'exécution, qui découlent des valeurs qu'il saisit. Rien ne doit y laisser croire le contraire.
  */
-export function ExerciseBuilderScreen({ exerciseId }: Readonly<ExerciseBuilderScreenProps>) {
+export function ExerciseBuilderScreen({
+  exerciseId,
+  initialTitle,
+}: Readonly<ExerciseBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: exercise, isPending, isError, refetch } = useExercise(exerciseId);
@@ -73,6 +78,7 @@ export function ExerciseBuilderScreen({ exerciseId }: Readonly<ExerciseBuilderSc
     <ExerciseBuilder
       key={exercise?.id ?? "new"}
       exercise={exercise ?? null}
+      initialTitle={initialTitle}
       onLeave={() => navigate({ to: "/library" })}
     />
   );
@@ -80,18 +86,23 @@ export function ExerciseBuilderScreen({ exerciseId }: Readonly<ExerciseBuilderSc
 
 type ExerciseBuilderProps = {
   exercise: ExerciseDto | null;
+  initialTitle: string | undefined;
   onLeave: () => void;
 };
 
-function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) {
+function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseBuilderProps>) {
   const { t } = useTranslation();
   const { data: knownTags } = useExerciseTags();
   // Les colonnes maison résolvent leur type de valeur et leur échelle ici : sans elles, une
   // cotation du coach se saisirait comme du texte libre.
   const { data: customMetrics } = useCustomMetrics();
-  const draft = useExerciseDraft(exercise);
+  const draft = useExerciseDraft(exercise, initialTitle);
 
   const isEditing = exercise != null;
+  // Le message n'apparaît qu'APRÈS que le champ a été touché : l'afficher au premier rendu
+  // accueillerait le coach par une erreur qu'il n'a pas encore eu l'occasion de commettre.
+  const [titleTouched, setTitleTouched] = useState(false);
+  const titleMissing = titleTouched && draft.trimmedTitle === "";
 
   async function onSubmit() {
     await draft.submit();
@@ -134,10 +145,16 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
               name="title"
               value={draft.title}
               onChange={(event) => draft.setTitle(event.target.value)}
+              onBlur={() => setTitleTouched(true)}
               placeholder={t("library.builder.titlePlaceholder")}
               required
               requiredMark
             />
+            {titleMissing ? (
+              <p className="text-cmv-caption text-cmv-error">
+                {t("library.builder.titleRequired")}
+              </p>
+            ) : null}
 
             <CmvTagInput
               label={t("library.tags.label")}

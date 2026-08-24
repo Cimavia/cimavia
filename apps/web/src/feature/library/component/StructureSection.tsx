@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { IoArrowDown, IoArrowUp, IoTrashOutline } from "react-icons/io5";
 import { BlockBandeau } from "@/feature/library/component/BlockBandeau";
 import { BlockGrid } from "@/feature/library/component/BlockGrid";
+import { BlockIssues } from "@/feature/library/component/BlockIssues";
 import { BlockTypePicker } from "@/feature/library/component/BlockTypePicker";
 import { CollapsedColumns } from "@/feature/library/component/CollapsedColumns";
 import { MetricPicker } from "@/feature/library/component/MetricPicker";
@@ -212,6 +213,8 @@ function BlockCard({
       <CollapsedColumns block={block} customMetrics={customMetrics} onChange={onChange} />
 
       <BlockGrid block={block} customMetrics={customMetrics} onChange={onChange} />
+
+      <BlockIssues block={block} customMetrics={customMetrics} />
     </article>
   );
 }
