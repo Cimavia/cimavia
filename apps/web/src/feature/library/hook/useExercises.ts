@@ -4,6 +4,7 @@ import {
   deleteExercise,
   type ExerciseFilters,
   exerciseKeys,
+  getExercise,
   listExercises,
   listExerciseTags,
 } from "@/feature/library/api";
@@ -12,6 +13,15 @@ export function useExercises(filters: ExerciseFilters) {
   return useQuery<ExerciseDto[]>({
     queryKey: exerciseKeys.list(filters),
     queryFn: () => listExercises(filters),
+  });
+}
+
+export function useExercise(id: string | undefined) {
+  return useQuery<ExerciseDto>({
+    queryKey: exerciseKeys.detail(id ?? ""),
+    queryFn: () => getExercise(id as string),
+    // `new` n'a pas d'id : la requête ne part pas, plutôt qu'un GET /exercises/undefined.
+    enabled: id != null,
   });
 }
 

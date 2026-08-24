@@ -182,6 +182,22 @@
       "label": "Tags",
       "placeholder": "Ajouter un tag — renfo, grimpe, technique…",
       "remove": "Retirer le tag"
+    },
+    "builder": {
+      "createTitle": "Nouvel exercice",
+      "editTitle": "Modifier l'exercice",
+      "loadingTitle": "Exercice",
+      "subtitle": "Réutilisable dans toutes tes séances.",
+      "usedInSessions": "Utilisé dans {{count}} séance.",
+      "usedInSessions_other": "Utilisé dans {{count}} séances.",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "Ex. Tractions lestées, 4×4 bloc…",
+      "previewTitle": "Aperçu athlète — mis à jour en direct",
+      "previewEmpty": "L'aperçu apparaît une fois le titre renseigné.",
+      "cancel": "Annuler",
+      "submitCreate": "Créer l'exercice",
+      "submitEdit": "Enregistrer",
+      "saving": "Enregistrement…"
     }
   },
   "plan": {

@@ -21,6 +21,7 @@ export type ExerciseFilters = {
 export const exerciseKeys = {
   all: ["exercises"] as const,
   list: (filters: ExerciseFilters) => ["exercises", "list", filters] as const,
+  detail: (id: string) => ["exercises", "detail", id] as const,
   tags: () => ["exercises", "tags"] as const,
 };
 
@@ -40,6 +41,14 @@ export function listExercises(filters: ExerciseFilters): Promise<ExerciseDto[]> 
  */
 export function listExerciseTags(): Promise<string[]> {
   return api.get<string[]>("/exercises/tags");
+}
+
+/**
+ * Le constructeur s'ouvre sur une URL, pas depuis une ligne de liste : il ne peut pas compter sur
+ * un DTO déjà en mémoire, et doit savoir le charger seul.
+ */
+export function getExercise(id: string): Promise<ExerciseDto> {
+  return api.get<ExerciseDto>(`/exercises/${id}`);
 }
 
 export function createExercise(input: CreateExerciseInput): Promise<ExerciseDto> {

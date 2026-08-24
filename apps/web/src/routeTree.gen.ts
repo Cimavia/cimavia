@@ -16,7 +16,6 @@ import { Route as PlanningRouteImport } from './routes/planning'
 import { Route as MyCoachRouteImport } from './routes/my-coach'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LibraryRouteImport } from './routes/library'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
@@ -24,10 +23,13 @@ import { Route as AthletesRouteImport } from './routes/athletes'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as PlansIndexRouteImport } from './routes/plans.index'
+import { Route as LibraryIndexRouteImport } from './routes/library.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
 import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
+import { Route as LibraryExercisesNewRouteImport } from './routes/library.exercises.new'
+import { Route as LibraryExercisesExerciseIdRouteImport } from './routes/library.exercises.$exerciseId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -62,11 +64,6 @@ const MessagesRoute = MessagesRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibraryRoute = LibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvoicesRoute = InvoicesRouteImport.update({
@@ -104,6 +101,11 @@ const PlansIndexRoute = PlansIndexRouteImport.update({
   path: '/plans/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LibraryIndexRoute = LibraryIndexRouteImport.update({
+  id: '/library/',
+  path: '/library/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
   id: '/sessions/$sessionId',
   path: '/sessions/$sessionId',
@@ -125,6 +127,17 @@ const SessionsSessionIdFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => SessionsSessionIdRoute,
   } as any)
+const LibraryExercisesNewRoute = LibraryExercisesNewRouteImport.update({
+  id: '/library/exercises/new',
+  path: '/library/exercises/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryExercisesExerciseIdRoute =
+  LibraryExercisesExerciseIdRouteImport.update({
+    id: '/library/exercises/$exerciseId',
+    path: '/library/exercises/$exerciseId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -132,7 +145,6 @@ export interface FileRoutesByFullPath {
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/invoices': typeof InvoicesRoute
-  '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/my-coach': typeof MyCoachRoute
@@ -142,8 +154,11 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
+  '/library/': typeof LibraryIndexRoute
   '/plans/': typeof PlansIndexRoute
   '/sessions/': typeof SessionsIndexRoute
+  '/library/exercises/$exerciseId': typeof LibraryExercisesExerciseIdRoute
+  '/library/exercises/new': typeof LibraryExercisesNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
@@ -153,7 +168,6 @@ export interface FileRoutesByTo {
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/invoices': typeof InvoicesRoute
-  '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/my-coach': typeof MyCoachRoute
@@ -162,8 +176,11 @@ export interface FileRoutesByTo {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/library': typeof LibraryIndexRoute
   '/plans': typeof PlansIndexRoute
   '/sessions': typeof SessionsIndexRoute
+  '/library/exercises/$exerciseId': typeof LibraryExercisesExerciseIdRoute
+  '/library/exercises/new': typeof LibraryExercisesNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
 }
@@ -174,7 +191,6 @@ export interface FileRoutesById {
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/invoices': typeof InvoicesRoute
-  '/library': typeof LibraryRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/my-coach': typeof MyCoachRoute
@@ -184,8 +200,11 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
+  '/library/': typeof LibraryIndexRoute
   '/plans/': typeof PlansIndexRoute
   '/sessions/': typeof SessionsIndexRoute
+  '/library/exercises/$exerciseId': typeof LibraryExercisesExerciseIdRoute
+  '/library/exercises/new': typeof LibraryExercisesNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
@@ -197,7 +216,6 @@ export interface FileRouteTypes {
     | '/feedbacks'
     | '/forgot-password'
     | '/invoices'
-    | '/library'
     | '/login'
     | '/messages'
     | '/my-coach'
@@ -207,8 +225,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/plans/$planId'
     | '/sessions/$sessionId'
+    | '/library/'
     | '/plans/'
     | '/sessions/'
+    | '/library/exercises/$exerciseId'
+    | '/library/exercises/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
@@ -218,7 +239,6 @@ export interface FileRouteTypes {
     | '/feedbacks'
     | '/forgot-password'
     | '/invoices'
-    | '/library'
     | '/login'
     | '/messages'
     | '/my-coach'
@@ -227,8 +247,11 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/plans/$planId'
+    | '/library'
     | '/plans'
     | '/sessions'
+    | '/library/exercises/$exerciseId'
+    | '/library/exercises/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId'
   id:
@@ -238,7 +261,6 @@ export interface FileRouteTypes {
     | '/feedbacks'
     | '/forgot-password'
     | '/invoices'
-    | '/library'
     | '/login'
     | '/messages'
     | '/my-coach'
@@ -248,8 +270,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/plans/$planId'
     | '/sessions/$sessionId'
+    | '/library/'
     | '/plans/'
     | '/sessions/'
+    | '/library/exercises/$exerciseId'
+    | '/library/exercises/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
   fileRoutesById: FileRoutesById
@@ -260,7 +285,6 @@ export interface RootRouteChildren {
   FeedbacksRoute: typeof FeedbacksRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   InvoicesRoute: typeof InvoicesRoute
-  LibraryRoute: typeof LibraryRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
   MyCoachRoute: typeof MyCoachRoute
@@ -270,8 +294,11 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
   SessionsSessionIdRoute: typeof SessionsSessionIdRouteWithChildren
+  LibraryIndexRoute: typeof LibraryIndexRoute
   PlansIndexRoute: typeof PlansIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
+  LibraryExercisesExerciseIdRoute: typeof LibraryExercisesExerciseIdRoute
+  LibraryExercisesNewRoute: typeof LibraryExercisesNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -325,13 +352,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/library': {
-      id: '/library'
-      path: '/library'
-      fullPath: '/library'
-      preLoaderRoute: typeof LibraryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/invoices': {
       id: '/invoices'
       path: '/invoices'
@@ -381,6 +401,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/library/': {
+      id: '/library/'
+      path: '/library'
+      fullPath: '/library/'
+      preLoaderRoute: typeof LibraryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sessions/$sessionId': {
       id: '/sessions/$sessionId'
       path: '/sessions/$sessionId'
@@ -409,6 +436,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsSessionIdFeedbackRouteImport
       parentRoute: typeof SessionsSessionIdRoute
     }
+    '/library/exercises/new': {
+      id: '/library/exercises/new'
+      path: '/library/exercises/new'
+      fullPath: '/library/exercises/new'
+      preLoaderRoute: typeof LibraryExercisesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/exercises/$exerciseId': {
+      id: '/library/exercises/$exerciseId'
+      path: '/library/exercises/$exerciseId'
+      fullPath: '/library/exercises/$exerciseId'
+      preLoaderRoute: typeof LibraryExercisesExerciseIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -431,7 +472,6 @@ const rootRouteChildren: RootRouteChildren = {
   FeedbacksRoute: FeedbacksRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   InvoicesRoute: InvoicesRoute,
-  LibraryRoute: LibraryRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
   MyCoachRoute: MyCoachRoute,
@@ -441,8 +481,11 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
   SessionsSessionIdRoute: SessionsSessionIdRouteWithChildren,
+  LibraryIndexRoute: LibraryIndexRoute,
   PlansIndexRoute: PlansIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
+  LibraryExercisesExerciseIdRoute: LibraryExercisesExerciseIdRoute,
+  LibraryExercisesNewRoute: LibraryExercisesNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
