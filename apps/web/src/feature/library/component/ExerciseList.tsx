@@ -1,4 +1,3 @@
-import type { ExerciseDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,12 +15,12 @@ import {
 // est donc libre de toute collision — pas besoin d'une sentinelle qui pourrait être un vrai tag.
 const NO_TAG_FILTER = "";
 
-type ExerciseListProps = {
-  onCreate: () => void;
-  onEdit: (exercise: ExerciseDto) => void;
-};
-
-export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) {
+/**
+ * La liste n'ouvre plus de panneau : le constructeur est une PAGE, parce qu'il porte la consigne
+ * structurée, les blocs de dosage et l'aperçu athlète — trois choses qu'un tiroir de 480 px ne
+ * peut pas montrer côte à côte.
+ */
+export function ExerciseList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [tagFilter, setTagFilter] = useState(NO_TAG_FILTER);
@@ -94,13 +93,26 @@ export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) 
         <CmvEmptyState
           title={t("library.empty.title")}
           description={t("library.empty.description")}
-          action={<CmvButton onClick={onCreate}>{t("library.newExercise")}</CmvButton>}
+          action={
+            <CmvButton onClick={() => navigate({ to: "/library/exercises/new" })}>
+              {t("library.newExercise")}
+            </CmvButton>
+          }
         />
       ) : null}
 
       <div className="grid gap-cmv-lg sm:grid-cols-2 lg:grid-cols-3">
         {exercises?.map((exercise) => (
-          <ExerciseCard key={exercise.id} exercise={exercise} onSelect={onEdit} />
+          <ExerciseCard
+            key={exercise.id}
+            exercise={exercise}
+            onSelect={() =>
+              navigate({
+                to: "/library/exercises/$exerciseId",
+                params: { exerciseId: exercise.id },
+              })
+            }
+          />
         ))}
       </div>
     </>

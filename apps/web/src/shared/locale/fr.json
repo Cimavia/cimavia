@@ -159,34 +159,6 @@
       "submitEdit": "Enregistrer la séance",
       "submitting": "Enregistrement…"
     },
-    "exercise": {
-      "createTitle": "Nouvel exercice",
-      "editTitle": "Modifier l'exercice",
-      "panelDescription": "Réutilisable dans toutes vos séances.",
-      "titleLabel": "Titre",
-      "titlePlaceholder": "Gainage dynamique",
-      "descriptionLabel": "Description & consignes",
-      "descriptionPlaceholder": "Planche + bascule du bassin, 4 séries de 45 s…",
-      "documents": "Documents joints",
-      "documentCount": "{{count}} document",
-      "documentCount_other": "{{count}} documents",
-      "addFile": "Ajouter un fichier",
-      "fileHint": "PDF, JPG, PNG ou WEBP — 20 Mo max",
-      "addLink": "Lien externe",
-      "addLinkAction": "Ajouter",
-      "linkPlaceholder": "https://…",
-      "file": "Fichier",
-      "link": "Lien",
-      "uploading": "Envoi en cours…",
-      "delete": "Supprimer",
-      "deleteExercise": "Supprimer l'exercice",
-      "cancel": "Annuler",
-      "submitCreate": "Créer l'exercice",
-      "submitEdit": "Enregistrer",
-      "submitting": "Enregistrement…",
-      "errorFileType": "Type de fichier non autorisé (PDF, JPG, PNG, WEBP).",
-      "errorFileSize": "Fichier trop volumineux (20 Mo max)."
-    },
     "filterAllTags": "Tous",
     "tags": {
       "label": "Tags",
@@ -349,11 +321,30 @@
         "emptyRow": "Ligne {{index}} incomplète — renseigne au moins une valeur, ou supprime la ligne.",
         "badValue": "Colonne « {{column}} » : une valeur ne correspond pas au type attendu.",
         "orphanValue": "Une valeur appartient à une colonne qui n'existe plus."
+      },
+      "deleteExercise": "Supprimer l'exercice",
+      "attachment": {
+        "title": "Pièces jointes et liens",
+        "add": "Ajouter un fichier ou un lien",
+        "hint": "PDF, PNG, JPEG, WebP · 20 Mo max",
+        "file": "Fichier",
+        "link": "Lien",
+        "remove": "Retirer",
+        "uploading": "Envoi…",
+        "addLink": "Ajouter un lien",
+        "addLinkAction": "Ajouter",
+        "linkPlaceholder": "https://…",
+        "errorType": "Format non accepté : PDF, PNG, JPEG ou WebP.",
+        "errorSize": "Fichier trop lourd : 20 Mo maximum."
       }
     },
     "noMatch": {
       "title": "Aucun exercice ne correspond à « {{search}} »",
       "create": "Créer « {{search}} »"
+    },
+    "card": {
+      "documentCount": "{{count}} pièce jointe",
+      "documentCount_other": "{{count}} pièces jointes"
     }
   },
   "plan": {

@@ -2,15 +2,21 @@ import { EXERCISE_MAX_TAGS, type ExerciseDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AttachmentsSection } from "@/feature/library/component/AttachmentsSection";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { StructureSection } from "@/feature/library/component/StructureSection";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
 import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
-import { useExercise, useExerciseTags } from "@/feature/library/hook/useExercises";
+import {
+  useDeleteExercise,
+  useExercise,
+  useExerciseTags,
+} from "@/feature/library/hook/useExercises";
 import {
   CmvAppShell,
   CmvButton,
+  CmvConfirmButton,
   CmvErrorState,
   CmvTagInput,
   CmvTextField,
@@ -125,11 +131,12 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
       subtitle={subtitle}
       actions={
         <BuilderActions
-          isEditing={isEditing}
+          exercise={exercise}
           isSaving={draft.isSaving}
           canSubmit={draft.trimmedTitle !== ""}
           onCancel={onLeave}
           onSubmit={onSubmit}
+          onDeleted={onLeave}
         />
       }
     >
@@ -179,6 +186,16 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
               onChange={draft.setBlocks}
             />
 
+            <AttachmentsSection
+              exercise={exercise}
+              pendingFiles={draft.pendingFiles}
+              pendingLinks={draft.pendingLinks}
+              progress={draft.progress}
+              isSaving={draft.isSaving}
+              onPendingFiles={draft.setPendingFiles}
+              onPendingLinks={draft.setPendingLinks}
+            />
+
             {draft.error == null ? null : (
               <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(draft.error)}</p>
             )}
@@ -202,31 +219,53 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
 }
 
 type BuilderActionsProps = {
-  isEditing: boolean;
+  exercise: ExerciseDto | null;
   isSaving: boolean;
   canSubmit: boolean;
   onCancel: () => void;
   onSubmit: () => void;
+  onDeleted: () => void;
 };
 
 function BuilderActions({
-  isEditing,
+  exercise,
   isSaving,
   canSubmit,
   onCancel,
   onSubmit,
+  onDeleted,
 }: Readonly<BuilderActionsProps>) {
   const { t } = useTranslation();
+  const removeExercise = useDeleteExercise();
+
+  const isEditing = exercise != null;
   const submitKey = isEditing ? "library.builder.submitEdit" : "library.builder.submitCreate";
+  const isBusy = isSaving || removeExercise.isPending;
 
   return (
     <>
-      <CmvButton variant="ghost" onClick={onCancel} disabled={isSaving}>
+      {isEditing ? (
+        <CmvConfirmButton
+          label={t("library.builder.deleteExercise")}
+          confirmLabel={t("common.confirmDelete")}
+          cancelLabel={t("common.cancel")}
+          disabled={isBusy}
+          // `mutate` et non `mutateAsync` : le 409 « exercice utilisé dans N séances » atterrit
+          // dans `removeExercise.error`, pas en rejet non capturé.
+          onConfirm={() => removeExercise.mutate(exercise.id, { onSuccess: onDeleted })}
+        />
+      ) : null}
+      <CmvButton variant="ghost" onClick={onCancel} disabled={isBusy}>
         {t("library.builder.cancel")}
       </CmvButton>
-      <CmvButton onClick={onSubmit} disabled={isSaving || !canSubmit}>
+      <CmvButton onClick={onSubmit} disabled={isBusy || !canSubmit}>
         {isSaving ? t("library.builder.saving") : t(submitKey)}
       </CmvButton>
+      {removeExercise.error == null ? null : (
+        <span className="text-cmv-caption text-cmv-error">
+          {apiErrorMessage(removeExercise.error)}
+        </span>
+      )}
     </>
   );
 }

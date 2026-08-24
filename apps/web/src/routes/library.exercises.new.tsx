@@ -8,14 +8,16 @@ export const Route = createFileRoute("/library/exercises/new")({
    * `title` pré-rempli depuis le vide de recherche : le coach a tapé « gainage », n'a rien trouvé,
    * et crée l'exercice manquant sans avoir à retaper ce qu'il vient d'écrire.
    */
-  validateSearch: (search: Record<string, unknown>) => ({
-    title: typeof search.title === "string" ? search.title : undefined,
-  }),
+  // L'objet vide plutôt qu'un `title: undefined` : sans ça TanStack rend `title` OBLIGATOIRE à
+  // la navigation, et chaque appel devrait passer un paramètre qu'il n'a pas.
+  validateSearch: (search: Record<string, unknown>) =>
+    typeof search.title === "string" ? { title: search.title } : {},
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { title } = Route.useSearch();
+  const search = Route.useSearch();
+  const title = "title" in search ? search.title : undefined;
   return (
     <CmvRoleGate capability="coach">
       <ExerciseBuilderScreen initialTitle={title} />

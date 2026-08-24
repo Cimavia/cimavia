@@ -1,7 +1,7 @@
-import type { ExerciseDto, SessionDto } from "@cmv/shared";
+import type { SessionDto } from "@cmv/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ExerciseForm } from "@/feature/library/component/ExerciseForm";
 import { ExerciseList } from "@/feature/library/component/ExerciseList";
 import { SessionBuilder } from "@/feature/library/component/SessionBuilder";
 import { SessionList } from "@/feature/library/component/SessionList";
@@ -13,10 +13,9 @@ type LibraryTab = "exercises" | "sessions";
 
 export function LibraryScreen() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState<LibraryTab>("exercises");
-  const [exercisePanelOpen, setExercisePanelOpen] = useState(false);
-  const [editingExercise, setEditingExercise] = useState<ExerciseDto | null>(null);
   const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<SessionDto | null>(null);
 
@@ -33,13 +32,8 @@ export function LibraryScreen() {
       setSessionPanelOpen(true);
       return;
     }
-    setEditingExercise(null);
-    setExercisePanelOpen(true);
-  }
-
-  function openEditExercise(exercise: ExerciseDto) {
-    setEditingExercise(exercise);
-    setExercisePanelOpen(true);
+    // L'exercice se construit sur une PAGE, pas dans un tiroir (#163).
+    navigate({ to: "/library/exercises/new" });
   }
 
   function openEditSession(session: SessionDto) {
@@ -78,20 +72,11 @@ export function LibraryScreen() {
         {isSessionsTab ? (
           <SessionList onCreate={openCreate} onEdit={openEditSession} />
         ) : (
-          <ExerciseList onCreate={openCreate} onEdit={openEditExercise} />
+          <ExerciseList />
         )}
       </div>
 
       {/* `key` : le formulaire se réinitialise à chaque élément édité. */}
-      {exercisePanelOpen ? (
-        <ExerciseForm
-          key={editingExercise?.id ?? "new-exercise"}
-          open={exercisePanelOpen}
-          exercise={editingExercise}
-          onClose={() => setExercisePanelOpen(false)}
-        />
-      ) : null}
-
       {sessionPanelOpen ? (
         <SessionBuilder
           key={editingSession?.id ?? "new-session"}

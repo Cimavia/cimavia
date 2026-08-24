@@ -1,7 +1,7 @@
 import type { ExerciseBlocks, ExerciseDto, RichDocument } from "@cmv/shared";
 import { useState } from "react";
 import { useInstructionMedia } from "@/feature/library/hook/useInstructionMedia";
-import { useSaveExercise } from "@/feature/library/hook/useSaveExercise";
+import { type PendingFile, useSaveExercise } from "@/feature/library/hook/useSaveExercise";
 
 /**
  * Tout l'état du constructeur, et le seul geste qui l'écrit. Extrait de l'écran pour que celui-ci
@@ -12,13 +12,15 @@ import { useSaveExercise } from "@/feature/library/hook/useSaveExercise";
  * `key`) quand l'URL change d'exercice.
  */
 export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: string) {
-  const { save, isSaving, error } = useSaveExercise();
+  const { save, isSaving, error, progress } = useSaveExercise();
 
   // L'exercice chargé l'emporte : `initialTitle` ne sert qu'à la création.
   const [title, setTitle] = useState(exercise?.title ?? initialTitle ?? "");
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
   const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
   const [blocks, setBlocks] = useState<ExerciseBlocks>(exercise?.blocks ?? []);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [pendingLinks, setPendingLinks] = useState<string[]>([]);
   const media = useInstructionMedia(exercise?.documents ?? []);
 
   const trimmedTitle = title.trim();
@@ -34,8 +36,8 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
         instructions: instructions.length === 0 ? null : instructions,
         blocks,
       },
-      pendingFiles: [],
-      pendingLinks: [],
+      pendingFiles,
+      pendingLinks,
       pendingImages: media.pending,
       onImageProgress: media.setProgress,
     });
@@ -51,9 +53,14 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
     setInstructions,
     blocks,
     setBlocks,
+    pendingFiles,
+    setPendingFiles,
+    pendingLinks,
+    setPendingLinks,
     media,
     submit,
     isSaving,
     error,
+    progress,
   };
 }
