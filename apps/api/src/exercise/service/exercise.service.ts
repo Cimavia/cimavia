@@ -14,6 +14,7 @@ import { DocumentCleanupService } from "./document-cleanup.service";
 
 export type ListExercisesFilters = {
   category?: ExerciseCategory;
+  tag?: string;
   search?: string;
 };
 
@@ -43,6 +44,22 @@ export class ExerciseService {
       throw new NotFoundException("Exercice introuvable");
     }
     return exercise;
+  }
+
+  /**
+   * Les tags distincts du coach, triés. Sert l'autocomplétion du formulaire ET le filtre de la
+   * liste — les deux ont besoin des tags EXISTANTS, pas de ceux du sous-ensemble affiché : dériver
+   * la liste des exercices déjà filtrés la ferait rétrécir à chaque clic.
+   *
+   * `distinct` plutôt qu'un groupBy : on ne veut que les noms, pas leur décompte.
+   */
+  async listTags(): Promise<string[]> {
+    const rows = await this.db.exerciseTag.findMany({
+      distinct: ["name"],
+      select: { name: true },
+      orderBy: { name: "asc" },
+    });
+    return rows.map((row) => row.name);
   }
 
   async create(input: CreateExerciseInput): Promise<ExerciseDto> {
@@ -86,6 +103,8 @@ export class ExerciseService {
   async list(filters: ListExercisesFilters): Promise<ExerciseDto[]> {
     const where: Prisma.ExerciseWhereInput = {};
     if (filters.category) where.category = filters.category;
+    // `some` et non `every` : un exercice porte plusieurs tags, filtrer sur l'un d'eux le retient.
+    if (filters.tag) where.tags = { some: { name: filters.tag } };
     if (filters.search) where.title = { contains: filters.search, mode: "insensitive" };
 
     const exercises = await this.db.exercise.findMany({

@@ -28,12 +28,14 @@ const TABLES = [
   "session_feedback",
   "push_token",
   "scheduled_session_exercise_document",
+  "scheduled_session_exercise_tag",
   "scheduled_session_exercise",
   "scheduled_session",
   "plan_week",
   "plan",
   "session_exercise",
   "exercise_document",
+  "exercise_tag",
   "sessions",
   "exercise",
   "athlete_sheet",
@@ -230,11 +232,39 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       title: "Gainage dynamique",
       description: "4×45 s",
       category: "RENFO",
+      tags: ["Gainage", "renfo"],
     });
     expect(created.status).toBe(201);
     exerciseAId = created.body.id;
     expect(typeof created.body.coachId).toBe("string");
     expect(created.body.documents).toEqual([]);
+    expect(created.body.tags).toEqual(["gainage", "renfo"]);
+
+    const decoy = await coachB.post("/exercises").send({
+      title: "Traction",
+      category: "RENFO",
+      tags: ["poulie"],
+    });
+    expect(decoy.status).toBe(201);
+  });
+
+  it("un coach ne voit que SES tags", async () => {
+    const own = await coachA.get("/exercises/tags");
+    expect(own.status).toBe(200);
+    expect(own.body).toEqual(["gainage", "renfo"]);
+
+    const other = await coachB.get("/exercises/tags");
+    expect(other.body).toEqual(["poulie"]);
+  });
+
+  it("le filtre par tag ne franchit pas la frontière du coach", async () => {
+    const own = await coachA.get("/exercises").query({ tag: "Gainage" });
+    expect(own.body).toHaveLength(1);
+    expect(own.body[0].id).toBe(exerciseAId);
+
+    // Le tag existe, mais chez l'autre coach : la liste doit rester vide, pas fuir l'exercice.
+    const other = await coachB.get("/exercises").query({ tag: "gainage" });
+    expect(other.body).toHaveLength(0);
   });
 
   it("un coach ne liste que SES exercices", async () => {
@@ -243,8 +273,9 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(own.body).toHaveLength(1);
     expect(own.body[0].id).toBe(exerciseAId);
 
+    // coachB a le sien : la liste n'est pas vide, elle est simplement disjointe.
     const other = await coachB.get("/exercises");
-    expect(other.body).toHaveLength(0);
+    expect(other.body.map((e: { id: string }) => e.id)).not.toContain(exerciseAId);
   });
 
   it("un coach ne peut PAS lire l'exercice d'un autre coach", async () => {
