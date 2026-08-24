@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { richDocumentSchema } from "./rich-document.schema";
 
 export const EXERCISE_TITLE_MAX_LENGTH = 200;
 export const EXERCISE_DESCRIPTION_MAX_LENGTH = 5000;
@@ -54,6 +56,12 @@ export const createExerciseSchema = z
   .object({
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
+    // Consigne structurée, remplaçante de `description`. Les deux cohabitent le temps que le
+    // constructeur web bascule (#163) — voir dette R-1.
+    instructions: richDocumentSchema.nullable().optional(),
+    // Absent = aucun bloc, ce qui est un exercice LÉGITIME : un coach peut n'écrire qu'une
+    // consigne. Pas de bloc par défaut, qui obligerait ensuite à le supprimer.
+    blocks: exerciseBlocksSchema.optional(),
     category: exerciseCategorySchema,
     tags: exerciseTagsSchema.optional(),
   })
@@ -64,6 +72,10 @@ export const updateExerciseSchema = z
   .object({
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH).optional(),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
+    // `undefined` ne touche à rien, `null` efface la consigne, `[]` vide les blocs — trois
+    // intentions distinctes que le service doit pouvoir séparer.
+    instructions: richDocumentSchema.nullable().optional(),
+    blocks: exerciseBlocksSchema.optional(),
     category: exerciseCategorySchema.optional(),
     tags: exerciseTagsSchema.optional(),
   })
@@ -141,6 +153,8 @@ export const exerciseDtoSchema = z.object({
   coachId: z.string(),
   title: z.string(),
   description: z.string().nullable(),
+  instructions: richDocumentSchema.nullable(),
+  blocks: exerciseBlocksSchema,
   category: exerciseCategorySchema,
   tags: z.array(z.string()),
   documents: z.array(exerciseDocumentDtoSchema),

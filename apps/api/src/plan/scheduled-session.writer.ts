@@ -1,6 +1,7 @@
 import type { ScheduledSessionExerciseInput } from "@cmv/shared";
 import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
+import { toBlocksInput, toInstructionsInput } from "../util/exercise-json.util";
 
 /**
  * Écriture de la composition d'une séance planifiée — le pendant du `scheduled-session.mapper`,
@@ -60,6 +61,10 @@ export async function insertScheduledSessionExercises(
         sourceExerciseId: draft.exercise.sourceExerciseId ?? null,
         title: draft.exercise.title,
         description: draft.exercise.description ?? null,
+        // Le snapshot porte la consigne et la structure, sinon une planif diffusée se dégrade :
+        // l'athlète garderait le titre et perdrait ce qu'il doit faire.
+        instructions: toInstructionsInput(draft.exercise.instructions ?? null),
+        blocks: toBlocksInput(draft.exercise.blocks ?? []),
         category: draft.exercise.category,
         prescription: draft.exercise.prescription ?? null,
         position,

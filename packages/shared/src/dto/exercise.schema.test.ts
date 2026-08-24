@@ -43,7 +43,7 @@ describe("createExerciseSchema", () => {
   });
 
   it("refuse un champ inconnu (schéma strict)", () => {
-    expect(createExerciseSchema.safeParse({ ...base, blocks: [] }).success).toBe(false);
+    expect(createExerciseSchema.safeParse({ ...base, cotation: "6b" }).success).toBe(false);
   });
 });
 
@@ -53,5 +53,35 @@ describe("updateExerciseSchema", () => {
     // et le service s'en sert pour ne réécrire que sur demande explicite.
     expect(updateExerciseSchema.parse({ title: "x" }).tags).toBeUndefined();
     expect(updateExerciseSchema.parse({ tags: [] }).tags).toEqual([]);
+  });
+});
+
+describe("consigne structurée et blocs", () => {
+  const base = { title: "Tractions lestées", category: ExerciseCategory.RENFO };
+  const paragraph = [{ type: "PARAGRAPH", content: [{ text: "Coudes serrés." }] }];
+
+  it("accepte un exercice sans consigne ni bloc", () => {
+    const parsed = createExerciseSchema.parse(base);
+    expect(parsed.instructions).toBeUndefined();
+    expect(parsed.blocks).toBeUndefined();
+  });
+
+  it("accepte une consigne structurée", () => {
+    expect(createExerciseSchema.parse({ ...base, instructions: paragraph }).instructions).toEqual(
+      paragraph,
+    );
+  });
+
+  it("refuse une consigne dont un lien n'est pas en http(s)", () => {
+    const hostile = [
+      { type: "PARAGRAPH", content: [{ text: "ici", href: "javascript:alert(1)" }] },
+    ];
+    expect(createExerciseSchema.safeParse({ ...base, instructions: hostile }).success).toBe(false);
+  });
+
+  it("distingue « consigne absente » de « consigne effacée »", () => {
+    // undefined : ne touche pas. null : efface. Le service s'appuie sur cette différence.
+    expect(updateExerciseSchema.parse({ title: "x" }).instructions).toBeUndefined();
+    expect(updateExerciseSchema.parse({ instructions: null }).instructions).toBeNull();
   });
 });

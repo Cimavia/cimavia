@@ -560,6 +560,26 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
   const monday = mondayOfCurrentWeek();
 
+  const LIBRARY_INSTRUCTIONS = [{ type: "PARAGRAPH", content: [{ text: "Coudes serrés." }] }];
+  const LIBRARY_BLOCKS = [
+    {
+      id: "blk_1",
+      label: "Travail",
+      structure: { type: "SERIES", setCount: 5, restBetweenSetsSeconds: 180 },
+      metrics: [
+        {
+          id: "col_reps",
+          source: "CATALOG",
+          key: "REPETITIONS",
+          unit: "REPS",
+          label: null,
+          collapsed: false,
+        },
+      ],
+      rows: [{ id: "r1", values: { col_reps: 5 } }],
+    },
+  ];
+
   // Lie un athlète à un coach par invitation et retourne son id.
   async function link(coach: Agent, athlete: Agent): Promise<string> {
     const invitation = await coach.post("/invitations").send({});
@@ -578,9 +598,13 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     b1Id = await link(coachB, athleteB1);
 
     // Bibliothèque du coach A : un exercice documenté, composé dans une séance modèle.
-    const exercise = await coachA
-      .post("/exercises")
-      .send({ title: "Tractions lestées", description: "Prise large", category: "RENFO" });
+    const exercise = await coachA.post("/exercises").send({
+      title: "Tractions lestées",
+      description: "Prise large",
+      category: "RENFO",
+      instructions: LIBRARY_INSTRUCTIONS,
+      blocks: LIBRARY_BLOCKS,
+    });
     exerciseAId = exercise.body.id;
     await coachA
       .post(`/exercises/${exerciseAId}/documents`)
@@ -649,6 +673,23 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     // Le document de l'exercice suit la copie : sans lui, l'athlète n'y aurait aucun accès.
     expect(res.body.exercises[0].documents).toHaveLength(1);
     expect(res.body.exercises[0].documents[0].url).toBe("https://youtu.be/demo");
+    // Consigne et structure suivent aussi : sans elles l'athlète garderait le titre et perdrait
+    // ce qu'il doit faire.
+    expect(res.body.exercises[0].instructions).toEqual(LIBRARY_INSTRUCTIONS);
+    expect(res.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
+  });
+
+  it("la copie est FIGÉE : retravailler l'exercice source ne la touche pas", async () => {
+    const patched = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      instructions: [{ type: "PARAGRAPH", content: [{ text: "Réécrit après diffusion." }] }],
+      blocks: [],
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.blocks).toEqual([]);
+
+    const read = await coachA.get(`/scheduled-sessions/${scheduledId}`);
+    expect(read.body.exercises[0].instructions).toEqual(LIBRARY_INSTRUCTIONS);
+    expect(read.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
   });
 
   it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {

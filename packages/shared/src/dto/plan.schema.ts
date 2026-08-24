@@ -8,6 +8,8 @@ import {
   exerciseDocumentDtoSchema,
   exerciseTagsSchema,
 } from "./exercise.schema";
+import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { richDocumentSchema } from "./rich-document.schema";
 import {
   SESSION_NOTES_MAX_LENGTH,
   SESSION_PRESCRIPTION_MAX_LENGTH,
@@ -119,6 +121,9 @@ export const scheduledSessionExerciseInputSchema = z
     sourceExerciseId: z.string().min(1).nullable().optional(),
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
+    // Copiés de l'exercice source au moment de la diffusion, comme les documents et les tags.
+    instructions: richDocumentSchema.nullable().optional(),
+    blocks: exerciseBlocksSchema.optional(),
     category: exerciseCategorySchema,
     tags: exerciseTagsSchema.optional(),
     prescription: z.string().max(SESSION_PRESCRIPTION_MAX_LENGTH).nullable().optional(),
@@ -164,6 +169,10 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   sourceExerciseId: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
+  // Copies FIGÉES elles aussi : l'athlète lit la consigne et la structure telles qu'elles étaient
+  // à la diffusion, même si le coach a retravaillé l'exercice de sa bibliothèque depuis.
+  instructions: richDocumentSchema.nullable(),
+  blocks: exerciseBlocksSchema,
   category: exerciseCategorySchema,
   // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
   // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.

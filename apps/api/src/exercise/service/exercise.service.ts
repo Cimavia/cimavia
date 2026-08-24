@@ -1,39 +1,17 @@
 import type {
   CreateExerciseInput,
-  ExerciseBlocks,
   ExerciseCategory,
   ExerciseDto,
-  RichDocument,
   UpdateExerciseInput,
 } from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { toBlocksInput, toInstructionsInput } from "../../util/exercise-json.util";
 import { type ExerciseWithDocuments, toExerciseDto } from "../exercise.mapper";
 import { DocumentCleanupService } from "./document-cleanup.service";
-
-/**
- * `Prisma.DbNull` et non `null` : sur une colonne JSON nullable, Prisma distingue le NULL SQL
- * (la consigne n'existe pas) du littéral JSON `null` (elle existe et vaut null). Passer `null`
- * tel quel est refusé à la compilation, et c'est heureux — les deux ne se relisent pas pareil.
- */
-function toInstructionsInput(
-  instructions: RichDocument | null,
-): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue {
-  return instructions === null ? Prisma.DbNull : instructions;
-}
-
-/**
- * N'a l'air de rien et n'est pas supprimable : sans ce passage par `InputJsonValue`, le littéral
- * de données porte le type Zod des blocs, et la conversion vers `ExerciseUncheckedCreateInput`
- * est refusée — TypeScript ne juge plus les deux types comparables. Le retour explicite fixe le
- * type AVANT que le littéral ne soit construit.
- */
-function toBlocksInput(blocks: ExerciseBlocks): Prisma.InputJsonValue {
-  return blocks;
-}
 
 export type ListExercisesFilters = {
   category?: ExerciseCategory;

@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { toDocumentDto } from "../infra/storage/document.mapper";
 import type { StorageService } from "../infra/storage/storage.service";
 import { toIsoDate } from "../util/date.util";
+import { parseBlocks, parseInstructions } from "../util/exercise-json.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
 export const SESSION_DETAIL_INCLUDE = {
@@ -29,6 +30,8 @@ async function toExerciseDto(
     sourceExerciseId: exercise.sourceExerciseId,
     title: exercise.title,
     description: exercise.description,
+    instructions: parseInstructions(exercise.instructions),
+    blocks: parseBlocks(exercise.blocks),
     category: exercise.category,
     tags: exercise.tags.map((tag) => tag.name).sort(),
     prescription: exercise.prescription,

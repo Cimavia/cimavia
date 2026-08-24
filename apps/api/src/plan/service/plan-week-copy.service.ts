@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toIsoDate } from "../../util/date.util";
+import { parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import { SESSION_DETAIL_INCLUDE } from "../scheduled-session.mapper";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
@@ -131,8 +132,15 @@ export class PlanWeekCopyService {
           targetPlan.athleteId,
           // Les tags de l'instance source sont aplatis en noms : le draft attend la forme du DTO,
           // pas les lignes de la table de copie.
+          // Consigne et blocs repassent par Zod : ils sortent de Prisma en `JsonValue`, que le
+          // draft n'accepte pas — et le faire ICI garde la copie fidèle à l'instance source.
           session.exercises.map((exercise) => ({
-            exercise: { ...exercise, tags: exercise.tags.map((tag) => tag.name) },
+            exercise: {
+              ...exercise,
+              instructions: parseInstructions(exercise.instructions),
+              blocks: parseBlocks(exercise.blocks),
+              tags: exercise.tags.map((tag) => tag.name),
+            },
             documents: exercise.documents,
           })),
         );

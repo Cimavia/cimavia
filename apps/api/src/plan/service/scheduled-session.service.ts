@@ -16,6 +16,7 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
+import { parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import {
   type ScheduledSessionWithExercises,
   SESSION_DETAIL_INCLUDE,
@@ -239,6 +240,8 @@ export class ScheduledSessionService {
         sourceExerciseId: exercise.id,
         title: exercise.title,
         description: exercise.description,
+        instructions: parseInstructions(exercise.instructions),
+        blocks: parseBlocks(exercise.blocks),
         category: exercise.category,
         tags: exercise.tags.map((tag) => tag.name).sort(),
         prescription: composed.prescription,
