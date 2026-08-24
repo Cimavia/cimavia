@@ -424,6 +424,89 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
   });
 });
 
+describe("Métriques maison du coach (#162)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let metricAId: string;
+
+  beforeAll(async () => {
+    coachA = await signUp("metric-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("metric-coach-b@cmv.test", Role.COACH);
+
+    const created = await coachA.post("/custom-metrics").send({
+      label: "Cotation maison",
+      unit: null,
+      valueType: "SCALE",
+      scale: ["facile", "moyen", "dur"],
+    });
+    expect(created.status).toBe(201);
+    metricAId = created.body.id;
+    expect(created.body.scale).toEqual(["facile", "moyen", "dur"]);
+  });
+
+  it("un coach ne liste que SES métriques", async () => {
+    const own = await coachA.get("/custom-metrics");
+    expect(own.status).toBe(200);
+    expect(own.body).toHaveLength(1);
+    expect(own.body[0].label).toBe("Cotation maison");
+
+    expect((await coachB.get("/custom-metrics")).body).toHaveLength(0);
+  });
+
+  it("un coach ne peut ni modifier ni supprimer la métrique d'un autre", async () => {
+    const patch = await coachB.patch(`/custom-metrics/${metricAId}`).send({
+      label: "Intrusion",
+      unit: null,
+      valueType: "NUMBER",
+      scale: null,
+    });
+    expect(patch.status).toBe(404);
+    expect((await coachB.delete(`/custom-metrics/${metricAId}`)).status).toBe(404);
+  });
+
+  it("refuse deux métriques de même nom chez le MÊME coach, pas entre coachs", async () => {
+    const duplicate = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Cotation maison", unit: null, valueType: "NUMBER", scale: null });
+    expect(duplicate.status).toBe(409);
+
+    // Le même libellé chez un AUTRE coach est légitime : l'unicité est par tenant.
+    const elsewhere = await coachB
+      .post("/custom-metrics")
+      .send({ label: "Cotation maison", unit: null, valueType: "NUMBER", scale: null });
+    expect(elsewhere.status).toBe(201);
+    await coachB.delete(`/custom-metrics/${elsewhere.body.id}`);
+  });
+
+  it("tient l'invariant type/paliers dans les deux sens", async () => {
+    // SCALE sans paliers : aucune saisie ne serait possible.
+    const noSteps = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Sans paliers", unit: null, valueType: "SCALE", scale: null });
+    expect(noSteps.status).toBe(400);
+
+    // Paliers sur un type qui n'en veut pas : donnée morte, et un rendu qui ne saurait qu'en faire.
+    const strayScale = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Nombre paliers", unit: "pts", valueType: "NUMBER", scale: ["a", "b"] });
+    expect(strayScale.status).toBe(400);
+  });
+
+  it("la mise à jour REMPLACE la définition", async () => {
+    const res = await coachA
+      .patch(`/custom-metrics/${metricAId}`)
+      .send({ label: "Indice technique", unit: "pts", valueType: "NUMBER", scale: null });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: metricAId,
+      label: "Indice technique",
+      unit: "pts",
+      valueType: "NUMBER",
+      scale: null,
+    });
+  });
+});
+
 describe("Composition & isolation des séances (P2)", () => {
   let coachA: Agent;
   let coachB: Agent;

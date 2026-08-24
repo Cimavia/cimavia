@@ -98,6 +98,7 @@ export {
   validateBlockValues,
 } from "./dto/exercise-block.schema";
 export type {
+  CreateCustomMetricInput,
   CustomMetric,
   MetricFamily as MetricFamilyType,
   MetricKey as MetricKeyType,
@@ -105,10 +106,12 @@ export type {
   MetricValue,
   MetricValueType as MetricValueTypeType,
   OrderedScale,
+  UpdateCustomMetricInput,
 } from "./dto/exercise-metric.schema";
 export {
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
   CUSTOM_METRIC_UNIT_MAX_LENGTH,
+  createCustomMetricSchema,
   customMetricSchema,
   defaultUnitOf,
   FRENCH_CLIMBING_SCALE,
@@ -131,6 +134,7 @@ export {
   SCALE_MAX_STEPS,
   SCALE_STEP_MAX_LENGTH,
   scaleStepIndex,
+  updateCustomMetricSchema,
   V_BOULDERING_SCALE,
 } from "./dto/exercise-metric.schema";
 export type {

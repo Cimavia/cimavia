@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createCustomMetricSchema,
   customMetricSchema,
   defaultUnitOf,
   FRENCH_CLIMBING_SCALE,
@@ -12,6 +13,7 @@ import {
   metricValueSchemaFor,
   orderedScaleSchema,
   scaleStepIndex,
+  updateCustomMetricSchema,
   V_BOULDERING_SCALE,
 } from "./exercise-metric.schema";
 
@@ -145,5 +147,33 @@ describe("metricValueSchemaFor", () => {
     const schema = metricValueSchemaFor(MetricValueType.SCALE);
     expect(schema.safeParse("7a").success).toBe(true);
     expect(schema.safeParse(7).success).toBe(false);
+  });
+});
+
+describe("createCustomMetricSchema", () => {
+  const base = { label: "Cotation maison", unit: null };
+
+  it("n'attend PAS d'identifiant — la base l'attribue", () => {
+    const parsed = createCustomMetricSchema.parse({
+      ...base,
+      valueType: MetricValueType.SCALE,
+      scale: ["1", "2"],
+    });
+    expect(parsed).not.toHaveProperty("id");
+    expect(createCustomMetricSchema.safeParse({ ...base, id: "m_1" }).success).toBe(false);
+  });
+
+  it("tient le même invariant type/paliers que la métrique complète", () => {
+    const noSteps = { ...base, valueType: MetricValueType.SCALE, scale: null };
+    expect(createCustomMetricSchema.safeParse(noSteps).success).toBe(false);
+
+    const strayScale = { ...base, valueType: MetricValueType.NUMBER, scale: ["a", "b"] };
+    expect(createCustomMetricSchema.safeParse(strayScale).success).toBe(false);
+  });
+
+  it("refuse un patch partiel — la mise à jour remplace la définition entière", () => {
+    // `valueType` et `scale` sont liés : accepter « juste le libellé » laisserait passer une
+    // métrique d'échelle sans paliers au coup d'après.
+    expect(updateCustomMetricSchema.safeParse({ label: "Renommée" }).success).toBe(false);
   });
 });

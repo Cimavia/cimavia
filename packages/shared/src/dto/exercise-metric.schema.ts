@@ -298,20 +298,43 @@ export function scaleStepIndex(scale: OrderedScale, step: string): number | null
  * `scale` n'existe que pour le type SCALE, et est exigée dans ce cas : une échelle sans paliers
  * ne permettrait aucune saisie.
  */
+// La définition, sans l'identifiant : la création ne le porte pas, la base l'attribue.
+const customMetricShape = {
+  label: z.string().min(1).max(CUSTOM_METRIC_LABEL_MAX_LENGTH),
+  unit: z.string().max(CUSTOM_METRIC_UNIT_MAX_LENGTH).nullable(),
+  valueType: metricValueTypeSchema,
+  scale: orderedScaleSchema.nullable(),
+};
+
+const SCALE_INVARIANT = {
+  message: "Une métrique d'échelle exige des paliers, et elle seule.",
+  path: ["scale"],
+};
+
+function holdsScaleInvariant(metric: { valueType: MetricValueType; scale: OrderedScale | null }) {
+  return (metric.valueType === MetricValueType.SCALE) === (metric.scale !== null);
+}
+
 export const customMetricSchema = z
-  .object({
-    id: z.string().min(1),
-    label: z.string().min(1).max(CUSTOM_METRIC_LABEL_MAX_LENGTH),
-    unit: z.string().max(CUSTOM_METRIC_UNIT_MAX_LENGTH).nullable(),
-    valueType: metricValueTypeSchema,
-    scale: orderedScaleSchema.nullable(),
-  })
+  .object({ id: z.string().min(1), ...customMetricShape })
   .strict()
-  .refine((metric) => (metric.valueType === MetricValueType.SCALE) === (metric.scale !== null), {
-    message: "Une métrique d'échelle exige des paliers, et elle seule.",
-    path: ["scale"],
-  });
+  .refine(holdsScaleInvariant, SCALE_INVARIANT);
 export type CustomMetric = z.infer<typeof customMetricSchema>;
+
+export const createCustomMetricSchema = z
+  .object(customMetricShape)
+  .strict()
+  .refine(holdsScaleInvariant, SCALE_INVARIANT);
+export type CreateCustomMetricInput = z.infer<typeof createCustomMetricSchema>;
+
+/**
+ * La mise à jour REMPLACE la définition entière, elle ne la rapièce pas. `valueType` et `scale`
+ * sont liés par un invariant : accepter un patch partiel laisserait passer « passe en SCALE »
+ * sans paliers, ou « retire les paliers » sans changer de type. Quatre champs ne valent pas ce
+ * risque — le formulaire les tient tous les quatre de toute façon.
+ */
+export const updateCustomMetricSchema = createCustomMetricSchema;
+export type UpdateCustomMetricInput = z.infer<typeof updateCustomMetricSchema>;
 
 // ── Valeur d'une cellule ────────────────────────────────────────────────────────────────────
 
