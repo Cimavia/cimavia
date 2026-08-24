@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   type AttachDocumentInput,
   DocumentType,
+  DocumentUsage,
   type ExerciseDocumentDto,
   type RequestUploadUrlInput,
   SIGNED_URL_TTL_SECONDS,
@@ -48,6 +49,9 @@ export class ExerciseDocumentService {
             storagePath: input.storagePath,
             fileName: input.fileName,
             mimeType: input.mimeType,
+            // Un LINK est toujours une pièce jointe : le lien inline de la consigne est une
+            // MARQUE sur du texte, pas un document rattaché.
+            usage: input.usage ?? DocumentUsage.ATTACHMENT,
           }
         : { exerciseId, type: DocumentType.LINK, url: input.url };
 

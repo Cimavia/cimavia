@@ -3,7 +3,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
+import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { useExercise, useExerciseTags } from "@/feature/library/hook/useExercises";
+import { useInstructionMedia } from "@/feature/library/hook/useInstructionMedia";
 import { useSaveExercise } from "@/feature/library/hook/useSaveExercise";
 import {
   CmvAppShell,
@@ -88,6 +90,7 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
   const [title, setTitle] = useState(exercise?.title ?? "");
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
   const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
+  const media = useInstructionMedia(exercise?.documents ?? []);
 
   const isEditing = exercise != null;
   const trimmedTitle = title.trim();
@@ -104,6 +107,8 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
       },
       pendingFiles: [],
       pendingLinks: [],
+      pendingImages: media.pending,
+      onImageProgress: media.setProgress,
     });
     onLeave();
   }
@@ -137,45 +142,54 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
     >
       {/* Deux colonnes dès `xl` seulement : en dessous, l'aperçu passe SOUS le formulaire plutôt
           que de le comprimer — une grille de dosage étroite devient illisible. */}
-      <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="flex flex-col gap-cmv-xl">
-          <CmvTextField
-            label={t("library.builder.titleLabel")}
-            name="title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder={t("library.builder.titlePlaceholder")}
-            required
-            requiredMark
-          />
-
-          <CmvTagInput
-            label={t("library.tags.label")}
-            value={tags}
-            onChange={setTags}
-            suggestions={knownTags ?? []}
-            placeholder={t("library.tags.placeholder")}
-            removeLabel={t("library.tags.remove")}
-            max={EXERCISE_MAX_TAGS}
-          />
-
-          <Suspense fallback={<p className="text-cmv-text-mid">{t("common.loading")}</p>}>
-            <InstructionsEditor
-              initialValue={exercise?.instructions ?? null}
-              onChange={setInstructions}
+      {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
+          doit montrer l'image dès qu'elle est posée — pas seulement après enregistrement. */}
+      <InstructionMediaProvider media={media}>
+        <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="flex flex-col gap-cmv-xl">
+            <CmvTextField
+              label={t("library.builder.titleLabel")}
+              name="title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder={t("library.builder.titlePlaceholder")}
+              required
+              requiredMark
             />
-          </Suspense>
 
-          {error == null ? null : (
-            <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(error)}</p>
-          )}
+            <CmvTagInput
+              label={t("library.tags.label")}
+              value={tags}
+              onChange={setTags}
+              suggestions={knownTags ?? []}
+              placeholder={t("library.tags.placeholder")}
+              removeLabel={t("library.tags.remove")}
+              max={EXERCISE_MAX_TAGS}
+            />
+
+            <Suspense fallback={<p className="text-cmv-text-mid">{t("common.loading")}</p>}>
+              <InstructionsEditor
+                initialValue={exercise?.instructions ?? null}
+                onChange={setInstructions}
+              />
+            </Suspense>
+
+            {error == null ? null : (
+              <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(error)}</p>
+            )}
+          </div>
+
+          {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
+          <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
+            <ExercisePreview
+              title={trimmedTitle}
+              tags={tags}
+              instructions={instructions}
+              resolveImage={media.resolve}
+            />
+          </aside>
         </div>
-
-        {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
-        <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
-          <ExercisePreview title={trimmedTitle} tags={tags} instructions={instructions} />
-        </aside>
-      </div>
+      </InstructionMediaProvider>
     </CmvAppShell>
   );
 }

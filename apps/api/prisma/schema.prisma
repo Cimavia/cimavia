@@ -203,6 +203,14 @@ enum MetricValueType {
   SCALE
 }
 
+/// À quoi sert un document rattaché à un exercice. Sans lui, une image POSÉE dans la consigne
+/// réapparaîtrait dans la liste des pièces jointes — visible deux fois, supprimable d'un côté
+/// sans que le coach comprenne pourquoi elle disparaît de l'autre.
+enum DocumentUsage {
+  ATTACHMENT
+  INSTRUCTION
+}
+
 enum DocumentType {
   FILE // fichier uploadé en object storage (storagePath)
   LINK // lien externe (url) — ex. vidéo YouTube
@@ -238,16 +246,19 @@ model Exercise {
 }
 
 model ExerciseDocument {
-  id          String       @id @default(cuid())
+  id          String        @id @default(cuid())
   coachId     String // dénormalisé pour le scope tenant direct
   exerciseId  String
-  exercise    Exercise     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise    Exercise      @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   type        DocumentType
+  /// INSTRUCTION = image référencée par un bloc de la consigne (`mediaId`). ATTACHMENT par
+  /// défaut : c'est le seul usage qui existait avant la consigne structurée.
+  usage       DocumentUsage @default(ATTACHMENT)
   storagePath String? // clé objet S3 (type FILE) — jamais le binaire en BDD
   url         String? // lien externe (type LINK)
   fileName    String? // nom d'affichage (type FILE)
   mimeType    String? // type MIME (type FILE)
-  createdAt   DateTime     @default(now())
+  createdAt   DateTime      @default(now())
 
   @@index([coachId])
   @@index([exerciseId])
@@ -477,6 +488,9 @@ model ScheduledSessionExerciseDocument {
   scheduledSessionExerciseId String
   scheduledSessionExercise   ScheduledSessionExercise @relation(fields: [scheduledSessionExerciseId], references: [id], onDelete: Cascade)
   type                       DocumentType
+  /// Copié comme le reste : sans lui, une planif diffusée listerait les images de consigne
+  /// parmi les pièces jointes de l'athlète.
+  usage                      DocumentUsage            @default(ATTACHMENT)
   storagePath                String? // MÊME clé objet que le document d'origine (type FILE)
   url                        String? // lien externe (type LINK)
   fileName                   String?

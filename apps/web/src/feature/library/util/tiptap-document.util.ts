@@ -23,6 +23,9 @@ import type { JSONContent } from "@tiptap/react";
 /** Nom du nœud d'encadré. TipTap n'en fournit pas : il est défini dans `calloutExtension`. */
 export const CALLOUT_NODE = "callout";
 
+/** Nom du nœud image. Porte un `mediaId`, jamais une URL : les URLs S3 sont signées et expirent. */
+export const IMAGE_NODE = "instructionImage";
+
 /** Un seul niveau de titre : une consigne d'exercice ne se hiérarchise pas davantage. */
 export const HEADING_LEVEL = 3;
 
@@ -68,27 +71,53 @@ function toListItem(item: JSONContent): InlineNode[] {
   return (item.content ?? []).flatMap((child) => toInlineContent(child.content));
 }
 
-function toRichBlock(node: JSONContent): RichBlock | null {
-  if (node.type === "heading") {
+function readInlineBlock(
+  type:
+    | typeof RichBlockType.HEADING
+    | typeof RichBlockType.PARAGRAPH
+    | typeof RichBlockType.CALLOUT,
+) {
+  return (node: JSONContent): RichBlock | null => {
     const content = toInlineContent(node.content);
-    return content.length === 0 ? null : { type: RichBlockType.HEADING, content };
-  }
-  if (node.type === "paragraph") {
-    const content = toInlineContent(node.content);
-    // Le paragraphe vide est la respiration normale d'un éditeur, pas un bloc à stocker.
-    return content.length === 0 ? null : { type: RichBlockType.PARAGRAPH, content };
-  }
-  if (node.type === CALLOUT_NODE) {
-    const content = toInlineContent(node.content);
-    return content.length === 0 ? null : { type: RichBlockType.CALLOUT, content };
-  }
-  if (node.type === "bulletList" || node.type === "orderedList") {
+    // Un bloc sans texte est la respiration normale d'un éditeur, pas de la donnée à stocker.
+    return content.length === 0 ? null : { type, content };
+  };
+}
+
+function readList(ordered: boolean) {
+  return (node: JSONContent): RichBlock | null => {
     const items = (node.content ?? []).map(toListItem).filter((item) => item.length > 0);
-    return items.length === 0
-      ? null
-      : { type: RichBlockType.LIST, ordered: node.type === "orderedList", items };
-  }
-  return null;
+    return items.length === 0 ? null : { type: RichBlockType.LIST, ordered, items };
+  };
+}
+
+function readImage(node: JSONContent): RichBlock | null {
+  const mediaId = node.attrs?.mediaId;
+  // Un nœud image sans média est un nœud à moitié posé (fichier non choisi, ou envoi échoué) :
+  // il n'a rien à stocker.
+  if (typeof mediaId !== "string" || mediaId === "") return null;
+  const caption = typeof node.attrs?.caption === "string" ? node.attrs.caption.trim() : "";
+  return { type: RichBlockType.IMAGE, mediaId, ...(caption === "" ? {} : { caption }) };
+}
+
+/**
+ * Un lecteur par type de nœud. Une table plutôt qu'une chaîne de `if` : chaque entrée reste
+ * lisible seule, et ajouter un type ne rend pas la fonction d'aiguillage plus complexe.
+ *
+ * Ce que la table ne connaît pas est jeté — un collage peut apporter n'importe quel nœud.
+ */
+const BLOCK_READERS: Record<string, (node: JSONContent) => RichBlock | null> = {
+  heading: readInlineBlock(RichBlockType.HEADING),
+  paragraph: readInlineBlock(RichBlockType.PARAGRAPH),
+  [CALLOUT_NODE]: readInlineBlock(RichBlockType.CALLOUT),
+  [IMAGE_NODE]: readImage,
+  bulletList: readList(false),
+  orderedList: readList(true),
+};
+
+function toRichBlock(node: JSONContent): RichBlock | null {
+  const read = node.type == null ? undefined : BLOCK_READERS[node.type];
+  return read?.(node) ?? null;
 }
 
 /**
@@ -134,7 +163,12 @@ function toTipTapNode(block: RichBlock): JSONContent | null {
       })),
     };
   }
-  // IMAGE : le nœud arrive au commit suivant, avec le flux d'upload qu'il traîne.
+  if (block.type === RichBlockType.IMAGE) {
+    return {
+      type: IMAGE_NODE,
+      attrs: { mediaId: block.mediaId, caption: block.caption ?? "" },
+    };
+  }
   return null;
 }
 

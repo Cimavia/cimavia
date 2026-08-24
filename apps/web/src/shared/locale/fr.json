@@ -210,7 +210,17 @@
         "link": "Lien",
         "linkUrl": "Adresse du lien",
         "linkApply": "Appliquer le lien",
-        "linkCancel": "Annuler le lien"
+        "linkCancel": "Annuler le lien",
+        "image": "Image"
+      },
+      "image": {
+        "caption": "Légende de l'image",
+        "captionPlaceholder": "Légende (facultative)",
+        "remove": "Retirer l'image",
+        "missing": "Image indisponible",
+        "uploading": "Envoi… {{percent}} %",
+        "errorType": "Format non accepté : PNG, JPEG ou WebP.",
+        "errorSize": "Image trop lourde : 20 Mo maximum."
       }
     }
   },

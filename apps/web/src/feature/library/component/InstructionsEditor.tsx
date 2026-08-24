@@ -1,4 +1,9 @@
-import { linkHrefSchema, type RichDocument } from "@cmv/shared";
+import {
+  isInstructionImageMime,
+  linkHrefSchema,
+  MAX_DOCUMENT_SIZE_BYTES,
+  type RichDocument,
+} from "@cmv/shared";
 import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { type ReactNode, useState } from "react";
@@ -7,14 +12,19 @@ import {
   IoAttach,
   IoCheckmark,
   IoClose,
+  IoImageOutline,
   IoInformationCircleOutline,
   IoList,
   IoText,
 } from "react-icons/io5";
 import { CalloutExtension } from "@/feature/library/component/CalloutExtension";
+import { ImageExtension } from "@/feature/library/component/ImageExtension";
+import { useInstructionMediaContext } from "@/feature/library/component/InstructionMediaContext";
+import { INSTRUCTION_IMAGE_ACCEPT } from "@/feature/library/constant";
 import {
   CALLOUT_NODE,
   HEADING_LEVEL,
+  IMAGE_NODE,
   toRichDocument,
   toTipTapDocument,
 } from "@/feature/library/util/tiptap-document.util";
@@ -45,6 +55,7 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
         link: { openOnClick: false, protocols: ["http", "https"] },
       }),
       CalloutExtension,
+      ImageExtension,
     ],
     content: toTipTapDocument(initialValue),
     onUpdate: ({ editor: current }) => onChange(toRichDocument(current.getJSON())),
@@ -108,7 +119,9 @@ function ToolButton({ label, active, onClick, children }: Readonly<ToolButtonPro
 
 function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
   const { t } = useTranslation();
+  const media = useInstructionMediaContext();
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   /**
    * `useEditorState` plutôt que `editor.isActive()` lu au rendu : sans lui, React ne se redessine
@@ -134,6 +147,28 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
       return;
     }
     setLinkDraft("https://");
+  }
+
+  /**
+   * Les MÊMES contraintes que le serveur, appliquées avant de toucher au réseau : le coach voit
+   * son refus tout de suite, et pas après une barre de progression pour rien.
+   */
+  function onPickImage(file: File) {
+    setFileError(null);
+    if (!isInstructionImageMime(file.type)) {
+      setFileError(t("library.builder.image.errorType"));
+      return;
+    }
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      setFileError(t("library.builder.image.errorSize"));
+      return;
+    }
+    const mediaId = media.register(file, file.type);
+    editor
+      .chain()
+      .focus()
+      .insertContent({ type: IMAGE_NODE, attrs: { mediaId, caption: "" } })
+      .run();
   }
 
   function applyLink(href: string) {
@@ -205,6 +240,7 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
         >
           <IoInformationCircleOutline />
         </ToolButton>
+        <ImageToolButton onPick={onPickImage} />
         <ToolButton
           label={t("library.builder.tool.link")}
           active={state.link}
@@ -213,6 +249,8 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
           <IoAttach />
         </ToolButton>
       </div>
+
+      {fileError == null ? null : <p className="text-cmv-caption text-cmv-error">{fileError}</p>}
 
       {linkDraft == null ? null : (
         <LinkField
@@ -223,6 +261,33 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Un `<label>` et non un bouton : l'input fichier natif ouvre le sélecteur sans qu'on ait à
+ * simuler un clic sur une ref, et reste accessible au clavier.
+ */
+function ImageToolButton({ onPick }: Readonly<{ onPick: (file: File) => void }>) {
+  const { t } = useTranslation();
+  return (
+    <label
+      title={t("library.builder.tool.image")}
+      className="cursor-pointer rounded-cmv-sm px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-mid transition-colors hover:text-cmv-text-hi"
+    >
+      <IoImageOutline aria-label={t("library.builder.tool.image")} />
+      <input
+        type="file"
+        accept={INSTRUCTION_IMAGE_ACCEPT}
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          // Remis à zéro : sans ça, re-choisir le MÊME fichier ne déclenche aucun `change`.
+          event.target.value = "";
+          if (file != null) onPick(file);
+        }}
+      />
+    </label>
   );
 }
 

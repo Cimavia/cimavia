@@ -41,7 +41,59 @@ function inlineContent(nodes: readonly InlineNode[]): ReactNode {
   return nodes.map((node, index) => <InlineText key={index} node={node} />);
 }
 
-function Block({ block }: Readonly<{ block: RichBlock }>) {
+/**
+ * Résout l'id d'un média vers une URL affichable. Le document ne stocke QUE l'id (règle dure
+ * n°7) : les URLs S3 sont signées et expirent, une consigne relue trois mois plus tard afficherait
+ * des images mortes si on les y gravait.
+ *
+ * Rend `null` quand l'id ne correspond à rien — un média supprimé ne casse pas la lecture.
+ */
+export type ResolveImage = (mediaId: string) => string | null;
+
+function ListBlock({ block }: Readonly<{ block: Extract<RichBlock, { type: "LIST" }> }>) {
+  const List = block.ordered ? "ol" : "ul";
+  return (
+    <List
+      className={cn(
+        "flex flex-col gap-cmv-xs pl-cmv-lg text-cmv-body text-cmv-text-mid",
+        block.ordered ? "list-decimal" : "list-disc",
+      )}
+    >
+      {block.items.map((item, index) => (
+        <li key={index}>{inlineContent(item)}</li>
+      ))}
+    </List>
+  );
+}
+
+function ImageBlock({
+  block,
+  resolveImage,
+}: Readonly<{
+  block: Extract<RichBlock, { type: "IMAGE" }>;
+  resolveImage: ResolveImage | undefined;
+}>) {
+  const src = resolveImage?.(block.mediaId) ?? null;
+  // Sans résolveur ou sans média correspondant : rien. Pas de cadre cassé, pas de « image
+  // indisponible » — la consigne se lit sans elle.
+  if (src == null) return null;
+
+  const caption = block.caption ?? "";
+  return (
+    <figure className="flex flex-col gap-cmv-xs">
+      {/* Pleine largeur du bloc, jamais habillée de texte : le modèle n'a pas de flottant. */}
+      <img src={src} alt={caption} className="w-full rounded-cmv-md" />
+      {caption === "" ? null : (
+        <figcaption className="text-cmv-caption text-cmv-text-mid">{caption}</figcaption>
+      )}
+    </figure>
+  );
+}
+
+function Block({
+  block,
+  resolveImage,
+}: Readonly<{ block: RichBlock; resolveImage: ResolveImage | undefined }>) {
   if (block.type === RichBlockType.HEADING) {
     return <h4 className="text-cmv-subtitle text-cmv-text-hi">{inlineContent(block.content)}</h4>;
   }
@@ -55,37 +107,24 @@ function Block({ block }: Readonly<{ block: RichBlock }>) {
       </aside>
     );
   }
-  if (block.type === RichBlockType.LIST) {
-    const List = block.ordered ? "ol" : "ul";
-    return (
-      <List
-        className={cn(
-          "flex flex-col gap-cmv-xs pl-cmv-lg text-cmv-body text-cmv-text-mid",
-          block.ordered ? "list-decimal" : "list-disc",
-        )}
-      >
-        {block.items.map((item, index) => (
-          <li key={index}>{inlineContent(item)}</li>
-        ))}
-      </List>
-    );
-  }
-  // IMAGE : rendue au commit suivant, avec la résolution d'URL signée qu'elle demande.
-  return null;
+  if (block.type === RichBlockType.LIST) return <ListBlock block={block} />;
+  return <ImageBlock block={block} resolveImage={resolveImage} />;
 }
 
 type CmvRichDocumentProps = {
   blocks: RichDocument | null;
+  /** Absent = les images ne sont pas rendues. Le texte, lui, reste lisible. */
+  resolveImage?: ResolveImage;
 };
 
-export function CmvRichDocument({ blocks }: Readonly<CmvRichDocumentProps>) {
+export function CmvRichDocument({ blocks, resolveImage }: Readonly<CmvRichDocumentProps>) {
   // Une consigne absente n'affiche RIEN — pas de « aucune consigne », qui serait du bruit sur une
   // absence légitime (règle nullable n°5).
   if (blocks == null || blocks.length === 0) return null;
   return (
     <div className="flex flex-col gap-cmv-sm">
       {blocks.map((block, index) => (
-        <Block key={index} block={block} />
+        <Block key={index} block={block} resolveImage={resolveImage} />
       ))}
     </div>
   );

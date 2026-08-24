@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  attachDocumentSchema,
   createExerciseSchema,
+  DocumentType,
+  DocumentUsage,
   EXERCISE_MAX_TAGS,
   exerciseTagsSchema,
   updateExerciseSchema,
@@ -82,5 +85,41 @@ describe("consigne structurée et blocs", () => {
     // undefined : ne touche pas. null : efface. Le service s'appuie sur cette différence.
     expect(updateExerciseSchema.parse({ title: "x" }).instructions).toBeUndefined();
     expect(updateExerciseSchema.parse({ instructions: null }).instructions).toBeNull();
+  });
+});
+
+describe("attachDocumentSchema", () => {
+  const file = {
+    type: DocumentType.FILE,
+    storagePath: "coach/ex/1.jpg",
+    fileName: "1.jpg",
+  };
+
+  it("traite un document sans usage comme une pièce jointe", () => {
+    const parsed = attachDocumentSchema.parse({ ...file, mimeType: "application/pdf" });
+    // `undefined` et non ATTACHMENT : c'est le service qui pose le défaut, le schéma n'invente pas
+    // une intention que l'appelant n'a pas exprimée.
+    expect(parsed).not.toHaveProperty("usage", DocumentUsage.ATTACHMENT);
+  });
+
+  it("accepte une image comme consigne", () => {
+    const parsed = attachDocumentSchema.parse({
+      ...file,
+      mimeType: "image/jpeg",
+      usage: DocumentUsage.INSTRUCTION,
+    });
+    expect(parsed).toMatchObject({ usage: DocumentUsage.INSTRUCTION });
+  });
+
+  it("refuse un PDF comme consigne, mais l'accepte en pièce jointe", () => {
+    const asInstruction = {
+      ...file,
+      mimeType: "application/pdf",
+      usage: DocumentUsage.INSTRUCTION,
+    };
+    expect(attachDocumentSchema.safeParse(asInstruction).success).toBe(false);
+
+    const asAttachment = { ...file, mimeType: "application/pdf", usage: DocumentUsage.ATTACHMENT };
+    expect(attachDocumentSchema.safeParse(asAttachment).success).toBe(true);
   });
 });

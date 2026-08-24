@@ -396,6 +396,47 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(detail.body.documents[0].id).toBe(attached.body.id);
   });
 
+  it("distingue l'image de consigne de la pièce jointe", async () => {
+    const link = await coachA
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ type: "LINK", url: "https://exemple.test/fiche" });
+    // Un LINK est toujours une pièce jointe : le lien inline de la consigne est une MARQUE sur du
+    // texte, pas un document rattaché.
+    expect(link.body.usage).toBe("ATTACHMENT");
+
+    const upload = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "position-basse.jpg", mimeType: "image/jpeg", size: 2048 });
+    const image = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: upload.body.storagePath,
+      fileName: "position-basse.jpg",
+      mimeType: "image/jpeg",
+      usage: "INSTRUCTION",
+    });
+    expect(image.status).toBe(201);
+    expect(image.body.usage).toBe("INSTRUCTION");
+
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${link.body.id}`);
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${image.body.id}`);
+  });
+
+  it("refuse un PDF comme image de consigne", async () => {
+    // Le PDF reste une pièce jointe légitime, mais il n'a aucun rendu inline dans un document —
+    // ni sur le web ni en React Native.
+    const upload = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "fiche.pdf", mimeType: "application/pdf", size: 2048 });
+    const res = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: upload.body.storagePath,
+      fileName: "fiche.pdf",
+      mimeType: "application/pdf",
+      usage: "INSTRUCTION",
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("un coach ne peut PAS agir sur les documents de l'exercice d'un autre coach", async () => {
     const attach = await coachB
       .post(`/exercises/${exerciseAId}/documents`)

@@ -44,6 +44,22 @@ export type DocumentType = TypesValuesOf<typeof DocumentType>;
 
 export const documentTypeSchema = z.enum(DocumentType);
 
+/**
+ * À quoi sert un document rattaché à un exercice. Sans cette distinction, une image POSÉE dans la
+ * consigne réapparaîtrait dans la liste des pièces jointes — le coach la verrait deux fois et
+ * pourrait la supprimer d'un côté sans comprendre pourquoi elle disparaît de l'autre.
+ *
+ * `INSTRUCTION` désigne exactement les documents qu'un bloc image de la consigne référence par
+ * `mediaId`. Ils ne sont jamais listés comme pièces jointes.
+ */
+export const DocumentUsage = {
+  ATTACHMENT: "ATTACHMENT",
+  INSTRUCTION: "INSTRUCTION",
+} as const;
+export type DocumentUsage = TypesValuesOf<typeof DocumentUsage>;
+
+export const documentUsageSchema = z.enum(DocumentUsage);
+
 export const createExerciseSchema = z
   .object({
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
@@ -88,6 +104,17 @@ export const documentMimeTypeSchema = z.enum(DOCUMENT_MIME_TYPES);
 // Plafond de taille d'un document joint (20 Mo) — la vidéo lourde relève du débrief (P4).
 export const MAX_DOCUMENT_SIZE_BYTES = 20 * 1024 * 1024;
 
+/**
+ * Une image de consigne est une IMAGE : le PDF est une pièce jointe légitime, mais il n'a pas de
+ * rendu inline dans un document, ni sur le web ni en React Native.
+ */
+export const INSTRUCTION_IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export type InstructionImageMimeType = (typeof INSTRUCTION_IMAGE_MIME_TYPES)[number];
+
+export function isInstructionImageMime(mimeType: string): mimeType is InstructionImageMimeType {
+  return (INSTRUCTION_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType);
+}
+
 // Garde de type : permet au client de filtrer un File.type (string) avant l'envoi.
 export function isAllowedDocumentMime(mimeType: string): mimeType is DocumentMimeType {
   return (DOCUMENT_MIME_TYPES as readonly string[]).includes(mimeType);
@@ -117,8 +144,19 @@ export const attachDocumentSchema = z.discriminatedUnion("type", [
       storagePath: z.string().min(1),
       fileName: z.string().min(1),
       mimeType: documentMimeTypeSchema,
+      // Absent = pièce jointe. C'est le cas de loin le plus courant, et le seul qui existait
+      // avant la consigne structurée.
+      usage: documentUsageSchema.optional(),
     })
-    .strict(),
+    .strict()
+    .refine(
+      (input) =>
+        input.usage !== DocumentUsage.INSTRUCTION || isInstructionImageMime(input.mimeType),
+      {
+        message: "Une image de consigne doit être au format PNG, JPEG ou WebP.",
+        path: ["mimeType"],
+      },
+    ),
   z
     .object({
       type: z.literal(DocumentType.LINK),
@@ -131,6 +169,7 @@ export type AttachDocumentInput = z.infer<typeof attachDocumentSchema>;
 export const exerciseDocumentDtoSchema = z.object({
   id: z.string(),
   type: documentTypeSchema,
+  usage: documentUsageSchema,
   url: z.url(),
   fileName: z.string().nullable(),
   mimeType: z.string().nullable(),

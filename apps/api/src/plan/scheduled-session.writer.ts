@@ -30,7 +30,7 @@ import { toBlocksInput, toInstructionsInput } from "../util/exercise-json.util";
  */
 export type ScheduledSessionDocumentDraft = Pick<
   ScheduledSessionExerciseDocument,
-  "type" | "storagePath" | "url" | "fileName" | "mimeType"
+  "type" | "usage" | "storagePath" | "url" | "fileName" | "mimeType"
 >;
 
 // Un exercice à écrire, avec les documents que l'appelant lui a rattachés.
@@ -94,6 +94,9 @@ export async function insertScheduledSessionExercises(
         athleteId,
         scheduledSessionExerciseId: created.id,
         type: document.type,
+        // Copié : sans lui, la planif diffusée listerait les images de consigne parmi les pièces
+        // jointes de l'athlète.
+        usage: document.usage,
         storagePath: document.storagePath,
         url: document.url,
         fileName: document.fileName,
