@@ -215,6 +215,7 @@ model Exercise {
   updatedAt   DateTime         @updatedAt
 
   documents        ExerciseDocument[]
+  tags             ExerciseTag[]
   sessionExercises SessionExercise[]
   // Copies posées dans des planifications (P3) : SetNull → la suppression d'un exercice de la
   // bibliothèque ne casse JAMAIS une planif (l'instance garde son snapshot titre/description).
@@ -239,6 +240,24 @@ model ExerciseDocument {
   @@index([coachId])
   @@index([exerciseId])
   @@map("exercise_document")
+}
+
+// Tag libre d'un exercice — remplace `ExerciseCategory` (#162). Pas de table `Tag` canonique :
+// un tag n'a ni couleur ni description, seulement un nom. L'autocomplétion se lit d'un
+// `SELECT DISTINCT name WHERE coachId`, le renommage d'un `UPDATE … WHERE name` — les deux en
+// Prisma pur, sans entité à maintenir ni orphelins à purger.
+model ExerciseTag {
+  id         String   @id @default(cuid())
+  coachId    String // dénormalisé pour le scope tenant direct
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  name       String
+  createdAt  DateTime @default(now())
+
+  @@unique([exerciseId, name])
+  @@index([coachId])
+  @@index([coachId, name]) // autocomplétion et filtre par tag
+  @@map("exercise_tag")
 }
 
 model Session {
@@ -405,6 +424,7 @@ model ScheduledSessionExercise {
   createdAt          DateTime         @default(now())
 
   documents ScheduledSessionExerciseDocument[]
+  tags      ScheduledSessionExerciseTag[]
 
   @@unique([scheduledSessionId, position])
   @@index([coachId])
@@ -431,6 +451,23 @@ model ScheduledSessionExerciseDocument {
   @@index([scheduledSessionExerciseId])
   @@index([storagePath]) // garde de comptage avant purge d'un objet S3 encore référencé
   @@map("scheduled_session_exercise_document")
+}
+
+// Copie figée des tags au moment de la diffusion — même raison que les documents : l'affichage
+// d'une planif ne doit JAMAIS dépendre de l'exercice source, qui peut être retagué ou supprimé.
+model ScheduledSessionExerciseTag {
+  id                         String                   @id @default(cuid())
+  coachId                    String
+  athleteId                  String
+  scheduledSessionExerciseId String
+  scheduledSessionExercise   ScheduledSessionExercise @relation(fields: [scheduledSessionExerciseId], references: [id], onDelete: Cascade)
+  name                       String
+  createdAt                  DateTime                 @default(now())
+
+  @@unique([scheduledSessionExerciseId, name])
+  @@index([coachId])
+  @@index([athleteId])
+  @@map("scheduled_session_exercise_tag")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
