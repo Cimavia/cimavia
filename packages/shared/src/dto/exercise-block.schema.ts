@@ -23,6 +23,10 @@ import {
 // Cinq types, et cinq seulement. Pyramide et Intervalles ne sont PAS des types : ce sont des
 // raccourcis de saisie du constructeur qui engendrent des Séries. Rien ici ne les connaît.
 
+// Un exercice se découpe en échauffement / travail / retour au calme, pas en vingt temps. Le
+// plafond existe surtout parce que ce tableau devient une colonne en base : sans lui, une requête
+// forgée y écrit un document arbitrairement gros.
+export const EXERCISE_MAX_BLOCKS = 20;
 export const BLOCK_LABEL_MAX_LENGTH = 60;
 export const BLOCK_MAX_METRICS = 12;
 export const BLOCK_MAX_ROWS = 200;
@@ -200,7 +204,15 @@ export const exerciseBlockSchema = z
   });
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
-export const exerciseBlocksSchema = z.array(exerciseBlockSchema);
+export const exerciseBlocksSchema = z
+  .array(exerciseBlockSchema)
+  .max(EXERCISE_MAX_BLOCKS)
+  // Les identifiants sont uniques DANS un bloc (colonnes, lignes) mais rien ne garantissait qu'ils
+  // le soient ENTRE blocs : deux blocs de même id cassent le réordonnancement et le snapshot de
+  // planification, qui s'y adressent par id.
+  .refine((blocks) => new Set(blocks.map((block) => block.id)).size === blocks.length, {
+    message: "Deux blocs ne peuvent pas partager le même identifiant.",
+  });
 export type ExerciseBlocks = z.infer<typeof exerciseBlocksSchema>;
 
 // ── Invariants qui dépendent du contenu ─────────────────────────────────────────────────────

@@ -3,9 +3,11 @@ import {
   BlockType,
   canCollapseMetric,
   columnValues,
+  EXERCISE_MAX_BLOCKS,
   type ExerciseBlock,
   emomTopCount,
   exerciseBlockSchema,
+  exerciseBlocksSchema,
   MetricSource,
   metricValueTypeOf,
   validateBlockValues,
@@ -301,5 +303,28 @@ describe("validateBlockValues", () => {
       rows: [],
     });
     expect(validateBlockValues(block, [])).toHaveLength(1);
+  });
+});
+
+describe("exerciseBlocksSchema", () => {
+  const block = (id: string) => ({
+    id,
+    label: null,
+    structure: { type: BlockType.FREE },
+    metrics: [reps],
+    rows: [],
+  });
+
+  it("accepte un exercice sans aucun bloc — cas légitime, enregistrable", () => {
+    expect(exerciseBlocksSchema.parse([])).toEqual([]);
+  });
+
+  it("refuse deux blocs de même identifiant", () => {
+    expect(exerciseBlocksSchema.safeParse([block("b1"), block("b1")]).success).toBe(false);
+  });
+
+  it("refuse au-delà du plafond de blocs", () => {
+    const blocks = Array.from({ length: EXERCISE_MAX_BLOCKS + 1 }, (_, i) => block(`b${i}`));
+    expect(exerciseBlocksSchema.safeParse(blocks).success).toBe(false);
   });
 });
