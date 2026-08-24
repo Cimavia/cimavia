@@ -1,5 +1,6 @@
-import type { ExerciseBlocks, RichDocument } from "@cmv/shared";
+import type { CustomMetric, ExerciseBlocks, RichDocument } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { PreviewBlock } from "@/feature/library/component/PreviewBlock";
 import { CmvCard, CmvRichDocument, CmvTagList, type ResolveImage } from "@/shared/component";
 
 type ExercisePreviewProps = {
@@ -7,6 +8,7 @@ type ExercisePreviewProps = {
   tags: readonly string[];
   instructions: RichDocument;
   blocks: ExerciseBlocks;
+  customMetrics: readonly CustomMetric[];
   resolveImage: ResolveImage;
 };
 
@@ -17,12 +19,12 @@ type ExercisePreviewProps = {
  *
  * Tant qu'il n'y a pas de titre, l'aperçu ne montre pas une carte vide : il dit ce qu'il attend.
  */
-// i18n-values library.builder.blockType: BlockType
 export function ExercisePreview({
   title,
   tags,
   instructions,
   blocks,
+  customMetrics,
   resolveImage,
 }: Readonly<ExercisePreviewProps>) {
   const { t } = useTranslation();
@@ -47,9 +49,7 @@ export function ExercisePreview({
               voit alors titre et consigne, rien d'autre : pas de grille vide, pas de phrase de
               dosage. La phrase complète arrive avec la grille. */}
           {blocks.map((block) => (
-            <p key={block.id} className="text-cmv-caption text-cmv-text-mid">
-              {block.label ?? t(`library.builder.blockType.${block.structure.type}`)}
-            </p>
+            <PreviewBlock key={block.id} block={block} customMetrics={customMetrics} />
           ))}
         </CmvCard>
       )}

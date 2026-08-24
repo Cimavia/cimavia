@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
-import { TRAINING_DURATION_MAX_SECONDS } from "../util/training-duration.util";
+import {
+  formatTrainingDuration,
+  TRAINING_DURATION_MAX_SECONDS,
+} from "../util/training-duration.util";
 import {
   type CustomMetric,
   METRIC_CATALOG,
@@ -205,6 +208,79 @@ export const exerciseBlockSchema = z
     path: ["rows"],
   });
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
+
+// ── La phrase de dosage ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Une phrase à rendre : la clé i18n et ses paramètres. Le TEXTE reste dans les catalogues des
+ * apps, la logique reste ici.
+ *
+ * Pourquoi pas la phrase toute faite : `@cmv/shared` ne connaît pas i18next, et le mobile rend
+ * les mêmes blocs avec ses propres composants. Rendre la phrase ici obligerait à y importer une
+ * bibliothèque de traduction, ou à recopier la logique des deux côtés — c'est exactement la
+ * divergence qu'on veut éviter entre les surfaces.
+ */
+export type DosagePhrase = {
+  key: string;
+  params: Readonly<Record<string, string | number>>;
+};
+
+/**
+ * Ce que le bandeau dit à l'athlète : « 4 séries », « Toutes les minutes pendant 10 min »…
+ *
+ * `null` pour un bloc LIBRE : il n'a aucun paramètre d'ensemble, et inventer une phrase reviendrait
+ * à annoncer une consigne que le coach n'a pas écrite.
+ */
+export function structurePhrase(structure: BlockStructure): DosagePhrase | null {
+  if (structure.type === BlockType.SERIES) {
+    return { key: "exercise.dosage.series", params: { count: structure.setCount } };
+  }
+  if (structure.type === BlockType.EMOM) {
+    return {
+      key: "exercise.dosage.emom",
+      params: {
+        interval: formatTrainingDuration(structure.intervalSeconds) ?? "",
+        total: formatTrainingDuration(structure.totalDurationSeconds) ?? "",
+      },
+    };
+  }
+  if (structure.type === BlockType.AMRAP) {
+    const total = formatTrainingDuration(structure.totalDurationSeconds) ?? "";
+    // L'objectif est INDICATIF : sans lui la phrase se tient toujours, elle ne promet simplement
+    // plus de cible.
+    return structure.targetRounds == null
+      ? { key: "exercise.dosage.amrap", params: { total } }
+      : {
+          key: "exercise.dosage.amrapWithTarget",
+          params: { total, count: structure.targetRounds },
+        };
+  }
+  if (structure.type === BlockType.CIRCUIT) {
+    return { key: "exercise.dosage.circuit", params: { count: structure.roundCount } };
+  }
+  return null;
+}
+
+/**
+ * Le repos du bandeau, phrase à part : il se lit après le reste (« …, 2'30 de repos entre les
+ * séries ») et reste `null` quand le coach n'en a pas posé — un repos inventé serait une consigne
+ * de plus (règle nullable n°5).
+ */
+export function restPhrase(structure: BlockStructure): DosagePhrase | null {
+  if (structure.type === BlockType.SERIES && structure.restBetweenSetsSeconds != null) {
+    return {
+      key: "exercise.dosage.restBetweenSets",
+      params: { rest: formatTrainingDuration(structure.restBetweenSetsSeconds) ?? "" },
+    };
+  }
+  if (structure.type === BlockType.CIRCUIT && structure.restBetweenRoundsSeconds != null) {
+    return {
+      key: "exercise.dosage.restBetweenRounds",
+      params: { rest: formatTrainingDuration(structure.restBetweenRoundsSeconds) ?? "" },
+    };
+  }
+  return null;
+}
 
 // ── Remplissage d'une colonne ───────────────────────────────────────────────────────────────
 

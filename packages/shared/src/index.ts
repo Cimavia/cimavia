@@ -77,6 +77,7 @@ export type {
   BlockValidationIssue,
   ColumnFillMode as ColumnFillModeType,
   ColumnFillPlan,
+  DosagePhrase,
   ExerciseBlock,
   ExerciseBlocks,
   MetricSource as MetricSourceType,
@@ -107,7 +108,9 @@ export {
   fillColumn,
   MetricSource,
   metricValueTypeOf,
+  restPhrase,
   SHORTCUT_PRESETS,
+  structurePhrase,
   validateBlockValues,
 } from "./dto/exercise-block.schema";
 export type {

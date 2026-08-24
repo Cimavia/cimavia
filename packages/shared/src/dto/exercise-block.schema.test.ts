@@ -15,7 +15,9 @@ import {
   fillColumn,
   MetricSource,
   metricValueTypeOf,
+  restPhrase,
   SHORTCUT_PRESETS,
+  structurePhrase,
   validateBlockValues,
 } from "./exercise-block.schema";
 import {
@@ -439,5 +441,53 @@ describe("fillColumn", () => {
     );
     const filled = fillColumn(block, "col_reps", { mode: ColumnFillMode.SAME, value: 9 });
     expect(columnValues({ ...block, rows: filled }, "col_load")).toEqual([12, 14]);
+  });
+});
+
+describe("structurePhrase / restPhrase", () => {
+  it("annonce le nombre de séries et son repos séparément", () => {
+    const structure = {
+      type: BlockType.SERIES,
+      setCount: 4,
+      restBetweenSetsSeconds: 150,
+    } as const;
+    expect(structurePhrase(structure)).toEqual({
+      key: "exercise.dosage.series",
+      params: { count: 4 },
+    });
+    // Le repos se lit APRÈS le reste : deux phrases, pas une clé à trous.
+    expect(restPhrase(structure)).toEqual({
+      key: "exercise.dosage.restBetweenSets",
+      params: { rest: "2'30" },
+    });
+  });
+
+  it("n'invente pas de repos quand le coach n'en a pas posé", () => {
+    const structure = {
+      type: BlockType.SERIES,
+      setCount: 4,
+      restBetweenSetsSeconds: null,
+    } as const;
+    expect(restPhrase(structure)).toBeNull();
+  });
+
+  it("met les durées en forme lisible", () => {
+    expect(
+      structurePhrase({ type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 }),
+    ).toEqual({ key: "exercise.dosage.emom", params: { interval: "1'", total: "10'" } });
+  });
+
+  it("change de phrase selon que l'AMRAP porte un objectif ou non", () => {
+    const base = { type: BlockType.AMRAP, totalDurationSeconds: 480 } as const;
+    expect(structurePhrase({ ...base, targetRounds: null })?.key).toBe("exercise.dosage.amrap");
+    expect(structurePhrase({ ...base, targetRounds: 12 })).toEqual({
+      key: "exercise.dosage.amrapWithTarget",
+      params: { total: "8'", count: 12 },
+    });
+  });
+
+  it("ne dit RIEN d'un bloc libre — il n'a aucun paramètre d'ensemble", () => {
+    expect(structurePhrase({ type: BlockType.FREE })).toBeNull();
+    expect(restPhrase({ type: BlockType.FREE })).toBeNull();
   });
 });

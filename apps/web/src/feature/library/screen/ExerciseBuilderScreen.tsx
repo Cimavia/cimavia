@@ -174,6 +174,7 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
               tags={draft.tags}
               instructions={draft.instructions}
               blocks={draft.blocks}
+              customMetrics={customMetrics ?? []}
               resolveImage={draft.media.resolve}
             />
           </aside>

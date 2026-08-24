@@ -99,6 +99,16 @@
       "percentHrMax": "% FCM",
       "bpm": "bpm",
       "degrees": "°"
+    },
+    "dosage": {
+      "series": "{{count}} série",
+      "series_other": "{{count}} séries",
+      "emom": "Toutes les {{interval}} pendant {{total}}",
+      "amrap": "En {{total}}, un maximum de tours",
+      "amrapWithTarget": "En {{total}}, un maximum de tours. Objectif : {{count}} tours.",
+      "circuit": "Bloc ×{{count}}",
+      "restBetweenSets": "{{rest}} de repos entre les séries",
+      "restBetweenRounds": "repos {{rest}} entre tours"
     }
   },
   "role": {
@@ -330,6 +340,9 @@
         "addStep": "Ajouter",
         "removeStep": "Retirer le palier",
         "moveStep": "Déplacer le palier"
+      },
+      "preview": {
+        "noRow": "Le dosage apparaîtra ici dès la première ligne."
       }
     }
   },
