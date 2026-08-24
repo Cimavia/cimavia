@@ -71,6 +71,7 @@ export {
 export type {
   BlockMetric,
   BlockRow,
+  BlockShortcut as BlockShortcutType,
   BlockStructure,
   BlockType as BlockTypeType,
   BlockValidationIssue,
@@ -85,6 +86,7 @@ export {
   BLOCK_MAX_ROWS,
   BLOCK_MAX_SET_COUNT,
   BLOCK_MAX_TARGET_ROUNDS,
+  BlockShortcut,
   BlockType,
   blockMetricSchema,
   blockRowSchema,
@@ -92,12 +94,16 @@ export {
   blockTypeSchema,
   canCollapseMetric,
   columnValues,
+  DEFAULT_BLOCK_METRIC_KEYS,
+  DEFAULT_BLOCK_STRUCTURE,
   EMOM_MIN_INTERVAL_SECONDS,
+  EXERCISE_MAX_BLOCKS,
   emomTopCount,
   exerciseBlockSchema,
   exerciseBlocksSchema,
   MetricSource,
   metricValueTypeOf,
+  SHORTCUT_PRESETS,
   validateBlockValues,
 } from "./dto/exercise-block.schema";
 export type {

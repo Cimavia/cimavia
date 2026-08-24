@@ -4,6 +4,7 @@ import { TRAINING_DURATION_MAX_SECONDS } from "../util/training-duration.util";
 import {
   type CustomMetric,
   METRIC_CATALOG,
+  MetricKey,
   type MetricValue,
   type MetricValueType,
   metricAcceptsUnit,
@@ -203,6 +204,68 @@ export const exerciseBlockSchema = z
     path: ["rows"],
   });
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
+
+// ── Valeurs de départ ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Le bandeau d'un bloc qu'on vient d'ajouter. Des valeurs PLAUSIBLES plutôt que des champs vides :
+ * un bandeau vide obligerait le coach à tout saisir avant de voir quoi que ce soit, alors que
+ * « 4 séries » ou « toutes les minutes pendant 10 min » sont ce qu'il écrit neuf fois sur dix.
+ *
+ * Le repos est `null` : contrairement au reste, il n'a pas de valeur évidente, et l'inventer
+ * ferait passer une supposition pour une consigne (règle nullable n°5).
+ */
+export const DEFAULT_BLOCK_STRUCTURE = {
+  [BlockType.SERIES]: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
+  [BlockType.EMOM]: { type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 },
+  [BlockType.AMRAP]: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
+  [BlockType.CIRCUIT]: { type: BlockType.CIRCUIT, roundCount: 4, restBetweenRoundsSeconds: null },
+  [BlockType.FREE]: { type: BlockType.FREE },
+} as const satisfies Record<BlockType, BlockStructure>;
+
+/**
+ * Les colonnes d'un bloc qu'on vient d'ajouter. `exerciseBlockSchema` en exige au moins une : un
+ * bloc sans colonne ne pourrait rien porter, et le coach n'aurait aucune grille où écrire.
+ *
+ * Circuit et Libre partent d'un LIBELLÉ parce que leurs lignes sont des étapes nommées — « Voie 1 »,
+ * « Mobilité épaules » — là où les autres types répètent le MÊME effort et n'ont rien à nommer.
+ */
+export const DEFAULT_BLOCK_METRIC_KEYS = {
+  [BlockType.SERIES]: [MetricKey.REPETITIONS],
+  [BlockType.EMOM]: [MetricKey.REPETITIONS],
+  [BlockType.AMRAP]: [MetricKey.REPETITIONS],
+  [BlockType.CIRCUIT]: [MetricKey.LABEL],
+  [BlockType.FREE]: [MetricKey.LABEL],
+} as const satisfies Record<BlockType, readonly MetricKey[]>;
+
+/**
+ * Les deux raccourcis de saisie. Ce ne sont PAS des types de structure : ils produisent des
+ * Séries préréglées, et le bloc obtenu est indistinguable d'une Séries saisie à la main. C'est
+ * voulu — un troisième type qui ne serait qu'une Séries déguisée obligerait tout l'aval (rendu,
+ * timers, suivi) à le traiter comme un cas de plus.
+ */
+export const BlockShortcut = {
+  PYRAMID: "PYRAMID",
+  INTERVALS: "INTERVALS",
+} as const;
+export type BlockShortcut = TypesValuesOf<typeof BlockShortcut>;
+
+export const SHORTCUT_PRESETS = {
+  // Pyramide : des paliers qui montent puis redescendent. Le remplissage en miroir est un geste
+  // de GRILLE, pas de bandeau — le raccourci ne fait ici que poser des Séries et leur colonne.
+  [BlockShortcut.PYRAMID]: {
+    structure: { type: BlockType.SERIES, setCount: 7, restBetweenSetsSeconds: 180 },
+    metricKeys: [MetricKey.REPETITIONS],
+  },
+  // Intervalles : « durée d'effort et repos déjà cochés » — c'est tout ce que le raccourci fait.
+  [BlockShortcut.INTERVALS]: {
+    structure: { type: BlockType.SERIES, setCount: 10, restBetweenSetsSeconds: 30 },
+    metricKeys: [MetricKey.EFFORT_DURATION],
+  },
+} as const satisfies Record<
+  BlockShortcut,
+  { structure: BlockStructure; metricKeys: readonly MetricKey[] }
+>;
 
 export const exerciseBlocksSchema = z
   .array(exerciseBlockSchema)

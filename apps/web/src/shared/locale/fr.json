@@ -221,6 +221,49 @@
         "uploading": "Envoi… {{percent}} %",
         "errorType": "Format non accepté : PNG, JPEG ou WebP.",
         "errorSize": "Image trop lourde : 20 Mo maximum."
+      },
+      "structure": "Structure",
+      "addBlock": "Ajouter une structure",
+      "noBlockTitle": "Aucune structure",
+      "noBlockDescription": "C'est un état valide — tu peux enregistrer. Ajoute une structure si l'exercice se dose.",
+      "blockLabel": "Libellé du bloc",
+      "blockLabelPlaceholder": "Échauffement, Travail…",
+      "moveBlockUp": "Monter le bloc",
+      "moveBlockDown": "Descendre le bloc",
+      "removeBlock": "Retirer le bloc",
+      "shortcutTag": "raccourci",
+      "blockType": {
+        "SERIES": "Séries",
+        "EMOM": "EMOM",
+        "AMRAP": "AMRAP",
+        "CIRCUIT": "Circuit",
+        "FREE": "Libre"
+      },
+      "blockTypeHint": {
+        "SERIES": "Le même effort répété N fois, avec un repos entre les séries.",
+        "EMOM": "Un effort à réaliser au début de chaque minute, pendant N minutes.",
+        "AMRAP": "Un maximum de tours dans un temps imparti.",
+        "CIRCUIT": "Une suite d'étapes enchaînées, répétée en tours.",
+        "FREE": "Grille sans structure imposée — lignes ajoutées librement."
+      },
+      "shortcut": {
+        "PYRAMID": "Pyramide",
+        "INTERVALS": "Intervalles"
+      },
+      "shortcutHint": {
+        "PYRAMID": "Crée des Séries avec des paliers qui montent puis redescendent.",
+        "INTERVALS": "Crée des Séries avec durée d'effort et repos déjà cochés."
+      },
+      "bandeau": {
+        "setCount": "Séries",
+        "restBetweenSets": "Repos",
+        "interval": "Intervalle",
+        "totalDuration": "Durée totale",
+        "topCount": "= {{count}} top",
+        "topCount_other": "= {{count}} tops",
+        "targetRounds": "Objectif de tours",
+        "roundCount": "Répéter le bloc",
+        "restBetweenRounds": "Repos entre tours"
       }
     }
   },

@@ -1,9 +1,15 @@
-import { EXERCISE_MAX_TAGS, type ExerciseDto, type RichDocument } from "@cmv/shared";
+import {
+  EXERCISE_MAX_TAGS,
+  type ExerciseBlocks,
+  type ExerciseDto,
+  type RichDocument,
+} from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
+import { StructureSection } from "@/feature/library/component/StructureSection";
 import { useExercise, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { useInstructionMedia } from "@/feature/library/hook/useInstructionMedia";
 import { useSaveExercise } from "@/feature/library/hook/useSaveExercise";
@@ -90,6 +96,7 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
   const [title, setTitle] = useState(exercise?.title ?? "");
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
   const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
+  const [blocks, setBlocks] = useState<ExerciseBlocks>(exercise?.blocks ?? []);
   const media = useInstructionMedia(exercise?.documents ?? []);
 
   const isEditing = exercise != null;
@@ -104,6 +111,7 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
         title: trimmedTitle,
         tags,
         instructions: instructions.length === 0 ? null : instructions,
+        blocks,
       },
       pendingFiles: [],
       pendingLinks: [],
@@ -174,6 +182,8 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
               />
             </Suspense>
 
+            <StructureSection blocks={blocks} onChange={setBlocks} />
+
             {error == null ? null : (
               <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(error)}</p>
             )}
@@ -185,6 +195,7 @@ function ExerciseBuilder({ exercise, onLeave }: Readonly<ExerciseBuilderProps>) 
               title={trimmedTitle}
               tags={tags}
               instructions={instructions}
+              blocks={blocks}
               resolveImage={media.resolve}
             />
           </aside>

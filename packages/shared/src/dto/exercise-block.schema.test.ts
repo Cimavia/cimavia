@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  BlockShortcut,
   BlockType,
   canCollapseMetric,
   columnValues,
+  DEFAULT_BLOCK_METRIC_KEYS,
+  DEFAULT_BLOCK_STRUCTURE,
   EXERCISE_MAX_BLOCKS,
   type ExerciseBlock,
   emomTopCount,
@@ -10,10 +13,12 @@ import {
   exerciseBlocksSchema,
   MetricSource,
   metricValueTypeOf,
+  SHORTCUT_PRESETS,
   validateBlockValues,
 } from "./exercise-block.schema";
 import {
   type CustomMetric,
+  defaultUnitOf,
   MetricKey,
   MetricUnit,
   MetricValueType,
@@ -326,5 +331,41 @@ describe("exerciseBlocksSchema", () => {
   it("refuse au-delà du plafond de blocs", () => {
     const blocks = Array.from({ length: EXERCISE_MAX_BLOCKS + 1 }, (_, i) => block(`b${i}`));
     expect(exerciseBlocksSchema.safeParse(blocks).success).toBe(false);
+  });
+});
+
+describe("valeurs de départ", () => {
+  const column = (key: (typeof DEFAULT_BLOCK_METRIC_KEYS)[BlockType][number]) => ({
+    id: "col_1",
+    source: MetricSource.CATALOG,
+    key,
+    unit: defaultUnitOf(key),
+    label: null,
+    collapsed: false,
+  });
+
+  it.each(Object.values(BlockType))("produit un bloc %s valide sans rien saisir", (type) => {
+    const block = {
+      id: "blk_1",
+      label: null,
+      structure: DEFAULT_BLOCK_STRUCTURE[type],
+      metrics: DEFAULT_BLOCK_METRIC_KEYS[type].map(column),
+      rows: [],
+    };
+    expect(exerciseBlockSchema.safeParse(block).success).toBe(true);
+  });
+
+  it.each(Object.values(BlockShortcut))("le raccourci %s produit des SÉRIES", (shortcut) => {
+    // Un raccourci n'est pas un type : le bloc obtenu doit être indistinguable d'une Séries
+    // saisie à la main, sinon tout l'aval aurait un cas de plus à traiter.
+    expect(SHORTCUT_PRESETS[shortcut].structure.type).toBe(BlockType.SERIES);
+  });
+
+  it("ne devine pas le repos — il reste nul", () => {
+    // Le nombre de séries a une valeur plausible, pas le repos : l'inventer ferait passer une
+    // supposition pour une consigne.
+    expect(DEFAULT_BLOCK_STRUCTURE.SERIES.restBetweenSetsSeconds).toBeNull();
+    expect(DEFAULT_BLOCK_STRUCTURE.CIRCUIT.restBetweenRoundsSeconds).toBeNull();
+    expect(DEFAULT_BLOCK_STRUCTURE.AMRAP.targetRounds).toBeNull();
   });
 });
