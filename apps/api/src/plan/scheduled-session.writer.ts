@@ -69,6 +69,20 @@ export async function insertScheduledSessionExercises(
       > as Prisma.ScheduledSessionExerciseUncheckedCreateInput,
     });
 
+    const tags = draft.exercise.tags ?? [];
+    if (tags.length > 0) {
+      await tx.scheduledSessionExerciseTag.createMany({
+        data: tags.map((name) => ({
+          athleteId,
+          scheduledSessionExerciseId: created.id,
+          name,
+        })) satisfies Omit<
+          Prisma.ScheduledSessionExerciseTagUncheckedCreateInput,
+          "coachId"
+        >[] as Prisma.ScheduledSessionExerciseTagUncheckedCreateInput[],
+      });
+    }
+
     if (draft.documents.length === 0) continue;
 
     await tx.scheduledSessionExerciseDocument.createMany({

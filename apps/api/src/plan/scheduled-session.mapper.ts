@@ -6,11 +6,11 @@ import { toIsoDate } from "../util/date.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
 export const SESSION_DETAIL_INCLUDE = {
-  exercises: { orderBy: { position: "asc" }, include: { documents: true } },
+  exercises: { orderBy: { position: "asc" }, include: { documents: true, tags: true } },
 } satisfies Prisma.ScheduledSessionInclude;
 
 export type ScheduledSessionWithExercises = Prisma.ScheduledSessionGetPayload<{
-  include: { exercises: { include: { documents: true } } };
+  include: { exercises: { include: { documents: true; tags: true } } };
 }>;
 
 type ScheduledExerciseWithDocuments = ScheduledSessionWithExercises["exercises"][number];
@@ -30,6 +30,7 @@ async function toExerciseDto(
     title: exercise.title,
     description: exercise.description,
     category: exercise.category,
+    tags: exercise.tags.map((tag) => tag.name).sort(),
     prescription: exercise.prescription,
     position: exercise.position,
     documents,

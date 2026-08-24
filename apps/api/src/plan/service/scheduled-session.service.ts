@@ -6,7 +6,11 @@ import type {
 } from "@cmv/shared";
 import { isDateInPlanWeek, PlanStatus } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Exercise, ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
+import type { ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
+
+// L'exercice de bibliothèque AVEC ses tags : la copie diffusée les fige, comme les documents.
+type ExerciseWithTags = Prisma.ExerciseGetPayload<{ include: { tags: true } }>;
+
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
@@ -236,6 +240,7 @@ export class ScheduledSessionService {
         title: exercise.title,
         description: exercise.description,
         category: exercise.category,
+        tags: exercise.tags.map((tag) => tag.name).sort(),
         prescription: composed.prescription,
       };
     });
@@ -249,11 +254,14 @@ export class ScheduledSessionService {
 
   // Charge (scopé) les exercices de la bibliothèque référencés, en vérifiant qu'ils existent TOUS
   // pour le coach courant : une FK ne garantit pas le tenant (architecture-choice §6, piège n°3).
-  private async loadExercises(exerciseIds: string[]): Promise<Map<string, Exercise>> {
+  private async loadExercises(exerciseIds: string[]): Promise<Map<string, ExerciseWithTags>> {
     const ids = [...new Set(exerciseIds)];
     if (ids.length === 0) return new Map();
 
-    const exercises = await this.db.exercise.findMany({ where: { id: { in: ids } } });
+    const exercises = await this.db.exercise.findMany({
+      where: { id: { in: ids } },
+      include: { tags: true },
+    });
     if (exercises.length !== ids.length) {
       throw new BadRequestException("Un ou plusieurs exercices sont inconnus");
     }

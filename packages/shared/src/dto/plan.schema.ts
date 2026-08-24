@@ -6,6 +6,7 @@ import {
   EXERCISE_TITLE_MAX_LENGTH,
   exerciseCategorySchema,
   exerciseDocumentDtoSchema,
+  exerciseTagsSchema,
 } from "./exercise.schema";
 import {
   SESSION_NOTES_MAX_LENGTH,
@@ -119,6 +120,7 @@ export const scheduledSessionExerciseInputSchema = z
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     category: exerciseCategorySchema,
+    tags: exerciseTagsSchema.optional(),
     prescription: z.string().max(SESSION_PRESCRIPTION_MAX_LENGTH).nullable().optional(),
   })
   .strict();
@@ -163,6 +165,9 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   category: exerciseCategorySchema,
+  // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
+  // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.
+  tags: z.array(z.string()),
   prescription: z.string().nullable(),
   position: z.number().int(),
   // Copies des documents de l'exercice source (URL signée résolue à chaque lecture).

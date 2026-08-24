@@ -129,7 +129,12 @@ export class PlanWeekCopyService {
           tx,
           created.id,
           targetPlan.athleteId,
-          session.exercises.map((exercise) => ({ exercise, documents: exercise.documents })),
+          // Les tags de l'instance source sont aplatis en noms : le draft attend la forme du DTO,
+          // pas les lignes de la table de copie.
+          session.exercises.map((exercise) => ({
+            exercise: { ...exercise, tags: exercise.tags.map((tag) => tag.name) },
+            documents: exercise.documents,
+          })),
         );
       }
     });
