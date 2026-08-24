@@ -1,5 +1,6 @@
 import type {
   AttachDocumentInput,
+  CreateCustomMetricInput,
   CreateExerciseInput,
   CreateSessionInput,
   CustomMetric,
@@ -93,6 +94,10 @@ export const customMetricKeys = {
 
 export function listCustomMetrics(): Promise<CustomMetric[]> {
   return api.get<CustomMetric[]>("/custom-metrics");
+}
+
+export function createCustomMetric(input: CreateCustomMetricInput): Promise<CustomMetric> {
+  return api.post<CustomMetric>("/custom-metrics", input);
 }
 
 // ── Séances (modèles) ────────────────────────────────────────────────────────

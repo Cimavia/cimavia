@@ -7,6 +7,7 @@ export { CmvCard } from "./CmvCard";
 export type { CmvChoiceChip } from "./CmvChoiceChips";
 export { CmvChoiceChips } from "./CmvChoiceChips";
 export { CmvConfirmButton } from "./CmvConfirmButton";
+export { CmvDragHandle } from "./CmvDragHandle";
 export { CmvDurationField } from "./CmvDurationField";
 export { CmvEmptyState } from "./CmvEmptyState";
 export { CmvErrorState } from "./CmvErrorState";

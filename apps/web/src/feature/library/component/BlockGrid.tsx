@@ -4,13 +4,13 @@ import {
   type ExerciseBlock,
   type MetricValue,
 } from "@cmv/shared";
-import { type KeyboardEvent, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IoReorderTwo, IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline } from "react-icons/io5";
 import { ColumnMenu } from "@/feature/library/component/ColumnMenu";
 import { GridCell } from "@/feature/library/component/GridCell";
 import { metricUnitLabel } from "@/feature/library/util/metric-label.util";
-import { CmvButton } from "@/shared/component";
+import { CmvButton, CmvDragHandle } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type BlockGridProps = {
@@ -116,12 +116,11 @@ export function BlockGrid({ block, customMetrics, onChange }: Readonly<BlockGrid
                 className={cn(dragIndex === index && "opacity-50")}
               >
                 <td className="align-middle">
-                  <DragHandle
-                    label={t("library.builder.grid.moveRow")}
+                  <CmvDragHandle
+                    label={`${t("library.builder.grid.moveRow")} ${index + 1}`}
                     onDragStart={() => setDragIndex(index)}
                     onDragEnd={() => setDragIndex(null)}
                     onMove={(direction) => moveRow(index, index + direction)}
-                    index={index}
                   />
                 </td>
 
@@ -165,40 +164,5 @@ export function BlockGrid({ block, customMetrics, onChange }: Readonly<BlockGrid
         </span>
       </div>
     </div>
-  );
-}
-
-type DragHandleProps = {
-  label: string;
-  index: number;
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  onMove: (direction: -1 | 1) => void;
-};
-
-/**
- * Poignée de réordonnancement. Glisser est le geste attendu, mais il est INACCESSIBLE au clavier :
- * la poignée est donc un bouton focusable qui répond aussi aux flèches haut/bas. Deux gestes pour
- * une même intention, sans encombrer chaque ligne de deux boutons de plus.
- */
-function DragHandle({ label, index, onDragStart, onDragEnd, onMove }: Readonly<DragHandleProps>) {
-  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-    event.preventDefault();
-    onMove(event.key === "ArrowUp" ? -1 : 1);
-  }
-
-  return (
-    <button
-      type="button"
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onKeyDown={onKeyDown}
-      aria-label={`${label} ${index + 1}`}
-      className="cursor-grab px-cmv-xs text-cmv-text-lo hover:text-cmv-text-mid"
-    >
-      <IoReorderTwo />
-    </button>
   );
 }

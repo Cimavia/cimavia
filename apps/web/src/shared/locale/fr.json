@@ -285,6 +285,51 @@
         "collapse": "Replier en valeur commune",
         "expand": "Afficher en colonne",
         "cannotCollapse": "La valeur change d'une ligne à l'autre."
+      },
+      "metrics": {
+        "title": "Métriques de l'exercice",
+        "edit": "Modifier les métriques",
+        "chosen": "Colonnes de ce bloc",
+        "orderHint": "L'ordre des colonnes retenues est celui de la grille — glisse pour réordonner.",
+        "moveColumn": "Déplacer la colonne",
+        "removeColumn": "Retirer la colonne",
+        "done": "Valider"
+      },
+      "family": {
+        "VOLUME": "Volume",
+        "INTENSITY": "Intensité",
+        "RECOVERY": "Récupération",
+        "EXECUTION": "Exécution",
+        "MARKER": "Repères"
+      },
+      "custom": {
+        "title": "Métrique personnalisée",
+        "mine": "Mes métriques",
+        "none": "Aucune métrique maison pour l'instant.",
+        "label": "Nom",
+        "labelPlaceholder": "Cotation maison",
+        "labelTooLong": "Nom trop long.",
+        "unit": "Unité",
+        "unitPlaceholder": "pts, mm…",
+        "valueType": "Type de valeur",
+        "submit": "Ajouter la métrique"
+      },
+      "valueType": {
+        "NUMBER": "Nombre",
+        "DURATION": "Durée",
+        "TEXT": "Texte",
+        "SCALE": "Échelle ordonnée"
+      },
+      "scale": {
+        "title": "Paliers, dans l'ordre",
+        "hint": "C'est cet ordre qui rend possible « progression sur l'échelle ».",
+        "duplicateFrench": "Dupliquer la cotation française",
+        "duplicateV": "Dupliquer la cotation V",
+        "stepLabel": "Palier",
+        "stepPlaceholder": "Palier",
+        "addStep": "Ajouter",
+        "removeStep": "Retirer le palier",
+        "moveStep": "Déplacer le palier"
       }
     }
   },

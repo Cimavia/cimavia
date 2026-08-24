@@ -13,6 +13,7 @@ import { BlockBandeau } from "@/feature/library/component/BlockBandeau";
 import { BlockGrid } from "@/feature/library/component/BlockGrid";
 import { BlockTypePicker } from "@/feature/library/component/BlockTypePicker";
 import { CollapsedColumns } from "@/feature/library/component/CollapsedColumns";
+import { MetricPicker } from "@/feature/library/component/MetricPicker";
 import { createBlock, createShortcutBlock } from "@/feature/library/util/block-factory.util";
 import { CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
 
@@ -139,6 +140,7 @@ function BlockCard({
   onRemove,
 }: Readonly<BlockCardProps>) {
   const { t } = useTranslation();
+  const [pickingMetrics, setPickingMetrics] = useState(false);
 
   return (
     <article className="flex flex-col gap-cmv-md rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md">
@@ -191,6 +193,20 @@ function BlockCard({
       <BlockBandeau
         structure={block.structure}
         onChange={(structure: BlockStructure) => onChange({ ...block, structure })}
+      />
+
+      <div>
+        <CmvButton variant="secondary" onClick={() => setPickingMetrics(true)}>
+          {t("library.builder.metrics.edit")}
+        </CmvButton>
+      </div>
+
+      <MetricPicker
+        open={pickingMetrics}
+        block={block}
+        customMetrics={customMetrics}
+        onChange={onChange}
+        onClose={() => setPickingMetrics(false)}
       />
 
       <CollapsedColumns block={block} customMetrics={customMetrics} onChange={onChange} />
