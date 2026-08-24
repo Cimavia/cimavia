@@ -146,6 +146,14 @@ export const exerciseDtoSchema = z.object({
   instructions: richDocumentSchema.nullable(),
   blocks: exerciseBlocksSchema,
   tags: z.array(z.string()),
+  /**
+   * Nombre de séances MODÈLES qui référencent cet exercice. Le constructeur s'en sert pour dire au
+   * coach ce qu'il touche avant qu'il modifie un exercice partagé.
+   *
+   * Les séances PLANIFIÉES n'y entrent pas : ce sont des copies autonomes, les modifier n'a aucun
+   * effet sur elles (décision structurante P3). Un compteur qui les inclurait mentirait.
+   */
+  usedInSessionCount: z.number().int().nonnegative(),
   documents: z.array(exerciseDocumentDtoSchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

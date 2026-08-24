@@ -4,9 +4,20 @@ import { toDocumentDto } from "../infra/storage/document.mapper";
 import type { StorageService } from "../infra/storage/storage.service";
 import { parseBlocks, parseInstructions } from "../util/exercise-json.util";
 
-// L'exercice avec ses documents (URLs signées à résoudre).
+/**
+ * Tout ce qu'un `ExerciseDto` demande, en une requête. Un point unique parce que les quatre
+ * lectures du service doivent charger EXACTEMENT la même chose : un `include` oublié quelque part
+ * ne casse pas la compilation, il rend un DTO amputé à l'exécution.
+ */
+export const EXERCISE_DETAIL_INCLUDE = {
+  documents: true,
+  tags: true,
+  _count: { select: { sessionExercises: true } },
+} satisfies Prisma.ExerciseInclude;
+
+// L'exercice avec ses documents (URLs signées à résoudre), ses tags et son décompte d'usage.
 export type ExerciseWithDocuments = Prisma.ExerciseGetPayload<{
-  include: { documents: true; tags: true };
+  include: typeof EXERCISE_DETAIL_INCLUDE;
 }>;
 
 export async function toExerciseDto(
@@ -29,6 +40,7 @@ export async function toExerciseDto(
     // Triés : l'ordre d'insertion n'a aucun sens pour un tag, et une liste stable évite un
     // faux diff à chaque relecture côté client.
     tags: exercise.tags.map((tag) => tag.name).sort(),
+    usedInSessionCount: exercise._count.sessionExercises,
     documents,
     createdAt: exercise.createdAt.toISOString(),
     updatedAt: exercise.updatedAt.toISOString(),

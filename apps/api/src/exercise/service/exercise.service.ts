@@ -5,7 +5,11 @@ import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toBlocksInput, toInstructionsInput } from "../../util/exercise-json.util";
-import { type ExerciseWithDocuments, toExerciseDto } from "../exercise.mapper";
+import {
+  EXERCISE_DETAIL_INCLUDE,
+  type ExerciseWithDocuments,
+  toExerciseDto,
+} from "../exercise.mapper";
 import { DocumentCleanupService } from "./document-cleanup.service";
 
 export type ListExercisesFilters = {
@@ -33,7 +37,7 @@ export class ExerciseService {
   async getOwnedOrThrow(id: string): Promise<ExerciseWithDocuments> {
     const exercise = await this.db.exercise.findFirst({
       where: { id },
-      include: { documents: true, tags: true },
+      include: EXERCISE_DETAIL_INCLUDE,
     });
     if (exercise == null) {
       throw new NotFoundException("Exercice introuvable");
@@ -70,7 +74,7 @@ export class ExerciseService {
         Prisma.ExerciseUncheckedCreateInput,
         "coachId"
       > as Prisma.ExerciseUncheckedCreateInput,
-      include: { documents: true, tags: true },
+      include: EXERCISE_DETAIL_INCLUDE,
     });
     if (!input.tags?.length) return this.toDto(created);
     return this.toDto(await this.replaceTags(created.id, input.tags));
@@ -106,7 +110,7 @@ export class ExerciseService {
 
     const exercises = await this.db.exercise.findMany({
       where,
-      include: { documents: true, tags: true },
+      include: EXERCISE_DETAIL_INCLUDE,
       orderBy: { createdAt: "desc" },
     });
     return Promise.all(exercises.map((exercise) => this.toDto(exercise)));
@@ -128,7 +132,7 @@ export class ExerciseService {
     const exercise = await this.db.exercise.update({
       where: { id },
       data,
-      include: { documents: true, tags: true },
+      include: EXERCISE_DETAIL_INCLUDE,
     });
     if (input.tags === undefined) return this.toDto(exercise);
     return this.toDto(await this.replaceTags(id, input.tags));

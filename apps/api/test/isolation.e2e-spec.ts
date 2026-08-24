@@ -277,6 +277,30 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(other.body.map((e: { id: string }) => e.id)).not.toContain(exerciseAId);
   });
 
+  it("compte les séances MODÈLES qui référencent l'exercice, pas les copies diffusées", async () => {
+    const fresh = await coachA.post("/exercises").send({ title: "Gainage latéral" });
+    expect(fresh.body.usedInSessionCount).toBe(0);
+
+    const session = await coachA.post("/sessions").send({
+      title: "Circuit court",
+      exercises: [{ exerciseId: fresh.body.id, prescription: "3×30 s" }],
+    });
+    expect(session.status).toBe(201);
+
+    const used = await coachA.get(`/exercises/${fresh.body.id}`);
+    expect(used.body.usedInSessionCount).toBe(1);
+
+    // Retirer l'exercice de la séance le fait redescendre : le compte est lu, jamais stocké.
+    await coachA.put(`/sessions/${session.body.id}`).send({
+      title: "Circuit court",
+      exercises: [],
+    });
+    expect((await coachA.get(`/exercises/${fresh.body.id}`)).body.usedInSessionCount).toBe(0);
+
+    await coachA.delete(`/sessions/${session.body.id}`);
+    await coachA.delete(`/exercises/${fresh.body.id}`);
+  });
+
   it("un coach ne peut PAS lire l'exercice d'un autre coach", async () => {
     const res = await coachB.get(`/exercises/${exerciseAId}`);
     expect(res.status).toBe(404);
