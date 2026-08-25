@@ -31,6 +31,29 @@ export {
   coachAthleteStatusSchema,
 } from "./dto/coach-athlete.schema";
 export type {
+  Adjustment,
+  AdjustmentLevel as AdjustmentLevelType,
+  Adjustments,
+  DosageState,
+} from "./dto/dosage-override.schema";
+export {
+  ADJUSTMENTS_MAX,
+  AdjustmentLevel,
+  adjustmentLevelAt,
+  adjustmentLevelSchema,
+  adjustmentSchema,
+  adjustmentsSchema,
+  cellPath,
+  clearAdjustment,
+  dosageStateSchema,
+  isPathInRow,
+  lockedShapeIssues,
+  markAdjusted,
+  resetRow,
+  resetToBaseline,
+  structurePath,
+} from "./dto/dosage-override.schema";
+export type {
   AttachDocumentInput,
   CreateExerciseInput,
   DocumentMimeType,
@@ -413,8 +436,8 @@ export type {
 } from "./dto/session.schema";
 export {
   createSessionSchema,
+  SESSION_NOTE_MAX_LENGTH,
   SESSION_NOTES_MAX_LENGTH,
-  SESSION_PRESCRIPTION_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
   sessionDtoSchema,
   sessionExerciseDtoSchema,
