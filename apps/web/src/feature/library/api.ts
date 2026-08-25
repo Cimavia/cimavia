@@ -105,10 +105,26 @@ export function createCustomMetric(input: CreateCustomMetricInput): Promise<Cust
 export const sessionKeys = {
   all: ["sessions"] as const,
   list: () => ["sessions", "list"] as const,
+  detail: (id: string) => ["sessions", "detail", id] as const,
 };
 
 export function listSessions(): Promise<SessionDto[]> {
   return api.get<SessionDto[]>("/sessions");
+}
+
+export function getSession(id: string): Promise<SessionDto> {
+  return api.get<SessionDto>(`/sessions/${id}`);
+}
+
+/**
+ * « Recharger depuis la bibliothèque » : action serveur, parce qu'elle déplace la RÉFÉRENCE de
+ * dosage — la seule chose que le client n'a pas le droit d'envoyer.
+ */
+export function reloadSessionExercise(
+  sessionId: string,
+  sessionExerciseId: string,
+): Promise<SessionDto> {
+  return api.post<SessionDto>(`/sessions/${sessionId}/exercises/${sessionExerciseId}/reload`, {});
 }
 
 export function createSession(input: CreateSessionInput): Promise<SessionDto> {
