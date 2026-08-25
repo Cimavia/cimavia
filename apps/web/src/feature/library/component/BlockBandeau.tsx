@@ -4,6 +4,11 @@ import { CmvDurationField } from "@/shared/component";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par `pnpm check:i18n`.
 // i18n-values library.builder.blockType: BlockType
+//
+// Les clés de `bandeau` portent le NOM DU CHAMP du schéma (`totalDurationSeconds`, pas
+// `totalDuration`) : le marqueur d'ajustement les assemble à partir du champ modifié, et deux
+// vocabulaires auraient produit une clé introuvable — ce qui est arrivé.
+// i18n-values library.builder.bandeau: setCount, restBetweenSetsSeconds, intervalSeconds, totalDurationSeconds, topCount, targetRounds, roundCount, restBetweenRoundsSeconds
 
 type BandeauProps<T extends BlockStructure> = {
   structure: T;
@@ -80,7 +85,7 @@ function SeriesBandeau({
         onChange={(setCount) => onChange({ ...structure, setCount })}
       />
       <CmvDurationField
-        label={t("library.builder.bandeau.restBetweenSets")}
+        label={t("library.builder.bandeau.restBetweenSetsSeconds")}
         value={structure.restBetweenSetsSeconds}
         onChange={(restBetweenSetsSeconds) => onChange({ ...structure, restBetweenSetsSeconds })}
         placeholder="2'30"
@@ -97,7 +102,7 @@ function EmomBandeau({
   return (
     <Row>
       <CmvDurationField
-        label={t("library.builder.bandeau.interval")}
+        label={t("library.builder.bandeau.intervalSeconds")}
         value={structure.intervalSeconds}
         onChange={(seconds) =>
           // L'intervalle n'est pas nullable : un EMOM sans intervalle n'est pas un EMOM.
@@ -106,7 +111,7 @@ function EmomBandeau({
         placeholder="1'"
       />
       <CmvDurationField
-        label={t("library.builder.bandeau.totalDuration")}
+        label={t("library.builder.bandeau.totalDurationSeconds")}
         value={structure.totalDurationSeconds}
         onChange={(seconds) =>
           seconds == null ? undefined : onChange({ ...structure, totalDurationSeconds: seconds })
@@ -130,7 +135,7 @@ function AmrapBandeau({
   return (
     <Row>
       <CmvDurationField
-        label={t("library.builder.bandeau.totalDuration")}
+        label={t("library.builder.bandeau.totalDurationSeconds")}
         value={structure.totalDurationSeconds}
         onChange={(seconds) =>
           seconds == null ? undefined : onChange({ ...structure, totalDurationSeconds: seconds })
@@ -162,7 +167,7 @@ function CircuitBandeau({
         onChange={(roundCount) => onChange({ ...structure, roundCount })}
       />
       <CmvDurationField
-        label={t("library.builder.bandeau.restBetweenRounds")}
+        label={t("library.builder.bandeau.restBetweenRoundsSeconds")}
         value={structure.restBetweenRoundsSeconds}
         onChange={(restBetweenRoundsSeconds) =>
           onChange({ ...structure, restBetweenRoundsSeconds })

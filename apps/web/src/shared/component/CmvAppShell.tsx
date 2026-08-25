@@ -101,7 +101,13 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
       </aside>
 
       <main className="flex-1 p-cmv-xl">
-        <header className="mb-cmv-xl flex flex-wrap items-center gap-cmv-md">
+        {/*
+          Bandeau FIXE : sur un écran qui défile — un constructeur d'exercice ou de séance en fait
+          plusieurs hauteurs —, « Enregistrer » imposait de remonter tout en haut. Posé ici et non
+          écran par écran, sinon chaque nouvelle page rejoue l'oubli.
+          `-mx`/`px` compensent le padding de `main` pour que le fond couvre toute la largeur.
+        */}
+        <header className="-mx-cmv-xl -mt-cmv-xl sticky top-0 z-20 mb-cmv-xl flex flex-wrap items-center gap-cmv-md border-cmv-border border-b bg-cmv-bg-0 px-cmv-xl py-cmv-lg">
           <div className="flex flex-col gap-cmv-xs">
             <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">{title}</h1>
             {subtitle == null ? null : (

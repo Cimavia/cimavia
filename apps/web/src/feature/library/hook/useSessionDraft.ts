@@ -121,29 +121,68 @@ export function useSessionDraft(session: SessionDto | null) {
             }
           : block,
       ),
-      adjustments: markAdjusted(
-        item.adjustments,
-        cellPath(blockId, rowId, metricId),
-        AdjustmentLevel.SESSION,
-      ),
+      // Une ligne AJOUTÉE dans la séance n'existe pas dans la référence : sa valeur ne s'écarte
+      // d'aucun défaut, donc aucun marqueur — et « Revenir au défaut » n'aurait rien à faire.
+      adjustments: hasBaselineRow(item.baseline, blockId, rowId)
+        ? markAdjusted(
+            item.adjustments,
+            cellPath(blockId, rowId, metricId),
+            AdjustmentLevel.SESSION,
+          )
+        : item.adjustments,
     }));
   }
 
-  /** Idem pour un paramètre de bandeau — « 4 séries », « repos 2'30 ». */
+  /**
+   * Un paramètre de bandeau — « 4 séries », « repos 2'30 ».
+   *
+   * Marqué CHAMP PAR CHAMP, en comparant à la référence : marquer « le bandeau » en bloc rendrait
+   * « Revenir au défaut » incapable de dire lequel des paramètres il annule, et un retour manuel à
+   * la valeur d'origine ne retirerait jamais le marqueur.
+   */
   function setStructure(
     key: string,
     blockId: string,
     structure: ExerciseBlocks[number]["structure"],
   ) {
-    replace(key, (item) => ({
-      ...item,
-      blocks: item.blocks.map((block) => (block.id === blockId ? { ...block, structure } : block)),
-      adjustments: markAdjusted(
-        item.adjustments,
-        structurePath(blockId, structure.type),
-        AdjustmentLevel.SESSION,
-      ),
-    }));
+    replace(key, (item) => {
+      const base = item.baseline.find((block) => block.id === blockId)?.structure;
+      const adjustments = structureFields(structure).reduce((current, field) => {
+        const path = structurePath(blockId, field);
+        const differs = base == null || readField(base, field) !== readField(structure, field);
+        return differs
+          ? markAdjusted(current, path, AdjustmentLevel.SESSION)
+          : clearAdjustment(current, path);
+      }, item.adjustments);
+
+      return {
+        ...item,
+        blocks: item.blocks.map((block) =>
+          block.id === blockId ? { ...block, structure } : block,
+        ),
+        adjustments,
+      };
+    });
+  }
+
+  /** « Revenir au défaut » sur un paramètre de bandeau. */
+  function revertStructureField(key: string, blockId: string, field: string) {
+    replace(key, (item) => {
+      const base = item.baseline.find((block) => block.id === blockId)?.structure;
+      if (base == null) return item;
+      return {
+        ...item,
+        blocks: item.blocks.map((block) =>
+          block.id === blockId
+            ? {
+                ...block,
+                structure: { ...block.structure, [field]: readField(base, field) } as never,
+              }
+            : block,
+        ),
+        adjustments: clearAdjustment(item.adjustments, structurePath(blockId, field)),
+      };
+    });
   }
 
   function setRows(key: string, blockId: string, rows: ExerciseBlocks[number]["rows"]) {
@@ -210,6 +249,27 @@ export function useSessionDraft(session: SessionDto | null) {
     });
   }
 
+  /**
+   * Reprend une ligne après un rechargement serveur. Sans ça la réponse arrive et le cache est
+   * invalidé, mais l'écran continue d'afficher son état local : le coach voit la confirmation
+   * disparaître et rien changer.
+   */
+  function applyReloaded(reloaded: SessionDto) {
+    setItems((current) =>
+      current.map((item) => {
+        const fresh = reloaded.exercises.find((composed) => composed.id === item.id);
+        return fresh == null
+          ? item
+          : {
+              ...item,
+              blocks: fresh.blocks,
+              baseline: fresh.baseline,
+              adjustments: fresh.adjustments,
+            };
+      }),
+    );
+  }
+
   return {
     title,
     setTitle,
@@ -223,6 +283,8 @@ export function useSessionDraft(session: SessionDto | null) {
     moveItem,
     setCellValue,
     setStructure,
+    revertStructureField,
+    applyReloaded,
     setRows,
     revertRow,
     revertCell,
@@ -231,4 +293,19 @@ export function useSessionDraft(session: SessionDto | null) {
     isSaving,
     error,
   };
+}
+
+/** Les champs surchargeables d'un bandeau. `type` n'en est pas un : il est verrouillé. */
+function structureFields(structure: ExerciseBlocks[number]["structure"]): string[] {
+  return Object.keys(structure).filter((field) => field !== "type");
+}
+
+function readField(structure: ExerciseBlocks[number]["structure"], field: string): unknown {
+  return (structure as unknown as Record<string, unknown>)[field];
+}
+
+function hasBaselineRow(baseline: ExerciseBlocks, blockId: string, rowId: string): boolean {
+  return (
+    baseline.find((block) => block.id === blockId)?.rows.some((row) => row.id === rowId) ?? false
+  );
 }

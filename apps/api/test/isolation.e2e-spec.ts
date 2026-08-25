@@ -772,14 +772,44 @@ describe("Dosage à trois niveaux (#164)", () => {
     composedId = composed.id;
   });
 
-  it("REFUSE de changer ce que le niveau séance verrouille", async () => {
+  const REPS = BLOCKS[0]?.metrics[0];
+
+  it.each([
+    ["le libellé du bloc", () => [{ ...BLOCKS[0], label: "Échauffement" }]],
+    ["le type de structure", () => [{ ...BLOCKS[0], structure: { type: "FREE" } }]],
+    [
+      "l'unité d'une colonne",
+      () => [{ ...BLOCKS[0], metrics: [{ ...REPS, unit: "REPS_PER_SIDE" }] }],
+    ],
+    [
+      "le libellé d'une colonne",
+      () => [{ ...BLOCKS[0], metrics: [{ ...REPS, label: "Passages" }] }],
+    ],
+    ["le nombre de blocs", () => []],
+  ])("REFUSE de changer %s au niveau séance", async (_label, build) => {
     // Le verrou est vérifié côté serveur : un formulaire n'est pas une frontière.
-    const locked = [{ ...BLOCKS[0], label: "Échauffement" }];
     const res = await coach.put(`/sessions/${sessionId}`).send({
       title: "Bloc force",
-      exercises: [{ id: composedId, exerciseId, blocks: locked }],
+      exercises: [{ id: composedId, exerciseId, blocks: build() }],
     });
     expect(res.status).toBe(400);
+  });
+
+  it("ACCEPTE le repli d'une colonne — c'est de l'affichage, pas de la donnée", async () => {
+    const collapsed = [{ ...BLOCKS[0], metrics: [{ ...REPS, collapsed: true }] }];
+    const res = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [{ id: composedId, exerciseId, blocks: collapsed }],
+    });
+    expect(res.status).toBe(200);
+    composedId = res.body.exercises[0].id;
+
+    // Remis en place : les tests suivants partent de la grille complète.
+    const restored = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [{ id: composedId, exerciseId, blocks: adjusted(8) }],
+    });
+    composedId = restored.body.exercises[0].id;
   });
 
   it("recharge depuis la bibliothèque : la référence suit, les ajustements tombent", async () => {

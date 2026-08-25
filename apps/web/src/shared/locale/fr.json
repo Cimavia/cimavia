@@ -142,8 +142,8 @@
       "emptyComposition": "Aucun exercice",
       "emptyCompositionHint": "Ajoutez des exercices depuis votre bibliothèque, à droite.",
       "pickerTitle": "Ajouter un exercice",
-      "moveUp": "Monter",
-      "moveDown": "Descendre",
+      "moveUp": "Monter l'exercice",
+      "moveDown": "Descendre l'exercice",
       "remove": "Retirer de la séance",
       "exerciseCount": "{{count}} exercice",
       "exerciseCount_other": "{{count}} exercices",
@@ -179,7 +179,8 @@
       "previewEmpty": "L'aperçu se remplit ici.",
       "saved": "Séance enregistrée.",
       "saveFailed": "L'enregistrement a échoué.",
-      "variantSuffix": "(variante)"
+      "variantSuffix": "(variante)",
+      "savedBeforeVariant": "Séance enregistrée avant de créer la variante."
     },
     "filterAllTags": "Tous",
     "tags": {
@@ -252,14 +253,14 @@
       },
       "bandeau": {
         "setCount": "Séries",
-        "restBetweenSets": "Repos",
-        "interval": "Intervalle",
-        "totalDuration": "Durée totale",
+        "restBetweenSetsSeconds": "Repos",
+        "intervalSeconds": "Intervalle",
+        "totalDurationSeconds": "Durée totale",
         "topCount": "= {{count}} top",
         "topCount_other": "= {{count}} tops",
         "targetRounds": "Objectif de tours",
         "roundCount": "Répéter le bloc",
-        "restBetweenRounds": "Repos entre tours"
+        "restBetweenRoundsSeconds": "Repos entre tours"
       },
       "grid": {
         "rowIndex": "Ligne",

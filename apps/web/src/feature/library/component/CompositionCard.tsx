@@ -1,12 +1,19 @@
-import type { CustomMetric } from "@cmv/shared";
+import { type Adjustments, type CustomMetric, structurePath } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IoChevronDown, IoChevronForward, IoEllipsisHorizontal } from "react-icons/io5";
+import {
+  IoArrowDown,
+  IoArrowUp,
+  IoChevronDown,
+  IoChevronForward,
+  IoEllipsisHorizontal,
+} from "react-icons/io5";
 import { BlockBandeau } from "@/feature/library/component/BlockBandeau";
 import { SessionBlockGrid } from "@/feature/library/component/SessionBlockGrid";
 import type { CompositionItem } from "@/feature/library/hook/useSessionDraft";
 import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
 import { CmvBadge, CmvButton, CmvTagList, CmvTextField } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 type CompositionCardProps = {
   item: CompositionItem;
@@ -17,11 +24,17 @@ type CompositionCardProps = {
   onStructureChange: (blockId: string, structure: unknown) => void;
   onRowsChange: (blockId: string, rows: unknown) => void;
   onRevertCell: (blockId: string, rowId: string, metricId: string) => void;
+  onRevertStructureField: (blockId: string, field: string) => void;
   onResetAll: () => void;
   onReload: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
   dragHandle: React.ReactNode;
+  /** La cible de dépôt se teinte ICI : posée sur un parent, le fond de la carte la masquerait. */
+  isDropTarget: boolean;
+  onMove: (direction: -1 | 1) => void;
+  isFirst: boolean;
+  isLast: boolean;
 };
 
 /**
@@ -37,11 +50,16 @@ export function CompositionCard({
   onStructureChange,
   onRowsChange,
   onRevertCell,
+  onRevertStructureField,
   onResetAll,
   onReload,
   onDuplicate,
   onRemove,
   dragHandle,
+  isDropTarget,
+  onMove,
+  isFirst,
+  isLast,
 }: Readonly<CompositionCardProps>) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -52,7 +70,12 @@ export function CompositionCard({
   const adjustedCount = item.adjustments.length;
 
   return (
-    <article className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md">
+    <article
+      className={cn(
+        "flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border p-cmv-md",
+        isDropTarget ? "bg-cmv-accent-soft" : "bg-cmv-surface",
+      )}
+    >
       <header className="flex flex-wrap items-center gap-cmv-sm">
         {dragHandle}
         <button
@@ -70,6 +93,25 @@ export function CompositionCard({
             {t("library.session.adjustedCount", { count: adjustedCount })}
           </CmvBadge>
         )}
+
+        {/* Les flèches doublent le glisser : celui-ci est inaccessible au clavier, et le
+            constructeur d'exercice les propose déjà sur ses blocs. */}
+        <CmvButton
+          variant="ghost"
+          title={t("library.session.moveUp")}
+          disabled={isFirst}
+          onClick={() => onMove(-1)}
+        >
+          <IoArrowUp />
+        </CmvButton>
+        <CmvButton
+          variant="ghost"
+          title={t("library.session.moveDown")}
+          disabled={isLast}
+          onClick={() => onMove(1)}
+        >
+          <IoArrowDown />
+        </CmvButton>
 
         <div className="relative">
           <CmvButton
@@ -146,6 +188,11 @@ export function CompositionCard({
                 structure={block.structure}
                 onChange={(structure) => onStructureChange(block.id, structure)}
               />
+              <StructureAdjustments
+                blockId={block.id}
+                adjustments={item.adjustments}
+                onRevert={(field) => onRevertStructureField(block.id, field)}
+              />
               <SessionBlockGrid
                 block={block}
                 baseline={item.baseline}
@@ -170,5 +217,51 @@ export function CompositionCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+/**
+ * Les paramètres de bandeau ajustés, avec de quoi y revenir.
+ *
+ * Sous le bandeau plutôt que dans chaque champ : les champs sont fournis par `BlockBandeau`, qui
+ * sert aussi le constructeur d'exercice où la notion de défaut n'existe pas. Y injecter des
+ * marqueurs le rendrait dépendant d'un contexte qu'il n'a pas.
+ */
+function StructureAdjustments({
+  blockId,
+  adjustments,
+  onRevert,
+}: Readonly<{
+  blockId: string;
+  adjustments: Adjustments;
+  onRevert: (field: string) => void;
+}>) {
+  const { t } = useTranslation();
+  // i18n-values library.builder.bandeau: setCount, restBetweenSetsSeconds, intervalSeconds, totalDurationSeconds, targetRounds, roundCount, restBetweenRoundsSeconds
+  const prefix = structurePath(blockId, "");
+  const fields = adjustments
+    .filter((item) => item.path.startsWith(prefix))
+    .map((item) => item.path.slice(prefix.length));
+
+  if (fields.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-cmv-sm">
+      {fields.map((field) => (
+        <span key={field} className="flex items-center gap-cmv-xs">
+          <span aria-hidden="true" className="size-2 rounded-cmv-pill bg-cmv-accent" />
+          <span className="text-cmv-caption text-cmv-text-lo">
+            {t(`library.builder.bandeau.${field}`)}
+          </span>
+          <button
+            type="button"
+            onClick={() => onRevert(field)}
+            className="text-cmv-caption text-cmv-accent hover:underline"
+          >
+            {t("library.session.revert")}
+          </button>
+        </span>
+      ))}
+    </div>
   );
 }

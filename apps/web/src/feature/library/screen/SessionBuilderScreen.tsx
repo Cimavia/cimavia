@@ -1,4 +1,4 @@
-import type { ExerciseDto, SessionDto } from "@cmv/shared";
+import type { ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -84,6 +84,7 @@ function SessionBuilder({
   const reload = useReloadSessionExercise(session?.id);
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const metrics = customMetrics ?? [];
   const drag = useReorderDrag(draft.moveItem);
@@ -102,6 +103,32 @@ function SessionBuilder({
 
   function onPick(exercise: ExerciseDto) {
     draft.addExercise(exercise);
+    setPicking(false);
+  }
+
+  /**
+   * « Dupliquer en variante » quitte la séance pour l'éditeur d'exercice. On l'ENREGISTRE d'abord :
+   * sans ça tout ce que le coach vient de composer disparaît, et le geste qui devait l'aider lui
+   * coûte son travail.
+   */
+  async function onDuplicate(exerciseId: string, blocks: ExerciseBlocks) {
+    try {
+      await draft.submit();
+    } catch {
+      toast.error(t("library.session.saveFailed"));
+      return;
+    }
+    toast.success(t("library.session.savedBeforeVariant"));
+    duplicate.mutate(
+      { exerciseId, suffix: t("library.session.variantSuffix"), blocks },
+      {
+        onSuccess: (created) =>
+          navigate({
+            to: "/library/exercises/$exerciseId",
+            params: { exerciseId: created.id },
+          }),
+      },
+    );
   }
 
   return (
@@ -165,15 +192,16 @@ function SessionBuilder({
               <div
                 key={item.key}
                 {...drag.rowProps(index)}
-                className={cn(
-                  drag.isDragging(index) && "opacity-40",
-                  drag.isOver(index) && "rounded-cmv-md bg-cmv-accent-soft",
-                )}
+                className={cn(drag.isDragging(index) && "opacity-40")}
               >
                 <CompositionCard
                   item={item}
                   customMetrics={metrics}
                   isReloading={reload.isPending}
+                  isDropTarget={drag.isOver(index)}
+                  isFirst={index === 0}
+                  isLast={index === draft.items.length - 1}
+                  onMove={(direction) => draft.moveItem(index, index + direction)}
                   dragHandle={
                     <CmvDragHandle
                       label={`${t("library.session.moveExercise")} ${index + 1}`}
@@ -196,28 +224,38 @@ function SessionBuilder({
                   onRevertCell={(blockId, rowId, metricId) =>
                     draft.revertCell(item.key, blockId, rowId, metricId)
                   }
+                  onRevertStructureField={(blockId, field) =>
+                    draft.revertStructureField(item.key, blockId, field)
+                  }
                   onResetAll={() => draft.resetItem(item.key)}
                   onReload={() => {
-                    if (item.id != null) reload.mutate(item.id);
+                    if (item.id == null) return;
+                    reload.mutate(item.id, { onSuccess: draft.applyReloaded });
                   }}
-                  onDuplicate={() =>
-                    duplicate.mutate(
-                      { exerciseId: item.exerciseId, suffix: t("library.session.variantSuffix") },
-                      {
-                        // On ouvre la VARIANTE : c'est elle que le coach veut retravailler, et
-                        // la séance en cours est déjà enregistrée ou reste ouverte derrière.
-                        onSuccess: (created) =>
-                          navigate({
-                            to: "/library/exercises/$exerciseId",
-                            params: { exerciseId: created.id },
-                          }),
-                      },
-                    )
-                  }
+                  onDuplicate={() => onDuplicate(item.exerciseId, item.blocks)}
                   onRemove={() => draft.removeItem(item.key)}
                 />
               </div>
             ))}
+
+            {/* Le sélecteur s'ouvre AU CENTRE, comme le choix de structure du constructeur
+                d'exercice : même geste, même endroit. La colonne de droite ne porte que l'aperçu. */}
+            {picking ? (
+              <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
+                <LibraryPicker customMetrics={metrics} onPick={onPick} />
+                <div>
+                  <CmvButton variant="ghost" onClick={() => setPicking(false)}>
+                    {t("library.builder.cancel")}
+                  </CmvButton>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <CmvButton variant="secondary" onClick={() => setPicking(true)}>
+                  {t("library.session.pickerTitle")}
+                </CmvButton>
+              </div>
+            )}
           </div>
 
           {draft.error == null ? null : (
@@ -225,10 +263,10 @@ function SessionBuilder({
           )}
         </div>
 
-        <div className="flex flex-col gap-cmv-xl">
-          <LibraryPicker customMetrics={metrics} onPick={onPick} />
+        {/* `sticky` : l'aperçu suit le défilement de la composition, bien plus longue que lui. */}
+        <aside className="min-w-0 xl:sticky xl:top-32 xl:self-start">
           <SessionPreview items={draft.items} customMetrics={metrics} />
-        </div>
+        </aside>
       </div>
     </CmvAppShell>
   );

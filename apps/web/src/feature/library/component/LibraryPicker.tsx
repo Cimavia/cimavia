@@ -45,17 +45,17 @@ export function LibraryPicker({ customMetrics, onPick }: Readonly<LibraryPickerP
   );
 
   return (
-    <aside className="flex w-full flex-col gap-cmv-sm lg:w-80">
-      <span className="text-cmv-caption text-cmv-text-mid">{t("library.session.pickerTitle")}</span>
-
-      <CmvTextField
-        label={t("library.searchLabel")}
-        name="pickerSearch"
-        type="search"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder={t("library.session.pickerSearch")}
-      />
+    <div className="flex w-full flex-col gap-cmv-sm">
+      <div className="max-w-md">
+        <CmvTextField
+          label={t("library.searchLabel")}
+          name="pickerSearch"
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t("library.session.pickerSearch")}
+        />
+      </div>
 
       {tags == null || tags.length === 0 ? null : (
         <CmvChoiceChips
@@ -86,7 +86,9 @@ export function LibraryPicker({ customMetrics, onPick }: Readonly<LibraryPickerP
         />
       ) : null}
 
-      <div className="flex max-h-[32rem] flex-col gap-cmv-xs overflow-y-auto">
+      {/* Une grille et non une colonne : le sélecteur occupe toute la largeur du centre depuis
+          qu'il a quitté le rail de droite, et une seule colonne y laisserait un vide énorme. */}
+      <div className="grid max-h-[28rem] gap-cmv-sm overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
         {visible.map((exercise) => {
           const summary = dosageSummary(exercise.blocks, customMetrics, t);
           return (
@@ -105,6 +107,6 @@ export function LibraryPicker({ customMetrics, onPick }: Readonly<LibraryPickerP
           );
         })}
       </div>
-    </aside>
+    </div>
   );
 }

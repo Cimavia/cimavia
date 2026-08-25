@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { PreviewBlock } from "@/feature/library/component/PreviewBlock";
 import type { CompositionItem } from "@/feature/library/hook/useSessionDraft";
 import { CmvCard } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 type SessionPreviewProps = {
   items: readonly CompositionItem[];
@@ -28,8 +29,16 @@ export function SessionPreview({ items, customMetrics }: Readonly<SessionPreview
         </p>
       ) : (
         <CmvCard className="flex min-w-0 flex-col gap-cmv-lg">
-          {items.map((item) => (
-            <div key={item.key} className="flex flex-col gap-cmv-xs">
+          {/* Un filet entre les exercices : sans lui deux exercices successifs se lisent comme
+              un seul, et l'athlète confond leurs dosages. Même règle que dans l'aperçu d'exercice. */}
+          {items.map((item, index) => (
+            <div
+              key={item.key}
+              className={cn(
+                "flex flex-col gap-cmv-xs",
+                index === 0 ? "" : "border-cmv-border border-t pt-cmv-lg",
+              )}
+            >
               <h4 className="text-cmv-body text-cmv-text-hi">{item.title}</h4>
               {item.blocks.map((block) => (
                 <PreviewBlock key={block.id} block={block} customMetrics={customMetrics} />

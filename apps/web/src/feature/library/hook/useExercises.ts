@@ -1,4 +1,4 @@
-import type { ExerciseDto } from "@cmv/shared";
+import type { ExerciseBlocks, ExerciseDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createExercise,
@@ -49,13 +49,27 @@ export function useDeleteExercise() {
 export function useDuplicateExercise() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ exerciseId, suffix }: { exerciseId: string; suffix: string }) => {
+    mutationFn: async ({
+      exerciseId,
+      suffix,
+      blocks,
+    }: {
+      exerciseId: string;
+      suffix: string;
+      /**
+       * Le dosage à graver dans la variante. Depuis une séance, c'est celui de la SÉANCE et non
+       * celui de la bibliothèque : le coach duplique justement parce que ses ajustements
+       * demandent de changer ce que le niveau séance verrouille. Repartir du défaut lui ferait
+       * tout ressaisir.
+       */
+      blocks?: ExerciseBlocks;
+    }) => {
       const source = await getExercise(exerciseId);
       return createExercise({
         title: `${source.title} ${suffix}`,
         description: source.description,
         instructions: source.instructions,
-        blocks: source.blocks,
+        blocks: blocks ?? source.blocks,
         tags: source.tags,
       });
     },
