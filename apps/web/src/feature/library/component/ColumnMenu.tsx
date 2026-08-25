@@ -13,11 +13,13 @@ import {
   MetricValueType,
   metricValueTypeOf,
 } from "@cmv/shared";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoChevronDown } from "react-icons/io5";
 import { metricLabel } from "@/feature/library/util/metric-label.util";
-import { CmvButton } from "@/shared/component";
+import { CMV_TABLE, CmvButton } from "@/shared/component";
+import { useAnchoredPosition } from "@/shared/hook/useAnchoredPosition";
+import { cn } from "@/shared/util/cn.util";
 
 // i18n-values exercise.unit: MetricUnit
 
@@ -25,6 +27,9 @@ type ColumnMenuProps = {
   block: ExerciseBlock;
   metric: BlockMetric;
   customMetrics: readonly CustomMetric[];
+  /** Id de la colonne dont le menu est ouvert — un seul à la fois, d'où l'état chez le parent. */
+  openMetricId: string | null;
+  onOpenChange: (metricId: string | null) => void;
   onChange: (block: ExerciseBlock) => void;
 };
 
@@ -35,9 +40,20 @@ type ColumnMenuProps = {
  * lignes, et redéployer la colonne les retrouve intactes. C'est ce qui le rend réversible sans
  * rien perdre.
  */
-export function ColumnMenu({ block, metric, customMetrics, onChange }: Readonly<ColumnMenuProps>) {
+export function ColumnMenu({
+  block,
+  metric,
+  customMetrics,
+  openMetricId,
+  onOpenChange,
+  onChange,
+}: Readonly<ColumnMenuProps>) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const open = openMetricId === metric.id;
+  const position = useAnchoredPosition(triggerRef, open);
+  const setOpen = (next: boolean) => onOpenChange(next ? metric.id : null);
 
   const collapsible = canCollapseMetric(block, metric.id);
   // Rien à replier quand il n'y a aucune ligne : la « valeur commune » n'aurait pas de référent,
@@ -68,19 +84,28 @@ export function ColumnMenu({ block, metric, customMetrics, onChange }: Readonly<
   }
 
   return (
-    <div className="relative">
+    <div>
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
+        onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex items-center gap-cmv-xs text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
+        className={cn(CMV_TABLE.headLabel, "flex items-center gap-cmv-xs hover:text-cmv-text-hi")}
       >
         {metricLabel(metric, customMetrics, t)}
         <IoChevronDown />
       </button>
 
+      {/*
+        Positionné en `fixed` d'après le bouton, et non en `absolute` : la grille défile
+        horizontalement (`overflow-x-auto`), ce qui ROGNE tout enfant qui déborde — le menu
+        disparaissait dès que le tableau avait peu de lignes.
+      */}
       {open ? (
-        <div className="absolute z-10 mt-cmv-xs flex w-64 flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md shadow-lg">
+        <div
+          style={position}
+          className="fixed z-20 flex w-64 flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md shadow-lg"
+        >
           {metric.source === MetricSource.CATALOG ? (
             <UnitChoice metric={metric} onChange={setUnit} />
           ) : null}
@@ -92,22 +117,27 @@ export function ColumnMenu({ block, metric, customMetrics, onChange }: Readonly<
             onFill={(rows) => apply({ ...block, rows })}
           />
 
-          <div className="flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-sm">
-            {metric.collapsed ? (
-              <CmvButton variant="ghost" onClick={() => setCollapsed(false)}>
-                {t("library.builder.column.expand")}
-              </CmvButton>
-            ) : (
-              <CmvButton variant="ghost" disabled={!canFold} onClick={() => setCollapsed(true)}>
-                {t("library.builder.column.collapse")}
-              </CmvButton>
-            )}
-            {metric.collapsed || canFold ? null : (
-              <span className="text-cmv-caption text-cmv-text-lo">
-                {t("library.builder.column.cannotCollapse")}
-              </span>
-            )}
-          </div>
+          {/* Sans ligne, il n'y a rien à replier ET rien à contredire : afficher « la valeur
+              change d'une ligne à l'autre » serait faux, puisqu'il n'y a pas de ligne. Le
+              message de remplissage dit déjà ce qui manque. */}
+          {block.rows.length === 0 ? null : (
+            <div className="flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-sm">
+              {metric.collapsed ? (
+                <CmvButton variant="ghost" onClick={() => setCollapsed(false)}>
+                  {t("library.builder.column.expand")}
+                </CmvButton>
+              ) : (
+                <CmvButton variant="ghost" disabled={!canFold} onClick={() => setCollapsed(true)}>
+                  {t("library.builder.column.collapse")}
+                </CmvButton>
+              )}
+              {metric.collapsed || canFold ? null : (
+                <span className="text-cmv-caption text-cmv-text-lo">
+                  {t("library.builder.column.cannotCollapse")}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       ) : null}
     </div>
@@ -171,72 +201,83 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
   const parsedStep = Number.parseInt(step, 10);
   const stepIsUsable = Number.isFinite(parsedStep) && parsedStep !== 0;
 
-  if (block.rows.length === 0) return null;
+  // Sans ligne, aucun remplissage n'a de sens — mais un menu à moitié vide se lit comme un bug.
+  // On dit ce qui manque plutôt que de ne rien montrer.
+  if (block.rows.length === 0) {
+    return (
+      <p className="border-cmv-border border-t pt-cmv-sm text-cmv-caption text-cmv-text-lo">
+        {t("library.builder.column.needsRow")}
+      </p>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-sm">
+    <div className="flex flex-col gap-cmv-xs border-cmv-border text-left">
       <span className="text-cmv-caption text-cmv-text-mid">{t("library.builder.column.fill")}</span>
 
-      <CmvButton
-        variant="ghost"
-        onClick={() =>
-          onFill(fillColumn(block, metric.id, { mode: ColumnFillMode.SAME, value: first }))
-        }
-      >
-        {t("library.builder.column.fillSame")}
-      </CmvButton>
+      {/* Indentés sous leur titre : la hiérarchie se lit à l'alignement, pas à la taille. */}
+      <div className="flex flex-col items-start gap-cmv-xs pl-cmv-sm">
+        <CmvButton
+          variant="ghost"
+          onClick={() =>
+            onFill(fillColumn(block, metric.id, { mode: ColumnFillMode.SAME, value: first }))
+          }
+        >
+          {t("library.builder.column.fillSame")}
+        </CmvButton>
 
-      <CmvButton
-        variant="ghost"
-        onClick={() => onFill(fillColumn(block, metric.id, { mode: ColumnFillMode.MIRROR }))}
-      >
-        {t("library.builder.column.fillMirror")}
-      </CmvButton>
+        <CmvButton
+          variant="ghost"
+          onClick={() => onFill(fillColumn(block, metric.id, { mode: ColumnFillMode.MIRROR }))}
+        >
+          {t("library.builder.column.fillMirror")}
+        </CmvButton>
 
-      <div className="flex items-center gap-cmv-xs">
-        <input
-          value={step}
-          inputMode="numeric"
-          aria-label={t("library.builder.column.stepLabel")}
-          onChange={(event) => setStep(event.target.value)}
-          className="w-14 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
-        />
-        {valueType === MetricValueType.SCALE ? (
-          <CmvButton
-            variant="ghost"
-            disabled={!stepIsUsable || scale == null || typeof first !== "string"}
-            onClick={() => {
-              if (scale == null || typeof first !== "string") return;
-              onFill(
-                fillColumn(block, metric.id, {
-                  mode: ColumnFillMode.SCALE_STEP,
-                  scale,
-                  start: first,
-                  step: parsedStep,
-                }),
-              );
-            }}
-          >
-            {t("library.builder.column.fillScaleStep")}
-          </CmvButton>
-        ) : (
-          <CmvButton
-            variant="ghost"
-            disabled={!stepIsUsable || typeof first !== "number"}
-            onClick={() => {
-              if (typeof first !== "number") return;
-              onFill(
-                fillColumn(block, metric.id, {
-                  mode: ColumnFillMode.STEP,
-                  start: first,
-                  step: parsedStep,
-                }),
-              );
-            }}
-          >
-            {t("library.builder.column.fillStep")}
-          </CmvButton>
-        )}
+        <div className="flex items-center gap-cmv-xs">
+          <input
+            value={step}
+            inputMode="numeric"
+            aria-label={t("library.builder.column.stepLabel")}
+            onChange={(event) => setStep(event.target.value)}
+            className="w-14 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
+          />
+          {valueType === MetricValueType.SCALE ? (
+            <CmvButton
+              variant="ghost"
+              disabled={!stepIsUsable || scale == null || typeof first !== "string"}
+              onClick={() => {
+                if (scale == null || typeof first !== "string") return;
+                onFill(
+                  fillColumn(block, metric.id, {
+                    mode: ColumnFillMode.SCALE_STEP,
+                    scale,
+                    start: first,
+                    step: parsedStep,
+                  }),
+                );
+              }}
+            >
+              {t("library.builder.column.fillScaleStep")}
+            </CmvButton>
+          ) : (
+            <CmvButton
+              variant="ghost"
+              disabled={!stepIsUsable || typeof first !== "number"}
+              onClick={() => {
+                if (typeof first !== "number") return;
+                onFill(
+                  fillColumn(block, metric.id, {
+                    mode: ColumnFillMode.STEP,
+                    start: first,
+                    step: parsedStep,
+                  }),
+                );
+              }}
+            >
+              {t("library.builder.column.fillStep")}
+            </CmvButton>
+          )}
+        </div>
       </div>
     </div>
   );

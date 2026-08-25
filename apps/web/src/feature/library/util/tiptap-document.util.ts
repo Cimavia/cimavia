@@ -1,6 +1,8 @@
 import {
+  ImageWidth,
   type InlineMark,
   type InlineNode,
+  imageWidthSchema,
   type RichBlock,
   RichBlockType,
   type RichDocument,
@@ -97,7 +99,16 @@ function readImage(node: JSONContent): RichBlock | null {
   // il n'a rien à stocker.
   if (typeof mediaId !== "string" || mediaId === "") return null;
   const caption = typeof node.attrs?.caption === "string" ? node.attrs.caption.trim() : "";
-  return { type: RichBlockType.IMAGE, mediaId, ...(caption === "" ? {} : { caption }) };
+  const raw = node.attrs?.width;
+  // Largeur inconnue → non stockée : l'absence VAUT pleine largeur, et écrire la valeur par
+  // défaut ferait diverger les images posées avant l'arrivée du réglage.
+  const width = imageWidthSchema.safeParse(raw);
+  return {
+    type: RichBlockType.IMAGE,
+    mediaId,
+    ...(caption === "" ? {} : { caption }),
+    ...(width.success && width.data !== ImageWidth.FULL ? { width: width.data } : {}),
+  };
 }
 
 /**
@@ -166,7 +177,11 @@ function toTipTapNode(block: RichBlock): JSONContent | null {
   if (block.type === RichBlockType.IMAGE) {
     return {
       type: IMAGE_NODE,
-      attrs: { mediaId: block.mediaId, caption: block.caption ?? "" },
+      attrs: {
+        mediaId: block.mediaId,
+        caption: block.caption ?? "",
+        width: block.width ?? ImageWidth.FULL,
+      },
     };
   }
   return null;

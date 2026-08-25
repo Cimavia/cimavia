@@ -8,13 +8,14 @@ import {
   type MetricKey,
   MetricSource,
 } from "@cmv/shared";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
 import { CustomMetricForm } from "@/feature/library/component/CustomMetricForm";
 import { catalogByFamily, metricHint } from "@/feature/library/util/metric-catalog.util";
 import { metricLabel } from "@/feature/library/util/metric-label.util";
 import { CmvButton, CmvDragHandle, CmvPanel } from "@/shared/component";
+import { useReorderDrag } from "@/shared/hook/useReorderDrag";
+import { cn } from "@/shared/util/cn.util";
 
 // i18n-values exercise.metric: MetricKey
 // i18n-values library.builder.family: MetricFamily
@@ -57,7 +58,12 @@ export function MetricPicker({
   );
   const isFull = block.metrics.length >= BLOCK_MAX_METRICS;
 
-  function addCatalog(key: MetricKey) {
+  /** Bascule : recliquer une métrique déjà retenue la retire, comme une case à cocher. */
+  function toggleCatalog(key: MetricKey) {
+    const existing = block.metrics.find(
+      (metric) => metric.source === MetricSource.CATALOG && metric.key === key,
+    );
+    if (existing != null) return remove(existing.id);
     if (isFull) return;
     const metric: BlockMetric = {
       id: crypto.randomUUID(),
@@ -70,7 +76,11 @@ export function MetricPicker({
     onChange({ ...block, metrics: [...block.metrics, metric] });
   }
 
-  function addCustom(customMetricId: string) {
+  function toggleCustom(customMetricId: string) {
+    const existing = block.metrics.find(
+      (metric) => metric.source === MetricSource.CUSTOM && metric.customMetricId === customMetricId,
+    );
+    if (existing != null) return remove(existing.id);
     if (isFull) return;
     const metric: BlockMetric = {
       id: crypto.randomUUID(),
@@ -121,10 +131,12 @@ export function MetricPicker({
           onRemove={remove}
         />
 
+        {/* Créée ICI et posée aussitôt en colonne : sortir du constructeur pour définir une
+            cotation, puis y revenir, ferait perdre le fil de l'exercice en cours. */}
+        <CustomMetricForm onCreated={(metric) => toggleCustom(metric.id)} />
+
         <section className="flex flex-col gap-cmv-xs">
-          <span className="text-cmv-caption text-cmv-text-mid">
-            {t("library.builder.custom.mine")}
-          </span>
+          <span className="text-cmv-body text-cmv-text-hi">{t("library.builder.custom.mine")}</span>
           {customMetrics.length === 0 ? (
             <span className="text-cmv-caption text-cmv-text-lo">
               {t("library.builder.custom.none")}
@@ -134,10 +146,11 @@ export function MetricPicker({
             <button
               key={custom.id}
               type="button"
-              disabled={isFull || chosenCustomIds.has(custom.id)}
-              onClick={() => addCustom(custom.id)}
+              disabled={isFull && !chosenCustomIds.has(custom.id)}
+              onClick={() => toggleCustom(custom.id)}
               className="flex items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
             >
+              <Checkbox checked={chosenCustomIds.has(custom.id)} />
               <span className="text-cmv-body text-cmv-text-hi">{custom.label}</span>
               {custom.unit == null ? null : (
                 <span className="text-cmv-caption text-cmv-text-lo">{custom.unit}</span>
@@ -146,13 +159,9 @@ export function MetricPicker({
           ))}
         </section>
 
-        {/* Créée ICI et posée aussitôt en colonne : sortir du constructeur pour définir une
-            cotation, puis y revenir, ferait perdre le fil de l'exercice en cours. */}
-        <CustomMetricForm onCreated={(metric) => addCustom(metric.id)} />
-
         {[...FAMILIES].map(([family, keys]) => (
           <section key={family} className="flex flex-col gap-cmv-xs">
-            <span className="text-cmv-caption text-cmv-text-mid">
+            <span className="text-cmv-body text-cmv-text-hi">
               {t(`library.builder.family.${family}`)}
             </span>
             {keys.map((key) => (
@@ -160,8 +169,8 @@ export function MetricPicker({
                 key={key}
                 metricKey={key}
                 chosen={chosenKeys.has(key)}
-                disabled={isFull}
-                onAdd={() => addCatalog(key)}
+                disabled={isFull && !chosenKeys.has(key)}
+                onToggle={() => toggleCatalog(key)}
               />
             ))}
           </section>
@@ -171,23 +180,45 @@ export function MetricPicker({
   );
 }
 
+/**
+ * Une case à cocher DESSINÉE plutôt qu'un `<input type=checkbox>` : la ligne entière est déjà un
+ * bouton qui bascule, et imbriquer un contrôle dans un bouton produirait deux cibles de clic
+ * pour une seule intention.
+ */
+function Checkbox({ checked }: Readonly<{ checked: boolean }>) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-cmv-sm border text-cmv-caption",
+        checked
+          ? "border-cmv-accent-line bg-cmv-accent-soft text-cmv-accent-on"
+          : "border-cmv-border",
+      )}
+    >
+      {checked ? "✓" : null}
+    </span>
+  );
+}
+
 function CatalogRow({
   metricKey,
   chosen,
   disabled,
-  onAdd,
-}: Readonly<{ metricKey: MetricKey; chosen: boolean; disabled: boolean; onAdd: () => void }>) {
+  onToggle,
+}: Readonly<{ metricKey: MetricKey; chosen: boolean; disabled: boolean; onToggle: () => void }>) {
   const { t } = useTranslation();
   const hint = metricHint(metricKey, t);
 
   return (
     <button
       type="button"
-      // Déjà retenue : le retrait passe par la liste du haut, où l'on voit ce qu'on enlève.
-      disabled={chosen || disabled}
-      onClick={onAdd}
+      aria-pressed={chosen}
+      disabled={disabled}
+      onClick={onToggle}
       className="flex items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
     >
+      <Checkbox checked={chosen} />
       <span className="text-cmv-body text-cmv-text-hi">{t(METRIC_LABEL_KEY[metricKey])}</span>
       {hint == null ? null : <span className="text-cmv-caption text-cmv-text-lo">{hint}</span>}
     </button>
@@ -206,7 +237,7 @@ function ChosenColumns({
   onRemove: (metricId: string) => void;
 }>) {
   const { t } = useTranslation();
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const drag = useReorderDrag(onMove);
 
   return (
     <section className="flex flex-col gap-cmv-xs">
@@ -214,20 +245,20 @@ function ChosenColumns({
         {t("library.builder.metrics.chosen")}
       </span>
       {block.metrics.map((metric, index) => (
-        // biome-ignore lint/a11y/noStaticElementInteractions: cible de dépôt du glisser-déposer — le chemin accessible est la poignée CmvDragHandle, qui répond aux flèches
         <div
           key={metric.id}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={() => {
-            if (dragIndex != null) onMove(dragIndex, index);
-            setDragIndex(null);
-          }}
-          className="flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border bg-cmv-surface px-cmv-sm py-cmv-xs"
+          {...drag.rowProps(index)}
+          className={cn(
+            "flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border px-cmv-sm py-cmv-xs",
+            drag.isDragging(index) && "opacity-40",
+            // UN seul fond : deux classes de `background-color` se départageraient à l'ordre du
+            // fichier CSS, pas à l'ordre où on les écrit.
+            drag.isOver(index) ? "bg-cmv-accent-soft" : "bg-cmv-surface",
+          )}
         >
           <CmvDragHandle
             label={`${t("library.builder.metrics.moveColumn")} ${index + 1}`}
-            onDragStart={() => setDragIndex(index)}
-            onDragEnd={() => setDragIndex(null)}
+            {...drag.handleProps(index)}
             onMove={(direction) => onMove(index, index + direction)}
           />
           <span className="flex-1 text-cmv-body text-cmv-text-hi">

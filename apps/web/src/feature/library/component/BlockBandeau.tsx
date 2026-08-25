@@ -40,8 +40,8 @@ function CountField({
   onChange,
 }: Readonly<{ label: string; value: number; min: number; onChange: (value: number) => void }>) {
   return (
-    <label className="flex flex-col gap-cmv-xs">
-      <span className="text-cmv-caption text-cmv-text-mid">{label}</span>
+    <label className="flex items-center gap-cmv-sm">
+      <span className="whitespace-nowrap text-cmv-caption text-cmv-text-mid">{label}</span>
       <input
         type="number"
         min={min}
@@ -51,14 +51,19 @@ function CountField({
           // Un champ vidé ne vaut pas zéro : on ignore, le champ garde sa dernière valeur.
           if (Number.isFinite(parsed) && parsed >= min) onChange(parsed);
         }}
-        className="w-20 rounded-cmv-sm border border-cmv-border bg-cmv-surface px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
+        className="w-16 rounded-cmv-sm border border-cmv-border bg-cmv-surface px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
       />
     </label>
   );
 }
 
+/**
+ * Le bandeau tient sur UNE ligne : ses champs sont courts (un nombre, une durée) et les empiler
+ * étirait la carte de bloc sans rien ajouter. Le libellé passe à gauche du champ plutôt qu'au-
+ * dessus, ce qui divise la hauteur par deux.
+ */
 function Row({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <div className="flex flex-wrap items-end gap-cmv-md">{children}</div>;
+  return <div className="flex flex-wrap items-center gap-cmv-lg">{children}</div>;
 }
 
 function SeriesBandeau({
@@ -110,7 +115,7 @@ function EmomBandeau({
       />
       {/* DÉRIVÉ, jamais stocké : un nombre de tops enregistré finirait par contredire les deux
           durées dont il découle. */}
-      <span className="pb-cmv-xs text-cmv-caption text-cmv-text-mid">
+      <span className="text-cmv-caption text-cmv-text-mid">
         {t("library.builder.bandeau.topCount", { count: emomTopCount(structure) })}
       </span>
     </Row>

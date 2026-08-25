@@ -26,8 +26,14 @@ describe("parseTrainingDuration", () => {
     expect(parseTrainingDuration("90")).toBe(90);
   });
 
+  it("fait déborder les secondes sur les minutes plutôt que de refuser", () => {
+    // « 2:75 » vaut 3'15. Le rendu canonique montre aussitôt ce qui a été compris — c'est ce qui
+    // rattrape la faute de frappe, mieux qu'un refus muet.
+    expect(parseTrainingDuration("2:75")).toBe(195);
+    expect(formatTrainingDuration(parseTrainingDuration("2:75"))).toBe("3'15");
+  });
+
   it.each([
-    ["2:75", "des secondes au-delà de 59"],
     ["abc", "du texte"],
     ["", "une chaîne vide"],
     ["-30", "une durée négative"],

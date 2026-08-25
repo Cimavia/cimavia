@@ -5,10 +5,12 @@ import {
   SCALE_STEP_MAX_LENGTH,
   V_BOULDERING_SCALE,
 } from "@cmv/shared";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
 import { CmvButton, CmvDragHandle } from "@/shared/component";
+import { useReorderDrag } from "@/shared/hook/useReorderDrag";
+import { cn } from "@/shared/util/cn.util";
 
 type ScaleEditorProps = {
   scale: OrderedScale;
@@ -26,9 +28,10 @@ type ScaleEditorProps = {
 export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const isFull = scale.length >= SCALE_MAX_STEPS;
+  const drag = useReorderDrag(move);
 
   function add() {
     const step = draft.trim();
@@ -36,6 +39,9 @@ export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
     if (step === "" || isFull || scale.includes(step)) return setDraft("");
     onChange([...scale, step]);
     setDraft("");
+    // Le focus revient au champ : on saisit une échelle palier après palier, et devoir recliquer
+    // entre chacun rendrait le bouton inutilisable au clavier comme à la souris.
+    inputRef.current?.focus();
   }
 
   function move(index: number, to: number) {
@@ -62,20 +68,18 @@ export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
       </div>
 
       {scale.map((step, index) => (
-        // biome-ignore lint/a11y/noStaticElementInteractions: cible de dépôt du glisser-déposer — le chemin accessible est la poignée CmvDragHandle, qui répond aux flèches
         <div
           key={step}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={() => {
-            if (dragIndex != null) move(dragIndex, index);
-            setDragIndex(null);
-          }}
-          className="flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border bg-cmv-surface px-cmv-sm py-cmv-xs"
+          {...drag.rowProps(index)}
+          className={cn(
+            "flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border px-cmv-sm py-cmv-xs",
+            drag.isDragging(index) && "opacity-40",
+            drag.isOver(index) ? "bg-cmv-accent-soft" : "bg-cmv-surface",
+          )}
         >
           <CmvDragHandle
             label={`${t("library.builder.scale.moveStep")} ${index + 1}`}
-            onDragStart={() => setDragIndex(index)}
-            onDragEnd={() => setDragIndex(null)}
+            {...drag.handleProps(index)}
             onMove={(direction) => move(index, index + direction)}
           />
           <span className="w-6 text-cmv-caption text-cmv-text-lo">{index + 1}</span>
@@ -92,6 +96,7 @@ export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
 
       <div className="flex items-center gap-cmv-xs">
         <input
+          ref={inputRef}
           value={draft}
           maxLength={SCALE_STEP_MAX_LENGTH}
           disabled={isFull}

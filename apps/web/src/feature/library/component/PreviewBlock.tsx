@@ -11,6 +11,8 @@ import {
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { metricLabel, metricUnitLabel } from "@/feature/library/util/metric-label.util";
+import { CMV_TABLE } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 // i18n-values exercise.dosage: series, emom, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
 
@@ -91,8 +93,11 @@ function RowValues({
 
   const cells = (row: ExerciseBlock["rows"][number]) =>
     metrics.map((metric) => {
-      const unit = metricUnitLabel(metric, customMetrics, t);
-      const shown = formatValue(row.values[metric.id] ?? null, metric, customMetrics);
+      const value = row.values[metric.id] ?? null;
+      const shown = formatValue(value, metric, customMetrics);
+      // Pas d'unité derrière une absence : « — kg » laisse croire à une charge nulle, alors que
+      // « — » dit exactement ce qu'il y a — rien.
+      const unit = value == null ? null : metricUnitLabel(metric, customMetrics, t);
       return `${shown}${unit == null ? "" : ` ${unit}`}`;
     });
 
@@ -104,31 +109,37 @@ function RowValues({
   }
 
   return (
-    <table className="w-full text-left text-cmv-caption">
-      <thead>
-        <tr className="text-cmv-text-lo">
-          <th className="w-6" scope="col">
-            <span className="sr-only">{t("library.builder.grid.rowIndex")}</span>
-          </th>
-          {metrics.map((metric) => (
-            <th key={metric.id} scope="col" className="pb-cmv-xs font-normal">
-              {metricLabel(metric, customMetrics, t)}
+    // La colonne d'aperçu fait 360 px : au-delà de trois colonnes le tableau la déborde, et sans
+    // ce conteneur il débordait la CARTE elle-même. C'est au tableau de défiler, pas à l'aperçu.
+    <div className={cn("overflow-x-auto", CMV_TABLE.frame)}>
+      <table className={cn(CMV_TABLE.table, "text-cmv-caption")}>
+        <thead>
+          <tr className={cn(CMV_TABLE.head, CMV_TABLE.headBorder)}>
+            <th className={`w-6 ${CMV_TABLE.headCell}`} scope="col">
+              <span className="sr-only">{t("library.builder.grid.rowIndex")}</span>
             </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody className="text-cmv-text-mid">
-        {block.rows.map((row, index) => (
-          <tr key={row.id}>
-            <td className="text-cmv-text-lo">{index + 1}</td>
-            {cells(row).map((cell, cellIndex) => (
-              <td key={metrics[cellIndex]?.id ?? cellIndex} className="pr-cmv-sm">
-                {cell}
-              </td>
+            {metrics.map((metric) => (
+              <th key={metric.id} scope="col" className={CMV_TABLE.headCell}>
+                <span className={CMV_TABLE.headLabel}>{metricLabel(metric, customMetrics, t)}</span>
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="text-cmv-text-mid">
+          {block.rows.map((row, index) => (
+            <tr key={row.id} className={CMV_TABLE.row}>
+              <td className={CMV_TABLE.cell}>
+                <span className={CMV_TABLE.index}>{index + 1}</span>
+              </td>
+              {cells(row).map((cell, cellIndex) => (
+                <td key={metrics[cellIndex]?.id ?? cellIndex} className={CMV_TABLE.cell}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

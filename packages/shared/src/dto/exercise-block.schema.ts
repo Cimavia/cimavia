@@ -420,35 +420,6 @@ export const DEFAULT_BLOCK_METRIC_KEYS = {
   [BlockType.FREE]: [MetricKey.LABEL],
 } as const satisfies Record<BlockType, readonly MetricKey[]>;
 
-/**
- * Les deux raccourcis de saisie. Ce ne sont PAS des types de structure : ils produisent des
- * Séries préréglées, et le bloc obtenu est indistinguable d'une Séries saisie à la main. C'est
- * voulu — un troisième type qui ne serait qu'une Séries déguisée obligerait tout l'aval (rendu,
- * timers, suivi) à le traiter comme un cas de plus.
- */
-export const BlockShortcut = {
-  PYRAMID: "PYRAMID",
-  INTERVALS: "INTERVALS",
-} as const;
-export type BlockShortcut = TypesValuesOf<typeof BlockShortcut>;
-
-export const SHORTCUT_PRESETS = {
-  // Pyramide : des paliers qui montent puis redescendent. Le remplissage en miroir est un geste
-  // de GRILLE, pas de bandeau — le raccourci ne fait ici que poser des Séries et leur colonne.
-  [BlockShortcut.PYRAMID]: {
-    structure: { type: BlockType.SERIES, setCount: 7, restBetweenSetsSeconds: 180 },
-    metricKeys: [MetricKey.REPETITIONS],
-  },
-  // Intervalles : « durée d'effort et repos déjà cochés » — c'est tout ce que le raccourci fait.
-  [BlockShortcut.INTERVALS]: {
-    structure: { type: BlockType.SERIES, setCount: 10, restBetweenSetsSeconds: 30 },
-    metricKeys: [MetricKey.EFFORT_DURATION],
-  },
-} as const satisfies Record<
-  BlockShortcut,
-  { structure: BlockStructure; metricKeys: readonly MetricKey[] }
->;
-
 export const exerciseBlocksSchema = z
   .array(exerciseBlockSchema)
   .max(EXERCISE_MAX_BLOCKS)

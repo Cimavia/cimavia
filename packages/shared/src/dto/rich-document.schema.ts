@@ -88,12 +88,27 @@ export const calloutBlockSchema = z
   .object({ type: z.literal(RichBlockType.CALLOUT), content: inlineContentSchema })
   .strict();
 
+/**
+ * Trois largeurs, pas une valeur libre : un pourcentage saisi à la main donnerait des images qui
+ * dépendent de l'écran où elles ont été posées, et que le rendu React Native devrait interpréter
+ * au pixel près. Trois paliers se rendent identiquement partout.
+ */
+export const ImageWidth = {
+  SMALL: "SMALL",
+  MEDIUM: "MEDIUM",
+  FULL: "FULL",
+} as const;
+export type ImageWidth = TypesValuesOf<typeof ImageWidth>;
+export const imageWidthSchema = z.enum(ImageWidth);
+
 // `mediaId` référence un objet du stockage — jamais une URL signée (règle dure n°7).
 export const imageBlockSchema = z
   .object({
     type: z.literal(RichBlockType.IMAGE),
     mediaId: z.string().min(1),
     caption: z.string().max(RICH_IMAGE_CAPTION_MAX_LENGTH).nullable().optional(),
+    // Absente = pleine largeur : c'est ce que valent les images posées avant l'arrivée du réglage.
+    width: imageWidthSchema.optional(),
   })
   .strict();
 

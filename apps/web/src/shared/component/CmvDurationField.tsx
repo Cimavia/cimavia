@@ -56,8 +56,8 @@ export function CmvDurationField({
   }
 
   return (
-    <label className="flex flex-col gap-cmv-xs" htmlFor={inputId}>
-      <span className="text-cmv-caption text-cmv-text-mid">{label}</span>
+    <label className="flex items-center gap-cmv-sm" htmlFor={inputId}>
+      <span className="whitespace-nowrap text-cmv-caption text-cmv-text-mid">{label}</span>
       <input
         id={inputId}
         value={shown}
@@ -70,7 +70,7 @@ export function CmvDurationField({
           if (event.key === "Enter") commit();
         }}
         className={cn(
-          "w-24 rounded-cmv-sm border bg-cmv-surface px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none",
+          "w-20 rounded-cmv-sm border bg-cmv-surface px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none",
           invalid ? "border-cmv-error" : "border-cmv-border focus:border-cmv-accent",
         )}
       />

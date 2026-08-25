@@ -1,9 +1,16 @@
+import { ImageWidth, imageWidthSchema } from "@cmv/shared";
 import { Node } from "@tiptap/core";
 import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
 import { useInstructionMediaContext } from "@/feature/library/component/InstructionMediaContext";
 import { IMAGE_NODE } from "@/feature/library/util/tiptap-document.util";
+import { IMAGE_WIDTH_CLASSES } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
+
+// i18n-values library.builder.imageWidth: ImageWidth
+
+const IMAGE_WIDTHS = [ImageWidth.SMALL, ImageWidth.MEDIUM, ImageWidth.FULL] as const;
 
 /**
  * Le bloc image de la consigne. `atom: true` : son contenu n'est pas éditable au clavier — la
@@ -25,6 +32,7 @@ export const ImageExtension = Node.create({
     return {
       mediaId: { default: "" },
       caption: { default: "" },
+      width: { default: ImageWidth.FULL },
     };
   },
 
@@ -43,6 +51,7 @@ function InstructionImageView({ node, updateAttributes, deleteNode }: Readonly<N
 
   const mediaId = String(node.attrs.mediaId ?? "");
   const caption = String(node.attrs.caption ?? "");
+  const width = imageWidthSchema.catch(ImageWidth.FULL).parse(node.attrs.width);
   const src = media.resolve(mediaId);
   const percent = media.progress[mediaId];
 
@@ -55,7 +64,11 @@ function InstructionImageView({ node, updateAttributes, deleteNode }: Readonly<N
               {t("library.builder.image.missing")}
             </div>
           ) : (
-            <img src={src} alt={caption} className="w-full rounded-cmv-sm" />
+            <img
+              src={src}
+              alt={caption}
+              className={cn("rounded-cmv-sm", IMAGE_WIDTH_CLASSES[width])}
+            />
           )}
 
           {/* État « 2 · Envoi » : visible seulement pendant l'enregistrement. */}
@@ -67,12 +80,27 @@ function InstructionImageView({ node, updateAttributes, deleteNode }: Readonly<N
         </div>
 
         <div className="flex items-center gap-cmv-xs">
+          {/* Trois paliers plutôt qu'une poignée de redimensionnement : la même image doit se
+              rendre identiquement sur le web et en React Native, ce qu'un pourcentage libre
+              interdirait. */}
+          <select
+            value={width}
+            onChange={(event) => updateAttributes({ width: event.target.value })}
+            aria-label={t("library.builder.image.width")}
+            className="rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-xs py-cmv-xs text-cmv-caption text-cmv-text-mid outline-none focus:border-cmv-accent"
+          >
+            {IMAGE_WIDTHS.map((value) => (
+              <option key={value} value={value}>
+                {t(`library.builder.imageWidth.${value}`)}
+              </option>
+            ))}
+          </select>
           <input
             value={caption}
             onChange={(event) => updateAttributes({ caption: event.target.value })}
             placeholder={t("library.builder.image.captionPlaceholder")}
             aria-label={t("library.builder.image.caption")}
-            className="flex-1 bg-transparent text-cmv-caption text-cmv-text-mid outline-none placeholder:text-cmv-text-lo"
+            className="flex-1 bg-transparent text-cmv-caption text-cmv-text-mid outline-none"
           />
           <button
             type="button"

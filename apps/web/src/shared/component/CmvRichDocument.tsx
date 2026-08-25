@@ -12,6 +12,16 @@ import { cn } from "@/shared/util/cn.util";
  * Le pendant React Native rend exactement les mêmes blocs avec ses propres primitives (#166).
  */
 
+/**
+ * Trois paliers, rendus identiquement partout. Une largeur libre dépendrait de l'écran où l'image
+ * a été posée, et le rendu React Native devrait l'interpréter au pixel près.
+ */
+export const IMAGE_WIDTH_CLASSES = {
+  SMALL: "max-w-40",
+  MEDIUM: "max-w-72",
+  FULL: "w-full",
+} as const;
+
 const MARK_CLASSES = {
   BOLD: "font-semibold",
   ITALIC: "italic",
@@ -82,7 +92,11 @@ function ImageBlock({
   return (
     <figure className="flex flex-col gap-cmv-xs">
       {/* Pleine largeur du bloc, jamais habillée de texte : le modèle n'a pas de flottant. */}
-      <img src={src} alt={caption} className="w-full rounded-cmv-md" />
+      <img
+        src={src}
+        alt={caption}
+        className={cn("rounded-cmv-md", IMAGE_WIDTH_CLASSES[block.width ?? "FULL"])}
+      />
       {caption === "" ? null : (
         <figcaption className="text-cmv-caption text-cmv-text-mid">{caption}</figcaption>
       )}

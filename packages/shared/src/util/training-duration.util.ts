@@ -12,7 +12,7 @@ const SECONDS_PER_MINUTE = 60;
 export const TRAINING_DURATION_MAX_SECONDS = 24 * 60 * 60;
 
 // « 150 » · « 2:30 » · « 2m30 » · « 2'30 » · « 2min30 » · « 30s » · « 3' ».
-const MINUTES_SECONDS = /^(\d{1,4})\s*(?::|'|m(?:in)?)\s*(\d{1,2})?\s*s?$/i;
+const MINUTES_SECONDS = /^(\d{1,4})\s*(?::|'|m(?:in)?)\s*(\d{1,4})?\s*s?$/i;
 const SECONDS_ONLY = /^(\d{1,5})\s*s$/i;
 const BARE_NUMBER = /^\d{1,5}$/;
 
@@ -35,8 +35,9 @@ export function parseTrainingDuration(input: string | null | undefined): number 
   if (minutesSeconds) {
     const minutes = Number(minutesSeconds[1]);
     const seconds = minutesSeconds[2] ? Number(minutesSeconds[2]) : 0;
-    // « 2:75 » n'est pas une durée : au-delà de 59, la saisie est fautive, pas à normaliser.
-    if (seconds >= SECONDS_PER_MINUTE) return null;
+    // « 2:75 » vaut 3'15 : les secondes au-delà de 59 débordent sur les minutes plutôt que d'être
+    // refusées. Le rendu canonique montre aussitôt ce qui a été compris, ce qui rattrape la faute
+    // de frappe mieux qu'un refus muet.
     return bounded(minutes * SECONDS_PER_MINUTE + seconds);
   }
 

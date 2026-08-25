@@ -20,6 +20,7 @@ import {
   CmvErrorState,
   CmvTagInput,
   CmvTextField,
+  useToast,
 } from "@/shared/component";
 import { apiErrorMessage } from "@/shared/lib/api";
 
@@ -102,6 +103,7 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
   // Les colonnes maison résolvent leur type de valeur et leur échelle ici : sans elles, une
   // cotation du coach se saisirait comme du texte libre.
   const { data: customMetrics } = useCustomMetrics();
+  const toast = useToast();
   const draft = useExerciseDraft(exercise, initialTitle);
 
   const isEditing = exercise != null;
@@ -110,8 +112,19 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
   const [titleTouched, setTitleTouched] = useState(false);
   const titleMissing = titleTouched && draft.trimmedTitle === "";
 
+  /**
+   * `mutateAsync` REJETTE en cas d'échec : sans ce `try`, le rejet remonte non capturé, on reste
+   * sur la page sans savoir pourquoi, et rien ne dit au coach que son enregistrement a échoué.
+   * Le message d'erreur, lui, s'affiche déjà sous le formulaire.
+   */
   async function onSubmit() {
-    await draft.submit();
+    try {
+      await draft.submit();
+    } catch {
+      toast.error(t("library.builder.saveFailed"));
+      return;
+    }
+    toast.success(t("library.builder.saved"));
     onLeave();
   }
 
@@ -209,6 +222,7 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
               instructions={draft.instructions}
               blocks={draft.blocks}
               customMetrics={customMetrics ?? []}
+              documents={exercise?.documents ?? []}
               resolveImage={draft.media.resolve}
             />
           </aside>

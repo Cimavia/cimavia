@@ -106,7 +106,7 @@ export function CmvTagInput({
           onKeyDown={onKeyDown}
           onBlur={() => add(draft)}
           placeholder={isFull ? undefined : placeholder}
-          className="min-w-32 flex-1 bg-transparent text-cmv-body text-cmv-text-hi outline-none placeholder:text-cmv-text-low"
+          className="min-w-32 flex-1 bg-transparent text-cmv-body text-cmv-text-hi outline-nonew"
         />
 
         {/* `datalist` plutôt qu'un menu maison : le navigateur gère le filtrage au clavier,

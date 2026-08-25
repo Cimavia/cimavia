@@ -71,7 +71,6 @@ export {
 export type {
   BlockMetric,
   BlockRow,
-  BlockShortcut as BlockShortcutType,
   BlockStructure,
   BlockType as BlockTypeType,
   BlockValidationIssue,
@@ -89,7 +88,6 @@ export {
   BLOCK_MAX_ROWS,
   BLOCK_MAX_SET_COUNT,
   BLOCK_MAX_TARGET_ROUNDS,
-  BlockShortcut,
   BlockType,
   blockMetricSchema,
   blockRowSchema,
@@ -110,7 +108,6 @@ export {
   MetricSource,
   metricValueTypeOf,
   restPhrase,
-  SHORTCUT_PRESETS,
   structurePhrase,
   validateBlockValues,
 } from "./dto/exercise-block.schema";
@@ -376,12 +373,19 @@ export {
   updateReminderSchema,
   updateReminderStatusSchema,
 } from "./dto/reminder.schema";
-export type { InlineNode, RichBlock, RichDocument } from "./dto/rich-document.schema";
+export type {
+  ImageWidth as ImageWidthType,
+  InlineNode,
+  RichBlock,
+  RichDocument,
+} from "./dto/rich-document.schema";
 export {
   calloutBlockSchema,
   headingBlockSchema,
+  ImageWidth,
   InlineMark,
   imageBlockSchema,
+  imageWidthSchema,
   inlineMarkSchema,
   inlineNodeSchema,
   linkHrefSchema,

@@ -15,7 +15,7 @@ import { BlockIssues } from "@/feature/library/component/BlockIssues";
 import { BlockTypePicker } from "@/feature/library/component/BlockTypePicker";
 import { CollapsedColumns } from "@/feature/library/component/CollapsedColumns";
 import { MetricPicker } from "@/feature/library/component/MetricPicker";
-import { createBlock, createShortcutBlock } from "@/feature/library/util/block-factory.util";
+import { createBlock } from "@/feature/library/util/block-factory.util";
 import { CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
 
 // i18n-values library.builder.blockType: BlockType
@@ -33,6 +33,9 @@ export function StructureSection({
 }: Readonly<StructureSectionProps>) {
   const { t } = useTranslation();
   const [picking, setPicking] = useState(false);
+  // UN seul menu de colonne ouvert sur la page, tous blocs confondus : deux panneaux flottants
+  // se recouvrent, et le second masque celui qu'on croyait fermer.
+  const [openMetricId, setOpenMetricId] = useState<string | null>(null);
 
   const isFull = blocks.length >= EXERCISE_MAX_BLOCKS;
 
@@ -84,7 +87,8 @@ export function StructureSection({
           index={index}
           isFirst={index === 0}
           isLast={index === blocks.length - 1}
-          showLabel={blocks.length > 1}
+          openMetricId={openMetricId}
+          onOpenChange={setOpenMetricId}
           onChange={(next) => replace(index, next)}
           onMove={(direction) => move(index, direction)}
           onRemove={() => remove(index)}
@@ -93,10 +97,7 @@ export function StructureSection({
 
       {picking ? (
         <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
-          <BlockTypePicker
-            onPickType={(type) => add(createBlock(type))}
-            onPickShortcut={(shortcut) => add(createShortcutBlock(shortcut))}
-          />
+          <BlockTypePicker onPickType={(type) => add(createBlock(type))} />
           <div>
             <CmvButton variant="ghost" onClick={() => setPicking(false)}>
               {t("library.builder.cancel")}
@@ -122,8 +123,8 @@ type BlockCardProps = {
   index: number;
   isFirst: boolean;
   isLast: boolean;
-  /** Le libellé n'apparaît qu'à partir de DEUX blocs : nommer un bloc unique n'apprend rien. */
-  showLabel: boolean;
+  openMetricId: string | null;
+  onOpenChange: (metricId: string | null) => void;
   onChange: (block: ExerciseBlock) => void;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
@@ -135,7 +136,8 @@ function BlockCard({
   index,
   isFirst,
   isLast,
-  showLabel,
+  openMetricId,
+  onOpenChange,
   onChange,
   onMove,
   onRemove,
@@ -151,24 +153,24 @@ function BlockCard({
           {t(`library.builder.blockType.${block.structure.type}`)}
         </CmvBadge>
 
-        {showLabel ? (
-          <input
-            value={block.label ?? ""}
-            maxLength={BLOCK_LABEL_MAX_LENGTH}
-            onChange={(event) =>
-              // Vidé → `null`, jamais `""` : le modèle porte l'absence, pas une chaîne vide.
-              onChange({
-                ...block,
-                label: event.target.value.trim() === "" ? null : event.target.value,
-              })
-            }
-            placeholder={t("library.builder.blockLabelPlaceholder")}
-            aria-label={t("library.builder.blockLabel")}
-            className="flex-1 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
-          />
-        ) : (
-          <span className="flex-1" />
-        )}
+        <CmvButton variant="secondary" onClick={() => setPickingMetrics(true)}>
+          {t("library.builder.metrics.edit")}
+        </CmvButton>
+
+        <input
+          value={block.label ?? ""}
+          maxLength={BLOCK_LABEL_MAX_LENGTH}
+          onChange={(event) =>
+            // Vidé → `null`, jamais `""` : le modèle porte l'absence, pas une chaîne vide.
+            onChange({
+              ...block,
+              label: event.target.value.trim() === "" ? null : event.target.value,
+            })
+          }
+          placeholder={t("library.builder.blockLabelPlaceholder")}
+          aria-label={t("library.builder.blockLabel")}
+          className="flex-1 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
+        />
 
         <CmvButton
           variant="ghost"
@@ -196,12 +198,6 @@ function BlockCard({
         onChange={(structure: BlockStructure) => onChange({ ...block, structure })}
       />
 
-      <div>
-        <CmvButton variant="secondary" onClick={() => setPickingMetrics(true)}>
-          {t("library.builder.metrics.edit")}
-        </CmvButton>
-      </div>
-
       <MetricPicker
         open={pickingMetrics}
         block={block}
@@ -212,7 +208,13 @@ function BlockCard({
 
       <CollapsedColumns block={block} customMetrics={customMetrics} onChange={onChange} />
 
-      <BlockGrid block={block} customMetrics={customMetrics} onChange={onChange} />
+      <BlockGrid
+        block={block}
+        customMetrics={customMetrics}
+        openMetricId={openMetricId}
+        onOpenChange={onOpenChange}
+        onChange={onChange}
+      />
 
       <BlockIssues block={block} customMetrics={customMetrics} />
     </article>

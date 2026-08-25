@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CALLOUT_NODE,
   HEADING_LEVEL,
+  IMAGE_NODE,
   toRichDocument,
   toTipTapDocument,
 } from "./tiptap-document.util";
@@ -119,5 +120,34 @@ describe("toTipTapDocument", () => {
     expect(tiptap.content?.[0]?.content?.[0]?.marks).toEqual([
       { type: "link", attrs: { href: "https://cimavia.fr" } },
     ]);
+  });
+});
+
+describe("largeur d'image", () => {
+  const imageNode = (width?: string) =>
+    doc({
+      type: IMAGE_NODE,
+      attrs: { mediaId: "doc_1", caption: "", ...(width ? { width } : {}) },
+    });
+
+  it("ne stocke PAS la pleine largeur — l'absence la vaut déjà", () => {
+    // Écrire la valeur par défaut ferait diverger les images posées avant l'arrivée du réglage.
+    expect(toRichDocument(imageNode("FULL"))).toEqual([{ type: "IMAGE", mediaId: "doc_1" }]);
+    expect(toRichDocument(imageNode())).toEqual([{ type: "IMAGE", mediaId: "doc_1" }]);
+  });
+
+  it("stocke les deux autres paliers", () => {
+    expect(toRichDocument(imageNode("SMALL"))).toEqual([
+      { type: "IMAGE", mediaId: "doc_1", width: "SMALL" },
+    ]);
+  });
+
+  it("retombe sur la pleine largeur devant une valeur inconnue", () => {
+    expect(toRichDocument(imageNode("GIGANTESQUE"))).toEqual([{ type: "IMAGE", mediaId: "doc_1" }]);
+  });
+
+  it("fait l'aller-retour", () => {
+    const source = toRichDocument(imageNode("MEDIUM"));
+    expect(toRichDocument(toTipTapDocument(source))).toEqual(source);
   });
 });

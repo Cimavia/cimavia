@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  BlockShortcut,
   BlockType,
   ColumnFillMode,
   canCollapseMetric,
@@ -17,7 +16,6 @@ import {
   MetricSource,
   metricValueTypeOf,
   restPhrase,
-  SHORTCUT_PRESETS,
   structurePhrase,
   validateBlockValues,
 } from "./exercise-block.schema";
@@ -358,12 +356,6 @@ describe("valeurs de départ", () => {
       rows: [],
     };
     expect(exerciseBlockSchema.safeParse(block).success).toBe(true);
-  });
-
-  it.each(Object.values(BlockShortcut))("le raccourci %s produit des SÉRIES", (shortcut) => {
-    // Un raccourci n'est pas un type : le bloc obtenu doit être indistinguable d'une Séries
-    // saisie à la main, sinon tout l'aval aurait un cas de plus à traiter.
-    expect(SHORTCUT_PRESETS[shortcut].structure.type).toBe(BlockType.SERIES);
   });
 
   it("ne devine pas le repos — il reste nul", () => {

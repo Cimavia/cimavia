@@ -202,7 +202,8 @@
         "missing": "Image indisponible",
         "uploading": "Envoi… {{percent}} %",
         "errorType": "Format non accepté : PNG, JPEG ou WebP.",
-        "errorSize": "{{size}} Mo — dépasse la limite de {{limit}} Mo."
+        "errorSize": "{{size}} Mo — dépasse la limite de {{limit}} Mo.",
+        "width": "Largeur de l'image"
       },
       "structure": "Structure",
       "addBlock": "Ajouter une structure",
@@ -213,7 +214,6 @@
       "moveBlockUp": "Monter le bloc",
       "moveBlockDown": "Descendre le bloc",
       "removeBlock": "Retirer le bloc",
-      "shortcutTag": "raccourci",
       "blockType": {
         "SERIES": "Séries",
         "EMOM": "EMOM",
@@ -227,14 +227,6 @@
         "AMRAP": "Un maximum de tours dans un temps imparti.",
         "CIRCUIT": "Une suite d'étapes enchaînées, répétée en tours.",
         "FREE": "Grille sans structure imposée — lignes ajoutées librement."
-      },
-      "shortcut": {
-        "PYRAMID": "Pyramide",
-        "INTERVALS": "Intervalles"
-      },
-      "shortcutHint": {
-        "PYRAMID": "Crée des Séries avec des paliers qui montent puis redescendent.",
-        "INTERVALS": "Crée des Séries avec durée d'effort et repos déjà cochés."
       },
       "bandeau": {
         "setCount": "Séries",
@@ -266,7 +258,8 @@
         "stepLabel": "Pas",
         "collapse": "Replier en valeur commune",
         "expand": "Afficher en colonne",
-        "cannotCollapse": "La valeur change d'une ligne à l'autre."
+        "cannotCollapse": "La valeur change d'une ligne à l'autre.",
+        "needsRow": "Ajoute une première ligne pour pouvoir remplir la colonne."
       },
       "metrics": {
         "title": "Métriques de l'exercice",
@@ -314,7 +307,7 @@
         "moveStep": "Déplacer le palier"
       },
       "preview": {
-        "noRow": "Le dosage apparaîtra ici dès la première ligne."
+        "noRow": "Les valeurs apparaîtront ici dès la première ligne."
       },
       "titleRequired": "Le titre est requis pour enregistrer l'exercice.",
       "issue": {
@@ -325,7 +318,7 @@
       "deleteExercise": "Supprimer l'exercice",
       "attachment": {
         "title": "Pièces jointes et liens",
-        "add": "Ajouter un fichier ou un lien",
+        "add": "Ajouter un fichier",
         "hint": "PDF, PNG, JPEG, WebP · 20 Mo max",
         "file": "Fichier",
         "link": "Lien",
@@ -336,6 +329,13 @@
         "linkPlaceholder": "https://…",
         "errorType": "Format non accepté : PDF, PNG, JPEG ou WebP.",
         "errorSize": "Fichier trop lourd : 20 Mo maximum."
+      },
+      "saved": "Exercice enregistré.",
+      "saveFailed": "L'enregistrement a échoué.",
+      "imageWidth": {
+        "SMALL": "Petite",
+        "MEDIUM": "Moyenne",
+        "FULL": "Pleine largeur"
       }
     },
     "noMatch": {
