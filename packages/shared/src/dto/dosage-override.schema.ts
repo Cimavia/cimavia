@@ -183,10 +183,35 @@ function blockShapeIssues(base: ExerciseBlock, next: ExerciseBlock): string[] {
   return issues;
 }
 
-/** Mêmes colonnes, dans le même ordre : réordonner une colonne change ce que l'athlète lit. */
+/**
+ * Mêmes colonnes, dans le même ordre. Réordonner change ce que l'athlète lit ; changer l'UNITÉ
+ * change ce qu'il comprend — « 6 » en kilos et « 6 » en pourcentage du poids de corps ne sont pas
+ * le même effort.
+ *
+ * `collapsed` est exclu de la comparaison : c'est un état d'AFFICHAGE, pas une nature de donnée,
+ * et le coach doit pouvoir replier une colonne dans sa séance sans que le verrou s'y oppose.
+ */
 function sameMetrics(base: ExerciseBlock, next: ExerciseBlock): boolean {
   if (base.metrics.length !== next.metrics.length) return false;
-  return base.metrics.every((metric, index) => metric.id === next.metrics[index]?.id);
+  return base.metrics.every((metric, index) => {
+    const other = next.metrics[index];
+    if (other == null) return false;
+    return sameMetricDefinition(metric, other);
+  });
+}
+
+function sameMetricDefinition(
+  base: ExerciseBlock["metrics"][number],
+  next: ExerciseBlock["metrics"][number],
+): boolean {
+  if (base.id !== next.id || base.source !== next.source || base.label !== next.label) return false;
+  if (base.source === "CATALOG" && next.source === "CATALOG") {
+    return base.key === next.key && base.unit === next.unit;
+  }
+  if (base.source === "CUSTOM" && next.source === "CUSTOM") {
+    return base.customMetricId === next.customMetricId;
+  }
+  return false;
 }
 
 // ── L'état complet d'un exercice dosé ───────────────────────────────────────────────────────

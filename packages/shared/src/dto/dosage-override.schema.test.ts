@@ -191,3 +191,27 @@ describe("lockedShapeIssues", () => {
     expect(lockedShapeIssues(baseline, next).length).toBeGreaterThan(0);
   });
 });
+
+describe("le verrou couvre la DÉFINITION des colonnes", () => {
+  const withMetric = (metric: ExerciseBlocks[number]["metrics"][number]): ExerciseBlocks =>
+    blocks().map((block) => ({ ...block, metrics: [metric] }));
+
+  it("refuse un changement d'unité", () => {
+    // « 6 » en kilos et « 6 » en pourcentage du poids de corps ne sont pas le même effort.
+    const next = withMetric({
+      ...column("col_reps", MetricKey.REPETITIONS),
+      unit: MetricUnit.REPS_PER_SIDE,
+    });
+    expect(lockedShapeIssues(blocks(), next).length).toBeGreaterThan(0);
+  });
+
+  it("refuse un changement de libellé de colonne", () => {
+    const next = withMetric({ ...column("col_reps", MetricKey.REPETITIONS), label: "Passages" });
+    expect(lockedShapeIssues(blocks(), next).length).toBeGreaterThan(0);
+  });
+
+  it("AUTORISE le repli d'une colonne — c'est de l'affichage, pas de la donnée", () => {
+    const next = withMetric({ ...column("col_reps", MetricKey.REPETITIONS), collapsed: true });
+    expect(lockedShapeIssues(blocks(), next)).toEqual([]);
+  });
+});
