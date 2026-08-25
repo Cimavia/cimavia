@@ -16,7 +16,7 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
-import { parseBlocks, parseInstructions } from "../../util/exercise-json.util";
+import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import {
   type ScheduledSessionWithExercises,
   SESSION_DETAIL_INCLUDE,
@@ -240,10 +240,16 @@ export class ScheduledSessionService {
         sourceExerciseId: exercise.id,
         title: exercise.title,
         description: exercise.description,
+        // La consigne vient de la BIBLIOTHÈQUE : elle n'est pas surchargeable au niveau séance,
+        // donc la séance n'en garde aucune copie. Elle se fige ici, dans le snapshot de l'athlète.
         instructions: parseInstructions(exercise.instructions),
-        blocks: parseBlocks(exercise.blocks),
+        // Le dosage vient de la SÉANCE, pas de l'exercice. Lire la bibliothèque ici diffuserait
+        // les valeurs d'origine et ferait disparaître, sans le moindre avertissement, tout ce que
+        // le coach a ajusté au niveau séance.
+        blocks: parseBlocks(composed.blocks),
+        adjustments: parseAdjustments(composed.adjustments),
         tags: exercise.tags.map((tag) => tag.name).sort(),
-        prescription: composed.prescription,
+        note: composed.note,
       };
     });
 

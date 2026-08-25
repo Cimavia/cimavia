@@ -3,7 +3,7 @@ import { useState } from "react";
 
 /**
  * Ce qu'une liste de composition manipule réellement : un identifiant local, de quoi s'afficher,
- * et la prescription qu'on y saisit. `key` est locale et stable — un même exercice peut figurer
+ * et la note qu'on y écrit. `key` est locale et stable — un même exercice peut figurer
  * deux fois dans une séance, l'id de l'exercice ne suffit donc pas à identifier la ligne.
  *
  * Le RESTE de la ligne appartient à chaque feature, et ce n'est pas un détail :
@@ -16,7 +16,7 @@ export type CompositionRow = {
   key: string;
   title: string;
   tags: string[];
-  prescription: string;
+  note: string;
 };
 
 /**
@@ -56,11 +56,11 @@ export function useComposition<T extends CompositionRow>(
     });
   }
 
-  function setPrescription(key: string, value: string) {
+  function setNote(key: string, value: string) {
     setItems((current) =>
-      current.map((item) => (item.key === key ? { ...item, prescription: value } : item)),
+      current.map((item) => (item.key === key ? { ...item, note: value } : item)),
     );
   }
 
-  return { items, addExercise, removeItem, moveItem, setPrescription };
+  return { items, addExercise, removeItem, moveItem, setNote };
 }

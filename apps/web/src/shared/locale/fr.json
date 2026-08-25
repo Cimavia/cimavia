@@ -142,8 +142,6 @@
       "emptyComposition": "Aucun exercice",
       "emptyCompositionHint": "Ajoutez des exercices depuis votre bibliothèque, à droite.",
       "pickerTitle": "Exercices",
-      "prescriptionLabel": "Prescription",
-      "prescriptionPlaceholder": "5×5 à +10 kg, récup 3 min",
       "moveUp": "Monter",
       "moveDown": "Descendre",
       "remove": "Retirer",
@@ -157,7 +155,9 @@
       "cancel": "Annuler",
       "submitCreate": "Créer la séance",
       "submitEdit": "Enregistrer la séance",
-      "submitting": "Enregistrement…"
+      "submitting": "Enregistrement…",
+      "noteLabel": "Note",
+      "notePlaceholder": "Épaule sensible, reste prudent…"
     },
     "filterAllTags": "Tous",
     "tags": {
@@ -447,15 +447,15 @@
       "emptyComposition": "Aucun exercice",
       "emptyCompositionHint": "Piochez dans votre bibliothèque, à droite.",
       "pickerTitle": "Bibliothèque d'exercices",
-      "prescriptionLabel": "Prescription",
-      "prescriptionPlaceholder": "5×5 à +10 kg, repos 3 min",
       "exerciseCount": "{{count}} exercice(s)",
       "moveUp": "Monter",
       "moveDown": "Descendre",
       "remove": "Retirer",
       "delete": "Supprimer la séance",
       "submit": "Enregistrer",
-      "submitting": "Enregistrement…"
+      "submitting": "Enregistrement…",
+      "noteLabel": "Note",
+      "notePlaceholder": "Épaule sensible, reste prudent…"
     },
     "builder": {
       "back": "← Planifications",

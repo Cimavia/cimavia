@@ -1,7 +1,7 @@
-import type { ScheduledSessionExerciseInput } from "@cmv/shared";
+import type { ExerciseBlocks, ScheduledSessionExerciseInput } from "@cmv/shared";
 import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
-import { toBlocksInput, toInstructionsInput } from "../util/exercise-json.util";
+import { toAdjustmentsInput, toBlocksInput, toInstructionsInput } from "../util/exercise-json.util";
 
 /**
  * Écriture de la composition d'une séance planifiée — le pendant du `scheduled-session.mapper`,
@@ -36,6 +36,8 @@ export type ScheduledSessionDocumentDraft = Pick<
 // Un exercice à écrire, avec les documents que l'appelant lui a rattachés.
 export type ScheduledSessionExerciseDraft = {
   exercise: ScheduledSessionExerciseInput;
+  /** Absente = la référence est le dosage diffusé lui-même (cas d'un exercice ajouté ad hoc). */
+  baseline?: ExerciseBlocks;
   documents: readonly ScheduledSessionDocumentDraft[];
 };
 
@@ -65,7 +67,11 @@ export async function insertScheduledSessionExercises(
         // l'athlète garderait le titre et perdrait ce qu'il doit faire.
         instructions: toInstructionsInput(draft.exercise.instructions ?? null),
         blocks: toBlocksInput(draft.exercise.blocks ?? []),
-        prescription: draft.exercise.prescription ?? null,
+        // La référence du niveau 3 est ce que la SÉANCE a diffusé, pas le contenu actuel de la
+        // bibliothèque : « Tout réinitialiser » chez l'athlète doit revenir à ce qu'il a reçu.
+        baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
+        adjustments: toAdjustmentsInput(draft.exercise.adjustments ?? []),
+        note: draft.exercise.note ?? null,
         position,
       } satisfies Omit<
         Prisma.ScheduledSessionExerciseUncheckedCreateInput,

@@ -137,13 +137,13 @@ function ExerciseCard({
           <CmvTagList tags={exercise.tags} />
         </div>
 
-        {/* Description et prescription sont nullables et distinctes : la première dit QUOI,
+        {/* Description et note sont nullables et distinctes : la première dit QUOI,
             la seconde COMBIEN. Rien à afficher, on n'affiche rien — pas de tiret décoratif. */}
         {exercise.description == null ? null : (
           <p className="text-cmv-body text-cmv-text-mid">{exercise.description}</p>
         )}
-        {exercise.prescription == null ? null : (
-          <p className="text-cmv-body text-cmv-text-mid">{exercise.prescription}</p>
+        {exercise.note == null ? null : (
+          <p className="text-cmv-body text-cmv-text-mid">{exercise.note}</p>
         )}
 
         {exercise.documents.length === 0 ? null : (

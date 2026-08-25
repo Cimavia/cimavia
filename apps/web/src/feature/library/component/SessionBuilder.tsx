@@ -29,7 +29,7 @@ function toBuilderItems(session: SessionDto | null): BuilderItem[] {
     exerciseId: exercise.exerciseId,
     title: exercise.title,
     tags: exercise.tags,
-    prescription: exercise.prescription ?? "",
+    note: exercise.note ?? "",
   }));
 }
 
@@ -38,7 +38,7 @@ function toBuilderRow(exercise: ExerciseDto): Omit<BuilderItem, "key"> {
     exerciseId: exercise.id,
     title: exercise.title,
     tags: exercise.tags,
-    prescription: "",
+    note: "",
   };
 }
 
@@ -57,7 +57,7 @@ export function SessionBuilder({ open, session, onClose }: Readonly<SessionBuild
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [notes, setNotes] = useState(session?.notes ?? "");
-  const { items, addExercise, removeItem, moveItem, setPrescription } = useComposition<BuilderItem>(
+  const { items, addExercise, removeItem, moveItem, setNote } = useComposition<BuilderItem>(
     () => toBuilderItems(session),
     toBuilderRow,
   );
@@ -72,7 +72,7 @@ export function SessionBuilder({ open, session, onClose }: Readonly<SessionBuild
         notes: notes.trim() || null,
         exercises: items.map((item) => ({
           exerciseId: item.exerciseId,
-          prescription: item.prescription.trim() || null,
+          note: item.note.trim() || null,
         })),
       },
     });
@@ -146,7 +146,7 @@ export function SessionBuilder({ open, session, onClose }: Readonly<SessionBuild
             labelPrefix="library.session"
             onMove={moveItem}
             onRemove={removeItem}
-            onPrescriptionChange={setPrescription}
+            onNoteChange={setNote}
           />
 
           {errorMessage == null ? null : (

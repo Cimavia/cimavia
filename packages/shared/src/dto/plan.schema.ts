@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { isMondayIsoDate } from "../util/date.util";
+import { adjustmentsSchema } from "./dosage-override.schema";
 import {
   EXERCISE_DESCRIPTION_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
@@ -10,8 +11,8 @@ import {
 import { exerciseBlocksSchema } from "./exercise-block.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 import {
+  SESSION_NOTE_MAX_LENGTH,
   SESSION_NOTES_MAX_LENGTH,
-  SESSION_PRESCRIPTION_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
 } from "./session.schema";
 
@@ -124,7 +125,8 @@ export const scheduledSessionExerciseInputSchema = z
     instructions: richDocumentSchema.nullable().optional(),
     blocks: exerciseBlocksSchema.optional(),
     tags: exerciseTagsSchema.optional(),
-    prescription: z.string().max(SESSION_PRESCRIPTION_MAX_LENGTH).nullable().optional(),
+    note: z.string().max(SESSION_NOTE_MAX_LENGTH).nullable().optional(),
+    adjustments: adjustmentsSchema.optional(),
   })
   .strict();
 export type ScheduledSessionExerciseInput = z.infer<typeof scheduledSessionExerciseInputSchema>;
@@ -174,7 +176,10 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
   // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.
   tags: z.array(z.string()),
-  prescription: z.string().nullable(),
+  note: z.string().nullable(),
+  /** Ce dont le troisième niveau part : ce que la séance a diffusé. */
+  baseline: exerciseBlocksSchema,
+  adjustments: adjustmentsSchema,
   position: z.number().int(),
   // Copies des documents de l'exercice source (URL signée résolue à chaque lecture).
   documents: z.array(exerciseDocumentDtoSchema),

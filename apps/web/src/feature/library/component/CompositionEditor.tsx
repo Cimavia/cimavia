@@ -11,16 +11,16 @@ type CompositionEditorProps = {
   labelPrefix: string;
   onMove: (index: number, direction: -1 | 1) => void;
   onRemove: (key: string) => void;
-  onPrescriptionChange: (key: string, value: string) => void;
+  onNoteChange: (key: string, value: string) => void;
 };
 
-// La liste ordonnée des exercices d'une séance : ordre, prescription, retrait.
+// La liste ordonnée des exercices d'une séance : ordre, note, retrait.
 export function CompositionEditor({
   items,
   labelPrefix,
   onMove,
   onRemove,
-  onPrescriptionChange,
+  onNoteChange,
 }: Readonly<CompositionEditorProps>) {
   const { t } = useTranslation();
 
@@ -45,7 +45,7 @@ export function CompositionEditor({
           labelPrefix={labelPrefix}
           onMove={onMove}
           onRemove={onRemove}
-          onPrescriptionChange={onPrescriptionChange}
+          onNoteChange={onNoteChange}
         />
       ))}
     </div>
@@ -60,7 +60,7 @@ type CompositionEditorRowProps = {
   labelPrefix: string;
   onMove: (index: number, direction: -1 | 1) => void;
   onRemove: (key: string) => void;
-  onPrescriptionChange: (key: string, value: string) => void;
+  onNoteChange: (key: string, value: string) => void;
 };
 
 function CompositionEditorRow({
@@ -71,7 +71,7 @@ function CompositionEditorRow({
   labelPrefix,
   onMove,
   onRemove,
-  onPrescriptionChange,
+  onNoteChange,
 }: Readonly<CompositionEditorRowProps>) {
   const { t } = useTranslation();
 
@@ -103,11 +103,11 @@ function CompositionEditorRow({
       </div>
 
       <CmvTextField
-        label={t(`${labelPrefix}.prescriptionLabel`)}
-        name={`prescription-${item.key}`}
-        value={item.prescription}
-        onChange={(event) => onPrescriptionChange(item.key, event.target.value)}
-        placeholder={t(`${labelPrefix}.prescriptionPlaceholder`)}
+        label={t(`${labelPrefix}.noteLabel`)}
+        name={`note-${item.key}`}
+        value={item.note}
+        onChange={(event) => onNoteChange(item.key, event.target.value)}
+        placeholder={t(`${labelPrefix}.notePlaceholder`)}
       />
     </div>
   );

@@ -20,7 +20,7 @@ function toEditorItems(session: ScheduledSessionDto | null): EditorItem[] {
     title: exercise.title,
     description: exercise.description,
     tags: exercise.tags,
-    prescription: exercise.prescription ?? "",
+    note: exercise.note ?? "",
   }));
 }
 
@@ -31,7 +31,7 @@ function toEditorRow(exercise: ExerciseDto): Omit<EditorItem, "key"> {
     title: exercise.title,
     description: exercise.description,
     tags: exercise.tags,
-    prescription: "",
+    note: "",
   };
 }
 

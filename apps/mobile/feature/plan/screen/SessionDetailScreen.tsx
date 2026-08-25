@@ -83,12 +83,12 @@ export function SessionDetailScreen() {
                     ))}
                   </View>
 
-                  {/* Description et prescription sont nullables : rien à afficher, on n'affiche rien. */}
+                  {/* Description et note sont nullables : rien à afficher, on n'affiche rien. */}
                   {exercise.description == null ? null : (
                     <CmvText className="text-cmv-text-mid text-sm">{exercise.description}</CmvText>
                   )}
-                  {exercise.prescription == null ? null : (
-                    <CmvText className="text-cmv-text-mid text-sm">{exercise.prescription}</CmvText>
+                  {exercise.note == null ? null : (
+                    <CmvText className="text-cmv-text-mid text-sm">{exercise.note}</CmvText>
                   )}
 
                   {exercise.documents.map((document) => (

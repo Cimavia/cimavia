@@ -62,7 +62,7 @@ describe("updateScheduledSessionSchema", () => {
       scheduledDate: "2026-10-14",
       exercises: [
         { sourceExerciseId: "ex_1", title: "Échauffement" },
-        { title: "Tractions", tags: ["renfo"], prescription: "5×5" },
+        { title: "Tractions", tags: ["renfo"], note: "Épaule sensible" },
       ],
     });
     expect(parsed.exercises).toHaveLength(2);

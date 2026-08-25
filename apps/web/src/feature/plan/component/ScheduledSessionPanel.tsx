@@ -42,7 +42,7 @@ function toSaveInput(
       title: item.title,
       description: item.description,
       tags: item.tags,
-      prescription: item.prescription.trim() || null,
+      note: item.note.trim() || null,
     })),
   };
 }
@@ -82,8 +82,7 @@ export function ScheduledSessionPanel({
   const [title, setTitle] = useState(session?.title ?? "");
   const [notes, setNotes] = useState(session?.notes ?? "");
   const [scheduledDate, setScheduledDate] = useState(date);
-  const { items, addExercise, removeItem, moveItem, setPrescription } =
-    useSessionComposition(session);
+  const { items, addExercise, removeItem, moveItem, setNote } = useSessionComposition(session);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -186,7 +185,7 @@ export function ScheduledSessionPanel({
                 labelPrefix="plan.session"
                 onMove={moveItem}
                 onRemove={removeItem}
-                onPrescriptionChange={setPrescription}
+                onNoteChange={setNote}
               />
             </>
           ) : null}
