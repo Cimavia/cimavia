@@ -6,6 +6,8 @@ import {
   columnValues,
   DEFAULT_BLOCK_METRIC_KEYS,
   DEFAULT_BLOCK_STRUCTURE,
+  DosageLayout,
+  dosageLayout,
   EXERCISE_MAX_BLOCKS,
   type ExerciseBlock,
   emomTopCount,
@@ -13,6 +15,7 @@ import {
   exerciseBlockSchema,
   exerciseBlocksSchema,
   fillColumn,
+  fittingColumnCount,
   MetricSource,
   metricValueTypeOf,
   restPhrase,
@@ -506,5 +509,46 @@ describe("emptyRowIndexes", () => {
     // Une valeur orpheline ne rend pas la ligne « remplie » : elle ne s'affiche nulle part.
     const block = seriesBlock([{ id: "r1", values: { col_fantome: 3 } }]);
     expect(emptyRowIndexes(block)).toEqual([0]);
+  });
+});
+
+describe("dosageLayout", () => {
+  const withColumns = (count: number, rows: number): ExerciseBlock =>
+    seriesBlock(
+      Array.from({ length: rows }, (_, index) => ({ id: `r${index}`, values: {} })),
+      Array.from({ length: count }, (_, index) => ({ ...reps, id: `col_${index}` })),
+    );
+
+  it("compte trois colonnes tenables sur un écran de 402 px", () => {
+    // (362 - 28) / 90 = 3,7 → trois colonnes alignées, la quatrième déborde.
+    expect(fittingColumnCount()).toBe(3);
+  });
+
+  it("dit UNE LIGNE en phrase, quel que soit le nombre de colonnes", () => {
+    expect(dosageLayout(withColumns(6, 1))).toBe(DosageLayout.PHRASE);
+    expect(dosageLayout(withColumns(6, 0))).toBe(DosageLayout.PHRASE);
+  });
+
+  it("aligne jusqu'à trois colonnes, passe en cartes à quatre", () => {
+    expect(dosageLayout(withColumns(3, 4))).toBe(DosageLayout.TABLE);
+    expect(dosageLayout(withColumns(4, 4))).toBe(DosageLayout.CARDS);
+  });
+
+  it("ne compte pas les colonnes REPLIÉES", () => {
+    // Elles ont rejoint la phrase de dosage : les compter ferait basculer en cartes un tableau
+    // qui tient largement.
+    const block = withColumns(5, 3);
+    const folded: ExerciseBlock = {
+      ...block,
+      metrics: block.metrics.map((metric, index) =>
+        index < 2 ? metric : { ...metric, collapsed: true },
+      ),
+    };
+    expect(dosageLayout(folded)).toBe(DosageLayout.TABLE);
+  });
+
+  it("suit une largeur d'écran plus généreuse", () => {
+    // Le seuil est un CALCUL, pas une constante : un grand téléphone aligne une colonne de plus.
+    expect(dosageLayout(withColumns(4, 3), 500)).toBe(DosageLayout.TABLE);
   });
 });

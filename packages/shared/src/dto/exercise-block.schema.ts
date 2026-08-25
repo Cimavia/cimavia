@@ -209,6 +209,55 @@ export const exerciseBlockSchema = z
   });
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
+// ── Le seuil de colonnes du rendu athlète ───────────────────────────────────────────────────
+
+/**
+ * La forme sous laquelle un bloc se lit sur un écran étroit.
+ *
+ * Les chiffres viennent de la planche mobile : un écran de 402 px moins ses marges laisse 362 px
+ * utiles, une colonne de valeur en chasse fixe demande 90 px, et l'index en prend 28. Trois
+ * colonnes tiennent, quatre non — et le remède ne peut pas être un défilement horizontal, qui est
+ * inutilisable une main sur la barre.
+ *
+ * Le WEB n'appelle pas cette fonction : il garde le tableau aligné quel que soit le nombre de
+ * colonnes, où quatre se lisent sans peine. Le seuil est une spécificité mobile, et la décision
+ * vit ici pour que les deux surfaces sachent qu'elle est délibérée.
+ */
+export const ATHLETE_USABLE_WIDTH_PX = 362;
+export const ATHLETE_VALUE_COLUMN_PX = 90;
+export const ATHLETE_INDEX_COLUMN_PX = 28;
+
+export const DosageLayout = {
+  /** Une seule ligne : elle se dit, quel que soit le nombre de colonnes. */
+  PHRASE: "PHRASE",
+  /** Les valeurs s'alignent en colonnes — jusqu'à ce que la largeur ne suive plus. */
+  TABLE: "TABLE",
+  /** Une carte par ligne : c'est la seule forme qui ne demande jamais de défiler. */
+  CARDS: "CARDS",
+} as const;
+export type DosageLayout = TypesValuesOf<typeof DosageLayout>;
+
+/** Le nombre de colonnes qu'un écran étroit peut aligner, index compris. */
+export function fittingColumnCount(
+  usableWidth = ATHLETE_USABLE_WIDTH_PX,
+  columnWidth = ATHLETE_VALUE_COLUMN_PX,
+  indexWidth = ATHLETE_INDEX_COLUMN_PX,
+): number {
+  return Math.max(0, Math.floor((usableWidth - indexWidth) / columnWidth));
+}
+
+/**
+ * La forme à donner à un bloc côté athlète mobile.
+ *
+ * Les colonnes REPLIÉES ne comptent pas : elles ont quitté la grille pour rejoindre la phrase de
+ * dosage, et les compter ferait basculer en cartes un tableau qui tient largement.
+ */
+export function dosageLayout(block: ExerciseBlock, usableWidth?: number): DosageLayout {
+  if (block.rows.length <= 1) return DosageLayout.PHRASE;
+  const columns = block.metrics.filter((metric) => !metric.collapsed).length;
+  return columns <= fittingColumnCount(usableWidth) ? DosageLayout.TABLE : DosageLayout.CARDS;
+}
+
 // ── Lignes incomplètes ──────────────────────────────────────────────────────────────────────
 
 /**
