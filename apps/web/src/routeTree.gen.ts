@@ -28,6 +28,8 @@ import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessio
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
 import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
+import { Route as LibrarySessionsNewRouteImport } from './routes/library.sessions.new'
+import { Route as LibrarySessionsSessionIdRouteImport } from './routes/library.sessions.$sessionId'
 import { Route as LibraryExercisesNewRouteImport } from './routes/library.exercises.new'
 import { Route as LibraryExercisesExerciseIdRouteImport } from './routes/library.exercises.$exerciseId'
 
@@ -127,6 +129,17 @@ const SessionsSessionIdFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => SessionsSessionIdRoute,
   } as any)
+const LibrarySessionsNewRoute = LibrarySessionsNewRouteImport.update({
+  id: '/library/sessions/new',
+  path: '/library/sessions/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibrarySessionsSessionIdRoute =
+  LibrarySessionsSessionIdRouteImport.update({
+    id: '/library/sessions/$sessionId',
+    path: '/library/sessions/$sessionId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LibraryExercisesNewRoute = LibraryExercisesNewRouteImport.update({
   id: '/library/exercises/new',
   path: '/library/exercises/new',
@@ -159,6 +172,8 @@ export interface FileRoutesByFullPath {
   '/sessions/': typeof SessionsIndexRoute
   '/library/exercises/$exerciseId': typeof LibraryExercisesExerciseIdRoute
   '/library/exercises/new': typeof LibraryExercisesNewRoute
+  '/library/sessions/$sessionId': typeof LibrarySessionsSessionIdRoute
+  '/library/sessions/new': typeof LibrarySessionsNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
@@ -181,6 +196,8 @@ export interface FileRoutesByTo {
   '/sessions': typeof SessionsIndexRoute
   '/library/exercises/$exerciseId': typeof LibraryExercisesExerciseIdRoute
   '/library/exercises/new': typeof LibraryExercisesNewRoute
+  '/library/sessions/$sessionId': typeof LibrarySessionsSessionIdRoute
+  '/library/sessions/new': typeof LibrarySessionsNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
 }
@@ -205,6 +222,8 @@ export interface FileRoutesById {
   '/sessions/': typeof SessionsIndexRoute
   '/library/exercises/$exerciseId': typeof LibraryExercisesExerciseIdRoute
   '/library/exercises/new': typeof LibraryExercisesNewRoute
+  '/library/sessions/$sessionId': typeof LibrarySessionsSessionIdRoute
+  '/library/sessions/new': typeof LibrarySessionsNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
@@ -230,6 +249,8 @@ export interface FileRouteTypes {
     | '/sessions/'
     | '/library/exercises/$exerciseId'
     | '/library/exercises/new'
+    | '/library/sessions/$sessionId'
+    | '/library/sessions/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
@@ -252,6 +273,8 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/library/exercises/$exerciseId'
     | '/library/exercises/new'
+    | '/library/sessions/$sessionId'
+    | '/library/sessions/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId'
   id:
@@ -275,6 +298,8 @@ export interface FileRouteTypes {
     | '/sessions/'
     | '/library/exercises/$exerciseId'
     | '/library/exercises/new'
+    | '/library/sessions/$sessionId'
+    | '/library/sessions/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
   fileRoutesById: FileRoutesById
@@ -299,6 +324,8 @@ export interface RootRouteChildren {
   SessionsIndexRoute: typeof SessionsIndexRoute
   LibraryExercisesExerciseIdRoute: typeof LibraryExercisesExerciseIdRoute
   LibraryExercisesNewRoute: typeof LibraryExercisesNewRoute
+  LibrarySessionsSessionIdRoute: typeof LibrarySessionsSessionIdRoute
+  LibrarySessionsNewRoute: typeof LibrarySessionsNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -436,6 +463,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsSessionIdFeedbackRouteImport
       parentRoute: typeof SessionsSessionIdRoute
     }
+    '/library/sessions/new': {
+      id: '/library/sessions/new'
+      path: '/library/sessions/new'
+      fullPath: '/library/sessions/new'
+      preLoaderRoute: typeof LibrarySessionsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/sessions/$sessionId': {
+      id: '/library/sessions/$sessionId'
+      path: '/library/sessions/$sessionId'
+      fullPath: '/library/sessions/$sessionId'
+      preLoaderRoute: typeof LibrarySessionsSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library/exercises/new': {
       id: '/library/exercises/new'
       path: '/library/exercises/new'
@@ -486,6 +527,8 @@ const rootRouteChildren: RootRouteChildren = {
   SessionsIndexRoute: SessionsIndexRoute,
   LibraryExercisesExerciseIdRoute: LibraryExercisesExerciseIdRoute,
   LibraryExercisesNewRoute: LibraryExercisesNewRoute,
+  LibrarySessionsSessionIdRoute: LibrarySessionsSessionIdRoute,
+  LibrarySessionsNewRoute: LibrarySessionsNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
