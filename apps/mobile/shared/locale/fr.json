@@ -142,7 +142,11 @@
       "exerciseCount": "{{count}} exercice(s)",
       "composition": "Déroulé · {{count}} exercice(s)",
       "notes": "Consignes du coach",
-      "link": "Document"
+      "link": "Document",
+      "showInstructions": "Voir la consigne",
+      "hideInstructions": "Masquer la consigne",
+      "emptyTitle": "Cette séance est vide",
+      "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler."
     }
   },
   "media": {

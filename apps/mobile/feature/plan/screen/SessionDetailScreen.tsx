@@ -1,7 +1,8 @@
 import { ScheduledSessionStatus } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Linking, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
+import { ExerciseCard } from "@/feature/plan/component/ExerciseCard";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
@@ -52,57 +53,42 @@ export function SessionDetailScreen() {
             )}
 
             {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
-                déroulé, pas enterrée sous la liste des exercices. */}
-            <CmvButton
-              label={
-                session.status === ScheduledSessionStatus.DONE
-                  ? t("feedback.openDone")
-                  : t("feedback.open")
-              }
-              onPress={() => router.push(`/session/${session.id}/feedback`)}
-            />
+                déroulé, pas enterrée sous la liste des exercices.
+                RETIRÉE — pas grisée — sur une séance vide : un bouton mort se tape quand même. */}
+            {session.exercises.length === 0 ? null : (
+              <CmvButton
+                label={
+                  session.status === ScheduledSessionStatus.DONE
+                    ? t("feedback.openDone")
+                    : t("feedback.open")
+                }
+                onPress={() => router.push(`/session/${session.id}/feedback`)}
+              />
+            )}
 
             <View className="gap-3">
               <CmvText className="text-cmv-text-mid text-xs">
                 {t("plan.session.composition", { count: session.exercises.length })}
               </CmvText>
 
-              {session.exercises.map((exercise, index) => (
-                <View
-                  key={exercise.id}
-                  className="gap-2 rounded-lg border border-cmv-border bg-cmv-surface p-3"
-                >
-                  <View className="flex-row gap-2">
-                    <CmvText className="text-cmv-text-lo">{index + 1}</CmvText>
-                    <CmvText className="flex-1 text-cmv-text-hi">{exercise.title}</CmvText>
-                    {/* Tags copiés à la diffusion — un exercice sans tag n'affiche rien. */}
-                    {exercise.tags.map((tag) => (
-                      <CmvText key={tag} className="text-cmv-accent text-xs">
-                        {tag}
-                      </CmvText>
-                    ))}
-                  </View>
-
-                  {/* Description et note sont nullables : rien à afficher, on n'affiche rien. */}
-                  {exercise.description == null ? null : (
-                    <CmvText className="text-cmv-text-mid text-sm">{exercise.description}</CmvText>
-                  )}
-                  {exercise.note == null ? null : (
-                    <CmvText className="text-cmv-text-mid text-sm">{exercise.note}</CmvText>
-                  )}
-
-                  {exercise.documents.map((document) => (
-                    <Pressable
-                      key={document.id}
-                      onPress={() => Linking.openURL(document.url)}
-                      className="rounded-lg border border-cmv-border bg-cmv-bg-1 px-3 py-2"
-                    >
-                      <CmvText className="text-cmv-text-mid text-sm" numberOfLines={1}>
-                        {document.fileName ?? t("plan.session.link")}
-                      </CmvText>
-                    </Pressable>
-                  ))}
+              {/* Une séance diffusée SANS exercice est l'anomalie du coach : on la constate sans
+                  culpabiliser l'athlète, et le bouton de débrief a déjà été retiré plus haut. */}
+              {session.exercises.length === 0 ? (
+                <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
+                  <CmvText className="text-cmv-text-hi">{t("plan.session.emptyTitle")}</CmvText>
+                  <CmvText className="text-cmv-text-mid text-sm">
+                    {t("plan.session.emptyDescription")}
+                  </CmvText>
                 </View>
+              ) : null}
+
+              {session.exercises.map((exercise, index) => (
+                <ExerciseCard
+                  key={exercise.id}
+                  exercise={exercise}
+                  index={index}
+                  customMetrics={[]}
+                />
               ))}
             </View>
           </>
