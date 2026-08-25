@@ -324,15 +324,25 @@ model Session {
 }
 
 model SessionExercise {
-  id           String   @id @default(cuid())
-  coachId      String // dénormalisé pour le scope tenant direct
-  sessionId    String
-  session      Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exerciseId   String
-  exercise     Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
-  position     Int // ordre dans la séance (0-based)
-  prescription String? // prescription pour cet exercice — nullable
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  coachId     String // dénormalisé pour le scope tenant direct
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId  String
+  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  position    Int // ordre dans la séance (0-based)
+  /// Le CONTEXTE que la grille ne dit pas — « épaule sensible, reste prudent ». Anciennement
+  /// `prescription`, qui portait le dosage écrit à la main : ce rôle revient désormais à `blocks`.
+  note        String?
+  /// Dosage EFFECTIF de cet exercice dans cette séance — ce que tout le monde lit.
+  blocks      Json     @default("[]")
+  /// La copie faite à l'AJOUT. Sert à « Tout réinitialiser », et c'est contre elle que le verrou
+  /// du niveau séance est vérifié. Elle ne bouge qu'à « Recharger depuis la bibliothèque ».
+  baseline    Json     @default("[]")
+  /// Les chemins de valeurs touchées et leur niveau (`Adjustments` de @cmv/shared). Le marqueur
+  /// hérité/ajusté est ainsi porté par la donnée, jamais déduit d'une comparaison à l'affichage.
+  adjustments Json     @default("[]")
+  createdAt   DateTime @default(now())
 
   @@unique([sessionId, position])
   @@index([coachId])
@@ -467,7 +477,12 @@ model ScheduledSessionExercise {
   /// diffusée se dégraderait : l'athlète verrait le titre mais perdrait consigne et structure.
   instructions       Json?
   blocks             Json             @default("[]")
-  prescription       String? // prescription pour cet athlète — nullable
+  /// Le contexte propre à CET athlète. Anciennement `prescription` — même renommage qu'en séance.
+  note               String?
+  /// La copie reçue à la diffusion, et les ajustements des DEUX niveaux : ceux de la séance
+  /// arrivent marqués SESSION, ceux posés pour l'athlète en SCHEDULED.
+  baseline           Json             @default("[]")
+  adjustments        Json             @default("[]")
   position           Int // ordre dans la séance (0-based)
   createdAt          DateTime         @default(now())
 

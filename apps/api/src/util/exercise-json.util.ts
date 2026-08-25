@@ -1,4 +1,6 @@
 import {
+  type Adjustments,
+  adjustmentsSchema,
   type ExerciseBlocks,
   exerciseBlocksSchema,
   type RichDocument,
@@ -51,4 +53,16 @@ export function toInstructionsInput(
  */
 export function toBlocksInput(blocks: ExerciseBlocks): Prisma.InputJsonValue {
   return blocks;
+}
+
+/**
+ * Les ajustements de dosage, même trajet que les blocs : `JsonValue` à la lecture, `InputJsonValue`
+ * à l'écriture, et le schéma partagé comme seul contrat.
+ */
+export function parseAdjustments(value: Prisma.JsonValue): Adjustments {
+  return adjustmentsSchema.parse(value);
+}
+
+export function toAdjustmentsInput(adjustments: Adjustments): Prisma.InputJsonValue {
+  return adjustments;
 }

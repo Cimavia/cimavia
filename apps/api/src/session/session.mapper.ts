@@ -1,5 +1,6 @@
 import type { SessionDto } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
+import { parseAdjustments, parseBlocks } from "../util/exercise-json.util";
 
 // L'exercice référencé, avec ses tags : le DTO les expose, et un `include` les charge en une
 // requête plutôt qu'une par ligne de composition.
@@ -33,7 +34,10 @@ export function toSessionDto(
         id: composed.id,
         exerciseId: composed.exerciseId,
         position: composed.position,
-        prescription: composed.prescription,
+        note: composed.note,
+        blocks: parseBlocks(composed.blocks),
+        baseline: parseBlocks(composed.baseline),
+        adjustments: parseAdjustments(composed.adjustments),
         title: exercise.title,
         // Triés, comme partout ailleurs : l'ordre d'insertion n'a aucun sens pour un tag.
         tags: exercise.tags.map((tag) => tag.name).sort(),
