@@ -49,7 +49,7 @@ Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
 - **`LINK`** — URL externe (ex. vidéo). Aucun fichier stocké.
 
 ### Session (séance) — modèle vs instance
-- **Modèle** (`Session`) : séance réutilisable = liste **ordonnée** de `SessionExercise` (`position`, `prescription` nullable) + `notes` (consignes globales, nullable). Vit dans la bibliothèque du coach. La composition se met à jour en **replace-all** (`PUT`) : l'ordre du tableau **définit** les positions.
+- **Modèle** (`Session`) : séance réutilisable = liste **ordonnée** de `SessionExercise` (`position`, `note` nullable, plus son **dosage surchargé** — cf. §  ci-dessous) + `notes` (consignes globales, nullable). Vit dans la bibliothèque du coach. La composition se met à jour en **replace-all** (`PUT`) : l'ordre du tableau **définit** les positions.
 - **Instance** (`ScheduledSession`) : **copie éditable** d'un modèle, posée dans une planification (P3). La modifier ne touche **pas** la bibliothèque. C'est le seam qui permet d'ajuster une séance pour un athlète sans casser les modèles.
 
 > ⚠️ **Nommage** : Better Auth possède déjà une table de sessions d'authentification. Son modèle Prisma a été renommé **`AuthSession`** (table `session` conservée via `@@map`, remap par `session.modelName`) pour laisser le nom **`Session`** à l'entité métier séance (table `sessions`). Ne pas confondre les deux dans le code.
@@ -73,8 +73,33 @@ Trois règles à connaître :
 ### ScheduledSession
 Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte une `scheduledDate` (dans la plage de sa semaine — invariant vérifié à l'écriture) et une `position` = rang **dans la journée** (plusieurs séances le même jour). Statut `PLANNED` | `DONE` | `SKIPPED` — en P3 tout est créé `PLANNED` ; `DONE` arrive avec le débrief (P4). Se met à jour en **replace-all** (`PUT`), comme la séance modèle. **Pas d'historique des modifications** en MVP.
 
+### Dosage à trois niveaux (#164)
+
+    EXERCICE (bibliothèque)   le défaut, valable partout
+    SÉANCE                    ajusté pour cette séance-type
+    SÉANCE PLANIFIÉE          ajusté pour UN athlète, une semaine
+
+Chaque niveau stocke trois choses : `blocks` (ce que tout le monde lit), `baseline` (la copie faite
+à l'ajout, ou reçue à la diffusion) et `adjustments` — la liste des **chemins** de valeurs touchées
+avec leur **niveau** (`SESSION` · `SCHEDULED`). Le marqueur hérité/ajusté est donc porté par la
+**donnée**, jamais déduit d'une comparaison à l'affichage : un coach qui retape à la main la même
+valeur que le défaut a bien ajusté cette cellule.
+
+**Verrouillé au niveau séance** : type de structure, jeu et ordre des colonnes, nombre de blocs et
+libellés. **Modifiable** : valeurs de cellules, paramètres de bandeau, nombre de lignes. Le verrou
+est vérifié **côté serveur** (`lockedShapeIssues`), pas seulement grisé dans l'UI.
+
+Deux gestes à ne pas confondre : **« Tout réinitialiser »** revient aux valeurs copiées à l'ajout
+et ne touche pas la référence ; **« Recharger depuis la bibliothèque »** relit l'exercice tel qu'il
+est aujourd'hui, **déplace la référence** et efface les ajustements. Le second est le seul qui vit
+côté serveur (`POST /sessions/:id/exercises/:id/reload`) — partout ailleurs le client n'envoie que
+des valeurs, jamais la référence contre laquelle le verrou est vérifié.
+
+**Ni détection de changement, ni empreinte de version** : une séance composée est indépendante,
+et le coach qui veut la nouveauté la recharge explicitement.
+
 ### ScheduledSessionExercise — la copie, pas la référence
-**Décision structurante (P3).** L'instance est un **instantané autonome** : `title`, `description`, `instructions`, `blocks`, `prescription` et les **tags** sont **copiés** de l'`Exercise`, et ses documents sont **dupliqués en lignes** (`ScheduledSessionExerciseDocument`) partageant la **même clé objet S3** (aucun binaire dupliqué).
+**Décision structurante (P3).** L'instance est un **instantané autonome** : `title`, `description`, `instructions`, `blocks`, `note` et les **tags** sont **copiés** — le dosage vient de la **séance**, pas de la bibliothèque, et ses documents sont **dupliqués en lignes** (`ScheduledSessionExerciseDocument`) partageant la **même clé objet S3** (aucun binaire dupliqué).
 
 Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: SetNull`)** et ne servent qu'à la traçabilité : **l'affichage n'en dépend jamais**. Conséquences voulues :
 - le coach peut supprimer un exercice de sa bibliothèque **sans jamais bloquer** (pas de `Restrict`, pas de 409 à vie) ni dégrader une planif déjà diffusée ;

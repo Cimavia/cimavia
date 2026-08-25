@@ -753,6 +753,32 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > (`richDocumentToPlainText`). À reconsidérer **uniquement** si la refonte est livrée après une
 > mise en production réelle.
 >
+> **Écarts assumés avec la maquette du constructeur** (tranchés en recette, #163) :
+>
+> - **Les raccourcis « Pyramide » et « Intervalles » sont retirés.** Ils ne préremplissaient qu'un
+>   bandeau de Séries, et le seul geste qu'ils promettaient vraiment — les paliers en miroir —
+>   vit dans le menu de colonne, accessible depuis n'importe quelle Séries. Deux entrées de moins
+>   à l'écran pour zéro perte.
+> - **L'image de consigne a trois largeurs** (petite · moyenne · pleine), là où la frame 13 disait
+>   « pleine largeur, jamais habillée de texte ». Trois paliers et non une valeur libre : un
+>   pourcentage dépendrait de l'écran où l'image a été posée, et React Native devrait l'interpréter
+>   au pixel près. **#166 doit rendre les trois**, sinon les deux surfaces divergent.
+> - **« Dupliquer en variante » (frame 14) n'est pas implémenté.** Absent de la liste « À faire »
+>   de l'issue, donc laissé de côté plutôt qu'ajouté d'autorité. ~10 lignes le jour où il est
+>   demandé.
+> - **`2:75` vaut `3'15` au lieu d'être refusé.** Les secondes au-delà de 59 débordent sur les
+>   minutes. Le refus protégeait mieux de la faute de frappe, mais le rendu canonique montre
+>   aussitôt ce qui a été compris — ce qui la rattrape sans bloquer la saisie.
+> - **Les unités ne s'accordent pas** : « 1 répétitions ». Chaque libellé d'unité devrait passer en
+>   clé plurielle dans les deux catalogues ; non fait, non demandé.
+>
+> **Trois pièges de CSS payés cash** (le même, trois fois) : sur un élément qui porte déjà `border`
+> ou `bg-*`, un utilitaire Tailwind de la MÊME propriété a la même spécificité — c'est l'ordre du
+> fichier CSS qui tranche, pas l'ordre où on écrit les classes. Un repère de dépôt en `border-t-2`,
+> puis en `outline`, s'est fait écraser sans que rien ne le signale. La forme qui tient : le hook
+> rend un ÉTAT (`isOver`), et chaque appelant choisit **un seul** fond. Même famille : `uppercase`
+> posé sur une ligne d'en-tête remonte dans tout ce qu'elle contient, menu flottant compris.
+>
 > **Découvert en route** : `pnpm turbo lint` ne voit pas `packages/shared` — seuls `api`, `web` et
 > `mobile` ont un script `lint`. Une fonction à complexité cognitive 22 (max 15, niveau `error`)
 > est passée sous le radar jusqu'au `biome ci` complet. La porte réelle est

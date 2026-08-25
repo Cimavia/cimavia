@@ -283,7 +283,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
     const session = await coachA.post("/sessions").send({
       title: "Circuit court",
-      exercises: [{ exerciseId: fresh.body.id, prescription: "3×30 s" }],
+      exercises: [{ exerciseId: fresh.body.id, note: "3×30 s" }],
     });
     expect(session.status).toBe(201);
 
@@ -592,13 +592,13 @@ describe("Composition & isolation des séances (P2)", () => {
     exB = await createExercise(coachB, "Exercice du coach B");
   });
 
-  it("crée une séance avec une composition ordonnée (positions + prescription)", async () => {
+  it("crée une séance avec une composition ordonnée (positions + note)", async () => {
     const res = await coachA.post("/sessions").send({
       title: "Bloc force max",
       notes: "Repos 3 min entre séries.",
       exercises: [
-        { exerciseId: exA1, prescription: "10 min mobilité" },
-        { exerciseId: exA2, prescription: "5×5 à +10 kg" },
+        { exerciseId: exA1, note: "10 min mobilité" },
+        { exerciseId: exA2, note: "5×5 à +10 kg" },
       ],
     });
     expect(res.status).toBe(201);
@@ -624,7 +624,7 @@ describe("Composition & isolation des séances (P2)", () => {
     const res = await coachA.put(`/sessions/${sessionAId}`).send({
       title: "Bloc force max (v2)",
       notes: null,
-      exercises: [{ exerciseId: exA2, prescription: "4×6" }],
+      exercises: [{ exerciseId: exA2, note: "4×6" }],
     });
     expect(res.status).toBe(200);
     expect(res.body.title).toBe("Bloc force max (v2)");
@@ -684,6 +684,129 @@ function mondayOfCurrentWeek(): string {
   return monday;
 }
 
+describe("Dosage à trois niveaux (#164)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let exerciseId: string;
+  let sessionId: string;
+  let composedId: string;
+
+  // Un exercice à un bloc Séries, deux lignes, une colonne : le plus petit dosage qui se surcharge.
+  const BLOCKS = [
+    {
+      id: "blk_1",
+      label: "Travail",
+      structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+      metrics: [
+        {
+          id: "col_reps",
+          source: "CATALOG",
+          key: "REPETITIONS",
+          unit: "REPS",
+          label: null,
+          collapsed: false,
+        },
+      ],
+      rows: [
+        { id: "r1", values: { col_reps: 6 } },
+        { id: "r2", values: { col_reps: 5 } },
+      ],
+    },
+  ];
+
+  const adjusted = (reps: number) => [
+    {
+      ...BLOCKS[0],
+      rows: [
+        { id: "r1", values: { col_reps: reps } },
+        { id: "r2", values: { col_reps: 5 } },
+      ],
+    },
+  ];
+
+  beforeAll(async () => {
+    coach = await signUp("dosage-coach@cmv.test", Role.COACH);
+    other = await signUp("dosage-other@cmv.test", Role.COACH);
+
+    const exercise = await coach.post("/exercises").send({ title: "Tractions", blocks: BLOCKS });
+    expect(exercise.status).toBe(201);
+    exerciseId = exercise.body.id;
+
+    const session = await coach
+      .post("/sessions")
+      .send({ title: "Bloc force", exercises: [{ exerciseId }] });
+    expect(session.status).toBe(201);
+    sessionId = session.body.id;
+    composedId = session.body.exercises[0].id;
+  });
+
+  it("copie le dosage de l'exercice à l'AJOUT, référence comprise", async () => {
+    const read = await coach.get(`/sessions/${sessionId}`);
+    const composed = read.body.exercises[0];
+    expect(composed.blocks).toEqual(BLOCKS);
+    expect(composed.baseline).toEqual(BLOCKS);
+    expect(composed.adjustments).toEqual([]);
+  });
+
+  it("conserve la référence quand la composition est réécrite", async () => {
+    // Le remplace-all détruit et recrée les lignes : sans le report de la référence,
+    // « Tout réinitialiser » reviendrait à la dernière sauvegarde au lieu de l'ajout.
+    const res = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [
+        {
+          id: composedId,
+          exerciseId,
+          blocks: adjusted(8),
+          adjustments: [{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }],
+        },
+      ],
+    });
+    expect(res.status).toBe(200);
+
+    const composed = res.body.exercises[0];
+    expect(composed.blocks[0].rows[0].values.col_reps).toBe(8);
+    // La référence n'a PAS bougé : c'est toujours ce qui a été copié à l'ajout.
+    expect(composed.baseline).toEqual(BLOCKS);
+    expect(composed.adjustments).toEqual([{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }]);
+    composedId = composed.id;
+  });
+
+  it("REFUSE de changer ce que le niveau séance verrouille", async () => {
+    // Le verrou est vérifié côté serveur : un formulaire n'est pas une frontière.
+    const locked = [{ ...BLOCKS[0], label: "Échauffement" }];
+    const res = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [{ id: composedId, exerciseId, blocks: locked }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("recharge depuis la bibliothèque : la référence suit, les ajustements tombent", async () => {
+    // L'exercice de bibliothèque change APRÈS la composition.
+    const updated = [{ ...BLOCKS[0], rows: [{ id: "r1", values: { col_reps: 12 } }] }];
+    expect((await coach.patch(`/exercises/${exerciseId}`).send({ blocks: updated })).status).toBe(
+      200,
+    );
+
+    // Tant qu'on ne recharge pas, la séance ne bouge PAS — elle est indépendante une fois composée.
+    const before = await coach.get(`/sessions/${sessionId}`);
+    expect(before.body.exercises[0].baseline).toEqual(BLOCKS);
+
+    const res = await coach.post(`/sessions/${sessionId}/exercises/${composedId}/reload`);
+    expect(res.status).toBe(201);
+    const composed = res.body.exercises[0];
+    expect(composed.blocks).toEqual(updated);
+    expect(composed.baseline).toEqual(updated);
+    expect(composed.adjustments).toEqual([]);
+  });
+
+  it("un coach ne recharge PAS l'exercice d'une séance d'un autre coach", async () => {
+    const res = await other.post(`/sessions/${sessionId}/exercises/${composedId}/reload`);
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
   let coachB: Agent;
@@ -700,6 +823,11 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   let scheduledId: string;
 
   const monday = mondayOfCurrentWeek();
+  // La semaine 2 commence sept jours après le lundi de départ : une séance doit tomber dans la
+  // plage de SA semaine, l'API le vérifie.
+  const mondayOfWeek2 = new Date(`${monday}T00:00:00Z`);
+  mondayOfWeek2.setUTCDate(mondayOfWeek2.getUTCDate() + 7);
+  const mondayOfWeek2Iso = mondayOfWeek2.toISOString().slice(0, 10);
 
   const LIBRARY_INSTRUCTIONS = [{ type: "PARAGRAPH", content: [{ text: "Coudes serrés." }] }];
   const LIBRARY_BLOCKS = [
@@ -753,7 +881,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const template = await coachA.post("/sessions").send({
       title: "Bloc force max",
       notes: "Repos 3 min.",
-      exercises: [{ exerciseId: exerciseAId, prescription: "5×5" }],
+      exercises: [{ exerciseId: exerciseAId, note: "5×5" }],
     });
     templateId = template.body.id;
 
@@ -806,7 +934,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(res.body.exercises[0]).toMatchObject({
       sourceExerciseId: exerciseAId,
       title: "Tractions lestées",
-      prescription: "5×5",
+      note: "5×5",
       position: 0,
     });
     // Le document de l'exercice suit la copie : sans lui, l'athlète n'y aurait aucun accès.
@@ -829,6 +957,53 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const read = await coachA.get(`/scheduled-sessions/${scheduledId}`);
     expect(read.body.exercises[0].instructions).toEqual(LIBRARY_INSTRUCTIONS);
     expect(read.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
+  });
+
+  it("diffuse le dosage de la SÉANCE, pas celui de la bibliothèque", async () => {
+    // La régression que ce test verrouille : lire les blocs de l'exercice au moment de la
+    // diffusion ferait disparaître, sans le moindre avertissement, tout ce que le coach a ajusté
+    // au niveau séance.
+    const template = await coachA.get(`/sessions/${templateId}`);
+    const composed = template.body.exercises[0];
+    const tuned = composed.blocks.map((block: { rows: { id: string; values: unknown }[] }) => ({
+      ...block,
+      rows: block.rows.map((row) => (row.id === "r1" ? { ...row, values: { col_reps: 3 } } : row)),
+    }));
+
+    // La note est renvoyée telle quelle : ce test ajuste le DOSAGE, et les suivants comptent sur
+    // le modèle intact — une suite e2e partage ses fixtures.
+    const saved = await coachA.put(`/sessions/${templateId}`).send({
+      title: "Bloc force max",
+      notes: "Repos 3 min.",
+      exercises: [
+        {
+          id: composed.id,
+          exerciseId: exerciseAId,
+          note: composed.note,
+          blocks: tuned,
+          adjustments: [{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }],
+        },
+      ],
+    });
+    expect(saved.status).toBe(200);
+
+    // Diffusée en semaine 2, dont aucun test ne compte les séances, puis retirée aussitôt : la
+    // semaine 1 est le décor d'autres assertions.
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    const copy = diffused.body.exercises[0];
+    expect(copy.blocks[0].rows[0].values.col_reps).toBe(3);
+    // Le marqueur du niveau séance voyage avec la copie : l'athlète doit voir CE qui a été ajusté
+    // pour lui, et le coach distinguer les deux niveaux sur la même grille.
+    expect(copy.adjustments).toEqual([{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }]);
+    expect(copy.baseline).toEqual(copy.blocks);
+
+    // Nettoyage par courtoisie : aucune assertion sur son statut, la semaine 2 n'est comptée
+    // nulle part et un échec ici ne dirait rien d'utile.
+    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
   });
 
   it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {
@@ -854,16 +1029,16 @@ describe("Planifications : diffusion & isolation (P3)", () => {
         {
           sourceExerciseId: exerciseAId,
           title: "Tractions lestées",
-          prescription: "4×6 — épaule sensible",
+          note: "4×6 — épaule sensible",
         },
       ],
     });
     expect(edited.status).toBe(200);
-    expect(edited.body.exercises[0].prescription).toBe("4×6 — épaule sensible");
+    expect(edited.body.exercises[0].note).toBe("4×6 — épaule sensible");
 
     const template = await coachA.get(`/sessions/${templateId}`);
     expect(template.body.title).toBe("Bloc force max");
-    expect(template.body.exercises[0].prescription).toBe("5×5");
+    expect(template.body.exercises[0].note).toBe("5×5");
   });
 
   it("un brouillon est INVISIBLE de l'athlète (le scope tenant ne filtre pas le statut)", async () => {
@@ -957,7 +1132,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(204);
 
-    // La séance de l'athlète est intacte : titre, prescription et document toujours là.
+    // La séance de l'athlète est intacte : titre, note et document toujours là.
     const session = await athleteA1.get(`/me/scheduled-sessions/${scheduledId}`);
     expect(session.status).toBe(200);
     expect(session.body.exercises[0].title).toBe("Tractions lestées");
@@ -3673,7 +3848,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     const template = await coachA.post("/sessions").send({
       title: "Doigts",
       notes: "Échauffement long.",
-      exercises: [{ exerciseId, prescription: "6×10 s" }],
+      exercises: [{ exerciseId, note: "6×10 s" }],
     });
     templateId = template.body.id;
 
@@ -3778,7 +3953,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     expect(detail.body.exercises[0]).toMatchObject({
       sourceExerciseId: exerciseId,
       title: "Suspensions",
-      prescription: "6×10 s",
+      note: "6×10 s",
       position: 0,
     });
     // Le document suit la copie — même lien, ligne distincte de celle de la séance source.
