@@ -147,6 +147,33 @@ export const richDocumentSchema = z
 export type RichDocument = z.infer<typeof richDocumentSchema>;
 
 /**
+ * Réécrit les identifiants de média d'un document.
+ *
+ * Sert à la DIFFUSION : les documents d'un exercice sont recopiés en nouvelles lignes, avec de
+ * nouveaux identifiants, tandis que la consigne garde les anciens. Sans ce remappage les images de
+ * consigne ne désignent plus rien chez l'athlète — et l'échec est SILENCIEUX, puisqu'un média
+ * introuvable ne s'affiche simplement pas.
+ *
+ * Une image dont l'identifiant n'est pas dans la table est laissée telle quelle : la perdre ferait
+ * disparaître un bloc que le coach a bel et bien écrit.
+ */
+export function remapImageMediaIds(
+  blocks: readonly RichBlock[],
+  idByOldId: ReadonlyMap<string, string>,
+): RichDocument {
+  return blocks.map((block) => {
+    if (block.type !== RichBlockType.IMAGE) return block;
+    const next = idByOldId.get(block.mediaId);
+    return next == null ? block : { ...block, mediaId: next };
+  });
+}
+
+/** Les identifiants de média cités par un document — ce qu'il faudra remapper. */
+export function imageMediaIds(blocks: readonly RichBlock[]): string[] {
+  return blocks.flatMap((block) => (block.type === RichBlockType.IMAGE ? [block.mediaId] : []));
+}
+
+/**
  * Rendu en texte brut — sert au `down` de la migration et aux aperçus d'une ligne.
  * Une image ne rend que sa légende : sans elle, elle ne laisse aucune trace.
  */

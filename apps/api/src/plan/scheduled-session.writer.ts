@@ -1,4 +1,9 @@
-import type { ExerciseBlocks, ScheduledSessionExerciseInput } from "@cmv/shared";
+import {
+  type ExerciseBlocks,
+  imageMediaIds,
+  remapImageMediaIds,
+  type ScheduledSessionExerciseInput,
+} from "@cmv/shared";
 import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import { toAdjustmentsInput, toBlocksInput, toInstructionsInput } from "../util/exercise-json.util";
@@ -23,6 +28,9 @@ import { toAdjustmentsInput, toBlocksInput, toInstructionsInput } from "../util/
  * Une copie de document : la **même clé objet** que l'original, jamais un binaire dupliqué
  * (CONTEXT, « ScheduledSessionExercise — la copie, pas la référence »).
  *
+ * `id` est celui du document SOURCE — pas celui de la copie. Il sert à remapper les images de la
+ * consigne, qui référencent l'ancien identifiant (cf. `insertScheduledSessionExercises`).
+ *
  * Dérivé de la LIGNE de destination, pas de son `UncheckedCreateInput` : ce dernier rend les
  * colonnes nullables *optionnelles*, ce qui sous `exactOptionalPropertyTypes` laisserait passer
  * un `undefined` là où la table attend `null`. Les deux sources (`ExerciseDocument` et
@@ -30,7 +38,7 @@ import { toAdjustmentsInput, toBlocksInput, toInstructionsInput } from "../util/
  */
 export type ScheduledSessionDocumentDraft = Pick<
   ScheduledSessionExerciseDocument,
-  "type" | "usage" | "storagePath" | "url" | "fileName" | "mimeType"
+  "id" | "type" | "usage" | "storagePath" | "url" | "fileName" | "mimeType"
 >;
 
 // Un exercice à écrire, avec les documents que l'appelant lui a rattachés.
@@ -93,12 +101,36 @@ export async function insertScheduledSessionExercises(
       });
     }
 
-    if (draft.documents.length === 0) continue;
+    await copyDocumentsAndRemapImages(tx, created.id, athleteId, draft);
+  }
+}
 
-    await tx.scheduledSessionExerciseDocument.createMany({
-      data: draft.documents.map((document) => ({
+/**
+ * Recopie les documents d'un exercice et réaligne les images de sa consigne sur les nouvelles
+ * copies.
+ *
+ * Extrait de la boucle d'écriture : mêlées, les deux responsabilités poussaient
+ * `insertScheduledSessionExercises` au-delà du seuil de complexité de la porte qualité.
+ */
+async function copyDocumentsAndRemapImages(
+  tx: TenantTx,
+  scheduledSessionExerciseId: string,
+  athleteId: string,
+  draft: ScheduledSessionExerciseDraft,
+): Promise<void> {
+  if (draft.documents.length === 0) return;
+
+  /**
+   * Créés UN PAR UN et non en `createMany` : il faut connaître l'identifiant de chaque copie pour
+   * remapper les images de la consigne, et `createMany` ne rend rien. Une poignée de documents par
+   * exercice — le coût est nul devant le bug qu'il évite.
+   */
+  const idByOldId = new Map<string, string>();
+  for (const document of draft.documents) {
+    const copy = await tx.scheduledSessionExerciseDocument.create({
+      data: {
         athleteId,
-        scheduledSessionExerciseId: created.id,
+        scheduledSessionExerciseId,
         type: document.type,
         // Copié : sans lui, la planif diffusée listerait les images de consigne parmi les pièces
         // jointes de l'athlète.
@@ -107,10 +139,24 @@ export async function insertScheduledSessionExercises(
         url: document.url,
         fileName: document.fileName,
         mimeType: document.mimeType,
-      })) satisfies Omit<
+      } satisfies Omit<
         Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput,
         "coachId"
-      >[] as Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput[],
+      > as Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput,
     });
+    idByOldId.set(document.id, copy.id);
   }
+
+  /**
+   * La consigne référence ses images par l'identifiant du document de la BIBLIOTHÈQUE. Les copies
+   * en ont un neuf : sans ce remappage, les images de consigne ne désignent plus rien chez
+   * l'athlète, et l'échec est SILENCIEUX — un média introuvable ne s'affiche pas, c'est tout.
+   */
+  const instructions = draft.exercise.instructions ?? null;
+  if (instructions == null || imageMediaIds(instructions).length === 0) return;
+
+  await tx.scheduledSessionExercise.update({
+    where: { id: scheduledSessionExerciseId },
+    data: { instructions: toInstructionsInput(remapImageMediaIds(instructions, idByOldId)) },
+  });
 }

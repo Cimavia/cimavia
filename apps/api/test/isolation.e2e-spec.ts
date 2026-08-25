@@ -1036,6 +1036,47 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
   });
 
+  it("les images de consigne survivent à la diffusion", async () => {
+    // Les documents sont recopiés en NOUVELLES lignes : sans remappage, la consigne de l'athlète
+    // référencerait des identifiants de la bibliothèque, qui ne désignent rien chez lui — et
+    // l'échec serait silencieux, un média introuvable ne s'affichant simplement pas.
+    const upload = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "position.jpg", mimeType: "image/jpeg", size: 2048 });
+    const image = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: upload.body.storagePath,
+      fileName: "position.jpg",
+      mimeType: "image/jpeg",
+      usage: "INSTRUCTION",
+    });
+    expect(image.status).toBe(201);
+
+    const withImage = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      instructions: [
+        { type: "PARAGRAPH", content: [{ text: "Position basse." }] },
+        { type: "IMAGE", mediaId: image.body.id },
+      ],
+    });
+    expect(withImage.status).toBe(200);
+
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    const copy = diffused.body.exercises[0];
+    const block = copy.instructions.find((item: { type: string }) => item.type === "IMAGE");
+    const documentIds = copy.documents.map((document: { id: string }) => document.id);
+
+    // L'identifiant a changé ET il désigne un document de la COPIE.
+    expect(block.mediaId).not.toBe(image.body.id);
+    expect(documentIds).toContain(block.mediaId);
+
+    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${image.body.id}`);
+  });
+
   it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {
     const outOfWeek = await coachA
       .post(`/plan-weeks/${week1Id}/sessions`)

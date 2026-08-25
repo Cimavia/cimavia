@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   InlineMark,
+  imageMediaIds,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
+  type RichBlock,
   RichBlockType,
+  remapImageMediaIds,
   richDocumentFromPlainText,
   richDocumentSchema,
   richDocumentTextLength,
@@ -136,5 +139,28 @@ describe("richDocumentFromPlainText", () => {
     const document = richDocumentFromPlainText("Descente contrôlée");
     expect(richDocumentSchema.safeParse(document).success).toBe(true);
     expect(richDocumentToPlainText(document ?? [])).toBe("Descente contrôlée");
+  });
+});
+
+describe("remapImageMediaIds", () => {
+  const image = (mediaId: string): RichBlock => ({ type: RichBlockType.IMAGE, mediaId });
+  const text: RichBlock = {
+    type: RichBlockType.PARAGRAPH,
+    content: [{ text: "Coudes serrés." }],
+  };
+
+  it("réécrit les identifiants connus, laisse le reste intact", () => {
+    const document = [text, image("doc_1"), image("doc_2")];
+    const remapped = remapImageMediaIds(document, new Map([["doc_1", "copie_1"]]));
+    expect(remapped).toEqual([text, image("copie_1"), image("doc_2")]);
+  });
+
+  it("ne supprime PAS une image absente de la table", () => {
+    // La perdre ferait disparaître un bloc que le coach a bel et bien écrit.
+    expect(remapImageMediaIds([image("inconnu")], new Map())).toEqual([image("inconnu")]);
+  });
+
+  it("liste les identifiants à remapper", () => {
+    expect(imageMediaIds([text, image("a"), image("b")])).toEqual(["a", "b"]);
   });
 });
