@@ -5,7 +5,12 @@ import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toIsoDate } from "../../util/date.util";
-import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
+import {
+  parseAdjustments,
+  parseBlocks,
+  parseCustomMetrics,
+  parseInstructions,
+} from "../../util/exercise-json.util";
 import { SESSION_DETAIL_INCLUDE } from "../scheduled-session.mapper";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
@@ -140,6 +145,7 @@ export class PlanWeekCopyService {
               instructions: parseInstructions(exercise.instructions),
               blocks: parseBlocks(exercise.blocks),
               adjustments: parseAdjustments(exercise.adjustments),
+              customMetrics: parseCustomMetrics(exercise.customMetrics),
               tags: exercise.tags.map((tag) => tag.name),
             },
             // La copie garde la référence de la source : recopier une semaine ne remet pas les

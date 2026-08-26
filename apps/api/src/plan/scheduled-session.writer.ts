@@ -6,7 +6,12 @@ import {
 } from "@cmv/shared";
 import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
-import { toAdjustmentsInput, toBlocksInput, toInstructionsInput } from "../util/exercise-json.util";
+import {
+  toAdjustmentsInput,
+  toBlocksInput,
+  toCustomMetricsInput,
+  toInstructionsInput,
+} from "../util/exercise-json.util";
 
 /**
  * Écriture de la composition d'une séance planifiée — le pendant du `scheduled-session.mapper`,
@@ -79,6 +84,7 @@ export async function insertScheduledSessionExercises(
         // bibliothèque : « Tout réinitialiser » chez l'athlète doit revenir à ce qu'il a reçu.
         baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
         adjustments: toAdjustmentsInput(draft.exercise.adjustments ?? []),
+        customMetrics: toCustomMetricsInput(draft.exercise.customMetrics ?? []),
         note: draft.exercise.note ?? null,
         position,
       } satisfies Omit<

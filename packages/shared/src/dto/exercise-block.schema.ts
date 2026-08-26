@@ -209,6 +209,19 @@ export const exerciseBlockSchema = z
   });
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
+/**
+ * Les métriques MAISON citées par des blocs. Sert au snapshot de diffusion : sans la définition,
+ * l'athlète ne verrait qu'un identifiant — ni libellé, ni type de valeur, ni paliers d'échelle.
+ */
+export function customMetricIdsIn(blocks: ExerciseBlocks): string[] {
+  const ids = blocks.flatMap((block) =>
+    block.metrics.flatMap((metric) =>
+      metric.source === MetricSource.CUSTOM ? [metric.customMetricId] : [],
+    ),
+  );
+  return [...new Set(ids)];
+}
+
 // ── Le seuil de colonnes du rendu athlète ───────────────────────────────────────────────────
 
 /**

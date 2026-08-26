@@ -123,6 +123,7 @@ export {
   ColumnFillMode,
   canCollapseMetric,
   columnValues,
+  customMetricIdsIn,
   DEFAULT_BLOCK_METRIC_KEYS,
   DEFAULT_BLOCK_STRUCTURE,
   DosageLayout,

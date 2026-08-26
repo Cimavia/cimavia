@@ -87,7 +87,9 @@ export function SessionDetailScreen() {
                   key={exercise.id}
                   exercise={exercise}
                   index={index}
-                  customMetrics={[]}
+                  // Les définitions voyagent AVEC la copie : l'athlète n'a pas accès à la
+                  // bibliothèque du coach, et une planif diffusée doit rester lisible seule.
+                  customMetrics={exercise.customMetrics}
                 />
               ))}
             </View>

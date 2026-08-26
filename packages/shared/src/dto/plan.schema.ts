@@ -9,6 +9,7 @@ import {
   exerciseTagsSchema,
 } from "./exercise.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { customMetricSchema } from "./exercise-metric.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 import {
   SESSION_NOTE_MAX_LENGTH,
@@ -124,6 +125,7 @@ export const scheduledSessionExerciseInputSchema = z
     // Copiés de l'exercice source au moment de la diffusion, comme les documents et les tags.
     instructions: richDocumentSchema.nullable().optional(),
     blocks: exerciseBlocksSchema.optional(),
+    customMetrics: z.array(customMetricSchema).optional(),
     tags: exerciseTagsSchema.optional(),
     note: z.string().max(SESSION_NOTE_MAX_LENGTH).nullable().optional(),
     adjustments: adjustmentsSchema.optional(),
@@ -173,6 +175,12 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   // à la diffusion, même si le coach a retravaillé l'exercice de sa bibliothèque depuis.
   instructions: richDocumentSchema.nullable(),
   blocks: exerciseBlocksSchema,
+  /**
+   * Les métriques MAISON citées par les blocs, copiées à la diffusion. Sans elles l'athlète ne
+   * verrait qu'un identifiant : `/custom-metrics` est scopé au coach, et faire dépendre la lecture
+   * d'une planif de la bibliothèque du coach casserait l'autonomie du snapshot (décision P3).
+   */
+  customMetrics: z.array(customMetricSchema),
   // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
   // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.
   tags: z.array(z.string()),

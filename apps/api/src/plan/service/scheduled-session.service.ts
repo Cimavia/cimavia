@@ -1,10 +1,11 @@
 import type {
   CreateScheduledSessionInput,
+  CustomMetric,
   ScheduledSessionDto,
   ScheduledSessionExerciseInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
-import { isDateInPlanWeek, PlanStatus } from "@cmv/shared";
+import { customMetricIdsIn, customMetricSchema, isDateInPlanWeek, PlanStatus } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
 
@@ -231,6 +232,9 @@ export class ScheduledSessionService {
     // Les include imbriqués ne sont PAS scopés : les exercices de la bibliothèque se chargent
     // par une requête scopée séparée (architecture-choice §6, piège n°2).
     const library = await this.loadExercises(template.exercises.map((e) => e.exerciseId));
+    // Chargées UNE fois pour toute la séance : chaque exercice n'en cite qu'une poignée, et une
+    // requête par exercice serait du gaspillage.
+    const coachMetrics = await this.db.customMetric.findMany();
     const copied = template.exercises.map((composed) => {
       const exercise = library.get(composed.exerciseId);
       if (exercise == null) {
@@ -248,6 +252,9 @@ export class ScheduledSessionService {
         // le coach a ajusté au niveau séance.
         blocks: parseBlocks(composed.blocks),
         adjustments: parseAdjustments(composed.adjustments),
+        // Les définitions des métriques maison partent AVEC la copie : sans elles l'athlète ne
+        // verrait qu'un identifiant, et renommer la métrique dégraderait une planif diffusée.
+        customMetrics: customMetricsFor(parseBlocks(composed.blocks), coachMetrics),
         tags: exercise.tags.map((tag) => tag.name).sort(),
         note: composed.note,
       };
@@ -320,4 +327,15 @@ export class ScheduledSessionService {
     }));
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
   }
+}
+
+/** Les définitions citées par ces blocs, parmi celles du coach. Une citation orpheline est ignorée. */
+function customMetricsFor(
+  blocks: ReturnType<typeof parseBlocks>,
+  coachMetrics: readonly { id: string; label: string; unit: string | null }[],
+): CustomMetric[] {
+  const wanted = new Set(customMetricIdsIn(blocks));
+  return coachMetrics
+    .filter((metric) => wanted.has(metric.id))
+    .map((metric) => customMetricSchema.parse(metric));
 }

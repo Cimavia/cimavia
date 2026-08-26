@@ -1,12 +1,15 @@
 import {
   type Adjustments,
   adjustmentsSchema,
+  type CustomMetric,
+  customMetricSchema,
   type ExerciseBlocks,
   exerciseBlocksSchema,
   type RichDocument,
   richDocumentSchema,
 } from "@cmv/shared";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 
 /**
  * Consigne structurée et blocs vivent en colonnes JSON (décision tranchée : voir
@@ -65,4 +68,13 @@ export function parseAdjustments(value: Prisma.JsonValue): Adjustments {
 
 export function toAdjustmentsInput(adjustments: Adjustments): Prisma.InputJsonValue {
   return adjustments;
+}
+
+/** Les définitions de métriques maison copiées dans un snapshot, même trajet que les blocs. */
+export function parseCustomMetrics(value: Prisma.JsonValue): CustomMetric[] {
+  return z.array(customMetricSchema).parse(value);
+}
+
+export function toCustomMetricsInput(metrics: readonly CustomMetric[]): Prisma.InputJsonValue {
+  return metrics as Prisma.InputJsonValue;
 }

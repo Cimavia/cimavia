@@ -483,6 +483,10 @@ model ScheduledSessionExercise {
   /// arrivent marqués SESSION, ceux posés pour l'athlète en SCHEDULED.
   baseline           Json             @default("[]")
   adjustments        Json             @default("[]")
+  /// Les métriques maison citées par `blocks`, copiées à la diffusion. Sans elles l'athlète ne
+  /// verrait qu'un identifiant — `/custom-metrics` est scopé au coach, et faire dépendre la
+  /// lecture d'une planif de sa bibliothèque casserait l'autonomie du snapshot.
+  customMetrics      Json             @default("[]")
   position           Int // ordre dans la séance (0-based)
   createdAt          DateTime         @default(now())
 
