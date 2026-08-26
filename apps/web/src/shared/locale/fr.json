@@ -410,7 +410,14 @@
         "empty": "Aucune séance",
         "emptyHint": "Rien à afficher dans cette période."
       },
-      "backToPlanning": "← Mon planning"
+      "backToPlanning": "← Mon planning",
+      "summary": "Sommaire",
+      "showInstructions": "Voir la consigne",
+      "hideInstructions": "Masquer la consigne",
+      "contactCoach": "Écrire à mon coach",
+      "emptyTitle": "Cette séance est vide",
+      "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler.",
+      "openFeedback": "Débriefer la séance"
     },
     "new": "Nouvelle planification",
     "status": {

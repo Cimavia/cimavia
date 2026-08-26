@@ -1,16 +1,10 @@
-import type { ScheduledSessionExerciseDto } from "@cmv/shared";
 import { ScheduledSessionStatus } from "@cmv/shared";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { AthleteExerciseCard } from "@/feature/plan/component/AthleteExerciseCard";
+import { AthleteSessionRail } from "@/feature/plan/component/AthleteSessionRail";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import {
-  CmvAppShell,
-  CmvBadge,
-  CmvButton,
-  CmvCard,
-  CmvErrorState,
-  CmvTagList,
-} from "@/shared/component";
+import { CmvAppShell, CmvBadge, CmvCard, CmvErrorState } from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -39,6 +33,7 @@ const route = getRouteApi("/sessions/$sessionId/");
  */
 export function AthleteSessionScreen() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { sessionId } = route.useParams();
   const { data: session, isPending, isError, refetch } = useMyScheduledSession(sessionId);
 
@@ -95,73 +90,48 @@ export function AthleteSessionScreen() {
             </Link>
           </div>
 
-          {/* Nullable : une séance sans consigne n'affiche pas un bloc vide. */}
-          {session.notes == null ? null : (
-            <CmvCard>
-              <div className="flex flex-col gap-cmv-xs">
-                <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
-                  {t("plan.athlete.notes")}
-                </h2>
-                <p className="text-cmv-body text-cmv-text-hi">{session.notes}</p>
-              </div>
-            </CmvCard>
-          )}
+          <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
+            <section className="flex min-w-0 flex-col gap-cmv-md">
+              {/* L'en-tête ne compte RIEN : la progression vit dans le rail et nulle part
+                  ailleurs, sinon deux compteurs finissent par se contredire. */}
+              <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
+                {t("plan.athlete.composition", { count: session.exercises.length })}
+              </h2>
 
-          <section className="flex flex-col gap-cmv-md">
-            <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
-              {t("plan.athlete.composition", { count: session.exercises.length })}
-            </h2>
+              {/* Une séance diffusée sans exercice est l'anomalie du COACH : on la constate sans
+                  demander à l'athlète de la réparer. */}
+              {session.exercises.length === 0 ? (
+                <CmvCard>
+                  <div className="flex flex-col gap-cmv-xs">
+                    <h3 className="text-cmv-subtitle text-cmv-text-hi">
+                      {t("plan.athlete.emptyTitle")}
+                    </h3>
+                    <p className="text-cmv-body text-cmv-text-mid">
+                      {t("plan.athlete.emptyDescription")}
+                    </p>
+                  </div>
+                </CmvCard>
+              ) : null}
 
-            {session.exercises.map((exercise, index) => (
-              <ExerciseCard key={exercise.id} exercise={exercise} position={index + 1} />
-            ))}
-          </section>
+              {session.exercises.map((exercise, index) => (
+                <div key={exercise.id} id={`exercise-${exercise.id}`}>
+                  <AthleteExerciseCard exercise={exercise} position={index + 1} />
+                </div>
+              ))}
+            </section>
+
+            <AthleteSessionRail
+              session={session}
+              onOpenFeedback={() =>
+                navigate({
+                  to: "/sessions/$sessionId/feedback",
+                  params: { sessionId: session.id },
+                })
+              }
+            />
+          </div>
         </div>
       )}
     </CmvAppShell>
-  );
-}
-
-function ExerciseCard({
-  exercise,
-  position,
-}: Readonly<{ exercise: ScheduledSessionExerciseDto; position: number }>) {
-  const { t } = useTranslation();
-
-  return (
-    <CmvCard>
-      <div className="flex flex-col gap-cmv-sm">
-        <div className="flex items-baseline gap-cmv-sm">
-          <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{position}</span>
-          <h3 className="flex-1 text-cmv-subtitle text-cmv-text-hi">{exercise.title}</h3>
-          <CmvTagList tags={exercise.tags} />
-        </div>
-
-        {/* Description et note sont nullables et distinctes : la première dit QUOI,
-            la seconde COMBIEN. Rien à afficher, on n'affiche rien — pas de tiret décoratif. */}
-        {exercise.description == null ? null : (
-          <p className="text-cmv-body text-cmv-text-mid">{exercise.description}</p>
-        )}
-        {exercise.note == null ? null : (
-          <p className="text-cmv-body text-cmv-text-mid">{exercise.note}</p>
-        )}
-
-        {exercise.documents.length === 0 ? null : (
-          <div className="flex flex-wrap gap-cmv-sm">
-            {exercise.documents.map((document) => (
-              <CmvButton
-                key={document.id}
-                variant="secondary"
-                // URL GET signée à TTL court, régénérée à chaque lecture : on l'ouvre, on ne la
-                // conserve pas. `noopener` comme pour le justificatif de facture.
-                onClick={() => window.open(document.url, "_blank", "noopener")}
-              >
-                {document.fileName ?? t("plan.athlete.document")}
-              </CmvButton>
-            ))}
-          </div>
-        )}
-      </div>
-    </CmvCard>
   );
 }
