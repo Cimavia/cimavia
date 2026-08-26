@@ -231,6 +231,12 @@ export const planSummaryDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
   athleteId: z.string(),
+  /**
+   * Le nom et l'adresse de l'athlète destinataire. Sans eux, un coach devant sa liste de cycles ne
+   * sait pas à qui chacun s'adresse — l'identifiant ne se lit pas.
+   */
+  athleteName: z.string(),
+  athleteEmail: z.string(),
   title: z.string(),
   description: z.string().nullable(),
   startDate: z.iso.date(),

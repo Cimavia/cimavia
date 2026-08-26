@@ -1,7 +1,7 @@
 import { ScheduledSessionStatus } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, ScrollView, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { ExerciseCard } from "@/feature/plan/component/ExerciseCard";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
@@ -20,13 +20,21 @@ import { formatFullDay } from "@/shared/util/date.util";
 export function SessionDetailScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: session, isPending, isError, refetch } = useScheduledSession(id);
+  const { data: session, isPending, isError, isFetching, refetch } = useScheduledSession(id);
 
   return (
     <CmvScreen>
       <OfflineBanner />
 
-      <ScrollView contentContainerClassName="gap-6 p-4">
+      {/*
+        Tirer pour rafraîchir : le cache est frais 5 min et persisté une semaine, et le coach peut
+        ajuster la planif pendant que l'athlète a l'écran ouvert. Sans geste explicite, il n'a
+        aucun moyen de savoir que ce qu'il lit date — ni de demander mieux.
+      */}
+      <ScrollView
+        contentContainerClassName="gap-6 p-4"
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
+      >
         {isPending ? <ActivityIndicator /> : null}
 
         {isError && session == null ? <CmvErrorState onRetry={() => refetch()} /> : null}

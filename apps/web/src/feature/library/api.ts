@@ -8,6 +8,7 @@ import type {
   ExerciseDto,
   RequestUploadUrlInput,
   SessionDto,
+  UpdateCustomMetricInput,
   UpdateExerciseInput,
   UpdateSessionInput,
   UploadUrlDto,
@@ -98,6 +99,18 @@ export function listCustomMetrics(): Promise<CustomMetric[]> {
 
 export function createCustomMetric(input: CreateCustomMetricInput): Promise<CustomMetric> {
   return api.post<CustomMetric>("/custom-metrics", input);
+}
+
+/** La mise à jour REMPLACE la définition entière : `valueType` et `scale` sont liés. */
+export function updateCustomMetric(
+  id: string,
+  input: UpdateCustomMetricInput,
+): Promise<CustomMetric> {
+  return api.patch<CustomMetric>(`/custom-metrics/${id}`, input);
+}
+
+export function deleteCustomMetric(id: string): Promise<void> {
+  return api.delete<void>(`/custom-metrics/${id}`);
 }
 
 // ── Séances (modèles) ────────────────────────────────────────────────────────

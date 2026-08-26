@@ -1,4 +1,3 @@
-import { ScheduledSessionStatus } from "@cmv/shared";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AthleteExerciseCard } from "@/feature/plan/component/AthleteExerciseCard";
@@ -64,7 +63,9 @@ export function AthleteSessionScreen() {
       ) : null}
 
       {session == null ? null : (
-        <div className="flex max-w-3xl flex-col gap-cmv-lg">
+        // Plus de `max-w` : la séance occupe la page, le rail a besoin de sa place et une grille
+        // à quatre colonnes ne se lit pas dans une colonne étroite.
+        <div className="flex flex-col gap-cmv-lg">
           {/* Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
               liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
               dernier cas. Le planning est le parent naturel d'une séance. */}
@@ -76,21 +77,11 @@ export function AthleteSessionScreen() {
             {t("plan.athlete.backToPlanning")}
           </Link>
 
-          {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
-              déroulé, pas enterrée sous la liste des exercices (même choix que sur mobile). */}
-          <div>
-            <Link
-              to="/sessions/$sessionId/feedback"
-              params={{ sessionId: session.id }}
-              className="inline-flex items-center rounded-cmv-md bg-cmv-accent px-cmv-lg py-cmv-sm text-cmv-body text-cmv-accent-fg transition-colors hover:bg-cmv-accent-hi"
-            >
-              {session.status === ScheduledSessionStatus.DONE
-                ? t("feedback.openDone")
-                : t("feedback.open")}
-            </Link>
-          </div>
+          {/* Le débrief vit dans le RAIL, collé en bas, et nulle part ailleurs : deux boutons pour
+              la même action font hésiter sur ce qu'ils font de différent. C'est un écart avec le
+              mobile, où il n'y a pas de rail et où l'action reste en tête d'écran. */}
 
-          <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid w-full gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
             <section className="flex min-w-0 flex-col gap-cmv-md">
               {/* L'en-tête ne compte RIEN : la progression vit dans le rail et nulle part
                   ailleurs, sinon deux compteurs finissent par se contredire. */}

@@ -1,4 +1,4 @@
-import type { ScheduledSessionDto } from "@cmv/shared";
+import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvButton, CmvCard } from "@/shared/component";
@@ -55,7 +55,13 @@ export function AthleteSessionRail({ session, onOpenFeedback }: Readonly<Athlete
       {/* RETIRÉ — pas grisé — sur une séance vide : un bouton mort se tape quand même, et
           l'anomalie est celle du coach, pas de l'athlète. */}
       {hasExercises ? (
-        <CmvButton onClick={onOpenFeedback}>{t("plan.athlete.openFeedback")}</CmvButton>
+        <CmvButton onClick={onOpenFeedback}>
+          {/* Le libellé dit si le débrief existe DÉJÀ : « débriefer » sur une séance débriefée
+              laisserait croire qu'on écrase. */}
+          {session.status === ScheduledSessionStatus.DONE
+            ? t("feedback.openDone")
+            : t("feedback.open")}
+        </CmvButton>
       ) : null}
     </aside>
   );

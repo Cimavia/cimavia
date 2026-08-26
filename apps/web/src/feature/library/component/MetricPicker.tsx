@@ -8,12 +8,14 @@ import {
   type MetricKey,
   MetricSource,
 } from "@cmv/shared";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoPencil, IoTrashOutline } from "react-icons/io5";
 import { CustomMetricForm } from "@/feature/library/component/CustomMetricForm";
+import { useDeleteCustomMetric } from "@/feature/library/hook/useCustomMetrics";
 import { catalogByFamily, metricHint } from "@/feature/library/util/metric-catalog.util";
 import { metricLabel } from "@/feature/library/util/metric-label.util";
-import { CmvButton, CmvDragHandle, CmvPanel } from "@/shared/component";
+import { CmvButton, CmvConfirmButton, CmvDragHandle, CmvPanel } from "@/shared/component";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";
 
@@ -45,6 +47,10 @@ export function MetricPicker({
   onClose,
 }: Readonly<MetricPickerProps>) {
   const { t } = useTranslation();
+  // La métrique en cours de modification : le formulaire du dessus s'y remplit, et son bouton
+  // passe de « Ajouter » à « Modifier ».
+  const [editing, setEditing] = useState<CustomMetric | null>(null);
+  const removeMetric = useDeleteCustomMetric();
 
   const chosenKeys = new Set(
     block.metrics
@@ -133,7 +139,12 @@ export function MetricPicker({
 
         {/* Créée ICI et posée aussitôt en colonne : sortir du constructeur pour définir une
             cotation, puis y revenir, ferait perdre le fil de l'exercice en cours. */}
-        <CustomMetricForm onCreated={(metric) => toggleCustom(metric.id)} />
+        <CustomMetricForm
+          editing={editing}
+          onCreated={(metric) => toggleCustom(metric.id)}
+          onUpdated={() => setEditing(null)}
+          onCancelEdit={() => setEditing(null)}
+        />
 
         <section className="flex flex-col gap-cmv-xs">
           <span className="text-cmv-body text-cmv-text-hi">{t("library.builder.custom.mine")}</span>
@@ -143,19 +154,36 @@ export function MetricPicker({
             </span>
           ) : null}
           {customMetrics.map((custom) => (
-            <button
-              key={custom.id}
-              type="button"
-              disabled={isFull && !chosenCustomIds.has(custom.id)}
-              onClick={() => toggleCustom(custom.id)}
-              className="flex items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
-            >
-              <Checkbox checked={chosenCustomIds.has(custom.id)} />
-              <span className="text-cmv-body text-cmv-text-hi">{custom.label}</span>
-              {custom.unit == null ? null : (
-                <span className="text-cmv-caption text-cmv-text-lo">{custom.unit}</span>
-              )}
-            </button>
+            <div key={custom.id} className="flex items-center gap-cmv-xs">
+              <button
+                type="button"
+                disabled={isFull && !chosenCustomIds.has(custom.id)}
+                onClick={() => toggleCustom(custom.id)}
+                className="flex flex-1 items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
+              >
+                <Checkbox checked={chosenCustomIds.has(custom.id)} />
+                <span className="text-cmv-body text-cmv-text-hi">{custom.label}</span>
+                {custom.unit == null ? null : (
+                  <span className="text-cmv-caption text-cmv-text-lo">{custom.unit}</span>
+                )}
+              </button>
+
+              <CmvButton
+                variant="ghost"
+                title={t("library.builder.custom.edit")}
+                onClick={() => setEditing(custom)}
+              >
+                <IoPencil />
+              </CmvButton>
+              <CmvConfirmButton
+                label={t("library.builder.custom.remove")}
+                icon={<IoTrashOutline />}
+                confirmLabel={t("common.confirmDelete")}
+                cancelLabel={t("common.cancel")}
+                disabled={removeMetric.isPending}
+                onConfirm={() => removeMetric.mutate(custom.id)}
+              />
+            </div>
           ))}
         </section>
 

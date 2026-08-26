@@ -6,10 +6,12 @@ import { toIsoDate } from "../util/date.util";
 // Le plan en liste : pas de contenu, juste de quoi le situer (nb de semaines, nb de séances).
 export const PLAN_COUNTS_INCLUDE = {
   _count: { select: { weeks: true, scheduledSessions: true } },
+  // L'athlète destinataire : un cycle sans son nom ne se lit pas dans une liste.
+  athlete: { select: { name: true, email: true } },
 } satisfies Prisma.PlanInclude;
 
 export type PlanWithCounts = Prisma.PlanGetPayload<{
-  include: { _count: { select: { weeks: true; scheduledSessions: true } } };
+  include: typeof PLAN_COUNTS_INCLUDE;
 }>;
 
 // Le plan en détail : semaines ordonnées, séances ordonnées par jour puis par position dans la
@@ -25,13 +27,11 @@ export const PLAN_DETAIL_INCLUDE = {
     },
   },
   _count: { select: { weeks: true, scheduledSessions: true } },
+  athlete: { select: { name: true, email: true } },
 } satisfies Prisma.PlanInclude;
 
 export type PlanWithWeeks = Prisma.PlanGetPayload<{
-  include: {
-    weeks: { include: { sessions: { include: { _count: { select: { exercises: true } } } } } };
-    _count: { select: { weeks: true; scheduledSessions: true } };
-  };
+  include: typeof PLAN_DETAIL_INCLUDE;
 }>;
 
 type ScheduledSessionWithCount = PlanWithWeeks["weeks"][number]["sessions"][number];
@@ -80,6 +80,8 @@ export function toPlanSummaryDto(plan: PlanWithCounts): PlanSummaryDto {
     id: plan.id,
     coachId: plan.coachId,
     athleteId: plan.athleteId,
+    athleteName: plan.athlete.name,
+    athleteEmail: plan.athlete.email,
     title: plan.title,
     description: plan.description,
     startDate: toIsoDate(plan.startDate),

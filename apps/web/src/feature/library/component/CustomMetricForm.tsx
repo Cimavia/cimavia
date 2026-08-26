@@ -5,10 +5,13 @@ import {
   MetricValueType,
   type OrderedScale,
 } from "@cmv/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScaleEditor } from "@/feature/library/component/ScaleEditor";
-import { useCreateCustomMetric } from "@/feature/library/hook/useCustomMetrics";
+import {
+  useCreateCustomMetric,
+  useUpdateCustomMetric,
+} from "@/feature/library/hook/useCustomMetrics";
 import { CmvButton, CmvSegmented, CmvTextField } from "@/shared/component";
 import { apiErrorMessage } from "@/shared/lib/api";
 
@@ -25,7 +28,11 @@ const VALUE_TYPES = [
 const MIN_SCALE_STEPS = 2;
 
 type CustomMetricFormProps = {
+  /** Métrique en cours de modification, ou `null` pour une création. */
+  editing: CustomMetric | null;
   onCreated: (metric: CustomMetric) => void;
+  onUpdated: () => void;
+  onCancelEdit: () => void;
 };
 
 /**
@@ -35,46 +42,83 @@ type CustomMetricFormProps = {
  * Le libellé et l'unité sont SA donnée — donc du texte libre, jamais une clé i18n : « Cotation
  * maison » ne se traduit pas.
  */
-export function CustomMetricForm({ onCreated }: Readonly<CustomMetricFormProps>) {
+export function CustomMetricForm({
+  editing,
+  onCreated,
+  onUpdated,
+  onCancelEdit,
+}: Readonly<CustomMetricFormProps>) {
   const { t } = useTranslation();
   const create = useCreateCustomMetric();
+  const update = useUpdateCustomMetric();
 
   const [label, setLabel] = useState("");
   const [unit, setUnit] = useState("");
   const [valueType, setValueType] = useState<MetricValueType>(MetricValueType.NUMBER);
   const [scale, setScale] = useState<OrderedScale>([]);
 
+  /**
+   * Le formulaire se remplit depuis la métrique à modifier. `useEffect` plutôt qu'une `key` de
+   * remontage : le panneau garde son défilement et sa position, et le coach voit le formulaire se
+   * remplir sous ses yeux — un remontage l'aurait fait clignoter.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seul le CHANGEMENT de métrique doit recharger le formulaire, pas chaque frappe qu'il contient
+  useEffect(() => {
+    setLabel(editing?.label ?? "");
+    setUnit(editing?.unit ?? "");
+    setValueType(editing?.valueType ?? MetricValueType.NUMBER);
+    setScale(editing?.scale ?? []);
+  }, [editing?.id]);
+
   const isScale = valueType === MetricValueType.SCALE;
   const scaleReady = !isScale || scale.length >= MIN_SCALE_STEPS;
-  const canSubmit = label.trim() !== "" && scaleReady && !create.isPending;
+  const isEditing = editing != null;
+  const isBusy = create.isPending || update.isPending;
+  const canSubmit = label.trim() !== "" && scaleReady && !isBusy;
+
+  function reset() {
+    setLabel("");
+    setUnit("");
+    setScale([]);
+    setValueType(MetricValueType.NUMBER);
+  }
 
   function onSubmit() {
-    create.mutate(
-      {
-        label: label.trim(),
-        // Unité vide → `null`, jamais `""` : le modèle porte l'absence d'unité, pas une chaîne
-        // vide qui s'afficherait comme un espace après le nombre.
-        unit: unit.trim() === "" ? null : unit.trim(),
-        valueType,
-        // L'invariant du schéma partagé : des paliers si et seulement si le type est SCALE.
-        scale: isScale ? scale : null,
-      },
-      {
-        onSuccess: (metric) => {
-          onCreated(metric);
-          setLabel("");
-          setUnit("");
-          setScale([]);
-          setValueType(MetricValueType.NUMBER);
+    const input = {
+      label: label.trim(),
+      // Unité vide → `null`, jamais `""` : le modèle porte l'absence d'unité, pas une chaîne
+      // vide qui s'afficherait comme un espace après le nombre.
+      unit: unit.trim() === "" ? null : unit.trim(),
+      valueType,
+      // L'invariant du schéma partagé : des paliers si et seulement si le type est SCALE.
+      scale: isScale ? scale : null,
+    };
+
+    if (editing != null) {
+      update.mutate(
+        { id: editing.id, input },
+        {
+          onSuccess: () => {
+            onUpdated();
+            reset();
+          },
         },
+      );
+      return;
+    }
+
+    create.mutate(input, {
+      onSuccess: (metric) => {
+        onCreated(metric);
+        reset();
       },
-    );
+    });
   }
 
   return (
     <section className="flex flex-col gap-cmv-md rounded-cmv-md border border-cmv-border border-dashed bg-cmv-bg-1 p-cmv-md">
       <span className="text-cmv-caption text-cmv-text-mid">
-        {t("library.builder.custom.title")}
+        {t(isEditing ? "library.builder.custom.editTitle" : "library.builder.custom.title")}
       </span>
 
       <CmvTextField
@@ -107,11 +151,13 @@ export function CustomMetricForm({ onCreated }: Readonly<CustomMetricFormProps>)
 
       {isScale ? <ScaleEditor scale={scale} onChange={setScale} /> : null}
 
-      {create.error == null ? null : (
-        <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(create.error)}</p>
+      {create.error == null && update.error == null ? null : (
+        <p className="text-cmv-caption text-cmv-error">
+          {apiErrorMessage(create.error ?? update.error)}
+        </p>
       )}
 
-      <div>
+      <div className="flex items-center gap-cmv-sm">
         <CmvButton
           onClick={onSubmit}
           disabled={!canSubmit}
@@ -121,8 +167,19 @@ export function CustomMetricForm({ onCreated }: Readonly<CustomMetricFormProps>)
               : undefined
           }
         >
-          {t("library.builder.custom.submit")}
+          {t(isEditing ? "library.builder.custom.update" : "library.builder.custom.submit")}
         </CmvButton>
+        {isEditing ? (
+          <CmvButton
+            variant="ghost"
+            onClick={() => {
+              onCancelEdit();
+              reset();
+            }}
+          >
+            {t("library.builder.cancel")}
+          </CmvButton>
+        ) : null}
       </div>
     </section>
   );

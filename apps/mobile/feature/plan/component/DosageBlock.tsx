@@ -90,21 +90,34 @@ function PhraseRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
   return phrase === "" ? null : <CmvText className="text-cmv-text-mid">{phrase}</CmvText>;
 }
 
-/** Deux à trois colonnes : les valeurs s'alignent, et l'œil compare une ligne à l'autre. */
+/**
+ * Deux à trois colonnes : les valeurs s'alignent, et l'œil compare une ligne à l'autre.
+ *
+ * Même habillage que le tableau du web — cadre, en-tête sur fond, filet entre les lignes,
+ * pastille d'index. Les deux surfaces montrent la même donnée : les faire se ressembler évite au
+ * coach de douter de ce que son athlète voit.
+ */
 function TableRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
   return (
-    <View className="gap-1">
-      <View className="flex-row gap-2">
-        <CmvText className="w-6 text-cmv-text-lo text-xs"> </CmvText>
+    <View className="overflow-hidden rounded-lg border border-cmv-border">
+      <View className="flex-row gap-2 border-cmv-border border-b bg-cmv-bg-1 px-2 py-2">
+        <CmvText className="w-7 text-cmv-text-lo text-xs"> </CmvText>
         {metrics.map((metric) => (
           <CmvText key={metric.id} className="flex-1 text-cmv-text-lo text-xs">
-            {metricName(metric, customMetrics, t)}
+            {metricName(metric, customMetrics, t).toUpperCase()}
           </CmvText>
         ))}
       </View>
       {block.rows.map((row, index) => (
-        <View key={row.id} className="flex-row gap-2">
-          <CmvText className="w-6 text-cmv-text-lo text-xs">{index + 1}</CmvText>
+        <View
+          key={row.id}
+          className={`flex-row items-center gap-2 px-2 py-2 ${
+            index === block.rows.length - 1 ? "" : "border-cmv-border border-b"
+          }`}
+        >
+          <View className="size-6 items-center justify-center rounded-md bg-cmv-surface">
+            <CmvText className="text-cmv-text-mid text-xs">{index + 1}</CmvText>
+          </View>
           {metrics.map((metric) => (
             <CmvText key={metric.id} className="flex-1 font-cmv-mono text-cmv-text-hi text-sm">
               {cellValue(row.values[metric.id] ?? null, metric, customMetrics)}
