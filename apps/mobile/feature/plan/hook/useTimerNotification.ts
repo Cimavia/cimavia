@@ -1,30 +1,67 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cancelTimerEnd, scheduleTimerEnd } from "@/feature/plan/lib/timer-alert";
 
-/**
- * Maintient UNE notification programmée sur l'échéance courante du minuteur.
- *
- * Piloté par l'échéance et non par les gestes : pause, reprise, « Passer » et « + 30 s » changent
- * tous `deadline`, et l'effet reprogramme ce qu'il faut sans que chaque bouton ait à y penser.
- * `null` — aucun timer, ou timer en pause — n'a rien de programmé.
- */
-export function useTimerNotification(deadline: number | null, title: string, body: string): void {
-  useEffect(() => {
-    if (deadline == null) return;
+/** Une échéance à annoncer : quand, et ce que la notification doit dire. */
+export type TimerAlert = { at: number; title: string; body: string };
 
-    let identifier: string | null = null;
+/**
+ * L'OS n'a pas besoin de nous : les notifications sont posées TOUTES à l'avance.
+ *
+ * Une seule ne suffit pas. Téléphone rangé, le JS est gelé : après la première, le déroulé
+ * n'avance pas et plus rien n'est programmé. L'athlète ne serait prévenu que du premier repos, et
+ * finirait sa séance au silence.
+ *
+ * Elles sont donc reposées EN BLOC dès que le déroulé change — pause, « Passer », « + 30 s ».
+ * Les recalculer entièrement plutôt que rapiécer évite l'écart entre ce qui sonne et ce qui reste.
+ */
+export function useTimerNotification(alerts: readonly TimerAlert[]): { armed: boolean } {
+  const [armed, setArmed] = useState(false);
+
+  /**
+   * Ce qui est réellement programmé, stabilisé sur le CONTENU des alertes.
+   *
+   * Le tableau reçu est recalculé à chaque render — quatre fois par seconde pendant un décompte.
+   * En dépendre reprogrammerait tout à chaque tic. On ne le retient donc que quand son contenu
+   * change, et l'effet dépend de cette copie stable.
+   *
+   * Ajusté PENDANT le render, pas dans un effet : c'est de l'état dérivé, et le passer par un
+   * effet ferait un aller-retour de plus avant de programmer quoi que ce soit.
+   */
+  const key = alerts.map((alert) => `${alert.at}|${alert.title}|${alert.body}`).join("\n");
+  const [syncedKey, setSyncedKey] = useState(key);
+  const [scheduled, setScheduled] = useState<readonly TimerAlert[]>(alerts);
+  if (key !== syncedKey) {
+    setSyncedKey(key);
+    setScheduled(alerts);
+  }
+
+  useEffect(() => {
+    const pending = scheduled;
+    if (pending.length === 0) {
+      setArmed(false);
+      return;
+    }
+
+    const identifiers: string[] = [];
     let cancelled = false;
 
-    void scheduleTimerEnd(deadline, title, body).then((id) => {
-      // Programmée après coup : l'échéance a pu changer entre-temps, on la retire aussitôt.
-      if (id == null) return;
-      if (cancelled) void cancelTimerEnd(id);
-      else identifier = id;
+    void Promise.all(
+      pending.map((alert) => scheduleTimerEnd(alert.at, alert.title, alert.body)),
+    ).then((ids) => {
+      const kept = ids.filter((id): id is string => id != null);
+      if (cancelled) {
+        for (const id of kept) void cancelTimerEnd(id);
+        return;
+      }
+      identifiers.push(...kept);
+      setArmed(kept.length > 0);
     });
 
     return () => {
       cancelled = true;
-      if (identifier != null) void cancelTimerEnd(identifier);
+      for (const id of identifiers) void cancelTimerEnd(id);
     };
-  }, [deadline, title, body]);
+  }, [scheduled]);
+
+  return { armed };
 }
