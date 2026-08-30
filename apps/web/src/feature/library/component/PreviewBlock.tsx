@@ -2,15 +2,15 @@ import {
   type CustomMetric,
   columnValues,
   type ExerciseBlock,
-  formatTrainingDuration,
-  type MetricValue,
-  MetricValueType,
-  metricValueTypeOf,
   restPhrase,
   structurePhrase,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { metricLabel, metricUnitLabel } from "@/feature/library/util/metric-label.util";
+import {
+  formatMetricValue,
+  metricCellText,
+  metricLabel,
+} from "@/feature/library/util/metric-label.util";
 import { CMV_TABLE } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
@@ -49,7 +49,7 @@ export function PreviewBlock({ block, customMetrics }: Readonly<PreviewBlockProp
           <span key={metric.id} className="text-cmv-text-mid">
             {" · "}
             {metricLabel(metric, customMetrics, t)}{" "}
-            {formatValue(columnValues(block, metric.id)[0] ?? null, metric, customMetrics)}
+            {formatMetricValue(columnValues(block, metric.id)[0] ?? null, metric, customMetrics)}
           </span>
         ))}
         {rest == null ? null : (
@@ -67,19 +67,6 @@ export function PreviewBlock({ block, customMetrics }: Readonly<PreviewBlockProp
   );
 }
 
-/** `—` et jamais `0` : une valeur absente est une absence, pas un zéro (règle dure n°5). */
-function formatValue(
-  value: MetricValue,
-  metric: ExerciseBlock["metrics"][number],
-  customMetrics: readonly CustomMetric[],
-): string {
-  if (value == null) return "—";
-  if (metricValueTypeOf(metric, customMetrics) === MetricValueType.DURATION) {
-    return typeof value === "number" ? (formatTrainingDuration(value) ?? "—") : String(value);
-  }
-  return String(value);
-}
-
 function RowValues({
   block,
   metrics,
@@ -94,11 +81,7 @@ function RowValues({
   const cells = (row: ExerciseBlock["rows"][number]) =>
     metrics.map((metric) => {
       const value = row.values[metric.id] ?? null;
-      const shown = formatValue(value, metric, customMetrics);
-      // Pas d'unité derrière une absence : « — kg » laisse croire à une charge nulle, alors que
-      // « — » dit exactement ce qu'il y a — rien.
-      const unit = value == null ? null : metricUnitLabel(metric, customMetrics, t);
-      return `${shown}${unit == null ? "" : ` ${unit}`}`;
+      return metricCellText(value, metric, customMetrics, t);
     });
 
   // Une seule ligne : une phrase, pas un tableau à en-tête pour une valeur.
