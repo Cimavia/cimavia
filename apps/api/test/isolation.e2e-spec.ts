@@ -1504,6 +1504,84 @@ describe("Suivi d'exécution (#168)", () => {
     expect(res.status).toBe(200);
   });
 
+  it("une réécriture de la séance par le COACH ne détruit ni le dosage ni le suivi", async () => {
+    // La régression que ce test verrouille, et qui a détruit des données réelles : l'édition
+    // d'une séance planifiée est un replace-all. Tout ce que le client n'émet pas est effacé —
+    // les blocs l'étaient à chaque enregistrement, et le suivi de l'athlète ne pouvait même PAS
+    // être renvoyé, faute de rattacher une ligne à sa précédente.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 1] } } },
+    });
+
+    const before = await coach.get(`/scheduled-sessions/${sessionId}`);
+    const exercise = before.body.exercises[0];
+    expect(exercise.blocks).toHaveLength(1);
+
+    // Ce que le panneau du coach renvoie : il réordonne et annote, il ne touche pas au dosage.
+    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Force — ajustée",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [
+        {
+          id: exercise.id,
+          sourceExerciseId: exercise.sourceExerciseId,
+          title: exercise.title,
+          description: exercise.description,
+          tags: exercise.tags,
+          note: "Note ajoutée",
+          instructions: exercise.instructions,
+          blocks: exercise.blocks,
+          customMetrics: exercise.customMetrics,
+          adjustments: exercise.adjustments,
+        },
+      ],
+    });
+    expect(saved.status).toBe(200);
+
+    const after = saved.body.exercises[0];
+    expect(after.blocks).toEqual(exercise.blocks);
+    expect(after.baseline).toEqual(exercise.baseline);
+    expect(after.note).toBe("Note ajoutée");
+    // Le SUIVI appartient à l'athlète : il n'a pas transité par le coach, et il est toujours là.
+    expect(after.tracking).toEqual({ blk_1: { checked: [0, 1] } });
+
+    // Vu de l'athlète aussi — c'est la seule vue qui compte pour lui.
+    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(read.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 1] } });
+    expect(read.body.exercises[0].blocks).toHaveLength(1);
+  });
+
+  it("un exercice AJOUTÉ par le coach naît sans suivi, et n'hérite pas de celui d'un autre", async () => {
+    const before = await coach.get(`/scheduled-sessions/${sessionId}`);
+    const exercise = before.body.exercises[0];
+
+    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Force — ajustée",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [
+        {
+          id: exercise.id,
+          sourceExerciseId: exercise.sourceExerciseId,
+          title: exercise.title,
+          tags: exercise.tags,
+          instructions: exercise.instructions,
+          blocks: exercise.blocks,
+          customMetrics: exercise.customMetrics,
+          adjustments: exercise.adjustments,
+        },
+        // Sans `id` : ligne nouvelle. Un `id` inventé ne doit rien reprendre non plus.
+        { title: "Gainage", tags: [], blocks: [] },
+      ],
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body.exercises).toHaveLength(2);
+    expect(saved.body.exercises[1].tracking).toBeNull();
+    // L'exercice d'origine, lui, garde le sien.
+    expect(saved.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 1] } });
+  });
+
   it("un athlète ne suit PAS la séance d'un autre", async () => {
     const res = await other.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
       tracking: { [exerciseCopyId]: { blk_1: { checked: [0] } } },

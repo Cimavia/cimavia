@@ -119,6 +119,15 @@ export type CopyPlanWeekInput = z.infer<typeof copyPlanWeekSchema>;
 // bibliothèque à l'écriture) : il peut être null, et l'affichage n'en dépend jamais.
 export const scheduledSessionExerciseInputSchema = z
   .object({
+    /**
+     * L'exercice diffusé qu'on renvoie, quand il existe déjà.
+     *
+     * L'édition d'une séance planifiée est un REPLACE-ALL : tout est supprimé puis réécrit. Sans
+     * cette trace, le serveur ne peut rattacher aucune ligne à sa précédente, et ce qui ne
+     * transite pas par le client — le SUIVI de l'athlète — disparaît à chaque enregistrement du
+     * coach. Absent = exercice nouveau.
+     */
+    id: z.string().min(1).optional(),
     sourceExerciseId: z.string().min(1).nullable().optional(),
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),

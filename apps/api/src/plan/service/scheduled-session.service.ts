@@ -24,7 +24,12 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
-import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
+import {
+  parseAdjustments,
+  parseBlocks,
+  parseInstructions,
+  parseTracking,
+} from "../../util/exercise-json.util";
 import {
   type ScheduledSessionWithExercises,
   SESSION_DETAIL_INCLUDE,
@@ -120,6 +125,21 @@ export class ScheduledSessionService {
 
     const documents = await this.loadSourceDocuments(input.exercises);
     const dateChanged = toIsoDate(session.scheduledDate) !== input.scheduledDate;
+    // Le client n'a pas les DÉFINITIONS maison d'un exercice piocché dans la bibliothèque : sans
+    // elles, l'athlète ne verrait qu'un identifiant de colonne. Le serveur les résout, comme à la
+    // diffusion. Une définition déjà envoyée n'est pas retouchée : elle est figée depuis P3.
+    const coachMetrics = await this.db.customMetric.findMany();
+
+    /**
+     * Lu AVANT la suppression : le replace-all réécrit tout, et ce qui ne transite pas par le
+     * client serait perdu. Le SUIVI d'exécution est dans ce cas — il appartient à l'athlète, et
+     * une réécriture de la séance par le coach ne doit jamais l'effacer.
+     */
+    const previous = await this.db.scheduledSessionExercise.findMany({
+      where: { scheduledSessionId: id },
+      select: { id: true, tracking: true, baseline: true },
+    });
+    const carried = new Map(previous.map((row) => [row.id, row]));
 
     await this.db.$transaction(async (tx) => {
       // Les copies de documents partent en cascade avec leurs exercices (schéma) ; les objets en
@@ -139,7 +159,14 @@ export class ScheduledSessionService {
         },
       });
 
-      await this.insertExercises(tx, id, session.athleteId, input.exercises, documents);
+      await this.insertExercises(
+        tx,
+        id,
+        session.athleteId,
+        input.exercises.map((exercise) => resolveCustomMetrics(exercise, coachMetrics)),
+        documents,
+        carried,
+      );
     });
 
     // Ajuster un cycle DÉJÀ diffusé doit prévenir l'athlète (CDC §5.7) : il a peut-être la
@@ -324,14 +351,26 @@ export class ScheduledSessionService {
     athleteId: string,
     exercises: ScheduledSessionExerciseInput[],
     documentsBySource: DocumentsBySource,
+    carried: CarriedRows = new Map(),
   ): Promise<void> {
-    const drafts = exercises.map((exercise) => ({
-      exercise,
-      documents:
-        exercise.sourceExerciseId == null
-          ? []
-          : (documentsBySource.get(exercise.sourceExerciseId) ?? []),
-    }));
+    const drafts = exercises.map((exercise) => {
+      // `id` absent, ou inconnu de cette séance : c'est un exercice NOUVEAU. Rien à reprendre, et
+      // surtout pas le suivi d'une ligne qu'on n'a pas écrite.
+      const previous = exercise.id == null ? undefined : carried.get(exercise.id);
+      return {
+        exercise,
+        ...(previous == null
+          ? {}
+          : {
+              tracking: parseTracking(previous.tracking),
+              baseline: parseBlocks(previous.baseline),
+            }),
+        documents:
+          exercise.sourceExerciseId == null
+            ? []
+            : (documentsBySource.get(exercise.sourceExerciseId) ?? []),
+      };
+    });
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
   }
 }
@@ -350,4 +389,19 @@ function customMetricsFor(
 ): CustomMetric[] {
   const wanted = new Set(customMetricIdsIn(blocks));
   return coachMetrics.filter((metric) => wanted.has(metric.id)).map(toCustomMetricDto);
+}
+
+/** Ce qu'une ligne précédente lègue à celle qui la remplace, indexé par son identifiant. */
+type CarriedRows = Map<string, { tracking: Prisma.JsonValue; baseline: Prisma.JsonValue }>;
+
+/** Complète les métriques maison quand le client ne les a pas — un exercice tout juste ajouté. */
+function resolveCustomMetrics(
+  exercise: ScheduledSessionExerciseInput,
+  coachMetrics: readonly CustomMetricRow[],
+): ScheduledSessionExerciseInput {
+  if (exercise.customMetrics != null) return exercise;
+  return {
+    ...exercise,
+    customMetrics: customMetricsFor(exercise.blocks ?? [], coachMetrics),
+  };
 }

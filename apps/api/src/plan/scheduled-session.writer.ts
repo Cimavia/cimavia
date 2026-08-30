@@ -1,10 +1,11 @@
 import {
   type ExerciseBlocks,
+  type ExerciseTracking,
   imageMediaIds,
   remapImageMediaIds,
   type ScheduledSessionExerciseInput,
 } from "@cmv/shared";
-import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
+import { Prisma, type ScheduledSessionExerciseDocument } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import {
   toAdjustmentsInput,
@@ -51,6 +52,11 @@ export type ScheduledSessionExerciseDraft = {
   exercise: ScheduledSessionExerciseInput;
   /** Absente = la référence est le dosage diffusé lui-même (cas d'un exercice ajouté ad hoc). */
   baseline?: ExerciseBlocks;
+  /**
+   * Le suivi d'exécution REPRIS de la ligne précédente. Il appartient à l'athlète : une
+   * réécriture de la séance par le coach ne doit jamais l'effacer.
+   */
+  tracking?: ExerciseTracking | null;
   documents: readonly ScheduledSessionDocumentDraft[];
 };
 
@@ -84,6 +90,9 @@ export async function insertScheduledSessionExercises(
         // bibliothèque : « Tout réinitialiser » chez l'athlète doit revenir à ce qu'il a reçu.
         baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
         adjustments: toAdjustmentsInput(draft.exercise.adjustments ?? []),
+        // `DbNull` et non `undefined` : « non suivi » est un état, et il doit s'écrire.
+        tracking:
+          draft.tracking == null ? Prisma.DbNull : (draft.tracking as Prisma.InputJsonValue),
         customMetrics: toCustomMetricsInput(draft.exercise.customMetrics ?? []),
         note: draft.exercise.note ?? null,
         position,
