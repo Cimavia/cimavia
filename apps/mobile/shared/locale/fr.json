@@ -245,9 +245,12 @@
       }
     },
     "tracking": {
-      "title": "Mon décompte",
-      "edit": "Corriger",
-      "done": "Terminé"
+      "title": "Ce que tu as coché",
+      "edit": "Corriger le décompte de {{exercise}}",
+      "open": "Corriger",
+      "close": "Terminé",
+      "untracked": "non suivi",
+      "hint": "En lecture seule — corrigeable d'un tap. Ça informe ton débrief, ça ne le remplit pas."
     }
   },
   "messages": {
