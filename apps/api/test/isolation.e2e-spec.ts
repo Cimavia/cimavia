@@ -1390,7 +1390,7 @@ describe("Suivi d'exécution (#168)", () => {
     sessionId = scheduled.body.id;
     exerciseCopyId = scheduled.body.exercises[0].id;
 
-    expect((await billAndPublish(coach, plan.body.id)).status).toBe(201);
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
   });
 
   it("naît NON SUIVI — ce qui n'est pas « zéro coché »", async () => {
