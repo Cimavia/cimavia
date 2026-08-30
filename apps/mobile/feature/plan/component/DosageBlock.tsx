@@ -193,8 +193,11 @@ function cellValue(
   return String(value);
 }
 
-/** « 6 répétitions » — la valeur suivie de son unité, pour les formes qui n'ont pas d'en-tête. */
-function cellText(
+/**
+ * « 6 répétitions » — la valeur suivie de son unité, pour les formes qui n'ont pas d'en-tête de
+ * colonne pour la porter : phrase de dosage, cartes, et les cases à cocher du suivi.
+ */
+export function cellText(
   value: MetricValue,
   metric: ExerciseBlock["metrics"][number],
   customMetrics: readonly CustomMetric[],

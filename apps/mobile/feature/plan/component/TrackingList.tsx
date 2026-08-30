@@ -6,8 +6,10 @@ import {
   TrackingMode,
   trackingUnits,
 } from "@cmv/shared";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { cellText } from "@/feature/plan/component/DosageBlock";
 import { CmvText } from "@/shared/component";
 
 // i18n-values plan.tracking.unit: TrackingUnit
@@ -54,7 +56,7 @@ export function TrackingList({
         <UnitRow
           key={index}
           label={t(`plan.tracking.unit.${units.unit}`, { index: index + 1 })}
-          detail={unitDetail(block, index, customMetrics)}
+          detail={unitDetail(block, index, customMetrics, t)}
           checked={checked.includes(index)}
           frozen={frozen}
           onPress={() => onToggle(index)}
@@ -64,16 +66,22 @@ export function TrackingList({
   );
 }
 
+/**
+ * Chaque case RAPPELLE le dosage de sa ligne — « 8 répétitions · 6a » — sinon il faudrait remonter
+ * à la grille pour savoir ce qu'on coche. Les valeurs absentes sont sautées : une case n'a pas la
+ * place d'aligner des tirets.
+ */
 function unitDetail(
   block: ExerciseBlock,
   index: number,
-  _customMetrics: readonly CustomMetric[],
+  customMetrics: readonly CustomMetric[],
+  t: TFunction,
 ): string {
   const row = rowForUnit(block, index);
   if (row == null) return "";
   return block.metrics
-    .map((metric) => row.values[metric.id])
-    .filter((value) => value != null)
+    .filter((metric) => row.values[metric.id] != null)
+    .map((metric) => cellText(row.values[metric.id] ?? null, metric, customMetrics, t))
     .join(" · ");
 }
 
