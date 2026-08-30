@@ -1,10 +1,16 @@
-import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
+import {
+  type ExerciseTracking,
+  type ScheduledSessionDto,
+  ScheduledSessionStatus,
+  trackingSummary,
+} from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvButton, CmvCard } from "@/shared/component";
 
 type AthleteSessionRailProps = {
   session: ScheduledSessionDto;
+  tracking: Record<string, ExerciseTracking | null>;
   onOpenFeedback: () => void;
 };
 
@@ -15,9 +21,28 @@ type AthleteSessionRailProps = {
  * encore : le lien vers le coach. Un rail qui garderait ses intitulés vides ferait croire à un
  * chargement qui n'arrive jamais.
  */
-export function AthleteSessionRail({ session, onOpenFeedback }: Readonly<AthleteSessionRailProps>) {
+export function AthleteSessionRail({
+  session,
+  tracking,
+  onOpenFeedback,
+}: Readonly<AthleteSessionRailProps>) {
   const { t } = useTranslation();
   const hasExercises = session.exercises.length > 0;
+
+  /**
+   * LE compteur de la page, et le seul. L'en-tête ne compte rien — deux compteurs finissent par
+   * se contredire, et celui du rail est celui qu'on voit en défilant.
+   *
+   * Il n'apparaît qu'à partir d'une case cochée : « 0 sur 12 » avant d'avoir commencé serait une
+   * relance, exactement ce que l'état « non suivi » interdit.
+   */
+  const totals = session.exercises.reduce(
+    (sum, exercise) => {
+      const summary = trackingSummary(exercise.blocks, tracking[exercise.id] ?? null);
+      return { done: sum.done + summary.done, total: sum.total + summary.total };
+    },
+    { done: 0, total: 0 },
+  );
 
   return (
     // `sticky` : le sommaire suit le défilement, c'est toute sa raison d'être.
@@ -38,6 +63,17 @@ export function AthleteSessionRail({ session, onOpenFeedback }: Readonly<Athlete
           </nav>
         </CmvCard>
       ) : null}
+
+      {totals.done === 0 ? null : (
+        <CmvCard>
+          <div className="flex flex-col gap-cmv-xs">
+            <span className="text-cmv-caption text-cmv-text-mid">{t("plan.athlete.progress")}</span>
+            <span className="text-cmv-subtitle text-cmv-text-hi">
+              {t("plan.athlete.progressCount", { done: totals.done, total: totals.total })}
+            </span>
+          </div>
+        </CmvCard>
+      )}
 
       {session.notes == null ? null : (
         <CmvCard>

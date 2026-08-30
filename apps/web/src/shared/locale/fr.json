@@ -132,15 +132,11 @@
     },
     "session": {
       "createTitle": "Nouvelle séance",
-      "editTitle": "Modifier la séance",
-      "panelDescription": "Une liste ordonnée d'exercices, réutilisable dans vos planifications.",
       "titleLabel": "Titre",
       "titlePlaceholder": "Ex. Force haut du corps, Volume grimpe…",
       "notesLabel": "Notes de séance",
       "notesPlaceholder": "Ce qui vaut pour toute la séance…",
       "composition": "Exercices",
-      "emptyComposition": "Aucun exercice",
-      "emptyCompositionHint": "Ajoutez des exercices depuis votre bibliothèque, à droite.",
       "pickerTitle": "Ajouter un exercice",
       "moveUp": "Monter l'exercice",
       "moveDown": "Descendre l'exercice",
@@ -151,11 +147,8 @@
       "more_other": "+{{count}} autres",
       "emptyTitle": "Compose ta séance",
       "emptyDescription": "Choisis un exercice dans ta bibliothèque, à droite.",
-      "deleteSession": "Supprimer la séance",
-      "cancel": "Annuler",
       "submitCreate": "Créer la séance",
       "submitEdit": "Enregistrer la séance",
-      "submitting": "Enregistrement…",
       "noteLabel": "Note",
       "notePlaceholder": "Épaule sensible, reste prudent…",
       "loadingTitle": "Séance",
@@ -421,7 +414,8 @@
       "contactCoach": "Écrire à mon coach",
       "emptyTitle": "Cette séance est vide",
       "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler.",
-      "openFeedback": "Débriefer la séance"
+      "progress": "Ma progression",
+      "progressCount": "{{done}} sur {{total}}"
     },
     "new": "Nouvelle planification",
     "status": {
@@ -520,6 +514,22 @@
     "clipboard": {
       "banner": "Semaine {{number}} de « {{plan}} » copiée — choisissez où la coller.",
       "clear": "Annuler la copie"
+    },
+    "tracking": {
+      "rounds": "tour",
+      "rounds_other": "tours",
+      "unit": {
+        "SET": "Série {{index}}",
+        "TOP": "Top {{index}}",
+        "ROUND": "Tour {{index}}",
+        "STEP": "Étape {{index}}"
+      },
+      "count": {
+        "SET": "{{done}} sur {{total}} séries",
+        "TOP": "{{done}} sur {{total}} tops",
+        "ROUND": "{{done}} sur {{total}} tours",
+        "STEP": "{{done}} sur {{total}} étapes"
+      }
     }
   },
   "nav": {
@@ -787,7 +797,12 @@
       "audioTooLong": "Une note vocale ne peut pas dépasser {{max}} minutes.",
       "unreadable": "Ce fichier est illisible."
     },
-    "backToSession": "← Retour à la séance"
+    "backToSession": "← Retour à la séance",
+    "tracking": {
+      "title": "Mon décompte",
+      "edit": "Corriger",
+      "done": "Terminé"
+    }
   },
   "invoice": {
     "title": "Facturation",
