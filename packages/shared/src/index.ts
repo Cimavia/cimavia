@@ -527,6 +527,7 @@ export {
   isIsoDate,
   isMondayIsoDate,
   isoDateToDate,
+  isUpcomingIsoDate,
   mondayOfIsoWeek,
   shiftDate,
   shiftIsoDate,

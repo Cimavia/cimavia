@@ -3,8 +3,10 @@ import {
   daysBetweenIsoDates,
   isIsoDate,
   isMondayIsoDate,
+  isUpcomingIsoDate,
   mondayOfIsoWeek,
   shiftIsoDate,
+  todayIsoDate,
 } from "./date.util";
 
 // 2026-10-12 est un lundi (référence de tous les cas ci-dessous).
@@ -74,5 +76,17 @@ describe("mondayOfIsoWeek", () => {
 
   it("retourne null sur une date invalide", () => {
     expect(mondayOfIsoWeek("2026-02-31")).toBeNull();
+  });
+});
+
+describe("isUpcomingIsoDate", () => {
+  it("le jour même n'est PAS à venir — la séance du jour se coche", () => {
+    expect(isUpcomingIsoDate(todayIsoDate())).toBe(false);
+  });
+
+  it("demain est à venir, hier ne l'est pas", () => {
+    const today = todayIsoDate();
+    expect(isUpcomingIsoDate(shiftIsoDate(today, 1) ?? "")).toBe(true);
+    expect(isUpcomingIsoDate(shiftIsoDate(today, -1) ?? "")).toBe(false);
   });
 });

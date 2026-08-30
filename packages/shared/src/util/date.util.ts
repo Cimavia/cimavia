@@ -52,6 +52,17 @@ export function todayIsoDate(): string {
   return toIsoDate(new Date());
 }
 
+/**
+ * Une date encore À VENIR — le jour même ne l'est pas.
+ *
+ * Sert au suivi d'exécution : une séance qu'on n'a pas encore vécue se lit, mais ne se coche pas.
+ * Comparé en date CIVILE et non en instant, sinon la séance du jour deviendrait cochable à une
+ * heure arbitraire selon le fuseau de qui la regarde.
+ */
+export function isUpcomingIsoDate(isoDate: string): boolean {
+  return isoDate > todayIsoDate();
+}
+
 export function shiftIsoDate(isoDate: string, days: number): string | null {
   const date = parseIsoDate(isoDate);
   if (date == null || !Number.isInteger(days)) return null;
