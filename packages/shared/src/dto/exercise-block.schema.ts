@@ -828,3 +828,191 @@ export function validateBlockValues(
     ...orphanValueIssues(block),
   ];
 }
+
+// ── Dérouler un bloc ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ce qu'on est en train de faire, à un instant du déroulé.
+ *
+ * `EFFORT` et `REST` alternent ; `INTERVAL` est le temps d'un EMOM, où l'effort et la récupération
+ * ne sont pas séparés — le top tombe, on fait, on attend le suivant. `COUNTDOWN` est l'AMRAP :
+ * une seule échéance, et ce qu'on y met ne regarde que l'athlète.
+ */
+export const SegmentKind = {
+  EFFORT: "EFFORT",
+  REST: "REST",
+  INTERVAL: "INTERVAL",
+  COUNTDOWN: "COUNTDOWN",
+} as const;
+export type SegmentKind = TypesValuesOf<typeof SegmentKind>;
+
+export type BlockSegment = {
+  kind: SegmentKind;
+  seconds: number;
+  /**
+   * L'unité cochable que ce segment fait avancer, ou `null` quand il n'en clôt aucune — le repos
+   * ENTRE deux unités appartient à celle qui vient de finir, pas à la suivante.
+   */
+  unitIndex: number | null;
+  /** La ligne de dosage jouée, pour l'afficher pendant l'effort. `null` sur un repos d'ensemble. */
+  rowId: string | null;
+};
+
+/**
+ * Le déroulé COMPLET d'un bloc, segment par segment.
+ *
+ * C'est ce qui remplace la pastille qu'on tape à chaque fois : l'athlète lance l'exercice, et
+ * effort → repos → effort s'enchaînent seuls.
+ *
+ * Deux lectures des lignes, selon le type — et c'est le type qui tranche, jamais une heuristique
+ * sur leur nombre :
+ *  - **Séries** : une ligne = une SÉRIE (c'est déjà ce que dit `rowForUnit`). Le repos d'une ligne
+ *    l'emporte sur le repos d'ensemble — « 8 min entre séries, sauf 1 min après la troisième ».
+ *  - **Circuit** : une ligne = une STATION, et la grille entière se rejoue à chaque tour. C'est là
+ *    que vivent les deux repos : celui d'une station et celui, plus long, entre deux tours.
+ *  - **Libre** : une ligne = une étape, jouée une fois.
+ *
+ * Un bloc sans aucune durée rend une liste VIDE : il n'y a rien à dérouler, et inventer un temps
+ * ferait passer une supposition pour une consigne (règle dure n°5).
+ */
+export function blockSegments(block: ExerciseBlock): BlockSegment[] {
+  const structure = block.structure;
+
+  if (structure.type === BlockType.EMOM) {
+    return Array.from({ length: emomTopCount(structure) }, (_unused, index) => ({
+      kind: SegmentKind.INTERVAL,
+      seconds: structure.intervalSeconds,
+      unitIndex: index,
+      rowId: rowForUnit(block, index)?.id ?? null,
+    }));
+  }
+
+  if (structure.type === BlockType.AMRAP) {
+    return [
+      {
+        kind: SegmentKind.COUNTDOWN,
+        seconds: structure.totalDurationSeconds,
+        unitIndex: null,
+        rowId: null,
+      },
+    ];
+  }
+
+  if (structure.type === BlockType.CIRCUIT) {
+    return circuitSegments(block, structure);
+  }
+
+  if (structure.type === BlockType.SERIES) {
+    return seriesSegments(block, structure);
+  }
+
+  return freeSegments(block);
+}
+
+/** La durée totale d'un déroulé, ou `null` s'il n'y a rien à dérouler. */
+export function segmentsDuration(segments: readonly BlockSegment[]): number | null {
+  if (segments.length === 0) return null;
+  return segments.reduce((total, segment) => total + segment.seconds, 0);
+}
+
+function seriesSegments(
+  block: ExerciseBlock,
+  structure: Extract<BlockStructure, { type: typeof BlockType.SERIES }>,
+): BlockSegment[] {
+  const segments: BlockSegment[] = [];
+
+  for (let index = 0; index < structure.setCount; index++) {
+    const row = rowForUnit(block, index);
+    pushEffort(segments, block, row, index);
+    // Après la DERNIÈRE série il n'y a plus de repos : l'exercice est fini, et le suivant a le
+    // sien. Ailleurs, le repos de la ligne l'emporte sur celui du bandeau.
+    if (index < structure.setCount - 1) {
+      pushRest(
+        segments,
+        rowRestSeconds(block, row) ?? structure.restBetweenSetsSeconds,
+        index,
+        row,
+      );
+    }
+  }
+
+  return segments;
+}
+
+function circuitSegments(
+  block: ExerciseBlock,
+  structure: Extract<BlockStructure, { type: typeof BlockType.CIRCUIT }>,
+): BlockSegment[] {
+  const segments: BlockSegment[] = [];
+
+  for (let round = 0; round < structure.roundCount; round++) {
+    block.rows.forEach((row, station) => {
+      pushEffort(segments, block, row, round);
+      // Le repos d'une STATION ne clôt pas le tour : il sépare deux postes du même tour.
+      if (station < block.rows.length - 1)
+        pushRest(segments, rowRestSeconds(block, row), null, row);
+    });
+    if (round < structure.roundCount - 1) {
+      pushRest(segments, structure.restBetweenRoundsSeconds, round, null);
+    }
+  }
+
+  return segments;
+}
+
+/** LIBRE : chaque ligne est une étape, jouée une fois, avec son repos si elle en porte un. */
+function freeSegments(block: ExerciseBlock): BlockSegment[] {
+  const segments: BlockSegment[] = [];
+
+  block.rows.forEach((row, index) => {
+    pushEffort(segments, block, row, index);
+    if (index < block.rows.length - 1) pushRest(segments, rowRestSeconds(block, row), index, row);
+  });
+
+  return segments;
+}
+
+function pushEffort(
+  segments: BlockSegment[],
+  block: ExerciseBlock,
+  row: BlockRow | null,
+  unitIndex: number,
+): void {
+  const seconds = rowDurationSeconds(block, row, MetricKey.EFFORT_DURATION);
+  // Une série sans durée d'effort n'est pas chronométrable — « 8 tractions » se fait au rythme de
+  // l'athlète. Seul son repos entre au déroulé.
+  if (seconds == null || seconds <= 0) return;
+  segments.push({ kind: SegmentKind.EFFORT, seconds, unitIndex, rowId: row?.id ?? null });
+}
+
+function pushRest(
+  segments: BlockSegment[],
+  seconds: number | null,
+  unitIndex: number | null,
+  row: BlockRow | null,
+): void {
+  if (seconds == null || seconds <= 0) return;
+  segments.push({ kind: SegmentKind.REST, seconds, unitIndex, rowId: row?.id ?? null });
+}
+
+/** Le repos porté par la LIGNE, quel que soit celui des deux libellés que le coach a posé. */
+function rowRestSeconds(block: ExerciseBlock, row: BlockRow | null): number | null {
+  return (
+    rowDurationSeconds(block, row, MetricKey.REST_BETWEEN_SETS) ??
+    rowDurationSeconds(block, row, MetricKey.REST_BETWEEN_ROUNDS)
+  );
+}
+
+function rowDurationSeconds(
+  block: ExerciseBlock,
+  row: BlockRow | null,
+  key: MetricKey,
+): number | null {
+  if (row == null) return null;
+  const column = block.metrics.find(
+    (metric) => metric.source === MetricSource.CATALOG && metric.key === key,
+  );
+  if (column == null) return null;
+  const value = row.values[column.id] ?? null;
+  return typeof value === "number" ? value : null;
+}

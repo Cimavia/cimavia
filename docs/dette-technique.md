@@ -784,6 +784,30 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > est passée sous le radar jusqu'au `biome ci` complet. La porte réelle est
 > `pnpm exec biome ci . && pnpm turbo typecheck test && pnpm check:i18n`.
 
+> **Le replace-all d'une séance planifiée efface tout ce que le client n'émet pas.** Découvert en
+> recette : le panneau du coach n'envoyait que `sourceExerciseId`, `title`, `description`, `tags`
+> et `note` — chaque enregistrement d'une séance diffusée VIDAIT donc consigne, dosage, métriques
+> maison et ajustements, sans le moindre signal. Le panneau date d'avant le modèle structuré et
+> n'a été mis à jour ni en #162 ni en #164. Deux correctifs, l'un ne suffisant pas : le client
+> renvoie l'intégralité du snapshot, et le serveur reporte par `id` ce qui ne transite JAMAIS par
+> lui — le **suivi d'exécution**, qui appartient à l'athlète. Verrouillé par deux e2e vérifiés
+> rouges avant correctif.
+
+> **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
+> à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
+> ligne, là où `restBetweenSetsSeconds` vit sur la structure, une seule valeur pour tout le bloc.
+> Retenu : la colonne de catalogue `REST_BETWEEN_SETS` / `REST_BETWEEN_ROUNDS` posée dans la
+> grille, que `blockSegments` lit ligne à ligne et qui l'emporte alors sur le repos d'ensemble.
+> Aucune migration, aucun champ nouveau, et le coach la pose comme n'importe quelle métrique.
+> L'alternative — un champ `restSeconds` par ligne — était plus explicite mais coûtait une
+> migration, un constructeur retouché et un second endroit où lire un repos.
+
+> **Tranché — une séance À VENIR se coche et se débriefe.** #170 demandait « séance à venir :
+> aucune case, le suivi s'ouvre le jour venu ». Livré, puis retiré : l'athlète qui avance sa séance
+> du lendemain se retrouvait à ne pouvoir ni cocher ni débriefer ce qu'il venait de faire. La date
+> planifiée est une INTENTION du coach, pas une porte. La cohérence se fait dans l'autre sens :
+> tout est ouvert, tout le temps.
+
 > **Tranché — une séance débriefée reste cochable.** #170 demandait de FIGER les cases une fois la
 > séance débriefée (« cases visibles mais figées »). Livré tel quel, puis retiré : la prémisse est
 > fausse. Un débrief se complète et se corrige en plusieurs fois — le bouton dit « Voir / **modifier**

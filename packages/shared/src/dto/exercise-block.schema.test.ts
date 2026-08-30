@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BlockType,
+  blockSegments,
   ColumnFillMode,
   canCollapseMetric,
   columnValues,
@@ -19,6 +20,7 @@ import {
   MetricSource,
   metricValueTypeOf,
   restPhrase,
+  segmentsDuration,
   structurePhrase,
   timerFor,
   trackingSummary,
@@ -715,5 +717,158 @@ describe("timerFor", () => {
         withStructure({ type: BlockType.CIRCUIT, roundCount: 4, restBetweenRoundsSeconds: 180 }),
       ),
     ).toEqual({ kind: "REST", restSeconds: 180 });
+  });
+});
+
+describe("blockSegments", () => {
+  const effort = {
+    id: "col_effort",
+    source: MetricSource.CATALOG,
+    key: MetricKey.EFFORT_DURATION,
+    unit: MetricUnit.NONE,
+    label: null,
+    collapsed: false,
+  } as const;
+
+  const rest = {
+    id: "col_rest",
+    source: MetricSource.CATALOG,
+    key: MetricKey.REST_BETWEEN_SETS,
+    unit: MetricUnit.NONE,
+    label: null,
+    collapsed: false,
+  } as const;
+
+  const kinds = (block: ExerciseBlock) =>
+    blockSegments(block).map((segment) => `${segment.kind} ${segment.seconds}`);
+
+  it("alterne effort et repos, et ne pose PAS de repos après la dernière série", () => {
+    // 3 × (30 s d'effort) avec 45 s de récupération : le dernier repos n'existe pas, l'exercice
+    // est fini et le suivant a le sien.
+    const block = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 3, restBetweenSetsSeconds: 45 },
+      metrics: [effort],
+      rows: [{ id: "r1", values: { col_effort: 30 } }],
+    });
+
+    expect(kinds(block)).toEqual(["EFFORT 30", "REST 45", "EFFORT 30", "REST 45", "EFFORT 30"]);
+  });
+
+  it("le repos d'une LIGNE l'emporte sur le repos d'ensemble", () => {
+    // Le cas réel : « 8 min entre séries, sauf 1 min après les deux premières ».
+    const block = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 3, restBetweenSetsSeconds: 480 },
+      metrics: [effort, rest],
+      rows: [
+        { id: "r1", values: { col_effort: 30, col_rest: 60 } },
+        { id: "r2", values: { col_effort: 30, col_rest: 60 } },
+        { id: "r3", values: { col_effort: 30 } },
+      ],
+    });
+
+    expect(kinds(block)).toEqual(["EFFORT 30", "REST 60", "EFFORT 30", "REST 60", "EFFORT 30"]);
+  });
+
+  it("un CIRCUIT rejoue toute la grille, avec deux repos de portée différente", () => {
+    // 2 tours de 3 stations à 30 s : 1 min entre stations, 8 min entre tours. C'est la forme qui
+    // porte « 5 séries de 4 × 30 s de traction ».
+    const block = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.CIRCUIT, roundCount: 2, restBetweenRoundsSeconds: 480 },
+      metrics: [effort, rest],
+      rows: [
+        { id: "r1", values: { col_effort: 30, col_rest: 60 } },
+        { id: "r2", values: { col_effort: 30, col_rest: 60 } },
+        { id: "r3", values: { col_effort: 30 } },
+      ],
+    });
+
+    expect(kinds(block)).toEqual([
+      "EFFORT 30",
+      "REST 60",
+      "EFFORT 30",
+      "REST 60",
+      "EFFORT 30",
+      "REST 480",
+      "EFFORT 30",
+      "REST 60",
+      "EFFORT 30",
+      "REST 60",
+      "EFFORT 30",
+    ]);
+  });
+
+  it("une série SANS durée d'effort ne garde que ses repos", () => {
+    // « 8 tractions » se fait au rythme de l'athlète : rien à chronométrer, mais le repos compte.
+    const block = seriesBlock([{ id: "r1", values: { col_reps: 8 } }]);
+    expect(kinds(block)).toEqual(["REST 150", "REST 150", "REST 150"]);
+  });
+
+  it("un bloc sans aucune durée ne se déroule pas", () => {
+    const block = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 3, restBetweenSetsSeconds: null },
+      metrics: [reps],
+      rows: [{ id: "r1", values: { col_reps: 8 } }],
+    });
+
+    expect(blockSegments(block)).toEqual([]);
+    expect(segmentsDuration(blockSegments(block))).toBeNull();
+  });
+
+  it("un EMOM déroule un intervalle par top ; un AMRAP une seule échéance", () => {
+    const emom = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 180 },
+      metrics: [reps],
+      rows: [{ id: "r1", values: { col_reps: 3 } }],
+    });
+    expect(kinds(emom)).toEqual(["INTERVAL 60", "INTERVAL 60", "INTERVAL 60"]);
+    expect(blockSegments(emom).map((s) => s.unitIndex)).toEqual([0, 1, 2]);
+
+    const amrap = exerciseBlockSchema.parse({
+      id: "blk_2",
+      label: null,
+      structure: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
+      metrics: [reps],
+      rows: [{ id: "r1", values: { col_reps: 5 } }],
+    });
+    expect(kinds(amrap)).toEqual(["COUNTDOWN 480"]);
+  });
+
+  it("le repos appartient à l'unité qui VIENT de finir, pas à la suivante", () => {
+    // Ce que ça pilote : cocher la série 1 au moment où son repos commence, et non à la fin du
+    // repos — l'athlète a fini sa série, le décompte doit le dire tout de suite.
+    const block = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 2, restBetweenSetsSeconds: 60 },
+      metrics: [effort],
+      rows: [{ id: "r1", values: { col_effort: 30 } }],
+    });
+
+    expect(blockSegments(block).map((s) => [s.kind, s.unitIndex])).toEqual([
+      ["EFFORT", 0],
+      ["REST", 0],
+      ["EFFORT", 1],
+    ]);
+  });
+
+  it("la durée totale additionne tout le déroulé", () => {
+    const block = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 3, restBetweenSetsSeconds: 45 },
+      metrics: [effort],
+      rows: [{ id: "r1", values: { col_effort: 30 } }],
+    });
+    expect(segmentsDuration(blockSegments(block))).toBe(30 * 3 + 45 * 2);
   });
 });
