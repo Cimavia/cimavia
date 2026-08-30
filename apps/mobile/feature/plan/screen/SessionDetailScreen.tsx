@@ -1,4 +1,4 @@
-import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
+import { isUpcomingIsoDate, type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -148,6 +148,11 @@ function SessionExercises({
 }>) {
   const { t } = useTranslation();
   const frozen = session.status === ScheduledSessionStatus.DONE;
+  /**
+   * Une séance dont le jour n'est pas arrivé se LIT mais ne se coche pas. Comparé en date et non
+   * en instant : la séance du jour est cochable dès minuit, pas à partir d'une heure arbitraire.
+   */
+  const trackable = !isUpcomingIsoDate(session.scheduledDate);
 
   return (
     <View className="gap-3">
@@ -168,7 +173,7 @@ function SessionExercises({
 
       {/* L'amorçage : « Coche au fur et à mesure », PREMIÈRE séance seulement, et il disparaît au
           premier tap — définitivement. Pas de visite guidée, pas de modale. */}
-      {hint && session.exercises.length > 0 ? (
+      {hint && trackable && session.exercises.length > 0 ? (
         <View className="rounded-lg border border-cmv-accent-line bg-cmv-accent-soft px-3 py-2">
           <CmvText className="text-cmv-accent-on text-xs">{t("plan.tracking.hint")}</CmvText>
         </View>
@@ -181,6 +186,7 @@ function SessionExercises({
           index={index}
           customMetrics={exercise.customMetrics}
           tracking={local.tracking[exercise.id] ?? null}
+          trackable={trackable}
           frozen={frozen}
           onToggleUnit={(blockId, unitIndex) => {
             dismissHint();

@@ -13,6 +13,11 @@ type ExerciseCardProps = {
   index: number;
   customMetrics: readonly CustomMetric[];
   tracking: ExerciseTracking | null;
+  /**
+   * Séance À VENIR : aucune case, et pas même le lien pour les ouvrir. Cocher une série qu'on n'a
+   * pas encore faite n'aurait pas de sens, et le jour venu tout réapparaît.
+   */
+  trackable: boolean;
   /** Séance déjà débriefée : le suivi reste consultable, il ne se modifie plus. */
   frozen: boolean;
   onToggleUnit: (blockId: string, unitIndex: number) => void;
@@ -32,6 +37,7 @@ export function ExerciseCard({
   index,
   customMetrics,
   tracking,
+  trackable,
   frozen,
   onToggleUnit,
   onRounds,
@@ -70,7 +76,7 @@ export function ExerciseCard({
         <View key={block.id} className="gap-2">
           <DosageBlock block={block} customMetrics={customMetrics} />
           <BlockTimerChips block={block} onStart={onStartTimer} />
-          {tracked || summary.state !== "UNTRACKED" ? (
+          {trackable && (tracked || summary.state !== "UNTRACKED") ? (
             <TrackingList
               block={block}
               customMetrics={customMetrics}
@@ -85,7 +91,7 @@ export function ExerciseCard({
 
       {/* « Jamais de lien vers du vide » vaut aussi ici : un exercice sans unité cochable n'ouvre
           rien. Et l'état NON SUIVI reste SILENCIEUX — pas de « 0 sur 4 », pas de rouge. */}
-      {unit == null || (tracked && summary.state === "UNTRACKED") ? null : (
+      {!trackable || unit == null || (tracked && summary.state === "UNTRACKED") ? null : (
         <Pressable onPress={() => setTracked((current) => !current)} hitSlop={8}>
           <CmvText className="text-cmv-accent text-sm">
             {summary.state === "DONE"
