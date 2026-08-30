@@ -1,13 +1,16 @@
 import {
   type ExerciseTracking,
   type ScheduledSessionExerciseDto,
+  TrackingState,
   trackingSummary,
   trackingUnits,
 } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TrackingList } from "@/feature/plan/component/TrackingList";
-import { CmvButton, CmvCard } from "@/shared/component";
+import { CmvCard } from "@/shared/component";
+
+// i18n-values plan.tracking.count: TrackingUnit
 
 type FeedbackTrackingSectionProps = {
   exercises: readonly ScheduledSessionExerciseDto[];
@@ -19,12 +22,12 @@ type FeedbackTrackingSectionProps = {
 /**
  * Le décompte, RAPPELÉ dans le débrief.
  *
- * Il s'affiche en lecture — l'athlète a déjà coché pendant la séance, il vient ici pour écrire, pas
- * pour recocher. Mais c'est le dernier écran avant l'envoi, donc la correction doit rester à un
- * clic : « Corriger » rouvre exactement les mêmes cases que sur la séance, sans changer de page.
+ * En lecture — l'athlète a coché pendant la séance, il vient ici pour écrire. Mais c'est le dernier
+ * écran avant l'envoi, donc corriger reste à UN clic, exercice par exercice : le crayon rouvre les
+ * mêmes cases que sur la séance, sans changer de page ni déplier les trois autres.
  *
- * Un exercice non suivi n'affiche RIEN de plus qu'un tiret : pas de « 0 sur 4 », pas de rouge. Ne
- * pas avoir coché est un choix, pas un oubli à rattraper.
+ * Un exercice non suivi le DIT — « non suivi », en gris. Ni pastille, ni rouge, ni « 0 sur 4 » :
+ * ne rien cocher ne veut pas dire ne rien faire.
  */
 export function FeedbackTrackingSection({
   exercises,
@@ -33,32 +36,44 @@ export function FeedbackTrackingSection({
   onRounds,
 }: Readonly<FeedbackTrackingSectionProps>) {
   const { t } = useTranslation();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
 
-  // Seuls les exercices qui ont quelque chose à décompter : un exercice libre n'a pas d'unité, il
-  // n'a donc pas sa place dans un récapitulatif de décompte.
+  // Seuls les exercices qui ont quelque chose à décompter : un exercice libre sans ligne n'a pas
+  // d'unité, il n'a donc pas sa place dans un récapitulatif de décompte.
   const trackable = exercises.filter((exercise) =>
     exercise.blocks.some((block) => trackingUnits(block) != null),
   );
   if (trackable.length === 0) return null;
 
   return (
-    <CmvCard>
-      <div className="flex flex-col gap-cmv-md">
-        <div className="flex items-center justify-between gap-cmv-md">
-          <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("feedback.tracking.title")}</h2>
-          <CmvButton variant="ghost" onClick={() => setEditing((value) => !value)}>
-            {editing ? t("feedback.tracking.done") : t("feedback.tracking.edit")}
-          </CmvButton>
-        </div>
+    <section className="flex flex-col gap-cmv-sm">
+      <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
+        {t("feedback.tracking.title")}
+      </h2>
 
-        <ul className="flex flex-col gap-cmv-md">
-          {trackable.map((exercise) => (
-            <li key={exercise.id} className="flex flex-col gap-cmv-xs">
-              <span className="text-cmv-body text-cmv-text-hi">{exercise.title}</span>
-              {editing ? (
-                <div className="flex flex-col gap-cmv-sm">
-                  {exercise.blocks.map((block) => (
+      {trackable.map((exercise) => {
+        const isEditing = editing === exercise.id;
+        return (
+          <CmvCard key={exercise.id}>
+            <div className="flex flex-col gap-cmv-sm">
+              <div className="flex items-center gap-cmv-md">
+                <span className="min-w-0 flex-1 truncate text-cmv-body text-cmv-text-hi">
+                  {exercise.title}
+                </span>
+                <TrackingRecap exercise={exercise} tracking={tracking[exercise.id] ?? null} />
+                <button
+                  type="button"
+                  aria-label={t("feedback.tracking.edit", { exercise: exercise.title })}
+                  aria-expanded={isEditing}
+                  onClick={() => setEditing(isEditing ? null : exercise.id)}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-cmv-md border border-cmv-border bg-cmv-bg-1 text-cmv-text-mid hover:border-cmv-border-hi hover:text-cmv-text-hi"
+                >
+                  <PencilIcon />
+                </button>
+              </div>
+
+              {isEditing
+                ? exercise.blocks.map((block) => (
                     <TrackingList
                       key={block.id}
                       block={block}
@@ -68,16 +83,15 @@ export function FeedbackTrackingSection({
                       onRounds={(rounds) => onRounds(exercise.id, block.id, rounds)}
                       frozen={false}
                     />
-                  ))}
-                </div>
-              ) : (
-                <TrackingRecap exercise={exercise} tracking={tracking[exercise.id] ?? null} />
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </CmvCard>
+                  ))
+                : null}
+            </div>
+          </CmvCard>
+        );
+      })}
+
+      <p className="text-cmv-caption text-cmv-text-lo">{t("feedback.tracking.hint")}</p>
+    </section>
   );
 }
 
@@ -88,13 +102,42 @@ function TrackingRecap({
   const { t } = useTranslation();
   const summary = trackingSummary(exercise.blocks, tracking);
 
-  if (summary.done === 0 || summary.unit == null) {
-    return <span className="text-cmv-caption text-cmv-text-lo">—</span>;
+  if (summary.state === TrackingState.UNTRACKED || summary.unit == null) {
+    return (
+      <span className="shrink-0 text-cmv-caption text-cmv-text-lo">
+        {t("feedback.tracking.untracked")}
+      </span>
+    );
   }
 
   return (
-    <span className="text-cmv-caption text-cmv-text-mid">
+    <span
+      className={
+        summary.state === TrackingState.DONE
+          ? "shrink-0 text-cmv-caption text-cmv-success"
+          : "shrink-0 text-cmv-caption text-cmv-accent"
+      }
+    >
       {t(`plan.tracking.count.${summary.unit}`, { done: summary.done, total: summary.total })}
     </span>
+  );
+}
+
+/** Le crayon du bouton « corriger ». Inline : une icône de plus ne vaut pas une dépendance. */
+function PencilIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 20h4l10-10a2.8 2.8 0 10-4-4L4 16v4z" />
+    </svg>
   );
 }

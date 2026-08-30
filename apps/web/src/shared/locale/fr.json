@@ -770,7 +770,6 @@
     "contentLabel": "Retour sur la séance",
     "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
     "contentHint": "Tu peux compléter ton débrief plus tard.",
-    "save": "Enregistrer",
     "saving": "Enregistrement…",
     "saved": "Débrief enregistré.",
     "saveError": "Impossible d'enregistrer le débrief. Vérifie ta connexion.",
@@ -799,9 +798,16 @@
     },
     "backToSession": "← Retour à la séance",
     "tracking": {
-      "title": "Mon décompte",
-      "edit": "Corriger",
-      "done": "Terminé"
+      "title": "Ce que tu as coché",
+      "edit": "Corriger le décompte de {{exercise}}",
+      "untracked": "non suivi",
+      "hint": "En lecture seule — corrigeable d'un clic. Ça informe ton débrief, ça ne le remplit pas."
+    },
+    "submit": {
+      "title": "Ce que verra ton coach",
+      "filled": "Ton texte, tes fichiers, et le décompte tel qu'il est ci-contre.",
+      "empty": "Séance faite, aucun commentaire, aucun décompte.",
+      "action": "Envoyer mon débrief"
     }
   },
   "invoice": {

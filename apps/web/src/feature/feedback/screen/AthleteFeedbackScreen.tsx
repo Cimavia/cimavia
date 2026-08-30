@@ -61,95 +61,48 @@ export function AthleteFeedbackScreen() {
       ) : null}
 
       {isPending || isError ? null : (
-        <div className="flex max-w-3xl flex-col gap-cmv-lg">
-          {/* Retour vers LA SÉANCE et non le planning : le débrief est son enfant, et c'est de là
-              qu'on vient. */}
-          <Link
-            to="/sessions/$sessionId"
-            params={{ sessionId }}
-            className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
-          >
-            {t("feedback.backToSession")}
-          </Link>
-
-          {/* Le décompte n'attend PAS la séance pour laisser écrire : si elle tarde ou échoue, le
-              texte et les médias restent accessibles, et seul le rappel des coches manque. */}
-          {session.data == null ? (
-            <FeedbackTextSection sessionId={sessionId} feedback={feedback ?? null} />
-          ) : (
-            <FeedbackTrackedSections
-              session={session.data}
-              feedback={feedback ?? null}
-              sessionId={sessionId}
-            />
-          )}
-          <FeedbackMediaSection sessionId={sessionId} feedback={feedback ?? null} />
-        </div>
+        <FeedbackBody
+          sessionId={sessionId}
+          session={session.data ?? null}
+          feedback={feedback ?? null}
+        />
       )}
     </CmvAppShell>
   );
 }
 
 /**
- * Le décompte et le texte, ENSEMBLE : ils partent dans le même enregistrement.
+ * Le décompte, le texte et les médias — et UN seul envoi.
  *
- * Le suivi vit en local depuis la séance (`useLocalTracking`) ; le débrief est le moment où il
- * franchit le réseau. Un seul bouton « Enregistrer » pour les deux — deux boutons feraient croire
- * qu'on peut envoyer l'un sans l'autre, alors que le décompte accompagne le ressenti.
+ * Le décompte vit en local depuis la séance (`useLocalTracking`) ; le débrief est le moment où il
+ * franchit le réseau, avec le texte. Un seul bouton pour les deux : deux boutons feraient croire
+ * qu'on peut envoyer l'un sans l'autre, alors que le décompte ACCOMPAGNE le ressenti.
+ *
+ * La séance peut manquer (requête lente ou en erreur) sans rien bloquer : on perd le rappel des
+ * coches, pas la possibilité d'écrire. Aucun décompte n'est alors envoyé — mieux vaut ne rien dire
+ * que d'écraser le suivi avec un objet vide.
  */
-function FeedbackTrackedSections({
+function FeedbackBody({
+  sessionId,
   session,
   feedback,
-  sessionId,
 }: Readonly<{
-  session: ScheduledSessionDto;
-  feedback: SessionFeedbackDto | null;
   sessionId: string;
+  session: ScheduledSessionDto | null;
+  feedback: SessionFeedbackDto | null;
 }>) {
+  const { t } = useTranslation();
   const remote = useMemo(
-    () => Object.fromEntries(session.exercises.map((exercise) => [exercise.id, exercise.tracking])),
+    () =>
+      Object.fromEntries(
+        (session?.exercises ?? []).map((exercise) => [exercise.id, exercise.tracking]),
+      ),
     [session],
   );
   const local = useLocalTracking(sessionId, remote);
-
-  return (
-    <>
-      <FeedbackTrackingSection
-        exercises={session.exercises}
-        tracking={local.tracking}
-        onToggleUnit={local.toggleUnit}
-        onRounds={local.setRounds}
-      />
-      <FeedbackTextSection
-        sessionId={sessionId}
-        feedback={feedback}
-        tracking={local.tracking}
-        trackingDirty={local.dirty}
-        onSaved={local.clear}
-      />
-    </>
-  );
-}
-
-// Le texte libre : saisie, enregistrement, et ce que l'enregistrement a donné.
-function FeedbackTextSection({
-  sessionId,
-  feedback,
-  tracking,
-  trackingDirty = false,
-  onSaved,
-}: Readonly<{
-  sessionId: string;
-  feedback: SessionFeedbackDto | null;
-  /** Absent quand la séance n'a pas pu être chargée : on n'envoie alors AUCUN décompte. */
-  tracking?: FeedbackTracking;
-  trackingDirty?: boolean;
-  onSaved?: () => void;
-}>) {
-  const { t } = useTranslation();
   // Le local est effacé une fois le décompte accepté par le serveur : il a fait son travail, et
   // le garder ferait diverger les deux copies au prochain chargement.
-  const upsert = useUpsertMyFeedback(sessionId, onSaved);
+  const upsert = useUpsertMyFeedback(sessionId, local.clear);
   const [content, setContent] = useState("");
 
   /**
@@ -167,48 +120,131 @@ function FeedbackTextSection({
     setContent(feedback?.content ?? "");
   }
 
-  // Un PREMIER débrief vide reste légitime (« séance faite, rien à signaler ») ; ré-enregistrer un
-  // texte inchangé, non.
-  const canSubmit = feedback == null || content !== (feedback.content ?? "") || trackingDirty;
+  // Un PREMIER débrief vide reste légitime — « j'ai fait la séance, rien à dire » est une réponse,
+  // et forcer du texte n'en produit que de creux. Ré-enregistrer un débrief inchangé, non.
+  const canSubmit = feedback == null || content !== (feedback.content ?? "") || local.dirty;
 
   return (
-    <CmvCard>
-      <div className="flex flex-col gap-cmv-md">
-        <CmvTextArea
-          label={t("feedback.contentLabel")}
-          name="feedback-content"
-          placeholder={t("feedback.contentPlaceholder")}
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          maxLength={FEEDBACK_CONTENT_MAX_LENGTH}
-          rows={6}
-        />
-        <p className="text-cmv-caption text-cmv-text-lo">{t("feedback.contentHint")}</p>
+    <div className="flex flex-col gap-cmv-lg">
+      {/* Retour vers LA SÉANCE et non le planning : le débrief est son enfant, et c'est de là
+          qu'on vient. */}
+      <Link
+        to="/sessions/$sessionId"
+        params={{ sessionId }}
+        className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
+      >
+        {t("feedback.backToSession")}
+      </Link>
 
-        <div className="flex items-center gap-cmv-md">
-          <CmvButton
-            disabled={upsert.isPending || !canSubmit}
-            onClick={() =>
-              upsert.mutate({
-                content: content.length === 0 ? null : content,
-                ...(tracking == null ? {} : { tracking }),
-              })
-            }
-          >
-            {upsert.isPending ? t("feedback.saving") : t("feedback.save")}
+      <div className="grid w-full gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-cmv-lg">
+          {session == null ? null : (
+            <FeedbackTrackingSection
+              exercises={session.exercises}
+              tracking={local.tracking}
+              onToggleUnit={local.toggleUnit}
+              onRounds={local.setRounds}
+            />
+          )}
+
+          <CmvCard>
+            <div className="flex flex-col gap-cmv-md">
+              <CmvTextArea
+                label={t("feedback.contentLabel")}
+                name="feedback-content"
+                placeholder={t("feedback.contentPlaceholder")}
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                maxLength={FEEDBACK_CONTENT_MAX_LENGTH}
+                rows={6}
+              />
+              <p className="text-cmv-caption text-cmv-text-lo">{t("feedback.contentHint")}</p>
+            </div>
+          </CmvCard>
+
+          <FeedbackMediaSection sessionId={sessionId} feedback={feedback ?? null} />
+        </div>
+
+        <FeedbackSubmitRail
+          hasContent={content.length > 0}
+          hasMedia={(feedback?.media.length ?? 0) > 0}
+          hasTracking={hasAnyTracking(local.tracking)}
+          canSubmit={canSubmit}
+          isPending={upsert.isPending}
+          error={upsert.isError ? (apiErrorMessage(upsert.error) ?? t("feedback.saveError")) : null}
+          saved={upsert.isSuccess && !canSubmit}
+          onSubmit={() =>
+            upsert.mutate({
+              content: content.length === 0 ? null : content,
+              ...(session == null ? {} : { tracking: local.tracking }),
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Au moins une unité cochée quelque part — ce qui distingue « rien envoyé » de « rien coché ». */
+function hasAnyTracking(tracking: FeedbackTracking): boolean {
+  return Object.values(tracking).some((exercise) =>
+    Object.values(exercise ?? {}).some((state) =>
+      "rounds" in state ? state.rounds > 0 : state.checked.length > 0,
+    ),
+  );
+}
+
+/**
+ * Le rail d'envoi : ce qui va partir, puis le bouton pour le faire.
+ *
+ * La phrase est là pour qu'un débrief vide ne parte pas par accident — mais elle n'EMPÊCHE rien :
+ * « séance faite, aucun commentaire, aucun décompte » est une réponse valable, et le bouton reste
+ * actif pour la dire.
+ */
+function FeedbackSubmitRail({
+  hasContent,
+  hasMedia,
+  hasTracking,
+  canSubmit,
+  isPending,
+  error,
+  saved,
+  onSubmit,
+}: Readonly<{
+  hasContent: boolean;
+  hasMedia: boolean;
+  hasTracking: boolean;
+  canSubmit: boolean;
+  isPending: boolean;
+  error: string | null;
+  saved: boolean;
+  onSubmit: () => void;
+}>) {
+  const { t } = useTranslation();
+  const empty = !hasContent && !hasMedia && !hasTracking;
+
+  return (
+    <aside className="flex min-w-0 flex-col gap-cmv-md xl:sticky xl:top-32 xl:self-start">
+      <CmvCard>
+        <div className="flex flex-col gap-cmv-md">
+          <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
+            {t("feedback.submit.title")}
+          </h2>
+          <p className="text-cmv-body text-cmv-text-mid">
+            {t(empty ? "feedback.submit.empty" : "feedback.submit.filled")}
+          </p>
+
+          <CmvButton disabled={isPending || !canSubmit} onClick={onSubmit}>
+            {isPending ? t("feedback.saving") : t("feedback.submit.action")}
           </CmvButton>
 
-          {upsert.isError ? (
-            <span className="text-cmv-body text-cmv-error-on">
-              {apiErrorMessage(upsert.error) ?? t("feedback.saveError")}
-            </span>
-          ) : null}
-          {upsert.isSuccess && !canSubmit ? (
+          {error == null ? null : <span className="text-cmv-body text-cmv-error-on">{error}</span>}
+          {saved ? (
             <span className="text-cmv-body text-cmv-accent">{t("feedback.saved")}</span>
           ) : null}
         </div>
-      </div>
-    </CmvCard>
+      </CmvCard>
+    </aside>
   );
 }
 
