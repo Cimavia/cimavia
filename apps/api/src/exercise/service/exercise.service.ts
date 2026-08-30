@@ -111,7 +111,7 @@ export class ExerciseService {
     const exercises = await this.db.exercise.findMany({
       where,
       include: EXERCISE_DETAIL_INCLUDE,
-      orderBy: { createdAt: "desc" },
+      orderBy: { title: "asc" },
     });
     return Promise.all(exercises.map((exercise) => this.toDto(exercise)));
   }
