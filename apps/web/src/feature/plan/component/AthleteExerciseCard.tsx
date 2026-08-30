@@ -18,8 +18,6 @@ type AthleteExerciseCardProps = {
   tracking: ExerciseTracking | null;
   /** Séance à venir : aucune case — le suivi s'ouvre le jour venu. */
   trackable: boolean;
-  /** Séance débriefée : cases visibles mais figées. */
-  frozen: boolean;
   onToggleUnit: (blockId: string, index: number) => void;
   onRounds: (blockId: string, rounds: number) => void;
 };
@@ -39,7 +37,6 @@ export function AthleteExerciseCard({
   position,
   tracking,
   trackable,
-  frozen,
   onToggleUnit,
   onRounds,
 }: Readonly<AthleteExerciseCardProps>) {
@@ -88,7 +85,6 @@ export function AthleteExerciseCard({
                 block={block}
                 customMetrics={exercise.customMetrics}
                 state={tracking?.[block.id]}
-                frozen={frozen}
                 onToggle={(index) => onToggleUnit(block.id, index)}
                 onRounds={(rounds) => onRounds(block.id, rounds)}
               />

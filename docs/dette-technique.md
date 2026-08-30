@@ -784,6 +784,15 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > est passée sous le radar jusqu'au `biome ci` complet. La porte réelle est
 > `pnpm exec biome ci . && pnpm turbo typecheck test && pnpm check:i18n`.
 
+> **Tranché — une séance débriefée reste cochable.** #170 demandait de FIGER les cases une fois la
+> séance débriefée (« cases visibles mais figées »). Livré tel quel, puis retiré : la prémisse est
+> fausse. Un débrief se complète et se corrige en plusieurs fois — le bouton dit « Voir / **modifier**
+> mon débrief », le `PUT` est idempotent, et le crayon du récapitulatif rouvre le décompte. Figer
+> les cases de la séance pendant que l'écran de débrief les rouvre ne décrivait aucun état réel :
+> l'athlète qui avait débriefé ne pouvait plus corriger son décompte là où il l'avait saisi. Rien
+> dans le modèle ne rend une séance définitive aujourd'hui ; le jour où quelque chose la clôturera
+> (cycle archivé, facture émise), la règle se réintroduira sur CE fait-là, pas sur `status = DONE`.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)

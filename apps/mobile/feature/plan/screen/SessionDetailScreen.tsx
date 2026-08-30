@@ -147,10 +147,12 @@ function SessionExercises({
   onStartTimer: (seconds: number, label: string) => void;
 }>) {
   const { t } = useTranslation();
-  const frozen = session.status === ScheduledSessionStatus.DONE;
   /**
    * Une séance dont le jour n'est pas arrivé se LIT mais ne se coche pas. Comparé en date et non
    * en instant : la séance du jour est cochable dès minuit, pas à partir d'une heure arbitraire.
+   *
+   * Une séance DÉBRIEFÉE, en revanche, reste cochable : le débrief lui-même se corrige (« Voir /
+   * modifier mon débrief »), et le décompte l'accompagne.
    */
   const trackable = !isUpcomingIsoDate(session.scheduledDate);
 
@@ -187,7 +189,6 @@ function SessionExercises({
           customMetrics={exercise.customMetrics}
           tracking={local.tracking[exercise.id] ?? null}
           trackable={trackable}
-          frozen={frozen}
           onToggleUnit={(blockId, unitIndex) => {
             dismissHint();
             local.toggleUnit(exercise.id, blockId, unitIndex);

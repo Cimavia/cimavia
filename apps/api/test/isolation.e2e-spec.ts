@@ -1479,6 +1479,15 @@ describe("Suivi d'exécution (#168)", () => {
       (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
     ).toEqual({});
 
+    // Coché PUIS décoché : le bloc existe avec une liste vide. Ce n'est pas « non suivi » —
+    // l'athlète a ouvert son suivi et l'a laissé à zéro, ce qui est une réponse.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [] } } },
+    });
+    expect(
+      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
+    ).toEqual({ blk_1: { checked: [] } });
+
     // Et on peut y revenir : `null` remet en NON SUIVI, c'est une intention.
     await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
       tracking: { [exerciseCopyId]: null },

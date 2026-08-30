@@ -20,8 +20,6 @@ type TrackingListProps = {
   state: BlockTrackingState | undefined;
   onToggle: (index: number) => void;
   onRounds: (rounds: number) => void;
-  /** Séance déjà débriefée : le suivi reste consultable, il ne se modifie plus. */
-  frozen: boolean;
 };
 
 /**
@@ -37,7 +35,6 @@ export function TrackingList({
   state,
   onToggle,
   onRounds,
-  frozen,
 }: Readonly<TrackingListProps>) {
   const { t } = useTranslation();
   const units = trackingUnits(block);
@@ -45,7 +42,7 @@ export function TrackingList({
 
   if (units.mode === TrackingMode.COUNT) {
     const rounds = state != null && "rounds" in state ? state.rounds : 0;
-    return <RoundCounter rounds={rounds} frozen={frozen} onRounds={onRounds} />;
+    return <RoundCounter rounds={rounds} onRounds={onRounds} />;
   }
 
   const checked = state != null && "checked" in state ? state.checked : [];
@@ -58,7 +55,6 @@ export function TrackingList({
           label={t(`plan.tracking.unit.${units.unit}`, { index: index + 1 })}
           detail={unitDetail(block, index, customMetrics, t)}
           checked={checked.includes(index)}
-          frozen={frozen}
           onPress={() => onToggle(index)}
         />
       ))}
@@ -89,21 +85,18 @@ function UnitRow({
   label,
   detail,
   checked,
-  frozen,
   onPress,
 }: Readonly<{
   label: string;
   detail: string;
   checked: boolean;
-  frozen: boolean;
   onPress: () => void;
 }>) {
   return (
     <Pressable
-      onPress={frozen ? undefined : onPress}
-      disabled={frozen}
+      onPress={onPress}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked, disabled: frozen }}
+      accessibilityState={{ checked }}
       // 44 px de haut : c'est le minimum tactile, et une case ratée en pleine série agace plus
       // qu'elle ne coûte de place.
       className={`min-h-11 flex-row items-center gap-3 rounded-lg border px-3 py-2 ${
@@ -131,16 +124,15 @@ function UnitRow({
  */
 function RoundCounter({
   rounds,
-  frozen,
   onRounds,
-}: Readonly<{ rounds: number; frozen: boolean; onRounds: (rounds: number) => void }>) {
+}: Readonly<{ rounds: number; onRounds: (rounds: number) => void }>) {
   const { t } = useTranslation();
 
   return (
     <View className="flex-row items-center gap-4">
       <Pressable
-        onPress={frozen ? undefined : () => onRounds(rounds - 1)}
-        disabled={frozen || rounds === 0}
+        onPress={() => onRounds(rounds - 1)}
+        disabled={rounds === 0}
         hitSlop={8}
         accessibilityLabel={t("plan.tracking.roundsMinus")}
         className="size-11 items-center justify-center rounded-lg border border-cmv-border"
@@ -156,8 +148,7 @@ function RoundCounter({
       </View>
 
       <Pressable
-        onPress={frozen ? undefined : () => onRounds(rounds + 1)}
-        disabled={frozen}
+        onPress={() => onRounds(rounds + 1)}
         hitSlop={8}
         accessibilityLabel={t("plan.tracking.roundsPlus")}
         className="size-11 items-center justify-center rounded-lg border border-cmv-border"

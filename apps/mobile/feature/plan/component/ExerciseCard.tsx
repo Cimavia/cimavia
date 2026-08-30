@@ -18,8 +18,6 @@ type ExerciseCardProps = {
    * pas encore faite n'aurait pas de sens, et le jour venu tout réapparaît.
    */
   trackable: boolean;
-  /** Séance déjà débriefée : le suivi reste consultable, il ne se modifie plus. */
-  frozen: boolean;
   onToggleUnit: (blockId: string, unitIndex: number) => void;
   onRounds: (blockId: string, rounds: number) => void;
   onStartTimer: (seconds: number, label: string) => void;
@@ -38,7 +36,6 @@ export function ExerciseCard({
   customMetrics,
   tracking,
   trackable,
-  frozen,
   onToggleUnit,
   onRounds,
   onStartTimer,
@@ -81,7 +78,6 @@ export function ExerciseCard({
               block={block}
               customMetrics={customMetrics}
               state={tracking?.[block.id]}
-              frozen={frozen}
               onToggle={(unitIndex) => onToggleUnit(block.id, unitIndex)}
               onRounds={(rounds) => onRounds(block.id, rounds)}
             />

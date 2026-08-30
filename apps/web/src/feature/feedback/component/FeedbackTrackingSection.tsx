@@ -81,7 +81,6 @@ export function FeedbackTrackingSection({
                       state={tracking[exercise.id]?.[block.id]}
                       onToggle={(index) => onToggleUnit(exercise.id, block.id, index)}
                       onRounds={(rounds) => onRounds(exercise.id, block.id, rounds)}
-                      frozen={false}
                     />
                   ))
                 : null}

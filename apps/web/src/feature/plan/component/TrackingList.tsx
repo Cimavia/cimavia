@@ -19,8 +19,6 @@ type TrackingListProps = {
   state: BlockTrackingState | undefined;
   onToggle: (index: number) => void;
   onRounds: (rounds: number) => void;
-  /** Séance débriefée : les cases restent CONSULTABLES mais ne se modifient plus. */
-  frozen: boolean;
 };
 
 /**
@@ -35,7 +33,6 @@ export function TrackingList({
   state,
   onToggle,
   onRounds,
-  frozen,
 }: Readonly<TrackingListProps>) {
   const { t } = useTranslation();
   const units = trackingUnits(block);
@@ -45,18 +42,14 @@ export function TrackingList({
     const rounds = state != null && "rounds" in state ? state.rounds : 0;
     return (
       <div className="flex items-center gap-cmv-md">
-        <CmvButton
-          variant="secondary"
-          disabled={frozen || rounds === 0}
-          onClick={() => onRounds(rounds - 1)}
-        >
+        <CmvButton variant="secondary" disabled={rounds === 0} onClick={() => onRounds(rounds - 1)}>
           −
         </CmvButton>
         <span className="font-cmv-display text-cmv-display text-cmv-text-hi">{rounds}</span>
         <span className="text-cmv-caption text-cmv-text-mid">
           {t("plan.tracking.rounds", { count: rounds })}
         </span>
-        <CmvButton variant="secondary" disabled={frozen} onClick={() => onRounds(rounds + 1)}>
+        <CmvButton variant="secondary" onClick={() => onRounds(rounds + 1)}>
           +
         </CmvButton>
       </div>
@@ -88,7 +81,6 @@ export function TrackingList({
             key={index}
             type="button"
             aria-pressed={isChecked}
-            disabled={frozen}
             onClick={() => onToggle(index)}
             title={detail}
             className={cn(
@@ -96,9 +88,7 @@ export function TrackingList({
               isChecked
                 ? "border-cmv-success-line bg-cmv-success-soft text-cmv-success-on"
                 : "border-cmv-border bg-cmv-surface text-cmv-text-mid",
-              // Séance débriefée : ni curseur pointeur, ni survol — le suivi se consulte, il ne
-              // s'édite plus.
-              frozen ? "cursor-default" : "hover:border-cmv-border-hi",
+              "hover:border-cmv-border-hi",
             )}
           >
             <span aria-hidden="true">{isChecked ? "✓" : "○"}</span>
