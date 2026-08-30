@@ -1,5 +1,6 @@
 import { formatTrainingDuration, parseTrainingDuration } from "@cmv/shared";
 import { useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/util/cn.util";
 
 type CmvDurationFieldProps = {
@@ -25,7 +26,9 @@ export function CmvDurationField({
   onChange,
   placeholder,
 }: Readonly<CmvDurationFieldProps>) {
+  const { t } = useTranslation();
   const inputId = useId();
+  const hintId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
 
@@ -56,24 +59,36 @@ export function CmvDurationField({
   }
 
   return (
-    <label className="flex items-center gap-cmv-sm" htmlFor={inputId}>
-      <span className="whitespace-nowrap text-cmv-caption text-cmv-text-mid">{label}</span>
-      <input
-        id={inputId}
-        value={shown}
-        inputMode="numeric"
-        aria-invalid={invalid}
-        placeholder={placeholder}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") commit();
-        }}
-        className={cn(
-          "w-20 rounded-cmv-sm border bg-cmv-surface px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none",
-          invalid ? "border-cmv-error" : "border-cmv-border focus:border-cmv-accent",
-        )}
-      />
-    </label>
+    <div className="flex flex-col gap-cmv-xs">
+      <label className="flex items-center gap-cmv-sm" htmlFor={inputId}>
+        <span className="whitespace-nowrap text-cmv-caption text-cmv-text-mid">{label}</span>
+        <input
+          id={inputId}
+          value={shown}
+          inputMode="numeric"
+          aria-invalid={invalid}
+          aria-describedby={invalid ? hintId : undefined}
+          placeholder={placeholder}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") commit();
+          }}
+          className={cn(
+            "w-20 rounded-cmv-sm border bg-cmv-surface px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none",
+            invalid ? "border-cmv-error" : "border-cmv-border focus:border-cmv-accent",
+          )}
+        />
+      </label>
+
+      {/* Un liseré rouge seul laisse croire à une saisie acceptée : « 1 » reste affiché, et
+          rien ne dit ce qui a été refusé ni ce qu'on attend. La phrase donne les formes valides
+          plutôt qu'un « format invalide » qui n'apprend rien. */}
+      {invalid ? (
+        <span id={hintId} className="text-cmv-caption text-cmv-error-on">
+          {t("common.durationInvalid")}
+        </span>
+      ) : null}
+    </div>
   );
 }

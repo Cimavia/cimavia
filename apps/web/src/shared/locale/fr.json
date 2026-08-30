@@ -20,7 +20,8 @@
       "hour_other": "il y a {{count}} h",
       "day": "il y a {{count}} jour",
       "day_other": "il y a {{count}} jours"
-    }
+    },
+    "durationInvalid": "Durée non comprise. Écris 90, 1'30, 30 s ou 2 min."
   },
   "auth": {
     "login": {
