@@ -64,6 +64,11 @@ export function useCountdown(onDone: () => void) {
 
   return {
     remaining,
+    /**
+     * L'échéance ABSOLUE en cours, ou `null` — timer arrêté ou en pause. C'est ce que suit la
+     * notification programmée : elle n'a rien à savoir des gestes, seulement de la date de fin.
+     */
+    deadline: paused == null ? endsAt : null,
     running: endsAt != null && paused == null,
     active: endsAt != null || paused != null,
     isPaused: paused != null,

@@ -8,8 +8,9 @@ import { RestBanner } from "@/feature/plan/component/RestBanner";
 import { useCountdown } from "@/feature/plan/hook/useCountdown";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
+import { useTimerNotification } from "@/feature/plan/hook/useTimerNotification";
 import { useTrackingHint } from "@/feature/plan/hook/useTrackingHint";
-import { alertTimerDone } from "@/feature/plan/lib/timer-alert";
+import { vibrateTimerDone } from "@/feature/plan/lib/timer-alert";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
@@ -40,9 +41,15 @@ export function SessionDetailScreen() {
 
   const [timerLabel, setTimerLabel] = useState("");
   const [timerTotal, setTimerTotal] = useState(0);
-  const countdown = useCountdown(() => {
-    void alertTimerDone(t("plan.timer.doneTitle"), t("plan.timer.doneBody", { label: timerLabel }));
-  });
+  // La vibration seulement : elle ne porte qu'app ouverte, et c'est bien ainsi — téléphone en
+  // poche, c'est la notification PROGRAMMÉE ci-dessous qui prévient, l'OS n'ayant pas besoin de
+  // nous pour la déclencher.
+  const countdown = useCountdown(vibrateTimerDone);
+  useTimerNotification(
+    countdown.deadline,
+    t("plan.timer.doneTitle"),
+    t("plan.timer.doneBody", { label: timerLabel }),
+  );
 
   return (
     <CmvScreen>
