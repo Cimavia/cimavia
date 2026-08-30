@@ -3,7 +3,11 @@ import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
-import { useAthleteSheet, useAthletes, useSaveAthleteSheet } from "@/feature/athlete";
+import {
+  useAthleteSheet,
+  useAthletes,
+  useSaveAthleteSheet,
+} from "@/feature/athlete/hook/useAthletes";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
