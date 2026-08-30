@@ -1,5 +1,13 @@
 import type { CustomMetric, ExerciseTracking, ScheduledSessionExerciseDto } from "@cmv/shared";
-import { DocumentUsage, TimerKind, timerFor, trackingSummary } from "@cmv/shared";
+import {
+  DocumentUsage,
+  TimerKind,
+  TrackingState,
+  type TrackingUnit,
+  timerFor,
+  trackingSummary,
+} from "@cmv/shared";
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Linking, Pressable, View } from "react-native";
@@ -7,6 +15,10 @@ import { DosageBlock } from "@/feature/plan/component/DosageBlock";
 import { DurationChip } from "@/feature/plan/component/DurationChip";
 import { TrackingList } from "@/feature/plan/component/TrackingList";
 import { CmvRichDocument, CmvText } from "@/shared/component";
+
+// i18n-values plan.tracking.open: TrackingUnit
+// i18n-values plan.tracking.review: TrackingUnit
+// i18n-values plan.tracking.hide: TrackingUnit
 
 type ExerciseCardProps = {
   exercise: ScheduledSessionExerciseDto;
@@ -42,12 +54,24 @@ export function ExerciseCard({
 }: Readonly<ExerciseCardProps>) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [tracked, setTracked] = useState(false);
 
   const summary = trackingSummary(exercise.blocks, tracking);
   // L'unité NOMME le lien : « Suivre mes séries », « mes tops », « mes tours », « mes étapes ».
   // Un « Suivre mes séries » sur un circuit demanderait à l'athlète de traduire.
   const unit = summary.unit;
+
+  /**
+   * Le lien COMMANDE les cases, et rien d'autre.
+   *
+   * `null` = l'athlète n'a rien décidé : on ouvre d'office ce qui porte déjà un suivi, et on
+   * replie le reste. Dérivé plutôt que figé dans un `useState` : le suivi local arrive de façon
+   * asynchrone, un état initialisé au premier render resterait fermé sur des cases déjà cochées.
+   *
+   * Ce que ça corrige : le lien et les cases étaient pilotés par DEUX conditions différentes, si
+   * bien qu'ils s'affichaient ensemble et que taper le lien ne faisait rien de visible.
+   */
+  const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+  const tracked = manualOpen ?? summary.state !== TrackingState.UNTRACKED;
 
   const attachments = exercise.documents.filter(
     (document) => document.usage === DocumentUsage.ATTACHMENT,
@@ -73,7 +97,7 @@ export function ExerciseCard({
         <View key={block.id} className="gap-2">
           <DosageBlock block={block} customMetrics={customMetrics} />
           <BlockTimerChips block={block} onStart={onStartTimer} />
-          {trackable && (tracked || summary.state !== "UNTRACKED") ? (
+          {trackable && tracked ? (
             <TrackingList
               block={block}
               customMetrics={customMetrics}
@@ -87,12 +111,10 @@ export function ExerciseCard({
 
       {/* « Jamais de lien vers du vide » vaut aussi ici : un exercice sans unité cochable n'ouvre
           rien. Et l'état NON SUIVI reste SILENCIEUX — pas de « 0 sur 4 », pas de rouge. */}
-      {!trackable || unit == null || (tracked && summary.state === "UNTRACKED") ? null : (
-        <Pressable onPress={() => setTracked((current) => !current)} hitSlop={8}>
+      {!trackable || unit == null ? null : (
+        <Pressable onPress={() => setManualOpen(!tracked)} hitSlop={8}>
           <CmvText className="text-cmv-accent text-sm">
-            {summary.state === "DONE"
-              ? t(`plan.tracking.review.${unit}`)
-              : t(`plan.tracking.open.${unit}`)}
+            {trackedLabel(tracked, summary.state, unit, t)}
           </CmvText>
         </Pressable>
       )}
@@ -180,4 +202,20 @@ function BlockTimerChips({
       ))}
     </View>
   );
+}
+
+/**
+ * Le libellé DIT ce que le tap va faire — replier quand c'est ouvert, ouvrir sinon. Un lien qui
+ * garde le même texte des deux côtés laisse croire qu'il n'a rien fait.
+ */
+function trackedLabel(
+  open: boolean,
+  state: TrackingState,
+  unit: TrackingUnit,
+  t: TFunction,
+): string {
+  if (open) return t(`plan.tracking.hide.${unit}`);
+  return state === TrackingState.DONE
+    ? t(`plan.tracking.review.${unit}`)
+    : t(`plan.tracking.open.${unit}`);
 }

@@ -178,6 +178,12 @@
         "TOP": "{{done}} sur {{total}} tops",
         "ROUND": "{{done}} sur {{total}} tours",
         "STEP": "{{done}} sur {{total}} étapes"
+      },
+      "hide": {
+        "SET": "Masquer mes séries",
+        "TOP": "Masquer mes tops",
+        "ROUND": "Masquer mes tours",
+        "STEP": "Masquer mes étapes"
       }
     },
     "timer": {
