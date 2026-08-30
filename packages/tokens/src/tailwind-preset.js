@@ -59,6 +59,10 @@ module.exports = {
 
       // Rôles typographiques -> text-cmv-display, text-cmv-title, ...
       fontSize: {
+        // Le chronomètre, lu à bout de bras : posé au sol ou sur un banc, l'athlète doit voir le
+        // temps restant sans se pencher. `cmv-display` (40 px) n'y suffit pas — c'est le SEUL
+        // usage de ce palier, et il n'a pas vocation à en servir d'autres.
+        "cmv-chrono": ["96px", { lineHeight: "100px", letterSpacing: "-0.03em", fontWeight: "700" }],
         "cmv-display": ["40px", { lineHeight: "44px", letterSpacing: "-0.025em", fontWeight: "700" }],
         "cmv-title": ["24px", { lineHeight: "28px", fontWeight: "600" }],
         "cmv-subtitle": ["16px", { lineHeight: "21px", fontWeight: "600" }],

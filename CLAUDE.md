@@ -93,9 +93,13 @@ pnpm --filter @cmv/api exec prisma migrate dev   # migrations (Neon/local)
 - **MVP (gratuit)** : API → Scaleway Serverless Containers · médias → Scaleway Object Storage (FR) · **BDD → Neon free** (EU, Prisma-natif). Redis **différé**.
 - **v1.0 (souverain FR)** : bascule **Clever Cloud** (app + PostgreSQL + Redis + Cellar S3, HDS). Portabilité = variables d'env, rien de propriétaire.
 
-## Hors périmètre MVP (ne pas implémenter sans validation)
+## Hors périmètre (ne pas implémenter sans validation)
 
-Résultats de compétition · paiement intégré (Stripe) · WebSocket temps réel (messagerie = async + polling/push en MVP) · débrief par exercice · historique des modifications.
+Le MVP est livré : cette liste n'est plus « après le MVP », c'est ce qui reste **à valider avant de coder**.
+
+Résultats de compétition · paiement intégré (Stripe) · WebSocket temps réel (messagerie = async + polling/push) · **ressenti** par exercice · historique des modifications.
+
+> Le **décompte** d'exécution par exercice, lui, est entré (#168) : l'athlète coche ce qu'il a fait et ça remonte avec le débrief. Ce n'est pas un ressenti par exercice, qui reste hors périmètre.
 
 ## README.md
 
