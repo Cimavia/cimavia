@@ -487,6 +487,10 @@ model ScheduledSessionExercise {
   /// verrait qu'un identifiant — `/custom-metrics` est scopé au coach, et faire dépendre la
   /// lecture d'une planif de sa bibliothèque casserait l'autonomie du snapshot.
   customMetrics      Json             @default("[]")
+  /// Suivi d'exécution, par identifiant de bloc. `null` = NON SUIVI, ce qui n'est pas
+  /// « zéro coché » : l'athlète n'a rien dit, et on ne lui reproche rien. Il vit en local
+  /// pendant la séance et ne remonte qu'avec le débrief.
+  tracking           Json?
   position           Int // ordre dans la séance (0-based)
   createdAt          DateTime         @default(now())
 

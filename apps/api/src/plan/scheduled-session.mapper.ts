@@ -8,6 +8,7 @@ import {
   parseBlocks,
   parseCustomMetrics,
   parseInstructions,
+  parseTracking,
 } from "../util/exercise-json.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
@@ -42,6 +43,7 @@ async function toExerciseDto(
     baseline: parseBlocks(exercise.baseline),
     adjustments: parseAdjustments(exercise.adjustments),
     customMetrics: parseCustomMetrics(exercise.customMetrics),
+    tracking: parseTracking(exercise.tracking),
     position: exercise.position,
     documents,
   };

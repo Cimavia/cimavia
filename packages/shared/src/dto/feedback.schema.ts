@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { exerciseTrackingSchema } from "./exercise-block.schema";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
@@ -85,9 +86,24 @@ export function maxFeedbackMediaSizeBytes(type: MediaType): number {
  * Aucune règle « texte OU média » ici : elle interdirait précisément le débrief média-seul, qui
  * doit bien créer un débrief vide avant d'y rattacher le premier fichier.
  */
+/**
+ * Le suivi d'exécution remonté AVEC le débrief, exercice par exercice.
+ *
+ * Il vit en local pendant la séance — l'athlète est souvent sans réseau en salle — et ne franchit
+ * le réseau qu'à cet envoi. Une entrée absente laisse l'exercice **non suivi** ; une entrée à
+ * `null` l'y remet explicitement.
+ */
+export const feedbackTrackingSchema = z.record(z.string(), exerciseTrackingSchema.nullable());
+export type FeedbackTracking = z.infer<typeof feedbackTrackingSchema>;
+
 export const upsertSessionFeedbackSchema = z
   .object({
     content: z.string().max(FEEDBACK_CONTENT_MAX_LENGTH).nullable().optional(),
+    /**
+     * Absent = on ne touche à rien. Le décompte ACCOMPAGNE le ressenti, il ne le remplace pas :
+     * un débrief sans texte ni média ni coche reste un débrief valable.
+     */
+    tracking: feedbackTrackingSchema.optional(),
   })
   .strict();
 export type UpsertSessionFeedbackInput = z.infer<typeof upsertSessionFeedbackSchema>;

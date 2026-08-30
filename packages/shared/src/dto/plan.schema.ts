@@ -8,7 +8,7 @@ import {
   exerciseDocumentDtoSchema,
   exerciseTagsSchema,
 } from "./exercise.schema";
-import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { exerciseBlocksSchema, exerciseTrackingSchema } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 import {
@@ -181,6 +181,11 @@ export const scheduledSessionExerciseDtoSchema = z.object({
    * d'une planif de la bibliothèque du coach casserait l'autonomie du snapshot (décision P3).
    */
   customMetrics: z.array(customMetricSchema),
+  /**
+   * Le suivi d'exécution. `null` = NON SUIVI, ce qui n'est pas « zéro coché » : l'athlète n'a
+   * rien dit, et l'affichage doit rester silencieux — jamais « 0 sur 4 », jamais de relance.
+   */
+  tracking: exerciseTrackingSchema.nullable(),
   // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
   // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.
   tags: z.array(z.string()),

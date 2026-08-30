@@ -1335,6 +1335,125 @@ describe("Débrief de séance (P4)", () => {
   });
 });
 
+describe("Suivi d'exécution (#168)", () => {
+  let coach: Agent;
+  let athlete: Agent;
+  let other: Agent;
+  let sessionId: string;
+  let exerciseCopyId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  beforeAll(async () => {
+    coach = await signUp("suivi-coach@cmv.test", Role.COACH);
+    athlete = await signUp("suivi-athlete@cmv.test", Role.ATHLETE);
+    other = await signUp("suivi-other@cmv.test", Role.ATHLETE);
+
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const athleteId = accepted.body.athleteId;
+
+    const exercise = await coach.post("/exercises").send({
+      title: "Tractions",
+      blocks: [
+        {
+          id: "blk_1",
+          label: null,
+          structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+          metrics: [
+            {
+              id: "col_reps",
+              source: "CATALOG",
+              key: "REPETITIONS",
+              unit: "REPS",
+              label: null,
+              collapsed: false,
+            },
+          ],
+          rows: [{ id: "r1", values: { col_reps: 6 } }],
+        },
+      ],
+    });
+    const template = await coach
+      .post("/sessions")
+      .send({ title: "Force", exercises: [{ exerciseId: exercise.body.id }] });
+
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Cycle suivi",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const scheduled = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
+    sessionId = scheduled.body.id;
+    exerciseCopyId = scheduled.body.exercises[0].id;
+
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(201);
+  });
+
+  it("naît NON SUIVI — ce qui n'est pas « zéro coché »", async () => {
+    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(read.status).toBe(200);
+    // `null` et non `{}` : l'athlète n'a rien dit, et l'affichage doit rester silencieux.
+    expect(read.body.exercises[0].tracking).toBeNull();
+  });
+
+  it("remonte avec le débrief, et distingue « rien coché » de « non suivi »", async () => {
+    const sent = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      content: null,
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 2] } } },
+    });
+    expect(sent.status).toBe(200);
+
+    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(read.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 2] } });
+
+    // Ouvert sans rien cocher : suivi, mais vide — un état distinct de l'absence.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: {} },
+    });
+    expect(
+      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
+    ).toEqual({});
+
+    // Et on peut y revenir : `null` remet en NON SUIVI, c'est une intention.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: null },
+    });
+    expect(
+      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
+    ).toBeNull();
+  });
+
+  it("un débrief SANS texte, sans média et sans coche part quand même", async () => {
+    // « J'ai fait la séance, rien à dire » est une réponse valable ; forcer du texte n'en produit
+    // que de creux.
+    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({});
+    expect(res.status).toBe(200);
+  });
+
+  it("un athlète ne suit PAS la séance d'un autre", async () => {
+    const res = await other.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0] } } },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("un identifiant d'exercice étranger n'écrit RIEN", async () => {
+    // L'écriture est pilotée par l'entrée : sans `where` scopé sur la séance, un id forgé
+    // atteindrait la ligne d'un autre.
+    const before = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { cmv_inconnu: { blk_1: { checked: [0, 1, 2, 3] } } },
+    });
+    expect(res.status).toBe(200);
+    const after = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    expect(after.tracking).toEqual(before.tracking);
+  });
+});
+
 describe("Médias de débrief (P4)", () => {
   let coachA: Agent;
   let athleteA1: Agent;

@@ -4,7 +4,9 @@ import {
   type CustomMetric,
   customMetricSchema,
   type ExerciseBlocks,
+  type ExerciseTracking,
   exerciseBlocksSchema,
+  exerciseTrackingSchema,
   type RichDocument,
   richDocumentSchema,
 } from "@cmv/shared";
@@ -77,4 +79,12 @@ export function parseCustomMetrics(value: Prisma.JsonValue): CustomMetric[] {
 
 export function toCustomMetricsInput(metrics: readonly CustomMetric[]): Prisma.InputJsonValue {
   return metrics as Prisma.InputJsonValue;
+}
+
+/**
+ * Le suivi d'exécution. `null` traverse INTACT : c'est l'état « non suivi », pas une absence de
+ * donnée à combler par un objet vide — les deux ne se lisent pas pareil côté athlète.
+ */
+export function parseTracking(value: Prisma.JsonValue): ExerciseTracking | null {
+  return value === null ? null : exerciseTrackingSchema.parse(value);
 }
