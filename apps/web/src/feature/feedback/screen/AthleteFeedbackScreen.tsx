@@ -1,16 +1,18 @@
-import type { SessionFeedbackDto } from "@cmv/shared";
+import type { FeedbackTracking, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { FEEDBACK_CONTENT_MAX_LENGTH, MediaType, remainingMediaSlots } from "@cmv/shared";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { type ChangeEvent, useRef, useState } from "react";
+import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FeedbackMediaGallery } from "@/feature/feedback/component/FeedbackMediaGallery";
+import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import { useMyFeedback, useUpsertMyFeedback } from "@/feature/feedback/hook/useMyFeedback";
 import {
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
 } from "@/feature/feedback/hook/useMyFeedbackMedia";
+import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import {
   CmvAppShell,
@@ -70,7 +72,17 @@ export function AthleteFeedbackScreen() {
             {t("feedback.backToSession")}
           </Link>
 
-          <FeedbackTextSection sessionId={sessionId} feedback={feedback ?? null} />
+          {/* Le décompte n'attend PAS la séance pour laisser écrire : si elle tarde ou échoue, le
+              texte et les médias restent accessibles, et seul le rappel des coches manque. */}
+          {session.data == null ? (
+            <FeedbackTextSection sessionId={sessionId} feedback={feedback ?? null} />
+          ) : (
+            <FeedbackTrackedSections
+              session={session.data}
+              feedback={feedback ?? null}
+              sessionId={sessionId}
+            />
+          )}
           <FeedbackMediaSection sessionId={sessionId} feedback={feedback ?? null} />
         </div>
       )}
@@ -78,13 +90,66 @@ export function AthleteFeedbackScreen() {
   );
 }
 
+/**
+ * Le décompte et le texte, ENSEMBLE : ils partent dans le même enregistrement.
+ *
+ * Le suivi vit en local depuis la séance (`useLocalTracking`) ; le débrief est le moment où il
+ * franchit le réseau. Un seul bouton « Enregistrer » pour les deux — deux boutons feraient croire
+ * qu'on peut envoyer l'un sans l'autre, alors que le décompte accompagne le ressenti.
+ */
+function FeedbackTrackedSections({
+  session,
+  feedback,
+  sessionId,
+}: Readonly<{
+  session: ScheduledSessionDto;
+  feedback: SessionFeedbackDto | null;
+  sessionId: string;
+}>) {
+  const remote = useMemo(
+    () => Object.fromEntries(session.exercises.map((exercise) => [exercise.id, exercise.tracking])),
+    [session],
+  );
+  const local = useLocalTracking(sessionId, remote);
+
+  return (
+    <>
+      <FeedbackTrackingSection
+        exercises={session.exercises}
+        tracking={local.tracking}
+        onToggleUnit={local.toggleUnit}
+        onRounds={local.setRounds}
+      />
+      <FeedbackTextSection
+        sessionId={sessionId}
+        feedback={feedback}
+        tracking={local.tracking}
+        trackingDirty={local.dirty}
+        onSaved={local.clear}
+      />
+    </>
+  );
+}
+
 // Le texte libre : saisie, enregistrement, et ce que l'enregistrement a donné.
 function FeedbackTextSection({
   sessionId,
   feedback,
-}: Readonly<{ sessionId: string; feedback: SessionFeedbackDto | null }>) {
+  tracking,
+  trackingDirty = false,
+  onSaved,
+}: Readonly<{
+  sessionId: string;
+  feedback: SessionFeedbackDto | null;
+  /** Absent quand la séance n'a pas pu être chargée : on n'envoie alors AUCUN décompte. */
+  tracking?: FeedbackTracking;
+  trackingDirty?: boolean;
+  onSaved?: () => void;
+}>) {
   const { t } = useTranslation();
-  const upsert = useUpsertMyFeedback(sessionId);
+  // Le local est effacé une fois le décompte accepté par le serveur : il a fait son travail, et
+  // le garder ferait diverger les deux copies au prochain chargement.
+  const upsert = useUpsertMyFeedback(sessionId, onSaved);
   const [content, setContent] = useState("");
 
   /**
@@ -104,7 +169,7 @@ function FeedbackTextSection({
 
   // Un PREMIER débrief vide reste légitime (« séance faite, rien à signaler ») ; ré-enregistrer un
   // texte inchangé, non.
-  const canSubmit = feedback == null || content !== (feedback.content ?? "");
+  const canSubmit = feedback == null || content !== (feedback.content ?? "") || trackingDirty;
 
   return (
     <CmvCard>
@@ -123,7 +188,12 @@ function FeedbackTextSection({
         <div className="flex items-center gap-cmv-md">
           <CmvButton
             disabled={upsert.isPending || !canSubmit}
-            onClick={() => upsert.mutate({ content: content.length === 0 ? null : content })}
+            onClick={() =>
+              upsert.mutate({
+                content: content.length === 0 ? null : content,
+                ...(tracking == null ? {} : { tracking }),
+              })
+            }
           >
             {upsert.isPending ? t("feedback.saving") : t("feedback.save")}
           </CmvButton>
