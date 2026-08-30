@@ -222,6 +222,145 @@ export function customMetricIdsIn(blocks: ExerciseBlocks): string[] {
   return [...new Set(ids)];
 }
 
+// ── Le suivi d'exécution ────────────────────────────────────────────────────────────────────
+
+/**
+ * Ce que l'athlète coche, nommé par type de structure.
+ *
+ * La granularité du suivi n'est PAS celle du coach : un bloc écrit « ×4 séries » n'a qu'une ligne
+ * de grille, mais quatre cases. Confondre les deux ferait cocher une fois un effort répété quatre
+ * fois.
+ */
+export const TrackingUnit = {
+  SET: "SET",
+  TOP: "TOP",
+  ROUND: "ROUND",
+  STEP: "STEP",
+} as const;
+export type TrackingUnit = TypesValuesOf<typeof TrackingUnit>;
+export const trackingUnitSchema = z.enum(TrackingUnit);
+
+export const TrackingMode = {
+  /** Des cases : on coche ce qu'on a fait. */
+  CHECK: "CHECK",
+  /** Un nombre : l'AMRAP se COMPTE, son objectif n'étant qu'indicatif. */
+  COUNT: "COUNT",
+} as const;
+export type TrackingMode = TypesValuesOf<typeof TrackingMode>;
+
+export type BlockTracking =
+  | { mode: typeof TrackingMode.CHECK; unit: TrackingUnit; count: number }
+  | { mode: typeof TrackingMode.COUNT; unit: TrackingUnit };
+
+/**
+ * Les unités cochables d'un bloc, ou `null` s'il n'y a rien à suivre.
+ *
+ * Le décompte vient du BANDEAU et non de la grille : « ×4 séries » est le nombre de fois qu'on
+ * fait l'effort, que la grille détaille chaque série ou n'en donne qu'une commune. Un bloc LIBRE
+ * fait exception — il n'a pas de bandeau, et ses lignes SONT ses étapes.
+ */
+export function trackingUnits(block: ExerciseBlock): BlockTracking | null {
+  const structure = block.structure;
+
+  if (structure.type === BlockType.AMRAP) {
+    return { mode: TrackingMode.COUNT, unit: TrackingUnit.ROUND };
+  }
+
+  const count = checkableCount(block);
+  // Zéro unité : rien à cocher, et une case « 0 sur 0 » ne dirait rien.
+  return count === 0 ? null : { mode: TrackingMode.CHECK, unit: unitOf(structure.type), count };
+}
+
+function checkableCount(block: ExerciseBlock): number {
+  const structure = block.structure;
+  if (structure.type === BlockType.SERIES) return structure.setCount;
+  if (structure.type === BlockType.EMOM) return emomTopCount(structure);
+  if (structure.type === BlockType.CIRCUIT) return structure.roundCount;
+  // LIBRE : pas de bandeau, donc pas de répétition d'ensemble — chaque ligne est une étape.
+  return block.rows.length;
+}
+
+function unitOf(type: BlockType): TrackingUnit {
+  if (type === BlockType.EMOM) return TrackingUnit.TOP;
+  if (type === BlockType.CIRCUIT) return TrackingUnit.ROUND;
+  if (type === BlockType.FREE) return TrackingUnit.STEP;
+  return TrackingUnit.SET;
+}
+
+/**
+ * La LIGNE de dosage qui accompagne l'unité `index`.
+ *
+ * Une grille qui détaille chaque série en donne une par unité ; une grille à ligne commune la
+ * répète. Un décalage — quatre séries, deux lignes — se replie sur la première : l'athlète voit
+ * un dosage plausible plutôt qu'une case vide, et le décalage reste l'affaire du coach.
+ */
+export function rowForUnit(block: ExerciseBlock, index: number): BlockRow | null {
+  return block.rows[index] ?? block.rows[0] ?? null;
+}
+
+// ── L'état du suivi ─────────────────────────────────────────────────────────────────────────
+
+/** Ce qui a été coché dans un bloc, ou compté pour un AMRAP. */
+export const blockTrackingStateSchema = z.union([
+  z.object({ checked: z.array(z.number().int().nonnegative()) }).strict(),
+  z.object({ rounds: z.number().int().nonnegative() }).strict(),
+]);
+export type BlockTrackingState = z.infer<typeof blockTrackingStateSchema>;
+
+/**
+ * Le suivi d'un exercice, indexé par identifiant de bloc.
+ *
+ * `null` en base signifie **NON SUIVI**, ce qui n'est pas « zéro coché » : l'athlète n'a rien dit,
+ * et on ne lui reproche rien. Un objet vide, lui, dit qu'il a ouvert le suivi sans rien cocher.
+ */
+export const exerciseTrackingSchema = z.record(z.string(), blockTrackingStateSchema);
+export type ExerciseTracking = z.infer<typeof exerciseTrackingSchema>;
+
+export const TrackingState = {
+  DONE: "DONE",
+  PARTIAL: "PARTIAL",
+  UNTRACKED: "UNTRACKED",
+} as const;
+export type TrackingState = TypesValuesOf<typeof TrackingState>;
+
+export type TrackingSummary = {
+  state: TrackingState;
+  done: number;
+  total: number;
+  unit: TrackingUnit | null;
+};
+
+/**
+ * Ce qu'un exercice affiche : *tout terminé* · *X sur Y* · *non suivi*.
+ *
+ * Le troisième est SILENCIEUX — jamais « 0 sur 4 », jamais de rouge, jamais de relance. Ne rien
+ * cocher n'est pas ne rien faire, et l'app n'a pas à en décider.
+ */
+export function trackingSummary(
+  blocks: ExerciseBlocks,
+  tracking: ExerciseTracking | null,
+): TrackingSummary {
+  const units = blocks.map((block) => ({ block, units: trackingUnits(block) }));
+  const total = units.reduce(
+    (sum, entry) => sum + (entry.units?.mode === TrackingMode.CHECK ? entry.units.count : 0),
+    0,
+  );
+  const unit = units.find((entry) => entry.units != null)?.units?.unit ?? null;
+
+  if (tracking == null) return { state: TrackingState.UNTRACKED, done: 0, total, unit };
+
+  const done = units.reduce((sum, entry) => {
+    const state = tracking[entry.block.id];
+    if (state == null || !("checked" in state)) return sum;
+    // Bornés au nombre d'unités : un bandeau réduit après coup ne doit pas produire « 5 sur 4 ».
+    const max = entry.units?.mode === TrackingMode.CHECK ? entry.units.count : 0;
+    return sum + state.checked.filter((index) => index < max).length;
+  }, 0);
+
+  const state = total > 0 && done >= total ? TrackingState.DONE : TrackingState.PARTIAL;
+  return { state, done, total, unit };
+}
+
 // ── Le seuil de colonnes du rendu athlète ───────────────────────────────────────────────────
 
 /**

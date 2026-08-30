@@ -20,6 +20,8 @@ import {
   metricValueTypeOf,
   restPhrase,
   structurePhrase,
+  trackingSummary,
+  trackingUnits,
   validateBlockValues,
 } from "./exercise-block.schema";
 import {
@@ -550,5 +552,95 @@ describe("dosageLayout", () => {
   it("suit une largeur d'écran plus généreuse", () => {
     // Le seuil est un CALCUL, pas une constante : un grand téléphone aligne une colonne de plus.
     expect(dosageLayout(withColumns(4, 3), 500)).toBe(DosageLayout.TABLE);
+  });
+});
+
+describe("trackingUnits", () => {
+  const series = (setCount: number, rows: number): ExerciseBlock => ({
+    ...seriesBlock(Array.from({ length: rows }, (_, i) => ({ id: `r${i}`, values: {} }))),
+    structure: { type: BlockType.SERIES, setCount, restBetweenSetsSeconds: null },
+  });
+
+  it("compte les séries depuis le BANDEAU, pas depuis la grille", () => {
+    // « ×4 séries » est le nombre de fois qu'on fait l'effort, que la grille détaille chaque
+    // série ou n'en donne qu'une commune.
+    expect(trackingUnits(series(4, 1))).toEqual({ mode: "CHECK", unit: "SET", count: 4 });
+    expect(trackingUnits(series(4, 4))).toEqual({ mode: "CHECK", unit: "SET", count: 4 });
+    expect(trackingUnits(series(4, 2))).toEqual({ mode: "CHECK", unit: "SET", count: 4 });
+  });
+
+  it("nomme l'unité par type", () => {
+    const withStructure = (structure: ExerciseBlock["structure"], rows = 1): ExerciseBlock => ({
+      ...seriesBlock(Array.from({ length: rows }, (_, i) => ({ id: `r${i}`, values: {} }))),
+      structure,
+    });
+    expect(
+      trackingUnits(
+        withStructure({ type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 }),
+      ),
+    ).toEqual({ mode: "CHECK", unit: "TOP", count: 10 });
+    expect(
+      trackingUnits(
+        withStructure({ type: BlockType.CIRCUIT, roundCount: 3, restBetweenRoundsSeconds: null }),
+      ),
+    ).toEqual({ mode: "CHECK", unit: "ROUND", count: 3 });
+    // LIBRE n'a pas de bandeau : ses LIGNES sont ses étapes.
+    expect(trackingUnits(withStructure({ type: BlockType.FREE }, 3))).toEqual({
+      mode: "CHECK",
+      unit: "STEP",
+      count: 3,
+    });
+  });
+
+  it("COMPTE l'AMRAP au lieu de le cocher", () => {
+    const amrap: ExerciseBlock = {
+      ...seriesBlock([{ id: "r1", values: {} }]),
+      structure: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: 12 },
+    };
+    // L'objectif est indicatif : cocher « 12 tours » ferait d'une orientation une exigence.
+    expect(trackingUnits(amrap)).toEqual({ mode: "COUNT", unit: "ROUND" });
+  });
+
+  it("ne suit rien quand il n'y a rien à cocher", () => {
+    const empty: ExerciseBlock = { ...seriesBlock([]), structure: { type: BlockType.FREE } };
+    expect(trackingUnits(empty)).toBeNull();
+  });
+});
+
+describe("trackingSummary", () => {
+  const block = (id: string, setCount: number): ExerciseBlock => ({
+    ...seriesBlock([{ id: "r1", values: {} }]),
+    id,
+    structure: { type: BlockType.SERIES, setCount, restBetweenSetsSeconds: null },
+  });
+
+  it("distingue NON SUIVI de zéro coché", () => {
+    // Ne rien cocher n'est pas ne rien faire : le troisième état est SILENCIEUX.
+    const blocks = [block("b1", 4)];
+    expect(trackingSummary(blocks, null)).toMatchObject({ state: "UNTRACKED", done: 0, total: 4 });
+    expect(trackingSummary(blocks, {})).toMatchObject({ state: "PARTIAL", done: 0, total: 4 });
+  });
+
+  it("additionne les blocs et rend tout terminé", () => {
+    const blocks = [block("b1", 2), block("b2", 3)];
+    const tracking = { b1: { checked: [0, 1] }, b2: { checked: [0, 1, 2] } };
+    expect(trackingSummary(blocks, tracking)).toMatchObject({ state: "DONE", done: 5, total: 5 });
+  });
+
+  it("borne le décompte au nombre d'unités", () => {
+    // Un bandeau réduit après coup ne doit pas produire « 5 sur 2 ».
+    const blocks = [block("b1", 2)];
+    expect(trackingSummary(blocks, { b1: { checked: [0, 1, 2, 3, 4] } })).toMatchObject({
+      done: 2,
+      total: 2,
+    });
+  });
+
+  it("ignore le compte d'un AMRAP dans le total cochable", () => {
+    const amrap: ExerciseBlock = {
+      ...block("b1", 1),
+      structure: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
+    };
+    expect(trackingSummary([amrap], { b1: { rounds: 7 } })).toMatchObject({ done: 0, total: 0 });
   });
 });
