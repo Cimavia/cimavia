@@ -16,8 +16,6 @@ type AthleteExerciseCardProps = {
   exercise: ScheduledSessionExerciseDto;
   position: number;
   tracking: ExerciseTracking | null;
-  /** Séance à venir : aucune case — le suivi s'ouvre le jour venu. */
-  trackable: boolean;
   onToggleUnit: (blockId: string, index: number) => void;
   onRounds: (blockId: string, rounds: number) => void;
 };
@@ -36,7 +34,6 @@ export function AthleteExerciseCard({
   exercise,
   position,
   tracking,
-  trackable,
   onToggleUnit,
   onRounds,
 }: Readonly<AthleteExerciseCardProps>) {
@@ -80,15 +77,13 @@ export function AthleteExerciseCard({
         {exercise.blocks.map((block) => (
           <div key={block.id} className="flex flex-col gap-cmv-sm">
             <PreviewBlock block={block} customMetrics={exercise.customMetrics} />
-            {trackable ? (
-              <TrackingList
-                block={block}
-                customMetrics={exercise.customMetrics}
-                state={tracking?.[block.id]}
-                onToggle={(index) => onToggleUnit(block.id, index)}
-                onRounds={(rounds) => onRounds(block.id, rounds)}
-              />
-            ) : null}
+            <TrackingList
+              block={block}
+              customMetrics={exercise.customMetrics}
+              state={tracking?.[block.id]}
+              onToggle={(index) => onToggleUnit(block.id, index)}
+              onRounds={(rounds) => onRounds(block.id, rounds)}
+            />
           </div>
         ))}
 

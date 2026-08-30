@@ -1,4 +1,4 @@
-import { isUpcomingIsoDate, type ScheduledSessionDto } from "@cmv/shared";
+import type { ScheduledSessionDto } from "@cmv/shared";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -86,17 +86,6 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
   );
   const local = useLocalTracking(session.id, remote);
 
-  /**
-   * Une séance À VENIR n'affiche aucune case : le suivi s'ouvre le jour venu, et cocher une série
-   * qu'on n'a pas encore faite n'aurait pas de sens.
-   *
-   * Une séance DÉBRIEFÉE, elle, reste MODIFIABLE. #170 demandait de la figer ; c'était fondé sur
-   * une prémisse fausse — un débrief se complète et se corrige en plusieurs fois (« Voir /
-   * modifier mon débrief »), et le décompte l'accompagne. Le figer ici pendant que le crayon du
-   * débrief le rouvre là-bas ne décrivait aucun état réel.
-   */
-  const trackable = !isUpcomingIsoDate(session.scheduledDate);
-
   return (
     // Plus de `max-w` : la séance occupe la page, le rail a besoin de sa place et une grille
     // à quatre colonnes ne se lit pas dans une colonne étroite.
@@ -145,7 +134,6 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
                 exercise={exercise}
                 position={index + 1}
                 tracking={local.tracking[exercise.id] ?? null}
-                trackable={trackable}
                 onToggleUnit={(blockId, unitIndex) =>
                   local.toggleUnit(exercise.id, blockId, unitIndex)
                 }
