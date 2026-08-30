@@ -18,8 +18,15 @@ const key = (sessionId: string) => `cimavia-tracking:${sessionId}`;
  * perd rien.
  */
 export function useLocalTracking(sessionId: string, remote: SessionTracking) {
-  const [tracking, setTracking] = useState<SessionTracking>(remote);
-  const [loaded, setLoaded] = useState(false);
+  /**
+   * `null` = rien en local, on SUIT le distant.
+   *
+   * C'est ce qui rattrape une séance ouverte avant que sa requête réponde, et surtout une séance
+   * déjà débriefée rouverte sur un autre appareil : garder un instantané du distant pris au premier
+   * render l'aurait figée sur « aucune coche ».
+   */
+  const [cached, setCached] = useState<SessionTracking | null>(null);
+  const tracking = cached ?? remote;
 
   /**
    * Le LOCAL l'emporte au chargement : il est plus récent par construction — il n'est monté au
@@ -30,12 +37,11 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
     let cancelled = false;
     AsyncStorage.getItem(key(sessionId))
       .then((raw) => {
-        if (cancelled) return;
-        if (raw != null) setTracking(JSON.parse(raw) as SessionTracking);
-        setLoaded(true);
+        if (cancelled || raw == null) return;
+        setCached(JSON.parse(raw) as SessionTracking);
       })
-      // Un cache illisible n'est pas une raison de bloquer la séance : on repart du distant.
-      .catch(() => setLoaded(true));
+      // Un cache illisible n'est pas une raison de bloquer la séance : on reste sur le distant.
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -43,7 +49,7 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
 
   const persist = useCallback(
     (next: SessionTracking) => {
-      setTracking(next);
+      setCached(next);
       // Écriture non attendue : cocher doit répondre à l'instant, pas au retour du disque.
       void AsyncStorage.setItem(key(sessionId), JSON.stringify(next));
     },
@@ -80,10 +86,34 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
     [tracking, persist],
   );
 
-  /** Efface le suivi local une fois qu'il est parti avec le débrief. */
+  /**
+   * Efface le suivi local une fois qu'il est parti avec le débrief : l'écran redevient un miroir
+   * du serveur, qui en est désormais le porteur.
+   */
   const clear = useCallback(() => {
+    setCached(null);
     void AsyncStorage.removeItem(key(sessionId));
   }, [sessionId]);
 
-  return { tracking, loaded, toggleUnit, setRounds, clear };
+  /**
+   * Le local diffère-t-il de ce que le serveur connaît ?
+   *
+   * Comparé sur une forme CANONIQUE (clés triées) : deux objets identiques écrits dans un ordre
+   * différent — au fil des coches d'un côté, au chargement de l'autre — ne doivent pas passer pour
+   * une modification. Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant.
+   */
+  const dirty = cached != null && canonical(cached) !== canonical(remote);
+
+  return { tracking, dirty, toggleUnit, setRounds, clear };
+}
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value != null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([k, item]) => `${k}:${canonical(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }

@@ -15,12 +15,15 @@ export function useSessionFeedback(sessionId: string) {
  * détail de la séance et le cycle, sinon le planning continuerait d'afficher « À faire » sur une
  * séance qu'on vient de débriefer.
  */
-export function useUpsertFeedback(sessionId: string) {
+export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (input: UpsertSessionFeedbackInput) => athleteFeedbackApi.upsert(sessionId, input),
     onSuccess: (feedback) => {
+      // Le suivi local a fait son travail : le garder ferait diverger les deux copies au
+      // prochain chargement de la séance.
+      onSaved?.();
       queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
       queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
       queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });

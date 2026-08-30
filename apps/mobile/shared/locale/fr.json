@@ -172,6 +172,12 @@
         "TOP": "Revoir mes tops",
         "ROUND": "Revoir mes tours",
         "STEP": "Revoir mes étapes"
+      },
+      "count": {
+        "SET": "{{done}} sur {{total}} séries",
+        "TOP": "{{done}} sur {{total}} tops",
+        "ROUND": "{{done}} sur {{total}} tours",
+        "STEP": "{{done}} sur {{total}} étapes"
       }
     },
     "timer": {
@@ -237,6 +243,11 @@
         "title": "Tout est lu !",
         "description": "Les nouveaux débriefs de tes athlètes apparaîtront ici."
       }
+    },
+    "tracking": {
+      "title": "Mon décompte",
+      "edit": "Corriger",
+      "done": "Terminé"
     }
   },
   "messages": {
