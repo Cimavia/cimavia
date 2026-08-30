@@ -147,6 +147,44 @@
       "hideInstructions": "Masquer la consigne",
       "emptyTitle": "Cette séance est vide",
       "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler."
+    },
+    "tracking": {
+      "hint": "Coche au fur et à mesure.",
+      "progress": "{{done}} sur {{total}}",
+      "rounds": "tour",
+      "rounds_other": "tours",
+      "roundsPlus": "Un tour de plus",
+      "roundsMinus": "Un tour de moins",
+      "unit": {
+        "SET": "Série {{index}}",
+        "TOP": "Top {{index}}",
+        "ROUND": "Tour {{index}}",
+        "STEP": "Étape {{index}}"
+      },
+      "open": {
+        "SET": "Suivre mes séries",
+        "TOP": "Suivre mes tops",
+        "ROUND": "Suivre mes tours",
+        "STEP": "Suivre mes étapes"
+      },
+      "review": {
+        "SET": "Revoir mes séries",
+        "TOP": "Revoir mes tops",
+        "ROUND": "Revoir mes tours",
+        "STEP": "Revoir mes étapes"
+      }
+    },
+    "timer": {
+      "rest": "Repos",
+      "effort": "Effort",
+      "interval": "Intervalle",
+      "countdown": "Durée",
+      "pause": "Pause",
+      "resume": "Reprendre",
+      "skip": "Passer",
+      "add": "+ {{seconds}} s",
+      "doneTitle": "Timer terminé",
+      "doneBody": "{{label}} — c'est fini."
     }
   },
   "media": {

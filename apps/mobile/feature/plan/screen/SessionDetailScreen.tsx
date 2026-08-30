@@ -1,9 +1,15 @@
-import { ScheduledSessionStatus } from "@cmv/shared";
+import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { ExerciseCard } from "@/feature/plan/component/ExerciseCard";
+import { RestBanner } from "@/feature/plan/component/RestBanner";
+import { useCountdown } from "@/feature/plan/hook/useCountdown";
+import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
+import { useTrackingHint } from "@/feature/plan/hook/useTrackingHint";
+import { alertTimerDone } from "@/feature/plan/lib/timer-alert";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
@@ -21,6 +27,22 @@ export function SessionDetailScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: session, isPending, isError, isFetching, refetch } = useScheduledSession(id);
+
+  const remote = useMemo(
+    () =>
+      Object.fromEntries(
+        (session?.exercises ?? []).map((exercise) => [exercise.id, exercise.tracking]),
+      ),
+    [session],
+  );
+  const local = useLocalTracking(id, remote);
+  const { hint, dismissHint } = useTrackingHint();
+
+  const [timerLabel, setTimerLabel] = useState("");
+  const [timerTotal, setTimerTotal] = useState(0);
+  const countdown = useCountdown(() => {
+    void alertTimerDone(t("plan.timer.doneTitle"), t("plan.timer.doneBody", { label: timerLabel }));
+  });
 
   return (
     <CmvScreen>
@@ -74,36 +96,103 @@ export function SessionDetailScreen() {
               />
             )}
 
-            <View className="gap-3">
-              <CmvText className="text-cmv-text-mid text-xs">
-                {t("plan.session.composition", { count: session.exercises.length })}
-              </CmvText>
-
-              {/* Une séance diffusée SANS exercice est l'anomalie du coach : on la constate sans
-                  culpabiliser l'athlète, et le bouton de débrief a déjà été retiré plus haut. */}
-              {session.exercises.length === 0 ? (
-                <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
-                  <CmvText className="text-cmv-text-hi">{t("plan.session.emptyTitle")}</CmvText>
-                  <CmvText className="text-cmv-text-mid text-sm">
-                    {t("plan.session.emptyDescription")}
-                  </CmvText>
-                </View>
-              ) : null}
-
-              {session.exercises.map((exercise, index) => (
-                <ExerciseCard
-                  key={exercise.id}
-                  exercise={exercise}
-                  index={index}
-                  // Les définitions voyagent AVEC la copie : l'athlète n'a pas accès à la
-                  // bibliothèque du coach, et une planif diffusée doit rester lisible seule.
-                  customMetrics={exercise.customMetrics}
-                />
-              ))}
-            </View>
+            <SessionExercises
+              session={session}
+              local={local}
+              hint={hint}
+              dismissHint={dismissHint}
+              onStartTimer={(seconds, label) => {
+                setTimerLabel(label);
+                setTimerTotal(seconds);
+                countdown.start(seconds);
+              }}
+            />
           </>
         )}
       </ScrollView>
+
+      {/* Le repos en BANDEAU et non en plein écran : c'est le moment où l'athlète relit la
+          consigne suivante, et un chronomètre plein écran la lui cacherait. */}
+      {countdown.active ? (
+        <RestBanner
+          remaining={countdown.remaining}
+          total={timerTotal}
+          label={timerLabel}
+          isPaused={countdown.isPaused}
+          onPause={countdown.pause}
+          onResume={countdown.resume}
+          onSkip={countdown.skip}
+          onAdd={() => countdown.add(30)}
+        />
+      ) : null}
     </CmvScreen>
+  );
+}
+
+/**
+ * Le déroulé et son suivi. Extrait de l'écran : mêlés, le chargement, le chronomètre, l'amorçage
+ * et la liste dépassaient le seuil de complexité de la porte qualité.
+ */
+function SessionExercises({
+  session,
+  local,
+  hint,
+  dismissHint,
+  onStartTimer,
+}: Readonly<{
+  session: ScheduledSessionDto;
+  local: ReturnType<typeof useLocalTracking>;
+  hint: boolean;
+  dismissHint: () => void;
+  onStartTimer: (seconds: number, label: string) => void;
+}>) {
+  const { t } = useTranslation();
+  const frozen = session.status === ScheduledSessionStatus.DONE;
+
+  return (
+    <View className="gap-3">
+      <CmvText className="text-cmv-text-mid text-xs">
+        {t("plan.session.composition", { count: session.exercises.length })}
+      </CmvText>
+
+      {/* Une séance diffusée SANS exercice est l'anomalie du coach : on la constate sans
+          culpabiliser l'athlète, et le bouton de débrief a déjà été retiré plus haut. */}
+      {session.exercises.length === 0 ? (
+        <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
+          <CmvText className="text-cmv-text-hi">{t("plan.session.emptyTitle")}</CmvText>
+          <CmvText className="text-cmv-text-mid text-sm">
+            {t("plan.session.emptyDescription")}
+          </CmvText>
+        </View>
+      ) : null}
+
+      {/* L'amorçage : « Coche au fur et à mesure », PREMIÈRE séance seulement, et il disparaît au
+          premier tap — définitivement. Pas de visite guidée, pas de modale. */}
+      {hint && session.exercises.length > 0 ? (
+        <View className="rounded-lg border border-cmv-accent-line bg-cmv-accent-soft px-3 py-2">
+          <CmvText className="text-cmv-accent-on text-xs">{t("plan.tracking.hint")}</CmvText>
+        </View>
+      ) : null}
+
+      {session.exercises.map((exercise, index) => (
+        <ExerciseCard
+          key={exercise.id}
+          exercise={exercise}
+          index={index}
+          customMetrics={exercise.customMetrics}
+          tracking={local.tracking[exercise.id] ?? null}
+          frozen={frozen}
+          onToggleUnit={(blockId, unitIndex) => {
+            dismissHint();
+            local.toggleUnit(exercise.id, blockId, unitIndex);
+          }}
+          onRounds={(blockId, rounds) => {
+            dismissHint();
+            local.setRounds(exercise.id, blockId, rounds);
+          }}
+          onStartTimer={onStartTimer}
+        />
+      ))}
+    </View>
   );
 }
