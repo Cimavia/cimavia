@@ -1,5 +1,10 @@
 import type { FeedbackTracking, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { FEEDBACK_CONTENT_MAX_LENGTH, MediaType, remainingMediaSlots } from "@cmv/shared";
+import {
+  FEEDBACK_CONTENT_MAX_LENGTH,
+  isUpcomingIsoDate,
+  MediaType,
+  remainingMediaSlots,
+} from "@cmv/shared";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { type ChangeEvent, useMemo, useRef, useState } from "react";
@@ -138,7 +143,10 @@ function FeedbackBody({
 
       <div className="grid w-full gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-cmv-lg">
-          {session == null ? null : (
+          {/* Une séance À VENIR n'a pas de décompte à rappeler : la séance elle-même n'affiche
+              aucune case, et en ouvrir ici serait le seul endroit de l'app où l'on cocherait une
+              série qu'on n'a pas faite. */}
+          {session == null || isUpcomingIsoDate(session.scheduledDate) ? null : (
             <FeedbackTrackingSection
               exercises={session.exercises}
               tracking={local.tracking}
@@ -176,7 +184,9 @@ function FeedbackBody({
           onSubmit={() =>
             upsert.mutate({
               content: content.length === 0 ? null : content,
-              ...(session == null ? {} : { tracking: local.tracking }),
+              ...(session == null || isUpcomingIsoDate(session.scheduledDate)
+                ? {}
+                : { tracking: local.tracking }),
             })
           }
         />

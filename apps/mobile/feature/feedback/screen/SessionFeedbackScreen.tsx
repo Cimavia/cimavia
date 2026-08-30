@@ -1,4 +1,5 @@
 import type { ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
+import { isUpcomingIsoDate } from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -81,19 +82,26 @@ function TrackedSections({
   );
   const local = useLocalTracking(sessionId, remote);
 
+  /**
+   * Une séance À VENIR n'a pas de décompte à rappeler : la séance elle-même n'affiche aucune case,
+   * et en ouvrir ici serait le seul endroit de l'app où l'on cocherait une série non faite.
+   */
+  const trackable = !isUpcomingIsoDate(session.scheduledDate);
+
   return (
     <>
-      <FeedbackTrackingSection
-        exercises={session.exercises}
-        tracking={local.tracking}
-        onToggleUnit={local.toggleUnit}
-        onRounds={local.setRounds}
-      />
+      {trackable ? (
+        <FeedbackTrackingSection
+          exercises={session.exercises}
+          tracking={local.tracking}
+          onToggleUnit={local.toggleUnit}
+          onRounds={local.setRounds}
+        />
+      ) : null}
       <FeedbackTextSection
         sessionId={sessionId}
         feedback={feedback}
-        tracking={local.tracking}
-        trackingDirty={local.dirty}
+        {...(trackable ? { tracking: local.tracking, trackingDirty: local.dirty } : {})}
         onSaved={local.clear}
       />
     </>
