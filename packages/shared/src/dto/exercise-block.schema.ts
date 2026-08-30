@@ -222,6 +222,80 @@ export function customMetricIdsIn(blocks: ExerciseBlocks): string[] {
   return [...new Set(ids)];
 }
 
+// ── Les timers ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * La forme de chronomètre qu'un bloc appelle.
+ *
+ * **Aucune donnée nouvelle** : le timer joue les durées que le coach a déjà saisies, et sa forme
+ * découle du type de structure. Rien à paramétrer côté athlète, rien à ajouter côté coach — c'est
+ * ce qui permet aux timers d'exister sans toucher au modèle.
+ */
+export const TimerKind = {
+  /** Séries : le repos entre deux séries. */
+  REST: "REST",
+  /** Une durée d'effort au dosage : effort puis repos, en alternance. */
+  EFFORT_REST: "EFFORT_REST",
+  /** EMOM : un top au début de chaque intervalle. */
+  INTERVAL: "INTERVAL",
+  /** AMRAP : un compte à rebours sur la durée totale. */
+  COUNTDOWN: "COUNTDOWN",
+} as const;
+export type TimerKind = TypesValuesOf<typeof TimerKind>;
+
+export type BlockTimer =
+  | { kind: typeof TimerKind.REST; restSeconds: number }
+  | { kind: typeof TimerKind.EFFORT_REST; effortSeconds: number; restSeconds: number | null }
+  | { kind: typeof TimerKind.INTERVAL; intervalSeconds: number; topCount: number }
+  | { kind: typeof TimerKind.COUNTDOWN; totalSeconds: number };
+
+/**
+ * Le timer d'un bloc, ou `null` quand il n'y a rien à jouer.
+ *
+ * `null` est fréquent et légitime : un bloc LIBRE n'impose aucun timer, et une Séries sans repos
+ * saisi n'en réclame pas — inventer une durée ferait passer une supposition pour une consigne.
+ *
+ * Une durée d'EFFORT dans la grille l'emporte sur le simple repos : « 10 × 30 s d'effort » se joue
+ * en alternance, pas comme dix repos successifs.
+ */
+export function timerFor(block: ExerciseBlock): BlockTimer | null {
+  const structure = block.structure;
+
+  if (structure.type === BlockType.EMOM) {
+    return {
+      kind: TimerKind.INTERVAL,
+      intervalSeconds: structure.intervalSeconds,
+      topCount: emomTopCount(structure),
+    };
+  }
+  if (structure.type === BlockType.AMRAP) {
+    return { kind: TimerKind.COUNTDOWN, totalSeconds: structure.totalDurationSeconds };
+  }
+
+  const effort = effortSecondsOf(block);
+  const rest = restSecondsOf(structure);
+
+  if (effort != null)
+    return { kind: TimerKind.EFFORT_REST, effortSeconds: effort, restSeconds: rest };
+  return rest == null ? null : { kind: TimerKind.REST, restSeconds: rest };
+}
+
+/** La durée d'effort de la première ligne, si le bloc en porte une colonne. */
+function effortSecondsOf(block: ExerciseBlock): number | null {
+  const column = block.metrics.find(
+    (metric) => metric.source === MetricSource.CATALOG && metric.key === MetricKey.EFFORT_DURATION,
+  );
+  if (column == null) return null;
+  const value = block.rows.at(0)?.values[column.id] ?? null;
+  return typeof value === "number" ? value : null;
+}
+
+function restSecondsOf(structure: BlockStructure): number | null {
+  if (structure.type === BlockType.SERIES) return structure.restBetweenSetsSeconds;
+  if (structure.type === BlockType.CIRCUIT) return structure.restBetweenRoundsSeconds;
+  return null;
+}
+
 // ── Le suivi d'exécution ────────────────────────────────────────────────────────────────────
 
 /**

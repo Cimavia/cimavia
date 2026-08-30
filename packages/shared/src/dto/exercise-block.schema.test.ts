@@ -20,6 +20,7 @@ import {
   metricValueTypeOf,
   restPhrase,
   structurePhrase,
+  timerFor,
   trackingSummary,
   trackingUnits,
   validateBlockValues,
@@ -642,5 +643,77 @@ describe("trackingSummary", () => {
       structure: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
     };
     expect(trackingSummary([amrap], { b1: { rounds: 7 } })).toMatchObject({ done: 0, total: 0 });
+  });
+});
+
+describe("timerFor", () => {
+  const effortColumn = {
+    id: "col_effort",
+    source: MetricSource.CATALOG,
+    key: MetricKey.EFFORT_DURATION,
+    unit: MetricUnit.NONE,
+    label: null,
+    collapsed: false,
+  };
+
+  // `metrics` typé explicitement : sans ça il s'infère du littéral `reps` figé par `as const`, et
+  // n'accepte plus une autre colonne. Même piège que sur les fixtures de dosage.
+  const withStructure = (
+    structure: ExerciseBlock["structure"],
+    metrics: ExerciseBlock["metrics"] = [reps],
+    rows: ExerciseBlock["rows"] = [{ id: "r1", values: {} }],
+  ): ExerciseBlock => ({ ...seriesBlock(rows, metrics), structure });
+
+  it("joue le repos d'une Séries", () => {
+    expect(
+      timerFor(withStructure({ type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: 150 })),
+    ).toEqual({ kind: "REST", restSeconds: 150 });
+  });
+
+  it("n'invente PAS de repos quand le coach n'en a pas posé", () => {
+    // Une durée inventée ferait passer une supposition pour une consigne.
+    expect(
+      timerFor(
+        withStructure({ type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null }),
+      ),
+    ).toBeNull();
+  });
+
+  it("préfère l'alternance effort/repos quand la grille porte une durée d'effort", () => {
+    // « 10 × 30 s d'effort » se joue en alternance, pas comme dix repos successifs.
+    const block = withStructure(
+      { type: BlockType.SERIES, setCount: 10, restBetweenSetsSeconds: 30 },
+      [effortColumn],
+      [{ id: "r1", values: { col_effort: 30 } }],
+    );
+    expect(timerFor(block)).toEqual({ kind: "EFFORT_REST", effortSeconds: 30, restSeconds: 30 });
+  });
+
+  it("dérive les tops d'un EMOM des deux durées, sans les stocker", () => {
+    expect(
+      timerFor(
+        withStructure({ type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 }),
+      ),
+    ).toEqual({ kind: "INTERVAL", intervalSeconds: 60, topCount: 10 });
+  });
+
+  it("compte à rebours sur un AMRAP", () => {
+    expect(
+      timerFor(
+        withStructure({ type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null }),
+      ),
+    ).toEqual({ kind: "COUNTDOWN", totalSeconds: 480 });
+  });
+
+  it("n'impose aucun timer à un bloc LIBRE", () => {
+    expect(timerFor(withStructure({ type: BlockType.FREE }))).toBeNull();
+  });
+
+  it("joue le repos entre tours d'un Circuit", () => {
+    expect(
+      timerFor(
+        withStructure({ type: BlockType.CIRCUIT, roundCount: 4, restBetweenRoundsSeconds: 180 }),
+      ),
+    ).toEqual({ kind: "REST", restSeconds: 180 });
   });
 });
