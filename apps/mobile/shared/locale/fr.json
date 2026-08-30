@@ -195,8 +195,23 @@
       "resume": "Reprendre",
       "skip": "Passer",
       "add": "+ {{seconds}} s",
-      "doneTitle": "Timer terminé",
-      "doneBody": "{{label}} — c'est fini."
+      "notArmed": "Le minuteur ne sonnera pas téléphone rangé : autorise les notifications.",
+      "segment": {
+        "EFFORT": "Effort",
+        "REST": "Récupération",
+        "INTERVAL": "Intervalle",
+        "COUNTDOWN": "Temps restant"
+      },
+      "outOf": "sur {{total}}",
+      "totalRemaining": "Reste {{duration}} sur l'exercice",
+      "skipSegment": "Passer le segment",
+      "stop": "Arrêter",
+      "expand": "Agrandir le chrono",
+      "reduce": "Réduire le chrono",
+      "run": "Lancer l'exercice",
+      "position": "{{current}} sur {{total}}",
+      "nextBody": "{{segment}} · {{duration}}",
+      "lastBody": "Exercice terminé."
     }
   },
   "media": {

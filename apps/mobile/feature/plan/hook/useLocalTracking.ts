@@ -74,6 +74,31 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
     [tracking, persist],
   );
 
+  /**
+   * Coche une unité SANS la décocher si elle l'est déjà.
+   *
+   * C'est ce dont le déroulé automatique a besoin : il coche au fil des segments, et l'effort
+   * puis le repos d'une même série passent tous les deux par là. Un `toggle` la décocherait au
+   * second appel — l'athlète verrait sa série s'effacer toute seule.
+   */
+  const checkUnit = useCallback(
+    (exerciseId: string, blockId: string, index: number) => {
+      const forExercise = tracking[exerciseId] ?? {};
+      const state = forExercise[blockId];
+      const checked = state != null && "checked" in state ? state.checked : [];
+      if (checked.includes(index)) return;
+
+      persist({
+        ...tracking,
+        [exerciseId]: {
+          ...forExercise,
+          [blockId]: { checked: [...checked, index].sort((a, b) => a - b) },
+        },
+      });
+    },
+    [tracking, persist],
+  );
+
   /** Le compteur d'un AMRAP : il se COMPTE, l'objectif du coach n'étant qu'indicatif. */
   const setRounds = useCallback(
     (exerciseId: string, blockId: string, rounds: number) => {
@@ -104,7 +129,7 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
    */
   const dirty = cached != null && canonical(cached) !== canonical(remote);
 
-  return { tracking, dirty, toggleUnit, setRounds, clear };
+  return { tracking, dirty, toggleUnit, checkUnit, setRounds, clear };
 }
 
 function canonical(value: unknown): string {

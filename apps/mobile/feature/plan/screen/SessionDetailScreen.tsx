@@ -1,14 +1,21 @@
-import { isUpcomingIsoDate, type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
+import {
+  type BlockSegment,
+  formatTrainingDuration,
+  type ScheduledSessionDto,
+  ScheduledSessionStatus,
+} from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import type { TFunction } from "i18next";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { ExerciseCard } from "@/feature/plan/component/ExerciseCard";
 import { RestBanner } from "@/feature/plan/component/RestBanner";
-import { useCountdown } from "@/feature/plan/hook/useCountdown";
+import { TimerOverlay } from "@/feature/plan/component/TimerOverlay";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { useTimerNotification } from "@/feature/plan/hook/useTimerNotification";
+import { type RunnerContext, useSegmentRunner } from "@/feature/plan/hook/useSegmentRunner";
+import { type TimerAlert, useTimerNotification } from "@/feature/plan/hook/useTimerNotification";
 import { useTrackingHint } from "@/feature/plan/hook/useTrackingHint";
 import { vibrateTimerDone } from "@/feature/plan/lib/timer-alert";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
@@ -39,17 +46,22 @@ export function SessionDetailScreen() {
   const local = useLocalTracking(id, remote);
   const { hint, dismissHint } = useTrackingHint();
 
-  const [timerLabel, setTimerLabel] = useState("");
-  const [timerTotal, setTimerTotal] = useState(0);
-  // La vibration seulement : elle ne porte qu'app ouverte, et c'est bien ainsi — téléphone en
-  // poche, c'est la notification PROGRAMMÉE ci-dessous qui prévient, l'OS n'ayant pas besoin de
-  // nous pour la déclencher.
-  const countdown = useCountdown(vibrateTimerDone);
-  useTimerNotification(
-    countdown.deadline,
-    t("plan.timer.doneTitle"),
-    t("plan.timer.doneBody", { label: timerLabel }),
-  );
+  const [expanded, setExpanded] = useState(false);
+
+  /**
+   * Le déroulé coche au fil des segments, sans que l'athlète ait à y penser : c'est la moitié du
+   * « ça s'enchaîne » — l'autre étant l'enchaînement lui-même.
+   */
+  const runner = useSegmentRunner((blockId, unitIndex) => {
+    vibrateTimerDone();
+    const exerciseId = runnerExerciseId.current;
+    if (exerciseId != null) local.checkUnit(exerciseId, blockId, unitIndex);
+  });
+  const runnerExerciseId = useRef<string | null>(null);
+  runnerExerciseId.current = runner.context?.exerciseId ?? null;
+
+  const alerts = useTimerAlerts(runner, t);
+  const timerNotification = useTimerNotification(alerts);
 
   return (
     <CmvScreen>
@@ -108,31 +120,89 @@ export function SessionDetailScreen() {
               local={local}
               hint={hint}
               dismissHint={dismissHint}
-              onStartTimer={(seconds, label) => {
-                setTimerLabel(label);
-                setTimerTotal(seconds);
-                countdown.start(seconds);
+              onRun={(segments, context) => {
+                dismissHint();
+                setExpanded(segments.length > 1);
+                runner.start(segments, context);
               }}
             />
           </>
         )}
       </ScrollView>
 
-      {/* Le repos en BANDEAU et non en plein écran : c'est le moment où l'athlète relit la
-          consigne suivante, et un chronomètre plein écran la lui cacherait. */}
-      {countdown.active ? (
-        <RestBanner
-          remaining={countdown.remaining}
-          total={timerTotal}
-          label={timerLabel}
-          isPaused={countdown.isPaused}
-          onPause={countdown.pause}
-          onResume={countdown.resume}
-          onSkip={countdown.skip}
-          onAdd={() => countdown.add(30)}
-        />
-      ) : null}
+      {/* Deux tailles pour le même chrono : le BANDEAU pendant qu'on relit la consigne suivante,
+          l'AGRANDI pendant l'effort, lisible téléphone posé (maquettes 3a et 3b). */}
+      <RunnerChrono
+        runner={runner}
+        armed={timerNotification.armed}
+        expanded={expanded}
+        onExpand={() => setExpanded(true)}
+        onReduce={() => setExpanded(false)}
+      />
     </CmvScreen>
+  );
+}
+
+/**
+ * Le chrono, dans l'une de ses deux tailles.
+ *
+ * Extrait de l'écran : mêlé au chargement, au rafraîchissement et au débrief, il faisait franchir
+ * à `SessionDetailScreen` le seuil de complexité de la porte qualité.
+ */
+function RunnerChrono({
+  runner,
+  armed,
+  expanded,
+  onExpand,
+  onReduce,
+}: Readonly<{
+  runner: ReturnType<typeof useSegmentRunner>;
+  armed: boolean;
+  expanded: boolean;
+  onExpand: () => void;
+  onReduce: () => void;
+}>) {
+  const { t } = useTranslation();
+  const { current, context } = runner;
+  if (!runner.active || current == null || context == null) return null;
+
+  if (expanded) {
+    return (
+      <TimerOverlay
+        title={context.title}
+        current={current}
+        remaining={runner.remaining}
+        total={runner.total}
+        totalRemaining={runner.totalRemaining}
+        position={t("plan.timer.position", {
+          current: runner.index + 1,
+          total: runner.segments.length,
+        })}
+        isPaused={runner.isPaused}
+        armed={armed}
+        onPause={runner.pause}
+        onResume={runner.resume}
+        onSkip={runner.skip}
+        onAdd={() => runner.add(30)}
+        onStop={runner.stop}
+        onReduce={onReduce}
+      />
+    );
+  }
+
+  return (
+    <RestBanner
+      remaining={runner.remaining}
+      total={runner.total}
+      label={`${t(`plan.timer.segment.${current.kind}`)} · ${context.title}`}
+      isPaused={runner.isPaused}
+      armed={armed}
+      onPause={runner.pause}
+      onResume={runner.resume}
+      onSkip={runner.stop}
+      onAdd={() => runner.add(30)}
+      onExpand={onExpand}
+    />
   );
 }
 
@@ -145,24 +215,15 @@ function SessionExercises({
   local,
   hint,
   dismissHint,
-  onStartTimer,
+  onRun,
 }: Readonly<{
   session: ScheduledSessionDto;
   local: ReturnType<typeof useLocalTracking>;
   hint: boolean;
   dismissHint: () => void;
-  onStartTimer: (seconds: number, label: string) => void;
+  onRun: (segments: readonly BlockSegment[], context: RunnerContext) => void;
 }>) {
   const { t } = useTranslation();
-  /**
-   * Une séance dont le jour n'est pas arrivé se LIT mais ne se coche pas. Comparé en date et non
-   * en instant : la séance du jour est cochable dès minuit, pas à partir d'une heure arbitraire.
-   *
-   * Une séance DÉBRIEFÉE, en revanche, reste cochable : le débrief lui-même se corrige (« Voir /
-   * modifier mon débrief »), et le décompte l'accompagne.
-   */
-  const trackable = !isUpcomingIsoDate(session.scheduledDate);
-
   return (
     <View className="gap-3">
       <CmvText className="text-cmv-text-mid text-xs">
@@ -182,7 +243,7 @@ function SessionExercises({
 
       {/* L'amorçage : « Coche au fur et à mesure », PREMIÈRE séance seulement, et il disparaît au
           premier tap — définitivement. Pas de visite guidée, pas de modale. */}
-      {hint && trackable && session.exercises.length > 0 ? (
+      {hint && session.exercises.length > 0 ? (
         <View className="rounded-lg border border-cmv-accent-line bg-cmv-accent-soft px-3 py-2">
           <CmvText className="text-cmv-accent-on text-xs">{t("plan.tracking.hint")}</CmvText>
         </View>
@@ -195,7 +256,6 @@ function SessionExercises({
           index={index}
           customMetrics={exercise.customMetrics}
           tracking={local.tracking[exercise.id] ?? null}
-          trackable={trackable}
           onToggleUnit={(blockId, unitIndex) => {
             dismissHint();
             local.toggleUnit(exercise.id, blockId, unitIndex);
@@ -204,9 +264,53 @@ function SessionExercises({
             dismissHint();
             local.setRounds(exercise.id, blockId, rounds);
           }}
-          onStartTimer={onStartTimer}
+          onRun={onRun}
         />
       ))}
     </View>
   );
 }
+
+/**
+ * Les notifications de TOUT le déroulé restant, posées d'avance.
+ *
+ * Chacune annonce ce qui COMMENCE, pas ce qui finit : « Récupération 45 s » est ce que l'athlète
+ * doit faire en sortant le téléphone de sa poche. La dernière annonce la fin de l'exercice.
+ *
+ * Plafonnées : iOS ne garde que 64 notifications programmées par app, et un EMOM de 30 min les
+ * mangerait toutes au détriment des rappels du coach.
+ */
+function useTimerAlerts(
+  runner: ReturnType<typeof useSegmentRunner>,
+  t: TFunction,
+): readonly TimerAlert[] {
+  const { deadline, context, segments, index } = runner;
+
+  return useMemo(() => {
+    if (deadline == null || context == null) return [];
+
+    const alerts: TimerAlert[] = [];
+    let at = deadline;
+
+    for (let cursor = index; cursor < segments.length && alerts.length < MAX_SCHEDULED; cursor++) {
+      const next = segments[cursor + 1];
+      alerts.push({
+        at,
+        title: context.title,
+        body:
+          next == null
+            ? t("plan.timer.lastBody")
+            : t("plan.timer.nextBody", {
+                segment: t(`plan.timer.segment.${next.kind}`),
+                duration: formatTrainingDuration(next.seconds) ?? "—",
+              }),
+      });
+      if (next == null) break;
+      at += next.seconds * 1000;
+    }
+
+    return alerts;
+  }, [deadline, context, segments, index, t]);
+}
+
+const MAX_SCHEDULED = 12;

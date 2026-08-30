@@ -1,6 +1,11 @@
 import type { CustomMetric, ExerciseTracking, ScheduledSessionExerciseDto } from "@cmv/shared";
 import {
+  type BlockSegment,
+  blockSegments,
   DocumentUsage,
+  formatTrainingDuration,
+  SegmentKind,
+  segmentsDuration,
   TimerKind,
   TrackingState,
   type TrackingUnit,
@@ -14,6 +19,7 @@ import { Linking, Pressable, View } from "react-native";
 import { DosageBlock } from "@/feature/plan/component/DosageBlock";
 import { DurationChip } from "@/feature/plan/component/DurationChip";
 import { TrackingList } from "@/feature/plan/component/TrackingList";
+import type { RunnerContext } from "@/feature/plan/hook/useSegmentRunner";
 import { CmvRichDocument, CmvText } from "@/shared/component";
 
 // i18n-values plan.tracking.open: TrackingUnit
@@ -25,14 +31,9 @@ type ExerciseCardProps = {
   index: number;
   customMetrics: readonly CustomMetric[];
   tracking: ExerciseTracking | null;
-  /**
-   * Séance À VENIR : aucune case, et pas même le lien pour les ouvrir. Cocher une série qu'on n'a
-   * pas encore faite n'aurait pas de sens, et le jour venu tout réapparaît.
-   */
-  trackable: boolean;
   onToggleUnit: (blockId: string, unitIndex: number) => void;
   onRounds: (blockId: string, rounds: number) => void;
-  onStartTimer: (seconds: number, label: string) => void;
+  onRun: (segments: readonly BlockSegment[], context: RunnerContext) => void;
 };
 
 /**
@@ -47,10 +48,9 @@ export function ExerciseCard({
   index,
   customMetrics,
   tracking,
-  trackable,
   onToggleUnit,
   onRounds,
-  onStartTimer,
+  onRun,
 }: Readonly<ExerciseCardProps>) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -96,8 +96,17 @@ export function ExerciseCard({
       {exercise.blocks.map((block) => (
         <View key={block.id} className="gap-2">
           <DosageBlock block={block} customMetrics={customMetrics} />
-          <BlockTimerChips block={block} onStart={onStartTimer} />
-          {trackable && tracked ? (
+          <BlockRunControls
+            block={block}
+            onRun={(segments) =>
+              onRun(segments, {
+                exerciseId: exercise.id,
+                blockId: block.id,
+                title: exercise.title,
+              })
+            }
+          />
+          {tracked ? (
             <TrackingList
               block={block}
               customMetrics={customMetrics}
@@ -111,7 +120,7 @@ export function ExerciseCard({
 
       {/* « Jamais de lien vers du vide » vaut aussi ici : un exercice sans unité cochable n'ouvre
           rien. Et l'état NON SUIVI reste SILENCIEUX — pas de « 0 sur 4 », pas de rouge. */}
-      {!trackable || unit == null ? null : (
+      {unit == null ? null : (
         <Pressable onPress={() => setManualOpen(!tracked)} hitSlop={8}>
           <CmvText className="text-cmv-accent text-sm">
             {trackedLabel(tracked, summary.state, unit, t)}
@@ -157,6 +166,52 @@ export function ExerciseCard({
 }
 
 /**
+ * De quoi lancer le bloc, en deux gestes de portée différente.
+ *
+ * **« Lancer l'exercice »** déroule TOUT — effort, repos, effort… — dès qu'il y a plus d'un
+ * segment à enchaîner. C'est le geste normal : taper une pastille à chaque repos, c'est ce que
+ * cette barre remplace.
+ *
+ * **Les pastilles** restent pour le hors-piste : relancer un repos seul, chronométrer un effort
+ * qu'on reprend. « Toute durée affichée est lançable d'un tap » vaut toujours.
+ */
+function BlockRunControls({
+  block,
+  onRun,
+}: Readonly<{
+  block: ScheduledSessionExerciseDto["blocks"][number];
+  onRun: (segments: readonly BlockSegment[]) => void;
+}>) {
+  const { t } = useTranslation();
+  const segments = blockSegments(block);
+  const total = segmentsDuration(segments);
+
+  return (
+    <View className="gap-2">
+      {segments.length > 1 && total != null ? (
+        <Pressable
+          onPress={() => onRun(segments)}
+          accessibilityRole="button"
+          className="min-h-11 flex-row items-center justify-center gap-2 rounded-lg border border-cmv-accent-line bg-cmv-accent-soft px-3"
+        >
+          <CmvText className="text-cmv-accent-on text-sm">{t("plan.timer.run")}</CmvText>
+          <CmvText className="font-cmv-mono text-cmv-accent-on text-xs">
+            {formatTrainingDuration(total) ?? ""}
+          </CmvText>
+        </Pressable>
+      ) : null}
+
+      <BlockTimerChips
+        block={block}
+        onStart={(seconds) =>
+          onRun([{ kind: SegmentKind.REST, seconds, unitIndex: null, rowId: null }])
+        }
+      />
+    </View>
+  );
+}
+
+/**
  * Les durées lançables d'un bloc. Elles viennent de `timerFor`, donc du type de structure — aucune
  * donnée nouvelle, et rien à régler côté athlète.
  */
@@ -165,7 +220,7 @@ function BlockTimerChips({
   onStart,
 }: Readonly<{
   block: ScheduledSessionExerciseDto["blocks"][number];
-  onStart: (seconds: number, label: string) => void;
+  onStart: (seconds: number) => void;
 }>) {
   const { t } = useTranslation();
   const timer = timerFor(block);
@@ -196,7 +251,7 @@ function BlockTimerChips({
           <DurationChip
             seconds={chip.seconds}
             label={`${chip.label} ${chip.seconds}`}
-            onStart={(seconds) => onStart(seconds, chip.label)}
+            onStart={onStart}
           />
         </View>
       ))}

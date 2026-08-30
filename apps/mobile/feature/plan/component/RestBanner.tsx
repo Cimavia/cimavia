@@ -8,10 +8,14 @@ type RestBannerProps = {
   total: number;
   label: string;
   isPaused: boolean;
+  /** Le minuteur sonnera-t-il téléphone rangé ? Non = on le DIT, on ne laisse pas croire. */
+  armed: boolean;
   onPause: () => void;
   onResume: () => void;
   onSkip: () => void;
   onAdd: () => void;
+  /** Agrandir : le chiffre lisible à deux mètres, téléphone posé (maquette 3a → 3b). */
+  onExpand: () => void;
 };
 
 const ADD_SECONDS = 30;
@@ -28,10 +32,12 @@ export function RestBanner({
   total,
   label,
   isPaused,
+  armed,
   onPause,
   onResume,
   onSkip,
   onAdd,
+  onExpand,
 }: Readonly<RestBannerProps>) {
   const { t } = useTranslation();
   // La barre montre le temps RESTANT : elle se vide, elle ne se remplit pas.
@@ -75,7 +81,22 @@ export function RestBanner({
         <Pressable onPress={onSkip} hitSlop={8} className="min-h-11 justify-center px-2">
           <CmvText className="text-cmv-text-mid text-sm">{t("plan.timer.skip")}</CmvText>
         </Pressable>
+        <Pressable
+          onPress={onExpand}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t("plan.timer.expand")}
+          className="min-h-11 justify-center px-2"
+        >
+          <CmvText className="text-cmv-accent">⌃</CmvText>
+        </Pressable>
       </View>
+
+      {/* Dit UNE fois ce qui va manquer, sans bouton ni relance : la permission se règle dans les
+          réglages du téléphone, pas ici, et le minuteur marche quand même à l'écran. */}
+      {armed ? null : (
+        <CmvText className="text-cmv-text-lo text-xs">{t("plan.timer.notArmed")}</CmvText>
+      )}
     </View>
   );
 }
