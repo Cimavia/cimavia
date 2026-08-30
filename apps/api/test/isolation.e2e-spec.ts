@@ -1036,6 +1036,67 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
   });
 
+  it("une métrique MAISON citée par un bloc part avec la diffusion", async () => {
+    // La régression que ce test verrouille : `customMetricSchema` est `.strict()`, et la ligne
+    // Prisma porte `coachId`, `createdAt`, `updatedAt`. La parser telle quelle faisait échouer
+    // TOUTE la diffusion en 500 dès qu'un exercice citait une métrique maison — et rien ne le
+    // couvrait, la copie du snapshot n'ayant été testée qu'avec des métriques du catalogue.
+    const metric = await coachA.post("/custom-metrics").send({
+      label: "Cotation française",
+      unit: null,
+      valueType: "SCALE",
+      scale: ["6a", "6b", "6c"],
+    });
+    expect(metric.status).toBe(201);
+
+    const blocks = [
+      {
+        id: "blk_home",
+        label: null,
+        structure: { type: "SERIES", setCount: 2, restBetweenSetsSeconds: 60 },
+        metrics: [
+          {
+            id: "col_grade",
+            source: "CUSTOM",
+            customMetricId: metric.body.id,
+            label: null,
+            collapsed: false,
+          },
+        ],
+        rows: [{ id: "r1", values: { col_grade: "6b" } }],
+      },
+    ];
+    const exercise = await coachA
+      .post("/exercises")
+      .send({ title: "Voie en 6b", tags: ["grimpe"], blocks });
+    expect(exercise.status).toBe(201);
+
+    const template = await coachA.post("/sessions").send({
+      title: "Séance métrique maison",
+      exercises: [{ exerciseId: exercise.body.id }],
+    });
+    expect(template.status).toBe(201);
+
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    // La DÉFINITION voyage, pas seulement l'identifiant : `/custom-metrics` est scopé au coach,
+    // et l'athlète n'y aura jamais accès.
+    expect(diffused.body.exercises[0].customMetrics).toEqual([
+      {
+        id: metric.body.id,
+        label: "Cotation française",
+        unit: null,
+        valueType: "SCALE",
+        scale: ["6a", "6b", "6c"],
+      },
+    ]);
+
+    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+  });
+
   it("les images de consigne survivent à la diffusion", async () => {
     // Les documents sont recopiés en NOUVELLES lignes : sans remappage, la consigne de l'athlète
     // référencerait des identifiants de la bibliothèque, qui ne désignent rien chez lui — et

@@ -5,13 +5,20 @@ import type {
   ScheduledSessionExerciseInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
-import { customMetricIdsIn, customMetricSchema, isDateInPlanWeek, PlanStatus } from "@cmv/shared";
+import { customMetricIdsIn, isDateInPlanWeek, PlanStatus } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
+import type {
+  CustomMetric as CustomMetricRow,
+  ExerciseDocument,
+  Plan,
+  PlanWeek,
+  Prisma,
+} from "@prisma/client";
 
 // L'exercice de bibliothèque AVEC ses tags : la copie diffusée les fige, comme les documents.
 type ExerciseWithTags = Prisma.ExerciseGetPayload<{ include: { tags: true } }>;
 
+import { toCustomMetricDto } from "../../custom-metric/custom-metric.mapper";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
@@ -329,13 +336,18 @@ export class ScheduledSessionService {
   }
 }
 
-/** Les définitions citées par ces blocs, parmi celles du coach. Une citation orpheline est ignorée. */
+/**
+ * Les définitions citées par ces blocs, parmi celles du coach. Une citation orpheline est ignorée.
+ *
+ * Passe par le MAPPER et non par `customMetricSchema.parse` : le schéma est `.strict()`, et une
+ * ligne Prisma porte `coachId`, `createdAt`, `updatedAt` qu'il refuse. Parser une ligne de base
+ * comme si c'était un DTO faisait échouer toute la diffusion dès qu'un exercice citait une
+ * métrique maison.
+ */
 function customMetricsFor(
   blocks: ReturnType<typeof parseBlocks>,
-  coachMetrics: readonly { id: string; label: string; unit: string | null }[],
+  coachMetrics: readonly CustomMetricRow[],
 ): CustomMetric[] {
   const wanted = new Set(customMetricIdsIn(blocks));
-  return coachMetrics
-    .filter((metric) => wanted.has(metric.id))
-    .map((metric) => customMetricSchema.parse(metric));
+  return coachMetrics.filter((metric) => wanted.has(metric.id)).map(toCustomMetricDto);
 }
