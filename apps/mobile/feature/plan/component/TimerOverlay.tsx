@@ -1,6 +1,7 @@
-import { type BlockSegment, formatTrainingDuration } from "@cmv/shared";
+import { type BlockSegment, formatTrainingDuration, SegmentKind } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CmvText } from "@/shared/component";
 
 // i18n-values plan.timer.segment: SegmentKind
@@ -17,6 +18,8 @@ type TimerOverlayProps = {
   position: string;
   isPaused: boolean;
   armed: boolean;
+  /** Le geste qui clôt un segment manuel et lance le repos. */
+  onConfirm: () => void;
   onPause: () => void;
   onResume: () => void;
   onSkip: () => void;
@@ -44,6 +47,7 @@ export function TimerOverlay({
   position,
   isPaused,
   armed,
+  onConfirm,
   onPause,
   onResume,
   onSkip,
@@ -52,11 +56,18 @@ export function TimerOverlay({
   onReduce,
 }: Readonly<TimerOverlayProps>) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   // La barre montre le temps RESTANT : elle se vide, elle ne se remplit pas.
   const ratio = total === 0 ? 0 : Math.max(0, Math.min(1, remaining / total));
+  const awaiting = current.kind === SegmentKind.MANUAL;
 
   return (
-    <View className="absolute inset-0 gap-6 bg-cmv-bg-0 p-6">
+    // Les encoches s'AJOUTENT aux marges : sur un écran sans encoche, le calque garderait sinon
+    // son titre collé au bord et ses boutons au ras du geste système.
+    <View
+      className="absolute inset-0 gap-6 bg-cmv-bg-0 px-6"
+      style={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }}
+    >
       <View className="flex-row items-start gap-3">
         <View className="flex-1 gap-1">
           <CmvText className="text-cmv-text-hi text-lg" numberOfLines={2}>
@@ -79,23 +90,33 @@ export function TimerOverlay({
         <CmvText className="text-cmv-accent text-sm uppercase">
           {t(`plan.timer.segment.${current.kind}`)}
         </CmvText>
-        <CmvText className="font-cmv-display text-cmv-chrono text-cmv-text-hi">
-          {formatTrainingDuration(remaining) ?? "0 s"}
-        </CmvText>
-        <CmvText className="text-cmv-text-mid text-sm">
-          {t("plan.timer.outOf", { total: formatTrainingDuration(total) ?? "—" })}
-        </CmvText>
+        {/* Un segment MANUEL n'affiche AUCUN chiffre : « 0 s » ferait croire à un compte à
+            rebours arrivé au bout, alors que rien ne tourne — c'est l'athlète qu'on attend. */}
+        {awaiting ? (
+          <CmvText className="px-4 text-center text-cmv-text-mid">
+            {t("plan.timer.awaiting")}
+          </CmvText>
+        ) : (
+          <>
+            <CmvText className="font-cmv-display text-cmv-chrono text-cmv-text-hi">
+              {formatTrainingDuration(remaining) ?? "0 s"}
+            </CmvText>
+            <CmvText className="text-cmv-text-mid text-sm">
+              {t("plan.timer.outOf", { total: formatTrainingDuration(total) ?? "—" })}
+            </CmvText>
 
-        <View className="h-1 w-full overflow-hidden rounded-full bg-cmv-surface">
-          <View className="h-full bg-cmv-accent" style={{ width: `${ratio * 100}%` }} />
-        </View>
+            <View className="h-1 w-full overflow-hidden rounded-full bg-cmv-surface">
+              <View className="h-full bg-cmv-accent" style={{ width: `${ratio * 100}%` }} />
+            </View>
 
-        {/* Le reste du déroulé, pas seulement du segment : c'est ce qui dit s'il faut tenir. */}
-        <CmvText className="text-cmv-text-lo text-xs">
-          {t("plan.timer.totalRemaining", {
-            duration: formatTrainingDuration(totalRemaining) ?? "—",
-          })}
-        </CmvText>
+            {/* Le reste du déroulé, pas du seul segment : ce qui dit s'il faut tenir. */}
+            <CmvText className="text-cmv-text-lo text-xs">
+              {t("plan.timer.totalRemaining", {
+                duration: formatTrainingDuration(totalRemaining) ?? "—",
+              })}
+            </CmvText>
+          </>
+        )}
 
         {armed ? null : (
           <CmvText className="text-cmv-text-lo text-xs">{t("plan.timer.notArmed")}</CmvText>
@@ -103,14 +124,18 @@ export function TimerOverlay({
       </View>
 
       <View className="gap-3">
-        <View className="flex-row gap-3">
-          <Action
-            label={t(isPaused ? "plan.timer.resume" : "plan.timer.pause")}
-            onPress={isPaused ? onResume : onPause}
-            primary
-          />
-          <Action label={t("plan.timer.add", { seconds: ADD_SECONDS })} onPress={onAdd} />
-        </View>
+        {awaiting ? (
+          <Action label={t("plan.timer.confirm")} onPress={onConfirm} primary />
+        ) : (
+          <View className="flex-row gap-3">
+            <Action
+              label={t(isPaused ? "plan.timer.resume" : "plan.timer.pause")}
+              onPress={isPaused ? onResume : onPause}
+              primary
+            />
+            <Action label={t("plan.timer.add", { seconds: ADD_SECONDS })} onPress={onAdd} />
+          </View>
+        )}
         <View className="flex-row gap-3">
           <Action label={t("plan.timer.skipSegment")} onPress={onSkip} />
           <Action label={t("plan.timer.stop")} onPress={onStop} />

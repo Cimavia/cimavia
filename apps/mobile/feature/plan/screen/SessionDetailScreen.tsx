@@ -3,6 +3,7 @@ import {
   formatTrainingDuration,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
+  SegmentKind,
 } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import type { TFunction } from "i18next";
@@ -180,6 +181,37 @@ function RunnerChrono({
         })}
         isPaused={runner.isPaused}
         armed={armed}
+        onConfirm={runner.confirm}
+        onPause={runner.pause}
+        onResume={runner.resume}
+        onSkip={runner.skip}
+        onAdd={() => runner.add(30)}
+        onStop={runner.stop}
+        onReduce={onReduce}
+      />
+    );
+  }
+
+  /**
+   * Le déroulé qui ATTEND ne tient pas dans un bandeau : il n'a pas de temps à montrer, et son
+   * seul geste doit être atteignable. On l'agrandit d'office plutôt que d'inventer un bandeau
+   * muet où rien ne dit ce qu'on attend de l'athlète.
+   */
+  if (runner.awaiting) {
+    return (
+      <TimerOverlay
+        title={context.title}
+        current={current}
+        remaining={runner.remaining}
+        total={runner.total}
+        totalRemaining={runner.totalRemaining}
+        position={t("plan.timer.position", {
+          current: runner.index + 1,
+          total: runner.segments.length,
+        })}
+        isPaused={runner.isPaused}
+        armed={armed}
+        onConfirm={runner.confirm}
         onPause={runner.pause}
         onResume={runner.resume}
         onSkip={runner.skip}
@@ -294,18 +326,10 @@ function useTimerAlerts(
 
     for (let cursor = index; cursor < segments.length && alerts.length < MAX_SCHEDULED; cursor++) {
       const next = segments[cursor + 1];
-      alerts.push({
-        at,
-        title: context.title,
-        body:
-          next == null
-            ? t("plan.timer.lastBody")
-            : t("plan.timer.nextBody", {
-                segment: t(`plan.timer.segment.${next.kind}`),
-                duration: formatTrainingDuration(next.seconds) ?? "—",
-              }),
-      });
-      if (next == null) break;
+      alerts.push({ at, title: context.title, body: alertBody(next, t) });
+      // On s'arrête au premier segment MANUEL : après lui, plus aucune échéance n'est connue —
+      // c'est l'athlète qui décide quand le déroulé repart.
+      if (next == null || next.kind === SegmentKind.MANUAL) break;
       at += next.seconds * 1000;
     }
 
@@ -314,3 +338,13 @@ function useTimerAlerts(
 }
 
 const MAX_SCHEDULED = 12;
+
+/** Ce que la notification annonce : ce qui COMMENCE, ou la fin. */
+function alertBody(next: BlockSegment | undefined, t: TFunction): string {
+  if (next == null) return t("plan.timer.lastBody");
+  if (next.kind === SegmentKind.MANUAL) return t("plan.timer.awaiting");
+  return t("plan.timer.nextBody", {
+    segment: t(`plan.timer.segment.${next.kind}`),
+    duration: formatTrainingDuration(next.seconds) ?? "—",
+  });
+}

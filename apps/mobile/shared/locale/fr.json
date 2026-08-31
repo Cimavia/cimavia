@@ -200,7 +200,8 @@
         "EFFORT": "Effort",
         "REST": "Récupération",
         "INTERVAL": "Intervalle",
-        "COUNTDOWN": "Temps restant"
+        "COUNTDOWN": "Temps restant",
+        "MANUAL": "À toi de jouer"
       },
       "outOf": "sur {{total}}",
       "totalRemaining": "Reste {{duration}} sur l'exercice",
@@ -211,7 +212,9 @@
       "run": "Lancer l'exercice",
       "position": "{{current}} sur {{total}}",
       "nextBody": "{{segment}} · {{duration}}",
-      "lastBody": "Exercice terminé."
+      "lastBody": "Exercice terminé.",
+      "awaiting": "Le chrono repart quand tu auras terminé.",
+      "confirm": "J'ai terminé — lancer le repos"
     }
   },
   "media": {

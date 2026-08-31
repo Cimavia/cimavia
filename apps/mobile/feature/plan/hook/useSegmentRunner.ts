@@ -45,6 +45,19 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
     doneRef.current(blockId, segment.unitIndex);
   }, []);
 
+  /**
+   * Avance au segment `cursor`. Un segment MANUEL n'a pas d'échéance : le déroulé s'y arrête et
+   * attend le geste de l'athlète, `endsAt` reste `null`.
+   */
+  const enter = useCallback((next: readonly BlockSegment[], cursor: number) => {
+    const segment = next[cursor];
+    if (segment == null) return;
+    setIndex(cursor);
+    setPaused(null);
+    setRemaining(segment.seconds);
+    setEndsAt(segment.kind === SegmentKind.MANUAL ? null : Date.now() + segment.seconds * 1000);
+  }, []);
+
   useEffect(() => {
     if (endsAt == null || paused != null || context == null) return;
 
@@ -53,12 +66,17 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
       let deadline = endsAt;
       const now = Date.now();
 
-      // Rattrapage : plusieurs segments ont pu s'écouler pendant que l'app dormait.
+      // Rattrapage : plusieurs segments ont pu s'écouler pendant que l'app dormait. On s'arrête
+      // au premier MANUEL — après lui, plus rien ne s'est écoulé sans l'athlète.
       while (now >= deadline) {
         markUnit(context.blockId, segments[cursor]);
         const next = segments[cursor + 1];
         if (next == null) {
           stop();
+          return;
+        }
+        if (next.kind === SegmentKind.MANUAL) {
+          enter(segments, cursor + 1);
           return;
         }
         cursor += 1;
@@ -75,18 +93,33 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
     tick();
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
-  }, [endsAt, paused, index, segments, context, markUnit, stop]);
+  }, [endsAt, paused, index, segments, context, markUnit, stop, enter]);
 
-  const start = useCallback((next: readonly BlockSegment[], runnerContext: RunnerContext) => {
-    const first = next[0];
-    if (first == null) return;
-    setSegments(next);
-    setContext(runnerContext);
-    setIndex(0);
-    setPaused(null);
-    setRemaining(first.seconds);
-    setEndsAt(Date.now() + first.seconds * 1000);
-  }, []);
+  const start = useCallback(
+    (next: readonly BlockSegment[], runnerContext: RunnerContext) => {
+      if (next.length === 0) return;
+      setSegments(next);
+      setContext(runnerContext);
+      enter(next, 0);
+    },
+    [enter],
+  );
+
+  /**
+   * « J'ai fini ma série » : le geste qui clôt un segment manuel et donne le départ du repos.
+   *
+   * C'est le seul endroit où l'athlète fait avancer le déroulé lui-même — et le seul où une
+   * unité est cochée sans qu'aucun temps ne se soit écoulé.
+   */
+  const confirm = useCallback(() => {
+    if (context == null) return;
+    markUnit(context.blockId, segments[index]);
+    if (segments[index + 1] == null) {
+      stop();
+      return;
+    }
+    enter(segments, index + 1);
+  }, [context, segments, index, markUnit, stop, enter]);
 
   const pause = useCallback(() => {
     if (endsAt == null) return;
@@ -101,16 +134,12 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
 
   /** « Passer le segment » : on saute sans marquer l'unité — un segment écourté n'est pas fait. */
   const skip = useCallback(() => {
-    const next = segments[index + 1];
-    if (next == null) {
+    if (segments[index + 1] == null) {
       stop();
       return;
     }
-    setIndex(index + 1);
-    setPaused(null);
-    setRemaining(next.seconds);
-    setEndsAt(Date.now() + next.seconds * 1000);
-  }, [segments, index, stop]);
+    enter(segments, index + 1);
+  }, [segments, index, stop, enter]);
 
   const add = useCallback((seconds: number) => {
     setEndsAt((current) => (current == null ? null : current + seconds * 1000));
@@ -130,10 +159,13 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
     /** Ce qu'il reste sur TOUT le déroulé — « Reste 7'18 » de la maquette. */
     totalRemaining: remaining + sumSeconds(segments.slice(index + 1)),
     active: context != null,
+    /** Le déroulé ATTEND l'athlète : ni compte à rebours, ni pause, seulement un geste. */
+    awaiting: current?.kind === SegmentKind.MANUAL,
     isPaused: paused != null,
     /** L'échéance suivie par la notification programmée. `null` en pause. */
     deadline: paused == null ? endsAt : null,
     start,
+    confirm,
     pause,
     resume,
     skip,

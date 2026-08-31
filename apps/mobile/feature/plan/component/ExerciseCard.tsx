@@ -184,11 +184,16 @@ function BlockRunControls({
 }>) {
   const { t } = useTranslation();
   const segments = blockSegments(block);
-  const total = segmentsDuration(segments);
+  const total = segmentsDuration(segments) ?? 0;
+  /**
+   * Rien à dérouler tant qu'aucun temps n'est écrit : un bloc fait UNIQUEMENT de gestes ne serait
+   * qu'une seconde façon de cocher, et les cases sont déjà là, juste en dessous.
+   */
+  const runnable = segments.length > 1 && total > 0;
 
   return (
     <View className="gap-2">
-      {segments.length > 1 && total != null ? (
+      {runnable ? (
         <Pressable
           onPress={() => onRun(segments)}
           accessibilityRole="button"
