@@ -921,6 +921,30 @@ tort).
 > `capabilitiesOf` reste pour les gardes. La règle : dès qu'un écran sert les deux capacités, ce
 > qu'il MONTRE suit le titre, pas ce que le compte possède.
 
+> **Appris en #14** (deux classes Tailwind concurrentes ne se départagent pas par la chaîne) : le
+> fond d'alerte des tuiles du tableau de bord avait disparu côté web. `CmvCard` posait
+> `bg-cmv-surface`, `DashboardTile` ajoutait `bg-cmv-error-soft` via `className`, et `cn` ne résout
+> pas les conflits — choix assumé, écrit dans `cn.util.ts`. Les deux classes se retrouvaient donc
+> sur l'élément, et c'est l'ordre de **génération dans la feuille CSS** qui tranchait, pas celui de
+> la chaîne : hors de notre contrôle, et invisible de toute porte. D'où `surfaceClassName`, une
+> prop qui REMPLACE le fond par défaut au lieu de s'y ajouter — le survol par défaut la respecte
+> aussi, sinon il écrasait la couleur au passage de la souris. Règle générale : tant que `cn` reste
+> sans `tailwind-merge`, une surcharge de couleur passe par une prop dédiée, jamais par
+> `className`. Mobile n'était pas touché — NativeWind ne compose pas les classes de la même façon.
+
+> **Tranché en #14** (« (moi) » se déduit de la SESSION, pas d'un drapeau porté par chaque DTO) :
+> le compte apparaît dans ses propres listes d'athlètes, où son nom ne se distingue de rien. Un
+> premier essai avait ajouté `isSelf` à `AthleteRow` — il n'aurait couvert que le tableau de suivi.
+> Les onze surfaces concernées (sélecteur et titre du builder, cartes de cycles, tableau, liste et
+> détail des débriefs, fiche athlète, dashboard mobile…) n'ont en commun qu'un `athleteId` :
+> propager un marqueur aurait demandé de toucher quatre schémas, et d'y penser au cinquième. D'où
+> `useAthleteLabel`, qui compare à l'id de session. `isSelf` reste sur `CoachAthleteDto` seul, où
+> il décrit une propriété de la DONNÉE — cette relation-là n'existe pas en base.
+>
+> Deux exclusions volontaires : les **initiales** d'avatar, calculées sur le nom brut (« Dual Curl
+> (moi) » donnerait « DC »… ou pire), et la **messagerie**, fermée en auto-coaching — aucun fil
+> avec soi-même ne peut exister.
+
 > **Tranché en #14** (l'auto-coach est une entrée SYNTHÉTIQUE de sa propre liste) : un coach qui
 > se coache n'a pas de ligne `CoachAthlete`, et ne peut pas en avoir — le CHECK
 > `coach_athlete_not_self` l'interdit depuis #11. `GET /athletes` fabrique donc son entrée, marquée
