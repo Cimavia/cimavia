@@ -34,6 +34,7 @@ export {
   CoachAthleteStatus,
   coachAthleteDtoSchema,
   coachAthleteStatusSchema,
+  SELF_RELATION_ID,
 } from "./dto/coach-athlete.schema";
 export type {
   Adjustment,
@@ -588,6 +589,7 @@ export type {
 } from "./util/plan.util";
 export {
   isDateInPlanWeek,
+  isSelfCoached,
   planEndDate,
   planPhase,
   planWeekCopyShiftDays,

@@ -200,3 +200,15 @@ function pickByStartDate<T extends PlanPeriod>(
   }
   return best;
 }
+
+/**
+ * Le cycle qu'un coach s'est écrit à lui-même (auto-coaching, #14).
+ *
+ * Une fonction nommée plutôt qu'un `coachId === athleteId` recopié : la comparaison est triviale,
+ * mais ce qu'elle SIGNIFIE ne l'est pas — un cycle solo ne se facture pas, ne notifie personne, et
+ * n'affiche donc pas la section de facturation du builder. Trois endroits qui doivent rester
+ * d'accord entre eux.
+ */
+export function isSelfCoached(plan: { coachId: string; athleteId: string }): boolean {
+  return plan.coachId === plan.athleteId;
+}

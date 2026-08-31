@@ -1,4 +1,5 @@
 import {
+  isSelfCoached,
   PlanStatus,
   type PlanWeekDto,
   PlanWeekType,
@@ -114,6 +115,7 @@ export function PlanBuilderScreen() {
             isPublished={isPublished}
             hasWeeks={plan.weeks.length > 0}
             isBillingFilled={billing != null}
+            requiresBilling={!isSelfCoached(plan)}
             isBusy={isBusy}
           />
         </>
@@ -124,7 +126,11 @@ export function PlanBuilderScreen() {
           {t("plan.builder.back")}
         </Link>
 
-        <PlanStatusLine status={plan.status} isBillingFilled={billing != null} />
+        <PlanStatusLine
+          status={plan.status}
+          isBillingFilled={billing != null}
+          requiresBilling={!isSelfCoached(plan)}
+        />
 
         {/* Le presse-papier survit à la navigation (c'est ce qui rend le collage inter-cycle
             possible) : sans ce bandeau, des boutons « Coller ici » apparaîtraient sur un cycle
@@ -178,8 +184,11 @@ export function PlanBuilderScreen() {
           </CmvButton>
         </div>
 
-        {/* Facturation du cycle : sa saisie conditionne la diffusion (gating). */}
-        <PlanBillingSection planId={planId} isPublished={isPublished} />
+        {/* Facturation du cycle : sa saisie conditionne la diffusion (gating) — SAUF en
+            auto-coaching, où l'on ne se facture pas soi-même. L'API lève alors le gating et
+            refuse la saisie (#14) : laisser la section visible proposerait un formulaire
+            obligatoire que rien n'accepterait. */}
+        {!isSelfCoached(plan) && <PlanBillingSection planId={planId} isPublished={isPublished} />}
       </div>
 
       {isPanelReady && edit != null ? (

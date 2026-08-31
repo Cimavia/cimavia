@@ -9,6 +9,8 @@ type PlanBuilderActionsProps = {
   hasWeeks: boolean;
   /** Termes de facturation saisis (facture DRAFT existante) : verrou de la diffusion. */
   isBillingFilled: boolean;
+  /** Faux en auto-coaching : on ne se facture pas soi-même, l'API lève le gating (#14). */
+  requiresBilling: boolean;
   isBusy: boolean;
 };
 
@@ -22,6 +24,7 @@ export function PlanBuilderActions({
   isPublished,
   hasWeeks,
   isBillingFilled,
+  requiresBilling,
   isBusy,
 }: Readonly<PlanBuilderActionsProps>) {
   const { t } = useTranslation();
@@ -30,8 +33,9 @@ export function PlanBuilderActions({
   const removePlan = useDeletePlan();
 
   // Info-bulle expliquant pourquoi la diffusion est bloquée (facturation à saisir d'abord).
+  const billingBlocks = requiresBilling && !isBillingFilled;
   const publishBlockedTitle =
-    !isPublished && !isBillingFilled ? t("plan.builder.billingRequired") : undefined;
+    !isPublished && billingBlocks ? t("plan.builder.billingRequired") : undefined;
 
   return (
     <>
@@ -55,7 +59,7 @@ export function PlanBuilderActions({
       <span title={publishBlockedTitle}>
         <CmvButton
           onClick={() => publish.mutate(planId)}
-          disabled={isPublished || !hasWeeks || !isBillingFilled || publish.isPending}
+          disabled={isPublished || !hasWeeks || billingBlocks || publish.isPending}
         >
           {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
         </CmvButton>
