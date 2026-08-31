@@ -5,6 +5,8 @@ export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
 export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
+export type { CapabilityApi } from "./api/capability.api";
+export { capabilityKeys, createCapabilityApi } from "./api/capability.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";

@@ -16,7 +16,9 @@
       "hour_other": "il y a {{count}} h",
       "day": "il y a {{count}} jour",
       "day_other": "il y a {{count}} jours"
-    }
+    },
+    "save": "Enregistrer",
+    "saving": "Enregistrement…"
   },
   "auth": {
     "login": {
@@ -496,6 +498,26 @@
       "save": "Enregistrer",
       "saving": "Enregistrement…",
       "error": "Impossible d'enregistrer la note. Vérifie ta connexion."
+    }
+  },
+  "account": {
+    "capabilities": {
+      "title": "Ce que je fais sur cimavia",
+      "description": "Ajoutez ou retirez une casquette à tout moment. Les deux sont possibles.",
+      "option": {
+        "coach": "Coacher des athlètes",
+        "athlete": "Suivre mes entraînements"
+      },
+      "hint": {
+        "coach": "Composer des exercices et des séances, diffuser des cycles, facturer.",
+        "athlete": "Consulter mes séances, les débriefer, échanger avec mon coach."
+      },
+      "warnCoach": "Votre bibliothèque et vos cycles seront conservés, mais disparaîtront de votre navigation. Ils reviendront si vous réactivez cette casquette.",
+      "atLeastOne": "Gardez au moins une casquette.",
+      "blocked": {
+        "ACTIVE_ATHLETES": "Des athlètes vous sont rattachés. Retirez ces liens avant de cesser de coacher.",
+        "ACTIVE_COACH": "Vous êtes rattaché à un coach. Quittez cette relation avant de retirer cette casquette."
+      }
     }
   }
 }

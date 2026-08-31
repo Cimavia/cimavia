@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { IconType } from "react-icons";
-import { IoBarbellOutline, IoPersonOutline } from "react-icons/io5";
+import { IoBarbellOutline, IoPersonOutline, IoSettingsOutline } from "react-icons/io5";
 import { NotificationBell } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
@@ -26,7 +26,7 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
   if (!isCoach || !isAthlete) return null;
 
   return (
-    <div className="flex gap-cmv-xs rounded-cmv-md bg-cmv-surface p-cmv-2xs" role="tablist">
+    <div className="flex gap-cmv-xs rounded-cmv-md bg-cmv-surface p-cmv-xs" role="tablist">
       {SPACES.map(({ space, icon: Icon }) => {
         const current = space === active;
         return (
@@ -138,9 +138,17 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
         </nav>
 
         <div className="flex flex-col gap-cmv-sm border-cmv-border border-t pt-cmv-md">
-          <span className="truncate text-cmv-caption text-cmv-text-mid">
-            {authSession?.user.name ?? "—"}
-          </span>
+          {/* Le compte vit HORS des deux espaces — ce n'est ni du coach ni de l'athlète — d'où sa
+              place dans le pied plutôt que dans la table de nav. Équivalent web de l'onglet Profil
+              du mobile (#13). */}
+          <Link
+            to="/account"
+            className="flex items-center gap-cmv-sm truncate rounded-cmv-md px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
+            activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
+          >
+            <IoSettingsOutline aria-hidden className="shrink-0" />
+            <span className="truncate">{authSession?.user.name ?? "—"}</span>
+          </Link>
           <CmvButton variant="ghost" onClick={onLogout}>
             {t("common.logout")}
           </CmvButton>
