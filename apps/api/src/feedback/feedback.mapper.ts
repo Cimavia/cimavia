@@ -1,6 +1,8 @@
-import type { FeedbackMediaDto, SessionFeedbackDto } from "@cmv/shared";
-import type { FeedbackMedia, Prisma } from "@prisma/client";
+import type { FeedbackMediaDto, SessionFeedbackDto, TrackedExerciseDto } from "@cmv/shared";
+import { trackingSummary } from "@cmv/shared";
+import type { FeedbackMedia, Prisma, ScheduledSessionExercise } from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
+import { parseBlocks, parseTracking } from "../util/exercise-json.util";
 
 // Le débrief avec ses médias, du plus ancien au plus récent (ordre d'ajout par l'athlète).
 export const FEEDBACK_DETAIL_INCLUDE = {
@@ -30,9 +32,33 @@ export async function toFeedbackMediaDto(
   };
 }
 
+/**
+ * Le décompte résumé, exercice par exercice.
+ *
+ * Calculé ICI plutôt que chez le client : le coach lit un débrief sans charger la séance de son
+ * athlète, et lui faire dérouler les blocs pour compter des cases ajouterait un appel sur deux
+ * surfaces pour la même réponse.
+ */
+export function toTrackedExercises(
+  exercises: readonly Pick<ScheduledSessionExercise, "id" | "title" | "blocks" | "tracking">[],
+): TrackedExerciseDto[] {
+  return exercises.map((exercise) => {
+    const summary = trackingSummary(parseBlocks(exercise.blocks), parseTracking(exercise.tracking));
+    return {
+      exerciseId: exercise.id,
+      title: exercise.title,
+      state: summary.state,
+      done: summary.done,
+      total: summary.total,
+      unit: summary.unit,
+    };
+  });
+}
+
 export async function toSessionFeedbackDto(
   feedback: SessionFeedbackWithMedia,
   storage: StorageService,
+  trackedExercises: TrackedExerciseDto[] = [],
 ): Promise<SessionFeedbackDto> {
   const media = await Promise.all(feedback.media.map((item) => toFeedbackMediaDto(item, storage)));
   return {
@@ -42,6 +68,7 @@ export async function toSessionFeedbackDto(
     content: feedback.content,
     coachReadAt: feedback.coachReadAt?.toISOString() ?? null,
     media,
+    trackedExercises,
     createdAt: feedback.createdAt.toISOString(),
     updatedAt: feedback.updatedAt.toISOString(),
   };

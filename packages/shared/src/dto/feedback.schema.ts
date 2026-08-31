@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
-import { exerciseTrackingSchema } from "./exercise-block.schema";
+import { exerciseTrackingSchema, TrackingState, trackingUnitSchema } from "./exercise-block.schema";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
@@ -191,6 +191,23 @@ export const feedbackMediaDtoSchema = z.object({
 });
 export type FeedbackMediaDto = z.infer<typeof feedbackMediaDtoSchema>;
 
+/**
+ * Le suivi d'UN exercice, tel qu'il se lit dans un débrief.
+ *
+ * `UNTRACKED` reste un état à part entière et se dit ainsi — « non suivi », jamais « 0 sur 4 ».
+ * L'athlète n'a rien coché, ce qui ne veut pas dire qu'il n'a rien fait.
+ */
+export const trackedExerciseDtoSchema = z.object({
+  exerciseId: z.string(),
+  title: z.string(),
+  state: z.enum(TrackingState),
+  done: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  /** `null` quand l'exercice n'a aucune unité cochable — rien à nommer. */
+  unit: trackingUnitSchema.nullable(),
+});
+export type TrackedExerciseDto = z.infer<typeof trackedExerciseDtoSchema>;
+
 export const sessionFeedbackDtoSchema = z.object({
   id: z.string(),
   scheduledSessionId: z.string(),
@@ -198,6 +215,14 @@ export const sessionFeedbackDtoSchema = z.object({
   content: z.string().nullable(),
   coachReadAt: z.iso.datetime().nullable(),
   media: z.array(feedbackMediaDtoSchema),
+  /**
+   * Le décompte, RÉSUMÉ exercice par exercice — ce que le coach voit du suivi.
+   *
+   * Résumé côté serveur et non recalculé par chaque client : le coach ne charge pas la séance de
+   * son athlète pour lire un débrief, et lui faire dérouler les blocs pour compter des cases
+   * ferait dépendre l'affichage d'un second appel, sur deux surfaces, pour la même réponse.
+   */
+  trackedExercises: z.array(trackedExerciseDtoSchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

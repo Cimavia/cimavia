@@ -217,6 +217,7 @@ export type {
   MediaType as MediaTypeType,
   RequestFeedbackUploadUrlInput,
   SessionFeedbackDto,
+  TrackedExerciseDto,
   UpsertSessionFeedbackInput,
 } from "./dto/feedback.schema";
 export {
@@ -250,6 +251,7 @@ export {
   mediaTypeSchema,
   requestFeedbackUploadUrlSchema,
   sessionFeedbackDtoSchema,
+  trackedExerciseDtoSchema,
   upsertSessionFeedbackSchema,
 } from "./dto/feedback.schema";
 export type {

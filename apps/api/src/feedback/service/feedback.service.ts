@@ -7,7 +7,11 @@ import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { FEEDBACK_DETAIL_INCLUDE, toSessionFeedbackDto } from "../feedback.mapper";
+import {
+  FEEDBACK_DETAIL_INCLUDE,
+  toSessionFeedbackDto,
+  toTrackedExercises,
+} from "../feedback.mapper";
 
 /**
  * Débrief de séance (CDC §5.6) : écrit par l'athlète, lu par le coach.
@@ -126,7 +130,15 @@ export class FeedbackService {
       include: FEEDBACK_DETAIL_INCLUDE,
     });
     if (feedback == null) return null;
-    return toSessionFeedbackDto(feedback, this.storage);
+
+    // Le décompte ACCOMPAGNE le débrief : il part dans la même réponse, sinon le coach devrait
+    // charger la séance de son athlète juste pour savoir ce qui a été coché.
+    const exercises = await this.db.scheduledSessionExercise.findMany({
+      where: { scheduledSessionId },
+      orderBy: { position: "asc" },
+      select: { id: true, title: true, blocks: true, tracking: true },
+    });
+    return toSessionFeedbackDto(feedback, this.storage, toTrackedExercises(exercises));
   }
 
   private async getOrThrow(scheduledSessionId: string): Promise<SessionFeedbackDto> {

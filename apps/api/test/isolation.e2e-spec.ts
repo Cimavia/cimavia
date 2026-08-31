@@ -1504,6 +1504,40 @@ describe("Suivi d'exécution (#168)", () => {
     expect(res.status).toBe(200);
   });
 
+  it("le COACH lit le décompte avec le débrief, résumé et sans jugement", async () => {
+    // Le chaînon qui manquait : le suivi était écrit, exposé dans le DTO de la séance, et aucun
+    // écran coach ne le montrait. Il accompagne désormais le débrief lui-même — le coach n'a pas
+    // à charger la séance de son athlète pour savoir ce qui a été coché.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      content: "Épaule sensible sur la dernière.",
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 1, 2] } } },
+    });
+
+    const read = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
+    expect(read.status).toBe(200);
+    expect(read.body.trackedExercises).toEqual([
+      {
+        exerciseId: exerciseCopyId,
+        title: "Tractions",
+        state: "PARTIAL",
+        done: 3,
+        total: 4,
+        unit: "SET",
+      },
+    ]);
+
+    // Remis à NON SUIVI : l'état reste distinct de « zéro coché », y compris chez le coach.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: null },
+    });
+    const untracked = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
+    expect(untracked.body.trackedExercises[0]).toMatchObject({
+      state: "UNTRACKED",
+      done: 0,
+      total: 4,
+    });
+  });
+
   it("une réécriture de la séance par le COACH ne détruit ni le dosage ni le suivi", async () => {
     // La régression que ce test verrouille, et qui a détruit des données réelles : l'édition
     // d'une séance planifiée est un replace-all. Tout ce que le client n'émet pas est effacé —
