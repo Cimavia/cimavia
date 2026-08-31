@@ -154,10 +154,11 @@ export class PlanService {
     }
 
     /**
-     * Auto-coaching (#14) : ni facture, ni notification. Le gating de facturation existe pour
-     * qu'un coach ne diffuse pas un cycle sans avoir dit ce qu'il coûte à SON ATHLÈTE — se le
-     * facturer à soi-même n'aurait aucun sens, et l'exiger rendrait la diffusion solo impossible.
-     * Même raison pour les deux notifications : s'annoncer à soi-même ce qu'on vient de faire.
+     * Auto-coaching (#14) : pas de facture. Le gating existe pour qu'un coach ne diffuse pas un
+     * cycle sans avoir dit ce qu'il coûte à SON ATHLÈTE — se le facturer à soi-même n'aurait
+     * aucun sens, et l'exiger rendrait la diffusion solo impossible. Les notifications, elles,
+     * sont filtrées plus bas par `NotificationService` : la règle « on ne s'annonce pas à
+     * soi-même » y vaut pour tous les émetteurs, pas seulement pour celui-ci.
      *
      * La state machine `DRAFT → PUBLISHED`, elle, ne change PAS : c'est elle qui donne au cycle
      * ses `ScheduledSession` lisibles et débriefables, et un cycle solo doit se vivre comme les
@@ -174,13 +175,13 @@ export class PlanService {
       return solo ? null : await this.invoices.issueForPlan(tx, plan);
     });
 
-    if (!solo) {
-      await this.notifications.notifyPlanPublished({
-        athleteId: plan.athleteId,
-        planId: plan.id,
-        planTitle: plan.title,
-      });
-    }
+    // Pas de garde `solo` ici : `NotificationService` ignore déjà toute notification vers soi-même
+    // (#14), et pour TOUS les émetteurs. Une règle, un endroit.
+    await this.notifications.notifyPlanPublished({
+      athleteId: plan.athleteId,
+      planId: plan.id,
+      planTitle: plan.title,
+    });
     if (invoice != null) {
       await this.notifications.notifyInvoiceIssued({
         athleteId: plan.athleteId,

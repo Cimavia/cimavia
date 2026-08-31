@@ -3,8 +3,10 @@ import { NotificationEntityType, NotificationType } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
+import { ClsService } from "nestjs-cls";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import { PrismaService } from "../infra/prisma/prisma.service";
+import { TENANT_CLS_KEY, type TenantContext } from "../tenancy/tenant-context.type";
 
 export type PlanPublishedEvent = {
   athleteId: string;
@@ -121,6 +123,7 @@ export class NotificationService {
     @InjectPinoLogger(NotificationService.name) private readonly logger: PinoLogger,
     // Client NON scopé : voir la règle 1 ci-dessus.
     private readonly prisma: PrismaService,
+    private readonly cls: ClsService,
     config: ConfigService<EnvSchema, true>,
   ) {
     // Aucun secret requis pour envoyer : le token n'est utile qu'avec « Enhanced Security »
@@ -321,6 +324,26 @@ export class NotificationService {
    * ne recevrait jamais rien.
    */
   private async emit(record: NotificationRecord, push: PushContent): Promise<void> {
+    // On ne s'annonce pas à soi-même ce qu'on vient de faire (#14). En auto-coaching, l'émetteur
+    // et le destinataire sont le même compte : diffuser son propre cycle ou écrire son propre
+    // débrief déclencherait une notification pour une action qu'on vient de mener.
+    //
+    // La garde vit ICI plutôt que chez les cinq appelants : elle vaut pour tout émetteur, y
+    // compris ceux qui n'existent pas encore. Elle ne touche PAS `notifyReminderDue`, qui pousse
+    // sans passer par `emit` — un rappel se destine légitimement à celui qui l'a posé, ce n'est
+    // pas l'annonce d'une action mais l'arrivée d'une échéance.
+    //
+    // Hors contexte tenant (aucun acteur), on émet : c'est le cas d'un déclencheur système, où
+    // personne n'a « fait » l'action.
+    const actor = this.cls.get<TenantContext | undefined>(TENANT_CLS_KEY);
+    if (actor?.userId === record.recipientId) {
+      this.logger.debug(
+        { recipientId: record.recipientId, type: record.type },
+        "Notification vers soi-même ignorée (auto-coaching)",
+      );
+      return;
+    }
+
     await this.persist(record);
     await this.push(record.recipientId, push);
   }

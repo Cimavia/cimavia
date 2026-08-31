@@ -5039,6 +5039,11 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
       athleteId: soloId,
       content: "Bonnes sensations",
     });
+
+    // Et AUCUNE notification au passage : ni la diffusion, ni le débrief ne s'annoncent à leur
+    // propre auteur. C'est la règle posée dans `NotificationService`, qui vaut pour tout émetteur.
+    expect((await solo.get("/me/notifications")).body).toHaveLength(0);
+    expect((await solo.get("/me/notifications/unread-count")).body.count).toBe(0);
   });
 
   // Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
