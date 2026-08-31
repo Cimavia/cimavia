@@ -15,6 +15,12 @@ type FeedbackDetailPanelProps = {
  * lecture : le panneau recharge donc le détail plutôt que de réutiliser celles de la liste
  * (qui n'en porte d'ailleurs pas — elle ne compte que les médias).
  */
+/**
+ * Les intertitres du débrief, en ACCENT : le panneau empile trois sections de même poids
+ * typographique, et un gris de plus les faisait disparaître dans le texte qu'elles annoncent.
+ */
+const SECTION_TITLE = "text-cmv-caption text-cmv-accent uppercase tracking-wide";
+
 export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDetailPanelProps>) {
   const { t } = useTranslation();
   const { data: detail, isPending } = useSessionFeedback(feedback?.scheduledSessionId ?? "");
@@ -39,7 +45,7 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
     >
       <div className="flex flex-col gap-cmv-lg">
         <section className="flex flex-col gap-cmv-xs">
-          <h4 className="text-cmv-caption text-cmv-text-mid">{t("feedback.detail.content")}</h4>
+          <h4 className={SECTION_TITLE}>{t("feedback.detail.content")}</h4>
           {/* Un débrief peut n'être que des médias : pas de texte inventé (règle nullable). */}
           <p className="whitespace-pre-wrap text-cmv-text-hi">{feedback.content ?? "—"}</p>
         </section>
@@ -49,7 +55,7 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
         <TrackedExerciseList exercises={detail?.trackedExercises ?? []} />
 
         <section className="flex flex-col gap-cmv-sm">
-          <h4 className="text-cmv-caption text-cmv-text-mid">
+          <h4 className={SECTION_TITLE}>
             {t("feedback.detail.media", { count: feedback.mediaCount })}
           </h4>
 

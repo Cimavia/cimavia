@@ -6,9 +6,10 @@ import { useTranslation } from "react-i18next";
 /**
  * Le décompte tel que le COACH le lit : en lecture, sans jugement.
  *
- * Un exercice non suivi le dit — « non suivi », en gris. Ni pastille, ni rouge, ni « 0 sur 4 » :
- * ne rien cocher ne veut pas dire ne rien faire, et un coach qui verrait du rouge lirait un
- * reproche là où il n'y a qu'une absence.
+ * Un exercice sans suivi le dit — « pas de décompte », en gris. Le terme nomme ce qui MANQUE,
+ * pas ce que l'athlète aurait omis : ni pastille, ni rouge, ni « 0 sur 4 ». Ne rien cocher ne veut
+ * pas dire ne rien faire, et un coach qui verrait du rouge lirait un reproche là où il n'y a
+ * qu'une absence.
  *
  * Rien du tout quand aucun exercice n'a d'unité cochable : un récapitulatif vide n'apprend rien.
  */
@@ -21,7 +22,9 @@ export function TrackedExerciseList({
 
   return (
     <section className="flex flex-col gap-cmv-xs">
-      <h4 className="text-cmv-caption text-cmv-text-mid">{t("feedback.detail.tracking")}</h4>
+      <h4 className="text-cmv-caption text-cmv-accent uppercase tracking-wide">
+        {t("feedback.detail.tracking")}
+      </h4>
       <ul className="flex flex-col gap-cmv-xs">
         {trackable.map((exercise) => (
           <li key={exercise.exerciseId} className="flex items-center gap-cmv-md">

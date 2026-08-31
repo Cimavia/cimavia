@@ -8,9 +8,10 @@ import { CmvText } from "@/shared/component";
 /**
  * Le décompte tel que le COACH le lit : en lecture, sans jugement.
  *
- * Un exercice non suivi le dit — « non suivi », en gris. Ni pastille, ni rouge, ni « 0 sur 4 » :
- * ne rien cocher ne veut pas dire ne rien faire, et un coach qui verrait du rouge lirait un
- * reproche là où il n'y a qu'une absence.
+ * Un exercice sans suivi le dit — « pas de décompte », en gris. Le terme nomme ce qui MANQUE,
+ * pas ce que l'athlète aurait omis : ni pastille, ni rouge, ni « 0 sur 4 ». Ne rien cocher ne veut
+ * pas dire ne rien faire, et un coach qui verrait du rouge lirait un reproche là où il n'y a
+ * qu'une absence.
  */
 export function TrackedExerciseList({
   exercises,
@@ -21,7 +22,7 @@ export function TrackedExerciseList({
 
   return (
     <View className="gap-2">
-      <CmvText className="text-cmv-text-mid text-xs uppercase">
+      <CmvText className="text-cmv-accent text-xs uppercase">
         {t("feedback.detail.tracking")}
       </CmvText>
 
