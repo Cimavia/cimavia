@@ -30,7 +30,10 @@
     "register": {
       "title": "Créer un compte",
       "name": "Nom complet",
-      "role": "Je suis",
+      "capabilities": "Je veux",
+      "capabilityCoach": "Coacher des athlètes",
+      "capabilityAthlete": "Suivre mes entraînements",
+      "capabilityHint": "Les deux sont possibles.",
       "submit": "Créer mon compte",
       "submitting": "Création…",
       "hasAccount": "Déjà un compte ?",
@@ -47,7 +50,8 @@
     "errors": {
       "generic": "Une erreur est survenue. Réessayez.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",
-      "invalidCredentials": "E-mail ou mot de passe incorrect."
+      "invalidCredentials": "E-mail ou mot de passe incorrect.",
+      "noCapability": "Choisissez au moins une option."
     }
   },
   "exercise": {
@@ -95,10 +99,6 @@
       "restBetweenSets": "{{rest}} de repos entre les séries",
       "restBetweenRounds": "repos {{rest}} entre tours"
     }
-  },
-  "role": {
-    "coach": "Coach",
-    "athlete": "Athlète"
   },
   "nav": {
     "dashboard": "Accueil",

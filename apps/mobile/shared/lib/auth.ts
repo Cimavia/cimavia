@@ -32,7 +32,9 @@ export const authClient = createAuthClient({
       user: {
         isCoach: { type: "boolean", required: false },
         isAthlete: { type: "boolean", required: false },
-        role: { type: "string" },
+        // `required: false` comme côté serveur depuis #12 : le signup n'envoie plus `role`, il est
+        // DÉDUIT des capacités. Le déclarer requis ici le rendrait obligatoire à l'inscription.
+        role: { type: "string", required: false },
         locale: { type: "string", required: false },
       },
     }),
