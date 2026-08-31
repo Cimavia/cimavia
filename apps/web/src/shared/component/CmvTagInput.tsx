@@ -68,8 +68,9 @@ export function CmvTagInput({
       return;
     }
     // Retour arrière sur un champ vide = retirer le dernier tag, geste attendu de ce type de champ.
-    if (event.key === "Backspace" && draft === "" && value.length > 0) {
-      remove(value[value.length - 1] as string);
+    if (event.key === "Backspace" && draft === "") {
+      const last = value.at(-1);
+      if (last != null) remove(last);
     }
   }
 

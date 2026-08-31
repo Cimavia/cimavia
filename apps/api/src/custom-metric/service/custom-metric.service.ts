@@ -102,5 +102,5 @@ const UNIQUE_VIOLATION = "P2002";
 function toScaleInput(
   scale: CreateCustomMetricInput["scale"],
 ): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue {
-  return scale === null ? Prisma.DbNull : scale;
+  return scale ?? Prisma.DbNull;
 }

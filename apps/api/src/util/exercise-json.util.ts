@@ -47,7 +47,7 @@ export function parseBlocks(value: Prisma.JsonValue): ExerciseBlocks {
 export function toInstructionsInput(
   instructions: RichDocument | null,
 ): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue {
-  return instructions === null ? Prisma.DbNull : instructions;
+  return instructions ?? Prisma.DbNull;
 }
 
 /**

@@ -41,7 +41,7 @@ export type InstructionMedia = {
  */
 export function useInstructionMedia(documents: readonly ExerciseDocumentDto[]): InstructionMedia {
   const [pending, setPending] = useState<PendingImage[]>([]);
-  const [progress, setProgressState] = useState<Record<string, number>>({});
+  const [progressByMedia, setProgressByMedia] = useState<Record<string, number>>({});
 
   // Une ref en plus de l'état : le nettoyage au démontage doit voir la DERNIÈRE liste, pas celle
   // capturée au premier rendu.
@@ -77,8 +77,8 @@ export function useInstructionMedia(documents: readonly ExerciseDocumentDto[]): 
   );
 
   const setProgress = useCallback((mediaId: string, percent: number) => {
-    setProgressState((current) => ({ ...current, [mediaId]: percent }));
+    setProgressByMedia((current) => ({ ...current, [mediaId]: percent }));
   }, []);
 
-  return { register, resolve, pending, progress, setProgress };
+  return { register, resolve, pending, progress: progressByMedia, setProgress };
 }

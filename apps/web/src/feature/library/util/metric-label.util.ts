@@ -73,5 +73,5 @@ export function metricCellText(
 ): string {
   const shown = formatMetricValue(value, metric, customMetrics);
   const unit = value == null ? null : metricUnitLabel(metric, customMetrics, t);
-  return `${shown}${unit == null ? "" : ` ${unit}`}`;
+  return unit == null ? shown : `${shown} ${unit}`;
 }

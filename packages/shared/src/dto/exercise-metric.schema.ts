@@ -359,7 +359,7 @@ export function metricValueSchemaFor(
 ): z.ZodType<MetricValue> {
   switch (valueType) {
     case MetricValueType.NUMBER:
-      return z.number().finite().nullable();
+      return z.number().nullable();
     case MetricValueType.DURATION:
       return z.number().int().min(0).nullable();
     case MetricValueType.TEXT:

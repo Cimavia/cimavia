@@ -58,7 +58,7 @@ export function BlockGrid({
   function addRow() {
     if (isFull) return;
     const last = block.rows.at(-1);
-    setRows([...block.rows, { id: newRowId(), values: { ...(last?.values ?? {}) } }]);
+    setRows([...block.rows, { id: newRowId(), values: { ...last?.values } }]);
   }
 
   function setValue(rowId: string, metricId: string, value: MetricValue) {

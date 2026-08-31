@@ -12,7 +12,11 @@ const SECONDS_PER_MINUTE = 60;
 export const TRAINING_DURATION_MAX_SECONDS = 24 * 60 * 60;
 
 // « 150 » · « 2:30 » · « 2m30 » · « 2'30 » · « 2min30 » · « 30s » · « 3' ».
-const MINUTES_SECONDS = /^(\d{1,4})\s*(?::|'|m(?:in)?)\s*(\d{1,4})?\s*s?$/i;
+//
+// Les secondes et leur espace de fin sont dans le MÊME groupe optionnel : écrits séparément
+// (`\s*(\d{1,4})?\s*`), deux quantificateurs se disputaient la même suite d'espaces, ce qui
+// donne autant de découpages à essayer que d'espaces — du retour arrière pour rien.
+const MINUTES_SECONDS = /^(\d{1,4})\s*(?::|'|min|m)\s*(?:(\d{1,4})\s*)?s?$/i;
 const SECONDS_ONLY = /^(\d{1,5})\s*s$/i;
 const BARE_NUMBER = /^\d{1,5}$/;
 
