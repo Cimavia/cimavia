@@ -70,12 +70,36 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.4`). Lint/format **Biome** (`2.5.1`, 
 ```bash
 pnpm install
 pnpm turbo dev                 # tous les apps
-pnpm --filter @cmv/api dev    # API seule
+pnpm --filter @cmv/api dev     # API seule
 pnpm --filter @cmv/mobile start
 pnpm --filter @cmv/web dev
-pnpm turbo lint typecheck test # qualité
-pnpm turbo test:e2e --filter=@cmv/api  # e2e (2 composes requis — cf. README)
 pnpm --filter @cmv/api exec prisma migrate dev   # migrations (Neon/local)
+```
+
+### Porte qualité
+
+Tout doit passer avant de conclure une étape. Ces quatre commandes sont celles du job CI
+*Lint + Typecheck + Test*, à l'exception du `--strict`, exigé en local et pas en CI :
+
+```bash
+pnpm biome ci .                # ⚠️ PAS `turbo lint` : @cmv/shared n'a pas de script `lint`,
+                               #    turbo le saute EN SILENCE. La CI lance bien celle-ci.
+pnpm turbo typecheck test
+pnpm check:i18n                # doit sortir en 0
+pnpm check:i18n --strict       # + les clés mortes — plus strict que la CI
+```
+
+E2E et builds de production, selon ce qui est touché. **Les e2e sont un check requis sur `main`** :
+
+```bash
+docker compose -f apps/api/docker-compose.test.yml up -d
+docker compose -f apps/api/docker-compose.yml run --rm minio-setup
+pnpm turbo test:e2e --filter=@cmv/api
+
+pnpm --filter @cmv/web exec vite build
+pnpm --filter @cmv/mobile exec expo export --platform android
+                               # ⚠️ depuis le paquet : la config Expo est dans apps/mobile,
+                               #    lancée à la racine la commande échoue sans raison lisible
 ```
 
 ## Façon de travailler (collaboration)
@@ -84,7 +108,7 @@ pnpm --filter @cmv/api exec prisma migrate dev   # migrations (Neon/local)
 - **Commits atomiques relus 1 par 1** : livrer par petits incréments cohérents, donner le commit à faire, et attendre qu'il soit relu/commité avant de continuer. Ne jamais committer/pousser sans demande explicite.
 - **Kylian teste/vérifie lui-même** (migrations, e2e, uploads, app) : préparer de quoi tester ; il exécute et rapporte le résultat.
 - **Actions sur interfaces web** (Scaleway, Neon, SonarCloud, secrets, branch protection) = Kylian les fait — les **lister explicitement** plutôt que tenter.
-- Qualité : `pnpm turbo lint typecheck test` vert avant de conclure une étape.
+- Qualité : la **porte ci-dessus** verte avant de conclure une étape — `turbo lint` seul ne suffit pas.
 - Git flow, commits signés, secrets CI : voir `CONTRIBUTING.md`.
 
 ## Hébergement

@@ -20,6 +20,7 @@ import {
   MetricSource,
   metricValueTypeOf,
   restPhrase,
+  scaleFor,
   segmentsDuration,
   structurePhrase,
   timerFor,
@@ -880,5 +881,57 @@ describe("blockSegments", () => {
       rows: [{ id: "r1", values: { col_effort: 30 } }],
     });
     expect(segmentsDuration(blockSegments(block))).toBe(30 * 3 + 45 * 2);
+  });
+});
+
+describe("scaleFor", () => {
+  const gradeColumn = {
+    id: "col_grade",
+    source: MetricSource.CATALOG,
+    key: MetricKey.GRADE,
+    unit: MetricUnit.NONE,
+    label: null,
+    collapsed: false,
+  } as const;
+
+  it("la cotation du catalogue porte ses paliers, de 4a à 9c", () => {
+    const scale = scaleFor(gradeColumn, []);
+    expect(scale?.[0]).toBe("4a");
+    expect(scale?.at(-1)).toBe("9c");
+    // Pas de « + » sous le sixième degré : la cotation française ne les emploie pas.
+    expect(scale).toContain("6a+");
+    expect(scale).not.toContain("5a+");
+  });
+
+  it("une valeur hors échelle est REFUSÉE, ce qu'une cotation sans paliers laissait passer", () => {
+    const block = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 1, restBetweenSetsSeconds: null },
+      metrics: [gradeColumn],
+      rows: [{ id: "r1", values: { col_grade: "12z" } }],
+    });
+
+    expect(validateBlockValues(block, [])).toHaveLength(1);
+  });
+
+  it("une métrique maison garde SON échelle, et une métrique sans échelle rend null", () => {
+    const custom: CustomMetric = {
+      id: "cm_1",
+      label: "Cotation bloc",
+      unit: null,
+      valueType: MetricValueType.SCALE,
+      scale: ["V0", "V1"],
+    };
+    const customColumn = {
+      id: "col_custom",
+      source: MetricSource.CUSTOM,
+      customMetricId: "cm_1",
+      label: null,
+      collapsed: false,
+    } as const;
+
+    expect(scaleFor(customColumn, [custom])).toEqual(["V0", "V1"]);
+    expect(scaleFor(reps, [])).toBeNull();
   });
 });

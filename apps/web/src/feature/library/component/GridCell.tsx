@@ -6,6 +6,7 @@ import {
   MetricValueType,
   metricValueTypeOf,
   parseTrainingDuration,
+  scaleFor,
 } from "@cmv/shared";
 import { type KeyboardEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -122,10 +123,7 @@ function DurationCell({ value, onChange, onCommitLine }: Readonly<GridCellProps>
 
 function ScaleCell({ metric, customMetrics, value, onChange }: Readonly<GridCellProps>) {
   const { t } = useTranslation();
-  const scale =
-    metric.source === "CUSTOM"
-      ? (customMetrics.find((custom) => custom.id === metric.customMetricId)?.scale ?? [])
-      : [];
+  const scale = scaleFor(metric, customMetrics) ?? [];
 
   return (
     <select

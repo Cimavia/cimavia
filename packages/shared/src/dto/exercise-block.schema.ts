@@ -6,6 +6,7 @@ import {
 } from "../util/training-duration.util";
 import {
   type CustomMetric,
+  catalogScaleOf,
   METRIC_CATALOG,
   MetricKey,
   type MetricValue,
@@ -778,9 +779,21 @@ export type BlockValidationIssue = {
 // `rowId` vide : l'anomalie porte sur la colonne entière, pas sur une cellule.
 const COLUMN_WIDE = "";
 
-function scaleOf(metric: BlockMetric, customMetrics: readonly CustomMetric[]): OrderedScale | null {
-  if (metric.source === MetricSource.CATALOG) return null;
-  return customMetrics.find((custom) => custom.id === metric.customMetricId)?.scale ?? null;
+/**
+ * L'échelle d'une colonne, MAISON ou livrée avec le catalogue — ou `null` si elle n'en a pas.
+ *
+ * Un seul point de résolution : la grille, le menu de colonne et la validation la cherchaient
+ * chacun de leur côté, et tous les trois ne regardaient que les métriques maison. Une échelle
+ * livrée n'aurait été vue nulle part.
+ */
+export function scaleFor(
+  metric: BlockMetric,
+  customMetrics: readonly CustomMetric[],
+): OrderedScale | null {
+  if (metric.source === MetricSource.CUSTOM) {
+    return customMetrics.find((custom) => custom.id === metric.customMetricId)?.scale ?? null;
+  }
+  return catalogScaleOf(metric.key);
 }
 
 function cellIssues(
@@ -817,7 +830,7 @@ function columnIssues(
     ];
   }
 
-  const valueSchema = metricValueSchemaFor(valueType, scaleOf(metric, customMetrics));
+  const valueSchema = metricValueSchemaFor(valueType, scaleFor(metric, customMetrics));
   const collapseIssue =
     metric.collapsed && !canCollapseMetric(block, metric.id)
       ? [
