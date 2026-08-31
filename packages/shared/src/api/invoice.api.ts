@@ -1,4 +1,6 @@
+import type { CapabilityName } from "../capability";
 import type { InvoiceDto, UpdateInvoiceStatusInput } from "../dto/invoice.schema";
+import { asKey, asQuery } from "./as-capability";
 import type { ApiClient } from "./client";
 
 /**
@@ -22,13 +24,15 @@ import type { ApiClient } from "./client";
  */
 export const invoiceKeys = {
   all: ["invoices"] as const,
-  list: () => ["invoices", "list"] as const,
+  /** `as` fait partie de la clé : les deux titres lisent la même URL et rendent des listes
+   * différentes (émises contre reçues) — cf. `asKey`. */
+  list: (as: CapabilityName | null) => ["invoices", "list", asKey(as)] as const,
 };
 
 export type InvoiceApi = {
   /** Les factures émises de l'acteur courant, de la plus récente à la plus ancienne (ordre imposé
    * par l'API). Les brouillons (`DRAFT`) en sont exclus côté service. */
-  list: () => Promise<InvoiceDto[]>;
+  list: (as: CapabilityName | null) => Promise<InvoiceDto[]>;
   /** Bascule payé/impayé : le service pose ou efface `paidAt` selon le statut visé. Coach seul. */
   updateStatus: (id: string, input: UpdateInvoiceStatusInput) => Promise<InvoiceDto>;
   /**
@@ -40,7 +44,7 @@ export type InvoiceApi = {
 
 export function createInvoiceApi(api: ApiClient): InvoiceApi {
   return {
-    list: () => api.get<InvoiceDto[]>("/invoices"),
+    list: (as) => api.get<InvoiceDto[]>(`/invoices${asQuery(as)}`),
     updateStatus: (id, input) => api.patch<InvoiceDto>(`/invoices/${id}/status`, input),
     cancel: (id) => api.post<InvoiceDto>(`/invoices/${id}/cancel`),
   };

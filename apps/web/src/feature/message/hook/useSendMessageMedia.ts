@@ -1,4 +1,5 @@
 import type {
+  CapabilityName,
   MessageDto,
   MultipartUploadTicket,
   RequestMessageUploadUrlInput,
@@ -11,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useToast } from "@/shared/component";
+import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { uploadInParts, uploadToSignedUrl } from "@/shared/lib/upload";
@@ -31,16 +33,17 @@ export function useSendMessageMedia(conversationId: string) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState(0);
+  const as = useExercisedCapability();
 
   const send = useMutation({
     mutationFn: async (source: WebMediaSource) => {
       const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
       setProgress(0);
-      return uploadAndSend(conversationId, prepared, setProgress);
+      return uploadAndSend(conversationId, prepared, setProgress, as);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
     onError: (error) => {
       toast.error(
@@ -64,19 +67,21 @@ async function uploadAndSend(
   conversationId: string,
   media: PreparedWebMedia,
   onProgress: (percent: number) => void,
+  // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
+  as: CapabilityName | null,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
   // un PUT unique ne franchirait pas le bord réseau (cf. `upload.schema.ts`).
-  const ticket = await messageApi.requestUploadUrl(conversationId, uploadInput);
+  const ticket = await messageApi.requestUploadUrl(conversationId, uploadInput, as);
   if (ticket.mode === UploadMode.SINGLE) {
     await uploadToSignedUrl(ticket.uploadUrl, media.file, onProgress);
   } else {
-    await sendInParts(conversationId, ticket, media.file, onProgress);
+    await sendInParts(conversationId, ticket, media.file, onProgress, as);
   }
 
   const sendInput = { ...uploadInput, storagePath: ticket.storagePath } as SendMessageInput;
-  return messageApi.sendMessage(conversationId, sendInput);
+  return messageApi.sendMessage(conversationId, sendInput, as);
 }
 
 /**
@@ -90,18 +95,20 @@ async function sendInParts(
   ticket: MultipartUploadTicket,
   file: File,
   onProgress: (percent: number) => void,
+  as: CapabilityName | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
   try {
     await uploadInParts(file, ticket.partUrls, ticket.partSize, onProgress);
-    await messageApi.completeMediaUpload(conversationId, {
-      ...upload,
-      partCount: ticket.partUrls.length,
-    });
+    await messageApi.completeMediaUpload(
+      conversationId,
+      { ...upload, partCount: ticket.partUrls.length },
+      as,
+    );
   } catch (error) {
     // L'échec de l'abandon est avalé : il ne doit pas masquer l'erreur d'origine, la seule sur
     // laquelle l'utilisateur peut agir.
-    await messageApi.abortMediaUpload(conversationId, upload).catch(() => undefined);
+    await messageApi.abortMediaUpload(conversationId, upload, as).catch(() => undefined);
     throw error;
   }
 }
