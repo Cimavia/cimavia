@@ -1,9 +1,11 @@
-import { type BlockSegment, SegmentKind } from "@cmv/shared";
+import { type BlockSegment, type CustomMetric, type ExerciseBlock, SegmentKind } from "@cmv/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type RunnerContext = {
   exerciseId: string;
-  blockId: string;
+  /** Le bloc déroulé : le calque y lit le dosage de la ligne en cours et la forme du bandeau. */
+  block: ExerciseBlock;
+  customMetrics: readonly CustomMetric[];
   /** Le titre de l'exercice, affiché en grand pendant le déroulé. */
   title: string;
 };
@@ -38,10 +40,16 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
     setRemaining(0);
   }, []);
 
-  /** Le segment fini fait avancer SON unité — l'athlète a terminé, le décompte doit le dire. */
+  /**
+   * Le segment fini fait avancer SON unité — mais seulement quand sa DURÉE est le travail.
+   *
+   * Tenir 30 s de gainage, c'est fait quand les 30 s sont passées : la cocher d'office est juste.
+   * Un top d'EMOM, non — la minute tombe que l'athlète ait fait ses trois tractions ou pas, et
+   * cocher au passage inventerait un décompte que personne n'a validé. Il a son « Top fait ».
+   */
   const markUnit = useCallback((blockId: string, segment: BlockSegment | undefined) => {
     if (segment?.unitIndex == null) return;
-    if (segment.kind === SegmentKind.COUNTDOWN) return;
+    if (segment.kind === SegmentKind.COUNTDOWN || segment.kind === SegmentKind.INTERVAL) return;
     doneRef.current(blockId, segment.unitIndex);
   }, []);
 
@@ -69,7 +77,7 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
       // Rattrapage : plusieurs segments ont pu s'écouler pendant que l'app dormait. On s'arrête
       // au premier MANUEL — après lui, plus rien ne s'est écoulé sans l'athlète.
       while (now >= deadline) {
-        markUnit(context.blockId, segments[cursor]);
+        markUnit(context.block.id, segments[cursor]);
         const next = segments[cursor + 1];
         if (next == null) {
           stop();
@@ -113,7 +121,7 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
    */
   const confirm = useCallback(() => {
     if (context == null) return;
-    markUnit(context.blockId, segments[index]);
+    markUnit(context.block.id, segments[index]);
     if (segments[index + 1] == null) {
       stop();
       return;

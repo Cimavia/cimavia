@@ -1,7 +1,9 @@
-import { type BlockSegment, formatTrainingDuration, SegmentKind } from "@cmv/shared";
+import { type BlockSegment, type CustomMetric, type ExerciseBlock, SegmentKind } from "@cmv/shared";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { RunnerBody } from "@/feature/plan/component/RunnerBody";
 import { CmvText } from "@/shared/component";
 
 // i18n-values plan.timer.segment: SegmentKind
@@ -10,6 +12,8 @@ const ADD_SECONDS = 30;
 
 type TimerOverlayProps = {
   title: string;
+  block: ExerciseBlock;
+  customMetrics: readonly CustomMetric[];
   current: BlockSegment;
   remaining: number;
   total: number;
@@ -18,8 +22,15 @@ type TimerOverlayProps = {
   position: string;
   isPaused: boolean;
   armed: boolean;
+  /** Les unités déjà cochées, et les tours comptés — la frise d'un EMOM, le compteur d'un AMRAP. */
+  checked: readonly number[];
+  rounds: number;
   /** Le geste qui clôt un segment manuel et lance le repos. */
   onConfirm: () => void;
+  /** « Top fait » : coche l'unité SANS toucher au chrono — la minute tombe toute seule. */
+  onUnitDone: () => void;
+  /** « Tour fait » : l'AMRAP se compte, et son compteur n'a pas de plafond. */
+  onRoundDone: () => void;
   onPause: () => void;
   onResume: () => void;
   onSkip: () => void;
@@ -40,6 +51,8 @@ type TimerOverlayProps = {
  */
 export function TimerOverlay({
   title,
+  block,
+  customMetrics,
   current,
   remaining,
   total,
@@ -47,7 +60,11 @@ export function TimerOverlay({
   position,
   isPaused,
   armed,
+  checked,
+  rounds,
   onConfirm,
+  onUnitDone,
+  onRoundDone,
   onPause,
   onResume,
   onSkip,
@@ -57,8 +74,6 @@ export function TimerOverlay({
 }: Readonly<TimerOverlayProps>) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  // La barre montre le temps RESTANT : elle se vide, elle ne se remplit pas.
-  const ratio = total === 0 ? 0 : Math.max(0, Math.min(1, remaining / total));
   const awaiting = current.kind === SegmentKind.MANUAL;
 
   return (
@@ -90,33 +105,16 @@ export function TimerOverlay({
         <CmvText className="text-cmv-accent text-sm uppercase">
           {t(`plan.timer.segment.${current.kind}`)}
         </CmvText>
-        {/* Un segment MANUEL n'affiche AUCUN chiffre : « 0 s » ferait croire à un compte à
-            rebours arrivé au bout, alors que rien ne tourne — c'est l'athlète qu'on attend. */}
-        {awaiting ? (
-          <CmvText className="px-4 text-center text-cmv-text-mid">
-            {t("plan.timer.awaiting")}
-          </CmvText>
-        ) : (
-          <>
-            <CmvText className="font-cmv-display text-cmv-chrono text-cmv-text-hi">
-              {formatTrainingDuration(remaining) ?? "0 s"}
-            </CmvText>
-            <CmvText className="text-cmv-text-mid text-sm">
-              {t("plan.timer.outOf", { total: formatTrainingDuration(total) ?? "—" })}
-            </CmvText>
-
-            <View className="h-1 w-full overflow-hidden rounded-full bg-cmv-surface">
-              <View className="h-full bg-cmv-accent" style={{ width: `${ratio * 100}%` }} />
-            </View>
-
-            {/* Le reste du déroulé, pas du seul segment : ce qui dit s'il faut tenir. */}
-            <CmvText className="text-cmv-text-lo text-xs">
-              {t("plan.timer.totalRemaining", {
-                duration: formatTrainingDuration(totalRemaining) ?? "—",
-              })}
-            </CmvText>
-          </>
-        )}
+        <RunnerBody
+          block={block}
+          customMetrics={customMetrics}
+          current={current}
+          remaining={remaining}
+          total={total}
+          totalRemaining={totalRemaining}
+          checked={checked}
+          rounds={rounds}
+        />
 
         {armed ? null : (
           <CmvText className="text-cmv-text-lo text-xs">{t("plan.timer.notArmed")}</CmvText>
@@ -124,19 +122,15 @@ export function TimerOverlay({
       </View>
 
       <View className="gap-3">
-        {awaiting ? (
-          // Enveloppé dans une RANGÉE comme les autres : enfant direct d'une colonne, le `flex-1`
-          // d'`Action` s'appliquerait à la hauteur et étirerait le bouton sur toute la place
-          // libre, au lieu de tenir la même ligne de 56 px que « Passer » et « Arrêter ».
-          <View className="flex-row">
-            <Action label={t("plan.timer.confirm")} onPress={onConfirm} primary />
-          </View>
-        ) : (
+        {/* Le geste PROPRE au segment, quand il y en a un. Un EMOM ne se met pas en pause pour
+            valider un top — la minute tombe de toute façon ; il se coche. */}
+        {primaryAction(current, t, onConfirm, onUnitDone, onRoundDone)}
+
+        {awaiting ? null : (
           <View className="flex-row gap-3">
             <Action
               label={t(isPaused ? "plan.timer.resume" : "plan.timer.pause")}
               onPress={isPaused ? onResume : onPause}
-              primary
             />
             <Action label={t("plan.timer.add", { seconds: ADD_SECONDS })} onPress={onAdd} />
           </View>
@@ -165,5 +159,36 @@ function Action({
     >
       <CmvText className={primary ? "text-cmv-accent-on" : "text-cmv-text-mid"}>{label}</CmvText>
     </Pressable>
+  );
+}
+
+/**
+ * Le bouton principal, s'il y en a un — et il n'y en a pas toujours.
+ *
+ * Enveloppé dans une RANGÉE : enfant direct d'une colonne, le `flex-1` d'`Action` s'appliquerait à
+ * la hauteur et étirerait le bouton sur toute la place libre, au lieu de tenir la même ligne de
+ * 56 px que « Passer » et « Arrêter ».
+ */
+function primaryAction(
+  current: BlockSegment,
+  t: TFunction,
+  onConfirm: () => void,
+  onUnitDone: () => void,
+  onRoundDone: () => void,
+) {
+  const action =
+    current.kind === SegmentKind.MANUAL
+      ? { label: t("plan.timer.confirm"), onPress: onConfirm }
+      : current.kind === SegmentKind.INTERVAL
+        ? { label: t("plan.timer.topDone"), onPress: onUnitDone }
+        : current.kind === SegmentKind.COUNTDOWN
+          ? { label: t("plan.timer.roundDone"), onPress: onRoundDone }
+          : null;
+  if (action === null) return null;
+
+  return (
+    <View className="flex-row">
+      <Action label={action.label} onPress={action.onPress} primary />
+    </View>
   );
 }

@@ -214,7 +214,13 @@
       "nextBody": "{{segment}} · {{duration}}",
       "lastBody": "Exercice terminé.",
       "awaiting": "Le chrono repart quand tu auras terminé.",
-      "confirm": "J'ai terminé — lancer le repos"
+      "confirm": "J'ai terminé — lancer le repos",
+      "beforeNextTop": "avant le prochain top",
+      "timeLeft": "Temps restant",
+      "targetRounds": "objectif {{count}} tour · indicatif",
+      "targetRounds_other": "objectif {{count}} tours · indicatif",
+      "topDone": "Top fait",
+      "roundDone": "Tour fait"
     }
   },
   "media": {
@@ -275,6 +281,9 @@
       "close": "Terminé",
       "untracked": "non suivi",
       "hint": "En lecture seule — corrigeable d'un tap. Ça informe ton débrief, ça ne le remplit pas."
+    },
+    "detail": {
+      "tracking": "Ce que l'athlète a coché"
     }
   },
   "messages": {

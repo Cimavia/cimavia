@@ -101,7 +101,8 @@ export function ExerciseCard({
             onRun={(segments) =>
               onRun(segments, {
                 exerciseId: exercise.id,
-                blockId: block.id,
+                block,
+                customMetrics,
                 title: exercise.title,
               })
             }

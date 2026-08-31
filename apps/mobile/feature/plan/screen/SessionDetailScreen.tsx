@@ -1,5 +1,6 @@
 import {
   type BlockSegment,
+  type BlockTrackingState,
   formatTrainingDuration,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
@@ -63,6 +64,12 @@ export function SessionDetailScreen() {
 
   const alerts = useTimerAlerts(runner, t);
   const timerNotification = useTimerNotification(alerts);
+
+  // Le suivi du bloc en cours de déroulé : la frise des tops et le compteur de tours s'y lisent.
+  const runnerTracking =
+    runner.context == null
+      ? undefined
+      : local.tracking[runner.context.exerciseId]?.[runner.context.block.id];
 
   return (
     <CmvScreen>
@@ -137,6 +144,15 @@ export function SessionDetailScreen() {
         runner={runner}
         armed={timerNotification.armed}
         expanded={expanded}
+        tracking={runnerTracking}
+        onUnitDone={(unitIndex) => {
+          const context = runner.context;
+          if (context != null) local.checkUnit(context.exerciseId, context.block.id, unitIndex);
+        }}
+        onRoundDone={(rounds) => {
+          const context = runner.context;
+          if (context != null) local.setRounds(context.exerciseId, context.block.id, rounds);
+        }}
         onExpand={() => setExpanded(true)}
         onReduce={() => setExpanded(false)}
       />
@@ -154,12 +170,19 @@ function RunnerChrono({
   runner,
   armed,
   expanded,
+  tracking,
+  onUnitDone,
+  onRoundDone,
   onExpand,
   onReduce,
 }: Readonly<{
   runner: ReturnType<typeof useSegmentRunner>;
   armed: boolean;
   expanded: boolean;
+  /** Le suivi du bloc déroulé : la frise des tops et le compteur de tours le lisent. */
+  tracking: BlockTrackingState | undefined;
+  onUnitDone: (unitIndex: number) => void;
+  onRoundDone: (rounds: number) => void;
   onExpand: () => void;
   onReduce: () => void;
 }>) {
@@ -167,59 +190,45 @@ function RunnerChrono({
   const { current, context } = runner;
   if (!runner.active || current == null || context == null) return null;
 
-  if (expanded) {
-    return (
-      <TimerOverlay
-        title={context.title}
-        current={current}
-        remaining={runner.remaining}
-        total={runner.total}
-        totalRemaining={runner.totalRemaining}
-        position={t("plan.timer.position", {
-          current: runner.index + 1,
-          total: runner.segments.length,
-        })}
-        isPaused={runner.isPaused}
-        armed={armed}
-        onConfirm={runner.confirm}
-        onPause={runner.pause}
-        onResume={runner.resume}
-        onSkip={runner.skip}
-        onAdd={() => runner.add(30)}
-        onStop={runner.stop}
-        onReduce={onReduce}
-      />
-    );
-  }
+  const checked = tracking != null && "checked" in tracking ? tracking.checked : [];
+  const rounds = tracking != null && "rounds" in tracking ? tracking.rounds : 0;
+
+  const overlayProps = {
+    title: context.title,
+    block: context.block,
+    customMetrics: context.customMetrics,
+    current,
+    remaining: runner.remaining,
+    total: runner.total,
+    totalRemaining: runner.totalRemaining,
+    position: t("plan.timer.position", {
+      current: runner.index + 1,
+      total: runner.segments.length,
+    }),
+    isPaused: runner.isPaused,
+    armed,
+    checked,
+    rounds,
+    onConfirm: runner.confirm,
+    onUnitDone: () => {
+      if (current.unitIndex != null) onUnitDone(current.unitIndex);
+    },
+    onRoundDone: () => onRoundDone(rounds + 1),
+    onPause: runner.pause,
+    onResume: runner.resume,
+    onSkip: runner.skip,
+    onAdd: () => runner.add(30),
+    onStop: runner.stop,
+    onReduce,
+  };
 
   /**
-   * Le déroulé qui ATTEND ne tient pas dans un bandeau : il n'a pas de temps à montrer, et son
-   * seul geste doit être atteignable. On l'agrandit d'office plutôt que d'inventer un bandeau
-   * muet où rien ne dit ce qu'on attend de l'athlète.
+   * Le déroulé qui ATTEND, un EMOM ou un AMRAP ne tiennent pas dans un bandeau : ils n'ont pas
+   * qu'un temps à montrer, et leur geste — « J'ai terminé », « Top fait », « Tour fait » — doit
+   * être atteignable. On les agrandit d'office plutôt que d'inventer un bandeau muet.
    */
-  if (runner.awaiting) {
-    return (
-      <TimerOverlay
-        title={context.title}
-        current={current}
-        remaining={runner.remaining}
-        total={runner.total}
-        totalRemaining={runner.totalRemaining}
-        position={t("plan.timer.position", {
-          current: runner.index + 1,
-          total: runner.segments.length,
-        })}
-        isPaused={runner.isPaused}
-        armed={armed}
-        onConfirm={runner.confirm}
-        onPause={runner.pause}
-        onResume={runner.resume}
-        onSkip={runner.skip}
-        onAdd={() => runner.add(30)}
-        onStop={runner.stop}
-        onReduce={onReduce}
-      />
-    );
+  if (expanded || runner.awaiting || hasOwnAction(current)) {
+    return <TimerOverlay {...overlayProps} />;
   }
 
   return (
@@ -347,4 +356,13 @@ function alertBody(next: BlockSegment | undefined, t: TFunction): string {
     segment: t(`plan.timer.segment.${next.kind}`),
     duration: formatTrainingDuration(next.seconds) ?? "—",
   });
+}
+
+/** Un segment dont l'athlète pilote lui-même l'issue : il lui faut le grand écran et son bouton. */
+function hasOwnAction(segment: BlockSegment): boolean {
+  return (
+    segment.kind === SegmentKind.MANUAL ||
+    segment.kind === SegmentKind.INTERVAL ||
+    segment.kind === SegmentKind.COUNTDOWN
+  );
 }
