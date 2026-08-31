@@ -6,7 +6,7 @@ import { toReminderFeedEntry } from "../../reminder/reminder.mapper";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { currentActor, exercisedOrThrow } from "../../tenancy/tenant-context.type";
+import { currentActor, runAsCapability } from "../../tenancy/tenant-context.type";
 import { toNotificationDto } from "../notification.mapper";
 
 /**
@@ -21,10 +21,10 @@ import { toNotificationDto } from "../notification.mapper";
  * calculés à la lecture (il n'y a pas de scheduler pour les persister au bon moment). Trois
  * conséquences, qui expliquent la forme de ce service :
  *
- * 1. **Tout est branché par rôle.** `Reminder` n'a pas de scope athlète : lire la table pour un
- *    athlète ne renverrait pas une liste vide, ça LÈVERAIT (fail closed) — et `GET /me/notifications`
- *    partirait en 500 pour tout athlète, sur un écran qui ne parle même pas de rappels. D'où
- *    `isCoach()` avant chaque accès.
+ * 1. **Tout est branché sur la capacité coach.** `Reminder` n'a pas de scope athlète : lire la
+ *    table pour un athlète ne renverrait pas une liste vide, ça LÈVERAIT (fail closed) — et
+ *    `GET /me/notifications` partirait en 500 pour tout athlète, sur un écran qui ne parle même pas
+ *    de rappels. D'où `isCoach()` avant chaque accès, et `asCoach()` autour de chacun.
  * 2. **Les entrées de rappel ont un id préfixé** (`reminder:…`), ce qui garde une seule route de
  *    marquage et laisse les deux UI ignorer qu'il y a deux sources.
  * 3. **La borne s'applique APRÈS la fusion.** Chaque source est bornée, puis le mélange est retrié et
@@ -53,7 +53,7 @@ export class NotificationFeedService {
         orderBy: { createdAt: "desc" },
         take: NOTIFICATION_PAGE_SIZE,
       }),
-      this.isCoach() ? this.reminders.listDue(now, NOTIFICATION_PAGE_SIZE) : [],
+      this.isCoach() ? this.asCoach(() => this.reminders.listDue(now, NOTIFICATION_PAGE_SIZE)) : [],
     ]);
 
     const entries = [...rows.map(toNotificationDto), ...dueReminders.map(toReminderFeedEntry)];
@@ -71,7 +71,7 @@ export class NotificationFeedService {
     const now = new Date();
     const [notifications, dueReminders] = await Promise.all([
       this.db.notification.count({ where: { readAt: null } }),
-      this.isCoach() ? this.reminders.countDueUnread(now) : 0,
+      this.isCoach() ? this.asCoach(() => this.reminders.countDueUnread(now)) : 0,
     ]);
     return { count: notifications + dueReminders };
   }
@@ -110,7 +110,7 @@ export class NotificationFeedService {
     });
     // Seuls les rappels DUS : marquer un rappel encore à venir éteindrait son badge par avance.
     if (this.isCoach()) {
-      await this.reminders.markAllDueRead(now);
+      await this.asCoach(() => this.reminders.markAllDueRead(now));
     }
   }
 
@@ -123,17 +123,28 @@ export class NotificationFeedService {
     if (!this.isCoach()) {
       throw new NotFoundException("Notification introuvable");
     }
-    const reminder = await this.reminders.markDueRead(reminderId);
+    const reminder = await this.asCoach(() => this.reminders.markDueRead(reminderId));
     if (reminder == null) {
       throw new NotFoundException("Notification introuvable");
     }
     return toReminderFeedEntry(reminder);
   }
 
-  // Les rappels sont un outil du coach seul : c'est la capacité EXERCÉE, et non la donnée, qui
-  // décide si la seconde source du centre existe. Un compte à double capacité qui ouvre son centre
-  // « en tant qu'athlète » n'y voit donc pas ses rappels de coach — c'est l'intention.
+  /**
+   * La capacité POSSÉDÉE, pas celle exercée : cette route n'a pas de titre (voir le contrôleur).
+   * Un compte à double capacité voit donc l'intégralité de son centre — ses rappels de coach ET
+   * ce qu'il reçoit comme athlète — ce qui est le sens même d'un centre de notifications.
+   */
   private isCoach(): boolean {
-    return exercisedOrThrow(currentActor(this.cls)) === "coach";
+    return currentActor(this.cls).capabilities.isCoach;
+  }
+
+  /**
+   * Toute lecture de `Reminder` passe par ici. La route ne déclarant aucune capacité, le scope
+   * tenant refuserait la table : on précise le titre au plus près de la lecture, sans en donner un
+   * à la route entière.
+   */
+  private asCoach<T>(fn: () => Promise<T>): Promise<T> {
+    return runAsCapability(this.cls, "coach", fn);
   }
 }

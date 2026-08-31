@@ -4666,6 +4666,17 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
     expect(res.body).toHaveLength(1);
   });
 
+  /**
+   * Le centre de notifications, lui, n'a PAS de titre : il montre ce qui est adressé au compte.
+   * Lui en faire exiger un aurait obligé ce compte à choisir à quel titre il consulte ses
+   * notifications, et à n'en voir que la moitié — d'où l'absence de 400 ici, contrairement aux
+   * factures juste au-dessus. Le contraste entre ces deux tests EST la règle.
+   */
+  it("rend le centre de notifications sans rien préciser", async () => {
+    expect((await dual.get("/me/notifications")).status).toBe(200);
+    expect((await dual.get("/me/notifications/unread-count")).status).toBe(200);
+  });
+
   // Règle dure n°1 : cumuler deux capacités n'ouvre AUCUNE porte vers un autre tenant.
   it("ne franchit la frontière de tenant dans aucun des deux titres", async () => {
     const foreign = await coachB.get("/invoices?as=coach");

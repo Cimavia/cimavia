@@ -1,21 +1,20 @@
 import { Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { NotificationFeedService } from "../service/notification-feed.service";
 
 /**
- * Centre de notifications de l'utilisateur courant (#48). Les DEUX capacités en reçoivent
- * (l'athlète un cycle diffusé, le coach un débrief), d'où `"either"` : `Notification` scope sur
- * `recipientId` quelle que soit la capacité, chacun ne lisant que ce qui lui est adressé.
+ * Centre de notifications de l'utilisateur courant (#48). AUCUNE capacité déclarée, comme pour les
+ * tokens push, et c'est un choix : ce centre montre ce qui m'est ADRESSÉ, sans notion de titre.
+ * Lui en faire déclarer un obligerait un compte à double capacité à choisir à quel titre il
+ * consulte ses notifications — et à n'en voir que la moitié. `Notification` scope sur `recipientId`
+ * quelle que soit la capacité, ce qui suffit.
  *
- * La déclaration n'est pourtant pas décorative, et c'est `PushTokenController` qui montre la
- * différence — lui n'en a aucune. Ce centre lit AUSSI les rappels (#51), et `Reminder` est le seul
- * modèle métier sans scope athlète : sans capacité exercée, l'extension tenant refuse la table et
- * l'écran entier tombe en 500. C'est la panne décrite dans « Appris en #44/#51 », que #10 a
- * ressortie telle quelle en retirant la dérivation depuis le rôle de l'acteur.
+ * Le centre lit pourtant AUSSI les rappels (#51), et `Reminder` est le seul modèle métier sans
+ * scope athlète : sans capacité exercée, l'extension tenant refuse la table (« Appris en #44/#51 »).
+ * C'est `NotificationFeedService` qui le résout, au plus près de la lecture concernée
+ * (`runAsCapability`), plutôt qu'en donnant un titre à la route entière.
  */
 @ApiTags("notifications")
-@RequireCapability("either")
 @Controller("me/notifications")
 export class NotificationController {
   constructor(private readonly feed: NotificationFeedService) {}

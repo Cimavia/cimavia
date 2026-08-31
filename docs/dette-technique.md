@@ -832,7 +832,7 @@ tort).
 |---|---|---|---|
 | C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** Depuis #9, `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Le `databaseHook` les tient alignés à la création, mais rien en base ne l'impose — et à partir de #13, retirer une capacité les fera légitimement diverger (`role=COACH`, `isCoach=false`). C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
 | ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
-| C-3 | **Les clients n'envoient pas encore `?as=`.** Les trois routes servant les deux capacités (`/invoices`, `/conversations`, messages) répondent **400** à un compte qui cumule sans préciser le titre. Sans effet aujourd'hui — aucun compte ne cumule avant #12 — mais le premier qui naîtra prendra ce 400 sur des écrans qui marchaient. Les deux entrées de nav qui portent le paramètre sont le sujet de #129. | 🔴 | [#129](https://github.com/Cimavia/cimavia/issues/129) |
+| C-3 | **Les clients n'envoient pas encore `?as=`.** Les routes servant les deux capacités (`/invoices`, `/conversations`, messages) répondent **400** à un compte qui cumule sans préciser le titre. Sans effet tant qu'aucun compte ne cumule — c'est #12 qui fait naître le premier, donc le paramètre part avec lui. Les deux entrées de nav qui le portent restent à #129. | 🔴 | [#12](https://github.com/Cimavia/cimavia/issues/12) · [#129](https://github.com/Cimavia/cimavia/issues/129) |
 
 > **Appris en #10** (l'ordre des gardes globales n'est pas celui qu'on croit) : deux `APP_GUARD`
 > s'exécutent dans l'ordre où leurs **providers** sont enregistrés, et ceux du module **racine**
@@ -875,6 +875,17 @@ tort).
 > convertis, plus rien ne le lisait côté API. Le retirer transforme la règle en contrainte — un
 > service qui voudrait dériver un droit du persona ne compile plus. Même geste que `CapabilitySource`
 > côté client en #9 : la règle exécutable vaut mieux que la règle déclarée.
+
+> **Corrigé dans #10** (une route sans titre n'a pas à en réclamer un) : `/me/notifications` avait
+> reçu `@RequireCapability("either")` pour une raison purement technique — `tenantField` refusait la
+> table `Reminder` sans capacité exercée. C'était un effet de bord pris pour une décision : un
+> centre de notifications montre ce qui est **adressé** au compte, sans notion de titre, et
+> l'exiger aurait obligé un compte à double capacité à choisir à quel titre il consulte ses
+> notifications — pour n'en voir que la moitié. La route ne déclare donc plus rien ; c'est
+> `runAsCapability` qui précise le titre **au plus près** de la lecture des rappels. Le repère pour
+> la suite : quand une route touche une ressource mono-capacité sans être elle-même d'un seul
+> titre, c'est la LECTURE qu'on qualifie, jamais la route. Deux e2e figent le contraste — 400 sur
+> les factures, 200 sur les notifications, pour le même compte.
 
 > **Tranché en #11** (le premier `CHECK` du projet) : « on ne peut pas être son propre coach » est
 > un invariant absolu, pas une règle de service susceptible d'avoir une exception — il vit donc
