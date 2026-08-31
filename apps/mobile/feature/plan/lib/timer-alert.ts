@@ -92,10 +92,12 @@ async function ensurePermission(): Promise<boolean> {
 
 async function ensureChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
+  // Pas de `sound` : sur un canal, la valeur attendue est un NOM DE FICHIER embarqué dans l'app,
+  // et « default » y était pris pour un son maison introuvable. Omettre le champ laisse le son
+  // système, qui est exactement ce qu'on veut.
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
     name: "Minuteurs",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: PATTERN,
-    sound: "default",
   });
 }
