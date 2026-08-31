@@ -765,7 +765,8 @@
       "subtitle": "{{athlete}} · séance du {{date}}",
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
-      "openFull": "Ouvrir en grand"
+      "openFull": "Ouvrir en grand",
+      "tracking": "Ce que l'athlète a coché"
     },
     "openDone": "Voir / modifier mon débrief",
     "contentLabel": "Retour sur la séance",

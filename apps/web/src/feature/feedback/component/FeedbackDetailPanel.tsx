@@ -1,5 +1,6 @@
 import { type CoachFeedbackSummaryDto, MediaType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
 import { CmvButton, CmvPanel } from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
@@ -42,6 +43,10 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
           {/* Un débrief peut n'être que des médias : pas de texte inventé (règle nullable). */}
           <p className="whitespace-pre-wrap text-cmv-text-hi">{feedback.content ?? "—"}</p>
         </section>
+
+        {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les médias,
+            dans l'ordre où l'athlète l'a envoyé. */}
+        <TrackedExerciseList exercises={detail?.trackedExercises ?? []} />
 
         <section className="flex flex-col gap-cmv-sm">
           <h4 className="text-cmv-caption text-cmv-text-mid">
