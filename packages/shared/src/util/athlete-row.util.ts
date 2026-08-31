@@ -23,7 +23,16 @@ import { comparableText } from "./search.util";
  * fabriquer des objets entiers.
  */
 
-export type AthleteIdentity = { athleteId: string; athleteName: string };
+export type AthleteIdentity = {
+  athleteId: string;
+  athleteName: string;
+  /**
+   * Le coach EST cet athlète (auto-coaching, #14). Porté jusqu'ici plutôt que redérivé d'une
+   * comparaison d'ids : les écrans affichent le nom, pas les identifiants, et rien ne leur dirait
+   * autrement que cette ligne est la leur.
+   */
+  isSelf: boolean;
+};
 
 export type AthletePlanSource = PlanPeriod & {
   id: string;
@@ -74,6 +83,8 @@ export type AthleteRowPlan = {
 export type AthleteRow = {
   athleteId: string;
   athleteName: string;
+  /** Le coach est cet athlète (#14) : l'affichage le signale, la donnée ne change pas. */
+  isSelf: boolean;
   /**
    * Le cycle diffusé courant. `null` = aucun **ou** liste des cycles indisponible : les deux se
    * rendent « — ». C'est l'écran, qui connaît l'état de ses requêtes, qui décide s'il propose
@@ -134,6 +145,7 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
   return input.athletes.map((athlete) => ({
     athleteId: athlete.athleteId,
     athleteName: athlete.athleteName,
+    isSelf: athlete.isSelf,
     plan:
       input.plans == null
         ? null

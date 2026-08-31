@@ -90,9 +90,13 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
           value={athleteId}
           onChange={(event) => setAthleteId(event.target.value)}
           placeholder={t("plan.form.athletePlaceholder")}
+          // « (moi) » sur sa propre entrée : dans une liste d'athlètes, son propre nom ne se
+          // distingue pas des autres — et écrire un cycle pour soi n'est pas le cas courant (#14).
           options={(athletes ?? []).map((relation) => ({
             value: relation.athleteId,
-            label: relation.athleteName,
+            label: relation.isSelf
+              ? t("athlete.self", { name: relation.athleteName })
+              : relation.athleteName,
           }))}
           required
         />

@@ -76,7 +76,9 @@ export function AthleteTrackingTable({
           >
             <span className="flex min-w-0 items-center gap-cmv-sm">
               <CmvAvatar name={row.athleteName} />
-              <span className="truncate text-cmv-body text-cmv-text-hi">{row.athleteName}</span>
+              <span className="truncate text-cmv-body text-cmv-text-hi">
+                {row.isSelf ? t("athlete.self", { name: row.athleteName }) : row.athleteName}
+              </span>
             </span>
 
             <PlanCell plan={row.plan} canOfferPlan={canOfferPlan} />

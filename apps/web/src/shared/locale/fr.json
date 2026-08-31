@@ -700,7 +700,8 @@
     "toast": {
       "invitationCreated": "Invitation créée : transmettez le code à votre athlète",
       "sheetSaved": "Fiche athlète enregistrée"
-    }
+    },
+    "self": "{{name}} (moi)"
   },
   "dashboard": {
     "title": "Tableau de bord",
