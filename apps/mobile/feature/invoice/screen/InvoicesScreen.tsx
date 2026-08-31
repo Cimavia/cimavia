@@ -21,9 +21,15 @@ import {
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { useInvoices, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 import { ScheduleReminderButton } from "@/feature/reminder";
-import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import {
+  CmvButton,
+  CmvCapabilitySwitch,
+  CmvErrorState,
+  CmvScreen,
+  CmvText,
+} from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
-import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActingCapability } from "@/shared/hook/useExercisedCapability";
 import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
@@ -39,7 +45,8 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  */
 export function InvoicesScreen() {
   const { t } = useTranslation();
-  const { isCoach } = useCapabilities();
+  // Le titre EXERCÉ, pas la capacité possédée : un compte qui cumule lit à un titre à la fois.
+  const isCoach = useActingCapability() === "coach";
   const { data: invoices, isPending, isError, isRefetching, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
 
@@ -62,6 +69,10 @@ export function InvoicesScreen() {
           {isCoach ? t("invoice.coach.title") : t("invoice.title")}
         </CmvText>
       </View>
+
+      {/* Ne rend rien pour un compte mono-capacité — la question ne se pose que si les deux
+          réponses existent. */}
+      <CmvCapabilitySwitch />
 
       <ScrollView
         contentContainerClassName="gap-3 px-4 pb-4 pt-4"

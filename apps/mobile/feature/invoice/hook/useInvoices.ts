@@ -1,7 +1,7 @@
 import type { InvoiceDto, UpdateInvoiceStatusInput } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceApi, invoiceKeys } from "@/feature/invoice/api";
-import { useExercisedCapability } from "@/shared/hook/useCapabilities";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 
 /**
  * Les factures ÉMISES de l'acteur courant — le coach celles qu'il a émises, l'athlète les

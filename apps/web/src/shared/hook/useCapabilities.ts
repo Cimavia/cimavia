@@ -1,4 +1,5 @@
 import { type Capabilities, type CapabilityName, capabilitiesOf, Role } from "@cmv/shared";
+import { useSearch } from "@tanstack/react-router";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -36,14 +37,35 @@ export function useCapabilities(): SessionCapabilities {
  * reçues, des fils des deux côtés. Pour tous les autres, l'API n'a qu'une réponse possible et
  * l'URL reste nue — c'est ce qui fait que rien ne change pour les comptes existants.
  *
- * Le titre vient du **persona** (`role`), et c'est exactement l'usage que #9 lui a laissé :
- * l'univers dans lequel le compte atterrit. Ce n'est pas un droit dérivé du rôle — la garde, elle,
- * lit les capacités — c'est une vue par défaut, en attendant que #129 donne deux entrées de
- * navigation et donc un choix explicite.
+ * Depuis #129, le titre vient de l'**URL** (`?as=`), posée par les deux entrées de navigation :
+ * c'est un choix explicite, partageable et survivant au rechargement, là où un état d'écran se
+ * perdrait. Le **persona** (`role`) ne sert plus que de repli, pour les chemins qui atteignent ces
+ * écrans sans passer par la nav — un lien profond, un signet, une notification. Ce n'est pas un
+ * droit dérivé du rôle : la garde, elle, lit les capacités.
  */
 export function useExercisedCapability(): CapabilityName | null {
   const { data } = authClient.useSession();
+  const search = useSearch({ strict: false }) as { as?: unknown };
   const { isCoach, isAthlete } = capabilitiesOf(data?.user);
   if (!isCoach || !isAthlete) return null;
+  if (search.as === "coach" || search.as === "athlete") return search.as;
   return data?.user.role === Role.ATHLETE ? "athlete" : "coach";
+}
+
+/**
+ * Le titre effectivement exercé — toujours une valeur, là où `useExercisedCapability` rend `null`
+ * quand la question ne se pose pas.
+ *
+ * Pour la PRÉSENTATION des écrans servis aux deux capacités : leur titre, leurs textes de liste
+ * vide, et ce qu'on peut y faire. Un compte à double capacité qui lit ses factures « en tant
+ * qu'athlète » ne doit pas y voir l'en-tête du coach ni le bouton « marquer payée » — sa capacité
+ * POSSÉDÉE dirait pourtant oui aux deux.
+ *
+ * Ce n'est pas une garde : qui entre est décidé par la route et le scope tenant. C'est ce que
+ * l'écran montre une fois entré.
+ */
+export function useActingCapability(): CapabilityName {
+  const exercised = useExercisedCapability();
+  const { isCoach } = useCapabilities();
+  return exercised ?? (isCoach ? "coach" : "athlete");
 }

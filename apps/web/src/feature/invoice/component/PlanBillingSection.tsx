@@ -62,7 +62,12 @@ export function PlanBillingSection({ planId, isPublished }: Readonly<PlanBilling
         <div className="flex flex-col gap-cmv-xs">
           <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("invoice.billing.title")}</h2>
           <p className="text-cmv-caption text-cmv-text-mid">{t("invoice.billing.issuedHint")}</p>
-          <Link to="/invoices" className="text-cmv-caption text-cmv-accent hover:underline">
+          {/* Depuis le builder : le coach suit ce qu'il a ÉMIS. */}
+          <Link
+            to="/invoices"
+            search={{ as: "coach" }}
+            className="text-cmv-caption text-cmv-accent hover:underline"
+          >
             {t("invoice.billing.trackLink")}
           </Link>
         </div>

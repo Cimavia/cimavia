@@ -543,7 +543,11 @@
     "myCoach": "Mon coach",
     "planning": "Planning",
     "sessions": "Séances",
-    "myMessages": "Messagerie"
+    "myMessages": "Messagerie",
+    "section": {
+      "coach": "En tant que coach",
+      "athlete": "En tant qu'athlète"
+    }
   },
   "reminder": {
     "title": "Mes rappels",

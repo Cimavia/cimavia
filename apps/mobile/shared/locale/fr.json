@@ -107,7 +107,11 @@
     "messages": "Messages",
     "profile": "Profil",
     "invoices": "Factures",
-    "notifications": "Notifs"
+    "notifications": "Notifs",
+    "section": {
+      "coach": "En tant que coach",
+      "athlete": "En tant qu'athlète"
+    }
   },
   "plan": {
     "thisWeek": "Cette semaine",

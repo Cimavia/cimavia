@@ -94,7 +94,7 @@ export function AthleteTrackingTable({
             <CountCell
               count={row.unreadMessages}
               to="/messages"
-              search={{ athlete: row.athleteId }}
+              search={{ athlete: row.athleteId, as: "coach" }}
             />
 
             <InvoiceCell state={row.invoiceState} />
@@ -193,7 +193,8 @@ function PlanTiming({ plan }: Readonly<{ plan: AthleteRowPlan }>) {
 // Union discriminée par `to` : chaque destination n'accepte QUE le paramètre qu'elle sait lire, et
 // le typecheck refuse un `?athlete=` posé sur `/feedbacks`.
 type CountCellProps =
-  | { count: number | null; to: "/messages"; search: { athlete: string } }
+  // `as: "coach"` : ce tableau EST le tableau de suivi du coach — il ouvre le fil à ce titre.
+  | { count: number | null; to: "/messages"; search: { athlete: string; as: "coach" } }
   | { count: number | null; to: "/feedbacks"; search: { feedback: string | undefined } };
 
 /**
@@ -228,7 +229,8 @@ function InvoiceCell({ state }: Readonly<{ state: AthleteRow["invoiceState"] }>)
 
   const { variant, labelKey } = INVOICE_STATE_BADGE[state];
   return (
-    <Link to="/invoices">
+    // Tableau de suivi du coach : les factures qu'il a émises.
+    <Link to="/invoices" search={{ as: "coach" }}>
       <CmvBadge variant={variant} dot>
         {t(labelKey)}
       </CmvBadge>

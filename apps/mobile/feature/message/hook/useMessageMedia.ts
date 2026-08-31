@@ -16,7 +16,7 @@ import {
   prepareAudio,
 } from "@/feature/message/util/media.util";
 import type { RecordedAudio } from "@/shared/component";
-import { useExercisedCapability } from "@/shared/hook/useCapabilities";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import { StorageUploadError, uploadFileToStorage, uploadPartsToStorage } from "@/shared/lib/upload";
 
 // Source d'un média avant préparation : une pièce jointe choisie, ou une note vocale enregistrée.

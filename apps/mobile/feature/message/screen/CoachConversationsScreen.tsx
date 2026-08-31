@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useAthletes } from "@/feature/athlete";
 import { useConversations } from "@/feature/message/hook/useConversation";
-import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvCapabilitySwitch, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatRelativeTime } from "@/shared/util/date.util";
 
@@ -57,6 +57,9 @@ export function CoachConversationsScreen() {
           {t("messages.title")}
         </CmvText>
       </View>
+
+      {/* Ne rend rien pour un compte mono-capacité (#129). */}
+      <CmvCapabilitySwitch />
 
       <ScrollView
         contentContainerClassName="gap-3 px-4 pb-4 pt-4"

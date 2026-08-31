@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
-import { useExercisedCapability } from "@/shared/hook/useCapabilities";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 
 // Le fil se rafraîchit toutes les 10 s en messagerie asynchrone (CDC §5.8) — mais seulement quand
 // l'écran est au premier plan : polling en continu viderait la batterie.

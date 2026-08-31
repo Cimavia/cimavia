@@ -832,7 +832,7 @@ tort).
 |---|---|---|---|
 | C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** Depuis #9, `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Le `databaseHook` les tient alignés à la création, mais rien en base ne l'impose — et à partir de #13, retirer une capacité les fera légitimement diverger (`role=COACH`, `isCoach=false`). C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
 | ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
-| C-3 | **Les clients n'envoient pas encore `?as=`.** Les routes servant les deux capacités (`/invoices`, `/conversations`, messages) répondent **400** à un compte qui cumule sans préciser le titre. Sans effet tant qu'aucun compte ne cumule — c'est #12 qui fait naître le premier, donc le paramètre part avec lui. Les deux entrées de nav qui le portent restent à #129. | 🔴 | [#12](https://github.com/Cimavia/cimavia/issues/12) · [#129](https://github.com/Cimavia/cimavia/issues/129) |
+| ~~C-3~~ | ~~**Les clients n'envoient pas `?as=`**~~ : les routes servant les deux capacités répondaient 400 à un compte cumulant. | ✅ | résolue en **#12** (le paramètre) et **#129** (le choix explicite) |
 
 > **Appris en #10** (l'ordre des gardes globales n'est pas celui qu'on croit) : deux `APP_GUARD`
 > s'exécutent dans l'ordre où leurs **providers** sont enregistrés, et ceux du module **racine**
@@ -886,6 +886,27 @@ tort).
 > la suite : quand une route touche une ressource mono-capacité sans être elle-même d'un seul
 > titre, c'est la LECTURE qu'on qualifie, jamais la route. Deux e2e figent le contraste — 400 sur
 > les factures, 200 sur les notifications, pour le même compte.
+
+> **Tranché en #129** (le titre vit dans l'URL côté web, dans un contexte côté mobile) : les deux
+> plateformes ne pouvaient pas recevoir le même patron. Sur le web, `/invoices` et `/messages`
+> deviennent **deux entrées de nav** portant `?as=` — ce qui règle du même coup le double
+> surlignage signalé dans #129 (elles visaient la même adresse, `activeProps` les allumait
+> ensemble) et donne un titre partageable, qui survit au rechargement. Une barre d'onglets, elle,
+> ne peut pas doubler ses entrées : mobile reçoit un **sélecteur local** en tête des deux écrans
+> concernés, porté par un contexte parce que le hook de données en a besoin bien plus bas que le
+> sélecteur.
+>
+> **Ce que l'issue annonçait de travers** : « dix onglets ne tiennent pas dans une barre ». La
+> table `TABS` en compte **sept**, dont quatre servis aux deux capacités — le manque n'était pas le
+> nombre mais l'absence de bascule. La densité des sept onglets reste un sujet de design ouvert,
+> distinct de celui-ci.
+>
+> **Le piège trouvé en chemin** : les écrans partagés branchaient leur titre, leurs listes vides et
+> leurs boutons sur `useCapabilities().isCoach` — la capacité **possédée**. Un compte cumulant
+> lisant ses factures « en tant qu'athlète » y aurait vu l'en-tête du coach et le bouton « marquer
+> payée ». D'où `useActingCapability()`, qui rend le titre EXERCÉ et vaut pour la présentation ;
+> `capabilitiesOf` reste pour les gardes. La règle : dès qu'un écran sert les deux capacités, ce
+> qu'il MONTRE suit le titre, pas ce que le compte possède.
 
 > **Tranché en #11** (le premier `CHECK` du projet) : « on ne peut pas être son propre coach » est
 > un invariant absolu, pas une règle de service susceptible d'avoir une exception — il vit donc

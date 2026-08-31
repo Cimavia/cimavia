@@ -1,4 +1,4 @@
-import { hasCapability } from "@cmv/shared";
+import { type Capabilities, type CapabilityName, hasCapability } from "@cmv/shared";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -19,10 +19,10 @@ import { authClient } from "@/shared/lib/auth";
  * « fait de la facturation », l'athlète « a des factures ». Ce n'est pas de la redondance, c'est la
  * même ressource nommée depuis les deux bouts de la relation.
  *
- * Le jour où les DEUX groupes sont peuplés pour un même compte (double capacité, #7), c'est ici que
- * les sections nommées « En tant que coach » / « En tant qu'athlète » se posent : une nav plate de
- * quatorze entrées ne dirait plus à quel titre on fait quoi, et deux entrées vers `/invoices` s'y
- * surligneraient ensemble.
+ * Depuis #129, les entrées sont GROUPÉES par capacité et titrées — mais seulement quand les deux
+ * groupes sont peuplés. Un compte mono-capacité garde donc sa liste plate : lui annoncer « En tant
+ * que coach » alors qu'il n'est que cela n'apprendrait rien et ajouterait un titre à une nav qui
+ * n'a rien à distinguer.
  */
 const NAV_ITEMS = [
   { to: "/", labelKey: "nav.dashboard", capability: "coach" },
@@ -38,6 +38,40 @@ const NAV_ITEMS = [
   { to: "/invoices", labelKey: "nav.myInvoices", capability: "athlete" },
   { to: "/my-coach", labelKey: "nav.myCoach", capability: "athlete" },
 ] as const;
+
+/**
+ * Les deux routes servies aux DEUX capacités. Leurs entrées portent `?as=`, ce qui les rend
+ * distinctes : sans ce paramètre elles visaient la même adresse et se surlignaient **ensemble**
+ * chez un compte à double capacité (#129). C'est aussi le titre que l'API exige de lui (#10).
+ */
+const SHARED_ROUTES = new Set(["/invoices", "/messages"]);
+
+// Les deux seules valeurs que le préfixe peut prendre — `CapabilityName` est un type fermé.
+// i18n-values nav.section: coach, athlete
+/**
+ * Les entrées regroupées par capacité, dans l'ordre de la table. Un groupe VIDE n'apparaît pas —
+ * c'est ce qui rend `sections.length > 1` équivalent à « ce compte cumule ».
+ */
+function navSections(capabilities: Capabilities) {
+  return (["coach", "athlete"] as const)
+    .map((capability) => ({
+      capability,
+      items: NAV_ITEMS.filter(
+        (item) => item.capability === capability && hasCapability(capabilities, capability),
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+/**
+ * Le `search` d'une entrée de nav. Les routes partagées portent leur titre ; les autres n'ont rien
+ * à préciser — TanStack exige néanmoins un objet, et `undefined` y vaut « clé absente ».
+ */
+function searchFor(to: string, capability: CapabilityName) {
+  return SHARED_ROUTES.has(to)
+    ? { as: capability, athlete: undefined, q: undefined, filter: undefined }
+    : { as: undefined, athlete: undefined, q: undefined, filter: undefined };
+}
 
 type CmvAppShellProps = {
   title: string;
@@ -56,7 +90,10 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
    * temps d'un aller-retour.
    */
   const capabilities = useCapabilities();
-  const navItems = NAV_ITEMS.filter((item) => hasCapability(capabilities, item.capability));
+  const sections = navSections(capabilities);
+  // Les titres n'ont de sens qu'en présence des deux groupes : ils disent à quel TITRE on fait
+  // quoi, ce qui ne se pose que pour un compte qui cumule.
+  const showSectionTitles = sections.length > 1;
 
   async function onLogout() {
     await authClient.signOut();
@@ -79,19 +116,35 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
           {t("common.appName")}
         </Link>
 
-        <nav className="flex flex-1 flex-col gap-cmv-xs overflow-y-auto">
-          {navItems.map((item) => (
-            <Link
-              // La capacité fait partie de la clé : une même route peut être listée deux fois,
-              // une par capacité (cf. `/invoices`).
-              key={`${item.capability}:${item.to}`}
-              to={item.to}
-              className="rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
-              activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
-              activeOptions={{ exact: item.to === "/" }}
-            >
-              {t(item.labelKey)}
-            </Link>
+        <nav className="flex flex-1 flex-col gap-cmv-md overflow-y-auto">
+          {sections.map((section) => (
+            <div key={section.capability} className="flex flex-col gap-cmv-xs">
+              {showSectionTitles && (
+                <h2 className="px-cmv-md text-cmv-caption text-cmv-text-low uppercase tracking-wide">
+                  {t(`nav.section.${section.capability}`)}
+                </h2>
+              )}
+              {section.items.map((item) => (
+                <Link
+                  // La capacité fait partie de la clé : une même route est listée deux fois, une
+                  // par capacité (cf. `/invoices`).
+                  key={`${item.capability}:${item.to}`}
+                  to={item.to}
+                  search={searchFor(item.to, section.capability)}
+                  className="rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
+                  activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
+                  // `includeSearch` sur les routes partagées : c'est le paramètre — et lui seul —
+                  // qui distingue les deux entrées vers la même adresse. Sans lui, les deux se
+                  // surlignent ensemble.
+                  activeOptions={{
+                    exact: item.to === "/",
+                    includeSearch: SHARED_ROUTES.has(item.to),
+                  }}
+                >
+                  {t(item.labelKey)}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
 
