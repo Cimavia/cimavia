@@ -8,9 +8,11 @@ datasource db {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth — tables gérées par Better Auth (voir apps/api/src/auth/…).
-// Le `User` porte le profil via *additionalFields* Better Auth : `role` et `locale`
-// sont des scalaires (String) validés côté app par @cmv/shared (Role, Locale) —
-// pas des enums Postgres, car Better Auth ne gère que des types scalaires.
+// Le `User` porte le profil via *additionalFields* Better Auth : `role`, `locale` et les
+// deux capacités sont des scalaires validés côté app par @cmv/shared — pas des enums
+// Postgres, car Better Auth ne gère que des types scalaires (`FieldType` accepte string,
+// number, boolean, date, json). La déclaration en additionalFields n'est pas cosmétique :
+// Better Auth ne renvoie dans `session.user` que les champs DÉCLARÉS.
 // Optionnel : `npx @better-auth/cli generate` peut resynchroniser ces modèles.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -21,6 +23,12 @@ model User {
   emailVerified Boolean  @default(false)
   image         String?
   // additionalFields Better Auth (validés par @cmv/shared) :
+  // Capacités CUMULABLES (#9) : ce qu'un compte a le droit de faire. Indépendantes — jamais
+  // l'une comme la négation de l'autre. Ce sont elles qui fondent un droit, plus `role`.
+  isCoach       Boolean  @default(false)
+  isAthlete     Boolean  @default(false)
+  // Persona d'AFFICHAGE seul (#9) : sur quel univers atterrit un compte à double capacité.
+  // Ne fonde plus aucun droit — `capabilitiesOf()` ne le lit plus.
   role          String // Role : COACH | ATHLETE | ADMIN
   locale        String   @default("fr") // Locale : fr | en
   createdAt     DateTime @default(now())
