@@ -497,7 +497,7 @@
       "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
-      "titleWithAthlete": "{{title}} — {{name}} {{email}}"
+      "titleWithAthlete": "{{title}} — {{name}}"
     },
     "toast": {
       "created": "Cycle « {{title}} » créé",

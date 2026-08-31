@@ -94,7 +94,6 @@ export function PlanBuilderScreen() {
       title={t("plan.builder.titleWithAthlete", {
         title: plan.title,
         name: athleteLabel(plan.athleteId, plan.athleteName),
-        email: plan.athleteEmail,
       })}
       subtitle={t("plan.card.meta", {
         weeks: plan.weekCount,
