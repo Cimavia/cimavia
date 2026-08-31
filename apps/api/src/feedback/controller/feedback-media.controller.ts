@@ -6,12 +6,11 @@ import {
   type CompleteMultipartUploadInput,
   completeMultipartUploadSchema,
   type RequestFeedbackUploadUrlInput,
-  Role,
   requestFeedbackUploadUrlSchema,
 } from "@cmv/shared";
 import { Body, Controller, Delete, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { FeedbackMediaService } from "../service/feedback-media.service";
 
@@ -20,7 +19,7 @@ import { FeedbackMediaService } from "../service/feedback-media.service";
 // Les deux entrées sont des unions discriminées (IMAGE | VIDEO) → pipe de schéma par route,
 // une classe DTO ne pouvant pas étendre un type union.
 @ApiTags("feedback")
-@Roles([Role.ATHLETE])
+@RequireCapability("athlete")
 @Controller("me/scheduled-sessions/:scheduledSessionId/feedback/media")
 export class FeedbackMediaController {
   constructor(private readonly media: FeedbackMediaService) {}

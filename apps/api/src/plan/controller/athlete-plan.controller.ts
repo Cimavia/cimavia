@@ -1,13 +1,12 @@
-import { Role } from "@cmv/shared";
 import { Controller, Get, Param } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { AthletePlanService } from "../service/athlete-plan.service";
 
 // Surface de lecture de l'athlète : deux routes suffisent aux trois écrans mobiles (planning,
 // liste des séances, détail). Aucune écriture — le cycle appartient au coach.
 @ApiTags("plans")
-@Roles([Role.ATHLETE])
+@RequireCapability("athlete")
 @Controller("me")
 export class AthletePlanController {
   constructor(private readonly plans: AthletePlanService) {}

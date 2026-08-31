@@ -1,14 +1,13 @@
-import { Role } from "@cmv/shared";
 import { Controller, Get, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CoachFeedbackService } from "../service/coach-feedback.service";
 import { FeedbackService } from "../service/feedback.service";
 
 // Lecture coach des débriefs de ses athlètes. Aucune écriture du débrief lui-même : il
 // appartient à l'athlète — le coach ne fait que le lire et le marquer comme lu.
 @ApiTags("feedback")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller()
 export class CoachFeedbackController {
   constructor(

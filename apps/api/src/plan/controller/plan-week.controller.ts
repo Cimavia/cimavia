@@ -1,7 +1,6 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Delete, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CopyPlanWeekDto } from "../dto/copy-plan-week.dto";
 import { UpdatePlanWeekDto } from "../dto/update-plan-week.dto";
 import { PlanService } from "../service/plan.service";
@@ -10,7 +9,7 @@ import { PlanWeekCopyService } from "../service/plan-week-copy.service";
 // Ressource à part entière (l'id de semaine suffit à la situer) : évite des routes
 // /plans/:planId/weeks/:weekId où le planId ne servirait qu'à répéter ce que la semaine sait.
 @ApiTags("plans")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("plan-weeks")
 export class PlanWeekController {
   constructor(

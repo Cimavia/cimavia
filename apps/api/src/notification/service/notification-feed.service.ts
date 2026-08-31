@@ -1,12 +1,12 @@
 import type { NotificationDto, UnreadCountDto } from "@cmv/shared";
-import { NOTIFICATION_PAGE_SIZE, parseReminderFeedId, Role } from "@cmv/shared";
+import { NOTIFICATION_PAGE_SIZE, parseReminderFeedId } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { ClsService } from "nestjs-cls";
 import { toReminderFeedEntry } from "../../reminder/reminder.mapper";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { currentActor } from "../../tenancy/tenant-context.type";
+import { currentActor, exercisedOrThrow } from "../../tenancy/tenant-context.type";
 import { toNotificationDto } from "../notification.mapper";
 
 /**
@@ -130,9 +130,10 @@ export class NotificationFeedService {
     return toReminderFeedEntry(reminder);
   }
 
-  // Les rappels sont un outil du coach seul : c'est le rôle, et non la donnée, qui décide si la
-  // seconde source du centre existe.
+  // Les rappels sont un outil du coach seul : c'est la capacité EXERCÉE, et non la donnée, qui
+  // décide si la seconde source du centre existe. Un compte à double capacité qui ouvre son centre
+  // « en tant qu'athlète » n'y voit donc pas ses rappels de coach — c'est l'intention.
   private isCoach(): boolean {
-    return currentActor(this.cls).role === Role.COACH;
+    return exercisedOrThrow(currentActor(this.cls)) === "coach";
   }
 }

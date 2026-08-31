@@ -2,13 +2,32 @@ import { describe, expect, it } from "vitest";
 import { capabilitiesOf, hasCapability } from "./capability";
 import { Role } from "./role";
 
+const NONE = { isCoach: false, isAthlete: false };
+
 describe("capabilitiesOf", () => {
-  it("dérive la capacité coach du rôle COACH", () => {
-    expect(capabilitiesOf({ role: Role.COACH })).toEqual({ isCoach: true, isAthlete: false });
+  it("lit la capacité coach", () => {
+    expect(capabilitiesOf({ isCoach: true, isAthlete: false })).toEqual({
+      isCoach: true,
+      isAthlete: false,
+    });
   });
 
-  it("dérive la capacité athlète du rôle ATHLETE", () => {
-    expect(capabilitiesOf({ role: Role.ATHLETE })).toEqual({ isCoach: false, isAthlete: true });
+  it("lit la capacité athlète", () => {
+    expect(capabilitiesOf({ isCoach: false, isAthlete: true })).toEqual({
+      isCoach: false,
+      isAthlete: true,
+    });
+  });
+
+  /**
+   * Le cas que #7 rend possible et que le rôle exclusif ne produisait jamais : un coach qui se
+   * coache lui-même. Les deux drapeaux sortent vrais ensemble.
+   */
+  it("rend les deux capacités d'un compte qui cumule", () => {
+    expect(capabilitiesOf({ isCoach: true, isAthlete: true })).toEqual({
+      isCoach: true,
+      isAthlete: true,
+    });
   });
 
   /**
@@ -17,41 +36,52 @@ describe("capabilitiesOf", () => {
    * chaque écran gardé clignoterait une fraction de seconde avant de se refermer.
    */
   it("n'accorde aucune capacité sans utilisateur", () => {
-    const none = { isCoach: false, isAthlete: false };
-    expect(capabilitiesOf(null)).toEqual(none);
-    expect(capabilitiesOf(undefined)).toEqual(none);
+    expect(capabilitiesOf(null)).toEqual(NONE);
+    expect(capabilitiesOf(undefined)).toEqual(NONE);
   });
 
   /**
-   * `ADMIN` est dans l'enum (#3) mais n'est attribué à personne, et une API plus récente qu'un
-   * client déployé peut envoyer un rôle qu'il ne connaît pas. Les deux se traitent pareil : rien.
+   * Un client déployé avant #9 ne déclare pas ces champs en `additionalFields`, donc la session ne
+   * les porte pas. Absents ≠ faux du point de vue du transport, identiques du point de vue du
+   * droit : rien.
    */
-  it("n'accorde aucune capacité à un rôle qu'elle ne connaît pas", () => {
-    const none = { isCoach: false, isAthlete: false };
-    expect(capabilitiesOf({ role: Role.ADMIN })).toEqual(none);
-    expect(capabilitiesOf({ role: "SPECTATEUR" })).toEqual(none);
-    expect(capabilitiesOf({ role: "" })).toEqual(none);
+  it("n'accorde aucune capacité quand les champs sont absents", () => {
+    expect(capabilitiesOf({})).toEqual(NONE);
+    expect(capabilitiesOf({ isCoach: null, isAthlete: null })).toEqual(NONE);
   });
 
   /**
-   * Les deux drapeaux sont INDÉPENDANTS, pas un booléen et son inverse. Le rôle exclusif d'
-   * aujourd'hui n'en produit jamais deux à `true`, mais les appelants ne doivent pas s'y fier :
-   * le modèle cible (#7) rend les capacités cumulables.
+   * La valeur traverse une frontière HTTP non typée. Seul un booléen vrai ouvre : c'est ce que
+   * garantit le `=== true`, là où un `?? false` aurait laissé passer `"false"` — une chaîne non
+   * vide est *truthy*, donc un JSON mal sérialisé aurait accordé la capacité.
    */
-  it("rend deux drapeaux distincts, jamais un booléen inversé", () => {
-    const coach = capabilitiesOf({ role: Role.COACH });
-    expect(coach.isAthlete).toBe(false);
-    expect(coach.isCoach).not.toBe(coach.isAthlete);
+  it("n'accorde aucune capacité sur une valeur qui n'est pas un booléen vrai", () => {
+    expect(capabilitiesOf({ isCoach: "true" } as never)).toEqual(NONE);
+    expect(capabilitiesOf({ isCoach: "false" } as never)).toEqual(NONE);
+    expect(capabilitiesOf({ isCoach: 1 } as never)).toEqual(NONE);
+  });
+
+  /**
+   * Le verrou de #9 : `role` survit sur `User` comme persona d'affichage, et ne fonde plus AUCUN
+   * droit. Un compte qui porterait encore `role: COACH` sans la capacité — un compte échappé à la
+   * migration, ou dont la capacité vient d'être retirée en réglages (#13) — n'obtient rien.
+   */
+  it("ignore role, qui ne fonde plus aucun droit", () => {
+    expect(capabilitiesOf({ role: Role.COACH } as never)).toEqual(NONE);
+    expect(capabilitiesOf({ role: Role.COACH, isAthlete: true } as never)).toEqual({
+      isCoach: false,
+      isAthlete: true,
+    });
   });
 });
 
 describe("hasCapability", () => {
   it("répond à une exigence nommée", () => {
-    const coach = capabilitiesOf({ role: Role.COACH });
+    const coach = capabilitiesOf({ isCoach: true });
     expect(hasCapability(coach, "coach")).toBe(true);
     expect(hasCapability(coach, "athlete")).toBe(false);
 
-    const athlete = capabilitiesOf({ role: Role.ATHLETE });
+    const athlete = capabilitiesOf({ isAthlete: true });
     expect(hasCapability(athlete, "athlete")).toBe(true);
     expect(hasCapability(athlete, "coach")).toBe(false);
   });
@@ -64,13 +94,9 @@ describe("hasCapability", () => {
     expect(hasCapability(none, "athlete")).toBe(false);
   });
 
-  /**
-   * Les deux capacités se lisent INDÉPENDAMMENT sur le même compte. Le rôle exclusif d'aujourd'hui
-   * n'en produit jamais deux, mais c'est le cas que #7 rendra courant — et la fonction doit déjà y
-   * répondre, sinon la nav double capacité se construira sur un ternaire faux.
-   */
+  // Les deux capacités se lisent INDÉPENDAMMENT sur le même compte — le cas que #7 rend courant.
   it("satisfait les deux exigences d'un compte à double capacité", () => {
-    const both = { isCoach: true, isAthlete: true };
+    const both = capabilitiesOf({ isCoach: true, isAthlete: true });
     expect(hasCapability(both, "coach")).toBe(true);
     expect(hasCapability(both, "athlete")).toBe(true);
   });

@@ -16,7 +16,7 @@ import { ReminderTickService } from "./service/reminder-tick.service";
  * dépend de celui-ci.
  */
 @Module({
-  // `ReminderTickController` est à part de `ReminderController` : celui-ci porte `@Roles([COACH])`
+  // `ReminderTickController` est à part de `ReminderController` : celui-ci porte la capacité coach
   // au niveau classe, le tick n'a aucun acteur (cf. son en-tête).
   controllers: [ReminderController, ReminderTickController],
   providers: [ReminderService, ReminderTickService],

@@ -16,8 +16,13 @@ export type AuthConfig = {
 
 /**
  * Instance Better Auth branchée sur le PrismaClient **unique** de l'app (adapter Prisma).
- * Le profil (role, locale) vit sur `user` via additionalFields — validés côté app :
+ * Le profil (capacités, role, locale) vit sur `user` via additionalFields — validés côté app :
  * `role` ∈ Role, `locale` ∈ Locale. ADMIN n'est pas auto-assignable à l'inscription.
+ *
+ * Les capacités y sont déclarées, et ce n'est pas cosmétique : Better Auth ne renvoie dans
+ * `session.user` que les champs DÉCLARÉS. Des colonnes Prisma seules ne remonteraient jamais
+ * jusqu'à `authClient.useSession()`, et `capabilitiesOf()` rendrait « aucune capacité » à tout
+ * le monde — nav vide sur les deux plateformes, sans qu'aucune porte qualité ne le voie (#9).
  */
 export function createAuth(prisma: PrismaClient, config: AuthConfig) {
   return betterAuth({
@@ -47,6 +52,17 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     },
     user: {
       additionalFields: {
+        /**
+         * Capacités CUMULABLES (#9) : ce qui fonde un droit, à la place de `role`.
+         *
+         * `input: false` — le client ne les pose pas, elles se dérivent du rôle envoyé au signup
+         * (cf. databaseHooks). #12 inverse ce sens : les cases à cocher deviennent l'entrée, et
+         * `role` en est déduit. D'ici là, un compte créé ici est déjà correct.
+         */
+        isCoach: { type: "boolean", required: false, input: false, defaultValue: false },
+        isAthlete: { type: "boolean", required: false, input: false, defaultValue: false },
+        // Persona d'AFFICHAGE seul depuis #9 : sur quel univers atterrit un compte à double
+        // capacité. Ne fonde plus aucun droit — `capabilitiesOf()` ne le lit plus.
         role: { type: "string", required: true, input: true },
         locale: {
           type: "string",
@@ -67,7 +83,13 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
                 message: "role invalide : COACH ou ATHLETE attendu",
               });
             }
-            return { data: user };
+            // Les capacités se dérivent ICI et nulle part ailleurs. Sans ce hook, un compte créé
+            // après #9 naîtrait aux `@default(false)` du schéma — donc sans AUCUNE capacité, là
+            // où la migration a servi les comptes existants. Deux chemins de création, deux
+            // résultats : c'est exactement ce qu'on ne veut pas laisser diverger.
+            return {
+              data: { ...user, isCoach: role === Role.COACH, isAthlete: role === Role.ATHLETE },
+            };
           },
         },
       },

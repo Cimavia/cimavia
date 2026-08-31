@@ -1,7 +1,6 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { AttachInvoiceDocumentDto } from "../dto/attach-invoice-document.dto";
 import { PlanBillingDto } from "../dto/plan-billing.dto";
 import { RequestInvoiceDocumentUploadUrlDto } from "../dto/request-invoice-document-upload-url.dto";
@@ -14,7 +13,7 @@ import { InvoiceService } from "../service/invoice.service";
  * DU cycle, éditée là où on le construit.
  */
 @ApiTags("invoices")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("plans/:planId/billing")
 export class PlanBillingController {
   constructor(private readonly invoices: InvoiceService) {}

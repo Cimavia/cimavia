@@ -1,13 +1,12 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Get, Param, Put } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { UpdateAthleteSheetDto } from "../dto/update-athlete-sheet.dto";
 import { AthleteSheetService } from "../service/athlete-sheet.service";
 
 // Fiche athlète : champ libre, éditable par le coach uniquement (rôle + tenancy layer).
 @ApiTags("athlete-sheets")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("athletes/:athleteId/sheet")
 export class AthleteSheetController {
   constructor(private readonly sheets: AthleteSheetService) {}

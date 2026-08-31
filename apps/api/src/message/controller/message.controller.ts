@@ -4,14 +4,13 @@ import {
   type CompleteMultipartUploadInput,
   completeMultipartUploadSchema,
   type RequestMessageUploadUrlInput,
-  Role,
   requestMessageUploadUrlSchema,
   type SendMessageInput,
   sendMessageSchema,
 } from "@cmv/shared";
 import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { MessageService } from "../service/message.service";
 import { MessageMediaService } from "../service/message-media.service";
@@ -20,7 +19,7 @@ import { MessageMediaService } from "../service/message-media.service";
 // discriminées (texte | média) → pipe de schéma par route, une classe DTO ne pouvant pas étendre
 // un type union.
 @ApiTags("messages")
-@Roles([Role.COACH, Role.ATHLETE])
+@RequireCapability("either")
 @Controller("conversations/:conversationId/messages")
 export class MessageController {
   constructor(

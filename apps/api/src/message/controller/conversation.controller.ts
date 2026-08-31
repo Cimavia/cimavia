@@ -1,13 +1,13 @@
-import { type OpenConversationInput, openConversationSchema, Role } from "@cmv/shared";
+import { type OpenConversationInput, openConversationSchema } from "@cmv/shared";
 import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { ConversationService } from "../service/conversation.service";
 import { MessageService } from "../service/message.service";
 
 @ApiTags("messages")
-@Roles([Role.COACH, Role.ATHLETE])
+@RequireCapability("either")
 @Controller("conversations")
 export class ConversationController {
   constructor(

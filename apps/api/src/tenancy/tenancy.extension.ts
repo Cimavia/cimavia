@@ -1,4 +1,4 @@
-import { Role } from "@cmv/shared";
+import type { CapabilityName } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
@@ -39,19 +39,32 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
    * ce modèle se verrait refusé par `tenantFilterOrThrow` (fail closed).
    *
    * Ce refus étant une ERREUR (500) et non un 403, deux gardes le précèdent :
-   * `@Roles([Role.COACH])` sur le contrôleur, et le branchement par rôle du centre de
+   * `@RequireCapability("coach")` sur le contrôleur, et le branchement par rôle du centre de
    * notifications (#51), qui ne lit les rappels que pour un coach.
    */
   Reminder: { coach: "coachId" },
 };
 
-// Champ de scope applicable à l'acteur, ou null si le rôle n'a aucun accès à ce modèle.
-function tenantField(model: string, role: string): string | null {
+/**
+ * Champ de scope applicable, ou `null` si la capacité exercée n'a aucun accès à ce modèle.
+ *
+ * Depuis #10, le champ se dérive de la capacité **exercée par la route** et non plus du rôle de
+ * l'acteur — question qui n'avait plus de réponse dès qu'un compte porte les deux : `GET /invoices`
+ * ne pouvait pas savoir s'il fallait montrer les factures émises ou reçues. La route le déclare
+ * (`@RequireCapability`), l'interceptor le résout, on le lit ici.
+ *
+ * `exercised === null` (route qui n'exerce aucune capacité) n'est PAS un refus par défaut : c'est
+ * le cas voulu de `Notification` et `PushToken`, dont le scope est le MÊME champ pour les deux
+ * capacités. La condition l'exprime littéralement — un modèle dont les deux scopes coïncident n'a
+ * pas besoin qu'on choisisse. Tout autre modèle atteint sans capacité déclarée est refusé, ce qui
+ * transforme un oubli de décorateur en panne immédiate plutôt qu'en fuite de tenant.
+ */
+function tenantField(model: string, exercised: CapabilityName | null): string | null {
   const scope = TENANT_SCOPES[model];
   if (!scope) return null;
-  if (role === Role.COACH) return scope.coach ?? null;
-  if (role === Role.ATHLETE) return scope.athlete ?? null;
-  return null; // ADMIN & autres : aucun scope auto en P1 (pas de flux back-office)
+  if (exercised === "coach") return scope.coach ?? null;
+  if (exercised === "athlete") return scope.athlete ?? null;
+  return scope.coach != null && scope.coach === scope.athlete ? scope.coach : null;
 }
 
 const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
@@ -66,8 +79,8 @@ type TenantFilter = Record<string, unknown>;
 /**
  * Le filtre tenant applicable à cette requête, ou une erreur explicite. Trois refus, dans cet
  * ordre : pas d'acteur (requête hors contexte), modèle absent de TENANT_SCOPES (oubli de
- * rattachement), rôle sans accès. Aucun n'est silencieux — un scope manquant doit casser bruyamment
- * plutôt que servir la donnée d'un autre tenant.
+ * rattachement), capacité sans accès. Aucun n'est silencieux — un scope manquant doit casser
+ * bruyamment plutôt que servir la donnée d'un autre tenant.
  */
 function tenantFilterOrThrow(
   model: string,
@@ -82,9 +95,11 @@ function tenantFilterOrThrow(
   if (!(model in TENANT_SCOPES)) {
     throw new Error(`[tenancy] modèle non scopé : ${model} — rattacher au tenant avant usage`);
   }
-  const field = tenantField(model, actor.role);
+  const field = tenantField(model, actor.exercised);
   if (!field) {
-    throw new Error(`[tenancy] rôle ${actor.role} non autorisé sur ${model}`);
+    throw new Error(
+      `[tenancy] capacité ${actor.exercised ?? "(aucune déclarée)"} non autorisée sur ${model}`,
+    );
   }
   return { [field]: actor.userId };
 }

@@ -64,13 +64,13 @@ Plan d'abord, **attendre la validation** (`CLAUDE.md`). Le plan tranche explicit
 - **le mobile suit, reste en l'état, ou reçoit sa propre issue** — vérifier l'état réel de l'écran
   avant de trancher, pas le supposer ;
 - les **issues à créer**, les corrections de journal, le comportement à vide et en panne ;
-- **ce que Kylian devra lancer** pour tester : un scénario, pas une liste de cas.
+- **ce que Le développeur devra lancer** pour tester : un scénario, pas une liste de cas.
 
 ## 5. Livrer
 
 Commits atomiques, **relus un par un**. Pour chacun, donner :
 
-- `git add` **chemin par chemin** (jamais `-A` : l'arbre peut contenir des modifs de Kylian) ;
+- `git add` **chemin par chemin** (jamais `-A` : l'arbre peut contenir des modifs du développeur) ;
 - `git commit -m "..."` complet, conforme commitlint — **sujet en minuscule**, header ≤ 100, corps
   ≤ 100 par ligne, `Closes #n` / `Refs #n` **dans le corps**. Une seule ligne pour le corp du commit.
 - ⚠️ **Pas de backtick ni de `!` dans une chaîne en double quotes** : le shell les interprète.
@@ -81,7 +81,7 @@ relecture avant de produire l'incrément suivant.
 ## 6. Portes
 
 **La porte qualité de `CLAUDE.md`** (section *Porte qualité*) — je lance ce qui est automatisable,
-Kylian lance les e2e, les migrations et l'app. Lui préparer de quoi tester.
+Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les migrations et l'app. Lui préparer les commandes.
 
 ## 7. Journal, issues, board
 
@@ -91,7 +91,10 @@ Kylian lance les e2e, les migrations et l'app. Lui préparer de quoi tester.
 - Les issues à créer se proposent, puis se créent après validation (→ skill `issue`).
 - Toute anomalie de board (statut, titre désynchronisé, relation manquante) se signale.
 
-## 8. Ce que je dois demander
+## 8. Test
+- Préparer un plan de test à la fin de chaque issue pour que le développeur test
+
+## 9. Ce que je dois demander
 
 Le skill ne sait pas : les retours de la bêta, la priorité réelle, les arbitrages produit, ce que
 le développeur a en tête et qui n'est écrit nulle part. **Le demander plutôt que le supposer** — c'est le

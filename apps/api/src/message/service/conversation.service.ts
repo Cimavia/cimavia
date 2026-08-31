@@ -1,12 +1,16 @@
 import type { ConversationDto, OpenConversationInput } from "@cmv/shared";
-import { CoachAthleteStatus, MessageType, Role } from "@cmv/shared";
+import { CoachAthleteStatus, MessageType } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { currentActor, type TenantContext } from "../../tenancy/tenant-context.type";
+import {
+  currentActor,
+  exercisedOrThrow,
+  type TenantContext,
+} from "../../tenancy/tenant-context.type";
 
 /**
  * Fil 1:1 coach ↔ athlète (CDC §5.8). Les DEUX rôles lisent et écrivent : le tenancy layer scope
@@ -69,7 +73,7 @@ export class ConversationService {
     actor: TenantContext,
     athleteId: string | undefined,
   ): Promise<{ coachId: string; athleteId: string }> {
-    if (actor.role === Role.COACH) {
+    if (exercisedOrThrow(actor) === "coach") {
       if (athleteId == null) {
         throw new BadRequestException("athleteId requis pour ouvrir un fil");
       }
@@ -119,8 +123,9 @@ export class ConversationService {
   ): Promise<ConversationDto[]> {
     if (conversations.length === 0) return [];
     const ids = conversations.map((conversation) => conversation.id);
+    const asCoach = exercisedOrThrow(actor) === "coach";
     const counterpartId = (conversation: Conversation) =>
-      actor.role === Role.COACH ? conversation.athleteId : conversation.coachId;
+      asCoach ? conversation.athleteId : conversation.coachId;
 
     // Dernier message de chaque fil (aperçu) : `distinct` garde la 1re ligne par conversation dans
     // l'ordre demandé — donc la plus récente.

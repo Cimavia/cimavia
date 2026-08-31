@@ -6,7 +6,6 @@ import {
   ReminderEntityType,
   ReminderReason,
   ReminderStatus,
-  Role,
 } from "@cmv/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
@@ -80,8 +79,11 @@ export class ReminderTickService {
   ) {}
 
   async run(now: Date): Promise<ReminderTickResultDto> {
+    // `isCoach` et non `role` : depuis #9, un compte peut coacher SANS avoir COACH pour persona
+    // (il porte les deux capacités et atterrit côté athlète). Filtrer sur le rôle l'aurait laissé
+    // hors du balayage — pas d'erreur, juste des rappels qui n'arrivent plus.
     const coaches = await this.prisma.user.findMany({
-      where: { role: Role.COACH },
+      where: { isCoach: true },
       select: { id: true },
     });
 
@@ -101,7 +103,14 @@ export class ReminderTickService {
 
   /** Un contexte tenant pour CE coach : tout ce qui suit passe par l'extension, filtré et injecté. */
   private runForCoach(coachId: string, now: Date): Promise<{ created: number; pushed: number }> {
-    const actor: TenantContext = { userId: coachId, role: Role.COACH };
+    // Acteur SYNTHÉTIQUE : aucune session derrière, donc aucune capacité à lire — on les pose.
+    // `exercised: "coach"` parce que le tick n'agit qu'à ce titre : les rappels sont un outil privé
+    // du coach (seul modèle sans scope athlète, cf. TENANT_SCOPES).
+    const actor: TenantContext = {
+      userId: coachId,
+      capabilities: { isCoach: true, isAthlete: false },
+      exercised: "coach",
+    };
 
     // `run` + `set`, exactement comme `TenancyInterceptor` le fait pour une requête HTTP : c'est le
     // MÊME contrat, avec un acteur choisi au lieu d'un acteur résolu depuis une session.

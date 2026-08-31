@@ -11,16 +11,17 @@ export type SessionCapabilities = Capabilities & {
   /** La session n'est pas encore résolue — ne rien décider tant que c'est vrai. */
   isPending: boolean;
   /**
-   * Session résolue ET présente. Distinct de « aucune capacité » : un compte connecté dont le rôle
-   * est inconnu du client est authentifié sans rien pouvoir faire (cf. `capabilitiesOf`).
+   * Session résolue ET présente. Distinct de « aucune capacité » : un compte connecté dont aucune
+   * capacité ne remonte est authentifié sans rien pouvoir faire (cf. `capabilitiesOf`).
    */
   isAuthenticated: boolean;
 };
 
 /**
- * Point d'entrée unique des capacités côté web. Aucun écran ne lit `authSession.user.role` pour
- * décider d'un droit : la dérivation vit dans `@cmv/shared` (testée), et c'est elle qui changera
- * seule quand #9/#10 remplaceront le rôle exclusif par `isCoach`/`isAthlete`.
+ * Point d'entrée unique des capacités côté web. Aucun écran ne lit la session pour décider d'un
+ * droit : la dérivation vit dans `@cmv/shared` (testée). C'est ce qui a permis à #9 de remplacer
+ * le rôle exclusif par `isCoach`/`isAthlete` sans toucher un seul écran — seul le corps de
+ * `capabilitiesOf` a changé, comme annoncé.
  */
 export function useCapabilities(): SessionCapabilities {
   const { data, isPending } = authClient.useSession();

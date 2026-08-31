@@ -9,6 +9,7 @@ import { LoggerModule } from "nestjs-pino";
 import type { TransportTargetOptions } from "pino";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
+import { CapabilityModule } from "./auth/capability.module";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEMES } from "./config/origins";
 import { CustomMetricModule } from "./custom-metric/custom-metric.module";
@@ -79,6 +80,8 @@ function buildLogTargets(): TransportTargetOptions[] {
         }),
       }),
     }),
+    // APRÈS BetterAuthModule, et l'ordre compte : voir CapabilityModule.
+    CapabilityModule,
     TenancyModule,
     NotificationModule,
     AccountModule,

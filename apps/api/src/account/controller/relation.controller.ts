@@ -1,7 +1,6 @@
-import { Role } from "@cmv/shared";
 import { Controller, Get } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { RelationService } from "../service/relation.service";
 
 @ApiTags("relations")
@@ -11,14 +10,14 @@ export class RelationController {
 
   // Coach : la liste de SES athlètes.
   @Get("athletes")
-  @Roles([Role.COACH])
+  @RequireCapability("coach")
   listAthletes() {
     return this.relations.listAthletes();
   }
 
   // Athlète : SON coach (ou null si autonome).
   @Get("me/coach")
-  @Roles([Role.ATHLETE])
+  @RequireCapability("athlete")
   myCoach() {
     return this.relations.myCoach();
   }

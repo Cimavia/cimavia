@@ -1,7 +1,6 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateScheduledSessionDto } from "../dto/create-scheduled-session.dto";
 import { UpdateScheduledSessionDto } from "../dto/update-scheduled-session.dto";
 import { ScheduledSessionService } from "../service/scheduled-session.service";
@@ -9,7 +8,7 @@ import { ScheduledSessionService } from "../service/scheduled-session.service";
 // Routes coach de la séance planifiée. La création est rattachée à sa semaine (elle n'existe pas
 // hors d'un cycle) ; l'édition et la suppression se font par id, comme toute ressource.
 @ApiTags("plans")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller()
 export class ScheduledSessionController {
   constructor(private readonly sessions: ScheduledSessionService) {}

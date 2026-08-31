@@ -1,14 +1,13 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { AddPlanWeekDto } from "../dto/add-plan-week.dto";
 import { CreatePlanDto } from "../dto/create-plan.dto";
 import { UpdatePlanDto } from "../dto/update-plan.dto";
 import { type ListPlansFilters, PlanService } from "../service/plan.service";
 
 @ApiTags("plans")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("plans")
 export class PlanController {
   constructor(private readonly plans: PlanService) {}

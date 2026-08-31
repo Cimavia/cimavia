@@ -4567,3 +4567,111 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
     expect(hijack.body.counterpartId).toBe(otherAccepted.body.coachId);
   });
 });
+
+/**
+ * Compte à DOUBLE capacité (#10). Il ne peut pas naître par l'API : le signup n'envoie encore
+ * qu'un `role`, et c'est #12 qui lui donnera ses cases à cocher. On pose donc la seconde capacité
+ * en base — sans quoi la bascule de scope se testerait sur parole, et le seul cas où le rôle
+ * exclusif ne savait pas répondre resterait le seul non couvert.
+ */
+async function grantAthleteCapability(email: string): Promise<void> {
+  await app.get(PrismaService).user.update({ where: { email }, data: { isAthlete: true } });
+}
+
+describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => {
+  let coachA: Agent;
+  let dual: Agent;
+  let coachB: Agent;
+  let athleteB: Agent;
+  let dualId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return accepted.body.athleteId;
+  }
+
+  async function issueInvoice(coach: Agent, athleteId: string): Promise<void> {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Cycle facturé",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+  }
+
+  beforeAll(async () => {
+    // `dual` s'inscrit en COACH — son persona — puis reçoit la capacité athlète.
+    coachA = await signUp("dual-coach-a@cmv.test", Role.COACH);
+    dual = await signUp("dual-account@cmv.test", Role.COACH);
+    coachB = await signUp("dual-coach-b@cmv.test", Role.COACH);
+    athleteB = await signUp("dual-athlete-b@cmv.test", Role.ATHLETE);
+
+    await grantAthleteCapability("dual-account@cmv.test");
+    dualId = await link(coachA, dual);
+
+    // Une facture REÇUE par `dual` (émise par coachA), et une facture d'un tenant étranger.
+    await issueInvoice(coachA, dualId);
+    await issueInvoice(coachB, await link(coachB, athleteB));
+  });
+
+  /**
+   * Le cas que le rôle exclusif ne savait pas trancher : `GET /invoices` n'a pas de paramètre, et
+   * pour ce compte les deux réponses existent. Répondre « les émises » par convention laisserait
+   * croire qu'on voit tout — c'est le fallback que la règle nullable interdit.
+   */
+  it("exige de préciser à quel titre on lit (400)", async () => {
+    const res = await dual.get("/invoices");
+    expect(res.status).toBe(400);
+  });
+
+  it("rend les factures REÇUES en tant qu'athlète", async () => {
+    const res = await dual.get("/invoices?as=athlete");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].athleteId).toBe(dualId);
+  });
+
+  /**
+   * La même route, le même compte, l'autre titre : la liste est VIDE parce que `dual` n'a rien
+   * émis. C'est ce qui prouve que le scope a changé de colonne (`athleteId` → `coachId`), et pas
+   * seulement que la garde a laissé passer.
+   */
+  it("rend les factures ÉMISES en tant que coach — vides ici", async () => {
+    const res = await dual.get("/invoices?as=coach");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
+  // Sans ce refus, un compte demanderait le titre qu'il n'a pas : inoffensif tant qu'il n'a rien
+  // de ce côté, jusqu'au jour où il en aurait.
+  it("refuse un titre que le compte ne porte pas (403)", async () => {
+    expect((await coachA.get("/invoices?as=athlete")).status).toBe(403);
+  });
+
+  it("refuse un titre qui n'existe pas (400)", async () => {
+    expect((await dual.get("/invoices?as=admin")).status).toBe(400);
+  });
+
+  // Un compte mono-capacité n'a rien à préciser : sa capacité est la seule réponse possible. C'est
+  // ce qui fait qu'aucun client n'a eu à changer.
+  it("laisse un compte mono-capacité lire sans rien préciser", async () => {
+    const res = await athleteB.get("/invoices");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  // Règle dure n°1 : cumuler deux capacités n'ouvre AUCUNE porte vers un autre tenant.
+  it("ne franchit la frontière de tenant dans aucun des deux titres", async () => {
+    const foreign = await coachB.get("/invoices?as=coach");
+    const foreignId = required(foreign.body[0], "facture du tenant B").id;
+
+    expect((await dual.get(`/invoices/${foreignId}?as=athlete`)).status).toBe(404);
+    expect((await dual.get(`/invoices/${foreignId}?as=coach`)).status).toBe(404);
+  });
+});
