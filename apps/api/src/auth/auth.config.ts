@@ -55,15 +55,21 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
         /**
          * Capacités CUMULABLES (#9) : ce qui fonde un droit, à la place de `role`.
          *
-         * `input: false` — le client ne les pose pas, elles se dérivent du rôle envoyé au signup
-         * (cf. databaseHooks). #12 inverse ce sens : les cases à cocher deviennent l'entrée, et
-         * `role` en est déduit. D'ici là, un compte créé ici est déjà correct.
+         * `input: true` depuis #12 : ce sont désormais ELLES que le signup envoie (deux cases à
+         * cocher), et `role` qui s'en déduit. Le sens de dérivation s'est inversé — voir
+         * databaseHooks.
          */
-        isCoach: { type: "boolean", required: false, input: false, defaultValue: false },
-        isAthlete: { type: "boolean", required: false, input: false, defaultValue: false },
-        // Persona d'AFFICHAGE seul depuis #9 : sur quel univers atterrit un compte à double
-        // capacité. Ne fonde plus aucun droit — `capabilitiesOf()` ne le lit plus.
-        role: { type: "string", required: true, input: true },
+        isCoach: { type: "boolean", required: false, input: true, defaultValue: false },
+        isAthlete: { type: "boolean", required: false, input: true, defaultValue: false },
+        /**
+         * Persona d'AFFICHAGE seul depuis #9 : sur quel univers atterrit un compte à double
+         * capacité. Ne fonde aucun droit — `capabilitiesOf()` ne le lit plus.
+         *
+         * `required: false` depuis #12 : le client ne l'envoie plus, il est DÉDUIT des capacités.
+         * Le laisser en entrée aurait rouvert la porte qu'on vient de fermer — un client pouvant
+         * poser un persona incohérent avec ses capacités.
+         */
+        role: { type: "string", required: false, input: false, defaultValue: Role.COACH },
         locale: {
           type: "string",
           required: false,
@@ -76,20 +82,24 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
       user: {
         create: {
           before: async (user) => {
-            const role = (user as { role?: string }).role;
-            // Seuls COACH / ATHLETE sont auto-assignables à l'inscription ; ADMIN est réservé.
-            if (role !== Role.COACH && role !== Role.ATHLETE) {
+            const { isCoach = false, isAthlete = false } = user as {
+              isCoach?: boolean;
+              isAthlete?: boolean;
+            };
+            // Au moins une capacité : un compte sans aucune ne pourrait RIEN faire, et le fail
+            // closed de `capabilitiesOf` le laisserait devant une application vide sans lui dire
+            // pourquoi. Le refus est ici, à la création, plutôt qu'à chaque écran.
+            if (!isCoach && !isAthlete) {
               throw new APIError("BAD_REQUEST", {
-                message: "role invalide : COACH ou ATHLETE attendu",
+                message: "au moins une capacité requise : coach ou athlète",
               });
             }
-            // Les capacités se dérivent ICI et nulle part ailleurs. Sans ce hook, un compte créé
-            // après #9 naîtrait aux `@default(false)` du schéma — donc sans AUCUNE capacité, là
-            // où la migration a servi les comptes existants. Deux chemins de création, deux
-            // résultats : c'est exactement ce qu'on ne veut pas laisser diverger.
-            return {
-              data: { ...user, isCoach: role === Role.COACH, isAthlete: role === Role.ATHLETE },
-            };
+            // `role` est DÉDUIT, jamais reçu (#12) : il ne dit plus ce qu'on a le droit de faire,
+            // seulement où l'on atterrit. Coach l'emporte quand les deux sont cochées — c'est
+            // l'univers où l'on crée, et le cas qui a motivé #7 est un coach qui se coache
+            // lui-même. Le choix explicite viendra avec les deux sections de nav (#129).
+            const role = isCoach ? Role.COACH : Role.ATHLETE;
+            return { data: { ...user, isCoach, isAthlete, role } };
           },
         },
       },

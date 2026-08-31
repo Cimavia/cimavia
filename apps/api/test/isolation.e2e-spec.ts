@@ -66,11 +66,24 @@ function required<T>(value: T | undefined, what: string): T {
 let app: NestFastifyApplication;
 let baseURL: string;
 
+/**
+ * Inscrit un compte en envoyant ses CAPACITÉS — ce que le signup transmet depuis #12, `role` en
+ * étant déduit côté API. La signature reste par rôle pour les quelque cent appels de ce fichier :
+ * « un coach », « un athlète » dit mieux l'intention du test que deux booléens.
+ */
 async function signUp(email: string, role: string): Promise<Agent> {
+  return signUpWith(email, { isCoach: role === Role.COACH, isAthlete: role === Role.ATHLETE });
+}
+
+/** Inscription à capacités explicites — le seul moyen d'obtenir un compte qui CUMULE. */
+async function signUpWith(
+  email: string,
+  capabilities: { isCoach: boolean; isAthlete: boolean },
+): Promise<Agent> {
   const agent = request.agent(baseURL);
   const res = await agent
     .post("/api/auth/sign-up/email")
-    .send({ name: email, email, password: PASSWORD, role });
+    .send({ name: email, email, password: PASSWORD, ...capabilities });
   expect([200, 201]).toContain(res.status);
   return agent;
 }
@@ -4568,16 +4581,6 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
   });
 });
 
-/**
- * Compte à DOUBLE capacité (#10). Il ne peut pas naître par l'API : le signup n'envoie encore
- * qu'un `role`, et c'est #12 qui lui donnera ses cases à cocher. On pose donc la seconde capacité
- * en base — sans quoi la bascule de scope se testerait sur parole, et le seul cas où le rôle
- * exclusif ne savait pas répondre resterait le seul non couvert.
- */
-async function grantAthleteCapability(email: string): Promise<void> {
-  await app.get(PrismaService).user.update({ where: { email }, data: { isAthlete: true } });
-}
-
 describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => {
   let coachA: Agent;
   let dual: Agent;
@@ -4606,18 +4609,44 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
   }
 
   beforeAll(async () => {
-    // `dual` s'inscrit en COACH — son persona — puis reçoit la capacité athlète.
+    // `dual` coche les DEUX cases : depuis #12, c'est ce que le signup permet.
     coachA = await signUp("dual-coach-a@cmv.test", Role.COACH);
-    dual = await signUp("dual-account@cmv.test", Role.COACH);
+    dual = await signUpWith("dual-account@cmv.test", { isCoach: true, isAthlete: true });
     coachB = await signUp("dual-coach-b@cmv.test", Role.COACH);
     athleteB = await signUp("dual-athlete-b@cmv.test", Role.ATHLETE);
 
-    await grantAthleteCapability("dual-account@cmv.test");
     dualId = await link(coachA, dual);
 
     // Une facture REÇUE par `dual` (émise par coachA), et une facture d'un tenant étranger.
     await issueInvoice(coachA, dualId);
     await issueInvoice(coachB, await link(coachB, athleteB));
+  });
+
+  /**
+   * Un compte sans AUCUNE capacité ne pourrait rien faire, et le fail closed de `capabilitiesOf`
+   * le laisserait devant une application vide sans lui dire pourquoi. Le refus est à la création,
+   * pas à chaque écran.
+   */
+  it("refuse une inscription sans aucune capacité", async () => {
+    const res = await request.agent(baseURL).post("/api/auth/sign-up/email").send({
+      name: "vide@cmv.test",
+      email: "vide@cmv.test",
+      password: PASSWORD,
+      isCoach: false,
+      isAthlete: false,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * `role` est DÉDUIT et non reçu (#12) : coach l'emporte quand les deux cases sont cochées.
+   * C'est le persona — l'univers d'atterrissage — pas un droit.
+   */
+  it("déduit le persona coach d'un compte qui coche les deux", async () => {
+    const session = await dual.get("/api/auth/get-session");
+    expect(session.body.user.role).toBe(Role.COACH);
+    expect(session.body.user.isCoach).toBe(true);
+    expect(session.body.user.isAthlete).toBe(true);
   });
 
   /**
@@ -4698,8 +4727,10 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const ids: string[] = [];
     for (let i = 0; i < depth; i++) {
       const email = `${prefix}-${i}@cmv.test`;
-      agents.push(await signUp(email, Role.COACH));
-      if (i > 0) await grantAthleteCapability(email);
+      // TOUS cumulent, y compris le premier maillon : les tests de boucle lui font accepter une
+      // invitation, et sans la capacité athlète il prendrait un 403 de garde — pas le 409
+      // anti-cycle que ces tests prétendent vérifier.
+      agents.push(await signUpWith(email, { isCoach: true, isAthlete: true }));
     }
     for (let i = 0; i + 1 < depth; i++) {
       const coach = required(agents[i], `coach ${i}`);
@@ -4730,7 +4761,6 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const c = required(agents[2], "maillon C");
     const a = required(agents[0], "maillon A");
 
-    await grantAthleteCapability("cycle-deep-0@cmv.test");
     const invitation = await c.post("/invitations").send({});
     const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
 
@@ -4743,7 +4773,6 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const b = required(agents[1], "maillon B");
     const a = required(agents[0], "maillon A");
 
-    await grantAthleteCapability("cycle-pair-0@cmv.test");
     const invitation = await b.post("/invitations").send({});
     const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
 
@@ -4755,8 +4784,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
    * n'avait pas. Un compte qui cumule peut désormais présenter son propre code.
    */
   it("refuse à un compte à double capacité d'accepter sa propre invitation", async () => {
-    const self = await signUp("cycle-self@cmv.test", Role.COACH);
-    await grantAthleteCapability("cycle-self@cmv.test");
+    const self = await signUpWith("cycle-self@cmv.test", { isCoach: true, isAthlete: true });
 
     const invitation = await self.post("/invitations").send({});
     const res = await self.post("/invitations/accept").send({ code: invitation.body.code });
@@ -4773,7 +4801,6 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const outsider = await signUp("cycle-outsider@cmv.test", Role.COACH);
     const a = required(agents[0], "maillon A");
 
-    await grantAthleteCapability("cycle-join-0@cmv.test");
     const invitation = await outsider.post("/invitations").send({});
     const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
 
