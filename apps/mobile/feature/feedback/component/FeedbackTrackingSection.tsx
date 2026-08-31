@@ -27,7 +27,8 @@ type FeedbackTrackingSectionProps = {
  * tap, exercice par exercice — les mêmes cases que sur la séance, sans changer d'écran ni déplier
  * les trois autres.
  *
- * Un exercice non suivi le DIT — « non suivi », en gris. Ni pastille, ni rouge, ni « 0 sur 4 ».
+ * Un exercice sans suivi le DIT — « pas de décompte », en gris. Le terme nomme ce qui MANQUE,
+ * pas ce que l'athlète aurait omis : ni pastille, ni rouge, ni « 0 sur 4 ».
  */
 export function FeedbackTrackingSection({
   exercises,

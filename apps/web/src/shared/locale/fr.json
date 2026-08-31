@@ -802,7 +802,7 @@
     "tracking": {
       "title": "Ce que tu as coché",
       "edit": "Corriger le décompte de {{exercise}}",
-      "untracked": "non suivi",
+      "untracked": "pas de décompte",
       "hint": "En lecture seule — corrigeable d'un clic. Ça informe ton débrief, ça ne le remplit pas."
     },
     "submit": {

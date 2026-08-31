@@ -26,8 +26,8 @@ type FeedbackTrackingSectionProps = {
  * écran avant l'envoi, donc corriger reste à UN clic, exercice par exercice : le crayon rouvre les
  * mêmes cases que sur la séance, sans changer de page ni déplier les trois autres.
  *
- * Un exercice non suivi le DIT — « non suivi », en gris. Ni pastille, ni rouge, ni « 0 sur 4 » :
- * ne rien cocher ne veut pas dire ne rien faire.
+ * Un exercice sans suivi le DIT — « pas de décompte », en gris. Le terme nomme ce qui MANQUE,
+ * pas ce que l'athlète aurait omis : ni pastille, ni rouge, ni « 0 sur 4 ».
  */
 export function FeedbackTrackingSection({
   exercises,

@@ -279,7 +279,7 @@
       "edit": "Corriger le décompte de {{exercise}}",
       "open": "Corriger",
       "close": "Terminé",
-      "untracked": "non suivi",
+      "untracked": "pas de décompte",
       "hint": "En lecture seule — corrigeable d'un tap. Ça informe ton débrief, ça ne le remplit pas."
     },
     "detail": {
