@@ -4903,3 +4903,107 @@ describe("Capacités modifiables après coup (#13)", () => {
     expect((await agent.get("/exercises")).body).toHaveLength(1);
   });
 });
+
+describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
+  let solo: Agent;
+  let soloId: string;
+  const monday = mondayOfCurrentWeek();
+
+  beforeAll(async () => {
+    solo = await signUpWith("solo@cmv.test", { isCoach: true, isAthlete: true });
+    const list = await solo.get("/athletes");
+    soloId = required(list.body[0], "entrée self dans /athletes").athleteId;
+  });
+
+  /**
+   * L'entrée SYNTHÉTIQUE : il n'existe aucune ligne `CoachAthlete` (le CHECK l'interdit depuis
+   * #11), mais le compte doit pouvoir se désigner comme destinataire. C'est ce qui permet au
+   * builder web de rester inchangé — il lit déjà cette route.
+   */
+  it("se voit lui-même en tête de sa liste d'athlètes", async () => {
+    const res = await solo.get("/athletes");
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({ id: "self", isSelf: true, athleteId: soloId });
+    expect(res.body[0].coachId).toBe(soloId);
+  });
+
+  // Un coach PUR n'est pas son propre athlète : lui ouvrir cette porte lui ferait écrire des
+  // cycles qu'il ne pourrait jamais lire, la lecture passant par les routes athlète.
+  it("ne se voit pas quand il n'a que la capacité coach", async () => {
+    const coachOnly = await signUpWith("solo-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    expect((await coachOnly.get("/athletes")).body).toHaveLength(0);
+  });
+
+  it("refuse un cycle pour soi à un coach sans capacité athlète", async () => {
+    const coachOnly = await signUpWith("solo-coach-2@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const session = await coachOnly.get("/api/auth/get-session");
+    const res = await coachOnly.post("/plans").send({
+      athleteId: session.body.user.id,
+      title: "Pour moi",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * Le parcours complet, et le point de l'issue : la state machine `DRAFT → PUBLISHED` ne change
+   * PAS. C'est elle qui donne au cycle ses `ScheduledSession` lisibles et débriefables.
+   */
+  it("écrit puis diffuse un cycle pour soi, SANS facture ni notification", async () => {
+    const plan = await solo.post("/plans").send({
+      athleteId: soloId,
+      title: "Ma prépa",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+
+    // Le gating de facturation est levé : diffuser ne demande AUCUN terme saisi.
+    const published = await solo.post(`/plans/${plan.body.id}/publish`);
+    expect(published.status).toBe(200);
+    expect(published.body.status).toBe("PUBLISHED");
+
+    // Ni facture émise, ni notification : s'annoncer à soi-même ce qu'on vient de faire.
+    expect((await solo.get("/invoices?as=coach")).body).toHaveLength(0);
+    expect((await solo.get("/invoices?as=athlete")).body).toHaveLength(0);
+    expect((await solo.get("/me/notifications")).body).toHaveLength(0);
+  });
+
+  // Le cycle diffusé se lit par les routes ATHLÈTE, comme n'importe quel autre : c'est tout
+  // l'intérêt d'avoir gardé la state machine.
+  it("relit son propre cycle par les routes athlète", async () => {
+    const mine = await solo.get("/me/plan");
+    expect(mine.status).toBe(200);
+    expect(mine.body?.title).toBe("Ma prépa");
+  });
+
+  // On ne se facture pas soi-même : un refus explicite, plutôt qu'un brouillon saisi pour rien.
+  it("refuse de facturer un cycle écrit pour soi (409)", async () => {
+    const plan = await solo.post("/plans").send({
+      athleteId: soloId,
+      title: "Cycle non facturable",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const res = await solo
+      .put(`/plans/${plan.body.id}/billing`)
+      .send({ amountCents: 5000, dueDate: monday });
+    expect(res.status).toBe(409);
+  });
+
+  // Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
+  // comportement plutôt que de le supposer acquis.
+  it("n'ouvre pas de fil de messagerie avec soi-même", async () => {
+    expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
+      400,
+    );
+    expect((await solo.post("/conversations?as=athlete").send({})).status).toBe(400);
+  });
+});

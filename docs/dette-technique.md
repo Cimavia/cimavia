@@ -921,6 +921,30 @@ tort).
 > `capabilitiesOf` reste pour les gardes. La règle : dès qu'un écran sert les deux capacités, ce
 > qu'il MONTRE suit le titre, pas ce que le compte possède.
 
+> **Tranché en #14** (l'auto-coach est une entrée SYNTHÉTIQUE de sa propre liste) : un coach qui
+> se coache n'a pas de ligne `CoachAthlete`, et ne peut pas en avoir — le CHECK
+> `coach_athlete_not_self` l'interdit depuis #11. `GET /athletes` fabrique donc son entrée, marquée
+> `isSelf`, en tête. Le prix est une ligne sans réalité en base ; le bénéfice est que **le builder
+> web et le tableau de bord ne changent pas**, eux qui lisent déjà cette route. L'alternative
+> — un `athleteId` absent valant « pour moi » — a été écartée : elle entre en collision frontale
+> avec #144 (`athleteId` nullable = cycle **sans athlète affecté**), qui donne à cette absence un
+> sens opposé.
+>
+> **#17 absorbée** : elle et #14 traitaient le même verrou par les deux bouts. `publish` exige une
+> facturation saisie (gating P6) et notifie l'athlète deux fois — en solo, le coach devrait se
+> facturer lui-même pour diffuser son propre cycle, et recevrait deux notifications de lui-même.
+> Impossible donc de livrer #14 « en gardant la state machine `DRAFT → PUBLISHED` », ce qu'elle
+> demandait, sans lever ces trois choses. Ce qui NE change pas : la state machine elle-même, qui
+> donne au cycle ses `ScheduledSession` lisibles et débriefables — un cycle solo se vit comme les
+> autres.
+>
+> **Ce que l'issue annonçait de travers** : elle demandait de modifier `ExerciseController` et
+> `SessionController`. `Exercise` et `Session` sont scopés sur `coachId` **seul** — un compte
+> `isCoach` compose déjà sa bibliothèque, et depuis toujours. Le verrou tenait en une méthode,
+> `PlanService.assertAthleteOwned`. La messagerie, elle, était **déjà** fermée en solo
+> (`resolvePair` exige une relation des deux côtés) : un e2e fige ce comportement plutôt que de le
+> supposer acquis.
+
 > **Tranché en #11** (le premier `CHECK` du projet) : « on ne peut pas être son propre coach » est
 > un invariant absolu, pas une règle de service susceptible d'avoir une exception — il vit donc
 > dans la table (`coach_athlete_not_self`), conformément à `architecture-choice.md`. Le refus 409

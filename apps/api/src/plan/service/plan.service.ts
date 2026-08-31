@@ -21,11 +21,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { Plan, PlanWeek, Prisma } from "@prisma/client";
+import { ClsService } from "nestjs-cls";
 import { InvoiceService } from "../../invoice/service/invoice.service";
 import { NotificationService } from "../../notification/notification.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { currentActor } from "../../tenancy/tenant-context.type";
 import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
 import {
   PLAN_COUNTS_INCLUDE,
@@ -44,6 +46,7 @@ export class PlanService {
     private readonly notifications: NotificationService,
     private readonly invoices: InvoiceService,
     private readonly reminders: ReminderService,
+    private readonly cls: ClsService,
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
@@ -150,24 +153,40 @@ export class PlanService {
       throw new BadRequestException("Un cycle sans semaine n'a rien à diffuser");
     }
 
+    /**
+     * Auto-coaching (#14) : ni facture, ni notification. Le gating de facturation existe pour
+     * qu'un coach ne diffuse pas un cycle sans avoir dit ce qu'il coûte à SON ATHLÈTE — se le
+     * facturer à soi-même n'aurait aucun sens, et l'exiger rendrait la diffusion solo impossible.
+     * Même raison pour les deux notifications : s'annoncer à soi-même ce qu'on vient de faire.
+     *
+     * La state machine `DRAFT → PUBLISHED`, elle, ne change PAS : c'est elle qui donne au cycle
+     * ses `ScheduledSession` lisibles et débriefables, et un cycle solo doit se vivre comme les
+     * autres.
+     */
+    const solo = this.isSelfCoaching(plan);
+
     const invoice = await this.db.$transaction(async (tx) => {
       await tx.plan.update({
         where: { id },
         data: { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
       });
       // Gating : lève si aucune facturation n'a été saisie → la transaction est annulée.
-      return this.invoices.issueForPlan(tx, plan);
+      return solo ? null : await this.invoices.issueForPlan(tx, plan);
     });
 
-    await this.notifications.notifyPlanPublished({
-      athleteId: plan.athleteId,
-      planId: plan.id,
-      planTitle: plan.title,
-    });
-    await this.notifications.notifyInvoiceIssued({
-      athleteId: plan.athleteId,
-      invoiceId: invoice.id,
-    });
+    if (!solo) {
+      await this.notifications.notifyPlanPublished({
+        athleteId: plan.athleteId,
+        planId: plan.id,
+        planTitle: plan.title,
+      });
+    }
+    if (invoice != null) {
+      await this.notifications.notifyInvoiceIssued({
+        athleteId: plan.athleteId,
+        invoiceId: invoice.id,
+      });
+    }
 
     return this.getDto(id);
   }
@@ -261,15 +280,35 @@ export class PlanService {
     return toPlanDto(await this.getDetailOrThrow(id));
   }
 
-  // La relation coach→athlète est scopée par le tenancy layer : un athlète qui n'est pas le sien
-  // (ou une relation inactive) ne remonte pas. La FK, elle, n'impose rien — d'où ce contrôle.
+  /**
+   * La relation coach→athlète est scopée par le tenancy layer : un athlète qui n'est pas le sien
+   * (ou une relation inactive) ne remonte pas. La FK, elle, n'impose rien — d'où ce contrôle.
+   *
+   * **Soi-même est le seul athlète sans relation** (auto-coaching, #14) : un coach qui se coache
+   * n'a pas de ligne `CoachAthlete`, et ne peut pas en avoir (CHECK `coach_athlete_not_self`, #11).
+   * La capacité athlète est donc exigée explicitement — sans elle, un coach pur se créerait des
+   * cycles qu'il ne pourrait jamais lire, la lecture passant par les routes athlète.
+   */
   private async assertAthleteOwned(athleteId: string): Promise<void> {
+    const actor = currentActor(this.cls);
+    if (athleteId === actor.userId) {
+      if (!actor.capabilities.isAthlete) {
+        throw new BadRequestException("Athlète inconnu");
+      }
+      return;
+    }
+
     const relation = await this.db.coachAthlete.findFirst({
       where: { athleteId, status: CoachAthleteStatus.ACTIVE },
     });
     if (relation == null) {
       throw new BadRequestException("Athlète inconnu");
     }
+  }
+
+  /** Un cycle que le coach s'est écrit à lui-même : ni facture, ni notification (#14). */
+  private isSelfCoaching(plan: { coachId: string; athleteId: string }): boolean {
+    return plan.coachId === plan.athleteId;
   }
 
   // Insère des semaines consécutives à partir de `firstWeekNumber` (athleteId dénormalisé

@@ -260,6 +260,15 @@ export class InvoiceService {
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new BadRequestException("Cycle déjà diffusé : sa facturation est figée");
     }
+    /**
+     * Auto-coaching (#14) : on ne se facture pas soi-même. Un refus EXPLICITE plutôt qu'un
+     * brouillon qu'on laisserait saisir pour rien — même principe que le refus de supprimer un
+     * cycle diffusé (#85). `publish` lève d'ailleurs le gating pour ces cycles-là : sans ce
+     * refus ici, le coach saisirait des termes qui ne seraient jamais émis.
+     */
+    if (plan.coachId === plan.athleteId) {
+      throw new ConflictException("Un cycle que vous vous écrivez à vous-même ne se facture pas");
+    }
     return plan;
   }
 
