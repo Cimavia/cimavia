@@ -2,6 +2,7 @@ import { type AthleteRow, type AthleteRowPlan, INVOICE_STATE_BADGE } from "@cmv/
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvAvatar, CmvBadge, CmvButton, CmvProgressBar } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -51,6 +52,7 @@ export function AthleteTrackingTable({
   onOpenSheet,
 }: Readonly<AthleteTrackingTableProps>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
 
   return (
     <div className="overflow-x-auto rounded-cmv-lg border border-cmv-border bg-cmv-surface">
@@ -77,7 +79,7 @@ export function AthleteTrackingTable({
             <span className="flex min-w-0 items-center gap-cmv-sm">
               <CmvAvatar name={row.athleteName} />
               <span className="truncate text-cmv-body text-cmv-text-hi">
-                {row.isSelf ? t("athlete.self", { name: row.athleteName }) : row.athleteName}
+                {athleteLabel(row.athleteId, row.athleteName)}
               </span>
             </span>
 

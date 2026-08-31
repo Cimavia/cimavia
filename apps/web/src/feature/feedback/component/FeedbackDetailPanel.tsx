@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
 import { CmvButton, CmvPanel } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 type FeedbackDetailPanelProps = {
@@ -23,6 +24,7 @@ const SECTION_TITLE = "text-cmv-caption text-cmv-accent uppercase tracking-wide"
 
 export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDetailPanelProps>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const { data: detail, isPending } = useSessionFeedback(feedback?.scheduledSessionId ?? "");
 
   if (feedback == null) return null;
@@ -32,7 +34,7 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
       open
       title={feedback.sessionTitle}
       description={t("feedback.detail.subtitle", {
-        athlete: feedback.athleteName,
+        athlete: athleteLabel(feedback.athleteId, feedback.athleteName),
         date: formatDate(feedback.scheduledDate),
       })}
       onClose={onClose}

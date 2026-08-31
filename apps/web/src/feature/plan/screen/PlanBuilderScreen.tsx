@@ -22,6 +22,7 @@ import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
@@ -29,6 +30,7 @@ type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null }
 
 export function PlanBuilderScreen() {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
@@ -91,7 +93,7 @@ export function PlanBuilderScreen() {
       // qui celui-ci s'adresse compte autant que son nom.
       title={t("plan.builder.titleWithAthlete", {
         title: plan.title,
-        name: plan.athleteName,
+        name: athleteLabel(plan.athleteId, plan.athleteName),
         email: plan.athleteEmail,
       })}
       subtitle={t("plan.card.meta", {

@@ -498,7 +498,8 @@
       "save": "Enregistrer",
       "saving": "Enregistrement…",
       "error": "Impossible d'enregistrer la note. Vérifie ta connexion."
-    }
+    },
+    "self": "{{name}} (moi)"
   },
   "account": {
     "capabilities": {

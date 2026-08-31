@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { CmvBadge, CmvText } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -33,6 +34,7 @@ type AthleteRowCardProps = {
  */
 export function AthleteRowCard({ row }: Readonly<AthleteRowCardProps>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const invoiceBadge = row.invoiceState == null ? null : INVOICE_STATE_BADGE[row.invoiceState];
 
   return (
@@ -48,7 +50,7 @@ export function AthleteRowCard({ row }: Readonly<AthleteRowCardProps>) {
 
       <View className="flex-1 gap-1">
         <CmvText className="text-cmv-text-hi" numberOfLines={1}>
-          {row.athleteName}
+          {athleteLabel(row.athleteId, row.athleteName)}
         </CmvText>
         {/* `null` = liste indisponible → « — ». `0` = tout est lu. Les deux ne disent pas la même
             chose, et un compteur muet ne dirait ni l'un ni l'autre. */}

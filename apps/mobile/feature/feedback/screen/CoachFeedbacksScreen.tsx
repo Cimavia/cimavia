@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "
 import { useCoachFeedbacks } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatRelativeTime } from "@/shared/util/date.util";
 
 /**
@@ -85,6 +86,7 @@ export function CoachFeedbacksScreen() {
 // compte. Un débrief déjà lu est atténué, pas masqué : il reste consultable.
 function FeedbackRow({ feedback }: Readonly<{ feedback: CoachFeedbackSummaryDto }>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const isRead = feedback.coachReadAt != null;
 
   return (
@@ -94,7 +96,7 @@ function FeedbackRow({ feedback }: Readonly<{ feedback: CoachFeedbackSummaryDto 
     >
       <View className="flex-row items-center justify-between gap-2">
         <CmvText className={isRead ? "text-cmv-text-mid" : "text-cmv-text-hi"} numberOfLines={1}>
-          {feedback.athleteName}
+          {athleteLabel(feedback.athleteId, feedback.athleteName)}
         </CmvText>
         <CmvText className="text-cmv-text-lo text-xs">
           {formatRelativeTime(feedback.updatedAt)}

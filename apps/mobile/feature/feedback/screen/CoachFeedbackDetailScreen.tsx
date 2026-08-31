@@ -20,6 +20,7 @@ import {
   CmvVideoLink,
 } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatFullDay } from "@/shared/util/date.util";
 
 /**
@@ -30,6 +31,7 @@ import { formatFullDay } from "@/shared/util/date.util";
  */
 export function CoachFeedbackDetailScreen() {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
 
   const { data: feedback, isPending, isError, refetch } = useCoachFeedbackDetail(sessionId);
@@ -62,7 +64,7 @@ export function CoachFeedbackDetailScreen() {
           <>
             <View className="gap-1">
               <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-                {summary?.athleteName ?? "—"}
+                {summary == null ? "—" : athleteLabel(summary.athleteId, summary.athleteName)}
               </CmvText>
               <CmvText className="text-cmv-text-mid text-sm">
                 {summary == null

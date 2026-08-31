@@ -13,8 +13,8 @@ import { InvoiceState } from "./invoice.util";
 // 2026-10-19 est un lundi ; les cycles démarrent un lundi (planStartDateSchema).
 const TODAY = "2026-10-26";
 
-const LEA = { athleteId: "ath_lea", athleteName: "Léa Moreau", isSelf: false };
-const NOAH = { athleteId: "ath_noah", athleteName: "Noah Fontaine", isSelf: false };
+const LEA = { athleteId: "ath_lea", athleteName: "Léa Moreau" };
+const NOAH = { athleteId: "ath_noah", athleteName: "Noah Fontaine" };
 
 // Cycle de Léa : démarré le 2026-10-19, 4 semaines → on est dans la S2 au 2026-10-26.
 const LEA_PLAN = {
@@ -212,7 +212,6 @@ describe("buildAthleteRows", () => {
     expect(noah).toEqual({
       athleteId: NOAH.athleteId,
       athleteName: NOAH.athleteName,
-      isSelf: false,
       plan: null,
       unreadFeedbacks: 0,
       lastUnreadFeedbackId: null,
@@ -225,7 +224,6 @@ describe("buildAthleteRows", () => {
 const BLANK: AthleteRow = {
   athleteId: "ath_blank",
   athleteName: "",
-  isSelf: false,
   plan: null,
   unreadFeedbacks: 0,
   lastUnreadFeedbackId: null,
@@ -340,26 +338,5 @@ describe("visibleAthleteRows", () => {
     const rows = [rowOf("Zoé Martin"), rowOf("Alice Dupont")];
     visibleAthleteRows(rows, QUERY);
     expect(rows.map((row) => row.athleteName)).toEqual(["Zoé Martin", "Alice Dupont"]);
-  });
-});
-
-/**
- * Le coach qui se coache apparaît dans sa propre liste (#14) : `buildAthleteRows` doit laisser
- * passer le marqueur, sans quoi le tableau de suivi ne pourrait pas distinguer sa ligne.
- */
-describe("buildAthleteRows — auto-coaching", () => {
-  it("propage le marqueur isSelf jusqu'à la ligne", () => {
-    const me = { athleteId: "ath_me", athleteName: "Dual Curl", isSelf: true };
-    const rows = buildAthleteRows({
-      ...FULL,
-      athletes: [me],
-      plans: null,
-      feedbacks: null,
-      conversations: null,
-      invoices: null,
-    });
-
-    expect(rows).toHaveLength(1);
-    expect(rows?.[0]?.isSelf).toBe(true);
   });
 });
