@@ -8,7 +8,11 @@ import {
 import { Reflector } from "@nestjs/core";
 import { ClsService } from "nestjs-cls";
 import type { Observable } from "rxjs";
-import { requiredCapabilityOf } from "../auth/decorator/require-capability.decorator";
+import {
+  AS_CAPABILITY_QUERY,
+  requiredCapabilityOf,
+  resolveExercisedCapability,
+} from "../auth/decorator/require-capability.decorator";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
 
 type RequestUser = CapabilitySource & { id?: string; role?: string };
@@ -31,15 +35,26 @@ export class TenancyInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const request = context.switchToHttp().getRequest<{ user?: RequestUser }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ user?: RequestUser; query?: Record<string, unknown> }>();
     const user = request.user;
 
     if (user?.id != null && user.role != null) {
+      const capabilities = capabilitiesOf(user);
+      const required = requiredCapabilityOf(this.reflector, context);
       const tenant: TenantContext = {
         userId: user.id,
         role: user.role as TenantContext["role"],
-        capabilities: capabilitiesOf(user),
-        exercised: requiredCapabilityOf(this.reflector, context),
+        capabilities,
+        exercised:
+          required == null
+            ? null
+            : resolveExercisedCapability(
+                required,
+                capabilities,
+                request.query?.[AS_CAPABILITY_QUERY],
+              ),
       };
       this.cls.set(TENANT_CLS_KEY, tenant);
     }

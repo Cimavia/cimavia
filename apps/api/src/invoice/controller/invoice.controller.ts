@@ -1,16 +1,19 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { UpdateInvoiceStatusDto } from "../dto/update-invoice-status.dto";
 import { InvoiceService } from "../service/invoice.service";
 
 /**
  * Suivi des factures ÉMISES (CDC §5.10). L'émission n'est PAS une action HTTP isolée : elle se fait
- * à la diffusion du cycle (PlanController). Lecture : les deux rôles (le service scope
- * automatiquement — coach voit SES factures émises, athlète les siennes ; DRAFT exclu). Marquage du
- * statut : COACH seul. @Roles au niveau MÉTHODE (les droits diffèrent selon la route).
+ * à la diffusion du cycle (PlanController). Lecture : les deux capacités (le scope tenant tranche —
+ * coach voit SES factures émises, athlète les siennes ; DRAFT exclu). Marquage du statut : coach
+ * seul. Capacité au niveau MÉTHODE (les droits diffèrent selon la route).
+ *
+ * `"either"` sur la lecture, et c'est là que vit la question du double compte : un utilisateur qui
+ * cumule doit dire `?as=coach` ou `?as=athlete`, sinon 400. Un compte mono-capacité n'a rien à
+ * préciser, sa capacité étant la seule réponse possible — d'où l'absence de rupture pour les
+ * clients existants (#10).
  */
 @ApiTags("invoices")
 @Controller("invoices")
@@ -18,13 +21,13 @@ export class InvoiceController {
   constructor(private readonly invoices: InvoiceService) {}
 
   @Get()
-  @Roles([Role.COACH, Role.ATHLETE])
+  @RequireCapability("either")
   list() {
     return this.invoices.list();
   }
 
   @Get(":id")
-  @Roles([Role.COACH, Role.ATHLETE])
+  @RequireCapability("either")
   get(@Param("id") id: string) {
     return this.invoices.get(id);
   }

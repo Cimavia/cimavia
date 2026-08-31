@@ -41,7 +41,14 @@ export class CapabilitiesGuard implements CanActivate {
       );
     }
 
-    if (!hasCapability(capabilitiesOf(user), required)) {
+    const capabilities = capabilitiesOf(user);
+    // `"either"` n'exige pas une capacité précise, seulement d'en avoir une : c'est le scope qui
+    // départage ensuite (resolveExercisedCapability, côté interceptor).
+    const allowed =
+      required === "either"
+        ? capabilities.isCoach || capabilities.isAthlete
+        : hasCapability(capabilities, required);
+    if (!allowed) {
       throw new ForbiddenException();
     }
     return true;

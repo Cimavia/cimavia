@@ -1,8 +1,22 @@
-import type { CapabilityName } from "@cmv/shared";
-import { type ExecutionContext, SetMetadata } from "@nestjs/common";
+import { type Capabilities, type CapabilityName, hasCapability } from "@cmv/shared";
+import {
+  BadRequestException,
+  type ExecutionContext,
+  ForbiddenException,
+  SetMetadata,
+} from "@nestjs/common";
 import type { Reflector } from "@nestjs/core";
 
 export const REQUIRED_CAPABILITY_KEY = "cmv:required-capability";
+
+/**
+ * Ce qu'une route peut exiger. `"either"` couvre les ressources que les DEUX capacités consultent
+ * — factures, conversations : le coach voit ce qu'il a émis, l'athlète ce qu'il a reçu. L'exigence
+ * y est faible (avoir au moins une capacité), mais le **scope** doit trancher, et c'est là qu'un
+ * compte à double capacité pose une question que le rôle exclusif ne posait pas. Voir
+ * `resolveExercisedCapability`.
+ */
+export type RouteCapability = CapabilityName | "either";
 
 /**
  * La capacité qu'une route **exerce** — et non le rôle de qui l'appelle.
@@ -22,7 +36,7 @@ export const REQUIRED_CAPABILITY_KEY = "cmv:required-capability";
  * dont le scope est identique pour les deux capacités (`Notification`, `PushToken` — un seul champ
  * destinataire), pas un oubli.
  */
-export const RequireCapability = (capability: CapabilityName) =>
+export const RequireCapability = (capability: RouteCapability) =>
   SetMetadata(REQUIRED_CAPABILITY_KEY, capability);
 
 /**
@@ -36,11 +50,52 @@ export const RequireCapability = (capability: CapabilityName) =>
 export function requiredCapabilityOf(
   reflector: Reflector,
   context: ExecutionContext,
-): CapabilityName | null {
+): RouteCapability | null {
   return (
-    reflector.getAllAndOverride<CapabilityName>(REQUIRED_CAPABILITY_KEY, [
+    reflector.getAllAndOverride<RouteCapability>(REQUIRED_CAPABILITY_KEY, [
       context.getHandler(),
       context.getClass(),
     ]) ?? null
+  );
+}
+
+/** Nom du paramètre par lequel une route `"either"` apprend à quel titre on l'appelle. */
+export const AS_CAPABILITY_QUERY = "as";
+
+/**
+ * À quel titre la route est exercée — la capacité qui décidera de la colonne de scope.
+ *
+ * Trois cas, et le troisième est le seul intéressant :
+ *
+ * - `?as=coach` fourni : on l'honore, à condition que le compte porte la capacité (sinon 403 — sans
+ *   ce contrôle, un athlète demanderait `?as=coach` et lirait les factures qu'il a émises, c'est-à-
+ *   dire aucune… jusqu'au jour où il en émettrait).
+ * - Une seule capacité sur le compte : elle s'impose. Ce n'est pas un défaut silencieux, c'est la
+ *   seule réponse possible — et c'est ce qui fait qu'aucun client existant n'a à changer.
+ * - Deux capacités et rien de précisé : **400**. Répondre « les factures émises » par convention
+ *   serait exactement le fallback que la règle dure n°5 interdit : l'appelant croirait voir tout.
+ */
+export function resolveExercisedCapability(
+  required: RouteCapability,
+  capabilities: Capabilities,
+  asParam: unknown,
+): CapabilityName {
+  if (required !== "either") return required;
+
+  if (asParam === "coach" || asParam === "athlete") {
+    if (!hasCapability(capabilities, asParam)) {
+      throw new ForbiddenException();
+    }
+    return asParam;
+  }
+  if (asParam != null) {
+    throw new BadRequestException(`${AS_CAPABILITY_QUERY} : « coach » ou « athlete » attendu`);
+  }
+
+  if (capabilities.isCoach && !capabilities.isAthlete) return "coach";
+  if (capabilities.isAthlete && !capabilities.isCoach) return "athlete";
+
+  throw new BadRequestException(
+    `${AS_CAPABILITY_QUERY} requis : ce compte porte les deux capacités, préciser « coach » ou « athlete »`,
   );
 }
