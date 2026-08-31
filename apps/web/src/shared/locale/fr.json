@@ -80,7 +80,6 @@
       "restBetweenSets": "Repos entre séries",
       "restBetweenRounds": "Repos entre tours",
       "tempo": "Tempo",
-      "edgeSize": "Taille de réglette",
       "passCount": "Nombre de passages",
       "label": "Libellé",
       "note": "Note"
@@ -92,7 +91,6 @@
       "rounds": "tours",
       "meters": "m",
       "kilometers": "km",
-      "millimeters": "mm",
       "kilograms": "kg",
       "kilogramsAdded": "+kg",
       "percent": "%",

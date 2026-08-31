@@ -154,6 +154,7 @@ export {
   restPhrase,
   rowForUnit,
   SegmentKind,
+  scaleFor,
   segmentsDuration,
   structurePhrase,
   TimerKind,

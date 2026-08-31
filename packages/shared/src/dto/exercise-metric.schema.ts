@@ -38,6 +38,52 @@ export const MetricFamily = {
 export type MetricFamily = TypesValuesOf<typeof MetricFamily>;
 export const metricFamilySchema = z.enum(MetricFamily);
 
+// Cotations livrées. Ce sont des échelles PRÉ-REMPLIES, pas des constantes du produit : le coach
+// les duplique pour les adapter. Rien dans le code ne suppose qu'une cotation est l'une des deux.
+export const FRENCH_CLIMBING_SCALE = [
+  // Pas de « + » sous le 6 : la cotation française ne les emploie qu'à partir du sixième degré.
+  "4a",
+  "4b",
+  "4c",
+  "5a",
+  "5b",
+  "5c",
+  "6a",
+  "6a+",
+  "6b",
+  "6b+",
+  "6c",
+  "6c+",
+  "7a",
+  "7a+",
+  "7b",
+  "7b+",
+  "7c",
+  "7c+",
+  "8a",
+  "8a+",
+  "8b",
+  "8b+",
+  "8c",
+  "8c+",
+  "9a",
+  "9a+",
+  "9b",
+  "9b+",
+  "9c",
+] as const satisfies readonly string[];
+
+export const V_BOULDERING_SCALE = Array.from(
+  { length: 18 },
+  (_, index) => `V${index}`,
+) as readonly string[];
+
+/** Position d'un palier, ou `null` s'il n'appartient pas à l'échelle. */
+export function scaleStepIndex(scale: OrderedScale, step: string): number | null {
+  const index = scale.indexOf(step);
+  return index === -1 ? null : index;
+}
+
 // `NONE` n'est pas un trou : une durée, un tempo ou une cotation n'ont pas d'unité à afficher.
 export const MetricUnit = {
   NONE: "NONE",
@@ -46,7 +92,6 @@ export const MetricUnit = {
   ROUNDS: "ROUNDS",
   METERS: "METERS",
   KILOMETERS: "KILOMETERS",
-  MILLIMETERS: "MILLIMETERS",
   KILOGRAMS: "KILOGRAMS",
   KILOGRAMS_ADDED: "KILOGRAMS_ADDED",
   PERCENT: "PERCENT",
@@ -73,7 +118,6 @@ export const MetricKey = {
   REST_BETWEEN_SETS: "REST_BETWEEN_SETS",
   REST_BETWEEN_ROUNDS: "REST_BETWEEN_ROUNDS",
   TEMPO: "TEMPO",
-  EDGE_SIZE: "EDGE_SIZE",
   PASS_COUNT: "PASS_COUNT",
   LABEL: "LABEL",
   NOTE: "NOTE",
@@ -86,6 +130,13 @@ type MetricDefinition = {
   readonly valueType: MetricValueType;
   /** Unités admises. La PREMIÈRE est le défaut ; `[NONE]` quand la métrique n'en a pas. */
   readonly units: readonly MetricUnit[];
+  /**
+   * Les paliers d'une métrique de type SCALE.
+   *
+   * Exigée dans ce cas, comme pour une métrique maison : une échelle sans paliers laisse passer
+   * n'importe quel texte, ce qui est précisément ce qu'une échelle est censée empêcher.
+   */
+  readonly scale?: readonly string[];
 };
 
 // Catalogue livré. Une métrique personnalisée du coach vit à côté (`customMetricSchema`) et n'y
@@ -140,6 +191,10 @@ export const METRIC_CATALOG = {
     family: MetricFamily.INTENSITY,
     valueType: MetricValueType.SCALE,
     units: [MetricUnit.NONE],
+    // La cotation du catalogue vaut ce que valent ses paliers : sans eux elle acceptait n'importe
+    // quelle chaîne et ne servait à rien de plus qu'une colonne texte. Un coach qui veut une autre
+    // échelle — bloc, judo, piste — la crée en métrique maison, c'est fait pour.
+    scale: FRENCH_CLIMBING_SCALE,
   },
   [MetricKey.INCLINE]: {
     family: MetricFamily.INTENSITY,
@@ -160,11 +215,6 @@ export const METRIC_CATALOG = {
     family: MetricFamily.EXECUTION,
     valueType: MetricValueType.TEXT,
     units: [MetricUnit.NONE],
-  },
-  [MetricKey.EDGE_SIZE]: {
-    family: MetricFamily.EXECUTION,
-    valueType: MetricValueType.NUMBER,
-    units: [MetricUnit.MILLIMETERS],
   },
   [MetricKey.PASS_COUNT]: {
     family: MetricFamily.EXECUTION,
@@ -199,7 +249,6 @@ export const METRIC_LABEL_KEY = {
   [MetricKey.REST_BETWEEN_SETS]: "exercise.metric.restBetweenSets",
   [MetricKey.REST_BETWEEN_ROUNDS]: "exercise.metric.restBetweenRounds",
   [MetricKey.TEMPO]: "exercise.metric.tempo",
-  [MetricKey.EDGE_SIZE]: "exercise.metric.edgeSize",
   [MetricKey.PASS_COUNT]: "exercise.metric.passCount",
   [MetricKey.LABEL]: "exercise.metric.label",
   [MetricKey.NOTE]: "exercise.metric.note",
@@ -212,7 +261,6 @@ export const METRIC_UNIT_LABEL_KEY = {
   [MetricUnit.ROUNDS]: "exercise.unit.rounds",
   [MetricUnit.METERS]: "exercise.unit.meters",
   [MetricUnit.KILOMETERS]: "exercise.unit.kilometers",
-  [MetricUnit.MILLIMETERS]: "exercise.unit.millimeters",
   [MetricUnit.KILOGRAMS]: "exercise.unit.kilograms",
   [MetricUnit.KILOGRAMS_ADDED]: "exercise.unit.kilogramsAdded",
   [MetricUnit.PERCENT]: "exercise.unit.percent",
@@ -221,6 +269,19 @@ export const METRIC_UNIT_LABEL_KEY = {
   [MetricUnit.BPM]: "exercise.unit.bpm",
   [MetricUnit.DEGREES]: "exercise.unit.degrees",
 } as const satisfies Record<MetricUnit, string>;
+
+/**
+ * Les paliers livrés avec une métrique du catalogue, ou `null`.
+ *
+ * Passe par `MetricDefinition` pour lire `scale` : le catalogue est figé `as const`, et une entrée
+ * qui ne déclare pas d'échelle n'a tout simplement pas la propriété. L'élargir à la déclaration
+ * ferait perdre les types littéraux dont dépend `defaultUnitOf`.
+ */
+export function catalogScaleOf(key: MetricKey): OrderedScale | null {
+  const definition: MetricDefinition = METRIC_CATALOG[key];
+  // Copiée : `OrderedScale` est un tableau mutable, et l'échelle livrée est figée `as const`.
+  return definition.scale == null ? null : [...definition.scale];
+}
 
 export function defaultUnitOf(key: MetricKey): MetricUnit {
   return METRIC_CATALOG[key].units[0];
@@ -246,48 +307,6 @@ export const orderedScaleSchema = z
     message: "Les paliers d'une échelle doivent être distincts.",
   });
 export type OrderedScale = z.infer<typeof orderedScaleSchema>;
-
-// Cotations livrées. Ce sont des échelles PRÉ-REMPLIES, pas des constantes du produit : le coach
-// les duplique pour les adapter. Rien dans le code ne suppose qu'une cotation est l'une des deux.
-export const FRENCH_CLIMBING_SCALE = [
-  "5a",
-  "5b",
-  "5c",
-  "6a",
-  "6a+",
-  "6b",
-  "6b+",
-  "6c",
-  "6c+",
-  "7a",
-  "7a+",
-  "7b",
-  "7b+",
-  "7c",
-  "7c+",
-  "8a",
-  "8a+",
-  "8b",
-  "8b+",
-  "8c",
-  "8c+",
-  "9a",
-  "9a+",
-  "9b",
-  "9b+",
-  "9c",
-] as const satisfies readonly string[];
-
-export const V_BOULDERING_SCALE = Array.from(
-  { length: 18 },
-  (_, index) => `V${index}`,
-) as readonly string[];
-
-/** Position d'un palier, ou `null` s'il n'appartient pas à l'échelle. */
-export function scaleStepIndex(scale: OrderedScale, step: string): number | null {
-  const index = scale.indexOf(step);
-  return index === -1 ? null : index;
-}
 
 // ── Métrique personnalisée ──────────────────────────────────────────────────────────────────
 

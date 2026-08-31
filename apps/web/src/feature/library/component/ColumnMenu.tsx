@@ -12,6 +12,7 @@ import {
   type MetricUnit,
   MetricValueType,
   metricValueTypeOf,
+  scaleFor,
 } from "@cmv/shared";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -193,10 +194,7 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
   const values = columnValues(block, metric.id);
   const first = values[0] ?? null;
   const valueType = metricValueTypeOf(metric, customMetrics);
-  const scale =
-    metric.source === MetricSource.CUSTOM
-      ? (customMetrics.find((custom) => custom.id === metric.customMetricId)?.scale ?? null)
-      : null;
+  const scale = scaleFor(metric, customMetrics);
 
   const parsedStep = Number.parseInt(step, 10);
   const stepIsUsable = Number.isFinite(parsedStep) && parsedStep !== 0;
