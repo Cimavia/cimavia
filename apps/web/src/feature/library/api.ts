@@ -1,12 +1,14 @@
 import type {
   AttachDocumentInput,
+  CreateCustomMetricInput,
   CreateExerciseInput,
   CreateSessionInput,
-  ExerciseCategory,
+  CustomMetric,
   ExerciseDocumentDto,
   ExerciseDto,
   RequestUploadUrlInput,
   SessionDto,
+  UpdateCustomMetricInput,
   UpdateExerciseInput,
   UpdateSessionInput,
   UploadUrlDto,
@@ -14,7 +16,7 @@ import type {
 import { api } from "@/shared/lib/api";
 
 export type ExerciseFilters = {
-  category?: ExerciseCategory;
+  tag?: string;
   search?: string;
 };
 
@@ -22,15 +24,34 @@ export type ExerciseFilters = {
 export const exerciseKeys = {
   all: ["exercises"] as const,
   list: (filters: ExerciseFilters) => ["exercises", "list", filters] as const,
+  detail: (id: string) => ["exercises", "detail", id] as const,
+  tags: () => ["exercises", "tags"] as const,
 };
 
 export function listExercises(filters: ExerciseFilters): Promise<ExerciseDto[]> {
   const params = new URLSearchParams();
-  if (filters.category) params.set("category", filters.category);
+  if (filters.tag) params.set("tag", filters.tag);
   if (filters.search) params.set("search", filters.search);
   const query = params.toString();
   const path = query ? `/exercises?${query}` : "/exercises";
   return api.get<ExerciseDto[]>(path);
+}
+
+/**
+ * Les tags du coach, pour l'autocomplétion et le filtre. Servis par une route dédiée et non
+ * dérivés de la liste affichée : dérivés, ils rétréciraient à chaque clic de filtre, et le coach
+ * ne pourrait plus revenir en arrière.
+ */
+export function listExerciseTags(): Promise<string[]> {
+  return api.get<string[]>("/exercises/tags");
+}
+
+/**
+ * Le constructeur s'ouvre sur une URL, pas depuis une ligne de liste : il ne peut pas compter sur
+ * un DTO déjà en mémoire, et doit savoir le charger seul.
+ */
+export function getExercise(id: string): Promise<ExerciseDto> {
+  return api.get<ExerciseDto>(`/exercises/${id}`);
 }
 
 export function createExercise(input: CreateExerciseInput): Promise<ExerciseDto> {
@@ -65,15 +86,58 @@ export function deleteDocument(exerciseId: string, documentId: string): Promise<
   return api.delete<void>(`/exercises/${exerciseId}/documents/${documentId}`);
 }
 
+// ── Métriques maison du coach ────────────────────────────────────────────────
+
+export const customMetricKeys = {
+  all: ["custom-metrics"] as const,
+  list: () => ["custom-metrics", "list"] as const,
+};
+
+export function listCustomMetrics(): Promise<CustomMetric[]> {
+  return api.get<CustomMetric[]>("/custom-metrics");
+}
+
+export function createCustomMetric(input: CreateCustomMetricInput): Promise<CustomMetric> {
+  return api.post<CustomMetric>("/custom-metrics", input);
+}
+
+/** La mise à jour REMPLACE la définition entière : `valueType` et `scale` sont liés. */
+export function updateCustomMetric(
+  id: string,
+  input: UpdateCustomMetricInput,
+): Promise<CustomMetric> {
+  return api.patch<CustomMetric>(`/custom-metrics/${id}`, input);
+}
+
+export function deleteCustomMetric(id: string): Promise<void> {
+  return api.delete<void>(`/custom-metrics/${id}`);
+}
+
 // ── Séances (modèles) ────────────────────────────────────────────────────────
 
 export const sessionKeys = {
   all: ["sessions"] as const,
   list: () => ["sessions", "list"] as const,
+  detail: (id: string) => ["sessions", "detail", id] as const,
 };
 
 export function listSessions(): Promise<SessionDto[]> {
   return api.get<SessionDto[]>("/sessions");
+}
+
+export function getSession(id: string): Promise<SessionDto> {
+  return api.get<SessionDto>(`/sessions/${id}`);
+}
+
+/**
+ * « Recharger depuis la bibliothèque » : action serveur, parce qu'elle déplace la RÉFÉRENCE de
+ * dosage — la seule chose que le client n'a pas le droit d'envoyer.
+ */
+export function reloadSessionExercise(
+  sessionId: string,
+  sessionExerciseId: string,
+): Promise<SessionDto> {
+  return api.post<SessionDto>(`/sessions/${sessionId}/exercises/${sessionExerciseId}/reload`, {});
 }
 
 export function createSession(input: CreateSessionInput): Promise<SessionDto> {

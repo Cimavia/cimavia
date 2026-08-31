@@ -1,19 +1,19 @@
-import type {
-  CreateExerciseInput,
-  ExerciseCategory,
-  ExerciseDto,
-  UpdateExerciseInput,
-} from "@cmv/shared";
+import type { CreateExerciseInput, ExerciseDto, UpdateExerciseInput } from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { type ExerciseWithDocuments, toExerciseDto } from "../exercise.mapper";
+import { toBlocksInput, toInstructionsInput } from "../../util/exercise-json.util";
+import {
+  EXERCISE_DETAIL_INCLUDE,
+  type ExerciseWithDocuments,
+  toExerciseDto,
+} from "../exercise.mapper";
 import { DocumentCleanupService } from "./document-cleanup.service";
 
 export type ListExercisesFilters = {
-  category?: ExerciseCategory;
+  tag?: string;
   search?: string;
 };
 
@@ -37,7 +37,7 @@ export class ExerciseService {
   async getOwnedOrThrow(id: string): Promise<ExerciseWithDocuments> {
     const exercise = await this.db.exercise.findFirst({
       where: { id },
-      include: { documents: true },
+      include: EXERCISE_DETAIL_INCLUDE,
     });
     if (exercise == null) {
       throw new NotFoundException("Exercice introuvable");
@@ -45,30 +45,73 @@ export class ExerciseService {
     return exercise;
   }
 
+  /**
+   * Les tags distincts du coach, triés. Sert l'autocomplétion du formulaire ET le filtre de la
+   * liste — les deux ont besoin des tags EXISTANTS, pas de ceux du sous-ensemble affiché : dériver
+   * la liste des exercices déjà filtrés la ferait rétrécir à chaque clic.
+   *
+   * `distinct` plutôt qu'un groupBy : on ne veut que les noms, pas leur décompte.
+   */
+  async listTags(): Promise<string[]> {
+    const rows = await this.db.exerciseTag.findMany({
+      distinct: ["name"],
+      select: { name: true },
+      orderBy: { name: "asc" },
+    });
+    return rows.map((row) => row.name);
+  }
+
   async create(input: CreateExerciseInput): Promise<ExerciseDto> {
-    const exercise = await this.db.exercise.create({
+    const created = await this.db.exercise.create({
       data: {
         title: input.title,
         description: input.description ?? null,
-        category: input.category,
+        // `?? null` / `?? []` : à la création, « champ absent » et « champ vide » se confondent.
+        // C'est à la mise à jour qu'ils divergent — là, `undefined` veut dire « ne touche pas ».
+        instructions: toInstructionsInput(input.instructions ?? null),
+        blocks: toBlocksInput(input.blocks ?? []),
       } satisfies Omit<
         Prisma.ExerciseUncheckedCreateInput,
         "coachId"
       > as Prisma.ExerciseUncheckedCreateInput,
-      include: { documents: true },
+      include: EXERCISE_DETAIL_INCLUDE,
     });
-    return this.toDto(exercise);
+    if (!input.tags?.length) return this.toDto(created);
+    return this.toDto(await this.replaceTags(created.id, input.tags));
+  }
+
+  /**
+   * Remplace l'ensemble des tags d'un exercice. Un `deleteMany` puis un `createMany` plutôt qu'un
+   * diff : la liste est courte (10 au plus), et calculer l'écart coûterait plus que de la réécrire.
+   *
+   * `coachId` n'est pas passé — l'extension tenant l'injecte, comme sur toute écriture directe.
+   */
+  private async replaceTags(
+    exerciseId: string,
+    tags: readonly string[],
+  ): Promise<ExerciseWithDocuments> {
+    await this.db.exerciseTag.deleteMany({ where: { exerciseId } });
+    if (tags.length > 0) {
+      await this.db.exerciseTag.createMany({
+        data: tags.map((name) => ({ exerciseId, name })) satisfies Omit<
+          Prisma.ExerciseTagUncheckedCreateInput,
+          "coachId"
+        >[] as Prisma.ExerciseTagUncheckedCreateInput[],
+      });
+    }
+    return this.getOwnedOrThrow(exerciseId);
   }
 
   async list(filters: ListExercisesFilters): Promise<ExerciseDto[]> {
     const where: Prisma.ExerciseWhereInput = {};
-    if (filters.category) where.category = filters.category;
+    // `some` et non `every` : un exercice porte plusieurs tags, filtrer sur l'un d'eux le retient.
+    if (filters.tag) where.tags = { some: { name: filters.tag } };
     if (filters.search) where.title = { contains: filters.search, mode: "insensitive" };
 
     const exercises = await this.db.exercise.findMany({
       where,
-      include: { documents: true },
-      orderBy: { createdAt: "desc" },
+      include: EXERCISE_DETAIL_INCLUDE,
+      orderBy: { title: "asc" },
     });
     return Promise.all(exercises.map((exercise) => this.toDto(exercise)));
   }
@@ -82,14 +125,17 @@ export class ExerciseService {
     const data: Prisma.ExerciseUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
-    if (input.category !== undefined) data.category = input.category;
+    if (input.instructions !== undefined)
+      data.instructions = toInstructionsInput(input.instructions);
+    if (input.blocks !== undefined) data.blocks = toBlocksInput(input.blocks);
 
     const exercise = await this.db.exercise.update({
       where: { id },
       data,
-      include: { documents: true },
+      include: EXERCISE_DETAIL_INCLUDE,
     });
-    return this.toDto(exercise);
+    if (input.tags === undefined) return this.toDto(exercise);
+    return this.toDto(await this.replaceTags(id, input.tags));
   }
 
   async delete(id: string): Promise<void> {

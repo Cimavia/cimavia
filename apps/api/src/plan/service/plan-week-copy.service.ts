@@ -5,6 +5,12 @@ import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toIsoDate } from "../../util/date.util";
+import {
+  parseAdjustments,
+  parseBlocks,
+  parseCustomMetrics,
+  parseInstructions,
+} from "../../util/exercise-json.util";
 import { SESSION_DETAIL_INCLUDE } from "../scheduled-session.mapper";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
@@ -129,7 +135,24 @@ export class PlanWeekCopyService {
           tx,
           created.id,
           targetPlan.athleteId,
-          session.exercises.map((exercise) => ({ exercise, documents: exercise.documents })),
+          // Les tags de l'instance source sont aplatis en noms : le draft attend la forme du DTO,
+          // pas les lignes de la table de copie.
+          // Consigne et blocs repassent par Zod : ils sortent de Prisma en `JsonValue`, que le
+          // draft n'accepte pas — et le faire ICI garde la copie fidèle à l'instance source.
+          session.exercises.map((exercise) => ({
+            exercise: {
+              ...exercise,
+              instructions: parseInstructions(exercise.instructions),
+              blocks: parseBlocks(exercise.blocks),
+              adjustments: parseAdjustments(exercise.adjustments),
+              customMetrics: parseCustomMetrics(exercise.customMetrics),
+              tags: exercise.tags.map((tag) => tag.name),
+            },
+            // La copie garde la référence de la source : recopier une semaine ne remet pas les
+            // ajustements à zéro, et ne les fige pas non plus comme s'ils étaient le défaut.
+            baseline: parseBlocks(exercise.baseline),
+            documents: exercise.documents,
+          })),
         );
       }
     });

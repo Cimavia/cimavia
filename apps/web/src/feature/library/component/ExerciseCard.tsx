@@ -1,31 +1,31 @@
-import type { ExerciseDto } from "@cmv/shared";
+import { DocumentUsage, type ExerciseDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { CmvBadge, CmvCard } from "@/shared/component";
-
-// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
-// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
-// i18n-values library.category: ExerciseCategory
+import { CmvBadge, CmvCard, CmvTagList } from "@/shared/component";
 
 type ExerciseCardProps = {
   exercise: ExerciseDto;
-  onSelect: (exercise: ExerciseDto) => void;
+  onSelect: () => void;
 };
 
 export function ExerciseCard({ exercise, onSelect }: Readonly<ExerciseCardProps>) {
   const { t } = useTranslation();
 
+  // Les images POSÉES dans la consigne sont des documents, mais pas des pièces jointes : les
+  // compter gonflerait la pastille d'un chiffre que le coach ne retrouverait nulle part.
+  const attachmentCount = exercise.documents.filter(
+    (document) => document.usage === DocumentUsage.ATTACHMENT,
+  ).length;
+
   return (
-    <CmvCard onClick={() => onSelect(exercise)} className="flex flex-col gap-cmv-sm">
+    <CmvCard onClick={onSelect} className="flex flex-col gap-cmv-sm">
       <h3 className="text-cmv-subtitle text-cmv-text-hi">{exercise.title}</h3>
 
       <p className="line-clamp-2 text-cmv-body text-cmv-text-mid">{exercise.description ?? "—"}</p>
 
-      <div className="flex items-center gap-cmv-sm">
-        <CmvBadge variant="accent">{t(`library.category.${exercise.category}`)}</CmvBadge>
-        {exercise.documents.length === 0 ? null : (
-          <CmvBadge>
-            {t("library.exercise.documentCount", { count: exercise.documents.length })}
-          </CmvBadge>
+      <div className="flex flex-wrap items-center gap-cmv-sm">
+        <CmvTagList tags={exercise.tags} variant="accent" />
+        {attachmentCount === 0 ? null : (
+          <CmvBadge>{t("library.card.documentCount", { count: attachmentCount })}</CmvBadge>
         )}
       </div>
     </CmvCard>

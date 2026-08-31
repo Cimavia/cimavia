@@ -3,14 +3,21 @@ import type { Prisma } from "@prisma/client";
 import { toDocumentDto } from "../infra/storage/document.mapper";
 import type { StorageService } from "../infra/storage/storage.service";
 import { toIsoDate } from "../util/date.util";
+import {
+  parseAdjustments,
+  parseBlocks,
+  parseCustomMetrics,
+  parseInstructions,
+  parseTracking,
+} from "../util/exercise-json.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
 export const SESSION_DETAIL_INCLUDE = {
-  exercises: { orderBy: { position: "asc" }, include: { documents: true } },
+  exercises: { orderBy: { position: "asc" }, include: { documents: true, tags: true } },
 } satisfies Prisma.ScheduledSessionInclude;
 
 export type ScheduledSessionWithExercises = Prisma.ScheduledSessionGetPayload<{
-  include: { exercises: { include: { documents: true } } };
+  include: { exercises: { include: { documents: true; tags: true } } };
 }>;
 
 type ScheduledExerciseWithDocuments = ScheduledSessionWithExercises["exercises"][number];
@@ -29,8 +36,14 @@ async function toExerciseDto(
     sourceExerciseId: exercise.sourceExerciseId,
     title: exercise.title,
     description: exercise.description,
-    category: exercise.category,
-    prescription: exercise.prescription,
+    instructions: parseInstructions(exercise.instructions),
+    blocks: parseBlocks(exercise.blocks),
+    tags: exercise.tags.map((tag) => tag.name).sort(),
+    note: exercise.note,
+    baseline: parseBlocks(exercise.baseline),
+    adjustments: parseAdjustments(exercise.adjustments),
+    customMetrics: parseCustomMetrics(exercise.customMetrics),
+    tracking: parseTracking(exercise.tracking),
     position: exercise.position,
     documents,
   };

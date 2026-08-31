@@ -50,7 +50,7 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 
 ---
 
-> **Tranché en P3** (la question ouverte du modèle) : `ScheduledSessionExercise` est une **copie autonome** — snapshot `title`/`description`/`category`/`prescription` + `sourceExerciseId` **nullable en `SetNull`** (traçabilité seule), et les documents sont **copiés en lignes** partageant la clé objet. Conséquence : le coach peut supprimer un exercice de sa bibliothèque **sans jamais casser ni bloquer** une planification diffusée (pas de `Restrict`, pas de 409 à vie). La bibliothèque (`SessionExercise`) garde, elle, son `Restrict`/409 : un modèle de séance doit rester cohérent.
+> **Tranché en P3** (la question ouverte du modèle) : `ScheduledSessionExercise` est une **copie autonome** — snapshot `title`/`description`/`prescription` + `sourceExerciseId` **nullable en `SetNull`** (traçabilité seule), et les documents sont **copiés en lignes** partageant la clé objet. Conséquence : le coach peut supprimer un exercice de sa bibliothèque **sans jamais casser ni bloquer** une planification diffusée (pas de `Restrict`, pas de 409 à vie). La bibliothèque (`SessionExercise`) garde, elle, son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
 ---
 
@@ -726,6 +726,96 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > déclarée (`durationSeconds ?? 0`) — la règle nullable prise à revers. `formatMediaDuration` rend
 > désormais `null` sur une durée inconnue, et le rendu n'affiche rien. La messagerie et le débrief
 > parlent en outre le même format (`m:ss`), au lieu de secondes brutes d'un côté.
+
+---
+
+## Post-MVP — Refonte du modèle d'exercice ([#157](https://github.com/Cimavia/cimavia/issues/157))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| R-1 | **`description` survit à côté d'`instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même consigne tant que le constructeur n'écrit pas la version structurée — l'API alimente les deux, et rien n'empêche qu'elles divergent. La moitié `category` → `tags` est **close** (#163, migration `20260824120000_retrait_categorie_exercice`). | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) *(le contract est sa dernière étape)* |
+| R-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient. | 🟢 | — *(`validateBlockValues` la signale au coach ; le nettoyage en masse attend un besoin réel)* |
+
+> **Tranché — les blocs en JSON, pas en tables.** Quatre tables (bloc / métrique / ligne / valeur)
+> donnaient l'intégrité référentielle sur `customMetricId` et des cellules interrogeables en SQL.
+> Aucune des deux ne sert : rien ne filtre sur une valeur de cellule, et la valeur est polymorphe
+> (nombre · durée · texte · échelle), donc finit en colonne typée ou en JSON de toute façon. Ce qui
+> départage, c'est le **snapshot de diffusion** (P3) : en JSON c'est la copie d'un champ, en
+> relationnel c'est quatre SELECT/INSERT imbriqués avec remapping des identifiants de colonnes
+> dans chaque ligne — soit exactement l'endroit où une planif diffusée se dégrade en silence. Le
+> contrat est tenu par `exerciseBlocksSchema` à l'entrée. Coût accepté : **R-2**.
+>
+> **Tranché — aucun rattrapage des descriptions.** `description → instructions` touche tous les
+> exercices existants. La base en contient 7, dont 4 avec description, d'une longueur moyenne de
+> **10 caractères** (« a », « z »), plus 2 prescriptions (« 1kg », « 2kg ») : ce sont des données
+> de test. Chaque `description` non nulle devient **un unique bloc paragraphe**, sans parsing ni
+> rapport de reprise. Le `down` restitue le texte brut par concaténation
+> (`richDocumentToPlainText`). À reconsidérer **uniquement** si la refonte est livrée après une
+> mise en production réelle.
+>
+> **Écarts assumés avec la maquette du constructeur** (tranchés en recette, #163) :
+>
+> - **Les raccourcis « Pyramide » et « Intervalles » sont retirés.** Ils ne préremplissaient qu'un
+>   bandeau de Séries, et le seul geste qu'ils promettaient vraiment — les paliers en miroir —
+>   vit dans le menu de colonne, accessible depuis n'importe quelle Séries. Deux entrées de moins
+>   à l'écran pour zéro perte.
+> - **L'image de consigne a trois largeurs** (petite · moyenne · pleine), là où la frame 13 disait
+>   « pleine largeur, jamais habillée de texte ». Trois paliers et non une valeur libre : un
+>   pourcentage dépendrait de l'écran où l'image a été posée, et React Native devrait l'interpréter
+>   au pixel près. **#166 doit rendre les trois**, sinon les deux surfaces divergent.
+> - **« Dupliquer en variante » (frame 14) n'est pas implémenté.** Absent de la liste « À faire »
+>   de l'issue, donc laissé de côté plutôt qu'ajouté d'autorité. ~10 lignes le jour où il est
+>   demandé.
+> - **`2:75` vaut `3'15` au lieu d'être refusé.** Les secondes au-delà de 59 débordent sur les
+>   minutes. Le refus protégeait mieux de la faute de frappe, mais le rendu canonique montre
+>   aussitôt ce qui a été compris — ce qui la rattrape sans bloquer la saisie.
+> - **Les unités ne s'accordent pas** : « 1 répétitions ». Chaque libellé d'unité devrait passer en
+>   clé plurielle dans les deux catalogues ; non fait, non demandé.
+>
+> **Trois pièges de CSS payés cash** (le même, trois fois) : sur un élément qui porte déjà `border`
+> ou `bg-*`, un utilitaire Tailwind de la MÊME propriété a la même spécificité — c'est l'ordre du
+> fichier CSS qui tranche, pas l'ordre où on écrit les classes. Un repère de dépôt en `border-t-2`,
+> puis en `outline`, s'est fait écraser sans que rien ne le signale. La forme qui tient : le hook
+> rend un ÉTAT (`isOver`), et chaque appelant choisit **un seul** fond. Même famille : `uppercase`
+> posé sur une ligne d'en-tête remonte dans tout ce qu'elle contient, menu flottant compris.
+>
+> **Découvert en route** : `pnpm turbo lint` ne voit pas `packages/shared` — seuls `api`, `web` et
+> `mobile` ont un script `lint`. Une fonction à complexité cognitive 22 (max 15, niveau `error`)
+> est passée sous le radar jusqu'au `biome ci` complet. La porte réelle est
+> `pnpm exec biome ci . && pnpm turbo typecheck test && pnpm check:i18n`.
+
+> **Le replace-all d'une séance planifiée efface tout ce que le client n'émet pas.** Découvert en
+> recette : le panneau du coach n'envoyait que `sourceExerciseId`, `title`, `description`, `tags`
+> et `note` — chaque enregistrement d'une séance diffusée VIDAIT donc consigne, dosage, métriques
+> maison et ajustements, sans le moindre signal. Le panneau date d'avant le modèle structuré et
+> n'a été mis à jour ni en #162 ni en #164. Deux correctifs, l'un ne suffisant pas : le client
+> renvoie l'intégralité du snapshot, et le serveur reporte par `id` ce qui ne transite JAMAIS par
+> lui — le **suivi d'exécution**, qui appartient à l'athlète. Verrouillé par deux e2e vérifiés
+> rouges avant correctif.
+
+> **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
+> à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
+> ligne, là où `restBetweenSetsSeconds` vit sur la structure, une seule valeur pour tout le bloc.
+> Retenu : la colonne de catalogue `REST_BETWEEN_SETS` / `REST_BETWEEN_ROUNDS` posée dans la
+> grille, que `blockSegments` lit ligne à ligne et qui l'emporte alors sur le repos d'ensemble.
+> Aucune migration, aucun champ nouveau, et le coach la pose comme n'importe quelle métrique.
+> L'alternative — un champ `restSeconds` par ligne — était plus explicite mais coûtait une
+> migration, un constructeur retouché et un second endroit où lire un repos.
+
+> **Tranché — une séance À VENIR se coche et se débriefe.** #170 demandait « séance à venir :
+> aucune case, le suivi s'ouvre le jour venu ». Livré, puis retiré : l'athlète qui avance sa séance
+> du lendemain se retrouvait à ne pouvoir ni cocher ni débriefer ce qu'il venait de faire. La date
+> planifiée est une INTENTION du coach, pas une porte. La cohérence se fait dans l'autre sens :
+> tout est ouvert, tout le temps.
+
+> **Tranché — une séance débriefée reste cochable.** #170 demandait de FIGER les cases une fois la
+> séance débriefée (« cases visibles mais figées »). Livré tel quel, puis retiré : la prémisse est
+> fausse. Un débrief se complète et se corrige en plusieurs fois — le bouton dit « Voir / **modifier**
+> mon débrief », le `PUT` est idempotent, et le crayon du récapitulatif rouvre le décompte. Figer
+> les cases de la séance pendant que l'écran de débrief les rouvre ne décrivait aucun état réel :
+> l'athlète qui avait débriefé ne pouvait plus corriger son décompte là où il l'avait saisi. Rien
+> dans le modèle ne rend une séance définitive aujourd'hui ; le jour où quelque chose la clôturera
+> (cycle archivé, facture émise), la règle se réintroduira sur CE fait-là, pas sur `status = DONE`.
 
 ---
 

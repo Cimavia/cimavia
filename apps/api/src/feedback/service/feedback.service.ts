@@ -1,13 +1,17 @@
-import type { SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared";
+import type { FeedbackTracking, SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared";
 import { ScheduledSessionStatus } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma, SessionFeedback } from "@prisma/client";
+import { Prisma, type SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { FEEDBACK_DETAIL_INCLUDE, toSessionFeedbackDto } from "../feedback.mapper";
+import {
+  FEEDBACK_DETAIL_INCLUDE,
+  toSessionFeedbackDto,
+  toTrackedExercises,
+} from "../feedback.mapper";
 
 /**
  * Débrief de séance (CDC §5.6) : écrit par l'athlète, lu par le coach.
@@ -43,7 +47,32 @@ export class FeedbackService {
       where: { id: feedback.id },
       data: { content: input.content ?? null, coachReadAt: null },
     });
+    if (input.tracking !== undefined) {
+      await this.writeTracking(scheduledSessionId, input.tracking);
+    }
     return this.getOrThrow(scheduledSessionId);
+  }
+
+  /**
+   * Écrit le suivi d'exécution remonté avec le débrief.
+   *
+   * Chaque exercice est mis à jour SÉPARÉMENT et par son `where` scopé : un `updateMany` sur des
+   * identifiants fournis par le client écrirait chez qui les enverrait. Le scope tenant filtre
+   * déjà par athlète, mais on ne s'appuie pas sur lui seul pour une écriture pilotée par l'entrée.
+   *
+   * `null` remet l'exercice en NON SUIVI — c'est une intention, pas une absence : l'athlète peut
+   * revenir sur un décompte qu'il a posé par erreur.
+   */
+  private async writeTracking(
+    scheduledSessionId: string,
+    tracking: FeedbackTracking,
+  ): Promise<void> {
+    for (const [exerciseId, state] of Object.entries(tracking)) {
+      await this.db.scheduledSessionExercise.updateMany({
+        where: { id: exerciseId, scheduledSessionId },
+        data: { tracking: state == null ? Prisma.DbNull : (state as Prisma.InputJsonValue) },
+      });
+    }
   }
 
   /**
@@ -101,7 +130,15 @@ export class FeedbackService {
       include: FEEDBACK_DETAIL_INCLUDE,
     });
     if (feedback == null) return null;
-    return toSessionFeedbackDto(feedback, this.storage);
+
+    // Le décompte ACCOMPAGNE le débrief : il part dans la même réponse, sinon le coach devrait
+    // charger la séance de son athlète juste pour savoir ce qui a été coché.
+    const exercises = await this.db.scheduledSessionExercise.findMany({
+      where: { scheduledSessionId },
+      orderBy: { position: "asc" },
+      select: { id: true, title: true, blocks: true, tracking: true },
+    });
+    return toSessionFeedbackDto(feedback, this.storage, toTrackedExercises(exercises));
   }
 
   private async getOrThrow(scheduledSessionId: string): Promise<SessionFeedbackDto> {

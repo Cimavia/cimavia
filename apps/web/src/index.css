@@ -25,4 +25,15 @@
   body {
     @apply bg-cmv-bg-0 font-cmv-sans text-cmv-text-hi;
   }
+
+  /*
+   * Un placeholder est une SUGGESTION, jamais une valeur. Sans cette règle il se lit comme du
+   * texte saisi, et le coach croit avoir rempli un champ qui est vide.
+   *
+   * Posé ICI et non champ par champ : le problème est déjà revenu plusieurs fois, et chaque
+   * `placeholder:text-*` recopié est une occasion de plus de l'oublier.
+   */
+  ::placeholder {
+    @apply text-cmv-text-lo opacity-60;
+  }
 }

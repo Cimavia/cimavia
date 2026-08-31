@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { coachFeedbackKeys } from "@/feature/feedback/api";
+import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import {
   useCoachFeedbackDetail,
   useCoachFeedbacks,
@@ -74,6 +75,10 @@ export function CoachFeedbackDetailScreen() {
             <CmvText className="text-cmv-text-hi">
               {feedback?.content ?? t("feedback.coach.mediaOnly")}
             </CmvText>
+
+            {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les
+                médias, dans l'ordre où l'athlète l'a envoyé. */}
+            <TrackedExerciseList exercises={feedback?.trackedExercises ?? []} />
 
             <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
           </>

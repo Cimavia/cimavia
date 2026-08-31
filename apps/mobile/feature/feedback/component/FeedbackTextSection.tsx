@@ -1,4 +1,4 @@
-import type { SessionFeedbackDto } from "@cmv/shared";
+import type { FeedbackTracking, SessionFeedbackDto } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FeedbackForm } from "@/feature/feedback/component/FeedbackForm";
@@ -10,12 +10,22 @@ type FeedbackTextSectionProps = {
   sessionId: string;
   /** `null` tant qu'aucun débrief n'existe : le champ part alors vide. */
   feedback: SessionFeedbackDto | null;
+  /** Absent quand la séance n'a pas pu être chargée : on n'envoie alors AUCUN décompte. */
+  tracking?: FeedbackTracking;
+  trackingDirty?: boolean;
+  onSaved?: () => void;
 };
 
 // Le texte libre du débrief : saisie, enregistrement, et ce que l'enregistrement a donné.
-export function FeedbackTextSection({ sessionId, feedback }: Readonly<FeedbackTextSectionProps>) {
+export function FeedbackTextSection({
+  sessionId,
+  feedback,
+  tracking,
+  trackingDirty = false,
+  onSaved,
+}: Readonly<FeedbackTextSectionProps>) {
   const { t } = useTranslation();
-  const upsert = useUpsertFeedback(sessionId);
+  const upsert = useUpsertFeedback(sessionId, onSaved);
   const [content, setContent] = useState("");
 
   /**
@@ -36,14 +46,19 @@ export function FeedbackTextSection({ sessionId, feedback }: Readonly<FeedbackTe
 
   // Un premier débrief vide reste légitime (« séance faite, rien à signaler ») ; ré-enregistrer
   // un texte inchangé, non.
-  const canSubmit = feedback == null || content !== (feedback.content ?? "");
+  const canSubmit = feedback == null || content !== (feedback.content ?? "") || trackingDirty;
 
   return (
     <>
       <FeedbackForm
         value={content}
         onChange={setContent}
-        onSubmit={() => upsert.mutate({ content: content.length === 0 ? null : content })}
+        onSubmit={() =>
+          upsert.mutate({
+            content: content.length === 0 ? null : content,
+            ...(tracking == null ? {} : { tracking }),
+          })
+        }
         isSaving={upsert.isPending}
         canSubmit={canSubmit}
       />

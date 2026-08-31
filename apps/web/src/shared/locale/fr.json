@@ -20,7 +20,8 @@
       "hour_other": "il y a {{count}} h",
       "day": "il y a {{count}} jour",
       "day_other": "il y a {{count}} jours"
-    }
+    },
+    "durationInvalid": "Durée non comprise. Écris 90, 1'30, 30 s ou 2 min."
   },
   "auth": {
     "login": {
@@ -63,6 +64,54 @@
       "invalidCredentials": "E-mail ou mot de passe incorrect."
     }
   },
+  "exercise": {
+    "metric": {
+      "repetitions": "Répétitions",
+      "effortDuration": "Durée d'effort",
+      "distance": "Distance",
+      "rounds": "Tours",
+      "load": "Charge",
+      "percentRm": "% RM",
+      "rpe": "RPE",
+      "heartRate": "Fréquence cardiaque",
+      "pace": "Allure",
+      "grade": "Cotation",
+      "incline": "Inclinaison",
+      "restBetweenSets": "Repos entre séries",
+      "restBetweenRounds": "Repos entre tours",
+      "tempo": "Tempo",
+      "edgeSize": "Taille de réglette",
+      "passCount": "Nombre de passages",
+      "label": "Libellé",
+      "note": "Note"
+    },
+    "unit": {
+      "none": "Sans unité",
+      "reps": "répétitions",
+      "repsPerSide": "répétitions par côté",
+      "rounds": "tours",
+      "meters": "m",
+      "kilometers": "km",
+      "millimeters": "mm",
+      "kilograms": "kg",
+      "kilogramsAdded": "+kg",
+      "percent": "%",
+      "percentBodyweight": "% du poids de corps",
+      "percentHrMax": "% FCM",
+      "bpm": "bpm",
+      "degrees": "°"
+    },
+    "dosage": {
+      "series": "{{count}} série",
+      "series_other": "{{count}} séries",
+      "emom": "Toutes les {{interval}} pendant {{total}}",
+      "amrap": "En {{total}}, un maximum de tours",
+      "amrapWithTarget": "En {{total}}, un maximum de tours. Objectif : {{count}} tours.",
+      "circuit": "Bloc ×{{count}}",
+      "restBetweenSets": "{{rest}} de repos entre les séries",
+      "restBetweenRounds": "repos {{rest}} entre tours"
+    }
+  },
   "role": {
     "coach": "Coach",
     "athlete": "Athlète"
@@ -73,15 +122,9 @@
     "newExercise": "Nouvel exercice",
     "searchLabel": "Rechercher",
     "searchExercise": "Rechercher un exercice…",
-    "filterAll": "Toutes",
     "tabs": {
       "exercises": "Exercices",
       "sessions": "Séances"
-    },
-    "category": {
-      "RENFO": "Renfo",
-      "GRIMPE": "Grimpe",
-      "TECHNIQUE": "Technique"
     },
     "newSession": "Nouvelle séance",
     "empty": {
@@ -90,61 +133,239 @@
     },
     "session": {
       "createTitle": "Nouvelle séance",
-      "editTitle": "Modifier la séance",
-      "panelDescription": "Une liste ordonnée d'exercices, réutilisable dans vos planifications.",
-      "titleLabel": "Titre de la séance",
-      "titlePlaceholder": "Bloc force max",
-      "notesLabel": "Consignes globales",
-      "notesPlaceholder": "Repos 3 min entre séries, amplitude complète…",
-      "composition": "Déroulé de la séance",
-      "emptyComposition": "Aucun exercice",
-      "emptyCompositionHint": "Ajoutez des exercices depuis votre bibliothèque, à droite.",
-      "pickerTitle": "Exercices",
-      "prescriptionLabel": "Prescription",
-      "prescriptionPlaceholder": "5×5 à +10 kg, récup 3 min",
-      "moveUp": "Monter",
-      "moveDown": "Descendre",
-      "remove": "Retirer",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "Ex. Force haut du corps, Volume grimpe…",
+      "notesLabel": "Notes de séance",
+      "notesPlaceholder": "Ce qui vaut pour toute la séance…",
+      "composition": "Exercices",
+      "pickerTitle": "Ajouter un exercice",
+      "moveUp": "Monter l'exercice",
+      "moveDown": "Descendre l'exercice",
+      "remove": "Retirer de la séance",
       "exerciseCount": "{{count}} exercice",
       "exerciseCount_other": "{{count}} exercices",
       "more": "+{{count}} autre",
       "more_other": "+{{count}} autres",
-      "emptyTitle": "Aucune séance",
-      "emptyDescription": "Composez une séance à partir de vos exercices : elle sera réutilisable dans vos planifications.",
-      "deleteSession": "Supprimer la séance",
-      "cancel": "Annuler",
+      "emptyTitle": "Compose ta séance",
+      "emptyDescription": "Choisis un exercice dans ta bibliothèque, à droite.",
       "submitCreate": "Créer la séance",
       "submitEdit": "Enregistrer la séance",
-      "submitting": "Enregistrement…"
+      "noteLabel": "Note",
+      "notePlaceholder": "Épaule sensible, reste prudent…",
+      "loadingTitle": "Séance",
+      "subtitle": "{{count}} exercice · {{adjusted}} ajusté pour cette séance",
+      "subtitle_other": "{{count}} exercices · {{adjusted}} ajustés pour cette séance",
+      "titleRequired": "Le titre est requis pour enregistrer la séance.",
+      "moveExercise": "Déplacer l'exercice",
+      "pickerSearch": "Chercher dans ta bibliothèque…",
+      "adjustedCount": "{{count}} valeur ajustée",
+      "adjustedCount_other": "{{count}} valeurs ajustées",
+      "defaultValue": "défaut {{value}}",
+      "revert": "Revenir au défaut",
+      "resetAll": "Tout réinitialiser",
+      "reload": "Recharger depuis la bibliothèque",
+      "reloadConfirm": "Recharger",
+      "reloadWarning": "Les valeurs de la bibliothèque remplaceront celles-ci. Ton ajustement sera perdu.",
+      "reloadWarning_other": "Les valeurs de la bibliothèque remplaceront celles-ci. Tes {{count}} ajustements seront perdus.",
+      "duplicate": "Dupliquer en variante",
+      "cardMenu": "Actions de l'exercice",
+      "previewTitle": "Aperçu athlète — la séance entière",
+      "previewEmpty": "L'aperçu se remplit ici.",
+      "saved": "Séance enregistrée.",
+      "saveFailed": "L'enregistrement a échoué.",
+      "variantSuffix": "(variante)",
+      "savedBeforeVariant": "Séance enregistrée avant de créer la variante."
     },
-    "exercise": {
+    "filterAllTags": "Tous",
+    "tags": {
+      "label": "Tags",
+      "placeholder": "Ajouter un tag — renfo, grimpe, technique…",
+      "remove": "Retirer le tag"
+    },
+    "builder": {
       "createTitle": "Nouvel exercice",
       "editTitle": "Modifier l'exercice",
-      "panelDescription": "Réutilisable dans toutes vos séances.",
+      "loadingTitle": "Exercice",
+      "subtitle": "Réutilisable dans toutes tes séances.",
+      "usedInSessions": "Utilisé dans {{count}} séance.",
+      "usedInSessions_other": "Utilisé dans {{count}} séances.",
       "titleLabel": "Titre",
-      "titlePlaceholder": "Gainage dynamique",
-      "categoryLabel": "Catégorie",
-      "descriptionLabel": "Description & consignes",
-      "descriptionPlaceholder": "Planche + bascule du bassin, 4 séries de 45 s…",
-      "documents": "Documents joints",
-      "documentCount": "{{count}} document",
-      "documentCount_other": "{{count}} documents",
-      "addFile": "Ajouter un fichier",
-      "fileHint": "PDF, JPG, PNG ou WEBP — 20 Mo max",
-      "addLink": "Lien externe",
-      "addLinkAction": "Ajouter",
-      "linkPlaceholder": "https://…",
-      "file": "Fichier",
-      "link": "Lien",
-      "uploading": "Envoi en cours…",
-      "delete": "Supprimer",
-      "deleteExercise": "Supprimer l'exercice",
+      "titlePlaceholder": "Ex. Tractions lestées, 4×4 bloc…",
+      "previewTitle": "Aperçu athlète — mis à jour en direct",
+      "previewEmpty": "L'aperçu apparaît une fois le titre renseigné.",
       "cancel": "Annuler",
       "submitCreate": "Créer l'exercice",
       "submitEdit": "Enregistrer",
-      "submitting": "Enregistrement…",
-      "errorFileType": "Type de fichier non autorisé (PDF, JPG, PNG, WEBP).",
-      "errorFileSize": "Fichier trop volumineux (20 Mo max)."
+      "saving": "Enregistrement…",
+      "instructions": "Consigne",
+      "tool": {
+        "bold": "Gras",
+        "italic": "Italique",
+        "underline": "Souligné",
+        "heading": "Titre de section",
+        "bulletList": "Liste à puces",
+        "orderedList": "Liste numérotée",
+        "callout": "Encadré",
+        "link": "Lien",
+        "linkUrl": "Adresse du lien",
+        "linkApply": "Appliquer le lien",
+        "linkCancel": "Annuler le lien",
+        "image": "Image"
+      },
+      "image": {
+        "caption": "Légende de l'image",
+        "captionPlaceholder": "Légende (facultative)",
+        "remove": "Retirer l'image",
+        "missing": "Image indisponible",
+        "uploading": "Envoi… {{percent}} %",
+        "errorType": "Format non accepté : PNG, JPEG ou WebP.",
+        "errorSize": "{{size}} Mo — dépasse la limite de {{limit}} Mo.",
+        "width": "Largeur de l'image"
+      },
+      "structure": "Structure",
+      "addBlock": "Ajouter une structure",
+      "noBlockTitle": "Aucune structure",
+      "noBlockDescription": "C'est un état valide — tu peux enregistrer. Ajoute une structure si l'exercice se dose.",
+      "blockLabel": "Libellé du bloc",
+      "blockLabelPlaceholder": "Échauffement, Travail…",
+      "moveBlockUp": "Monter le bloc",
+      "moveBlockDown": "Descendre le bloc",
+      "removeBlock": "Retirer le bloc",
+      "blockType": {
+        "SERIES": "Séries",
+        "EMOM": "EMOM",
+        "AMRAP": "AMRAP",
+        "CIRCUIT": "Circuit",
+        "FREE": "Libre"
+      },
+      "blockTypeHint": {
+        "SERIES": "Le même effort répété N fois, avec un repos entre les séries.",
+        "EMOM": "Un effort à réaliser au début de chaque minute, pendant N minutes.",
+        "AMRAP": "Un maximum de tours dans un temps imparti.",
+        "CIRCUIT": "Une suite d'étapes enchaînées, répétée en tours.",
+        "FREE": "Grille sans structure imposée — lignes ajoutées librement."
+      },
+      "bandeau": {
+        "setCount": "Séries",
+        "restBetweenSetsSeconds": "Repos",
+        "intervalSeconds": "Intervalle",
+        "totalDurationSeconds": "Durée totale",
+        "topCount": "= {{count}} top",
+        "topCount_other": "= {{count}} tops",
+        "targetRounds": "Objectif de tours",
+        "roundCount": "Répéter le bloc",
+        "restBetweenRoundsSeconds": "Repos entre tours"
+      },
+      "grid": {
+        "rowIndex": "Ligne",
+        "rowActions": "Actions",
+        "moveRow": "Déplacer la ligne",
+        "removeRow": "Retirer la ligne",
+        "addRow": "Ajouter une ligne",
+        "emptyValue": "—",
+        "keyboardHint": "Tabulation → cellule suivante · Entrée → valide et crée la ligne suivante."
+      },
+      "column": {
+        "unit": "Unité de la colonne",
+        "fill": "Remplir la colonne",
+        "fillSame": "Même valeur partout",
+        "fillStep": "Progression régulière",
+        "fillScaleStep": "Progression sur l'échelle",
+        "fillMirror": "Miroir",
+        "stepLabel": "Pas",
+        "collapse": "Replier en valeur commune",
+        "expand": "Afficher en colonne",
+        "cannotCollapse": "La valeur change d'une ligne à l'autre.",
+        "needsRow": "Ajoute une première ligne pour pouvoir remplir la colonne."
+      },
+      "metrics": {
+        "title": "Métriques de l'exercice",
+        "edit": "Modifier les métriques",
+        "chosen": "Colonnes de ce bloc",
+        "orderHint": "L'ordre des colonnes retenues est celui de la grille — glisse pour réordonner.",
+        "moveColumn": "Déplacer la colonne",
+        "removeColumn": "Retirer la colonne",
+        "done": "Valider"
+      },
+      "family": {
+        "VOLUME": "Volume",
+        "INTENSITY": "Intensité",
+        "RECOVERY": "Récupération",
+        "EXECUTION": "Exécution",
+        "MARKER": "Repères"
+      },
+      "custom": {
+        "title": "Métrique personnalisée",
+        "mine": "Mes métriques",
+        "none": "Aucune métrique maison pour l'instant.",
+        "label": "Nom",
+        "labelPlaceholder": "Cotation maison",
+        "labelTooLong": "Nom trop long.",
+        "unit": "Unité",
+        "unitPlaceholder": "pts, mm…",
+        "valueType": "Type de valeur",
+        "submit": "Ajouter la métrique",
+        "editTitle": "Modifier la métrique",
+        "update": "Modifier la métrique",
+        "edit": "Modifier",
+        "remove": "Supprimer la métrique"
+      },
+      "valueType": {
+        "NUMBER": "Nombre",
+        "DURATION": "Durée",
+        "TEXT": "Texte",
+        "SCALE": "Échelle ordonnée"
+      },
+      "scale": {
+        "title": "Paliers, dans l'ordre",
+        "hint": "C'est cet ordre qui rend possible « progression sur l'échelle ».",
+        "duplicateFrench": "Dupliquer la cotation française",
+        "duplicateV": "Dupliquer la cotation V",
+        "stepLabel": "Palier",
+        "stepPlaceholder": "Palier",
+        "addStep": "Ajouter",
+        "removeStep": "Retirer le palier",
+        "moveStep": "Déplacer le palier"
+      },
+      "preview": {
+        "noRow": "Les valeurs apparaîtront ici dès la première ligne."
+      },
+      "titleRequired": "Le titre est requis pour enregistrer l'exercice.",
+      "issue": {
+        "emptyRow": "Ligne {{index}} incomplète — renseigne au moins une valeur, ou supprime la ligne.",
+        "badValue": "Colonne « {{column}} » : une valeur ne correspond pas au type attendu.",
+        "orphanValue": "Une valeur appartient à une colonne qui n'existe plus."
+      },
+      "deleteExercise": "Supprimer l'exercice",
+      "attachment": {
+        "title": "Pièces jointes et liens",
+        "add": "Ajouter un fichier",
+        "hint": "PDF, PNG, JPEG, WebP · 20 Mo max",
+        "file": "Fichier",
+        "link": "Lien",
+        "remove": "Retirer",
+        "uploading": "Envoi…",
+        "addLink": "Ajouter un lien",
+        "addLinkAction": "Ajouter",
+        "linkPlaceholder": "https://…",
+        "errorType": "Format non accepté : PDF, PNG, JPEG ou WebP.",
+        "errorSize": "Fichier trop lourd : 20 Mo maximum."
+      },
+      "saved": "Exercice enregistré.",
+      "saveFailed": "L'enregistrement a échoué.",
+      "imageWidth": {
+        "SMALL": "Petite",
+        "MEDIUM": "Moyenne",
+        "FULL": "Pleine largeur"
+      }
+    },
+    "noMatch": {
+      "title": "Aucun exercice ne correspond à « {{search}} »",
+      "create": "Créer « {{search}} »"
+    },
+    "card": {
+      "documentCount": "{{count}} pièce jointe",
+      "documentCount_other": "{{count}} pièces jointes"
     }
   },
   "plan": {
@@ -160,11 +381,6 @@
         "PLANNED": "À faire",
         "DONE": "Fait",
         "SKIPPED": "Sautée"
-      },
-      "category": {
-        "RENFO": "Renfo",
-        "GRIMPE": "Grimpe",
-        "TECHNIQUE": "Technique"
       },
       "title": "Mon planning",
       "today": "Aujourd'hui",
@@ -192,7 +408,15 @@
         "empty": "Aucune séance",
         "emptyHint": "Rien à afficher dans cette période."
       },
-      "backToPlanning": "← Mon planning"
+      "backToPlanning": "← Mon planning",
+      "summary": "Sommaire",
+      "showInstructions": "Voir la consigne",
+      "hideInstructions": "Masquer la consigne",
+      "contactCoach": "Écrire à mon coach",
+      "emptyTitle": "Cette séance est vide",
+      "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler.",
+      "progress": "Ma progression",
+      "progressCount": "{{done}} sur {{total}}"
     },
     "new": "Nouvelle planification",
     "status": {
@@ -252,15 +476,15 @@
       "emptyComposition": "Aucun exercice",
       "emptyCompositionHint": "Piochez dans votre bibliothèque, à droite.",
       "pickerTitle": "Bibliothèque d'exercices",
-      "prescriptionLabel": "Prescription",
-      "prescriptionPlaceholder": "5×5 à +10 kg, repos 3 min",
       "exerciseCount": "{{count}} exercice(s)",
       "moveUp": "Monter",
       "moveDown": "Descendre",
       "remove": "Retirer",
       "delete": "Supprimer la séance",
       "submit": "Enregistrer",
-      "submitting": "Enregistrement…"
+      "submitting": "Enregistrement…",
+      "noteLabel": "Note",
+      "notePlaceholder": "Épaule sensible, reste prudent…"
     },
     "builder": {
       "back": "← Planifications",
@@ -272,7 +496,8 @@
       "emptyWeeks": "Aucune semaine",
       "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
-      "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours)."
+      "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
+      "titleWithAthlete": "{{title}} — {{name}} {{email}}"
     },
     "toast": {
       "created": "Cycle « {{title}} » créé",
@@ -290,6 +515,22 @@
     "clipboard": {
       "banner": "Semaine {{number}} de « {{plan}} » copiée — choisissez où la coller.",
       "clear": "Annuler la copie"
+    },
+    "tracking": {
+      "rounds": "tour",
+      "rounds_other": "tours",
+      "unit": {
+        "SET": "Série {{index}}",
+        "TOP": "Top {{index}}",
+        "ROUND": "Tour {{index}}",
+        "STEP": "Étape {{index}}"
+      },
+      "count": {
+        "SET": "{{done}} sur {{total}} séries",
+        "TOP": "{{done}} sur {{total}} tops",
+        "ROUND": "{{done}} sur {{total}} tours",
+        "STEP": "{{done}} sur {{total}} étapes"
+      }
     }
   },
   "nav": {
@@ -524,13 +765,13 @@
       "subtitle": "{{athlete}} · séance du {{date}}",
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
-      "openFull": "Ouvrir en grand"
+      "openFull": "Ouvrir en grand",
+      "tracking": "Ce que l'athlète a coché"
     },
     "openDone": "Voir / modifier mon débrief",
     "contentLabel": "Retour sur la séance",
     "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
     "contentHint": "Tu peux compléter ton débrief plus tard.",
-    "save": "Enregistrer",
     "saving": "Enregistrement…",
     "saved": "Débrief enregistré.",
     "saveError": "Impossible d'enregistrer le débrief. Vérifie ta connexion.",
@@ -557,7 +798,19 @@
       "audioTooLong": "Une note vocale ne peut pas dépasser {{max}} minutes.",
       "unreadable": "Ce fichier est illisible."
     },
-    "backToSession": "← Retour à la séance"
+    "backToSession": "← Retour à la séance",
+    "tracking": {
+      "title": "Ce que tu as coché",
+      "edit": "Corriger le décompte de {{exercise}}",
+      "untracked": "pas de décompte",
+      "hint": "En lecture seule — corrigeable d'un clic. Ça informe ton débrief, ça ne le remplit pas."
+    },
+    "submit": {
+      "title": "Ce que verra ton coach",
+      "filled": "Ton texte, tes fichiers, et le décompte tel qu'il est ci-contre.",
+      "empty": "Séance faite, aucun commentaire, aucun décompte.",
+      "action": "Envoyer mon débrief"
+    }
   },
   "invoice": {
     "title": "Facturation",

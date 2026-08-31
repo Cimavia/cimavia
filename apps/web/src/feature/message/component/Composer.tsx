@@ -120,7 +120,7 @@ export function Composer({
           onKeyDown={onKeyDown}
           placeholder={t("messages.placeholder")}
           rows={1}
-          className="max-h-32 flex-1 resize-none rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm text-cmv-text-hi placeholder:text-cmv-text-mid"
+          className="max-h-32 flex-1 resize-none rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm text-cmv-text-hi"
         />
 
         {canSendText ? (

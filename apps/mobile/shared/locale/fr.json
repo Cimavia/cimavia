@@ -50,6 +50,54 @@
       "invalidCredentials": "E-mail ou mot de passe incorrect."
     }
   },
+  "exercise": {
+    "metric": {
+      "repetitions": "Répétitions",
+      "effortDuration": "Durée d'effort",
+      "distance": "Distance",
+      "rounds": "Tours",
+      "load": "Charge",
+      "percentRm": "% RM",
+      "rpe": "RPE",
+      "heartRate": "Fréquence cardiaque",
+      "pace": "Allure",
+      "grade": "Cotation",
+      "incline": "Inclinaison",
+      "restBetweenSets": "Repos entre séries",
+      "restBetweenRounds": "Repos entre tours",
+      "tempo": "Tempo",
+      "edgeSize": "Taille de réglette",
+      "passCount": "Nombre de passages",
+      "label": "Libellé",
+      "note": "Note"
+    },
+    "unit": {
+      "none": "Sans unité",
+      "reps": "répétitions",
+      "repsPerSide": "répétitions par côté",
+      "rounds": "tours",
+      "meters": "m",
+      "kilometers": "km",
+      "millimeters": "mm",
+      "kilograms": "kg",
+      "kilogramsAdded": "+kg",
+      "percent": "%",
+      "percentBodyweight": "% du poids de corps",
+      "percentHrMax": "% FCM",
+      "bpm": "bpm",
+      "degrees": "°"
+    },
+    "dosage": {
+      "series": "{{count}} série",
+      "series_other": "{{count}} séries",
+      "emom": "Toutes les {{interval}} pendant {{total}}",
+      "amrap": "En {{total}}, un maximum de tours",
+      "amrapWithTarget": "En {{total}}, un maximum de tours. Objectif : {{count}} tours.",
+      "circuit": "Bloc ×{{count}}",
+      "restBetweenSets": "{{rest}} de repos entre les séries",
+      "restBetweenRounds": "repos {{rest}} entre tours"
+    }
+  },
   "role": {
     "coach": "Coach",
     "athlete": "Athlète"
@@ -77,11 +125,6 @@
       "DONE": "Fait",
       "SKIPPED": "Sautée"
     },
-    "category": {
-      "RENFO": "Renfo",
-      "GRIMPE": "Grimpe",
-      "TECHNIQUE": "Technique"
-    },
     "week": {
       "numberAndType": "Semaine {{number}} · {{type}}"
     },
@@ -99,7 +142,85 @@
       "exerciseCount": "{{count}} exercice(s)",
       "composition": "Déroulé · {{count}} exercice(s)",
       "notes": "Consignes du coach",
-      "link": "Document"
+      "link": "Document",
+      "showInstructions": "Voir la consigne",
+      "hideInstructions": "Masquer la consigne",
+      "emptyTitle": "Cette séance est vide",
+      "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler."
+    },
+    "tracking": {
+      "hint": "Coche au fur et à mesure.",
+      "progress": "{{done}} sur {{total}}",
+      "rounds": "tour",
+      "rounds_other": "tours",
+      "roundsPlus": "Un tour de plus",
+      "roundsMinus": "Un tour de moins",
+      "unit": {
+        "SET": "Série {{index}}",
+        "TOP": "Top {{index}}",
+        "ROUND": "Tour {{index}}",
+        "STEP": "Étape {{index}}"
+      },
+      "open": {
+        "SET": "Suivre mes séries",
+        "TOP": "Suivre mes tops",
+        "ROUND": "Suivre mes tours",
+        "STEP": "Suivre mes étapes"
+      },
+      "review": {
+        "SET": "Revoir mes séries",
+        "TOP": "Revoir mes tops",
+        "ROUND": "Revoir mes tours",
+        "STEP": "Revoir mes étapes"
+      },
+      "count": {
+        "SET": "{{done}} sur {{total}} séries",
+        "TOP": "{{done}} sur {{total}} tops",
+        "ROUND": "{{done}} sur {{total}} tours",
+        "STEP": "{{done}} sur {{total}} étapes"
+      },
+      "hide": {
+        "SET": "Masquer mes séries",
+        "TOP": "Masquer mes tops",
+        "ROUND": "Masquer mes tours",
+        "STEP": "Masquer mes étapes"
+      }
+    },
+    "timer": {
+      "rest": "Repos",
+      "effort": "Effort",
+      "interval": "Intervalle",
+      "countdown": "Durée",
+      "pause": "Pause",
+      "resume": "Reprendre",
+      "skip": "Passer",
+      "add": "+ {{seconds}} s",
+      "notArmed": "Le minuteur ne sonnera pas téléphone rangé : autorise les notifications.",
+      "segment": {
+        "EFFORT": "Effort",
+        "REST": "Récupération",
+        "INTERVAL": "Intervalle",
+        "COUNTDOWN": "Temps restant",
+        "MANUAL": "À toi de jouer"
+      },
+      "outOf": "sur {{total}}",
+      "totalRemaining": "Reste {{duration}} sur l'exercice",
+      "skipSegment": "Passer le segment",
+      "stop": "Arrêter",
+      "expand": "Agrandir le chrono",
+      "reduce": "Réduire le chrono",
+      "run": "Lancer l'exercice",
+      "position": "{{current}} sur {{total}}",
+      "nextBody": "{{segment}} · {{duration}}",
+      "lastBody": "Exercice terminé.",
+      "awaiting": "Le chrono repart quand tu auras terminé.",
+      "confirm": "J'ai terminé — lancer le repos",
+      "beforeNextTop": "avant le prochain top",
+      "timeLeft": "Temps restant",
+      "targetRounds": "objectif {{count}} tour · indicatif",
+      "targetRounds_other": "objectif {{count}} tours · indicatif",
+      "topDone": "Top fait",
+      "roundDone": "Tour fait"
     }
   },
   "media": {
@@ -152,6 +273,17 @@
         "title": "Tout est lu !",
         "description": "Les nouveaux débriefs de tes athlètes apparaîtront ici."
       }
+    },
+    "tracking": {
+      "title": "Ce que tu as coché",
+      "edit": "Corriger le décompte de {{exercise}}",
+      "open": "Corriger",
+      "close": "Terminé",
+      "untracked": "pas de décompte",
+      "hint": "En lecture seule — corrigeable d'un tap. Ça informe ton débrief, ça ne le remplit pas."
+    },
+    "detail": {
+      "tracking": "Ce que l'athlète a coché"
     }
   },
   "messages": {

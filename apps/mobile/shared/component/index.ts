@@ -5,6 +5,7 @@ export { CmvButton } from "./CmvButton";
 export { CmvCapabilityGate } from "./CmvCapabilityGate";
 export { CmvErrorState } from "./CmvErrorState";
 export { CmvImageViewer } from "./CmvImageViewer";
+export { CmvRichDocument } from "./CmvRichDocument";
 export { CmvScreen } from "./CmvScreen";
 export { CmvText } from "./CmvText";
 export { CmvVideoLink } from "./CmvVideoLink";

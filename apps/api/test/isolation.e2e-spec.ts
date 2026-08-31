@@ -28,14 +28,17 @@ const TABLES = [
   "session_feedback",
   "push_token",
   "scheduled_session_exercise_document",
+  "scheduled_session_exercise_tag",
   "scheduled_session_exercise",
   "scheduled_session",
   "plan_week",
   "plan",
   "session_exercise",
   "exercise_document",
+  "exercise_tag",
   "sessions",
   "exercise",
+  "custom_metric",
   "athlete_sheet",
   "coach_invitation",
   "coach_athlete",
@@ -229,12 +232,38 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     const created = await coachA.post("/exercises").send({
       title: "Gainage dynamique",
       description: "4×45 s",
-      category: "RENFO",
+      tags: ["Gainage", "renfo"],
     });
     expect(created.status).toBe(201);
     exerciseAId = created.body.id;
     expect(typeof created.body.coachId).toBe("string");
     expect(created.body.documents).toEqual([]);
+    expect(created.body.tags).toEqual(["gainage", "renfo"]);
+
+    const decoy = await coachB.post("/exercises").send({
+      title: "Traction",
+      tags: ["poulie"],
+    });
+    expect(decoy.status).toBe(201);
+  });
+
+  it("un coach ne voit que SES tags", async () => {
+    const own = await coachA.get("/exercises/tags");
+    expect(own.status).toBe(200);
+    expect(own.body).toEqual(["gainage", "renfo"]);
+
+    const other = await coachB.get("/exercises/tags");
+    expect(other.body).toEqual(["poulie"]);
+  });
+
+  it("le filtre par tag ne franchit pas la frontière du coach", async () => {
+    const own = await coachA.get("/exercises").query({ tag: "Gainage" });
+    expect(own.body).toHaveLength(1);
+    expect(own.body[0].id).toBe(exerciseAId);
+
+    // Le tag existe, mais chez l'autre coach : la liste doit rester vide, pas fuir l'exercice.
+    const other = await coachB.get("/exercises").query({ tag: "gainage" });
+    expect(other.body).toHaveLength(0);
   });
 
   it("un coach ne liste que SES exercices", async () => {
@@ -243,13 +272,100 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(own.body).toHaveLength(1);
     expect(own.body[0].id).toBe(exerciseAId);
 
+    // coachB a le sien : la liste n'est pas vide, elle est simplement disjointe.
     const other = await coachB.get("/exercises");
-    expect(other.body).toHaveLength(0);
+    expect(other.body.map((e: { id: string }) => e.id)).not.toContain(exerciseAId);
+  });
+
+  it("compte les séances MODÈLES qui référencent l'exercice, pas les copies diffusées", async () => {
+    const fresh = await coachA.post("/exercises").send({ title: "Gainage latéral" });
+    expect(fresh.body.usedInSessionCount).toBe(0);
+
+    const session = await coachA.post("/sessions").send({
+      title: "Circuit court",
+      exercises: [{ exerciseId: fresh.body.id, note: "3×30 s" }],
+    });
+    expect(session.status).toBe(201);
+
+    const used = await coachA.get(`/exercises/${fresh.body.id}`);
+    expect(used.body.usedInSessionCount).toBe(1);
+
+    // Retirer l'exercice de la séance le fait redescendre : le compte est lu, jamais stocké.
+    await coachA.put(`/sessions/${session.body.id}`).send({
+      title: "Circuit court",
+      exercises: [],
+    });
+    expect((await coachA.get(`/exercises/${fresh.body.id}`)).body.usedInSessionCount).toBe(0);
+
+    await coachA.delete(`/sessions/${session.body.id}`);
+    await coachA.delete(`/exercises/${fresh.body.id}`);
   });
 
   it("un coach ne peut PAS lire l'exercice d'un autre coach", async () => {
     const res = await coachB.get(`/exercises/${exerciseAId}`);
     expect(res.status).toBe(404);
+  });
+
+  it("consigne structurée et blocs font l'aller-retour sans perte", async () => {
+    const instructions = [
+      { type: "HEADING", content: [{ text: "Mise en place" }] },
+      { type: "PARAGRAPH", content: [{ text: "Coudes ", marks: ["BOLD"] }, { text: "serrés." }] },
+    ];
+    const blocks = [
+      {
+        id: "blk_1",
+        label: "Travail",
+        structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+        metrics: [
+          {
+            id: "col_reps",
+            source: "CATALOG",
+            key: "REPETITIONS",
+            unit: "REPS",
+            label: null,
+            collapsed: false,
+          },
+        ],
+        rows: [{ id: "r1", values: { col_reps: 6 } }],
+      },
+    ];
+
+    const created = await coachA
+      .post("/exercises")
+      .send({ title: "Tractions lestées", instructions, blocks });
+    expect(created.status).toBe(201);
+
+    // Relecture : le JSON ne doit ni se réordonner ni perdre ses marques d'inline.
+    const read = await coachA.get(`/exercises/${created.body.id}`);
+    expect(read.body.instructions).toEqual(instructions);
+    expect(read.body.blocks).toEqual(blocks);
+  });
+
+  it("refuse un bloc dont la structure ne tient pas", async () => {
+    // EMOM dont la durée totale ne couvre pas un intervalle : refusé par exerciseBlockSchema,
+    // donc 400 — jamais écrit en base, où plus rien ne le rattraperait.
+    const res = await coachA.post("/exercises").send({
+      title: "EMOM impossible",
+      blocks: [
+        {
+          id: "blk_1",
+          label: null,
+          structure: { type: "EMOM", intervalSeconds: 60, totalDurationSeconds: 30 },
+          metrics: [
+            {
+              id: "c1",
+              source: "CATALOG",
+              key: "REPETITIONS",
+              unit: "REPS",
+              label: null,
+              collapsed: false,
+            },
+          ],
+          rows: [],
+        },
+      ],
+    });
+    expect(res.status).toBe(400);
   });
 
   it("un coach ne peut PAS modifier ni supprimer l'exercice d'un autre coach", async () => {
@@ -263,9 +379,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
   it("un athlète n'a aucun accès à la bibliothèque (route coach)", async () => {
     expect((await athlete.get("/exercises")).status).toBe(403);
-    expect((await athlete.post("/exercises").send({ title: "x", category: "RENFO" })).status).toBe(
-      403,
-    );
+    expect((await athlete.post("/exercises").send({ title: "x" })).status).toBe(403);
   });
 
   it("attache un document LINK, visible dans le détail de l'exercice", async () => {
@@ -280,6 +394,47 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     const detail = await coachA.get(`/exercises/${exerciseAId}`);
     expect(detail.body.documents).toHaveLength(1);
     expect(detail.body.documents[0].id).toBe(attached.body.id);
+  });
+
+  it("distingue l'image de consigne de la pièce jointe", async () => {
+    const link = await coachA
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ type: "LINK", url: "https://exemple.test/fiche" });
+    // Un LINK est toujours une pièce jointe : le lien inline de la consigne est une MARQUE sur du
+    // texte, pas un document rattaché.
+    expect(link.body.usage).toBe("ATTACHMENT");
+
+    const upload = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "position-basse.jpg", mimeType: "image/jpeg", size: 2048 });
+    const image = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: upload.body.storagePath,
+      fileName: "position-basse.jpg",
+      mimeType: "image/jpeg",
+      usage: "INSTRUCTION",
+    });
+    expect(image.status).toBe(201);
+    expect(image.body.usage).toBe("INSTRUCTION");
+
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${link.body.id}`);
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${image.body.id}`);
+  });
+
+  it("refuse un PDF comme image de consigne", async () => {
+    // Le PDF reste une pièce jointe légitime, mais il n'a aucun rendu inline dans un document —
+    // ni sur le web ni en React Native.
+    const upload = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "fiche.pdf", mimeType: "application/pdf", size: 2048 });
+    const res = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: upload.body.storagePath,
+      fileName: "fiche.pdf",
+      mimeType: "application/pdf",
+      usage: "INSTRUCTION",
+    });
+    expect(res.status).toBe(400);
   });
 
   it("un coach ne peut PAS agir sur les documents de l'exercice d'un autre coach", async () => {
@@ -319,13 +474,95 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(tooBig.status).toBe(400);
   });
 
-  it("le pipe de validation global est actif (titre vide, catégorie inconnue → 400)", async () => {
-    expect((await coachA.post("/exercises").send({ title: "", category: "RENFO" })).status).toBe(
+  it("le pipe de validation global est actif (titre vide, champ inconnu → 400)", async () => {
+    expect((await coachA.post("/exercises").send({ title: "" })).status).toBe(400);
+    // `category` a disparu du contrat en #163 : le schéma est strict, l'envoyer encore est un 400.
+    expect((await coachA.post("/exercises").send({ title: "x", category: "RENFO" })).status).toBe(
       400,
     );
-    expect((await coachA.post("/exercises").send({ title: "x", category: "CARDIO" })).status).toBe(
-      400,
-    );
+  });
+});
+
+describe("Métriques maison du coach (#162)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let metricAId: string;
+
+  beforeAll(async () => {
+    coachA = await signUp("metric-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("metric-coach-b@cmv.test", Role.COACH);
+
+    const created = await coachA.post("/custom-metrics").send({
+      label: "Cotation maison",
+      unit: null,
+      valueType: "SCALE",
+      scale: ["facile", "moyen", "dur"],
+    });
+    expect(created.status).toBe(201);
+    metricAId = created.body.id;
+    expect(created.body.scale).toEqual(["facile", "moyen", "dur"]);
+  });
+
+  it("un coach ne liste que SES métriques", async () => {
+    const own = await coachA.get("/custom-metrics");
+    expect(own.status).toBe(200);
+    expect(own.body).toHaveLength(1);
+    expect(own.body[0].label).toBe("Cotation maison");
+
+    expect((await coachB.get("/custom-metrics")).body).toHaveLength(0);
+  });
+
+  it("un coach ne peut ni modifier ni supprimer la métrique d'un autre", async () => {
+    const patch = await coachB.patch(`/custom-metrics/${metricAId}`).send({
+      label: "Intrusion",
+      unit: null,
+      valueType: "NUMBER",
+      scale: null,
+    });
+    expect(patch.status).toBe(404);
+    expect((await coachB.delete(`/custom-metrics/${metricAId}`)).status).toBe(404);
+  });
+
+  it("refuse deux métriques de même nom chez le MÊME coach, pas entre coachs", async () => {
+    const duplicate = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Cotation maison", unit: null, valueType: "NUMBER", scale: null });
+    expect(duplicate.status).toBe(409);
+
+    // Le même libellé chez un AUTRE coach est légitime : l'unicité est par tenant.
+    const elsewhere = await coachB
+      .post("/custom-metrics")
+      .send({ label: "Cotation maison", unit: null, valueType: "NUMBER", scale: null });
+    expect(elsewhere.status).toBe(201);
+    await coachB.delete(`/custom-metrics/${elsewhere.body.id}`);
+  });
+
+  it("tient l'invariant type/paliers dans les deux sens", async () => {
+    // SCALE sans paliers : aucune saisie ne serait possible.
+    const noSteps = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Sans paliers", unit: null, valueType: "SCALE", scale: null });
+    expect(noSteps.status).toBe(400);
+
+    // Paliers sur un type qui n'en veut pas : donnée morte, et un rendu qui ne saurait qu'en faire.
+    const strayScale = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Nombre paliers", unit: "pts", valueType: "NUMBER", scale: ["a", "b"] });
+    expect(strayScale.status).toBe(400);
+  });
+
+  it("la mise à jour REMPLACE la définition", async () => {
+    const res = await coachA
+      .patch(`/custom-metrics/${metricAId}`)
+      .send({ label: "Indice technique", unit: "pts", valueType: "NUMBER", scale: null });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: metricAId,
+      label: "Indice technique",
+      unit: "pts",
+      valueType: "NUMBER",
+      scale: null,
+    });
   });
 });
 
@@ -340,7 +577,7 @@ describe("Composition & isolation des séances (P2)", () => {
 
   // Crée un exercice pour le coach donné et retourne son id.
   async function createExercise(coach: Agent, title: string): Promise<string> {
-    const res = await coach.post("/exercises").send({ title, category: "RENFO" });
+    const res = await coach.post("/exercises").send({ title });
     expect(res.status).toBe(201);
     return res.body.id;
   }
@@ -355,13 +592,13 @@ describe("Composition & isolation des séances (P2)", () => {
     exB = await createExercise(coachB, "Exercice du coach B");
   });
 
-  it("crée une séance avec une composition ordonnée (positions + prescription)", async () => {
+  it("crée une séance avec une composition ordonnée (positions + note)", async () => {
     const res = await coachA.post("/sessions").send({
       title: "Bloc force max",
       notes: "Repos 3 min entre séries.",
       exercises: [
-        { exerciseId: exA1, prescription: "10 min mobilité" },
-        { exerciseId: exA2, prescription: "5×5 à +10 kg" },
+        { exerciseId: exA1, note: "10 min mobilité" },
+        { exerciseId: exA2, note: "5×5 à +10 kg" },
       ],
     });
     expect(res.status).toBe(201);
@@ -371,7 +608,6 @@ describe("Composition & isolation des séances (P2)", () => {
       exerciseId: exA1,
       position: 0,
       title: "Échauffement épaules",
-      category: "RENFO",
     });
     expect(res.body.exercises[1]).toMatchObject({ exerciseId: exA2, position: 1 });
   });
@@ -388,7 +624,7 @@ describe("Composition & isolation des séances (P2)", () => {
     const res = await coachA.put(`/sessions/${sessionAId}`).send({
       title: "Bloc force max (v2)",
       notes: null,
-      exercises: [{ exerciseId: exA2, prescription: "4×6" }],
+      exercises: [{ exerciseId: exA2, note: "4×6" }],
     });
     expect(res.status).toBe(200);
     expect(res.body.title).toBe("Bloc force max (v2)");
@@ -448,6 +684,159 @@ function mondayOfCurrentWeek(): string {
   return monday;
 }
 
+describe("Dosage à trois niveaux (#164)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let exerciseId: string;
+  let sessionId: string;
+  let composedId: string;
+
+  // Un exercice à un bloc Séries, deux lignes, une colonne : le plus petit dosage qui se surcharge.
+  const BLOCKS = [
+    {
+      id: "blk_1",
+      label: "Travail",
+      structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+      metrics: [
+        {
+          id: "col_reps",
+          source: "CATALOG",
+          key: "REPETITIONS",
+          unit: "REPS",
+          label: null,
+          collapsed: false,
+        },
+      ],
+      rows: [
+        { id: "r1", values: { col_reps: 6 } },
+        { id: "r2", values: { col_reps: 5 } },
+      ],
+    },
+  ];
+
+  const adjusted = (reps: number) => [
+    {
+      ...BLOCKS[0],
+      rows: [
+        { id: "r1", values: { col_reps: reps } },
+        { id: "r2", values: { col_reps: 5 } },
+      ],
+    },
+  ];
+
+  beforeAll(async () => {
+    coach = await signUp("dosage-coach@cmv.test", Role.COACH);
+    other = await signUp("dosage-other@cmv.test", Role.COACH);
+
+    const exercise = await coach.post("/exercises").send({ title: "Tractions", blocks: BLOCKS });
+    expect(exercise.status).toBe(201);
+    exerciseId = exercise.body.id;
+
+    const session = await coach
+      .post("/sessions")
+      .send({ title: "Bloc force", exercises: [{ exerciseId }] });
+    expect(session.status).toBe(201);
+    sessionId = session.body.id;
+    composedId = session.body.exercises[0].id;
+  });
+
+  it("copie le dosage de l'exercice à l'AJOUT, référence comprise", async () => {
+    const read = await coach.get(`/sessions/${sessionId}`);
+    const composed = read.body.exercises[0];
+    expect(composed.blocks).toEqual(BLOCKS);
+    expect(composed.baseline).toEqual(BLOCKS);
+    expect(composed.adjustments).toEqual([]);
+  });
+
+  it("conserve la référence quand la composition est réécrite", async () => {
+    // Le remplace-all détruit et recrée les lignes : sans le report de la référence,
+    // « Tout réinitialiser » reviendrait à la dernière sauvegarde au lieu de l'ajout.
+    const res = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [
+        {
+          id: composedId,
+          exerciseId,
+          blocks: adjusted(8),
+          adjustments: [{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }],
+        },
+      ],
+    });
+    expect(res.status).toBe(200);
+
+    const composed = res.body.exercises[0];
+    expect(composed.blocks[0].rows[0].values.col_reps).toBe(8);
+    // La référence n'a PAS bougé : c'est toujours ce qui a été copié à l'ajout.
+    expect(composed.baseline).toEqual(BLOCKS);
+    expect(composed.adjustments).toEqual([{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }]);
+    composedId = composed.id;
+  });
+
+  const REPS = BLOCKS[0]?.metrics[0];
+
+  it.each([
+    ["le libellé du bloc", () => [{ ...BLOCKS[0], label: "Échauffement" }]],
+    ["le type de structure", () => [{ ...BLOCKS[0], structure: { type: "FREE" } }]],
+    [
+      "l'unité d'une colonne",
+      () => [{ ...BLOCKS[0], metrics: [{ ...REPS, unit: "REPS_PER_SIDE" }] }],
+    ],
+    [
+      "le libellé d'une colonne",
+      () => [{ ...BLOCKS[0], metrics: [{ ...REPS, label: "Passages" }] }],
+    ],
+    ["le nombre de blocs", () => []],
+  ])("REFUSE de changer %s au niveau séance", async (_label, build) => {
+    // Le verrou est vérifié côté serveur : un formulaire n'est pas une frontière.
+    const res = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [{ id: composedId, exerciseId, blocks: build() }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("ACCEPTE le repli d'une colonne — c'est de l'affichage, pas de la donnée", async () => {
+    const collapsed = [{ ...BLOCKS[0], metrics: [{ ...REPS, collapsed: true }] }];
+    const res = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [{ id: composedId, exerciseId, blocks: collapsed }],
+    });
+    expect(res.status).toBe(200);
+    composedId = res.body.exercises[0].id;
+
+    // Remis en place : les tests suivants partent de la grille complète.
+    const restored = await coach.put(`/sessions/${sessionId}`).send({
+      title: "Bloc force",
+      exercises: [{ id: composedId, exerciseId, blocks: adjusted(8) }],
+    });
+    composedId = restored.body.exercises[0].id;
+  });
+
+  it("recharge depuis la bibliothèque : la référence suit, les ajustements tombent", async () => {
+    // L'exercice de bibliothèque change APRÈS la composition.
+    const updated = [{ ...BLOCKS[0], rows: [{ id: "r1", values: { col_reps: 12 } }] }];
+    expect((await coach.patch(`/exercises/${exerciseId}`).send({ blocks: updated })).status).toBe(
+      200,
+    );
+
+    // Tant qu'on ne recharge pas, la séance ne bouge PAS — elle est indépendante une fois composée.
+    const before = await coach.get(`/sessions/${sessionId}`);
+    expect(before.body.exercises[0].baseline).toEqual(BLOCKS);
+
+    const res = await coach.post(`/sessions/${sessionId}/exercises/${composedId}/reload`);
+    expect(res.status).toBe(201);
+    const composed = res.body.exercises[0];
+    expect(composed.blocks).toEqual(updated);
+    expect(composed.baseline).toEqual(updated);
+    expect(composed.adjustments).toEqual([]);
+  });
+
+  it("un coach ne recharge PAS l'exercice d'une séance d'un autre coach", async () => {
+    const res = await other.post(`/sessions/${sessionId}/exercises/${composedId}/reload`);
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
   let coachB: Agent;
@@ -464,6 +853,31 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   let scheduledId: string;
 
   const monday = mondayOfCurrentWeek();
+  // La semaine 2 commence sept jours après le lundi de départ : une séance doit tomber dans la
+  // plage de SA semaine, l'API le vérifie.
+  const mondayOfWeek2 = new Date(`${monday}T00:00:00Z`);
+  mondayOfWeek2.setUTCDate(mondayOfWeek2.getUTCDate() + 7);
+  const mondayOfWeek2Iso = mondayOfWeek2.toISOString().slice(0, 10);
+
+  const LIBRARY_INSTRUCTIONS = [{ type: "PARAGRAPH", content: [{ text: "Coudes serrés." }] }];
+  const LIBRARY_BLOCKS = [
+    {
+      id: "blk_1",
+      label: "Travail",
+      structure: { type: "SERIES", setCount: 5, restBetweenSetsSeconds: 180 },
+      metrics: [
+        {
+          id: "col_reps",
+          source: "CATALOG",
+          key: "REPETITIONS",
+          unit: "REPS",
+          label: null,
+          collapsed: false,
+        },
+      ],
+      rows: [{ id: "r1", values: { col_reps: 5 } }],
+    },
+  ];
 
   // Lie un athlète à un coach par invitation et retourne son id.
   async function link(coach: Agent, athlete: Agent): Promise<string> {
@@ -483,9 +897,12 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     b1Id = await link(coachB, athleteB1);
 
     // Bibliothèque du coach A : un exercice documenté, composé dans une séance modèle.
-    const exercise = await coachA
-      .post("/exercises")
-      .send({ title: "Tractions lestées", description: "Prise large", category: "RENFO" });
+    const exercise = await coachA.post("/exercises").send({
+      title: "Tractions lestées",
+      description: "Prise large",
+      instructions: LIBRARY_INSTRUCTIONS,
+      blocks: LIBRARY_BLOCKS,
+    });
     exerciseAId = exercise.body.id;
     await coachA
       .post(`/exercises/${exerciseAId}/documents`)
@@ -494,11 +911,11 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const template = await coachA.post("/sessions").send({
       title: "Bloc force max",
       notes: "Repos 3 min.",
-      exercises: [{ exerciseId: exerciseAId, prescription: "5×5" }],
+      exercises: [{ exerciseId: exerciseAId, note: "5×5" }],
     });
     templateId = template.body.id;
 
-    const exerciseB = await coachB.post("/exercises").send({ title: "Chez B", category: "GRIMPE" });
+    const exerciseB = await coachB.post("/exercises").send({ title: "Chez B", tags: ["grimpe"] });
     exerciseBId = exerciseB.body.id;
   });
 
@@ -547,13 +964,178 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(res.body.exercises[0]).toMatchObject({
       sourceExerciseId: exerciseAId,
       title: "Tractions lestées",
-      category: "RENFO",
-      prescription: "5×5",
+      note: "5×5",
       position: 0,
     });
     // Le document de l'exercice suit la copie : sans lui, l'athlète n'y aurait aucun accès.
     expect(res.body.exercises[0].documents).toHaveLength(1);
     expect(res.body.exercises[0].documents[0].url).toBe("https://youtu.be/demo");
+    // Consigne et structure suivent aussi : sans elles l'athlète garderait le titre et perdrait
+    // ce qu'il doit faire.
+    expect(res.body.exercises[0].instructions).toEqual(LIBRARY_INSTRUCTIONS);
+    expect(res.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
+  });
+
+  it("la copie est FIGÉE : retravailler l'exercice source ne la touche pas", async () => {
+    const patched = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      instructions: [{ type: "PARAGRAPH", content: [{ text: "Réécrit après diffusion." }] }],
+      blocks: [],
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.blocks).toEqual([]);
+
+    const read = await coachA.get(`/scheduled-sessions/${scheduledId}`);
+    expect(read.body.exercises[0].instructions).toEqual(LIBRARY_INSTRUCTIONS);
+    expect(read.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
+  });
+
+  it("diffuse le dosage de la SÉANCE, pas celui de la bibliothèque", async () => {
+    // La régression que ce test verrouille : lire les blocs de l'exercice au moment de la
+    // diffusion ferait disparaître, sans le moindre avertissement, tout ce que le coach a ajusté
+    // au niveau séance.
+    const template = await coachA.get(`/sessions/${templateId}`);
+    const composed = template.body.exercises[0];
+    const tuned = composed.blocks.map((block: { rows: { id: string; values: unknown }[] }) => ({
+      ...block,
+      rows: block.rows.map((row) => (row.id === "r1" ? { ...row, values: { col_reps: 3 } } : row)),
+    }));
+
+    // La note est renvoyée telle quelle : ce test ajuste le DOSAGE, et les suivants comptent sur
+    // le modèle intact — une suite e2e partage ses fixtures.
+    const saved = await coachA.put(`/sessions/${templateId}`).send({
+      title: "Bloc force max",
+      notes: "Repos 3 min.",
+      exercises: [
+        {
+          id: composed.id,
+          exerciseId: exerciseAId,
+          note: composed.note,
+          blocks: tuned,
+          adjustments: [{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }],
+        },
+      ],
+    });
+    expect(saved.status).toBe(200);
+
+    // Diffusée en semaine 2, dont aucun test ne compte les séances, puis retirée aussitôt : la
+    // semaine 1 est le décor d'autres assertions.
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    const copy = diffused.body.exercises[0];
+    expect(copy.blocks[0].rows[0].values.col_reps).toBe(3);
+    // Le marqueur du niveau séance voyage avec la copie : l'athlète doit voir CE qui a été ajusté
+    // pour lui, et le coach distinguer les deux niveaux sur la même grille.
+    expect(copy.adjustments).toEqual([{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }]);
+    expect(copy.baseline).toEqual(copy.blocks);
+
+    // Nettoyage par courtoisie : aucune assertion sur son statut, la semaine 2 n'est comptée
+    // nulle part et un échec ici ne dirait rien d'utile.
+    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+  });
+
+  it("une métrique MAISON citée par un bloc part avec la diffusion", async () => {
+    // La régression que ce test verrouille : `customMetricSchema` est `.strict()`, et la ligne
+    // Prisma porte `coachId`, `createdAt`, `updatedAt`. La parser telle quelle faisait échouer
+    // TOUTE la diffusion en 500 dès qu'un exercice citait une métrique maison — et rien ne le
+    // couvrait, la copie du snapshot n'ayant été testée qu'avec des métriques du catalogue.
+    const metric = await coachA.post("/custom-metrics").send({
+      label: "Cotation française",
+      unit: null,
+      valueType: "SCALE",
+      scale: ["6a", "6b", "6c"],
+    });
+    expect(metric.status).toBe(201);
+
+    const blocks = [
+      {
+        id: "blk_home",
+        label: null,
+        structure: { type: "SERIES", setCount: 2, restBetweenSetsSeconds: 60 },
+        metrics: [
+          {
+            id: "col_grade",
+            source: "CUSTOM",
+            customMetricId: metric.body.id,
+            label: null,
+            collapsed: false,
+          },
+        ],
+        rows: [{ id: "r1", values: { col_grade: "6b" } }],
+      },
+    ];
+    const exercise = await coachA
+      .post("/exercises")
+      .send({ title: "Voie en 6b", tags: ["grimpe"], blocks });
+    expect(exercise.status).toBe(201);
+
+    const template = await coachA.post("/sessions").send({
+      title: "Séance métrique maison",
+      exercises: [{ exerciseId: exercise.body.id }],
+    });
+    expect(template.status).toBe(201);
+
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    // La DÉFINITION voyage, pas seulement l'identifiant : `/custom-metrics` est scopé au coach,
+    // et l'athlète n'y aura jamais accès.
+    expect(diffused.body.exercises[0].customMetrics).toEqual([
+      {
+        id: metric.body.id,
+        label: "Cotation française",
+        unit: null,
+        valueType: "SCALE",
+        scale: ["6a", "6b", "6c"],
+      },
+    ]);
+
+    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+  });
+
+  it("les images de consigne survivent à la diffusion", async () => {
+    // Les documents sont recopiés en NOUVELLES lignes : sans remappage, la consigne de l'athlète
+    // référencerait des identifiants de la bibliothèque, qui ne désignent rien chez lui — et
+    // l'échec serait silencieux, un média introuvable ne s'affichant simplement pas.
+    const upload = await coachA
+      .post(`/exercises/${exerciseAId}/documents/upload-url`)
+      .send({ fileName: "position.jpg", mimeType: "image/jpeg", size: 2048 });
+    const image = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: upload.body.storagePath,
+      fileName: "position.jpg",
+      mimeType: "image/jpeg",
+      usage: "INSTRUCTION",
+    });
+    expect(image.status).toBe(201);
+
+    const withImage = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      instructions: [
+        { type: "PARAGRAPH", content: [{ text: "Position basse." }] },
+        { type: "IMAGE", mediaId: image.body.id },
+      ],
+    });
+    expect(withImage.status).toBe(200);
+
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    const copy = diffused.body.exercises[0];
+    const block = copy.instructions.find((item: { type: string }) => item.type === "IMAGE");
+    const documentIds = copy.documents.map((document: { id: string }) => document.id);
+
+    // L'identifiant a changé ET il désigne un document de la COPIE.
+    expect(block.mediaId).not.toBe(image.body.id);
+    expect(documentIds).toContain(block.mediaId);
+
+    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${image.body.id}`);
   });
 
   it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {
@@ -565,7 +1147,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const foreignExercise = await coachA.post(`/plan-weeks/${week1Id}/sessions`).send({
       title: "Intrusion",
       scheduledDate: monday,
-      exercises: [{ sourceExerciseId: exerciseBId, title: "Volé", category: "GRIMPE" }],
+      exercises: [{ sourceExerciseId: exerciseBId, title: "Volé" }],
     });
     expect(foreignExercise.status).toBe(400);
   });
@@ -579,17 +1161,16 @@ describe("Planifications : diffusion & isolation (P3)", () => {
         {
           sourceExerciseId: exerciseAId,
           title: "Tractions lestées",
-          category: "RENFO",
-          prescription: "4×6 — épaule sensible",
+          note: "4×6 — épaule sensible",
         },
       ],
     });
     expect(edited.status).toBe(200);
-    expect(edited.body.exercises[0].prescription).toBe("4×6 — épaule sensible");
+    expect(edited.body.exercises[0].note).toBe("4×6 — épaule sensible");
 
     const template = await coachA.get(`/sessions/${templateId}`);
     expect(template.body.title).toBe("Bloc force max");
-    expect(template.body.exercises[0].prescription).toBe("5×5");
+    expect(template.body.exercises[0].note).toBe("5×5");
   });
 
   it("un brouillon est INVISIBLE de l'athlète (le scope tenant ne filtre pas le statut)", async () => {
@@ -683,7 +1264,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(204);
 
-    // La séance de l'athlète est intacte : titre, prescription et document toujours là.
+    // La séance de l'athlète est intacte : titre, note et document toujours là.
     const session = await athleteA1.get(`/me/scheduled-sessions/${scheduledId}`);
     expect(session.status).toBe(200);
     expect(session.body.exercises[0].title).toBe("Tractions lestées");
@@ -812,6 +1393,246 @@ describe("Débrief de séance (P4)", () => {
       (await coachA.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({ content: "x" }))
         .status,
     ).toBe(403);
+  });
+});
+
+describe("Suivi d'exécution (#168)", () => {
+  let coach: Agent;
+  let athlete: Agent;
+  let other: Agent;
+  let sessionId: string;
+  let exerciseCopyId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  beforeAll(async () => {
+    coach = await signUp("suivi-coach@cmv.test", Role.COACH);
+    athlete = await signUp("suivi-athlete@cmv.test", Role.ATHLETE);
+    other = await signUp("suivi-other@cmv.test", Role.ATHLETE);
+
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const athleteId = accepted.body.athleteId;
+
+    const exercise = await coach.post("/exercises").send({
+      title: "Tractions",
+      blocks: [
+        {
+          id: "blk_1",
+          label: null,
+          structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+          metrics: [
+            {
+              id: "col_reps",
+              source: "CATALOG",
+              key: "REPETITIONS",
+              unit: "REPS",
+              label: null,
+              collapsed: false,
+            },
+          ],
+          rows: [{ id: "r1", values: { col_reps: 6 } }],
+        },
+      ],
+    });
+    const template = await coach
+      .post("/sessions")
+      .send({ title: "Force", exercises: [{ exerciseId: exercise.body.id }] });
+
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Cycle suivi",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const scheduled = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
+    sessionId = scheduled.body.id;
+    exerciseCopyId = scheduled.body.exercises[0].id;
+
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+  });
+
+  it("naît NON SUIVI — ce qui n'est pas « zéro coché »", async () => {
+    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(read.status).toBe(200);
+    // `null` et non `{}` : l'athlète n'a rien dit, et l'affichage doit rester silencieux.
+    expect(read.body.exercises[0].tracking).toBeNull();
+  });
+
+  it("remonte avec le débrief, et distingue « rien coché » de « non suivi »", async () => {
+    const sent = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      content: null,
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 2] } } },
+    });
+    expect(sent.status).toBe(200);
+
+    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(read.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 2] } });
+
+    // Ouvert sans rien cocher : suivi, mais vide — un état distinct de l'absence.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: {} },
+    });
+    expect(
+      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
+    ).toEqual({});
+
+    // Coché PUIS décoché : le bloc existe avec une liste vide. Ce n'est pas « non suivi » —
+    // l'athlète a ouvert son suivi et l'a laissé à zéro, ce qui est une réponse.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [] } } },
+    });
+    expect(
+      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
+    ).toEqual({ blk_1: { checked: [] } });
+
+    // Et on peut y revenir : `null` remet en NON SUIVI, c'est une intention.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: null },
+    });
+    expect(
+      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
+    ).toBeNull();
+  });
+
+  it("un débrief SANS texte, sans média et sans coche part quand même", async () => {
+    // « J'ai fait la séance, rien à dire » est une réponse valable ; forcer du texte n'en produit
+    // que de creux.
+    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({});
+    expect(res.status).toBe(200);
+  });
+
+  it("le COACH lit le décompte avec le débrief, résumé et sans jugement", async () => {
+    // Le chaînon qui manquait : le suivi était écrit, exposé dans le DTO de la séance, et aucun
+    // écran coach ne le montrait. Il accompagne désormais le débrief lui-même — le coach n'a pas
+    // à charger la séance de son athlète pour savoir ce qui a été coché.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      content: "Épaule sensible sur la dernière.",
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 1, 2] } } },
+    });
+
+    const read = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
+    expect(read.status).toBe(200);
+    expect(read.body.trackedExercises).toEqual([
+      {
+        exerciseId: exerciseCopyId,
+        title: "Tractions",
+        state: "PARTIAL",
+        done: 3,
+        total: 4,
+        unit: "SET",
+      },
+    ]);
+
+    // Remis à NON SUIVI : l'état reste distinct de « zéro coché », y compris chez le coach.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: null },
+    });
+    const untracked = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
+    expect(untracked.body.trackedExercises[0]).toMatchObject({
+      state: "UNTRACKED",
+      done: 0,
+      total: 4,
+    });
+  });
+
+  it("une réécriture de la séance par le COACH ne détruit ni le dosage ni le suivi", async () => {
+    // La régression que ce test verrouille, et qui a détruit des données réelles : l'édition
+    // d'une séance planifiée est un replace-all. Tout ce que le client n'émet pas est effacé —
+    // les blocs l'étaient à chaque enregistrement, et le suivi de l'athlète ne pouvait même PAS
+    // être renvoyé, faute de rattacher une ligne à sa précédente.
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 1] } } },
+    });
+
+    const before = await coach.get(`/scheduled-sessions/${sessionId}`);
+    const exercise = before.body.exercises[0];
+    expect(exercise.blocks).toHaveLength(1);
+
+    // Ce que le panneau du coach renvoie : il réordonne et annote, il ne touche pas au dosage.
+    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Force — ajustée",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [
+        {
+          id: exercise.id,
+          sourceExerciseId: exercise.sourceExerciseId,
+          title: exercise.title,
+          description: exercise.description,
+          tags: exercise.tags,
+          note: "Note ajoutée",
+          instructions: exercise.instructions,
+          blocks: exercise.blocks,
+          customMetrics: exercise.customMetrics,
+          adjustments: exercise.adjustments,
+        },
+      ],
+    });
+    expect(saved.status).toBe(200);
+
+    const after = saved.body.exercises[0];
+    expect(after.blocks).toEqual(exercise.blocks);
+    expect(after.baseline).toEqual(exercise.baseline);
+    expect(after.note).toBe("Note ajoutée");
+    // Le SUIVI appartient à l'athlète : il n'a pas transité par le coach, et il est toujours là.
+    expect(after.tracking).toEqual({ blk_1: { checked: [0, 1] } });
+
+    // Vu de l'athlète aussi — c'est la seule vue qui compte pour lui.
+    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(read.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 1] } });
+    expect(read.body.exercises[0].blocks).toHaveLength(1);
+  });
+
+  it("un exercice AJOUTÉ par le coach naît sans suivi, et n'hérite pas de celui d'un autre", async () => {
+    const before = await coach.get(`/scheduled-sessions/${sessionId}`);
+    const exercise = before.body.exercises[0];
+
+    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Force — ajustée",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [
+        {
+          id: exercise.id,
+          sourceExerciseId: exercise.sourceExerciseId,
+          title: exercise.title,
+          tags: exercise.tags,
+          instructions: exercise.instructions,
+          blocks: exercise.blocks,
+          customMetrics: exercise.customMetrics,
+          adjustments: exercise.adjustments,
+        },
+        // Sans `id` : ligne nouvelle. Un `id` inventé ne doit rien reprendre non plus.
+        { title: "Gainage", tags: [], blocks: [] },
+      ],
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body.exercises).toHaveLength(2);
+    expect(saved.body.exercises[1].tracking).toBeNull();
+    // L'exercice d'origine, lui, garde le sien.
+    expect(saved.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 1] } });
+  });
+
+  it("un athlète ne suit PAS la séance d'un autre", async () => {
+    const res = await other.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0] } } },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("un identifiant d'exercice étranger n'écrit RIEN", async () => {
+    // L'écriture est pilotée par l'entrée : sans `where` scopé sur la séance, un id forgé
+    // atteindrait la ligne d'un autre.
+    const before = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { cmv_inconnu: { blk_1: { checked: [0, 1, 2, 3] } } },
+    });
+    expect(res.status).toBe(200);
+    const after = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    expect(after.tracking).toEqual(before.tracking);
   });
 });
 
@@ -3390,7 +4211,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     // Bibliothèque de A : un exercice documenté, composé dans une séance modèle.
     const exercise = await coachA
       .post("/exercises")
-      .send({ title: "Suspensions", description: "Réglette 20 mm", category: "GRIMPE" });
+      .send({ title: "Suspensions", description: "Réglette 20 mm", tags: ["grimpe"] });
     exerciseId = exercise.body.id;
     await coachA
       .post(`/exercises/${exerciseId}/documents`)
@@ -3399,7 +4220,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     const template = await coachA.post("/sessions").send({
       title: "Doigts",
       notes: "Échauffement long.",
-      exercises: [{ exerciseId, prescription: "6×10 s" }],
+      exercises: [{ exerciseId, note: "6×10 s" }],
     });
     templateId = template.body.id;
 
@@ -3504,8 +4325,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     expect(detail.body.exercises[0]).toMatchObject({
       sourceExerciseId: exerciseId,
       title: "Suspensions",
-      category: "GRIMPE",
-      prescription: "6×10 s",
+      note: "6×10 s",
       position: 0,
     });
     // Le document suit la copie — même lien, ligne distincte de celle de la séance source.

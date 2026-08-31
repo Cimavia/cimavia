@@ -1,15 +1,19 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { isMondayIsoDate } from "../util/date.util";
+import { adjustmentsSchema } from "./dosage-override.schema";
 import {
   EXERCISE_DESCRIPTION_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
-  exerciseCategorySchema,
   exerciseDocumentDtoSchema,
+  exerciseTagsSchema,
 } from "./exercise.schema";
+import { exerciseBlocksSchema, exerciseTrackingSchema } from "./exercise-block.schema";
+import { customMetricSchema } from "./exercise-metric.schema";
+import { richDocumentSchema } from "./rich-document.schema";
 import {
+  SESSION_NOTE_MAX_LENGTH,
   SESSION_NOTES_MAX_LENGTH,
-  SESSION_PRESCRIPTION_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
 } from "./session.schema";
 
@@ -115,11 +119,25 @@ export type CopyPlanWeekInput = z.infer<typeof copyPlanWeekSchema>;
 // bibliothèque à l'écriture) : il peut être null, et l'affichage n'en dépend jamais.
 export const scheduledSessionExerciseInputSchema = z
   .object({
+    /**
+     * L'exercice diffusé qu'on renvoie, quand il existe déjà.
+     *
+     * L'édition d'une séance planifiée est un REPLACE-ALL : tout est supprimé puis réécrit. Sans
+     * cette trace, le serveur ne peut rattacher aucune ligne à sa précédente, et ce qui ne
+     * transite pas par le client — le SUIVI de l'athlète — disparaît à chaque enregistrement du
+     * coach. Absent = exercice nouveau.
+     */
+    id: z.string().min(1).optional(),
     sourceExerciseId: z.string().min(1).nullable().optional(),
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
-    category: exerciseCategorySchema,
-    prescription: z.string().max(SESSION_PRESCRIPTION_MAX_LENGTH).nullable().optional(),
+    // Copiés de l'exercice source au moment de la diffusion, comme les documents et les tags.
+    instructions: richDocumentSchema.nullable().optional(),
+    blocks: exerciseBlocksSchema.optional(),
+    customMetrics: z.array(customMetricSchema).optional(),
+    tags: exerciseTagsSchema.optional(),
+    note: z.string().max(SESSION_NOTE_MAX_LENGTH).nullable().optional(),
+    adjustments: adjustmentsSchema.optional(),
   })
   .strict();
 export type ScheduledSessionExerciseInput = z.infer<typeof scheduledSessionExerciseInputSchema>;
@@ -162,8 +180,28 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   sourceExerciseId: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
-  category: exerciseCategorySchema,
-  prescription: z.string().nullable(),
+  // Copies FIGÉES elles aussi : l'athlète lit la consigne et la structure telles qu'elles étaient
+  // à la diffusion, même si le coach a retravaillé l'exercice de sa bibliothèque depuis.
+  instructions: richDocumentSchema.nullable(),
+  blocks: exerciseBlocksSchema,
+  /**
+   * Les métriques MAISON citées par les blocs, copiées à la diffusion. Sans elles l'athlète ne
+   * verrait qu'un identifiant : `/custom-metrics` est scopé au coach, et faire dépendre la lecture
+   * d'une planif de la bibliothèque du coach casserait l'autonomie du snapshot (décision P3).
+   */
+  customMetrics: z.array(customMetricSchema),
+  /**
+   * Le suivi d'exécution. `null` = NON SUIVI, ce qui n'est pas « zéro coché » : l'athlète n'a
+   * rien dit, et l'affichage doit rester silencieux — jamais « 0 sur 4 », jamais de relance.
+   */
+  tracking: exerciseTrackingSchema.nullable(),
+  // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
+  // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.
+  tags: z.array(z.string()),
+  note: z.string().nullable(),
+  /** Ce dont le troisième niveau part : ce que la séance a diffusé. */
+  baseline: exerciseBlocksSchema,
+  adjustments: adjustmentsSchema,
   position: z.number().int(),
   // Copies des documents de l'exercice source (URL signée résolue à chaque lecture).
   documents: z.array(exerciseDocumentDtoSchema),
@@ -207,6 +245,12 @@ export const planSummaryDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
   athleteId: z.string(),
+  /**
+   * Le nom et l'adresse de l'athlète destinataire. Sans eux, un coach devant sa liste de cycles ne
+   * sait pas à qui chacun s'adresse — l'identifiant ne se lit pas.
+   */
+  athleteName: z.string(),
+  athleteEmail: z.string(),
   title: z.string(),
   description: z.string().nullable(),
   startDate: z.iso.date(),

@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createSession,
   deleteSession,
+  getSession,
   listSessions,
+  reloadSessionExercise,
   sessionKeys,
   updateSession,
 } from "@/feature/library/api";
@@ -43,6 +45,28 @@ export function useDeleteSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteSession(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
+  });
+}
+
+export function useSession(id: string | undefined) {
+  return useQuery<SessionDto>({
+    queryKey: sessionKeys.detail(id ?? ""),
+    queryFn: () => getSession(id as string),
+    // « new » n'a pas d'id : la requête ne part pas, plutôt qu'un GET /sessions/undefined.
+    enabled: id != null,
+  });
+}
+
+/**
+ * Recharge un exercice composé depuis la bibliothèque. Le cache est invalidé en entier : la
+ * réponse porte la séance complète, mais la liste et les compteurs en dépendent aussi.
+ */
+export function useReloadSessionExercise(sessionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionExerciseId: string) =>
+      reloadSessionExercise(sessionId as string, sessionExerciseId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
   });
 }

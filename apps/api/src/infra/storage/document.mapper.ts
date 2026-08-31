@@ -1,4 +1,4 @@
-import { DocumentType, type ExerciseDocumentDto } from "@cmv/shared";
+import { DocumentType, type DocumentUsage, type ExerciseDocumentDto } from "@cmv/shared";
 import type { StorageService } from "./storage.service";
 
 /**
@@ -9,6 +9,7 @@ import type { StorageService } from "./storage.service";
 export type DocumentRow = {
   id: string;
   type: DocumentType;
+  usage: DocumentUsage;
   storagePath: string | null;
   url: string | null;
   fileName: string | null;
@@ -43,6 +44,7 @@ export async function toDocumentDto(
   return {
     id: doc.id,
     type: doc.type,
+    usage: doc.usage,
     url,
     fileName: doc.fileName,
     mimeType: doc.mimeType,

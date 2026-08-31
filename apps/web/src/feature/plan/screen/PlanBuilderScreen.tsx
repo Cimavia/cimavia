@@ -86,7 +86,13 @@ export function PlanBuilderScreen() {
 
   return (
     <CmvAppShell
-      title={plan.title}
+      // Le destinataire DANS le titre : devant une liste de cycles qui se ressemblent, savoir à
+      // qui celui-ci s'adresse compte autant que son nom.
+      title={t("plan.builder.titleWithAthlete", {
+        title: plan.title,
+        name: plan.athleteName,
+        email: plan.athleteEmail,
+      })}
       subtitle={t("plan.card.meta", {
         weeks: plan.weekCount,
         sessions: plan.sessionCount,

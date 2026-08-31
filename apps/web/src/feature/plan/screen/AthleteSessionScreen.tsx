@@ -1,15 +1,17 @@
-import type { ScheduledSessionExerciseDto } from "@cmv/shared";
-import { ScheduledSessionStatus } from "@cmv/shared";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import type { ScheduledSessionDto } from "@cmv/shared";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { AthleteExerciseCard } from "@/feature/plan/component/AthleteExerciseCard";
+import { AthleteSessionRail } from "@/feature/plan/component/AthleteSessionRail";
+import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { CmvAppShell, CmvBadge, CmvButton, CmvCard, CmvErrorState } from "@/shared/component";
+import { CmvAppShell, CmvBadge, CmvCard, CmvErrorState } from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values plan.athlete.sessionStatus: ScheduledSessionStatus
-// i18n-values plan.athlete.category: ExerciseCategory
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle.
@@ -62,100 +64,96 @@ export function AthleteSessionScreen() {
         />
       ) : null}
 
-      {session == null ? null : (
-        <div className="flex max-w-3xl flex-col gap-cmv-lg">
-          {/* Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
-              liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
-              dernier cas. Le planning est le parent naturel d'une séance. */}
-          <Link
-            to="/planning"
-            search={{ week: undefined }}
-            className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
-          >
-            {t("plan.athlete.backToPlanning")}
-          </Link>
-
-          {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
-              déroulé, pas enterrée sous la liste des exercices (même choix que sur mobile). */}
-          <div>
-            <Link
-              to="/sessions/$sessionId/feedback"
-              params={{ sessionId: session.id }}
-              className="inline-flex items-center rounded-cmv-md bg-cmv-accent px-cmv-lg py-cmv-sm text-cmv-body text-cmv-accent-fg transition-colors hover:bg-cmv-accent-hi"
-            >
-              {session.status === ScheduledSessionStatus.DONE
-                ? t("feedback.openDone")
-                : t("feedback.open")}
-            </Link>
-          </div>
-
-          {/* Nullable : une séance sans consigne n'affiche pas un bloc vide. */}
-          {session.notes == null ? null : (
-            <CmvCard>
-              <div className="flex flex-col gap-cmv-xs">
-                <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
-                  {t("plan.athlete.notes")}
-                </h2>
-                <p className="text-cmv-body text-cmv-text-hi">{session.notes}</p>
-              </div>
-            </CmvCard>
-          )}
-
-          <section className="flex flex-col gap-cmv-md">
-            <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
-              {t("plan.athlete.composition", { count: session.exercises.length })}
-            </h2>
-
-            {session.exercises.map((exercise, index) => (
-              <ExerciseCard key={exercise.id} exercise={exercise} position={index + 1} />
-            ))}
-          </section>
-        </div>
-      )}
+      {session == null ? null : <LoadedSession session={session} />}
     </CmvAppShell>
   );
 }
 
-function ExerciseCard({
-  exercise,
-  position,
-}: Readonly<{ exercise: ScheduledSessionExerciseDto; position: number }>) {
+/**
+ * La séance CHARGÉE — et le suivi qui va avec.
+ *
+ * `useLocalTracking` part de ce que le serveur connaît : l'appeler pendant le chargement le
+ * figerait sur un état vide, et une séance déjà débriefée rouverte sur un autre navigateur
+ * n'afficherait plus aucune coche. Il vit donc là où la séance est garantie présente.
+ */
+function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  const remote = useMemo(
+    () => Object.fromEntries(session.exercises.map((exercise) => [exercise.id, exercise.tracking])),
+    [session],
+  );
+  const local = useLocalTracking(session.id, remote);
 
   return (
-    <CmvCard>
-      <div className="flex flex-col gap-cmv-sm">
-        <div className="flex items-baseline gap-cmv-sm">
-          <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{position}</span>
-          <h3 className="flex-1 text-cmv-subtitle text-cmv-text-hi">{exercise.title}</h3>
-          <CmvBadge>{t(`plan.athlete.category.${exercise.category}`)}</CmvBadge>
-        </div>
+    // Plus de `max-w` : la séance occupe la page, le rail a besoin de sa place et une grille
+    // à quatre colonnes ne se lit pas dans une colonne étroite.
+    <div className="flex flex-col gap-cmv-lg">
+      {/* Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
+              liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
+              dernier cas. Le planning est le parent naturel d'une séance. */}
+      <Link
+        to="/planning"
+        search={{ week: undefined }}
+        className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
+      >
+        {t("plan.athlete.backToPlanning")}
+      </Link>
 
-        {/* Description et prescription sont nullables et distinctes : la première dit QUOI,
-            la seconde COMBIEN. Rien à afficher, on n'affiche rien — pas de tiret décoratif. */}
-        {exercise.description == null ? null : (
-          <p className="text-cmv-body text-cmv-text-mid">{exercise.description}</p>
-        )}
-        {exercise.prescription == null ? null : (
-          <p className="text-cmv-body text-cmv-text-mid">{exercise.prescription}</p>
-        )}
+      {/* Le débrief vit dans le RAIL, collé en bas, et nulle part ailleurs : deux boutons pour
+              la même action font hésiter sur ce qu'ils font de différent. C'est un écart avec le
+              mobile, où il n'y a pas de rail et où l'action reste en tête d'écran. */}
 
-        {exercise.documents.length === 0 ? null : (
-          <div className="flex flex-wrap gap-cmv-sm">
-            {exercise.documents.map((document) => (
-              <CmvButton
-                key={document.id}
-                variant="secondary"
-                // URL GET signée à TTL court, régénérée à chaque lecture : on l'ouvre, on ne la
-                // conserve pas. `noopener` comme pour le justificatif de facture.
-                onClick={() => window.open(document.url, "_blank", "noopener")}
-              >
-                {document.fileName ?? t("plan.athlete.document")}
-              </CmvButton>
-            ))}
-          </div>
-        )}
+      <div className="grid w-full gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="flex min-w-0 flex-col gap-cmv-md">
+          {/* L'en-tête ne compte RIEN : la progression vit dans le rail et nulle part
+                  ailleurs, sinon deux compteurs finissent par se contredire. */}
+          <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
+            {t("plan.athlete.composition", { count: session.exercises.length })}
+          </h2>
+
+          {/* Une séance diffusée sans exercice est l'anomalie du COACH : on la constate sans
+                  demander à l'athlète de la réparer. */}
+          {session.exercises.length === 0 ? (
+            <CmvCard>
+              <div className="flex flex-col gap-cmv-xs">
+                <h3 className="text-cmv-subtitle text-cmv-text-hi">
+                  {t("plan.athlete.emptyTitle")}
+                </h3>
+                <p className="text-cmv-body text-cmv-text-mid">
+                  {t("plan.athlete.emptyDescription")}
+                </p>
+              </div>
+            </CmvCard>
+          ) : null}
+
+          {session.exercises.map((exercise, index) => (
+            <div key={exercise.id} id={`exercise-${exercise.id}`}>
+              <AthleteExerciseCard
+                exercise={exercise}
+                position={index + 1}
+                tracking={local.tracking[exercise.id] ?? null}
+                onToggleUnit={(blockId, unitIndex) =>
+                  local.toggleUnit(exercise.id, blockId, unitIndex)
+                }
+                onRounds={(blockId, rounds) => local.setRounds(exercise.id, blockId, rounds)}
+              />
+            </div>
+          ))}
+        </section>
+
+        <AthleteSessionRail
+          session={session}
+          tracking={local.tracking}
+          onOpenFeedback={() =>
+            navigate({
+              to: "/sessions/$sessionId/feedback",
+              params: { sessionId: session.id },
+            })
+          }
+        />
       </div>
-    </CmvCard>
+    </div>
   );
 }

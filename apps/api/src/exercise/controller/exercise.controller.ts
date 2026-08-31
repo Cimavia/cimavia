@@ -1,4 +1,4 @@
-import { exerciseCategorySchema, Role } from "@cmv/shared";
+import { exerciseTagSchema, Role } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Roles } from "@thallesp/nestjs-better-auth";
@@ -19,13 +19,20 @@ export class ExerciseController {
   }
 
   @Get()
-  list(@Query("category") category?: string, @Query("search") search?: string) {
+  list(@Query("tag") tag?: string, @Query("search") search?: string) {
     const filters: ListExercisesFilters = {};
-    const parsed = category ? exerciseCategorySchema.safeParse(category) : null;
-    if (parsed?.success) filters.category = parsed.data;
+    // Normalisé comme à l'écriture : un filtre « Renfo » doit retrouver le tag « renfo ».
+    const parsedTag = tag ? exerciseTagSchema.safeParse(tag) : null;
+    if (parsedTag?.success) filters.tag = parsedTag.data;
     const trimmed = search?.trim();
     if (trimmed) filters.search = trimmed;
     return this.exercises.list(filters);
+  }
+
+  // Avant `:id`, sinon « tags » serait pris pour un identifiant d'exercice.
+  @Get("tags")
+  listTags() {
+    return this.exercises.listTags();
   }
 
   @Get(":id")

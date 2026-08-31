@@ -16,12 +16,13 @@ export function useMyFeedback(sessionId: string) {
  * détail de la séance et le cycle, sinon le planning continuerait d'afficher « À faire » sur une
  * séance qu'on vient de débriefer.
  */
-export function useUpsertMyFeedback(sessionId: string) {
+export function useUpsertMyFeedback(sessionId: string, onSaved?: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (input: UpsertSessionFeedbackInput) => athleteFeedbackApi.upsert(sessionId, input),
     onSuccess: (feedback) => {
+      onSaved?.();
       queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
       queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
       queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });

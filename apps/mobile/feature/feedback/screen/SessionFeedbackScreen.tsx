@@ -1,9 +1,14 @@
+import type { ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { FeedbackMediaSection } from "@/feature/feedback/component/FeedbackMediaSection";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
+import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
+import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
+import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 
 /**
@@ -20,6 +25,7 @@ export function SessionFeedbackScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: feedback, isPending, isError, refetch } = useSessionFeedback(id);
+  const session = useScheduledSession(id);
 
   return (
     <CmvScreen>
@@ -37,12 +43,59 @@ export function SessionFeedbackScreen() {
               <CmvText className="text-cmv-text-mid text-sm">{t("feedback.subtitle")}</CmvText>
             </View>
 
-            <FeedbackTextSection sessionId={id} feedback={feedback ?? null} />
+            {/* Le décompte n'attend PAS la séance pour laisser écrire : si elle tarde ou échoue,
+                le texte et les médias restent accessibles, seul le rappel des coches manque. */}
+            {session.data == null ? (
+              <FeedbackTextSection sessionId={id} feedback={feedback ?? null} />
+            ) : (
+              <TrackedSections sessionId={id} session={session.data} feedback={feedback ?? null} />
+            )}
 
             <FeedbackMediaSection sessionId={id} feedback={feedback ?? null} />
           </>
         )}
       </ScrollView>
     </CmvScreen>
+  );
+}
+
+/**
+ * Le décompte et le texte, ENSEMBLE : ils partent dans le même enregistrement.
+ *
+ * Le suivi vit en local depuis la séance ; le débrief est le moment où il franchit le réseau. Un
+ * seul bouton pour les deux — deux boutons feraient croire qu'on peut envoyer l'un sans l'autre,
+ * alors que le décompte accompagne le ressenti.
+ */
+function TrackedSections({
+  sessionId,
+  session,
+  feedback,
+}: Readonly<{
+  sessionId: string;
+  session: ScheduledSessionDto;
+  feedback: SessionFeedbackDto | null;
+}>) {
+  const remote = useMemo(
+    () => Object.fromEntries(session.exercises.map((exercise) => [exercise.id, exercise.tracking])),
+    [session],
+  );
+  const local = useLocalTracking(sessionId, remote);
+
+  return (
+    <>
+      <FeedbackTrackingSection
+        exercises={session.exercises}
+        tracking={local.tracking}
+        onToggleUnit={local.toggleUnit}
+        onRounds={local.setRounds}
+      />
+      <FeedbackTextSection
+        sessionId={sessionId}
+        feedback={feedback}
+        tracking={local.tracking}
+        trackingDirty={local.dirty}
+        onSaved={local.clear}
+      />
+    </>
   );
 }

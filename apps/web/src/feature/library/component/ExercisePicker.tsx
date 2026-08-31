@@ -1,7 +1,7 @@
 import { comparableText, type ExerciseDto } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CmvBadge, CmvTextField } from "@/shared/component";
+import { CmvTagList, CmvTextField } from "@/shared/component";
 
 type ExercisePickerProps = {
   exercises: readonly ExerciseDto[];
@@ -59,7 +59,7 @@ export function ExercisePicker({
             className="flex items-center justify-between gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm text-left transition-colors hover:border-cmv-border-hi hover:bg-cmv-surface-hi"
           >
             <span className="truncate text-cmv-body text-cmv-text-hi">{exercise.title}</span>
-            <CmvBadge>{t(`library.category.${exercise.category}`)}</CmvBadge>
+            <CmvTagList tags={exercise.tags} />
           </button>
         ))}
       </div>

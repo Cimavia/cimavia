@@ -1,5 +1,10 @@
 import type { SessionDto } from "@cmv/shared";
-import type { Exercise, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import { parseAdjustments, parseBlocks } from "../util/exercise-json.util";
+
+// L'exercice référencé, avec ses tags : le DTO les expose, et un `include` les charge en une
+// requête plutôt qu'une par ligne de composition.
+export type ExerciseWithTags = Prisma.ExerciseGetPayload<{ include: { tags: true } }>;
 
 // La séance avec ses exercices composés (positions), ordonnés.
 export type SessionWithExercises = Prisma.SessionGetPayload<{ include: { exercises: true } }>;
@@ -11,7 +16,7 @@ export type SessionWithExercises = Prisma.SessionGetPayload<{ include: { exercis
  */
 export function toSessionDto(
   session: SessionWithExercises,
-  exerciseById: Map<string, Exercise>,
+  exerciseById: Map<string, ExerciseWithTags>,
 ): SessionDto {
   return {
     id: session.id,
@@ -29,9 +34,13 @@ export function toSessionDto(
         id: composed.id,
         exerciseId: composed.exerciseId,
         position: composed.position,
-        prescription: composed.prescription,
+        note: composed.note,
+        blocks: parseBlocks(composed.blocks),
+        baseline: parseBlocks(composed.baseline),
+        adjustments: parseAdjustments(composed.adjustments),
         title: exercise.title,
-        category: exercise.category,
+        // Triés, comme partout ailleurs : l'ordre d'insertion n'a aucun sens pour un tag.
+        tags: exercise.tags.map((tag) => tag.name).sort(),
       };
     }),
     createdAt: session.createdAt.toISOString(),

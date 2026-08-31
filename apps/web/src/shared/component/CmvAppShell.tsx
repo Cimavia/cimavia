@@ -65,7 +65,12 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
 
   return (
     <div className="flex min-h-screen bg-cmv-bg-0">
-      <aside className="flex w-60 shrink-0 flex-col gap-cmv-xl border-cmv-border border-r bg-cmv-bg-1 p-cmv-lg">
+      {/*
+        Barre latérale FIXE et haute d'un écran : sur une page longue, le nom du compte et « Se
+        déconnecter » descendaient hors de vue et il fallait défiler tout en bas pour les
+        atteindre. Sa nav défile toute seule si elle déborde, le pied reste collé.
+      */}
+      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-cmv-xl border-cmv-border border-r bg-cmv-bg-1 p-cmv-lg">
         <Link
           to="/"
           search={{ q: undefined, filter: undefined }}
@@ -74,7 +79,7 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
           {t("common.appName")}
         </Link>
 
-        <nav className="flex flex-1 flex-col gap-cmv-xs">
+        <nav className="flex flex-1 flex-col gap-cmv-xs overflow-y-auto">
           {navItems.map((item) => (
             <Link
               // La capacité fait partie de la clé : une même route peut être listée deux fois,
@@ -100,8 +105,16 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
         </div>
       </aside>
 
-      <main className="flex-1 p-cmv-xl">
-        <header className="mb-cmv-xl flex flex-wrap items-center gap-cmv-md">
+      {/* `min-w-0` : sans lui un enfant large — un tableau à défilement — pousse la
+          largeur du conteneur flex au lieu de défiler dans son cadre. */}
+      <main className="min-w-0 flex-1 p-cmv-xl">
+        {/*
+          Bandeau FIXE : sur un écran qui défile — un constructeur d'exercice ou de séance en fait
+          plusieurs hauteurs —, « Enregistrer » imposait de remonter tout en haut. Posé ici et non
+          écran par écran, sinon chaque nouvelle page rejoue l'oubli.
+          `-mx`/`px` compensent le padding de `main` pour que le fond couvre toute la largeur.
+        */}
+        <header className="-mx-cmv-xl -mt-cmv-xl sticky top-0 z-20 mb-cmv-xl flex flex-wrap items-center gap-cmv-md border-cmv-border border-b bg-cmv-bg-0 px-cmv-xl py-cmv-lg">
           <div className="flex flex-col gap-cmv-xs">
             <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">{title}</h1>
             {subtitle == null ? null : (

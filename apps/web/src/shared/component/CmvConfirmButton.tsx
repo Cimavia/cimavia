@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { CmvButton } from "./CmvButton";
 
 type CmvConfirmButtonProps = {
@@ -7,6 +7,11 @@ type CmvConfirmButtonProps = {
   cancelLabel: string;
   onConfirm: () => void;
   disabled?: boolean;
+  /**
+   * Contenu du bouton au repos, quand `label` ne doit pas s'écrire — une icône dans une rangée
+   * d'actions serrée. `label` reste utilisé comme intitulé accessible, jamais perdu.
+   */
+  icon?: ReactNode;
 };
 
 /**
@@ -20,13 +25,19 @@ export function CmvConfirmButton({
   cancelLabel,
   onConfirm,
   disabled,
+  icon,
 }: Readonly<CmvConfirmButtonProps>) {
   const [armed, setArmed] = useState(false);
 
   if (!armed) {
     return (
-      <CmvButton variant="danger" disabled={disabled} onClick={() => setArmed(true)}>
-        {label}
+      <CmvButton
+        variant={icon == null ? "danger" : "ghost"}
+        title={label}
+        disabled={disabled}
+        onClick={() => setArmed(true)}
+      >
+        {icon ?? label}
       </CmvButton>
     );
   }

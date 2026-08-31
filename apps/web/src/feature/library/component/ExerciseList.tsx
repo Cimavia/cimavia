@@ -1,35 +1,39 @@
-import type { ExerciseCategory, ExerciseDto } from "@cmv/shared";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ExerciseCard } from "@/feature/library/component/ExerciseCard";
-import { EXERCISE_CATEGORIES } from "@/feature/library/constant";
-import { useExercises } from "@/feature/library/hook/useExercises";
+import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import {
   CmvButton,
+  CmvChoiceChips,
   CmvEmptyState,
   CmvErrorState,
-  CmvSegmented,
   CmvTextField,
 } from "@/shared/component";
 
-// "ALL" = pas de filtre catégorie (valeur sentinelle locale, jamais envoyée à l'API).
-type CategoryFilter = ExerciseCategory | "ALL";
+// "" = pas de filtre. Un tag ne peut pas être vide (`exerciseTagSchema` impose min 1), la valeur
+// est donc libre de toute collision — pas besoin d'une sentinelle qui pourrait être un vrai tag.
+const NO_TAG_FILTER = "";
 
-type ExerciseListProps = {
-  onCreate: () => void;
-  onEdit: (exercise: ExerciseDto) => void;
-};
-
-export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) {
+/**
+ * La liste n'ouvre plus de panneau : le constructeur est une PAGE, parce qu'il porte la consigne
+ * structurée, les blocs de dosage et l'aperçu athlète — trois choses qu'un tiroir de 480 px ne
+ * peut pas montrer côte à côte.
+ */
+export function ExerciseList() {
   const { t } = useTranslation();
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
+  const navigate = useNavigate();
+  const [tagFilter, setTagFilter] = useState(NO_TAG_FILTER);
   const [search, setSearch] = useState("");
 
   const filters = {
-    ...(categoryFilter === "ALL" ? {} : { category: categoryFilter }),
+    ...(tagFilter === NO_TAG_FILTER ? {} : { tag: tagFilter }),
     ...(search.trim() ? { search: search.trim() } : {}),
   };
   const { data: exercises, isPending, isError, refetch } = useExercises(filters);
+  // Tous les tags du coach, pas ceux des exercices affichés : dérivés de la liste filtrée, ils
+  // rétréciraient à chaque clic et le filtre deviendrait un aller sans retour.
+  const { data: tags } = useExerciseTags();
 
   return (
     <>
@@ -44,17 +48,17 @@ export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) 
             placeholder={t("library.searchExercise")}
           />
         </div>
-        <CmvSegmented<CategoryFilter>
-          value={categoryFilter}
-          onChange={setCategoryFilter}
-          options={[
-            { value: "ALL", label: t("library.filterAll") },
-            ...EXERCISE_CATEGORIES.map((value) => ({
-              value: value as CategoryFilter,
-              label: t(`library.category.${value}`),
-            })),
-          ]}
-        />
+        {/* Aucun tag chez le coach : pas de filtre à un seul bouton « Tous », qui ne filtrerait rien. */}
+        {tags == null || tags.length === 0 ? null : (
+          <CmvChoiceChips
+            value={tagFilter}
+            onChange={setTagFilter}
+            options={[
+              { value: NO_TAG_FILTER, label: t("library.filterAllTags") },
+              ...tags.map((tag) => ({ value: tag, label: tag })),
+            ]}
+          />
+        )}
       </div>
 
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
@@ -67,17 +71,48 @@ export function ExerciseList({ onCreate, onEdit }: Readonly<ExerciseListProps>) 
         />
       ) : null}
 
-      {exercises?.length === 0 ? (
+      {/* Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
+          bibliothèque neuve, le second constate qu'une recherche ne trouve rien alors que la
+          bibliothèque est pleine — et propose de créer l'exercice manquant. */}
+      {exercises?.length === 0 && search.trim() !== "" ? (
+        <CmvEmptyState
+          title={t("library.noMatch.title", { search: search.trim() })}
+          action={
+            <CmvButton
+              onClick={() =>
+                navigate({ to: "/library/exercises/new", search: { title: search.trim() } })
+              }
+            >
+              {t("library.noMatch.create", { search: search.trim() })}
+            </CmvButton>
+          }
+        />
+      ) : null}
+
+      {exercises?.length === 0 && search.trim() === "" ? (
         <CmvEmptyState
           title={t("library.empty.title")}
           description={t("library.empty.description")}
-          action={<CmvButton onClick={onCreate}>{t("library.newExercise")}</CmvButton>}
+          action={
+            <CmvButton onClick={() => navigate({ to: "/library/exercises/new" })}>
+              {t("library.newExercise")}
+            </CmvButton>
+          }
         />
       ) : null}
 
       <div className="grid gap-cmv-lg sm:grid-cols-2 lg:grid-cols-3">
         {exercises?.map((exercise) => (
-          <ExerciseCard key={exercise.id} exercise={exercise} onSelect={onEdit} />
+          <ExerciseCard
+            key={exercise.id}
+            exercise={exercise}
+            onSelect={() =>
+              navigate({
+                to: "/library/exercises/$exerciseId",
+                params: { exerciseId: exercise.id },
+              })
+            }
+          />
         ))}
       </div>
     </>

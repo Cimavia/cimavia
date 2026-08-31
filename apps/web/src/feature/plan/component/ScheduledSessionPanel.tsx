@@ -25,7 +25,16 @@ function toCreateInput(sourceSessionId: string, title: string, scheduledDate: st
   };
 }
 
-// Édition : replace-all — ce qu'on envoie EST la nouvelle vérité de la séance.
+/**
+ * Édition : replace-all — ce qu'on envoie EST la nouvelle vérité de la séance.
+ *
+ * D'où le renvoi INTÉGRAL du snapshot, y compris ce que ce panneau ne touche pas : consigne,
+ * dosage, métriques maison, ajustements. Omettre un champ ne le laisse pas tel quel, ça l'efface —
+ * et une séance diffusée qui perd ses blocs ne dit plus à l'athlète ce qu'il doit faire.
+ *
+ * `id` rattache la ligne à l'exercice diffusé qu'elle remplace : c'est ce qui permet au serveur
+ * de reporter le SUIVI de l'athlète, qui ne passe jamais par ici.
+ */
 function toSaveInput(
   title: string,
   notes: string,
@@ -38,11 +47,18 @@ function toSaveInput(
     notes: notes.trim() || null,
     scheduledDate,
     exercises: items.map((item) => ({
+      ...(item.id == null ? {} : { id: item.id }),
       sourceExerciseId: item.sourceExerciseId,
       title: item.title,
       description: item.description,
-      category: item.category,
-      prescription: item.prescription.trim() || null,
+      tags: item.tags,
+      note: item.note.trim() || null,
+      instructions: item.snapshot.instructions,
+      blocks: item.snapshot.blocks,
+      ...(item.snapshot.customMetrics == null
+        ? {}
+        : { customMetrics: item.snapshot.customMetrics }),
+      adjustments: item.snapshot.adjustments,
     })),
   };
 }
@@ -82,8 +98,7 @@ export function ScheduledSessionPanel({
   const [title, setTitle] = useState(session?.title ?? "");
   const [notes, setNotes] = useState(session?.notes ?? "");
   const [scheduledDate, setScheduledDate] = useState(date);
-  const { items, addExercise, removeItem, moveItem, setPrescription } =
-    useSessionComposition(session);
+  const { items, addExercise, removeItem, moveItem, setNote } = useSessionComposition(session);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -186,7 +201,7 @@ export function ScheduledSessionPanel({
                 labelPrefix="plan.session"
                 onMove={moveItem}
                 onRemove={removeItem}
-                onPrescriptionChange={setPrescription}
+                onNoteChange={setNote}
               />
             </>
           ) : null}
