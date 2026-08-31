@@ -831,7 +831,50 @@ tort).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** Depuis #9, `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Le `databaseHook` les tient alignés à la création, mais rien en base ne l'impose — et à partir de #13, retirer une capacité les fera légitimement diverger (`role=COACH`, `isCoach=false`). C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
-| C-2 | **L'autorisation API tourne encore sur le rôle exclusif.** `@Roles` (celui de `@thallesp/nestjs-better-auth`, pas un décorateur maison) et `tenantField` lisent `actor.role`. Sans effet tant qu'aucun compte ne cumule — c'est #12/#13 qui créent le premier, donc #10 doit passer avant eux. | 🔴 | [#10](https://github.com/Cimavia/cimavia/issues/10) |
+| ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
+| C-3 | **Les clients n'envoient pas encore `?as=`.** Les trois routes servant les deux capacités (`/invoices`, `/conversations`, messages) répondent **400** à un compte qui cumule sans préciser le titre. Sans effet aujourd'hui — aucun compte ne cumule avant #12 — mais le premier qui naîtra prendra ce 400 sur des écrans qui marchaient. Les deux entrées de nav qui portent le paramètre sont le sujet de #129. | 🔴 | [#129](https://github.com/Cimavia/cimavia/issues/129) |
+
+> **Appris en #10** (l'ordre des gardes globales n'est pas celui qu'on croit) : deux `APP_GUARD`
+> s'exécutent dans l'ordre où leurs **providers** sont enregistrés, et ceux du module **racine**
+> passent AVANT ceux des modules importés. `CapabilitiesGuard` déclarée dans `AppModule` tournait
+> donc avant l'AuthGuard de `@thallesp/nestjs-better-auth` — c'est-à-dire avant que `request.user`
+> existe. Rien ne l'a dit tant qu'aucune route ne déclarait de capacité ; les 230 e2e sont tombés
+> **en bloc** à la première déclaration. D'où `CapabilityModule`, importé après `BetterAuthModule`,
+> dont c'est toute la raison d'être. Ce qui a rendu la panne lisible plutôt que silencieuse : la
+> garde **lève** quand l'utilisateur manque alors qu'une capacité est exigée. Un `return false`
+> aurait donné des 403 diffus ; un `return true`, une garde inerte que personne n'aurait remarquée.
+> Corollaire : toute garde globale ajoutée se pose dans un module, jamais dans `AppModule`.
+
+> **Appris en #10** (la panne de #44/#51, une seconde fois) : le centre de notifications lit les
+> `Reminder`, seul modèle métier sans scope athlète. Sa route ne déclarait aucune capacité — le
+> scope se dérivait du rôle de l'acteur, ce qui la masquait. Dès que `tenantField` a cessé de lire
+> `actor.role`, l'écran entier est passé en **500**. C'est mot pour mot ce que l'encadré plus haut
+> annonçait : « toute future entité mono-rôle devra porter les deux gardes ». La règle vaut aussi
+> à l'envers — **tout chemin partagé qui touche une entité mono-capacité doit déclarer laquelle**,
+> même quand le reste de ce qu'il lit n'en a pas besoin.
+
+> **Tranché en #10** (la route porte la capacité qu'elle exerce) : `@RequireCapability("coach")`
+> remplace `@Roles([Role.COACH])` et sert **deux** mécanismes — la garde en fait une exigence,
+> l'interceptor en fait le champ de scope. Une déclaration, deux lecteurs, via un helper partagé :
+> exigence et scope ne peuvent pas diverger. Ce qui l'a rendu nécessaire, ce sont les trois routes
+> servant les deux capacités (`/invoices`, `/conversations`, messages), dont le `@Roles([COACH,
+> ATHLETE])` n'exigeait **rien de réel** — tout compte authentifié le satisfaisait. Ce n'était pas
+> une exigence, c'était un scope déguisé.
+>
+> Le cas double s'y résout en trois temps, et le troisième est le seul qui compte : `?as=coach`
+> honoré si le compte porte la capacité (403 sinon), capacité unique du compte si elle l'est —
+> ce n'est pas un défaut, c'est la seule réponse possible, et c'est ce qui fait qu'aucun client
+> n'a eu à changer — et **400** quand le compte cumule sans préciser. Répondre « les émises » par
+> convention aurait laissé croire qu'on voit tout : le fallback exact qu'interdit la règle n°5.
+>
+> Conséquence tenue : le scope tenant reste **une colonne unique**, jamais un `OR` sur les deux. La
+> règle dure n°1 ne change pas de forme. Une liste fusionnée l'aurait exigé, en contredisant au
+> passage les sections nommées de #129.
+
+> **Tranché en #10** (`role` disparaît du `TenantContext`) : une fois les cinq branchements
+> convertis, plus rien ne le lisait côté API. Le retirer transforme la règle en contrainte — un
+> service qui voudrait dériver un droit du persona ne compile plus. Même geste que `CapabilitySource`
+> côté client en #9 : la règle exécutable vaut mieux que la règle déclarée.
 
 > **Tranché en #9** (les capacités sont des colonnes Prisma **ET** des `additionalFields`) :
 > l'épique annonçait « colonnes Prisma directes, **hors** `additionalFields` Better Auth — qui ne
