@@ -2,6 +2,7 @@ import { BlockType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 
 // i18n-values library.builder.blockType: BlockType
+// i18n-values library.builder.blockTypeHint: BlockType
 
 const BLOCK_TYPES = [
   BlockType.SERIES,
