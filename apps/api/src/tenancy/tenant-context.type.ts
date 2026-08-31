@@ -1,4 +1,4 @@
-import type { Capabilities, CapabilityName, RoleType } from "@cmv/shared";
+import type { Capabilities, CapabilityName } from "@cmv/shared";
 import type { ClsService } from "nestjs-cls";
 
 // Clé du store CLS portant l'acteur courant (résolu depuis la session Better Auth).
@@ -18,14 +18,16 @@ export const TENANT_CLS_KEY = "tenant";
  */
 export type TenantContext = {
   userId: string;
-  /**
-   * Persona d'AFFICHAGE, conservé le temps de la bascule (#10) : `tenantField` et quatre services
-   * le lisent encore. Il ne fonde aucun droit — les gardes lisent `capabilities`.
-   */
-  role: RoleType;
   capabilities: Capabilities;
   exercised: CapabilityName | null;
 };
+
+/**
+ * `role` n'est PAS ici, et son absence est le verrou : depuis #10, plus rien côté API ne dérive un
+ * droit ni un scope du persona. Le rendre indisponible dans le contexte rend la règle exécutable
+ * plutôt que déclarative — un service qui voudrait y revenir ne compile pas. Même geste que
+ * `CapabilitySource` côté client (#9).
+ */
 
 /**
  * Lit l'acteur courant depuis le CLS — l'id et les capacités dont un service a besoin quand la
@@ -39,4 +41,22 @@ export function currentActor(cls: ClsService): TenantContext {
     throw new Error("[tenancy] acteur courant absent — appel hors contexte tenant");
   }
   return actor;
+}
+
+/**
+ * La capacité exercée, ou une erreur. Pour les services qui BRANCHENT dessus — résoudre la
+ * contrepartie d'un fil, choisir le destinataire d'une notification : répondre « athlète » parce
+ * que ce n'est pas « coach » serait exactement le fallback que la règle nullable interdit, et il
+ * enverrait le message à la mauvaise personne.
+ *
+ * Un `null` ici ne peut signifier qu'une chose : la route a oublié son `@RequireCapability`. C'est
+ * un bug de câblage, donc une erreur — pas un cas métier.
+ */
+export function exercisedOrThrow(actor: TenantContext): CapabilityName {
+  if (actor.exercised == null) {
+    throw new Error(
+      "[tenancy] capacité exercée inconnue — la route déclare-t-elle @RequireCapability ?",
+    );
+  }
+  return actor.exercised;
 }

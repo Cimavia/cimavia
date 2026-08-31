@@ -1,5 +1,5 @@
 import type { MessageDto, SendMessageInput } from "@cmv/shared";
-import { MessageType, Role } from "@cmv/shared";
+import { MessageType } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
@@ -8,7 +8,11 @@ import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { currentActor, type TenantContext } from "../../tenancy/tenant-context.type";
+import {
+  currentActor,
+  exercisedOrThrow,
+  type TenantContext,
+} from "../../tenancy/tenant-context.type";
 import { toMessageDto } from "../message.mapper";
 import { ConversationService } from "./conversation.service";
 
@@ -69,7 +73,8 @@ export class MessageService {
     });
 
     if (unreadFromMe === 0) {
-      const recipientId = actor.role === Role.COACH ? conversation.athleteId : conversation.coachId;
+      const recipientId =
+        exercisedOrThrow(actor) === "coach" ? conversation.athleteId : conversation.coachId;
       // L'id du destinataire vient d'un fil DÉJÀ scopé (jamais du client) : sûr pour le
       // NotificationService, qui lit ses tokens hors tenant. Un échec de push ne remonte pas ici.
       await this.notifications.notifyMessageReceived({
@@ -124,7 +129,7 @@ export class MessageService {
     if (id == null) return null;
     // Athlète : garde PUBLISHED (source unique). Coach : lecture scopée de SA séance.
     const session =
-      actor.role === Role.ATHLETE
+      exercisedOrThrow(actor) === "athlete"
         ? await this.athletePlans.getPublishedSessionOrThrow(id)
         : await this.db.scheduledSession.findFirst({ where: { id } });
     if (session == null) {

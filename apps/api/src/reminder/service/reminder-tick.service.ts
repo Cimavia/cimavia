@@ -6,7 +6,6 @@ import {
   ReminderEntityType,
   ReminderReason,
   ReminderStatus,
-  Role,
 } from "@cmv/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
@@ -80,8 +79,11 @@ export class ReminderTickService {
   ) {}
 
   async run(now: Date): Promise<ReminderTickResultDto> {
+    // `isCoach` et non `role` : depuis #9, un compte peut coacher SANS avoir COACH pour persona
+    // (il porte les deux capacités et atterrit côté athlète). Filtrer sur le rôle l'aurait laissé
+    // hors du balayage — pas d'erreur, juste des rappels qui n'arrivent plus.
     const coaches = await this.prisma.user.findMany({
-      where: { role: Role.COACH },
+      where: { isCoach: true },
       select: { id: true },
     });
 
@@ -106,7 +108,6 @@ export class ReminderTickService {
     // du coach (seul modèle sans scope athlète, cf. TENANT_SCOPES).
     const actor: TenantContext = {
       userId: coachId,
-      role: Role.COACH,
       capabilities: { isCoach: true, isAthlete: false },
       exercised: "coach",
     };

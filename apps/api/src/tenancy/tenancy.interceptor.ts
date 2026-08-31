@@ -15,7 +15,7 @@ import {
 } from "../auth/decorator/require-capability.decorator";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
 
-type RequestUser = CapabilitySource & { id?: string; role?: string };
+type RequestUser = CapabilitySource & { id?: string };
 
 /**
  * Peuple le CLS avec l'acteur courant, résolu par l'AuthGuard Better Auth. Les guards s'exécutant
@@ -40,12 +40,11 @@ export class TenancyInterceptor implements NestInterceptor {
       .getRequest<{ user?: RequestUser; query?: Record<string, unknown> }>();
     const user = request.user;
 
-    if (user?.id != null && user.role != null) {
+    if (user?.id != null) {
       const capabilities = capabilitiesOf(user);
       const required = requiredCapabilityOf(this.reflector, context);
       const tenant: TenantContext = {
         userId: user.id,
-        role: user.role as TenantContext["role"],
         capabilities,
         exercised:
           required == null
