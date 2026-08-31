@@ -876,6 +876,23 @@ tort).
 > service qui voudrait dériver un droit du persona ne compile plus. Même geste que `CapabilitySource`
 > côté client en #9 : la règle exécutable vaut mieux que la règle déclarée.
 
+> **Tranché en #11** (le premier `CHECK` du projet) : « on ne peut pas être son propre coach » est
+> un invariant absolu, pas une règle de service susceptible d'avoir une exception — il vit donc
+> dans la table (`coach_athlete_not_self`), conformément à `architecture-choice.md`. Le refus 409
+> du service reste, pour le message ; le CHECK est ce qui SURVIT à un second chemin de création qui
+> oublierait la garde. Mesuré plutôt que supposé : la garde retirée, l'écriture est bien refusée,
+> mais en **500** au lieu de 409 — le filet tient, il ne parle simplement pas français. C'est le
+> bon partage. Attention pour la suite : Prisma ne modélise pas les CHECK, ils ne figurent donc pas
+> dans `schema.prisma` et ne se lisent QUE dans les migrations.
+
+> **Appris en #11** (la chaîne de coachs est linéaire, et peut déjà boucler) : `athleteId` étant
+> `@unique`, chaque compte a au plus un coach — la structure est une **forêt**, et « remonter la
+> chaîne » un parcours sans branchement, bien plus simple que ce que l'issue laissait attendre.
+> Mais une remontée naïve ne termine pas si la base contient DÉJÀ un cycle, et pend jusqu'au
+> timeout. D'où l'ensemble de visités, qui sépare deux choses que rien ne distinguerait autrement :
+> l'invité est dans la chaîne (**409**, refus métier) et on repasse sur un nœud tiers (**erreur** —
+> données incohérentes, à voir tout de suite plutôt que déguisées en refus).
+
 > **Tranché en #9** (les capacités sont des colonnes Prisma **ET** des `additionalFields`) :
 > l'épique annonçait « colonnes Prisma directes, **hors** `additionalFields` Better Auth — qui ne
 > gère que des scalaires ». La prémisse est juste, la conclusion non : `FieldType` vaut `"string" |

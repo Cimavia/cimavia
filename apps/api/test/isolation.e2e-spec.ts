@@ -4675,3 +4675,97 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
     expect((await dual.get(`/invoices/${foreignId}?as=coach`)).status).toBe(404);
   });
 });
+
+describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () => {
+  /**
+   * Chaîne A → B → C : chacun coache le suivant. Elle n'est possible que parce que B et C portent
+   * les DEUX capacités — être coaché n'empêche pas de coacher. C'est exactement le modèle que #7
+   * ouvre, et le seul contexte où une boucle devient concevable.
+   */
+  async function chain(prefix: string, depth: number): Promise<{ agents: Agent[]; ids: string[] }> {
+    const agents: Agent[] = [];
+    const ids: string[] = [];
+    for (let i = 0; i < depth; i++) {
+      const email = `${prefix}-${i}@cmv.test`;
+      agents.push(await signUp(email, Role.COACH));
+      if (i > 0) await grantAthleteCapability(email);
+    }
+    for (let i = 0; i + 1 < depth; i++) {
+      const coach = required(agents[i], `coach ${i}`);
+      const athlete = required(agents[i + 1], `athlète ${i + 1}`);
+      const invitation = await coach.post("/invitations").send({});
+      const accepted = await athlete
+        .post("/invitations/accept")
+        .send({ code: invitation.body.code });
+      expect(accepted.status).toBe(201);
+      ids.push(accepted.body.coachId);
+      if (i + 2 === depth) ids.push(accepted.body.athleteId);
+    }
+    return { agents, ids };
+  }
+
+  /**
+   * Le test qui donne sa valeur aux autres : une chaîne de profondeur 3 doit se CONSTRUIRE. Sans
+   * lui, une garde qui refuserait tout passerait les refus ci-dessous sans qu'on le voie.
+   */
+  it("laisse se construire une chaîne A → B → C", async () => {
+    const { ids } = await chain("cycle-ok", 3);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  // Le cas de l'issue : C invite A, qui est déjà sa racine. La remontée depuis C traverse B.
+  it("refuse la boucle qui reviendrait au premier coach (profondeur 3)", async () => {
+    const { agents } = await chain("cycle-deep", 3);
+    const c = required(agents[2], "maillon C");
+    const a = required(agents[0], "maillon A");
+
+    await grantAthleteCapability("cycle-deep-0@cmv.test");
+    const invitation = await c.post("/invitations").send({});
+    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(409);
+  });
+
+  // La boucle la plus courte : B coache A alors que A coache déjà B.
+  it("refuse la boucle immédiate entre deux comptes", async () => {
+    const { agents } = await chain("cycle-pair", 2);
+    const b = required(agents[1], "maillon B");
+    const a = required(agents[0], "maillon A");
+
+    await grantAthleteCapability("cycle-pair-0@cmv.test");
+    const invitation = await b.post("/invitations").send({});
+    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(409);
+  });
+
+  /**
+   * Anti-self. Inatteignable avant #9/#10 : accepter exige la capacité athlète, qu'un coach
+   * n'avait pas. Un compte qui cumule peut désormais présenter son propre code.
+   */
+  it("refuse à un compte à double capacité d'accepter sa propre invitation", async () => {
+    const self = await signUp("cycle-self@cmv.test", Role.COACH);
+    await grantAthleteCapability("cycle-self@cmv.test");
+
+    const invitation = await self.post("/invitations").send({});
+    const res = await self.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(409);
+  });
+
+  /**
+   * Deux chaînes distinctes ne se gênent pas : le refus porte sur la BOUCLE, pas sur le fait
+   * d'être déjà coaché ailleurs — ça, c'est l'unicité `athleteId`, qui a son propre test.
+   */
+  it("laisse un compte déjà coach devenir l'athlète d'une autre chaîne", async () => {
+    const { agents } = await chain("cycle-join", 2);
+    const outsider = await signUp("cycle-outsider@cmv.test", Role.COACH);
+    const a = required(agents[0], "maillon A");
+
+    await grantAthleteCapability("cycle-join-0@cmv.test");
+    const invitation = await outsider.post("/invitations").send({});
+    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(201);
+  });
+});
