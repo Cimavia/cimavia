@@ -18,8 +18,8 @@ type TimerOverlayProps = {
   remaining: number;
   total: number;
   totalRemaining: number;
-  /** Où on en est du déroulé — « segment 4 sur 11 ». */
-  position: string;
+  /** Où on en est du déroulé — « segment 4 sur 11 », ou `null` s'il n'y a rien à situer. */
+  position: string | null;
   isPaused: boolean;
   armed: boolean;
   /** Les unités déjà cochées, et les tours comptés — la frise d'un EMOM, le compteur d'un AMRAP. */
@@ -88,7 +88,9 @@ export function TimerOverlay({
           <CmvText className="text-cmv-text-hi text-lg" numberOfLines={2}>
             {title}
           </CmvText>
-          <CmvText className="text-cmv-text-mid text-sm">{position}</CmvText>
+          {position == null ? null : (
+            <CmvText className="text-cmv-text-mid text-sm">{position}</CmvText>
+          )}
         </View>
         <Pressable
           onPress={onReduce}
@@ -102,7 +104,9 @@ export function TimerOverlay({
       </View>
 
       <View className="flex-1 items-center justify-center gap-3">
-        <CmvText className="text-cmv-accent text-sm uppercase">
+        {/* En GRAND : c'est ce que l'athlète cherche d'un coup d'œil, téléphone posé au sol
+            pendant qu'il grimpe — « je récupère » ou « j'y vais ». */}
+        <CmvText className="font-cmv-display text-2xl text-cmv-accent uppercase tracking-wide">
           {t(`plan.timer.segment.${current.kind}`)}
         </CmvText>
         <RunnerBody

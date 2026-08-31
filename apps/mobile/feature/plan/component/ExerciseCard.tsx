@@ -189,8 +189,11 @@ function BlockRunControls({
   /**
    * Rien à dérouler tant qu'aucun temps n'est écrit : un bloc fait UNIQUEMENT de gestes ne serait
    * qu'une seconde façon de cocher, et les cases sont déjà là, juste en dessous.
+   *
+   * Un SEUL segment suffit : c'est le cas de l'AMRAP, une échéance unique — et sans son bouton, on
+   * n'atteignait jamais son écran, donc jamais son « Tour fait ».
    */
-  const runnable = segments.length > 1 && total > 0;
+  const runnable = total > 0;
 
   return (
     <View className="gap-2">
@@ -207,12 +210,17 @@ function BlockRunControls({
         </Pressable>
       ) : null}
 
-      <BlockTimerChips
-        block={block}
-        onStart={(seconds) =>
-          onRun([{ kind: SegmentKind.REST, seconds, unitIndex: null, rowId: null }])
-        }
-      />
+      {/* Les pastilles servent à relancer UNE durée hors séquence. Un AMRAP n'a pas de séquence :
+          sa durée unique EST l'exercice, et la pastille n'en serait qu'une version dégradée —
+          un compte à rebours nu, sans « Tour fait ». */}
+      {segments.length > 1 || !runnable ? (
+        <BlockTimerChips
+          block={block}
+          onStart={(seconds) =>
+            onRun([{ kind: SegmentKind.REST, seconds, unitIndex: null, rowId: null }])
+          }
+        />
+      ) : null}
     </View>
   );
 }

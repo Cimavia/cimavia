@@ -201,10 +201,12 @@ function RunnerChrono({
     remaining: runner.remaining,
     total: runner.total,
     totalRemaining: runner.totalRemaining,
-    position: t("plan.timer.position", {
-      current: runner.index + 1,
-      total: runner.segments.length,
-    }),
+    // « 1 sur 1 » n'apprend rien : un AMRAP n'a qu'une échéance, il n'y a pas de progression à
+    // annoncer. On ne dit la position que là où elle avance.
+    position:
+      runner.segments.length > 1
+        ? t("plan.timer.position", { current: runner.index + 1, total: runner.segments.length })
+        : null,
     isPaused: runner.isPaused,
     armed,
     checked,
