@@ -19,9 +19,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#67](https://github.com/Cimavia/cimavia/issues/67) cohérence base ↔ storage ·
 [#68](https://github.com/Cimavia/cimavia/issues/68) pagination ·
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
-[#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod — plus dix issues
-autonomes. Trois dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
-explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne).
+[#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
+[#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
+autonomes. Quatre dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
+explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne),
+**C-1** (comportement voulu — l'issue serait un contresens, le déclencheur est qu'on le corrige à
+tort).
 
 ---
 
@@ -570,11 +573,15 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 
 > **Tranché en #20** (`capabilitiesOf` plutôt que #10) : la nav devait dépendre de #9/#10, qui
 > remplacent le rôle exclusif par `isCoach`/`isAthlete` — une migration Prisma et la réécriture de
-> `tenantField`, en milestone `v1.0`, dans une épic qui annonce « aucun changement backend ». La
+> `tenantField`, alors hors du jalon en cours, dans une épic qui annonce « aucun changement
+> backend ». La
 > dépendance a été **supprimée** au profit d'un adaptateur : `capabilitiesOf(user)` dans
 > `@cmv/shared` est le **seul** endroit du monorepo qui lise `role` pour en déduire un droit. Gardes,
 > navigation et routage des notifications consomment son résultat. Le jour de #10, un corps de
-> fonction change, dans un package testé. Le prix assumé : le cas **double capacité** est écrit mais
+> fonction change, dans un package testé. **Promesse tenue en #9** : la bascule vers `isCoach`/
+> `isAthlete` n'a touché aucun écran, aucune garde, aucune table de nav — seulement le corps de
+> `capabilitiesOf` et les deux déclarations `inferAdditionalFields` qui font remonter les champs.
+> Le prix assumé : le cas **double capacité** est écrit mais
 > inatteignable, et ses sections de nav sont parties dans
 > [#129](https://github.com/Cimavia/cimavia/issues/129) — les écrire ici aurait produit des clés
 > i18n mortes que `check:i18n --strict` aurait signalées à raison.
@@ -816,6 +823,42 @@ explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer
 > l'athlète qui avait débriefé ne pouvait plus corriger son décompte là où il l'avait saisi. Rien
 > dans le modèle ne rend une séance définitive aujourd'hui ; le jour où quelque chose la clôturera
 > (cycle archivé, facture émise), la règle se réintroduira sur CE fait-là, pas sur `status = DONE`.
+
+---
+
+## Post-MVP — Capacités coach/athlète ([#7](https://github.com/Cimavia/cimavia/issues/7))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** Depuis #9, `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Le `databaseHook` les tient alignés à la création, mais rien en base ne l'impose — et à partir de #13, retirer une capacité les fera légitimement diverger (`role=COACH`, `isCoach=false`). C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
+| C-2 | **L'autorisation API tourne encore sur le rôle exclusif.** `@Roles` (celui de `@thallesp/nestjs-better-auth`, pas un décorateur maison) et `tenantField` lisent `actor.role`. Sans effet tant qu'aucun compte ne cumule — c'est #12/#13 qui créent le premier, donc #10 doit passer avant eux. | 🔴 | [#10](https://github.com/Cimavia/cimavia/issues/10) |
+
+> **Tranché en #9** (les capacités sont des colonnes Prisma **ET** des `additionalFields`) :
+> l'épique annonçait « colonnes Prisma directes, **hors** `additionalFields` Better Auth — qui ne
+> gère que des scalaires ». La prémisse est juste, la conclusion non : `FieldType` vaut `"string" |
+> "number" | "boolean" | "date" | "json" | …`, et un booléen *est* un scalaire. Surtout, la
+> déclaration n'est pas un choix — Better Auth ne renvoie dans `session.user` que les champs
+> **déclarés**. Des colonnes seules ne seraient jamais remontées jusqu'à `useSession()` :
+> `capabilitiesOf` aurait rendu « aucune capacité » à tout le monde, donc sidebar web vide, onglets
+> mobile vides et redirections d'atterrissage cassées — sans qu'aucune porte ne le voie, puisque ni
+> `tsc`, ni `biome`, ni `vite build` ne lisent la forme d'une session. C'est le mode de panne déjà
+> consigné plus haut (« Appris en #20 »), rencontré une seconde fois : **le câblage d'auth n'a pas
+> plus de porte que le câblage de nav**. Corollaire : tout champ de session ajouté se déclare aux
+> trois endroits — `auth.config.ts` et les deux `inferAdditionalFields` — dans le même commit.
+
+> **Tranché en #9** (`role` survit, comme persona seul) : le supprimer aurait été plus propre sur le
+> papier, mais il répond à une question que les capacités ne savent pas poser — sur quel univers
+> atterrit un compte qui en cumule deux. Il reste donc, dépouillé : `CapabilitySource` ne le
+> contient **pas**, ce qui rend la règle exécutable plutôt que déclarative — un écran qui voudrait
+> en dériver un droit ne compile pas. Un test le fige (`ignore role, qui ne fonde plus aucun droit`).
+
+> **Tranché en #9** (le sens de dérivation s'inverse en #12) : les capacités sont déclarées
+> `input: false` et **dérivées** du `role` envoyé au signup, par le `databaseHook` qui validait déjà
+> ce rôle. Sans ce hook, un compte créé après #9 naîtrait aux `@default(false)` du schéma — sans
+> aucune capacité — là où la migration vient de servir correctement les comptes existants : deux
+> chemins de création, deux résultats. #12 inverse le sens (les cases à cocher deviennent l'entrée,
+> `role` la déduction) ; d'ici là, aucun compte ne peut cumuler, et c'est ce qui rend #9 sans effet
+> observable.
 
 ---
 
