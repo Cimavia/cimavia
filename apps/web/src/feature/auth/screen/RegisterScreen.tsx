@@ -132,7 +132,7 @@ export function RegisterScreen() {
               );
             })}
           </div>
-          <p className="text-cmv-text-low text-xs">{t("auth.register.capabilityHint")}</p>
+          <p className="text-cmv-text-lo text-xs">{t("auth.register.capabilityHint")}</p>
         </fieldset>
         {error != null && <p className="text-sm text-cmv-error">{error}</p>}
         <CmvButton type="submit" disabled={submitting} fullWidth>

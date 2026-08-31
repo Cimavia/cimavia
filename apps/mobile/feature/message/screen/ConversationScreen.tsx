@@ -22,7 +22,7 @@ export function ConversationScreen() {
   if (!hasCoach) {
     return (
       <CmvScreen>
-        <View className="pt-4">
+        <View className="flex-row justify-end px-4 pt-4">
           <CmvCapabilitySwitch />
         </View>
         <View className="flex-1 items-center justify-center gap-2 p-6">

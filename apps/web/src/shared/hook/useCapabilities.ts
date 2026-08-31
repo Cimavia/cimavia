@@ -1,6 +1,7 @@
 import { type Capabilities, type CapabilityName, capabilitiesOf, Role } from "@cmv/shared";
-import { useSearch } from "@tanstack/react-router";
+import { useLocation, useSearch } from "@tanstack/react-router";
 import { authClient } from "@/shared/lib/auth";
+import { spaceOfPath } from "@/shared/lib/nav";
 
 /**
  * Les capacités du compte connecté, plus les deux états que la session peut avoir en plus de son
@@ -45,10 +46,31 @@ export function useCapabilities(): SessionCapabilities {
  */
 export function useExercisedCapability(): CapabilityName | null {
   const { data } = authClient.useSession();
-  const search = useSearch({ strict: false }) as { as?: unknown };
   const { isCoach, isAthlete } = capabilitiesOf(data?.user);
-  if (!isCoach || !isAthlete) return null;
+  const space = useActiveSpace();
+  return isCoach && isAthlete ? space : null;
+}
+
+/**
+ * L'espace de navigation courant — coach ou athlète. Toujours une valeur, y compris pour un compte
+ * mono-capacité, chez qui il n'y a jamais qu'une réponse.
+ *
+ * Il se DÉDUIT de l'URL, sans état applicatif : le chemin dit déjà à quel univers on est
+ * (`/library` est coach, `/planning` est athlète), et `?as=` tranche pour les deux routes servies
+ * aux deux (#129). Un état séparé aurait pu diverger de la page affichée — on aurait vu le menu
+ * coach au-dessus d'un écran d'athlète.
+ *
+ * Le **persona** (`role`) ne sert que de repli, pour les chemins hors nav : `/reset-password`, une
+ * page inconnue, un lien profond.
+ */
+export function useActiveSpace(): CapabilityName {
+  const { data } = authClient.useSession();
+  const { pathname } = useLocation();
+  const search = useSearch({ strict: false }) as { as?: unknown };
+
   if (search.as === "coach" || search.as === "athlete") return search.as;
+  const fromPath = spaceOfPath(pathname);
+  if (fromPath != null) return fromPath;
   return data?.user.role === Role.ATHLETE ? "athlete" : "coach";
 }
 
@@ -65,7 +87,11 @@ export function useExercisedCapability(): CapabilityName | null {
  * l'écran montre une fois entré.
  */
 export function useActingCapability(): CapabilityName {
-  const exercised = useExercisedCapability();
-  const { isCoach } = useCapabilities();
-  return exercised ?? (isCoach ? "coach" : "athlete");
+  const { isCoach, isAthlete } = useCapabilities();
+  const space = useActiveSpace();
+  // Un compte mono-capacité n'a qu'une réponse, quelle que soit l'URL : sans ça, un athlète
+  // ouvrant `/invoices` sans paramètre verrait l'écran du coach par le seul repli du persona.
+  if (!isCoach) return "athlete";
+  if (!isAthlete) return "coach";
+  return space;
 }

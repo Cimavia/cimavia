@@ -52,14 +52,13 @@ export function CoachConversationsScreen() {
     <CmvScreen>
       <OfflineBanner />
 
-      <View className="px-4 pt-4">
-        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
+      <View className="flex-row items-center justify-between gap-2 px-4 pt-4">
+        <CmvText className="shrink font-cmv-display text-cmv-text-hi text-xl">
           {t("messages.title")}
         </CmvText>
+        {/* À droite du titre : il le qualifie, il ne filtre pas la liste. */}
+        <CmvCapabilitySwitch />
       </View>
-
-      {/* Ne rend rien pour un compte mono-capacité (#129). */}
-      <CmvCapabilitySwitch />
 
       <ScrollView
         contentContainerClassName="gap-3 px-4 pb-4 pt-4"

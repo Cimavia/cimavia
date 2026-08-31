@@ -121,7 +121,7 @@ export function RegisterScreen() {
             );
           })}
         </View>
-        <CmvText className="text-cmv-text-low text-xs">{t("auth.register.capabilityHint")}</CmvText>
+        <CmvText className="text-cmv-text-lo text-xs">{t("auth.register.capabilityHint")}</CmvText>
       </View>
       {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
       <CmvButton

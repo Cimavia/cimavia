@@ -1,75 +1,72 @@
-import { type Capabilities, type CapabilityName, hasCapability } from "@cmv/shared";
+import type { CapabilityName } from "@cmv/shared";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import type { IconType } from "react-icons";
+import { IoBarbellOutline, IoPersonOutline } from "react-icons/io5";
 import { NotificationBell } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
-import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
+import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
 
 /**
- * Chaque entrée porte la capacité qui la rend visible — la MÊME que celle exigée par la route
- * correspondante (`CmvRoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà l'expérience :
- * une nav qui propose ce que la route refuse, ou qui cache ce qui est accessible.
+ * Le basculeur d'espace — un seul univers actif à la fois (#129).
  *
- * Pas d'entrée « Athlètes » : la liste vit dans le tableau de bord depuis #113, et deux entrées
- * menant au même écran ne feraient qu'hésiter.
+ * Ne rend RIEN pour un compte mono-capacité : lui proposer de basculer vers un espace qu'il n'a
+ * pas serait une porte fermée de plus à l'écran.
  *
- * Une même route peut apparaître DEUX fois, une par capacité, avec un libellé différent : le coach
- * « fait de la facturation », l'athlète « a des factures ». Ce n'est pas de la redondance, c'est la
- * même ressource nommée depuis les deux bouts de la relation.
- *
- * Depuis #129, les entrées sont GROUPÉES par capacité et titrées — mais seulement quand les deux
- * groupes sont peuplés. Un compte mono-capacité garde donc sa liste plate : lui annoncer « En tant
- * que coach » alors qu'il n'est que cela n'apprendrait rien et ajouterait un titre à une nav qui
- * n'a rien à distinguer.
+ * Basculer NAVIGUE, il ne pose pas d'état : l'espace se déduit de l'URL (`useActiveSpace`), donc
+ * changer de page suffit à changer d'espace. C'est ce qui garantit que le menu affiché correspond
+ * toujours à l'écran en dessous.
  */
-const NAV_ITEMS = [
-  { to: "/", labelKey: "nav.dashboard", capability: "coach" },
-  { to: "/library", labelKey: "nav.library", capability: "coach" },
-  { to: "/plans", labelKey: "nav.plans", capability: "coach" },
-  { to: "/feedbacks", labelKey: "nav.feedbacks", capability: "coach" },
-  { to: "/messages", labelKey: "nav.messages", capability: "coach" },
-  { to: "/invoices", labelKey: "nav.invoices", capability: "coach" },
-  { to: "/reminders", labelKey: "nav.reminders", capability: "coach" },
-  { to: "/planning", labelKey: "nav.planning", capability: "athlete" },
-  { to: "/sessions", labelKey: "nav.sessions", capability: "athlete" },
-  { to: "/messages", labelKey: "nav.myMessages", capability: "athlete" },
-  { to: "/invoices", labelKey: "nav.myInvoices", capability: "athlete" },
-  { to: "/my-coach", labelKey: "nav.myCoach", capability: "athlete" },
-] as const;
+function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
+  const { t } = useTranslation();
+  const { isCoach, isAthlete } = useCapabilities();
+  if (!isCoach || !isAthlete) return null;
 
-/**
- * Les deux routes servies aux DEUX capacités. Leurs entrées portent `?as=`, ce qui les rend
- * distinctes : sans ce paramètre elles visaient la même adresse et se surlignaient **ensemble**
- * chez un compte à double capacité (#129). C'est aussi le titre que l'API exige de lui (#10).
- */
-const SHARED_ROUTES = new Set(["/invoices", "/messages"]);
-
-// Les deux seules valeurs que le préfixe peut prendre — `CapabilityName` est un type fermé.
-// i18n-values nav.section: coach, athlete
-/**
- * Les entrées regroupées par capacité, dans l'ordre de la table. Un groupe VIDE n'apparaît pas —
- * c'est ce qui rend `sections.length > 1` équivalent à « ce compte cumule ».
- */
-function navSections(capabilities: Capabilities) {
-  return (["coach", "athlete"] as const)
-    .map((capability) => ({
-      capability,
-      items: NAV_ITEMS.filter(
-        (item) => item.capability === capability && hasCapability(capabilities, capability),
-      ),
-    }))
-    .filter((section) => section.items.length > 0);
+  return (
+    <div className="flex gap-cmv-xs rounded-cmv-md bg-cmv-surface p-cmv-2xs" role="tablist">
+      {SPACES.map(({ space, icon: Icon }) => {
+        const current = space === active;
+        return (
+          <Link
+            key={space}
+            to={landingPath(space)}
+            search={searchFor(landingPath(space), space)}
+            role="tab"
+            aria-selected={current}
+            className={
+              current
+                ? "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm bg-cmv-accent px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-hi"
+                : "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:text-cmv-text-hi"
+            }
+          >
+            <Icon aria-hidden />
+            {t(`nav.space.${space}`)}
+          </Link>
+        );
+      })}
+    </div>
+  );
 }
 
+// i18n-values nav.space: coach, athlete
+// i18n-values nav.spaceTitle: coach, athlete
+const SPACES = [
+  { space: "coach", icon: IoPersonOutline },
+  { space: "athlete", icon: IoBarbellOutline },
+] as const satisfies readonly { space: CapabilityName; icon: IconType }[];
+
 /**
- * Le `search` d'une entrée de nav. Les routes partagées portent leur titre ; les autres n'ont rien
- * à préciser — TanStack exige néanmoins un objet, et `undefined` y vaut « clé absente ».
+ * Le `search` d'une entrée de nav. Les routes partagées portent leur titre — c'est ce qui distingue
+ * `/invoices` côté coach de `/invoices` côté athlète, et ce que l'API exige d'un compte cumulant
+ * (#10). Les autres n'ont rien à préciser ; TanStack exige néanmoins un objet, où `undefined` vaut
+ * « clé absente ».
  */
-function searchFor(to: string, capability: CapabilityName) {
+function searchFor(to: string, space: CapabilityName) {
   return SHARED_ROUTES.has(to)
-    ? { as: capability, athlete: undefined, q: undefined, filter: undefined }
+    ? { as: space, athlete: undefined, q: undefined, filter: undefined }
     : { as: undefined, athlete: undefined, q: undefined, filter: undefined };
 }
 
@@ -89,11 +86,8 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
    * par `CmvRoleGate` — qui a déjà attendu la session. La nav ne peut donc pas se dessiner vide le
    * temps d'un aller-retour.
    */
-  const capabilities = useCapabilities();
-  const sections = navSections(capabilities);
-  // Les titres n'ont de sens qu'en présence des deux groupes : ils disent à quel TITRE on fait
-  // quoi, ce qui ne se pose que pour un compte qui cumule.
-  const showSectionTitles = sections.length > 1;
+  const activeSpace = useActiveSpace();
+  const items = itemsOfSpace(activeSpace);
 
   async function onLogout() {
     await authClient.signOut();
@@ -116,35 +110,30 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
           {t("common.appName")}
         </Link>
 
-        <nav className="flex flex-1 flex-col gap-cmv-md overflow-y-auto">
-          {sections.map((section) => (
-            <div key={section.capability} className="flex flex-col gap-cmv-xs">
-              {showSectionTitles && (
-                <h2 className="px-cmv-md text-cmv-caption text-cmv-text-low uppercase tracking-wide">
-                  {t(`nav.section.${section.capability}`)}
-                </h2>
-              )}
-              {section.items.map((item) => (
-                <Link
-                  // La capacité fait partie de la clé : une même route est listée deux fois, une
-                  // par capacité (cf. `/invoices`).
-                  key={`${item.capability}:${item.to}`}
-                  to={item.to}
-                  search={searchFor(item.to, section.capability)}
-                  className="rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
-                  activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
-                  // `includeSearch` sur les routes partagées : c'est le paramètre — et lui seul —
-                  // qui distingue les deux entrées vers la même adresse. Sans lui, les deux se
-                  // surlignent ensemble.
-                  activeOptions={{
-                    exact: item.to === "/",
-                    includeSearch: SHARED_ROUTES.has(item.to),
-                  }}
-                >
-                  {t(item.labelKey)}
-                </Link>
-              ))}
-            </div>
+        <SpaceSwitcher active={activeSpace} />
+
+        <nav className="flex flex-1 flex-col gap-cmv-xs overflow-y-auto">
+          {/* Le titre de l'espace reste, même seul : il nomme ce qu'on est en train de parcourir,
+              là où le basculeur ne montre que le choix. Rendu aussi pour un compte mono-capacité,
+              qui n'a pas de basculeur au-dessus. */}
+          <h2 className="px-cmv-md text-cmv-caption text-cmv-text-lo uppercase tracking-wide">
+            {t(`nav.spaceTitle.${activeSpace}`)}
+          </h2>
+          {items.map((item) => (
+            <Link
+              key={`${item.capability}:${item.to}`}
+              to={item.to}
+              search={searchFor(item.to, item.capability)}
+              className="flex items-center gap-cmv-sm rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
+              activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
+              activeOptions={{
+                exact: item.to === "/",
+                includeSearch: SHARED_ROUTES.has(item.to),
+              }}
+            >
+              <item.icon aria-hidden className="shrink-0" />
+              {t(item.labelKey)}
+            </Link>
           ))}
         </nav>
 

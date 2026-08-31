@@ -108,9 +108,9 @@
     "profile": "Profil",
     "invoices": "Factures",
     "notifications": "Notifs",
-    "section": {
-      "coach": "En tant que coach",
-      "athlete": "En tant qu'athlète"
+    "space": {
+      "coach": "Coach",
+      "athlete": "Athlète"
     }
   },
   "plan": {

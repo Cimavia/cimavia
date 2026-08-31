@@ -64,15 +64,15 @@ export function InvoicesScreen() {
     <CmvScreen>
       <OfflineBanner />
 
-      <View className="px-4 pt-4">
-        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
+      {/* Le sélecteur à DROITE du titre : il qualifie ce titre — « mes factures, en tant que… » —
+          et sous lui il aurait l'air d'un filtre de la liste. Ne rend rien pour un compte
+          mono-capacité, auquel cas le titre reprend toute la largeur. */}
+      <View className="flex-row items-center justify-between gap-2 px-4 pt-4">
+        <CmvText className="shrink font-cmv-display text-cmv-text-hi text-xl">
           {isCoach ? t("invoice.coach.title") : t("invoice.title")}
         </CmvText>
+        <CmvCapabilitySwitch />
       </View>
-
-      {/* Ne rend rien pour un compte mono-capacité — la question ne se pose que si les deux
-          réponses existent. */}
-      <CmvCapabilitySwitch />
 
       <ScrollView
         contentContainerClassName="gap-3 px-4 pb-4 pt-4"

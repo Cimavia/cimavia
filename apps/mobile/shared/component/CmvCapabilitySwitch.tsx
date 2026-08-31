@@ -1,11 +1,21 @@
 import type { CapabilityName } from "@cmv/shared";
+import { cmvColors } from "@cmv/tokens";
+import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { CmvText } from "@/shared/component/CmvText";
 import { useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
 
-// i18n-values nav.section: coach, athlete
-const OPTIONS: readonly CapabilityName[] = ["coach", "athlete"];
+// Mêmes icônes que le basculeur web (`react-icons/io5` y sert la même famille Ionicons) : c'est
+// le même geste sur les deux plateformes, il doit se reconnaître.
+// i18n-values nav.space: coach, athlete
+const OPTIONS = [
+  { capability: "coach", icon: "person-outline" },
+  { capability: "athlete", icon: "barbell-outline" },
+] as const satisfies readonly {
+  capability: CapabilityName;
+  icon: keyof typeof Ionicons.glyphMap;
+}[];
 
 /**
  * À quel titre un compte à DOUBLE capacité lit l'écran courant — Factures, Messagerie (#129).
@@ -25,8 +35,8 @@ export function CmvCapabilitySwitch() {
   if (!visible) return null;
 
   return (
-    <View className="flex-row gap-2 px-4 pb-2" accessibilityRole="tablist">
-      {OPTIONS.map((capability) => {
+    <View className="flex-row gap-1 rounded-full bg-cmv-surface p-1" accessibilityRole="tablist">
+      {OPTIONS.map(({ capability, icon }) => {
         const active = current === capability;
         return (
           <Pressable
@@ -36,12 +46,18 @@ export function CmvCapabilitySwitch() {
             accessibilityState={{ selected: active }}
             className={
               active
-                ? "rounded-full border border-cmv-accent bg-cmv-accent-soft px-3 py-1"
-                : "rounded-full border border-cmv-border bg-cmv-surface px-3 py-1"
+                ? "flex-row items-center gap-1 rounded-full bg-cmv-accent px-3 py-1"
+                : "flex-row items-center gap-1 rounded-full px-3 py-1"
             }
           >
+            <Ionicons
+              name={icon}
+              size={14}
+              // Couleur native : le composant vient d'une lib tierce et ignore les className.
+              color={active ? cmvColors.text.hi : cmvColors.text.mid}
+            />
             <CmvText className={active ? "text-cmv-text-hi text-sm" : "text-cmv-text-mid text-sm"}>
-              {t(`nav.section.${capability}`)}
+              {t(`nav.space.${capability}`)}
             </CmvText>
           </Pressable>
         );

@@ -887,19 +887,32 @@ tort).
 > titre, c'est la LECTURE qu'on qualifie, jamais la route. Deux e2e figent le contraste — 400 sur
 > les factures, 200 sur les notifications, pour le même compte.
 
-> **Tranché en #129** (le titre vit dans l'URL côté web, dans un contexte côté mobile) : les deux
-> plateformes ne pouvaient pas recevoir le même patron. Sur le web, `/invoices` et `/messages`
-> deviennent **deux entrées de nav** portant `?as=` — ce qui règle du même coup le double
-> surlignage signalé dans #129 (elles visaient la même adresse, `activeProps` les allumait
-> ensemble) et donne un titre partageable, qui survit au rechargement. Une barre d'onglets, elle,
-> ne peut pas doubler ses entrées : mobile reçoit un **sélecteur local** en tête des deux écrans
-> concernés, porté par un contexte parce que le hook de données en a besoin bien plus bas que le
-> sélecteur.
+> **Tranché en #129** (un basculeur d'espace, et non des sections) : l'épique #7 prescrivait
+> « pas de switch exclusif », et une première version a donc livré une nav SECTIONNÉE — douze
+> entrées, deux contextes empilés. Une maquette a fait changer d'avis : le basculeur en montre
+> sept et un seul. Ce qui rend le mode exclusif acceptable, c'est la **pastille sur l'espace
+> inactif** — l'objection était « on rate ce qui se passe de l'autre côté », elle y répond. Le
+> décompte ventilé qu'elle suppose n'existe pas (une notification n'a aucune capacité
+> destinataire) : il part en [#176](https://github.com/Cimavia/cimavia/issues/176), et l'intervalle
+> est le risque assumé. L'énoncé de #7 a été corrigé le même jour — une épique qui prescrit
+> l'inverse de ce qui est livré est pire qu'une épique muette.
+>
+> **L'espace courant se DÉDUIT de l'URL** côté web, sans état applicatif : le chemin dit déjà à
+> quel univers on est (`/library` est coach), et `?as=` tranche pour les deux routes servies aux
+> deux — ce qui règle au passage leur double surlignage. Un état séparé aurait pu diverger de la
+> page affichée, et montrer le menu coach au-dessus d'un écran d'athlète. Mobile ne peut pas s'en
+> remettre à l'URL : il garde un **contexte**, et le sélecteur se pose à droite du titre de l'écran
+> — sous lui, il aurait l'air d'un filtre de la liste.
 >
 > **Ce que l'issue annonçait de travers** : « dix onglets ne tiennent pas dans une barre ». La
 > table `TABS` en compte **sept**, dont quatre servis aux deux capacités — le manque n'était pas le
-> nombre mais l'absence de bascule. La densité des sept onglets reste un sujet de design ouvert,
-> distinct de celui-ci.
+> nombre mais l'absence de bascule. La densité des sept onglets reste un sujet de design ouvert.
+>
+> **Deux classes de tokens inexistantes** ont été introduites puis corrigées : `text-cmv-text-low`
+> (le token est `lo`) et `text-cmv-accent-on` sur un fond `accent` plein (c'est `text-cmv-text-hi`,
+> `accent-on` servant sur `accent-soft`). Tailwind ne génère simplement pas une classe inconnue :
+> ni `tsc`, ni `biome`, ni le build ne le voient, et le texte sort sans couleur. Un `grep` sur un
+> token voisin est le seul contrôle qui existe aujourd'hui.
 >
 > **Le piège trouvé en chemin** : les écrans partagés branchaient leur titre, leurs listes vides et
 > leurs boutons sur `useCapabilities().isCoach` — la capacité **possédée**. Un compte cumulant
