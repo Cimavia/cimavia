@@ -4807,3 +4807,99 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     expect(res.status).toBe(201);
   });
 });
+
+describe("Capacités modifiables après coup (#13)", () => {
+  async function capabilitiesOfSession(agent: Agent) {
+    const session = await agent.get("/api/auth/get-session");
+    const { isCoach, isAthlete, role } = session.body.user;
+    return { isCoach, isAthlete, role };
+  }
+
+  it("un athlète peut se mettre à coacher", async () => {
+    const agent = await signUp("cap-add@cmv.test", Role.ATHLETE);
+    const res = await agent.patch("/me/capabilities").send({ isCoach: true, isAthlete: true });
+
+    expect(res.status).toBe(200);
+    expect(await capabilitiesOfSession(agent)).toEqual({
+      isCoach: true,
+      isAthlete: true,
+      // Le persona suit : coach l'emporte quand les deux sont là (#12).
+      role: Role.COACH,
+    });
+  });
+
+  /**
+   * Le persona se RECALCULE. Sans ça, un compte `role=COACH` qui cesse de coacher atterrirait dans
+   * un espace dont il n'a plus la capacité — nav vide, redirections en boucle.
+   */
+  it("recalcule le persona quand la capacité coach part", async () => {
+    const agent = await signUpWith("cap-persona@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await capabilitiesOfSession(agent)).role).toBe(Role.COACH);
+
+    const res = await agent.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
+    expect(res.status).toBe(200);
+    expect(await capabilitiesOfSession(agent)).toEqual({
+      isCoach: false,
+      isAthlete: true,
+      role: Role.ATHLETE,
+    });
+  });
+
+  // La règle du signup, rejouée : un compte sans capacité serait devant une application vide.
+  it("refuse de retirer les deux capacités (400)", async () => {
+    const agent = await signUp("cap-none@cmv.test", Role.COACH);
+    const res = await agent.patch("/me/capabilities").send({ isCoach: false, isAthlete: false });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse de cesser de coacher avec des athlètes actifs (409)", async () => {
+    const coach = await signUpWith("cap-busy-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("cap-busy-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    const res = await coach.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
+    expect(res.status).toBe(409);
+    // La capacité n'a PAS bougé — un refus qui laisserait l'état à moitié écrit serait pire que
+    // pas de refus du tout.
+    expect((await capabilitiesOfSession(coach)).isCoach).toBe(true);
+  });
+
+  it("refuse de cesser d'être athlète en étant rattaché à un coach (409)", async () => {
+    const coach = await signUpWith("cap-linked-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const linked = await signUpWith("cap-linked@cmv.test", { isCoach: true, isAthlete: true });
+    const invitation = await coach.post("/invitations").send({});
+    expect(
+      (await linked.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    const res = await linked.patch("/me/capabilities").send({ isCoach: true, isAthlete: false });
+    expect(res.status).toBe(409);
+    expect((await capabilitiesOfSession(linked)).isAthlete).toBe(true);
+  });
+
+  /**
+   * Ce qui n'est PAS bloquant : la donnée produite. Un coach sans athlète garde sa bibliothèque et
+   * ses cycles — ils sortent de sa vue, ils ne sont pas supprimés, et ils reviennent s'il réactive.
+   * Bloquer là-dessus coincerait quiconque a seulement essayé l'application.
+   */
+  it("laisse cesser de coacher malgré une bibliothèque existante", async () => {
+    const agent = await signUpWith("cap-library@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await agent.post("/exercises").send({ title: "Traction" })).status).toBe(201);
+
+    const res = await agent.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
+    expect(res.status).toBe(200);
+
+    // L'exercice n'est plus atteignable — la route exige la capacité coach — mais rien n'a disparu.
+    expect((await agent.get("/exercises")).status).toBe(403);
+    expect(
+      (await agent.patch("/me/capabilities").send({ isCoach: true, isAthlete: true })).status,
+    ).toBe(200);
+    expect((await agent.get("/exercises")).body).toHaveLength(1);
+  });
+});

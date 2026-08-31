@@ -22,6 +22,8 @@ export type { Capabilities, CapabilityName, CapabilitySource } from "./capabilit
 export { capabilitiesOf, hasCapability } from "./capability";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
+export type { UpdateCapabilitiesInput } from "./dto/capability.schema";
+export { CapabilityBlocker, updateCapabilitiesSchema } from "./dto/capability.schema";
 export type {
   CoachAthleteDto,
   CoachAthleteStatus as CoachAthleteStatusType,
