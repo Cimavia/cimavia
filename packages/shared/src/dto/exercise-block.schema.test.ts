@@ -803,13 +803,22 @@ describe("blockSegments", () => {
     ]);
   });
 
-  it("une série SANS durée d'effort ne garde que ses repos", () => {
-    // « 8 tractions » se fait au rythme de l'athlète : rien à chronométrer, mais le repos compte.
+  it("une série SANS durée d'effort attend un GESTE avant de lancer le repos", () => {
+    // « 8 tractions » se fait au rythme de l'athlète. Sans le segment manuel, les trois repos
+    // s'enchaîneraient d'affilée : le minuteur tournerait pendant qu'il grimpe encore.
     const block = seriesBlock([{ id: "r1", values: { col_reps: 8 } }]);
-    expect(kinds(block)).toEqual(["REST 150", "REST 150", "REST 150"]);
+    expect(kinds(block)).toEqual([
+      "MANUAL 0",
+      "REST 150",
+      "MANUAL 0",
+      "REST 150",
+      "MANUAL 0",
+      "REST 150",
+      "MANUAL 0",
+    ]);
   });
 
-  it("un bloc sans aucune durée ne se déroule pas", () => {
+  it("un bloc sans aucune durée n'a QUE des gestes — rien à chronométrer", () => {
     const block = exerciseBlockSchema.parse({
       id: "blk_1",
       label: null,
@@ -818,8 +827,9 @@ describe("blockSegments", () => {
       rows: [{ id: "r1", values: { col_reps: 8 } }],
     });
 
-    expect(blockSegments(block)).toEqual([]);
-    expect(segmentsDuration(blockSegments(block))).toBeNull();
+    expect(kinds(block)).toEqual(["MANUAL 0", "MANUAL 0", "MANUAL 0"]);
+    // Aucune seconde à annoncer : la durée appartient à l'athlète.
+    expect(segmentsDuration(blockSegments(block))).toBe(0);
   });
 
   it("un EMOM déroule un intervalle par top ; un AMRAP une seule échéance", () => {

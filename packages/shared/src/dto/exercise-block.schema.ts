@@ -843,11 +843,20 @@ export const SegmentKind = {
   REST: "REST",
   INTERVAL: "INTERVAL",
   COUNTDOWN: "COUNTDOWN",
+  /**
+   * Ce qui ne se chronomètre PAS : « 8 tractions » dure ce qu'il dure.
+   *
+   * Le déroulé s'arrête et attend que l'athlète dise qu'il a fini — c'est lui qui donne le
+   * départ du repos. Sans ce segment, une série non minutée enchaînerait ses repos à la suite,
+   * sans rien entre les deux : le minuteur tournerait pendant que l'athlète grimpe encore.
+   */
+  MANUAL: "MANUAL",
 } as const;
 export type SegmentKind = TypesValuesOf<typeof SegmentKind>;
 
 export type BlockSegment = {
   kind: SegmentKind;
+  /** `0` pour un segment MANUEL : il n'a pas de durée, il attend un geste. */
   seconds: number;
   /**
    * L'unité cochable que ce segment fait avancer, ou `null` quand il n'en clôt aucune — le repos
@@ -909,7 +918,12 @@ export function blockSegments(block: ExerciseBlock): BlockSegment[] {
   return freeSegments(block);
 }
 
-/** La durée totale d'un déroulé, ou `null` s'il n'y a rien à dérouler. */
+/**
+ * La durée totale MINUTÉE d'un déroulé, ou `null` s'il n'y a rien à dérouler.
+ *
+ * Les segments manuels n'y entrent pas : leur durée appartient à l'athlète, et l'annoncer serait
+ * inventer un temps que personne n'a écrit (règle dure n°5).
+ */
 export function segmentsDuration(segments: readonly BlockSegment[]): number | null {
   if (segments.length === 0) return null;
   return segments.reduce((total, segment) => total + segment.seconds, 0);
@@ -979,9 +993,12 @@ function pushEffort(
   unitIndex: number,
 ): void {
   const seconds = rowDurationSeconds(block, row, MetricKey.EFFORT_DURATION);
-  // Une série sans durée d'effort n'est pas chronométrable — « 8 tractions » se fait au rythme de
-  // l'athlète. Seul son repos entre au déroulé.
-  if (seconds == null || seconds <= 0) return;
+  // Sans durée d'effort, l'unité n'est pas chronométrable — « 8 tractions » se fait au rythme de
+  // l'athlète. Elle entre quand même au déroulé, en MANUEL : c'est ce geste qui lance le repos.
+  if (seconds == null || seconds <= 0) {
+    segments.push({ kind: SegmentKind.MANUAL, seconds: 0, unitIndex, rowId: row?.id ?? null });
+    return;
+  }
   segments.push({ kind: SegmentKind.EFFORT, seconds, unitIndex, rowId: row?.id ?? null });
 }
 
