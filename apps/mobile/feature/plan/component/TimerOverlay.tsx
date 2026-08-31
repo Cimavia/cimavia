@@ -125,7 +125,12 @@ export function TimerOverlay({
 
       <View className="gap-3">
         {awaiting ? (
-          <Action label={t("plan.timer.confirm")} onPress={onConfirm} primary />
+          // Enveloppé dans une RANGÉE comme les autres : enfant direct d'une colonne, le `flex-1`
+          // d'`Action` s'appliquerait à la hauteur et étirerait le bouton sur toute la place
+          // libre, au lieu de tenir la même ligne de 56 px que « Passer » et « Arrêter ».
+          <View className="flex-row">
+            <Action label={t("plan.timer.confirm")} onPress={onConfirm} primary />
+          </View>
         ) : (
           <View className="flex-row gap-3">
             <Action
