@@ -4998,6 +4998,49 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect(res.status).toBe(409);
   });
 
+  /**
+   * Le parcours complet en solo : composer, diffuser, débriefer, RELIRE son débrief côté coach.
+   * C'est le bout qui ferme la boucle — un débrief qu'on écrit et qu'on ne retrouve jamais rend
+   * l'auto-coaching inutile.
+   */
+  it("retrouve côté coach le débrief qu'il a écrit côté athlète", async () => {
+    const exercise = await solo.post("/exercises").send({ title: "Suspension" });
+    expect(exercise.status).toBe(201);
+    const template = await solo.post("/sessions").send({
+      title: "Séance solo",
+      exercises: [{ exerciseId: exercise.body.id }],
+    });
+    expect(template.status).toBe(201);
+
+    const plan = await solo.post("/plans").send({
+      athleteId: soloId,
+      title: "Cycle à débriefer",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const weekId = required(plan.body.weeks[0], "semaine du cycle solo").id;
+    const scheduled = await solo
+      .post(`/plan-weeks/${weekId}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
+    expect(scheduled.status).toBe(201);
+    expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+
+    // Écrit en tant qu'ATHLÈTE…
+    const written = await solo
+      .put(`/me/scheduled-sessions/${scheduled.body.id}/feedback`)
+      .send({ content: "Bonnes sensations" });
+    expect(written.status).toBe(200);
+
+    // … et relu en tant que COACH, sur la même session.
+    const received = await solo.get("/feedbacks");
+    expect(received.status).toBe(200);
+    expect(received.body).toHaveLength(1);
+    expect(received.body[0]).toMatchObject({
+      athleteId: soloId,
+      content: "Bonnes sensations",
+    });
+  });
+
   // Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
   // comportement plutôt que de le supposer acquis.
   it("n'ouvre pas de fil de messagerie avec soi-même", async () => {

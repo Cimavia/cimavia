@@ -1,4 +1,5 @@
 import type { CreatePlanInput, PlanSummaryDto } from "@cmv/shared";
+import { myPlanKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceKeys } from "@/feature/invoice/api";
 import { createPlan, deletePlan, listPlans, planKeys, publishPlan } from "@/feature/plan/api";
@@ -51,6 +52,10 @@ export function usePublishPlan() {
       // La diffusion émet la facture (DRAFT → PENDING) : rafraîchir la liste des factures et le
       // brouillon du cycle, sinon /invoices resterait vide jusqu'à un rechargement manuel.
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      // Le cycle diffusé se lit par les routes ATHLÈTE, et en auto-coaching c'est le MÊME cache
+      // (#14) : sans cette invalidation, le compte bascule côté athlète et n'y voit rien pendant
+      // une minute (`staleTime`). Sans effet pour un coach pur, dont le cache n'a pas cette clé.
+      queryClient.invalidateQueries({ queryKey: myPlanKeys.all });
       toast.onSuccess("plan.toast.published", { title: plan.title });
     },
     onError: toast.onError,

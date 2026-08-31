@@ -5,6 +5,7 @@ import type {
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
 import {
+  coachFeedbackKeys,
   maxFeedbackMediaSizeBytes,
   megabytesOf,
   myFeedbackKeys,
@@ -35,6 +36,8 @@ function useInvalidateFeedback(sessionId: string) {
     queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
     queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
     queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });
+    // Idem : en auto-coaching, l'auteur est aussi le lecteur (#14).
+    queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
   };
 }
 
