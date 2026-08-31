@@ -8,7 +8,7 @@ import { ReminderTickService } from "../service/reminder-tick.service";
  * Déclencheur des rappels automatiques (#47), appelé par un cron EXTERNE.
  *
  * Contrôleur séparé de `ReminderController`, et pas par goût du rangement : celui-ci porte
- * `@Roles([Role.COACH])` au niveau classe, ce qui suppose une session. Ici il n'y a **aucun
+ * `@RequireCapability("coach")` au niveau classe, ce qui suppose une session. Ici il n'y a **aucun
  * acteur** — c'est une machine qui appelle — d'où `@AllowAnonymous` (Better Auth) plus une garde à
  * secret partagé. Les mêler aurait donné à un rôle des droits sur une route qui n'en relève pas.
  *

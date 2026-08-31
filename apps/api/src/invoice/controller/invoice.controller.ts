@@ -2,6 +2,7 @@ import { Role } from "@cmv/shared";
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { UpdateInvoiceStatusDto } from "../dto/update-invoice-status.dto";
 import { InvoiceService } from "../service/invoice.service";
 
@@ -30,7 +31,7 @@ export class InvoiceController {
 
   // Toggle payé/impayé (le retour arrière PAID → PENDING est confirmé côté UI).
   @Patch(":id/status")
-  @Roles([Role.COACH])
+  @RequireCapability("coach")
   updateStatus(@Param("id") id: string, @Body() dto: UpdateInvoiceStatusDto) {
     return this.invoices.updateStatus(id, dto);
   }
@@ -41,7 +42,7 @@ export class InvoiceController {
    */
   @Post(":id/cancel")
   @HttpCode(200)
-  @Roles([Role.COACH])
+  @RequireCapability("coach")
   cancel(@Param("id") id: string) {
     return this.invoices.cancel(id);
   }

@@ -39,7 +39,7 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
    * ce modèle se verrait refusé par `tenantFilterOrThrow` (fail closed).
    *
    * Ce refus étant une ERREUR (500) et non un 403, deux gardes le précèdent :
-   * `@Roles([Role.COACH])` sur le contrôleur, et le branchement par rôle du centre de
+   * `@RequireCapability("coach")` sur le contrôleur, et le branchement par rôle du centre de
    * notifications (#51), qui ne lit les rappels que pour un coach.
    */
   Reminder: { coach: "coachId" },

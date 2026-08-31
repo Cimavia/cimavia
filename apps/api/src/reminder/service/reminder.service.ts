@@ -17,7 +17,7 @@ import { type ReminderTargetLabels, toReminderDto } from "../reminder.mapper";
  *
  * Outil PRIVÉ du coach : le scope tenant est `coachId` seul, sans `athleteId`. Un athlète qui
  * atteindrait ce service serait refusé par l'extension Prisma — mais par une ERREUR, pas un 403,
- * d'où le `@Roles([Role.COACH])` porté par le contrôleur.
+ * d'où le `@RequireCapability("coach")` porté par le contrôleur.
  *
  * Aucun scheduler : « dû » se calcule à la lecture (`isReminderDue`, @cmv/shared), comme le « en
  * retard » d'une facture. Ce service ne fait donc que du CRUD ; c'est le centre de notifications

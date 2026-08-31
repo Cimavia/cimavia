@@ -1,14 +1,14 @@
-import { exerciseTagSchema, Role } from "@cmv/shared";
+import { exerciseTagSchema } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateExerciseDto } from "../dto/create-exercise.dto";
 import { UpdateExerciseDto } from "../dto/update-exercise.dto";
 import type { ListExercisesFilters } from "../service/exercise.service";
 import { ExerciseService } from "../service/exercise.service";
 
 @ApiTags("exercises")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("exercises")
 export class ExerciseController {
   constructor(private readonly exercises: ExerciseService) {}

@@ -1,7 +1,7 @@
-import { type AttachDocumentInput, attachDocumentSchema, Role } from "@cmv/shared";
+import { type AttachDocumentInput, attachDocumentSchema } from "@cmv/shared";
 import { Body, Controller, Delete, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { RequestUploadUrlDto } from "../dto/request-upload-url.dto";
 import { ExerciseDocumentService } from "../service/exercise-document.service";
@@ -9,7 +9,7 @@ import { ExerciseDocumentService } from "../service/exercise-document.service";
 // Documents joints d'un exercice : upload par URL signée (client → S3) puis rattachement.
 // Réservé au coach (rôle + scope coachId de l'exercice parent via tenancy layer).
 @ApiTags("exercise-documents")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("exercises/:exerciseId/documents")
 export class ExerciseDocumentController {
   constructor(private readonly documents: ExerciseDocumentService) {}

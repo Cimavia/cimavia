@@ -1,13 +1,12 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateCustomMetricDto } from "../dto/create-custom-metric.dto";
 import { UpdateCustomMetricDto } from "../dto/update-custom-metric.dto";
 import { CustomMetricService } from "../service/custom-metric.service";
 
 @ApiTags("custom-metrics")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("custom-metrics")
 export class CustomMetricController {
   constructor(private readonly metrics: CustomMetricService) {}

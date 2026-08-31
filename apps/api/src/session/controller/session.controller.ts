@@ -1,13 +1,12 @@
-import { Role } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { Roles } from "@thallesp/nestjs-better-auth";
+import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateSessionDto } from "../dto/create-session.dto";
 import { UpdateSessionDto } from "../dto/update-session.dto";
 import { SessionService } from "../service/session.service";
 
 @ApiTags("sessions")
-@Roles([Role.COACH])
+@RequireCapability("coach")
 @Controller("sessions")
 export class SessionController {
   constructor(private readonly sessions: SessionService) {}
