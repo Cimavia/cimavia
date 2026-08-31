@@ -135,13 +135,10 @@ function EmomBody({
         {Array.from({ length: count }, (_unused, index) => (
           <View
             key={`top-${index}`}
-            className={`size-8 items-center justify-center rounded-full border ${
-              checked.includes(index)
-                ? "border-cmv-success-line bg-cmv-success-soft"
-                : index === current.unitIndex
-                  ? "border-cmv-accent-line bg-cmv-accent-soft"
-                  : "border-cmv-border"
-            }`}
+            className={`size-8 items-center justify-center rounded-full border ${topStyle(
+              checked.includes(index),
+              index === current.unitIndex,
+            )}`}
           >
             <CmvText className="text-cmv-text-mid text-xs">{String(index + 1)}</CmvText>
           </View>
@@ -233,6 +230,13 @@ function Bar({ ratio }: Readonly<{ ratio: number }>) {
       />
     </View>
   );
+}
+
+/** Fait · en cours · à venir — les trois états d'un top, dans cet ordre de priorité. */
+function topStyle(done: boolean, active: boolean): string {
+  if (done) return "border-cmv-success-line bg-cmv-success-soft";
+  if (active) return "border-cmv-accent-line bg-cmv-accent-soft";
+  return "border-cmv-border";
 }
 
 function topCount(structure: BlockStructure): number {

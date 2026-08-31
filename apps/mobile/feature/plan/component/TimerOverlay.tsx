@@ -180,15 +180,15 @@ function primaryAction(
   onUnitDone: () => void,
   onRoundDone: () => void,
 ) {
-  const action =
-    current.kind === SegmentKind.MANUAL
-      ? { label: t("plan.timer.confirm"), onPress: onConfirm }
-      : current.kind === SegmentKind.INTERVAL
-        ? { label: t("plan.timer.topDone"), onPress: onUnitDone }
-        : current.kind === SegmentKind.COUNTDOWN
-          ? { label: t("plan.timer.roundDone"), onPress: onRoundDone }
-          : null;
-  if (action === null) return null;
+  // Une table plutôt qu'une cascade de ternaires : chaque nature de segment a SON geste, et
+  // l'absence d'entrée dit exactement « ce segment n'en a pas ».
+  const actions: Partial<Record<SegmentKind, { label: string; onPress: () => void }>> = {
+    [SegmentKind.MANUAL]: { label: t("plan.timer.confirm"), onPress: onConfirm },
+    [SegmentKind.INTERVAL]: { label: t("plan.timer.topDone"), onPress: onUnitDone },
+    [SegmentKind.COUNTDOWN]: { label: t("plan.timer.roundDone"), onPress: onRoundDone },
+  };
+  const action = actions[current.kind];
+  if (action == null) return null;
 
   return (
     <View className="flex-row">

@@ -1,9 +1,11 @@
-import type { CustomMetric, ExerciseTracking, ScheduledSessionExerciseDto } from "@cmv/shared";
 import {
   type BlockSegment,
   blockSegments,
+  type CustomMetric,
   DocumentUsage,
+  type ExerciseTracking,
   formatTrainingDuration,
+  type ScheduledSessionExerciseDto,
   SegmentKind,
   segmentsDuration,
   TimerKind,

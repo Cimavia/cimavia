@@ -233,11 +233,13 @@ function RunnerChrono({
     return <TimerOverlay {...overlayProps} />;
   }
 
+  const segmentName = t(`plan.timer.segment.${current.kind}`);
+
   return (
     <RestBanner
       remaining={runner.remaining}
       total={runner.total}
-      label={`${t(`plan.timer.segment.${current.kind}`)} · ${context.title}`}
+      label={`${segmentName} · ${context.title}`}
       isPaused={runner.isPaused}
       armed={armed}
       onPause={runner.pause}

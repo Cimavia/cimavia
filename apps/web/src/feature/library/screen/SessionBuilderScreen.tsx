@@ -1,5 +1,6 @@
 import type { ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompositionCard } from "@/feature/library/component/CompositionCard";
@@ -144,9 +145,7 @@ function SessionBuilder({
             {t("library.builder.cancel")}
           </CmvButton>
           <CmvButton onClick={onSubmit} disabled={draft.isSaving || draft.trimmedTitle === ""}>
-            {draft.isSaving
-              ? t("library.builder.saving")
-              : t(session == null ? "library.session.submitCreate" : "library.session.submitEdit")}
+            {submitLabel(draft.isSaving, session != null, t)}
           </CmvButton>
         </>
       }
@@ -270,4 +269,10 @@ function SessionBuilder({
       </div>
     </CmvAppShell>
   );
+}
+
+/** Enregistrement en cours · création · édition — trois libellés, un seul endroit pour les lire. */
+function submitLabel(isSaving: boolean, isEditing: boolean, t: TFunction): string {
+  if (isSaving) return t("library.builder.saving");
+  return t(isEditing ? "library.session.submitEdit" : "library.session.submitCreate");
 }

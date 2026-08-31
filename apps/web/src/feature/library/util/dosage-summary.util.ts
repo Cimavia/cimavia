@@ -1,6 +1,5 @@
 import {
   type CustomMetric,
-  columnValues,
   type ExerciseBlock,
   type ExerciseBlocks,
   formatTrainingDuration,
@@ -106,4 +105,4 @@ export function baselineValue(
 }
 
 /** Les valeurs d'une colonne, pour le repli — réexporté ici pour garder un seul point d'entrée. */
-export { columnValues };
+export { columnValues } from "@cmv/shared";

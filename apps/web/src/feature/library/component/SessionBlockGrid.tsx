@@ -64,7 +64,7 @@ export function SessionBlockGrid({
   function addRow() {
     if (isFull) return;
     const last = block.rows.at(-1);
-    onRowsChange([...block.rows, { id: crypto.randomUUID(), values: { ...(last?.values ?? {}) } }]);
+    onRowsChange([...block.rows, { id: crypto.randomUUID(), values: { ...last?.values } }]);
   }
 
   return (
