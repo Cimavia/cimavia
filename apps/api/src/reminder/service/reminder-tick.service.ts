@@ -101,7 +101,15 @@ export class ReminderTickService {
 
   /** Un contexte tenant pour CE coach : tout ce qui suit passe par l'extension, filtré et injecté. */
   private runForCoach(coachId: string, now: Date): Promise<{ created: number; pushed: number }> {
-    const actor: TenantContext = { userId: coachId, role: Role.COACH };
+    // Acteur SYNTHÉTIQUE : aucune session derrière, donc aucune capacité à lire — on les pose.
+    // `exercised: "coach"` parce que le tick n'agit qu'à ce titre : les rappels sont un outil privé
+    // du coach (seul modèle sans scope athlète, cf. TENANT_SCOPES).
+    const actor: TenantContext = {
+      userId: coachId,
+      role: Role.COACH,
+      capabilities: { isCoach: true, isAthlete: false },
+      exercised: "coach",
+    };
 
     // `run` + `set`, exactement comme `TenancyInterceptor` le fait pour une requête HTTP : c'est le
     // MÊME contrat, avec un acteur choisi au lieu d'un acteur résolu depuis une session.

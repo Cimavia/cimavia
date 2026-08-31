@@ -1,7 +1,7 @@
 import type { EnvSchema } from "@cmv/shared";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_FILTER } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { SentryModule } from "@sentry/nestjs/setup";
 import { AuthModule as BetterAuthModule } from "@thallesp/nestjs-better-auth";
 import { ClsModule } from "nestjs-cls";
@@ -9,6 +9,7 @@ import { LoggerModule } from "nestjs-pino";
 import type { TransportTargetOptions } from "pino";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
+import { CapabilitiesGuard } from "./auth/guard/capabilities.guard";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEMES } from "./config/origins";
 import { CustomMetricModule } from "./custom-metric/custom-metric.module";
@@ -92,6 +93,16 @@ function buildLogTargets(): TransportTargetOptions[] {
     ReminderModule,
     HealthModule,
   ],
-  providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
+  providers: [
+    { provide: APP_FILTER, useClass: SentryExceptionFilter },
+    /**
+     * Exige la capacité déclarée par la route (#10). Montée APRÈS `BetterAuthModule`, dont
+     * l'AuthGuard global pose `request.user` : l'ordre des `APP_GUARD` suit celui de leur
+     * enregistrement, et les modules importés sont initialisés avant les providers du module
+     * racine. La garde ne fait pas confiance à cette lecture pour autant — sans `user` elle lève
+     * plutôt que d'ouvrir, pour que l'inversion se voie tout de suite.
+     */
+    { provide: APP_GUARD, useClass: CapabilitiesGuard },
+  ],
 })
 export class AppModule {}
