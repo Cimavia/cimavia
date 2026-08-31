@@ -45,8 +45,10 @@ pnpm turbo dev                           # toutes les apps
 pnpm --filter @cmv/api dev               # API seule
 pnpm --filter @cmv/mobile start          # Mobile seule
 pnpm --filter @cmv/web dev               # Web seule
-pnpm turbo lint typecheck test           # qualité (la CI bloque aussi sur les e2e, plus bas)
+pnpm biome ci .                          # lint+format — PAS `turbo lint`, qui saute @cmv/shared
+pnpm turbo typecheck test                # (la CI bloque aussi sur les e2e, plus bas)
 pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
+pnpm check:i18n --strict                 # + les clés mortes — exigé en local, pas en CI
 pnpm --filter @cmv/api exec prisma migrate dev
 # Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + MinIO sur son bucket e2e)
 cp apps/api/.env.test.example apps/api/.env.test   # une fois — rien à renseigner
