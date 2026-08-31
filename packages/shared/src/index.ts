@@ -161,9 +161,11 @@ export {
   TrackingState,
   TrackingUnit,
   timerFor,
+  trackableExercises,
   trackingSummary,
   trackingUnitSchema,
   trackingUnits,
+  unitValues,
   validateBlockValues,
 } from "./dto/exercise-block.schema";
 export type {
@@ -612,6 +614,13 @@ export {
   toReminderFeedId,
 } from "./util/reminder.util";
 export { comparableText } from "./util/search.util";
+export type { SessionTracking } from "./util/session-tracking.util";
+export {
+  checkUnit,
+  sameTracking,
+  setRounds,
+  toggleUnit,
+} from "./util/session-tracking.util";
 export { isSignedUrlUsable, SIGNED_URL_TTL_SECONDS } from "./util/signed-url.util";
 export {
   formatTrainingDuration,

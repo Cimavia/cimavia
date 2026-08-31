@@ -362,6 +362,41 @@ function unitOf(type: BlockType): TrackingUnit {
 }
 
 /**
+ * Les valeurs RENSEIGNÉES de la ligne d'une unité, dans l'ordre des colonnes.
+ *
+ * C'est ce qu'une case rappelle — « 8 répétitions · 6a » —, sinon il faudrait remonter à la grille
+ * pour savoir ce qu'on coche. Les absences sont sautées : une case n'a pas la place d'aligner des
+ * tirets, et « — kg » ferait passer une charge manquante pour une charge nulle.
+ *
+ * Rend les colonnes et leurs valeurs, jamais du texte : la mise en forme dépend de la surface, la
+ * sélection non.
+ */
+export function unitValues(
+  block: ExerciseBlock,
+  index: number,
+): { metric: BlockMetric; value: MetricValue }[] {
+  const row = rowForUnit(block, index);
+  if (row == null) return [];
+  return block.metrics
+    .filter((metric) => row.values[metric.id] != null)
+    .map((metric) => ({ metric, value: row.values[metric.id] ?? null }));
+}
+
+/**
+ * Les exercices qui ont QUELQUE CHOSE à décompter.
+ *
+ * Un exercice sans unité cochable — « étirements au ressenti », un bloc libre sans ligne — n'a pas
+ * sa place dans un récapitulatif de décompte : il n'y aurait rien à y lire.
+ */
+export function trackableExercises<T extends { blocks: ExerciseBlocks }>(
+  exercises: readonly T[],
+): T[] {
+  return exercises.filter((exercise) =>
+    exercise.blocks.some((block) => trackingUnits(block) != null),
+  );
+}
+
+/**
  * La LIGNE de dosage qui accompagne l'unité `index`.
  *
  * Une grille qui détaille chaque série en donne une par unité ; une grille à ligne commune la

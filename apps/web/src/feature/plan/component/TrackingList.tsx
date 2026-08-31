@@ -2,9 +2,9 @@ import {
   type BlockTrackingState,
   type CustomMetric,
   type ExerciseBlock,
-  rowForUnit,
   TrackingMode,
   trackingUnits,
+  unitValues,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { metricCellText } from "@/feature/library/util/metric-label.util";
@@ -62,19 +62,9 @@ export function TrackingList({
     <div className="flex flex-wrap gap-cmv-xs">
       {Array.from({ length: units.count }, (_, index) => {
         const isChecked = checked.includes(index);
-        const row = rowForUnit(block, index);
-        // Chaque case RAPPELLE le dosage de sa ligne — « 8 répétitions · 6a » — sinon il faudrait
-        // remonter à la grille pour savoir ce qu'on coche. Les valeurs absentes sont sautées :
-        // une case n'a pas la place d'aligner des tirets.
-        const detail =
-          row == null
-            ? ""
-            : block.metrics
-                .filter((metric) => row.values[metric.id] != null)
-                .map((metric) =>
-                  metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t),
-                )
-                .join(" · ");
+        const detail = unitValues(block, index)
+          .map(({ metric, value }) => metricCellText(value, metric, customMetrics, t))
+          .join(" · ");
 
         return (
           <button

@@ -2,9 +2,9 @@ import {
   type BlockTrackingState,
   type CustomMetric,
   type ExerciseBlock,
-  rowForUnit,
   TrackingMode,
   trackingUnits,
+  unitValues,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -62,22 +62,14 @@ export function TrackingList({
   );
 }
 
-/**
- * Chaque case RAPPELLE le dosage de sa ligne — « 8 répétitions · 6a » — sinon il faudrait remonter
- * à la grille pour savoir ce qu'on coche. Les valeurs absentes sont sautées : une case n'a pas la
- * place d'aligner des tirets.
- */
 function unitDetail(
   block: ExerciseBlock,
   index: number,
   customMetrics: readonly CustomMetric[],
   t: TFunction,
 ): string {
-  const row = rowForUnit(block, index);
-  if (row == null) return "";
-  return block.metrics
-    .filter((metric) => row.values[metric.id] != null)
-    .map((metric) => cellText(row.values[metric.id] ?? null, metric, customMetrics, t))
+  return unitValues(block, index)
+    .map(({ metric, value }) => cellText(value, metric, customMetrics, t))
     .join(" · ");
 }
 

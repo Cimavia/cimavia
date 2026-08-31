@@ -1,8 +1,12 @@
-import type { ExerciseTracking } from "@cmv/shared";
+import {
+  type SessionTracking,
+  sameTracking,
+  setRounds as setRoundsIn,
+  toggleUnit as toggleUnitIn,
+} from "@cmv/shared";
 import { useCallback, useState } from "react";
 
-/** Le suivi de TOUTE une séance, indexé par identifiant d'exercice diffusé. */
-export type SessionTracking = Record<string, ExerciseTracking | null>;
+export type { SessionTracking };
 
 const key = (sessionId: string) => `cimavia-tracking:${sessionId}`;
 
@@ -26,8 +30,8 @@ function read(sessionId: string): SessionTracking | null {
  * réseau de la salle, mais un second chemin d'écriture ferait diverger les deux surfaces sur
  * QUAND une coche devient définitive.
  *
- * Le LOCAL l'emporte sur le distant : il n'est monté au serveur qu'au débrief, donc il est plus
- * récent par construction.
+ * Ce que fait une coche vit dans `@cmv/shared` : seul le STOCKAGE distingue ce hook de son jumeau
+ * mobile.
  */
 export function useLocalTracking(sessionId: string, remote: SessionTracking) {
   const [cached, setCached] = useState<SessionTracking | null>(() => read(sessionId));
@@ -47,39 +51,16 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
   );
 
   const toggleUnit = useCallback(
-    (exerciseId: string, blockId: string, index: number) => {
-      const forExercise = tracking[exerciseId] ?? {};
-      const state = forExercise[blockId];
-      const checked = state != null && "checked" in state ? state.checked : [];
-      const next = checked.includes(index)
-        ? checked.filter((item) => item !== index)
-        : [...checked, index].sort((a, b) => a - b);
-
-      persist({ ...tracking, [exerciseId]: { ...forExercise, [blockId]: { checked: next } } });
-    },
+    (exerciseId: string, blockId: string, index: number) =>
+      persist(toggleUnitIn(tracking, exerciseId, blockId, index)),
     [tracking, persist],
   );
 
-  /** L'AMRAP se COMPTE : son objectif est indicatif, et le compteur n'a pas de plafond. */
   const setRounds = useCallback(
-    (exerciseId: string, blockId: string, rounds: number) => {
-      const forExercise = tracking[exerciseId] ?? {};
-      persist({
-        ...tracking,
-        [exerciseId]: { ...forExercise, [blockId]: { rounds: Math.max(0, rounds) } },
-      });
-    },
+    (exerciseId: string, blockId: string, rounds: number) =>
+      persist(setRoundsIn(tracking, exerciseId, blockId, rounds)),
     [tracking, persist],
   );
-
-  /**
-   * Le local diffère-t-il de ce que le serveur connaît ?
-   *
-   * Comparé sur une forme CANONIQUE (clés triées) : deux objets identiques écrits dans un ordre
-   * différent — au fil des coches d'un côté, au chargement de l'autre — ne doivent pas passer pour
-   * une modification, sinon le bouton « Enregistrer » resterait actif sur une séance déjà envoyée.
-   */
-  const dirty = cached != null && canonical(cached) !== canonical(remote);
 
   /**
    * Efface le suivi local une fois qu'il est parti avec le débrief : l'écran redevient un miroir
@@ -94,16 +75,8 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
     }
   }, [sessionId]);
 
-  return { tracking, toggleUnit, setRounds, clear, dirty };
-}
+  /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
+  const dirty = cached != null && !sameTracking(cached, remote);
 
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value != null && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => item !== undefined)
-      .sort(([a], [b]) => a.localeCompare(b));
-    return `{${entries.map(([k, item]) => `${k}:${canonical(item)}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
+  return { tracking, toggleUnit, setRounds, clear, dirty };
 }

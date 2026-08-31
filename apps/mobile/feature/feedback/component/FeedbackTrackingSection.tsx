@@ -2,8 +2,8 @@ import {
   type ExerciseTracking,
   type ScheduledSessionExerciseDto,
   TrackingState,
+  trackableExercises,
   trackingSummary,
-  trackingUnits,
 } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -39,11 +39,7 @@ export function FeedbackTrackingSection({
   const { t } = useTranslation();
   const [editing, setEditing] = useState<string | null>(null);
 
-  // Un exercice sans unité — « étirements au ressenti » — n'a rien à décompter, donc rien à faire
-  // dans un récapitulatif de décompte.
-  const trackable = exercises.filter((exercise) =>
-    exercise.blocks.some((block) => trackingUnits(block) != null),
-  );
+  const trackable = trackableExercises(exercises);
   if (trackable.length === 0) return null;
 
   return (
