@@ -24,7 +24,8 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 autonomes. Quatre dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
 explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne),
 **C-1** (comportement voulu — l'issue serait un contresens, le déclencheur est qu'on le corrige à
-tort).
+tort). Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
+résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
 ---
 
@@ -338,8 +339,9 @@ tort).
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
 > Lire la table `reminder` depuis le centre de notifications — écran servi aux **deux** rôles —
 > aurait donc renvoyé un **500 à tout athlète**, sur une page qui ne parle même pas de rappels. Toute
-> future entité mono-rôle devra porter les deux gardes : `@Roles` sur le contrôleur, et un
-> branchement explicite partout où un chemin partagé la touche.
+> future entité mono-capacité devra porter les deux gardes : la capacité exigée sur le contrôleur
+> (`@RequireCapability` depuis #10), et un branchement explicite partout où un chemin partagé la
+> touche — `runAsCapability` qualifiant alors la lecture, pas la route (cf. #14).
 
 > ~~**Écart de promotion assumé**~~ **RÉSOLU en #46** : `REMINDER_BADGE` et
 > `REMINDER_TARGET_LABEL_KEY` vivaient dans `apps/web/src/feature/reminder/`, faute d'un second
@@ -830,7 +832,7 @@ tort).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** Depuis #9, `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Le `databaseHook` les tient alignés à la création, mais rien en base ne l'impose — et à partir de #13, retirer une capacité les fera légitimement diverger (`role=COACH`, `isCoach=false`). C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
+| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Les deux chemins d'écriture les tiennent alignés — le `databaseHook` à la création, `CapabilityService` à la modification — mais rien en base ne l'impose. C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit, et le second peut légitimement survivre au premier. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
 | ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
 | ~~C-3~~ | ~~**Les clients n'envoient pas `?as=`**~~ : les routes servant les deux capacités répondaient 400 à un compte cumulant. | ✅ | résolue en **#12** (le paramètre) et **#129** (le choix explicite) |
 

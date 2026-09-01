@@ -111,11 +111,12 @@ Composant/hook utilisé par **1 feature** → `feature/<feat>/`. Par **2+** → 
 
 L'isolation des données est garantie **à la couche données**, pas par la seule logique applicative.
 
-- **Invariant** : 1 `Athlete` a **au plus 1 `Coach`** (0 ou 1, unicité en base). 1 `Coach` = N `Athlete`. MVP : tout athlète est lié à 1 coach ; relation **nullable et réversible** dès le départ pour ne pas bloquer l'athlète **autonome** (0 coach, auto-coaching v1.0).
-- **Tenancy guard** (NestJS) : résout l'acteur courant + sa relation `CoachAthlete` à partir de la session Better Auth, et l'injecte dans le contexte de requête.
-- **Prisma Client Extension** : applique automatiquement le scope tenant à toute requête (filtre `where` par coach/athlète). Aucune query métier ne s'exécute sans scope.
-- **Conséquence** : un coach ne lit/écrit que SES athlètes ; un athlète que SES données. Toute nouvelle entité métier doit être rattachée au tenant.
-- **Tests** : e2e d'isolation obligatoires — vérifier qu'un coach A ne peut jamais accéder aux données d'un athlète du coach B.
+- **Invariant** : 1 `Athlete` a **au plus 1 `Coach`** (0 ou 1, unicité en base). 1 `Coach` = N `Athlete`. Relation **nullable et réversible**, ce qui autorise l'athlète **autonome** (0 coach) et l'**auto-coaching** (`coachId = athleteId`, sans ligne `CoachAthlete` — l'auto-relation est interdite par le CHECK `coach_athlete_not_self`).
+- **Capacités, pas rôle** (#9/#10) : l'autorisation se décide sur `isCoach`/`isAthlete`, deux drapeaux **cumulables**. `role` survit comme persona d'affichage et ne fonde plus aucun droit — il est d'ailleurs absent de `TenantContext`, ce qui rend la règle exécutable plutôt que déclarée.
+- **La route déclare la capacité qu'elle exerce** : `@RequireCapability("coach")` sert DEUX mécanismes — `CapabilitiesGuard` en fait une exigence (403), `TenancyInterceptor` en fait le **champ de scope**. Une déclaration, deux lecteurs, via un helper partagé : exigence et scope ne peuvent pas diverger. Les routes servies aux deux capacités portent `"either"` et se font préciser le titre par `?as=` — **400** si un compte cumulant ne le donne pas, plutôt qu'un choix arbitraire.
+- **Prisma Client Extension** : applique automatiquement le scope tenant à toute requête (filtre `where` par la colonne de la capacité EXERCÉE). Aucune query métier ne s'exécute sans scope. Une route sans capacité déclarée ne peut toucher qu'un modèle dont les deux scopes coïncident (`Notification`, `PushToken`) ; pour qualifier une lecture ponctuelle sans donner de titre à la route entière, `runAsCapability`.
+- **Conséquence** : un coach ne lit/écrit que SES athlètes ; un athlète que SES données ; et **cumuler les deux n'ouvre aucune porte** — deux scopes, jamais un `OR`.
+- **Tests** : e2e d'isolation obligatoires — un coach A n'accède jamais aux données d'un athlète du coach B, et un compte à double capacité ne franchit la frontière dans **aucun** de ses deux titres.
 
 ### Pièges du scope automatique (appris en P2 — à respecter pour toute entité)
 
@@ -123,6 +124,7 @@ L'isolation des données est garantie **à la couche données**, pas par la seul
 2. **Les `include` imbriqués ne sont PAS scopés.** L'extension n'intercepte que les opérations de **premier niveau** : un `include: { exercise: true }` lit la table jointe **sans filtre tenant**. Conséquence : ne jamais résoudre une donnée d'un autre modèle par un `include` — la charger par une **requête scopée séparée** (cf. `SessionService.loadExerciseMap`).
 3. **Les FK n'imposent pas le tenant.** Rien n'empêche en base de référencer l'`exerciseId` d'un autre coach. Toute référence entrante venant du client doit être **validée comme possédée** avant écriture (cf. `SessionService.assertExercisesOwned` → 400).
 4. **Les suppressions `Restrict` doivent être gardées côté applicatif.** Sinon la violation de FK remonte en 500 : préférer un **409 explicite** et actionnable (cf. suppression d'un exercice utilisé dans une séance).
+5. **Un chemin partagé qui touche une entité mono-capacité doit dire laquelle.** `Reminder` n'a pas de scope athlète : le centre de notifications, servi aux deux, lèverait une **erreur** (pas un 403, pas une liste vide) en le lisant sans titre. La lecture concernée est donc qualifiée au plus près (`runAsCapability`), sans donner de titre à la route — un centre de notifications montre ce qui est adressé au compte, tous espaces confondus.
 
 > Pas de RLS Postgres en MVP : tous les accès passent par Prisma, donc l'extension suffit et reste portable.
 
