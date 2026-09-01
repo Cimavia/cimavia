@@ -202,7 +202,7 @@ le PC étant un faux négatif en mode *mirrored* :
 ## Conventions
 
 - Lint/format : **Biome**
-- Tests : **Vitest**
+- Tests : **Vitest** sur les quatre paquets, mobile compris (pas de `jest-expo`) ; la couverture est mesurée partout et remontée à SonarCloud
 - Commits : **Conventional Commits** (sujet en minuscule, signés)
 - Composants design system : préfixe `Cmv`
 - Packages : scope `@cmv/*`
