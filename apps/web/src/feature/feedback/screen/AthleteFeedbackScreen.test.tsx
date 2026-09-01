@@ -37,15 +37,11 @@ vi.mock("@/feature/feedback/hook/useMyFeedbackMedia", () => ({
 }));
 
 /**
- * `MediaRecorder` n'existe pas dans jsdom, et `pickRecorderMimeType` l'appelle SANS garde — le
- * rendu de l'écran lève alors un `ReferenceError`. Ce stub décrit un navigateur qui possède
- * l'API mais ne sait produire aucun format accepté par le débrief : c'est le cas Firefox, celui
- * pour lequel `isAvailable` a été écrit.
- *
- * Il ne couvre donc PAS le navigateur qui n'a pas l'API du tout (Safari iOS ancien), où l'écran
- * casse aujourd'hui pour de bon.
+ * Le navigateur par défaut de ces tests : il POSSÈDE `MediaRecorder`, mais ne sait produire aucun
+ * format que le débrief accepte — le cas Firefox, celui pour lequel `isAvailable` a été écrit.
+ * jsdom n'a pas l'API du tout, et sans stub tous les rendus décriraient ce seul cas-là.
  */
-vi.stubGlobal("MediaRecorder", { isTypeSupported: () => false });
+const firefoxLike = () => vi.stubGlobal("MediaRecorder", { isTypeSupported: () => false });
 
 const SESSION_ID = "ss-1";
 const ROUTE = "/sessions/$sessionId/feedback";
@@ -79,6 +75,7 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  firefoxLike();
   // `useLocalTracking` lit le stockage du navigateur : un test laisserait sinon ses coches au
   // suivant, qui décrirait une séance déjà remplie sans l'avoir demandé.
   window.localStorage.clear();
@@ -89,6 +86,7 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 describe("AthleteFeedbackScreen", () => {
@@ -205,6 +203,26 @@ describe("AthleteFeedbackScreen", () => {
       const { findByText } = await setup();
 
       expect(await findByText("feedback.submit.filled")).toBeInTheDocument();
+    });
+  });
+
+  describe("l'enregistreur vocal", () => {
+    it("dit qu'il n'est pas disponible plutôt que de le proposer", async () => {
+      const { findByText } = await setup();
+
+      // Le bouton DISPARAÎT quand aucun format produit n'est accepté : laisser capturer trente
+      // secondes pour un 400 à la signature de l'URL serait pire que de ne rien proposer.
+      expect(await findByText("feedback.media.recorderUnsupported")).toBeInTheDocument();
+    });
+
+    it("survit à un navigateur qui n'a pas MediaRecorder du tout", async () => {
+      vi.stubGlobal("MediaRecorder", undefined);
+      const { findByLabelText } = await setup();
+
+      // Safari iOS avant 14.5, certaines WebViews. Sans la garde de `pickRecorderMimeType`, ce
+      // n'est pas l'enregistreur qui manque : c'est l'écran de débrief entier qui tombe sur un
+      // `ReferenceError`, et l'athlète perd le droit d'écrire son ressenti.
+      expect(await findByLabelText(CONTENT)).toBeInTheDocument();
     });
   });
 
