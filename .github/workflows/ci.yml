@@ -201,8 +201,20 @@ jobs:
           name: coverage-e2e
           path: apps/api/coverage-e2e
 
+      # `qualitygate.wait` : SANS lui, le scanner publie puis sort en 0 quoi que dise la porte. Ce
+      # job était donc vert sur des analyses dont la Quality Gate échouait — un check requis qui ne
+      # vérifiait que « le scan a bien été envoyé ». Avec l'option, le scanner attend le verdict et
+      # propage l'échec, ce qui est la seule façon dont une porte garde quelque chose.
+      #
+      # ⚠️ Rend la gate BLOQUANTE pour toutes les PR. À ne fusionner qu'une fois la gate au vert,
+      # sinon c'est le dépôt entier qui se ferme. La définition du « code neuf » compte autant que
+      # le seuil : une période mal réglée fait échouer des PR irréprochables.
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
+        with:
+          # 300 s par défaut. La gate se calcule en quelques secondes ; ce délai n'existe que pour
+          # qu'une lenteur de SonarCloud ne bloque pas le runner indéfiniment.
+          args: -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
