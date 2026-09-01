@@ -153,7 +153,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| Q-1 | **Couverture non mesurée sur le web et le mobile** : `sonar.coverage.exclusions` écarte encore `apps/web` et `apps/mobile`, faute de harnais de test d'UI. Le tiers API est levé en **#57** (les e2e sont instrumentés : 2,6 % → ~86 %). | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ [#58](https://github.com/Cimavia/cimavia/issues/58) [#59](https://github.com/Cimavia/cimavia/issues/59) |
+| Q-1 | **Couverture non mesurée sur le mobile** : `sonar.coverage.exclusions` écarte encore `apps/mobile`, faute de harnais de test d'UI. Le tiers API est levé en **#57** (e2e instrumentés : 2,6 % → ~86 %), le tiers web en **#58** (Vitest + jsdom, périmètre total `src/`). | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ [#59](https://github.com/Cimavia/cimavia/issues/59) |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 
@@ -183,6 +183,16 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > s'aligne **pas** sur l'exclusion des `*.module.ts` / `*.dto.ts` de la config unitaire, alors que
 > l'écart de chiffre serait négligeable (0,45 pt) : aligner ferait chuter une quinzaine de modules
 > à 0 % dans Sonar, puisqu'aucun rapport ne les porterait plus.
+
+> **Tranché en #58** (mesurer une couche à moitié, c'est la remettre hors de vue) : le périmètre de
+> couverture du web est **tout `src/`**, et non sa seule couche `util/` + `hook/`. La restriction
+> était tentante — 891 statements testables sur 3 047, une Quality Gate qui ne mord que là où l'on
+> a décidé d'écrire des tests — mais elle aurait laissé les 12 258 lignes de `component/` et
+> `screen/` durablement invisibles, c'est-à-dire reproduit le mécanisme qui a produit Q-1. La
+> contrepartie est assumée et connue : sur le code NEUF, un écran ajouté sans test fait rougir la
+> gate, et la façon la moins chère de la reverdir est un `render()` qui exécute le JSX sans rien
+> affirmer. Cette couverture-là est du décor — si elle apparaît, c'est le test qu'il faut reprendre,
+> pas le périmètre.
 
 > **Appris en #57** (deux commentaires décourageaient une manœuvre pour une raison fausse) :
 > `sonar-project.properties` et le docblock de `vitest.config.ts` affirmaient tous deux que les e2e

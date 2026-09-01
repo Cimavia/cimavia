@@ -7,6 +7,12 @@
       "@cmv/tokens": ["../../packages/tokens/src/index.ts"]
     }
   },
-  "include": ["src"],
+  // Les configs de build et de test entrent dans le typecheck, et pas seulement `src`. La leçon
+  // de #57 : sous un `moduleResolution` inadapté, les types de `vitest/config` ne se résolvent
+  // pas, `defineConfig` vaut `any` et une propriété INVENTÉE y passe sans erreur. Le
+  // `moduleResolution: Bundler` d'`@cmv/tsconfig/react` les résout, lui — l'ajout vérifie donc
+  // quelque chose. `vite.config.ts` est de toute façon tiré par l'import de `vitest.config.ts` :
+  // le citer rend explicite ce qui serait sinon accidentel.
+  "include": ["src", "test", "vite.config.ts", "vitest.config.ts", "vitest.setup.ts"],
   "exclude": ["node_modules", "dist"]
 }
