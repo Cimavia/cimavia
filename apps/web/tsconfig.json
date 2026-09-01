@@ -13,6 +13,6 @@
   // `moduleResolution: Bundler` d'`@cmv/tsconfig/react` les résout, lui — l'ajout vérifie donc
   // quelque chose. `vite.config.ts` est de toute façon tiré par l'import de `vitest.config.ts` :
   // le citer rend explicite ce qui serait sinon accidentel.
-  "include": ["src", "vite.config.ts", "vitest.config.ts", "vitest.setup.ts"],
+  "include": ["src", "test", "vite.config.ts", "vitest.config.ts", "vitest.setup.ts"],
   "exclude": ["node_modules", "dist"]
 }
