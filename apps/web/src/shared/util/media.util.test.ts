@@ -78,6 +78,18 @@ describe("pickRecorderMimeType", () => {
     supporting("audio/webm");
     expect(pickRecorderMimeType(FEEDBACK_MEDIA_PROFILE.audioMimeTypes)).toBeNull();
   });
+
+  /**
+   * Le navigateur qui n'a PAS l'API. Les trois cas ci-dessus la posent tous par `supporting()`,
+   * si bien qu'aucun ne traversait la ligne qui la lit — l'absence d'`isAvailable` s'y voyait
+   * comme un succès. C'est le rendu de l'écran de débrief en jsdom qui a fait sortir le
+   * `ReferenceError`.
+   */
+  it("rend null sans lever quand le navigateur n'a pas MediaRecorder", () => {
+    vi.stubGlobal("MediaRecorder", undefined);
+    expect(() => pickRecorderMimeType(FEEDBACK_MEDIA_PROFILE.audioMimeTypes)).not.toThrow();
+    expect(pickRecorderMimeType(FEEDBACK_MEDIA_PROFILE.audioMimeTypes)).toBeNull();
+  });
 });
 
 describe("prepareImageFile", () => {

@@ -117,6 +117,11 @@ export type WebMediaSource =
  * bouton d'enregistrement AVANT qu'on enregistre trente secondes pour un 400.
  */
 export function pickRecorderMimeType(allowed: readonly string[]): string | null {
+  // Le navigateur peut ne pas avoir l'API DU TOUT (Safari iOS avant 14.5, certaines WebViews).
+  // Sans cette garde, la lecture d'`isTypeSupported` lève un `ReferenceError` PENDANT le rendu et
+  // emporte l'écran de débrief entier — au lieu de n'éteindre que le bouton d'enregistrement,
+  // qui est tout ce que `null` doit produire.
+  if (typeof MediaRecorder === "undefined") return null;
   const supported = allowed.filter((mime) => MediaRecorder.isTypeSupported(mime));
   return supported.find((mime) => mime === "audio/mp4") ?? supported[0] ?? null;
 }
