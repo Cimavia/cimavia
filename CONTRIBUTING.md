@@ -23,6 +23,8 @@ CI (`.github/workflows/`) :
   (`@cmv/shared`, API, web, mobile). Rapatrié depuis `sonar.yml` en #57 : Sonar veut tous les lcov
   dans UN scan, or celui des e2e naît dans le job ci-dessus — les mettre dans le même run rend
   l'ordre déterministe, là où un artefact ne traverse pas deux workflows sans course.
+  Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
+  sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 
 Les trois tournent sur push/PR vers `main`, `staging`, `production`.
 
