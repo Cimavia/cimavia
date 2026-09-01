@@ -162,7 +162,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > - **`test:e2e` porte `cache: false` dans `turbo.json`.** Ce n'est pas un oubli d'optimisation.
 >   Les vraies entrées de cette suite sont un Postgres et un MinIO **vivants**, plus l'état de la
->   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 186 passed » sans
+>   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 268 passed » sans
 >   exécuter une requête : une porte verte qui n'a rien vérifié, soit la panne M-1 en pire, parce
 >   qu'invisible.
 > - **`vitest.config.e2e.ts` doit continuer de LEVER si `.env.test` manque.** Rendre le
