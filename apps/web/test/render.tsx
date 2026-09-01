@@ -1,5 +1,13 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { QueryClientProvider } from "@tanstack/react-query";
+import type { AnyRouter } from "@tanstack/react-router";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { type RenderResult, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement, ReactNode } from "react";
@@ -46,4 +54,61 @@ export function renderWithProviders(ui: ReactElement): RenderWithProviders {
   });
 
   return { ...result, user, queryClient };
+}
+
+type RouteOptions = {
+  /**
+   * L'id de route sous lequel le composant est monté. Il doit être IDENTIQUE à celui que l'écran
+   * réclame par `getRouteApi(...)` — c'est par cette chaîne que `useParams` retrouve son match.
+   */
+  path: string;
+  /** Les valeurs des segments dynamiques de `path`, qui composent l'URL de départ. */
+  params?: Readonly<Record<string, string>>;
+  /**
+   * Les autres routes que l'écran CITE dans ses `<Link>` ou ses `navigate()`. Sans elles, le
+   * routeur ne sait pas résoudre la cible et le lien tombe. Elles ne rendent rien : ce qui est
+   * vérifié est vers où l'écran pointe, pas ce qu'il y a au bout.
+   */
+  links?: readonly string[];
+};
+
+/**
+ * Monte un écran dans un VRAI routeur en mémoire, en plus des fournisseurs ci-dessus.
+ *
+ * Un vrai routeur et non un mock de `@tanstack/react-router` : `AthleteFeedbackScreen` appelle
+ * `getRouteApi("/sessions/$sessionId/feedback")` au niveau MODULE, et remplacer le module rendrait
+ * le test aveugle au jour où cet id change — c'est-à-dire au seul défaut que ce mock aurait pu
+ * attraper.
+ */
+export async function renderInRoute(
+  ui: ReactElement,
+  { path, params = {}, links = [] }: RouteOptions,
+): Promise<RenderWithProviders & { router: AnyRouter }> {
+  const rootRoute = createRootRoute();
+  const routeTree = rootRoute.addChildren([
+    createRoute({ getParentRoute: () => rootRoute, path, component: () => ui }),
+    ...links.map((linkPath) =>
+      createRoute({ getParentRoute: () => rootRoute, path: linkPath, component: () => null }),
+    ),
+  ]);
+
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [interpolate(path, params)] }),
+  });
+
+  // `load()` AVANT le rendu, et l'helper est asynchrone pour ça : `RouterProvider` résout ses
+  // matches en tâche de fond, si bien qu'un rendu synchrone laisse le DOM VIDE au premier tour.
+  // Un test qui affirme une absence passerait alors sans avoir rien vu — le pire des verts.
+  await router.load();
+
+  return { ...renderWithProviders(<RouterProvider router={router} />), router };
+}
+
+/** `/sessions/$sessionId/feedback` + `{ sessionId: "ss-1" }` → `/sessions/ss-1/feedback`. */
+function interpolate(path: string, params: Readonly<Record<string, string>>): string {
+  return Object.entries(params).reduce(
+    (url, [name, value]) => url.replace(`$${name}`, value),
+    path,
+  );
 }
