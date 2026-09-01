@@ -5146,3 +5146,139 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     expect(unread.body).toMatchObject({ coach: 0, athlete: 2, count: 2 });
   });
 });
+
+/**
+ * Règle dure n°1 face au modèle de capacités (#18) : **cumuler deux capacités n'ouvre aucune
+ * porte**. Les suites précédentes vérifient que chaque fonctionnalité marche en double casquette ;
+ * celle-ci vérifie qu'elle ne marche pas TROP.
+ *
+ * La question qui la motive : un compte qui est à la fois coach de quelqu'un et athlète de
+ * quelqu'un d'autre traverse deux tenants. Rien ne doit fuir de l'un vers l'autre, ni d'un tiers
+ * vers lui.
+ */
+describe("Isolation multi-capacité (#18)", () => {
+  let dual: Agent;
+  let dualId: string;
+  let hisCoach: Agent;
+  let hisAthlete: Agent;
+  let hisAthleteId: string;
+  let stranger: Agent;
+  let strangerAthlete: Agent;
+  let strangerExerciseId: string;
+  let strangerPlanId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  beforeAll(async () => {
+    dual = await signUpWith("iso-dual@cmv.test", { isCoach: true, isAthlete: true });
+    hisCoach = await signUpWith("iso-his-coach@cmv.test", { isCoach: true, isAthlete: false });
+    hisAthlete = await signUp("iso-his-athlete@cmv.test", Role.ATHLETE);
+    stranger = await signUpWith("iso-stranger@cmv.test", { isCoach: true, isAthlete: false });
+    strangerAthlete = await signUp("iso-stranger-athlete@cmv.test", Role.ATHLETE);
+
+    // `dual` est coaché par `hisCoach`, et coache `hisAthlete`.
+    const toDual = await hisCoach.post("/invitations").send({});
+    dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
+      .athleteId;
+    const toHisAthlete = await dual.post("/invitations").send({});
+    hisAthleteId = (
+      await hisAthlete.post("/invitations/accept").send({ code: toHisAthlete.body.code })
+    ).body.athleteId;
+
+    // Un tenant étranger, complet : sa bibliothèque, son athlète, son cycle diffusé.
+    const toStrangerAthlete = await stranger.post("/invitations").send({});
+    const strangerAthleteId = (
+      await strangerAthlete.post("/invitations/accept").send({ code: toStrangerAthlete.body.code })
+    ).body.athleteId;
+    strangerExerciseId = (await stranger.post("/exercises").send({ title: "Secret" })).body.id;
+    const plan = await stranger.post("/plans").send({
+      athleteId: strangerAthleteId,
+      title: "Cycle étranger",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    strangerPlanId = plan.body.id;
+    expect((await billAndPublish(stranger, strangerPlanId)).status).toBe(200);
+  });
+
+  /**
+   * Le cas propre au modèle : `dual` a DEUX titres, donc deux colonnes de scope. Ni l'un ni
+   * l'autre ne doit atteindre un tenant qui n'est pas le sien — un scope qui bascule ne doit pas
+   * pouvoir servir de passe-partout.
+   */
+  it("n'atteint la bibliothèque d'un étranger sous aucun titre", async () => {
+    expect((await dual.get(`/exercises/${strangerExerciseId}`)).status).toBe(404);
+    expect((await dual.get("/exercises")).body).toHaveLength(0);
+  });
+
+  it("n'atteint le cycle d'un étranger ni en coach ni en athlète", async () => {
+    expect((await dual.get(`/plans/${strangerPlanId}`)).status).toBe(404);
+    // Côté athlète, il ne lit que le sien : celui de l'étranger n'est pas « le cycle courant ».
+    const mine = await dual.get("/me/plan");
+    expect(mine.body?.id).not.toBe(strangerPlanId);
+  });
+
+  // Sa liste d'athlètes est la SIENNE : celui d'un autre coach n'y figure pas, même si les deux
+  // comptes sont coachs.
+  it("ne voit que ses propres athlètes", async () => {
+    const athletes = await dual.get("/athletes");
+    const ids = athletes.body.map((relation: { athleteId: string }) => relation.athleteId);
+    expect(ids).toContain(hisAthleteId);
+    expect(ids).toContain(dualId); // lui-même (auto-coaching, #14)
+    expect(ids).toHaveLength(2);
+  });
+
+  /**
+   * Le croisement le plus tentant : `dual` est l'athlète de `hisCoach` ET le coach de
+   * `hisAthlete`. Ces deux relations ne se composent PAS — `hisCoach` n'a aucun droit sur
+   * `hisAthlete`, qui n'est pas son athlète.
+   */
+  it("ne transmet aucun droit en cascade le long de la chaîne", async () => {
+    const athletes = await hisCoach.get("/athletes");
+    const ids = athletes.body.map((relation: { athleteId: string }) => relation.athleteId);
+    expect(ids).toContain(dualId);
+    expect(ids).not.toContain(hisAthleteId);
+  });
+
+  /**
+   * Un cycle qu'on s'écrit à soi-même reste dans son tenant. Il porte `coachId = athleteId`, donc
+   * il apparaîtrait dans DEUX scopes s'ils étaient confondus — c'est précisément le cas où une
+   * erreur de colonne ne se verrait pas chez un compte ordinaire.
+   */
+  it("garde ses cycles solo hors de portée des autres", async () => {
+    const solo = await dual.post("/plans").send({
+      athleteId: dualId,
+      title: "Solo privé",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(solo.status).toBe(201);
+
+    expect((await stranger.get(`/plans/${solo.body.id}`)).status).toBe(404);
+    // Son propre coach non plus : `dual` s'écrit ce cycle en tant que COACH, pas en tant qu'athlète
+    // de `hisCoach`. La relation ne donne pas de droit sur ce que son athlète écrit de son côté.
+    expect((await hisCoach.get(`/plans/${solo.body.id}`)).status).toBe(404);
+  });
+
+  // Retirer une capacité FERME l'accès, immédiatement et pour tout ce qu'elle ouvrait.
+  it("referme l'accès dès qu'une capacité est retirée", async () => {
+    const temp = await signUpWith("iso-temp@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await temp.get("/exercises")).status).toBe(200);
+
+    expect(
+      (await temp.patch("/me/capabilities").send({ isCoach: false, isAthlete: true })).status,
+    ).toBe(200);
+    expect((await temp.get("/exercises")).status).toBe(403);
+    expect((await temp.get("/athletes")).status).toBe(403);
+  });
+
+  /**
+   * L'invariant qui tient tout : un athlète a AU PLUS un coach, y compris quand il en est un
+   * lui-même. Cumuler ne permet pas de se rattacher à un second.
+   */
+  it("ne laisse pas un compte à double capacité rejoindre un second coach", async () => {
+    const invitation = await stranger.post("/invitations").send({});
+    const res = await dual.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(res.status).toBe(409);
+  });
+});
