@@ -13,6 +13,12 @@ import { createInstance, type i18n } from "i18next";
  * l'existence des clés, et le faire garder DEUX FOIS par des tests de composants les rendrait
  * solidaires du catalogue sans rien vérifier de plus.
  *
+ * Limite connue, et c'est le prix de `cimode` : les paramètres d'interpolation sont PERDUS —
+ * `t("x.y", { count: 3 })` rend `x.y`, là où le `fakeT` de `test/translator.ts` les concatène à la
+ * clé. Un décompte affiché uniquement par interpolation n'est donc pas observable dans le texte
+ * rendu ; il s'affirme sur ce qui le gouverne — un bouton fermé, un badge absent — plutôt que sur
+ * sa mise en forme.
+ *
  * Volontairement SANS `.use(initReactI18next)`, contrairement à `src/shared/lib/i18n.ts` : ce
  * greffon pose l'instance en défaut GLOBAL de react-i18next. Elle survivrait alors au fichier de
  * test qui l'a créée, et la langue réglée par l'un décrirait l'écran d'un autre. L'instance passe
