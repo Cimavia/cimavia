@@ -3,10 +3,10 @@ import { useMutation } from "@tanstack/react-query";
 import { capabilityApi } from "@/feature/account/api";
 
 // i18n-values account.capabilities.blocked: ACTIVE_ATHLETES, ACTIVE_COACH
-const BLOCKERS: readonly string[] = [
+const BLOCKERS = new Set<string>([
   CapabilityBlocker.ACTIVE_ATHLETES,
   CapabilityBlocker.ACTIVE_COACH,
-];
+]);
 
 /**
  * La clé du message d'un refus 409. L'API renvoie un CODE, pas une phrase — traduisible ici, et
@@ -15,7 +15,7 @@ const BLOCKERS: readonly string[] = [
  */
 export function capabilityErrorKey(error: unknown): string {
   const message = apiErrorMessage(error);
-  return message != null && BLOCKERS.includes(message)
+  return message != null && BLOCKERS.has(message)
     ? `account.capabilities.blocked.${message}`
     : "common.error";
 }

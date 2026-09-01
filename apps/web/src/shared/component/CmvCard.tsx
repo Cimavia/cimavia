@@ -18,7 +18,12 @@ type CmvCardProps = {
   onClick?: () => void;
 };
 
-export function CmvCard({ children, className, surfaceClassName, onClick }: CmvCardProps) {
+export function CmvCard({
+  children,
+  className,
+  surfaceClassName,
+  onClick,
+}: Readonly<CmvCardProps>) {
   const surface = surfaceClassName ?? "border-cmv-border bg-cmv-surface";
   const base = cn("rounded-cmv-lg border p-cmv-lg", surface);
 

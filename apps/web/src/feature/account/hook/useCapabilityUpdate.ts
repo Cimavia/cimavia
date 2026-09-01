@@ -5,10 +5,10 @@ import { capabilityApi } from "@/feature/account/api";
 import { useToast } from "@/shared/component";
 
 // i18n-values account.capabilities.blocked: ACTIVE_ATHLETES, ACTIVE_COACH
-const BLOCKERS: readonly string[] = [
+const BLOCKERS = new Set<string>([
   CapabilityBlocker.ACTIVE_ATHLETES,
   CapabilityBlocker.ACTIVE_COACH,
-];
+]);
 
 /**
  * Le message d'un refus 409. L'API renvoie un CODE, pas une phrase : c'est ce qui permet de le
@@ -17,7 +17,7 @@ const BLOCKERS: readonly string[] = [
  */
 function blockedKey(error: unknown): string {
   const message = apiErrorMessage(error);
-  return message != null && BLOCKERS.includes(message)
+  return message != null && BLOCKERS.has(message)
     ? `account.capabilities.blocked.${message}`
     : "common.error";
 }
