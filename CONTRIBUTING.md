@@ -16,10 +16,13 @@ Merge unidirectionnel `feature/* → main → staging → production` (jamais en
 CI (`.github/workflows/`) :
 
 - `ci.yml`, job **`Lint + Typecheck + Test`** — Biome, `turbo typecheck test`, `check:i18n`.
-- `ci.yml`, job **`E2E (isolation multi-tenant)`** — les 186 e2e de l'API, contre un Postgres et un
-  MinIO jetables montés par les composes du dépôt. Seul filet de la couche API (2,6 % de couverture
-  unitaire), donc bloquant.
-- `sonar.yml`, job **`SonarCloud Analysis`** — qualité + sécurité.
+- `ci.yml`, job **`E2E (isolation multi-tenant)`** — les e2e de l'API, contre un Postgres et un
+  MinIO jetables montés par les composes du dépôt. Ils portent la couverture réelle de la couche
+  API (~86 %) : ses tests unitaires n'en couvrent que 3,5 %. Bloquant.
+- `ci.yml`, job **`SonarCloud Analysis`** — qualité, sécurité et **couverture des quatre paquets**
+  (`@cmv/shared`, API, web, mobile). Rapatrié depuis `sonar.yml` en #57 : Sonar veut tous les lcov
+  dans UN scan, or celui des e2e naît dans le job ci-dessus — les mettre dans le même run rend
+  l'ordre déterministe, là où un artefact ne traverse pas deux workflows sans course.
 
 Les trois tournent sur push/PR vers `main`, `staging`, `production`.
 
