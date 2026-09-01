@@ -18,7 +18,7 @@ export default defineConfig({
     globalSetup: ["test/global-setup.e2e.ts"],
     // Les e2e démarrent Nest DANS le process du worker (`app.listen`) : les requêtes font un
     // aller-retour par la boucle locale, mais `src/` s'exécute ici. V8 relève donc les handlers
-    // HTTP, ce qui fait passer la mesure de l'API de 2,6 % à ~86 % sans écrire un test.
+    // HTTP, ce qui fait passer la mesure de l'API de ~3,5 % à ~89 % sans écrire un test.
     coverage: {
       provider: "v8",
       include: ["src/**"],

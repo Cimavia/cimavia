@@ -153,7 +153,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| Q-1 | **Couverture non mesurée sur le mobile** : `sonar.coverage.exclusions` écarte encore `apps/mobile`, faute de harnais de test d'UI. Le tiers API est levé en **#57** (e2e instrumentés : 2,6 % → ~86 %), le tiers web en **#58** (Vitest + jsdom, périmètre total `src/`). | 🟡 | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ [#59](https://github.com/Cimavia/cimavia/issues/59) |
+| ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 
@@ -162,7 +162,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > - **`test:e2e` porte `cache: false` dans `turbo.json`.** Ce n'est pas un oubli d'optimisation.
 >   Les vraies entrées de cette suite sont un Postgres et un MinIO **vivants**, plus l'état de la
->   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 186 passed » sans
+>   base — rien de cela n'entre dans le hash de Turbo. Un cache hit rejouerait « 268 passed » sans
 >   exécuter une requête : une porte verte qui n'a rien vérifié, soit la panne M-1 en pire, parce
 >   qu'invisible.
 > - **`vitest.config.e2e.ts` doit continuer de LEVER si `.env.test` manque.** Rendre le
@@ -183,6 +183,17 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > s'aligne **pas** sur l'exclusion des `*.module.ts` / `*.dto.ts` de la config unitaire, alors que
 > l'écart de chiffre serait négligeable (0,45 pt) : aligner ferait chuter une quinzaine de modules
 > à 0 % dans Sonar, puisqu'aucun rapport ne les porterait plus.
+
+> **Tranché en #59** (le préréglage d'un framework ne se paie que si on le traverse) : le mobile
+> reste sur **Vitest**, pas `jest-expo`. L'issue posait ce choix comme le vrai sujet, et deux
+> raisons le ferment. `architecture-choice.md` §11 dit « Vitest » pour les trois couches — un
+> second runner aurait exigé de contredire ce doc. Surtout, ce que `jest-expo` apporte est le RENDU
+> d'un arbre React Native : son transformeur et ses mocks de modules natifs. Or les cibles testées
+> n'importent aucun runtime natif — `tabs.ts` et `route.util.ts` ne prennent d'`expo-router` qu'un
+> type, `useSegmentRunner` ne dépend que de React —, et `renderHook` monte via `react-dom`, déjà
+> présent pour react-native-web. Le seul mock du harnais est `AsyncStorage`, posé en `setupFiles`
+> pour qu'aucun test ne PUISSE atteindre un module natif. Corollaire à ne pas défaire : le jour où
+> l'on voudra rendre un écran natif, c'est là que la question se rouvrira — pas avant.
 
 > **Tranché en #58** (mesurer une couche à moitié, c'est la remettre hors de vue) : le périmètre de
 > couverture du web est **tout `src/`**, et non sa seule couche `util/` + `hook/`. La restriction

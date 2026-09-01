@@ -130,7 +130,7 @@ jobs:
       - name: E2E
         run: pnpm turbo test:e2e --filter=@cmv/api
 
-      # Ce lcov est la SEULE mesure de couverture de l'API (les tests unitaires y sont à 2,6 %).
+      # Ce lcov est la SEULE mesure de couverture de l'API (les tests unitaires y sont à 3,5 %).
       # Il transite par un artefact plutôt que par une seconde exécution de la suite dans le job
       # Sonar : la relancer donnerait deux brassages de base par PR, deux occasions de flaker, et
       # une couverture mesurée sur une autre exécution que celle qui garde la porte.
