@@ -553,7 +553,9 @@
     "spaceTitle": {
       "coach": "Espace coach",
       "athlete": "Espace athlète"
-    }
+    },
+    "spaceUnread": "{{count}} non lue dans cet espace",
+    "spaceUnread_other": "{{count}} non lues dans cet espace"
   },
   "reminder": {
     "title": "Mes rappels",

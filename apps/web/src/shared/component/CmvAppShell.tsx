@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { IconType } from "react-icons";
 import { IoBarbellOutline, IoPersonOutline, IoSettingsOutline } from "react-icons/io5";
-import { NotificationBell } from "@/feature/notification";
+import { NotificationBell, useUnreadByCapability } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
@@ -23,6 +23,7 @@ import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
 function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
   const { t } = useTranslation();
   const { isCoach, isAthlete } = useCapabilities();
+  const { data: unread } = useUnreadByCapability();
   if (!isCoach || !isAthlete) return null;
 
   return (
@@ -44,6 +45,19 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
           >
             <Icon aria-hidden />
             {t(`nav.space.${space}`)}
+            {/* La pastille ne s'affiche QUE sur l'espace inactif : sur celui qu'on regarde, la
+                cloche dit déjà ce qui arrive. C'est elle qui rend le mode exclusif acceptable —
+                sans elle, on ne saurait pas qu'un débrief attend de l'autre côté (#176). */}
+            {!current && (unread?.[space] ?? 0) > 0 && (
+              <>
+                {/* La pastille est DÉCORATIVE : le décompte se lit dans le texte masqué qui la
+                    suit. Un `aria-label` sur un élément vide ne serait annoncé nulle part. */}
+                <span aria-hidden className="size-cmv-sm shrink-0 rounded-full bg-cmv-accent" />
+                <span className="sr-only">
+                  {t("nav.spaceUnread", { count: unread?.[space] ?? 0 })}
+                </span>
+              </>
+            )}
           </Link>
         );
       })}

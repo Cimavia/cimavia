@@ -113,7 +113,9 @@
     "space": {
       "coach": "Coach",
       "athlete": "Athlète"
-    }
+    },
+    "spaceUnread": "{{count}} non lue dans cet espace",
+    "spaceUnread_other": "{{count}} non lues dans cet espace"
   },
   "plan": {
     "thisWeek": "Cette semaine",

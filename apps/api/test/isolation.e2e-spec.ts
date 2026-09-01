@@ -5055,3 +5055,94 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect((await solo.post("/conversations?as=athlete").send({})).status).toBe(400);
   });
 });
+
+describe("Compteur de notifications ventilé par espace (#176)", () => {
+  const monday = mondayOfCurrentWeek();
+
+  /**
+   * Un compte à double capacité reçoit des deux côtés : un cycle diffusé par SON coach (athlète)
+   * et un débrief écrit par SON athlète (coach). Le total ne dit pas où — la ventilation, si.
+   * Sans elle, le basculeur d'espace ne peut pas signaler l'univers qu'on ne regarde pas.
+   */
+  it("range chaque notification dans l'espace où elle se lit", async () => {
+    const myCoach = await signUpWith("vent-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const dual = await signUpWith("vent-dual@cmv.test", { isCoach: true, isAthlete: true });
+    const myAthlete = await signUpWith("vent-athlete@cmv.test", {
+      isCoach: false,
+      isAthlete: true,
+    });
+
+    // `dual` est l'athlète de `myCoach`…
+    const toDual = await myCoach.post("/invitations").send({});
+    const dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
+      .athleteId;
+    // … et le coach de `myAthlete`.
+    const toAthlete = await dual.post("/invitations").send({});
+    const athleteId = (
+      await myAthlete.post("/invitations/accept").send({ code: toAthlete.body.code })
+    ).body.athleteId;
+
+    // Côté ATHLÈTE : son coach lui diffuse un cycle (cycle + facture émise = 2 entrées).
+    const received = await myCoach.post("/plans").send({
+      athleteId: dualId,
+      title: "Cycle reçu",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect((await billAndPublish(myCoach, received.body.id)).status).toBe(200);
+
+    // Côté COACH : son athlète lui écrit un débrief.
+    const exercise = await dual.post("/exercises").send({ title: "Gainage" });
+    const template = await dual
+      .post("/sessions")
+      .send({ title: "Séance suivie", exercises: [{ exerciseId: exercise.body.id }] });
+    const plan = await dual.post("/plans").send({
+      athleteId,
+      title: "Cycle donné",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const scheduled = await dual
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
+    expect((await billAndPublish(dual, plan.body.id)).status).toBe(200);
+    expect(
+      (
+        await myAthlete
+          .put(`/me/scheduled-sessions/${scheduled.body.id}/feedback`)
+          .send({ content: "Fait" })
+      ).status,
+    ).toBe(200);
+
+    const unread = await dual.get("/me/notifications/unread-count");
+    expect(unread.status).toBe(200);
+    // Reçu en athlète : cycle diffusé + facture émise. Reçu en coach : le débrief.
+    expect(unread.body.athlete).toBe(2);
+    expect(unread.body.coach).toBe(1);
+    expect(unread.body.count).toBe(3);
+  });
+
+  // Un compte mono-capacité voit tout d'un seul côté : la ventilation ne lui coûte rien et ne
+  // change pas son total, que la cloche lit toujours.
+  it("range tout du seul côté d'un compte mono-capacité", async () => {
+    const coach = await signUpWith("vent-solo-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("vent-solo-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const id = (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).body
+      .athleteId;
+
+    const plan = await coach.post("/plans").send({
+      athleteId: id,
+      title: "Cycle simple",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+
+    const unread = await athlete.get("/me/notifications/unread-count");
+    expect(unread.body).toMatchObject({ coach: 0, athlete: 2, count: 2 });
+  });
+});

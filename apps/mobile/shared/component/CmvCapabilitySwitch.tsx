@@ -3,6 +3,7 @@ import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { useUnreadByCapability } from "@/feature/notification";
 import { CmvText } from "@/shared/component/CmvText";
 import { useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
 
@@ -31,6 +32,7 @@ const OPTIONS = [
 export function CmvCapabilitySwitch() {
   const { t } = useTranslation();
   const { visible, current, select } = useCapabilitySwitch();
+  const { data: unread } = useUnreadByCapability();
 
   if (!visible) return null;
 
@@ -59,6 +61,14 @@ export function CmvCapabilitySwitch() {
             <CmvText className={active ? "text-cmv-text-hi text-sm" : "text-cmv-text-mid text-sm"}>
               {t(`nav.space.${capability}`)}
             </CmvText>
+            {/* Pastille sur l'espace INACTIF seulement : sur celui qu'on regarde, le badge
+                d'onglet dit déjà ce qui arrive (#176). */}
+            {!active && (unread?.[capability] ?? 0) > 0 && (
+              <View
+                className="h-2 w-2 rounded-full bg-cmv-accent"
+                accessibilityLabel={t("nav.spaceUnread", { count: unread?.[capability] ?? 0 })}
+              />
+            )}
           </Pressable>
         );
       })}
