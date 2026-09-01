@@ -19,6 +19,7 @@
     "feature",
     "shared",
     "app.config.ts",
+    "test",
     // Comme côté web : sous `moduleResolution: Bundler`, les types de `vitest/config` se
     // résolvent, donc une propriété inventée y échoue. Ajouté au tsconfig ET vérifié comme tel
     // (leçon de #57 : un typecheck peut être vert sans rien vérifier).

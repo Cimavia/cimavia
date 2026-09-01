@@ -30,6 +30,7 @@ export default defineConfig({
      * machine à états du hook — pas un rendu natif, qui n'est pas le sujet.
      */
     environment: "jsdom",
+    setupFiles: ["./test/setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "lcov"],
