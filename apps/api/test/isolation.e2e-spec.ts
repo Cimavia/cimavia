@@ -66,11 +66,24 @@ function required<T>(value: T | undefined, what: string): T {
 let app: NestFastifyApplication;
 let baseURL: string;
 
+/**
+ * Inscrit un compte en envoyant ses CAPACITÉS — ce que le signup transmet depuis #12, `role` en
+ * étant déduit côté API. La signature reste par rôle pour les quelque cent appels de ce fichier :
+ * « un coach », « un athlète » dit mieux l'intention du test que deux booléens.
+ */
 async function signUp(email: string, role: string): Promise<Agent> {
+  return signUpWith(email, { isCoach: role === Role.COACH, isAthlete: role === Role.ATHLETE });
+}
+
+/** Inscription à capacités explicites — le seul moyen d'obtenir un compte qui CUMULE. */
+async function signUpWith(
+  email: string,
+  capabilities: { isCoach: boolean; isAthlete: boolean },
+): Promise<Agent> {
   const agent = request.agent(baseURL);
   const res = await agent
     .post("/api/auth/sign-up/email")
-    .send({ name: email, email, password: PASSWORD, role });
+    .send({ name: email, email, password: PASSWORD, ...capabilities });
   expect([200, 201]).toContain(res.status);
   return agent;
 }
@@ -4568,16 +4581,6 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
   });
 });
 
-/**
- * Compte à DOUBLE capacité (#10). Il ne peut pas naître par l'API : le signup n'envoie encore
- * qu'un `role`, et c'est #12 qui lui donnera ses cases à cocher. On pose donc la seconde capacité
- * en base — sans quoi la bascule de scope se testerait sur parole, et le seul cas où le rôle
- * exclusif ne savait pas répondre resterait le seul non couvert.
- */
-async function grantAthleteCapability(email: string): Promise<void> {
-  await app.get(PrismaService).user.update({ where: { email }, data: { isAthlete: true } });
-}
-
 describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => {
   let coachA: Agent;
   let dual: Agent;
@@ -4606,18 +4609,44 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
   }
 
   beforeAll(async () => {
-    // `dual` s'inscrit en COACH — son persona — puis reçoit la capacité athlète.
+    // `dual` coche les DEUX cases : depuis #12, c'est ce que le signup permet.
     coachA = await signUp("dual-coach-a@cmv.test", Role.COACH);
-    dual = await signUp("dual-account@cmv.test", Role.COACH);
+    dual = await signUpWith("dual-account@cmv.test", { isCoach: true, isAthlete: true });
     coachB = await signUp("dual-coach-b@cmv.test", Role.COACH);
     athleteB = await signUp("dual-athlete-b@cmv.test", Role.ATHLETE);
 
-    await grantAthleteCapability("dual-account@cmv.test");
     dualId = await link(coachA, dual);
 
     // Une facture REÇUE par `dual` (émise par coachA), et une facture d'un tenant étranger.
     await issueInvoice(coachA, dualId);
     await issueInvoice(coachB, await link(coachB, athleteB));
+  });
+
+  /**
+   * Un compte sans AUCUNE capacité ne pourrait rien faire, et le fail closed de `capabilitiesOf`
+   * le laisserait devant une application vide sans lui dire pourquoi. Le refus est à la création,
+   * pas à chaque écran.
+   */
+  it("refuse une inscription sans aucune capacité", async () => {
+    const res = await request.agent(baseURL).post("/api/auth/sign-up/email").send({
+      name: "vide@cmv.test",
+      email: "vide@cmv.test",
+      password: PASSWORD,
+      isCoach: false,
+      isAthlete: false,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * `role` est DÉDUIT et non reçu (#12) : coach l'emporte quand les deux cases sont cochées.
+   * C'est le persona — l'univers d'atterrissage — pas un droit.
+   */
+  it("déduit le persona coach d'un compte qui coche les deux", async () => {
+    const session = await dual.get("/api/auth/get-session");
+    expect(session.body.user.role).toBe(Role.COACH);
+    expect(session.body.user.isCoach).toBe(true);
+    expect(session.body.user.isAthlete).toBe(true);
   });
 
   /**
@@ -4666,6 +4695,17 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
     expect(res.body).toHaveLength(1);
   });
 
+  /**
+   * Le centre de notifications, lui, n'a PAS de titre : il montre ce qui est adressé au compte.
+   * Lui en faire exiger un aurait obligé ce compte à choisir à quel titre il consulte ses
+   * notifications, et à n'en voir que la moitié — d'où l'absence de 400 ici, contrairement aux
+   * factures juste au-dessus. Le contraste entre ces deux tests EST la règle.
+   */
+  it("rend le centre de notifications sans rien préciser", async () => {
+    expect((await dual.get("/me/notifications")).status).toBe(200);
+    expect((await dual.get("/me/notifications/unread-count")).status).toBe(200);
+  });
+
   // Règle dure n°1 : cumuler deux capacités n'ouvre AUCUNE porte vers un autre tenant.
   it("ne franchit la frontière de tenant dans aucun des deux titres", async () => {
     const foreign = await coachB.get("/invoices?as=coach");
@@ -4673,5 +4713,572 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
 
     expect((await dual.get(`/invoices/${foreignId}?as=athlete`)).status).toBe(404);
     expect((await dual.get(`/invoices/${foreignId}?as=coach`)).status).toBe(404);
+  });
+});
+
+describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () => {
+  /**
+   * Chaîne A → B → C : chacun coache le suivant. Elle n'est possible que parce que B et C portent
+   * les DEUX capacités — être coaché n'empêche pas de coacher. C'est exactement le modèle que #7
+   * ouvre, et le seul contexte où une boucle devient concevable.
+   */
+  async function chain(prefix: string, depth: number): Promise<{ agents: Agent[]; ids: string[] }> {
+    const agents: Agent[] = [];
+    const ids: string[] = [];
+    for (let i = 0; i < depth; i++) {
+      const email = `${prefix}-${i}@cmv.test`;
+      // TOUS cumulent, y compris le premier maillon : les tests de boucle lui font accepter une
+      // invitation, et sans la capacité athlète il prendrait un 403 de garde — pas le 409
+      // anti-cycle que ces tests prétendent vérifier.
+      agents.push(await signUpWith(email, { isCoach: true, isAthlete: true }));
+    }
+    for (let i = 0; i + 1 < depth; i++) {
+      const coach = required(agents[i], `coach ${i}`);
+      const athlete = required(agents[i + 1], `athlète ${i + 1}`);
+      const invitation = await coach.post("/invitations").send({});
+      const accepted = await athlete
+        .post("/invitations/accept")
+        .send({ code: invitation.body.code });
+      expect(accepted.status).toBe(201);
+      ids.push(accepted.body.coachId);
+      if (i + 2 === depth) ids.push(accepted.body.athleteId);
+    }
+    return { agents, ids };
+  }
+
+  /**
+   * Le test qui donne sa valeur aux autres : une chaîne de profondeur 3 doit se CONSTRUIRE. Sans
+   * lui, une garde qui refuserait tout passerait les refus ci-dessous sans qu'on le voie.
+   */
+  it("laisse se construire une chaîne A → B → C", async () => {
+    const { ids } = await chain("cycle-ok", 3);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  // Le cas de l'issue : C invite A, qui est déjà sa racine. La remontée depuis C traverse B.
+  it("refuse la boucle qui reviendrait au premier coach (profondeur 3)", async () => {
+    const { agents } = await chain("cycle-deep", 3);
+    const c = required(agents[2], "maillon C");
+    const a = required(agents[0], "maillon A");
+
+    const invitation = await c.post("/invitations").send({});
+    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(409);
+  });
+
+  // La boucle la plus courte : B coache A alors que A coache déjà B.
+  it("refuse la boucle immédiate entre deux comptes", async () => {
+    const { agents } = await chain("cycle-pair", 2);
+    const b = required(agents[1], "maillon B");
+    const a = required(agents[0], "maillon A");
+
+    const invitation = await b.post("/invitations").send({});
+    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(409);
+  });
+
+  /**
+   * Anti-self. Inatteignable avant #9/#10 : accepter exige la capacité athlète, qu'un coach
+   * n'avait pas. Un compte qui cumule peut désormais présenter son propre code.
+   */
+  it("refuse à un compte à double capacité d'accepter sa propre invitation", async () => {
+    const self = await signUpWith("cycle-self@cmv.test", { isCoach: true, isAthlete: true });
+
+    const invitation = await self.post("/invitations").send({});
+    const res = await self.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(409);
+  });
+
+  /**
+   * Deux chaînes distinctes ne se gênent pas : le refus porte sur la BOUCLE, pas sur le fait
+   * d'être déjà coaché ailleurs — ça, c'est l'unicité `athleteId`, qui a son propre test.
+   */
+  it("laisse un compte déjà coach devenir l'athlète d'une autre chaîne", async () => {
+    const { agents } = await chain("cycle-join", 2);
+    const outsider = await signUp("cycle-outsider@cmv.test", Role.COACH);
+    const a = required(agents[0], "maillon A");
+
+    const invitation = await outsider.post("/invitations").send({});
+    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect(res.status).toBe(201);
+  });
+});
+
+describe("Capacités modifiables après coup (#13)", () => {
+  async function capabilitiesOfSession(agent: Agent) {
+    const session = await agent.get("/api/auth/get-session");
+    const { isCoach, isAthlete, role } = session.body.user;
+    return { isCoach, isAthlete, role };
+  }
+
+  it("un athlète peut se mettre à coacher", async () => {
+    const agent = await signUp("cap-add@cmv.test", Role.ATHLETE);
+    const res = await agent.patch("/me/capabilities").send({ isCoach: true, isAthlete: true });
+
+    expect(res.status).toBe(200);
+    expect(await capabilitiesOfSession(agent)).toEqual({
+      isCoach: true,
+      isAthlete: true,
+      // Le persona suit : coach l'emporte quand les deux sont là (#12).
+      role: Role.COACH,
+    });
+  });
+
+  /**
+   * Le persona se RECALCULE. Sans ça, un compte `role=COACH` qui cesse de coacher atterrirait dans
+   * un espace dont il n'a plus la capacité — nav vide, redirections en boucle.
+   */
+  it("recalcule le persona quand la capacité coach part", async () => {
+    const agent = await signUpWith("cap-persona@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await capabilitiesOfSession(agent)).role).toBe(Role.COACH);
+
+    const res = await agent.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
+    expect(res.status).toBe(200);
+    expect(await capabilitiesOfSession(agent)).toEqual({
+      isCoach: false,
+      isAthlete: true,
+      role: Role.ATHLETE,
+    });
+  });
+
+  // La règle du signup, rejouée : un compte sans capacité serait devant une application vide.
+  it("refuse de retirer les deux capacités (400)", async () => {
+    const agent = await signUp("cap-none@cmv.test", Role.COACH);
+    const res = await agent.patch("/me/capabilities").send({ isCoach: false, isAthlete: false });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse de cesser de coacher avec des athlètes actifs (409)", async () => {
+    const coach = await signUpWith("cap-busy-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("cap-busy-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    const res = await coach.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
+    expect(res.status).toBe(409);
+    // La capacité n'a PAS bougé — un refus qui laisserait l'état à moitié écrit serait pire que
+    // pas de refus du tout.
+    expect((await capabilitiesOfSession(coach)).isCoach).toBe(true);
+  });
+
+  it("refuse de cesser d'être athlète en étant rattaché à un coach (409)", async () => {
+    const coach = await signUpWith("cap-linked-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const linked = await signUpWith("cap-linked@cmv.test", { isCoach: true, isAthlete: true });
+    const invitation = await coach.post("/invitations").send({});
+    expect(
+      (await linked.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    const res = await linked.patch("/me/capabilities").send({ isCoach: true, isAthlete: false });
+    expect(res.status).toBe(409);
+    expect((await capabilitiesOfSession(linked)).isAthlete).toBe(true);
+  });
+
+  /**
+   * Ce qui n'est PAS bloquant : la donnée produite. Un coach sans athlète garde sa bibliothèque et
+   * ses cycles — ils sortent de sa vue, ils ne sont pas supprimés, et ils reviennent s'il réactive.
+   * Bloquer là-dessus coincerait quiconque a seulement essayé l'application.
+   */
+  it("laisse cesser de coacher malgré une bibliothèque existante", async () => {
+    const agent = await signUpWith("cap-library@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await agent.post("/exercises").send({ title: "Traction" })).status).toBe(201);
+
+    const res = await agent.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
+    expect(res.status).toBe(200);
+
+    // L'exercice n'est plus atteignable — la route exige la capacité coach — mais rien n'a disparu.
+    expect((await agent.get("/exercises")).status).toBe(403);
+    expect(
+      (await agent.patch("/me/capabilities").send({ isCoach: true, isAthlete: true })).status,
+    ).toBe(200);
+    expect((await agent.get("/exercises")).body).toHaveLength(1);
+  });
+});
+
+describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
+  let solo: Agent;
+  let soloId: string;
+  const monday = mondayOfCurrentWeek();
+
+  beforeAll(async () => {
+    solo = await signUpWith("solo@cmv.test", { isCoach: true, isAthlete: true });
+    const list = await solo.get("/athletes");
+    soloId = required(list.body[0], "entrée self dans /athletes").athleteId;
+  });
+
+  /**
+   * L'entrée SYNTHÉTIQUE : il n'existe aucune ligne `CoachAthlete` (le CHECK l'interdit depuis
+   * #11), mais le compte doit pouvoir se désigner comme destinataire. C'est ce qui permet au
+   * builder web de rester inchangé — il lit déjà cette route.
+   */
+  it("se voit lui-même en tête de sa liste d'athlètes", async () => {
+    const res = await solo.get("/athletes");
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({ id: "self", isSelf: true, athleteId: soloId });
+    expect(res.body[0].coachId).toBe(soloId);
+  });
+
+  // Un coach PUR n'est pas son propre athlète : lui ouvrir cette porte lui ferait écrire des
+  // cycles qu'il ne pourrait jamais lire, la lecture passant par les routes athlète.
+  it("ne se voit pas quand il n'a que la capacité coach", async () => {
+    const coachOnly = await signUpWith("solo-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    expect((await coachOnly.get("/athletes")).body).toHaveLength(0);
+  });
+
+  it("refuse un cycle pour soi à un coach sans capacité athlète", async () => {
+    const coachOnly = await signUpWith("solo-coach-2@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const session = await coachOnly.get("/api/auth/get-session");
+    const res = await coachOnly.post("/plans").send({
+      athleteId: session.body.user.id,
+      title: "Pour moi",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * Le parcours complet, et le point de l'issue : la state machine `DRAFT → PUBLISHED` ne change
+   * PAS. C'est elle qui donne au cycle ses `ScheduledSession` lisibles et débriefables.
+   */
+  it("écrit puis diffuse un cycle pour soi, SANS facture ni notification", async () => {
+    const plan = await solo.post("/plans").send({
+      athleteId: soloId,
+      title: "Ma prépa",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+
+    // Le gating de facturation est levé : diffuser ne demande AUCUN terme saisi.
+    const published = await solo.post(`/plans/${plan.body.id}/publish`);
+    expect(published.status).toBe(200);
+    expect(published.body.status).toBe("PUBLISHED");
+
+    // Ni facture émise, ni notification : s'annoncer à soi-même ce qu'on vient de faire.
+    expect((await solo.get("/invoices?as=coach")).body).toHaveLength(0);
+    expect((await solo.get("/invoices?as=athlete")).body).toHaveLength(0);
+    expect((await solo.get("/me/notifications")).body).toHaveLength(0);
+  });
+
+  // Le cycle diffusé se lit par les routes ATHLÈTE, comme n'importe quel autre : c'est tout
+  // l'intérêt d'avoir gardé la state machine.
+  it("relit son propre cycle par les routes athlète", async () => {
+    const mine = await solo.get("/me/plan");
+    expect(mine.status).toBe(200);
+    expect(mine.body?.title).toBe("Ma prépa");
+  });
+
+  // On ne se facture pas soi-même : un refus explicite, plutôt qu'un brouillon saisi pour rien.
+  it("refuse de facturer un cycle écrit pour soi (409)", async () => {
+    const plan = await solo.post("/plans").send({
+      athleteId: soloId,
+      title: "Cycle non facturable",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const res = await solo
+      .put(`/plans/${plan.body.id}/billing`)
+      .send({ amountCents: 5000, dueDate: monday });
+    expect(res.status).toBe(409);
+  });
+
+  /**
+   * Le parcours complet en solo : composer, diffuser, débriefer, RELIRE son débrief côté coach.
+   * C'est le bout qui ferme la boucle — un débrief qu'on écrit et qu'on ne retrouve jamais rend
+   * l'auto-coaching inutile.
+   */
+  it("retrouve côté coach le débrief qu'il a écrit côté athlète", async () => {
+    const exercise = await solo.post("/exercises").send({ title: "Suspension" });
+    expect(exercise.status).toBe(201);
+    const template = await solo.post("/sessions").send({
+      title: "Séance solo",
+      exercises: [{ exerciseId: exercise.body.id }],
+    });
+    expect(template.status).toBe(201);
+
+    const plan = await solo.post("/plans").send({
+      athleteId: soloId,
+      title: "Cycle à débriefer",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const weekId = required(plan.body.weeks[0], "semaine du cycle solo").id;
+    const scheduled = await solo
+      .post(`/plan-weeks/${weekId}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
+    expect(scheduled.status).toBe(201);
+    expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+
+    // Écrit en tant qu'ATHLÈTE…
+    const written = await solo
+      .put(`/me/scheduled-sessions/${scheduled.body.id}/feedback`)
+      .send({ content: "Bonnes sensations" });
+    expect(written.status).toBe(200);
+
+    // … et relu en tant que COACH, sur la même session.
+    const received = await solo.get("/feedbacks");
+    expect(received.status).toBe(200);
+    expect(received.body).toHaveLength(1);
+    expect(received.body[0]).toMatchObject({
+      athleteId: soloId,
+      content: "Bonnes sensations",
+    });
+
+    // Et AUCUNE notification au passage : ni la diffusion, ni le débrief ne s'annoncent à leur
+    // propre auteur. C'est la règle posée dans `NotificationService`, qui vaut pour tout émetteur.
+    expect((await solo.get("/me/notifications")).body).toHaveLength(0);
+    expect((await solo.get("/me/notifications/unread-count")).body.count).toBe(0);
+  });
+
+  // Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
+  // comportement plutôt que de le supposer acquis.
+  it("n'ouvre pas de fil de messagerie avec soi-même", async () => {
+    expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
+      400,
+    );
+    expect((await solo.post("/conversations?as=athlete").send({})).status).toBe(400);
+  });
+});
+
+describe("Compteur de notifications ventilé par espace (#176)", () => {
+  const monday = mondayOfCurrentWeek();
+
+  /**
+   * Un compte à double capacité reçoit des deux côtés : un cycle diffusé par SON coach (athlète)
+   * et un débrief écrit par SON athlète (coach). Le total ne dit pas où — la ventilation, si.
+   * Sans elle, le basculeur d'espace ne peut pas signaler l'univers qu'on ne regarde pas.
+   */
+  it("range chaque notification dans l'espace où elle se lit", async () => {
+    const myCoach = await signUpWith("vent-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const dual = await signUpWith("vent-dual@cmv.test", { isCoach: true, isAthlete: true });
+    const myAthlete = await signUpWith("vent-athlete@cmv.test", {
+      isCoach: false,
+      isAthlete: true,
+    });
+
+    // `dual` est l'athlète de `myCoach`…
+    const toDual = await myCoach.post("/invitations").send({});
+    const dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
+      .athleteId;
+    // … et le coach de `myAthlete`.
+    const toAthlete = await dual.post("/invitations").send({});
+    const athleteId = (
+      await myAthlete.post("/invitations/accept").send({ code: toAthlete.body.code })
+    ).body.athleteId;
+
+    // Côté ATHLÈTE : son coach lui diffuse un cycle (cycle + facture émise = 2 entrées).
+    const received = await myCoach.post("/plans").send({
+      athleteId: dualId,
+      title: "Cycle reçu",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect((await billAndPublish(myCoach, received.body.id)).status).toBe(200);
+
+    // Côté COACH : son athlète lui écrit un débrief.
+    const exercise = await dual.post("/exercises").send({ title: "Gainage" });
+    const template = await dual
+      .post("/sessions")
+      .send({ title: "Séance suivie", exercises: [{ exerciseId: exercise.body.id }] });
+    const plan = await dual.post("/plans").send({
+      athleteId,
+      title: "Cycle donné",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const scheduled = await dual
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
+    expect((await billAndPublish(dual, plan.body.id)).status).toBe(200);
+    expect(
+      (
+        await myAthlete
+          .put(`/me/scheduled-sessions/${scheduled.body.id}/feedback`)
+          .send({ content: "Fait" })
+      ).status,
+    ).toBe(200);
+
+    const unread = await dual.get("/me/notifications/unread-count");
+    expect(unread.status).toBe(200);
+    // Reçu en athlète : cycle diffusé + facture émise. Reçu en coach : le débrief.
+    expect(unread.body.athlete).toBe(2);
+    expect(unread.body.coach).toBe(1);
+    expect(unread.body.count).toBe(3);
+  });
+
+  // Un compte mono-capacité voit tout d'un seul côté : la ventilation ne lui coûte rien et ne
+  // change pas son total, que la cloche lit toujours.
+  it("range tout du seul côté d'un compte mono-capacité", async () => {
+    const coach = await signUpWith("vent-solo-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("vent-solo-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const id = (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).body
+      .athleteId;
+
+    const plan = await coach.post("/plans").send({
+      athleteId: id,
+      title: "Cycle simple",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+
+    const unread = await athlete.get("/me/notifications/unread-count");
+    expect(unread.body).toMatchObject({ coach: 0, athlete: 2, count: 2 });
+  });
+});
+
+/**
+ * Règle dure n°1 face au modèle de capacités (#18) : **cumuler deux capacités n'ouvre aucune
+ * porte**. Les suites précédentes vérifient que chaque fonctionnalité marche en double casquette ;
+ * celle-ci vérifie qu'elle ne marche pas TROP.
+ *
+ * La question qui la motive : un compte qui est à la fois coach de quelqu'un et athlète de
+ * quelqu'un d'autre traverse deux tenants. Rien ne doit fuir de l'un vers l'autre, ni d'un tiers
+ * vers lui.
+ */
+describe("Isolation multi-capacité (#18)", () => {
+  let dual: Agent;
+  let dualId: string;
+  let hisCoach: Agent;
+  let hisAthlete: Agent;
+  let hisAthleteId: string;
+  let stranger: Agent;
+  let strangerAthlete: Agent;
+  let strangerExerciseId: string;
+  let strangerPlanId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  beforeAll(async () => {
+    dual = await signUpWith("iso-dual@cmv.test", { isCoach: true, isAthlete: true });
+    hisCoach = await signUpWith("iso-his-coach@cmv.test", { isCoach: true, isAthlete: false });
+    hisAthlete = await signUp("iso-his-athlete@cmv.test", Role.ATHLETE);
+    stranger = await signUpWith("iso-stranger@cmv.test", { isCoach: true, isAthlete: false });
+    strangerAthlete = await signUp("iso-stranger-athlete@cmv.test", Role.ATHLETE);
+
+    // `dual` est coaché par `hisCoach`, et coache `hisAthlete`.
+    const toDual = await hisCoach.post("/invitations").send({});
+    dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
+      .athleteId;
+    const toHisAthlete = await dual.post("/invitations").send({});
+    hisAthleteId = (
+      await hisAthlete.post("/invitations/accept").send({ code: toHisAthlete.body.code })
+    ).body.athleteId;
+
+    // Un tenant étranger, complet : sa bibliothèque, son athlète, son cycle diffusé.
+    const toStrangerAthlete = await stranger.post("/invitations").send({});
+    const strangerAthleteId = (
+      await strangerAthlete.post("/invitations/accept").send({ code: toStrangerAthlete.body.code })
+    ).body.athleteId;
+    strangerExerciseId = (await stranger.post("/exercises").send({ title: "Secret" })).body.id;
+    const plan = await stranger.post("/plans").send({
+      athleteId: strangerAthleteId,
+      title: "Cycle étranger",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    strangerPlanId = plan.body.id;
+    expect((await billAndPublish(stranger, strangerPlanId)).status).toBe(200);
+  });
+
+  /**
+   * Le cas propre au modèle : `dual` a DEUX titres, donc deux colonnes de scope. Ni l'un ni
+   * l'autre ne doit atteindre un tenant qui n'est pas le sien — un scope qui bascule ne doit pas
+   * pouvoir servir de passe-partout.
+   */
+  it("n'atteint la bibliothèque d'un étranger sous aucun titre", async () => {
+    expect((await dual.get(`/exercises/${strangerExerciseId}`)).status).toBe(404);
+    expect((await dual.get("/exercises")).body).toHaveLength(0);
+  });
+
+  it("n'atteint le cycle d'un étranger ni en coach ni en athlète", async () => {
+    expect((await dual.get(`/plans/${strangerPlanId}`)).status).toBe(404);
+    // Côté athlète, il ne lit que le sien : celui de l'étranger n'est pas « le cycle courant ».
+    const mine = await dual.get("/me/plan");
+    expect(mine.body?.id).not.toBe(strangerPlanId);
+  });
+
+  // Sa liste d'athlètes est la SIENNE : celui d'un autre coach n'y figure pas, même si les deux
+  // comptes sont coachs.
+  it("ne voit que ses propres athlètes", async () => {
+    const athletes = await dual.get("/athletes");
+    const ids = athletes.body.map((relation: { athleteId: string }) => relation.athleteId);
+    expect(ids).toContain(hisAthleteId);
+    expect(ids).toContain(dualId); // lui-même (auto-coaching, #14)
+    expect(ids).toHaveLength(2);
+  });
+
+  /**
+   * Le croisement le plus tentant : `dual` est l'athlète de `hisCoach` ET le coach de
+   * `hisAthlete`. Ces deux relations ne se composent PAS — `hisCoach` n'a aucun droit sur
+   * `hisAthlete`, qui n'est pas son athlète.
+   */
+  it("ne transmet aucun droit en cascade le long de la chaîne", async () => {
+    const athletes = await hisCoach.get("/athletes");
+    const ids = athletes.body.map((relation: { athleteId: string }) => relation.athleteId);
+    expect(ids).toContain(dualId);
+    expect(ids).not.toContain(hisAthleteId);
+  });
+
+  /**
+   * Un cycle qu'on s'écrit à soi-même reste dans son tenant. Il porte `coachId = athleteId`, donc
+   * il apparaîtrait dans DEUX scopes s'ils étaient confondus — c'est précisément le cas où une
+   * erreur de colonne ne se verrait pas chez un compte ordinaire.
+   */
+  it("garde ses cycles solo hors de portée des autres", async () => {
+    const solo = await dual.post("/plans").send({
+      athleteId: dualId,
+      title: "Solo privé",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(solo.status).toBe(201);
+
+    expect((await stranger.get(`/plans/${solo.body.id}`)).status).toBe(404);
+    // Son propre coach non plus : `dual` s'écrit ce cycle en tant que COACH, pas en tant qu'athlète
+    // de `hisCoach`. La relation ne donne pas de droit sur ce que son athlète écrit de son côté.
+    expect((await hisCoach.get(`/plans/${solo.body.id}`)).status).toBe(404);
+  });
+
+  // Retirer une capacité FERME l'accès, immédiatement et pour tout ce qu'elle ouvrait.
+  it("referme l'accès dès qu'une capacité est retirée", async () => {
+    const temp = await signUpWith("iso-temp@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await temp.get("/exercises")).status).toBe(200);
+
+    expect(
+      (await temp.patch("/me/capabilities").send({ isCoach: false, isAthlete: true })).status,
+    ).toBe(200);
+    expect((await temp.get("/exercises")).status).toBe(403);
+    expect((await temp.get("/athletes")).status).toBe(403);
+  });
+
+  /**
+   * L'invariant qui tient tout : un athlète a AU PLUS un coach, y compris quand il en est un
+   * lui-même. Cumuler ne permet pas de se rattacher à un second.
+   */
+  it("ne laisse pas un compte à double capacité rejoindre un second coach", async () => {
+    const invitation = await stranger.post("/invitations").send({});
+    const res = await dual.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(res.status).toBe(409);
   });
 });

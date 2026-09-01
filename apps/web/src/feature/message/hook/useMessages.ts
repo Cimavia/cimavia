@@ -1,6 +1,7 @@
 import type { ConversationDto, MessageDto, SendMessageInput } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { messageApi, messageKeys } from "@/feature/message/api";
+import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 // Messagerie asynchrone (CDC §5.8) : les nouveaux messages remontent par polling. Sur le web,
@@ -15,9 +16,10 @@ const THREAD_POLL_MS = 10_000;
  * changer. `refetchOnWindowFocus` (défaut TanStack) reste actif dans les deux cas.
  */
 export function useConversations({ poll = true }: { poll?: boolean } = {}) {
+  const as = useExercisedCapability();
   return useQuery<ConversationDto[]>({
-    queryKey: messageKeys.conversations(),
-    queryFn: messageApi.listConversations,
+    queryKey: messageKeys.conversations(as),
+    queryFn: () => messageApi.listConversations(as),
     refetchInterval: poll ? CONVERSATIONS_POLL_MS : false,
   });
 }
@@ -25,9 +27,12 @@ export function useConversations({ poll = true }: { poll?: boolean } = {}) {
 // Ouvre (get-or-create) le fil avec un athlète. `staleTime` infini : c'est une résolution stable
 // (le POST ne doit pas se rejouer à chaque focus/intervalle) — le polling vit sur les messages.
 export function useConversationWith(athleteId: string | null) {
+  // Cibler un athlète, c'est agir en coach : le titre ne dépend pas du persona ici, il est dans
+  // le geste lui-même. Un compte à double capacité qui ouvre le fil d'un de SES athlètes le fait
+  // à ce titre, quel que soit l'univers où il a atterri.
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWith(athleteId ?? ""),
-    queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }),
+    queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }, "coach"),
     enabled: athleteId != null,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -38,18 +43,20 @@ export function useConversationWith(athleteId: string | null) {
  * résout. `enabled` parce qu'un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait.
  */
 export function useMyConversation(enabled: boolean) {
+  // Symétrique de `useConversationWith` : « mon coach » est une lecture d'athlète par nature.
   return useQuery<ConversationDto>({
     queryKey: messageKeys.myConversation(),
-    queryFn: () => messageApi.openConversation({}),
+    queryFn: () => messageApi.openConversation({}, "athlete"),
     enabled,
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
 
 export function useThreadMessages(conversationId: string | undefined) {
+  const as = useExercisedCapability();
   return useQuery<MessageDto[]>({
-    queryKey: messageKeys.thread(conversationId ?? ""),
-    queryFn: () => messageApi.getMessages(conversationId as string),
+    queryKey: messageKeys.thread(conversationId ?? "", as),
+    queryFn: () => messageApi.getMessages(conversationId as string, as),
     enabled: conversationId != null,
     refetchInterval: conversationId != null ? THREAD_POLL_MS : false,
   });
@@ -58,11 +65,12 @@ export function useThreadMessages(conversationId: string | undefined) {
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
+  const as = useExercisedCapability();
   return useMutation({
-    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input),
+    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
     onError: toast.onError,
   });
@@ -74,10 +82,11 @@ export function useSendMessage(conversationId: string) {
  */
 export function useMarkRead(conversationId: string | undefined) {
   const queryClient = useQueryClient();
+  const as = useExercisedCapability();
   return useMutation({
-    mutationFn: () => messageApi.markRead(conversationId as string),
+    mutationFn: () => messageApi.markRead(conversationId as string, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
   });
 }

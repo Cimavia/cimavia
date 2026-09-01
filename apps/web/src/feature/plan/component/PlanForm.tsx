@@ -6,6 +6,7 @@ import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { DEFAULT_WEEK_COUNT } from "@/feature/plan/constant";
 import { useCreatePlan } from "@/feature/plan/hook/usePlans";
 import { CmvButton, CmvPanel, CmvSelect, CmvTextArea, CmvTextField } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { formatDate } from "@/shared/util/date.util";
 
@@ -18,6 +19,7 @@ type PlanFormProps = {
 // n'a aucun intérêt, autant enchaîner.
 export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const navigate = useNavigate();
   const { data: athletes } = useAthletes();
   const createPlan = useCreatePlan();
@@ -90,9 +92,11 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
           value={athleteId}
           onChange={(event) => setAthleteId(event.target.value)}
           placeholder={t("plan.form.athletePlaceholder")}
+          // « (moi) » sur sa propre entrée : dans une liste d'athlètes, son propre nom ne se
+          // distingue pas des autres — et écrire un cycle pour soi n'est pas le cas courant (#14).
           options={(athletes ?? []).map((relation) => ({
             value: relation.athleteId,
-            label: relation.athleteName,
+            label: athleteLabel(relation.athleteId, relation.athleteName),
           }))}
           required
         />

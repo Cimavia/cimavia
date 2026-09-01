@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { useMyCoach } from "@/feature/coach/hook/useMyCoach";
 import { ConversationThread } from "@/feature/message/component/ConversationThread";
 import { useMyConversation } from "@/feature/message/hook/useConversation";
-import { CmvScreen, CmvText } from "@/shared/component";
+import { CmvCapabilitySwitch, CmvScreen, CmvText } from "@/shared/component";
 
 /**
  * Le fil de l'ATHLÈTE avec son coach : il n'en a qu'un (invariant multi-tenant), donc pas de liste
@@ -22,6 +22,9 @@ export function ConversationScreen() {
   if (!hasCoach) {
     return (
       <CmvScreen>
+        <View className="flex-row justify-end px-4 pt-4">
+          <CmvCapabilitySwitch />
+        </View>
         <View className="flex-1 items-center justify-center gap-2 p-6">
           <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
             {t("messages.noCoach.title")}
@@ -40,6 +43,9 @@ export function ConversationScreen() {
       isResolving={conversation.isPending}
       hasResolveError={conversation.isError}
       onRetryResolve={() => conversation.refetch()}
+      // Sans lui, un compte à double capacité basculé côté athlète serait COINCÉ dans son fil :
+      // l'onglet Messages ne montre plus la liste où vit l'autre sélecteur (#129).
+      header={<CmvCapabilitySwitch />}
     />
   );
 }

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useAthletes } from "@/feature/athlete";
 import { useConversations } from "@/feature/message/hook/useConversation";
-import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvCapabilitySwitch, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatRelativeTime } from "@/shared/util/date.util";
 
@@ -52,10 +52,12 @@ export function CoachConversationsScreen() {
     <CmvScreen>
       <OfflineBanner />
 
-      <View className="px-4 pt-4">
-        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
+      <View className="flex-row items-center justify-between gap-2 px-4 pt-4">
+        <CmvText className="shrink font-cmv-display text-cmv-text-hi text-xl">
           {t("messages.title")}
         </CmvText>
+        {/* À droite du titre : il le qualifie, il ne filtre pas la liste. */}
+        <CmvCapabilitySwitch />
       </View>
 
       <ScrollView

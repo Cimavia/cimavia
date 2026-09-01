@@ -11,13 +11,18 @@ import {
   savePlanBilling,
 } from "@/feature/invoice/api";
 import { planKeys } from "@/feature/plan/api";
+import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { uploadToSignedUrl } from "@/shared/lib/upload";
 
 export function useInvoices() {
+  // Le titre auquel on lit : `null` sauf pour un compte à double capacité, seul cas où « émises »
+  // et « reçues » sont deux réponses différentes. Il fait partie de la clé, sinon changer de titre
+  // servirait le cache de l'autre côté.
+  const as = useExercisedCapability();
   return useQuery<InvoiceDto[]>({
-    queryKey: invoiceKeys.list(),
-    queryFn: invoiceApi.list,
+    queryKey: invoiceKeys.list(as),
+    queryFn: () => invoiceApi.list(as),
   });
 }
 

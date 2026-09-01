@@ -1,6 +1,7 @@
 import type { InvoiceDto, UpdateInvoiceStatusInput } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceApi, invoiceKeys } from "@/feature/invoice/api";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 
 /**
  * Les factures ÉMISES de l'acteur courant — le coach celles qu'il a émises, l'athlète les
@@ -8,9 +9,12 @@ import { invoiceApi, invoiceKeys } from "@/feature/invoice/api";
  * qui ne suppose plus un rôle.
  */
 export function useInvoices() {
+  // Le titre auquel on lit : `null` sauf pour un compte à double capacité, seul cas où « émises »
+  // et « reçues » sont deux réponses différentes. Il fait partie de la clé.
+  const as = useExercisedCapability();
   return useQuery<InvoiceDto[]>({
-    queryKey: invoiceKeys.list(),
-    queryFn: invoiceApi.list,
+    queryKey: invoiceKeys.list(as),
+    queryFn: () => invoiceApi.list(as),
   });
 }
 

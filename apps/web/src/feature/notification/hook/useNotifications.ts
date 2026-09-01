@@ -1,4 +1,4 @@
-import type { NotificationDto } from "@cmv/shared";
+import type { NotificationDto, UnreadCountDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notificationApi, notificationKeys } from "@/feature/notification/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
@@ -11,7 +11,25 @@ const UNREAD_POLL_MS = 30_000;
 export function useUnreadNotificationCount() {
   return useQuery<number>({
     queryKey: notificationKeys.unreadCount(),
+    // `select` plutôt qu'une seconde requête : la ventilation par espace (#176) lit la MÊME
+    // réponse, sous la même clé, à un seul rythme de polling.
     queryFn: async () => (await notificationApi.unreadCount()).count,
+    refetchInterval: UNREAD_POLL_MS,
+  });
+}
+
+/**
+ * Le compteur VENTILÉ par espace (#176) — ce qui attend de chaque côté, pour la pastille du
+ * basculeur. La cloche, elle, garde `useUnreadNotificationCount` : elle annonce un total, pas une
+ * répartition.
+ *
+ * Même clé de cache que le total : c'est la MÊME requête, dont on lit deux projections. Deux clés
+ * la feraient partir deux fois, à deux rythmes de polling.
+ */
+export function useUnreadByCapability() {
+  return useQuery<UnreadCountDto>({
+    queryKey: notificationKeys.unreadCount(),
+    queryFn: () => notificationApi.unreadCount(),
     refetchInterval: UNREAD_POLL_MS,
   });
 }

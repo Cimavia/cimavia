@@ -14,7 +14,7 @@ import {
   useMyConversation,
 } from "@/feature/message/hook/useMessages";
 import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
-import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActingCapability } from "@/shared/hook/useCapabilities";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle. Le typage des search params est conservé.
@@ -31,7 +31,8 @@ const route = getRouteApi("/messages");
  * ajouté après coup.
  */
 export function MessagesScreen() {
-  const { isCoach } = useCapabilities();
+  // Le titre EXERCÉ décide de l'écran : un compte qui cumule a des fils des deux côtés.
+  const isCoach = useActingCapability() === "coach";
   return isCoach ? <CoachMessages /> : <AthleteMessages />;
 }
 
@@ -50,9 +51,11 @@ function CoachMessages() {
   const athletes = useAthletes();
   const conversations = useConversations();
 
-  const { athlete: selectedAthleteId } = route.useSearch();
+  const { athlete: selectedAthleteId, as } = route.useSearch();
+  // Changer de fil ne change pas le TITRE auquel on lit : le préserver, sinon un compte à double
+  // capacité basculerait d'univers en cliquant sur un athlète.
   const selectAthlete = (athleteId: string) =>
-    navigate({ to: "/messages", search: { athlete: athleteId }, replace: true });
+    navigate({ to: "/messages", search: { athlete: athleteId, as }, replace: true });
 
   // Fusion athlètes × fils, triée : les fils les plus récemment actifs d'abord, puis les athlètes
   // sans échange (ordre de la liste d'athlètes).

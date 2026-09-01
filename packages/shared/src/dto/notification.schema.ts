@@ -111,5 +111,21 @@ export type NotificationDto = z.infer<typeof notificationDtoSchema>;
 
 // Compteur servi à part de la liste : le badge se rafraîchit en continu, la liste seulement quand
 // le panneau est ouvert.
-export const unreadCountDtoSchema = z.object({ count: z.number().int().min(0) });
+/**
+ * Le compteur du badge, VENTILÉ par espace (#176).
+ *
+ * `count` reste le total, et c'est lui que lit la cloche — pour un compte mono-capacité, rien ne
+ * change. `coach` et `athlete` disent ce qui attend de chaque côté : c'est ce qui permet au
+ * basculeur d'espace de signaler l'univers qu'on ne regarde pas (#129), sans quoi le mode
+ * exclusif ferait manquer ce qui arrive ailleurs.
+ *
+ * `coach + athlete` peut être INFÉRIEUR à `count` : une notification dont le titre est indécidable
+ * (un type inconnu d'une API plus récente) compte dans le total sans se ranger d'un côté. Mieux
+ * vaut une pastille muette qu'une pastille menteuse.
+ */
+export const unreadCountDtoSchema = z.object({
+  count: z.number().int().min(0),
+  coach: z.number().int().min(0),
+  athlete: z.number().int().min(0),
+});
 export type UnreadCountDto = z.infer<typeof unreadCountDtoSchema>;

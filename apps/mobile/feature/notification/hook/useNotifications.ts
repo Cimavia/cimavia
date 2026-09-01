@@ -1,4 +1,4 @@
-import type { NotificationDto } from "@cmv/shared";
+import type { NotificationDto, UnreadCountDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notificationApi, notificationKeys } from "@/feature/notification/api";
 
@@ -13,6 +13,22 @@ export function useUnreadNotificationCount() {
   return useQuery<number>({
     queryKey: notificationKeys.unreadCount(),
     queryFn: async () => (await notificationApi.unreadCount()).count,
+    refetchInterval: UNREAD_POLL_MS,
+  });
+}
+
+/**
+ * Le compteur VENTILÉ par espace (#176) — ce qui attend de chaque côté, pour la pastille du
+ * sélecteur de titre. Le badge d'onglet, lui, garde le total : il annonce qu'il se passe quelque
+ * chose, pas où.
+ *
+ * Même clé de cache que le total : c'est la MÊME requête, dont on lit deux projections. Deux clés
+ * la feraient partir deux fois, à deux rythmes de polling.
+ */
+export function useUnreadByCapability() {
+  return useQuery<UnreadCountDto>({
+    queryKey: notificationKeys.unreadCount(),
+    queryFn: () => notificationApi.unreadCount(),
     refetchInterval: UNREAD_POLL_MS,
   });
 }

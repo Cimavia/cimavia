@@ -22,7 +22,7 @@ import {
   CmvEmptyState,
   CmvErrorState,
 } from "@/shared/component";
-import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActingCapability } from "@/shared/hook/useCapabilities";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
@@ -44,7 +44,8 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  */
 export function InvoicesScreen() {
   const { t } = useTranslation();
-  const { isCoach } = useCapabilities();
+  // Le titre EXERCÉ, pas la capacité possédée : un compte qui cumule lit à un titre à la fois.
+  const isCoach = useActingCapability() === "coach";
   const { data: invoices, isPending, isError, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
   const cancel = useCancelInvoice();

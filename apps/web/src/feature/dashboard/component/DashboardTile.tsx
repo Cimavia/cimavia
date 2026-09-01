@@ -82,7 +82,7 @@ export function DashboardTile({
     // (spread typé sur une prop connue, pas un `...rest` fourre-tout — cf. archi §5).
     <CmvCard
       {...(onClick == null ? {} : { onClick })}
-      {...(isSignalling ? { className: TONE_SURFACE_CLASS[tone] } : {})}
+      {...(isSignalling ? { surfaceClassName: TONE_SURFACE_CLASS[tone] } : {})}
     >
       <div className="flex flex-col gap-cmv-xs">
         <span className="text-cmv-caption text-cmv-text-mid">{label}</span>

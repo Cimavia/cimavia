@@ -24,7 +24,8 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 autonomes. Quatre dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
 explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne),
 **C-1** (comportement voulu — l'issue serait un contresens, le déclencheur est qu'on le corrige à
-tort).
+tort). Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
+résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
 ---
 
@@ -338,8 +339,9 @@ tort).
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
 > Lire la table `reminder` depuis le centre de notifications — écran servi aux **deux** rôles —
 > aurait donc renvoyé un **500 à tout athlète**, sur une page qui ne parle même pas de rappels. Toute
-> future entité mono-rôle devra porter les deux gardes : `@Roles` sur le contrôleur, et un
-> branchement explicite partout où un chemin partagé la touche.
+> future entité mono-capacité devra porter les deux gardes : la capacité exigée sur le contrôleur
+> (`@RequireCapability` depuis #10), et un branchement explicite partout où un chemin partagé la
+> touche — `runAsCapability` qualifiant alors la lecture, pas la route (cf. #14).
 
 > ~~**Écart de promotion assumé**~~ **RÉSOLU en #46** : `REMINDER_BADGE` et
 > `REMINDER_TARGET_LABEL_KEY` vivaient dans `apps/web/src/feature/reminder/`, faute d'un second
@@ -830,9 +832,9 @@ tort).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** Depuis #9, `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Le `databaseHook` les tient alignés à la création, mais rien en base ne l'impose — et à partir de #13, retirer une capacité les fera légitimement diverger (`role=COACH`, `isCoach=false`). C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
+| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Les deux chemins d'écriture les tiennent alignés — le `databaseHook` à la création, `CapabilityService` à la modification — mais rien en base ne l'impose. C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit, et le second peut légitimement survivre au premier. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
 | ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
-| C-3 | **Les clients n'envoient pas encore `?as=`.** Les trois routes servant les deux capacités (`/invoices`, `/conversations`, messages) répondent **400** à un compte qui cumule sans préciser le titre. Sans effet aujourd'hui — aucun compte ne cumule avant #12 — mais le premier qui naîtra prendra ce 400 sur des écrans qui marchaient. Les deux entrées de nav qui portent le paramètre sont le sujet de #129. | 🔴 | [#129](https://github.com/Cimavia/cimavia/issues/129) |
+| ~~C-3~~ | ~~**Les clients n'envoient pas `?as=`**~~ : les routes servant les deux capacités répondaient 400 à un compte cumulant. | ✅ | résolue en **#12** (le paramètre) et **#129** (le choix explicite) |
 
 > **Appris en #10** (l'ordre des gardes globales n'est pas celui qu'on croit) : deux `APP_GUARD`
 > s'exécutent dans l'ordre où leurs **providers** sont enregistrés, et ceux du module **racine**
@@ -875,6 +877,116 @@ tort).
 > convertis, plus rien ne le lisait côté API. Le retirer transforme la règle en contrainte — un
 > service qui voudrait dériver un droit du persona ne compile plus. Même geste que `CapabilitySource`
 > côté client en #9 : la règle exécutable vaut mieux que la règle déclarée.
+
+> **Corrigé dans #10** (une route sans titre n'a pas à en réclamer un) : `/me/notifications` avait
+> reçu `@RequireCapability("either")` pour une raison purement technique — `tenantField` refusait la
+> table `Reminder` sans capacité exercée. C'était un effet de bord pris pour une décision : un
+> centre de notifications montre ce qui est **adressé** au compte, sans notion de titre, et
+> l'exiger aurait obligé un compte à double capacité à choisir à quel titre il consulte ses
+> notifications — pour n'en voir que la moitié. La route ne déclare donc plus rien ; c'est
+> `runAsCapability` qui précise le titre **au plus près** de la lecture des rappels. Le repère pour
+> la suite : quand une route touche une ressource mono-capacité sans être elle-même d'un seul
+> titre, c'est la LECTURE qu'on qualifie, jamais la route. Deux e2e figent le contraste — 400 sur
+> les factures, 200 sur les notifications, pour le même compte.
+
+> **Tranché en #129** (un basculeur d'espace, et non des sections) : l'épique #7 prescrivait
+> « pas de switch exclusif », et une première version a donc livré une nav SECTIONNÉE — douze
+> entrées, deux contextes empilés. Une maquette a fait changer d'avis : le basculeur en montre
+> sept et un seul. Ce qui rend le mode exclusif acceptable, c'est la **pastille sur l'espace
+> inactif** — l'objection était « on rate ce qui se passe de l'autre côté », elle y répond. Le
+> décompte ventilé qu'elle suppose n'existe pas (une notification n'a aucune capacité
+> destinataire) : il part en [#176](https://github.com/Cimavia/cimavia/issues/176), et l'intervalle
+> est le risque assumé. L'énoncé de #7 a été corrigé le même jour — une épique qui prescrit
+> l'inverse de ce qui est livré est pire qu'une épique muette.
+>
+> **L'espace courant se DÉDUIT de l'URL** côté web, sans état applicatif : le chemin dit déjà à
+> quel univers on est (`/library` est coach), et `?as=` tranche pour les deux routes servies aux
+> deux — ce qui règle au passage leur double surlignage. Un état séparé aurait pu diverger de la
+> page affichée, et montrer le menu coach au-dessus d'un écran d'athlète. Mobile ne peut pas s'en
+> remettre à l'URL : il garde un **contexte**, et le sélecteur se pose à droite du titre de l'écran
+> — sous lui, il aurait l'air d'un filtre de la liste.
+>
+> **Ce que l'issue annonçait de travers** : « dix onglets ne tiennent pas dans une barre ». La
+> table `TABS` en compte **sept**, dont quatre servis aux deux capacités — le manque n'était pas le
+> nombre mais l'absence de bascule. La densité des sept onglets reste un sujet de design ouvert.
+>
+> **Deux classes de tokens inexistantes** ont été introduites puis corrigées : `text-cmv-text-low`
+> (le token est `lo`) et `text-cmv-accent-on` sur un fond `accent` plein (c'est `text-cmv-text-hi`,
+> `accent-on` servant sur `accent-soft`). Tailwind ne génère simplement pas une classe inconnue :
+> ni `tsc`, ni `biome`, ni le build ne le voient, et le texte sort sans couleur. Un `grep` sur un
+> token voisin est le seul contrôle qui existe aujourd'hui.
+>
+> **Le piège trouvé en chemin** : les écrans partagés branchaient leur titre, leurs listes vides et
+> leurs boutons sur `useCapabilities().isCoach` — la capacité **possédée**. Un compte cumulant
+> lisant ses factures « en tant qu'athlète » y aurait vu l'en-tête du coach et le bouton « marquer
+> payée ». D'où `useActingCapability()`, qui rend le titre EXERCÉ et vaut pour la présentation ;
+> `capabilitiesOf` reste pour les gardes. La règle : dès qu'un écran sert les deux capacités, ce
+> qu'il MONTRE suit le titre, pas ce que le compte possède.
+
+> **Appris en #14** (deux classes Tailwind concurrentes ne se départagent pas par la chaîne) : le
+> fond d'alerte des tuiles du tableau de bord avait disparu côté web. `CmvCard` posait
+> `bg-cmv-surface`, `DashboardTile` ajoutait `bg-cmv-error-soft` via `className`, et `cn` ne résout
+> pas les conflits — choix assumé, écrit dans `cn.util.ts`. Les deux classes se retrouvaient donc
+> sur l'élément, et c'est l'ordre de **génération dans la feuille CSS** qui tranchait, pas celui de
+> la chaîne : hors de notre contrôle, et invisible de toute porte. D'où `surfaceClassName`, une
+> prop qui REMPLACE le fond par défaut au lieu de s'y ajouter — le survol par défaut la respecte
+> aussi, sinon il écrasait la couleur au passage de la souris. Règle générale : tant que `cn` reste
+> sans `tailwind-merge`, une surcharge de couleur passe par une prop dédiée, jamais par
+> `className`. Mobile n'était pas touché — NativeWind ne compose pas les classes de la même façon.
+
+> **Tranché en #14** (« (moi) » se déduit de la SESSION, pas d'un drapeau porté par chaque DTO) :
+> le compte apparaît dans ses propres listes d'athlètes, où son nom ne se distingue de rien. Un
+> premier essai avait ajouté `isSelf` à `AthleteRow` — il n'aurait couvert que le tableau de suivi.
+> Les onze surfaces concernées (sélecteur et titre du builder, cartes de cycles, tableau, liste et
+> détail des débriefs, fiche athlète, dashboard mobile…) n'ont en commun qu'un `athleteId` :
+> propager un marqueur aurait demandé de toucher quatre schémas, et d'y penser au cinquième. D'où
+> `useAthleteLabel`, qui compare à l'id de session. `isSelf` reste sur `CoachAthleteDto` seul, où
+> il décrit une propriété de la DONNÉE — cette relation-là n'existe pas en base.
+>
+> Deux exclusions volontaires : les **initiales** d'avatar, calculées sur le nom brut (« Dual Curl
+> (moi) » donnerait « DC »… ou pire), et la **messagerie**, fermée en auto-coaching — aucun fil
+> avec soi-même ne peut exister.
+
+> **Tranché en #14** (l'auto-coach est une entrée SYNTHÉTIQUE de sa propre liste) : un coach qui
+> se coache n'a pas de ligne `CoachAthlete`, et ne peut pas en avoir — le CHECK
+> `coach_athlete_not_self` l'interdit depuis #11. `GET /athletes` fabrique donc son entrée, marquée
+> `isSelf`, en tête. Le prix est une ligne sans réalité en base ; le bénéfice est que **le builder
+> web et le tableau de bord ne changent pas**, eux qui lisent déjà cette route. L'alternative
+> — un `athleteId` absent valant « pour moi » — a été écartée : elle entre en collision frontale
+> avec #144 (`athleteId` nullable = cycle **sans athlète affecté**), qui donne à cette absence un
+> sens opposé.
+>
+> **#17 absorbée** : elle et #14 traitaient le même verrou par les deux bouts. `publish` exige une
+> facturation saisie (gating P6) et notifie l'athlète deux fois — en solo, le coach devrait se
+> facturer lui-même pour diffuser son propre cycle, et recevrait deux notifications de lui-même.
+> Impossible donc de livrer #14 « en gardant la state machine `DRAFT → PUBLISHED` », ce qu'elle
+> demandait, sans lever ces trois choses. Ce qui NE change pas : la state machine elle-même, qui
+> donne au cycle ses `ScheduledSession` lisibles et débriefables — un cycle solo se vit comme les
+> autres.
+>
+> **Ce que l'issue annonçait de travers** : elle demandait de modifier `ExerciseController` et
+> `SessionController`. `Exercise` et `Session` sont scopés sur `coachId` **seul** — un compte
+> `isCoach` compose déjà sa bibliothèque, et depuis toujours. Le verrou tenait en une méthode,
+> `PlanService.assertAthleteOwned`. La messagerie, elle, était **déjà** fermée en solo
+> (`resolvePair` exige une relation des deux côtés) : un e2e fige ce comportement plutôt que de le
+> supposer acquis.
+
+> **Tranché en #11** (le premier `CHECK` du projet) : « on ne peut pas être son propre coach » est
+> un invariant absolu, pas une règle de service susceptible d'avoir une exception — il vit donc
+> dans la table (`coach_athlete_not_self`), conformément à `architecture-choice.md`. Le refus 409
+> du service reste, pour le message ; le CHECK est ce qui SURVIT à un second chemin de création qui
+> oublierait la garde. Mesuré plutôt que supposé : la garde retirée, l'écriture est bien refusée,
+> mais en **500** au lieu de 409 — le filet tient, il ne parle simplement pas français. C'est le
+> bon partage. Attention pour la suite : Prisma ne modélise pas les CHECK, ils ne figurent donc pas
+> dans `schema.prisma` et ne se lisent QUE dans les migrations.
+
+> **Appris en #11** (la chaîne de coachs est linéaire, et peut déjà boucler) : `athleteId` étant
+> `@unique`, chaque compte a au plus un coach — la structure est une **forêt**, et « remonter la
+> chaîne » un parcours sans branchement, bien plus simple que ce que l'issue laissait attendre.
+> Mais une remontée naïve ne termine pas si la base contient DÉJÀ un cycle, et pend jusqu'au
+> timeout. D'où l'ensemble de visités, qui sépare deux choses que rien ne distinguerait autrement :
+> l'invité est dans la chaîne (**409**, refus métier) et on repasse sur un nœud tiers (**erreur** —
+> données incohérentes, à voir tout de suite plutôt que déguisées en refus).
 
 > **Tranché en #9** (les capacités sont des colonnes Prisma **ET** des `additionalFields`) :
 > l'épique annonçait « colonnes Prisma directes, **hors** `additionalFields` Better Auth — qui ne

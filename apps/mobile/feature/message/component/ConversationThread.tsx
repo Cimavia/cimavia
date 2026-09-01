@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, View } from "react-native";
@@ -34,6 +35,12 @@ type ConversationThreadProps = {
   isResolving: boolean;
   hasResolveError: boolean;
   onRetryResolve: () => void;
+  /**
+   * Bandeau facultatif rendu au-dessus du fil. Sert au sélecteur de titre côté athlète (#129) :
+   * l'onglet Messages y montre le fil directement, sans liste intermédiaire, donc sans autre
+   * endroit où le poser.
+   */
+  header?: ReactNode;
 };
 
 /**
@@ -46,6 +53,7 @@ export function ConversationThread({
   isResolving,
   hasResolveError,
   onRetryResolve,
+  header,
 }: Readonly<ConversationThreadProps>) {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
@@ -105,6 +113,7 @@ export function ConversationThread({
           `style` (et non className) : la vue vient d'une lib tierce, on ne dépend pas de NativeWind
           pour un simple flex:1 (aucune couleur/token ici). */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        {header != null && <View className="flex-row justify-end px-4 pt-4">{header}</View>}
         {items.length === 0 ? (
           <View className="flex-1 items-center justify-center gap-2 p-6">
             <CmvText className="font-cmv-display text-cmv-text-hi text-xl">

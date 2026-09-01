@@ -21,7 +21,9 @@
       "day": "il y a {{count}} jour",
       "day_other": "il y a {{count}} jours"
     },
-    "durationInvalid": "Durée non comprise. Écris 90, 1'30, 30 s ou 2 min."
+    "durationInvalid": "Durée non comprise. Écris 90, 1'30, 30 s ou 2 min.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…"
   },
   "auth": {
     "login": {
@@ -35,7 +37,10 @@
     "register": {
       "title": "Créer un compte",
       "name": "Nom complet",
-      "role": "Je suis",
+      "capabilities": "Je veux",
+      "capabilityCoach": "Coacher des athlètes",
+      "capabilityAthlete": "Suivre mes entraînements",
+      "capabilityHint": "Les deux sont possibles.",
       "submit": "Créer mon compte",
       "submitting": "Création…",
       "hasAccount": "Déjà un compte ?",
@@ -61,7 +66,8 @@
     "errors": {
       "generic": "Une erreur est survenue. Réessayez.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",
-      "invalidCredentials": "E-mail ou mot de passe incorrect."
+      "invalidCredentials": "E-mail ou mot de passe incorrect.",
+      "noCapability": "Choisissez au moins une option."
     }
   },
   "exercise": {
@@ -109,10 +115,6 @@
       "restBetweenSets": "{{rest}} de repos entre les séries",
       "restBetweenRounds": "repos {{rest}} entre tours"
     }
-  },
-  "role": {
-    "coach": "Coach",
-    "athlete": "Athlète"
   },
   "library": {
     "title": "Bibliothèque",
@@ -495,7 +497,7 @@
       "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
-      "titleWithAthlete": "{{title}} — {{name}} {{email}}"
+      "titleWithAthlete": "{{title}} — {{name}}"
     },
     "toast": {
       "created": "Cycle « {{title}} » créé",
@@ -543,7 +545,17 @@
     "myCoach": "Mon coach",
     "planning": "Planning",
     "sessions": "Séances",
-    "myMessages": "Messagerie"
+    "myMessages": "Messagerie",
+    "space": {
+      "coach": "Coach",
+      "athlete": "Athlète"
+    },
+    "spaceTitle": {
+      "coach": "Espace coach",
+      "athlete": "Espace athlète"
+    },
+    "spaceUnread": "{{count}} non lue dans cet espace",
+    "spaceUnread_other": "{{count}} non lues dans cet espace"
   },
   "reminder": {
     "title": "Mes rappels",
@@ -690,7 +702,8 @@
     "toast": {
       "invitationCreated": "Invitation créée : transmettez le code à votre athlète",
       "sheetSaved": "Fiche athlète enregistrée"
-    }
+    },
+    "self": "{{name}} (moi)"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -909,6 +922,27 @@
       "joining": "Connexion en cours…",
       "errorTitle": "Code invalide ou expiré",
       "errorDescription": "Vérifie le code, ou demande à ton coach de t'en générer un nouveau."
+    }
+  },
+  "account": {
+    "title": "Mon compte",
+    "capabilities": {
+      "title": "Ce que je fais sur cimavia",
+      "description": "Ajoutez ou retirez une casquette à tout moment. Les deux sont possibles.",
+      "option": {
+        "coach": "Coacher des athlètes",
+        "athlete": "Suivre mes entraînements"
+      },
+      "hint": {
+        "coach": "Composer des exercices et des séances, diffuser des cycles, facturer.",
+        "athlete": "Consulter mes séances, les débriefer, échanger avec mon coach."
+      },
+      "warnCoach": "Votre bibliothèque et vos cycles seront conservés, mais disparaîtront de votre navigation. Ils reviendront si vous réactivez cette casquette.",
+      "atLeastOne": "Gardez au moins une casquette.",
+      "blocked": {
+        "ACTIVE_ATHLETES": "Des athlètes vous sont rattachés. Retirez ces liens avant de cesser de coacher.",
+        "ACTIVE_COACH": "Vous êtes rattaché à un coach. Quittez cette relation avant de retirer cette casquette."
+      }
     }
   }
 }

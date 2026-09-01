@@ -3,6 +3,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthleteSheet, useSaveAthleteSheet } from "@/feature/athlete/hook/useAthletes";
 import { CmvButton, CmvPanel, CmvTextArea } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 
 type AthleteSheetPanelProps = {
   athlete: CoachAthleteDto;
@@ -15,6 +16,7 @@ type AthleteSheetPanelProps = {
  */
 export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPanelProps>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const { data: sheet, isPending } = useAthleteSheet(athlete.athleteId);
   const saveSheet = useSaveAthleteSheet(athlete.athleteId);
 
@@ -31,7 +33,7 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
   return (
     <CmvPanel
       open
-      title={athlete.athleteName}
+      title={athleteLabel(athlete.athleteId, athlete.athleteName)}
       description={t("athlete.sheet.description")}
       onClose={onClose}
       footer={

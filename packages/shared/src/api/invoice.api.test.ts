@@ -25,15 +25,27 @@ function spyClient() {
 
 describe("createInvoiceApi", () => {
   /**
-   * UNE seule route de liste pour les deux rôles : c'est le scope tenant qui décide de ce qu'elle
-   * rend, pas un chemin `/me/…` distinct. Le client n'a donc rien à savoir de qui il sert — c'est
-   * ce qui rend cet écran ouvrable à l'athlète sans toucher à l'API (#27).
+   * UNE seule route de liste pour les deux capacités : c'est le scope tenant qui décide de ce
+   * qu'elle rend, pas un chemin `/me/…` distinct (#27). Un compte mono-capacité n'a donc rien à
+   * préciser — l'API n'a qu'une réponse possible pour lui, et l'URL reste nue.
    */
-  it("lit la liste sur une route unique, quel que soit le rôle", async () => {
+  it("lit la liste sur une route unique, sans titre pour un compte mono-capacité", async () => {
     const { api, calls } = spyClient();
-    await createInvoiceApi(api).list();
+    await createInvoiceApi(api).list(null);
 
     expect(calls).toEqual([{ method: "GET", path: "/invoices", body: undefined }]);
+  });
+
+  /**
+   * Avec un titre, il part dans l'URL : c'est ce que l'API EXIGE d'un compte à double capacité,
+   * faute de quoi elle répond 400 plutôt que de choisir à sa place (#10).
+   */
+  it("porte le titre dans l'URL quand il est donné", async () => {
+    const { api, calls } = spyClient();
+    await createInvoiceApi(api).list("coach");
+    await createInvoiceApi(api).list("athlete");
+
+    expect(calls.map((c) => c.path)).toEqual(["/invoices?as=coach", "/invoices?as=athlete"]);
   });
 
   it("bascule le statut par PATCH sur l'id", async () => {
@@ -62,6 +74,19 @@ describe("invoiceKeys", () => {
   // La liste partage la racine : toute mutation invalide `all` et la fait tomber d'un seul geste.
   // Les clés propres à une app (la facturation d'un cycle, web seule) s'ajoutent par-dessus.
   it("préfixe la liste par la racine", () => {
-    expect(invoiceKeys.list()[0]).toBe(invoiceKeys.all[0]);
+    expect(invoiceKeys.list(null)[0]).toBe(invoiceKeys.all[0]);
+  });
+
+  /**
+   * Les deux titres lisent la MÊME URL et rendent des listes différentes — émises contre reçues.
+   * Une clé qui les confondrait servirait à l'un le cache de l'autre : un compte à double capacité
+   * verrait ses factures reçues sous ses factures émises.
+   */
+  it("distingue les deux titres, et le compte sans titre", () => {
+    const coach = JSON.stringify(invoiceKeys.list("coach"));
+    const athlete = JSON.stringify(invoiceKeys.list("athlete"));
+    const none = JSON.stringify(invoiceKeys.list(null));
+
+    expect(new Set([coach, athlete, none]).size).toBe(3);
   });
 });

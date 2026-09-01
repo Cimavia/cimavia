@@ -60,3 +60,30 @@ export function exercisedOrThrow(actor: TenantContext): CapabilityName {
   }
   return actor.exercised;
 }
+
+/**
+ * Exécute `fn` avec la capacité exercée forcée — un contexte CLS imbriqué, l'acteur inchangé par
+ * ailleurs.
+ *
+ * Pour le cas où une route n'a **pas** de titre mais touche quand même une ressource
+ * mono-capacité. Le centre de notifications en est l'exemple : il montre ce qui m'est adressé,
+ * point — lui faire déclarer un titre obligerait un compte à double capacité à choisir à quel
+ * titre il consulte ses notifications, et à n'en voir que la moitié. Mais il lit aussi les rappels
+ * (#51), et `Reminder` n'a pas de scope athlète.
+ *
+ * Ce n'est donc PAS un contournement du scope tenant : l'acteur reste le même, seul le titre sous
+ * lequel il lit est précisé, là où la route ne pouvait pas le dire pour elle tout entière. L'appel
+ * doit rester enveloppé au plus près de la lecture concernée — l'élever plus haut reviendrait à
+ * donner un titre à la route, ce qu'on vient précisément de refuser.
+ */
+export function runAsCapability<T>(
+  cls: ClsService,
+  capability: CapabilityName,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const actor = currentActor(cls);
+  return cls.run(() => {
+    cls.set(TENANT_CLS_KEY, { ...actor, exercised: capability });
+    return fn();
+  });
+}

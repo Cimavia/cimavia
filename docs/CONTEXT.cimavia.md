@@ -15,20 +15,30 @@ cimavia outille la relation **coach ↔ athlète** en escalade. Boucle principal
 3. L'athlète **consulte** ses séances (y compris hors-ligne en salle) et les **débriefe** (texte libre + photos/vidéos).
 4. Coach et athlète **échangent** en messagerie asynchrone ; le coach **facture** ses prestations.
 
-Tout le reste (auth, rôles, notifications) sert cette boucle.
+Tout le reste (auth, capacités, notifications) sert cette boucle.
 
 ---
 
 ## Acteurs & relation
 
 ### User
-Identité authentifiée (gérée par Better Auth). Porte un `role` : `COACH` ou `ATHLETE`. Les deux rôles utilisent **web et mobile** (le coach surtout sur web pour la création, l'athlète surtout sur mobile au quotidien).
+Identité authentifiée (gérée par Better Auth). Porte deux **capacités cumulables** — `isCoach` et `isAthlete` — dont **au moins une** est requise. Les deux utilisent **web et mobile** (on coache surtout depuis le web pour la création, on s'entraîne surtout depuis le mobile au quotidien).
+
+`role` (`COACH` | `ATHLETE` | `ADMIN`) survit sur le modèle, mais **ne fonde plus aucun droit** : c'est le **persona d'affichage**, l'univers dans lequel un compte à double capacité atterrit. Toute autorisation se décide sur les capacités.
 
 ### Coach
-`User` de rôle `COACH`. Possède N athlètes, sa bibliothèque d'exercices/séances, ses planifications, ses conversations et ses factures.
+Un `User` qui porte `isCoach`. Possède N athlètes, sa bibliothèque d'exercices/séances, ses planifications, ses conversations et ses factures.
 
 ### Athlete
-`User` de rôle `ATHLETE`, rattaché à **exactement un** coach (unicité en base — voir « Multi-tenant »). Consulte ses planifications, débriefe ses séances, échange avec son coach.
+Un `User` qui porte `isAthlete`, rattaché à **au plus un** coach (unicité en base — voir « Multi-tenant »). Consulte ses planifications, débriefe ses séances, échange avec son coach.
+
+### Auto-coaching
+Un `User` qui porte **les deux** capacités peut s'écrire ses propres cycles : `coachId = athleteId`, **sans** ligne `CoachAthlete` — l'auto-relation est d'ailleurs interdite en base (`coach_athlete_not_self`). Il apparaît dans sa propre liste d'athlètes sous une entrée **synthétique** (`isSelf`), ce qui lui permet de se désigner comme destinataire.
+
+Ce qui ne s'applique pas à un cycle solo : la **facturation** (on ne se facture pas soi-même — 409 à la saisie, gating levé à la diffusion) et les **notifications** (on ne s'annonce pas ce qu'on vient de faire). La messagerie reste fermée : un fil suppose deux personnes. La state machine `DRAFT → PUBLISHED`, elle, ne change pas — un cycle solo se vit comme les autres.
+
+### Espace (coach / athlète)
+Ce que la navigation montre à un instant donné. Un compte à double capacité en voit **un seul à la fois**, et bascule ; l'espace inactif porte une **pastille** quand quelque chose l'y attend. Sur le web, l'espace se déduit de l'URL (le chemin, ou `?as=` sur les deux routes servies aux deux capacités) ; sur mobile, d'un sélecteur en tête des écrans partagés.
 
 ### CoachAthlete (relation)
 Le lien coach→athlète, établi par **invitation** (lien/code). Statut `PENDING` → `ACTIVE`. C'est la frontière de tenant : presque toute donnée est scopée par cette relation.
@@ -166,7 +176,7 @@ Les trois façons d'ajuster un cycle **déjà diffusé** (CDC §5.7) ont chacune
 
 Porte `type` (`NotificationType`), la cible (`entityType` + `entityId`), `readAt` nullable (`null` = non lue → alimente le badge) et `createdAt`.
 
-⚠️ **Le centre a une SECONDE source, non persistée** : les **rappels dus** du coach (`REMINDER_DUE`). Ce type est le seul de `NotificationType` **absent de l'enum Prisma** — l'entrée est calculée à chaque lecture depuis la table `reminder`, faute de scheduler pour la persister au bon moment. Trois conséquences : son `id` porte le préfixe `reminder:` (ce qui garde **une** route de marquage pour les deux sources), son `createdAt` vaut le `dueAt` du rappel (il « arrive » quand il commence à compter), et la lecture est **branchée par rôle** — `Reminder` n'ayant aucun scope athlète, l'interroger pour un athlète lèverait au lieu de rendre une liste vide.
+⚠️ **Le centre a une SECONDE source, non persistée** : les **rappels dus** du coach (`REMINDER_DUE`). Ce type est le seul de `NotificationType` **absent de l'enum Prisma** — l'entrée est calculée à chaque lecture depuis la table `reminder`, faute de scheduler pour la persister au bon moment. Trois conséquences : son `id` porte le préfixe `reminder:` (ce qui garde **une** route de marquage pour les deux sources), son `createdAt` vaut le `dueAt` du rappel (il « arrive » quand il commence à compter), et la lecture est **branchée sur la capacité coach** — `Reminder` n'ayant aucun scope athlète, l'interroger pour un athlète lèverait au lieu de rendre une liste vide.
 
 Trois règles à connaître :
 - **Le libellé n'est PAS stocké.** Une ligne écrite aujourd'hui serait figée en français le jour où `en.json` arrive : on persiste les **paramètres** d'interpolation (`actorName`, `subjectLabel`, nullables) et le rendu se fait à l'affichage, via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next. Ces paramètres sont des **instantanés** : renommer un cycle ne réécrit pas les notifications déjà émises.
@@ -180,18 +190,21 @@ Trois règles à connaître :
 - **Invariant** : 1 `Athlete` = exactement 1 `Coach`. 1 `Coach` = N `Athlete`.
 - Presque toute entité (`Plan`, `Session`, `SessionFeedback`, `Conversation`, `Invoice`, `AthleteProfile`…) est **scopée à la relation `CoachAthlete`**.
 - La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
-- La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux rôles** : chaque table porte donc `coachId` ET `athleteId` en direct.
+- La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux capacités** : chaque table porte donc `coachId` ET `athleteId` en direct.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
 - ⚠️ **`CoachAthleteStatus.PENDING` n'est jamais écrit** : la colonne est `@default(ACTIVE)`, `InvitationService` pose `ACTIVE` à l'acceptation, et les services filtrent sur `ACTIVE`. Le palier existe dans le modèle (« réservé si besoin »), pas dans les faits — ne pas construire d'UI qui suppose deux états tant qu'un flux n'en produit pas deux.
-- ⚠️ **`Reminder` est scopé `coachId` SEUL** — la seule entité métier sans scope athlète (outil privé du coach). L'absence de clé `athlete` dans `TENANT_SCOPES` n'est pas un oubli, mais elle se manifeste par une **erreur** (fail closed), pas un 403 : deux gardes doivent donc la précéder — le `@Roles([Role.COACH])` du contrôleur, et le branchement par rôle du centre de notifications.
-- ⚠️ **`PushToken` est scopé `userId` pour les deux rôles**, et **`Notification` par `recipientId`** : l'un adresse une *installation* de l'app, l'autre une personne — ni l'un ni l'autre n'appartient à la relation coach↔athlète. L'**écriture et la lecture d'envoi** visent le DESTINATAIRE, donc un autre tenant : elles passent par le client Prisma de base (`NotificationService`), comme `UserDirectoryService`. La **consultation**, elle, est scopée normalement (`NotificationFeedService`) — chacun ne lit que ce qui lui est adressé.
+- ⚠️ **`Reminder` est scopé `coachId` SEUL** — la seule entité métier sans scope athlète (outil privé du coach). L'absence de clé `athlete` dans `TENANT_SCOPES` n'est pas un oubli, mais elle se manifeste par une **erreur** (fail closed), pas un 403 : deux gardes doivent donc la précéder — le `@RequireCapability("coach")` du contrôleur, et le branchement du centre de notifications sur la capacité POSSÉDÉE (`runAsCapability` y qualifie la seule lecture concernée).
+- ⚠️ **`PushToken` est scopé `userId` pour les deux capacités**, et **`Notification` par `recipientId`** : l'un adresse une *installation* de l'app, l'autre une personne — ni l'un ni l'autre n'appartient à la relation coach↔athlète. L'**écriture et la lecture d'envoi** visent le DESTINATAIRE, donc un autre tenant : elles passent par le client Prisma de base (`NotificationService`), comme `UserDirectoryService`. La **consultation**, elle, est scopée normalement (`NotificationFeedService`) — chacun ne lit que ce qui lui est adressé.
 - L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant (dont les **pièges du scope automatique** : `include` imbriqués non scopés, FK non contraintes par le tenant).
 
 ---
 
-## Rôles & accès (résumé)
+## Capacités & accès (résumé)
 
-| Donnée | Coach | Athlete |
+Une ligne par donnée, une colonne par **capacité** — et non par personne : un compte qui porte les
+deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il se trouve.
+
+| Donnée | isCoach | isAthlete |
 |---|---|---|
 | Bibliothèque exercices/séances | CRUD (les siens) | — |
 | Planification | CRUD (ses athlètes) | lecture (la sienne) |
@@ -202,8 +215,12 @@ Trois règles à connaître :
 | Rappel | CRUD (les siens) | — *(aucun accès : 403)* |
 | Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |
 
+Le centre de notifications, lui, n'a **pas** de capacité exercée : il montre ce qui est adressé au
+compte, tous espaces confondus. Son compteur est en revanche **ventilé** (`{ count, coach, athlete }`),
+ce qui permet à l'espace inactif de signaler ce qui l'attend.
+
 ---
 
 ## Langue
 
-Termes **produit** en français (UI). Termes **code** (entités, champs, rôles) en anglais, tels que listés ici. Anglais produit prévu — toute string UI passe par i18next dès le départ.
+Termes **produit** en français (UI). Termes **code** (entités, champs, capacités) en anglais, tels que listés ici. Anglais produit prévu — toute string UI passe par i18next dès le départ.

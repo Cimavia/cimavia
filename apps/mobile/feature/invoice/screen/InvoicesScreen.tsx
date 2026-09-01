@@ -21,9 +21,15 @@ import {
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { useInvoices, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 import { ScheduleReminderButton } from "@/feature/reminder";
-import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import {
+  CmvButton,
+  CmvCapabilitySwitch,
+  CmvErrorState,
+  CmvScreen,
+  CmvText,
+} from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
-import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActingCapability } from "@/shared/hook/useExercisedCapability";
 import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
@@ -39,7 +45,8 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  */
 export function InvoicesScreen() {
   const { t } = useTranslation();
-  const { isCoach } = useCapabilities();
+  // Le titre EXERCÉ, pas la capacité possédée : un compte qui cumule lit à un titre à la fois.
+  const isCoach = useActingCapability() === "coach";
   const { data: invoices, isPending, isError, isRefetching, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
 
@@ -57,10 +64,14 @@ export function InvoicesScreen() {
     <CmvScreen>
       <OfflineBanner />
 
-      <View className="px-4 pt-4">
-        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
+      {/* Le sélecteur à DROITE du titre : il qualifie ce titre — « mes factures, en tant que… » —
+          et sous lui il aurait l'air d'un filtre de la liste. Ne rend rien pour un compte
+          mono-capacité, auquel cas le titre reprend toute la largeur. */}
+      <View className="flex-row items-center justify-between gap-2 px-4 pt-4">
+        <CmvText className="shrink font-cmv-display text-cmv-text-hi text-xl">
           {isCoach ? t("invoice.coach.title") : t("invoice.title")}
         </CmvText>
+        <CmvCapabilitySwitch />
       </View>
 
       <ScrollView

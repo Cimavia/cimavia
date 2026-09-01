@@ -102,10 +102,30 @@ describe("notificationDtoSchema", () => {
 });
 
 describe("unreadCountDtoSchema", () => {
+  const EMPTY = { count: 0, coach: 0, athlete: 0 };
+
   it("refuse un compteur négatif ou fractionnaire", () => {
-    expect(unreadCountDtoSchema.safeParse({ count: 0 }).success).toBe(true);
-    expect(unreadCountDtoSchema.safeParse({ count: -1 }).success).toBe(false);
-    expect(unreadCountDtoSchema.safeParse({ count: 1.5 }).success).toBe(false);
+    expect(unreadCountDtoSchema.safeParse(EMPTY).success).toBe(true);
+    expect(unreadCountDtoSchema.safeParse({ ...EMPTY, count: -1 }).success).toBe(false);
+    expect(unreadCountDtoSchema.safeParse({ ...EMPTY, count: 1.5 }).success).toBe(false);
+    expect(unreadCountDtoSchema.safeParse({ ...EMPTY, coach: -1 }).success).toBe(false);
+  });
+
+  /**
+   * La ventilation par espace est REQUISE (#176) : un client qui recevrait un compteur sans elle
+   * afficherait une pastille vide sur l'espace inactif, c'est-à-dire « rien ne t'attend ailleurs »
+   * — exactement le mensonge que cette ventilation existe pour éviter.
+   */
+  it("exige la ventilation, pas seulement le total", () => {
+    expect(unreadCountDtoSchema.safeParse({ count: 3 }).success).toBe(false);
+  });
+
+  /**
+   * `coach + athlete` peut être INFÉRIEUR au total : un type dont le titre est indécidable compte
+   * dans le total sans se ranger d'un côté. Le schéma ne l'interdit donc pas.
+   */
+  it("accepte un total supérieur à la somme des deux espaces", () => {
+    expect(unreadCountDtoSchema.safeParse({ count: 5, coach: 2, athlete: 1 }).success).toBe(true);
   });
 });
 

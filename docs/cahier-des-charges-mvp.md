@@ -45,13 +45,18 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
 | **Athlète** | Usage quotidien (consultation, débrief, messages) — surtout mobile | **Web + mobile** |
 | **Admin** | Gestion comptes, support (rôle minimal en MVP) | Web |
 
+> **Révisé (épique #7, livrée).** Ce ne sont plus des rôles exclusifs mais des **capacités
+> cumulables** : un même compte peut porter `isCoach` et `isAthlete`, et l'auto-coaching est
+> **livré** — il n'attend plus la v1.0. Le tableau ci-dessus se lit donc par capacité, pas par
+> personne. Détail dans `CONTEXT.cimavia.md` § Acteurs & relation.
+
 **Règles de relation :**
 - Architecture **multi-tenant** : plusieurs coachs, plusieurs athlètes.
 - Un athlète a **au plus un coach** (contrainte d'unicité en base : **0 ou 1**).
-  - **MVP :** tout athlète est lié à exactement 1 coach.
-  - **v1.0 :** un athlète peut être **autonome** (0 coach, auto-coaching). La liaison est **réversible** : un athlète autonome peut rejoindre un coach plus tard, et redevenir autonome si la relation se termine. Quand un coach existe, il reste **unique**.
+  - Un athlète peut être **autonome** (0 coach) ou **s'auto-coacher** s'il porte aussi la capacité coach — livré avec l'épique #7, plus tôt que la v1.0 prévue ici. La liaison est **réversible** : un athlète autonome peut rejoindre un coach plus tard, et redevenir autonome si la relation se termine. Quand un coach existe, il reste **unique**.
+  - Une chaîne est possible (A coache B, B coache C) mais **jamais une boucle** : anti-cycle et anti-self à l'acceptation d'une invitation.
 - Un coach a **N athlètes**.
-- **Les deux rôles accèdent aux deux clients** (web et mobile) — l'usage diffère, pas les droits d'accès aux plateformes.
+- **Les deux capacités accèdent aux deux clients** (web et mobile) — l'usage diffère, pas les droits d'accès aux plateformes.
 
 ---
 
@@ -97,9 +102,9 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - Inscription / connexion email + mot de passe.
 - Réinitialisation du mot de passe (« mot de passe oublié » → lien de reset par e-mail).
 - OAuth (Google) en option v1.0.
-- Rôle attribué à l'inscription (coach / athlète).
+- **Capacités** choisies à l'inscription, en cases à cocher (coach et/ou athlète, au moins une), modifiables ensuite depuis son compte — avec refus si la capacité est en cours d'usage (athlètes actifs, ou coach rattaché).
 - Liaison : le coach invite (lien ou code), l'athlète rejoint → relation unique.
-- **Athlète autonome (v1.0) :** un athlète peut rester **sans coach** et s'auto-coacher (création de ses propres exercices/séances/planifications, débrief). La liaison à un coach reste possible plus tard et **réversible** (voir §3).
+- **Auto-coaching (livré, épique #7) :** un compte portant les deux capacités crée ses propres exercices, séances et cycles, se les diffuse et les débriefe. Ni facturation ni notification vers soi-même ; la messagerie reste fermée (un fil suppose deux personnes). La liaison à un coach reste possible et **réversible** (voir §3).
 
 ### 5.2 Bibliothèque d'exercices (coach)
 - Exercice : titre, description, catégorie (ex. *renfo*, *grimpe*, *technique*).

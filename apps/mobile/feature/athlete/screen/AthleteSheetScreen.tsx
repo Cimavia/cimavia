@@ -11,6 +11,7 @@ import {
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 /**
@@ -40,6 +41,7 @@ export function AthleteSheetScreen() {
 // L'en-tête : qui l'on regarde, et depuis quand on le suit.
 function AthleteIdentity({ athlete }: Readonly<{ athlete: CoachAthleteDto | null }>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
 
   return (
     <View className="flex-row items-center gap-3">
@@ -54,7 +56,7 @@ function AthleteIdentity({ athlete }: Readonly<{ athlete: CoachAthleteDto | null
       <View className="flex-1 gap-1">
         {/* « — » si la liste n'est pas (encore) là : on ne fabrique pas un nom depuis l'id. */}
         <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-          {athlete?.athleteName ?? "—"}
+          {athlete == null ? "—" : athleteLabel(athlete.athleteId, athlete.athleteName)}
         </CmvText>
         {/* `joinedAt` est nullable : la relation peut exister sans acceptation datée. */}
         <CmvText className="text-cmv-text-lo text-xs">

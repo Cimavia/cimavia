@@ -24,5 +24,8 @@ export function toCoachAthleteDto(
     status: relation.status,
     invitedAt: relation.invitedAt.toISOString(),
     joinedAt: relation.joinedAt?.toISOString() ?? null,
+    // Une ligne `CoachAthlete` ne peut PAS être auto-relationnelle (CHECK `coach_athlete_not_self`,
+    // #11) : ce qui vient d'ici n'est jamais soi. L'entrée d'auto-coaching est synthétisée à part.
+    isSelf: false,
   };
 }

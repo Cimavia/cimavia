@@ -1,6 +1,6 @@
 import { CoachConversationsScreen } from "@/feature/message/screen/CoachConversationsScreen";
 import { ConversationScreen } from "@/feature/message/screen/ConversationScreen";
-import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActingCapability } from "@/shared/hook/useExercisedCapability";
 
 /**
  * L'onglet Messages, servi aux deux rôles depuis #34.
@@ -11,6 +11,7 @@ import { useCapabilities } from "@/shared/hook/useCapabilities";
  * sur sa propre messagerie. Même choix que côté web.
  */
 export function MessagesScreen() {
-  const { isCoach } = useCapabilities();
+  // Le titre EXERCÉ décide de l'écran : un compte qui cumule a des fils des deux côtés.
+  const isCoach = useActingCapability() === "coach";
   return isCoach ? <CoachConversationsScreen /> : <ConversationScreen />;
 }

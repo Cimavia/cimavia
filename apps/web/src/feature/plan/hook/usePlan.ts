@@ -5,6 +5,7 @@ import type {
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
+import { myPlanKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addPlanWeek,
@@ -44,6 +45,9 @@ export function usePlanMutations(planId: string) {
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: planKeys.all });
     await queryClient.invalidateQueries({ queryKey: scheduledSessionKeys.all });
+    // Ajuster un cycle DIFFUSÉ change ce que lit l'athlète, et en auto-coaching c'est le MÊME
+    // cache (#14). Sans effet pour un coach pur, dont le cache n'a pas cette clé.
+    await queryClient.invalidateQueries({ queryKey: myPlanKeys.all });
   };
 
   const done = (messageKey: string) => async () => {

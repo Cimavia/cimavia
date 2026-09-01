@@ -1,3 +1,4 @@
+import type { CapabilityName } from "../capability";
 import type {
   ConversationDto,
   MessageDto,
@@ -10,6 +11,7 @@ import type {
   CompleteMultipartUploadInput,
   MediaUploadTicketDto,
 } from "../dto/upload.schema";
+import { asKey, asQuery } from "./as-capability";
 import type { ApiClient } from "./client";
 
 /**
@@ -35,28 +37,39 @@ import type { ApiClient } from "./client";
  */
 export const messageKeys = {
   all: ["messages"] as const,
-  /** Les fils du coach (un par athlète avec qui il a échangé). */
-  conversations: () => ["messages", "conversations"] as const,
+  /** Les fils du compte, à ce titre. `as` fait partie de la clé : un compte à double capacité a
+   * des fils des DEUX côtés, et les confondre servirait à l'un le cache de l'autre (cf. `asKey`). */
+  conversations: (as: CapabilityName | null) => ["messages", "conversations", asKey(as)] as const,
   /** Le fil avec UN athlète donné, résolu par get-or-create — côté coach. */
   conversationWith: (athleteId: string) => ["messages", "with", athleteId] as const,
   /** Le fil de l'athlète courant avec SON coach : aucun id à donner, l'API le résout. */
   myConversation: () => ["messages", "mine"] as const,
-  thread: (conversationId: string) => ["messages", "thread", conversationId] as const,
+  /** Le contenu d'un fil dépend du titre : le scope tenant filtre sur `coachId` ou `athleteId`,
+   * donc le même id ne rend pas la même chose selon le côté d'où on le lit. */
+  thread: (conversationId: string, as: CapabilityName | null) =>
+    ["messages", "thread", conversationId, asKey(as)] as const,
 };
 
 export type MessageApi = {
   /** Les fils existants, du plus récemment actif au plus ancien. Un athlète en a 0 ou 1. */
-  listConversations: () => Promise<ConversationDto[]>;
+  listConversations: (as: CapabilityName | null) => Promise<ConversationDto[]>;
   /**
    * Get-or-create, idempotent. `athleteId` présent = ouverture côté coach (il cible un athlète) ;
    * absent = côté athlète, l'API résout son coach. Un seul appel pour les deux, parce que c'est
    * une seule route.
    */
-  openConversation: (input: OpenConversationInput) => Promise<ConversationDto>;
-  getMessages: (conversationId: string) => Promise<MessageDto[]>;
-  sendMessage: (conversationId: string, input: SendMessageInput) => Promise<MessageDto>;
+  openConversation: (
+    input: OpenConversationInput,
+    as: CapabilityName | null,
+  ) => Promise<ConversationDto>;
+  getMessages: (conversationId: string, as: CapabilityName | null) => Promise<MessageDto[]>;
+  sendMessage: (
+    conversationId: string,
+    input: SendMessageInput,
+    as: CapabilityName | null,
+  ) => Promise<MessageDto>;
   /** Marque lus les messages ENTRANTS du fil. 204, pas de corps. */
-  markRead: (conversationId: string) => Promise<void>;
+  markRead: (conversationId: string, as: CapabilityName | null) => Promise<void>;
   /**
    * Ticket d'upload (audio/image/vidéo) avant l'envoi direct vers le storage. Son MODE dicte la
    * forme de l'envoi : un PUT unique pour les fichiers courants, un envoi part par part suivi
@@ -65,6 +78,7 @@ export type MessageApi = {
   requestUploadUrl: (
     conversationId: string,
     input: RequestMessageUploadUrlInput,
+    as: CapabilityName | null,
   ) => Promise<MediaUploadTicketDto>;
   /**
    * Mode découpé UNIQUEMENT : recoller les parts en un objet. Tant que ce n'est pas fait, rien
@@ -73,27 +87,40 @@ export type MessageApi = {
   completeMediaUpload: (
     conversationId: string,
     input: CompleteMultipartUploadInput,
+    as: CapabilityName | null,
   ) => Promise<void>;
   /** Renoncer à un envoi découpé : sans quoi ses parts restent facturées, invisibles au bucket. */
-  abortMediaUpload: (conversationId: string, input: AbortMultipartUploadInput) => Promise<void>;
+  abortMediaUpload: (
+    conversationId: string,
+    input: AbortMultipartUploadInput,
+    as: CapabilityName | null,
+  ) => Promise<void>;
 };
 
 export function createMessageApi(api: ApiClient): MessageApi {
   return {
-    listConversations: () => api.get<ConversationDto[]>("/conversations"),
-    openConversation: (input) => api.post<ConversationDto>("/conversations", input),
-    getMessages: (conversationId) =>
-      api.get<MessageDto[]>(`/conversations/${conversationId}/messages`),
-    sendMessage: (conversationId, input) =>
-      api.post<MessageDto>(`/conversations/${conversationId}/messages`, input),
+    listConversations: (as) => api.get<ConversationDto[]>(`/conversations${asQuery(as)}`),
+    openConversation: (input, as) =>
+      api.post<ConversationDto>(`/conversations${asQuery(as)}`, input),
+    getMessages: (conversationId, as) =>
+      api.get<MessageDto[]>(`/conversations/${conversationId}/messages${asQuery(as)}`),
+    sendMessage: (conversationId, input, as) =>
+      api.post<MessageDto>(`/conversations/${conversationId}/messages${asQuery(as)}`, input),
     // Corps vide explicite : sans lui le client n'envoie pas de Content-Type, et l'API refuse un
     // POST sans corps déclaré (même raison que `markAllRead` des notifications).
-    markRead: (conversationId) => api.post<void>(`/conversations/${conversationId}/read`, {}),
-    requestUploadUrl: (conversationId, input) =>
-      api.post<MediaUploadTicketDto>(`/conversations/${conversationId}/messages/upload-url`, input),
-    completeMediaUpload: (conversationId, input) =>
-      api.post<void>(`/conversations/${conversationId}/messages/upload/complete`, input),
-    abortMediaUpload: (conversationId, input) =>
-      api.post<void>(`/conversations/${conversationId}/messages/upload/abort`, input),
+    markRead: (conversationId, as) =>
+      api.post<void>(`/conversations/${conversationId}/read${asQuery(as)}`, {}),
+    requestUploadUrl: (conversationId, input, as) =>
+      api.post<MediaUploadTicketDto>(
+        `/conversations/${conversationId}/messages/upload-url${asQuery(as)}`,
+        input,
+      ),
+    completeMediaUpload: (conversationId, input, as) =>
+      api.post<void>(
+        `/conversations/${conversationId}/messages/upload/complete${asQuery(as)}`,
+        input,
+      ),
+    abortMediaUpload: (conversationId, input, as) =>
+      api.post<void>(`/conversations/${conversationId}/messages/upload/abort${asQuery(as)}`, input),
   };
 }

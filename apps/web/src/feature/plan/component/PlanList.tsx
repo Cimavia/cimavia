@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { CmvBadge, CmvCard } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -15,12 +16,16 @@ type PlanListProps = {
 
 export function PlanList({ plans }: Readonly<PlanListProps>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const navigate = useNavigate();
   const { data: athletes } = useAthletes();
 
   // Le plan porte l'athleteId ; son nom vient de la relation (une seule requête, mise en cache).
   const nameById = new Map(
-    (athletes ?? []).map((relation) => [relation.athleteId, relation.athleteName]),
+    (athletes ?? []).map((relation) => [
+      relation.athleteId,
+      athleteLabel(relation.athleteId, relation.athleteName),
+    ]),
   );
 
   return (

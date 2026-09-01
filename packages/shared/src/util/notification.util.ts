@@ -1,4 +1,5 @@
-import type { NotificationDto } from "../dto/notification.schema";
+import type { CapabilityName } from "../capability";
+import { type NotificationDto, NotificationType } from "../dto/notification.schema";
 
 /**
  * Le SUJET d'une entrée du centre, résolu — la valeur à interpoler dans
@@ -24,4 +25,50 @@ export function notificationSubject(
 ): string | null {
   if (notification.subjectKey != null) return translate(notification.subjectKey);
   return notification.subjectLabel;
+}
+
+/**
+ * À quel TITRE une notification est reçue — la capacité sous laquelle son destinataire la lit
+ * (#176).
+ *
+ * C'est ce qui permet à un compte à double capacité de savoir qu'un débrief l'attend côté coach
+ * pendant qu'il consulte son planning d'athlète. Rien en base ne le dit : `Notification` porte un
+ * destinataire, pas un titre. On le dérive donc du TYPE, qui détermine à lui seul de quel côté de
+ * la relation on se trouve — un cycle diffusé se reçoit en athlète, un débrief en coach.
+ *
+ * `null` pour `MESSAGE_RECEIVED`, seul type ambigu : les deux côtés d'un fil en reçoivent, et
+ * seule la conversation dirait lequel. Le résoudre demanderait de charger chaque fil cité —
+ * l'appelant le fait s'il en a besoin, plutôt que de le supposer ici (`capabilityOfMessage`).
+ */
+export function capabilityOfNotification(type: NotificationType): CapabilityName | null {
+  switch (type) {
+    // Tout ce qui concerne un cycle est reçu par celui qui s'entraîne dessus.
+    case NotificationType.PLAN_PUBLISHED:
+    case NotificationType.PLAN_UPDATED:
+    case NotificationType.PLAN_SESSION_ADDED:
+    case NotificationType.PLAN_SESSION_REMOVED:
+    case NotificationType.INVOICE_ISSUED:
+      return "athlete";
+    // Le débrief est écrit par l'athlète et lu par son coach ; le rappel est un outil du coach.
+    case NotificationType.FEEDBACK_RECEIVED:
+    case NotificationType.REMINDER_DUE:
+      return "coach";
+    case NotificationType.MESSAGE_RECEIVED:
+      return null;
+    default:
+      // Fail closed : un type qu'on ne connaît pas (API plus récente que ce client) ne se range
+      // dans aucun espace plutôt que d'être compté du mauvais côté.
+      return null;
+  }
+}
+
+/**
+ * Le titre auquel un message est reçu : coach si le destinataire est le coach du fil, athlète
+ * sinon. La conversation est la seule à porter l'information — d'où ce second temps.
+ */
+export function capabilityOfMessage(
+  recipientId: string,
+  conversation: { coachId: string; athleteId: string },
+): CapabilityName {
+  return conversation.coachId === recipientId ? "coach" : "athlete";
 }

@@ -1,43 +1,88 @@
-import { hasCapability } from "@cmv/shared";
+import type { CapabilityName } from "@cmv/shared";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { NotificationBell } from "@/feature/notification";
+import type { IconType } from "react-icons";
+import { IoBarbellOutline, IoPersonOutline, IoSettingsOutline } from "react-icons/io5";
+import { NotificationBell, useUnreadByCapability } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
-import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
+import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
 
 /**
- * Chaque entrée porte la capacité qui la rend visible — la MÊME que celle exigée par la route
- * correspondante (`CmvRoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà l'expérience :
- * une nav qui propose ce que la route refuse, ou qui cache ce qui est accessible.
+ * Le basculeur d'espace — un seul univers actif à la fois (#129).
  *
- * Pas d'entrée « Athlètes » : la liste vit dans le tableau de bord depuis #113, et deux entrées
- * menant au même écran ne feraient qu'hésiter.
+ * Ne rend RIEN pour un compte mono-capacité : lui proposer de basculer vers un espace qu'il n'a
+ * pas serait une porte fermée de plus à l'écran.
  *
- * Une même route peut apparaître DEUX fois, une par capacité, avec un libellé différent : le coach
- * « fait de la facturation », l'athlète « a des factures ». Ce n'est pas de la redondance, c'est la
- * même ressource nommée depuis les deux bouts de la relation.
- *
- * Le jour où les DEUX groupes sont peuplés pour un même compte (double capacité, #7), c'est ici que
- * les sections nommées « En tant que coach » / « En tant qu'athlète » se posent : une nav plate de
- * quatorze entrées ne dirait plus à quel titre on fait quoi, et deux entrées vers `/invoices` s'y
- * surligneraient ensemble.
+ * Basculer NAVIGUE, il ne pose pas d'état : l'espace se déduit de l'URL (`useActiveSpace`), donc
+ * changer de page suffit à changer d'espace. C'est ce qui garantit que le menu affiché correspond
+ * toujours à l'écran en dessous.
  */
-const NAV_ITEMS = [
-  { to: "/", labelKey: "nav.dashboard", capability: "coach" },
-  { to: "/library", labelKey: "nav.library", capability: "coach" },
-  { to: "/plans", labelKey: "nav.plans", capability: "coach" },
-  { to: "/feedbacks", labelKey: "nav.feedbacks", capability: "coach" },
-  { to: "/messages", labelKey: "nav.messages", capability: "coach" },
-  { to: "/invoices", labelKey: "nav.invoices", capability: "coach" },
-  { to: "/reminders", labelKey: "nav.reminders", capability: "coach" },
-  { to: "/planning", labelKey: "nav.planning", capability: "athlete" },
-  { to: "/sessions", labelKey: "nav.sessions", capability: "athlete" },
-  { to: "/messages", labelKey: "nav.myMessages", capability: "athlete" },
-  { to: "/invoices", labelKey: "nav.myInvoices", capability: "athlete" },
-  { to: "/my-coach", labelKey: "nav.myCoach", capability: "athlete" },
-] as const;
+function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
+  const { t } = useTranslation();
+  const { isCoach, isAthlete } = useCapabilities();
+  const { data: unread } = useUnreadByCapability();
+  if (!isCoach || !isAthlete) return null;
+
+  return (
+    <div className="flex gap-cmv-xs rounded-cmv-md bg-cmv-surface p-cmv-xs" role="tablist">
+      {SPACES.map(({ space, icon: Icon }) => {
+        const current = space === active;
+        return (
+          <Link
+            key={space}
+            to={landingPath(space)}
+            search={searchFor(landingPath(space), space)}
+            role="tab"
+            aria-selected={current}
+            className={
+              current
+                ? "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm bg-cmv-accent px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-hi"
+                : "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:text-cmv-text-hi"
+            }
+          >
+            <Icon aria-hidden />
+            {t(`nav.space.${space}`)}
+            {/* La pastille ne s'affiche QUE sur l'espace inactif : sur celui qu'on regarde, la
+                cloche dit déjà ce qui arrive. C'est elle qui rend le mode exclusif acceptable —
+                sans elle, on ne saurait pas qu'un débrief attend de l'autre côté (#176). */}
+            {!current && (unread?.[space] ?? 0) > 0 && (
+              <>
+                {/* La pastille est DÉCORATIVE : le décompte se lit dans le texte masqué qui la
+                    suit. Un `aria-label` sur un élément vide ne serait annoncé nulle part. */}
+                <span aria-hidden className="size-cmv-sm shrink-0 rounded-full bg-cmv-accent" />
+                <span className="sr-only">
+                  {t("nav.spaceUnread", { count: unread?.[space] ?? 0 })}
+                </span>
+              </>
+            )}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+// i18n-values nav.space: coach, athlete
+// i18n-values nav.spaceTitle: coach, athlete
+const SPACES = [
+  { space: "coach", icon: IoPersonOutline },
+  { space: "athlete", icon: IoBarbellOutline },
+] as const satisfies readonly { space: CapabilityName; icon: IconType }[];
+
+/**
+ * Le `search` d'une entrée de nav. Les routes partagées portent leur titre — c'est ce qui distingue
+ * `/invoices` côté coach de `/invoices` côté athlète, et ce que l'API exige d'un compte cumulant
+ * (#10). Les autres n'ont rien à préciser ; TanStack exige néanmoins un objet, où `undefined` vaut
+ * « clé absente ».
+ */
+function searchFor(to: string, space: CapabilityName) {
+  return SHARED_ROUTES.has(to)
+    ? { as: space, athlete: undefined, q: undefined, filter: undefined }
+    : { as: undefined, athlete: undefined, q: undefined, filter: undefined };
+}
 
 type CmvAppShellProps = {
   title: string;
@@ -55,8 +100,8 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
    * par `CmvRoleGate` — qui a déjà attendu la session. La nav ne peut donc pas se dessiner vide le
    * temps d'un aller-retour.
    */
-  const capabilities = useCapabilities();
-  const navItems = NAV_ITEMS.filter((item) => hasCapability(capabilities, item.capability));
+  const activeSpace = useActiveSpace();
+  const items = itemsOfSpace(activeSpace);
 
   async function onLogout() {
     await authClient.signOut();
@@ -79,26 +124,45 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
           {t("common.appName")}
         </Link>
 
+        <SpaceSwitcher active={activeSpace} />
+
         <nav className="flex flex-1 flex-col gap-cmv-xs overflow-y-auto">
-          {navItems.map((item) => (
+          {/* Le titre de l'espace reste, même seul : il nomme ce qu'on est en train de parcourir,
+              là où le basculeur ne montre que le choix. Rendu aussi pour un compte mono-capacité,
+              qui n'a pas de basculeur au-dessus. */}
+          <h2 className="px-cmv-md text-cmv-caption text-cmv-text-lo uppercase tracking-wide">
+            {t(`nav.spaceTitle.${activeSpace}`)}
+          </h2>
+          {items.map((item) => (
             <Link
-              // La capacité fait partie de la clé : une même route peut être listée deux fois,
-              // une par capacité (cf. `/invoices`).
               key={`${item.capability}:${item.to}`}
               to={item.to}
-              className="rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
+              search={searchFor(item.to, item.capability)}
+              className="flex items-center gap-cmv-sm rounded-cmv-md px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
               activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
-              activeOptions={{ exact: item.to === "/" }}
+              activeOptions={{
+                exact: item.to === "/",
+                includeSearch: SHARED_ROUTES.has(item.to),
+              }}
             >
+              <item.icon aria-hidden className="shrink-0" />
               {t(item.labelKey)}
             </Link>
           ))}
         </nav>
 
         <div className="flex flex-col gap-cmv-sm border-cmv-border border-t pt-cmv-md">
-          <span className="truncate text-cmv-caption text-cmv-text-mid">
-            {authSession?.user.name ?? "—"}
-          </span>
+          {/* Le compte vit HORS des deux espaces — ce n'est ni du coach ni de l'athlète — d'où sa
+              place dans le pied plutôt que dans la table de nav. Équivalent web de l'onglet Profil
+              du mobile (#13). */}
+          <Link
+            to="/account"
+            className="flex items-center gap-cmv-sm truncate rounded-cmv-md px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
+            activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
+          >
+            <IoSettingsOutline aria-hidden className="shrink-0" />
+            <span className="truncate">{authSession?.user.name ?? "—"}</span>
+          </Link>
           <CmvButton variant="ghost" onClick={onLogout}>
             {t("common.logout")}
           </CmvButton>

@@ -12,6 +12,7 @@ import {
   CmvEmptyState,
   CmvErrorState,
 } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
@@ -29,6 +30,7 @@ const route = getRouteApi("/feedbacks");
  */
 export function FeedbacksScreen() {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
   const navigate = useNavigate();
   const { data: feedbacks, isPending, isError, refetch } = useFeedbacks();
   const markRead = useMarkFeedbackRead();
@@ -85,7 +87,9 @@ export function FeedbacksScreen() {
               <div className="flex items-start gap-cmv-md">
                 <div className="flex flex-1 flex-col gap-cmv-xs">
                   <div className="flex items-center gap-cmv-sm">
-                    <h3 className="text-cmv-subtitle text-cmv-text-hi">{feedback.athleteName}</h3>
+                    <h3 className="text-cmv-subtitle text-cmv-text-hi">
+                      {athleteLabel(feedback.athleteId, feedback.athleteName)}
+                    </h3>
                     {feedback.coachReadAt == null ? (
                       <CmvBadge variant="accent">{t("feedback.unread")}</CmvBadge>
                     ) : null}

@@ -2,6 +2,7 @@ import { type AthleteRow, type AthleteRowPlan, INVOICE_STATE_BADGE } from "@cmv/
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvAvatar, CmvBadge, CmvButton, CmvProgressBar } from "@/shared/component";
+import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -51,6 +52,7 @@ export function AthleteTrackingTable({
   onOpenSheet,
 }: Readonly<AthleteTrackingTableProps>) {
   const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
 
   return (
     <div className="overflow-x-auto rounded-cmv-lg border border-cmv-border bg-cmv-surface">
@@ -76,7 +78,9 @@ export function AthleteTrackingTable({
           >
             <span className="flex min-w-0 items-center gap-cmv-sm">
               <CmvAvatar name={row.athleteName} />
-              <span className="truncate text-cmv-body text-cmv-text-hi">{row.athleteName}</span>
+              <span className="truncate text-cmv-body text-cmv-text-hi">
+                {athleteLabel(row.athleteId, row.athleteName)}
+              </span>
             </span>
 
             <PlanCell plan={row.plan} canOfferPlan={canOfferPlan} />
@@ -94,7 +98,7 @@ export function AthleteTrackingTable({
             <CountCell
               count={row.unreadMessages}
               to="/messages"
-              search={{ athlete: row.athleteId }}
+              search={{ athlete: row.athleteId, as: "coach" }}
             />
 
             <InvoiceCell state={row.invoiceState} />
@@ -193,7 +197,8 @@ function PlanTiming({ plan }: Readonly<{ plan: AthleteRowPlan }>) {
 // Union discriminée par `to` : chaque destination n'accepte QUE le paramètre qu'elle sait lire, et
 // le typecheck refuse un `?athlete=` posé sur `/feedbacks`.
 type CountCellProps =
-  | { count: number | null; to: "/messages"; search: { athlete: string } }
+  // `as: "coach"` : ce tableau EST le tableau de suivi du coach — il ouvre le fil à ce titre.
+  | { count: number | null; to: "/messages"; search: { athlete: string; as: "coach" } }
   | { count: number | null; to: "/feedbacks"; search: { feedback: string | undefined } };
 
 /**
@@ -228,7 +233,8 @@ function InvoiceCell({ state }: Readonly<{ state: AthleteRow["invoiceState"] }>)
 
   const { variant, labelKey } = INVOICE_STATE_BADGE[state];
   return (
-    <Link to="/invoices">
+    // Tableau de suivi du coach : les factures qu'il a émises.
+    <Link to="/invoices" search={{ as: "coach" }}>
       <CmvBadge variant={variant} dot>
         {t(labelKey)}
       </CmvBadge>

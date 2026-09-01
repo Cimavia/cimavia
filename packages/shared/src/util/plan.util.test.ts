@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { shiftIsoDate } from "./date.util";
 import {
   isDateInPlanWeek,
+  isSelfCoached,
   planEndDate,
   planPhase,
   planWeekCopyShiftDays,
@@ -267,5 +268,15 @@ describe("weekSessionProgress", () => {
     expect(weekSessionProgress([])).toEqual({ done: 0, total: 0 });
     expect(weekSessionProgress(null)).toBeNull();
     expect(weekSessionProgress(undefined)).toBeNull();
+  });
+});
+
+describe("isSelfCoached", () => {
+  it("reconnaît le cycle qu'un coach s'écrit à lui-même", () => {
+    expect(isSelfCoached({ coachId: "u1", athleteId: "u1" })).toBe(true);
+  });
+
+  it("ne confond pas un cycle écrit pour quelqu'un d'autre", () => {
+    expect(isSelfCoached({ coachId: "u1", athleteId: "u2" })).toBe(false);
   });
 });

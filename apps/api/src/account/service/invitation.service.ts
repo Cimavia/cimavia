@@ -78,6 +78,7 @@ export class InvitationService {
     if (existing) {
       throw new ConflictException("Vous êtes déjà lié à un coach");
     }
+    await this.assertNoCycle(invitation.coachId, athlete.id);
 
     const [relation] = await this.prisma.$transaction([
       this.prisma.coachAthlete.create({
@@ -98,5 +99,46 @@ export class InvitationService {
     ]);
     const names = await this.users.namesByIds([relation.coachId, relation.athleteId]);
     return toCoachAthleteDto(relation, names);
+  }
+
+  /**
+   * Refuse une relation qui bouclerait (#11). Deux cas, et le premier n'est un cas que depuis
+   * #9/#10 : accepter une invitation exige la capacité athlète, donc seul un compte qui CUMULE
+   * peut accepter la sienne.
+   *
+   * Le second remonte la chaîne de coachs de l'inviteur. Elle est LINÉAIRE, pas arborescente :
+   * `athleteId` est unique, donc chaque compte a au plus un coach, et la structure est une forêt.
+   * A coache B, B coache C, C invite A — la remontée depuis C rencontre A, et refuse.
+   *
+   * `seen` n'est pas une précaution de style. Si la base contient DÉJÀ un cycle — un chemin de
+   * création futur qui oublierait cette garde, une écriture manuelle — la remontée ne terminerait
+   * jamais et la requête pendrait jusqu'au timeout. Repasser sur un nœud déjà vu n'est pas un refus
+   * métier mais une incohérence de données : on lève, bruyamment et distinctement, plutôt que de la
+   * déguiser en 409.
+   */
+  private async assertNoCycle(coachId: string, athleteId: string): Promise<void> {
+    if (coachId === athleteId) {
+      throw new ConflictException("Vous ne pouvez pas être votre propre coach");
+    }
+
+    const seen = new Set<string>([athleteId]);
+    let current: string | null = coachId;
+
+    while (current != null) {
+      if (seen.has(current)) {
+        if (current === athleteId) {
+          throw new ConflictException("Ce lien créerait une boucle avec vos propres athlètes");
+        }
+        throw new Error(
+          `[relation] cycle DÉJÀ présent dans CoachAthlete en remontant depuis ${coachId}`,
+        );
+      }
+      seen.add(current);
+      const parent: { coachId: string } | null = await this.prisma.coachAthlete.findUnique({
+        where: { athleteId: current },
+        select: { coachId: true },
+      });
+      current = parent?.coachId ?? null;
+    }
   }
 }

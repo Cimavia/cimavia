@@ -1,9 +1,12 @@
 export type { AccountApi } from "./api/account.api";
 export { athleteKeys, coachKeys, createAccountApi, invitationKeys } from "./api/account.api";
+export { AS_CAPABILITY_PARAM, asKey, asQuery } from "./api/as-capability";
 export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
 export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
+export type { CapabilityApi } from "./api/capability.api";
+export { capabilityKeys, createCapabilityApi } from "./api/capability.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";
@@ -21,6 +24,8 @@ export type { Capabilities, CapabilityName, CapabilitySource } from "./capabilit
 export { capabilitiesOf, hasCapability } from "./capability";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
+export type { UpdateCapabilitiesInput } from "./dto/capability.schema";
+export { CapabilityBlocker, updateCapabilitiesSchema } from "./dto/capability.schema";
 export type {
   CoachAthleteDto,
   CoachAthleteStatus as CoachAthleteStatusType,
@@ -29,6 +34,7 @@ export {
   CoachAthleteStatus,
   coachAthleteDtoSchema,
   coachAthleteStatusSchema,
+  SELF_RELATION_ID,
 } from "./dto/coach-athlete.schema";
 export type {
   Adjustment,
@@ -572,7 +578,11 @@ export {
 } from "./util/media-format.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
-export { notificationSubject } from "./util/notification.util";
+export {
+  capabilityOfMessage,
+  capabilityOfNotification,
+  notificationSubject,
+} from "./util/notification.util";
 export type {
   PlanPeriod,
   PlanPhase,
@@ -583,6 +593,7 @@ export type {
 } from "./util/plan.util";
 export {
   isDateInPlanWeek,
+  isSelfCoached,
   planEndDate,
   planPhase,
   planWeekCopyShiftDays,

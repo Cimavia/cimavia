@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 
 // Le fil se rafraîchit toutes les 10 s en messagerie asynchrone (CDC §5.8) — mais seulement quand
 // l'écran est au premier plan : polling en continu viderait la batterie.
@@ -13,9 +14,11 @@ const POLL_INTERVAL_MS = 10_000;
  * seulement si l'athlète a un coach : sans coach, l'API refuse (400) et il n'y a rien à ouvrir.
  */
 export function useMyConversation(enabled: boolean) {
+  // « Mon coach » est une lecture d'athlète par nature : le titre est dans le geste, pas dans le
+  // persona du compte.
   return useQuery<ConversationDto>({
     queryKey: messageKeys.myConversation(),
-    queryFn: () => messageApi.openConversation({}),
+    queryFn: () => messageApi.openConversation({}, "athlete"),
     enabled,
   });
 }
@@ -27,9 +30,10 @@ export function useMyConversation(enabled: boolean) {
  * changer).
  */
 export function useConversations() {
+  const as = useExercisedCapability();
   return useQuery<ConversationDto[]>({
-    queryKey: messageKeys.conversations(),
-    queryFn: messageApi.listConversations,
+    queryKey: messageKeys.conversations(as),
+    queryFn: () => messageApi.listConversations(as),
   });
 }
 
@@ -40,7 +44,8 @@ export function useConversations() {
 export function useConversationWith(athleteId: string) {
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWith(athleteId),
-    queryFn: () => messageApi.openConversation({ athleteId }),
+    // Symétrique de `useMyConversation` : cibler un athlète, c'est agir en coach.
+    queryFn: () => messageApi.openConversation({ athleteId }, "coach"),
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
@@ -49,10 +54,11 @@ export function useMessages(conversationId: string | undefined) {
   // Polling gated par le focus de l'écran (useFocusEffect) : pas de refetch quand l'onglet est
   // en arrière-plan. Le focusManager global (retour au premier plan) reste en plus actif.
   const [focused, setFocused] = useState(false);
+  const as = useExercisedCapability();
 
   const query = useQuery<MessageDto[]>({
-    queryKey: conversationId != null ? messageKeys.thread(conversationId) : messageKeys.all,
-    queryFn: () => messageApi.getMessages(conversationId as string),
+    queryKey: conversationId != null ? messageKeys.thread(conversationId, as) : messageKeys.all,
+    queryFn: () => messageApi.getMessages(conversationId as string, as),
     enabled: conversationId != null,
     refetchInterval: focused && conversationId != null ? POLL_INTERVAL_MS : false,
   });
@@ -79,10 +85,11 @@ export function useMessages(conversationId: string | undefined) {
 
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
+  const as = useExercisedCapability();
   return useMutation({
-    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input),
+    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
+      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
       queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
     },
   });
@@ -95,8 +102,9 @@ export function useSendMessage(conversationId: string) {
  */
 export function useMarkRead(conversationId: string | undefined) {
   const queryClient = useQueryClient();
+  const as = useExercisedCapability();
   return useMutation({
-    mutationFn: () => messageApi.markRead(conversationId as string),
+    mutationFn: () => messageApi.markRead(conversationId as string, as),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
     },

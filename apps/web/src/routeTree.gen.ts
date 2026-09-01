@@ -20,6 +20,7 @@ import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
 import { Route as AthletesRouteImport } from './routes/athletes'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
 import { Route as PlansIndexRouteImport } from './routes/plans.index'
@@ -88,6 +89,11 @@ const AthletesRoute = AthletesRouteImport.update({
   path: '/athletes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -154,6 +160,7 @@ const LibraryExercisesExerciseIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/athletes': typeof AthletesRoute
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/athletes': typeof AthletesRoute
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -204,6 +212,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRoute
   '/athletes': typeof AthletesRoute
   '/feedbacks': typeof FeedbacksRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account'
     | '/athletes'
     | '/feedbacks'
     | '/forgot-password'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/account'
     | '/athletes'
     | '/feedbacks'
     | '/forgot-password'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/account'
     | '/athletes'
     | '/feedbacks'
     | '/forgot-password'
@@ -306,6 +318,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRoute
   AthletesRoute: typeof AthletesRoute
   FeedbacksRoute: typeof FeedbacksRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -405,6 +418,13 @@ declare module '@tanstack/react-router' {
       path: '/athletes'
       fullPath: '/athletes'
       preLoaderRoute: typeof AthletesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -509,6 +529,7 @@ const SessionsSessionIdRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRoute,
   AthletesRoute: AthletesRoute,
   FeedbacksRoute: FeedbacksRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
