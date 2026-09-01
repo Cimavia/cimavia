@@ -21,10 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. Quatre dettes n'ont **volontairement pas** d'issue : **P2-4** et **N-3** (déclencheur
+autonomes. Cinq dettes n'ont **pas** d'issue : **P2-4** et **N-3** (déclencheur
 explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne),
 **C-1** (comportement voulu — l'issue serait un contresens, le déclencheur est qu'on le corrige à
-tort). Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
+tort). Les quatre sont volontaires ; **Q-5** ne l'est pas — elle se règle dans une interface
+SonarCloud, où une issue n'aurait rien à suivre que le fait de s'en souvenir.
+Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
 ---
@@ -156,6 +158,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
+| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : [#137](https://github.com/Cimavia/cimavia/issues/137) |
+| Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30` — `new_lines` (34 349) dépasse `ncloc` (30 247), donc TOUT le dépôt est « du code neuf » et `new_coverage` plafonne à 31,4 % contre un seuil de 80. Les PR passent (Sonar y diffe contre la base) ; c'est le job sur `push: main` qui échouera à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt. | 🔴 | — *(réglage d'interface, à faire avant le prochain merge sur `main`)* |
 
 > **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
 > tient à des choix qui ressemblent, de loin, à des maladresses à corriger :
@@ -204,6 +208,26 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > gate, et la façon la moins chère de la reverdir est un `render()` qui exécute le JSX sans rien
 > affirmer. Cette couverture-là est du décor — si elle apparaît, c'est le test qu'il faut reprendre,
 > pas le périmètre.
+
+> **Tranché en #188** (un harnais de rendu décide plus qu'il n'en a l'air) : trois choix que le
+> code ne justifie pas seul, et qu'une bonne intention suffirait à défaire.
+>
+> - **Les tests de composants affirment sur la CLÉ i18n, pas sur le français** — instance de test en
+>   `lng: "cimode"` (`apps/web/test/i18n.ts`), même raisonnement que le `fakeT` de #58. Le prix est
+>   réel et connu : `cimode` PERD les paramètres d'interpolation, donc un décompte affiché par
+>   `t(key, { count })` n'est pas observable dans le texte rendu. Il s'affirme sur ce qui le
+>   gouverne — un bouton fermé, un badge absent — jamais sur sa mise en forme.
+> - **Deux helpers et non un.** L'issue décrivait un `renderScreen()` unique montant Query + Toast +
+>   Router. Vérification faite, six des huit cibles n'importent RIEN de `@tanstack/react-router`, et
+>   ce qui leur manquait vraiment était i18next, que l'issue ne nommait pas. D'où
+>   `renderWithProviders` (i18n + cache + toasts) et `renderInRoute` par-dessus, pour les deux seuls
+>   écrans routés.
+> - **`renderInRoute` est ASYNCHRONE, et monte un vrai routeur.** Un vrai, parce que
+>   `AthleteFeedbackScreen` appelle `getRouteApi("/sessions/$sessionId/feedback")` au niveau module :
+>   mocker le module rendrait le test aveugle au jour où cet id change, c'est-à-dire au seul défaut
+>   qu'il aurait pu attraper. Asynchrone, parce que `RouterProvider` résout ses matches en tâche de
+>   fond — un montage synchrone laisse le DOM VIDE au premier tour, et le premier jet a produit un
+>   test vert qui affirmait une absence sans avoir rien vu.
 
 > **Appris en #57** (deux commentaires décourageaient une manœuvre pour une raison fausse) :
 > `sonar-project.properties` et le docblock de `vitest.config.ts` affirmaient tous deux que les e2e
