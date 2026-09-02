@@ -1,5 +1,16 @@
-import type { FeedbackTracking, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { FEEDBACK_CONTENT_MAX_LENGTH, MediaType, remainingMediaSlots } from "@cmv/shared";
+import type {
+  BatchOutcome,
+  FeedbackTracking,
+  ScheduledSessionDto,
+  SessionFeedbackDto,
+} from "@cmv/shared";
+import {
+  FEEDBACK_CONTENT_MAX_LENGTH,
+  MediaType,
+  mediaKindOfMime,
+  remainingMediaSlots,
+  splitByRemainingSlots,
+} from "@cmv/shared";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { type ChangeEvent, useMemo, useRef, useState } from "react";
@@ -248,6 +259,14 @@ function FeedbackSubmitRail({
   );
 }
 
+/**
+ * Ce qu'un fichier écarté doit dire à l'athlète. Un refus métier porte sa clé i18n ; une panne
+ * technique garde le message de l'API. La raison est STOCKÉE, pas traduite : un changement de
+ * langue doit retraduire le récapitulatif, pas le figer dans celle d'avant.
+ */
+type RecapReason = { key: string; params: Record<string, string | number> } | { message: string };
+type RecapLine = { id: string; fileName: string; reason: RecapReason };
+
 // Photos, vidéos et notes vocales : quotas, ajout, retrait.
 function FeedbackMediaSection({
   sessionId,
@@ -260,6 +279,8 @@ function FeedbackMediaSection({
 
   // Refus de l'enregistreur (micro, format) : il précède l'upload et ne passe par aucune mutation.
   const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
+  // Ce qui n'a pas été joint au dernier lot, fichier par fichier (#156).
+  const [recap, setRecap] = useState<readonly RecapLine[]>([]);
 
   const photosLeft = remainingMediaSlots(feedback, MediaType.IMAGE);
   const videosLeft = remainingMediaSlots(feedback, MediaType.VIDEO);
@@ -278,17 +299,40 @@ function FeedbackMediaSection({
     onError: setRecorderErrorKey,
   });
 
-  function onPickFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  /**
+   * Une sélection entière, d'un seul geste. Rien n'est annulé en bloc : ce qui tient dans les
+   * places restantes part, le reste est RÉCAPITULÉ avec sa raison. Renvoyer l'athlète dans sa
+   * galerie parce que la sixième photo est de trop lui ferait refaire une sélection qu'il vient
+   * de faire.
+   */
+  async function onPickFiles(event: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? []);
     // Réinitialisé tout de suite : sans ça, rechoisir le MÊME fichier après un refus ne
     // déclencherait aucun `change`.
     event.target.value = "";
-    if (file == null) return;
+    if (picked.length === 0) return;
+
     setRecorderErrorKey(null);
-    add.addFile(file);
+    setRecap([]);
+
+    const { slottable, unsupported } = classify(picked);
+    const { accepted, rejected } = splitByRemainingSlots(slottable, {
+      [MediaType.IMAGE]: photosLeft,
+      [MediaType.VIDEO]: videosLeft,
+      [MediaType.AUDIO]: audiosLeft,
+    });
+
+    const outcomes = await add.addFiles(accepted.map((item) => item.file));
+    setRecap([
+      ...unsupported.map((file) =>
+        line(file.name, { key: "feedback.media.unsupported", params: {} }),
+      ),
+      ...rejected.map((item) => line(item.file.name, noSlotReason(item.kind))),
+      ...failedLines(outcomes),
+    ]);
   }
 
-  const error = resolveMediaError(add.error, recorderErrorKey, t);
+  const audioError = resolveMediaError(add.audioError, recorderErrorKey, t);
   const canAddFile = (photosLeft > 0 || videosLeft > 0) && !add.isUploading;
 
   return (
@@ -316,9 +360,10 @@ function FeedbackMediaSection({
         <input
           ref={fileInput}
           type="file"
+          multiple
           accept="image/*,video/*"
           className="hidden"
-          onChange={onPickFile}
+          onChange={onPickFiles}
         />
         <CmvButton
           variant="secondary"
@@ -356,6 +401,16 @@ function FeedbackMediaSection({
 
       {add.isUploading ? (
         <div className="flex flex-col gap-cmv-xs">
+          {/* Le rang n'est dit que s'il y a un rang à dire : « Envoi 1 / 1 » serait du bruit. */}
+          {add.step != null && add.step.total > 1 ? (
+            <span className="text-cmv-caption text-cmv-text-mid">
+              {t("feedback.media.batchProgress", {
+                index: add.step.index,
+                total: add.step.total,
+                fileName: add.step.fileName,
+              })}
+            </span>
+          ) : null}
           <span className="text-cmv-caption text-cmv-text-mid">
             {t("feedback.media.uploading", { percent: add.progress })}
           </span>
@@ -363,14 +418,77 @@ function FeedbackMediaSection({
         </div>
       ) : null}
 
-      {error == null ? null : <p className="text-cmv-body text-cmv-error-on">{error}</p>}
+      {recap.length === 0 ? null : (
+        <div className="flex flex-col gap-cmv-xs">
+          <p className="text-cmv-caption text-cmv-text-mid">{t("feedback.media.recapTitle")}</p>
+          <ul className="flex flex-col gap-cmv-xs">
+            {recap.map((entry) => (
+              <li key={entry.id} className="text-cmv-body text-cmv-error-on">
+                <span className="font-medium">{entry.fileName}</span>
+                {" — "}
+                {"key" in entry.reason
+                  ? t(entry.reason.key, entry.reason.params)
+                  : entry.reason.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {audioError == null ? null : <p className="text-cmv-body text-cmv-error-on">{audioError}</p>}
     </section>
   );
 }
 
 /**
- * Un refus métier (fichier trop lourd, format non géré, micro refusé) porte sa propre clé i18n ;
- * une panne technique garde le message de l'API. Les deux se disent — aucune ne se masque.
+ * Trie une sélection en deux : ce qui occupe une place de photo ou de vidéo, et ce que le débrief
+ * ne sait pas joindre du tout.
+ *
+ * La famille est lue sur le mime (`mediaKindOfMime`), la même lecture que fait la préparation :
+ * un `image/heic` occupe bien une place de photo, quitte à être refusé au format ensuite. L'audio
+ * est écarté ici — une note vocale s'enregistre, elle ne se joint pas comme un fichier.
+ */
+function classify(files: readonly File[]) {
+  const slottable: { kind: MediaType; file: File }[] = [];
+  const unsupported: File[] = [];
+
+  for (const file of files) {
+    const kind = mediaKindOfMime(file.type);
+    if (kind === MediaType.IMAGE || kind === MediaType.VIDEO) slottable.push({ kind, file });
+    else unsupported.push(file);
+  }
+
+  return { slottable, unsupported };
+}
+
+function line(fileName: string, reason: RecapReason): RecapLine {
+  return { id: crypto.randomUUID(), fileName, reason };
+}
+
+function noSlotReason(kind: MediaType): RecapReason {
+  return {
+    key: kind === MediaType.VIDEO ? "feedback.media.noSlotVideo" : "feedback.media.noSlotImage",
+    params: {},
+  };
+}
+
+// Les fichiers effectivement partis n'ont rien à dire : ils sont déjà dans la galerie.
+function failedLines(outcomes: readonly BatchOutcome<File>[]): RecapLine[] {
+  return outcomes
+    .filter((outcome) => outcome.error != null)
+    .map((outcome) => line(outcome.item.name, uploadReason(outcome.error)));
+}
+
+function uploadReason(error: unknown): RecapReason {
+  if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
+  const message = apiErrorMessage(error);
+  return message == null ? { key: "feedback.media.uploadError", params: {} } : { message };
+}
+
+/**
+ * L'échec de la NOTE VOCALE, qui n'a pas de lot où être récapitulée. Un refus métier (format non
+ * géré, note trop longue) porte sa propre clé i18n ; une panne technique garde le message de
+ * l'API ; le refus du micro précède l'upload et arrive à la main. Les trois se disent.
  */
 function resolveMediaError(error: unknown, manualKey: string | null, t: TFunction): string | null {
   if (manualKey != null) return t(manualKey);

@@ -4,6 +4,7 @@ import {
   isAllowedFeedbackImageMime,
   isAllowedFeedbackVideoMime,
   MediaType,
+  mediaKindOfMime,
   megabytesOf,
   minutesOf,
 } from "@cmv/shared";
@@ -211,8 +212,12 @@ export function prepareWebMedia(
   if (source.kind === "audio") {
     return prepareAudioBlob(source.blob, source.durationSeconds, profile);
   }
-  if (source.file.type.startsWith("image/")) return prepareImageFile(source.file, profile);
-  if (source.file.type.startsWith("video/")) return prepareVideoFile(source.file, profile);
+  // La MÊME classification que celle qui répartit un lot dans les places restantes (#156) : deux
+  // lectures différentes du type feraient qu'un fichier consomme une place de photo ici et se
+  // prépare comme autre chose là — refusé après avoir écarté un fichier légitime.
+  const kind = mediaKindOfMime(source.file.type);
+  if (kind === MediaType.IMAGE) return prepareImageFile(source.file, profile);
+  if (kind === MediaType.VIDEO) return prepareVideoFile(source.file, profile);
   throw new MediaRejectedError(profile.keys.unsupported);
 }
 
