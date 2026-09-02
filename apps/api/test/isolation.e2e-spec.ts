@@ -2782,6 +2782,191 @@ describe("Messagerie : rattachement séance / débrief (P5)", () => {
   });
 });
 
+/**
+ * Répondre à un débrief ouvre une LECTURE neuve qui traverse la frontière tenant : les messages
+ * rattachés remontent maintenant dans le débrief lui-même, par un second chemin que la messagerie.
+ * Toute route neuve a son e2e d'isolation.
+ *
+ * Ce que l'ÉCRITURE refuse est déjà couvert par « Messagerie : rattachement séance / débrief » —
+ * on ne le réécrit pas. Ce qui manque, et qui est ici : la lecture, et la dérivation de
+ * « répondu ».
+ */
+describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let coachB: Agent;
+  let athleteB1: Agent;
+  let sessionA1Id: string;
+  let sessionB1Id: string;
+  let feedbackA1Id: string;
+  let feedbackA1bisId: string;
+  let feedbackB1Id: string;
+  let conversationAId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  const byId = (feedbacks: { id: string; repliedAt: string | null }[], id: string) =>
+    required(
+      feedbacks.find((feedback) => feedback.id === id),
+      `débrief ${id} absent de la liste du coach`,
+    );
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    return accepted.body.athleteId;
+  }
+
+  // Un cycle diffusé avec une séance, débriefé par son athlète. Renvoie séance et débrief.
+  async function debriefedSession(
+    coach: Agent,
+    athlete: Agent,
+    athleteId: string,
+    title: string,
+  ): Promise<{ sessionId: string; feedbackId: string }> {
+    const plan = await coach
+      .post("/plans")
+      .send({ athleteId, title, startDate: monday, weeks: [{ type: "TRAINING" }] });
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title, scheduledDate: monday });
+    await billAndPublish(coach, plan.body.id);
+    const feedback = await athlete
+      .put(`/me/scheduled-sessions/${session.body.id}/feedback`)
+      .send({ content: "Retour" });
+    expect(feedback.status).toBe(200);
+    return { sessionId: session.body.id, feedbackId: feedback.body.id };
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("rep-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("rep-athlete-a1@cmv.test", Role.ATHLETE);
+    coachB = await signUp("rep-coach-b@cmv.test", Role.COACH);
+    athleteB1 = await signUp("rep-athlete-b1@cmv.test", Role.ATHLETE);
+
+    const a1Id = await link(coachA, athleteA1);
+    const b1Id = await link(coachB, athleteB1);
+
+    const a = await debriefedSession(coachA, athleteA1, a1Id, "Séance A1");
+    sessionA1Id = a.sessionId;
+    feedbackA1Id = a.feedbackId;
+    // Un SECOND débrief du même athlète : celui-ci reste vierge de réponse du coach jusqu'au test
+    // de « répondu », qui a besoin d'un débrief dont l'ordre des messages est maîtrisé.
+    feedbackA1bisId = (await debriefedSession(coachA, athleteA1, a1Id, "Séance A1 bis")).feedbackId;
+    const b = await debriefedSession(coachB, athleteB1, b1Id, "Séance B1");
+    sessionB1Id = b.sessionId;
+    feedbackB1Id = b.feedbackId;
+
+    const opened = await coachA.post("/conversations").send({ athleteId: a1Id });
+    conversationAId = opened.body.id;
+  });
+
+  it("rend les messages rattachés au coach ET à l'athlète, par leurs routes respectives", async () => {
+    const sent = await coachA
+      .post(`/conversations/${conversationAId}/messages`)
+      .send({ type: "TEXT", content: "Bien joué", sessionFeedbackId: feedbackA1Id });
+    expect(sent.status).toBe(201);
+
+    // Le coach lit le débrief de son athlète, l'athlète lit le sien : deux routes, un seul
+    // enregistrement — jamais une copie.
+    const coachSide = await coachA.get(`/scheduled-sessions/${sessionA1Id}/feedback`);
+    const athleteSide = await athleteA1.get(`/me/scheduled-sessions/${sessionA1Id}/feedback`);
+    expect(coachSide.body.messages.map((m: { id: string }) => m.id)).toEqual([sent.body.id]);
+    expect(athleteSide.body.messages.map((m: { id: string }) => m.id)).toEqual([sent.body.id]);
+  });
+
+  /**
+   * Le libellé du rattachement est résolu par une requête SCOPÉE, jamais par un `include` — un
+   * include imbriqué échappe au scope tenant et ferait remonter la cible sans filtre. Ici la cible
+   * est dans la relation, donc le libellé EST rendu : c'est ce qui prouve que le test suivant
+   * mesure une fermeture, et non une résolution cassée pour tout le monde.
+   */
+  it("résout le libellé du rattachement pour qui a le droit de lire la cible", async () => {
+    const thread = await coachA.get(`/conversations/${conversationAId}/messages`);
+    const attached = thread.body.find(
+      (m: { sessionFeedbackId: string | null }) => m.sessionFeedbackId === feedbackA1Id,
+    );
+    expect(attached.attachment).toMatchObject({
+      type: "SESSION_FEEDBACK",
+      id: feedbackA1Id,
+      scheduledSessionId: sessionA1Id,
+      sessionTitle: "Séance A1",
+    });
+  });
+
+  it("un coach ne lit pas le débrief — ni ses réponses — d'un athlète qui n'est pas le sien", async () => {
+    // `null` et non 404 : l'absence de débrief est un état normal de cette route. Ce qui compte
+    // est qu'aucune charge utile ne sorte, donc aucun message rattaché.
+    const res = await coachB.get(`/scheduled-sessions/${sessionA1Id}/feedback`);
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  /**
+   * `200` + `null`, et non 404 : la route rend déjà `null` sur une séance jamais débriefée, et
+   * c'est exactement ce qu'on veut ici. Un athlète ne peut PAS distinguer « le débrief d'un autre »
+   * de « pas encore débriefé » — un 404 lui apprendrait que la séance existe.
+   */
+  it("un athlète ne distingue pas le débrief d'un autre d'une séance jamais débriefée", async () => {
+    const res = await athleteB1.get(`/me/scheduled-sessions/${sessionA1Id}/feedback`);
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  /**
+   * « Répondu » ne compte QUE les messages du coach. Un athlète qui écrit sur son propre débrief
+   * ne le marque pas traité — sinon la boîte de réception dirait « répondu » sur ce que le coach
+   * n'a pas encore lu.
+   *
+   * L'ordre compte, et c'est tout l'objet du test : l'athlète écrit EN PREMIER. L'inverse
+   * laisserait passer une implémentation qui retient simplement le message le plus ancien.
+   */
+  it("« répondu » ignore un message de l'athlète et retient le premier du coach", async () => {
+    const athleteFirst = await athleteA1
+      .post(`/conversations/${conversationAId}/messages`)
+      .send({ type: "TEXT", content: "Une précision", sessionFeedbackId: feedbackA1bisId });
+    expect(athleteFirst.status).toBe(201);
+
+    const afterAthlete = await coachA.get("/feedbacks");
+    expect(byId(afterAthlete.body, feedbackA1bisId).repliedAt).toBeNull();
+
+    const coachReply = await coachA
+      .post(`/conversations/${conversationAId}/messages`)
+      .send({ type: "TEXT", content: "Reçu", sessionFeedbackId: feedbackA1bisId });
+    expect(coachReply.status).toBe(201);
+
+    const afterCoach = await coachA.get("/feedbacks");
+    // La date est celle du message du COACH, pas celle du premier message du fil.
+    expect(byId(afterCoach.body, feedbackA1bisId).repliedAt).toBe(coachReply.body.createdAt);
+  });
+
+  /**
+   * Le refus d'un rattachement hors relation ne doit rien laisser derrière lui : ni message
+   * orphelin de son contexte, ni entrée dans le fil. C'est le seul point de l'écriture que le
+   * describe « rattachement » ne vérifiait pas.
+   */
+  it("refuse un débrief d'une AUTRE relation, sans rien écrire", async () => {
+    const before = await coachA.get(`/conversations/${conversationAId}/messages`);
+
+    const refused = await coachA
+      .post(`/conversations/${conversationAId}/messages`)
+      .send({ type: "TEXT", content: "Chez le voisin", sessionFeedbackId: feedbackB1Id });
+    expect(refused.status).toBe(400);
+
+    const after = await coachA.get(`/conversations/${conversationAId}/messages`);
+    expect(after.body.length).toBe(before.body.length);
+  });
+
+  it("le débrief jamais répondu n'a ni réponse ni date", async () => {
+    const feedbacks = await coachB.get("/feedbacks");
+    const untouched = feedbacks.body.find((f: { id: string }) => f.id === feedbackB1Id);
+    expect(untouched.repliedAt).toBeNull();
+    expect((await coachB.get(`/scheduled-sessions/${sessionB1Id}/feedback`)).body.messages).toEqual(
+      [],
+    );
+  });
+});
+
 describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", () => {
   let coachA: Agent;
   let athleteA1: Agent;
