@@ -846,6 +846,12 @@
       "allRead": {
         "title": "Tout est lu !",
         "description": "Aucun débrief en attente. Les nouveaux débriefs de tes athlètes apparaîtront ici."
+      },
+      "searchLabel": "Rechercher un athlète",
+      "searchPlaceholder": "Nom de l'athlète…",
+      "noMatch": {
+        "title": "Aucun athlète trouvé",
+        "description": "Aucun débrief d'un athlète dont le nom contient « {{query}} »."
       }
     }
   },

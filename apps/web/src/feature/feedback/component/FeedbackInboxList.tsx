@@ -1,6 +1,6 @@
-import type { CoachFeedbackSummaryDto } from "@cmv/shared";
+import { type CoachFeedbackSummaryDto, comparableText } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { CmvAvatar, CmvBadge, CmvEmptyState, CmvSegmented } from "@/shared/component";
+import { CmvAvatar, CmvBadge, CmvEmptyState, CmvSegmented, CmvTextField } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
@@ -19,6 +19,8 @@ type FeedbackInboxListProps = {
   openedId: string | null;
   filter: InboxFilter;
   onFilter: (filter: InboxFilter) => void;
+  search: string;
+  onSearch: (search: string) => void;
   onOpen: (feedback: CoachFeedbackSummaryDto) => void;
 };
 
@@ -35,16 +37,30 @@ export function FeedbackInboxList({
   openedId,
   filter,
   onFilter,
+  search,
+  onSearch,
   onOpen,
 }: Readonly<FeedbackInboxListProps>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
 
   const unreadCount = feedbacks.filter((feedback) => feedback.coachReadAt == null).length;
-  const shown =
-    filter === InboxFilter.UNREAD
-      ? feedbacks.filter((feedback) => feedback.coachReadAt == null)
-      : feedbacks;
+
+  /**
+   * Le filtre porte sur le NOM DE L'ATHLÈTE, pas sur le titre de séance ni sur le texte du
+   * débrief : un coach qui cherche ici cherche quelqu'un, et élargir la recherche au contenu
+   * ferait remonter des lignes sans que rien à l'écran n'explique pourquoi.
+   *
+   * `comparableText` des DEUX côtés — règle unique du dépôt : le coach tape « lea » et doit
+   * trouver « Léa ». Exiger l'accent ferait échouer la recherche sur exactement les noms que le
+   * clavier rend pénibles à écrire.
+   */
+  const needle = comparableText(search);
+  const shown = feedbacks.filter(
+    (feedback) =>
+      (filter !== InboxFilter.UNREAD || feedback.coachReadAt == null) &&
+      (needle === "" || comparableText(feedback.athleteName).includes(needle)),
+  );
 
   return (
     <div className="flex w-80 shrink-0 flex-col overflow-hidden border-cmv-border border-r">
@@ -57,18 +73,35 @@ export function FeedbackInboxList({
           value={filter}
           onChange={onFilter}
         />
+        {/* `type="search"` : le navigateur donne la croix d'effacement, qu'on n'a pas à redessiner. */}
+        <CmvTextField
+          label={t("feedback.inbox.searchLabel")}
+          name="feedbackSearch"
+          type="search"
+          value={search}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder={t("feedback.inbox.searchPlaceholder")}
+        />
       </div>
 
       <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* Filtrer jusqu'au vide n'est pas la même chose que ne rien avoir reçu : ici tout est lu,
-            ce que la liste complète dément à un segment près. Le vide GÉNÉRAL est rendu par
-            l'écran, avant même que cette colonne existe. */}
+        {/* Trois vides, trois phrases. « Aucun résultat » sur une recherche, « tout est lu » sur
+            le segment — dire « tout est lu » à quelqu'un qui vient de taper un nom introuvable
+            serait une réponse à une question qu'il n'a pas posée. Le vide GÉNÉRAL, lui, est rendu
+            par l'écran, avant même que cette colonne existe. */}
         {shown.length === 0 ? (
           <div className="p-cmv-lg">
-            <CmvEmptyState
-              title={t("feedback.inbox.allRead.title")}
-              description={t("feedback.inbox.allRead.description")}
-            />
+            {needle === "" ? (
+              <CmvEmptyState
+                title={t("feedback.inbox.allRead.title")}
+                description={t("feedback.inbox.allRead.description")}
+              />
+            ) : (
+              <CmvEmptyState
+                title={t("feedback.inbox.noMatch.title")}
+                description={t("feedback.inbox.noMatch.description", { query: search.trim() })}
+              />
+            )}
           </div>
         ) : null}
 

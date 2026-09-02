@@ -35,8 +35,9 @@ const READ = feedback({
   coachReadAt: "2026-10-16T20:00:00.000Z",
 });
 
-function renderList(feedbacks: CoachFeedbackSummaryDto[], filter: InboxFilter) {
+function renderList(feedbacks: CoachFeedbackSummaryDto[], filter: InboxFilter, search = "") {
   const onFilter = vi.fn();
+  const onSearch = vi.fn();
   const onOpen = vi.fn();
   const result = renderWithProviders(
     <FeedbackInboxList
@@ -44,10 +45,12 @@ function renderList(feedbacks: CoachFeedbackSummaryDto[], filter: InboxFilter) {
       openedId={null}
       filter={filter}
       onFilter={onFilter}
+      search={search}
+      onSearch={onSearch}
       onOpen={onOpen}
     />,
   );
-  return { ...result, onFilter, onOpen };
+  return { ...result, onFilter, onSearch, onOpen };
 }
 
 describe("FeedbackInboxList", () => {
@@ -88,5 +91,36 @@ describe("FeedbackInboxList", () => {
 
     fireEvent.click(getByText("Thomas Rey"));
     expect(onOpen).toHaveBeenCalledWith(READ);
+  });
+
+  /**
+   * La règle de recherche du dépôt (`comparableText`) s'applique DES DEUX CÔTÉS : un coach tape
+   * « lea » et doit trouver « Léa ». Exiger l'accent ferait échouer la recherche sur exactement
+   * les noms que le clavier rend pénibles à écrire.
+   */
+  it("trouve un athlète sans son accent ni sa casse", () => {
+    const { queryByText } = renderList([UNREAD, READ], InboxFilter.ALL, "LEA");
+
+    expect(queryByText("Léa Moreau")).not.toBeNull();
+    expect(queryByText("Thomas Rey")).toBeNull();
+  });
+
+  it("croise la recherche et le segment", () => {
+    const { queryByText } = renderList([UNREAD, READ], InboxFilter.UNREAD, "thomas");
+
+    // Thomas est bien nommé, mais son débrief est lu : les deux filtres se cumulent.
+    expect(queryByText("Thomas Rey")).toBeNull();
+    expect(queryByText("feedback.inbox.noMatch.title")).not.toBeNull();
+  });
+
+  // Dire « tout est lu » à quelqu'un qui vient de taper un nom introuvable répondrait à une
+  // question qu'il n'a pas posée.
+  it("distingue le vide d'une recherche du vide d'un segment", () => {
+    expect(
+      renderList([READ], InboxFilter.UNREAD).queryByText("feedback.inbox.allRead.title"),
+    ).not.toBeNull();
+    expect(
+      renderList([READ], InboxFilter.ALL, "zzz").queryByText("feedback.inbox.noMatch.title"),
+    ).not.toBeNull();
   });
 });

@@ -25,9 +25,11 @@ const route = getRouteApi("/feedbacks");
  * Conséquence : l'ouverture peut venir d'un clic OU d'une URL, donc le marquage « lu » ne peut pas
  * vivre dans le gestionnaire de clic — il vit dans l'effet ci-dessous, seul chemin pour les deux.
  *
- * Le SEGMENT, lui, reste en état d'écran : ce n'est pas une destination. Personne ne lie vers
- * « les débriefs non lus de Cédric », alors qu'on lie vers UN débrief — c'est ce qui décide, pas
- * une préférence pour l'URL ou le `useState`.
+ * Le SEGMENT et la RECHERCHE, eux, restent en état d'écran : ce ne sont pas des destinations.
+ * Personne ne lie vers « les débriefs non lus de Cédric », alors qu'on lie vers UN débrief —
+ * c'est ce qui décide, pas une préférence pour l'URL ou le `useState`. Corollaire voulu : arriver
+ * par un lien ouvre toujours son débrief, même si un filtre le cacherait de la liste, parce que le
+ * volet se résout sur la liste ENTIÈRE.
  */
 export function FeedbacksScreen() {
   const { t } = useTranslation();
@@ -35,6 +37,7 @@ export function FeedbacksScreen() {
   const { data: feedbacks, isPending, isError, refetch } = useFeedbacks();
   const markRead = useMarkFeedbackRead();
   const [filter, setFilter] = useState<InboxFilter>(InboxFilter.ALL);
+  const [search, setSearch] = useState("");
 
   const { feedback: openedId, session: openedSessionId } = route.useSearch();
   /**
@@ -99,6 +102,8 @@ export function FeedbacksScreen() {
             openedId={opened?.id ?? null}
             filter={filter}
             onFilter={setFilter}
+            search={search}
+            onSearch={setSearch}
             onOpen={openFeedback}
           />
 
