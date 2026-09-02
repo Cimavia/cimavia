@@ -6,7 +6,7 @@ import {
   countUnreadFeedbacks,
   todayIsoDate,
 } from "@cmv/shared";
-import { useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
@@ -22,6 +22,10 @@ import { usePlans } from "@/feature/plan/hook/usePlans";
 import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
 import { CmvAppShell, CmvButton, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
+
+// `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
+// fermerait le cycle. Le typage des search params est conservé.
+const route = getRouteApi("/");
 
 /**
  * Tableau de bord du coach (maquette pd-4, #52).
@@ -83,9 +87,23 @@ export function DashboardScreen() {
   // c'est sa raison d'être. Même clé de cache — la tuile ne déclenche aucune requête de plus.
   const unreadNotifications = useUnreadNotificationCount();
 
-  // La fiche s'ouvre depuis une ligne du tableau. On garde l'ID, pas l'objet : la liste peut être
-  // rafraîchie sous le panneau, et une copie figée y afficherait un nom périmé.
-  const [sheetAthleteId, setSheetAthleteId] = useState<string | null>(null);
+  /**
+   * La fiche ouverte vit dans l'URL (`?athlete=<id>`), pas dans un `useState`.
+   *
+   * On garde l'ID, pas l'objet : la liste peut être rafraîchie sous le panneau, et une copie figée
+   * y afficherait un nom périmé. Ce qui a changé en #121, c'est l'endroit où cet ID est rangé — le
+   * volet de lecture d'un débrief doit pouvoir mener à la fiche de son athlète, ce qu'un état
+   * d'écran rendait impossible. Même raison que `?q=` et `?filter=` juste à côté : une vue qui ne
+   * passe pas F5 n'est pas la même chose.
+   *
+   * `replace: true` — parcourir des fiches ne doit pas empiler des entrées d'historique à remonter
+   * une par une.
+   */
+  const { q, filter, athlete: sheetAthleteId } = route.useSearch();
+  // `q` et `filter` sont RECOPIÉS : ouvrir une fiche ne doit pas réinitialiser la barre d'outils
+  // du tableau, sous lequel le panneau s'ouvre et qu'on retrouve en le fermant.
+  const openSheet = (athleteId: string | null) =>
+    navigate({ to: "/", search: { q, filter, athlete: athleteId ?? undefined }, replace: true });
   const [invitationOpen, setInvitationOpen] = useState(false);
 
   // `todayIsoDate()` et non un instant : `Invoice.dueDate` est une date CIVILE, la lire en heure
@@ -265,7 +283,7 @@ export function DashboardScreen() {
           <AthleteTrackingSection
             rows={rows}
             plansLoaded={plansLoaded}
-            onOpenSheet={setSheetAthleteId}
+            onOpenSheet={openSheet}
             onInvite={() => setInvitationOpen(true)}
           />
         )}
@@ -273,7 +291,7 @@ export function DashboardScreen() {
 
       {invitationOpen ? <InvitationPanel onClose={() => setInvitationOpen(false)} /> : null}
       {sheetAthlete == null ? null : (
-        <AthleteSheetPanel athlete={sheetAthlete} onClose={() => setSheetAthleteId(null)} />
+        <AthleteSheetPanel athlete={sheetAthlete} onClose={() => openSheet(null)} />
       )}
     </CmvAppShell>
   );

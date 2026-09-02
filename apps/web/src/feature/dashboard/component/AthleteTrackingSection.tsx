@@ -32,20 +32,30 @@ export function AthleteTrackingSection({
 }: Readonly<AthleteTrackingSectionProps>) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { q, filter: urlFilter } = route.useSearch();
+  const { q, filter: urlFilter, athlete } = route.useSearch();
 
   /**
    * `replace` sur les deux : la barre est un RÉGLAGE DE VUE, pas une étape de navigation. Sans lui,
    * chaque frappe au clavier empilerait une entrée d'historique et le bouton Retour rembobinerait
    * la saisie au lieu de quitter le tableau de bord.
    */
+  // `athlete` est RECOPIÉ dans chaque navigation : l'URL porte aussi la fiche ouverte, qui n'a rien
+  // à voir avec cette barre. L'omettre la refermerait à chaque frappe au clavier.
   const setSearch = (next: string) =>
-    navigate({ to: "/", search: { q: next || undefined, filter: urlFilter }, replace: true });
+    navigate({
+      to: "/",
+      search: { q: next || undefined, filter: urlFilter, athlete },
+      replace: true,
+    });
   // « Tous » ne s'écrit pas dans l'URL : c'est la valeur par défaut, l'y laisser serait du bruit.
   const setFilter = (next: AthleteRowFilter) =>
-    navigate({ to: "/", search: { q, filter: next === "ALL" ? undefined : next }, replace: true });
+    navigate({
+      to: "/",
+      search: { q, filter: next === "ALL" ? undefined : next, athlete },
+      replace: true,
+    });
   const reset = () =>
-    navigate({ to: "/", search: { q: undefined, filter: undefined }, replace: true });
+    navigate({ to: "/", search: { q: undefined, filter: undefined, athlete }, replace: true });
 
   /**
    * Un `?filter=` hérité d'un chargement précédent est IGNORÉ quand les cycles n'ont pas pu être
