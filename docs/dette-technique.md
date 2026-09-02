@@ -678,6 +678,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
 | M-5 | **Pas de presse-papier sur mobile** : l'invitation se transmet par `Share` (SMS, WhatsApp) et non par « Copier le code » comme la maquette. `expo-clipboard` n'est pas une dépendance du projet. | 🟢 | — *(déclencheur : un coach qui veut coller le code ailleurs)* |
+| M-6 | **Le `buster` du cache persisté se bump à la main** (`CACHE_SCHEMA_VERSION`, `shared/lib/query.tsx`). Rien ne force à y penser : oublier de l'incrémenter après un ajout de champ au DTO fait planter l'écran chez l'utilisateur, pendant les sept jours de rétention du cache — et pas chez celui qui développe, dont le cache est neuf. À remplacer par la version du produit. | 🟡 | [#184](https://github.com/Cimavia/cimavia/issues/184) |
 
 > **Tranché en #137** (un formateur ne rend jamais du vide) : les libellés et valeurs de métrique
 > vivent désormais dans `@cmv/shared` (`metricLabel`, `metricUnitLabel`, `formatMetricValue`,
