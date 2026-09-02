@@ -3,7 +3,6 @@ import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
-import { useUnreadByCapability } from "@/feature/notification";
 import { CmvText } from "@/shared/component/CmvText";
 import { useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
 
@@ -29,10 +28,23 @@ const OPTIONS = [
  * distinctes, avec leur adresse (`?as=`) ; une barre d'onglets ne peut pas doubler ses entrées
  * sans en compter dix, d'où ce sélecteur local plutôt qu'une nav sectionnée.
  */
-export function CmvCapabilitySwitch() {
+type CmvCapabilitySwitchProps = {
+  /**
+   * Ce qui attend de chaque côté, pour la pastille — REÇU, jamais cherché.
+   *
+   * `shared/component/` est le design system : un composant qui y vit ne doit dépendre d'aucune
+   * feature. Ce sélecteur allait lire `useUnreadByCapability` de `feature/notification`, dont le
+   * baril réexporte un écran qui importe… `shared/component`. Metro tolérait le cycle en le
+   * signalant, au prix d'un `undefined` d'initialisation possible selon l'ordre de chargement.
+   *
+   * `undefined` = compteurs pas encore chargés : aucune pastille, ce qui est l'information exacte.
+   */
+  unread?: { coach: number; athlete: number } | undefined;
+};
+
+export function CmvCapabilitySwitch({ unread }: Readonly<CmvCapabilitySwitchProps>) {
   const { t } = useTranslation();
   const { visible, current, select } = useCapabilitySwitch();
-  const { data: unread } = useUnreadByCapability();
 
   if (!visible) return null;
 

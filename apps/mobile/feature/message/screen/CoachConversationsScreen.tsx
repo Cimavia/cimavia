@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useAthletes } from "@/feature/athlete";
 import { useConversations } from "@/feature/message/hook/useConversation";
+import { useUnreadByCapability } from "@/feature/notification/hook/useNotifications";
 import { CmvCapabilitySwitch, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatRelativeTime } from "@/shared/util/date.util";
@@ -27,6 +28,9 @@ export function CoachConversationsScreen() {
   const { t } = useTranslation();
   const athletes = useAthletes();
   const conversations = useConversations();
+  // Même clé de cache pour tous les appelants : une seule requête, quel que soit le nombre
+  // d'écrans qui affichent le sélecteur.
+  const { data: unread } = useUnreadByCapability();
 
   const byAthlete = new Map(
     (conversations.data ?? []).map((conversation) => [conversation.counterpartId, conversation]),
@@ -57,7 +61,7 @@ export function CoachConversationsScreen() {
           {t("messages.title")}
         </CmvText>
         {/* À droite du titre : il le qualifie, il ne filtre pas la liste. */}
-        <CmvCapabilitySwitch />
+        <CmvCapabilitySwitch unread={unread} />
       </View>
 
       <ScrollView

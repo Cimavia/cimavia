@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { useMyCoach } from "@/feature/coach/hook/useMyCoach";
 import { ConversationThread } from "@/feature/message/component/ConversationThread";
 import { useMyConversation } from "@/feature/message/hook/useConversation";
+import { useUnreadByCapability } from "@/feature/notification/hook/useNotifications";
 import { CmvCapabilitySwitch, CmvScreen, CmvText } from "@/shared/component";
 
 /**
@@ -15,6 +16,9 @@ import { CmvCapabilitySwitch, CmvScreen, CmvText } from "@/shared/component";
  */
 export function ConversationScreen() {
   const { t } = useTranslation();
+  // Même clé de cache pour tous les appelants : une seule requête, quel que soit le nombre
+  // d'écrans qui affichent le sélecteur.
+  const { data: unread } = useUnreadByCapability();
   const { data: coach } = useMyCoach();
   const hasCoach = coach != null;
   const conversation = useMyConversation(hasCoach);
@@ -23,7 +27,7 @@ export function ConversationScreen() {
     return (
       <CmvScreen>
         <View className="flex-row justify-end px-4 pt-4">
-          <CmvCapabilitySwitch />
+          <CmvCapabilitySwitch unread={unread} />
         </View>
         <View className="flex-1 items-center justify-center gap-2 p-6">
           <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
@@ -45,7 +49,7 @@ export function ConversationScreen() {
       onRetryResolve={() => conversation.refetch()}
       // Sans lui, un compte à double capacité basculé côté athlète serait COINCÉ dans son fil :
       // l'onglet Messages ne montre plus la liste où vit l'autre sélecteur (#129).
-      header={<CmvCapabilitySwitch />}
+      header={<CmvCapabilitySwitch unread={unread} />}
     />
   );
 }

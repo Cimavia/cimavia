@@ -20,6 +20,9 @@ import {
 } from "react-native";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { useInvoices, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
+// Le fichier du hook et non le baril de la feature : celui-ci réexporte un écran, et y passer
+// rouvrirait le cycle que ce sélecteur vient de fermer.
+import { useUnreadByCapability } from "@/feature/notification/hook/useNotifications";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import {
   CmvButton,
@@ -47,6 +50,9 @@ export function InvoicesScreen() {
   const { t } = useTranslation();
   // Le titre EXERCÉ, pas la capacité possédée : un compte qui cumule lit à un titre à la fois.
   const isCoach = useActingCapability() === "coach";
+  // Même clé de cache pour tous les appelants : une seule requête, quel que soit le nombre
+  // d'écrans qui affichent le sélecteur.
+  const { data: unread } = useUnreadByCapability();
   const { data: invoices, isPending, isError, isRefetching, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
 
@@ -71,7 +77,7 @@ export function InvoicesScreen() {
         <CmvText className="shrink font-cmv-display text-cmv-text-hi text-xl">
           {isCoach ? t("invoice.coach.title") : t("invoice.title")}
         </CmvText>
-        <CmvCapabilitySwitch />
+        <CmvCapabilitySwitch unread={unread} />
       </View>
 
       <ScrollView
