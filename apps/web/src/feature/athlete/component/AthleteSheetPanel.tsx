@@ -1,5 +1,5 @@
 import type { CoachAthleteDto } from "@cmv/shared";
-import { type FormEvent, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthleteSheet, useSaveAthleteSheet } from "@/feature/athlete/hook/useAthletes";
 import { CmvButton, CmvPanel, CmvTextArea } from "@/shared/component";
@@ -25,7 +25,7 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
   const [content, setContent] = useState<string | null>(null);
   const value = content ?? sheet?.content ?? "";
 
-  function onSubmit(event: FormEvent) {
+  function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
     saveSheet.mutate(value, { onSuccess: onClose });
   }

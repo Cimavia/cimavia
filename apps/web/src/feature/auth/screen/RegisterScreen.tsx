@@ -1,7 +1,7 @@
 import type { CapabilityName } from "@cmv/shared";
 import { PASSWORD_MIN_LENGTH } from "@cmv/shared";
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
@@ -40,7 +40,7 @@ export function RegisterScreen() {
     return <Navigate to="/" search={{ q: undefined, filter: undefined }} />;
   }
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     // Garde côté client EN PLUS de celle de l'API (400) : un compte sans capacité se retrouverait
     // devant une application vide, et le dire ici évite un aller-retour pour l'apprendre.

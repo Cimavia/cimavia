@@ -1,5 +1,5 @@
 import { InvitationStatus } from "@cmv/shared";
-import { type FormEvent, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateInvitation, useInvitations } from "@/feature/athlete/hook/useAthletes";
 import {
@@ -33,7 +33,7 @@ export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
 
   const [email, setEmail] = useState("");
 
-  function onSubmit(event: FormEvent) {
+  function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
     // Champ vide → invitation générique (le schéma attend `email` absent, pas une chaîne vide).
     const trimmed = email.trim();

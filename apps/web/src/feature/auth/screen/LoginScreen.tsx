@@ -1,5 +1,5 @@
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
@@ -20,7 +20,7 @@ export function LoginScreen() {
     return <Navigate to="/" search={{ q: undefined, filter: undefined }} />;
   }
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);

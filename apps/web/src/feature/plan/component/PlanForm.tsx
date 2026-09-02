@@ -1,6 +1,6 @@
 import { isMondayIsoDate, mondayOfIsoWeek, PLAN_MAX_WEEKS, PlanWeekType } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { DEFAULT_WEEK_COUNT } from "@/feature/plan/constant";
@@ -45,7 +45,7 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
     toast.onInfo("plan.form.startDateSnapped", { date: formatDate(monday) });
   }
 
-  function onSubmit(event: FormEvent) {
+  function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
     if (athleteId === "" || !isMondayIsoDate(startDate)) return;
 
