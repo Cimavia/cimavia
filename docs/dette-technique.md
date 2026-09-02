@@ -159,7 +159,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
-| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : [#137](https://github.com/Cimavia/cimavia/issues/137) |
+| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30` — `new_lines` (34 349) dépasse `ncloc` (30 247), donc TOUT le dépôt est « du code neuf » et `new_coverage` plafonne à 31,4 % contre un seuil de 80. Les PR passent (Sonar y diffe contre la base) ; c'est le job sur `push: main` qui échouera à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt. | 🔴 | — *(réglage d'interface, à faire avant le prochain merge sur `main`)* |
 
 > **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
@@ -199,6 +199,48 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > présent pour react-native-web. Le seul mock du harnais est `AsyncStorage`, posé en `setupFiles`
 > pour qu'aucun test ne PUISSE atteindre un module natif. Corollaire à ne pas défaire : le jour où
 > l'on voudra rendre un écran natif, c'est là que la question se rouvrira — pas avant.
+>
+> **Rouverte en #156, et refermée autrement.** Le raisonnement ci-dessus tenait entièrement ; ce
+> qui lui manquait était une TROISIÈME voie, que ni cet encadré ni #188 n'envisageaient :
+> `react-native-web`. Ce n'est pas un second runner mais un alias de résolution, donc §11 reste
+> tenue et `jest-expo` reste fermé. Voir « Tranché en #156 » ci-dessous.
+
+> **Tranché en #156** (rendre un écran natif sans changer de runner) : le mobile monte désormais
+> de VRAIS composants React Native sous Vitest. Cinq choix que le code ne justifie pas seul.
+>
+> - **`react-native` est aliasé vers `react-native-web`**, et c'est ce qui débloque tout. Le
+>   paquet natif n'est pas seulement lourd à charger : il est écrit avec des annotations **Flow**,
+>   qu'esbuild — le transformeur de Vite — ne sait pas effacer. Il est donc hors de portée par
+>   construction, et aucun réglage ne l'en rapprochera. `react-native-web` est déjà une dépendance
+>   de production (Expo web) et rend le même arbre en DOM. L'alias est une LISTE de regex ancrées
+>   et non un objet : un alias objet fait du remplacement de préfixe, et réécrirait
+>   `react-native-keyboard-controller` en `react-native-webkeyboard-controller`.
+> - **Le mur n'était pas celui que #188 décrivait.** L'issue annonçait `SafeAreaProvider`,
+>   `KeyboardProvider`, le `ThemeProvider` de react-navigation et le `Stack` d'expo-router. Ils
+>   sont bien nécessaires, et coûtent sept lignes de mock chacun. Le vrai point de passage, que
+>   l'issue ne nommait pas, est **`expo-modules-core`** : tout module Expo en dérive, et il lit
+>   `globalThis.expo`, la poignée JSI que seul le runtime natif pose. Le mocker fait tomber la
+>   chaîne entière — c'est le seul mock structurel de `test/native.tsx`, les autres ne font que
+>   rendre leur module utilisable.
+> - **`fireEvent.click` est le SEUL geste qui presse un `Pressable`** sous react-native-web.
+>   `mouseDown`/`mouseUp` et `pointerDown`/`pointerUp` ne déclenchent RIEN, silencieusement — un
+>   test qui les emploie affirme sur un geste qui n'a jamais eu lieu. Vérifié à la mise au point,
+>   et c'est pourquoi `test/render.tsx` expose `press()` plutôt que de laisser choisir.
+> - **`tsconfig.test.json`, comme l'API en #130 — pour la bibliothèque DOM et rien d'autre.** Le
+>   `lib: ["ES2023"]` du mobile n'est pas un oubli : c'est lui qui fait échouer un fichier de
+>   production appelant `document` au lieu de le laisser planter sur l'appareil. Les tests, eux,
+>   manipulent légitimement du DOM (jsdom + react-native-web). Deux passes, donc, plutôt qu'une
+>   bibliothèque élargie pour tout le monde — et `include` y répète les déclarations ambiantes,
+>   faute de quoi le `className` de NativeWind redevient une propriété inconnue.
+> - **Ce que le harnais rend testable ne change pas ce qu'on affirme.** Les tests livrés portent
+>   sur des décisions — un bouton fermé quand le quota est pris, un rang de lot tu quand il n'y a
+>   pas de rang à dire, un `markRead` qui ne part pas sur ses propres messages, la préséance d'un
+>   refus manuel sur une erreur d'upload. L'interdiction de #58 tient sans réserve : un `render()`
+>   qui exécute du JSX sans rien affirmer reste du décor, harnais ou pas.
+>
+> Angle mort assumé : `cimode` PERD les paramètres d'interpolation (même prix qu'au web, #188), et
+> `CmvButton` n'ayant pas de `accessibilityRole`, `pressButton()` doit prendre le premier des deux
+> nœuds que `getAllByText` remonte. L'index disparaîtra le jour où le rôle sera posé.
 
 > **Tranché en #58** (mesurer une couche à moitié, c'est la remettre hors de vue) : le périmètre de
 > couverture du web est **tout `src/`**, et non sa seule couche `util/` + `hook/`. La restriction
