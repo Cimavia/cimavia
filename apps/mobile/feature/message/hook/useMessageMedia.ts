@@ -42,19 +42,31 @@ import { assetMediaKind } from "@/shared/util/media-kind.util";
  * L'ouverture de la galerie se fait HORS de tout envoi : sinon l'indicateur « envoi en cours »
  * s'allumerait pendant que l'utilisateur choisit encore.
  */
-export function useSendMessageMedia(conversationId: string) {
+export function useSendMessageMedia(
+  conversationId: string,
+  /**
+   * Ce sur quoi les médias envoyés portent, et ce qu'il faut rafraîchir en plus du fil.
+   *
+   * Les deux vont ensemble : répondre en vocal depuis un débrief doit rattacher le message ET
+   * faire apparaître la note là où on l'a enregistrée. Invalider le seul fil laisserait l'écran
+   * du débrief afficher l'état d'avant l'envoi.
+   */
+  options?: { attachment?: { sessionFeedbackId: string }; onSent?: () => void },
+) {
   const queryClient = useQueryClient();
   const as = useExercisedCapability();
   const [step, setStep] = useState<MediaBatchStep | null>(null);
 
+  const attachment = options?.attachment;
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
     queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
+    options?.onSent?.();
   };
 
   const audio = useMutation({
     mutationFn: (recorded: RecordedAudio) =>
-      uploadAndSend(conversationId, prepareAudio(recorded), as),
+      uploadAndSend(conversationId, prepareAudio(recorded), as, attachment),
     onSuccess: invalidate,
   });
 
@@ -64,7 +76,7 @@ export function useSendMessageMedia(conversationId: string) {
    */
   const upload = async (asset: ImagePicker.ImagePickerAsset, current: MediaBatchStep) => {
     setStep(current);
-    await uploadAndSend(conversationId, await prepareAsset(asset), as);
+    await uploadAndSend(conversationId, await prepareAsset(asset), as, attachment);
     invalidate();
   };
 
@@ -135,6 +147,7 @@ async function uploadAndSend(
   media: PreparedMessageMedia,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
   as: CapabilityName | null,
+  attachment: { sessionFeedbackId: string } | undefined,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
@@ -152,7 +165,11 @@ async function uploadAndSend(
 
   // Le message média = le même descripteur + la clé objet rendue par le ticket. Le cast couvre
   // la fusion de l'union discriminée, que TS ne sait pas prouver.
-  const sendInput = { ...uploadInput, storagePath: ticket.storagePath } as SendMessageInput;
+  const sendInput = {
+    ...uploadInput,
+    storagePath: ticket.storagePath,
+    ...attachment,
+  } as SendMessageInput;
   return messageApi.sendMessage(conversationId, sendInput, as);
 }
 

@@ -1,6 +1,5 @@
 import type { MediaRecapLine } from "@cmv/shared";
 import { mediaRecapText } from "@cmv/shared";
-import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,21 +9,9 @@ import { Composer } from "@/feature/message/component/Composer";
 import { MessageList } from "@/feature/message/component/MessageList";
 import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook/useConversation";
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
-import { MediaRejectedError } from "@/feature/message/util/media.util";
+import { mediaErrorMessage } from "@/feature/message/util/media.util";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
-
-/**
- * Un refus métier (fichier trop lourd, permission) porte sa clé i18n ; une panne technique garde
- * le message de l'API. Les deux se disent — aucune ne se masque.
- */
-function mediaErrorMessage(error: unknown, manualKey: string | null, t: TFunction): string | null {
-  if (manualKey != null) return t(manualKey);
-  if (error == null) return null;
-  if (error instanceof MediaRejectedError) return t(error.reasonKey, error.params);
-  return apiErrorMessage(error) ?? t("messages.media.uploadError");
-}
 
 type ConversationThreadProps = {
   /**

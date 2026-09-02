@@ -15,6 +15,13 @@ import { formatDate } from "@/shared/util/date.util";
 type MessageBubbleProps = {
   message: MessageDto;
   mine: boolean;
+  /**
+   * Masque la puce « à propos de… » — pour les surfaces qui SONT la cible citée.
+   *
+   * Dans un débrief, tous les messages rattachés pointent ce même débrief : la puce y répéterait
+   * à chaque bulle l'adresse de l'écran où l'on se trouve déjà.
+   */
+  hideAttachment?: boolean;
 };
 
 // Rendu du contenu média. L'URL est signée (bucket privé), régénérée à chaque lecture.
@@ -72,7 +79,11 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
   );
 }
 
-export function MessageBubble({ message, mine }: Readonly<MessageBubbleProps>) {
+export function MessageBubble({
+  message,
+  mine,
+  hideAttachment = false,
+}: Readonly<MessageBubbleProps>) {
   return (
     <View
       className={`max-w-[80%] rounded-2xl px-3 py-2 ${
@@ -81,7 +92,9 @@ export function MessageBubble({ message, mine }: Readonly<MessageBubbleProps>) {
     >
       {/* `null` couvre DEUX cas : le message ne porte sur rien, ou sa cible a disparu (SetNull).
           Les deux se rendent pareil — une bulle ordinaire, pas un « à propos de quelque chose ». */}
-      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
+      {message.attachment == null || hideAttachment ? null : (
+        <AttachmentChip attachment={message.attachment} />
+      )}
 
       {message.content != null ? (
         <CmvText className="text-cmv-text-hi">{message.content}</CmvText>
