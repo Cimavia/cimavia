@@ -1,6 +1,8 @@
 import type {
   AttachFeedbackMediaInput,
-  BatchOutcome,
+  MediaBatch,
+  MediaBatchStep,
+  MediaRecapLine,
   MediaTypeType,
   MultipartUploadTicket,
   RequestFeedbackUploadUrlInput,
@@ -11,7 +13,7 @@ import {
   megabytesOf,
   myFeedbackKeys,
   myPlanKeys,
-  runSequentially,
+  sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -43,21 +45,18 @@ function useInvalidateFeedback(sessionId: string) {
   };
 }
 
-/** Le fichier en cours dans un lot, pour dire lequel avance pendant que la file tourne. */
-export type FeedbackUploadStep = { index: number; total: number; fileName: string };
-
 /**
  * Ajoute des médias au débrief : préparation → URL signée → upload direct vers le bucket →
  * rattachement. Le binaire ne passe jamais par l'API (règle 7).
  *
- * Un lot part fichier par fichier, et un échec n'arrête pas les suivants (#156) : l'appelant lit
- * les issues rendues par `addFiles` et récapitule ce qui n'est pas passé. C'est la seule façon
- * honnête de rendre compte d'une sélection de cinq fichiers dont un seul a été refusé.
+ * La FILE elle-même n'est pas ici : `sendMediaBatch` (@cmv/shared) tient le tri, l'ordre et le
+ * récapitulatif pour les quatre surfaces. Ce hook n'apporte que ce qui est propre au débrief web —
+ * le transport, l'invalidation du cache, et l'état affiché pendant l'envoi.
  */
 export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
-  const [step, setStep] = useState<FeedbackUploadStep | null>(null);
+  const [step, setStep] = useState<MediaBatchStep | null>(null);
 
   const audio = useMutation({
     mutationFn: (recorded: RecordedWebAudio) => {
@@ -72,25 +71,26 @@ export function useAddFeedbackMedia(sessionId: string) {
   });
 
   /**
-   * Le lot. La progression est publiée AVANT d'attendre, pour que « Envoi 2 / 5 » désigne le
-   * fichier qui part et non celui qui vient de partir.
-   *
    * Le cache est invalidé à CHAQUE fichier plutôt qu'à la fin : la galerie se remplit au fur et à
    * mesure, ce qui vaut mieux qu'un écran figé pendant l'envoi de cinq vidéos — et si le lot casse
-   * en route, ce qui est déjà passé est visible.
+   * en route, ce qui est déjà passé reste visible.
    */
-  const addFiles = (files: readonly File[]): Promise<BatchOutcome<File>[]> =>
-    runSequentially(files, async (file, index) => {
-      setStep({ index: index + 1, total: files.length, fileName: file.name });
-      setProgress(0);
-      await prepareAndUpload(sessionId, { kind: "file", file }, setProgress);
-      invalidate();
-    }).finally(() => setStep(null));
+  const upload = async (file: File, current: MediaBatchStep) => {
+    setStep(current);
+    setProgress(0);
+    await prepareAndUpload(sessionId, { kind: "file", file }, setProgress);
+    invalidate();
+  };
+
+  // L'appelant décide de la POLITIQUE du lot (places restantes, plafond, libellés des refus) ;
+  // le hook n'impose que l'envoi.
+  const addFiles = (batch: Omit<MediaBatch<File>, "send">): Promise<MediaRecapLine[]> =>
+    sendMediaBatch({ ...batch, send: upload }).finally(() => setStep(null));
 
   return {
     addFiles,
     addAudio: (recorded: RecordedWebAudio) => audio.mutate(recorded),
-    /** L'échec de la NOTE VOCALE seule : les refus d'un lot de fichiers vivent dans ses issues. */
+    /** L'échec de la NOTE VOCALE seule : les refus d'un lot de fichiers vivent dans son récap. */
     audioError: audio.error,
     isUploading: step != null || audio.isPending,
     step,

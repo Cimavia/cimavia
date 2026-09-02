@@ -1,12 +1,17 @@
 import type { MediaType } from "../dto/feedback.schema";
 
 /**
- * Envoyer PLUSIEURS médias d'un même geste : ce qui rentre dans les places restantes, et comment
- * le lot part ensuite.
+ * Envoyer PLUSIEURS médias d'un même geste, de la sélection au récapitulatif.
  *
- * Les deux fonctions vivent ici plutôt que dans les écrans parce qu'elles portent les deux règles
- * du lot — « on n'annule jamais tout » et « un fichier à la fois » — que les quatre surfaces
- * (débrief et messagerie, web et mobile) doivent appliquer à l'identique.
+ * Tout est ici plutôt que dans les écrans parce que les deux règles du lot — « on n'annule jamais
+ * tout » et « un fichier à la fois » — doivent valoir à l'identique sur les quatre surfaces
+ * (débrief et messagerie, web et mobile). Écrites quatre fois, elles auraient divergé au premier
+ * correctif appliqué d'un seul côté.
+ *
+ * Ce que ce module ne sait PAS, et reçoit donc de l'appelant : comment lire le type d'un média
+ * (un `File` web, un asset de picker mobile), comment l'envoyer, et quelles clés i18n nommer ses
+ * refus. Les clés restent dans les catalogues des apps — les poser ici les ferait passer pour
+ * mortes au `check:i18n`, qui lit les sources de chaque app.
  */
 
 // Un élément sélectionné, ramené à ce qui décide de son sort : la famille de média qu'il occupe.
@@ -91,4 +96,97 @@ export async function runSequentially<T>(
   }
 
   return outcomes;
+}
+
+/**
+ * La raison pour laquelle un média n'a pas été joint, telle qu'elle sera dite à l'utilisateur.
+ *
+ * Une clé i18n est STOCKÉE, pas traduite : un changement de langue doit retraduire le
+ * récapitulatif, pas le figer dans celle d'avant. Une panne technique, elle, arrive déjà sous
+ * forme de message — c'est celui de l'API, et il n'a pas de clé.
+ */
+export type MediaRecapReason =
+  | { key: string; params: Record<string, string | number> }
+  | { message: string };
+
+/** Une ligne du récapitulatif. `fileName` est nullable : un picker n'en donne pas toujours un. */
+export type MediaRecapLine = { fileName: string | null; reason: MediaRecapReason };
+
+/**
+ * Pourquoi un média a été écarté AVANT tout envoi. `kind` accompagne la cause pour que l'appelant
+ * puisse nommer la place qui manque (« plus de place pour une photo ») plutôt que de rester vague.
+ */
+export type MediaRejection =
+  | { cause: "unsupported"; kind: null }
+  | { cause: "noSlot"; kind: MediaType }
+  | { cause: "tooMany"; kind: MediaType | null };
+
+/** Où en est le lot, pour que l'écran puisse dire « Envoi 2 / 5 » en nommant le média en cours. */
+export type MediaBatchStep = { index: number; total: number; fileName: string | null };
+
+export type MediaBatch<T> = {
+  items: readonly T[];
+  /** Au-delà, on n'examine même pas : les quotas du débrief, ou le plafond d'un lot de messages. */
+  maxItems: number;
+  remaining: Readonly<Record<MediaType, number>>;
+  /** La famille du média, `null` quand cette surface ne sait pas le joindre du tout. */
+  kindOf: (item: T) => MediaType | null;
+  nameOf: (item: T) => string | null;
+  send: (item: T, step: MediaBatchStep) => Promise<void>;
+  rejectedReason: (rejection: MediaRejection) => MediaRecapReason;
+  failureReason: (error: unknown) => MediaRecapReason;
+};
+
+/**
+ * Le lot de bout en bout : trier, envoyer un par un, puis rendre ce qui n'est pas passé.
+ *
+ * Rien n'est annulé en bloc (#156). Six photos pour cinq places envoient cinq photos et nomment la
+ * sixième ; un fichier trop lourd en troisième position n'emporte pas les deux qui le suivent.
+ * L'appelant reçoit UNE liste à afficher, et n'a plus à recomposer les trois familles de refus.
+ *
+ * Ce qui est effectivement parti ne figure pas au récapitulatif : c'est déjà visible dans la
+ * galerie ou dans le fil, et le répéter en ferait un compte rendu d'exécution plutôt qu'une liste
+ * de choses à corriger.
+ */
+export async function sendMediaBatch<T>(batch: MediaBatch<T>): Promise<MediaRecapLine[]> {
+  const limit = Math.max(0, batch.maxItems);
+  const line = (item: T, reason: MediaRecapReason): MediaRecapLine => ({
+    fileName: batch.nameOf(item),
+    reason,
+  });
+
+  const slottable: { kind: MediaType; item: T }[] = [];
+  const unsupported: T[] = [];
+  for (const item of batch.items.slice(0, limit)) {
+    const kind = batch.kindOf(item);
+    if (kind == null) unsupported.push(item);
+    else slottable.push({ kind, item });
+  }
+
+  const { accepted, rejected } = splitByRemainingSlots(slottable, batch.remaining);
+  const total = accepted.length;
+  const outcomes = await runSequentially(accepted, (entry, index) =>
+    batch.send(entry.item, {
+      index: index + 1,
+      total,
+      fileName: batch.nameOf(entry.item),
+    }),
+  );
+
+  return [
+    ...unsupported.map((item) =>
+      line(item, batch.rejectedReason({ cause: "unsupported", kind: null })),
+    ),
+    ...rejected.map((entry) =>
+      line(entry.item, batch.rejectedReason({ cause: "noSlot", kind: entry.kind })),
+    ),
+    ...batch.items
+      .slice(limit)
+      .map((item) =>
+        line(item, batch.rejectedReason({ cause: "tooMany", kind: batch.kindOf(item) })),
+      ),
+    ...outcomes
+      .filter((outcome) => outcome.error != null)
+      .map((outcome) => line(outcome.item.item, batch.failureReason(outcome.error))),
+  ];
 }

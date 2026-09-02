@@ -1,5 +1,10 @@
-import type { BatchOutcome, SessionFeedbackDto } from "@cmv/shared";
-import { MediaType, remainingMediaSlots, splitByRemainingSlots } from "@cmv/shared";
+import type {
+  MediaRecapLine,
+  MediaRecapReason,
+  MediaRejection,
+  SessionFeedbackDto,
+} from "@cmv/shared";
+import { MediaType, remainingMediaSlots } from "@cmv/shared";
 import type { ImagePickerAsset } from "expo-image-picker";
 import type { TFunction } from "i18next";
 import { useState } from "react";
@@ -30,13 +35,6 @@ function mediaErrorMessage(error: unknown, manualKey: string | null, t: TFunctio
   return apiErrorMessage(error) ?? t("feedback.media.uploadError");
 }
 
-/**
- * Ce qu'un média écarté doit dire à l'athlète. La raison est STOCKÉE, pas traduite : un changement
- * de langue doit retraduire le récapitulatif, pas le figer dans celle d'avant.
- */
-type RecapReason = { key: string; params: Record<string, string | number> } | { message: string };
-type RecapLine = { fileName: string | null; reason: RecapReason };
-
 type FeedbackMediaSectionProps = {
   sessionId: string;
   /** `null` tant qu'aucun débrief n'existe : les quotas partent alors du maximum. */
@@ -58,17 +56,16 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
   // Le refus de la GALERIE (permission), qui précède lui aussi tout envoi.
   const [pickErrorKey, setPickErrorKey] = useState<string | null>(null);
   // Ce qui n'a pas été joint au dernier lot, média par média (#156).
-  const [recap, setRecap] = useState<readonly RecapLine[]>([]);
+  const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
 
   const photosLeft = remainingMediaSlots(feedback, MediaType.IMAGE);
   const videosLeft = remainingMediaSlots(feedback, MediaType.VIDEO);
   const audiosLeft = remainingMediaSlots(feedback, MediaType.AUDIO);
 
   /**
-   * Une sélection entière, d'un seul geste. Rien n'est annulé en bloc : ce qui tient dans les
-   * places restantes part, le reste est RÉCAPITULÉ avec sa raison. Renvoyer l'athlète dans sa
-   * galerie parce que la sixième photo est de trop lui ferait refaire une sélection qu'il vient
-   * de faire.
+   * Une sélection entière, d'un seul geste. Le tri, la file et le récapitulatif sont tenus par
+   * `sendMediaBatch` (@cmv/shared) : l'écran ne fournit que ce qui lui est propre — les places
+   * restantes et les libellés de ses refus.
    */
   async function onAddMedia() {
     setRecorderErrorKey(null);
@@ -86,20 +83,22 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
     }
     if (picked.length === 0) return; // sélection annulée : ce n'est pas une erreur
 
-    const { accepted, rejected } = splitByRemainingSlots(
-      picked.map((asset) => ({ kind: assetMediaType(asset), asset })),
-      {
-        [MediaType.IMAGE]: photosLeft,
-        [MediaType.VIDEO]: videosLeft,
-        [MediaType.AUDIO]: audiosLeft,
-      },
+    setRecap(
+      await addMedia.addAssets({
+        items: picked,
+        // Le lot ne peut pas dépasser ce que les quotas laissent : au-delà, inutile de compresser.
+        maxItems: photosLeft + videosLeft,
+        remaining: {
+          [MediaType.IMAGE]: photosLeft,
+          [MediaType.VIDEO]: videosLeft,
+          [MediaType.AUDIO]: audiosLeft,
+        },
+        kindOf: assetMediaType,
+        nameOf: (asset) => asset.fileName ?? null,
+        rejectedReason,
+        failureReason,
+      }),
     );
-
-    const outcomes = await addMedia.addAssets(accepted.map((item) => item.asset));
-    setRecap([
-      ...rejected.map((item) => line(item.asset.fileName ?? null, noSlotReason(item.kind))),
-      ...failedLines(outcomes),
-    ]);
   }
 
   const error = mediaErrorMessage(
@@ -154,29 +153,23 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
   );
 }
 
-function reasonText(reason: RecapReason, t: TFunction): string {
+function reasonText(reason: MediaRecapReason, t: TFunction): string {
   return "key" in reason ? t(reason.key, reason.params) : reason.message;
 }
 
-function line(fileName: string | null, reason: RecapReason): RecapLine {
-  return { fileName, reason };
-}
-
-function noSlotReason(kind: MediaType): RecapReason {
+/**
+ * Ce que dit un refus qui précède l'envoi. `tooMany` et `noSlot` disent la même chose ici, et c'est
+ * exact : le plafond du lot EST la somme des places restantes. `unsupported` ne peut pas survenir —
+ * la galerie ne rend que des images et des vidéos, et `assetMediaType` est total.
+ */
+function rejectedReason({ kind }: MediaRejection): MediaRecapReason {
   return {
     key: kind === MediaType.VIDEO ? "feedback.media.noSlotVideo" : "feedback.media.noSlotImage",
     params: {},
   };
 }
 
-// Les médias effectivement partis n'ont rien à dire : ils sont déjà dans la grille.
-function failedLines(outcomes: readonly BatchOutcome<ImagePickerAsset>[]): RecapLine[] {
-  return outcomes
-    .filter((outcome) => outcome.error != null)
-    .map((outcome) => line(outcome.item.fileName ?? null, uploadReason(outcome.error)));
-}
-
-function uploadReason(error: unknown): RecapReason {
+function failureReason(error: unknown): MediaRecapReason {
   if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
   const message = apiErrorMessage(error);
   return message == null ? { key: "feedback.media.uploadError", params: {} } : { message };

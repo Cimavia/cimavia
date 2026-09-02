@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { MediaType } from "../dto/feedback.schema";
-import { runSequentially, splitByRemainingSlots } from "./media-batch.util";
+import type { MediaBatch, MediaBatchStep, MediaRejection } from "./media-batch.util";
+import { runSequentially, sendMediaBatch, splitByRemainingSlots } from "./media-batch.util";
 
 const photo = (name: string) => ({ kind: MediaType.IMAGE, name });
 const video = (name: string) => ({ kind: MediaType.VIDEO, name });
@@ -119,5 +120,95 @@ describe("runSequentially", () => {
 
     expect(await runSequentially([], run)).toEqual([]);
     expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendMediaBatch", () => {
+  type Picked = { name: string; kind: MediaType | null };
+
+  const image = (name: string): Picked => ({ name, kind: MediaType.IMAGE });
+  const movie = (name: string): Picked => ({ name, kind: MediaType.VIDEO });
+
+  function batch(items: readonly Picked[], over: Partial<MediaBatch<Picked>> = {}) {
+    return {
+      items,
+      maxItems: Number.POSITIVE_INFINITY,
+      remaining: slots(5, 3, 15),
+      kindOf: (item: Picked) => item.kind,
+      nameOf: (item: Picked) => item.name,
+      send: async () => undefined,
+      rejectedReason: ({ cause }: MediaRejection) => ({ key: cause, params: {} }),
+      failureReason: (error: unknown) => ({ message: String(error) }),
+      ...over,
+    };
+  }
+
+  it("envoie ce qui tient, un par un, en nommant le rang de chacun", async () => {
+    const steps: MediaBatchStep[] = [];
+
+    const recap = await sendMediaBatch(
+      batch([image("a"), movie("b")], {
+        send: async (_item, step) => {
+          steps.push(step);
+        },
+      }),
+    );
+
+    expect(steps).toEqual([
+      { index: 1, total: 2, fileName: "a" },
+      { index: 2, total: 2, fileName: "b" },
+    ]);
+    // Ce qui est parti n'a rien à dire : c'est déjà visible dans la galerie.
+    expect(recap).toEqual([]);
+  });
+
+  /**
+   * Les trois familles de refus se retrouvent dans UNE liste, ce qui est exactement ce que les
+   * écrans recomposaient chacun de leur côté avant #156.
+   */
+  it("récapitule ensemble le type non géré, la place manquante et l'échec d'envoi", async () => {
+    const recap = await sendMediaBatch(
+      batch([{ name: "notes.pdf", kind: null }, image("a"), image("b"), image("c")], {
+        remaining: slots(2, 3, 15),
+        send: async (item) => {
+          if (item.name === "b") throw new Error("panne");
+        },
+      }),
+    );
+
+    expect(recap).toEqual([
+      { fileName: "notes.pdf", reason: { key: "unsupported", params: {} } },
+      { fileName: "c", reason: { key: "noSlot", params: {} } },
+      { fileName: "b", reason: { message: "Error: panne" } },
+    ]);
+  });
+
+  it("n'examine pas au-delà du plafond du lot", async () => {
+    const sent: string[] = [];
+
+    const recap = await sendMediaBatch(
+      batch([image("a"), image("b"), image("c")], {
+        maxItems: 1,
+        send: async (item) => {
+          sent.push(item.name);
+        },
+      }),
+    );
+
+    expect(sent).toEqual(["a"]);
+    expect(recap).toEqual([
+      { fileName: "b", reason: { key: "tooMany", params: {} } },
+      { fileName: "c", reason: { key: "tooMany", params: {} } },
+    ]);
+  });
+
+  // Le lot n'est jamais annulé en bloc : quand tout est refusé, il n'y a simplement rien à envoyer.
+  it("ne tente aucun envoi quand rien ne tient", async () => {
+    const send = vi.fn();
+
+    const recap = await sendMediaBatch(batch([image("a")], { remaining: slots(0, 3, 15), send }));
+
+    expect(send).not.toHaveBeenCalled();
+    expect(recap).toHaveLength(1);
   });
 });

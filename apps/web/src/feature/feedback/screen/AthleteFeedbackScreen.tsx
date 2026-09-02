@@ -1,6 +1,8 @@
 import type {
-  BatchOutcome,
   FeedbackTracking,
+  MediaRecapLine,
+  MediaRecapReason,
+  MediaRejection,
   ScheduledSessionDto,
   SessionFeedbackDto,
 } from "@cmv/shared";
@@ -9,7 +11,6 @@ import {
   MediaType,
   mediaKindOfMime,
   remainingMediaSlots,
-  splitByRemainingSlots,
 } from "@cmv/shared";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
@@ -259,14 +260,6 @@ function FeedbackSubmitRail({
   );
 }
 
-/**
- * Ce qu'un fichier écarté doit dire à l'athlète. Un refus métier porte sa clé i18n ; une panne
- * technique garde le message de l'API. La raison est STOCKÉE, pas traduite : un changement de
- * langue doit retraduire le récapitulatif, pas le figer dans celle d'avant.
- */
-type RecapReason = { key: string; params: Record<string, string | number> } | { message: string };
-type RecapLine = { id: string; fileName: string; reason: RecapReason };
-
 // Photos, vidéos et notes vocales : quotas, ajout, retrait.
 function FeedbackMediaSection({
   sessionId,
@@ -280,7 +273,7 @@ function FeedbackMediaSection({
   // Refus de l'enregistreur (micro, format) : il précède l'upload et ne passe par aucune mutation.
   const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
   // Ce qui n'a pas été joint au dernier lot, fichier par fichier (#156).
-  const [recap, setRecap] = useState<readonly RecapLine[]>([]);
+  const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
 
   const photosLeft = remainingMediaSlots(feedback, MediaType.IMAGE);
   const videosLeft = remainingMediaSlots(feedback, MediaType.VIDEO);
@@ -300,10 +293,9 @@ function FeedbackMediaSection({
   });
 
   /**
-   * Une sélection entière, d'un seul geste. Rien n'est annulé en bloc : ce qui tient dans les
-   * places restantes part, le reste est RÉCAPITULÉ avec sa raison. Renvoyer l'athlète dans sa
-   * galerie parce que la sixième photo est de trop lui ferait refaire une sélection qu'il vient
-   * de faire.
+   * Une sélection entière, d'un seul geste. Le tri, la file et le récapitulatif sont tenus par
+   * `sendMediaBatch` (@cmv/shared) : l'écran ne fournit que ce qui lui est propre — les places
+   * restantes et les libellés de ses refus.
    */
   async function onPickFiles(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
@@ -314,22 +306,22 @@ function FeedbackMediaSection({
 
     setRecorderErrorKey(null);
     setRecap([]);
-
-    const { slottable, unsupported } = classify(picked);
-    const { accepted, rejected } = splitByRemainingSlots(slottable, {
-      [MediaType.IMAGE]: photosLeft,
-      [MediaType.VIDEO]: videosLeft,
-      [MediaType.AUDIO]: audiosLeft,
-    });
-
-    const outcomes = await add.addFiles(accepted.map((item) => item.file));
-    setRecap([
-      ...unsupported.map((file) =>
-        line(file.name, { key: "feedback.media.unsupported", params: {} }),
-      ),
-      ...rejected.map((item) => line(item.file.name, noSlotReason(item.kind))),
-      ...failedLines(outcomes),
-    ]);
+    setRecap(
+      await add.addFiles({
+        items: picked,
+        // Le lot ne peut pas dépasser ce que les quotas laissent : au-delà, inutile de préparer.
+        maxItems: photosLeft + videosLeft,
+        remaining: {
+          [MediaType.IMAGE]: photosLeft,
+          [MediaType.VIDEO]: videosLeft,
+          [MediaType.AUDIO]: audiosLeft,
+        },
+        kindOf: attachableKind,
+        nameOf: (file) => file.name,
+        rejectedReason,
+        failureReason,
+      }),
+    );
   }
 
   const audioError = resolveMediaError(add.audioError, recorderErrorKey, t);
@@ -407,7 +399,7 @@ function FeedbackMediaSection({
               {t("feedback.media.batchProgress", {
                 index: add.step.index,
                 total: add.step.total,
-                fileName: add.step.fileName,
+                fileName: add.step.fileName ?? t("feedback.media.unnamedFile"),
               })}
             </span>
           ) : null}
@@ -422,9 +414,13 @@ function FeedbackMediaSection({
         <div className="flex flex-col gap-cmv-xs">
           <p className="text-cmv-caption text-cmv-text-mid">{t("feedback.media.recapTitle")}</p>
           <ul className="flex flex-col gap-cmv-xs">
-            {recap.map((entry) => (
-              <li key={entry.id} className="text-cmv-body text-cmv-error-on">
-                <span className="font-medium">{entry.fileName}</span>
+            {/* Le rang sert de clé : la liste est REMPLACÉE en entier à chaque lot, jamais
+                réordonnée — et deux fichiers peuvent porter le même nom. */}
+            {recap.map((entry, index) => (
+              <li key={index} className="text-cmv-body text-cmv-error-on">
+                <span className="font-medium">
+                  {entry.fileName ?? t("feedback.media.unnamedFile")}
+                </span>
                 {" — "}
                 {"key" in entry.reason
                   ? t(entry.reason.key, entry.reason.params)
@@ -441,45 +437,32 @@ function FeedbackMediaSection({
 }
 
 /**
- * Trie une sélection en deux : ce qui occupe une place de photo ou de vidéo, et ce que le débrief
- * ne sait pas joindre du tout.
+ * La famille d'un fichier joint, ou `null` quand le débrief ne sait pas le joindre.
  *
- * La famille est lue sur le mime (`mediaKindOfMime`), la même lecture que fait la préparation :
- * un `image/heic` occupe bien une place de photo, quitte à être refusé au format ensuite. L'audio
- * est écarté ici — une note vocale s'enregistre, elle ne se joint pas comme un fichier.
+ * La lecture est celle que fait la PRÉPARATION (`mediaKindOfMime`) : un `image/heic` occupe bien
+ * une place de photo, quitte à être refusé au format ensuite. L'audio est écarté — une note vocale
+ * s'enregistre, elle ne se joint pas comme un fichier.
  */
-function classify(files: readonly File[]) {
-  const slottable: { kind: MediaType; file: File }[] = [];
-  const unsupported: File[] = [];
+function attachableKind(file: File): MediaType | null {
+  const kind = mediaKindOfMime(file.type);
+  return kind === MediaType.IMAGE || kind === MediaType.VIDEO ? kind : null;
+}
 
-  for (const file of files) {
-    const kind = mediaKindOfMime(file.type);
-    if (kind === MediaType.IMAGE || kind === MediaType.VIDEO) slottable.push({ kind, file });
-    else unsupported.push(file);
+/**
+ * Ce que dit un refus qui précède l'envoi. `tooMany` et `noSlot` disent la même chose ici, et c'est
+ * exact : le plafond du lot EST la somme des places restantes.
+ */
+function rejectedReason({ cause, kind }: MediaRejection): MediaRecapReason {
+  if (cause === "unsupported" || kind == null) {
+    return { key: "feedback.media.unsupported", params: {} };
   }
-
-  return { slottable, unsupported };
-}
-
-function line(fileName: string, reason: RecapReason): RecapLine {
-  return { id: crypto.randomUUID(), fileName, reason };
-}
-
-function noSlotReason(kind: MediaType): RecapReason {
   return {
     key: kind === MediaType.VIDEO ? "feedback.media.noSlotVideo" : "feedback.media.noSlotImage",
     params: {},
   };
 }
 
-// Les fichiers effectivement partis n'ont rien à dire : ils sont déjà dans la galerie.
-function failedLines(outcomes: readonly BatchOutcome<File>[]): RecapLine[] {
-  return outcomes
-    .filter((outcome) => outcome.error != null)
-    .map((outcome) => line(outcome.item.name, uploadReason(outcome.error)));
-}
-
-function uploadReason(error: unknown): RecapReason {
+function failureReason(error: unknown): MediaRecapReason {
   if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
   const message = apiErrorMessage(error);
   return message == null ? { key: "feedback.media.uploadError", params: {} } : { message };

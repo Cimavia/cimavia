@@ -799,6 +799,7 @@
       "recapTitle": "Ces fichiers n'ont pas été joints :",
       "noSlotImage": "Plus de place pour une photo dans ce débrief.",
       "noSlotVideo": "Plus de place pour une vidéo dans ce débrief.",
+      "unnamedFile": "Fichier sans nom",
       "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie.",
       "permission": "Autorise l'accès au micro pour enregistrer une note vocale.",
       "recorderUnsupported": "Ton navigateur ne sait pas enregistrer une note vocale dans un format lisible par ton coach. Essaie avec Safari ou Chrome, ou joins une vidéo.",

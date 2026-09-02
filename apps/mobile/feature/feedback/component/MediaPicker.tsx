@@ -1,6 +1,6 @@
+import type { MediaBatchStep } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, View } from "react-native";
-import type { FeedbackUploadStep } from "@/feature/feedback/hook/useFeedbackMedia";
 import { CmvAudioRecorder, CmvButton, CmvText, type RecordedAudio } from "@/shared/component";
 
 type MediaPickerProps = {
@@ -14,7 +14,7 @@ type MediaPickerProps = {
   /** Avancement de l'envoi en cours, 0-100. */
   progress: number;
   /** Le média en cours dans un lot, `null` hors envoi. */
-  step: FeedbackUploadStep | null;
+  step: MediaBatchStep | null;
 };
 
 /**

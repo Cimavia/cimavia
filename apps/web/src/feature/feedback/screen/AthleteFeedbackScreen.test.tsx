@@ -1,5 +1,5 @@
-import type { ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { fireEvent, waitFor } from "@testing-library/react";
+import type { MediaBatch, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
+import { waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteFeedbackScreen } from "./AthleteFeedbackScreen";
@@ -230,45 +230,35 @@ describe("AthleteFeedbackScreen", () => {
     });
   });
 
+  /**
+   * Le TRI d'un lot (places restantes, ordre, récapitulatif) est vérifié dans `@cmv/shared`, où il
+   * vit. Ce qui se teste ici est ce que l'écran y apporte : la sélection entière, les quotas du
+   * débrief, ce qu'il refuse de joindre, et le rendu du récapitulatif qu'on lui rend.
+   */
   describe("un lot de médias", () => {
     const photo = (name: string) => new File(["x"], name, { type: "image/jpeg" });
+    const batchOf = (call: number) => addFilesMock.mock.calls[call]?.[0] as MediaBatch<File>;
 
-    async function fileInput(rendered: Awaited<ReturnType<typeof setup>>) {
+    async function pick(files: readonly File[]) {
+      const rendered = await setup();
       // Le sélecteur ne naît qu'avec le formulaire : le chercher pendant le chargement ne
       // trouverait rien, et le test échouerait pour une raison qui n'est pas la sienne.
       await rendered.findByLabelText(CONTENT);
       const input = rendered.container.querySelector<HTMLInputElement>('input[type="file"]');
       if (input == null) throw new Error("pas de sélecteur de fichier");
-      return input;
-    }
-
-    async function pick(files: readonly File[]) {
-      const rendered = await setup();
-      await rendered.user.upload(await fileInput(rendered), [...files]);
+      await rendered.user.upload(input, [...files]);
       return rendered;
     }
 
-    /**
-     * Le même geste, en contournant l'attribut `accept` — que `user.upload` applique, et qui
-     * écarterait le fichier avant que le code ait à le faire. `accept` n'est qu'un filtre
-     * d'affichage, que le dialogue système laisse contourner (« tous les fichiers ») : tester avec
-     * lui ferait passer le test pour la mauvaise raison.
-     */
-    async function pickIgnoringAccept(files: readonly File[]) {
-      const rendered = await setup();
-      fireEvent.change(await fileInput(rendered), { target: { files } });
-      return rendered;
-    }
-
-    it("envoie toute la sélection d'un seul geste", async () => {
+    it("confie toute la sélection au lot, d'un seul geste", async () => {
       await pick([photo("a.jpg"), photo("b.jpg"), photo("c.jpg")]);
 
       // LE geste de #156 : trois photos ne demandent plus trois ouvertures de galerie.
       await waitFor(() => expect(addFilesMock).toHaveBeenCalledTimes(1));
-      expect(addFilesMock.mock.calls[0]?.[0]).toHaveLength(3);
+      expect(batchOf(0).items).toHaveLength(3);
     });
 
-    it("envoie ce qui tient dans les places restantes et récapitule le reste", async () => {
+    it("annonce au lot les places que le débrief laisse encore", async () => {
       getFeedbackMock.mockResolvedValue(
         feedback({
           media: [
@@ -279,37 +269,38 @@ describe("AthleteFeedbackScreen", () => {
           ] as SessionFeedbackDto["media"],
         }),
       );
-      const { findByText } = await pick([photo("a.jpg"), photo("b.jpg"), photo("c.jpg")]);
+      await pick([photo("a.jpg"), photo("b.jpg")]);
 
-      // Une seule place libre sur cinq : on n'annule PAS le lot pour autant — la première photo
-      // part, et les deux autres sont nommées avec leur raison plutôt que perdues en silence.
-      await waitFor(() => expect(addFilesMock.mock.calls[0]?.[0]).toHaveLength(1));
-      expect(await findByText("b.jpg")).toBeInTheDocument();
-      expect(await findByText("c.jpg")).toBeInTheDocument();
+      // Quatre photos déjà jointes sur cinq : une seule place, et un plafond de lot qui est la
+      // somme des places restantes — inutile de préparer ce qu'aucun quota ne peut accueillir.
+      await waitFor(() => expect(batchOf(0).remaining.IMAGE).toBe(1));
+      expect(batchOf(0).maxItems).toBe(1 + 3);
     });
 
-    it("écarte un fichier que le débrief ne sait pas joindre sans lui compter de place", async () => {
-      const { findByText } = await pickIgnoringAccept([
-        new File(["x"], "seance.pdf", { type: "application/pdf" }),
-        photo("a.jpg"),
-      ]);
+    it("refuse de joindre un fichier qui n'est ni photo ni vidéo", async () => {
+      await pick([photo("a.jpg")]);
 
-      // Le PDF ne consomme aucune place : la photo passe quand même, et le refus est nommé.
-      await waitFor(() => expect(addFilesMock.mock.calls[0]?.[0]).toHaveLength(1));
-      expect(await findByText("seance.pdf")).toBeInTheDocument();
+      // Lu comme la PRÉPARATION le lira : un HEIC occupe une place de photo quitte à être refusé
+      // au format ensuite, tandis qu'un PDF n'en occupe aucune. L'audio s'enregistre, il ne se
+      // joint pas comme un fichier.
+      await waitFor(() => expect(addFilesMock).toHaveBeenCalled());
+      const { kindOf } = batchOf(0);
+      expect(kindOf(new File(["x"], "a.heic", { type: "image/heic" }))).toBe("IMAGE");
+      expect(kindOf(new File(["x"], "seance.pdf", { type: "application/pdf" }))).toBeNull();
+      expect(kindOf(new File(["x"], "note.m4a", { type: "audio/m4a" }))).toBeNull();
     });
 
-    it("récapitule l'échec d'un fichier sans rien dire des autres", async () => {
-      const files = [photo("a.jpg"), photo("b.jpg")];
-      addFilesMock.mockImplementation(async (picked: File[]) => [
-        { item: picked[0], error: null },
-        { item: picked[1], error: new Error("panne") },
+    it("nomme chaque fichier écarté et sa raison", async () => {
+      addFilesMock.mockResolvedValue([
+        { fileName: "trop.mov", reason: { key: "feedback.media.noSlotVideo", params: {} } },
+        { fileName: null, reason: { message: "Le serveur a refusé ce fichier." } },
       ]);
-      const { findByText, queryByText } = await pick(files);
+      const { findByText } = await pick([photo("a.jpg")]);
 
-      // Le fichier passé n'a rien à dire : il est déjà dans la galerie. Seul l'échec se récapitule.
-      expect(await findByText("b.jpg")).toBeInTheDocument();
-      expect(queryByText("a.jpg")).not.toBeInTheDocument();
+      // Un fichier sans nom garde sa ligne : le taire serait pire qu'un libellé de repli.
+      expect(await findByText("trop.mov")).toBeInTheDocument();
+      expect(await findByText("feedback.media.unnamedFile")).toBeInTheDocument();
+      expect(await findByText(/Le serveur a refusé ce fichier./)).toBeInTheDocument();
     });
   });
 

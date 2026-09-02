@@ -1,5 +1,7 @@
 import type {
-  BatchOutcome,
+  MediaBatch,
+  MediaBatchStep,
+  MediaRecapLine,
   MultipartUploadTicket,
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
@@ -9,7 +11,7 @@ import {
   type MediaTypeType,
   maxFeedbackMediaSizeBytes,
   megabytesOf,
-  runSequentially,
+  sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,9 +39,6 @@ function useInvalidateFeedback(sessionId: string) {
   };
 }
 
-/** Le média en cours dans un lot. `fileName` reste nullable : le picker n'en donne pas toujours. */
-export type FeedbackUploadStep = { index: number; total: number; fileName: string | null };
-
 /**
  * Ajoute des médias au débrief : sélection → compression → URL signée → upload direct →
  * rattachement.
@@ -49,30 +48,32 @@ export type FeedbackUploadStep = { index: number; total: number; fileName: strin
  * OutOfMemoryError dès 400 Mo (cf. `shared/lib/upload.ts`). Il pose aussi le `Content-Length`
  * exact, que l'URL signée impose (le storage rejette tout autre poids).
  *
- * Un lot part média par média, et un échec n'arrête pas les suivants (#156) : l'appelant lit les
- * issues rendues et récapitule ce qui n'est pas passé.
+ * La FILE elle-même n'est pas ici : `sendMediaBatch` (@cmv/shared) tient le tri, l'ordre et le
+ * récapitulatif pour les quatre surfaces. Ce hook n'apporte que ce qui est propre au débrief
+ * mobile — le transport, l'invalidation du cache, et l'état affiché pendant l'envoi.
  */
 export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
-  const [step, setStep] = useState<FeedbackUploadStep | null>(null);
+  const [step, setStep] = useState<MediaBatchStep | null>(null);
 
   /**
-   * La progression est publiée AVANT d'attendre, pour que « Envoi 2 / 5 » désigne le média qui
-   * part et non celui qui vient de partir.
-   *
    * Le cache est invalidé à CHAQUE média plutôt qu'à la fin : la grille se remplit au fur et à
    * mesure, et si le lot casse en route, ce qui est déjà passé reste visible.
    */
+  const upload = async (asset: ImagePicker.ImagePickerAsset, current: MediaBatchStep) => {
+    setStep(current);
+    setProgress(0);
+    await prepareAndUpload(sessionId, asset, setProgress);
+    invalidate();
+  };
+
+  // L'appelant décide de la POLITIQUE du lot (places restantes, plafond, libellés des refus) ;
+  // le hook n'impose que l'envoi.
   const addAssets = (
-    assets: readonly ImagePicker.ImagePickerAsset[],
-  ): Promise<BatchOutcome<ImagePicker.ImagePickerAsset>[]> =>
-    runSequentially(assets, async (asset, index) => {
-      setStep({ index: index + 1, total: assets.length, fileName: asset.fileName ?? null });
-      setProgress(0);
-      await prepareAndUpload(sessionId, asset, setProgress);
-      invalidate();
-    }).finally(() => setStep(null));
+    batch: Omit<MediaBatch<ImagePicker.ImagePickerAsset>, "send">,
+  ): Promise<MediaRecapLine[]> =>
+    sendMediaBatch({ ...batch, send: upload }).finally(() => setStep(null));
 
   return { addAssets, isUploading: step != null, step, progress };
 }

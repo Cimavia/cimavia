@@ -570,8 +570,14 @@ export {
   InvoiceState,
   resolveInvoiceState,
 } from "./util/invoice.util";
-export type { BatchOutcome, SlotSplit, SlottedMedia } from "./util/media-batch.util";
-export { runSequentially, splitByRemainingSlots } from "./util/media-batch.util";
+export type {
+  MediaBatch,
+  MediaBatchStep,
+  MediaRecapLine,
+  MediaRecapReason,
+  MediaRejection,
+} from "./util/media-batch.util";
+export { sendMediaBatch } from "./util/media-batch.util";
 export {
   formatMediaDuration,
   formatMmSs,
