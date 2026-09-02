@@ -5,13 +5,14 @@ import {
   type CustomMetric,
   type ExerciseBlock,
   formatTrainingDuration,
+  metricCellText,
   rowForUnit,
   SegmentKind,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
-import { cellText } from "@/feature/plan/component/DosageBlock";
+
 import { CmvText } from "@/shared/component";
 
 // i18n-values plan.timer.segment: SegmentKind
@@ -204,9 +205,12 @@ function Dosage({
       : (block.rows.find((candidate) => candidate.id === segment.rowId) ?? null);
   if (row == null) return null;
 
+  // Les absences sont sautées ICI, explicitement : la bannière d'un segment en cours tient sur une
+  // ligne centrée, et l'athlète a les yeux dessus entre deux séries. `metricCellText` rend TOUJOURS
+  // quelque chose — c'est à l'appelant de déclarer ce qu'il omet.
   const detail = block.metrics
     .filter((metric) => row.values[metric.id] != null)
-    .map((metric) => cellText(row.values[metric.id] ?? null, metric, customMetrics, t))
+    .map((metric) => metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t))
     .join(" · ");
   if (detail === "") return null;
 

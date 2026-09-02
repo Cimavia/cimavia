@@ -2,6 +2,7 @@ import {
   type BlockTrackingState,
   type CustomMetric,
   type ExerciseBlock,
+  metricCellText,
   TrackingMode,
   trackingUnits,
   unitValues,
@@ -9,7 +10,7 @@ import {
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
-import { cellText } from "@/feature/plan/component/DosageBlock";
+
 import { CmvText } from "@/shared/component";
 
 // i18n-values plan.tracking.unit: TrackingUnit
@@ -69,7 +70,7 @@ function unitDetail(
   t: TFunction,
 ): string {
   return unitValues(block, index)
-    .map(({ metric, value }) => cellText(value, metric, customMetrics, t))
+    .map(({ metric, value }) => metricCellText(value, metric, customMetrics, t))
     .join(" · ");
 }
 
