@@ -796,6 +796,7 @@
       "stopRecording": "Arrêter ({{seconds}} s)",
       "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
       "remove": "Retirer",
+      "openFull": "Ouvrir en grand",
       "uploading": "Envoi en cours… {{percent}} %",
       "uploadProgress": "Progression de l'envoi",
       "batchProgress": "Envoi {{index}} / {{total}} — {{fileName}}",

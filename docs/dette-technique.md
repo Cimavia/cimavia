@@ -772,10 +772,17 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > **Corrigé au passage** (trouvé en vérifiant sur appareil) : les photos de débrief ne
 > s'agrandissaient PAS sur mobile — le visionneur plein écran existait, mais dans
-> `feature/message/`, et ne servait que la messagerie ; le web, lui, ouvre la photo en pleine
-> taille depuis toujours. Promu en `CmvImageViewer` (`shared/component/`) et branché sur les deux
-> surfaces du débrief. Le geste est le même que pour la vidéo, et pour la même raison : un
-> composant que la messagerie possédait déjà valait mieux qu'un `<Image>` nu recopié.
+> `feature/message/`, et ne servait que la messagerie. Promu en `CmvImageViewer`
+> (`shared/component/`) et branché sur les deux surfaces du débrief. Le geste est le même que pour
+> la vidéo, et pour la même raison : un composant que la messagerie possédait déjà valait mieux
+> qu'un `<Image>` nu recopié.
+>
+> **Rectifié en #156** : cette entrée affirmait que « le web ouvre la photo en pleine taille depuis
+> toujours ». C'était vrai du **panneau coach** seulement — la galerie de l'athlète
+> (`FeedbackMediaGallery`) rendait un `<img>` nu, non cliquable, depuis sa création. L'écart entre
+> les deux surfaces web n'avait jamais été relevé, et la formule « le web » l'a masqué en le
+> traitant comme une plateforme homogène. Corrigé sur le même geste que le coach (un `<a>` vers
+> l'URL signée), signalé par le coach beta.
 >
 > **Corrigé au passage** : la galerie athlète affichait « Vidéo · 0 s » sur un média sans durée
 > déclarée (`durationSeconds ?? 0`) — la règle nullable prise à revers. `formatMediaDuration` rend

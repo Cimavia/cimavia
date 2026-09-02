@@ -29,12 +29,22 @@ export function FeedbackMediaGallery({
       {media.map((item) => (
         <CmvCard key={item.id}>
           <div className="flex flex-col gap-cmv-sm">
+            {/* Cliquable, comme côté coach : une vignette de 48 rem ne montre pas une prise de
+                pied, et l'athlète relit d'abord SES photos. L'écart entre les deux surfaces web
+                n'était pas un choix — le panneau coach l'a depuis toujours, cette galerie non. */}
             {item.type === MediaType.IMAGE ? (
-              <img
-                src={item.url}
-                alt={item.fileName}
-                className="max-h-48 w-full rounded-cmv-md object-cover"
-              />
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                title={t("feedback.media.openFull")}
+              >
+                <img
+                  src={item.url}
+                  alt={item.fileName}
+                  className="max-h-48 w-full rounded-cmv-md object-cover"
+                />
+              </a>
             ) : null}
 
             {item.type === MediaType.VIDEO ? (
