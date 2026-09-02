@@ -6,6 +6,7 @@ import { ConversationController } from "./controller/conversation.controller";
 import { MessageController } from "./controller/message.controller";
 import { ConversationService } from "./service/conversation.service";
 import { MessageService } from "./service/message.service";
+import { MessageAttachmentResolver } from "./service/message-attachment.resolver";
 import { MessageMediaService } from "./service/message-media.service";
 
 // Messagerie (P5) : fil 1:1 coach ↔ athlète, lu et écrit par les deux rôles.
@@ -16,6 +17,9 @@ import { MessageMediaService } from "./service/message-media.service";
 @Module({
   imports: [StorageModule, AccountModule, PlanModule],
   controllers: [ConversationController, MessageController],
-  providers: [ConversationService, MessageService, MessageMediaService],
+  providers: [ConversationService, MessageService, MessageMediaService, MessageAttachmentResolver],
+  // Le débrief rend les messages qui lui sont rattachés : il lui faut le même résolveur, et le
+  // même mapper. Sens unique — la messagerie n'importe pas FeedbackModule.
+  exports: [MessageAttachmentResolver],
 })
 export class MessageModule {}

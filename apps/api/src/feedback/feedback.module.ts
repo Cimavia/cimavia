@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AccountModule } from "../account/account.module";
 import { StorageModule } from "../infra/storage/storage.module";
+import { MessageModule } from "../message/message.module";
 import { PlanModule } from "../plan/plan.module";
 import { CoachFeedbackController } from "./controller/coach-feedback.controller";
 import { FeedbackMediaController } from "./controller/feedback-media.controller";
@@ -13,8 +14,10 @@ import { FeedbackMediaService } from "./service/feedback-media.service";
 // AccountModule : résolution des noms d'athlètes (User est hors scope tenant).
 // PlanModule : garde « séance de l'athlète courant, dans un cycle PUBLISHED » (AthletePlanService).
 // StorageModule : les médias sont servis en URLs GET signées, comme les documents.
+// MessageModule : un débrief rend les réponses qui lui sont rattachées, avec le mapper et le
+// résolveur de rattachement de la messagerie. Sens unique — MessageModule n'importe pas celui-ci.
 @Module({
-  imports: [PlanModule, StorageModule, AccountModule],
+  imports: [PlanModule, StorageModule, AccountModule, MessageModule],
   controllers: [SessionFeedbackController, FeedbackMediaController, CoachFeedbackController],
   providers: [FeedbackService, FeedbackMediaService, CoachFeedbackService],
   exports: [FeedbackService],

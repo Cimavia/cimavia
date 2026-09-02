@@ -1,4 +1,9 @@
-import type { FeedbackMediaDto, SessionFeedbackDto, TrackedExerciseDto } from "@cmv/shared";
+import type {
+  FeedbackMediaDto,
+  MessageDto,
+  SessionFeedbackDto,
+  TrackedExerciseDto,
+} from "@cmv/shared";
 import { trackingSummary } from "@cmv/shared";
 import type { FeedbackMedia, Prisma, ScheduledSessionExercise } from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
@@ -55,10 +60,18 @@ export function toTrackedExercises(
   });
 }
 
+/**
+ * Le débrief tel qu'il se lit — par son auteur comme par son coach, c'est le même DTO.
+ *
+ * `messages` sont les réponses rattachées : les MÊMES enregistrements que la messagerie sert, lus
+ * par un second chemin. Ils arrivent déjà mappés (le mapper des messages a besoin du storage et du
+ * résolveur de rattachement, qui ne sont pas l'affaire de ce fichier).
+ */
 export async function toSessionFeedbackDto(
   feedback: SessionFeedbackWithMedia,
   storage: StorageService,
   trackedExercises: TrackedExerciseDto[] = [],
+  messages: MessageDto[] = [],
 ): Promise<SessionFeedbackDto> {
   const media = await Promise.all(feedback.media.map((item) => toFeedbackMediaDto(item, storage)));
   return {
@@ -69,6 +82,7 @@ export async function toSessionFeedbackDto(
     coachReadAt: feedback.coachReadAt?.toISOString() ?? null,
     media,
     trackedExercises,
+    messages,
     createdAt: feedback.createdAt.toISOString(),
     updatedAt: feedback.updatedAt.toISOString(),
   };

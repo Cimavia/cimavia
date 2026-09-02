@@ -42,6 +42,10 @@ export class CoachFeedbackService {
     // Le coach suit N athlètes : sans le nom, la liste serait une suite d'ids opaques.
     const names = await this.users.namesByIds(feedbacks.map((feedback) => feedback.athleteId));
 
+    const repliedAt = await this.firstCoachReplyByFeedback(
+      feedbacks.map((feedback) => feedback.id),
+    );
+
     return feedbacks.map((feedback) => {
       const session = sessionById.get(feedback.scheduledSessionId);
       const athleteName = names.get(feedback.athleteId);
@@ -61,10 +65,46 @@ export class CoachFeedbackService {
         content: feedback.content,
         mediaCount: feedback._count.media,
         coachReadAt: feedback.coachReadAt?.toISOString() ?? null,
+        // `null` = pas encore répondu. Pas de date de repli (règle dure n°5) : « — » se rend.
+        repliedAt: repliedAt.get(feedback.id)?.toISOString() ?? null,
         createdAt: feedback.createdAt.toISOString(),
         updatedAt: feedback.updatedAt.toISOString(),
       };
     });
+  }
+
+  /**
+   * « Répondu », DÉRIVÉ : la date du premier message du coach rattaché à chaque débrief.
+   *
+   * Aucune colonne, aucun état à maintenir cohérent — même dispositif que `resolveInvoiceState`
+   * (« en retard ») et `isReminderDue` (« dû »). Distinct de `coachReadAt`, qui repasse à `null`
+   * quand l'athlète complète son débrief : « lu » et « répondu » sont deux axes.
+   *
+   * « Du coach » se lit sur le message lui-même : `senderId === coachId`, les deux étant portés par
+   * la ligne (`coachId` est dénormalisé). Aucun acteur à injecter, et un athlète qui répond sur son
+   * propre débrief ne le marque donc pas « répondu ». Prisma ne sait pas comparer deux colonnes
+   * dans un `where` sans SQL brut : le tri se fait ici, sur un lot déjà borné aux débriefs listés.
+   *
+   * UNE requête pour toute la liste, pas une par ligne.
+   */
+  private async firstCoachReplyByFeedback(
+    feedbackIds: readonly string[],
+  ): Promise<Map<string, Date>> {
+    const messages = await this.db.message.findMany({
+      where: { sessionFeedbackId: { in: [...feedbackIds] } },
+      orderBy: { createdAt: "asc" },
+      select: { sessionFeedbackId: true, senderId: true, coachId: true, createdAt: true },
+    });
+
+    const firstReply = new Map<string, Date>();
+    for (const message of messages) {
+      if (message.sessionFeedbackId == null || message.senderId !== message.coachId) continue;
+      // Les messages arrivent du plus ancien au plus récent : la première entrée est la bonne.
+      if (!firstReply.has(message.sessionFeedbackId)) {
+        firstReply.set(message.sessionFeedbackId, message.createdAt);
+      }
+    }
+    return firstReply;
   }
 
   /**

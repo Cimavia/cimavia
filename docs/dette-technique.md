@@ -98,6 +98,21 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P5-5 | **Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile), et entre mobile et web. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
+> **Tranché en #190** (répondre à un débrief) : la réponse est un **`Message` rattaché**
+> (`Message.sessionFeedbackId`), pas une entité nouvelle — le champ était au schéma et validé
+> côté serveur depuis P5, sans aucune UI. Elle hérite ainsi des médias, des non-lus, du push, du
+> throttle et de la pagination à venir. Écartés : une entité `FeedbackReply` (il faudrait tout
+> reconstruire, et `sessionFeedbackId` deviendrait du code mort) et un `coachComment` unique sur
+> `SessionFeedback` (ni aller-retour, ni média). Quatre conséquences que le code ne justifie pas
+> seul : **« répondu » est dérivé** (premier message dont `senderId === coachId`), jamais stocké —
+> même dispositif que `resolveInvoiceState` et `isReminderDue` ; **`coachReadAt` ne bouge pas**,
+> « lu » et « répondu » étant deux axes ; **aucun nouveau `NotificationType`**, l'athlète reçoit
+> `MESSAGE_RECEIVED` et la notification ouvre la conversation ; et **lire une réponse depuis le
+> débrief ne marque rien lu** — `markRead` est par FIL, l'appeler là éteindrait des non-lus que
+> personne n'a vus. Le rattachement est **résolu à la lecture** par une requête scopée à part
+> (`MessageAttachmentResolver`), jamais par un `include` imbriqué, qui ferait fuir le libellé
+> d'une cible hors relation sans rien signaler.
+
 > **Promu en P5** : l'enregistreur et le lecteur audio (`CmvAudioRecorder`/`CmvAudioPlayer`) sont
 > dans `shared/component/` côté mobile, construits pour la messagerie **et** réutilisés tels quels
 > par le débrief vocal — l'ajout au débrief a coûté quelques heures, comme anticipé (CDC §4).

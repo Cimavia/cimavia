@@ -1,4 +1,4 @@
-import type { MessageDto } from "@cmv/shared";
+import type { MessageAttachmentDto, MessageDto } from "@cmv/shared";
 import type { Message } from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
 
@@ -7,8 +7,17 @@ import type { StorageService } from "../infra/storage/storage.service";
  * média, `fileName`/`mimeType`/`sizeBytes` sont toujours écrits ensemble — une absence signalerait
  * une incohérence de données, pas un cas métier : on lève plutôt que de combler par un défaut
  * (règle dure n°5). L'URL GET est signée, régénérée à chaque lecture (bucket privé).
+ *
+ * Le rattachement arrive DÉJÀ résolu (`MessageAttachmentResolver`) et non chargé ici : le mapper
+ * s'exécute une fois par message, la résolution une fois par lot — c'est la seule façon de ne pas
+ * faire d'un fil long une rafale de requêtes. Il est EXIGÉ, sans valeur par défaut : un `null`
+ * implicite ferait passer un rattachement oublié pour un message sans contexte.
  */
-export async function toMessageDto(message: Message, storage: StorageService): Promise<MessageDto> {
+export async function toMessageDto(
+  message: Message,
+  storage: StorageService,
+  attachment: MessageAttachmentDto | null,
+): Promise<MessageDto> {
   let media: MessageDto["media"] = null;
   if (message.storagePath != null) {
     if (message.fileName == null || message.mimeType == null || message.sizeBytes == null) {
@@ -32,6 +41,7 @@ export async function toMessageDto(message: Message, storage: StorageService): P
     media,
     scheduledSessionId: message.scheduledSessionId,
     sessionFeedbackId: message.sessionFeedbackId,
+    attachment,
     readAt: message.readAt?.toISOString() ?? null,
     createdAt: message.createdAt.toISOString(),
   };
