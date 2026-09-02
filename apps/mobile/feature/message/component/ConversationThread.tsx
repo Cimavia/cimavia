@@ -1,3 +1,5 @@
+import type { MediaRecapLine } from "@cmv/shared";
+import { mediaRecapText } from "@cmv/shared";
 import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -69,9 +71,12 @@ export function ConversationThread({
   // il ne passe pas par la mutation. Réinitialisé à chaque nouvelle tentative.
   const [preUploadErrorKey, setPreUploadErrorKey] = useState<string | null>(null);
 
+  // Ce qui n'a pas été envoyé au dernier lot, fichier par fichier (#156).
+  const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
+
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
-  const mediaError = mediaErrorMessage(media.uploadError, preUploadErrorKey, t);
+  const mediaError = mediaErrorMessage(media.audioError, preUploadErrorKey, t);
 
   // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la conversation
   // (pas les messages) : le prochain poll ramène `readAt` posé et la condition retombe — pas de
@@ -137,11 +142,21 @@ export function ConversationThread({
           <CmvText className="px-4 pb-1 text-cmv-error text-sm">{mediaError}</CmvText>
         ) : null}
 
+        {/* Une ligne PAR fichier : « 2 sur 5 n'ont pas pu partir » ne dirait pas lesquels, ce qui
+            laisserait la sélection entière à refaire. La clé est le rang du fichier dans la
+            sélection, porté par la ligne. */}
+        {recap.map((entry) => (
+          <CmvText key={entry.id} className="px-4 pb-1 text-cmv-error text-sm">
+            {`${entry.fileName ?? t("messages.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
+          </CmvText>
+        ))}
+
         <Composer
           onSendText={(content) => send.mutate({ type: "TEXT", content })}
           onPickMedia={() => {
             setPreUploadErrorKey(null);
-            media.pickAndSend(setPreUploadErrorKey);
+            setRecap([]);
+            void media.pickAndSend(setPreUploadErrorKey).then(setRecap);
           }}
           onRecordAudio={(audio) => {
             setPreUploadErrorKey(null);
@@ -150,6 +165,7 @@ export function ConversationThread({
           onMediaError={setPreUploadErrorKey}
           sending={send.isPending}
           mediaBusy={media.isUploading}
+          step={media.step}
         />
       </KeyboardAvoidingView>
     </CmvScreen>

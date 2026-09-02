@@ -1,3 +1,4 @@
+import type { MediaBatchStep } from "@cmv/shared";
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
@@ -8,11 +9,13 @@ import { useWebAudioRecorder } from "@/shared/hook/useWebAudioRecorder";
 
 type ComposerProps = {
   onSendText: (text: string) => void;
-  onSendFile: (file: File) => void;
+  onSendFiles: (files: readonly File[]) => void;
   onRecordedAudio: (audio: RecordedWebAudio) => void;
   sending: boolean;
   mediaBusy: boolean;
   progress: number;
+  /** Le fichier en cours dans un lot, `null` hors envoi. */
+  step: MediaBatchStep | null;
 };
 
 function formatSeconds(total: number): string {
@@ -26,11 +29,12 @@ function formatSeconds(total: number): string {
  */
 export function Composer({
   onSendText,
-  onSendFile,
+  onSendFiles,
   onRecordedAudio,
   sending,
   mediaBusy,
   progress,
+  step,
 }: Readonly<ComposerProps>) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -63,10 +67,10 @@ export function Composer({
   };
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     // Réinitialise pour permettre de re-choisir le même fichier ensuite.
     event.target.value = "";
-    if (file != null) onSendFile(file);
+    if (files.length > 0) onSendFiles(files);
   };
 
   if (recorder.isRecording) {
@@ -100,6 +104,7 @@ export function Composer({
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           accept="image/*,video/*"
           onChange={onFileChange}
           className="hidden"
@@ -146,9 +151,21 @@ export function Composer({
       </div>
 
       {mediaBusy ? (
-        <p className="pt-cmv-sm text-cmv-caption text-cmv-text-mid">
-          {t("messages.media.uploading", { percent: String(progress) })}
-        </p>
+        <div className="flex flex-col pt-cmv-sm">
+          {/* Le rang n'est dit que s'il y a un rang à dire : « Envoi 1 / 1 » serait du bruit. */}
+          {step != null && step.total > 1 ? (
+            <p className="text-cmv-caption text-cmv-text-mid">
+              {t("messages.media.batchProgress", {
+                index: step.index,
+                total: step.total,
+                fileName: step.fileName ?? t("messages.media.unnamedFile"),
+              })}
+            </p>
+          ) : null}
+          <p className="text-cmv-caption text-cmv-text-mid">
+            {t("messages.media.uploading", { percent: String(progress) })}
+          </p>
+        </div>
       ) : null}
     </div>
   );

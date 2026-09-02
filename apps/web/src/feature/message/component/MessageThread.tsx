@@ -93,11 +93,12 @@ export function MessageThread({
 
       <Composer
         onSendText={(content) => send.mutate({ type: "TEXT", content })}
-        onSendFile={media.sendFile}
+        onSendFiles={media.sendFiles}
         onRecordedAudio={media.sendAudio}
         sending={send.isPending}
         mediaBusy={media.isUploading}
         progress={media.progress}
+        step={media.step}
       />
     </div>
   );

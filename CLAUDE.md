@@ -82,8 +82,10 @@ Tout doit passer avant de conclure une étape. Ces quatre commandes sont celles 
 *Lint + Typecheck + Test*, à l'exception du `--strict`, exigé en local et pas en CI :
 
 ```bash
-pnpm biome ci .                # ⚠️ PAS `turbo lint` : @cmv/shared n'a pas de script `lint`,
-                               #    turbo le saute EN SILENCE. La CI lance bien celle-ci.
+pnpm biome ci .                # ⚠️ PAS `turbo lint` : les 5 paquets ont désormais chacun leur
+                               #    script (`biome check .`), mais turbo ne voit JAMAIS la racine —
+                               #    biome.json, turbo.json, scripts/check-i18n-keys.mjs. C'est
+                               #    celle-ci que lance la CI.
 pnpm turbo typecheck test
 pnpm check:i18n                # doit sortir en 0
 pnpm check:i18n --strict       # + les clés mortes — plus strict que la CI

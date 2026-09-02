@@ -1,5 +1,8 @@
 import type {
   AttachFeedbackMediaInput,
+  MediaBatch,
+  MediaBatchStep,
+  MediaRecapLine,
   MediaTypeType,
   MultipartUploadTicket,
   RequestFeedbackUploadUrlInput,
@@ -10,6 +13,7 @@ import {
   megabytesOf,
   myFeedbackKeys,
   myPlanKeys,
+  sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -42,39 +46,75 @@ function useInvalidateFeedback(sessionId: string) {
 }
 
 /**
- * Ajoute un média au débrief : préparation → URL signée → upload direct vers le bucket →
+ * Ajoute des médias au débrief : préparation → URL signée → upload direct vers le bucket →
  * rattachement. Le binaire ne passe jamais par l'API (règle 7).
  *
- * La taille est revérifiée ICI, après préparation, parce que c'est la taille FINALE qui est signée
- * dans l'URL : le storage refuse tout autre poids. Laisser passer, c'est échouer à l'étape la plus
- * chère (celle qui a déjà transféré le fichier).
+ * La FILE elle-même n'est pas ici : `sendMediaBatch` (@cmv/shared) tient le tri, l'ordre et le
+ * récapitulatif pour les quatre surfaces. Ce hook n'apporte que ce qui est propre au débrief web —
+ * le transport, l'invalidation du cache, et l'état affiché pendant l'envoi.
  */
 export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
+  const [step, setStep] = useState<MediaBatchStep | null>(null);
 
-  const add = useMutation({
-    mutationFn: async (source: WebMediaSource) => {
-      const media = await prepareWebMedia(source, FEEDBACK_MEDIA_PROFILE);
-      if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
-        throw new MediaRejectedError(tooBigKey(media.type), {
-          max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)),
-        });
-      }
+  const audio = useMutation({
+    mutationFn: (recorded: RecordedWebAudio) => {
       setProgress(0);
-      return uploadAndAttach(sessionId, media, setProgress);
+      return prepareAndUpload(
+        sessionId,
+        { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
+        setProgress,
+      );
     },
     onSuccess: invalidate,
   });
 
+  /**
+   * Le cache est invalidé à CHAQUE fichier plutôt qu'à la fin : la galerie se remplit au fur et à
+   * mesure, ce qui vaut mieux qu'un écran figé pendant l'envoi de cinq vidéos — et si le lot casse
+   * en route, ce qui est déjà passé reste visible.
+   */
+  const upload = async (file: File, current: MediaBatchStep) => {
+    setStep(current);
+    setProgress(0);
+    await prepareAndUpload(sessionId, { kind: "file", file }, setProgress);
+    invalidate();
+  };
+
+  // L'appelant décide de la POLITIQUE du lot (places restantes, plafond, libellés des refus) ;
+  // le hook n'impose que l'envoi.
+  const addFiles = (batch: Omit<MediaBatch<File>, "send">): Promise<MediaRecapLine[]> =>
+    sendMediaBatch({ ...batch, send: upload }).finally(() => setStep(null));
+
   return {
-    addFile: (file: File) => add.mutate({ kind: "file", file }),
-    addAudio: (audio: RecordedWebAudio) =>
-      add.mutate({ kind: "audio", blob: audio.blob, durationSeconds: audio.durationSeconds }),
-    isUploading: add.isPending,
-    error: add.error,
+    addFiles,
+    addAudio: (recorded: RecordedWebAudio) => audio.mutate(recorded),
+    /** L'échec de la NOTE VOCALE seule : les refus d'un lot de fichiers vivent dans son récap. */
+    audioError: audio.error,
+    isUploading: step != null || audio.isPending,
+    step,
     progress,
   };
+}
+
+/**
+ * La taille est revérifiée ICI, après préparation, parce que c'est la taille FINALE qui est signée
+ * dans l'URL : le storage refuse tout autre poids. Laisser passer, c'est échouer à l'étape la plus
+ * chère (celle qui a déjà transféré le fichier).
+ */
+async function prepareAndUpload(
+  sessionId: string,
+  source: WebMediaSource,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  const media = await prepareWebMedia(source, FEEDBACK_MEDIA_PROFILE);
+  if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
+    throw new MediaRejectedError(tooBigKey(media.type), {
+      max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)),
+    });
+  }
+  await uploadAndAttach(sessionId, media, onProgress);
 }
 
 export function useDeleteFeedbackMedia(sessionId: string) {

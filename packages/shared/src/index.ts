@@ -322,6 +322,7 @@ export {
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
   MAX_MESSAGE_IMAGE_SIZE_BYTES,
+  MAX_MESSAGE_MEDIA_BATCH,
   MAX_MESSAGE_VIDEO_DURATION_SECONDS,
   MAX_MESSAGE_VIDEO_SIZE_BYTES,
   MESSAGE_AUDIO_MIME_TYPES,
@@ -570,12 +571,21 @@ export {
   InvoiceState,
   resolveInvoiceState,
 } from "./util/invoice.util";
+export type {
+  MediaBatch,
+  MediaBatchStep,
+  MediaRecapLine,
+  MediaRecapReason,
+  MediaRejection,
+} from "./util/media-batch.util";
+export { mediaRecapText, sendMediaBatch } from "./util/media-batch.util";
 export {
   formatMediaDuration,
   formatMmSs,
   megabytesOf,
   minutesOf,
 } from "./util/media-format.util";
+export { mediaKindOfMime } from "./util/media-kind.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
 export {

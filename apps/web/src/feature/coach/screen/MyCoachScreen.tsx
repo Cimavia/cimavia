@@ -1,6 +1,6 @@
 import type { CoachAthleteDto } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAcceptInvitation, useMyCoach } from "@/feature/coach/hook/useMyCoach";
 import {
@@ -99,7 +99,7 @@ function JoinCoachForm() {
 
   const trimmed = code.trim();
 
-  function onSubmit(event: FormEvent) {
+  function onSubmit(event: SubmitEvent) {
     event.preventDefault();
     if (trimmed.length === 0 || accept.isPending) return;
     accept.mutate({ code: trimmed });

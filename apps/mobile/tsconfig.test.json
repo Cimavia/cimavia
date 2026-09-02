@@ -1,0 +1,33 @@
+{
+  // Typecheck du HARNAIS de test, séparé pour une seule raison : la bibliothèque **DOM**.
+  //
+  // Le `tsconfig.json` du mobile s'arrête à `lib: ["ES2023"]`, et ce n'est pas un oubli — c'est ce
+  // qui fait qu'un fichier de production appelant `document` ou `window` échoue à compiler au lieu
+  // de planter sur l'appareil. Cette garde doit rester.
+  //
+  // Mais les tests, eux, s'exécutent en jsdom : `react-native` y est aliasé vers
+  // `react-native-web` (cf. `vitest.config.ts`) et Testing Library rend du VRAI DOM. Un test qui
+  // cherche un `<textarea>` manipule légitimement des types que la production n'a pas le droit de
+  // voir. D'où deux passes plutôt qu'une bibliothèque élargie pour tout le monde.
+  //
+  // Les fichiers de production tirés transitivement par les imports des tests sont revérifiés ici
+  // sous DOM — sans conséquence : ils restent dans l'`include` du tsconfig principal, où la garde
+  // s'applique. Même construction que `apps/api/tsconfig.test.json` (#130).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  // Les trois déclarations ambiantes sont RÉPÉTÉES ici : `include` remplace celui du parent, et
+  // sans `nativewind-env.d.ts` le `className` posé sur une `View` redevient une propriété inconnue
+  // — des dizaines d'erreurs dans des fichiers de production qui, eux, compilent en passe 1.
+  "include": [
+    "test",
+    "vitest.config.ts",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "global.d.ts",
+    "nativewind-env.d.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

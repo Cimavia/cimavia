@@ -72,7 +72,7 @@ Commits atomiques, **relus un par un**. Pour chacun, donner :
 
 - `git add` **chemin par chemin** (jamais `-A` : l'arbre peut contenir des modifs du développeur) ;
 - `git commit -m "..."` complet, conforme commitlint — **sujet en minuscule**, header ≤ 100, corps
-  ≤ 100 par ligne, `Closes #n` / `Refs #n` **dans le corps**. Une seule ligne pour le corp du commit.
+  ≤ 100 par ligne, `Closes #n` / `Refs #n` **dans le corps**. Une seule ligne pour le corp du commit. Un corp de commit concis.
 - ⚠️ **Pas de backtick ni de `!` dans une chaîne en double quotes** : le shell les interprète.
 
 Le corps du commit porte **le pourquoi**, pas le quoi — le diff dit déjà le quoi. Attendre la

@@ -147,7 +147,7 @@ export class FeedbackMediaService {
   }
 
   /**
-   * Plafond par type : 3 vidéos, 5 photos, 3 notes vocales (CDC §6). Ce quota ne peut pas vivre
+   * Plafond par type : 20 photos, 10 vidéos, 20 notes vocales (CDC §6). Ce quota ne peut pas vivre
    * dans le schéma Zod — il dépend du nombre déjà attaché. `maxFeedbackMediaCount` (@cmv/shared)
    * reste la source unique de la valeur, partagée avec le client.
    */

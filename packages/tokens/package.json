@@ -8,6 +8,7 @@
     "./tailwind-preset": "./src/tailwind-preset.js"
   },
   "scripts": {
+    "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

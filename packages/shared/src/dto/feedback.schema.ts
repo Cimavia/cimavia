@@ -15,12 +15,15 @@ export const MediaType = {
 export type MediaType = TypesValuesOf<typeof MediaType>;
 export const mediaTypeSchema = z.enum(MediaType);
 
-// Plafonds MVP (CDC §6 et §10). La vidéo est le principal poste de coût : ces bornes gardent
-// le stockage prévisible. Source UNIQUE — l'API (schémas ci-dessous) et les clients (contrôle
-// avant capture/upload) s'y réfèrent tous les deux.
-export const MAX_FEEDBACK_PHOTOS = 5;
-export const MAX_FEEDBACK_VIDEOS = 3;
-export const MAX_FEEDBACK_AUDIOS = 15;
+// Plafonds par débrief (CDC §6 et §10). Relevés en #156 depuis 5/3/15 : la sélection multiple a
+// rendu visible que le compte, et non la taille, était ce qui gênait — un athlète débriefe une
+// séance avec dix photos de ses voies. Ce qui garde le stockage prévisible reste la taille par
+// fichier (ci-dessous), la vidéo étant le principal poste de coût.
+// Source UNIQUE — l'API (schémas ci-dessous) et les clients (contrôle avant capture/upload) s'y
+// réfèrent tous les deux.
+export const MAX_FEEDBACK_PHOTOS = 20;
+export const MAX_FEEDBACK_VIDEOS = 10;
+export const MAX_FEEDBACK_AUDIOS = 20;
 export const MAX_FEEDBACK_PHOTO_SIZE_BYTES = 100 * 1024 * 1024;
 export const MAX_FEEDBACK_VIDEO_SIZE_BYTES = 1000 * 1024 * 1024;
 export const MAX_FEEDBACK_AUDIO_SIZE_BYTES = 100 * 1024 * 1024;

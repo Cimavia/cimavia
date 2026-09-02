@@ -1,4 +1,5 @@
-import { beforeEach, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach, beforeEach, vi } from "vitest";
 
 /**
  * `AsyncStorage` remplacé par une Map, pour TOUS les tests du mobile.
@@ -37,4 +38,15 @@ export const asyncStorageMock = asyncStorage;
 beforeEach(() => {
   store.clear();
   vi.clearAllMocks();
+});
+
+/**
+ * Sans `globals: true` — les tests du monorepo importent `describe`/`it`/`expect` explicitement —
+ * Testing Library ne trouve aucun `afterEach` global et ne démonte donc RIEN toute seule. Deux
+ * tests d'un même fichier partageraient alors le même DOM, et le second lirait l'écran laissé par
+ * le premier. Ce n'est pas théorique : c'est exactement ce qui a fait passer un `getAllByText()[0]`
+ * sur le bouton du test PRÉCÉDENT pendant la mise au point de ce harnais.
+ */
+afterEach(() => {
+  cleanup();
 });

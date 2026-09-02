@@ -1,6 +1,6 @@
 import { type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type SubmitEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useAttachInvoiceDocument,
@@ -47,7 +47,7 @@ export function PlanBillingSection({ planId, isPublished }: Readonly<PlanBilling
     return Math.round(value * 100);
   }
 
-  function onSubmit(event: FormEvent) {
+  function onSubmit(event: SubmitEvent) {
     event.preventDefault();
     const amountCents = toAmountCents(amount);
     if (amountCents == null || dueDate === "") return;

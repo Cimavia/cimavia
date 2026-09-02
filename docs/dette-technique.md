@@ -21,11 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. Cinq dettes n'ont **pas** d'issue : **P2-4** et **N-3** (déclencheur
-explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne),
-**C-1** (comportement voulu — l'issue serait un contresens, le déclencheur est qu'on le corrige à
-tort). Les quatre sont volontaires ; **Q-5** ne l'est pas — elle se règle dans une interface
-SonarCloud, où une issue n'aurait rien à suivre que le fait de s'en souvenir.
+autonomes. **Onze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
+déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**
+et **W-1**, dont le déclencheur est nommé mais dont rien n'est à préparer avant qu'il survienne ;
+et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une issue n'aurait rien à suivre
+que le fait de s'en souvenir. Les dix premières sont volontaires, la dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -158,7 +159,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
-| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : [#137](https://github.com/Cimavia/cimavia/issues/137) |
+| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30` — `new_lines` (34 349) dépasse `ncloc` (30 247), donc TOUT le dépôt est « du code neuf » et `new_coverage` plafonne à 31,4 % contre un seuil de 80. Les PR passent (Sonar y diffe contre la base) ; c'est le job sur `push: main` qui échouera à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt. | 🔴 | — *(réglage d'interface, à faire avant le prochain merge sur `main`)* |
 
 > **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
@@ -198,6 +199,59 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > présent pour react-native-web. Le seul mock du harnais est `AsyncStorage`, posé en `setupFiles`
 > pour qu'aucun test ne PUISSE atteindre un module natif. Corollaire à ne pas défaire : le jour où
 > l'on voudra rendre un écran natif, c'est là que la question se rouvrira — pas avant.
+>
+> **Rouverte en #156, et refermée autrement.** Le raisonnement ci-dessus tenait entièrement ; ce
+> qui lui manquait était une TROISIÈME voie, que ni cet encadré ni #188 n'envisageaient :
+> `react-native-web`. Ce n'est pas un second runner mais un alias de résolution, donc §11 reste
+> tenue et `jest-expo` reste fermé. Voir « Tranché en #156 » ci-dessous.
+
+> **Tranché en #156** (rendre un écran natif sans changer de runner) : le mobile monte désormais
+> de VRAIS composants React Native sous Vitest. Cinq choix que le code ne justifie pas seul.
+>
+> - **`react-native` est aliasé vers `react-native-web`**, et c'est ce qui débloque tout. Le
+>   paquet natif n'est pas seulement lourd à charger : il est écrit avec des annotations **Flow**,
+>   qu'esbuild — le transformeur de Vite — ne sait pas effacer. Il est donc hors de portée par
+>   construction, et aucun réglage ne l'en rapprochera. `react-native-web` est déjà une dépendance
+>   de production (Expo web) et rend le même arbre en DOM. L'alias est une LISTE de regex ancrées
+>   et non un objet : un alias objet fait du remplacement de préfixe, et réécrirait
+>   `react-native-keyboard-controller` en `react-native-webkeyboard-controller`.
+> - **Le mur n'était pas celui que #188 décrivait.** L'issue annonçait `SafeAreaProvider`,
+>   `KeyboardProvider`, le `ThemeProvider` de react-navigation et le `Stack` d'expo-router. Ils
+>   sont bien nécessaires, et coûtent sept lignes de mock chacun. Le vrai point de passage, que
+>   l'issue ne nommait pas, est **`expo-modules-core`** : tout module Expo en dérive, et il lit
+>   `globalThis.expo`, la poignée JSI que seul le runtime natif pose. Le mocker fait tomber la
+>   chaîne entière — c'est le seul mock structurel de `test/native.tsx`, les autres ne font que
+>   rendre leur module utilisable.
+> - **`fireEvent.click` est le SEUL geste qui presse un `Pressable`** sous react-native-web.
+>   `mouseDown`/`mouseUp` et `pointerDown`/`pointerUp` ne déclenchent RIEN, silencieusement — un
+>   test qui les emploie affirme sur un geste qui n'a jamais eu lieu. Vérifié à la mise au point,
+>   et c'est pourquoi `test/render.tsx` expose `press()` plutôt que de laisser choisir.
+> - **`tsconfig.test.json`, comme l'API en #130 — pour la bibliothèque DOM et rien d'autre.** Le
+>   `lib: ["ES2023"]` du mobile n'est pas un oubli : c'est lui qui fait échouer un fichier de
+>   production appelant `document` au lieu de le laisser planter sur l'appareil. Les tests, eux,
+>   manipulent légitimement du DOM (jsdom + react-native-web). Deux passes, donc, plutôt qu'une
+>   bibliothèque élargie pour tout le monde — et `include` y répète les déclarations ambiantes,
+>   faute de quoi le `className` de NativeWind redevient une propriété inconnue.
+> - **Ce que le harnais rend testable ne change pas ce qu'on affirme.** Les tests livrés portent
+>   sur des décisions — un bouton fermé quand le quota est pris, un rang de lot tu quand il n'y a
+>   pas de rang à dire, un `markRead` qui ne part pas sur ses propres messages, la préséance d'un
+>   refus manuel sur une erreur d'upload. L'interdiction de #58 tient sans réserve : un `render()`
+>   qui exécute du JSX sans rien affirmer reste du décor, harnais ou pas.
+>
+> - **Les scripts `lint` des paquets disent `biome check .`, jamais une liste de dossiers.** Les
+>   trois apps listaient leurs répertoires de source et rataient donc leur propre harnais de test —
+>   `apps/mobile/test/` n'était vu par aucun `pnpm lint` ; `@cmv/shared` et `@cmv/tokens` n'avaient
+>   pas de script du tout. Une liste dérive dès qu'un fichier apparaît à la racine du paquet, et
+>   elle dérive **en silence**. Le `.` s'entretient seul : Biome remonte au `biome.json` de la
+>   racine, donc les exclusions (`.expo`, `metro.config.js`, `tailwind.config.js`…) continuent de
+>   s'appliquer — les re-lister par paquet serait le geste à ne pas faire. Conséquence à ne pas
+>   sur-lire : `turbo lint` reste insuffisant comme porte, mais pour une raison neuve — il couvre
+>   maintenant les cinq paquets et ne voit toujours **pas la racine** (`biome.json`, `turbo.json`,
+>   `scripts/check-i18n-keys.mjs`). `pnpm biome ci .` reste ce que lance la CI.
+>
+> Angle mort assumé : `cimode` PERD les paramètres d'interpolation (même prix qu'au web, #188), et
+> `CmvButton` n'ayant pas de `accessibilityRole`, `pressButton()` doit prendre le premier des deux
+> nœuds que `getAllByText` remonte. L'index disparaîtra le jour où le rôle sera posé.
 
 > **Tranché en #58** (mesurer une couche à moitié, c'est la remettre hors de vue) : le périmètre de
 > couverture du web est **tout `src/`**, et non sa seule couche `util/` + `hook/`. La restriction
@@ -771,10 +825,17 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > **Corrigé au passage** (trouvé en vérifiant sur appareil) : les photos de débrief ne
 > s'agrandissaient PAS sur mobile — le visionneur plein écran existait, mais dans
-> `feature/message/`, et ne servait que la messagerie ; le web, lui, ouvre la photo en pleine
-> taille depuis toujours. Promu en `CmvImageViewer` (`shared/component/`) et branché sur les deux
-> surfaces du débrief. Le geste est le même que pour la vidéo, et pour la même raison : un
-> composant que la messagerie possédait déjà valait mieux qu'un `<Image>` nu recopié.
+> `feature/message/`, et ne servait que la messagerie. Promu en `CmvImageViewer`
+> (`shared/component/`) et branché sur les deux surfaces du débrief. Le geste est le même que pour
+> la vidéo, et pour la même raison : un composant que la messagerie possédait déjà valait mieux
+> qu'un `<Image>` nu recopié.
+>
+> **Rectifié en #156** : cette entrée affirmait que « le web ouvre la photo en pleine taille depuis
+> toujours ». C'était vrai du **panneau coach** seulement — la galerie de l'athlète
+> (`FeedbackMediaGallery`) rendait un `<img>` nu, non cliquable, depuis sa création. L'écart entre
+> les deux surfaces web n'avait jamais été relevé, et la formule « le web » l'a masqué en le
+> traitant comme une plateforme homogène. Corrigé sur le même geste que le coach (un `<a>` vers
+> l'URL signée), signalé par le coach beta.
 >
 > **Corrigé au passage** : la galerie athlète affichait « Vidéo · 0 s » sur un média sans durée
 > déclarée (`durationSeconds ?? 0`) — la règle nullable prise à revers. `formatMediaDuration` rend
@@ -873,6 +934,89 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Sélection multiple de médias ([#156](https://github.com/Cimavia/cimavia/issues/156))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| W-1 | **Pas de reprise d'un fichier écarté** : le récapitulatif nomme ce qui n'est pas passé et pourquoi, mais ne propose pas de le renvoyer — il faut rouvrir la galerie et refaire la sélection. Il s'efface au lot suivant. | 🟢 | — *(déclencheur : un athlète qui signale refaire toute sa sélection pour un seul fichier)* |
+
+> **Tranché** (le lot ne s'annule jamais en bloc) : ni quand la sélection dépasse les places
+> restantes, ni quand un fichier échoue en route. Six photos pour cinq places envoient les cinq
+> premières ; un fichier trop lourd en troisième position n'emporte pas les deux qui le suivent. Ce
+> qui reste dehors est **récapitulé fichier par fichier**, avec sa raison — un « 2 sur 5 n'ont pas
+> pu partir » ne dirait pas lesquels, ce qui laisserait la sélection entière à refaire. Ce qui est
+> effectivement parti ne figure PAS au récapitulatif : c'est déjà dans la galerie ou dans le fil.
+>
+> **Tranché** (un seul bouton sur mobile) : « Ajouter une photo » et « Ajouter une vidéo »
+> deviennent « Ajouter des photos ou des vidéos », avec une sélection mixte. Deux boutons ouvrant
+> chacun un multi-select obligeraient à deux allers-retours pour un lot mixte — le cas courant
+> après une séance. La ligne « Encore N photo(s), N vidéo(s)… » porte désormais seule la
+> distinction entre les deux quotas.
+>
+> **Tranché** (l'envoi reste immédiat) : on choisit, ça part — contrairement aux pièces jointes
+> d'exercice, qui s'empilent jusqu'au save. Un brouillon de médias aurait ajouté un concept à un
+> écran qui en porte déjà trois (décompte, texte, médias), pour un gain nul : un débrief se
+> complète de toute façon en plusieurs fois.
+>
+> **Tranché** (le séquentiel n'est pas de la prudence) : le serveur compte les médias déjà attachés
+> à **chaque** rattachement et refuse en 409. Un lot envoyé en parallèle passerait entièrement le
+> contrôle client, puis se ferait refuser au milieu sans qu'on sache quels fichiers sont passés. La
+> file rend l'ordre, et donc le récapitulatif, prévisible. Aucun changement d'API n'a été
+> nécessaire.
+>
+> **Tranché** (`MAX_MESSAGE_MEDIA_BATCH = 10`) : la messagerie n'a **aucun** quota — chaque média y
+> est un message — donc rien ne borne naturellement une sélection, et quarante vidéos partiraient à
+> la suite. Ce plafond est une borne d'usage côté client, pas une règle métier : le serveur n'en
+> sait rien et n'a pas à en savoir. La valeur est **arbitraire**, posée faute de retour d'usage, et
+> se change en une ligne. Corollaire : les « places restantes » d'un fil valent ce plafond pour les
+> trois familles, si bien qu'un refus y est toujours un lot trop grand, jamais un quota atteint.
+>
+> **Tranché** (les clés i18n restent dans les apps) : `sendMediaBatch` reçoit les libellés de ses
+> refus au lieu de les nommer. Les remonter dans `@cmv/shared` les rendrait invisibles à
+> `check:i18n`, qui lit les sources de chaque app — les catalogues entiers seraient passés pour
+> morts sous `--strict`, et la garde serait devenue passante. C'est aussi le seul choix correct sur
+> le fond : mobile et web ne nomment pas toujours pareil (`photoTooBig` contre `imageTooBig`).
+>
+> **Ce qui a été factorisé, et pourquoi ça ne pouvait pas rester copié** : le tri, la file et
+> l'assemblage du récapitulatif étaient d'abord écrits **deux fois** (débrief web et mobile), et le
+> discriminant d'une raison de refus **quatre fois** — dont une expression inline dans le JSX, qu'un
+> `grep` sur le nom de la fonction ne montrait pas. Quatre surfaces qui appliquent « on n'annule
+> jamais tout » chacune de leur côté auraient divergé au premier correctif appliqué d'un seul côté.
+> Tout vit désormais dans `sendMediaBatch` / `mediaRecapText` (`@cmv/shared`, mesurés en
+> couverture) ; chaque app ne garde que sa lecture du type (`attachableMediaKind` sur un mime côté
+> web, `assetMediaKind` sur `asset.type` côté mobile — les unifier obligerait à convertir l'un vers
+> l'autre, la frontière que [#96](https://github.com/Cimavia/cimavia/issues/96) refuse de franchir).
+>
+> **La classification par FAMILLE, pas par liste blanche** : `mediaKindOfMime` répond à « sur quel
+> quota ce fichier compte-t-il, et par quelle préparation passe-t-il », pas à « est-il accepté ».
+> Un `image/heic` occupe donc bien une place de photo, quitte à être refusé au format ensuite.
+> Classer avec la liste blanche aurait produit un fichier qui n'occupe aucune place mais se prépare
+> comme un type qu'il n'est pas — et `prepareWebMedia` a été rebranché dessus pour que les deux
+> lectures ne puissent plus diverger.
+>
+> **Reste dupliqué, et c'est [#96](https://github.com/Cimavia/cimavia/issues/96)** : les quatre
+> `failureReason`/`rejectedReason` ont la même forme mais pas le même contenu — chacune nomme les
+> clés de sa feature, et côté mobile chacune teste un `MediaRejectedError` **différent**, les deux
+> features en définissant chacune un (dette **M-4**). Les unifier demande de traiter #96 d'abord.
+>
+> **Tranché en beta** (plafonds relevés à **20 photos / 10 vidéos / 20 notes vocales**, depuis
+> 5/3/15) : la sélection multiple a rendu visible ce que l'ajout un par un cachait — le picker
+> mobile annonce `photosLeft + videosLeft`, soit « 8 éléments maximum » sur un débrief vide, et
+> c'est en le lisant qu'on a vu que le **compte** gênait, pas la taille. Un athlète débriefe une
+> séance avec dix photos de ses voies. Ce qui garde le stockage prévisible reste la taille PAR
+> FICHIER, inchangée (1 Go vidéo, 100 Mo photo/audio) ; la durée non plus n'a pas bougé.
+>
+> **Deux tests écrivaient ces plafonds en dur** et seraient devenus rouges sans qu'aucune règle
+> n'ait changé : les deux e2e de quota (« plafonne à 3 vidéos », « quota (5) ») et l'assertion de
+> places restantes du test d'écran web. Tous trois dérivent désormais des constantes, comme le
+> faisait déjà le test des notes vocales. C'est le même mode de panne que les six chaînes i18n qui
+> citaient les plafonds en dur (P4).
+>
+> **Corrigé au passage** : le commentaire d'`assertQuotaLeft` annonçait « 3 vidéos, 5 photos,
+> **3 notes vocales** (CDC §6) » alors que `MAX_FEEDBACK_AUDIOS` valait **15** depuis P5. Une doc
+> fausse dans le fichier même qui applique le quota — remise à jour avec les nouvelles valeurs.
+
+---
 ## Post-MVP — Capacités coach/athlète ([#7](https://github.com/Cimavia/cimavia/issues/7))
 
 | # | Dette | Statut | Suivi |

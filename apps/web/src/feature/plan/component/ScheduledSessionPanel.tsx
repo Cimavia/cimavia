@@ -1,6 +1,6 @@
 import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
 import { planWeekDays } from "@cmv/shared";
-import { type FormEvent, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompositionEditor } from "@/feature/library/component/CompositionEditor";
 import { ExercisePicker } from "@/feature/library/component/ExercisePicker";
@@ -100,7 +100,7 @@ export function ScheduledSessionPanel({
   const [scheduledDate, setScheduledDate] = useState(date);
   const { items, addExercise, removeItem, moveItem, setNote } = useSessionComposition(session);
 
-  function onSubmit(event: FormEvent) {
+  function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
 
     if (!isEditing) {

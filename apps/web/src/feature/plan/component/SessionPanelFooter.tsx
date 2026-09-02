@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton, CmvConfirmButton } from "@/shared/component";
 
@@ -9,7 +9,7 @@ type SessionPanelFooterProps = {
   canSubmit: boolean;
   onDelete: () => void;
   onClose: () => void;
-  onSubmit: (event: FormEvent) => void;
+  onSubmit: (event: SyntheticEvent) => void;
 };
 
 // Pied du panneau de séance : supprimer (édition seulement), annuler, enregistrer.

@@ -1,4 +1,11 @@
-import { MediaType, remainingMediaSlots, type SessionFeedbackDto } from "@cmv/shared";
+import type {
+  MediaRecapLine,
+  MediaRecapReason,
+  MediaRejection,
+  SessionFeedbackDto,
+} from "@cmv/shared";
+import { MediaType, mediaRecapText, remainingMediaSlots } from "@cmv/shared";
+import type { ImagePickerAsset } from "expo-image-picker";
 import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +13,7 @@ import { View } from "react-native";
 import { MediaGrid } from "@/feature/feedback/component/MediaGrid";
 import { MediaPicker } from "@/feature/feedback/component/MediaPicker";
 import {
+  pickFeedbackAssets,
   useAddFeedbackAudio,
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
@@ -13,6 +21,7 @@ import {
 import { MediaRejectedError } from "@/feature/feedback/util/media.util";
 import { CmvText } from "@/shared/component";
 import { apiErrorMessage } from "@/shared/lib/api";
+import { assetMediaKind } from "@/shared/util/media-kind.util";
 
 /**
  * Un refus métier (fichier trop lourd, permission refusée) porte sa propre clé i18n ; une panne
@@ -42,14 +51,59 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
   const addAudio = useAddFeedbackAudio(sessionId);
   const removeMedia = useDeleteFeedbackMedia(sessionId);
 
-  // Refus de l'enregistreur (permission/durée) : précède l'upload, ne passe pas par une mutation.
-  const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
+  /**
+   * Le refus qui PRÉCÈDE l'envoi — permission de la galerie, permission ou durée du micro. Un seul
+   * état pour les deux sources, comme la messagerie : ils n'étaient jamais lus séparément (fusionnés
+   * par un `??` au point d'usage), et les tenir à part faisait survivre le refus de l'un au geste
+   * qui répondait à l'autre.
+   */
+  const [preUploadErrorKey, setPreUploadErrorKey] = useState<string | null>(null);
+  // Ce qui n'a pas été joint au dernier lot, média par média (#156).
+  const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
 
-  const error = mediaErrorMessage(
-    addMedia.error ?? addAudio.error ?? removeMedia.error,
-    recorderErrorKey,
-    t,
-  );
+  const photosLeft = remainingMediaSlots(feedback, MediaType.IMAGE);
+  const videosLeft = remainingMediaSlots(feedback, MediaType.VIDEO);
+  const audiosLeft = remainingMediaSlots(feedback, MediaType.AUDIO);
+
+  /**
+   * Une sélection entière, d'un seul geste. Le tri, la file et le récapitulatif sont tenus par
+   * `sendMediaBatch` (@cmv/shared) : l'écran ne fournit que ce qui lui est propre — les places
+   * restantes et les libellés de ses refus.
+   */
+  async function onAddMedia() {
+    setPreUploadErrorKey(null);
+    setRecap([]);
+
+    let picked: ImagePickerAsset[];
+    try {
+      picked = await pickFeedbackAssets(photosLeft + videosLeft);
+    } catch (error) {
+      setPreUploadErrorKey(
+        error instanceof MediaRejectedError ? error.reasonKey : "feedback.media.uploadError",
+      );
+      return;
+    }
+    if (picked.length === 0) return; // sélection annulée : ce n'est pas une erreur
+
+    setRecap(
+      await addMedia.addAssets({
+        items: picked,
+        // Le lot ne peut pas dépasser ce que les quotas laissent : au-delà, inutile de compresser.
+        maxItems: photosLeft + videosLeft,
+        remaining: {
+          [MediaType.IMAGE]: photosLeft,
+          [MediaType.VIDEO]: videosLeft,
+          [MediaType.AUDIO]: audiosLeft,
+        },
+        kindOf: assetMediaKind,
+        nameOf: (asset) => asset.fileName ?? null,
+        rejectedReason,
+        failureReason,
+      }),
+    );
+  }
+
+  const error = mediaErrorMessage(addAudio.error ?? removeMedia.error, preUploadErrorKey, t);
 
   return (
     <View className="gap-3 border-cmv-border border-t pt-4">
@@ -63,23 +117,54 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
       />
 
       <MediaPicker
-        photosLeft={remainingMediaSlots(feedback, MediaType.IMAGE)}
-        videosLeft={remainingMediaSlots(feedback, MediaType.VIDEO)}
-        audiosLeft={remainingMediaSlots(feedback, MediaType.AUDIO)}
-        onAdd={(type) => {
-          setRecorderErrorKey(null);
-          addMedia.mutate(type);
+        photosLeft={photosLeft}
+        videosLeft={videosLeft}
+        audiosLeft={audiosLeft}
+        onAddMedia={() => {
+          void onAddMedia();
         }}
         onRecordAudio={(audio) => {
-          setRecorderErrorKey(null);
+          setPreUploadErrorKey(null);
           addAudio.mutate(audio);
         }}
-        onRecorderError={setRecorderErrorKey}
-        isUploading={addMedia.isPending || addAudio.isPending}
-        progress={addMedia.isPending ? addMedia.progress : addAudio.progress}
+        onRecorderError={setPreUploadErrorKey}
+        isUploading={addMedia.isUploading || addAudio.isPending}
+        progress={addMedia.isUploading ? addMedia.progress : addAudio.progress}
+        step={addMedia.step}
       />
+
+      {recap.length === 0 ? null : (
+        <View className="gap-1">
+          <CmvText className="text-cmv-text-mid text-xs">{t("feedback.media.recapTitle")}</CmvText>
+          {/* La clé est le RANG DU MÉDIA dans la sélection, porté par la ligne : deux médias
+              peuvent avoir le même nom, mais jamais le même rang. */}
+          {recap.map((entry) => (
+            <CmvText key={entry.id} className="text-cmv-error text-sm">
+              {`${entry.fileName ?? t("feedback.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
+            </CmvText>
+          ))}
+        </View>
+      )}
 
       {error == null ? null : <CmvText className="text-cmv-error text-sm">{error}</CmvText>}
     </View>
   );
+}
+
+/**
+ * Ce que dit un refus qui précède l'envoi. `tooMany` et `noSlot` disent la même chose ici, et c'est
+ * exact : le plafond du lot EST la somme des places restantes. `unsupported` ne peut pas survenir —
+ * la galerie ne rend que des images et des vidéos, et `assetMediaKind` est total.
+ */
+function rejectedReason({ kind }: MediaRejection): MediaRecapReason {
+  return {
+    key: kind === MediaType.VIDEO ? "feedback.media.noSlotVideo" : "feedback.media.noSlotImage",
+    params: {},
+  };
+}
+
+function failureReason(error: unknown): MediaRecapReason {
+  if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
+  const message = apiErrorMessage(error);
+  return message == null ? { key: "feedback.media.uploadError", params: {} } : { message };
 }

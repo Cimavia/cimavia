@@ -164,7 +164,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension). |
 | **RGPD / hébergement** | Données perso + médias : consentement, droit à l'effacement. **Hébergement en France** (résidence MVP, souveraineté visée — voir §7.5). Caveat : si les données sont qualifiées de **santé**, hébergeur **HDS** requis. |
 | **i18n** | Toutes les chaînes externalisées dès le MVP (FR), EN activable en v1.0. |
-| **Médias** | Compression côté client avant upload. Plafonds : vidéo 60 s / 720p / **1 Go**, **3 vidéos** + **5 photos** (100 Mo, ≤1600 px) + **15 notes vocales** par débrief. Vidéo = principal poste de coût. |
+| **Médias** | Compression côté client avant upload. Plafonds : vidéo 60 s / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |
 | **Offline** | Lecture des séances de la semaine sans réseau (cache local). |
 | **Notifications** | Push mobile + web. |
 | **Performance** | Consultation fluide en réseau faible. |
@@ -331,7 +331,7 @@ L'isolation des données est garantie **à la couche données**, dans l'API Nest
 ## 10. Gestion des médias
 - Capture via `expo-camera` / `expo-image-picker`.
 - **Compression côté client** avant upload (réduction du coût stockage/bande passante).
-- **Plafonds :** vidéo **60 s max**, **720p max**, **1 Go max**, **3 vidéos** par débrief ; photos **5 max** (100 Mo), réduites à ~1600 px ; **15 notes vocales** (5 min / 100 Mo). Relevés depuis les valeurs MVP d'origine (50 Mo / 10 Mo / 3 notes) — c'était le sens de « facilement assouplis ensuite ».
+- **Plafonds :** vidéo **60 s max**, **720p max**, **1 Go max**, **10 vidéos** par débrief ; photos **20 max** (100 Mo), réduites à ~1600 px ; **20 notes vocales** (5 min / 100 Mo). Relevés deux fois depuis les valeurs MVP d'origine (50 Mo / 10 Mo / 3 notes) : les tailles en P4, puis les **comptes en #156**, la sélection multiple ayant montré que c'était le nombre qui gênait.
 - Upload vers l'**object storage S3** (Scaleway en MVP) : bucket **privé**, accès via **URLs signées** délivrées par l'API.
 - Vidéos = principal poste de coût : ces plafonds gardent les coûts prévisibles ; bascule vers stockage objet externe + CDN si le volume grandit.
 
@@ -371,7 +371,7 @@ Gratuit au lancement. À structurer ensuite :
 
 ## 15. Questions ouvertes restantes
 - ~~Région d'hébergement~~ → **tranché : France/EU** (Scaleway + Neon EU en MVP gratuit, souveraineté FR via Clever Cloud en v1.0, voir §7.5).
-- ~~Limites vidéo MVP~~ → **tranché** : 60 s / 720p, 3 vidéos + 5 photos par débrief. Les tailles ont été relevées depuis (1 Go vidéo, 100 Mo photo/audio) — la durée, elle, n'a pas bougé.
+- ~~Limites vidéo MVP~~ → **tranché** : 60 s / 720p. Les tailles ont été relevées depuis (1 Go vidéo, 100 Mo photo/audio) et les comptes aussi (#156 : 10 vidéos + 20 photos) — la durée, elle, n'a pas bougé.
 - ~~Débrief par exercice~~ → **tranché** : débrief séance suffit en MVP, par exercice à évaluer plus tard.
 - Les données d'entraînement sont-elles qualifiables de **données de santé** (→ obligation HDS) ? À clarifier juridiquement.
 - Modèle économique : abonnement vs commission — à trancher avant v1.0.
