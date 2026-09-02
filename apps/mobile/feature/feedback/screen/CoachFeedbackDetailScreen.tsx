@@ -1,9 +1,11 @@
+import type { CoachFeedbackSummaryDto, SessionFeedbackDto } from "@cmv/shared";
 import { type FeedbackMediaDto, MediaType } from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { coachFeedbackKeys } from "@/feature/feedback/api";
+import { FeedbackReplySection } from "@/feature/feedback/component/FeedbackReplySection";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import {
   useCoachFeedbackDetail,
@@ -30,8 +32,6 @@ import { formatFullDay } from "@/shared/util/date.util";
  * idempotent côté API, donc rouvrir ne redate rien.
  */
 export function CoachFeedbackDetailScreen() {
-  const { t } = useTranslation();
-  const athleteLabel = useAthleteLabel();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
 
   const { data: feedback, isPending, isError, refetch } = useCoachFeedbackDetail(sessionId);
@@ -61,32 +61,66 @@ export function CoachFeedbackDetailScreen() {
         {isError ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
         {isPending || isError ? null : (
-          <>
-            <View className="gap-1">
-              <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-                {summary == null ? "—" : athleteLabel(summary.athleteId, summary.athleteName)}
-              </CmvText>
-              <CmvText className="text-cmv-text-mid text-sm">
-                {summary == null
-                  ? "—"
-                  : `${summary.sessionTitle} · ${formatFullDay(summary.scheduledDate)}`}
-              </CmvText>
-            </View>
-
-            {/* `null` = débrief sans texte : légitime, un débrief peut n'être que des médias. */}
-            <CmvText className="text-cmv-text-hi">
-              {feedback?.content ?? t("feedback.coach.mediaOnly")}
-            </CmvText>
-
-            {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les
-                médias, dans l'ordre où l'athlète l'a envoyé. */}
-            <TrackedExerciseList exercises={feedback?.trackedExercises ?? []} />
-
-            <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
-          </>
+          <FeedbackBody feedback={feedback ?? null} summary={summary} sessionId={sessionId} />
         )}
       </ScrollView>
     </CmvScreen>
+  );
+}
+
+/**
+ * Ce que le coach lit d'un débrief, puis ce qu'il en répond.
+ *
+ * Deux sources, et il faut les deux : le RÉSUMÉ porte l'athlète et la séance, le DÉTAIL porte le
+ * texte, les médias et les réponses. Séparé de l'écran ci-dessus, qui ne tient que les trois états
+ * de chargement.
+ */
+function FeedbackBody({
+  feedback,
+  summary,
+  sessionId,
+}: Readonly<{
+  feedback: SessionFeedbackDto | null;
+  summary: CoachFeedbackSummaryDto | null;
+  sessionId: string;
+}>) {
+  const { t } = useTranslation();
+  const athleteLabel = useAthleteLabel();
+
+  return (
+    <>
+      <View className="gap-1">
+        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
+          {summary == null ? "—" : athleteLabel(summary.athleteId, summary.athleteName)}
+        </CmvText>
+        <CmvText className="text-cmv-text-mid text-sm">
+          {summary == null
+            ? "—"
+            : `${summary.sessionTitle} · ${formatFullDay(summary.scheduledDate)}`}
+        </CmvText>
+      </View>
+
+      {/* `null` = débrief sans texte : légitime, un débrief peut n'être que des médias. */}
+      <CmvText className="text-cmv-text-hi">
+        {feedback?.content ?? t("feedback.coach.mediaOnly")}
+      </CmvText>
+
+      {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les médias,
+          dans l'ordre où l'athlète l'a envoyé. */}
+      <TrackedExerciseList exercises={feedback?.trackedExercises ?? []} />
+
+      <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
+
+      {/* Après les médias : on répond APRÈS avoir tout lu, dans l'ordre où le débrief se parcourt.
+          Sans l'un OU l'autre, on n'a pas de quoi écrire — ni le débrief à citer, ni l'athlète à
+          qui l'envoyer. */}
+      {feedback == null || summary == null ? null : (
+        <FeedbackReplySection
+          feedback={{ id: feedback.id, athleteId: summary.athleteId }}
+          messages={feedback.messages}
+        />
+      )}
+    </>
   );
 }
 
