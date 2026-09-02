@@ -2,15 +2,12 @@ import {
   type CustomMetric,
   type ExerciseBlock,
   type ExerciseBlocks,
-  formatTrainingDuration,
   type MetricValue,
-  MetricValueType,
-  metricValueTypeOf,
+  metricCellText,
   restPhrase,
   structurePhrase,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
-import { metricUnitLabel } from "@/feature/library/util/metric-label.util";
 
 // i18n-values exercise.dosage: series, emom, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
 
@@ -63,27 +60,15 @@ function firstRowValues(
   const row = block.rows.at(0);
   if (row == null) return "";
 
-  return block.metrics
-    .map((metric) => {
-      const value = row.values[metric.id] ?? null;
-      if (value == null) return "";
-      const unit = metricUnitLabel(metric, customMetrics, t);
-      const shown = formatValue(value, metric, customMetrics);
-      return unit == null ? shown : `${shown} ${unit}`;
-    })
-    .filter((part) => part !== "")
-    .join(" · ");
-}
-
-function formatValue(
-  value: MetricValue,
-  metric: ExerciseBlock["metrics"][number],
-  customMetrics: readonly CustomMetric[],
-): string {
-  if (metricValueTypeOf(metric, customMetrics) === MetricValueType.DURATION) {
-    return typeof value === "number" ? (formatTrainingDuration(value) ?? "—") : String(value);
-  }
-  return String(value);
+  return (
+    block.metrics
+      // Les absences sont sautées ICI, explicitement : une carte repliée n'a pas la place
+      // d'aligner des tirets. `metricCellText` rend TOUJOURS quelque chose — c'est à l'appelant de
+      // déclarer ce qu'il omet, pas au formateur de rendre du vide en silence.
+      .filter((metric) => (row.values[metric.id] ?? null) != null)
+      .map((metric) => metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t))
+      .join(" · ")
+  );
 }
 
 /** Le nombre de valeurs communes repliées d'un bloc — sert au décompte des cartes. */

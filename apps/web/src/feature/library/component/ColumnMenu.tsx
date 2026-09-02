@@ -11,13 +11,13 @@ import {
   MetricSource,
   type MetricUnit,
   MetricValueType,
+  metricLabel,
   metricValueTypeOf,
   scaleFor,
 } from "@cmv/shared";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoChevronDown } from "react-icons/io5";
-import { metricLabel } from "@/feature/library/util/metric-label.util";
 import { CMV_TABLE, CmvButton } from "@/shared/component";
 import { useAnchoredPosition } from "@/shared/hook/useAnchoredPosition";
 import { cn } from "@/shared/util/cn.util";

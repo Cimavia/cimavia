@@ -2,15 +2,13 @@ import {
   type CustomMetric,
   columnValues,
   type ExerciseBlock,
+  formatMetricValue,
+  metricCellText,
+  metricLabel,
   restPhrase,
   structurePhrase,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import {
-  formatMetricValue,
-  metricCellText,
-  metricLabel,
-} from "@/feature/library/util/metric-label.util";
 import { CMV_TABLE } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 

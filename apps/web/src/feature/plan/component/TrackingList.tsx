@@ -2,12 +2,12 @@ import {
   type BlockTrackingState,
   type CustomMetric,
   type ExerciseBlock,
+  metricCellText,
   TrackingMode,
   trackingUnits,
   unitValues,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { metricCellText } from "@/feature/library/util/metric-label.util";
 import { CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
