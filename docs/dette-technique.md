@@ -21,11 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. Cinq dettes n'ont **pas** d'issue : **P2-4** et **N-3** (déclencheur
-explicitement « aucun »), **M-5** (déclencheur nommé, mais rien à préparer avant qu'il survienne),
-**C-1** (comportement voulu — l'issue serait un contresens, le déclencheur est qu'on le corrige à
-tort). Les quatre sont volontaires ; **Q-5** ne l'est pas — elle se règle dans une interface
-SonarCloud, où une issue n'aurait rien à suivre que le fait de s'en souvenir.
+autonomes. **Onze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
+déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**
+et **W-1**, dont le déclencheur est nommé mais dont rien n'est à préparer avant qu'il survienne ;
+et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une issue n'aurait rien à suivre
+que le fait de s'en souvenir. Les dix premières sont volontaires, la dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -873,6 +874,76 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Sélection multiple de médias ([#156](https://github.com/Cimavia/cimavia/issues/156))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| W-1 | **Pas de reprise d'un fichier écarté** : le récapitulatif nomme ce qui n'est pas passé et pourquoi, mais ne propose pas de le renvoyer — il faut rouvrir la galerie et refaire la sélection. Il s'efface au lot suivant. | 🟢 | — *(déclencheur : un athlète qui signale refaire toute sa sélection pour un seul fichier)* |
+
+> **Tranché** (le lot ne s'annule jamais en bloc) : ni quand la sélection dépasse les places
+> restantes, ni quand un fichier échoue en route. Six photos pour cinq places envoient les cinq
+> premières ; un fichier trop lourd en troisième position n'emporte pas les deux qui le suivent. Ce
+> qui reste dehors est **récapitulé fichier par fichier**, avec sa raison — un « 2 sur 5 n'ont pas
+> pu partir » ne dirait pas lesquels, ce qui laisserait la sélection entière à refaire. Ce qui est
+> effectivement parti ne figure PAS au récapitulatif : c'est déjà dans la galerie ou dans le fil.
+>
+> **Tranché** (un seul bouton sur mobile) : « Ajouter une photo » et « Ajouter une vidéo »
+> deviennent « Ajouter des photos ou des vidéos », avec une sélection mixte. Deux boutons ouvrant
+> chacun un multi-select obligeraient à deux allers-retours pour un lot mixte — le cas courant
+> après une séance. La ligne « Encore N photo(s), N vidéo(s)… » porte désormais seule la
+> distinction entre les deux quotas.
+>
+> **Tranché** (l'envoi reste immédiat) : on choisit, ça part — contrairement aux pièces jointes
+> d'exercice, qui s'empilent jusqu'au save. Un brouillon de médias aurait ajouté un concept à un
+> écran qui en porte déjà trois (décompte, texte, médias), pour un gain nul : un débrief se
+> complète de toute façon en plusieurs fois.
+>
+> **Tranché** (le séquentiel n'est pas de la prudence) : le serveur compte les médias déjà attachés
+> à **chaque** rattachement et refuse en 409. Un lot envoyé en parallèle passerait entièrement le
+> contrôle client, puis se ferait refuser au milieu sans qu'on sache quels fichiers sont passés. La
+> file rend l'ordre, et donc le récapitulatif, prévisible. Aucun changement d'API n'a été
+> nécessaire.
+>
+> **Tranché** (`MAX_MESSAGE_MEDIA_BATCH = 10`) : la messagerie n'a **aucun** quota — chaque média y
+> est un message — donc rien ne borne naturellement une sélection, et quarante vidéos partiraient à
+> la suite. Ce plafond est une borne d'usage côté client, pas une règle métier : le serveur n'en
+> sait rien et n'a pas à en savoir. La valeur est **arbitraire**, posée faute de retour d'usage, et
+> se change en une ligne. Corollaire : les « places restantes » d'un fil valent ce plafond pour les
+> trois familles, si bien qu'un refus y est toujours un lot trop grand, jamais un quota atteint.
+>
+> **Tranché** (les clés i18n restent dans les apps) : `sendMediaBatch` reçoit les libellés de ses
+> refus au lieu de les nommer. Les remonter dans `@cmv/shared` les rendrait invisibles à
+> `check:i18n`, qui lit les sources de chaque app — les catalogues entiers seraient passés pour
+> morts sous `--strict`, et la garde serait devenue passante. C'est aussi le seul choix correct sur
+> le fond : mobile et web ne nomment pas toujours pareil (`photoTooBig` contre `imageTooBig`).
+>
+> **Ce qui a été factorisé, et pourquoi ça ne pouvait pas rester copié** : le tri, la file et
+> l'assemblage du récapitulatif étaient d'abord écrits **deux fois** (débrief web et mobile), et le
+> discriminant d'une raison de refus **quatre fois** — dont une expression inline dans le JSX, qu'un
+> `grep` sur le nom de la fonction ne montrait pas. Quatre surfaces qui appliquent « on n'annule
+> jamais tout » chacune de leur côté auraient divergé au premier correctif appliqué d'un seul côté.
+> Tout vit désormais dans `sendMediaBatch` / `mediaRecapText` (`@cmv/shared`, mesurés en
+> couverture) ; chaque app ne garde que sa lecture du type (`attachableMediaKind` sur un mime côté
+> web, `assetMediaKind` sur `asset.type` côté mobile — les unifier obligerait à convertir l'un vers
+> l'autre, la frontière que [#96](https://github.com/Cimavia/cimavia/issues/96) refuse de franchir).
+>
+> **La classification par FAMILLE, pas par liste blanche** : `mediaKindOfMime` répond à « sur quel
+> quota ce fichier compte-t-il, et par quelle préparation passe-t-il », pas à « est-il accepté ».
+> Un `image/heic` occupe donc bien une place de photo, quitte à être refusé au format ensuite.
+> Classer avec la liste blanche aurait produit un fichier qui n'occupe aucune place mais se prépare
+> comme un type qu'il n'est pas — et `prepareWebMedia` a été rebranché dessus pour que les deux
+> lectures ne puissent plus diverger.
+>
+> **Reste dupliqué, et c'est [#96](https://github.com/Cimavia/cimavia/issues/96)** : les quatre
+> `failureReason`/`rejectedReason` ont la même forme mais pas le même contenu — chacune nomme les
+> clés de sa feature, et côté mobile chacune teste un `MediaRejectedError` **différent**, les deux
+> features en définissant chacune un (dette **M-4**). Les unifier demande de traiter #96 d'abord.
+>
+> **Corrigé au passage** : le commentaire d'`assertQuotaLeft` annonçait « 3 vidéos, 5 photos,
+> **3 notes vocales** (CDC §6) » alors que `MAX_FEEDBACK_AUDIOS` vaut **15** depuis P5. Une doc
+> fausse dans le fichier même qui applique le quota.
+
+---
 ## Post-MVP — Capacités coach/athlète ([#7](https://github.com/Cimavia/cimavia/issues/7))
 
 | # | Dette | Statut | Suivi |
