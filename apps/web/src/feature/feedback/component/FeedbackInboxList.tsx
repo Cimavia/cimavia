@@ -125,6 +125,12 @@ export function FeedbackInboxList({
                 {feedback.coachReadAt == null ? (
                   <CmvBadge variant="accent">{t("feedback.unread")}</CmvBadge>
                 ) : null}
+                {/* « Répondu » est un BADGE, pas un troisième segment : c'est une information sur
+                    la ligne, pas un axe de tri de plus. Dérivé côté serveur (`repliedAt`), donc
+                    jamais à tenir cohérent ici. */}
+                {feedback.repliedAt != null ? (
+                  <CmvBadge variant="success">{t("feedback.replied")}</CmvBadge>
+                ) : null}
               </div>
 
               <span className="truncate text-cmv-caption text-cmv-text-mid">

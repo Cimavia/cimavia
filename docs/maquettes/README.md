@@ -108,9 +108,13 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
 - **`coach_mobile.dc.html` — invitation partagée, pas copiée** : la planche a « Copier le code »,
   l'implémentation propose « Partager » (`Share` de React Native). `expo-clipboard` n'est pas une
   dépendance du projet, et partager couvre mieux le cas réel (SMS, WhatsApp). Dette **M-5**.
-- **`coach_debrief.dc.html` — répondre depuis le volet de lecture** : `SessionFeedback` n'a **pas**
-  de réponse au modèle ; le coach répond aujourd'hui par la messagerie. C'est une **fonctionnalité
-  nouvelle**, pas un rendu — à cadrer avant toute implémentation.
+- ~~**`coach_debrief.dc.html` — répondre depuis le volet de lecture**~~ : **levé en #193**. La
+  réponse existe, sous la forme d'un `Message` rattaché au débrief (`Message.sessionFeedbackId`,
+  déjà au schéma et déjà validé côté serveur depuis P5 — il n'avait simplement aucune UI). Le
+  composer de la planche est implémenté. Trois écarts subsistent, **dans le sens du « plus »** :
+  la planche n'a qu'un composer TEXTE, ne montre aucune réponse déjà envoyée, et n'a pas de badge
+  « répondu » sur les lignes de la liste — l'implémentation ajoute les médias et la note vocale
+  (le `Composer` de la messagerie, réutilisé tel quel), le fil des réponses, et le badge.
 
 ## Constructeur d'exercice — modèle et changements requis
 

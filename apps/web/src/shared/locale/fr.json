@@ -854,6 +854,11 @@
         "title": "Aucun athlète trouvé",
         "description": "Aucun débrief d'un athlète dont le nom contient « {{query}} »."
       }
+    },
+    "replied": "Répondu",
+    "reply": {
+      "title": "Réponses",
+      "threadError": "Impossible d'ouvrir la conversation avec cet athlète. Réessaie dans un instant."
     }
   },
   "invoice": {

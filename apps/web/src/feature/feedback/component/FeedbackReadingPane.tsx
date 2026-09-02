@@ -1,5 +1,6 @@
 import { type CoachFeedbackSummaryDto, MediaType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
 import { CmvAvatar, CmvButton } from "@/shared/component";
@@ -124,6 +125,10 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
             })}
           </div>
         </section>
+
+        {/* Sous les médias : on répond APRÈS avoir tout lu, dans l'ordre où le débrief se parcourt.
+            `messages` vient du détail — le résumé de la liste ne les porte pas. */}
+        <FeedbackReplyThread feedback={feedback} messages={detail?.messages ?? []} />
       </div>
     </div>
   );
