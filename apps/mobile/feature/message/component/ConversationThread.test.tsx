@@ -249,8 +249,12 @@ describe("ConversationThread", () => {
 
   it("liste fichier par fichier ce qui n'a pas pu partir", async () => {
     pickAndSend.mockResolvedValue([
-      { fileName: "lourde.mp4", reason: { key: "messages.media.videoTooBig", params: {} } },
-      { fileName: null, reason: { message: "le serveur a refusé ce fichier" } },
+      {
+        id: "0",
+        fileName: "lourde.mp4",
+        reason: { key: "messages.media.videoTooBig", params: {} },
+      },
+      { id: "1", fileName: null, reason: { message: "le serveur a refusé ce fichier" } },
     ]);
     const { container, findByText } = renderRn(<ConversationThread {...base} />);
 

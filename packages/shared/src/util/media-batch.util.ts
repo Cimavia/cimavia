@@ -62,9 +62,15 @@ export function splitByRemainingSlots<T extends SlottedMedia>(
   return split;
 }
 
-// Le sort d'un élément une fois la file passée. `error` à `null` = envoyé ; sinon, la raison telle
-// que l'appelant la traduira (refus métier porteur de clé i18n, ou panne technique).
-export type BatchOutcome<T> = { item: T; error: unknown | null };
+/**
+ * Le sort d'un élément une fois la file passée. `error` à `null` = envoyé ; sinon, la raison telle
+ * que l'appelant la traduira (refus métier porteur de clé i18n, ou panne technique).
+ *
+ * Le type est `unknown` tout court : `unknown | null` se réduit à `unknown`, si bien que le
+ * `| null` ne documentait rien — il donnait l'illusion d'un type plus précis qu'il ne l'était.
+ * C'est le commentaire qui porte la convention, pas la signature.
+ */
+export type BatchOutcome<T> = { item: T; error: unknown };
 
 /**
  * Envoie les éléments UN PAR UN, et ne s'arrête jamais sur un échec.
@@ -109,8 +115,15 @@ export type MediaRecapReason =
   | { key: string; params: Record<string, string | number> }
   | { message: string };
 
-/** Une ligne du récapitulatif. `fileName` est nullable : un picker n'en donne pas toujours un. */
-export type MediaRecapLine = { fileName: string | null; reason: MediaRecapReason };
+/**
+ * Une ligne du récapitulatif. `fileName` est nullable : un picker n'en donne pas toujours un.
+ *
+ * `id` est le RANG du fichier dans la sélection d'origine — celui que l'utilisateur pourrait
+ * compter dans sa galerie. Deux lignes ne peuvent donc pas le partager, même à noms de fichiers
+ * identiques, et il reste attaché à sa ligne si le rendu vient un jour à trier ou filtrer la
+ * liste. C'est ce qu'un rang de `map()` ne garantit pas.
+ */
+export type MediaRecapLine = { id: string; fileName: string | null; reason: MediaRecapReason };
 
 /**
  * La phrase d'une raison, quelle que soit sa forme.
@@ -152,6 +165,9 @@ export type MediaBatch<T> = {
   failureReason: (error: unknown) => MediaRecapReason;
 };
 
+/** Un élément de la sélection et son rang d'origine, qui le suit jusqu'au récapitulatif. */
+type Ranked<T> = { item: T; rank: number };
+
 /**
  * Le lot de bout en bout : trier, envoyer un par un, puis rendre ce qui n'est pas passé.
  *
@@ -165,17 +181,21 @@ export type MediaBatch<T> = {
  */
 export async function sendMediaBatch<T>(batch: MediaBatch<T>): Promise<MediaRecapLine[]> {
   const limit = Math.max(0, batch.maxItems);
-  const line = (item: T, reason: MediaRecapReason): MediaRecapLine => ({
-    fileName: batch.nameOf(item),
+  // Le rang dans la SÉLECTION accompagne chaque élément jusqu'au récapitulatif : c'est lui qui
+  // donne son identité à une ligne, et il ne dépend ni du tri ni de la cause du refus.
+  const ranked = batch.items.map((item, index) => ({ item, rank: index }));
+  const line = (entry: Ranked<T>, reason: MediaRecapReason): MediaRecapLine => ({
+    id: String(entry.rank),
+    fileName: batch.nameOf(entry.item),
     reason,
   });
 
-  const slottable: { kind: MediaType; item: T }[] = [];
-  const unsupported: T[] = [];
-  for (const item of batch.items.slice(0, limit)) {
-    const kind = batch.kindOf(item);
-    if (kind == null) unsupported.push(item);
-    else slottable.push({ kind, item });
+  const slottable: (Ranked<T> & { kind: MediaType })[] = [];
+  const unsupported: Ranked<T>[] = [];
+  for (const entry of ranked.slice(0, limit)) {
+    const kind = batch.kindOf(entry.item);
+    if (kind == null) unsupported.push(entry);
+    else slottable.push({ ...entry, kind });
   }
 
   const { accepted, rejected } = splitByRemainingSlots(slottable, batch.remaining);
@@ -189,19 +209,19 @@ export async function sendMediaBatch<T>(batch: MediaBatch<T>): Promise<MediaReca
   );
 
   return [
-    ...unsupported.map((item) =>
-      line(item, batch.rejectedReason({ cause: "unsupported", kind: null })),
+    ...unsupported.map((entry) =>
+      line(entry, batch.rejectedReason({ cause: "unsupported", kind: null })),
     ),
     ...rejected.map((entry) =>
-      line(entry.item, batch.rejectedReason({ cause: "noSlot", kind: entry.kind })),
+      line(entry, batch.rejectedReason({ cause: "noSlot", kind: entry.kind })),
     ),
-    ...batch.items
+    ...ranked
       .slice(limit)
-      .map((item) =>
-        line(item, batch.rejectedReason({ cause: "tooMany", kind: batch.kindOf(item) })),
+      .map((entry) =>
+        line(entry, batch.rejectedReason({ cause: "tooMany", kind: batch.kindOf(entry.item) })),
       ),
     ...outcomes
       .filter((outcome) => outcome.error != null)
-      .map((outcome) => line(outcome.item.item, batch.failureReason(outcome.error))),
+      .map((outcome) => line(outcome.item, batch.failureReason(outcome.error))),
   ];
 }

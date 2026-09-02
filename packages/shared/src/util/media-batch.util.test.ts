@@ -181,10 +181,13 @@ describe("sendMediaBatch", () => {
       }),
     );
 
+    // `id` est le RANG dans la sélection d'origine, pas la position dans le récapitulatif : le PDF
+    // était premier, « c » quatrième, « b » troisième. C'est ce qui rend deux lignes distinctes
+    // même à noms identiques.
     expect(recap).toEqual([
-      { fileName: "notes.pdf", reason: { key: "unsupported", params: {} } },
-      { fileName: "c", reason: { key: "noSlot", params: {} } },
-      { fileName: "b", reason: { message: "Error: panne" } },
+      { id: "0", fileName: "notes.pdf", reason: { key: "unsupported", params: {} } },
+      { id: "3", fileName: "c", reason: { key: "noSlot", params: {} } },
+      { id: "2", fileName: "b", reason: { message: "Error: panne" } },
     ]);
   });
 
@@ -202,9 +205,24 @@ describe("sendMediaBatch", () => {
 
     expect(sent).toEqual(["a"]);
     expect(recap).toEqual([
-      { fileName: "b", reason: { key: "tooMany", params: {} } },
-      { fileName: "c", reason: { key: "tooMany", params: {} } },
+      { id: "1", fileName: "b", reason: { key: "tooMany", params: {} } },
+      { id: "2", fileName: "c", reason: { key: "tooMany", params: {} } },
     ]);
+  });
+
+  /**
+   * Deux fichiers de même nom sont monnaie courante (« IMG_0001.jpg » sur deux appareils). Sans
+   * identité propre, leurs deux lignes seraient indiscernables au rendu — c'est exactement ce que
+   * le rang d'un `map()` ne sait pas garantir.
+   */
+  it("donne une identité distincte à deux fichiers homonymes", async () => {
+    const recap = await sendMediaBatch(
+      batch([image("IMG_0001.jpg"), image("IMG_0001.jpg")], {
+        remaining: slots(0, 3, 15),
+      }),
+    );
+
+    expect(recap.map((line) => line.id)).toEqual(["0", "1"]);
   });
 
   // Le lot n'est jamais annulé en bloc : quand tout est refusé, il n'y a simplement rien à envoyer.

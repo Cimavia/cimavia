@@ -414,10 +414,10 @@ function FeedbackMediaSection({
         <div className="flex flex-col gap-cmv-xs">
           <p className="text-cmv-caption text-cmv-text-mid">{t("feedback.media.recapTitle")}</p>
           <ul className="flex flex-col gap-cmv-xs">
-            {/* Le rang sert de clé : la liste est REMPLACÉE en entier à chaque lot, jamais
-                réordonnée — et deux fichiers peuvent porter le même nom. */}
-            {recap.map((entry, index) => (
-              <li key={index} className="text-cmv-body text-cmv-error-on">
+            {/* La clé est le RANG DU FICHIER dans la sélection, porté par la ligne : deux fichiers
+                peuvent avoir le même nom, mais jamais le même rang. */}
+            {recap.map((entry) => (
+              <li key={entry.id} className="text-cmv-body text-cmv-error-on">
                 <span className="font-medium">
                   {entry.fileName ?? t("feedback.media.unnamedFile")}
                 </span>

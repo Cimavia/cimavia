@@ -130,8 +130,12 @@ describe("FeedbackMediaSection", () => {
   it("liste média par média ce qui n'a pas été joint", async () => {
     vi.mocked(pickFeedbackAssets).mockResolvedValue([{ uri: "file:///a.jpg" }] as never);
     addAssets.mockResolvedValue([
-      { fileName: "trop-lourde.mp4", reason: { key: "feedback.media.videoTooBig", params: {} } },
-      { fileName: null, reason: { message: "le serveur a refusé ce fichier" } },
+      {
+        id: "0",
+        fileName: "trop-lourde.mp4",
+        reason: { key: "feedback.media.videoTooBig", params: {} },
+      },
+      { id: "1", fileName: null, reason: { message: "le serveur a refusé ce fichier" } },
     ]);
     const { container, findByText } = renderRn(
       <FeedbackMediaSection sessionId="ss-1" feedback={emptyFeedback} />,
@@ -213,6 +217,31 @@ describe("FeedbackMediaSection", () => {
     pressButton(container, "enregistrer");
 
     expect(mutate).toHaveBeenCalledWith({ uri: "file:///note.m4a", durationSeconds: 3 });
+  });
+
+  it("efface le refus de la galerie quand la note vocale, elle, passe", async () => {
+    const mutate = vi.fn();
+    vi.mocked(useAddFeedbackAudio).mockReturnValue({
+      mutate,
+      isPending: false,
+      error: null,
+      progress: 0,
+    } as unknown as ReturnType<typeof useAddFeedbackAudio>);
+    vi.mocked(pickFeedbackAssets).mockRejectedValue(
+      new MediaRejectedError("feedback.media.permission"),
+    );
+    const { container, findByText, queryByText } = renderRn(
+      <FeedbackMediaSection sessionId="ss-1" feedback={emptyFeedback} />,
+    );
+    pressButton(container, "feedback.media.addMedia");
+    expect(await findByText("feedback.media.permission")).toBeTruthy();
+
+    pressButton(container, "enregistrer");
+
+    // Le refus portait sur la GALERIE : le laisser affiché ferait croire que la note vocale a
+    // échoué, alors qu'elle est rattachée.
+    expect(mutate).toHaveBeenCalledOnce();
+    expect(queryByText("feedback.media.permission")).toBeNull();
   });
 
   it("retire le média que l'athlète désigne, et lui seul", () => {

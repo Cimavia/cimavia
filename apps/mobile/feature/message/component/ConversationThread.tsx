@@ -143,10 +143,10 @@ export function ConversationThread({
         ) : null}
 
         {/* Une ligne PAR fichier : « 2 sur 5 n'ont pas pu partir » ne dirait pas lesquels, ce qui
-            laisserait la sélection entière à refaire. Le rang sert de clé, la liste étant
-            remplacée en bloc à chaque lot. */}
-        {recap.map((entry, index) => (
-          <CmvText key={index} className="px-4 pb-1 text-cmv-error text-sm">
+            laisserait la sélection entière à refaire. La clé est le rang du fichier dans la
+            sélection, porté par la ligne. */}
+        {recap.map((entry) => (
+          <CmvText key={entry.id} className="px-4 pb-1 text-cmv-error text-sm">
             {`${entry.fileName ?? t("messages.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
           </CmvText>
         ))}

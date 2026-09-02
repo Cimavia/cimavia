@@ -51,10 +51,13 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
   const addAudio = useAddFeedbackAudio(sessionId);
   const removeMedia = useDeleteFeedbackMedia(sessionId);
 
-  // Refus de l'enregistreur (permission/durée) : précède l'upload, ne passe pas par une mutation.
-  const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
-  // Le refus de la GALERIE (permission), qui précède lui aussi tout envoi.
-  const [pickErrorKey, setPickErrorKey] = useState<string | null>(null);
+  /**
+   * Le refus qui PRÉCÈDE l'envoi — permission de la galerie, permission ou durée du micro. Un seul
+   * état pour les deux sources, comme la messagerie : ils n'étaient jamais lus séparément (fusionnés
+   * par un `??` au point d'usage), et les tenir à part faisait survivre le refus de l'un au geste
+   * qui répondait à l'autre.
+   */
+  const [preUploadErrorKey, setPreUploadErrorKey] = useState<string | null>(null);
   // Ce qui n'a pas été joint au dernier lot, média par média (#156).
   const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
 
@@ -68,15 +71,14 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
    * restantes et les libellés de ses refus.
    */
   async function onAddMedia() {
-    setRecorderErrorKey(null);
-    setPickErrorKey(null);
+    setPreUploadErrorKey(null);
     setRecap([]);
 
     let picked: ImagePickerAsset[];
     try {
       picked = await pickFeedbackAssets(photosLeft + videosLeft);
     } catch (error) {
-      setPickErrorKey(
+      setPreUploadErrorKey(
         error instanceof MediaRejectedError ? error.reasonKey : "feedback.media.uploadError",
       );
       return;
@@ -101,11 +103,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
     );
   }
 
-  const error = mediaErrorMessage(
-    addAudio.error ?? removeMedia.error,
-    recorderErrorKey ?? pickErrorKey,
-    t,
-  );
+  const error = mediaErrorMessage(addAudio.error ?? removeMedia.error, preUploadErrorKey, t);
 
   return (
     <View className="gap-3 border-cmv-border border-t pt-4">
@@ -126,10 +124,10 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
           void onAddMedia();
         }}
         onRecordAudio={(audio) => {
-          setRecorderErrorKey(null);
+          setPreUploadErrorKey(null);
           addAudio.mutate(audio);
         }}
-        onRecorderError={setRecorderErrorKey}
+        onRecorderError={setPreUploadErrorKey}
         isUploading={addMedia.isUploading || addAudio.isPending}
         progress={addMedia.isUploading ? addMedia.progress : addAudio.progress}
         step={addMedia.step}
@@ -138,10 +136,10 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
       {recap.length === 0 ? null : (
         <View className="gap-1">
           <CmvText className="text-cmv-text-mid text-xs">{t("feedback.media.recapTitle")}</CmvText>
-          {/* Le rang sert de clé : la liste est REMPLACÉE en entier à chaque lot, jamais
-              réordonnée ni amputée — deux médias peuvent d'ailleurs porter le même nom. */}
-          {recap.map((entry, index) => (
-            <CmvText key={index} className="text-cmv-error text-sm">
+          {/* La clé est le RANG DU MÉDIA dans la sélection, porté par la ligne : deux médias
+              peuvent avoir le même nom, mais jamais le même rang. */}
+          {recap.map((entry) => (
+            <CmvText key={entry.id} className="text-cmv-error text-sm">
               {`${entry.fileName ?? t("feedback.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
             </CmvText>
           ))}
