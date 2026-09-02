@@ -586,6 +586,12 @@ export {
   minutesOf,
 } from "./util/media-format.util";
 export { mediaKindOfMime } from "./util/media-kind.util";
+export {
+  formatMetricValue,
+  metricCellText,
+  metricLabel,
+  metricUnitLabel,
+} from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
 export {
