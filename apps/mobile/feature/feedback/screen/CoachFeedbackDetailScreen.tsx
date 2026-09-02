@@ -1,17 +1,22 @@
-import type { CoachFeedbackSummaryDto, SessionFeedbackDto } from "@cmv/shared";
+import type { CoachFeedbackSummaryDto, MediaRecapLine, SessionFeedbackDto } from "@cmv/shared";
 import { type FeedbackMediaDto, MediaType } from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { coachFeedbackKeys } from "@/feature/feedback/api";
-import { FeedbackReplySection } from "@/feature/feedback/component/FeedbackReplySection";
+import {
+  FeedbackReplyComposer,
+  FeedbackReplyMessages,
+} from "@/feature/feedback/component/FeedbackReplySection";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import {
   useCoachFeedbackDetail,
   useCoachFeedbacks,
   useMarkFeedbackRead,
 } from "@/feature/feedback/hook/useCoachFeedbacks";
+import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useFreshFeedbackMediaUrl } from "@/feature/feedback/hook/useFreshFeedbackMediaUrl";
 import {
   CmvAudioPlayer,
@@ -23,12 +28,13 @@ import {
 } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
 
 /**
- * Le débrief d'une séance, lu par le coach (#33) : texte et médias.
+ * Le débrief d'une séance, lu par le coach (#33) — et, depuis #194, ce qu'il en répond.
  *
- * Marqué lu À L'OUVERTURE, comme sur web — c'est le geste qui vaut lecture. Le marquage est
+ * Marqué lu À L'OUVERTURE, comme sur web : c'est le geste qui vaut lecture. Le marquage est
  * idempotent côté API, donc rouvrir ne redate rien.
  */
 export function CoachFeedbackDetailScreen() {
@@ -56,14 +62,13 @@ export function CoachFeedbackDetailScreen() {
     <CmvScreen>
       <OfflineBanner />
 
-      <ScrollView contentContainerClassName="gap-4 p-4">
-        {isPending ? <ActivityIndicator /> : null}
-        {isError ? <CmvErrorState onRetry={() => refetch()} /> : null}
-
-        {isPending || isError ? null : (
-          <FeedbackBody feedback={feedback ?? null} summary={summary} sessionId={sessionId} />
-        )}
-      </ScrollView>
+      {isPending || isError ? (
+        <View className="flex-1 items-center justify-center p-4">
+          {isPending ? <ActivityIndicator /> : <CmvErrorState onRetry={() => refetch()} />}
+        </View>
+      ) : (
+        <FeedbackBody feedback={feedback ?? null} summary={summary} sessionId={sessionId} />
+      )}
     </CmvScreen>
   );
 }
@@ -71,9 +76,15 @@ export function CoachFeedbackDetailScreen() {
 /**
  * Ce que le coach lit d'un débrief, puis ce qu'il en répond.
  *
+ * La barre d'envoi est un FRÈRE de la zone défilante, pas son dernier enfant : c'est un plancher
+ * d'écran, comme dans la messagerie. Dedans, elle descendait sous le contenu, s'arrêtait au padding
+ * de la page et passait sous le clavier.
+ *
+ * `KeyboardAvoidingView` vient de `react-native-keyboard-controller` (pas de RN) : il gère Android
+ * edge-to-edge, là où le natif reste inerte. Même montage que `ConversationThread`.
+ *
  * Deux sources, et il faut les deux : le RÉSUMÉ porte l'athlète et la séance, le DÉTAIL porte le
- * texte, les médias et les réponses. Séparé de l'écran ci-dessus, qui ne tient que les trois états
- * de chargement.
+ * texte, les médias et les réponses.
  */
 function FeedbackBody({
   feedback,
@@ -86,41 +97,59 @@ function FeedbackBody({
 }>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
+  const { data: session } = authClient.useSession();
+
+  // Le hook est appelé INCONDITIONNELLEMENT : la barre vit au niveau de la mise en page, donc avant
+  // que le débrief soit chargé. `null` dit l'attente, plutôt qu'un appel sous condition.
+  const target =
+    feedback == null || summary == null ? null : { id: feedback.id, athleteId: summary.athleteId };
+  const reply = useFeedbackReply(target);
+
+  // Refus qui PRÉCÈDE l'upload (permission galerie, permission/erreur micro) : porté à la main, il
+  // ne passe par aucune mutation. Réinitialisé à chaque nouvelle tentative.
+  const [preUploadErrorKey, setPreUploadErrorKey] = useState<string | null>(null);
+  // Ce qui n'a pas pu partir au dernier lot, fichier par fichier.
+  const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
 
   return (
-    <>
-      <View className="gap-1">
-        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-          {summary == null ? "—" : athleteLabel(summary.athleteId, summary.athleteName)}
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <ScrollView contentContainerClassName="gap-4 p-4">
+        <View className="gap-1">
+          <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
+            {summary == null ? "—" : athleteLabel(summary.athleteId, summary.athleteName)}
+          </CmvText>
+          <CmvText className="text-cmv-text-mid text-sm">
+            {summary == null
+              ? "—"
+              : `${summary.sessionTitle} · ${formatFullDay(summary.scheduledDate)}`}
+          </CmvText>
+        </View>
+
+        {/* `null` = débrief sans texte : légitime, un débrief peut n'être que des médias. */}
+        <CmvText className="text-cmv-text-hi">
+          {feedback?.content ?? t("feedback.coach.mediaOnly")}
         </CmvText>
-        <CmvText className="text-cmv-text-mid text-sm">
-          {summary == null
-            ? "—"
-            : `${summary.sessionTitle} · ${formatFullDay(summary.scheduledDate)}`}
-        </CmvText>
-      </View>
 
-      {/* `null` = débrief sans texte : légitime, un débrief peut n'être que des médias. */}
-      <CmvText className="text-cmv-text-hi">
-        {feedback?.content ?? t("feedback.coach.mediaOnly")}
-      </CmvText>
+        {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les médias,
+            dans l'ordre où l'athlète l'a envoyé. */}
+        <TrackedExerciseList exercises={feedback?.trackedExercises ?? []} />
 
-      {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les médias,
-          dans l'ordre où l'athlète l'a envoyé. */}
-      <TrackedExerciseList exercises={feedback?.trackedExercises ?? []} />
+        <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
 
-      <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
-
-      {/* Après les médias : on répond APRÈS avoir tout lu, dans l'ordre où le débrief se parcourt.
-          Sans l'un OU l'autre, on n'a pas de quoi écrire — ni le débrief à citer, ni l'athlète à
-          qui l'envoyer. */}
-      {feedback == null || summary == null ? null : (
-        <FeedbackReplySection
-          feedback={{ id: feedback.id, athleteId: summary.athleteId }}
-          messages={feedback.messages}
+        <FeedbackReplyMessages
+          messages={feedback?.messages ?? []}
+          currentUserId={session?.user.id ?? ""}
         />
-      )}
-    </>
+      </ScrollView>
+
+      <FeedbackReplyComposer
+        reply={reply}
+        preUploadErrorKey={preUploadErrorKey}
+        onPreUploadError={setPreUploadErrorKey}
+        recap={recap}
+        onRecap={setRecap}
+      />
+    </KeyboardAvoidingView>
   );
 }
 

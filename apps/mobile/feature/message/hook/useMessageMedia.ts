@@ -51,7 +51,7 @@ export function useSendMessageMedia(
    * faire apparaître la note là où on l'a enregistrée. Invalider le seul fil laisserait l'écran
    * du débrief afficher l'état d'avant l'envoi.
    */
-  options?: { attachment?: { sessionFeedbackId: string }; onSent?: () => void },
+  options?: { attachment: { sessionFeedbackId: string } | undefined; onSent?: () => void },
 ) {
   const queryClient = useQueryClient();
   const as = useExercisedCapability();

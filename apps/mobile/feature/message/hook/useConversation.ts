@@ -41,11 +41,15 @@ export function useConversations() {
  * Ouvre (get-or-create) le fil du coach avec UN athlète désigné. Idempotent → sûr comme query.
  * `staleTime` infini : c'est une résolution stable, le sondage vit sur les messages.
  */
-export function useConversationWith(athleteId: string) {
+export function useConversationWith(athleteId: string | null) {
   return useQuery<ConversationDto>({
-    queryKey: messageKeys.conversationWith(athleteId),
+    queryKey: messageKeys.conversationWith(athleteId ?? ""),
     // Symétrique de `useMyConversation` : cibler un athlète, c'est agir en coach.
-    queryFn: () => messageApi.openConversation({ athleteId }, "coach"),
+    queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }, "coach"),
+    // `null` tant que l'écran n'a pas chargé de quoi désigner l'athlète : un get-or-create sans
+    // cible créerait un fil au hasard. Le hook est appelé inconditionnellement (règle des hooks),
+    // c'est `enabled` qui décide s'il part.
+    enabled: athleteId != null,
     staleTime: Number.POSITIVE_INFINITY,
   });
 }

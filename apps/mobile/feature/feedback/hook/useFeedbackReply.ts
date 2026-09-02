@@ -20,14 +20,18 @@ import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
  * qu'ils composent — pastilles de progression, sélection de galerie, enregistreur — n'a pas la
  * même forme d'un côté et de l'autre.
  */
-export function useFeedbackReply(feedback: { id: string; athleteId: string }) {
+export function useFeedbackReply(feedback: { id: string; athleteId: string } | null) {
   const queryClient = useQueryClient();
   // Get-or-create, idempotent et stable (`staleTime` infini) : ouvrir un débrief n'ouvre pas un
   // fil de plus, il résout celui qui existe.
-  const conversation = useConversationWith(feedback.athleteId);
+  //
+  // `null` accepté : la barre d'envoi est posée par la MISE EN PAGE de l'écran, au même niveau que
+  // la zone défilante, donc avant que le débrief soit chargé. Un hook ne pouvant pas être appelé
+  // sous condition, c'est ici que l'attente se dit.
+  const conversation = useConversationWith(feedback?.athleteId ?? null);
   const conversationId = conversation.data?.id ?? "";
 
-  const attachment = { sessionFeedbackId: feedback.id };
+  const attachment = feedback == null ? undefined : { sessionFeedbackId: feedback.id };
   // La liste ENTIÈRE et pas seulement ce débrief : `repliedAt` y vit aussi, et c'est lui qui dira
   // « répondu » sur la ligne qu'on vient de traiter.
   const refreshFeedback = () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
@@ -37,7 +41,7 @@ export function useFeedbackReply(feedback: { id: string; athleteId: string }) {
 
   return {
     /** `false` tant que le fil n'est pas résolu : on n'écrit pas dans une conversation inconnue. */
-    ready: conversation.data != null,
+    ready: feedback != null && conversation.data != null,
     /** La résolution du fil a échoué — distinct d'un échec d'envoi, et il faut le dire aussi. */
     hasThreadError: conversation.isError,
     sendText: (content: string) =>
