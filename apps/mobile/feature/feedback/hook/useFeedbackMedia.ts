@@ -1,10 +1,15 @@
-import type { MultipartUploadTicket, RequestFeedbackUploadUrlInput } from "@cmv/shared";
+import type {
+  BatchOutcome,
+  MultipartUploadTicket,
+  RequestFeedbackUploadUrlInput,
+} from "@cmv/shared";
 import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
   type MediaTypeType,
   maxFeedbackMediaSizeBytes,
   megabytesOf,
+  runSequentially,
   UploadMode,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,40 +37,63 @@ function useInvalidateFeedback(sessionId: string) {
   };
 }
 
+/** Le média en cours dans un lot. `fileName` reste nullable : le picker n'en donne pas toujours. */
+export type FeedbackUploadStep = { index: number; total: number; fileName: string | null };
+
 /**
- * Ajoute un média au débrief : sélection → compression → URL signée → upload direct → rattachement.
+ * Ajoute des médias au débrief : sélection → compression → URL signée → upload direct →
+ * rattachement.
  *
  * L'upload passe par le chemin natif et non `fetch` : le fichier est streamé depuis le disque, là
  * où un `blob` chargerait la vidéo ENTIÈRE en mémoire — mesuré sur appareil, c'est un
  * OutOfMemoryError dès 400 Mo (cf. `shared/lib/upload.ts`). Il pose aussi le `Content-Length`
  * exact, que l'URL signée impose (le storage rejette tout autre poids).
+ *
+ * Un lot part média par média, et un échec n'arrête pas les suivants (#156) : l'appelant lit les
+ * issues rendues et récapitule ce qui n'est pas passé.
  */
 export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
+  const [step, setStep] = useState<FeedbackUploadStep | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: async (type: MediaTypeType) => {
-      const asset = await pickAsset(type);
-      if (asset == null) return null; // sélection annulée : ce n'est pas une erreur
-
-      const media = await prepareMedia(asset);
-      if (media.size > maxFeedbackMediaSizeBytes(type)) {
-        throw new MediaRejectedError(
-          type === MediaType.VIDEO ? "feedback.media.videoTooBig" : "feedback.media.photoTooBig",
-          { max: megabytesOf(maxFeedbackMediaSizeBytes(type)) },
-        );
-      }
-
+  /**
+   * La progression est publiée AVANT d'attendre, pour que « Envoi 2 / 5 » désigne le média qui
+   * part et non celui qui vient de partir.
+   *
+   * Le cache est invalidé à CHAQUE média plutôt qu'à la fin : la grille se remplit au fur et à
+   * mesure, et si le lot casse en route, ce qui est déjà passé reste visible.
+   */
+  const addAssets = (
+    assets: readonly ImagePicker.ImagePickerAsset[],
+  ): Promise<BatchOutcome<ImagePicker.ImagePickerAsset>[]> =>
+    runSequentially(assets, async (asset, index) => {
+      setStep({ index: index + 1, total: assets.length, fileName: asset.fileName ?? null });
       setProgress(0);
-      return uploadAndAttach(sessionId, media, setProgress);
-    },
-    onSuccess: (media) => {
-      if (media != null) invalidate();
-    },
-  });
+      await prepareAndUpload(sessionId, asset, setProgress);
+      invalidate();
+    }).finally(() => setStep(null));
 
-  return { ...mutation, progress };
+  return { addAssets, isUploading: step != null, step, progress };
+}
+
+/**
+ * La taille est revérifiée APRÈS compression : c'est la taille finale qui est signée dans l'URL,
+ * et le storage refuse tout autre poids.
+ */
+async function prepareAndUpload(
+  sessionId: string,
+  asset: ImagePicker.ImagePickerAsset,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  const media = await prepareMedia(asset);
+  if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
+    throw new MediaRejectedError(
+      media.type === MediaType.VIDEO ? "feedback.media.videoTooBig" : "feedback.media.photoTooBig",
+      { max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)) },
+    );
+  }
+  await uploadAndAttach(sessionId, media, onProgress);
 }
 
 /**
@@ -162,7 +190,19 @@ function toFeedbackMediaError(error: unknown): unknown {
   return error;
 }
 
-async function pickAsset(type: MediaTypeType): Promise<ImagePicker.ImagePickerAsset | null> {
+/**
+ * Ouvre la galerie sur une sélection MULTIPLE, photos et vidéos mêlées (#156).
+ *
+ * Un seul geste pour les deux familles : deux pickers séparés obligeraient à deux allers-retours
+ * pour joindre trois photos et une vidéo, ce qui est le cas courant après une séance.
+ *
+ * `selectionLimit` n'est PAS le garde-fou — il est ignoré sur Android avant 13. C'est la
+ * répartition côté client (`splitByRemainingSlots`) qui tient le quota ; cette borne ne fait
+ * qu'éviter d'ouvrir une sélection qu'on refuserait ensuite, là où la plateforme sait l'appliquer.
+ */
+export async function pickFeedbackAssets(
+  selectionLimit: number,
+): Promise<ImagePicker.ImagePickerAsset[]> {
   // La permission est demandée au moment de l'usage, pas au lancement de l'app : l'athlète
   // comprend pourquoi on la lui demande.
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -171,13 +211,24 @@ async function pickAsset(type: MediaTypeType): Promise<ImagePicker.ImagePickerAs
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: type === MediaType.VIDEO ? ["videos"] : ["images"],
+    mediaTypes: ["images", "videos"],
+    allowsMultipleSelection: true,
+    selectionLimit,
     // Borne la CAPTURE : mieux vaut empêcher une vidéo de 3 min que la refuser après coup.
     videoMaxDuration: MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
     quality: 1, // la compression photo est faite par nos soins (dimension + qualité maîtrisées)
   });
 
-  return result.canceled ? null : (result.assets[0] ?? null);
+  return result.canceled ? [] : result.assets;
+}
+
+/**
+ * La famille d'un média choisi, telle que la PRÉPARATION la lira ensuite (`prepareMedia` aiguille
+ * sur `asset.type === "video"`). Deux lectures différentes feraient qu'un média occupe une place
+ * de photo ici et se prépare comme une vidéo là.
+ */
+export function assetMediaType(asset: ImagePicker.ImagePickerAsset): MediaTypeType {
+  return asset.type === "video" ? MediaType.VIDEO : MediaType.IMAGE;
 }
 
 // Le même descripteur sert à demander l'URL et à rattacher : une seule source, pas de dérive
