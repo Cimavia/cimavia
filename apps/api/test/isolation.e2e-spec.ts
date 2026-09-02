@@ -1,7 +1,9 @@
 import {
   MAX_FEEDBACK_AUDIOS,
+  MAX_FEEDBACK_PHOTOS,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+  MAX_FEEDBACK_VIDEOS,
   MULTIPART_PART_SIZE_BYTES,
   MULTIPART_THRESHOLD_BYTES,
   mondayOfIsoWeek,
@@ -1835,8 +1837,10 @@ describe("Médias de débrief (P4)", () => {
     expect(tooBig.ok).toBe(false);
   });
 
-  it("plafonne à 3 vidéos par débrief (409 sur la 4e)", async () => {
-    for (let i = 0; i < 3; i++) {
+  it("plafonne les vidéos d'un débrief (409 sur celle de trop)", async () => {
+    // Le plafond vient de la CONSTANTE, jamais d'un chiffre écrit ici : relevé en #156, il aurait
+    // rendu ce test rouge sans qu'aucune règle n'ait changé.
+    for (let i = 0; i < MAX_FEEDBACK_VIDEOS; i++) {
       const storagePath = await upload(athleteA1, video(`essai-${i}.mp4`));
       const res = await athleteA1
         .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
@@ -1851,8 +1855,9 @@ describe("Médias de débrief (P4)", () => {
     expect(signed.status).toBe(409);
   });
 
-  it("les photos ont leur propre quota (5), indépendant des vidéos", async () => {
-    for (let i = 1; i < 5; i++) {
+  it("les photos ont leur propre quota, indépendant des vidéos", async () => {
+    // Démarre à 1 : une photo est déjà attachée par un test précédent de ce même débrief.
+    for (let i = 1; i < MAX_FEEDBACK_PHOTOS; i++) {
       const storagePath = await upload(athleteA1, photo(`voie-${i}.jpg`));
       const res = await athleteA1
         .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)

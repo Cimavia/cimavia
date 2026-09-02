@@ -939,9 +939,22 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > clés de sa feature, et côté mobile chacune teste un `MediaRejectedError` **différent**, les deux
 > features en définissant chacune un (dette **M-4**). Les unifier demande de traiter #96 d'abord.
 >
+> **Tranché en beta** (plafonds relevés à **20 photos / 10 vidéos / 20 notes vocales**, depuis
+> 5/3/15) : la sélection multiple a rendu visible ce que l'ajout un par un cachait — le picker
+> mobile annonce `photosLeft + videosLeft`, soit « 8 éléments maximum » sur un débrief vide, et
+> c'est en le lisant qu'on a vu que le **compte** gênait, pas la taille. Un athlète débriefe une
+> séance avec dix photos de ses voies. Ce qui garde le stockage prévisible reste la taille PAR
+> FICHIER, inchangée (1 Go vidéo, 100 Mo photo/audio) ; la durée non plus n'a pas bougé.
+>
+> **Deux tests écrivaient ces plafonds en dur** et seraient devenus rouges sans qu'aucune règle
+> n'ait changé : les deux e2e de quota (« plafonne à 3 vidéos », « quota (5) ») et l'assertion de
+> places restantes du test d'écran web. Tous trois dérivent désormais des constantes, comme le
+> faisait déjà le test des notes vocales. C'est le même mode de panne que les six chaînes i18n qui
+> citaient les plafonds en dur (P4).
+>
 > **Corrigé au passage** : le commentaire d'`assertQuotaLeft` annonçait « 3 vidéos, 5 photos,
-> **3 notes vocales** (CDC §6) » alors que `MAX_FEEDBACK_AUDIOS` vaut **15** depuis P5. Une doc
-> fausse dans le fichier même qui applique le quota.
+> **3 notes vocales** (CDC §6) » alors que `MAX_FEEDBACK_AUDIOS` valait **15** depuis P5. Une doc
+> fausse dans le fichier même qui applique le quota — remise à jour avec les nouvelles valeurs.
 
 ---
 ## Post-MVP — Capacités coach/athlète ([#7](https://github.com/Cimavia/cimavia/issues/7))

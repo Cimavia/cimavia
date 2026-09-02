@@ -1,4 +1,5 @@
 import type { MediaBatch, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
+import { MAX_FEEDBACK_PHOTOS, MAX_FEEDBACK_VIDEOS } from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../../test/render";
@@ -259,22 +260,22 @@ describe("AthleteFeedbackScreen", () => {
     });
 
     it("annonce au lot les places que le débrief laisse encore", async () => {
+      // Le débrief est plein d'une photo près. Les plafonds viennent des CONSTANTES : écrits en
+      // dur, ce test serait devenu rouge en #156 sans qu'aucune règle n'ait changé.
       getFeedbackMock.mockResolvedValue(
         feedback({
-          media: [
-            { id: "m-1", type: "IMAGE" },
-            { id: "m-2", type: "IMAGE" },
-            { id: "m-3", type: "IMAGE" },
-            { id: "m-4", type: "IMAGE" },
-          ] as SessionFeedbackDto["media"],
+          media: Array.from({ length: MAX_FEEDBACK_PHOTOS - 1 }, (_unused, index) => ({
+            id: `m-${index}`,
+            type: "IMAGE",
+          })) as SessionFeedbackDto["media"],
         }),
       );
       await pick([photo("a.jpg"), photo("b.jpg")]);
 
-      // Quatre photos déjà jointes sur cinq : une seule place, et un plafond de lot qui est la
-      // somme des places restantes — inutile de préparer ce qu'aucun quota ne peut accueillir.
+      // Une seule place photo, et un plafond de lot qui est la somme des places restantes —
+      // inutile de préparer ce qu'aucun quota ne peut accueillir.
       await waitFor(() => expect(batchOf(0).remaining.IMAGE).toBe(1));
-      expect(batchOf(0).maxItems).toBe(1 + 3);
+      expect(batchOf(0).maxItems).toBe(1 + MAX_FEEDBACK_VIDEOS);
     });
 
     it("refuse de joindre un fichier qui n'est ni photo ni vidéo", async () => {
