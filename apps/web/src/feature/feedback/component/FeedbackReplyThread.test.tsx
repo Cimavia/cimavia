@@ -9,7 +9,12 @@ vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach-1" } } }) },
 }));
 
-const FEEDBACK = { id: "f-1", athleteId: "a-1" };
+const PROPS = {
+  feedbackId: "f-1",
+  conversationId: "c-1",
+  isThreadError: false,
+  onSent: () => undefined,
+};
 
 function message(overrides: Partial<MessageDto>): MessageDto {
   return {
@@ -47,7 +52,7 @@ describe("FeedbackReplyThread", () => {
   it("rend les réponses déjà envoyées", () => {
     mockReply();
     const { queryByText } = renderWithProviders(
-      <FeedbackReplyThread feedback={FEEDBACK} messages={[message({})]} />,
+      <FeedbackReplyThread {...PROPS} messages={[message({})]} />,
     );
 
     expect(queryByText("Bien joué, on garde cette voie")).not.toBeNull();
@@ -61,7 +66,7 @@ describe("FeedbackReplyThread", () => {
   it("n'affiche aucune bulle sans réponse, mais garde de quoi écrire", () => {
     mockReply();
     const { queryByText, queryByPlaceholderText } = renderWithProviders(
-      <FeedbackReplyThread feedback={FEEDBACK} messages={[]} />,
+      <FeedbackReplyThread {...PROPS} messages={[]} />,
     );
 
     expect(queryByText("Bien joué, on garde cette voie")).toBeNull();
@@ -72,9 +77,7 @@ describe("FeedbackReplyThread", () => {
   // qu'on n'a pas le droit de répondre à cet athlète.
   it("dit qu'il n'a pas pu ouvrir la conversation", () => {
     mockReply({ ready: false, hasThreadError: true });
-    const { queryByText } = renderWithProviders(
-      <FeedbackReplyThread feedback={FEEDBACK} messages={[]} />,
-    );
+    const { queryByText } = renderWithProviders(<FeedbackReplyThread {...PROPS} messages={[]} />);
 
     expect(queryByText("feedback.reply.threadError")).not.toBeNull();
   });

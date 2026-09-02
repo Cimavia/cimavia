@@ -1,8 +1,10 @@
-import { type CoachFeedbackSummaryDto, MediaType } from "@cmv/shared";
+import { type CoachFeedbackSummaryDto, coachFeedbackKeys, MediaType } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
+import { useConversationWith } from "@/feature/message/hook/useMessages";
 import { CmvAvatar, CmvButton } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
@@ -35,6 +37,12 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { data: detail, isPending } = useSessionFeedback(feedback.scheduledSessionId);
+  // Get-or-create, idempotent et stable : ouvrir un débrief ne crée pas un fil de plus.
+  const conversation = useConversationWith(feedback.athleteId);
+  const queryClient = useQueryClient();
+  // La liste ENTIÈRE et pas seulement ce débrief : `repliedAt` y vit aussi, et c'est lui qui pose
+  // le badge « répondu » sur la ligne qu'on vient de traiter.
+  const refreshFeedbacks = () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -128,7 +136,13 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
 
         {/* Sous les médias : on répond APRÈS avoir tout lu, dans l'ordre où le débrief se parcourt.
             `messages` vient du détail — le résumé de la liste ne les porte pas. */}
-        <FeedbackReplyThread feedback={feedback} messages={detail?.messages ?? []} />
+        <FeedbackReplyThread
+          feedbackId={feedback.id}
+          messages={detail?.messages ?? []}
+          conversationId={conversation.data?.id}
+          isThreadError={conversation.isError}
+          onSent={refreshFeedbacks}
+        />
       </div>
     </div>
   );

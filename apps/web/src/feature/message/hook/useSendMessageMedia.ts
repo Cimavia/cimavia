@@ -51,7 +51,7 @@ export function useSendMessageMedia(
    * faire apparaître la photo là où on l'a envoyée. Invalider le seul fil laisserait le volet de
    * lecture afficher l'état d'avant l'envoi.
    */
-  options?: { attachment?: { sessionFeedbackId: string }; onSent?: () => void },
+  options?: { attachment: { sessionFeedbackId: string } | undefined; onSent?: () => void },
 ) {
   const { t } = useTranslation();
   const toast = useToast();

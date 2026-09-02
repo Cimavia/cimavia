@@ -6,8 +6,13 @@ import { MessageBubble } from "@/feature/message/component/MessageBubble";
 import { authClient } from "@/shared/lib/auth";
 
 type FeedbackReplyThreadProps = {
-  feedback: { id: string; athleteId: string };
+  feedbackId: string;
   messages: readonly MessageDto[];
+  /** Le fil, résolu par la surface : le coach vise un athlète, l'athlète a son coach. */
+  conversationId: string | undefined;
+  isThreadError: boolean;
+  /** Ce qu'il faut recharger après un envoi — la boîte du coach, ou le débrief de l'athlète. */
+  onSent: () => void;
 };
 
 /**
@@ -24,10 +29,16 @@ type FeedbackReplyThreadProps = {
  * au retour sur l'onglet. Un coach qui répond n'attend pas une réponse dans la seconde — et s'il
  * l'attend, c'est la messagerie qu'il ouvre.
  */
-export function FeedbackReplyThread({ feedback, messages }: Readonly<FeedbackReplyThreadProps>) {
+export function FeedbackReplyThread({
+  feedbackId,
+  messages,
+  conversationId,
+  isThreadError,
+  onSent,
+}: Readonly<FeedbackReplyThreadProps>) {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
-  const reply = useFeedbackReply(feedback);
+  const reply = useFeedbackReply({ feedbackId, conversationId, isThreadError, onSent });
 
   const currentUserId = session?.user.id ?? "";
 

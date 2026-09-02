@@ -1,5 +1,6 @@
 import type { CoachFeedbackSummaryDto, MediaRecapLine, SessionFeedbackDto } from "@cmv/shared";
 import { type FeedbackMediaDto, MediaType } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +19,7 @@ import {
 } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useFreshFeedbackMediaUrl } from "@/feature/feedback/hook/useFreshFeedbackMediaUrl";
+import { useConversationWith } from "@/feature/message/hook/useConversation";
 import {
   CmvAudioPlayer,
   CmvErrorState,
@@ -99,11 +101,18 @@ function FeedbackBody({
   const athleteLabel = useAthleteLabel();
   const { data: session } = authClient.useSession();
 
-  // Le hook est appelé INCONDITIONNELLEMENT : la barre vit au niveau de la mise en page, donc avant
-  // que le débrief soit chargé. `null` dit l'attente, plutôt qu'un appel sous condition.
-  const target =
-    feedback == null || summary == null ? null : { id: feedback.id, athleteId: summary.athleteId };
-  const reply = useFeedbackReply(target);
+  // Les hooks sont appelés INCONDITIONNELLEMENT : la barre vit au niveau de la mise en page, donc
+  // avant que le débrief soit chargé. `null` dit l'attente, plutôt qu'un appel sous condition.
+  const conversation = useConversationWith(summary?.athleteId ?? null);
+  const queryClient = useQueryClient();
+  const reply = useFeedbackReply({
+    feedbackId: feedback?.id ?? null,
+    conversationId: conversation.data?.id,
+    isThreadError: conversation.isError,
+    // La liste ENTIÈRE et pas seulement ce débrief : `repliedAt` y vit aussi, et c'est lui qui
+    // dira « répondu » sur la ligne qu'on vient de traiter.
+    onSent: () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all }),
+  });
 
   // Refus qui PRÉCÈDE l'upload (permission galerie, permission/erreur micro) : porté à la main, il
   // ne passe par aucune mutation. Réinitialisé à chaque nouvelle tentative.
