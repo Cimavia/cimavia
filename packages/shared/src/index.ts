@@ -322,6 +322,7 @@ export {
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
   MAX_MESSAGE_IMAGE_SIZE_BYTES,
+  MAX_MESSAGE_MEDIA_BATCH,
   MAX_MESSAGE_VIDEO_DURATION_SECONDS,
   MAX_MESSAGE_VIDEO_SIZE_BYTES,
   MESSAGE_AUDIO_MIME_TYPES,
@@ -577,7 +578,7 @@ export type {
   MediaRecapReason,
   MediaRejection,
 } from "./util/media-batch.util";
-export { sendMediaBatch } from "./util/media-batch.util";
+export { mediaRecapText, sendMediaBatch } from "./util/media-batch.util";
 export {
   formatMediaDuration,
   formatMmSs,

@@ -4,7 +4,7 @@ import type {
   MediaRejection,
   SessionFeedbackDto,
 } from "@cmv/shared";
-import { MediaType, remainingMediaSlots } from "@cmv/shared";
+import { MediaType, mediaRecapText, remainingMediaSlots } from "@cmv/shared";
 import type { ImagePickerAsset } from "expo-image-picker";
 import type { TFunction } from "i18next";
 import { useState } from "react";
@@ -13,7 +13,6 @@ import { View } from "react-native";
 import { MediaGrid } from "@/feature/feedback/component/MediaGrid";
 import { MediaPicker } from "@/feature/feedback/component/MediaPicker";
 import {
-  assetMediaType,
   pickFeedbackAssets,
   useAddFeedbackAudio,
   useAddFeedbackMedia,
@@ -22,6 +21,7 @@ import {
 import { MediaRejectedError } from "@/feature/feedback/util/media.util";
 import { CmvText } from "@/shared/component";
 import { apiErrorMessage } from "@/shared/lib/api";
+import { assetMediaKind } from "@/shared/util/media-kind.util";
 
 /**
  * Un refus métier (fichier trop lourd, permission refusée) porte sa propre clé i18n ; une panne
@@ -93,7 +93,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
           [MediaType.VIDEO]: videosLeft,
           [MediaType.AUDIO]: audiosLeft,
         },
-        kindOf: assetMediaType,
+        kindOf: assetMediaKind,
         nameOf: (asset) => asset.fileName ?? null,
         rejectedReason,
         failureReason,
@@ -142,7 +142,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
               réordonnée ni amputée — deux médias peuvent d'ailleurs porter le même nom. */}
           {recap.map((entry, index) => (
             <CmvText key={index} className="text-cmv-error text-sm">
-              {`${entry.fileName ?? t("feedback.media.unnamedFile")} — ${reasonText(entry.reason, t)}`}
+              {`${entry.fileName ?? t("feedback.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
             </CmvText>
           ))}
         </View>
@@ -153,14 +153,10 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
   );
 }
 
-function reasonText(reason: MediaRecapReason, t: TFunction): string {
-  return "key" in reason ? t(reason.key, reason.params) : reason.message;
-}
-
 /**
  * Ce que dit un refus qui précède l'envoi. `tooMany` et `noSlot` disent la même chose ici, et c'est
  * exact : le plafond du lot EST la somme des places restantes. `unsupported` ne peut pas survenir —
- * la galerie ne rend que des images et des vidéos, et `assetMediaType` est total.
+ * la galerie ne rend que des images et des vidéos, et `assetMediaKind` est total.
  */
 function rejectedReason({ kind }: MediaRejection): MediaRecapReason {
   return {

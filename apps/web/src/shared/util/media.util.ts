@@ -23,6 +23,19 @@ import {
  * les mimes audio acceptés, et les clés i18n du refus.
  */
 
+/**
+ * La famille d'un fichier JOINT, ou `null` quand aucune surface ne sait l'envoyer ainsi.
+ *
+ * C'est la lecture que fait `prepareWebMedia` juste en dessous, et c'est aussi celle qui décide sur
+ * quel quota un fichier compte : deux lectures différentes feraient qu'un fichier occupe une place
+ * de photo puis se prépare comme autre chose. L'audio est écarté — une note vocale s'enregistre,
+ * elle ne se joint pas comme un fichier.
+ */
+export function attachableMediaKind(file: File): MediaType | null {
+  const kind = mediaKindOfMime(file.type);
+  return kind === MediaType.IMAGE || kind === MediaType.VIDEO ? kind : null;
+}
+
 // Un média prêt à envoyer : le fichier à uploader + son descripteur (signé, puis rattaché).
 export type PreparedWebMedia =
   | {

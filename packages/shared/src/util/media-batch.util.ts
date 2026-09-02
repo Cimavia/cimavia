@@ -113,6 +113,21 @@ export type MediaRecapReason =
 export type MediaRecapLine = { fileName: string | null; reason: MediaRecapReason };
 
 /**
+ * La phrase d'une raison, quelle que soit sa forme.
+ *
+ * La fonction de traduction est REÇUE plutôt qu'importée : `@cmv/shared` compile en CJS pour
+ * NestJS et n'a pas i18next. Le `t` des deux apps s'y branche tel quel, et le discriminant
+ * `"key" in reason` n'est écrit qu'une fois — écrit quatre fois, il aurait fallu penser aux quatre
+ * le jour où la raison gagne une troisième forme.
+ */
+export function mediaRecapText(
+  reason: MediaRecapReason,
+  translate: (key: string, params: Record<string, string | number>) => string,
+): string {
+  return "key" in reason ? translate(reason.key, reason.params) : reason.message;
+}
+
+/**
  * Pourquoi un média a été écarté AVANT tout envoi. `kind` accompagne la cause pour que l'appelant
  * puisse nommer la place qui manque (« plus de place pour une photo ») plutôt que de rester vague.
  */

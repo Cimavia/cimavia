@@ -9,7 +9,7 @@ import type {
 import {
   FEEDBACK_CONTENT_MAX_LENGTH,
   MediaType,
-  mediaKindOfMime,
+  mediaRecapText,
   remainingMediaSlots,
 } from "@cmv/shared";
 import { getRouteApi, Link } from "@tanstack/react-router";
@@ -36,7 +36,7 @@ import {
 } from "@/shared/component";
 import { useWebAudioRecorder } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
-import { MediaRejectedError } from "@/shared/util/media.util";
+import { attachableMediaKind, MediaRejectedError } from "@/shared/util/media.util";
 
 const route = getRouteApi("/sessions/$sessionId/feedback");
 
@@ -316,7 +316,7 @@ function FeedbackMediaSection({
           [MediaType.VIDEO]: videosLeft,
           [MediaType.AUDIO]: audiosLeft,
         },
-        kindOf: attachableKind,
+        kindOf: attachableMediaKind,
         nameOf: (file) => file.name,
         rejectedReason,
         failureReason,
@@ -422,9 +422,7 @@ function FeedbackMediaSection({
                   {entry.fileName ?? t("feedback.media.unnamedFile")}
                 </span>
                 {" — "}
-                {"key" in entry.reason
-                  ? t(entry.reason.key, entry.reason.params)
-                  : entry.reason.message}
+                {mediaRecapText(entry.reason, t)}
               </li>
             ))}
           </ul>
@@ -434,18 +432,6 @@ function FeedbackMediaSection({
       {audioError == null ? null : <p className="text-cmv-body text-cmv-error-on">{audioError}</p>}
     </section>
   );
-}
-
-/**
- * La famille d'un fichier joint, ou `null` quand le débrief ne sait pas le joindre.
- *
- * La lecture est celle que fait la PRÉPARATION (`mediaKindOfMime`) : un `image/heic` occupe bien
- * une place de photo, quitte à être refusé au format ensuite. L'audio est écarté — une note vocale
- * s'enregistre, elle ne se joint pas comme un fichier.
- */
-function attachableKind(file: File): MediaType | null {
-  const kind = mediaKindOfMime(file.type);
-  return kind === MediaType.IMAGE || kind === MediaType.VIDEO ? kind : null;
 }
 
 /**

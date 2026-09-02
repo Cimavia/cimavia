@@ -8,7 +8,6 @@ import type {
 import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
-  type MediaTypeType,
   maxFeedbackMediaSizeBytes,
   megabytesOf,
   sendMediaBatch,
@@ -221,15 +220,6 @@ export async function pickFeedbackAssets(
   });
 
   return result.canceled ? [] : result.assets;
-}
-
-/**
- * La famille d'un média choisi, telle que la PRÉPARATION la lira ensuite (`prepareMedia` aiguille
- * sur `asset.type === "video"`). Deux lectures différentes feraient qu'un média occupe une place
- * de photo ici et se prépare comme une vidéo là.
- */
-export function assetMediaType(asset: ImagePicker.ImagePickerAsset): MediaTypeType {
-  return asset.type === "video" ? MediaType.VIDEO : MediaType.IMAGE;
 }
 
 // Le même descripteur sert à demander l'URL et à rattacher : une seule source, pas de dérive

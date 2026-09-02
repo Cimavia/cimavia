@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { MediaType } from "../dto/feedback.schema";
 import type { MediaBatch, MediaBatchStep, MediaRejection } from "./media-batch.util";
-import { runSequentially, sendMediaBatch, splitByRemainingSlots } from "./media-batch.util";
+import {
+  mediaRecapText,
+  runSequentially,
+  sendMediaBatch,
+  splitByRemainingSlots,
+} from "./media-batch.util";
 
 const photo = (name: string) => ({ kind: MediaType.IMAGE, name });
 const video = (name: string) => ({ kind: MediaType.VIDEO, name });
@@ -210,5 +215,26 @@ describe("sendMediaBatch", () => {
 
     expect(send).not.toHaveBeenCalled();
     expect(recap).toHaveLength(1);
+  });
+});
+
+describe("mediaRecapText", () => {
+  const translate = (key: string, params: Record<string, string | number>) =>
+    `${key}:${JSON.stringify(params)}`;
+
+  it("traduit une raison qui porte une clé, avec ses paramètres", () => {
+    expect(mediaRecapText({ key: "media.tooBig", params: { max: 50 } }, translate)).toBe(
+      'media.tooBig:{"max":50}',
+    );
+  });
+
+  /**
+   * Une panne technique arrive déjà rédigée — c'est le message de l'API. La traduire n'aurait rien
+   * à traduire : le passer tel quel est la seule façon de ne pas le perdre.
+   */
+  it("rend tel quel un message qui n'a pas de clé", () => {
+    expect(mediaRecapText({ message: "Le serveur a refusé ce fichier." }, translate)).toBe(
+      "Le serveur a refusé ce fichier.",
+    );
   });
 });

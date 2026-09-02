@@ -52,6 +52,16 @@ export const MAX_MESSAGE_AUDIO_DURATION_SECONDS = 300;
 export const MAX_MESSAGE_IMAGE_SIZE_BYTES = MAX_FEEDBACK_PHOTO_SIZE_BYTES;
 export const MAX_MESSAGE_VIDEO_SIZE_BYTES = MAX_FEEDBACK_VIDEO_SIZE_BYTES;
 export const MAX_MESSAGE_VIDEO_DURATION_SECONDS = MAX_FEEDBACK_VIDEO_DURATION_SECONDS;
+/**
+ * Combien de médias un même geste peut envoyer dans un fil.
+ *
+ * Contrairement au débrief, la messagerie n'a AUCUN quota — chaque média y est un message — donc
+ * rien ne borne naturellement une sélection : quarante vidéos partiraient à la suite. C'est une
+ * borne d'usage côté client, pas une règle métier : le serveur n'en sait rien et n'a pas à en
+ * savoir. Elle vit ici pour que les deux surfaces ne s'en donnent pas deux valeurs différentes.
+ */
+export const MAX_MESSAGE_MEDIA_BATCH = 10;
+
 export const MESSAGE_IMAGE_MIME_TYPES = FEEDBACK_IMAGE_MIME_TYPES;
 export const MESSAGE_VIDEO_MIME_TYPES = FEEDBACK_VIDEO_MIME_TYPES;
 
