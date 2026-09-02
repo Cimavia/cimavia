@@ -238,6 +238,17 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   refus manuel sur une erreur d'upload. L'interdiction de #58 tient sans réserve : un `render()`
 >   qui exécute du JSX sans rien affirmer reste du décor, harnais ou pas.
 >
+> - **Les scripts `lint` des paquets disent `biome check .`, jamais une liste de dossiers.** Les
+>   trois apps listaient leurs répertoires de source et rataient donc leur propre harnais de test —
+>   `apps/mobile/test/` n'était vu par aucun `pnpm lint` ; `@cmv/shared` et `@cmv/tokens` n'avaient
+>   pas de script du tout. Une liste dérive dès qu'un fichier apparaît à la racine du paquet, et
+>   elle dérive **en silence**. Le `.` s'entretient seul : Biome remonte au `biome.json` de la
+>   racine, donc les exclusions (`.expo`, `metro.config.js`, `tailwind.config.js`…) continuent de
+>   s'appliquer — les re-lister par paquet serait le geste à ne pas faire. Conséquence à ne pas
+>   sur-lire : `turbo lint` reste insuffisant comme porte, mais pour une raison neuve — il couvre
+>   maintenant les cinq paquets et ne voit toujours **pas la racine** (`biome.json`, `turbo.json`,
+>   `scripts/check-i18n-keys.mjs`). `pnpm biome ci .` reste ce que lance la CI.
+>
 > Angle mort assumé : `cimode` PERD les paramètres d'interpolation (même prix qu'au web, #188), et
 > `CmvButton` n'ayant pas de `accessibilityRole`, `pressButton()` doit prendre le premier des deux
 > nœuds que `getAllByText` remonte. L'index disparaîtra le jour où le rôle sera posé.

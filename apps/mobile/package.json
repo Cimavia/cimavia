@@ -9,7 +9,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "lint": "biome check app feature shared app.config.ts",
+    "lint": "biome check .",
     "test": "vitest run --coverage",
     "build:dev:android": "eas build --profile development --platform android",
     "build:preview:android": "eas build --profile preview --platform android"

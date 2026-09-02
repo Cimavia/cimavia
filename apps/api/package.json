@@ -8,7 +8,7 @@
     "build": "nest build",
     "start": "node dist/main",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "lint": "biome check src",
+    "lint": "biome check .",
     "test": "vitest run --passWithNoTests --coverage",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.config.e2e.ts --coverage",
