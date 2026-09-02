@@ -19,15 +19,13 @@
     "feature",
     "shared",
     "app.config.ts",
-    "test",
-    // Comme côté web : sous `moduleResolution: Bundler`, les types de `vitest/config` se
-    // résolvent, donc une propriété inventée y échoue. Ajouté au tsconfig ET vérifié comme tel
-    // (leçon de #57 : un typecheck peut être vert sans rien vérifier).
-    "vitest.config.ts",
     "global.d.ts",
     "nativewind-env.d.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules"]
+  // Le harnais et les tests passent par `tsconfig.test.json`, qui seul leur ouvre la bibliothèque
+  // DOM. Les laisser ici les ferait échouer sur `querySelector` — et élargir `lib` pour eux
+  // ouvrirait `document` à toute la production, ce que ce tsconfig existe pour empêcher.
+  "exclude": ["node_modules", "test", "**/*.test.ts", "**/*.test.tsx"]
 }
