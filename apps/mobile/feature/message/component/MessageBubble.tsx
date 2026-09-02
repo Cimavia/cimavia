@@ -1,7 +1,16 @@
-import type { MessageDto } from "@cmv/shared";
-import { MessageType } from "@cmv/shared";
-import { View } from "react-native";
+import type { MessageAttachmentDto, MessageDto } from "@cmv/shared";
+import {
+  AttachmentDestination,
+  attachmentTarget,
+  MESSAGE_ATTACHMENT_LABEL_KEY,
+  MessageType,
+} from "@cmv/shared";
+import { type Href, router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { Pressable, View } from "react-native";
 import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoLink } from "@/shared/component";
+import { useActingCapability } from "@/shared/hook/useExercisedCapability";
+import { formatDate } from "@/shared/util/date.util";
 
 type MessageBubbleProps = {
   message: MessageDto;
@@ -24,6 +33,45 @@ function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
   return <CmvVideoLink url={media.url} durationSeconds={media.durationSeconds} />;
 }
 
+/**
+ * « À propos de… » : ce sur quoi porte le message, en tête de bulle.
+ *
+ * Le libellé se compose ICI — l'API rend le titre et la date, le type choisit la clé i18n
+ * (`MESSAGE_ATTACHMENT_LABEL_KEY`). La destination dépend de la capacité du LECTEUR : le coach et
+ * son athlète n'ont pas les mêmes écrans. Sans destination, la puce reste un libellé — jamais un
+ * lien mort.
+ */
+function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachmentDto }>) {
+  const { t } = useTranslation();
+  // `useActingCapability` et non `useExercisedCapability` : ce dernier rend `null` pour tout compte
+  // MONO-capacité — il répond à « faut-il poser `?as=` sur l'API », pas à « quel écran montrer ».
+  const as = useActingCapability();
+  const target = attachmentTarget(attachment, as);
+  const label = (
+    <CmvText className="text-cmv-text-mid text-xs">
+      {t(MESSAGE_ATTACHMENT_LABEL_KEY[attachment.type], {
+        title: attachment.sessionTitle,
+        date: formatDate(attachment.scheduledDate),
+      })}
+    </CmvText>
+  );
+
+  // Le débrief s'adresse PAR SA SÉANCE des deux côtés : le coach l'ouvre dans sa boîte de
+  // réception, l'athlète sur son propre écran d'écriture.
+  const route: Href =
+    target.destination === AttachmentDestination.SESSION
+      ? `/session/${target.scheduledSessionId}`
+      : as === "coach"
+        ? `/feedbacks/${target.scheduledSessionId}`
+        : `/session/${target.scheduledSessionId}/feedback`;
+
+  return (
+    <Pressable onPress={() => router.push(route)} hitSlop={4}>
+      <View className="mb-2 self-start rounded-lg bg-cmv-bg-1 px-2 py-1">{label}</View>
+    </Pressable>
+  );
+}
+
 export function MessageBubble({ message, mine }: Readonly<MessageBubbleProps>) {
   return (
     <View
@@ -31,6 +79,10 @@ export function MessageBubble({ message, mine }: Readonly<MessageBubbleProps>) {
         mine ? "self-end bg-cmv-accent" : "self-start bg-cmv-surface"
       }`}
     >
+      {/* `null` couvre DEUX cas : le message ne porte sur rien, ou sa cible a disparu (SetNull).
+          Les deux se rendent pareil — une bulle ordinaire, pas un « à propos de quelque chose ». */}
+      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
+
       {message.content != null ? (
         <CmvText className="text-cmv-text-hi">{message.content}</CmvText>
       ) : (
