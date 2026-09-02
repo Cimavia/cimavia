@@ -62,12 +62,20 @@ export function useThreadMessages(conversationId: string | undefined) {
   });
 }
 
-export function useSendMessage(conversationId: string) {
+/**
+ * `attachment` : ce sur quoi le message porte (« à propos de… »).
+ *
+ * Il vit ICI et non dans le `Composer` : la barre d'envoi ne sait rien du contexte où on l'a
+ * posée, et c'est très bien — c'est l'écran qui répond depuis un débrief, pas elle. Sans ce
+ * paramètre, une réponse écrite depuis le débrief partirait nue dans le fil.
+ */
+export function useSendMessage(conversationId: string, attachment?: { sessionFeedbackId: string }) {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
   const as = useExercisedCapability();
   return useMutation({
-    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input, as),
+    mutationFn: (input: SendMessageInput) =>
+      messageApi.sendMessage(conversationId, { ...input, ...attachment }, as),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
       queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });

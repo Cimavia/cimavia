@@ -44,11 +44,11 @@ const feedbackAttachment = {
   id: "f1",
 };
 
-function renderBubble(attachment: MessageDto["attachment"]) {
-  return renderInRoute(<MessageBubble message={message(attachment)} mine={false} />, {
-    path: "/messages",
-    links: LINKS,
-  });
+function renderBubble(attachment: MessageDto["attachment"], hideAttachment = false) {
+  return renderInRoute(
+    <MessageBubble message={message(attachment)} mine={false} hideAttachment={hideAttachment} />,
+    { path: "/messages", links: LINKS },
+  );
 }
 
 describe("MessageBubble — la puce « à propos de… »", () => {
@@ -84,5 +84,16 @@ describe("MessageBubble — la puce « à propos de… »", () => {
     const { getByText } = await renderBubble(sessionAttachment);
 
     expect(getByText(SESSION_LABEL).closest("a")).toHaveAttribute("href", "/feedbacks?session=s1");
+  });
+
+  /**
+   * Dans un débrief, toutes les bulles pointent CE débrief : la puce y répéterait à chaque ligne
+   * l'adresse de la page où l'on se trouve déjà.
+   */
+  it("tait la puce sur la surface qu'elle citerait", async () => {
+    vi.mocked(useActingCapability).mockReturnValue("coach");
+    const { queryByText } = await renderBubble(feedbackAttachment, true);
+
+    expect(queryByText(FEEDBACK_LABEL)).toBeNull();
   });
 });
