@@ -1,4 +1,4 @@
-import type { CoachAthleteDto } from "@cmv/shared";
+import type { AthleteIdentity } from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthleteSheet, useSaveAthleteSheet } from "@/feature/athlete/hook/useAthletes";
@@ -6,7 +6,12 @@ import { CmvButton, CmvPanel, CmvTextArea } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 
 type AthleteSheetPanelProps = {
-  athlete: CoachAthleteDto;
+  /**
+   * Un id et un nom, pas un `CoachAthleteDto` : c'est tout ce que ce panneau lit, et l'exiger
+   * entier obligeait chaque appelant à charger la liste des athlètes pour ouvrir une fiche. Le
+   * volet de lecture d'un débrief, lui, a déjà les deux sous la main.
+   */
+  athlete: AthleteIdentity;
   onClose: () => void;
 };
 

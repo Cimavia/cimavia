@@ -1,5 +1,4 @@
 import { type CoachFeedbackSummaryDto, MediaType } from "@cmv/shared";
-import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
@@ -9,6 +8,7 @@ import { formatDate } from "@/shared/util/date.util";
 
 type FeedbackReadingPaneProps = {
   feedback: CoachFeedbackSummaryDto;
+  onOpenSheet: () => void;
 };
 
 /**
@@ -30,7 +30,7 @@ type FeedbackReadingPaneProps = {
  */
 const SECTION_TITLE = "text-cmv-caption text-cmv-accent uppercase tracking-wide";
 
-export function FeedbackReadingPane({ feedback }: Readonly<FeedbackReadingPaneProps>) {
+export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<FeedbackReadingPaneProps>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { data: detail, isPending } = useSessionFeedback(feedback.scheduledSessionId);
@@ -48,16 +48,13 @@ export function FeedbackReadingPane({ feedback }: Readonly<FeedbackReadingPanePr
           </p>
         </div>
 
-        {/* Le débrief dit ce qu'un athlète a ressenti d'UNE séance ; sa fiche dit qui il est. Lire
-            l'un sans pouvoir atteindre l'autre était le vrai manque de cet écran — c'est ce que la
-            maquette demandait, et ce que `?athlete=` sur le tableau de bord rend enfin possible. */}
-        <Link
-          to="/"
-          search={{ q: undefined, filter: undefined, athlete: feedback.athleteId }}
-          className="shrink-0"
-        >
-          <CmvButton variant="secondary">{t("feedback.detail.openSheet")}</CmvButton>
-        </Link>
+        {/* Le débrief dit ce qu'un athlète a ressenti d'UNE séance ; sa fiche dit qui il est.
+            La fiche s'ouvre PAR-DESSUS la boîte de réception, elle n'y renvoie pas : envoyer le
+            coach au tableau de bord lui ferait perdre son tri en cours — sa recherche, son segment,
+            le débrief ouvert — pour consulter deux lignes de note. */}
+        <CmvButton variant="secondary" onClick={onOpenSheet}>
+          {t("feedback.detail.openSheet")}
+        </CmvButton>
       </header>
 
       <div className="flex flex-1 flex-col gap-cmv-lg overflow-y-auto p-cmv-lg">
