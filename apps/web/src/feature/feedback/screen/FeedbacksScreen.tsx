@@ -35,14 +35,24 @@ export function FeedbacksScreen() {
   const { data: feedbacks, isPending, isError, refetch } = useFeedbacks();
   const markRead = useMarkFeedbackRead();
 
-  const { feedback: openedId } = route.useSearch();
-  // Résolu depuis la liste : l'URL ne porte qu'un id, et le panneau a besoin du débrief entier.
-  // `null` tant que la liste n'est pas là — le panneau s'ouvre dès qu'elle arrive.
-  const opened = (feedbacks ?? []).find((feedback) => feedback.id === openedId) ?? null;
+  const { feedback: openedId, session: openedSessionId } = route.useSearch();
+  /**
+   * Résolu depuis la liste : l'URL ne porte qu'un id, et le panneau a besoin du débrief entier.
+   * `null` tant que la liste n'est pas là — le panneau s'ouvre dès qu'elle arrive.
+   *
+   * Deux entrées possibles : par le débrief (tableau de suivi, #113) ou par la SÉANCE débriefée
+   * (puce « à propos de… » d'un message, qui ne connaît pas l'id du débrief). Une séance jamais
+   * débriefée ne résout rien : on reste sur la liste plutôt que d'ouvrir un panneau vide.
+   */
+  const opened =
+    (feedbacks ?? []).find((feedback) =>
+      openedId != null ? feedback.id === openedId : feedback.scheduledSessionId === openedSessionId,
+    ) ?? null;
 
   const openFeedback = (feedback: CoachFeedbackSummaryDto) =>
-    navigate({ to: "/feedbacks", search: { feedback: feedback.id } });
-  const closeFeedback = () => navigate({ to: "/feedbacks", search: { feedback: undefined } });
+    navigate({ to: "/feedbacks", search: { feedback: feedback.id, session: undefined } });
+  const closeFeedback = () =>
+    navigate({ to: "/feedbacks", search: { feedback: undefined, session: undefined } });
 
   /**
    * Marquer à l'OUVERTURE, pas au survol ni au chargement de la liste : « lu » doit vouloir dire lu.

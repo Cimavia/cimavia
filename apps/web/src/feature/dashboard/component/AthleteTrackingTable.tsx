@@ -90,7 +90,7 @@ export function AthleteTrackingTable({
             <CountCell
               count={row.unreadFeedbacks}
               to="/feedbacks"
-              search={{ feedback: row.lastUnreadFeedbackId ?? undefined }}
+              search={{ feedback: row.lastUnreadFeedbackId ?? undefined, session: undefined }}
             />
 
             {/* Toujours cliquable, même à zéro : la colonne sert aussi à ÉCRIRE, pas seulement à
@@ -199,7 +199,11 @@ function PlanTiming({ plan }: Readonly<{ plan: AthleteRowPlan }>) {
 type CountCellProps =
   // `as: "coach"` : ce tableau EST le tableau de suivi du coach — il ouvre le fil à ce titre.
   | { count: number | null; to: "/messages"; search: { athlete: string; as: "coach" } }
-  | { count: number | null; to: "/feedbacks"; search: { feedback: string | undefined } };
+  | {
+      count: number | null;
+      to: "/feedbacks";
+      search: { feedback: string | undefined; session: string | undefined };
+    };
 
 /**
  * Un compteur cliquable. `null` = source indisponible → « — » **sans lien** : proposer d'ouvrir ce
