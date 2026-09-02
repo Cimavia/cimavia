@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. **Onze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Douze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**
-et **W-1**, dont le déclencheur est nommé mais dont rien n'est à préparer avant qu'il survienne ;
+déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
+**W-1** et **Q-6**, dont le déclencheur est nommé mais dont rien n'est à préparer avant qu'il survienne ;
 et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une issue n'aurait rien à suivre
-que le fait de s'en souvenir. Les dix premières sont volontaires, la dernière non.
+que le fait de s'en souvenir. Les onze premières sont volontaires, la dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -161,6 +161,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 | Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30` — `new_lines` (34 349) dépasse `ncloc` (30 247), donc TOUT le dépôt est « du code neuf » et `new_coverage` plafonne à 31,4 % contre un seuil de 80. Les PR passent (Sonar y diffe contre la base) ; c'est le job sur `push: main` qui échouera à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt. | 🔴 | — *(réglage d'interface, à faire avant le prochain merge sur `main`)* |
+| Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 
 > **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
 > tient à des choix qui ressemblent, de loin, à des maladresses à corriger :
@@ -662,6 +663,40 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
 | M-5 | **Pas de presse-papier sur mobile** : l'invitation se transmet par `Share` (SMS, WhatsApp) et non par « Copier le code » comme la maquette. `expo-clipboard` n'est pas une dépendance du projet. | 🟢 | — *(déclencheur : un coach qui veut coller le code ailleurs)* |
+
+> **Tranché en #137** (un formateur ne rend jamais du vide) : les libellés et valeurs de métrique
+> vivent désormais dans `@cmv/shared` (`metricLabel`, `metricUnitLabel`, `formatMetricValue`,
+> `metricCellText`), en un seul exemplaire pour les deux surfaces. La règle qui en sort vaut
+> au-delà de ce module : **une absence se DIT — `—`, jamais `""`.**
+>
+> Le mobile rendait la chaîne vide, le web un tiret. Une chaîne vide est un fallback silencieux au
+> sens de la règle dure n°5 : elle confond « pas de valeur » et « rien à dire », et surtout elle
+> **disparaît sans bruit d'un `join(" · ")`**, où elle laisse un séparateur orphelin. C'est
+> précisément parce que le formateur rendait du vide que la divergence a pu s'installer sans que
+> rien ne devienne rouge.
+>
+> Corollaire à ne pas défaire : les trois endroits qui veulent vraiment omettre une absence la
+> **filtrent explicitement chez l'appelant**, là où on voit qu'ils le font — `unitValues` en amont
+> des deux `TrackingList` (une case n'a pas la place d'aligner des tirets), la bannière de segment
+> de `RunnerBody` (une ligne centrée, lue entre deux séries), et la carte repliée de
+> `dosage-summary`. Partout ailleurs, la colonne vide se dit. Le seul changement visible du lot est
+> la phrase de dosage du mobile, qui affiche maintenant « — » là où elle taisait la colonne — et
+> faisait donc croire qu'elle n'existait pas.
+
+> **Tranché en #137** (les hooks jumeaux divergent, et c'est voulu) : `useNotifications`,
+> `useInvoices` et `useReminders` existent des deux côtés et **ne seront pas factorisés**.
+> L'audit de l'issue les décrivait comme ayant « les mêmes exports et la même logique, ~55 lignes
+> chacun ». Mesuré, c'est faux : `useInvoices` fait 125 lignes côté web contre 39 côté mobile et
+> n'a que **2 exports communs sur 7** (la facturation d'un cycle, le justificatif PDF et son upload
+> n'existent pas sur mobile) ; `useReminders` fait 115 contre 68 ; `useNotifications` diverge sur le
+> fond — le web tient son badge par `refetchOnWindowFocus`, le mobile par le `focusManager` branché
+> sur `AppState`. Le web passe partout par `useMutationToast`, que le mobile n'a pas.
+>
+> Ce qui restait vraiment commun — les routes, les DTO et les clés de cache — est **déjà** dans
+> `@cmv/shared` depuis #45 et #48 (`create<X>Api`). Ce qui reste est la composition TanStack Query,
+> qui ferait entrer `@tanstack/react-query` en dépendance du paquet partagé pour économiser une
+> dizaine de lignes. Le déclencheur d'une reprise serait que les deux surfaces convergent
+> fonctionnellement, pas qu'elles se ressemblent de loin.
 
 > **Tranché en #20** (la garde vit sur la ROUTE, pas dans l'écran) : les hooks React s'exécutent
 > **avant tout `return`**. Une garde en tête d'écran laisse donc partir ses requêtes — `MessagesScreen`

@@ -2,10 +2,10 @@ import {
   type CustomMetric,
   type ExerciseBlock,
   emptyRowIndexes,
+  metricLabel,
   validateBlockValues,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { metricLabel } from "@/feature/library/util/metric-label.util";
 
 type BlockIssuesProps = {
   block: ExerciseBlock;

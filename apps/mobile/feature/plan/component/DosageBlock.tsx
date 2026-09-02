@@ -3,14 +3,9 @@ import {
   DosageLayout,
   dosageLayout,
   type ExerciseBlock,
-  formatTrainingDuration,
-  METRIC_LABEL_KEY,
-  METRIC_UNIT_LABEL_KEY,
-  MetricSource,
-  MetricUnit,
-  type MetricValue,
-  MetricValueType,
-  metricValueTypeOf,
+  formatMetricValue,
+  metricCellText,
+  metricLabel,
   restPhrase,
   structurePhrase,
 } from "@cmv/shared";
@@ -82,9 +77,10 @@ function PhraseRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
   const row = block.rows.at(0);
   if (row == null) return null;
 
+  // Sans filtre : une colonne vide se DIT « — », comme dans l'aperçu du web. La phrase montre les
+  // colonnes du bloc, et taire l'une d'elles ferait croire qu'elle n'existe pas.
   const phrase = metrics
-    .map((metric) => cellText(row.values[metric.id] ?? null, metric, customMetrics, t))
-    .filter((part) => part !== "")
+    .map((metric) => metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t))
     .join(" · ");
 
   return phrase === "" ? null : <CmvText className="text-cmv-text-mid">{phrase}</CmvText>;
@@ -104,7 +100,7 @@ function TableRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
         <CmvText className="w-7 text-cmv-text-lo text-xs"> </CmvText>
         {metrics.map((metric) => (
           <CmvText key={metric.id} className="flex-1 text-cmv-text-lo text-xs">
-            {metricName(metric, customMetrics, t).toUpperCase()}
+            {metricLabel(metric, customMetrics, t).toUpperCase()}
           </CmvText>
         ))}
       </View>
@@ -120,7 +116,7 @@ function TableRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
           </View>
           {metrics.map((metric) => (
             <CmvText key={metric.id} className="flex-1 font-cmv-mono text-cmv-text-hi text-sm">
-              {cellValue(row.values[metric.id] ?? null, metric, customMetrics)}
+              {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics)}
             </CmvText>
           ))}
         </View>
@@ -142,10 +138,10 @@ function CardRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
           {metrics.map((metric) => (
             <View key={metric.id} className="flex-row justify-between gap-2">
               <CmvText className="text-cmv-text-mid text-xs">
-                {metricName(metric, customMetrics, t)}
+                {metricLabel(metric, customMetrics, t)}
               </CmvText>
               <CmvText className="font-cmv-mono text-cmv-text-hi text-sm">
-                {cellValue(row.values[metric.id] ?? null, metric, customMetrics)}
+                {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics)}
               </CmvText>
             </View>
           ))}
@@ -153,60 +149,6 @@ function CardRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
       ))}
     </View>
   );
-}
-
-// ── Libellés et valeurs ─────────────────────────────────────────────────────────────────────
-
-function metricName(
-  metric: ExerciseBlock["metrics"][number],
-  customMetrics: readonly CustomMetric[],
-  t: TFunction,
-): string {
-  if (metric.label != null) return metric.label;
-  if (metric.source === MetricSource.CUSTOM) {
-    return customMetrics.find((custom) => custom.id === metric.customMetricId)?.label ?? "—";
-  }
-  return t(METRIC_LABEL_KEY[metric.key]);
-}
-
-function metricUnit(
-  metric: ExerciseBlock["metrics"][number],
-  customMetrics: readonly CustomMetric[],
-  t: TFunction,
-): string | null {
-  if (metric.source === MetricSource.CUSTOM) {
-    return customMetrics.find((custom) => custom.id === metric.customMetricId)?.unit ?? null;
-  }
-  return metric.unit === MetricUnit.NONE ? null : t(METRIC_UNIT_LABEL_KEY[metric.unit]);
-}
-
-/** `—` et jamais `0` : une valeur absente est une absence, pas un zéro (règle dure n°5). */
-function cellValue(
-  value: MetricValue,
-  metric: ExerciseBlock["metrics"][number],
-  customMetrics: readonly CustomMetric[],
-): string {
-  if (value == null) return "—";
-  if (metricValueTypeOf(metric, customMetrics) === MetricValueType.DURATION) {
-    return typeof value === "number" ? (formatTrainingDuration(value) ?? "—") : String(value);
-  }
-  return String(value);
-}
-
-/**
- * « 6 répétitions » — la valeur suivie de son unité, pour les formes qui n'ont pas d'en-tête de
- * colonne pour la porter : phrase de dosage, cartes, et les cases à cocher du suivi.
- */
-export function cellText(
-  value: MetricValue,
-  metric: ExerciseBlock["metrics"][number],
-  customMetrics: readonly CustomMetric[],
-  t: TFunction,
-): string {
-  if (value == null) return "";
-  const unit = metricUnit(metric, customMetrics, t);
-  const shown = cellValue(value, metric, customMetrics);
-  return unit == null ? shown : `${shown} ${unit}`;
 }
 
 /** La valeur commune d'une colonne repliée — « repos 2'30 », dite une fois pour toutes. */
@@ -218,5 +160,5 @@ function commonValue(
 ): string | null {
   const value = block.rows.at(0)?.values[metric.id] ?? null;
   if (value == null) return null;
-  return `${metricName(metric, customMetrics, t)} ${cellText(value, metric, customMetrics, t)}`;
+  return `${metricLabel(metric, customMetrics, t)} ${metricCellText(value, metric, customMetrics, t)}`;
 }

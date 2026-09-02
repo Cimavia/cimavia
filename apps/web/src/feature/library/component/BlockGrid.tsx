@@ -3,12 +3,12 @@ import {
   type CustomMetric,
   type ExerciseBlock,
   type MetricValue,
+  metricUnitLabel,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
 import { ColumnMenu } from "@/feature/library/component/ColumnMenu";
 import { GridCell } from "@/feature/library/component/GridCell";
-import { metricUnitLabel } from "@/feature/library/util/metric-label.util";
 import { CMV_TABLE, CmvButton, CmvDragHandle } from "@/shared/component";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";

@@ -1,21 +1,25 @@
+import { describe, expect, it } from "vitest";
+import { type BlockMetric, MetricSource } from "../dto/exercise-block.schema";
 import {
-  type BlockMetric,
   type CustomMetric,
   METRIC_LABEL_KEY,
   METRIC_UNIT_LABEL_KEY,
   MetricKey,
-  MetricSource,
   MetricUnit,
   MetricValueType,
-} from "@cmv/shared";
-import { describe, expect, it } from "vitest";
-import { fakeT } from "../../../../test/translator";
+} from "../dto/exercise-metric.schema";
 import {
   formatMetricValue,
   metricCellText,
   metricLabel,
   metricUnitLabel,
 } from "./metric-label.util";
+
+/**
+ * Le traducteur des tests rend la CLÉ, jamais le français : un test écrit sur le texte du
+ * catalogue casserait au premier reformulage, un rouge sans qu'aucune régression n'ait eu lieu.
+ */
+const fakeT = (key: string) => key;
 
 const catalogMetric = (over: Partial<Extract<BlockMetric, { source: "CATALOG" }>> = {}) =>
   ({
@@ -95,6 +99,11 @@ describe("formatMetricValue", () => {
     const metric = catalogMetric({ key: MetricKey.REST_BETWEEN_SETS, unit: MetricUnit.NONE });
     expect(formatMetricValue(150, metric, [])).toBe("2'30");
   });
+
+  it("rend le texte d'une durée MAISON tel quel : elle n'est pas comptée en secondes", () => {
+    const duree: CustomMetric = { ...voie, valueType: MetricValueType.DURATION };
+    expect(formatMetricValue("2 min", customMetric(), [duree])).toBe("2 min");
+  });
 });
 
 describe("metricCellText", () => {
@@ -110,5 +119,18 @@ describe("metricCellText", () => {
    */
   it("ne met AUCUNE unité derrière une absence", () => {
     expect(metricCellText(null, catalogMetric(), [], fakeT)).toBe("—");
+  });
+
+  /**
+   * Le contrat que le mobile violait (#137) : il rendait `""`, qui disparaît sans bruit d'un
+   * `join(" · ")` et y laisse un séparateur orphelin. Une absence se DIT.
+   */
+  it("ne rend jamais la chaîne vide, quelle que soit la colonne", () => {
+    expect(metricCellText(null, catalogMetric({ unit: MetricUnit.NONE }), [], fakeT)).toBe("—");
+    expect(metricCellText(null, customMetric(), [], fakeT)).toBe("—");
+  });
+
+  it("laisse une valeur sans unité se dire seule", () => {
+    expect(metricCellText(6, catalogMetric({ unit: MetricUnit.NONE }), [], fakeT)).toBe("6");
   });
 });

@@ -7,6 +7,7 @@ import {
   METRIC_LABEL_KEY,
   type MetricKey,
   MetricSource,
+  metricLabel,
 } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,7 +15,6 @@ import { IoPencil, IoTrashOutline } from "react-icons/io5";
 import { CustomMetricForm } from "@/feature/library/component/CustomMetricForm";
 import { useDeleteCustomMetric } from "@/feature/library/hook/useCustomMetrics";
 import { catalogByFamily, metricHint } from "@/feature/library/util/metric-catalog.util";
-import { metricLabel } from "@/feature/library/util/metric-label.util";
 import { CmvButton, CmvConfirmButton, CmvDragHandle, CmvPanel } from "@/shared/component";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";

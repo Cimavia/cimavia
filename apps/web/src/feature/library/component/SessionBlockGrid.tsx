@@ -8,12 +8,13 @@ import {
   type ExerciseBlock,
   type ExerciseBlocks,
   type MetricValue,
+  metricLabel,
+  metricUnitLabel,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
 import { GridCell } from "@/feature/library/component/GridCell";
 import { baselineValue } from "@/feature/library/util/dosage-summary.util";
-import { metricLabel, metricUnitLabel } from "@/feature/library/util/metric-label.util";
 import { CMV_TABLE, CmvButton, CmvDragHandle } from "@/shared/component";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";

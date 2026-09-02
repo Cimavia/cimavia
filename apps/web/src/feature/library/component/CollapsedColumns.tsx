@@ -4,10 +4,11 @@ import {
   columnValues,
   type ExerciseBlock,
   fillColumn,
+  metricLabel,
+  metricUnitLabel,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { GridCell } from "@/feature/library/component/GridCell";
-import { metricLabel, metricUnitLabel } from "@/feature/library/util/metric-label.util";
 import { CmvButton } from "@/shared/component";
 
 type CollapsedColumnsProps = {

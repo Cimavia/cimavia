@@ -563,6 +563,8 @@ export {
 } from "./util/date-format.util";
 export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
 export { countUnreadFeedbacks, remainingMediaSlots } from "./util/feedback.util";
+export type { Formatters } from "./util/formatter.util";
+export { createFormatters } from "./util/formatter.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
 export {
   countOverdueInvoices,
@@ -586,6 +588,12 @@ export {
   minutesOf,
 } from "./util/media-format.util";
 export { mediaKindOfMime } from "./util/media-kind.util";
+export {
+  formatMetricValue,
+  metricCellText,
+  metricLabel,
+  metricUnitLabel,
+} from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export { initialsOf } from "./util/name.util";
 export {
