@@ -783,7 +783,8 @@
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
       "openFull": "Ouvrir en grand",
-      "tracking": "Ce que l'athlète a coché"
+      "tracking": "Ce que l'athlète a coché",
+      "openSheet": "Voir la fiche athlète"
     },
     "openDone": "Voir / modifier mon débrief",
     "contentLabel": "Retour sur la séance",

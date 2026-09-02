@@ -1,8 +1,9 @@
 import { type CoachFeedbackSummaryDto, MediaType } from "@cmv/shared";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
-import { CmvAvatar } from "@/shared/component";
+import { CmvAvatar, CmvButton } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
@@ -38,7 +39,7 @@ export function FeedbackReadingPane({ feedback }: Readonly<FeedbackReadingPanePr
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex items-center gap-cmv-md border-cmv-border border-b px-cmv-lg py-cmv-md">
         <CmvAvatar name={feedback.athleteName} />
-        <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <h2 className="truncate text-cmv-subtitle text-cmv-text-hi">
             {athleteLabel(feedback.athleteId, feedback.athleteName)}
           </h2>
@@ -46,6 +47,17 @@ export function FeedbackReadingPane({ feedback }: Readonly<FeedbackReadingPanePr
             {feedback.sessionTitle} · {formatDate(feedback.scheduledDate)}
           </p>
         </div>
+
+        {/* Le débrief dit ce qu'un athlète a ressenti d'UNE séance ; sa fiche dit qui il est. Lire
+            l'un sans pouvoir atteindre l'autre était le vrai manque de cet écran — c'est ce que la
+            maquette demandait, et ce que `?athlete=` sur le tableau de bord rend enfin possible. */}
+        <Link
+          to="/"
+          search={{ q: undefined, filter: undefined, athlete: feedback.athleteId }}
+          className="shrink-0"
+        >
+          <CmvButton variant="secondary">{t("feedback.detail.openSheet")}</CmvButton>
+        </Link>
       </header>
 
       <div className="flex flex-1 flex-col gap-cmv-lg overflow-y-auto p-cmv-lg">
