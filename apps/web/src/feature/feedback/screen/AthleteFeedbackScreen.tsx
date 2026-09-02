@@ -10,13 +10,17 @@ import {
   FEEDBACK_CONTENT_MAX_LENGTH,
   MediaType,
   mediaRecapText,
+  myFeedbackKeys,
   remainingMediaSlots,
 } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useMyCoach } from "@/feature/coach";
 import { FeedbackMediaGallery } from "@/feature/feedback/component/FeedbackMediaGallery";
+import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
 import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import { useMyFeedback, useUpsertMyFeedback } from "@/feature/feedback/hook/useMyFeedback";
@@ -24,6 +28,7 @@ import {
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
 } from "@/feature/feedback/hook/useMyFeedbackMedia";
+import { useMyConversation } from "@/feature/message/hook/useMessages";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import {
@@ -175,6 +180,12 @@ function FeedbackBody({
           </CmvCard>
 
           <FeedbackMediaSection sessionId={sessionId} feedback={feedback ?? null} />
+
+          {/* La conversation avec le coach, LÀ OÙ ELLE A COMMENCÉ. Rien tant que le débrief
+              n'existe pas : on ne répond pas à ce qu'on n'a pas encore écrit. */}
+          {feedback == null ? null : (
+            <FeedbackReplyDiscussion sessionId={sessionId} feedback={feedback} />
+          )}
         </div>
 
         <FeedbackSubmitRail
@@ -464,4 +475,36 @@ function resolveMediaError(error: unknown, manualKey: string | null, t: TFunctio
   if (error == null) return null;
   if (error instanceof MediaRejectedError) return t(error.reasonKey, error.params);
   return apiErrorMessage(error) ?? t("feedback.media.uploadError");
+}
+
+/**
+ * Ce que le coach a répondu sur CE débrief, et de quoi lui répondre à son tour.
+ *
+ * L'athlète peut répondre à la réponse (tranché en #190) : s'en priver fabriquerait un aller
+ * simple là où la messagerie fait l'aller-retour.
+ *
+ * ⚠️ **Lire ici ne marque RIEN comme lu.** `markRead` est par FIL, pas par message : l'appeler
+ * depuis le débrief éteindrait le compteur de toute la messagerie, y compris pour des messages que
+ * l'athlète n'a jamais vus. Le badge reste donc allumé jusqu'à l'ouverture du fil — conséquence
+ * voulue, et cohérente avec « `Message.readAt` reste le seul marqueur ».
+ */
+function FeedbackReplyDiscussion({
+  sessionId,
+  feedback,
+}: Readonly<{ sessionId: string; feedback: SessionFeedbackDto }>) {
+  const queryClient = useQueryClient();
+  const { data: coach } = useMyCoach();
+  // Un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait.
+  const conversation = useMyConversation(coach != null);
+
+  return (
+    <FeedbackReplyThread
+      feedbackId={feedback.id}
+      messages={feedback.messages}
+      conversationId={conversation.data?.id}
+      isThreadError={conversation.isError}
+      // Son PROPRE débrief, pas la boîte du coach : c'est là que la réponse doit réapparaître.
+      onSent={() => queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) })}
+    />
+  );
 }
