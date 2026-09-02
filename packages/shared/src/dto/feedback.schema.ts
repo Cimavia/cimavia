@@ -1,6 +1,14 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { exerciseTrackingSchema, TrackingState, trackingUnitSchema } from "./exercise-block.schema";
+import {
+  feedbackImageMimeTypeSchema,
+  feedbackVideoMimeTypeSchema,
+  MAX_FEEDBACK_PHOTO_SIZE_BYTES,
+  MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
+  MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+} from "./media.schema";
+import { messageDtoSchema } from "./message.schema";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
@@ -24,10 +32,7 @@ export const mediaTypeSchema = z.enum(MediaType);
 export const MAX_FEEDBACK_PHOTOS = 20;
 export const MAX_FEEDBACK_VIDEOS = 10;
 export const MAX_FEEDBACK_AUDIOS = 20;
-export const MAX_FEEDBACK_PHOTO_SIZE_BYTES = 100 * 1024 * 1024;
-export const MAX_FEEDBACK_VIDEO_SIZE_BYTES = 1000 * 1024 * 1024;
 export const MAX_FEEDBACK_AUDIO_SIZE_BYTES = 100 * 1024 * 1024;
-export const MAX_FEEDBACK_VIDEO_DURATION_SECONDS = 180;
 export const MAX_FEEDBACK_AUDIO_DURATION_SECONDS = 300;
 
 // Cibles de compression CLIENT (le serveur ne transcode pas — cf. dette P4) : la photo est
@@ -35,30 +40,14 @@ export const MAX_FEEDBACK_AUDIO_DURATION_SECONDS = 300;
 export const FEEDBACK_PHOTO_MAX_DIMENSION_PX = 1600;
 export const FEEDBACK_VIDEO_MAX_HEIGHT_PX = 720;
 
-export const FEEDBACK_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-export type FeedbackImageMimeType = (typeof FEEDBACK_IMAGE_MIME_TYPES)[number];
-export const feedbackImageMimeTypeSchema = z.enum(FEEDBACK_IMAGE_MIME_TYPES);
-
-// MP4 (Android, export standard) et QuickTime (capture iOS native).
-export const FEEDBACK_VIDEO_MIME_TYPES = ["video/mp4", "video/quicktime"] as const;
-export type FeedbackVideoMimeType = (typeof FEEDBACK_VIDEO_MIME_TYPES)[number];
-export const feedbackVideoMimeTypeSchema = z.enum(FEEDBACK_VIDEO_MIME_TYPES);
-
 // Note vocale : m4a/AAC (capture native iOS/Android via expo-audio). Le débrief se débriefe sur
 // mobile — pas de webm (enregistrement navigateur), contrairement à la messagerie.
 export const FEEDBACK_AUDIO_MIME_TYPES = ["audio/m4a", "audio/mp4", "audio/aac"] as const;
 export type FeedbackAudioMimeType = (typeof FEEDBACK_AUDIO_MIME_TYPES)[number];
 export const feedbackAudioMimeTypeSchema = z.enum(FEEDBACK_AUDIO_MIME_TYPES);
 
-// Gardes de type : permettent au client de filtrer un mime (string) avant l'envoi.
-export function isAllowedFeedbackImageMime(mimeType: string): mimeType is FeedbackImageMimeType {
-  return (FEEDBACK_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType);
-}
-
-export function isAllowedFeedbackVideoMime(mimeType: string): mimeType is FeedbackVideoMimeType {
-  return (FEEDBACK_VIDEO_MIME_TYPES as readonly string[]).includes(mimeType);
-}
-
+// Garde de type : permet au client de filtrer un mime (string) avant l'envoi. Ses jumelles
+// image/vidéo vivent dans `media.schema` — le débrief et la messagerie les partagent.
 export function isAllowedFeedbackAudioMime(mimeType: string): mimeType is FeedbackAudioMimeType {
   return (FEEDBACK_AUDIO_MIME_TYPES as readonly string[]).includes(mimeType);
 }
@@ -226,6 +215,18 @@ export const sessionFeedbackDtoSchema = z.object({
    * ferait dépendre l'affichage d'un second appel, sur deux surfaces, pour la même réponse.
    */
   trackedExercises: z.array(trackedExerciseDtoSchema),
+  /**
+   * Les messages rattachés à ce débrief, du plus ancien au plus récent — la conversation qu'il a
+   * ouverte, lue là où elle a commencé.
+   *
+   * Ce ne sont PAS des messages à part : ce sont les mêmes enregistrements que la messagerie rend,
+   * servis par un second chemin. Rien à copier, rien à tenir en phase — et pas de second marqueur
+   * de lecture, `Message.readAt` reste le seul.
+   *
+   * Pas de pagination : les réponses à un débrief se comptent en unités. La messagerie complète a
+   * son issue de pagination (#77), qui les absorbera si le besoin apparaît.
+   */
+  messages: z.array(messageDtoSchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -244,6 +245,17 @@ export const coachFeedbackSummaryDtoSchema = z.object({
   content: z.string().nullable(),
   mediaCount: z.number().int(),
   coachReadAt: z.iso.datetime().nullable(),
+  /**
+   * Quand le coach a répondu — la date de son PREMIER message rattaché à ce débrief.
+   *
+   * DÉRIVÉ, jamais stocké : aucune colonne à tenir cohérente, même dispositif que « en retard »
+   * (`resolveInvoiceState`) et « dû » (`isReminderDue`). Distinct de `coachReadAt` : « lu » et
+   * « répondu » sont deux axes, et `coachReadAt` repasse à `null` quand l'athlète complète son
+   * débrief, ce que « répondu » ne doit pas faire.
+   *
+   * `null` = pas encore répondu. Pas de `0`, pas de date de repli (règle dure n°5).
+   */
+  repliedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

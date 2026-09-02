@@ -3,7 +3,9 @@ import {
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
   MESSAGE_TEXT_MAX_LENGTH,
+  MessageAttachmentType,
   MessageType,
+  messageDtoSchema,
   openConversationSchema,
   requestMessageUploadUrlSchema,
   sendMessageSchema,
@@ -110,5 +112,65 @@ describe("openConversationSchema", () => {
 
   it("refuse un champ inconnu (schéma strict)", () => {
     expect(openConversationSchema.safeParse({ coachId: "c_1" }).success).toBe(false);
+  });
+});
+
+describe("messageDtoSchema — le rattachement résolu", () => {
+  const base = {
+    id: "m1",
+    conversationId: "c1",
+    senderId: "u1",
+    type: MessageType.TEXT,
+    content: "J'ai lu ton débrief",
+    media: null,
+    readAt: null,
+    createdAt: "2026-10-16T19:42:00.000Z",
+  };
+
+  it("porte le titre et la date de la séance, jamais un libellé tout fait", () => {
+    const result = messageDtoSchema.safeParse({
+      ...base,
+      scheduledSessionId: null,
+      sessionFeedbackId: "f1",
+      attachment: {
+        type: MessageAttachmentType.SESSION_FEEDBACK,
+        id: "f1",
+        scheduledSessionId: "s1",
+        sessionTitle: "Voie & projet 7b",
+        scheduledDate: "2026-10-16",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  /**
+   * L'id brut et le rattachement résolu sont INDÉPENDANTS : la FK est `SetNull`, mais entre la
+   * suppression de la cible et sa relecture, et surtout quand la cible est hors de portée du
+   * lecteur, un message garde son id et n'a pas de libellé. Le client doit rendre une bulle
+   * ordinaire dans ce cas, pas un « à propos de quelque chose ».
+   */
+  it("accepte un id de cible sans rattachement résolu (cible hors de portée ou supprimée)", () => {
+    const result = messageDtoSchema.safeParse({
+      ...base,
+      scheduledSessionId: null,
+      sessionFeedbackId: "f1",
+      attachment: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("refuse un rattachement sans séance rattachée (rien où naviguer)", () => {
+    const result = messageDtoSchema.safeParse({
+      ...base,
+      scheduledSessionId: "s1",
+      sessionFeedbackId: null,
+      attachment: {
+        type: MessageAttachmentType.SCHEDULED_SESSION,
+        id: "s1",
+        sessionTitle: "Voie & projet 7b",
+        scheduledDate: "2026-10-16",
+      },
+    });
+    expect(result.success).toBe(false);
   });
 });

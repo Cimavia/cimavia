@@ -2,14 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   attachFeedbackMediaSchema,
   MAX_FEEDBACK_PHOTOS,
-  MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
-  MAX_FEEDBACK_VIDEO_SIZE_BYTES,
   MAX_FEEDBACK_VIDEOS,
   MediaType,
   maxFeedbackMediaCount,
   requestFeedbackUploadUrlSchema,
   upsertSessionFeedbackSchema,
 } from "./feedback.schema";
+import { MAX_FEEDBACK_VIDEO_DURATION_SECONDS, MAX_FEEDBACK_VIDEO_SIZE_BYTES } from "./media.schema";
 
 describe("upsertSessionFeedbackSchema", () => {
   it("accepte un débrief sans texte (débrief média-seul, complété en plusieurs fois)", () => {
