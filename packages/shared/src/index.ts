@@ -563,6 +563,8 @@ export {
 } from "./util/date-format.util";
 export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
 export { countUnreadFeedbacks, remainingMediaSlots } from "./util/feedback.util";
+export type { Formatters } from "./util/formatter.util";
+export { createFormatters } from "./util/formatter.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
 export {
   countOverdueInvoices,
