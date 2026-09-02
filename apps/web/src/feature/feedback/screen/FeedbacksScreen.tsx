@@ -1,48 +1,49 @@
 import type { CoachFeedbackSummaryDto } from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FeedbackDetailPanel } from "@/feature/feedback/component/FeedbackDetailPanel";
+import { FeedbackInboxList, InboxFilter } from "@/feature/feedback/component/FeedbackInboxList";
+import { FeedbackReadingPane } from "@/feature/feedback/component/FeedbackReadingPane";
 import { useFeedbacks, useMarkFeedbackRead } from "@/feature/feedback/hook/useFeedbacks";
-import {
-  CmvAppShell,
-  CmvBadge,
-  CmvButton,
-  CmvCard,
-  CmvEmptyState,
-  CmvErrorState,
-} from "@/shared/component";
-import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
-import { formatDate } from "@/shared/util/date.util";
+import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle. Le typage des search params est conservé.
 const route = getRouteApi("/feedbacks");
 
 /**
- * Les débriefs reçus (p4-1) : ce que le coach lit entre deux séances de son athlète.
- * Ouvrir un débrief le marque comme lu — c'est ce qui alimente la tuile « à relire ».
+ * Les débriefs reçus, en BOÎTE DE RÉCEPTION (#121) : la liste à gauche, le débrief ouvert à
+ * droite, tous deux visibles en même temps.
  *
- * Le débrief ouvert est porté par l'URL (`?feedback=<id>`), pour que le tableau de suivi puisse
- * ouvrir directement le dernier non lu d'un athlète (#113). Conséquence : l'ouverture peut venir
- * d'un clic OU d'une URL, donc le marquage « lu » ne peut plus vivre dans le gestionnaire de clic —
- * il vit dans l'effet ci-dessous, seul chemin pour les deux cas.
+ * C'était une liste de cartes qu'un tiroir recouvrait. Le motif de la maquette
+ * (`coach_debrief.dc.html`) n'est pas un habillage : le coach traite ses débriefs à la suite, et
+ * un tiroir l'obligeait à fermer pour retrouver où il en était. Ouvrir un débrief le marque lu —
+ * c'est ce qui alimente la tuile « à relire ».
+ *
+ * Le débrief ouvert est porté par l'URL (`?feedback=<id>`, ou `?session=<id>` depuis la puce
+ * « à propos de… »), pour que le tableau de suivi et la messagerie puissent y mener directement.
+ * Conséquence : l'ouverture peut venir d'un clic OU d'une URL, donc le marquage « lu » ne peut pas
+ * vivre dans le gestionnaire de clic — il vit dans l'effet ci-dessous, seul chemin pour les deux.
+ *
+ * Le SEGMENT, lui, reste en état d'écran : ce n'est pas une destination. Personne ne lie vers
+ * « les débriefs non lus de Cédric », alors qu'on lie vers UN débrief — c'est ce qui décide, pas
+ * une préférence pour l'URL ou le `useState`.
  */
 export function FeedbacksScreen() {
   const { t } = useTranslation();
-  const athleteLabel = useAthleteLabel();
   const navigate = useNavigate();
   const { data: feedbacks, isPending, isError, refetch } = useFeedbacks();
   const markRead = useMarkFeedbackRead();
+  const [filter, setFilter] = useState<InboxFilter>(InboxFilter.ALL);
 
   const { feedback: openedId, session: openedSessionId } = route.useSearch();
   /**
-   * Résolu depuis la liste : l'URL ne porte qu'un id, et le panneau a besoin du débrief entier.
-   * `null` tant que la liste n'est pas là — le panneau s'ouvre dès qu'elle arrive.
+   * Résolu depuis la liste : l'URL ne porte qu'un id, et le volet a besoin du débrief entier.
+   * `null` tant que la liste n'est pas là — le volet s'ouvre dès qu'elle arrive.
    *
    * Deux entrées possibles : par le débrief (tableau de suivi, #113) ou par la SÉANCE débriefée
    * (puce « à propos de… » d'un message, qui ne connaît pas l'id du débrief). Une séance jamais
-   * débriefée ne résout rien : on reste sur la liste plutôt que d'ouvrir un panneau vide.
+   * débriefée ne résout rien : on reste sur la liste plutôt que d'ouvrir un volet vide.
    */
   const opened =
     (feedbacks ?? []).find((feedback) =>
@@ -51,8 +52,6 @@ export function FeedbacksScreen() {
 
   const openFeedback = (feedback: CoachFeedbackSummaryDto) =>
     navigate({ to: "/feedbacks", search: { feedback: feedback.id, session: undefined } });
-  const closeFeedback = () =>
-    navigate({ to: "/feedbacks", search: { feedback: undefined, session: undefined } });
 
   /**
    * Marquer à l'OUVERTURE, pas au survol ni au chargement de la liste : « lu » doit vouloir dire lu.
@@ -71,7 +70,7 @@ export function FeedbacksScreen() {
   const hasFeedbacks = feedbacks != null && feedbacks.length > 0;
 
   return (
-    <CmvAppShell title={t("feedback.title")} subtitle={t("feedback.subtitle")}>
+    <CmvAppShell title={t("feedback.inbox.title")} subtitle={t("feedback.inbox.subtitle")}>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {isError ? (
@@ -91,43 +90,29 @@ export function FeedbacksScreen() {
       ) : null}
 
       {hasFeedbacks ? (
-        <div className="flex flex-col gap-cmv-sm">
-          {feedbacks.map((feedback) => (
-            <CmvCard key={feedback.id}>
-              <div className="flex items-start gap-cmv-md">
-                <div className="flex flex-1 flex-col gap-cmv-xs">
-                  <div className="flex items-center gap-cmv-sm">
-                    <h3 className="text-cmv-subtitle text-cmv-text-hi">
-                      {athleteLabel(feedback.athleteId, feedback.athleteName)}
-                    </h3>
-                    {feedback.coachReadAt == null ? (
-                      <CmvBadge variant="accent">{t("feedback.unread")}</CmvBadge>
-                    ) : null}
-                    {feedback.mediaCount > 0 ? (
-                      <CmvBadge>
-                        {t("feedback.mediaCount", { count: feedback.mediaCount })}
-                      </CmvBadge>
-                    ) : null}
-                  </div>
+        // Hauteur FIXE et non `min-h` : les deux colonnes défilent chacune dans son cadre, ce qui
+        // est tout l'intérêt du motif — la liste reste sous la main pendant qu'on lit un débrief
+        // long. Même cadre que la messagerie, qui a le même problème.
+        <div className="flex h-[calc(100vh-11rem)] overflow-hidden rounded-cmv-lg border border-cmv-border bg-cmv-bg-1">
+          <FeedbackInboxList
+            feedbacks={feedbacks}
+            openedId={opened?.id ?? null}
+            filter={filter}
+            onFilter={setFilter}
+            onOpen={openFeedback}
+          />
 
-                  <p className="text-cmv-caption text-cmv-text-mid">
-                    {feedback.sessionTitle} · {formatDate(feedback.scheduledDate)}
-                  </p>
-
-                  {/* Un aperçu, pas le débrief entier : le détail s'ouvre dans le panneau. */}
-                  <p className="line-clamp-2 text-cmv-text-mid">{feedback.content ?? "—"}</p>
-                </div>
-
-                <CmvButton variant="secondary" onClick={() => openFeedback(feedback)}>
-                  {t("feedback.open")}
-                </CmvButton>
-              </div>
-            </CmvCard>
-          ))}
+          {opened == null ? (
+            <div className="flex flex-1 items-center justify-center p-cmv-lg">
+              <CmvEmptyState title={t("feedback.inbox.pick")} />
+            </div>
+          ) : (
+            // `key` sur le débrief : changer de ligne remonte un volet neuf plutôt que de recycler
+            // l'état du précédent (défilement, requête de détail en vol).
+            <FeedbackReadingPane key={opened.id} feedback={opened} />
+          )}
         </div>
       ) : null}
-
-      <FeedbackDetailPanel feedback={opened} onClose={closeFeedback} />
     </CmvAppShell>
   );
 }

@@ -780,7 +780,6 @@
       "description": "Dès qu'un athlète débriefera une séance, son retour s'affichera ici."
     },
     "detail": {
-      "subtitle": "{{athlete}} · séance du {{date}}",
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
       "openFull": "Ouvrir en grand",
@@ -834,6 +833,20 @@
       "filled": "Ton texte, tes fichiers, et le décompte tel qu'il est ci-contre.",
       "empty": "Séance faite, aucun commentaire, aucun décompte.",
       "action": "Envoyer mon débrief"
+    },
+    "inbox": {
+      "title": "Débriefs",
+      "subtitle": "Les retours de tes athlètes, du plus récent au plus ancien.",
+      "unreadCount": "{{count}} non lu(s)",
+      "pick": "Sélectionne un débrief pour le lire.",
+      "filter": {
+        "all": "Tous",
+        "unread": "Non lus"
+      },
+      "allRead": {
+        "title": "Tout est lu !",
+        "description": "Aucun débrief en attente. Les nouveaux débriefs de tes athlètes apparaîtront ici."
+      }
     }
   },
   "invoice": {

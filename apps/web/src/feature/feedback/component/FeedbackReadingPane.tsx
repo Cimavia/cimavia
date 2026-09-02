@@ -2,50 +2,53 @@ import { type CoachFeedbackSummaryDto, MediaType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
-import { CmvButton, CmvPanel } from "@/shared/component";
+import { CmvAvatar } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
-type FeedbackDetailPanelProps = {
-  feedback: CoachFeedbackSummaryDto | null;
-  onClose: () => void;
+type FeedbackReadingPaneProps = {
+  feedback: CoachFeedbackSummaryDto;
 };
 
 /**
- * Le débrief complet, médias inclus. Les URLs sont signées à durée courte et régénérées à chaque
- * lecture : le panneau recharge donc le détail plutôt que de réutiliser celles de la liste
- * (qui n'en porte d'ailleurs pas — elle ne compte que les médias).
+ * Le volet de lecture de la boîte de réception : le débrief ouvert, en entier.
+ *
+ * C'était un tiroir (`CmvPanel`) posé par-dessus une liste de cartes. La maquette en fait la
+ * moitié droite d'un écran fixe — ce qui n'est pas un changement d'habillage : un tiroir se ferme
+ * pour revenir à la liste, un volet la laisse visible, et c'est ce qui rend le passage d'un
+ * débrief au suivant un seul clic. Il n'y a donc plus de bouton « Fermer » : on change de débrief,
+ * on n'en sort pas.
+ *
+ * Les URLs de médias sont signées à durée courte et régénérées à chaque lecture : le volet
+ * recharge donc le détail plutôt que de réutiliser celles de la liste (qui n'en porte d'ailleurs
+ * pas — elle ne compte que les médias).
  */
 /**
- * Les intertitres du débrief, en ACCENT : le panneau empile trois sections de même poids
+ * Les intertitres du débrief, en ACCENT : le volet empile trois sections de même poids
  * typographique, et un gris de plus les faisait disparaître dans le texte qu'elles annoncent.
  */
 const SECTION_TITLE = "text-cmv-caption text-cmv-accent uppercase tracking-wide";
 
-export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDetailPanelProps>) {
+export function FeedbackReadingPane({ feedback }: Readonly<FeedbackReadingPaneProps>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
-  const { data: detail, isPending } = useSessionFeedback(feedback?.scheduledSessionId ?? "");
-
-  if (feedback == null) return null;
+  const { data: detail, isPending } = useSessionFeedback(feedback.scheduledSessionId);
 
   return (
-    <CmvPanel
-      open
-      title={feedback.sessionTitle}
-      description={t("feedback.detail.subtitle", {
-        athlete: athleteLabel(feedback.athleteId, feedback.athleteName),
-        date: formatDate(feedback.scheduledDate),
-      })}
-      onClose={onClose}
-      size="lg"
-      footer={
-        <CmvButton variant="secondary" onClick={onClose}>
-          {t("common.close")}
-        </CmvButton>
-      }
-    >
-      <div className="flex flex-col gap-cmv-lg">
+    <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <header className="flex items-center gap-cmv-md border-cmv-border border-b px-cmv-lg py-cmv-md">
+        <CmvAvatar name={feedback.athleteName} />
+        <div className="flex min-w-0 flex-col">
+          <h2 className="truncate text-cmv-subtitle text-cmv-text-hi">
+            {athleteLabel(feedback.athleteId, feedback.athleteName)}
+          </h2>
+          <p className="truncate text-cmv-caption text-cmv-text-mid">
+            {feedback.sessionTitle} · {formatDate(feedback.scheduledDate)}
+          </p>
+        </div>
+      </header>
+
+      <div className="flex flex-1 flex-col gap-cmv-lg overflow-y-auto p-cmv-lg">
         <section className="flex flex-col gap-cmv-xs">
           <h4 className={SECTION_TITLE}>{t("feedback.detail.content")}</h4>
           {/* Un débrief peut n'être que des médias : pas de texte inventé (règle nullable). */}
@@ -113,6 +116,6 @@ export function FeedbackDetailPanel({ feedback, onClose }: Readonly<FeedbackDeta
           </div>
         </section>
       </div>
-    </CmvPanel>
+    </div>
   );
 }
