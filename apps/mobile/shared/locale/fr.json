@@ -309,6 +309,9 @@
     },
     "media": {
       "uploading": "Envoi en cours…",
+      "batchProgress": "Envoi {{index}} / {{total}} — {{fileName}}",
+      "tooMany": "Tu ne peux pas envoyer plus de {{max}} fichiers à la fois.",
+      "unnamedFile": "Fichier sans nom",
       "uploadError": "L'envoi a échoué. Vérifie ta connexion et réessaie.",
       "permission": "cimavia a besoin d'accéder à tes photos pour les joindre.",
       "imageTooBig": "Cette image dépasse {{max}} Mo.",

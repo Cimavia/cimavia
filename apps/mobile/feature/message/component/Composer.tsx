@@ -1,3 +1,4 @@
+import type { MediaBatchStep } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
@@ -12,6 +13,8 @@ type ComposerProps = {
   onMediaError: (reasonKey: string) => void;
   sending: boolean;
   mediaBusy: boolean;
+  /** Le média en cours dans un lot, `null` hors envoi. */
+  step: MediaBatchStep | null;
 };
 
 /**
@@ -26,6 +29,7 @@ export function Composer({
   onMediaError,
   sending,
   mediaBusy,
+  step,
 }: Readonly<ComposerProps>) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
@@ -86,7 +90,16 @@ export function Composer({
       {mediaBusy ? (
         <View className="flex-row items-center gap-2 pt-2">
           <ActivityIndicator />
-          <CmvText className="text-cmv-text-mid text-xs">{t("messages.media.uploading")}</CmvText>
+          {/* Le rang n'est dit que s'il y a un rang à dire : « Envoi 1 / 1 » serait du bruit. */}
+          <CmvText className="text-cmv-text-mid text-xs">
+            {step != null && step.total > 1
+              ? t("messages.media.batchProgress", {
+                  index: step.index,
+                  total: step.total,
+                  fileName: step.fileName ?? t("messages.media.unnamedFile"),
+                })
+              : t("messages.media.uploading")}
+          </CmvText>
         </View>
       ) : null}
     </View>
