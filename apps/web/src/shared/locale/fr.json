@@ -668,6 +668,10 @@
         "description": "La messagerie n'est disponible qu'avec un coach. Rejoins-en un avec son code d'invitation pour commencer à échanger.",
         "action": "Aller à « Mon coach »"
       }
+    },
+    "attachment": {
+      "session": "À propos de : {{title}} · {{date}}",
+      "feedback": "À propos du débrief : {{title}} · {{date}}"
     }
   },
   "athlete": {

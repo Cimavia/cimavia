@@ -597,6 +597,12 @@ export {
   minutesOf,
 } from "./util/media-format.util";
 export { mediaKindOfMime } from "./util/media-kind.util";
+export type { AttachmentTarget } from "./util/message-attachment.util";
+export {
+  AttachmentDestination,
+  attachmentTarget,
+  MESSAGE_ATTACHMENT_LABEL_KEY,
+} from "./util/message-attachment.util";
 export {
   formatMetricValue,
   metricCellText,

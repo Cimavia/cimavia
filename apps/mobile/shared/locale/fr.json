@@ -338,6 +338,10 @@
       "IMAGE": "Photo",
       "VIDEO": "Vidéo",
       "AUDIO": "Note vocale"
+    },
+    "attachment": {
+      "session": "À propos de : {{title}} · {{date}}",
+      "feedback": "À propos du débrief : {{title}} · {{date}}"
     }
   },
   "coach": {
