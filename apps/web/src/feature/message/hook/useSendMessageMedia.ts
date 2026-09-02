@@ -1,11 +1,21 @@
 import type {
   CapabilityName,
+  MediaBatchStep,
+  MediaRecapReason,
+  MediaRejection,
   MessageDto,
   MultipartUploadTicket,
   RequestMessageUploadUrlInput,
   SendMessageInput,
 } from "@cmv/shared";
-import { MessageType, UploadMode } from "@cmv/shared";
+import {
+  MAX_MESSAGE_MEDIA_BATCH,
+  MediaType,
+  MessageType,
+  mediaRecapText,
+  sendMediaBatch,
+  UploadMode,
+} from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,6 +27,7 @@ import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { uploadInParts, uploadToSignedUrl } from "@/shared/lib/upload";
 import {
+  attachableMediaKind,
   MediaRejectedError,
   type PreparedWebMedia,
   prepareWebMedia,
@@ -24,43 +35,116 @@ import {
 } from "@/shared/util/media.util";
 
 /**
- * Envoi d'un média depuis le web : préparation (validation, durée) → URL signée → upload direct
- * (avec progression) → message. Le binaire ne passe jamais par l'API. Un refus métier porte sa clé
- * i18n ; une panne technique garde le message de l'API — les deux passent par un toast.
+ * Envoi de médias depuis le web : préparation (validation, durée) → URL signée → upload direct
+ * (avec progression) → message. Le binaire ne passe jamais par l'API.
+ *
+ * Plusieurs fichiers partent d'un seul geste (#156), un par un. La FILE n'est pas ici :
+ * `sendMediaBatch` (@cmv/shared) la tient pour les quatre surfaces — ce hook n'apporte que le
+ * transport, l'invalidation du fil, et les libellés propres à la messagerie.
  */
 export function useSendMessageMedia(conversationId: string) {
   const { t } = useTranslation();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState(0);
+  const [step, setStep] = useState<MediaBatchStep | null>(null);
   const as = useExercisedCapability();
 
-  const send = useMutation({
-    mutationFn: async (source: WebMediaSource) => {
-      const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
+    queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+  };
+
+  const audio = useMutation({
+    mutationFn: (recorded: RecordedWebAudio) => {
       setProgress(0);
-      return uploadAndSend(conversationId, prepared, setProgress, as);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
-    },
-    onError: (error) => {
-      toast.error(
-        error instanceof MediaRejectedError
-          ? t(error.reasonKey, error.params)
-          : (apiErrorMessage(error) ?? t("common.error")),
+      return prepareAndSend(
+        conversationId,
+        { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
+        setProgress,
+        as,
       );
     },
+    onSuccess: invalidate,
+    onError: (error) => toast.error(mediaRecapText(failureReason(error), t)),
   });
 
+  /**
+   * Le fil est invalidé à CHAQUE fichier plutôt qu'à la fin : les messages apparaissent au fur et
+   * à mesure, comme si on les avait envoyés un par un — ce que l'expéditeur a fait, du reste.
+   */
+  const upload = async (file: File, current: MediaBatchStep) => {
+    setStep(current);
+    setProgress(0);
+    await prepareAndSend(conversationId, { kind: "file", file }, setProgress, as);
+    invalidate();
+  };
+
+  /**
+   * Un toast PAR fichier écarté, et non un compte rendu fondu en une ligne : « 2 fichiers sur 5
+   * n'ont pas pu être envoyés » ne dit pas lesquels, ce qui laisse à refaire la sélection entière.
+   * La pile de toasts existe précisément pour ça.
+   */
+  const sendFiles = async (files: readonly File[]) => {
+    const recap = await sendMediaBatch({
+      items: files,
+      maxItems: MAX_MESSAGE_MEDIA_BATCH,
+      // Le fil n'a aucun quota : sa seule borne est celle du lot, la même pour les trois familles.
+      remaining: {
+        [MediaType.IMAGE]: MAX_MESSAGE_MEDIA_BATCH,
+        [MediaType.VIDEO]: MAX_MESSAGE_MEDIA_BATCH,
+        [MediaType.AUDIO]: MAX_MESSAGE_MEDIA_BATCH,
+      },
+      kindOf: attachableMediaKind,
+      nameOf: (file) => file.name,
+      send: upload,
+      rejectedReason,
+      failureReason,
+    }).finally(() => setStep(null));
+
+    for (const entry of recap) {
+      toast.error(
+        `${entry.fileName ?? t("messages.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`,
+      );
+    }
+  };
+
   return {
-    sendFile: (file: File) => send.mutate({ kind: "file", file }),
-    sendAudio: (audio: RecordedWebAudio) =>
-      send.mutate({ kind: "audio", blob: audio.blob, durationSeconds: audio.durationSeconds }),
-    isUploading: send.isPending,
+    sendFiles: (files: readonly File[]) => {
+      void sendFiles(files);
+    },
+    sendAudio: (recorded: RecordedWebAudio) => audio.mutate(recorded),
+    isUploading: step != null || audio.isPending,
+    step,
     progress,
   };
+}
+
+/**
+ * Ce que dit un refus qui précède l'envoi. `noSlot` ne peut pas survenir — le fil n'a pas de quota,
+ * et ses places valent le plafond du lot — donc tout ce qui n'est pas un type refusé est un lot
+ * trop grand.
+ */
+function rejectedReason({ cause }: MediaRejection): MediaRecapReason {
+  if (cause === "unsupported") return { key: "messages.media.unsupported", params: {} };
+  return { key: "messages.media.tooMany", params: { max: MAX_MESSAGE_MEDIA_BATCH } };
+}
+
+/** Un refus métier porte sa clé i18n ; une panne technique garde le message de l'API. */
+function failureReason(error: unknown): MediaRecapReason {
+  if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
+  const message = apiErrorMessage(error);
+  return message == null ? { key: "common.error", params: {} } : { message };
+}
+
+async function prepareAndSend(
+  conversationId: string,
+  source: WebMediaSource,
+  onProgress: (percent: number) => void,
+  as: CapabilityName | null,
+): Promise<MessageDto> {
+  const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
+  return uploadAndSend(conversationId, prepared, onProgress, as);
 }
 
 async function uploadAndSend(
