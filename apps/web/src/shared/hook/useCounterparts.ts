@@ -19,13 +19,21 @@ const accountApi = createAccountApi(api);
  * l'entrée messagerie à chaque démarrage à froid, le temps d'un aller-retour.
  *
  * Pas de sondage : la relation ne se noue ni ne se dénoue pendant qu'on regarde la barre latérale.
- * Un athlète qui rejoint son coach invalide tout le cache (`useAcceptInvitation`) ; côté coach, le
- * retour au premier plan suffit à faire apparaître l'entrée après l'acceptation d'une invitation.
+ * Un athlète qui rejoint son coach invalide tout le cache (`useAcceptInvitation`) ; côté coach,
+ * c'est le `staleTime` ci-dessous qui fait apparaître l'entrée.
+ *
+ * `staleTime: 0`, contre les 60 s par défaut du client : c'est la seule requête dont dépend la
+ * NAVIGATION, et une nav fausse pendant une minute vaut bien plus cher que deux `COUNT`. Avec les
+ * 60 s, un coach dont l'athlète venait d'accepter l'invitation devait recharger la page pour voir
+ * sa messagerie apparaître — un retour de bêta, pas une hypothèse. Le refetch part désormais au
+ * montage et au retour sur l'onglet (`refetchOnWindowFocus`, défaut TanStack) ; toujours aucun
+ * sondage, rien ne bouge quand personne ne regarde.
  */
 export function useCounterparts(): CounterpartsDto {
   const { data } = useQuery<CounterpartsDto>({
     queryKey: counterpartKeys.mine(),
     queryFn: accountApi.myCounterparts,
+    staleTime: 0,
   });
   return data ?? UNKNOWN_COUNTERPARTS;
 }

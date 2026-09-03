@@ -1304,7 +1304,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| MI-1 | **Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint** : `GET /me/counterparts` n'est pas sondé, et l'acceptation d'une invitation se fait sur l'appareil de l'ATHLÈTE — seul son cache est invalidé (`useAcceptInvitation`). Côté coach, l'entrée de messagerie apparaît au prochain refetch (retour au premier plan, navigation). Sonder pour un événement qui survient une fois par athlète coûterait plus cher que l'attente. | 🟢 | — *(déclencheur : un retour beta disant que l'attente se voit)* |
+| ~~MI-1~~ | ~~**Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint**~~ : le `staleTime` par défaut (60 s web, 5 min mobile) retenait `GET /me/counterparts`, et il fallait recharger la page pour voir la messagerie apparaître. | ✅ | déclencheur survenu **le jour même** (retour de bêta) — `staleTime: 0` sur cette seule requête, refetch au montage et au retour sur l'app |
 | MI-2 | **`landingTab` a une valeur par défaut pour les contreparties** : `LoginScreen`, `RegisterScreen` et `CmvCapabilityGate` l'appellent avant qu'une requête ait pu partir. Sans conséquence tant qu'aucun onglet conditionnel n'est en tête de table — `dashboard` et `planning` y sont, et ni l'un ni l'autre ne dépend d'un interlocuteur. | 🟢 | — *(déclencheur : un onglet conditionnel passe en tête ; le commentaire de `tabs.ts` le dit)* |
 
 > **Tranché en #198** (« quelqu'un en face » est une question sur le SCOPE, pas une lecture scopée) :
