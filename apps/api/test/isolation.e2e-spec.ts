@@ -5387,6 +5387,36 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     expect(unread.body.count).toBe(3);
   });
 
+  /**
+   * Le seul chemin qui interroge VRAIMENT `Conversation` pour ventiler : il faut un compte à double
+   * capacité ET au moins un message non lu. Sans message, `unreadMessagesByCapability` sort avant
+   * d'y toucher — c'est exactement le trou par lequel un 500 est passé en production de dev.
+   */
+  it("ventile les messages non lus d'un compte à double capacité", async () => {
+    const dual = await signUpWith("vent-msg-dual@cmv.test", { isCoach: true, isAthlete: true });
+    const myAthlete = await signUp("vent-msg-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await dual.post("/invitations").send({});
+    expect(
+      (await myAthlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    // L'athlète écrit à son coach : le coach (donc `dual`) reçoit un MESSAGE_RECEIVED non lu.
+    const thread = await myAthlete.post("/conversations").send({});
+    expect(thread.status).toBe(201);
+    expect(
+      (
+        await myAthlete
+          .post(`/conversations/${thread.body.id}/messages`)
+          .send({ type: "TEXT", content: "Une question sur la séance" })
+      ).status,
+    ).toBe(201);
+
+    const unread = await dual.get("/me/notifications/unread-count");
+    expect(unread.status).toBe(200);
+    // Le message tombe du côté COACH : c'est là que `dual` tient ce fil.
+    expect(unread.body).toMatchObject({ coach: 1, athlete: 0, count: 1 });
+  });
+
   // Un compte mono-capacité voit tout d'un seul côté : la ventilation ne lui coûte rien et ne
   // change pas son total, que la cloche lit toujours.
   it("range tout du seul côté d'un compte mono-capacité", async () => {

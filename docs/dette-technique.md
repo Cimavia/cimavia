@@ -1343,6 +1343,26 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > l'athlète sans coach — une relation **absente**, pas impossible, qui apparaîtra le jour où il
 > rejoint quelqu'un.
 
+> **Corrigé en marge de #198** (`runAsCapability` et la paresse des `PrismaPromise`) : trouvé en
+> testant #198, antérieur à lui — 105 événements Sentry sur deux jours avant la première ligne
+> écrite. `GET /me/notifications/unread-count` rendait **500** à tout compte à double capacité ayant
+> au moins un message non lu : `[tenancy] capacité (aucune déclarée) non autorisée sur Conversation`.
+>
+> La cause n'est pas dans le service mais dans `runAsCapability`, qui faisait `cls.run(() => fn())`
+> **sans await**. Une `PrismaPromise` est PARESSEUSE : elle n'émet sa requête qu'au `.then`, pas à
+> sa création. Un appelant rendant directement `this.db.conversation.findMany(...)` voyait donc la
+> requête partir après la sortie du contexte CLS, sans capacité exercée — et l'extension tenant
+> refusait la table, comme elle doit. Le piège est **silencieux** : l'autre forme d'appel du même
+> fichier (`() => this.reminders.countDueUnread(now)`, une méthode `async`) marchait, parce que son
+> corps s'exécute bien dans le contexte. Deux formes voisines, une seule correcte. Le `await` posé
+> dans `runAsCapability` les rend équivalentes, plutôt que de compter sur la vigilance de chaque
+> appelant.
+>
+> **Pourquoi les e2e ne l'ont pas vu** : `unreadMessagesByCapability` sort avant de toucher
+> `Conversation` dès qu'il n'y a aucun message non lu — et le seul e2e de la ventilation (#176)
+> n'en créait pas. Il fallait le croisement exact « double capacité **et** message non lu ». Un e2e
+> couvre désormais ce chemin.
+
 > **Corrigé en marge de #198** (le cache de requêtes survivait au changement de compte) : trouvé en
 > testant #198, et sans rapport avec lui — mais c'est lui qui l'a rendu visible. Le cache TanStack
 > du mobile est **persisté sept jours** dans AsyncStorage (lecture hors-ligne, p3-5) avec un
