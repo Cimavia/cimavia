@@ -65,6 +65,14 @@ type RouteOptions = {
   /** Les valeurs des segments dynamiques de `path`, qui composent l'URL de départ. */
   params?: Readonly<Record<string, string>>;
   /**
+   * Les paramètres de requête de l'URL de départ.
+   *
+   * Plusieurs écrans portent leur état dans l'URL plutôt que dans un `useState` — le débrief
+   * ouvert, le filtre du tableau de suivi. Les éprouver demande d'arriver AVEC, exactement comme
+   * un lien profond ou un signet le ferait.
+   */
+  search?: Readonly<Record<string, string>>;
+  /**
    * Les autres routes que l'écran CITE dans ses `<Link>` ou ses `navigate()`. Sans elles, le
    * routeur ne sait pas résoudre la cible et le lien tombe. Elles ne rendent rien : ce qui est
    * vérifié est vers où l'écran pointe, pas ce qu'il y a au bout.
@@ -82,7 +90,7 @@ type RouteOptions = {
  */
 export async function renderInRoute(
   ui: ReactElement,
-  { path, params = {}, links = [] }: RouteOptions,
+  { path, params = {}, links = [], search = {} }: RouteOptions,
 ): Promise<RenderWithProviders & { router: AnyRouter }> {
   const rootRoute = createRootRoute();
   const routeTree = rootRoute.addChildren([
@@ -94,7 +102,9 @@ export async function renderInRoute(
 
   const router = createRouter({
     routeTree,
-    history: createMemoryHistory({ initialEntries: [interpolate(path, params)] }),
+    history: createMemoryHistory({
+      initialEntries: [interpolate(path, params) + queryOf(search)],
+    }),
   });
 
   // `load()` AVANT le rendu, et l'helper est asynchrone pour ça : `RouterProvider` résout ses
@@ -103,6 +113,12 @@ export async function renderInRoute(
   await router.load();
 
   return { ...renderWithProviders(<RouterProvider router={router} />), router };
+}
+
+/** `{ feedback: "f-1" }` → `?feedback=f-1`, et rien du tout quand il n'y a rien à poser. */
+function queryOf(search: Readonly<Record<string, string>>): string {
+  const entries = Object.entries(search);
+  return entries.length === 0 ? "" : `?${new URLSearchParams(entries).toString()}`;
 }
 
 /** `/sessions/$sessionId/feedback` + `{ sessionId: "ss-1" }` → `/sessions/ss-1/feedback`. */
