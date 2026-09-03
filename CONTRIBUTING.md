@@ -52,17 +52,36 @@ git config --global user.name "Your Name"
 
 Puis ajouter la clé publique sur GitHub en **Signing Key** (Settings → SSH and GPG keys).
 
-## Secrets GitHub Actions (Settings → Secrets → Actions)
+## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 
 Ajoutés phase par phase :
 
 - `SONAR_TOKEN` — SonarCloud (en place).
 - `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET` — observabilité (déploiement).
+- `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps (#181). Le seul secret Sentry : il n'est jamais embarqué dans un artefact.
 - `DATABASE_URL` — déploiement (P1).
 - `BETTER_AUTH_SECRET` — auth (P1).
 
-## Observabilité (API)
+Ces trois-là sont des **variables** de dépôt (onglet *Variables*), pas des secrets — elles partent dans le bundle ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
+
+- `DEV_SENTRY_DSN_WEB` — le DSN du projet web, lisible par tout visiteur du site.
+- `SENTRY_ORG` — le slug de l'organisation Sentry.
+- `SENTRY_PROJECT_WEB` — `cimavia-web`.
+
+## Observabilité
+
+**Trois projets Sentry** — `cimavia-api`, `cimavia-web`, `cimavia-mobile` (#183). Releases et sourcemaps s'attachent par projet : mêler un bundle Vite et un bundle Hermes dans un seul projet rendrait l'unminification hasardeuse.
+
+### API
 
 - Logs structurés **pino → Axiom** : transport actif dès que `AXIOM_TOKEN` + `AXIOM_DATASET` sont définis. `AXIOM_URL` selon la région du dataset (EU par défaut).
-- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import) + `SentryExceptionFilter` global.
+- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import) + `SentryExceptionFilter` global, qui ne remonte que les erreurs *inattendues* — une `HttpException` (4xx, 503 de santé) est ignorée.
 - Variables d'environnement : voir `apps/api/.env.example`.
+
+### Web
+
+- Init dans `apps/web/src/instrument.ts`, **premier import** de `main.tsx` : les imports statiques sont hoistés, donc une init placée dans le corps de `main.tsx` arriverait après l'évaluation de tout le graphe de modules et n'entendrait pas ce qui y casse.
+- Écran de repli : `defaultErrorComponent` du routeur → `CmvCrashScreen`. Sa portée s'arrête au routeur — ce qui casse au-dessus (les providers, l'import d'i18n) tombe à l'écran blanc, mais part quand même chez Sentry.
+- Identité : `useSentryUser()` dans `routes/__root.tsx`, l'`id` du compte seul, effacé à la déconnexion. `sendDefaultPii: false` côté front, contrairement à l'API.
+- Variables, **figées au `vite build`** (voir `apps/web/.env.example` et le `Dockerfile`) : `VITE_SENTRY_DSN` — pas un secret, il part dans le bundle — et `VITE_APP_ENV`, le *tier* de déploiement et non le mode de build.
+- Sourcemaps : téléversées par `@sentry/vite-plugin` quand `SENTRY_AUTH_TOKEN` est fourni, puis effacées de `dist/` avant l'étape nginx. Le jeton passe par un **secret BuildKit** et jamais un `ARG`, qui le graverait dans `docker history` de l'image publiée. `SENTRY_RELEASE` est passé explicitement : `.git` est hors du contexte de build, la détection automatique n'aurait rien à lire.
