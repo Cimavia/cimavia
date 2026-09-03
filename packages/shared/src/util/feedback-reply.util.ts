@@ -44,15 +44,19 @@ export function feedbackReplyAttachment(feedbackId: string | null): FeedbackRepl
 }
 
 /**
- * Ce que les deux apps rendent à l'identique : peut-on écrire, le fil est-il en panne, et l'envoi
+ * Ce que les deux apps DÉCIDENT à l'identique : peut-on écrire, le fil est-il en panne, et l'envoi
  * de texte.
  *
  * `ready` exige les DEUX : sans débrief on ne sait pas quoi citer, sans fil la réponse n'aboutit
  * nulle part. Un seul des deux suffirait à laisser écrire un texte que l'envoi perdrait.
  *
- * Le reste de la surface — les MÉDIAS — n'est pas ici, et c'est la seule raison pour laquelle il
- * reste un hook par app : la galerie et l'enregistreur natif du mobile n'ont pas la même forme que
- * l'input fichier et `MediaRecorder` du web.
+ * **`mediaBusy` et `step` ne sont volontairement PAS ici**, alors que les deux apps les rendent
+ * mot pour mot pareil. Deux raisons. La première est de cohésion : ce sont des clés MÉDIA, et les
+ * grouper avec `sendFiles`/`progress` d'un côté, `pickAndSend`/`audioError` de l'autre, garde la
+ * surface média d'une app en un seul endroit. La seconde est mesurée : les faire passer par ici
+ * oblige à nommer l'envoi de texte en variable locale, ce qui allonge l'assemblage identique des
+ * deux hooks de 9 à 12 lignes — au-dessus du seuil de duplication de dix. On échangerait deux
+ * lignes de recopie contre trois de plus.
  */
 export function feedbackReplySurface(
   input: FeedbackReplyInput,

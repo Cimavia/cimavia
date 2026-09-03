@@ -29,13 +29,13 @@ describe("feedbackReplySurface", () => {
     );
   });
 
-  it("porte l'échec du fil et l'envoi tels quels", () => {
-    const send = vi.fn();
-    const surface = feedbackReplySurface({ ...READY, isThreadError: true }, true, send);
+  it("porte l'échec du fil et l'envoi de texte tels quels", () => {
+    const sendText = vi.fn();
+    const surface = feedbackReplySurface({ ...READY, isThreadError: true }, true, sendText);
 
     expect(surface.hasThreadError).toBe(true);
     expect(surface.sending).toBe(true);
     surface.sendText("Bien joué");
-    expect(send).toHaveBeenCalledWith("Bien joué");
+    expect(sendText).toHaveBeenCalledWith("Bien joué");
   });
 });
