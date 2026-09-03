@@ -1343,6 +1343,21 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > l'athlète sans coach — une relation **absente**, pas impossible, qui apparaîtra le jour où il
 > rejoint quelqu'un.
 
+> **Corrigé en marge de #198** (le cache de requêtes survivait au changement de compte) : trouvé en
+> testant #198, et sans rapport avec lui — mais c'est lui qui l'a rendu visible. Le cache TanStack
+> du mobile est **persisté sept jours** dans AsyncStorage (lecture hors-ligne, p3-5) avec un
+> `staleTime` de cinq minutes, et RIEN ne le vidait à la déconnexion : le compte suivant sur
+> l'appareil se voyait servir les athlètes, débriefs, messages et factures du précédent, sans
+> même qu'un refetch parte les corriger. Une fuite entre comptes, pas un affichage périmé — le
+> raisonnement que `revokeCurrentPushToken` applique déjà aux push n'avait jamais été appliqué au
+> cache. Jusqu'ici le symptôme restait dans le CONTENU des écrans, la nav dérivant de la session
+> Better Auth seule ; #198 a branché la nav sur une requête, et l'onglet Messages du compte quitté
+> est resté. `resetQueryCache()` vide mémoire **et** disque, appelée aux deux bouts : à la
+> déconnexion pour ne pas laisser ces données dormir, et à la **connexion** — le seul passage
+> obligé, puisqu'une session expirée côté serveur ramène au login sans qu'aucune déconnexion soit
+> passée. Le web avait le même trou en mémoire, sans persistance : il mourait au rechargement
+> complet, pas avant.
+
 > **Corrige le journal de #14** (la messagerie n'était fermée qu'à MOITIÉ) : les deux encadrés
 > « Tranché en #14 » affirment que la messagerie est « fermée en auto-coaching — aucun fil avec
 > soi-même ne peut exister » et qu'elle l'était « **déjà** ». C'était vrai de l'API, et faux de

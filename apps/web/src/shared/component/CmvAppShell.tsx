@@ -1,4 +1,5 @@
 import type { CapabilityName } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -98,6 +99,7 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession } = authClient.useSession();
+  const queryClient = useQueryClient();
   /**
    * Pas de garde sur `isPending` ici : ce composant n'est monté que par un écran, lui-même monté
    * par `CmvRoleGate` — qui a déjà attendu la session. La nav ne peut donc pas se dessiner vide le
@@ -109,6 +111,10 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
 
   async function onLogout() {
     await authClient.signOut();
+    // Le cookie part, le cache RESTAIT : sans rechargement complet, le compte suivant se connectait
+    // sur les athlètes, débriefs et factures du précédent. Pas de persistance disque ici,
+    // contrairement au mobile — la fuite meurt au F5, mais elle existe jusque-là.
+    queryClient.clear();
     navigate({ to: "/login" });
   }
 

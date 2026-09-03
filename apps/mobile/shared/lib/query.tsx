@@ -25,10 +25,35 @@ const queryClient = new QueryClient({
   },
 });
 
+// Nommée : `resetQueryCache` doit pouvoir effacer l'entrée disque, pas seulement la mémoire.
+const PERSIST_KEY = "cimavia-query-cache";
+
 const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
-  key: "cimavia-query-cache",
+  key: PERSIST_KEY,
 });
+
+/**
+ * Vide le cache — mémoire ET disque — au changement de compte.
+ *
+ * Sans ça, le cache persisté SEPT JOURS était resservi au compte suivant sur le même appareil, et
+ * le `staleTime` de 5 min empêchait même le refetch qui l'aurait corrigé : le nouvel arrivant
+ * voyait les athlètes, débriefs, messages et factures du précédent. Une fuite entre comptes, pas
+ * un affichage périmé — exactement ce que `revokeCurrentPushToken` évite déjà pour les push.
+ *
+ * Appelée aux DEUX bouts, et les deux comptent :
+ * - à la **déconnexion**, pour ne pas laisser ces données dormir sur le disque ;
+ * - à la **connexion**, qui est la seule garantie réelle — une session expirée côté serveur ramène
+ *   sur l'écran de login sans qu'aucune déconnexion soit passée, et le compte suivant hériterait
+ *   du cache resté là.
+ *
+ * `clear()` d'abord, `removeItem` ensuite : le persister réécrit sur changement, mais ce qu'il
+ * réécrirait alors est un cache VIDE.
+ */
+export async function resetQueryCache(): Promise<void> {
+  queryClient.clear();
+  await AsyncStorage.removeItem(PERSIST_KEY);
+}
 
 /**
  * **À INCRÉMENTER dès qu'un DTO gagne un champ que le rendu lit sans garde.**

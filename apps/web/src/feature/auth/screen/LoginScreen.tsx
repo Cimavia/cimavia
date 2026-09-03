@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,7 @@ import { AuthLayout } from "../component/AuthLayout";
 export function LoginScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session, isPending } = authClient.useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,6 +32,9 @@ export function LoginScreen() {
         setError(t("auth.errors.invalidCredentials"));
         return;
       }
+      // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
+      // ici sans qu'aucune déconnexion soit passée, et le cache du précédent serait resservi.
+      queryClient.clear();
       navigate({ to: "/", search: { q: undefined, filter: undefined, athlete: undefined } });
     } catch {
       // Échec réseau / CORS : la promesse rejette → on affiche une erreur générique.
