@@ -5,6 +5,7 @@ import { InvitationController } from "./controller/invitation.controller";
 import { RelationController } from "./controller/relation.controller";
 import { AthleteSheetService } from "./service/athlete-sheet.service";
 import { CapabilityService } from "./service/capability.service";
+import { CounterpartService } from "./service/counterpart.service";
 import { InvitationService } from "./service/invitation.service";
 import { RelationService } from "./service/relation.service";
 import { UserDirectoryService } from "./service/user-directory.service";
@@ -22,6 +23,7 @@ import { UserDirectoryService } from "./service/user-directory.service";
     RelationService,
     AthleteSheetService,
     CapabilityService,
+    CounterpartService,
     UserDirectoryService,
   ],
   // Exporté pour la liste des débriefs (P4) : elle nomme l'athlète, et le nom ne vit que sur

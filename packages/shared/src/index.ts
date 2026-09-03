@@ -29,11 +29,13 @@ export { CapabilityBlocker, updateCapabilitiesSchema } from "./dto/capability.sc
 export type {
   CoachAthleteDto,
   CoachAthleteStatus as CoachAthleteStatusType,
+  CounterpartsDto,
 } from "./dto/coach-athlete.schema";
 export {
   CoachAthleteStatus,
   coachAthleteDtoSchema,
   coachAthleteStatusSchema,
+  counterpartsDtoSchema,
   SELF_RELATION_ID,
 } from "./dto/coach-athlete.schema";
 export type {

@@ -5246,6 +5246,75 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
   });
 });
 
+/**
+ * Le signal qui décide de l'entrée de messagerie dans chaque espace (#198).
+ *
+ * Route SANS capacité exigée, et c'est ce qui est testé ici autant que les valeurs : un compte
+ * mono-capacité doit pouvoir la lire sans prendre de 403, sinon la navigation ne pourrait pas s'en
+ * servir avant de savoir à quel titre elle s'affiche.
+ */
+describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
+  it("dit non des deux côtés à un coach sans athlète", async () => {
+    const coach = await signUpWith("cp-lonely@cmv.test", { isCoach: true, isAthlete: false });
+    const res = await coach.get("/me/counterparts");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ asCoach: false, asAthlete: false });
+  });
+
+  // Sans garde de capacité : un athlète autonome obtient une réponse là où `GET /athletes` et
+  // `GET /me/coach` lui donneraient un 403 et un `null`.
+  it("répond à un athlète autonome sans exiger de capacité", async () => {
+    const athlete = await signUp("cp-autonomous@cmv.test", Role.ATHLETE);
+    expect((await athlete.get("/athletes")).status).toBe(403);
+
+    const res = await athlete.get("/me/counterparts");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ asCoach: false, asAthlete: false });
+  });
+
+  it("voit la contrepartie apparaître de chaque côté quand la relation est nouée", async () => {
+    const coach = await signUpWith("cp-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("cp-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    expect((await coach.get("/me/counterparts")).body).toEqual({ asCoach: true, asAthlete: false });
+    expect((await athlete.get("/me/counterparts")).body).toEqual({
+      asCoach: false,
+      asAthlete: true,
+    });
+  });
+
+  /**
+   * Le cœur de #198 : l'auto-coaching ne compte pour personne. L'entrée SYNTHÉTIQUE de
+   * `GET /athletes` (#14) est bien là — c'est elle qui s'affichait dans la messagerie —, la
+   * contrepartie ne l'est pas. Les deux assertions côte à côte disent exactement cet écart.
+   */
+  it("ne compte pas l'auto-coaching comme une contrepartie", async () => {
+    const solo = await signUpWith("cp-solo@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await solo.get("/athletes")).body).toHaveLength(1);
+    expect((await solo.get("/me/counterparts")).body).toEqual({
+      asCoach: false,
+      asAthlete: false,
+    });
+  });
+
+  // Le compte qui cumule ET coache quelqu'un : contrepartie côté coach seulement — il n'a pas de
+  // coach, donc rien côté athlète.
+  it("range la contrepartie du bon côté pour un compte qui cumule", async () => {
+    const dual = await signUpWith("cp-dual@cmv.test", { isCoach: true, isAthlete: true });
+    const athlete = await signUp("cp-dual-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await dual.post("/invitations").send({});
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    expect((await dual.get("/me/counterparts")).body).toEqual({ asCoach: true, asAthlete: false });
+  });
+});
+
 describe("Compteur de notifications ventilé par espace (#176)", () => {
   const monday = mondayOfCurrentWeek();
 
