@@ -12,6 +12,17 @@ import { ExercisedCapabilityProvider } from "@/shared/hook/useExercisedCapabilit
 import { QueryProvider } from "@/shared/lib/query";
 import { navigationTheme } from "@/shared/theme/navigation";
 
+/**
+ * Le filet sous les erreurs non maîtrisées, branché par le MÉCANISME d'expo-router : un export
+ * nommé `ErrorBoundary` depuis un fichier de route fait envelopper son composant par le `Try` du
+ * routeur, qui lui passe `{ error, retry }`.
+ *
+ * Il enveloppe donc ce layout ENTIER, providers compris — un boundary posé autour du `<Stack>`
+ * ci-dessous serait resté à l'intérieur des quatre, et n'aurait rien rattrapé de ce qui casse
+ * dedans. Réexport d'une ligne : la règle dure nº4 vaut aussi ici, l'écran vit dans `shared/`.
+ */
+export { CmvCrashScreen as ErrorBoundary } from "@/shared/component/CmvCrashScreen";
+
 export default function RootLayout() {
   return (
     <QueryProvider>
