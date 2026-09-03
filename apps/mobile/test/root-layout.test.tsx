@@ -10,6 +10,19 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * Ce test vit ICI et non à côté de `app/_layout.tsx`, contre l'usage du dépôt — et ce n'est pas
+ * un choix de rangement.
+ *
+ * Expo-router construit ses routes par `require.context(APP_ROOT, true, /.*\.[tj]sx?$/)` : TOUT
+ * fichier `.ts`/`.tsx` sous `app/` est embarqué comme une route, seuls `+api` et `+html` étant
+ * exclus. Un fichier de test y importerait `vitest`, donc `vite`, dont le code Node contient un
+ * `import(filepath)` dynamique que Metro refuse — et le bundle mobile ENTIER cesse de se
+ * construire, avec une erreur qui ne nomme ni le test ni la route.
+ *
+ * Contrairement à TanStack côté web, qui avertit et se laisse configurer, expo-router n'offre
+ * aucun moyen d'ignorer un fichier. `app/` ne peut donc contenir aucun test, jamais.
+ */
 describe("layout racine", () => {
   it("expose l'écran de crash sous le nom qu'expo-router branche", () => {
     /**
