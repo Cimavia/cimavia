@@ -1,10 +1,11 @@
-import type { MessageAttachmentDto, MessageDto } from "@cmv/shared";
 import {
   AttachmentDestination,
   type AttachmentTarget,
   attachmentTarget,
   type CapabilityName,
   MESSAGE_ATTACHMENT_LABEL_KEY,
+  type MessageAttachmentDto,
+  type MessageDto,
   MessageType,
 } from "@cmv/shared";
 import { type Href, router } from "expo-router";
