@@ -219,10 +219,8 @@ export type {
   AttachFeedbackMediaInput,
   CoachFeedbackSummaryDto,
   FeedbackAudioMimeType,
-  FeedbackImageMimeType,
   FeedbackMediaDto,
   FeedbackTracking,
-  FeedbackVideoMimeType,
   MediaType as MediaTypeType,
   RequestFeedbackUploadUrlInput,
   SessionFeedbackDto,
@@ -234,25 +232,16 @@ export {
   coachFeedbackSummaryDtoSchema,
   FEEDBACK_AUDIO_MIME_TYPES,
   FEEDBACK_CONTENT_MAX_LENGTH,
-  FEEDBACK_IMAGE_MIME_TYPES,
   FEEDBACK_PHOTO_MAX_DIMENSION_PX,
   FEEDBACK_VIDEO_MAX_HEIGHT_PX,
-  FEEDBACK_VIDEO_MIME_TYPES,
   feedbackAudioMimeTypeSchema,
-  feedbackImageMimeTypeSchema,
   feedbackMediaDtoSchema,
   feedbackTrackingSchema,
-  feedbackVideoMimeTypeSchema,
   isAllowedFeedbackAudioMime,
-  isAllowedFeedbackImageMime,
-  isAllowedFeedbackVideoMime,
   MAX_FEEDBACK_AUDIO_DURATION_SECONDS,
   MAX_FEEDBACK_AUDIO_SIZE_BYTES,
   MAX_FEEDBACK_AUDIOS,
-  MAX_FEEDBACK_PHOTO_SIZE_BYTES,
   MAX_FEEDBACK_PHOTOS,
-  MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
-  MAX_FEEDBACK_VIDEO_SIZE_BYTES,
   MAX_FEEDBACK_VIDEOS,
   MediaType,
   maxFeedbackMediaCount,
@@ -307,7 +296,24 @@ export {
   updateInvoiceStatusSchema,
 } from "./dto/invoice.schema";
 export type {
+  FeedbackImageMimeType,
+  FeedbackVideoMimeType,
+} from "./dto/media.schema";
+export {
+  FEEDBACK_IMAGE_MIME_TYPES,
+  FEEDBACK_VIDEO_MIME_TYPES,
+  feedbackImageMimeTypeSchema,
+  feedbackVideoMimeTypeSchema,
+  isAllowedFeedbackImageMime,
+  isAllowedFeedbackVideoMime,
+  MAX_FEEDBACK_PHOTO_SIZE_BYTES,
+  MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
+  MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+} from "./dto/media.schema";
+export type {
   ConversationDto,
+  MessageAttachmentDto,
+  MessageAttachmentType as MessageAttachmentTypeType,
   MessageAudioMimeType,
   MessageDto,
   MessageMediaDto,
@@ -329,7 +335,10 @@ export {
   MESSAGE_IMAGE_MIME_TYPES,
   MESSAGE_TEXT_MAX_LENGTH,
   MESSAGE_VIDEO_MIME_TYPES,
+  MessageAttachmentType,
   MessageType,
+  messageAttachmentDtoSchema,
+  messageAttachmentTypeSchema,
   messageAudioMimeTypeSchema,
   messageDtoSchema,
   messageMediaDtoSchema,
@@ -563,6 +572,12 @@ export {
 } from "./util/date-format.util";
 export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
 export { countUnreadFeedbacks, remainingMediaSlots } from "./util/feedback.util";
+export type {
+  FeedbackReplyAttachment,
+  FeedbackReplyInput,
+  FeedbackReplyTarget,
+} from "./util/feedback-reply.util";
+export { feedbackReplyAttachment, feedbackReplySurface } from "./util/feedback-reply.util";
 export type { Formatters } from "./util/formatter.util";
 export { createFormatters } from "./util/formatter.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
@@ -588,6 +603,12 @@ export {
   minutesOf,
 } from "./util/media-format.util";
 export { mediaKindOfMime } from "./util/media-kind.util";
+export type { AttachmentTarget } from "./util/message-attachment.util";
+export {
+  AttachmentDestination,
+  attachmentTarget,
+  MESSAGE_ATTACHMENT_LABEL_KEY,
+} from "./util/message-attachment.util";
 export {
   formatMetricValue,
   metricCellText,

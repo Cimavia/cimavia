@@ -68,7 +68,11 @@ export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRole
   // `typeof` plutôt que `Array.isArray`, qui élargit un tableau readonly en `any[]`.
   const accepted = typeof capability === "string" ? [capability] : capability;
   if (!accepted.some((name) => hasCapability(capabilities, name))) {
-    return fallback ?? <Navigate to="/" search={{ q: undefined, filter: undefined }} />;
+    return (
+      fallback ?? (
+        <Navigate to="/" search={{ q: undefined, filter: undefined, athlete: undefined }} />
+      )
+    );
   }
 
   return <>{children}</>;

@@ -31,6 +31,26 @@ const persister = createAsyncStoragePersister({
 });
 
 /**
+ * **À INCRÉMENTER dès qu'un DTO gagne un champ que le rendu lit sans garde.**
+ *
+ * Le cache ci-dessus survit SEPT JOURS à la fermeture de l'app, et il contient des charges utiles
+ * sérialisées telles que l'API les rendait à l'époque. Ajouter un champ côté serveur — un tableau,
+ * typiquement — le laisse donc `undefined` sur toutes les entrées déjà en mémoire, alors que le
+ * type promet qu'il est là : l'écran plante à la première lecture, chez l'utilisateur seulement,
+ * et pendant une semaine. C'est exactement ce qui est arrivé aux réponses d'un débrief (#194) :
+ * `SessionFeedbackDto.messages` a été ajouté, et un débrief déjà consulté rendait un
+ * « Cannot read property 'map' of undefined ».
+ *
+ * `buster` est la réponse prévue par TanStack : un cache persisté sous une autre valeur est
+ * INTÉGRALEMENT jeté au démarrage. Le coût est une première ouverture qui recharge — bien moindre
+ * qu'un écran mort. La parade inverse (un `?? []` dans chaque composant) ne protégerait que
+ * l'endroit auquel on a pensé, et masquerait le vrai problème partout ailleurs.
+ *
+ * À remplacer par la version du produit quand elle existera (#184).
+ */
+const CACHE_SCHEMA_VERSION = "2";
+
+/**
  * Ponts app ↔ TanStack Query. Sans eux, RIEN ne déclenche jamais de refetch : `refetchOnWindowFocus`
  * s'appuie sur les événements du navigateur, absents en React Native. Le cache étant persisté et
  * frais 5 min, l'athlète pouvait rouvrir l'app et relire un cycle supprimé la veille — sans le
@@ -65,7 +85,7 @@ export function QueryProvider({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: CACHE_MAX_AGE_MS }}
+      persistOptions={{ persister, maxAge: CACHE_MAX_AGE_MS, buster: CACHE_SCHEMA_VERSION }}
     >
       {children}
     </PersistQueryClientProvider>

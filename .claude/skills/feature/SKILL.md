@@ -71,12 +71,18 @@ Plan d'abord, **attendre la validation** (`CLAUDE.md`). Le plan tranche explicit
 Commits atomiques, **relus un par un**. Pour chacun, donner :
 
 - `git add` **chemin par chemin** (jamais `-A` : l'arbre peut contenir des modifs du développeur) ;
-- `git commit -m "..."` complet, conforme commitlint — **sujet en minuscule**, header ≤ 100, corps
-  ≤ 100 par ligne, `Closes #n` / `Refs #n` **dans le corps**. Une seule ligne pour le corp du commit. Un corp de commit concis.
+- `git commit -m "..."` avec **UN SEUL `-m`**, et rien d'autre. Un commit = une ligne = un sujet.
+  **Aucun corps de commit**, jamais : ni `Closes #n`, ni `Refs #n`, ni un second `-m` d'explication,
+  même quand ce qu'il contiendrait paraît utile. Proposer deux `-m` est une erreur à corriger, pas
+  un choix de rédaction. Le lien vers l'issue vit dans la **PR**, pas dans le commit.
+- Le sujet est conforme commitlint : `type(scope): sujet`, header ≤ 100, et **entièrement en
+  minuscules** — pas seulement la première lettre. `subject-case: lower-case` refuse TOUTE majuscule,
+  y compris sur un sigle : écrire `url`, `api`, `dto`, `pr`, `s3`, jamais `URL` ni `API`. Un nom
+  propre ou un identifiant qui exigerait sa casse se reformule plutôt que de casser la règle.
 - ⚠️ **Pas de backtick ni de `!` dans une chaîne en double quotes** : le shell les interprète.
 
-Le corps du commit porte **le pourquoi**, pas le quoi — le diff dit déjà le quoi. Attendre la
-relecture avant de produire l'incrément suivant.
+Le sujet étant tout ce qui reste, il dit **le pourquoi** autant que le quoi — le diff, lui, dit déjà
+le quoi. Attendre la relecture avant de produire l'incrément suivant.
 
 ## 6. Portes
 

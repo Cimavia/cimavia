@@ -76,7 +76,7 @@ export { ScreenName as default } from "@/feature/<feat>";
 Aucune logique, aucun JSX dans `app/<screen>.tsx`. Un stub trivial peut rester dans `app/` provisoirement, mais migre dès qu'il a 2+ pièces (hook + component).
 
 ### Promotion feature → shared
-Composant/hook utilisé par **1 feature** → `feature/<feat>/`. Par **2+** → `shared/`. Type métier front+back → `@cmv/shared`.
+Composant/hook **générique** (sans métier : un lecteur vidéo, un visualiseur d'image, un enregistreur) utilisé par **2+** features → `shared/`, préfixé `Cmv`. Un composant **métier** reste chez la feature qui le possède, quel que soit le nombre de features qui l'importent : `AthleteSheetPanel` vit dans `feature/athlete` et sert aussi le tableau de bord et les débriefs ; `Composer` et `MessageBubble` vivent dans `feature/message` et servent aussi le débrief. `shared/component/` est le **design system**, pas un fourre-tout de ce qui est partagé. Type métier front+back → `@cmv/shared`.
 
 ### NativeWind content paths — **critique**
 À chaque création/renommage de dossier, mettre à jour `tailwind.config.js#content[]` (`./app`, `./feature`, `./shared`). Sinon NativeWind n'extrait pas les classes → CSS incomplet → bugs visuels silencieux non rattrapés par le typecheck.

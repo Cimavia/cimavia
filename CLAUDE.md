@@ -104,6 +104,12 @@ pnpm --filter @cmv/mobile exec expo export --platform android
                                #    lancée à la racine la commande échoue sans raison lisible
 ```
 
+#### SonarCloud
+
+Le quality gate sonar bloque les PRs. Il faut donc que la duplication de code soit < 3%, le 
+coverage > 80% pour que le job Sonar soit vert. Je rajouterais que le coverage doit tendre au maximum
+vers les 100%, la duplication vers 0% et le nombre d'issue vers 0.
+
 ## Façon de travailler (collaboration)
 
 - **Plan d'abord** : pour toute feature/phase, proposer un plan et **attendre la validation** avant de coder.

@@ -15,6 +15,7 @@ import {
 } from "../../tenancy/tenant-context.type";
 import { toMessageDto } from "../message.mapper";
 import { ConversationService } from "./conversation.service";
+import { MessageAttachmentResolver } from "./message-attachment.resolver";
 
 // Rattachement résolu et validé, prêt à persister (ids possédés, ou null).
 type ResolvedAttachment = { scheduledSessionId: string | null; sessionFeedbackId: string | null };
@@ -33,6 +34,8 @@ export class MessageService {
     // Garde « séance de l'athlète courant, dans un cycle PUBLISHED » — source unique (P3), pour
     // valider un rattachement côté athlète (le scope tenant ne filtre pas le statut).
     private readonly athletePlans: AthletePlanService,
+    // Le « à propos de… » du message, résolu en lot et sous scope tenant.
+    private readonly attachments: MessageAttachmentResolver,
     private readonly cls: ClsService,
   ) {}
 
@@ -44,7 +47,12 @@ export class MessageService {
       where: { conversationId },
       orderBy: { createdAt: "asc" },
     });
-    return Promise.all(messages.map((message) => toMessageDto(message, this.storage)));
+    const attachments = await this.attachments.resolve(messages);
+    return Promise.all(
+      messages.map((message) =>
+        toMessageDto(message, this.storage, attachments.get(message.id) ?? null),
+      ),
+    );
   }
 
   // Envoi d'un message (texte ou média déjà uploadé). Le média a transité par l'object storage via
@@ -84,7 +92,8 @@ export class MessageService {
       });
     }
 
-    return toMessageDto(message, this.storage);
+    const attachments = await this.attachments.resolve([message]);
+    return toMessageDto(message, this.storage, attachments.get(message.id) ?? null);
   }
 
   // Marque lus les messages ENTRANTS (envoyés par l'autre) encore non lus. Idempotent. Réarme le

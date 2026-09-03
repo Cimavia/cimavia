@@ -37,7 +37,7 @@ export function RegisterScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!isPending && session) {
-    return <Navigate to="/" search={{ q: undefined, filter: undefined }} />;
+    return <Navigate to="/" search={{ q: undefined, filter: undefined, athlete: undefined }} />;
   }
 
   async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -65,7 +65,7 @@ export function RegisterScreen() {
         setError(t(emailInUse ? "auth.errors.emailInUse" : "auth.errors.generic"));
         return;
       }
-      navigate({ to: "/", search: { q: undefined, filter: undefined } });
+      navigate({ to: "/", search: { q: undefined, filter: undefined, athlete: undefined } });
     } catch {
       setError(t("auth.errors.generic"));
     } finally {

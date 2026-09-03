@@ -9,10 +9,21 @@ import { notificationApi, notificationKeys } from "@/feature/notification/api";
  */
 const UNREAD_POLL_MS = 30_000;
 
+/**
+ * Le TOTAL, projeté depuis la réponse complète par `select`.
+ *
+ * `select` et non un `queryFn` qui projette : les deux hooks partagent une clé de cache — c'est
+ * voulu, c'est la même requête — mais TanStack indexe par CLÉ, pas par `queryFn`. Deux `queryFn`
+ * différents sous une même clé, c'est une COURSE : le premier à répondre écrit le cache, et l'autre
+ * lit sa forme. Quand la ventilation gagnait, la cloche recevait `{count, coach, athlete}` là où
+ * son type promet un nombre, et le badge d'onglet plantait — « Objects are not valid as a React
+ * child ». `select` projette à la LECTURE : une entrée de cache, deux vues, aucune course.
+ */
 export function useUnreadNotificationCount() {
-  return useQuery<number>({
+  return useQuery<UnreadCountDto, Error, number>({
     queryKey: notificationKeys.unreadCount(),
-    queryFn: async () => (await notificationApi.unreadCount()).count,
+    queryFn: () => notificationApi.unreadCount(),
+    select: (unread) => unread.count,
     refetchInterval: UNREAD_POLL_MS,
   });
 }

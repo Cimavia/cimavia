@@ -1,8 +1,15 @@
-import type { FeedbackTracking, SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared";
+import type {
+  FeedbackTracking,
+  MessageDto,
+  SessionFeedbackDto,
+  UpsertSessionFeedbackInput,
+} from "@cmv/shared";
 import { ScheduledSessionStatus } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
+import { toMessageDto } from "../../message/message.mapper";
+import { MessageAttachmentResolver } from "../../message/service/message-attachment.resolver";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -27,6 +34,9 @@ export class FeedbackService {
     private readonly storage: StorageService,
     private readonly athletePlans: AthletePlanService,
     private readonly notifications: NotificationService,
+    // Les réponses rattachées au débrief sont des messages : même mapper, même résolveur de
+    // rattachement que la messagerie — sans quoi on aurait deux façons de rendre un message.
+    private readonly attachments: MessageAttachmentResolver,
   ) {}
 
   /**
@@ -138,7 +148,37 @@ export class FeedbackService {
       orderBy: { position: "asc" },
       select: { id: true, title: true, blocks: true, tracking: true },
     });
-    return toSessionFeedbackDto(feedback, this.storage, toTrackedExercises(exercises));
+    return toSessionFeedbackDto(
+      feedback,
+      this.storage,
+      toTrackedExercises(exercises),
+      await this.attachedMessages(feedback.id),
+    );
+  }
+
+  /**
+   * Les messages rattachés à ce débrief, du plus ancien au plus récent.
+   *
+   * Une requête SCOPÉE à part, jamais un `include` sur le débrief : un include imbriqué échappe au
+   * scope tenant, et ferait remonter la conversation d'une autre relation sans rien signaler.
+   *
+   * Un seul chemin sert les DEUX capacités — le coach lit le débrief de son athlète par
+   * `/scheduled-sessions/:id/feedback`, l'athlète le sien par `/me/...`, et les deux passent ici.
+   * Pas de pagination : les réponses à un débrief se comptent en unités (cf. #77).
+   */
+  private async attachedMessages(sessionFeedbackId: string): Promise<MessageDto[]> {
+    const messages = await this.db.message.findMany({
+      where: { sessionFeedbackId },
+      orderBy: { createdAt: "asc" },
+    });
+    if (messages.length === 0) return [];
+
+    const attachments = await this.attachments.resolve(messages);
+    return Promise.all(
+      messages.map((message) =>
+        toMessageDto(message, this.storage, attachments.get(message.id) ?? null),
+      ),
+    );
   }
 
   private async getOrThrow(scheduledSessionId: string): Promise<SessionFeedbackDto> {

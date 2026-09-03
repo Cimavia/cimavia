@@ -103,7 +103,13 @@ const session = (): ScheduledSessionDto =>
   }) as unknown as ScheduledSessionDto;
 
 const feedback = (over: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto =>
-  ({ id: "fb-1", content: null, media: [], ...over }) as unknown as SessionFeedbackDto;
+  ({
+    id: "fb-1",
+    content: null,
+    media: [],
+    messages: [],
+    ...over,
+  }) as unknown as SessionFeedbackDto;
 
 function setup() {
   return renderInRoute(<AthleteFeedbackScreen />, {

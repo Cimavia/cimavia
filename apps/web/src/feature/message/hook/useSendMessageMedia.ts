@@ -42,7 +42,17 @@ import {
  * `sendMediaBatch` (@cmv/shared) la tient pour les quatre surfaces — ce hook n'apporte que le
  * transport, l'invalidation du fil, et les libellés propres à la messagerie.
  */
-export function useSendMessageMedia(conversationId: string) {
+export function useSendMessageMedia(
+  conversationId: string,
+  /**
+   * Ce sur quoi les médias envoyés portent, et ce qu'il faut rafraîchir en plus du fil.
+   *
+   * Les deux vont ensemble : répondre en photo depuis un débrief doit rattacher le message ET
+   * faire apparaître la photo là où on l'a envoyée. Invalider le seul fil laisserait le volet de
+   * lecture afficher l'état d'avant l'envoi.
+   */
+  options?: { attachment: { sessionFeedbackId: string } | undefined; onSent?: () => void },
+) {
   const { t } = useTranslation();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -50,9 +60,11 @@ export function useSendMessageMedia(conversationId: string) {
   const [step, setStep] = useState<MediaBatchStep | null>(null);
   const as = useExercisedCapability();
 
+  const attachment = options?.attachment;
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
     queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+    options?.onSent?.();
   };
 
   const audio = useMutation({
@@ -63,6 +75,7 @@ export function useSendMessageMedia(conversationId: string) {
         { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
         setProgress,
         as,
+        attachment,
       );
     },
     onSuccess: invalidate,
@@ -76,7 +89,7 @@ export function useSendMessageMedia(conversationId: string) {
   const upload = async (file: File, current: MediaBatchStep) => {
     setStep(current);
     setProgress(0);
-    await prepareAndSend(conversationId, { kind: "file", file }, setProgress, as);
+    await prepareAndSend(conversationId, { kind: "file", file }, setProgress, as, attachment);
     invalidate();
   };
 
@@ -142,9 +155,10 @@ async function prepareAndSend(
   source: WebMediaSource,
   onProgress: (percent: number) => void,
   as: CapabilityName | null,
+  attachment: { sessionFeedbackId: string } | undefined,
 ): Promise<MessageDto> {
   const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
-  return uploadAndSend(conversationId, prepared, onProgress, as);
+  return uploadAndSend(conversationId, prepared, onProgress, as, attachment);
 }
 
 async function uploadAndSend(
@@ -153,6 +167,7 @@ async function uploadAndSend(
   onProgress: (percent: number) => void,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
   as: CapabilityName | null,
+  attachment: { sessionFeedbackId: string } | undefined,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
@@ -164,7 +179,11 @@ async function uploadAndSend(
     await sendInParts(conversationId, ticket, media.file, onProgress, as);
   }
 
-  const sendInput = { ...uploadInput, storagePath: ticket.storagePath } as SendMessageInput;
+  const sendInput = {
+    ...uploadInput,
+    storagePath: ticket.storagePath,
+    ...attachment,
+  } as SendMessageInput;
   return messageApi.sendMessage(conversationId, sendInput, as);
 }
 

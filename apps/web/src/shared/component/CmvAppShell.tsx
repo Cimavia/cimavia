@@ -80,8 +80,8 @@ const SPACES = [
  */
 function searchFor(to: string, space: CapabilityName) {
   return SHARED_ROUTES.has(to)
-    ? { as: space, athlete: undefined, q: undefined, filter: undefined }
-    : { as: undefined, athlete: undefined, q: undefined, filter: undefined };
+    ? { as: space, athlete: undefined, q: undefined, filter: undefined, session: undefined }
+    : { as: undefined, athlete: undefined, q: undefined, filter: undefined, session: undefined };
 }
 
 type CmvAppShellProps = {
@@ -118,7 +118,7 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
       <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-cmv-xl border-cmv-border border-r bg-cmv-bg-1 p-cmv-lg">
         <Link
           to="/"
-          search={{ q: undefined, filter: undefined }}
+          search={{ q: undefined, filter: undefined, athlete: undefined }}
           className="font-cmv-display text-cmv-subtitle text-cmv-text-hi"
         >
           {t("common.appName")}

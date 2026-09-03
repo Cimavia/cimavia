@@ -33,6 +33,14 @@ import { CmvRoleGate } from "@/shared/component";
 export type DashboardSearch = {
   q: string | undefined;
   filter: AthleteRowFilter | undefined;
+  /**
+   * `?athlete=<id>` — la fiche ouverte. Elle vivait dans un `useState` de l'écran, donc n'était
+   * atteignable QUE par un clic sur une ligne du tableau : rien ne pouvait y mener d'ailleurs, et
+   * elle ne survivait ni au rechargement ni au bouton Retour. C'est le volet de lecture des
+   * débriefs (#121) qui l'a rendu bloquant — sa maquette porte un « Voir la fiche athlète » qui
+   * n'avait aucune adresse où pointer.
+   */
+  athlete: string | undefined;
 };
 
 // `some` plutôt que `includes` : `ATHLETE_ROW_FILTERS.includes(x)` exigerait de forcer le type de
@@ -45,6 +53,8 @@ export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): DashboardSearch => ({
     q: typeof search.q === "string" && search.q.length > 0 ? search.q : undefined,
     filter: toFilter(search.filter),
+    athlete:
+      typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
   }),
   component: () => (
     <CmvRoleGate

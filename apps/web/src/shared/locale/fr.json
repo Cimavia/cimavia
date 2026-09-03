@@ -668,6 +668,10 @@
         "description": "La messagerie n'est disponible qu'avec un coach. Rejoins-en un avec son code d'invitation pour commencer à échanger.",
         "action": "Aller à « Mon coach »"
       }
+    },
+    "attachment": {
+      "session": "À propos de : {{title}} · {{date}}",
+      "feedback": "À propos du débrief : {{title}} · {{date}}"
     }
   },
   "athlete": {
@@ -776,11 +780,11 @@
       "description": "Dès qu'un athlète débriefera une séance, son retour s'affichera ici."
     },
     "detail": {
-      "subtitle": "{{athlete}} · séance du {{date}}",
       "content": "Retour de l'athlète",
       "media": "Médias ({{count}})",
       "openFull": "Ouvrir en grand",
-      "tracking": "Ce que l'athlète a coché"
+      "tracking": "Ce que l'athlète a coché",
+      "openSheet": "Voir la fiche athlète"
     },
     "openDone": "Voir / modifier mon débrief",
     "contentLabel": "Retour sur la séance",
@@ -830,6 +834,31 @@
       "filled": "Ton texte, tes fichiers, et le décompte tel qu'il est ci-contre.",
       "empty": "Séance faite, aucun commentaire, aucun décompte.",
       "action": "Envoyer mon débrief"
+    },
+    "inbox": {
+      "title": "Débriefs",
+      "subtitle": "Les retours de tes athlètes, du plus récent au plus ancien.",
+      "unreadCount": "{{count}} non lu(s)",
+      "pick": "Sélectionne un débrief pour le lire.",
+      "filter": {
+        "all": "Tous",
+        "unread": "Non lus"
+      },
+      "allRead": {
+        "title": "Tout est lu !",
+        "description": "Aucun débrief en attente. Les nouveaux débriefs de tes athlètes apparaîtront ici."
+      },
+      "searchLabel": "Rechercher un athlète",
+      "searchPlaceholder": "Nom de l'athlète…",
+      "noMatch": {
+        "title": "Aucun athlète trouvé",
+        "description": "Aucun débrief d'un athlète dont le nom contient « {{query}} »."
+      }
+    },
+    "replied": "Répondu",
+    "reply": {
+      "title": "Réponses",
+      "threadError": "Impossible d'ouvrir la conversation avec cet athlète. Réessaie dans un instant."
     }
   },
   "invoice": {

@@ -8,7 +8,7 @@ import {
   MAX_FEEDBACK_PHOTO_SIZE_BYTES,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
-} from "./feedback.schema";
+} from "./media.schema";
 
 /**
  * Messagerie 1:1 coach ↔ athlète (CDC §5.8). Un message est SOIT du texte SOIT UN média
@@ -185,6 +185,45 @@ export const messageMediaDtoSchema = z.object({
 });
 export type MessageMediaDto = z.infer<typeof messageMediaDtoSchema>;
 
+/**
+ * Ce sur quoi un message porte : une séance planifiée, ou le débrief de cette séance.
+ *
+ * `SESSION_FEEDBACK` reste un type distinct de `SCHEDULED_SESSION` alors que les deux se lisent
+ * par la même séance : « à propos de ta séance » et « à propos de ton débrief » ne mènent pas au
+ * même écran, et ne se disent pas de la même façon.
+ */
+export const MessageAttachmentType = {
+  SCHEDULED_SESSION: "SCHEDULED_SESSION",
+  SESSION_FEEDBACK: "SESSION_FEEDBACK",
+} as const;
+export type MessageAttachmentType = TypesValuesOf<typeof MessageAttachmentType>;
+export const messageAttachmentTypeSchema = z.enum(MessageAttachmentType);
+
+/**
+ * Le rattachement d'un message, RÉSOLU à la lecture — jamais stocké.
+ *
+ * Le serveur ne produit aucune string : il rend de quoi en composer une (le titre de la séance et
+ * sa date), et le `type` choisit la clé i18n. Figer un libellé en base mentirait le jour où le
+ * cycle est renommé, et gèlerait le français avant l'arrivée de `en.json` — même règle que
+ * `NOTIFICATION_LABEL_KEY`.
+ *
+ * Une seule forme pour les deux types, et non une union :
+ * - un débrief n'a pas de titre, mais la séance qu'il débriefe en a un — ce n'est pas un titre
+ *   inventé, c'est le sien ; un coach qui suit dix athlètes ne fait rien de « le débrief du 16 » ;
+ * - `scheduledSessionId` n'est pas du confort : la route mobile d'un débrief côté coach est
+ *   `/feedbacks/[sessionId]`, pas un id de débrief. Sans lui, la puce n'a nulle part où aller.
+ */
+export const messageAttachmentDtoSchema = z.object({
+  type: messageAttachmentTypeSchema,
+  /** L'id de la cible elle-même : la séance, ou le débrief. */
+  id: z.string(),
+  /** La séance concernée dans les deux cas — celle qui est citée, ou celle qui est débriefée. */
+  scheduledSessionId: z.string(),
+  sessionTitle: z.string(),
+  scheduledDate: z.iso.date(),
+});
+export type MessageAttachmentDto = z.infer<typeof messageAttachmentDtoSchema>;
+
 export const messageDtoSchema = z.object({
   id: z.string(),
   conversationId: z.string(),
@@ -194,6 +233,12 @@ export const messageDtoSchema = z.object({
   media: messageMediaDtoSchema.nullable(), // média — null pour un texte
   scheduledSessionId: z.string().nullable(),
   sessionFeedbackId: z.string().nullable(),
+  /**
+   * La cible du rattachement, résolue. `null` quand le message ne porte sur rien — mais AUSSI
+   * quand la cible a disparu : la FK est `SetNull`, le message survit et perd son contexte. Un
+   * message « à propos de » ne l'est donc pas à vie.
+   */
+  attachment: messageAttachmentDtoSchema.nullable(),
   readAt: z.iso.datetime().nullable(), // lu par le destinataire
   createdAt: z.iso.datetime(),
 });

@@ -50,7 +50,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `mobile-coach/coach_mobile.dc.html` | [#23](https://github.com/Cimavia/cimavia/issues/23) [#24](https://github.com/Cimavia/cimavia/issues/24) | **11 frames** — dashboard, liste des athlètes, fiche athlète (+ note vide / édition), invitation, facturation (liste / détail), débriefs à relire (liste / détail / vide) | [#30](https://github.com/Cimavia/cimavia/issues/30) [#31](https://github.com/Cimavia/cimavia/issues/31) [#32](https://github.com/Cimavia/cimavia/issues/32) [#33](https://github.com/Cimavia/cimavia/issues/33) | ✅ |
 | `shared/messagerie_web_athlete_mobile_coach.dc.html` | [#20](https://github.com/Cimavia/cimavia/issues/20) | **6 frames** — les deux combinaisons que `conversation_1_1.dc.html` ne couvrait **pas** : web × athlète (fil unique / fil vide / aucun coach) et mobile × coach (liste des fils / liste vide / fil ouvert) | [#29](https://github.com/Cimavia/cimavia/issues/29) [#34](https://github.com/Cimavia/cimavia/issues/34) | ✅ |
 | `shared/design_system_white.dc.html` | [#1](https://github.com/Cimavia/cimavia/issues/1) | Design system en thème **clair** (couleurs, typo, composants, radii/spacing) | thème clair (v1.0) | ⏳ |
-| `web-coach/coach_debrief.dc.html` | — | Débriefs coach sur **web** : boîte de réception (liste + volet de lecture) + état vide | refonte de `/feedbacks` — **non planifiée** | ⏳ |
+| `web-coach/coach_debrief.dc.html` | [#121](https://github.com/Cimavia/cimavia/issues/121) | Débriefs coach sur **web** : boîte de réception (liste + volet de lecture) + état vide | refonte de `/feedbacks` | ✅ *(le composer de réponse arrive avec [#193](https://github.com/Cimavia/cimavia/issues/193))* |
 | `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `mobile-athlete/athlete_seance_lecture.dc.html` | — | **13 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
@@ -108,9 +108,13 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
 - **`coach_mobile.dc.html` — invitation partagée, pas copiée** : la planche a « Copier le code »,
   l'implémentation propose « Partager » (`Share` de React Native). `expo-clipboard` n'est pas une
   dépendance du projet, et partager couvre mieux le cas réel (SMS, WhatsApp). Dette **M-5**.
-- **`coach_debrief.dc.html` — répondre depuis le volet de lecture** : `SessionFeedback` n'a **pas**
-  de réponse au modèle ; le coach répond aujourd'hui par la messagerie. C'est une **fonctionnalité
-  nouvelle**, pas un rendu — à cadrer avant toute implémentation.
+- ~~**`coach_debrief.dc.html` — répondre depuis le volet de lecture**~~ : **levé en #193**. La
+  réponse existe, sous la forme d'un `Message` rattaché au débrief (`Message.sessionFeedbackId`,
+  déjà au schéma et déjà validé côté serveur depuis P5 — il n'avait simplement aucune UI). Le
+  composer de la planche est implémenté. Trois écarts subsistent, **dans le sens du « plus »** :
+  la planche n'a qu'un composer TEXTE, ne montre aucune réponse déjà envoyée, et n'a pas de badge
+  « répondu » sur les lignes de la liste — l'implémentation ajoute les médias et la note vocale
+  (le `Composer` de la messagerie, réutilisé tel quel), le fil des réponses, et le badge.
 
 ## Constructeur d'exercice — modèle et changements requis
 

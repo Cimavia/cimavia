@@ -294,6 +294,10 @@
     },
     "detail": {
       "tracking": "Ce que l'athlète a coché"
+    },
+    "reply": {
+      "title": "Réponses",
+      "threadError": "Impossible d'ouvrir la conversation avec cet athlète. Réessaie dans un instant."
     }
   },
   "messages": {
@@ -338,6 +342,10 @@
       "IMAGE": "Photo",
       "VIDEO": "Vidéo",
       "AUDIO": "Note vocale"
+    },
+    "attachment": {
+      "session": "À propos de : {{title}} · {{date}}",
+      "feedback": "À propos du débrief : {{title}} · {{date}}"
     }
   },
   "coach": {

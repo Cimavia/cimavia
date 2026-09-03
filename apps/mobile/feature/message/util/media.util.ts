@@ -16,7 +16,9 @@ import {
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import type { ImagePickerAsset } from "expo-image-picker";
+import type { TFunction } from "i18next";
 import type { RecordedAudio } from "@/shared/component";
+import { apiErrorMessage } from "@/shared/lib/api";
 
 // Fichier prêt à partir : la taille est MESURÉE sur le fichier final (après compression), jamais
 // celle annoncée — l'API signe l'URL avec, et le storage la vérifie. Même flux que le débrief ;
@@ -152,4 +154,26 @@ function prepareVideo(asset: ImagePickerAsset): PreparedMessageMedia {
 
 export function prepareAsset(asset: ImagePickerAsset): Promise<PreparedMessageMedia> {
   return asset.type === "video" ? Promise.resolve(prepareVideo(asset)) : preparePhoto(asset);
+}
+
+/**
+ * Ce que dit un envoi de média qui a échoué.
+ *
+ * Trois provenances, trois traitements, et aucune ne se masque : un refus métier (format non géré,
+ * note trop longue) porte sa propre clé i18n ; une panne technique garde le message de l'API ; le
+ * refus d'une permission — micro, galerie — précède tout envoi et arrive donc à la main, hors
+ * mutation.
+ *
+ * Ici plutôt que dans un écran : le fil de la messagerie et le débrief du coach en ont besoin tous
+ * les deux, et une seconde copie divergerait au premier cas d'erreur ajouté.
+ */
+export function mediaErrorMessage(
+  error: unknown,
+  manualKey: string | null,
+  t: TFunction,
+): string | null {
+  if (manualKey != null) return t(manualKey);
+  if (error == null) return null;
+  if (error instanceof MediaRejectedError) return t(error.reasonKey, error.params);
+  return apiErrorMessage(error) ?? t("messages.media.uploadError");
 }

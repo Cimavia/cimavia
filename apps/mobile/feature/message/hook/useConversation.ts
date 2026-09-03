@@ -41,11 +41,15 @@ export function useConversations() {
  * Ouvre (get-or-create) le fil du coach avec UN athlète désigné. Idempotent → sûr comme query.
  * `staleTime` infini : c'est une résolution stable, le sondage vit sur les messages.
  */
-export function useConversationWith(athleteId: string) {
+export function useConversationWith(athleteId: string | null) {
   return useQuery<ConversationDto>({
-    queryKey: messageKeys.conversationWith(athleteId),
+    queryKey: messageKeys.conversationWith(athleteId ?? ""),
     // Symétrique de `useMyConversation` : cibler un athlète, c'est agir en coach.
-    queryFn: () => messageApi.openConversation({ athleteId }, "coach"),
+    queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }, "coach"),
+    // `null` tant que l'écran n'a pas chargé de quoi désigner l'athlète : un get-or-create sans
+    // cible créerait un fil au hasard. Le hook est appelé inconditionnellement (règle des hooks),
+    // c'est `enabled` qui décide s'il part.
+    enabled: athleteId != null,
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
@@ -83,11 +87,19 @@ export function useMessages(conversationId: string | undefined) {
   return query;
 }
 
-export function useSendMessage(conversationId: string) {
+/**
+ * `attachment` : ce sur quoi le message porte (« à propos de… »).
+ *
+ * Il vit ICI et non dans le `Composer` : la barre d'envoi ne sait rien du contexte où on l'a
+ * posée, et c'est très bien — c'est l'écran qui répond depuis un débrief, pas elle. Sans ce
+ * paramètre, une réponse écrite depuis le débrief partirait nue dans le fil.
+ */
+export function useSendMessage(conversationId: string, attachment?: { sessionFeedbackId: string }) {
   const queryClient = useQueryClient();
   const as = useExercisedCapability();
   return useMutation({
-    mutationFn: (input: SendMessageInput) => messageApi.sendMessage(conversationId, input, as),
+    mutationFn: (input: SendMessageInput) =>
+      messageApi.sendMessage(conversationId, { ...input, ...attachment }, as),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
       queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
