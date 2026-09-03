@@ -1266,6 +1266,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Observabilité front ([#183](https://github.com/Cimavia/cimavia/issues/183))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| O-1 | **Sentry ne couvre que l'API**, malgré trois documents qui annoncent « les 3 couches » (`CLAUDE.md`, `architecture-choice.md`, `cahier-des-charges-mvp.md` — seul `CONTRIBUTING.md` est exact). Le web et le mobile n'ont ni SDK ni Error Boundary : un crash de rendu donne un écran blanc côté web, ferme l'app côté mobile, et ne laisse aucune trace. Les erreurs *maîtrisées*, elles, sont bien traitées (`useMutationToast`) — c'est le filet sous les **non maîtrisées** qui manque. | 🟡 | [#183](https://github.com/Cimavia/cimavia/issues/183) *(web [#181](https://github.com/Cimavia/cimavia/issues/181) · mobile [#182](https://github.com/Cimavia/cimavia/issues/182))* |
+
+> **Tranché en #183** (trois projets Sentry, pas un) : `cimavia-api`, `cimavia-web`,
+> `cimavia-mobile`. Releases et sourcemaps s'attachent **par projet** — mêler un bundle Vite et un
+> bundle Hermes dans un seul projet rendrait l'unminification hasardeuse. Le quota du plan gratuit
+> est de toute façon partagé par l'organisation : séparer ne coûte rien et sépare les alertes.
+
+> **Tranché en #183** (`sendDefaultPii: false` côté front, plus `setUser({ id })`) : sans `setUser`,
+> une erreur est anonyme et l'on ne distingue pas *un* utilisateur qui boucle deux cents fois de
+> *deux cents* utilisateurs touchés — or c'est ce chiffre qui décide si l'on corrige le soir même.
+> Avec l'`id` seul, Sentry ne détient qu'un pseudonyme ; c'est en base, chez nous, qu'il redevient
+> une personne. L'**API reste en `sendDefaultPii: true`** et envoie IP et en-têtes : l'asymétrie est
+> assumée plutôt que corrigée en passant, changer ce réglage modifierait ce qu'on capture sur une
+> couche qui marche, sans qu'aucun incident ne le demande.
+
+> **Tranché en #183** (pas de Session Replay, `tracesSampleRate: 0`) : le Replay filmerait l'écran
+> d'un coach, donc des données d'athlètes, pour un gain que l'écran de repli et la stack couvrent
+> déjà. Le quota de performance, lui, se vide bien plus vite depuis un navigateur ou un téléphone
+> que depuis l'API, et aucune question de perf front n'est ouverte — à monter à `0.1` le jour où il
+> y en a une.
+
+> **Tranché en #183** (le DSN front n'est pas un secret) : il part dans le bundle web et dans le
+> binaire mobile, n'importe qui peut le lire. Il se range donc en **variable de dépôt** (`vars.`),
+> comme `DEV_PUBLIC_API_URL`. Le réflexe inverse donnerait l'illusion d'une protection qui n'existe
+> pas, et ferait passer une fuite du DSN pour un incident. Le seul vrai secret du chantier est le
+> `SENTRY_AUTH_TOKEN` d'upload des sourcemaps, qui n'est jamais embarqué.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
