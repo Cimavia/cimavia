@@ -7,6 +7,7 @@ import { IoBarbellOutline, IoPersonOutline, IoSettingsOutline } from "react-icon
 import { NotificationBell, useUnreadByCapability } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
+import { useCounterparts } from "@/shared/hook/useCounterparts";
 import { authClient } from "@/shared/lib/auth";
 import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
 
@@ -24,17 +25,19 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
   const { t } = useTranslation();
   const { isCoach, isAthlete } = useCapabilities();
   const { data: unread } = useUnreadByCapability();
+  const counterparts = useCounterparts();
   if (!isCoach || !isAthlete) return null;
 
   return (
     <div className="flex gap-cmv-xs rounded-cmv-md bg-cmv-surface p-cmv-xs" role="tablist">
       {SPACES.map(({ space, icon: Icon }) => {
         const current = space === active;
+        const landing = landingPath(space, counterparts);
         return (
           <Link
             key={space}
-            to={landingPath(space)}
-            search={searchFor(landingPath(space), space)}
+            to={landing}
+            search={searchFor(landing, space)}
             role="tab"
             aria-selected={current}
             className={
@@ -101,7 +104,8 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
    * temps d'un aller-retour.
    */
   const activeSpace = useActiveSpace();
-  const items = itemsOfSpace(activeSpace);
+  const counterparts = useCounterparts();
+  const items = itemsOfSpace(activeSpace, counterparts);
 
   async function onLogout() {
     await authClient.signOut();

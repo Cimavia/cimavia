@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import type { CapabilityName, CounterpartsDto } from "@cmv/shared";
 import type { IconType } from "react-icons";
 import {
   IoBarbellOutline,
@@ -22,7 +22,18 @@ import {
  *
  * Chaque entrée porte la capacité qui la rend visible — la MÊME que celle exigée par la route
  * correspondante (`CmvRoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà
- * l'expérience : une nav qui propose ce que la route refuse, ou qui cache ce qui est accessible.
+ * l'expérience : une nav qui propose ce que la route refuse.
+ *
+ * **La capacité ne suffit plus depuis #198** : la messagerie dépend AUSSI d'une relation. Un compte
+ * qui se coache seul porte les deux capacités et n'a pourtant personne à qui écrire — l'entrée
+ * s'affichait, et menait à une liste dont la seule ligne était lui-même. La visibilité se lit donc
+ * en deux temps : la capacité dit à quel espace une entrée appartient, `requiresCounterpart` dit
+ * qu'elle n'a d'objet qu'avec quelqu'un en face.
+ *
+ * La moitié de l'invariant qui SAUTE est donc « la nav ne cache rien d'accessible » : `/messages`
+ * reste atteignable par son URL quand la nav ne la propose plus, et c'est voulu — la garde est
+ * l'API, jamais la nav. Celle qui tient toujours, et qui compte, est l'inverse : la nav ne propose
+ * jamais ce que la route refuse.
  *
  * Pas d'entrée « Athlètes » : la liste vit dans le tableau de bord depuis #113.
  */
@@ -31,6 +42,11 @@ export type NavItem = {
   labelKey: string;
   icon: IconType;
   capability: CapabilityName;
+  /**
+   * L'entrée n'a d'objet qu'avec un interlocuteur DANS CET ESPACE. Absent = elle ne dépend que de
+   * la capacité, comme toutes les autres.
+   */
+  requiresCounterpart?: true;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -40,7 +56,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: "/library", labelKey: "nav.library", icon: IoLibraryOutline, capability: "coach" },
   { to: "/plans", labelKey: "nav.plans", icon: IoCalendarOutline, capability: "coach" },
   { to: "/feedbacks", labelKey: "nav.feedbacks", icon: IoCheckboxOutline, capability: "coach" },
-  { to: "/messages", labelKey: "nav.messages", icon: IoChatbubbleOutline, capability: "coach" },
+  {
+    to: "/messages",
+    labelKey: "nav.messages",
+    icon: IoChatbubbleOutline,
+    capability: "coach",
+    requiresCounterpart: true,
+  },
   { to: "/invoices", labelKey: "nav.invoices", icon: IoReceiptOutline, capability: "coach" },
   {
     to: "/reminders",
@@ -50,7 +72,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { to: "/planning", labelKey: "nav.planning", icon: IoCalendarOutline, capability: "athlete" },
   { to: "/sessions", labelKey: "nav.sessions", icon: IoBarbellOutline, capability: "athlete" },
-  { to: "/messages", labelKey: "nav.myMessages", icon: IoChatbubbleOutline, capability: "athlete" },
+  {
+    to: "/messages",
+    labelKey: "nav.myMessages",
+    icon: IoChatbubbleOutline,
+    capability: "athlete",
+    requiresCounterpart: true,
+  },
   { to: "/invoices", labelKey: "nav.myInvoices", icon: IoReceiptOutline, capability: "athlete" },
   { to: "/my-coach", labelKey: "nav.myCoach", icon: IoPersonOutline, capability: "athlete" },
 ];
@@ -61,17 +89,41 @@ export const NAV_ITEMS: readonly NavItem[] = [
  */
 export const SHARED_ROUTES = new Set(["/invoices", "/messages"]);
 
+/**
+ * Ce qu'on répond tant que les contreparties ne sont pas chargées : « il y en a des deux côtés ».
+ *
+ * Permissif, et il DOIT l'être : « pas encore su » ne vaut jamais « absent ». Une entrée qui
+ * clignote à l'apparition se remarque à peine ; une entrée absente le temps d'un aller-retour
+ * envoie ailleurs quiconque avait `/messages` en signet.
+ */
+export const UNKNOWN_COUNTERPARTS: CounterpartsDto = { asCoach: true, asAthlete: true };
+
+/** Y a-t-il quelqu'un en face DANS cet espace ? */
+function hasCounterpart(space: CapabilityName, counterparts: CounterpartsDto): boolean {
+  return space === "coach" ? counterparts.asCoach : counterparts.asAthlete;
+}
+
 /** Les entrées d'un espace, dans l'ordre de la table. */
-export function itemsOfSpace(space: CapabilityName): readonly NavItem[] {
-  return NAV_ITEMS.filter((item) => item.capability === space);
+export function itemsOfSpace(
+  space: CapabilityName,
+  counterparts: CounterpartsDto,
+): readonly NavItem[] {
+  return NAV_ITEMS.filter(
+    (item) =>
+      item.capability === space &&
+      (item.requiresCounterpart !== true || hasCounterpart(space, counterparts)),
+  );
 }
 
 /**
  * Où mène le basculeur : la PREMIÈRE entrée de l'espace visé. Dérivé de la table plutôt que codé
  * en dur — le jour où une entrée passe en tête, la destination suit sans qu'on y touche.
+ *
+ * Les contreparties lui sont passées pour la même raison : le jour où l'entrée de tête devient
+ * conditionnelle, le basculeur ne doit pas continuer d'y mener.
  */
-export function landingPath(space: CapabilityName): string {
-  return itemsOfSpace(space)[0]?.to ?? "/";
+export function landingPath(space: CapabilityName, counterparts: CounterpartsDto): string {
+  return itemsOfSpace(space, counterparts)[0]?.to ?? "/";
 }
 
 /**

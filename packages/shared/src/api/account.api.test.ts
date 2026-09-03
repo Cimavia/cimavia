@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { athleteKeys, coachKeys, createAccountApi, invitationKeys } from "./account.api";
+import {
+  athleteKeys,
+  coachKeys,
+  counterpartKeys,
+  createAccountApi,
+  invitationKeys,
+} from "./account.api";
 import type { ApiClient } from "./client";
 
 // Client factice : on n'exerce pas le réseau ici (c'est le rôle des e2e), mais le CONTRAT —
@@ -81,14 +87,30 @@ describe("createAccountApi — moitié athlète", () => {
   });
 });
 
+describe("createAccountApi — les deux côtés à la fois", () => {
+  // Un GET nu, sans paramètre de titre : la route ne demande à choisir aucun espace, c'est ce qui
+  // permet à la navigation de l'appeler avant de savoir lequel elle affiche (#198).
+  it("demande ses contreparties sans exercer de capacité", async () => {
+    const { api, calls } = spyClient();
+    await createAccountApi(api).myCounterparts();
+
+    expect(calls).toEqual([{ method: "GET", path: "/me/counterparts", body: undefined }]);
+  });
+});
+
 describe("clés de cache", () => {
   /**
    * Trois racines DISTINCTES, et c'est volontaire : créer une invitation ne doit pas périmer la
    * fiche d'un athlète, ni rejoindre un coach faire retomber la liste d'athlètes d'un autre compte.
    * Une racine commune rendrait chaque invalidation plus large que son effet.
    */
-  it("ne partagent pas de racine entre les trois ressources", () => {
-    const roots = [athleteKeys.all[0], invitationKeys.all[0], coachKeys.all[0]];
+  it("ne partagent pas de racine entre les quatre ressources", () => {
+    const roots = [
+      athleteKeys.all[0],
+      invitationKeys.all[0],
+      coachKeys.all[0],
+      counterpartKeys.all[0],
+    ];
     expect(new Set(roots).size).toBe(roots.length);
   });
 
@@ -97,6 +119,7 @@ describe("clés de cache", () => {
     expect(athleteKeys.sheet("ath_1")[0]).toBe(athleteKeys.all[0]);
     expect(invitationKeys.list()[0]).toBe(invitationKeys.all[0]);
     expect(coachKeys.mine()[0]).toBe(coachKeys.all[0]);
+    expect(counterpartKeys.mine()[0]).toBe(counterpartKeys.all[0]);
   });
 
   // La fiche est scopée par athlète : deux athlètes ne doivent jamais partager une entrée de cache.

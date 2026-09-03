@@ -1,5 +1,11 @@
 export type { AccountApi } from "./api/account.api";
-export { athleteKeys, coachKeys, createAccountApi, invitationKeys } from "./api/account.api";
+export {
+  athleteKeys,
+  coachKeys,
+  counterpartKeys,
+  createAccountApi,
+  invitationKeys,
+} from "./api/account.api";
 export { AS_CAPABILITY_PARAM, asKey, asQuery } from "./api/as-capability";
 export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";

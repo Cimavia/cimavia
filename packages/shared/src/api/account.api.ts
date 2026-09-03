@@ -1,5 +1,5 @@
 import type { AthleteSheetDto, UpdateAthleteSheetInput } from "../dto/athlete-sheet.schema";
-import type { CoachAthleteDto } from "../dto/coach-athlete.schema";
+import type { CoachAthleteDto, CounterpartsDto } from "../dto/coach-athlete.schema";
 import type {
   AcceptInvitationInput,
   CreateInvitationInput,
@@ -44,6 +44,16 @@ export const coachKeys = {
   mine: () => ["coach", "mine"] as const,
 };
 
+/**
+ * Racine à part, et non une clé sous `athletes` ou `coach` : les contreparties se lisent par un
+ * compte qui n'a peut-être ni l'une ni l'autre de ces deux listes. Les ranger sous une racine
+ * gardée par capacité ferait périmer l'une avec l'autre pour rien.
+ */
+export const counterpartKeys = {
+  all: ["counterparts"] as const,
+  mine: () => ["counterparts", "mine"] as const,
+};
+
 export type AccountApi = {
   // ── Côté coach ─────────────────────────────────────────────────────────────
   /** Les athlètes du coach courant (relations `ACTIVE`). */
@@ -62,6 +72,16 @@ export type AccountApi = {
   myCoach: () => Promise<CoachAthleteDto | null>;
   /** Rejoint un coach avec le code qu'il a communiqué. 409 si l'athlète est déjà lié. */
   acceptInvitation: (input: AcceptInvitationInput) => Promise<CoachAthleteDto>;
+
+  // ── Les deux côtés à la fois ───────────────────────────────────────────────
+  /**
+   * A-t-on quelqu'un en face, de chaque côté ? (#198)
+   *
+   * La SEULE route de ce module qui n'exige aucune capacité, et c'est sa raison d'être : la
+   * navigation la lit avant de savoir à quel titre elle s'affiche. Les deux moitiés ci-dessus ne
+   * peuvent pas répondre — un compte mono-capacité prendrait un 403 sur l'une des deux.
+   */
+  myCounterparts: () => Promise<CounterpartsDto>;
 };
 
 export function createAccountApi(api: ApiClient): AccountApi {
@@ -75,5 +95,7 @@ export function createAccountApi(api: ApiClient): AccountApi {
 
     myCoach: () => api.get<CoachAthleteDto | null>("/me/coach"),
     acceptInvitation: (input) => api.post<CoachAthleteDto>("/invitations/accept", input),
+
+    myCounterparts: () => api.get<CounterpartsDto>("/me/counterparts"),
   };
 }
