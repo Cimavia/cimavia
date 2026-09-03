@@ -43,6 +43,7 @@ export {
   coachAthleteStatusSchema,
   counterpartsDtoSchema,
   SELF_RELATION_ID,
+  UNKNOWN_COUNTERPARTS,
 } from "./dto/coach-athlete.schema";
 export type {
   Adjustment,

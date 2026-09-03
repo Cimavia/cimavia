@@ -89,15 +89,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
  */
 export const SHARED_ROUTES = new Set(["/invoices", "/messages"]);
 
-/**
- * Ce qu'on répond tant que les contreparties ne sont pas chargées : « il y en a des deux côtés ».
- *
- * Permissif, et il DOIT l'être : « pas encore su » ne vaut jamais « absent ». Une entrée qui
- * clignote à l'apparition se remarque à peine ; une entrée absente le temps d'un aller-retour
- * envoie ailleurs quiconque avait `/messages` en signet.
- */
-export const UNKNOWN_COUNTERPARTS: CounterpartsDto = { asCoach: true, asAthlete: true };
-
 /** Y a-t-il quelqu'un en face DANS cet espace ? */
 function hasCounterpart(space: CapabilityName, counterparts: CounterpartsDto): boolean {
   return space === "coach" ? counterparts.asCoach : counterparts.asAthlete;

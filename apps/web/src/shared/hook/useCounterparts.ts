@@ -1,7 +1,11 @@
-import { type CounterpartsDto, counterpartKeys, createAccountApi } from "@cmv/shared";
+import {
+  type CounterpartsDto,
+  counterpartKeys,
+  createAccountApi,
+  UNKNOWN_COUNTERPARTS,
+} from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/shared/lib/api";
-import { UNKNOWN_COUNTERPARTS } from "@/shared/lib/nav";
 
 // Dans `shared/` et non dans une feature : la navigation des DEUX espaces en dépend, et aucune des
 // deux moitiés de la relation (`feature/athlete`, `feature/coach`) ne la possède plus que l'autre.

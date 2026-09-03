@@ -71,3 +71,16 @@ export const counterpartsDtoSchema = z.object({
 });
 
 export type CounterpartsDto = z.infer<typeof counterpartsDtoSchema>;
+
+/**
+ * Ce que rend un client tant que la réponse n'est pas là : « il y en a des deux côtés ».
+ *
+ * Permissif, et il DOIT l'être : « pas encore su » ne vaut jamais « absent ». Une entrée de nav qui
+ * apparaît après coup se remarque à peine ; une entrée absente le temps d'un aller-retour envoie
+ * ailleurs quiconque avait la messagerie en tête.
+ *
+ * Dans `@cmv/shared` et non dans chaque client : c'est le même arbitrage des deux côtés, et deux
+ * copies divergeraient sans que rien ne devienne rouge — l'une des deux se mettrait à cacher au
+ * démarrage ce que l'autre montre.
+ */
+export const UNKNOWN_COUNTERPARTS: CounterpartsDto = { asCoach: true, asAthlete: true };

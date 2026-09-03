@@ -1,13 +1,6 @@
-import type { CounterpartsDto } from "@cmv/shared";
+import { type CounterpartsDto, UNKNOWN_COUNTERPARTS } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
-import {
-  itemsOfSpace,
-  landingPath,
-  NAV_ITEMS,
-  SHARED_ROUTES,
-  spaceOfPath,
-  UNKNOWN_COUNTERPARTS,
-} from "./nav";
+import { itemsOfSpace, landingPath, NAV_ITEMS, SHARED_ROUTES, spaceOfPath } from "./nav";
 
 const BOTH_SIDES: CounterpartsDto = { asCoach: true, asAthlete: true };
 const NO_ONE: CounterpartsDto = { asCoach: false, asAthlete: false };

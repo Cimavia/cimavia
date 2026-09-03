@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import { type CapabilityName, type CounterpartsDto, UNKNOWN_COUNTERPARTS } from "@cmv/shared";
 import type { Href } from "expo-router";
 
 /**
@@ -30,6 +30,16 @@ export type TabDefinition = {
     | "person-outline";
   /** `null` = servi aux DEUX capacités (le compte, les notifications). */
   capability: CapabilityName | null;
+  /**
+   * L'onglet n'a d'objet qu'avec un interlocuteur. Absent = il ne dépend que de la capacité, comme
+   * tous les autres.
+   *
+   * Contrairement au web, la condition porte sur le COMPTE et non sur un espace : l'onglet est
+   * unique et sert les deux titres, c'est l'écran dessous qui branche (`MessagesScreen`). Il reste
+   * donc dès qu'il y a quelqu'un d'UN côté — le compte à double capacité qui coache sans être
+   * coaché le garde, et bascule sur « aucun coach » s'il flippe le sélecteur.
+   */
+  requiresCounterpart?: true;
 };
 
 export const TABS: readonly TabDefinition[] = [
@@ -40,7 +50,13 @@ export const TABS: readonly TabDefinition[] = [
   { name: "sessions", labelKey: "nav.sessions", icon: "barbell-outline", capability: "athlete" },
   // Servi aux DEUX : `Conversation`/`Message` sont scopés symétriquement, et l'écran branche ce
   // que chacun y voit — N fils pour le coach, un seul pour l'athlète (#34).
-  { name: "messages", labelKey: "nav.messages", icon: "chatbubble-outline", capability: null },
+  {
+    name: "messages",
+    labelKey: "nav.messages",
+    icon: "chatbubble-outline",
+    capability: null,
+    requiresCounterpart: true,
+  },
   // Servi aux DEUX : `GET /invoices` est une seule ressource scopée par le tenant, et l'écran
   // branche ce qu'on peut en faire (#32).
   { name: "invoices", labelKey: "nav.invoices", icon: "receipt-outline", capability: null },
@@ -62,9 +78,24 @@ function isGranted(tab: TabDefinition, capabilities: CapabilityFlags): boolean {
   return tab.capability === "coach" ? capabilities.isCoach : capabilities.isAthlete;
 }
 
+/**
+ * L'onglet a-t-il un interlocuteur ? Vrai d'un côté suffit — l'onglet est unique et le sélecteur
+ * de l'écran mène à l'autre espace.
+ *
+ * Un compte ne peut pas garder d'athlètes après avoir retiré `isCoach` (#13 refuse le retrait tant
+ * qu'il en reste) : `asCoach` implique donc la capacité, et il n'y a rien à croiser ici.
+ */
+function hasCounterpart(tab: TabDefinition, counterparts: CounterpartsDto): boolean {
+  if (tab.requiresCounterpart !== true) return true;
+  return counterparts.asCoach || counterparts.asAthlete;
+}
+
 /** Ce qu'un compte voit, dans l'ordre de la table. */
-export function visibleTabs(capabilities: CapabilityFlags): readonly TabDefinition[] {
-  return TABS.filter((tab) => isGranted(tab, capabilities));
+export function visibleTabs(
+  capabilities: CapabilityFlags,
+  counterparts: CounterpartsDto,
+): readonly TabDefinition[] {
+  return TABS.filter((tab) => isGranted(tab, capabilities) && hasCounterpart(tab, counterparts));
 }
 
 /**
@@ -73,9 +104,18 @@ export function visibleTabs(capabilities: CapabilityFlags): readonly TabDefiniti
  * Dérivé de la table plutôt que codé en dur, et c'est le point : le jour où un onglet coach est
  * ajouté en tête, l'entrée le suit sans qu'on y touche. `null` = aucun onglet, ce qui ne peut
  * arriver qu'à un compte sans capacité connue (fail closed de `capabilitiesOf`).
+ *
+ * `counterparts` a une valeur par défaut parce que les écrans d'authentification appellent cette
+ * fonction AVANT d'avoir pu demander quoi que ce soit — et « pas demandé » se répond comme « pas
+ * encore su ». Sans conséquence tant qu'aucun onglet conditionnel n'est en tête de table :
+ * `dashboard` et `planning` y sont, et aucun des deux ne dépend d'un interlocuteur. Le jour où
+ * l'un d'eux bougerait, ces appels-là devraient passer le vrai signal.
  */
-export function landingTab(capabilities: CapabilityFlags): Href | null {
-  const first = visibleTabs(capabilities)[0];
+export function landingTab(
+  capabilities: CapabilityFlags,
+  counterparts: CounterpartsDto = UNKNOWN_COUNTERPARTS,
+): Href | null {
+  const first = visibleTabs(capabilities, counterparts)[0];
   return first == null ? null : (`/${first.name}` as Href);
 }
 
@@ -91,10 +131,18 @@ export function landingTab(capabilities: CapabilityFlags): Href | null {
  * Elle couvre aussi ce qu'aucune barre d'onglets ne protège : un lien profond, une notification
  * ouverte, un état de navigation restauré au redémarrage.
  */
-export function redirectForPath(pathname: string, capabilities: CapabilityFlags): Href | null {
+export function redirectForPath(
+  pathname: string,
+  capabilities: CapabilityFlags,
+  counterparts: CounterpartsDto,
+): Href | null {
   const current = TABS.find(
     (tab) => pathname === `/${tab.name}` || pathname.startsWith(`/${tab.name}/`),
   );
+  // Sur la CAPACITÉ seulement, jamais sur la contrepartie : rester sur un onglet Messages devenu
+  // sans objet montre un état vide qui s'explique, là où une redirection déplacerait l'écran sous
+  // les doigts de quelqu'un dont le dernier athlète vient de partir. La capacité, elle, donne un
+  // 403 — il n'y a rien à y laisser voir.
   if (current == null || isGranted(current, capabilities)) return null;
-  return landingTab(capabilities);
+  return landingTab(capabilities, counterparts);
 }
