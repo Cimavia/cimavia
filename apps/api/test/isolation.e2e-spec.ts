@@ -5236,11 +5236,17 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect((await solo.get("/me/notifications/unread-count")).body.count).toBe(0);
   });
 
-  // Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
-  // comportement plutôt que de le supposer acquis.
+  /**
+   * Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
+   * comportement plutôt que de le supposer acquis.
+   *
+   * Deux refus, deux codes (#198). Se viser soi-même est un état IMPOSSIBLE, verrouillé par le
+   * CHECK `coach_athlete_not_self` : 409, comme le refus d'auto-relation de #11. N'avoir aucun
+   * coach est une relation absente, pas impossible : 400, inchangé.
+   */
   it("n'ouvre pas de fil de messagerie avec soi-même", async () => {
     expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
-      400,
+      409,
     );
     expect((await solo.post("/conversations?as=athlete").send({})).status).toBe(400);
   });

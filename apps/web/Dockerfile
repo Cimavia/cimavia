@@ -3,14 +3,22 @@
 # Image du frontend web cimavia : build Vite statique servi par nginx.
 #
 # Différence ASSUMÉE avec l'image API : le web est construit PAR ENVIRONNEMENT, pas une fois pour
-# tous. `VITE_API_URL` est lu via `import.meta.env` et figé dans le bundle au moment du `vite
-# build` (c'est la nature d'un SPA statique — aucune variable n'existe plus à l'exécution). Il
-# faut donc un build par cible : `--build-arg VITE_API_URL=https://api.staging.<domaine>` pour le
-# NAS, un autre pour la prod. L'API, elle, reste une image unique pilotée par ses variables
-# d'environnement au démarrage.
+# tous. Les variables `VITE_*` sont lues via `import.meta.env` et figées dans le bundle au moment
+# du `vite build` (c'est la nature d'un SPA statique — aucune variable n'existe plus à
+# l'exécution). Il faut donc un build par cible : `--build-arg VITE_API_URL=https://api.staging.
+# <domaine>` pour le NAS, un autre pour la prod. L'API, elle, reste une image unique pilotée par
+# ses variables d'environnement au démarrage.
 #
 # Build depuis la RACINE du monorepo (le contexte doit voir pnpm-lock.yaml et packages/) :
-#   docker build -f apps/web/Dockerfile --build-arg VITE_API_URL=https://api.staging.example .
+#   docker build -f apps/web/Dockerfile \
+#     --build-arg VITE_API_URL=https://api.staging.example \
+#     --build-arg VITE_SENTRY_DSN=https://…@…ingest.sentry.io/… \
+#     --build-arg VITE_APP_ENV=staging \
+#     --build-arg SENTRY_ORG=… --build-arg SENTRY_PROJECT=cimavia-web \
+#     --build-arg SENTRY_RELEASE=$(git rev-parse HEAD) \
+#     --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN .
+#
+# Sans le secret, le build aboutit quand même : les sourcemaps ne sont simplement pas publiées.
 
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -47,7 +55,37 @@ COPY --from=pruner /app/out/full/ .
 # toujours passer --build-arg (sinon le SPA appellerait localhost:3000 depuis le navigateur).
 ARG VITE_API_URL=http://localhost:3000
 ENV VITE_API_URL=$VITE_API_URL
-RUN pnpm --filter @cmv/web build
+
+# Sentry. Le DSN suit exactement le même chemin que VITE_API_URL — figé dans le bundle, donc un
+# build par tier. Ce n'est PAS un secret : il part chez tous les visiteurs, n'importe qui peut le
+# lire. Vide, le SDK reste inerte et l'app démarre pareil.
+# VITE_APP_ENV est le TIER de déploiement, pas le mode de build : `import.meta.env.MODE` vaut
+# `production` sur le NAS comme en prod et taguerait les deux pareil.
+ARG VITE_SENTRY_DSN=
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
+ARG VITE_APP_ENV=development
+ENV VITE_APP_ENV=$VITE_APP_ENV
+
+# Téléversement des sourcemaps. L'organisation, le projet et la release ne sont pas des secrets ;
+# le JETON, lui, en est un — d'où le montage BuildKit et non un ARG. Un ARG serait gravé dans
+# `docker history` de l'image publiée sur GHCR : on publierait le seul vrai secret du chantier.
+# La release est passée explicitement parce que `.git` est exclu du contexte (.dockerignore) : la
+# détection automatique du plugin n'a rien à lire ici.
+ARG SENTRY_ORG=
+ENV SENTRY_ORG=$SENTRY_ORG
+ARG SENTRY_PROJECT=
+ENV SENTRY_PROJECT=$SENTRY_PROJECT
+ARG SENTRY_RELEASE=
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
+
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+    pnpm --filter @cmv/web build
+
+# Les .map partent chez Sentry, jamais chez le visiteur : `COPY dist` ci-dessous prend TOUT le
+# dossier, on publierait sinon le source de l'app à la racine du site (5 Mo de code lisible).
+# Suppression INCONDITIONNELLE — elle doit valoir aussi pour un build sans jeton, où le plugin
+# n'a rien téléversé mais où Vite a quand même écrit les fichiers.
+RUN find /app/apps/web/dist -name "*.map" -delete
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 3 — runtime (nginx)
