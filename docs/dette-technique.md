@@ -21,12 +21,13 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. **Douze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Quatorze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
-**W-1** et **Q-6**, dont le déclencheur est nommé mais dont rien n'est à préparer avant qu'il survienne ;
-et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une issue n'aurait rien à suivre
-que le fait de s'en souvenir. Les onze premières sont volontaires, la dernière non.
+**W-1**, **Q-6**, **MI-1** et **MI-2**, dont le déclencheur est nommé mais dont rien n'est à préparer
+avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une issue
+n'aurait rien à suivre que le fait de s'en souvenir. Les treize premières sont volontaires, la
+dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -1296,6 +1297,59 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > comme `DEV_PUBLIC_API_URL`. Le réflexe inverse donnerait l'illusion d'une protection qui n'existe
 > pas, et ferait passer une fuite du DSN pour un incident. Le seul vrai secret du chantier est le
 > `SENTRY_AUTH_TOKEN` d'upload des sourcemaps, qui n'est jamais embarqué.
+
+---
+
+## Post-MVP — Messagerie sans interlocuteur ([#198](https://github.com/Cimavia/cimavia/issues/198))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| MI-1 | **Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint** : `GET /me/counterparts` n'est pas sondé, et l'acceptation d'une invitation se fait sur l'appareil de l'ATHLÈTE — seul son cache est invalidé (`useAcceptInvitation`). Côté coach, l'entrée de messagerie apparaît au prochain refetch (retour au premier plan, navigation). Sonder pour un événement qui survient une fois par athlète coûterait plus cher que l'attente. | 🟢 | — *(déclencheur : un retour beta disant que l'attente se voit)* |
+| MI-2 | **`landingTab` a une valeur par défaut pour les contreparties** : `LoginScreen`, `RegisterScreen` et `CmvCapabilityGate` l'appellent avant qu'une requête ait pu partir. Sans conséquence tant qu'aucun onglet conditionnel n'est en tête de table — `dashboard` et `planning` y sont, et ni l'un ni l'autre ne dépend d'un interlocuteur. | 🟢 | — *(déclencheur : un onglet conditionnel passe en tête ; le commentaire de `tabs.ts` le dit)* |
+
+> **Tranché en #198** (« quelqu'un en face » est une question sur le SCOPE, pas une lecture scopée) :
+> la nav doit savoir s'il y a un interlocuteur **avant** de savoir à quel titre elle s'affiche. Les
+> deux routes qui portent déjà l'information — `GET /athletes` et `GET /me/coach` — sont gardées par
+> capacité : les interroger donnerait un 403 à un compte mono-capacité sur chaque écran, exactement
+> la dérive que `CmvRoleGate` existe pour éviter. D'où `GET /me/counterparts`, **sans capacité
+> exigée**, et un `CounterpartService` sur le client Prisma de BASE, jumeau de `CapabilityService`.
+> Ce n'est pas une capacité : `isCoach` dit ce qu'un compte a le droit de faire, `asCoach` s'il a
+> quelqu'un à qui le faire — un coach sans athlète porte l'une sans l'autre.
+
+> **Tranché en #198** (« pas encore su » ne vaut jamais « absent ») : `UNKNOWN_COUNTERPARTS`
+> — `{ asCoach: true, asAthlete: true }` — est ce que rendent les deux clients tant que la réponse
+> n'est pas là. Le pari est délibérément permissif : une entrée qui apparaît après coup se remarque
+> à peine, une entrée absente le temps d'un aller-retour envoie ailleurs quiconque visait la
+> messagerie. La constante vit dans `@cmv/shared` et non dans chaque client : deux copies
+> divergeraient sans que rien ne devienne rouge — l'une se mettrait à cacher au démarrage ce que
+> l'autre montre.
+
+> **Tranché en #198** (web par ESPACE, mobile par COMPTE — et c'est voulu) : le web a une entrée de
+> nav par espace, chacune conditionnée par son propre côté du signal ; le mobile n'a qu'UN onglet
+> Messages, servi aux deux titres, avec le sélecteur d'espace **à l'intérieur** de l'écran. Le
+> conditionner par titre exercé le ferait apparaître et disparaître au gré du sélecteur qu'il
+> contient. Il reste donc dès qu'il y a quelqu'un d'un côté, et l'écran dessous montre « aucun
+> coach » si on bascule. Corollaire assumé : sur mobile, `href: null` rend aussi la route
+> **inatteignable**, là où le web laisse `/messages` joignable par son URL. La garde est l'API dans
+> les deux cas ; sur mobile il n'y a pas d'URL à taper, et rien à voir au bout.
+
+> **Tranché en #198** (se viser soi-même est un état IMPOSSIBLE, pas un athlète inconnu) :
+> `resolvePair` rendait 400 « Athlète inconnu » à un coach qui ouvrait un fil avec lui-même — le
+> filtre tenant ajoute `coachId = moi`, donc chercher `athleteId = moi` ne trouve rien et le refus
+> retombait sur le cas générique. C'est faux : l'athlète est parfaitement connu, c'est soi, et le
+> CHECK `coach_athlete_not_self` (#11) interdit la relation pour toujours. Un test explicite, posé
+> **avant** la lecture de la relation, rend donc 409 — le même code que le refus d'auto-relation, et
+> pour la même raison. Les deux autres refus gardent leur 400 : viser l'athlète d'un tiers, et
+> l'athlète sans coach — une relation **absente**, pas impossible, qui apparaîtra le jour où il
+> rejoint quelqu'un.
+
+> **Corrige le journal de #14** (la messagerie n'était fermée qu'à MOITIÉ) : les deux encadrés
+> « Tranché en #14 » affirment que la messagerie est « fermée en auto-coaching — aucun fil avec
+> soi-même ne peut exister » et qu'elle l'était « **déjà** ». C'était vrai de l'API, et faux de
+> l'écran : `GET /athletes` sert son entrée synthétique `isSelf` à la liste de fils, qui l'affichait
+> en tête. Le compte se voyait comme son propre interlocuteur, et le toucher menait au refus. #198
+> écarte l'entrée dans les deux listes de fils — **là et nulle part ailleurs** : elle reste sur
+> `GET /athletes`, dont le tableau de bord et le constructeur de cycle dépendent.
 
 ---
 
