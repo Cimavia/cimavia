@@ -9,6 +9,7 @@ import { Stack } from "expo-router";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ExercisedCapabilityProvider } from "@/shared/hook/useExercisedCapability";
+import { useSentryUser } from "@/shared/hook/useSentryUser";
 import { QueryProvider } from "@/shared/lib/query";
 import { navigationTheme } from "@/shared/theme/navigation";
 
@@ -24,6 +25,10 @@ import { navigationTheme } from "@/shared/theme/navigation";
 export { CmvCrashScreen as ErrorBoundary } from "@/shared/component/CmvCrashScreen";
 
 export default function RootLayout() {
+  // Le seul composant monté sur TOUTES les routes, écrans d'authentification compris — donc le
+  // seul endroit d'où l'identité Sentry suit vraiment la session, ici comme côté web.
+  useSentryUser();
+
   return (
     <QueryProvider>
       <ExercisedCapabilityProvider>
