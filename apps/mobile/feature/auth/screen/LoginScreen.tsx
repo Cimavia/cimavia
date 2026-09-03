@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react-native";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +10,6 @@ import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
 import { resetQueryCache } from "@/shared/lib/query";
 import { landingTab } from "@/shared/lib/tabs";
-
 export function LoginScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -45,9 +45,12 @@ export function LoginScreen() {
       setSubmitting(false);
     }
   }
-
+  const [boom, setBoom] = useState(false);
+  if (boom) throw new Error("test sentry mobile, apres montage");
   return (
     <View className="flex-1 justify-center gap-4 bg-cmv-bg-0 p-6">
+      <CmvButton label="boom JS" onPress={() => setBoom(true)} />
+      <CmvButton label="boom natif" onPress={() => Sentry.nativeCrash()} />
       <CmvText className="mb-2 font-cmv-display text-cmv-title text-cmv-text-hi">
         {t("auth.login.title")}
       </CmvText>
