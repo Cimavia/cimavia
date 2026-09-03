@@ -1,3 +1,8 @@
+// Sentry AVANT tout autre import — le SDK doit être armé quand les modules ci-dessous
+// s'évaluent, sinon un crash à leur initialisation part sans trace (cf. instrument.ts).
+// Le groupe isolé par des lignes vides est ce qui empêche Biome de le retrier ailleurs.
+import "./instrument";
+
 import "./index.css";
 import "./shared/lib/i18n";
 
