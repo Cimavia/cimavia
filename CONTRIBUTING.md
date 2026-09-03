@@ -54,19 +54,20 @@ Puis ajouter la clé publique sur GitHub en **Signing Key** (Settings → SSH an
 
 ## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 
-Ajoutés phase par phase :
+**Secrets** — ce que seule la CI doit connaître :
 
-- `SONAR_TOKEN` — SonarCloud (en place).
-- `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET` — observabilité (déploiement).
-- `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps (#181). Le seul secret Sentry : il n'est jamais embarqué dans un artefact.
-- `DATABASE_URL` — déploiement (P1).
-- `BETTER_AUTH_SECRET` — auth (P1).
+- `SONAR_TOKEN` — SonarCloud.
+- `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
+- `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181). C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
 
-Ces trois-là sont des **variables** de dépôt (onglet *Variables*), pas des secrets — elles partent dans le bundle ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
+**Variables** (onglet *Variables*), pas des secrets — elles partent dans le bundle ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
 
+- `DEV_ENV_FILE` — chemin du `.env` sur le NAS · `DEV_PUBLIC_API_URL` — l'URL publique de l'API du tier dev.
 - `DEV_SENTRY_DSN_WEB` — le DSN du projet web, lisible par tout visiteur du site.
 - `SENTRY_ORG` — le slug de l'organisation Sentry.
 - `SENTRY_PROJECT_WEB` — `cimavia-web`.
+
+**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/dev/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
 
 ## Observabilité
 
@@ -85,3 +86,12 @@ Ces trois-là sont des **variables** de dépôt (onglet *Variables*), pas des se
 - Identité : `useSentryUser()` dans `routes/__root.tsx`, l'`id` du compte seul, effacé à la déconnexion. `sendDefaultPii: false` côté front, contrairement à l'API.
 - Variables, **figées au `vite build`** (voir `apps/web/.env.example` et le `Dockerfile`) : `VITE_SENTRY_DSN` — pas un secret, il part dans le bundle — et `VITE_APP_ENV`, le *tier* de déploiement et non le mode de build.
 - Sourcemaps : téléversées par `@sentry/vite-plugin` quand `SENTRY_AUTH_TOKEN` est fourni, puis effacées de `dist/` avant l'étape nginx. Le jeton passe par un **secret BuildKit** et jamais un `ARG`, qui le graverait dans `docker history` de l'image publiée. `SENTRY_RELEASE` est passé explicitement : `.git` est hors du contexte de build, la détection automatique n'aurait rien à lire.
+
+### Mobile
+
+- Init dans `apps/mobile/shared/lib/sentry.ts`, importé en side-effect en tête de `app/_layout.tsx` — même forme que `notification.ts` et `audio.ts`.
+- Écran de repli : export nommé `ErrorBoundary` depuis `app/_layout.tsx` (mécanisme natif d'expo-router, pas un boundary maison) → `CmvCrashScreen`. Il enveloppe le layout ENTIER, providers compris — un boundary posé autour du seul `<Stack>` serait resté à l'intérieur des quatre providers du layout.
+- Identité : `useSentryUser()` appelé dans `RootLayout`, l'`id` du compte seul, effacé à la déconnexion — l'effacement compte plus qu'au web, la session mobile survivant à la fermeture de l'app (`expo-secure-store`).
+- Variables : `EXPO_PUBLIC_SENTRY_DSN`, inlinée dans le bundle par Metro — pas un secret, déclarée par profil dans `eas.json` comme `EXPO_PUBLIC_API_URL`. L'environnement, lui, ne se déclare PAS en variable : il vient d'`APP_VARIANT` via `extra.appVariant` (`app.config.ts`), relu par `expo-constants` — `process.env.APP_VARIANT` est invisible à l'exécution, Metro n'inlinant que les variables `EXPO_PUBLIC_`.
+- Sourcemaps Hermes : téléversées automatiquement par le plugin `@sentry/react-native/expo` (organisation et projet déclarés dans `app.json` → `expo.plugins`, pas des secrets) au build EAS. Le jeton n'y figure JAMAIS — `eas.json` est versionné — il vient de `SENTRY_AUTH_TOKEN` posé en **secret EAS** (`eas secret:create --name SENTRY_AUTH_TOKEN --scope project`), lu automatiquement en son absence de la config du plugin.
+- Vitest : `@sentry/react-native` importe des modules natifs, mocké dans `test/setup.ts` pour tous les tests — même garantie que l'`AsyncStorage` qui y est déjà mocké.
