@@ -63,15 +63,22 @@ function CoachMessages() {
     const byAthlete = new Map(
       (conversations.data ?? []).map((conversation) => [conversation.counterpartId, conversation]),
     );
-    return (athletes.data ?? [])
-      .map((relation) => ({
-        athleteId: relation.athleteId,
-        athleteName: relation.athleteName,
-        conversation: byAthlete.get(relation.athleteId) ?? null,
-      }))
-      .sort((a, b) =>
-        (b.conversation?.lastMessageAt ?? "").localeCompare(a.conversation?.lastMessageAt ?? ""),
-      );
+    return (
+      (athletes.data ?? [])
+        // L'entrée SYNTHÉTIQUE de l'auto-coaching est écartée ici, et ici seulement (#198) : elle
+        // reste sur `GET /athletes`, dont le builder et le tableau de bord dépendent (#14). La
+        // messagerie est la seule surface où elle n'a pas de sens — le fil `(soi, soi)` ne peut pas
+        // exister, et la ligne menait à un écran d'erreur.
+        .filter((relation) => !relation.isSelf)
+        .map((relation) => ({
+          athleteId: relation.athleteId,
+          athleteName: relation.athleteName,
+          conversation: byAthlete.get(relation.athleteId) ?? null,
+        }))
+        .sort((a, b) =>
+          (b.conversation?.lastMessageAt ?? "").localeCompare(a.conversation?.lastMessageAt ?? ""),
+        )
+    );
   }, [athletes.data, conversations.data]);
 
   const selected = rows.find((row) => row.athleteId === selectedAthleteId) ?? null;

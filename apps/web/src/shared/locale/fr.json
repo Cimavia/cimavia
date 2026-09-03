@@ -659,7 +659,7 @@
     },
     "noAthletes": {
       "title": "Aucun athlète",
-      "description": "Invite un athlète depuis la section Athlètes pour pouvoir lui écrire."
+      "description": "Invite un premier athlète depuis le tableau de bord pour pouvoir lui écrire."
     },
     "preview": {
       "AUDIO": "🎤 Message vocal",
