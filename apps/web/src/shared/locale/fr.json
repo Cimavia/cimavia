@@ -6,6 +6,11 @@
     "loading": "Chargement…",
     "error": "Une erreur est survenue. Réessayez.",
     "cancel": "Annuler",
+    "crash": {
+      "title": "L'application a rencontré un problème",
+      "description": "L'incident nous a été signalé. Rechargez la page pour reprendre où vous en étiez.",
+      "reload": "Recharger la page"
+    },
     "confirmDelete": "Confirmer la suppression",
     "close": "Fermer",
     "logout": "Se déconnecter",

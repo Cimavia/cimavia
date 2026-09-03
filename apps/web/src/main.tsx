@@ -11,6 +11,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { routeTree } from "./routeTree.gen";
+import { CmvCrashScreen } from "./shared/component/CmvCrashScreen";
 import { ToastProvider } from "./shared/component/CmvToast";
 
 const queryClient = new QueryClient({
@@ -25,6 +26,14 @@ const queryClient = new QueryClient({
 const router = createRouter({
   routeTree,
   context: { queryClient },
+  /**
+   * Le filet sous les erreurs non maîtrisées. Sa portée s'arrête au routeur : ce qui casse
+   * AU-DESSUS — les deux providers ci-dessous, ou l'évaluation de `./shared/lib/i18n` — tombe
+   * toujours à l'écran blanc. Écart assumé (#181) : ces modules ne dépendent d'aucune donnée, ce
+   * qui les casse casse tout le reste, et un boundary de plus n'aurait rien de mieux à afficher.
+   * Sentry, lui, les entend quand même — c'est le rôle de l'import de `./instrument` en tête.
+   */
+  defaultErrorComponent: ({ error }) => <CmvCrashScreen error={error} />,
 });
 
 declare module "@tanstack/react-router" {
