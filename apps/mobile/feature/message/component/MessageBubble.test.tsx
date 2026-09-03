@@ -89,3 +89,35 @@ describe("MessageBubble — la puce « à propos de… »", () => {
     expect(router.push).toHaveBeenCalledWith("/feedbacks/s1");
   });
 });
+
+/**
+ * Le branchement média est EXHAUSTIF, et pas « audio d'un côté, tout le reste en image » : c'est
+ * ce genre de raccourci qui rendait une vidéo par une balise image — un bloc vide, sans erreur ni
+ * indice, là où l'athlète avait déposé sa voie (#151).
+ */
+describe("MessageBubble — les médias", () => {
+  const media = {
+    url: "https://x/f",
+    fileName: "voie.jpg",
+    mimeType: "image/jpeg",
+    sizeBytes: 1,
+    durationSeconds: 12,
+  };
+
+  function renderMedia(type: MessageDto["type"]) {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const dto = { ...message(null), type, content: null, media } as MessageDto;
+    return renderRn(<MessageBubble message={dto} mine={false} />);
+  }
+
+  it("ne rend pas le texte d'un média", () => {
+    expect(renderMedia("AUDIO").queryByText("bien joué")).toBeNull();
+    expect(renderMedia("VIDEO").queryByText("bien joué")).toBeNull();
+    expect(renderMedia("IMAGE").queryByText("bien joué")).toBeNull();
+  });
+
+  it("rend une photo par une image", () => {
+    const { container } = renderMedia("IMAGE");
+    expect(container.querySelector("img")).not.toBeNull();
+  });
+});
