@@ -73,6 +73,34 @@ describe("FeedbackReplyThread", () => {
     expect(queryByPlaceholderText("messages.placeholder")).not.toBeNull();
   });
 
+  /**
+   * Sur SON PROPRE débrief (auto-coaching, #14), il n'y a personne à qui répondre : le fil
+   * `(soi, soi)` ne peut pas exister. Le composeur partait quand même, prenait un 409 et affichait
+   * « réessaie dans un instant » — un incident passager annoncé pour un état définitif (#198).
+   */
+  it("remplace le composeur par une explication sur son propre débrief", () => {
+    mockReply();
+    const { queryByText, queryByPlaceholderText } = renderWithProviders(
+      <FeedbackReplyThread {...PROPS} messages={[]} isSelf />,
+    );
+
+    expect(queryByText("feedback.reply.self")).not.toBeNull();
+    expect(queryByPlaceholderText("messages.placeholder")).toBeNull();
+    // Surtout PAS le message de panne : c'est ce qu'on remplace, pas ce qu'on double.
+    expect(queryByText("feedback.reply.threadError")).toBeNull();
+  });
+
+  // Le titre RESTE : la section qui disparaîtrait ferait chercher la barre d'envoi en passant d'un
+  // débrief à l'autre.
+  it("garde le titre de la section sur son propre débrief", () => {
+    mockReply();
+    const { queryByText } = renderWithProviders(
+      <FeedbackReplyThread {...PROPS} messages={[]} isSelf />,
+    );
+
+    expect(queryByText("feedback.reply.title")).not.toBeNull();
+  });
+
   // L'échec de RÉSOLUTION du fil ne vient pas de ce qu'on a écrit : le masquer laisserait croire
   // qu'on n'a pas le droit de répondre à cet athlète.
   it("dit qu'il n'a pas pu ouvrir la conversation", () => {

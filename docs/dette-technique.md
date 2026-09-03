@@ -1378,6 +1378,24 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > passée. Le web avait le même trou en mémoire, sans persistance : il mourait au rechargement
 > complet, pas avant.
 
+> **Tranché en #198** (le volet de débrief EXPLIQUE, là où la nav se contente de disparaître) :
+> troisième surface trouvée en test, hors de ce que l'issue nommait. La boîte de réception du coach
+> ouvre un fil pour chaque débrief lu — y compris celui qu'il a écrit lui-même en auto-coaching —,
+> et affichait « Impossible d'ouvrir la conversation… Réessaie dans un instant ». Un incident
+> passager annoncé pour un état **définitif** : le CHECK `coach_athlete_not_self` (#11) interdit ce
+> fil pour toujours.
+>
+> Deux traitements DIFFÉRENTS pour le même invariant, et c'est délibéré. La nav retire l'entrée
+> sans un mot : elle liste des destinations, une absence s'y lit toute seule. Le volet, lui, garde
+> son titre « Réponses » et met une phrase à la place du composeur — une section qui disparaîtrait
+> ferait chercher la barre d'envoi en passant d'un débrief à l'autre, et l'écran ne dirait rien de
+> ce qui l'a fait partir.
+>
+> `useIsSelfAthlete` prolonge la règle de #14 : le « c'est moi » se déduit de la SESSION, pas d'un
+> drapeau porté par chaque DTO. Séparé de `useAthleteLabel` volontairement — celui-ci est réservé au
+> texte affiché, et brancher un rendu sur la présence de « (moi) » dans une chaîne traduite serait
+> un test qui casse au premier reformulage du catalogue.
+
 > **Corrige le journal de #14** (la messagerie n'était fermée qu'à MOITIÉ) : les deux encadrés
 > « Tranché en #14 » affirment que la messagerie est « fermée en auto-coaching — aucun fil avec
 > soi-même ne peut exister » et qu'elle l'était « **déjà** ». C'était vrai de l'API, et faux de

@@ -6,7 +6,7 @@ import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExercis
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
 import { useConversationWith } from "@/feature/message/hook/useMessages";
 import { CmvAvatar, CmvButton } from "@/shared/component";
-import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
 
 type FeedbackReadingPaneProps = {
@@ -37,8 +37,11 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { data: detail, isPending } = useSessionFeedback(feedback.scheduledSessionId);
+  const isSelf = useIsSelfAthlete()(feedback.athleteId);
   // Get-or-create, idempotent et stable : ouvrir un débrief ne crée pas un fil de plus.
-  const conversation = useConversationWith(feedback.athleteId);
+  // `null` sur son PROPRE débrief : le `enabled` du hook coupe la requête, qui prendrait un 409
+  // (#198) affiché en « réessaie dans un instant » — une panne passagère qui n'en est pas une.
+  const conversation = useConversationWith(isSelf ? null : feedback.athleteId);
   const queryClient = useQueryClient();
   // La liste ENTIÈRE et pas seulement ce débrief : `repliedAt` y vit aussi, et c'est lui qui pose
   // le badge « répondu » sur la ligne qu'on vient de traiter.
@@ -141,6 +144,7 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
           messages={detail?.messages ?? []}
           conversationId={conversation.data?.id}
           isThreadError={conversation.isError}
+          isSelf={isSelf}
           onSent={refreshFeedbacks}
         />
       </div>

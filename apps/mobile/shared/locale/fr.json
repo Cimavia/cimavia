@@ -302,7 +302,8 @@
     },
     "reply": {
       "title": "Réponses",
-      "threadError": "Impossible d'ouvrir la conversation avec cet athlète. Réessaie dans un instant."
+      "threadError": "Impossible d'ouvrir la conversation avec cet athlète. Réessaie dans un instant.",
+      "self": "Ce débrief est le tien : il n'y a personne à qui répondre."
     }
   },
   "messages": {
