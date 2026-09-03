@@ -1,3 +1,4 @@
+import { translatedOr } from "@cmv/shared";
 import * as Sentry from "@sentry/react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -38,28 +39,22 @@ export function CmvCrashScreen({ error }: Readonly<CmvCrashScreenProps>) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-cmv-md bg-cmv-bg-0 p-cmv-xl text-center">
       <h1 className="text-cmv-subtitle text-cmv-text-hi">
-        {orFrench(t("common.crash.title"), "L'application a rencontré un problème")}
+        {translatedOr(
+          t("common.crash.title"),
+          "common.crash.title",
+          "L'application a rencontré un problème",
+        )}
       </h1>
       <p className="max-w-sm text-cmv-caption text-cmv-text-mid">
-        {orFrench(
+        {translatedOr(
           t("common.crash.description"),
+          "common.crash.description",
           "L'incident nous a été signalé. Rechargez la page pour reprendre où vous en étiez.",
         )}
       </p>
       <CmvButton onClick={() => window.location.reload()}>
-        {orFrench(t("common.crash.reload"), "Recharger la page")}
+        {translatedOr(t("common.crash.reload"), "common.crash.reload", "Recharger la page")}
       </CmvButton>
     </main>
   );
-}
-
-/**
- * Si i18next est LUI-MÊME ce qui a cassé, `t()` rend la clé brute et cet écran afficherait
- * `common.crash.title` en toutes lettres — un écran de panne qui a l'air en panne. On le détecte à
- * la forme de ce qui revient (une entrée du catalogue est une phrase, jamais un chemin pointé) et
- * on retombe sur du français en dur. C'est le seul endroit de l'app où déroger à la règle dure nº6
- * a un sens : la règle suppose qu'i18next fonctionne.
- */
-function orFrench(translated: string, fallback: string): string {
-  return translated.startsWith("common.crash.") ? fallback : translated;
 }
