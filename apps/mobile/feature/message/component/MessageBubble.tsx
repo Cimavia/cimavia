@@ -1,7 +1,9 @@
 import type { MessageAttachmentDto, MessageDto } from "@cmv/shared";
 import {
   AttachmentDestination,
+  type AttachmentTarget,
   attachmentTarget,
+  type CapabilityName,
   MESSAGE_ATTACHMENT_LABEL_KEY,
   MessageType,
 } from "@cmv/shared";
@@ -63,20 +65,28 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
     </CmvText>
   );
 
-  // Le débrief s'adresse PAR SA SÉANCE des deux côtés : le coach l'ouvre dans sa boîte de
-  // réception, l'athlète sur son propre écran d'écriture.
-  const route: Href =
-    target.destination === AttachmentDestination.SESSION
-      ? `/session/${target.scheduledSessionId}`
-      : as === "coach"
-        ? `/feedbacks/${target.scheduledSessionId}`
-        : `/session/${target.scheduledSessionId}/feedback`;
-
   return (
-    <Pressable onPress={() => router.push(route)} hitSlop={4}>
+    <Pressable onPress={() => router.push(routeOf(target, as))} hitSlop={4}>
       <View className="mb-2 self-start rounded-lg bg-cmv-bg-1 px-2 py-1">{label}</View>
     </Pressable>
   );
+}
+
+/**
+ * La route d'un écran mobile pour une destination donnée.
+ *
+ * Le débrief s'adresse PAR SA SÉANCE des deux côtés — le coach l'ouvre dans sa boîte de réception
+ * (`/feedbacks/[sessionId]`), l'athlète sur son propre écran d'écriture. Une fonction nommée
+ * plutôt qu'un ternaire imbriqué : ce qui se lit ici est une règle de navigation, pas un
+ * branchement.
+ */
+function routeOf(target: AttachmentTarget, as: CapabilityName): Href {
+  if (target.destination === AttachmentDestination.SESSION) {
+    return `/session/${target.scheduledSessionId}`;
+  }
+  return as === "coach"
+    ? `/feedbacks/${target.scheduledSessionId}`
+    : `/session/${target.scheduledSessionId}/feedback`;
 }
 
 export function MessageBubble({

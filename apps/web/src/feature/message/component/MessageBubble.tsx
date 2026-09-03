@@ -1,8 +1,8 @@
-import type { MessageAttachmentDto } from "@cmv/shared";
 import {
   AttachmentDestination,
   attachmentTarget,
   MESSAGE_ATTACHMENT_LABEL_KEY,
+  type MessageAttachmentDto,
   type MessageDto,
   MessageType,
 } from "@cmv/shared";
