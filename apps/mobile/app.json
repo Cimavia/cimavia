@@ -19,6 +19,13 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "cimavia-3o",
+          "project": "cimavia-mobile"
+        }
+      ],
       "expo-font",
       "expo-secure-store",
       "expo-localization",

@@ -1,4 +1,5 @@
 import "../global.css";
+import "@/shared/lib/sentry";
 import "@/shared/lib/i18n";
 import "@/shared/lib/notification";
 import "@/shared/lib/audio";
