@@ -37,7 +37,22 @@ export function ForgotPasswordScreen() {
     try {
       // On confirme toujours, même sur une adresse inconnue : une réponse différente révélerait
       // quels comptes existent.
-      await authClient.requestPasswordReset({ email, redirectTo: `${WEB_URL}/reset-password` });
+      const { error: requestError } = await authClient.requestPasswordReset({
+        email,
+        redirectTo: `${WEB_URL}/reset-password`,
+      });
+      /**
+       * Le client Better Auth NE LÈVE PAS sur une réponse d'erreur : il la rend. Sans cette
+       * lecture, un refus s'afficherait « e-mail envoyé » — et c'est le refus le plus probable ici,
+       * `requestPasswordReset` validant `redirectTo` contre ses `trustedOrigins` (`originCheck`).
+       *
+       * Cela ne rouvre PAS l'énumération d'adresses : une adresse inconnue reçoit `status: true`
+       * sans erreur, exactement comme une adresse connue. Seule une panne se distingue.
+       */
+      if (requestError != null) {
+        setError(t("auth.errors.generic"));
+        return;
+      }
       setSent(true);
     } catch {
       setError(t("auth.errors.generic"));

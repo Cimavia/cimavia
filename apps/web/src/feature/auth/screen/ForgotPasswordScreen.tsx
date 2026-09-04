@@ -18,12 +18,21 @@ export function ForgotPasswordScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      // On confirme toujours, même sur une adresse inconnue : une réponse différente révélerait
-      // quels comptes existent. L'API envoie l'e-mail sans jamais faire échouer cet appel (#63).
-      await authClient.requestPasswordReset({
+      const { error: requestError } = await authClient.requestPasswordReset({
         email,
         redirectTo: `${window.location.origin}/reset-password`,
       });
+      /**
+       * Le client Better Auth NE LÈVE PAS sur une réponse d'erreur : il la rend. Sans cette
+       * lecture, une panne s'afficherait « e-mail envoyé » alors que rien n'est parti.
+       *
+       * Cela ne rouvre PAS l'énumération d'adresses : une adresse inconnue reçoit `status: true`
+       * sans erreur, exactement comme une adresse connue. Seule une panne se distingue.
+       */
+      if (requestError != null) {
+        setError(t("auth.errors.generic"));
+        return;
+      }
       setSent(true);
     } catch {
       setError(t("auth.errors.generic"));

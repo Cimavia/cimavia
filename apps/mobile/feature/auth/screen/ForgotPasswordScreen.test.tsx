@@ -18,7 +18,7 @@ function submit(container: HTMLElement, email: string): void {
 }
 
 beforeEach(() => {
-  requestPasswordReset.mockResolvedValue({} as never);
+  requestPasswordReset.mockResolvedValue({ data: { status: true }, error: null } as never);
 });
 
 describe("ForgotPasswordScreen (mobile)", () => {
@@ -47,6 +47,25 @@ describe("ForgotPasswordScreen (mobile)", () => {
     submit(container, "inconnu@example.com");
 
     await vi.waitFor(() => expect(queryByText("auth.forgot.sent")).not.toBeNull());
+  });
+
+  /**
+   * Le piège du client Better Auth : il ne LÈVE pas sur une réponse d'erreur, il la rend. Et le
+   * refus le plus probable ici est justement celui du `redirectTo` ci-dessus — `originCheck` le
+   * valide contre les `trustedOrigins` de l'API. Sans lecture de `error`, l'écran annoncerait
+   * « e-mail envoyé » alors que rien n'est parti.
+   */
+  it("n'annonce pas un envoi quand l'api a refusé la destination", async () => {
+    requestPasswordReset.mockResolvedValue({
+      data: null,
+      error: { status: 403, statusText: "FORBIDDEN", message: "Invalid redirectTo" },
+    } as never);
+    const { container, queryByText } = renderRn(<ForgotPasswordScreen />);
+
+    submit(container, "athlete@example.com");
+
+    await vi.waitFor(() => expect(queryByText("auth.errors.generic")).not.toBeNull());
+    expect(queryByText("auth.forgot.sent")).toBeNull();
   });
 
   it("montre une erreur générique quand l'appel échoue", async () => {
