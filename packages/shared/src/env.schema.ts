@@ -64,6 +64,20 @@ export const envSchema = z.object({
   // Expéditeur des e-mails, au format « Nom <adresse> » ou « adresse » seule. Sans lui, aucun
   // envoi n'est possible : un serveur SMTP refuse un message sans enveloppe d'expéditeur.
   MAIL_FROM: z.preprocess(emptyAsUndefined, z.string().optional()),
+  /**
+   * URL publique de l'app WEB, pour le pied des e-mails de notification (#65) — « gérer mes
+   * notifications ».
+   *
+   * Distincte de `CORS_ORIGINS`, qui est une LISTE d'origines autorisées et ne désigne pas l'app
+   * canonique : y piocher la première marcherait tant que l'ordre ne change pas, c'est-à-dire
+   * jusqu'au jour où quelqu'un ajoute une origine de test en tête.
+   *
+   * Optionnelle : absente, le pied disparaît et le message part quand même. Un e-mail de
+   * notification sans porte de sortie reste préférable à pas d'e-mail du tout — mais c'est un
+   * réglage à faire en production, où un envoi récurrent sans lien de désabonnement finit
+   * classé indésirable.
+   */
+  WEB_URL: z.preprocess(emptyAsUndefined, z.url().optional()),
 });
 
 export type EnvSchema = z.infer<typeof envSchema>;

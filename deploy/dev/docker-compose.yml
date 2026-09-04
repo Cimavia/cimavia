@@ -127,6 +127,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: "${MAIL_FROM:-Cimavia <no-reply@cimavia.fr>}"
+      # Pied des e-mails de notification (#65) : la même URL publique que CORS_ORIGINS ci-dessus,
+      # mais nommée — CORS_ORIGINS est une liste, elle ne désigne pas l'app canonique.
+      WEB_URL: ${PUBLIC_WEB_URL}
 
   # Boîte de réception jetable du tier dev : capte les e-mails de l'API et ne les relaie jamais.
   # C'est ce qui rend un lien de réinitialisation lisible DEPUIS LE TÉLÉPHONE (via le tunnel),

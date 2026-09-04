@@ -1,4 +1,4 @@
-import { Locale } from "@cmv/shared";
+import { EMAILABLE_NOTIFICATION_TYPES, Locale, NotificationType } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { en } from "./locale/en";
 import { fr } from "./locale/fr";
@@ -102,5 +102,86 @@ describe("mailCatalog — gabarit de réinitialisation", () => {
     });
     expect(mail.html).not.toContain("<script>");
     expect(mail.html).toContain("&quot;&gt;&lt;script&gt;");
+  });
+});
+
+describe("mailCatalog — gabarits de notification", () => {
+  const SETTINGS = "https://app.cimavia.fr/settings";
+
+  // Le `Record<EmailableNotificationType, …>` l'impose déjà à la compilation. Ce test tient
+  // l'autre bout : qu'aucun gabarit ne rende un sujet ou un corps vide, dans l'une ou l'autre
+  // langue — une chaîne vide compile parfaitement.
+  it.each([...EMAILABLE_NOTIFICATION_TYPES])("rend les deux langues pour %s", (type) => {
+    for (const locale of [Locale.FR, Locale.EN]) {
+      const mail = mailCatalog(locale).notification(type, {
+        actorName: "Léa",
+        subjectLabel: "Cycle force",
+        settingsUrl: SETTINGS,
+      });
+      expect(mail.subject.length).toBeGreaterThan(0);
+      expect(mail.text.length).toBeGreaterThan(0);
+      expect(mail.html).toContain("</html>");
+    }
+  });
+
+  /**
+   * `actorName` et `subjectLabel` sont nullables (règle dure n°5). Le repli doit être une SECONDE
+   * RÉDACTION, pas une interpolation vide : ce test refuse les guillemets vides et le mot
+   * « null », les deux formes que prend une valeur manquante mal traitée.
+   */
+  it.each([
+    ...EMAILABLE_NOTIFICATION_TYPES,
+  ])("tourne une phrase complète sans acteur ni sujet pour %s", (type) => {
+    for (const locale of [Locale.FR, Locale.EN]) {
+      const mail = mailCatalog(locale).notification(type, {
+        actorName: null,
+        subjectLabel: null,
+        settingsUrl: SETTINGS,
+      });
+      expect(mail.subject).not.toContain("null");
+      expect(mail.text).not.toContain("null");
+      expect(mail.text).not.toContain("«  »");
+      expect(mail.text).not.toContain('""');
+      expect(mail.subject).not.toMatch(/:\s*$/);
+    }
+  });
+
+  it("porte le lien de réglages quand il est configuré", () => {
+    const mail = mailCatalog(Locale.FR).notification(NotificationType.MESSAGE_RECEIVED, {
+      actorName: "Léa",
+      subjectLabel: null,
+      settingsUrl: SETTINGS,
+    });
+    expect(mail.text).toContain(SETTINGS);
+    expect(mail.html).toContain(`href="${SETTINGS}"`);
+  });
+
+  /**
+   * Sans `WEB_URL`, le pied disparaît — mais le message part. Le rendu ne doit alors porter
+   * AUCUN vestige : ni ancre vide, ni « si le lien ne fonctionne pas » sans lien dessous.
+   */
+  it("se rend proprement sans lien de réglages", () => {
+    const strings = mailStringsFor(Locale.FR);
+    const mail = mailCatalog(Locale.FR).notification(NotificationType.MESSAGE_RECEIVED, {
+      actorName: "Léa",
+      subjectLabel: null,
+      settingsUrl: null,
+    });
+    expect(mail.html).not.toContain("<a href");
+    expect(mail.text).not.toContain(strings.common.linkFallback);
+    expect(mail.text).toContain(strings.common.signature);
+  });
+
+  // La conversation est une donnée de santé au sens du CDC : son contenu ne doit jamais transiter
+  // par une boîte mail qu'on ne maîtrise pas. Le gabarit n'a d'ailleurs pas de quoi le faire —
+  // `Notification` ne persiste pas le texte du message. Ce test fige l'invariant.
+  it("ne peut pas divulguer le contenu d'un message", () => {
+    const mail = mailCatalog(Locale.FR).notification(NotificationType.MESSAGE_RECEIVED, {
+      actorName: "Léa",
+      subjectLabel: "texte confidentiel du message",
+      settingsUrl: null,
+    });
+    expect(mail.text).not.toContain("texte confidentiel");
+    expect(mail.subject).not.toContain("texte confidentiel");
   });
 });

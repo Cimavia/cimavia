@@ -1,3 +1,4 @@
+import type { EmailableNotificationType } from "@cmv/shared";
 import { Locale } from "@cmv/shared";
 import { en } from "./locale/en";
 import { fr } from "./locale/fr";
@@ -21,6 +22,11 @@ import { fr } from "./locale/fr";
  * partout.
  */
 
+// Sortie en constante plutôt qu'inline : la pile contient des apostrophes, illisibles au milieu
+// d'un gabarit. Volontairement courte — un client mail qui ne connaît aucune de ces polices tombe
+// sur `sans-serif`, ce qui est le bon résultat.
+const FONT_STACK = "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif";
+
 export type MailTemplate = {
   subject: string;
   text: string;
@@ -31,11 +37,27 @@ export type MailTemplate = {
  * Les textes d'une langue. `code` en fait partie parce que le gabarit en a besoin : c'est lui qui
  * remplit `<html lang>`, dont dépend la prononciation par un lecteur d'écran et la césure.
  */
+/**
+ * Ce qu'une notification a pour dire son événement : un acteur et un sujet, tous deux nullables.
+ *
+ * Ce sont EXACTEMENT les paramètres persistés par `Notification` (#48) — l'e-mail ne dira donc
+ * jamais rien de plus que ce que le centre affiche, et n'a aucune donnée à collecter en plus.
+ *
+ * Chaque gabarit traite le `null` comme « pas de sujet à nommer », jamais comme une chaîne vide :
+ * une phrase avec des guillemets vides serait pire qu'une phrase générique bien tournée.
+ */
+export type NotificationMailParams = {
+  actorName: string | null;
+  subjectLabel: string | null;
+};
+
 export type MailStrings = {
   code: Locale;
   common: {
     signature: string;
     linkFallback: string;
+    /** Pied de page. Omis quand `WEB_URL` n'est pas configurée — le message part quand même. */
+    manageNotifications: string;
   };
   resetPassword: {
     subject: string;
@@ -45,6 +67,15 @@ export type MailStrings = {
     expiry: (hours: number) => string;
     ignore: string;
   };
+  /**
+   * Un gabarit par type envoyable. `Record<EmailableNotificationType, …>` et non un objet libre :
+   * élargir `EMAILABLE_NOTIFICATION_TYPES` ne compile plus tant que les textes manquent, dans LES
+   * DEUX langues.
+   */
+  notification: Record<
+    EmailableNotificationType,
+    (params: NotificationMailParams) => { subject: string; heading: string; body: string }
+  >;
 };
 
 export type ResetPasswordParams = {
@@ -54,8 +85,14 @@ export type ResetPasswordParams = {
   expiresInHours: number;
 };
 
+export type NotificationMailInput = NotificationMailParams & {
+  /** Lien « gérer mes notifications ». `null` quand `WEB_URL` n'est pas configurée. */
+  settingsUrl: string | null;
+};
+
 export type MailCatalog = {
   resetPassword(params: ResetPasswordParams): MailTemplate;
+  notification(type: EmailableNotificationType, params: NotificationMailInput): MailTemplate;
 };
 
 // `Record<Locale, …>` et non un objet libre : ajouter une valeur à `Locale` sans écrire son
@@ -102,15 +139,33 @@ export function mailCatalog(locale: string | null | undefined): MailCatalog {
         html: renderHtml(body, strings),
       };
     },
+    notification: (type, { settingsUrl, ...params }) => {
+      const template = strings.notification[type](params);
+      const body = {
+        heading: template.heading,
+        paragraphs: [template.body],
+        // Pas de lien vers l'ENTITÉ : l'API devrait pour cela porter la table de routage des
+        // clients, qui diffèrent (le builder est web-only, le planning de l'athlète est mobile) et
+        // qui changent sans elle. Le seul lien est celui des réglages, quand il est configuré.
+        ...(settingsUrl != null && { cta: strings.common.manageNotifications, url: settingsUrl }),
+      };
+      return {
+        subject: template.subject,
+        text: renderText(body, strings),
+        html: renderHtml(body, strings),
+      };
+    },
   };
 }
 
+/**
+ * `cta` et `url` vont ENSEMBLE ou pas du tout : un libellé de lien sans adresse ne se rend pas, une
+ * adresse sans libellé ne se lit pas. Le couple est donc optionnel d'un bloc.
+ */
 type MailBody = {
   heading: string;
   paragraphs: readonly string[];
-  cta: string;
-  url: string;
-};
+} & ({ cta: string; url: string } | { cta?: undefined; url?: undefined });
 
 /**
  * Échappement HTML, `&` en premier — sinon les entités produites juste après seraient
@@ -133,27 +188,40 @@ function renderText(body: MailBody, strings: MailStrings): string {
   return [
     body.heading,
     body.paragraphs.join("\n\n"),
-    `${body.cta} : ${body.url}`,
+    ...(body.url != null ? [`${body.cta} : ${body.url}`] : []),
     strings.common.signature,
   ].join("\n\n");
 }
 
 function renderHtml(body: MailBody, strings: MailStrings): string {
-  const href = escapeHtml(body.url);
   const paragraphs = body.paragraphs
     .map((text) => `<p style="margin:0 0 12px">${escapeHtml(text)}</p>`)
     .join("");
   return [
     `<!doctype html><html lang="${strings.code}"><head><meta charset="utf-8">`,
-    `<meta name="viewport" content="width=device-width"><title>${escapeHtml(strings.resetPassword.subject)}</title></head>`,
-    `<body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5">`,
+    `<meta name="viewport" content="width=device-width"><title>${escapeHtml(body.heading)}</title></head>`,
+    `<body style="margin:0;padding:24px;font-family:${FONT_STACK};line-height:1.5">`,
     `<div style="max-width:520px;margin:0 auto">`,
     `<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(body.heading)}</h1>`,
     paragraphs,
-    `<p style="margin:24px 0"><a href="${href}" style="font-weight:bold">${escapeHtml(body.cta)}</a></p>`,
-    `<p style="margin:0 0 4px;font-size:13px">${escapeHtml(strings.common.linkFallback)}</p>`,
-    `<p style="margin:0 0 24px;font-size:13px;word-break:break-all">${href}</p>`,
+    body.url == null ? "" : renderLink(body.url, body.cta, strings),
     `<p style="margin:0;font-size:13px">${escapeHtml(strings.common.signature)}</p>`,
     `</div></body></html>`,
+  ].join("");
+}
+
+/**
+ * Le lien, puis son adresse répétée en clair juste dessous.
+ *
+ * La répétition n'est pas une maladresse : certains clients mail n'affichent pas les liens
+ * cliquables, et un destinataire méfiant doit pouvoir LIRE où on l'envoie avant de cliquer — ce
+ * qui compte d'autant plus sur un lien de réinitialisation de mot de passe.
+ */
+function renderLink(url: string, cta: string, strings: MailStrings): string {
+  const href = escapeHtml(url);
+  return [
+    `<p style="margin:24px 0"><a href="${href}" style="font-weight:bold">${escapeHtml(cta)}</a></p>`,
+    `<p style="margin:0 0 4px;font-size:13px">${escapeHtml(strings.common.linkFallback)}</p>`,
+    `<p style="margin:0 0 24px;font-size:13px;word-break:break-all">${href}</p>`,
   ].join("");
 }
