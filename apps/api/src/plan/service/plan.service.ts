@@ -96,9 +96,15 @@ export class PlanService {
   /**
    * Déplacer la date de début décale le cycle ENTIER : les séances suivent leur semaine, sinon
    * elles sortiraient de la plage de celle-ci (invariant « une séance tombe dans sa semaine »).
+   *
+   * Tant que le cycle est un BROUILLON. Une fois diffusé, plus rien de ce qui le définit ne se
+   * réécrit : ni son en-tête (`assertHeaderWritable`), ni son destinataire (`assertReassignable`).
    */
   async update(id: string, input: UpdatePlanInput): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(id);
+    // Avant toute lecture supplémentaire : le refus est certain, inutile d'aller interroger la
+    // base pour le destinataire.
+    assertHeaderWritable(plan, input);
 
     // Forme UNCHECKED : `athleteId` s'écrit en scalaire, comme partout ailleurs sur cette chaîne
     // dénormalisée. La forme relationnelle demanderait un `connect`/`disconnect` là où le reste
@@ -463,4 +469,28 @@ export class PlanService {
       });
     }
   }
+}
+
+/**
+ * Ce qui DÉFINIT un cycle — son titre, sa description, son début — ne se réécrit plus une fois
+ * diffusé, exactement comme son destinataire. Le refus est un 409 et non un 400 : la demande
+ * n'est pas mal formée, c'est l'état du cycle qui ne s'y prête plus.
+ *
+ * Le message diffère de celui du destinataire parce qu'il dit autre chose : là où l'athlète « en
+ * a déjà été prévenu », ici il s'entraîne dessus — et un cycle qui bouge sous ses pieds est pire
+ * qu'un cycle qu'on ne peut plus corriger.
+ *
+ * La CAPACITÉ de décalage (`shiftSessions`) reste entière : elle sert au brouillon. Décaler un
+ * cycle DIFFUSÉ (athlète blessé, report d'une semaine) est un besoin réel, mais demande un autre
+ * dispositif — l'athlète doit en être prévenu (#172). C'est cette porte-ci qui se ferme, pas la
+ * mécanique derrière.
+ */
+function assertHeaderWritable(plan: Plan, input: UpdatePlanInput): void {
+  if (plan.status !== PlanStatus.PUBLISHED) return;
+  const rewritesHeader =
+    input.title !== undefined || input.description !== undefined || input.startDate !== undefined;
+  if (!rewritesHeader) return;
+  throw new ConflictException(
+    "L'en-tête d'un cycle diffusé ne se réécrit plus : son athlète s'entraîne dessus",
+  );
 }
