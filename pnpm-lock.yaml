@@ -274,6 +274,9 @@ importers:
       '@cmv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
+      '@sentry/cli':
+        specifier: 2.58.4
+        version: 2.58.4
       '@testing-library/react':
         specifier: 16.3.3
         version: 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
