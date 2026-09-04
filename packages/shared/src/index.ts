@@ -382,6 +382,7 @@ export {
   emailableNotificationTypeSchema,
   NOTIFICATION_LABEL_KEY,
   NOTIFICATION_PAGE_SIZE,
+  NOTIFICATION_SETTING_LABEL_KEY,
   NotificationEntityType,
   NotificationType,
   notificationDtoSchema,

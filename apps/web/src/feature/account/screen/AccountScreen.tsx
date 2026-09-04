@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoWarningOutline } from "react-icons/io5";
 import { useCapabilityUpdate } from "@/feature/account/hook/useCapabilityUpdate";
+import { NotificationEmailSection } from "@/feature/notification";
 import { CmvAppShell, CmvButton } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
@@ -97,6 +98,12 @@ export function AccountScreen() {
           </CmvButton>
         </div>
       </section>
+
+      {/* Les notifications sont un réglage DU COMPTE, comme les casquettes : elles valent pour les
+          deux espaces, et un compte à double capacité n'a qu'une seule boîte mail. */}
+      <div className="mt-cmv-xl">
+        <NotificationEmailSection />
+      </div>
     </CmvAppShell>
   );
 }
