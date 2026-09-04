@@ -75,6 +75,15 @@ export function exercisedOrThrow(actor: TenantContext): CapabilityName {
  * lequel il lit est précisé, là où la route ne pouvait pas le dire pour elle tout entière. L'appel
  * doit rester enveloppé au plus près de la lecture concernée — l'élever plus haut reviendrait à
  * donner un titre à la route, ce qu'on vient précisément de refuser.
+ *
+ * ⚠️ Le `await` sur `fn()` n'est pas décoratif : **une `PrismaPromise` est PARESSEUSE**. Elle
+ * n'émet sa requête qu'au moment où `.then` est appelé, pas à sa création. Sans ce `await`, un
+ * appelant qui rend directement `this.db.x.findMany(...)` — sans `async`, sans `await` — voyait la
+ * requête partir APRÈS la sortie du contexte CLS, donc sans capacité exercée : l'extension tenant
+ * refusait la table (fail closed) et la route rendait 500. Le piège est silencieux, parce qu'un
+ * appelant qui passe une méthode `async` marche, lui : son corps s'exécute bien dans le contexte.
+ * Deux formes d'appel, une seule qui marchait — le `await` ici les rend équivalentes, à la place
+ * de compter sur la vigilance de chaque appelant.
  */
 export function runAsCapability<T>(
   cls: ClsService,
@@ -82,8 +91,8 @@ export function runAsCapability<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   const actor = currentActor(cls);
-  return cls.run(() => {
+  return cls.run(async () => {
     cls.set(TENANT_CLS_KEY, { ...actor, exercised: capability });
-    return fn();
+    return await fn();
   });
 }

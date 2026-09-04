@@ -48,3 +48,39 @@ export const coachAthleteDtoSchema = z.object({
 });
 
 export type CoachAthleteDto = z.infer<typeof coachAthleteDtoSchema>;
+
+/**
+ * A-t-on quelqu'un en face ? Un drapeau par espace (#198).
+ *
+ * Servi par une route SANS capacité exigée, et c'est tout l'intérêt : la navigation le lit avant
+ * de savoir à quel titre elle s'affiche. Le déduire de `GET /athletes` et `GET /me/coach` — toutes
+ * deux gardées par capacité — ferait prendre un 403 à un compte mono-capacité sur chaque écran,
+ * exactement la dérive que décrit `CmvRoleGate`.
+ *
+ * Ce n'est PAS une capacité : `isCoach` dit ce que le compte a le droit de faire, `asCoach` dit
+ * s'il a quelqu'un à qui le faire. Un coach qui n'a pas encore d'athlète porte l'une sans l'autre.
+ *
+ * L'auto-coaching ne compte dans aucun des deux : le CHECK `coach_athlete_not_self` (#11) interdit
+ * la ligne, et l'entrée synthétique de `GET /athletes` (#14) ne passe pas par ici.
+ */
+export const counterpartsDtoSchema = z.object({
+  /** Au moins un athlète TIERS actif — l'entrée synthétique de l'auto-coaching ne compte pas. */
+  asCoach: z.boolean(),
+  /** Un coach actif. Faux pour un athlète autonome comme pour un compte qui se coache seul. */
+  asAthlete: z.boolean(),
+});
+
+export type CounterpartsDto = z.infer<typeof counterpartsDtoSchema>;
+
+/**
+ * Ce que rend un client tant que la réponse n'est pas là : « il y en a des deux côtés ».
+ *
+ * Permissif, et il DOIT l'être : « pas encore su » ne vaut jamais « absent ». Une entrée de nav qui
+ * apparaît après coup se remarque à peine ; une entrée absente le temps d'un aller-retour envoie
+ * ailleurs quiconque avait la messagerie en tête.
+ *
+ * Dans `@cmv/shared` et non dans chaque client : c'est le même arbitrage des deux côtés, et deux
+ * copies divergeraient sans que rien ne devienne rouge — l'une des deux se mettrait à cacher au
+ * démarrage ce que l'autre montre.
+ */
+export const UNKNOWN_COUNTERPARTS: CounterpartsDto = { asCoach: true, asAthlete: true };

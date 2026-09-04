@@ -21,12 +21,13 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. **Douze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Quinze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
-**W-1** et **Q-6**, dont le déclencheur est nommé mais dont rien n'est à préparer avant qu'il survienne ;
-et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une issue n'aurait rien à suivre
-que le fait de s'en souvenir. Les onze premières sont volontaires, la dernière non.
+**W-1**, **Q-6**, **MI-1**, **MI-2** et **O-2**, dont le déclencheur est nommé mais dont rien n'est à
+préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une
+issue n'aurait rien à suivre que le fait de s'en souvenir. Les quatorze premières sont volontaires, la
+dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -1263,6 +1264,153 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > chemins de création, deux résultats. #12 inverse le sens (les cases à cocher deviennent l'entrée,
 > `role` la déduction) ; d'ici là, aucun compte ne peut cumuler, et c'est ce qui rend #9 sans effet
 > observable.
+
+---
+
+## Post-MVP — Observabilité front ([#183](https://github.com/Cimavia/cimavia/issues/183))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~O-1~~ | ~~**Sentry ne couvre que l'API**~~, malgré trois documents qui annonçaient « les 3 couches ». Le web et le mobile n'avaient ni SDK ni Error Boundary : un crash de rendu donnait un écran blanc côté web, fermait l'app côté mobile, sans aucune trace. | ✅ | résolu en **[#181](https://github.com/Cimavia/cimavia/issues/181)** (web) et **[#182](https://github.com/Cimavia/cimavia/issues/182)** (mobile) — les trois documents redeviennent vrais par le code, pas par réécriture |
+| O-2 | **`@sentry/cli` déclaré en dépendance du mobile sans être importé** : il n'y sert qu'à exister au chemin `apps/mobile/node_modules/@sentry/cli`, que `sentry.gradle` construit en dur pour téléverser les sourcemaps. Son repli pnpm est inatteignable — il vit dans un `catch` que `execute()` ne déclenche jamais, `node --print require.resolve(…)` rendant une sortie vide plutôt qu'une exception quand la résolution échoue. Sans cette déclaration, le build EAS **release** échoue sur « a problem occurred starting process ». La version est épinglée sur celle qu'exige `@sentry/react-native` (2.58.4) : la laisser flotter installerait deux copies du binaire. | 🟢 | — *(bug amont ; déclencheur : une version de `@sentry/react-native` dont le `sentry.gradle` résout enfin pnpm — la dépendance pourra alors sauter)* |
+
+> **Tranché en #183** (trois projets Sentry, pas un) : `cimavia-api`, `cimavia-web`,
+> `cimavia-mobile`. Releases et sourcemaps s'attachent **par projet** — mêler un bundle Vite et un
+> bundle Hermes dans un seul projet rendrait l'unminification hasardeuse. Le quota du plan gratuit
+> est de toute façon partagé par l'organisation : séparer ne coûte rien et sépare les alertes.
+
+> **Tranché en #183** (`sendDefaultPii: false` côté front, plus `setUser({ id })`) : sans `setUser`,
+> une erreur est anonyme et l'on ne distingue pas *un* utilisateur qui boucle deux cents fois de
+> *deux cents* utilisateurs touchés — or c'est ce chiffre qui décide si l'on corrige le soir même.
+> Avec l'`id` seul, Sentry ne détient qu'un pseudonyme ; c'est en base, chez nous, qu'il redevient
+> une personne. L'**API reste en `sendDefaultPii: true`** et envoie IP et en-têtes : l'asymétrie est
+> assumée plutôt que corrigée en passant, changer ce réglage modifierait ce qu'on capture sur une
+> couche qui marche, sans qu'aucun incident ne le demande.
+
+> **Tranché en #183** (pas de Session Replay, `tracesSampleRate: 0`) : le Replay filmerait l'écran
+> d'un coach, donc des données d'athlètes, pour un gain que l'écran de repli et la stack couvrent
+> déjà. Le quota de performance, lui, se vide bien plus vite depuis un navigateur ou un téléphone
+> que depuis l'API, et aucune question de perf front n'est ouverte — à monter à `0.1` le jour où il
+> y en a une.
+
+> **Tranché en #182** (un crash au tout premier rendu n'a pas d'utilisateur) : `setUser` vit dans un
+> effet, et React n'exécute pas les effets d'un rendu qui a levé — un crash au démarrage part donc
+> anonyme, d'autant que la session Better Auth n'est pas encore résolue à cet instant. Ce n'est pas
+> réparable : à ce moment-là, l'identité n'est connue de personne. Un « 0 utilisateur » sur un crash
+> de démarrage ne veut donc PAS dire que `setUser` est cassé. Tout crash survenant après le montage,
+> lui, porte bien son `id`.
+
+> **Tranché en #183** (le DSN front n'est pas un secret) : il part dans le bundle web et dans le
+> binaire mobile, n'importe qui peut le lire. Il se range donc en **variable de dépôt** (`vars.`),
+> comme `DEV_PUBLIC_API_URL`. Le réflexe inverse donnerait l'illusion d'une protection qui n'existe
+> pas, et ferait passer une fuite du DSN pour un incident. Le seul vrai secret du chantier est le
+> `SENTRY_AUTH_TOKEN` d'upload des sourcemaps, qui n'est jamais embarqué.
+
+---
+
+## Post-MVP — Messagerie sans interlocuteur ([#198](https://github.com/Cimavia/cimavia/issues/198))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~MI-1~~ | ~~**Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint**~~ : le `staleTime` par défaut (60 s web, 5 min mobile) retenait `GET /me/counterparts`, et il fallait recharger la page pour voir la messagerie apparaître. | ✅ | déclencheur survenu **le jour même** (retour de bêta) — `staleTime: 0` sur cette seule requête, refetch au montage et au retour sur l'app |
+| MI-2 | **`landingTab` a une valeur par défaut pour les contreparties** : `LoginScreen`, `RegisterScreen` et `CmvCapabilityGate` l'appellent avant qu'une requête ait pu partir. Sans conséquence tant qu'aucun onglet conditionnel n'est en tête de table — `dashboard` et `planning` y sont, et ni l'un ni l'autre ne dépend d'un interlocuteur. | 🟢 | — *(déclencheur : un onglet conditionnel passe en tête ; le commentaire de `tabs.ts` le dit)* |
+
+> **Tranché en #198** (« quelqu'un en face » est une question sur le SCOPE, pas une lecture scopée) :
+> la nav doit savoir s'il y a un interlocuteur **avant** de savoir à quel titre elle s'affiche. Les
+> deux routes qui portent déjà l'information — `GET /athletes` et `GET /me/coach` — sont gardées par
+> capacité : les interroger donnerait un 403 à un compte mono-capacité sur chaque écran, exactement
+> la dérive que `CmvRoleGate` existe pour éviter. D'où `GET /me/counterparts`, **sans capacité
+> exigée**, et un `CounterpartService` sur le client Prisma de BASE, jumeau de `CapabilityService`.
+> Ce n'est pas une capacité : `isCoach` dit ce qu'un compte a le droit de faire, `asCoach` s'il a
+> quelqu'un à qui le faire — un coach sans athlète porte l'une sans l'autre.
+
+> **Tranché en #198** (« pas encore su » ne vaut jamais « absent ») : `UNKNOWN_COUNTERPARTS`
+> — `{ asCoach: true, asAthlete: true }` — est ce que rendent les deux clients tant que la réponse
+> n'est pas là. Le pari est délibérément permissif : une entrée qui apparaît après coup se remarque
+> à peine, une entrée absente le temps d'un aller-retour envoie ailleurs quiconque visait la
+> messagerie. La constante vit dans `@cmv/shared` et non dans chaque client : deux copies
+> divergeraient sans que rien ne devienne rouge — l'une se mettrait à cacher au démarrage ce que
+> l'autre montre.
+
+> **Tranché en #198** (web par ESPACE, mobile par COMPTE — et c'est voulu) : le web a une entrée de
+> nav par espace, chacune conditionnée par son propre côté du signal ; le mobile n'a qu'UN onglet
+> Messages, servi aux deux titres, avec le sélecteur d'espace **à l'intérieur** de l'écran. Le
+> conditionner par titre exercé le ferait apparaître et disparaître au gré du sélecteur qu'il
+> contient. Il reste donc dès qu'il y a quelqu'un d'un côté, et l'écran dessous montre « aucun
+> coach » si on bascule. Corollaire assumé : sur mobile, `href: null` rend aussi la route
+> **inatteignable**, là où le web laisse `/messages` joignable par son URL. La garde est l'API dans
+> les deux cas ; sur mobile il n'y a pas d'URL à taper, et rien à voir au bout.
+
+> **Tranché en #198** (se viser soi-même est un état IMPOSSIBLE, pas un athlète inconnu) :
+> `resolvePair` rendait 400 « Athlète inconnu » à un coach qui ouvrait un fil avec lui-même — le
+> filtre tenant ajoute `coachId = moi`, donc chercher `athleteId = moi` ne trouve rien et le refus
+> retombait sur le cas générique. C'est faux : l'athlète est parfaitement connu, c'est soi, et le
+> CHECK `coach_athlete_not_self` (#11) interdit la relation pour toujours. Un test explicite, posé
+> **avant** la lecture de la relation, rend donc 409 — le même code que le refus d'auto-relation, et
+> pour la même raison. Les deux autres refus gardent leur 400 : viser l'athlète d'un tiers, et
+> l'athlète sans coach — une relation **absente**, pas impossible, qui apparaîtra le jour où il
+> rejoint quelqu'un.
+
+> **Corrigé en marge de #198** (`runAsCapability` et la paresse des `PrismaPromise`) : trouvé en
+> testant #198, antérieur à lui — 105 événements Sentry sur deux jours avant la première ligne
+> écrite. `GET /me/notifications/unread-count` rendait **500** à tout compte à double capacité ayant
+> au moins un message non lu : `[tenancy] capacité (aucune déclarée) non autorisée sur Conversation`.
+>
+> La cause n'est pas dans le service mais dans `runAsCapability`, qui faisait `cls.run(() => fn())`
+> **sans await**. Une `PrismaPromise` est PARESSEUSE : elle n'émet sa requête qu'au `.then`, pas à
+> sa création. Un appelant rendant directement `this.db.conversation.findMany(...)` voyait donc la
+> requête partir après la sortie du contexte CLS, sans capacité exercée — et l'extension tenant
+> refusait la table, comme elle doit. Le piège est **silencieux** : l'autre forme d'appel du même
+> fichier (`() => this.reminders.countDueUnread(now)`, une méthode `async`) marchait, parce que son
+> corps s'exécute bien dans le contexte. Deux formes voisines, une seule correcte. Le `await` posé
+> dans `runAsCapability` les rend équivalentes, plutôt que de compter sur la vigilance de chaque
+> appelant.
+>
+> **Pourquoi les e2e ne l'ont pas vu** : `unreadMessagesByCapability` sort avant de toucher
+> `Conversation` dès qu'il n'y a aucun message non lu — et le seul e2e de la ventilation (#176)
+> n'en créait pas. Il fallait le croisement exact « double capacité **et** message non lu ». Un e2e
+> couvre désormais ce chemin.
+
+> **Corrigé en marge de #198** (le cache de requêtes survivait au changement de compte) : trouvé en
+> testant #198, et sans rapport avec lui — mais c'est lui qui l'a rendu visible. Le cache TanStack
+> du mobile est **persisté sept jours** dans AsyncStorage (lecture hors-ligne, p3-5) avec un
+> `staleTime` de cinq minutes, et RIEN ne le vidait à la déconnexion : le compte suivant sur
+> l'appareil se voyait servir les athlètes, débriefs, messages et factures du précédent, sans
+> même qu'un refetch parte les corriger. Une fuite entre comptes, pas un affichage périmé — le
+> raisonnement que `revokeCurrentPushToken` applique déjà aux push n'avait jamais été appliqué au
+> cache. Jusqu'ici le symptôme restait dans le CONTENU des écrans, la nav dérivant de la session
+> Better Auth seule ; #198 a branché la nav sur une requête, et l'onglet Messages du compte quitté
+> est resté. `resetQueryCache()` vide mémoire **et** disque, appelée aux deux bouts : à la
+> déconnexion pour ne pas laisser ces données dormir, et à la **connexion** — le seul passage
+> obligé, puisqu'une session expirée côté serveur ramène au login sans qu'aucune déconnexion soit
+> passée. Le web avait le même trou en mémoire, sans persistance : il mourait au rechargement
+> complet, pas avant.
+
+> **Tranché en #198** (le volet de débrief EXPLIQUE, là où la nav se contente de disparaître) :
+> troisième surface trouvée en test, hors de ce que l'issue nommait. La boîte de réception du coach
+> ouvre un fil pour chaque débrief lu — y compris celui qu'il a écrit lui-même en auto-coaching —,
+> et affichait « Impossible d'ouvrir la conversation… Réessaie dans un instant ». Un incident
+> passager annoncé pour un état **définitif** : le CHECK `coach_athlete_not_self` (#11) interdit ce
+> fil pour toujours.
+>
+> Deux traitements DIFFÉRENTS pour le même invariant, et c'est délibéré. La nav retire l'entrée
+> sans un mot : elle liste des destinations, une absence s'y lit toute seule. Le volet, lui, garde
+> son titre « Réponses » et met une phrase à la place du composeur — une section qui disparaîtrait
+> ferait chercher la barre d'envoi en passant d'un débrief à l'autre, et l'écran ne dirait rien de
+> ce qui l'a fait partir.
+>
+> `useIsSelfAthlete` prolonge la règle de #14 : le « c'est moi » se déduit de la SESSION, pas d'un
+> drapeau porté par chaque DTO. Séparé de `useAthleteLabel` volontairement — celui-ci est réservé au
+> texte affiché, et brancher un rendu sur la présence de « (moi) » dans une chaîne traduite serait
+> un test qui casse au premier reformulage du catalogue.
+
+> **Corrige le journal de #14** (la messagerie n'était fermée qu'à MOITIÉ) : les deux encadrés
+> « Tranché en #14 » affirment que la messagerie est « fermée en auto-coaching — aucun fil avec
+> soi-même ne peut exister » et qu'elle l'était « **déjà** ». C'était vrai de l'API, et faux de
+> l'écran : `GET /athletes` sert son entrée synthétique `isSelf` à la liste de fils, qui l'affichait
+> en tête. Le compte se voyait comme son propre interlocuteur, et le toucher menait au refus. #198
+> écarte l'entrée dans les deux listes de fils — **là et nulle part ailleurs** : elle reste sur
+> `GET /athletes`, dont le tableau de bord et le constructeur de cycle dépendent.
 
 ---
 

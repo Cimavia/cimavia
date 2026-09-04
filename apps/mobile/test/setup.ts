@@ -31,6 +31,21 @@ const { store, asyncStorage } = vi.hoisted(() => {
 
 vi.mock("@react-native-async-storage/async-storage", () => ({ default: asyncStorage }));
 
+/**
+ * `@sentry/react-native` remplacé pour TOUS les tests, même raison que ci-dessus : c'est un module
+ * natif, et tout fichier testé qui traverse cet import échouerait sur un pont React Native absent.
+ * Un échec de ce genre ne dirait rien du code testé.
+ *
+ * `wrap` rend le composant tel quel — sa version réelle l'enveloppe d'instrumentation, ce qui
+ * ajouterait un niveau à l'arbre rendu et déplacerait les assertions des tests d'écran.
+ */
+vi.mock("@sentry/react-native", () => ({
+  init: vi.fn(),
+  setUser: vi.fn(),
+  captureException: vi.fn(),
+  wrap: <T>(component: T) => component,
+}));
+
 /** Ce que le disque contient — pour affirmer sur ce qui a été PERSISTÉ, pas sur l'état du hook. */
 export const storedItems = store;
 export const asyncStorageMock = asyncStorage;

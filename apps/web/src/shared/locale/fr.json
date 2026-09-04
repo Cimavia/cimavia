@@ -6,6 +6,11 @@
     "loading": "Chargement…",
     "error": "Une erreur est survenue. Réessayez.",
     "cancel": "Annuler",
+    "crash": {
+      "title": "L'application a rencontré un problème",
+      "description": "L'incident nous a été signalé. Rechargez la page pour reprendre où vous en étiez.",
+      "reload": "Recharger la page"
+    },
     "confirmDelete": "Confirmer la suppression",
     "close": "Fermer",
     "logout": "Se déconnecter",
@@ -654,7 +659,7 @@
     },
     "noAthletes": {
       "title": "Aucun athlète",
-      "description": "Invite un athlète depuis la section Athlètes pour pouvoir lui écrire."
+      "description": "Invite un premier athlète depuis le tableau de bord pour pouvoir lui écrire."
     },
     "preview": {
       "AUDIO": "🎤 Message vocal",
@@ -858,7 +863,8 @@
     "replied": "Répondu",
     "reply": {
       "title": "Réponses",
-      "threadError": "Impossible d'ouvrir la conversation avec cet athlète. Réessaie dans un instant."
+      "threadError": "Impossible d'ouvrir la conversation avec cet athlète. Réessaie dans un instant.",
+      "self": "Ce débrief est le tien : il n'y a personne à qui répondre."
     }
   },
   "invoice": {

@@ -17,8 +17,8 @@ import { formatRelativeTime } from "@/shared/util/date.util";
 type Row = { athleteId: string; athleteName: string; conversation: ConversationDto | null };
 
 /**
- * La liste des fils du coach (#34) : un par athlète, **qu'un fil existe ou non**. Sélectionner un
- * athlète jamais contacté crée le fil à la volée (get-or-create).
+ * La liste des fils du coach (#34) : un par athlète TIERS, **qu'un fil existe ou non**. Sélectionner
+ * un athlète jamais contacté crée le fil à la volée (get-or-create).
  *
  * Même fusion athlètes × fils que côté web : les fils les plus récemment actifs d'abord, puis les
  * athlètes sans échange. Un athlète absent de la liste serait injoignable — c'est pour ça qu'on
@@ -36,6 +36,11 @@ export function CoachConversationsScreen() {
     (conversations.data ?? []).map((conversation) => [conversation.counterpartId, conversation]),
   );
   const rows: Row[] = (athletes.data ?? [])
+    // L'entrée SYNTHÉTIQUE de l'auto-coaching est écartée ici, et ici seulement (#198) : elle reste
+    // sur `GET /athletes`, dont le tableau de bord et le constructeur de cycle dépendent (#14). La
+    // messagerie est la seule surface où elle n'a pas de sens — le fil `(soi, soi)` ne peut pas
+    // exister, et la ligne menait à un écran d'erreur.
+    .filter((relation) => !relation.isSelf)
     .map((relation) => ({
       athleteId: relation.athleteId,
       athleteName: relation.athleteName,

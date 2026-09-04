@@ -63,6 +63,25 @@ jobs:
             exit 1
           fi
 
+      # Le DSN, lui, n'est PAS vérifié : vide, le SDK reste inerte et l'app marche — contrairement à
+      # une URL d'API vide, qui livrerait un SPA cassé. Ce qui est vérifié ici est la COHÉRENCE du
+      # téléversement des sourcemaps : dès qu'un jeton existe, `vite.config.ts` exige aussi l'org et
+      # le projet. Sans ce garde-fou, l'oubli d'une variable ferait échouer le build d'image sur un
+      # message enfoui dans les logs de Docker.
+      - name: Vérifier la cohérence Sentry (web uniquement)
+        if: matrix.image == 'cimavia-web'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::notice::Aucun SENTRY_AUTH_TOKEN — les sourcemaps ne seront pas publiées."
+            exit 0
+          fi
+          if [ -z "${{ vars.SENTRY_ORG }}" ] || [ -z "${{ vars.SENTRY_PROJECT_WEB }}" ]; then
+            echo "::error::SENTRY_AUTH_TOKEN est défini mais SENTRY_ORG ou SENTRY_PROJECT_WEB manque."
+            exit 1
+          fi
+
       - name: Setup Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -94,8 +113,28 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # build-args uniquement pour le web (VITE_API_URL). Chaîne vide pour l'API.
-          build-args: ${{ matrix.image == 'cimavia-web' && format('VITE_API_URL={0}', vars.DEV_PUBLIC_API_URL) || '' }}
+          # build-args uniquement pour le web. Forme multi-ligne et non le ternaire d'une seule
+          # valeur d'avant : `format()` ne tient pas six arguments lisiblement, et la liste vide
+          # est ce que reçoit l'API.
+          #
+          # VITE_APP_ENV est un LITTÉRAL et non une variable de dépôt de plus : le NAS *est* le
+          # tier dev, ce workflow ne construit rien d'autre.
+          #
+          # SENTRY_RELEASE = le sha du commit. C'est aussi le nom sous lequel le plugin injecte la
+          # release dans le bundle, donc ce que le SDK rapportera : les sourcemaps et les erreurs se
+          # retrouvent sous le même nom. #186 y mettra la version du produit.
+          build-args: |
+            ${{ matrix.image == 'cimavia-web' && format('VITE_API_URL={0}', vars.DEV_PUBLIC_API_URL) || '' }}
+            ${{ matrix.image == 'cimavia-web' && format('VITE_SENTRY_DSN={0}', vars.DEV_SENTRY_DSN_WEB) || '' }}
+            ${{ matrix.image == 'cimavia-web' && 'VITE_APP_ENV=development' || '' }}
+            ${{ matrix.image == 'cimavia-web' && format('SENTRY_ORG={0}', vars.SENTRY_ORG) || '' }}
+            ${{ matrix.image == 'cimavia-web' && format('SENTRY_PROJECT={0}', vars.SENTRY_PROJECT_WEB) || '' }}
+            ${{ matrix.image == 'cimavia-web' && format('SENTRY_RELEASE={0}', github.sha) || '' }}
+          # Le jeton passe par un SECRET BuildKit et non un build-arg : un ARG finit dans
+          # `docker history` de l'image publiée sur GHCR. Absent, le build aboutit quand même et ne
+          # publie simplement aucune sourcemap.
+          secrets: |
+            ${{ matrix.image == 'cimavia-web' && format('sentry_auth_token={0}', secrets.SENTRY_AUTH_TOKEN) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

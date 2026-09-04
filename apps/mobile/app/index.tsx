@@ -1,5 +1,6 @@
 import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
+import { useCounterparts } from "@/feature/account/hook/useCounterparts";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { landingTab } from "@/shared/lib/tabs";
 
@@ -16,6 +17,7 @@ import { landingTab } from "@/shared/lib/tabs";
  */
 export default function Index() {
   const { isPending, isAuthenticated, isCoach, isAthlete } = useCapabilities();
+  const counterparts = useCounterparts();
 
   if (isPending) {
     return (
@@ -27,6 +29,6 @@ export default function Index() {
 
   if (!isAuthenticated) return <Redirect href="/login" />;
 
-  const landing = landingTab({ isCoach, isAthlete });
+  const landing = landingTab({ isCoach, isAthlete }, counterparts);
   return <Redirect href={landing ?? "/login"} />;
 }

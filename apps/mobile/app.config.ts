@@ -14,8 +14,13 @@ const VARIANTS = {
 } as const;
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const variant = (process.env.APP_VARIANT ?? "development") as keyof typeof VARIANTS;
-  const { idSuffix, nameSuffix, scheme } = VARIANTS[variant] ?? VARIANTS.production;
+  // Le repli sur `production` est RÉSOLU ici plutôt qu'au moment de lire la table : la variante
+  // retenue sert aussi à taguer les événements Sentry, et une valeur inconnue qui recevrait les
+  // identifiants natifs de production tout en se taguant de son propre nom bidon décrirait un
+  // build qui n'existe pas.
+  const requested = process.env.APP_VARIANT ?? "development";
+  const variant = (requested in VARIANTS ? requested : "production") as keyof typeof VARIANTS;
+  const { idSuffix, nameSuffix, scheme } = VARIANTS[variant];
 
   // ConfigContext type `name`/`slug` comme optionnels ; app.json les fournit toujours. On échoue
   // fort plutôt que de replier sur une valeur par défaut, qui produirait un build mal identifié.
@@ -33,5 +38,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme,
     ios: { ...config.ios, bundleIdentifier: appId },
     android: { ...config.android, package: appId },
+    /**
+     * `extra` est ÉTENDU, jamais écrasé : il porte déjà `eas.projectId` et `router` (app.json), et
+     * les perdre casse les builds EAS.
+     *
+     * `appVariant` y entre parce que c'est le seul chemin par lequel la variante atteint le code de
+     * l'app : `APP_VARIANT` vit dans Node au moment du bundling, et Metro n'inline que les
+     * variables `EXPO_PUBLIC_`. Relu par `shared/lib/sentry.ts` via `Constants.expoConfig.extra`.
+     */
+    extra: { ...config.extra, appVariant: variant },
   };
 };

@@ -11,6 +11,11 @@ type FeedbackReplyThreadProps = {
   /** Le fil, résolu par la surface : le coach vise un athlète, l'athlète a son coach. */
   conversationId: string | undefined;
   isThreadError: boolean;
+  /**
+   * Le débrief est celui du compte courant (auto-coaching, #14) : il n'y a personne à qui
+   * répondre, et le fil `(soi, soi)` ne peut pas exister.
+   */
+  isSelf?: boolean;
   /** Ce qu'il faut recharger après un envoi — la boîte du coach, ou le débrief de l'athlète. */
   onSent: () => void;
 };
@@ -34,6 +39,7 @@ export function FeedbackReplyThread({
   messages,
   conversationId,
   isThreadError,
+  isSelf = false,
   onSent,
 }: Readonly<FeedbackReplyThreadProps>) {
   const { t } = useTranslation();
@@ -41,6 +47,22 @@ export function FeedbackReplyThread({
   const reply = useFeedbackReply({ feedbackId, conversationId, isThreadError, onSent });
 
   const currentUserId = session?.user.id ?? "";
+
+  /**
+   * La section GARDE son titre, et n'affiche qu'une phrase : disparaître entièrement ferait
+   * chercher le composeur en passant d'un débrief à l'autre. La phrase dit un état DÉFINITIF, là
+   * où l'erreur de résolution (« réessaie dans un instant ») annonçait à tort un incident passager.
+   */
+  if (isSelf) {
+    return (
+      <section className="flex flex-col gap-cmv-sm border-cmv-border border-t pt-cmv-lg">
+        <h4 className="text-cmv-caption text-cmv-accent uppercase tracking-wide">
+          {t("feedback.reply.title")}
+        </h4>
+        <p className="text-cmv-body text-cmv-text-mid">{t("feedback.reply.self")}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-cmv-sm border-cmv-border border-t pt-cmv-lg">

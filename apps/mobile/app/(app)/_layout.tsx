@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs, usePathname } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useCounterparts } from "@/feature/account/hook/useCounterparts";
 import { usePushToken, useUnreadNotificationCount } from "@/feature/notification";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
-import { redirectForPath, TABS } from "@/shared/lib/tabs";
+import { redirectForPath, TABS, visibleTabs } from "@/shared/lib/tabs";
 import { tabBarTheme } from "@/shared/theme/navigation";
 
 // Un seul onglet porte un compteur ; le nommer ici évite un drapeau sur chaque entrée de TABS.
@@ -35,6 +36,7 @@ export default function AppTabsLayout() {
   usePushToken();
   const { data: unreadCount } = useUnreadNotificationCount();
   const capabilities = useCapabilities();
+  const counterparts = useCounterparts();
   const pathname = usePathname();
 
   /**
@@ -43,7 +45,9 @@ export default function AppTabsLayout() {
    * pourtant correcte. Tant que la session n'est pas résolue, on ne redirige pas — sinon toute
    * capacité paraîtrait absente le temps d'un aller-retour.
    */
-  const redirect = capabilities.isPending ? null : redirectForPath(pathname, capabilities);
+  const redirect = capabilities.isPending
+    ? null
+    : redirectForPath(pathname, capabilities, counterparts);
   if (redirect != null) return <Redirect href={redirect} />;
 
   return (
@@ -64,9 +68,10 @@ export default function AppTabsLayout() {
       }}
     >
       {TABS.map((tab) => {
-        const granted =
-          tab.capability == null ||
-          (tab.capability === "coach" ? capabilities.isCoach : capabilities.isAthlete);
+        // `visibleTabs` n'est pas utilisable ici : Expo Router exige un `<Tabs.Screen>` pour CHAQUE
+        // fichier du dossier — c'est `href: null` qui masque, jamais l'omission. On parcourt donc
+        // la table entière et on décide onglet par onglet.
+        const shown = visibleTabs(capabilities, counterparts).includes(tab);
 
         return (
           <Tabs.Screen
@@ -77,8 +82,10 @@ export default function AppTabsLayout() {
               tabBarIcon: ({ color, size }) => (
                 <Ionicons name={tab.icon} color={color} size={size} />
               ),
-              // `href: null` retire l'onglet de la barre ET rend sa route inatteignable.
-              ...(granted ? {} : { href: null }),
+              // `href: null` retire l'onglet de la barre ET rend sa route inatteignable. Pour la
+              // messagerie sans interlocuteur (#198), c'est plus strict que le web, qui la laisse
+              // joignable par son URL — ici il n'y a pas d'URL à taper, et rien à y voir.
+              ...(shown ? {} : { href: null }),
               ...(tab.name === BADGED_TAB ? badgeOptionFor(unreadCount) : {}),
             }}
           />

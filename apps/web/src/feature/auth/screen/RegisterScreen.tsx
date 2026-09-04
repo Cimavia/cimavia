@@ -1,5 +1,6 @@
 import type { CapabilityName } from "@cmv/shared";
 import { PASSWORD_MIN_LENGTH } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,6 +29,7 @@ function toggled(current: Set<CapabilityName>, name: CapabilityName): Set<Capabi
 export function RegisterScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session, isPending } = authClient.useSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -65,6 +67,8 @@ export function RegisterScreen() {
         setError(t(emailInUse ? "auth.errors.emailInUse" : "auth.errors.generic"));
         return;
       }
+      // Même raison qu'à la connexion : rien du compte précédent ne doit survivre au changement.
+      queryClient.clear();
       navigate({ to: "/", search: { q: undefined, filter: undefined, athlete: undefined } });
     } catch {
       setError(t("auth.errors.generic"));

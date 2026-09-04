@@ -5236,13 +5236,88 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect((await solo.get("/me/notifications/unread-count")).body.count).toBe(0);
   });
 
-  // Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
-  // comportement plutôt que de le supposer acquis.
+  /**
+   * Déjà fermée avant #14 (`resolvePair` exige une relation des deux côtés) — ce test fige le
+   * comportement plutôt que de le supposer acquis.
+   *
+   * Deux refus, deux codes (#198). Se viser soi-même est un état IMPOSSIBLE, verrouillé par le
+   * CHECK `coach_athlete_not_self` : 409, comme le refus d'auto-relation de #11. N'avoir aucun
+   * coach est une relation absente, pas impossible : 400, inchangé.
+   */
   it("n'ouvre pas de fil de messagerie avec soi-même", async () => {
     expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
-      400,
+      409,
     );
     expect((await solo.post("/conversations?as=athlete").send({})).status).toBe(400);
+  });
+});
+
+/**
+ * Le signal qui décide de l'entrée de messagerie dans chaque espace (#198).
+ *
+ * Route SANS capacité exigée, et c'est ce qui est testé ici autant que les valeurs : un compte
+ * mono-capacité doit pouvoir la lire sans prendre de 403, sinon la navigation ne pourrait pas s'en
+ * servir avant de savoir à quel titre elle s'affiche.
+ */
+describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
+  it("dit non des deux côtés à un coach sans athlète", async () => {
+    const coach = await signUpWith("cp-lonely@cmv.test", { isCoach: true, isAthlete: false });
+    const res = await coach.get("/me/counterparts");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ asCoach: false, asAthlete: false });
+  });
+
+  // Sans garde de capacité : un athlète autonome obtient une réponse là où `GET /athletes` et
+  // `GET /me/coach` lui donneraient un 403 et un `null`.
+  it("répond à un athlète autonome sans exiger de capacité", async () => {
+    const athlete = await signUp("cp-autonomous@cmv.test", Role.ATHLETE);
+    expect((await athlete.get("/athletes")).status).toBe(403);
+
+    const res = await athlete.get("/me/counterparts");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ asCoach: false, asAthlete: false });
+  });
+
+  it("voit la contrepartie apparaître de chaque côté quand la relation est nouée", async () => {
+    const coach = await signUpWith("cp-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("cp-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    expect((await coach.get("/me/counterparts")).body).toEqual({ asCoach: true, asAthlete: false });
+    expect((await athlete.get("/me/counterparts")).body).toEqual({
+      asCoach: false,
+      asAthlete: true,
+    });
+  });
+
+  /**
+   * Le cœur de #198 : l'auto-coaching ne compte pour personne. L'entrée SYNTHÉTIQUE de
+   * `GET /athletes` (#14) est bien là — c'est elle qui s'affichait dans la messagerie —, la
+   * contrepartie ne l'est pas. Les deux assertions côte à côte disent exactement cet écart.
+   */
+  it("ne compte pas l'auto-coaching comme une contrepartie", async () => {
+    const solo = await signUpWith("cp-solo@cmv.test", { isCoach: true, isAthlete: true });
+    expect((await solo.get("/athletes")).body).toHaveLength(1);
+    expect((await solo.get("/me/counterparts")).body).toEqual({
+      asCoach: false,
+      asAthlete: false,
+    });
+  });
+
+  // Le compte qui cumule ET coache quelqu'un : contrepartie côté coach seulement — il n'a pas de
+  // coach, donc rien côté athlète.
+  it("range la contrepartie du bon côté pour un compte qui cumule", async () => {
+    const dual = await signUpWith("cp-dual@cmv.test", { isCoach: true, isAthlete: true });
+    const athlete = await signUp("cp-dual-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await dual.post("/invitations").send({});
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    expect((await dual.get("/me/counterparts")).body).toEqual({ asCoach: true, asAthlete: false });
   });
 });
 
@@ -5310,6 +5385,36 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     expect(unread.body.athlete).toBe(2);
     expect(unread.body.coach).toBe(1);
     expect(unread.body.count).toBe(3);
+  });
+
+  /**
+   * Le seul chemin qui interroge VRAIMENT `Conversation` pour ventiler : il faut un compte à double
+   * capacité ET au moins un message non lu. Sans message, `unreadMessagesByCapability` sort avant
+   * d'y toucher — c'est exactement le trou par lequel un 500 est passé en production de dev.
+   */
+  it("ventile les messages non lus d'un compte à double capacité", async () => {
+    const dual = await signUpWith("vent-msg-dual@cmv.test", { isCoach: true, isAthlete: true });
+    const myAthlete = await signUp("vent-msg-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await dual.post("/invitations").send({});
+    expect(
+      (await myAthlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    // L'athlète écrit à son coach : le coach (donc `dual`) reçoit un MESSAGE_RECEIVED non lu.
+    const thread = await myAthlete.post("/conversations").send({});
+    expect(thread.status).toBe(201);
+    expect(
+      (
+        await myAthlete
+          .post(`/conversations/${thread.body.id}/messages`)
+          .send({ type: "TEXT", content: "Une question sur la séance" })
+      ).status,
+    ).toBe(201);
+
+    const unread = await dual.get("/me/notifications/unread-count");
+    expect(unread.status).toBe(200);
+    // Le message tombe du côté COACH : c'est là que `dual` tient ce fil.
+    expect(unread.body).toMatchObject({ coach: 1, athlete: 0, count: 1 });
   });
 
   // Un compte mono-capacité voit tout d'un seul côté : la ventilation ne lui coûte rien et ne

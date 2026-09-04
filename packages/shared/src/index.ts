@@ -1,5 +1,11 @@
 export type { AccountApi } from "./api/account.api";
-export { athleteKeys, coachKeys, createAccountApi, invitationKeys } from "./api/account.api";
+export {
+  athleteKeys,
+  coachKeys,
+  counterpartKeys,
+  createAccountApi,
+  invitationKeys,
+} from "./api/account.api";
 export { AS_CAPABILITY_PARAM, asKey, asQuery } from "./api/as-capability";
 export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
@@ -29,12 +35,15 @@ export { CapabilityBlocker, updateCapabilitiesSchema } from "./dto/capability.sc
 export type {
   CoachAthleteDto,
   CoachAthleteStatus as CoachAthleteStatusType,
+  CounterpartsDto,
 } from "./dto/coach-athlete.schema";
 export {
   CoachAthleteStatus,
   coachAthleteDtoSchema,
   coachAthleteStatusSchema,
+  counterpartsDtoSchema,
   SELF_RELATION_ID,
+  UNKNOWN_COUNTERPARTS,
 } from "./dto/coach-athlete.schema";
 export type {
   Adjustment,
@@ -580,6 +589,7 @@ export type {
 export { feedbackReplyAttachment, feedbackReplySurface } from "./util/feedback-reply.util";
 export type { Formatters } from "./util/formatter.util";
 export { createFormatters } from "./util/formatter.util";
+export { translatedOr } from "./util/i18n-fallback.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
 export {
   countOverdueInvoices,

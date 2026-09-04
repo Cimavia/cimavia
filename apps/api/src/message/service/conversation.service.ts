@@ -1,6 +1,12 @@
 import type { ConversationDto, OpenConversationInput } from "@cmv/shared";
 import { CoachAthleteStatus, MessageType } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { type Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
@@ -68,6 +74,13 @@ export class ConversationService {
    * Résout le couple (coach, athlète) du fil selon l'acteur. La FK n'impose pas le tenant : côté
    * coach, on VÉRIFIE que l'athlète visé est bien l'un des siens (relation active). Côté athlète,
    * on lit sa relation scopée — un athlète autonome (0 coach) n'a pas de messagerie en MVP.
+   *
+   * Trois refus, et trois ÉTATS distincts (#198). Se viser soi-même est **impossible** : le CHECK
+   * `coach_athlete_not_self` (#11) interdit la relation, donc aucune requête ne pourra jamais la
+   * trouver — c'est un 409, le même que le refus d'auto-relation, et pour la même raison. Viser un
+   * athlète tiers qui n'est pas le sien reste un 400 « Athlète inconnu », qui dit vrai. Et l'athlète
+   * sans coach reste un 400 lui aussi : une relation ABSENTE, pas une relation impossible — elle
+   * apparaîtra le jour où il en rejoint un.
    */
   private async resolvePair(
     actor: TenantContext,
@@ -76,6 +89,12 @@ export class ConversationService {
     if (exercisedOrThrow(actor) === "coach") {
       if (athleteId == null) {
         throw new BadRequestException("athleteId requis pour ouvrir un fil");
+      }
+      // AVANT la relation, et pas à la place du `null` qu'elle rendrait : le filtre tenant ajoute
+      // `coachId = moi`, donc chercher `athleteId = moi` ne peut rien trouver et le refus tomberait
+      // en « Athlète inconnu » — un état faux. L'athlète est parfaitement connu, c'est soi.
+      if (athleteId === actor.userId) {
+        throw new ConflictException("Vous ne pouvez pas ouvrir un fil avec vous-même");
       }
       const relation = await this.db.coachAthlete.findFirst({
         where: { athleteId, status: CoachAthleteStatus.ACTIVE },

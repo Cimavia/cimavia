@@ -34,7 +34,7 @@ import {
   CmvVideoLink,
 } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
-import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -106,9 +106,13 @@ function FeedbackBody({
   const athleteLabel = useAthleteLabel();
   const { data: session } = authClient.useSession();
 
+  const isSelf = useIsSelfAthlete()(summary?.athleteId ?? "");
+
   // Les hooks sont appelés INCONDITIONNELLEMENT : la barre vit au niveau de la mise en page, donc
   // avant que le débrief soit chargé. `null` dit l'attente, plutôt qu'un appel sous condition.
-  const conversation = useConversationWith(summary?.athleteId ?? null);
+  // Et `null` AUSSI sur son propre débrief : la requête prendrait un 409 (#198), affiché en
+  // « réessaie dans un instant » — une panne passagère qui n'en est pas une.
+  const conversation = useConversationWith(isSelf ? null : (summary?.athleteId ?? null));
   const queryClient = useQueryClient();
   const reply = useFeedbackReply({
     feedbackId: feedback?.id ?? null,
@@ -150,19 +154,34 @@ function FeedbackBody({
 
         <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
 
-        <FeedbackReplyMessages
-          messages={feedback?.messages ?? []}
-          currentUserId={session?.user.id ?? ""}
-        />
+        {/* La section GARDE son titre sur son propre débrief, et n'affiche qu'une phrase :
+            disparaître entièrement ferait chercher la barre d'envoi en passant d'un débrief à
+            l'autre. La phrase dit un état DÉFINITIF, là où l'erreur de résolution annonçait à tort
+            un incident passager. */}
+        {isSelf ? (
+          <View className="gap-2">
+            <CmvText className="font-cmv-display text-cmv-text-hi">
+              {t("feedback.reply.title")}
+            </CmvText>
+            <CmvText className="text-cmv-text-mid">{t("feedback.reply.self")}</CmvText>
+          </View>
+        ) : (
+          <FeedbackReplyMessages
+            messages={feedback?.messages ?? []}
+            currentUserId={session?.user.id ?? ""}
+          />
+        )}
       </ScrollView>
 
-      <FeedbackReplyComposer
-        reply={reply}
-        preUploadErrorKey={preUploadErrorKey}
-        onPreUploadError={setPreUploadErrorKey}
-        recap={recap}
-        onRecap={setRecap}
-      />
+      {isSelf ? null : (
+        <FeedbackReplyComposer
+          reply={reply}
+          preUploadErrorKey={preUploadErrorKey}
+          onPreUploadError={setPreUploadErrorKey}
+          recap={recap}
+          onRecap={setRecap}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
