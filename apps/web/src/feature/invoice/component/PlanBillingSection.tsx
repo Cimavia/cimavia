@@ -14,6 +14,11 @@ type PlanBillingSectionProps = {
   planId: string;
   // Une fois le cycle diffusé, la facturation est émise et figée : on n'affiche plus le formulaire.
   isPublished: boolean;
+  /**
+   * Le cycle a un destinataire (#144). `Invoice.athleteId` est NOT NULL : sans lui il n'y a
+   * personne à facturer, et l'API refuse la saisie en 409.
+   */
+  hasAthlete: boolean;
 };
 
 /**
@@ -22,9 +27,13 @@ type PlanBillingSectionProps = {
  * au dernier moment — jamais de float stocké. La période (mois de début) et l'athlète sont dérivés
  * côté API : rien à saisir ici.
  */
-export function PlanBillingSection({ planId, isPublished }: Readonly<PlanBillingSectionProps>) {
+export function PlanBillingSection({
+  planId,
+  isPublished,
+  hasAthlete,
+}: Readonly<PlanBillingSectionProps>) {
   const { t } = useTranslation();
-  const { data: billing } = usePlanBilling(planId);
+  const { data: billing } = usePlanBilling(planId, hasAthlete);
   const save = useSavePlanBilling(planId);
 
   const [amount, setAmount] = useState("");
@@ -55,6 +64,24 @@ export function PlanBillingSection({ planId, isPublished }: Readonly<PlanBilling
   }
 
   const canSubmit = toAmountCents(amount) != null && dueDate !== "";
+
+  /**
+   * Fermée, expliquée, jamais masquée : la faire disparaître laisserait croire qu'un cycle ne se
+   * facture pas, alors qu'il ne se facture pas ENCORE. La phrase dit aussi le geste qui débloque —
+   * choisir le destinataire, en haut de la page.
+   */
+  if (!hasAthlete) {
+    return (
+      <CmvCard>
+        <div className="flex flex-col gap-cmv-xs">
+          <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("invoice.billing.title")}</h2>
+          <p className="text-cmv-caption text-cmv-text-mid">
+            {t("invoice.billing.athleteRequired")}
+          </p>
+        </div>
+      </CmvCard>
+    );
+  }
 
   if (isPublished) {
     return (

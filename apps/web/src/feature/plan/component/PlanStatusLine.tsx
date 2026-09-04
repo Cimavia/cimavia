@@ -5,6 +5,8 @@ import { CmvBadge } from "@/shared/component";
 
 type PlanStatusLineProps = {
   status: PlanDto["status"];
+  /** Un cycle sans destinataire ne se diffuse pas (#144) : c'est ce qui manque en premier. */
+  hasAthlete: boolean;
   /** Termes de facturation saisis (facture DRAFT existante) : verrou de la diffusion. */
   isBillingFilled: boolean;
   /**
@@ -22,10 +24,14 @@ type PlanStatusLineProps = {
  */
 function hintKeyFor(
   isPublished: boolean,
+  hasAthlete: boolean,
   isBillingFilled: boolean,
   requiresBilling: boolean,
 ): string | null {
   if (isPublished) return "plan.builder.publishedHint";
+  // Le destinataire avant la facturation, comme dans les verrous de l'API : réclamer un montant à
+  // qui n'a pas encore choisi à qui il s'adresse, c'est nommer le second manque et taire le premier.
+  if (!hasAthlete) return "plan.builder.athleteRequired";
   if (requiresBilling && !isBillingFilled) return "plan.builder.billingRequired";
   return null;
 }
@@ -33,12 +39,13 @@ function hintKeyFor(
 // Statut du cycle + l'indice qui l'accompagne.
 export function PlanStatusLine({
   status,
+  hasAthlete,
   isBillingFilled,
   requiresBilling,
 }: Readonly<PlanStatusLineProps>) {
   const { t } = useTranslation();
   const isPublished = status === PlanStatus.PUBLISHED;
-  const hintKey = hintKeyFor(isPublished, isBillingFilled, requiresBilling);
+  const hintKey = hintKeyFor(isPublished, hasAthlete, isBillingFilled, requiresBilling);
 
   return (
     <div className="flex items-center gap-cmv-sm">

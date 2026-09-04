@@ -1,5 +1,6 @@
 import {
   isSelfCoached,
+  type PlanDto,
   PlanStatus,
   type PlanWeekDto,
   PlanWeekType,
@@ -34,6 +35,14 @@ type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null }
  * (#144). Sorti du composant, qui frôle le seuil de complexité de la porte qualité — et parce que
  * « pas encore choisi » est une réponse à afficher, pas un cas d'erreur à replier sur un tiret.
  */
+/**
+ * Un cycle dont la facturation a un sens : il a un destinataire, et ce n'est pas soi (#14, #144).
+ * L'API refuse la lecture des termes dans les deux autres cas — la question ne se pose donc pas.
+ */
+function isBillable(plan: PlanDto | undefined): boolean {
+  return plan != null && plan.athleteId != null && !isSelfCoached(plan);
+}
+
 function athleteHeading(
   plan: { athleteId: string | null; athleteName: string | null },
   athleteLabel: (athleteId: string, athleteName: string) => string,
@@ -53,7 +62,7 @@ export function PlanBuilderScreen() {
   const { addWeek, assignAthlete, isBusy } = usePlanMutations(planId);
   const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
-  const { data: billing } = usePlanBilling(planId);
+  const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
 
@@ -90,6 +99,7 @@ export function PlanBuilderScreen() {
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
+  const hasAthlete = plan.athleteId != null;
   const athleteTitle = athleteHeading(plan, athleteLabel, t("plan.unassigned"));
 
   function onOpenCreate(week: PlanWeekDto, date: string) {
@@ -135,6 +145,7 @@ export function PlanBuilderScreen() {
             planId={planId}
             isPublished={isPublished}
             hasWeeks={plan.weeks.length > 0}
+            hasAthlete={hasAthlete}
             isBillingFilled={billing != null}
             requiresBilling={!isSelfCoached(plan)}
             isBusy={isBusy}
@@ -149,6 +160,7 @@ export function PlanBuilderScreen() {
 
         <PlanStatusLine
           status={plan.status}
+          hasAthlete={hasAthlete}
           isBillingFilled={billing != null}
           requiresBilling={!isSelfCoached(plan)}
         />
@@ -209,7 +221,9 @@ export function PlanBuilderScreen() {
             auto-coaching, où l'on ne se facture pas soi-même. L'API lève alors le gating et
             refuse la saisie (#14) : laisser la section visible proposerait un formulaire
             obligatoire que rien n'accepterait. */}
-        {!isSelfCoached(plan) && <PlanBillingSection planId={planId} isPublished={isPublished} />}
+        {!isSelfCoached(plan) && (
+          <PlanBillingSection planId={planId} isPublished={isPublished} hasAthlete={hasAthlete} />
+        )}
       </div>
 
       {isPanelReady && edit != null ? (

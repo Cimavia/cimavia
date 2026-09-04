@@ -7,6 +7,8 @@ type PlanBuilderActionsProps = {
   planId: string;
   isPublished: boolean;
   hasWeeks: boolean;
+  /** Un cycle sans destinataire n'a personne à qui être diffusé (#144) — l'API refuse en 400. */
+  hasAthlete: boolean;
   /** Termes de facturation saisis (facture DRAFT existante) : verrou de la diffusion. */
   isBillingFilled: boolean;
   /** Faux en auto-coaching : on ne se facture pas soi-même, l'API lève le gating (#14). */
@@ -15,14 +17,33 @@ type PlanBuilderActionsProps = {
 };
 
 /**
+ * Ce qui manque pour diffuser, dans l'ORDRE des verrous de l'API — destinataire, puis facturation.
+ * `null` quand rien ne bloque.
+ *
+ * Une fonction nommée plutôt qu'une chaîne de ternaires dans le rendu : cet ordre est une décision
+ * (le message doit dire ce qui manque VRAIMENT, cf. #144), pas une commodité d'écriture.
+ */
+function publishBlockedKey(
+  isPublished: boolean,
+  hasAthlete: boolean,
+  billingBlocks: boolean,
+): string | null {
+  if (isPublished) return null;
+  if (!hasAthlete) return "plan.builder.athleteRequired";
+  return billingBlocks ? "plan.builder.billingRequired" : null;
+}
+
+/**
  * Les deux actions destructrices/irréversibles du builder, sorties de l'écran : ce sont elles qui
- * portent tout le gating (diffusion conditionnée aux semaines ET à la facturation, suppression
- * interdite après diffusion), et l'écran n'a pas à connaître ces règles pour disposer sa page.
+ * portent tout le gating (diffusion conditionnée aux semaines, au destinataire ET à la
+ * facturation, suppression interdite après diffusion), et l'écran n'a pas à connaître ces règles
+ * pour disposer sa page.
  */
 export function PlanBuilderActions({
   planId,
   isPublished,
   hasWeeks,
+  hasAthlete,
   isBillingFilled,
   requiresBilling,
   isBusy,
@@ -32,10 +53,11 @@ export function PlanBuilderActions({
   const publish = usePublishPlan();
   const removePlan = useDeletePlan();
 
-  // Info-bulle expliquant pourquoi la diffusion est bloquée (facturation à saisir d'abord).
+  // Info-bulle expliquant pourquoi la diffusion est bloquée. Le destinataire passe AVANT la
+  // facturation, dans le même ordre que les verrous de l'API : un cycle sans athlète ni
+  // facturation manque d'abord de quelqu'un à qui parler, pas d'un montant.
   const billingBlocks = requiresBilling && !isBillingFilled;
-  const publishBlockedTitle =
-    !isPublished && billingBlocks ? t("plan.builder.billingRequired") : undefined;
+  const publishBlockedTitle = publishBlockedKey(isPublished, hasAthlete, billingBlocks);
 
   return (
     <>
@@ -56,10 +78,10 @@ export function PlanBuilderActions({
       {/* La diffusion est irréversible et exige au moins une semaine ET une facturation saisie
           (l'API refuse sinon). Info-bulle sur un span : un bouton désactivé ne déclenche pas
           toujours le `title` natif selon le navigateur. */}
-      <span title={publishBlockedTitle}>
+      <span title={publishBlockedTitle == null ? undefined : t(publishBlockedTitle)}>
         <CmvButton
           onClick={() => publish.mutate(planId)}
-          disabled={isPublished || !hasWeeks || billingBlocks || publish.isPending}
+          disabled={isPublished || !hasWeeks || !hasAthlete || billingBlocks || publish.isPending}
         >
           {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
         </CmvButton>

@@ -504,6 +504,7 @@
       "delete": "Supprimer le cycle",
       "emptyWeeks": "Aucune semaine",
       "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances.",
+      "athleteRequired": "Choisissez le destinataire de ce cycle pour pouvoir le diffuser.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
       "titleWithAthlete": "{{title}} — {{name}}"
@@ -914,6 +915,7 @@
       "requiredLegend": "* champs obligatoires",
       "save": "Enregistrer la facturation",
       "saving": "Enregistrement…",
+      "athleteRequired": "Choisissez d'abord le destinataire du cycle, en haut de la page : une facture s'adresse à quelqu'un.",
       "issuedHint": "La facture a été émise à la diffusion du cycle.",
       "trackLink": "Suivre dans Facturation",
       "document": "Justificatif (PDF)",
