@@ -17,6 +17,7 @@
       "env": {
         "APP_VARIANT": "preview",
         "EXPO_PUBLIC_API_URL": "https://api-dev.cimavia.fr",
+        "EXPO_PUBLIC_WEB_URL": "https://app-dev.cimavia.fr",
         "EXPO_PUBLIC_SENTRY_DSN": "https://e6f6bd93838c9b415f5999d2ebf37529@o4511010053685248.ingest.de.sentry.io/4511636375797840"
       }
     },
