@@ -50,13 +50,18 @@ export class PlanService {
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
-    await this.assertAthleteOwned(input.athleteId);
+    // Sans destinataire (#144), il n'y a rien à valider : c'est un cycle qu'on prépare avant de
+    // savoir pour qui, et `publish` réclamera l'athlète le moment venu.
+    const athleteId = input.athleteId ?? null;
+    if (athleteId != null) {
+      await this.assertAthleteOwned(athleteId);
+    }
 
     const plan = await this.db.$transaction(async (tx) => {
       // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
       const created = await tx.plan.create({
         data: {
-          athleteId: input.athleteId,
+          athleteId,
           title: input.title,
           description: input.description ?? null,
           startDate: toDbDate(input.startDate),
@@ -65,7 +70,7 @@ export class PlanService {
           "coachId"
         > as Prisma.PlanUncheckedCreateInput,
       });
-      await this.createWeeks(tx, created.id, input.athleteId, input.weeks, 1);
+      await this.createWeeks(tx, created.id, athleteId, input.weeks, 1);
       return created;
     });
 
@@ -95,7 +100,10 @@ export class PlanService {
   async update(id: string, input: UpdatePlanInput): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(id);
 
-    const data: Prisma.PlanUpdateInput = {};
+    // Forme UNCHECKED : `athleteId` s'écrit en scalaire, comme partout ailleurs sur cette chaîne
+    // dénormalisée. La forme relationnelle demanderait un `connect`/`disconnect` là où le reste
+    // du module raisonne en identifiants.
+    const data: Prisma.PlanUncheckedUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
 
@@ -109,14 +117,94 @@ export class PlanService {
       data.startDate = toDbDate(input.startDate);
     }
 
+    // `undefined` = ne touche pas au destinataire ; `null` = le détacher. Les deux se
+    // distinguent, et c'est toute la raison d'être du `nullable().optional()` du schéma.
+    const reassigned = input.athleteId !== undefined;
+    if (reassigned) {
+      await this.assertReassignable(plan, input.athleteId ?? null);
+      data.athleteId = input.athleteId ?? null;
+    }
+
     await this.db.$transaction(async (tx) => {
       await tx.plan.update({ where: { id }, data });
       if (shiftDays !== 0) {
         await this.shiftSessions(tx, { planId: id }, shiftDays);
       }
+      if (reassigned) {
+        await this.propagateAthlete(tx, id, input.athleteId ?? null);
+      }
     });
 
     return this.getDto(id);
+  }
+
+  /**
+   * Ce qu'un changement de destinataire exige AVANT d'être écrit.
+   *
+   * Un cycle diffusé n'en change plus : son athlète a été notifié, s'entraîne dessus, et sa
+   * facture est émise à son nom. Le refus est un 409 et non un 400 — ce n'est pas la demande qui
+   * est mal formée, c'est l'état du cycle qui ne s'y prête plus.
+   */
+  private async assertReassignable(plan: Plan, athleteId: string | null): Promise<void> {
+    if (plan.status === PlanStatus.PUBLISHED) {
+      throw new ConflictException(
+        "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu",
+      );
+    }
+    if (athleteId != null) {
+      await this.assertAthleteOwned(athleteId);
+      return;
+    }
+    await this.invoices.assertPlanDetachable(plan.id);
+  }
+
+  /**
+   * Le destinataire descend sur TOUTE la chaîne de planification, dans la transaction de
+   * l'affectation. Un cycle à moitié affecté est un cycle dont la moitié des séances reste
+   * invisible de son athlète — une panne silencieuse, et la pire qui soit ici.
+   *
+   * SIX tables, parce que l'extension tenant filtre par un champ du modèle INTERROGÉ et ne sait
+   * pas remonter la relation. Les trois dernières ne portent pas `planId` : on descend donc par
+   * identifiants collectés plutôt que par filtre relationnel imbriqué, dont le SQL n'est
+   * vérifiable qu'à l'exécution — sur un invariant de tenant, on préfère le chemin qui se lit.
+   *
+   * La facture brouillon suit dans le même mouvement (`followPlanAthlete`), sans quoi elle serait
+   * émise au nom du destinataire précédent.
+   */
+  private async propagateAthlete(
+    tx: TenantTx,
+    planId: string,
+    athleteId: string | null,
+  ): Promise<void> {
+    await tx.planWeek.updateMany({ where: { planId }, data: { athleteId } });
+    await tx.scheduledSession.updateMany({ where: { planId }, data: { athleteId } });
+    if (athleteId != null) {
+      await this.invoices.followPlanAthlete(tx, planId, athleteId);
+    }
+
+    const sessions = await tx.scheduledSession.findMany({
+      where: { planId },
+      select: { id: true },
+    });
+    if (sessions.length === 0) return;
+
+    const inSessions = { scheduledSessionId: { in: sessions.map((session) => session.id) } };
+    await tx.scheduledSessionExercise.updateMany({ where: inSessions, data: { athleteId } });
+
+    const exercises = await tx.scheduledSessionExercise.findMany({
+      where: inSessions,
+      select: { id: true },
+    });
+    if (exercises.length === 0) return;
+
+    const inExercises = {
+      scheduledSessionExerciseId: { in: exercises.map((exercise) => exercise.id) },
+    };
+    await tx.scheduledSessionExerciseDocument.updateMany({
+      where: inExercises,
+      data: { athleteId },
+    });
+    await tx.scheduledSessionExerciseTag.updateMany({ where: inExercises, data: { athleteId } });
   }
 
   async delete(id: string): Promise<void> {
@@ -146,6 +234,19 @@ export class PlanService {
     const plan = await this.getOwnedOrThrow(id);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException("Planification déjà diffusée");
+    }
+
+    /**
+     * Le destinataire d'abord, avant le contenu et avant la facturation (#144). L'ordre n'est pas
+     * cosmétique : un cycle sans athlète NI facturation échouerait sinon sur le message de
+     * facturation, qui ne dit pas ce qui manque vraiment — et le coach chercherait un montant à
+     * saisir là où il lui manque quelqu'un à qui parler.
+     *
+     * C'est aussi ce qui rend non-null tout ce qui suit : notifications et facture s'appuient
+     * dessus, et `athleteRecipientOrThrow` garde les chemins que ce contrôle ne domine pas.
+     */
+    if (plan.athleteId == null) {
+      throw new BadRequestException("Choisis l'athlète de ce cycle avant de le diffuser");
     }
 
     const weekCount = await this.db.planWeek.count({ where: { planId: id } });
@@ -202,6 +303,8 @@ export class PlanService {
       throw new BadRequestException(`Un cycle ne peut pas dépasser ${PLAN_MAX_WEEKS} semaines`);
     }
 
+    // `plan.athleteId` peut être `null` (brouillon non encore affecté) : la semaine le recopie
+    // tel quel, et l'affectation la rattrapera avec le reste du cycle.
     await this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1);
     return this.getDto(planId);
   }
@@ -307,9 +410,14 @@ export class PlanService {
     }
   }
 
-  /** Un cycle que le coach s'est écrit à lui-même : ni facture, ni notification (#14). */
-  private isSelfCoaching(plan: { coachId: string; athleteId: string }): boolean {
-    return plan.coachId === plan.athleteId;
+  /**
+   * Un cycle que le coach s'est écrit à lui-même : ni facture, ni notification (#14).
+   *
+   * Un cycle SANS destinataire (#144) n'est pas solo — mais `publish` l'a déjà refusé bien avant
+   * d'arriver ici, ce qui est le seul endroit d'où cette question se pose.
+   */
+  private isSelfCoaching(plan: { coachId: string; athleteId: string | null }): boolean {
+    return plan.athleteId != null && plan.coachId === plan.athleteId;
   }
 
   // Insère des semaines consécutives à partir de `firstWeekNumber` (athleteId dénormalisé
@@ -317,7 +425,7 @@ export class PlanService {
   private async createWeeks(
     tx: TenantTx | TenantPrisma,
     planId: string,
-    athleteId: string,
+    athleteId: string | null,
     weeks: PlanWeekInput[],
     firstWeekNumber: number,
   ): Promise<void> {

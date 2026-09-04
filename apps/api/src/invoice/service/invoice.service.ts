@@ -40,6 +40,13 @@ import { toInvoiceDto } from "../invoice.mapper";
  * builder). Le scope tenant filtre par coachId ou athleteId selon l'acteur ; `upsert` étant interdit
  * par le client tenant, `saveDraft` fait findFirst + create/update.
  */
+/**
+ * Un cycle dont on peut facturer les termes : brouillon, et surtout ADRESSÉ à quelqu'un. Depuis
+ * #144 le destinataire est facultatif pendant la construction, alors que `Invoice.athleteId` reste
+ * NOT NULL — le type porte donc l'écart, plutôt que de le laisser se découvrir en base.
+ */
+type BillablePlan = Plan & { athleteId: string };
+
 @Injectable()
 export class InvoiceService {
   constructor(
@@ -102,6 +109,45 @@ export class InvoiceService {
       },
     });
     return this.toDto(updated);
+  }
+
+  /**
+   * Le brouillon de facture SUIT le destinataire du cycle (#144). Sans lui, la séquence
+   * « j'affecte à A, je saisis les termes, je réaffecte à B, je diffuse » émettrait à **A** une
+   * facture pour un cycle que **B** s'entraîne : `issueForPlan` ne réécrit que le statut, jamais
+   * le destinataire.
+   *
+   * `updateMany` plutôt qu'un `findFirst` suivi d'un `update` : sans brouillon, il n'y a rien à
+   * faire et l'appel ne coûte rien — on ne fait pas une question de ce qui n'a pas de réponse.
+   *
+   * Appelé DANS la transaction d'affectation : un cycle dont l'athlète a changé mais pas la
+   * facture est exactement ce que cette méthode existe pour empêcher.
+   */
+  async followPlanAthlete(tx: TenantTx, planId: string, athleteId: string): Promise<void> {
+    await tx.invoice.updateMany({
+      where: { planId, status: InvoiceStatus.DRAFT },
+      data: { athleteId },
+    });
+  }
+
+  /**
+   * Détacher un cycle de son destinataire (#144) est refusé tant que ses termes de facturation
+   * sont saisis : `Invoice.athleteId` est NOT NULL, et un montant qu'on n'adresse à personne n'a
+   * pas de sens.
+   *
+   * Ce refus ne bloque le coach sur rien — il peut toujours affecter QUELQU'UN d'autre, la
+   * facture suit. Seul l'état « cycle chiffré, adressé à personne » lui est fermé, et il n'a
+   * jamais rien voulu dire.
+   */
+  async assertPlanDetachable(planId: string): Promise<void> {
+    const draft = await this.db.invoice.findFirst({
+      where: { planId, status: InvoiceStatus.DRAFT },
+    });
+    if (draft != null) {
+      throw new ConflictException(
+        "Ce cycle a une facturation saisie : affectez-le à un autre athlète plutôt que de le laisser sans destinataire",
+      );
+    }
   }
 
   /**
@@ -252,13 +298,25 @@ export class InvoiceService {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   // Le cycle du coach courant, refusé s'il est déjà diffusé (facturation figée à l'émission).
-  private async getDraftablePlanOrThrow(planId: string): Promise<Plan> {
+  private async getDraftablePlanOrThrow(planId: string): Promise<BillablePlan> {
     const plan = await this.db.plan.findFirst({ where: { id: planId } });
     if (plan == null) {
       throw new NotFoundException("Cycle introuvable");
     }
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new BadRequestException("Cycle déjà diffusé : sa facturation est figée");
+    }
+    /**
+     * Pas encore de destinataire (#144) : `Invoice.athleteId` est NOT NULL, et on ne facture pas
+     * un cycle dont on ignore à qui il s'adresse. Un refus EXPLICITE, et pas seulement un
+     * formulaire fermé côté web : une contrainte gardée à la seule UI remonte en 500 au premier
+     * appel direct (piège n°4 du scope automatique, `architecture-choice.md` §6).
+     *
+     * C'est aussi ce qui donne son ORDRE à la saisie, sans qu'on l'invente : l'athlète d'abord,
+     * la facturation ensuite. La seule règle qui existe, et elle est dite.
+     */
+    if (plan.athleteId == null) {
+      throw new ConflictException("Choisis l'athlète de ce cycle avant d'en saisir la facturation");
     }
     /**
      * Auto-coaching (#14) : on ne se facture pas soi-même. Un refus EXPLICITE plutôt qu'un
@@ -269,7 +327,7 @@ export class InvoiceService {
     if (plan.coachId === plan.athleteId) {
       throw new ConflictException("Un cycle que vous vous écrivez à vous-même ne se facture pas");
     }
-    return plan;
+    return { ...plan, athleteId: plan.athleteId };
   }
 
   // Une facture ÉMISE (DRAFT exclu) : le brouillon se lit via getDraftByPlan, pas par id.

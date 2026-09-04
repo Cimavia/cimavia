@@ -58,10 +58,18 @@ export function useCancelInvoice() {
 }
 
 // Termes de facturation DRAFT du cycle (section du builder). `null` tant que rien n'est saisi.
-export function usePlanBilling(planId: string) {
+/**
+ * Les termes de facturation du cycle, ou `null` tant que rien n'est saisi.
+ *
+ * `enabled` parce que l'API REFUSE cette lecture sur un cycle qu'on ne peut pas facturer — sans
+ * destinataire (409, #144) ou écrit pour soi-même (409, #14). L'appeler quand même coûterait deux
+ * requêtes vouées à l'échec (`retry: 1`) pour une réponse qu'on connaît déjà.
+ */
+export function usePlanBilling(planId: string, enabled = true) {
   return useQuery<InvoiceDto | null>({
     queryKey: invoiceKeys.billing(planId),
     queryFn: () => getPlanBilling(planId),
+    enabled,
   });
 }
 

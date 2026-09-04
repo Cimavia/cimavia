@@ -16,6 +16,7 @@ import {
   getPlan,
   planKeys,
   scheduledSessionKeys,
+  updatePlan,
   updatePlanWeek,
   updateScheduledSession,
 } from "@/feature/plan/api";
@@ -54,6 +55,27 @@ export function usePlanMutations(planId: string) {
     await invalidate();
     toast.onSuccess(messageKey);
   };
+
+  /**
+   * Affecter, réaffecter ou détacher le destinataire du cycle (#144). Rangée avec les écritures du
+   * builder parce qu'elle invalide exactement les mêmes caches : changer de destinataire déplace
+   * le cycle ENTIER d'une vue athlète à une autre.
+   *
+   * Le toast se lit dans la réponse plutôt que dans la variable envoyée : c'est l'API qui dit le
+   * nom du destinataire, et un cycle détaché n'en a aucun à annoncer.
+   */
+  const assignAthlete = useMutation({
+    mutationFn: (athleteId: string | null) => updatePlan(planId, { athleteId }),
+    onSuccess: async (plan) => {
+      await invalidate();
+      if (plan.athleteName == null) {
+        toast.onSuccess("plan.toast.athleteCleared");
+        return;
+      }
+      toast.onSuccess("plan.toast.athleteAssigned", { name: plan.athleteName });
+    },
+    onError: toast.onError,
+  });
 
   const addWeek = useMutation({
     mutationFn: (input: PlanWeekInput) => addPlanWeek(planId, input),
@@ -117,6 +139,7 @@ export function usePlanMutations(planId: string) {
   });
 
   const isBusy =
+    assignAthlete.isPending ||
     addWeek.isPending ||
     updateWeek.isPending ||
     removeWeek.isPending ||
@@ -126,6 +149,7 @@ export function usePlanMutations(planId: string) {
     removeSession.isPending;
 
   return {
+    assignAthlete,
     addWeek,
     updateWeek,
     removeWeek,

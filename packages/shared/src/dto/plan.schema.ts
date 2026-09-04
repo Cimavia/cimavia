@@ -69,7 +69,12 @@ export type PlanWeekInput = z.infer<typeof planWeekInputSchema>;
 
 export const createPlanSchema = z
   .object({
-    athleteId: z.string().min(1),
+    /**
+     * Facultatif (#144) : un cycle se construit avant de savoir pour qui. Le coach qui prépare un
+     * bloc « force max, 6 semaines » n'a pas à désigner un athlète au hasard pour commencer.
+     * Obligatoire à la DIFFUSION en revanche — le verrou s'est déplacé, il n'a pas disparu.
+     */
+    athleteId: z.string().min(1).nullable().optional(),
     title: z.string().min(1).max(PLAN_TITLE_MAX_LENGTH),
     description: z.string().max(PLAN_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     startDate: planStartDateSchema,
@@ -86,6 +91,14 @@ export const updatePlanSchema = z
     title: z.string().min(1).max(PLAN_TITLE_MAX_LENGTH).optional(),
     description: z.string().max(PLAN_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     startDate: planStartDateSchema.optional(),
+    /**
+     * Affecter, réaffecter ou détacher le destinataire d'un BROUILLON (#144). Absent = ne rien
+     * changer ; `null` = détacher — les deux se distinguent, et c'est pour ça que le champ est à
+     * la fois `nullable` et `optional`.
+     *
+     * Refusé sur un cycle diffusé (409) : son destinataire en a déjà été prévenu.
+     */
+    athleteId: z.string().min(1).nullable().optional(),
   })
   .strict();
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
@@ -244,13 +257,19 @@ export type PlanWeekDto = z.infer<typeof planWeekDtoSchema>;
 export const planSummaryDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
-  athleteId: z.string(),
+  /**
+   * `null` = brouillon dont le destinataire n'est pas encore choisi (#144). Ce n'est pas une
+   * donnée manquante mais un ÉTAT, et il est actionnable : le coach affecte quand il a décidé.
+   * Toujours renseigné sur un cycle diffusé — `publish` l'exige.
+   */
+  athleteId: z.string().nullable(),
   /**
    * Le nom et l'adresse de l'athlète destinataire. Sans eux, un coach devant sa liste de cycles ne
-   * sait pas à qui chacun s'adresse — l'identifiant ne se lit pas.
+   * sait pas à qui chacun s'adresse — l'identifiant ne se lit pas. `null` avec `athleteId` : les
+   * trois champs décrivent la même absence, il n'y a pas de cycle nommé sans destinataire.
    */
-  athleteName: z.string(),
-  athleteEmail: z.string(),
+  athleteName: z.string().nullable(),
+  athleteEmail: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   startDate: z.iso.date(),

@@ -35,7 +35,11 @@ dur, e2e d'isolation pour toute nouvelle route).
 
 ## Nommage et relations
 
-- Pattern : `[feature-name_numero] - titre`. Épic `[feature-name] - titre`, enfants `_1`, `_2`…
+- Pattern : `[feature-name] - titre`. Le suffixe `_1`, `_2`… marque un **enfant d'épic**, rien
+  d'autre — une issue sans parent ne se numérote pas, même si elle inaugure une famille et même
+  si une suite est probable. Épic `[feature-name] - titre`, enfants `[feature-name_1]`,
+  `[feature-name_2]`… Des issues autonomes numérotées `_1` traînent dans l'historique
+  (`[dnd_1]`, `[ordre-seance_1]`, `[form-required_1]`) : ce ne sont pas des précédents à suivre.
 - **Vérifier la numérotation avant de nommer** — `[pagination_4]` était déjà pris par #106, et #123
   a été renommée de `_6` en `_5` :
   ```bash

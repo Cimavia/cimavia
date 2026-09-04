@@ -396,8 +396,12 @@ model Plan {
   id          String     @id @default(cuid())
   coachId     String
   coach       User       @relation("CoachPlans", fields: [coachId], references: [id], onDelete: Cascade)
-  athleteId   String
-  athlete     User       @relation("AthletePlans", fields: [athleteId], references: [id], onDelete: Cascade)
+  /// `null` = cycle en construction dont le destinataire n'est pas encore choisi (#144). Un
+  /// `NULL` ne satisfait jamais le filtre tenant `where: { athleteId }` : un tel brouillon est
+  /// donc invisible de TOUS les athlètes par construction, et non par une règle applicative.
+  /// Obligatoire à la DIFFUSION, en revanche — le verrou s'est déplacé, il n'a pas disparu.
+  athleteId   String?
+  athlete     User?      @relation("AthletePlans", fields: [athleteId], references: [id], onDelete: Cascade)
   title       String
   description String? // description du cycle — nullable, pas de fallback
   // Date civile (pas d'horaire, pas de fuseau) : toujours un LUNDI (planStartDateSchema).
@@ -422,9 +426,10 @@ model PlanWeek {
   // coachId/athleteId recopiés du Plan parent : l'extension tenant filtre par un champ du
   // modèle INTERROGÉ (`where: { coachId }`), elle ne sait pas remonter la relation
   // (`where: { plan: { coachId } }`). Sans ces colonnes, la semaine serait non scopable.
-  // L'extension les injecte elle-même à la création — aucun service ne les renseigne.
+  // L'extension n'injecte que le champ de l'ACTEUR (ici coachId) : `athleteId` est recopié
+  // par le service, et suit le plan quand celui-ci change de destinataire (#144).
   coachId    String
-  athleteId  String
+  athleteId  String?
   planId     String
   plan       Plan         @relation(fields: [planId], references: [id], onDelete: Cascade)
   weekNumber Int // 1-based ; nombre de semaines LIBRE (CDC §5.4)
@@ -444,7 +449,7 @@ model PlanWeek {
 model ScheduledSession {
   id              String                 @id @default(cuid())
   coachId         String
-  athleteId       String
+  athleteId       String?
   planId          String
   plan            Plan                   @relation(fields: [planId], references: [id], onDelete: Cascade)
   planWeekId      String
@@ -474,7 +479,7 @@ model ScheduledSession {
 model ScheduledSessionExercise {
   id                 String           @id @default(cuid())
   coachId            String
-  athleteId          String
+  athleteId          String?
   scheduledSessionId String
   scheduledSession   ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
   sourceExerciseId   String? // exercice d'origine — traçabilité seule
@@ -515,7 +520,7 @@ model ScheduledSessionExercise {
 model ScheduledSessionExerciseDocument {
   id                         String                   @id @default(cuid())
   coachId                    String
-  athleteId                  String // sans cette copie, l'athlète ne pourrait PAS lire les documents
+  athleteId                  String? // sans cette copie, l'athlète ne pourrait PAS lire les documents
   scheduledSessionExerciseId String
   scheduledSessionExercise   ScheduledSessionExercise @relation(fields: [scheduledSessionExerciseId], references: [id], onDelete: Cascade)
   type                       DocumentType
@@ -540,7 +545,7 @@ model ScheduledSessionExerciseDocument {
 model ScheduledSessionExerciseTag {
   id                         String                   @id @default(cuid())
   coachId                    String
-  athleteId                  String
+  athleteId                  String?
   scheduledSessionExerciseId String
   scheduledSessionExercise   ScheduledSessionExercise @relation(fields: [scheduledSessionExerciseId], references: [id], onDelete: Cascade)
   name                       String

@@ -1,5 +1,6 @@
 import {
   isSelfCoached,
+  type PlanDto,
   PlanStatus,
   type PlanWeekDto,
   PlanWeekType,
@@ -14,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
+import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
@@ -28,16 +30,39 @@ import { formatDate } from "@/shared/util/date.util";
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
 type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null };
 
+/**
+ * Le destinataire tel qu'il s'écrit dans le titre : son nom, ou le fait qu'il reste à choisir
+ * (#144). Sorti du composant, qui frôle le seuil de complexité de la porte qualité — et parce que
+ * « pas encore choisi » est une réponse à afficher, pas un cas d'erreur à replier sur un tiret.
+ */
+/**
+ * Un cycle dont la facturation a un sens : il a un destinataire, et ce n'est pas soi (#14, #144).
+ * L'API refuse la lecture des termes dans les deux autres cas — la question ne se pose donc pas.
+ */
+function isBillable(plan: PlanDto | undefined): boolean {
+  return plan != null && plan.athleteId != null && !isSelfCoached(plan);
+}
+
+function athleteHeading(
+  plan: { athleteId: string | null; athleteName: string | null },
+  athleteLabel: (athleteId: string, athleteName: string) => string,
+  unassignedLabel: string,
+): string {
+  return plan.athleteId == null || plan.athleteName == null
+    ? unassignedLabel
+    : athleteLabel(plan.athleteId, plan.athleteName);
+}
+
 export function PlanBuilderScreen() {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
-  const { addWeek, isBusy } = usePlanMutations(planId);
+  const { addWeek, assignAthlete, isBusy } = usePlanMutations(planId);
   const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
-  const { data: billing } = usePlanBilling(planId);
+  const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
 
@@ -74,6 +99,8 @@ export function PlanBuilderScreen() {
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
+  const hasAthlete = plan.athleteId != null;
+  const athleteTitle = athleteHeading(plan, athleteLabel, t("plan.unassigned"));
 
   function onOpenCreate(week: PlanWeekDto, date: string) {
     setEdit({ week, date, sessionId: null });
@@ -91,10 +118,7 @@ export function PlanBuilderScreen() {
     <CmvAppShell
       // Le destinataire DANS le titre : devant une liste de cycles qui se ressemblent, savoir à
       // qui celui-ci s'adresse compte autant que son nom.
-      title={t("plan.builder.titleWithAthlete", {
-        title: plan.title,
-        name: athleteLabel(plan.athleteId, plan.athleteName),
-      })}
+      title={t("plan.builder.titleWithAthlete", { title: plan.title, name: athleteTitle })}
       subtitle={t("plan.card.meta", {
         weeks: plan.weekCount,
         sessions: plan.sessionCount,
@@ -105,6 +129,12 @@ export function PlanBuilderScreen() {
           {/* Rappel contextuel (#45) : posé ICI plutôt que dans PlanBuilderActions, qui ne porte
               que les actions destructrices et leur gating. Un rappel se programme à tout moment,
               brouillon comme cycle diffusé. */}
+          <PlanAthletePicker
+            athleteId={plan.athleteId}
+            isPublished={isPublished}
+            isBusy={isBusy}
+            onChange={(athleteId) => assignAthlete.mutate(athleteId)}
+          />
           <ScheduleReminderButton
             entityType={ReminderEntityType.PLAN}
             entityId={planId}
@@ -115,6 +145,7 @@ export function PlanBuilderScreen() {
             planId={planId}
             isPublished={isPublished}
             hasWeeks={plan.weeks.length > 0}
+            hasAthlete={hasAthlete}
             isBillingFilled={billing != null}
             requiresBilling={!isSelfCoached(plan)}
             isBusy={isBusy}
@@ -129,6 +160,7 @@ export function PlanBuilderScreen() {
 
         <PlanStatusLine
           status={plan.status}
+          hasAthlete={hasAthlete}
           isBillingFilled={billing != null}
           requiresBilling={!isSelfCoached(plan)}
         />
@@ -189,7 +221,9 @@ export function PlanBuilderScreen() {
             auto-coaching, où l'on ne se facture pas soi-même. L'API lève alors le gating et
             refuse la saisie (#14) : laisser la section visible proposerait un formulaire
             obligatoire que rien n'accepterait. */}
-        {!isSelfCoached(plan) && <PlanBillingSection planId={planId} isPublished={isPublished} />}
+        {!isSelfCoached(plan) && (
+          <PlanBillingSection planId={planId} isPublished={isPublished} hasAthlete={hasAthlete} />
+        )}
       </div>
 
       {isPanelReady && edit != null ? (

@@ -116,6 +116,18 @@ describe("buildAthleteRows", () => {
     expect(rows?.[0]?.plan).toBeNull();
   });
 
+  /**
+   * Le tableau liste des ATHLÈTES : un cycle sans destinataire (#144) n'appartient à aucune ligne,
+   * et surtout pas à toutes. Le test fige l'absence pour qu'on ne la « corrige » pas un jour en
+   * rangeant ces cycles chez quelqu'un — un athlète marqué « sans plan » appelle un geste du coach,
+   * un cycle non affecté en appelle un autre, sur le cycle.
+   */
+  it("n'attribue à personne un cycle sans destinataire, même diffusé", () => {
+    const unassigned = { ...LEA_PLAN, id: "pln_libre", athleteId: null };
+    const rows = buildAthleteRows({ ...FULL, plans: [unassigned] });
+    expect(rows?.map((row) => row.plan)).toEqual([null, null]);
+  });
+
   it("compte les débriefs NON LUS et retient le plus récent pour le lien", () => {
     const [lea, noah] = buildAthleteRows(FULL) ?? [];
     expect(lea?.unreadFeedbacks).toBe(2);

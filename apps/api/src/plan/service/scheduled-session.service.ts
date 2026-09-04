@@ -30,6 +30,7 @@ import {
   parseInstructions,
   parseTracking,
 } from "../../util/exercise-json.util";
+import { athleteRecipientOrThrow } from "../plan.recipient";
 import {
   type ScheduledSessionWithExercises,
   SESSION_DETAIL_INCLUDE,
@@ -100,7 +101,7 @@ export class ScheduledSessionService {
     // continuerait d'afficher la semaine d'avant. Sur un brouillon, rien à annoncer.
     if (plan.status === PlanStatus.PUBLISHED) {
       await this.notifications.notifyPlanSessionAdded({
-        athleteId: plan.athleteId,
+        athleteId: athleteRecipientOrThrow(plan),
         planId: plan.id,
         sessionTitle: draft.title,
       });
@@ -174,7 +175,7 @@ export class ScheduledSessionService {
     // rien à annoncer — le cycle n'existe pas encore pour lui.
     if (plan.status === PlanStatus.PUBLISHED) {
       await this.notifications.notifyPlanUpdated({
-        athleteId: plan.athleteId,
+        athleteId: athleteRecipientOrThrow(plan),
         planId: plan.id,
         sessionTitle: input.title,
       });
@@ -196,7 +197,7 @@ export class ScheduledSessionService {
     // visible dans son cache hors-ligne et il se déplace pour rien.
     if (plan.status === PlanStatus.PUBLISHED) {
       await this.notifications.notifyPlanSessionRemoved({
-        athleteId: plan.athleteId,
+        athleteId: athleteRecipientOrThrow(plan),
         planId: plan.id,
         sessionTitle: session.title,
       });
@@ -348,7 +349,7 @@ export class ScheduledSessionService {
   private insertExercises(
     tx: TenantTx,
     scheduledSessionId: string,
-    athleteId: string,
+    athleteId: string | null,
     exercises: ScheduledSessionExerciseInput[],
     documentsBySource: DocumentsBySource,
     carried: CarriedRows = new Map(),

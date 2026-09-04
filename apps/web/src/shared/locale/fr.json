@@ -376,6 +376,7 @@
   "plan": {
     "title": "Planifications",
     "subtitle": "Les cycles de vos athlètes : construisez, ajustez, diffusez.",
+    "unassigned": "Athlète à définir",
     "athlete": {
       "sessionFallbackTitle": "Séance",
       "notes": "Consignes du coach",
@@ -441,9 +442,10 @@
     },
     "form": {
       "title": "Nouvelle planification",
-      "description": "Un cycle pour un athlète. Le nombre de semaines reste libre : vous en ajouterez ou en retirerez ensuite.",
+      "description": "Le nombre de semaines reste libre : vous en ajouterez ou en retirerez ensuite.",
       "athlete": "Athlète",
-      "athletePlaceholder": "Choisir un athlète…",
+      "athletePlaceholder": "À définir plus tard",
+      "athleteHint": "Facultatif : vous pourrez choisir le destinataire tant que le cycle n'est pas diffusé.",
       "titleLabel": "Titre du cycle",
       "titlePlaceholder": "Cycle bloc — automne",
       "descriptionLabel": "Description du cycle",
@@ -494,12 +496,15 @@
     "builder": {
       "back": "← Planifications",
       "addWeek": "Ajouter une semaine",
+      "athlete": "Destinataire",
+      "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",
       "publishedHint": "L'athlète voit ce cycle. Vos ajustements lui sont visibles immédiatement.",
       "delete": "Supprimer le cycle",
       "emptyWeeks": "Aucune semaine",
       "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances.",
+      "athleteRequired": "Choisissez le destinataire de ce cycle pour pouvoir le diffuser.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
       "titleWithAthlete": "{{title}} — {{name}}"
@@ -515,6 +520,8 @@
       "sessionSaved": "Séance enregistrée",
       "sessionDeleted": "Séance supprimée",
       "weekPasted": "Semaine collée — {{count}} séance(s)",
+      "athleteAssigned": "Cycle affecté à {{name}}",
+      "athleteCleared": "Ce cycle n'a plus de destinataire",
       "weekPastedPlain": "Semaine collée"
     },
     "clipboard": {
@@ -908,6 +915,7 @@
       "requiredLegend": "* champs obligatoires",
       "save": "Enregistrer la facturation",
       "saving": "Enregistrement…",
+      "athleteRequired": "Choisissez d'abord le destinataire du cycle, en haut de la page : une facture s'adresse à quelqu'un.",
       "issuedHint": "La facture a été émise à la diffusion du cycle.",
       "trackLink": "Suivre dans Facturation",
       "document": "Justificatif (PDF)",

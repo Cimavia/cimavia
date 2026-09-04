@@ -279,4 +279,10 @@ describe("isSelfCoached", () => {
   it("ne confond pas un cycle écrit pour quelqu'un d'autre", () => {
     expect(isSelfCoached({ coachId: "u1", athleteId: "u2" })).toBe(false);
   });
+
+  // Écrit pour PERSONNE (#144) n'est pas écrit pour soi : les confondre rouvrirait la facturation
+  // d'un cycle qui n'a personne à facturer.
+  it("ne prend pas un cycle sans destinataire pour un cycle solo", () => {
+    expect(isSelfCoached({ coachId: "u1", athleteId: null })).toBe(false);
+  });
 });
