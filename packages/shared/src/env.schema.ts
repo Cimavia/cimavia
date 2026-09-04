@@ -48,6 +48,22 @@ export const envSchema = z.object({
    * NAS, env Scaleway.
    */
   REMINDER_TICK_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
+  /**
+   * Envoi d'e-mails transactionnels (#62). Optionnel au boot comme les `S3_*` : l'API démarre
+   * sans, tout le reste fonctionne, et rien ne part — l'absence est journalisée, jamais silencieuse.
+   *
+   * Le minimum pour envoyer est `SMTP_HOST` + `SMTP_PORT` + `MAIL_FROM`. L'authentification est
+   * LUE À PART et son absence n'est pas une configuration incomplète : le Mailpit du dev local
+   * n'a pas de compte. C'est la seule divergence avec le contrat des `S3_*`, où les cinq
+   * variables vont ensemble.
+   */
+  SMTP_HOST: z.preprocess(emptyAsUndefined, z.string().optional()),
+  SMTP_PORT: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(1).max(65535).optional()),
+  SMTP_USER: z.preprocess(emptyAsUndefined, z.string().optional()),
+  SMTP_PASSWORD: z.preprocess(emptyAsUndefined, z.string().optional()),
+  // Expéditeur des e-mails, au format « Nom <adresse> » ou « adresse » seule. Sans lui, aucun
+  // envoi n'est possible : un serveur SMTP refuse un message sans enveloppe d'expéditeur.
+  MAIL_FROM: z.preprocess(emptyAsUndefined, z.string().optional()),
 });
 
 export type EnvSchema = z.infer<typeof envSchema>;
