@@ -100,7 +100,7 @@ export function PlanHeaderForm({ plan, isSaving, onSave }: Readonly<PlanHeaderFo
    */
   const shiftDays =
     startDate === plan.startDate ? null : daysBetweenIsoDates(plan.startDate, startDate);
-  const warningKey = shiftWarningKey(shiftDays, plan.sessionCount);
+  const warning = shiftWarning(shiftDays, plan.sessionCount);
 
   return (
     <CmvCard>
@@ -150,11 +150,13 @@ export function PlanHeaderForm({ plan, isSaving, onSave }: Readonly<PlanHeaderFo
           <p className="text-cmv-caption text-cmv-text-lo">{t("plan.header.startDateHint")}</p>
           {/* Déplacer la date REJOUE tout le cycle. Le dire avant l'enregistrement, sinon un
               report d'un mois se lit comme un simple champ de formulaire. */}
-          {warningKey == null ? null : (
+          {warning == null ? null : (
             <p className="text-cmv-caption text-cmv-warning-on">
-              {t(warningKey, {
-                sessions: plan.sessionCount,
-                days: Math.abs(shiftDays ?? 0),
+              {/* Le décalage est composé À PART puis interpolé : i18next n'accorde que sur
+                  `count`, et cette phrase en accorde DEUX — les séances et les jours. */}
+              {t(warning.key, {
+                count: plan.sessionCount,
+                shift: t("plan.header.startDateShiftDays", { count: warning.days }),
               })}
             </p>
           )}
@@ -188,6 +190,10 @@ export function PlanHeaderForm({ plan, isSaving, onSave }: Readonly<PlanHeaderFo
  * de la même façon : « de 7 jours » sans la direction laisse le coach deviner de quel côté son
  * cycle vient de partir.
  *
+ * Rend la clé ET la distance, plutôt que la clé seule : la phrase accorde sur les SÉANCES et le
+ * décalage sur les JOURS, et sans les deux valeurs à la main l'appelant retomberait sur un
+ * `?? 0` — un zéro inventé là où le type dit « peut-être rien » (règle 5).
+ *
  * DEUX clés littérales plutôt qu'une clé assemblée : une clé assemblée n'est lue ni par
  * TypeScript ni par i18next, et `check-i18n-keys.mjs` ne peut que la lister pour relecture
  * humaine — c'est-à-dire s'afficher en clair en production le jour où elle est renommée.
@@ -195,7 +201,13 @@ export function PlanHeaderForm({ plan, isSaving, onSave }: Readonly<PlanHeaderFo
  * On annonce les SÉANCES, et rien d'autre : l'API les décale toutes (`shiftSessions`), mais
  * l'échéance de la facture, elle, est une saisie du coach et ne suit pas.
  */
-function shiftWarningKey(shiftDays: number | null, sessionCount: number): string | null {
+function shiftWarning(
+  shiftDays: number | null,
+  sessionCount: number,
+): { key: string; days: number } | null {
   if (shiftDays == null || shiftDays === 0 || sessionCount === 0) return null;
-  return shiftDays > 0 ? "plan.header.startDateShiftLater" : "plan.header.startDateShiftEarlier";
+  return {
+    key: shiftDays > 0 ? "plan.header.startDateShiftLater" : "plan.header.startDateShiftEarlier",
+    days: Math.abs(shiftDays),
+  };
 }
