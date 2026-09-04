@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { useDeletePlan, usePublishPlan } from "@/feature/plan/hook/usePlans";
 import { renderInRoute } from "../../../../test/render";
@@ -9,9 +9,20 @@ vi.mock("@/feature/plan/hook/usePlans", () => ({
   usePublishPlan: vi.fn(),
 }));
 
-const idle = { mutate: vi.fn(), isPending: false };
-vi.mocked(useDeletePlan).mockReturnValue(idle as unknown as ReturnType<typeof useDeletePlan>);
-vi.mocked(usePublishPlan).mockReturnValue(idle as unknown as ReturnType<typeof usePublishPlan>);
+const publish = vi.fn();
+const remove = vi.fn();
+vi.mocked(useDeletePlan).mockReturnValue({
+  mutate: remove,
+  isPending: false,
+} as unknown as ReturnType<typeof useDeletePlan>);
+vi.mocked(usePublishPlan).mockReturnValue({
+  mutate: publish,
+  isPending: false,
+} as unknown as ReturnType<typeof usePublishPlan>);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 // Un brouillon à qui plus rien ne manque : chaque test n'en dégrade qu'un aspect à la fois.
 const READY: ComponentProps<typeof PlanBuilderActions> = {
@@ -64,6 +75,28 @@ describe("PlanBuilderActions — diffuser", () => {
     const { getByTitle } = await mount({ isBillingFilled: false });
 
     expect(getByTitle("plan.builder.billingRequired")).toBeTruthy();
+  });
+
+  it("diffuse le cycle quand plus rien ne manque", async () => {
+    const { getByText, user } = await mount({});
+
+    await user.click(getByText("plan.builder.publish"));
+
+    expect(publish).toHaveBeenCalledWith("pln_1");
+  });
+
+  /**
+   * La suppression demande confirmation avant de partir : un cycle effacé emporte ses semaines,
+   * ses séances et sa facture brouillon, et rien ne le rend.
+   */
+  it("ne supprime qu'après confirmation", async () => {
+    const { getByText, user } = await mount({});
+
+    await user.click(getByText("plan.builder.delete"));
+    expect(remove).not.toHaveBeenCalled();
+
+    await user.click(getByText("common.confirmDelete"));
+    expect(remove.mock.calls[0]?.[0]).toBe("pln_1");
   });
 
   // Un cycle auto-coaché ne se facture pas (#14) : le verrou de facturation n'a pas à s'y appliquer.

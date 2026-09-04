@@ -5,15 +5,25 @@ import { renderWithQueryClient } from "../../../../test/query";
 import { planKeys, scheduledSessionKeys } from "../api";
 import { usePlan, usePlanMutations } from "./usePlan";
 
-const { getPlanMock, addPlanWeekMock, copyPlanWeekMock, onSuccessMock, onErrorMock } = vi.hoisted(
-  () => ({
-    getPlanMock: vi.fn(),
-    addPlanWeekMock: vi.fn(),
-    copyPlanWeekMock: vi.fn(),
-    onSuccessMock: vi.fn(),
-    onErrorMock: vi.fn(),
-  }),
-);
+const {
+  getPlanMock,
+  addPlanWeekMock,
+  copyPlanWeekMock,
+  updatePlanMock,
+  updatePlanWeekMock,
+  deletePlanWeekMock,
+  onSuccessMock,
+  onErrorMock,
+} = vi.hoisted(() => ({
+  getPlanMock: vi.fn(),
+  addPlanWeekMock: vi.fn(),
+  copyPlanWeekMock: vi.fn(),
+  updatePlanMock: vi.fn(),
+  updatePlanWeekMock: vi.fn(),
+  deletePlanWeekMock: vi.fn(),
+  onSuccessMock: vi.fn(),
+  onErrorMock: vi.fn(),
+}));
 
 // Les fabriques de clés restent les VRAIES : c'est sur elles que porte l'assertion d'invalidation.
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
@@ -21,6 +31,9 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   getPlan: getPlanMock,
   addPlanWeek: addPlanWeekMock,
   copyPlanWeek: copyPlanWeekMock,
+  updatePlan: updatePlanMock,
+  updatePlanWeek: updatePlanWeekMock,
+  deletePlanWeek: deletePlanWeekMock,
 }));
 
 // Le toast est coupé pour ne pas traîner i18next et le contexte d'affichage : ce qui est vérifié
@@ -122,6 +135,85 @@ describe("usePlanMutations", () => {
     });
 
     expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekPastedPlain");
+  });
+
+  /**
+   * Affecter un destinataire (#144). Le toast lit le nom dans la RÉPONSE et non dans ce qu'il a
+   * envoyé : c'est l'API qui nomme l'athlète, le client n'en connaît que l'identifiant.
+   */
+  it("annonce le destinataire tel que l'API le nomme", async () => {
+    updatePlanMock.mockResolvedValue({ ...planWith([]), athleteName: "Léa Moreau" });
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.assignAthlete.mutateAsync("ath_lea");
+    });
+
+    expect(updatePlanMock).toHaveBeenCalledWith("plan-1", { athleteId: "ath_lea" });
+    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.athleteAssigned", {
+      name: "Léa Moreau",
+    });
+  });
+
+  /**
+   * Détacher : un cycle sans destinataire n'a aucun nom à annoncer, d'où un message à part plutôt
+   * qu'un message à trou. `null` part tel quel — une chaîne vide serait un identifiant invalide.
+   */
+  it("annonce un cycle détaché sans prétendre nommer personne", async () => {
+    updatePlanMock.mockResolvedValue({ ...planWith([]), athleteName: null });
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.assignAthlete.mutateAsync(null);
+    });
+
+    expect(updatePlanMock).toHaveBeenCalledWith("plan-1", { athleteId: null });
+    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.athleteCleared");
+  });
+
+  // Changer de destinataire déplace le cycle ENTIER d'une vue athlète à une autre : les trois
+  // racines doivent tomber, comme pour n'importe quelle autre écriture du builder.
+  it("invalide les trois racines après une affectation, pas seulement la liste des cycles", async () => {
+    updatePlanMock.mockResolvedValue({ ...planWith([]), athleteName: "Léa Moreau" });
+    const { wrapper, queryClient } = renderWithQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.assignAthlete.mutateAsync("ath_lea");
+    });
+
+    const roots = invalidate.mock.calls.map(([options]) => options?.queryKey);
+    expect(roots).toEqual([planKeys.all, scheduledSessionKeys.all, myPlanKeys.all]);
+  });
+
+  it("enregistre la semaine modifiée et l'annonce", async () => {
+    updatePlanWeekMock.mockResolvedValue(planWith([]));
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.updateWeek.mutateAsync({ weekId: "w-1", input: {} as never });
+    });
+
+    expect(updatePlanWeekMock).toHaveBeenCalledWith("w-1", {});
+    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekUpdated");
+  });
+
+  // Retirer une semaine renumérote les suivantes côté API : le client se contente de recharger.
+  it("supprime la semaine demandée et l'annonce", async () => {
+    deletePlanWeekMock.mockResolvedValue(planWith([]));
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.removeWeek.mutateAsync("w-1");
+    });
+
+    expect(deletePlanWeekMock).toHaveBeenCalledWith("w-1");
+    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekDeleted");
   });
 
   it("remonte l'échec au toast d'erreur au lieu de le laisser dans la mutation", async () => {

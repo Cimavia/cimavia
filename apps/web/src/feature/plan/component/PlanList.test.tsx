@@ -58,6 +58,15 @@ describe("PlanList — le destinataire", () => {
     expect(queryByText("—")).toBeNull();
   });
 
+  // La carte entière est cliquable : c'est le seul chemin vers le builder depuis cette liste.
+  it("ouvre le builder du cycle cliqué", async () => {
+    const { getByText, router, user } = await mount([plan({})]);
+
+    await user.click(getByText("Cycle bloc"));
+
+    expect(router.state.location.pathname).toBe("/plans/pln_1");
+  });
+
   // Un athlète que la liste des relations ne rend pas (relation retirée depuis) : là, on ne sait
   // pas — et « à définir » serait un mensonge, il a été défini.
   it("garde le tiret pour un destinataire introuvable", async () => {
