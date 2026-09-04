@@ -69,7 +69,12 @@ export type PlanWeekInput = z.infer<typeof planWeekInputSchema>;
 
 export const createPlanSchema = z
   .object({
-    athleteId: z.string().min(1),
+    /**
+     * Facultatif (#144) : un cycle se construit avant de savoir pour qui. Le coach qui prépare un
+     * bloc « force max, 6 semaines » n'a pas à désigner un athlète au hasard pour commencer.
+     * Obligatoire à la DIFFUSION en revanche — le verrou s'est déplacé, il n'a pas disparu.
+     */
+    athleteId: z.string().min(1).nullable().optional(),
     title: z.string().min(1).max(PLAN_TITLE_MAX_LENGTH),
     description: z.string().max(PLAN_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     startDate: planStartDateSchema,
@@ -86,6 +91,14 @@ export const updatePlanSchema = z
     title: z.string().min(1).max(PLAN_TITLE_MAX_LENGTH).optional(),
     description: z.string().max(PLAN_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     startDate: planStartDateSchema.optional(),
+    /**
+     * Affecter, réaffecter ou détacher le destinataire d'un BROUILLON (#144). Absent = ne rien
+     * changer ; `null` = détacher — les deux se distinguent, et c'est pour ça que le champ est à
+     * la fois `nullable` et `optional`.
+     *
+     * Refusé sur un cycle diffusé (409) : son destinataire en a déjà été prévenu.
+     */
+    athleteId: z.string().min(1).nullable().optional(),
   })
   .strict();
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;

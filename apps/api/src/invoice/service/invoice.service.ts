@@ -112,6 +112,45 @@ export class InvoiceService {
   }
 
   /**
+   * Le brouillon de facture SUIT le destinataire du cycle (#144). Sans lui, la séquence
+   * « j'affecte à A, je saisis les termes, je réaffecte à B, je diffuse » émettrait à **A** une
+   * facture pour un cycle que **B** s'entraîne : `issueForPlan` ne réécrit que le statut, jamais
+   * le destinataire.
+   *
+   * `updateMany` plutôt qu'un `findFirst` suivi d'un `update` : sans brouillon, il n'y a rien à
+   * faire et l'appel ne coûte rien — on ne fait pas une question de ce qui n'a pas de réponse.
+   *
+   * Appelé DANS la transaction d'affectation : un cycle dont l'athlète a changé mais pas la
+   * facture est exactement ce que cette méthode existe pour empêcher.
+   */
+  async followPlanAthlete(tx: TenantTx, planId: string, athleteId: string): Promise<void> {
+    await tx.invoice.updateMany({
+      where: { planId, status: InvoiceStatus.DRAFT },
+      data: { athleteId },
+    });
+  }
+
+  /**
+   * Détacher un cycle de son destinataire (#144) est refusé tant que ses termes de facturation
+   * sont saisis : `Invoice.athleteId` est NOT NULL, et un montant qu'on n'adresse à personne n'a
+   * pas de sens.
+   *
+   * Ce refus ne bloque le coach sur rien — il peut toujours affecter QUELQU'UN d'autre, la
+   * facture suit. Seul l'état « cycle chiffré, adressé à personne » lui est fermé, et il n'a
+   * jamais rien voulu dire.
+   */
+  async assertPlanDetachable(planId: string): Promise<void> {
+    const draft = await this.db.invoice.findFirst({
+      where: { planId, status: InvoiceStatus.DRAFT },
+    });
+    if (draft != null) {
+      throw new ConflictException(
+        "Ce cycle a une facturation saisie : affectez-le à un autre athlète plutôt que de le laisser sans destinataire",
+      );
+    }
+  }
+
+  /**
    * Émission au `publish` du cycle : DRAFT → PENDING, `issuedAt` posé. Appelé par PlanService DANS
    * sa transaction (le plan passe PUBLISHED et la facture est émise atomiquement). Lève si aucun
    * terme de facturation n'a été saisi — c'est le gating de la diffusion (« remplis la facturation
