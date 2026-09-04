@@ -57,16 +57,22 @@ describe("NotificationMailer", () => {
     );
   });
 
-  // La barre oblique finale est retirée : `WEB_URL` est copiée à la main, et `//settings` ne
-  // résoudrait pas côté routeur web.
-  it("construit le lien de réglages sans doubler la barre oblique", async () => {
+  /**
+   * `/account` et non `/settings` : c'est la route du compte côté web, où #66 pose les réglages.
+   * Le premier jet inventait `/settings`, qui n'existe pas — un lien mort qu'aucun test de ce
+   * côté-ci ne pouvait voir, puisque l'API ne connaît pas le routeur du client.
+   *
+   * La barre oblique finale est retirée au passage : `WEB_URL` est copiée à la main, et
+   * `//account` ne résoudrait pas.
+   */
+  it("pointe vers la page compte du web, sans doubler la barre oblique", async () => {
     const { mailer, send } = mailerWith("https://app.cimavia.fr/");
     await mailer.send(NotificationType.MESSAGE_RECEIVED, RECIPIENT, {
       actorName: "Léa",
       subjectLabel: null,
     });
 
-    expect(send.mock.calls[0]?.[0].text).toContain("https://app.cimavia.fr/settings");
+    expect(send.mock.calls[0]?.[0].text).toContain("https://app.cimavia.fr/account");
   });
 
   /**
