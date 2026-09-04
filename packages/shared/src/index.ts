@@ -362,21 +362,28 @@ export {
   sendMessageSchema,
 } from "./dto/message.schema";
 export type {
+  EmailableNotificationType,
   NotificationDto,
+  NotificationEmailPreferenceDto,
   NotificationEntityType as NotificationEntityTypeType,
   NotificationType as NotificationTypeType,
   PersistedNotificationType,
   UnreadCountDto,
+  UpdateNotificationEmailPreferencesInput,
 } from "./dto/notification.schema";
 export {
+  EMAILABLE_NOTIFICATION_TYPES,
+  emailableNotificationTypeSchema,
   NOTIFICATION_LABEL_KEY,
   NOTIFICATION_PAGE_SIZE,
   NotificationEntityType,
   NotificationType,
   notificationDtoSchema,
+  notificationEmailPreferenceDtoSchema,
   notificationEntityTypeSchema,
   notificationTypeSchema,
   unreadCountDtoSchema,
+  updateNotificationEmailPreferencesSchema,
 } from "./dto/notification.schema";
 export type {
   CopyPlanWeekInput,

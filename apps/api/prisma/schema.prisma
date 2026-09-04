@@ -70,6 +70,9 @@ model User {
   // Centre de notifications (#48) : la trace PERSISTÉE des mêmes événements que le push.
   notifications Notification[] @relation("ReceivedNotifications")
 
+  // Notifications par e-mail (#65) : opt-in, une ligne par type ACTIVÉ. Aucune ligne = rien.
+  notificationEmailPreferences NotificationEmailPreference[]
+
   // Métier — facturation (P6) : émises par le coach, lues par l'athlète.
   coachInvoices   Invoice[] @relation("CoachInvoices")
   athleteInvoices Invoice[] @relation("AthleteInvoices")
@@ -836,6 +839,29 @@ model Notification {
   @@index([recipientId, createdAt(sort: Desc)]) // liste du centre, la plus récente d'abord
   @@index([recipientId, readAt]) // compteur de non-lues (badge)
   @@map("notification")
+}
+
+/**
+ * Notifications par e-mail (#65) — OPT-IN, canal supplémentaire du push et du centre.
+ * Une ligne = un type ACTIVÉ pour cet utilisateur. L'absence de ligne vaut « désactivé », et il
+ * n'y a donc PAS de colonne booléenne : en opt-in, « jamais réglé » et « explicitement coupé »
+ * commandent la même chose, et un troisième état inventerait une distinction que rien ne lit.
+ * Couper un type SUPPRIME sa ligne — la table ne contient que ce que quelqu'un a demandé.
+ * `type` porte l'enum COMPLET plutôt qu'un enum réduit aux types envoyables par e-mail : c'est le
+ * DTO (`emailableNotificationTypeSchema`) qui restreint, en 400 et non par une garde applicative.
+ * Élargir la liste un jour ne demandera donc aucune migration d'enum.
+ */
+model NotificationEmailPreference {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  createdAt DateTime         @default(now())
+
+  // Un type n'est activé qu'une fois : l'unicité rend le remplacement de l'ensemble idempotent.
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("notification_email_preference")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

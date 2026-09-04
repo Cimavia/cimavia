@@ -33,6 +33,9 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
   // Comme PushToken : le même champ pour les deux rôles, chacun ne lisant que ce qu'il a reçu.
   // L'ÉCRITURE vise le destinataire, donc un AUTRE tenant → hors de ce client (NotificationService).
   Notification: { coach: "recipientId", athlete: "recipientId" },
+  // Réglages d'e-mail (#65) : comme PushToken, chacun ne gère que les siens, dans les deux rôles.
+  // La LECTURE pour envoyer vise le destinataire, donc un autre tenant → NotificationService.
+  NotificationEmailPreference: { coach: "userId", athlete: "userId" },
   /**
    * Rappels (#44) — le SEUL modèle métier sans scope athlète : c'est un outil privé du coach.
    * L'absence de clé `athlete` n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait
