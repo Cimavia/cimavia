@@ -43,8 +43,14 @@ export function PlanList({ plans }: Readonly<PlanListProps>) {
               </CmvBadge>
             </div>
 
+            {/* Trois états, pas deux. « À définir » est un CHOIX que le coach n'a pas encore
+                fait — actionnable, il ouvre le cycle et l'affecte ; « — » est un nom qu'on n'a
+                pas su résoudre. Les rendre pareil masquerait le seul des deux sur lequel il y a
+                quelque chose à faire. */}
             <p className="text-cmv-caption text-cmv-text-mid">
-              {nameById.get(plan.athleteId) ?? "—"}
+              {plan.athleteId == null
+                ? t("plan.unassigned")
+                : (nameById.get(plan.athleteId) ?? "—")}
             </p>
 
             <p className="text-cmv-caption text-cmv-text-lo">

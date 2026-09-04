@@ -148,6 +148,19 @@ export class PlanService {
       throw new ConflictException("Planification déjà diffusée");
     }
 
+    /**
+     * Le destinataire d'abord, avant le contenu et avant la facturation (#144). L'ordre n'est pas
+     * cosmétique : un cycle sans athlète NI facturation échouerait sinon sur le message de
+     * facturation, qui ne dit pas ce qui manque vraiment — et le coach chercherait un montant à
+     * saisir là où il lui manque quelqu'un à qui parler.
+     *
+     * C'est aussi ce qui rend non-null tout ce qui suit : notifications et facture s'appuient
+     * dessus, et `athleteRecipientOrThrow` garde les chemins que ce contrôle ne domine pas.
+     */
+    if (plan.athleteId == null) {
+      throw new BadRequestException("Choisis l'athlète de ce cycle avant de le diffuser");
+    }
+
     const weekCount = await this.db.planWeek.count({ where: { planId: id } });
     if (weekCount === 0) {
       throw new BadRequestException("Un cycle sans semaine n'a rien à diffuser");
@@ -202,6 +215,8 @@ export class PlanService {
       throw new BadRequestException(`Un cycle ne peut pas dépasser ${PLAN_MAX_WEEKS} semaines`);
     }
 
+    // `plan.athleteId` peut être `null` (brouillon non encore affecté) : la semaine le recopie
+    // tel quel, et l'affectation la rattrapera avec le reste du cycle.
     await this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1);
     return this.getDto(planId);
   }
@@ -307,9 +322,14 @@ export class PlanService {
     }
   }
 
-  /** Un cycle que le coach s'est écrit à lui-même : ni facture, ni notification (#14). */
-  private isSelfCoaching(plan: { coachId: string; athleteId: string }): boolean {
-    return plan.coachId === plan.athleteId;
+  /**
+   * Un cycle que le coach s'est écrit à lui-même : ni facture, ni notification (#14).
+   *
+   * Un cycle SANS destinataire (#144) n'est pas solo — mais `publish` l'a déjà refusé bien avant
+   * d'arriver ici, ce qui est le seul endroit d'où cette question se pose.
+   */
+  private isSelfCoaching(plan: { coachId: string; athleteId: string | null }): boolean {
+    return plan.athleteId != null && plan.coachId === plan.athleteId;
   }
 
   // Insère des semaines consécutives à partir de `firstWeekNumber` (athleteId dénormalisé
@@ -317,7 +337,7 @@ export class PlanService {
   private async createWeeks(
     tx: TenantTx | TenantPrisma,
     planId: string,
-    athleteId: string,
+    athleteId: string | null,
     weeks: PlanWeekInput[],
     firstWeekNumber: number,
   ): Promise<void> {

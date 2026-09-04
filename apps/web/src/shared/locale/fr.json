@@ -376,6 +376,7 @@
   "plan": {
     "title": "Planifications",
     "subtitle": "Les cycles de vos athlètes : construisez, ajustez, diffusez.",
+    "unassigned": "Athlète à définir",
     "athlete": {
       "sessionFallbackTitle": "Séance",
       "notes": "Consignes du coach",

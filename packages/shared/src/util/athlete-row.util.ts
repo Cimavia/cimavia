@@ -27,7 +27,11 @@ export type AthleteIdentity = { athleteId: string; athleteName: string };
 
 export type AthletePlanSource = PlanPeriod & {
   id: string;
-  athleteId: string;
+  /**
+   * `null` = brouillon dont le destinataire n'est pas encore choisi (#144). Un tel cycle
+   * n'appartient à AUCUNE ligne du tableau, qui liste des athlètes — voir `buildAthleteRows`.
+   */
+  athleteId: string | null;
   title: string;
   status: PlanStatus;
 };
@@ -111,8 +115,18 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
   if (input.athletes == null) return null;
 
   const plansByAthlete = groupBy(
-    // Un brouillon n'est pas encore le cycle de l'athlète : il ne le voit pas, il ne compte pas ici.
-    (input.plans ?? []).filter((plan) => plan.status === PlanStatus.PUBLISHED),
+    /**
+     * Un brouillon n'est pas encore le cycle de l'athlète : il ne le voit pas, il ne compte pas
+     * ici. Un cycle SANS destinataire (#144) tombe au même endroit, et pour une autre raison — il
+     * n'appartient à personne. Inatteignable en pratique (un `PUBLISHED` a toujours un athlète,
+     * `publish` l'exige), le cas est écarté quand même : le jour où le verrou bougerait, ces
+     * cycles ne doivent surtout pas se ranger parmi les athlètes « sans plan », qui appellent un
+     * geste du coach.
+     */
+    (input.plans ?? []).filter(
+      (plan): plan is AthletePlanSource & { athleteId: string } =>
+        plan.status === PlanStatus.PUBLISHED && plan.athleteId != null,
+    ),
     (plan) => plan.athleteId,
   );
   // Groupés une fois : la colonne en tire son compteur ET l'id du débrief que le lien doit ouvrir.

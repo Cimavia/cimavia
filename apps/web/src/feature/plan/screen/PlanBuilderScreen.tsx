@@ -28,6 +28,21 @@ import { formatDate } from "@/shared/util/date.util";
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
 type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null };
 
+/**
+ * Le destinataire tel qu'il s'écrit dans le titre : son nom, ou le fait qu'il reste à choisir
+ * (#144). Sorti du composant, qui frôle le seuil de complexité de la porte qualité — et parce que
+ * « pas encore choisi » est une réponse à afficher, pas un cas d'erreur à replier sur un tiret.
+ */
+function athleteHeading(
+  plan: { athleteId: string | null; athleteName: string | null },
+  athleteLabel: (athleteId: string, athleteName: string) => string,
+  unassignedLabel: string,
+): string {
+  return plan.athleteId == null || plan.athleteName == null
+    ? unassignedLabel
+    : athleteLabel(plan.athleteId, plan.athleteName);
+}
+
 export function PlanBuilderScreen() {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
@@ -74,6 +89,7 @@ export function PlanBuilderScreen() {
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
+  const athleteTitle = athleteHeading(plan, athleteLabel, t("plan.unassigned"));
 
   function onOpenCreate(week: PlanWeekDto, date: string) {
     setEdit({ week, date, sessionId: null });
@@ -91,10 +107,7 @@ export function PlanBuilderScreen() {
     <CmvAppShell
       // Le destinataire DANS le titre : devant une liste de cycles qui se ressemblent, savoir à
       // qui celui-ci s'adresse compte autant que son nom.
-      title={t("plan.builder.titleWithAthlete", {
-        title: plan.title,
-        name: athleteLabel(plan.athleteId, plan.athleteName),
-      })}
+      title={t("plan.builder.titleWithAthlete", { title: plan.title, name: athleteTitle })}
       subtitle={t("plan.card.meta", {
         weeks: plan.weekCount,
         sessions: plan.sessionCount,

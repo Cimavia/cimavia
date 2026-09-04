@@ -80,8 +80,10 @@ export function toPlanSummaryDto(plan: PlanWithCounts): PlanSummaryDto {
     id: plan.id,
     coachId: plan.coachId,
     athleteId: plan.athleteId,
-    athleteName: plan.athlete.name,
-    athleteEmail: plan.athlete.email,
+    // La relation suit la colonne : un brouillon sans destinataire (#144) n'a pas d'athlète à
+    // nommer. Les trois champs disent la MÊME absence — il n'y a pas de cycle nommé sans athlète.
+    athleteName: plan.athlete?.name ?? null,
+    athleteEmail: plan.athlete?.email ?? null,
     title: plan.title,
     description: plan.description,
     startDate: toIsoDate(plan.startDate),

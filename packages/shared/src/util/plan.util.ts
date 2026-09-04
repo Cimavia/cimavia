@@ -208,7 +208,11 @@ function pickByStartDate<T extends PlanPeriod>(
  * mais ce qu'elle SIGNIFIE ne l'est pas — un cycle solo ne se facture pas, ne notifie personne, et
  * n'affiche donc pas la section de facturation du builder. Trois endroits qui doivent rester
  * d'accord entre eux.
+ *
+ * Un cycle SANS destinataire (#144) n'est pas solo : `false`, et c'est la bonne réponse — il n'est
+ * écrit pour personne, pas pour soi. Ce sont deux absences différentes, et les confondre rouvrirait
+ * la facturation d'un cycle qui n'a personne à facturer.
  */
-export function isSelfCoached(plan: { coachId: string; athleteId: string }): boolean {
-  return plan.coachId === plan.athleteId;
+export function isSelfCoached(plan: { coachId: string; athleteId: string | null }): boolean {
+  return plan.athleteId != null && plan.coachId === plan.athleteId;
 }

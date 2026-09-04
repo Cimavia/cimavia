@@ -244,13 +244,19 @@ export type PlanWeekDto = z.infer<typeof planWeekDtoSchema>;
 export const planSummaryDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
-  athleteId: z.string(),
+  /**
+   * `null` = brouillon dont le destinataire n'est pas encore choisi (#144). Ce n'est pas une
+   * donnée manquante mais un ÉTAT, et il est actionnable : le coach affecte quand il a décidé.
+   * Toujours renseigné sur un cycle diffusé — `publish` l'exige.
+   */
+  athleteId: z.string().nullable(),
   /**
    * Le nom et l'adresse de l'athlète destinataire. Sans eux, un coach devant sa liste de cycles ne
-   * sait pas à qui chacun s'adresse — l'identifiant ne se lit pas.
+   * sait pas à qui chacun s'adresse — l'identifiant ne se lit pas. `null` avec `athleteId` : les
+   * trois champs décrivent la même absence, il n'y a pas de cycle nommé sans destinataire.
    */
-  athleteName: z.string(),
-  athleteEmail: z.string(),
+  athleteName: z.string().nullable(),
+  athleteEmail: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   startDate: z.iso.date(),

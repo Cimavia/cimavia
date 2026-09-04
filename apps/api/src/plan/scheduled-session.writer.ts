@@ -67,11 +67,16 @@ export type ScheduledSessionExerciseDraft = {
  * `athleteId` est passé explicitement : l'extension tenant n'injecte que le champ de l'ACTEUR
  * (ici `coachId`). Une copie inter-planification doit donc atterrir avec l'athlète du plan
  * CIBLE — le renseigner depuis la source ferait fuir une ligne dans le mauvais tenant.
+ *
+ * `null` est une valeur ATTENDUE (#144), pas une défaillance : composer un brouillon dont le
+ * destinataire n'est pas encore choisi est le cas d'usage même. Coller depuis un cycle affecté
+ * vers un brouillon libre doit donc poser `null` sur les copies — l'athlète de la source ne
+ * traverse jamais.
  */
 export async function insertScheduledSessionExercises(
   tx: TenantTx,
   scheduledSessionId: string,
-  athleteId: string,
+  athleteId: string | null,
   drafts: readonly ScheduledSessionExerciseDraft[],
 ): Promise<void> {
   for (const [position, draft] of drafts.entries()) {
@@ -130,7 +135,7 @@ export async function insertScheduledSessionExercises(
 async function copyDocumentsAndRemapImages(
   tx: TenantTx,
   scheduledSessionExerciseId: string,
-  athleteId: string,
+  athleteId: string | null,
   draft: ScheduledSessionExerciseDraft,
 ): Promise<void> {
   if (draft.documents.length === 0) return;

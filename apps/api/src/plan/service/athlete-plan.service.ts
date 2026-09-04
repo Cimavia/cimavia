@@ -7,6 +7,7 @@ import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toIsoDate } from "../../util/date.util";
 import { PLAN_COUNTS_INCLUDE, PLAN_DETAIL_INCLUDE, toPlanDto } from "../plan.mapper";
+import { athleteRecipientOrThrow } from "../plan.recipient";
 import { SESSION_DETAIL_INCLUDE, toScheduledSessionDto } from "../scheduled-session.mapper";
 
 /**
@@ -17,6 +18,14 @@ import { SESSION_DETAIL_INCLUDE, toScheduledSessionDto } from "../scheduled-sess
  * D'où un service dédié : tout accès athlète passe par `publishedOnly`, aucune requête ne s'en
  * échappe (les brouillons ne sont donc jamais lisibles, même par l'id exact d'une séance).
  */
+/**
+ * Une séance d'un cycle DIFFUSÉ : son destinataire est connu, et le type le dit. Depuis #144
+ * `ScheduledSession.athleteId` est nullable (les brouillons non affectés), mais aucune séance
+ * servie par ce service ne peut l'être — le filtre `PUBLISHED` et le verrou de `publish` s'en
+ * portent garants.
+ */
+export type PublishedSession = ScheduledSession & { athleteId: string };
+
 @Injectable()
 export class AthletePlanService {
   constructor(
@@ -75,13 +84,16 @@ export class AthletePlanService {
    * pourrait débriefer une séance d'un brouillon que son coach est encore en train d'écrire.
    * Renvoie la ligne (et non un DTO) : l'appelant a besoin du `coachId` à dénormaliser.
    */
-  async getPublishedSessionOrThrow(id: string): Promise<ScheduledSession> {
+  async getPublishedSessionOrThrow(id: string): Promise<PublishedSession> {
     const session = await this.db.scheduledSession.findFirst({
       where: { id, plan: { status: PlanStatus.PUBLISHED } },
     });
     if (session == null) {
       throw new NotFoundException("Séance introuvable");
     }
-    return session;
+    // Le destinataire est résolu ICI, au point de contrôle unique des écritures athlète : ses
+    // appelants (débrief, médias, messagerie) bâtissent des clés de storage dessus et ne doivent
+    // pas avoir à redemander si l'athlète existe. Sur un cycle diffusé, il existe.
+    return { ...session, athleteId: athleteRecipientOrThrow(session) };
   }
 }

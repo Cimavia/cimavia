@@ -134,6 +134,8 @@ export class PlanWeekCopyService {
         await insertScheduledSessionExercises(
           tx,
           created.id,
+          // L'athlète du plan CIBLE, `null` compris : coller dans un brouillon non affecté
+          // (#144) ne doit pas y faire entrer le destinataire de la source.
           targetPlan.athleteId,
           // Les tags de l'instance source sont aplatis en noms : le draft attend la forme du DTO,
           // pas les lignes de la table de copie.
