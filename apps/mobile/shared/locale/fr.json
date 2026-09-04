@@ -473,6 +473,8 @@
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {
+      "title": "Notifications par e-mail",
+      "description": "Choisis ce que tu veux recevoir aussi par e-mail, en plus des notifications de l'application. Rien n'est envoyé tant que tu n'as rien activé.",
       "type": {
         "planPublished": "Nouveau cycle diffusé",
         "feedbackReceived": "Débrief reçu",

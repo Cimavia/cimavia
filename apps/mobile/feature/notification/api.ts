@@ -1,5 +1,5 @@
 import type { PushTokenDto, RegisterPushTokenInput } from "@cmv/shared";
-import { createNotificationApi } from "@cmv/shared";
+import { createNotificationApi, createNotificationPreferenceApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
 // ── Centre de notifications (#50) ────────────────────────────────────────────
@@ -7,7 +7,10 @@ import { api } from "@/shared/lib/api";
 // Ne reste ici que l'injection du client mobile (cookie de session tenu par SecureStore).
 export const notificationApi = createNotificationApi(api);
 
-export { notificationKeys } from "@cmv/shared";
+// ── Réglages des notifications par e-mail (#65) ──────────────────────────────
+export const notificationPreferenceApi = createNotificationPreferenceApi(api);
+
+export { notificationKeys, notificationPreferenceKeys } from "@cmv/shared";
 
 // ── Appareils (push) ─────────────────────────────────────────────────────────
 // Propres au mobile : le web n'a pas d'appareil à enregistrer.
