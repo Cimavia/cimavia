@@ -1,8 +1,10 @@
 import { Global, Module } from "@nestjs/common";
 import { ReminderModule } from "../reminder/reminder.module";
 import { NotificationController } from "./controller/notification.controller";
+import { NotificationEmailPreferenceController } from "./controller/notification-email-preference.controller";
 import { PushTokenController } from "./controller/push-token.controller";
 import { NotificationService } from "./notification.service";
+import { NotificationEmailPreferenceService } from "./service/notification-email-preference.service";
 import { NotificationFeedService } from "./service/notification-feed.service";
 import { PushTokenService } from "./service/push-token.service";
 
@@ -16,8 +18,13 @@ import { PushTokenService } from "./service/push-token.service";
 @Global()
 @Module({
   imports: [ReminderModule],
-  controllers: [PushTokenController, NotificationController],
-  providers: [NotificationService, NotificationFeedService, PushTokenService],
+  controllers: [PushTokenController, NotificationController, NotificationEmailPreferenceController],
+  providers: [
+    NotificationService,
+    NotificationFeedService,
+    NotificationEmailPreferenceService,
+    PushTokenService,
+  ],
   exports: [NotificationService],
 })
 export class NotificationModule {}
