@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. **Quatorze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Quinze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **MI-1** et **MI-2**, dont le déclencheur est nommé mais dont rien n'est à préparer
-avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une issue
-n'aurait rien à suivre que le fait de s'en souvenir. Les treize premières sont volontaires, la
+**W-1**, **Q-6**, **MI-1**, **MI-2** et **O-2**, dont le déclencheur est nommé mais dont rien n'est à
+préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une
+issue n'aurait rien à suivre que le fait de s'en souvenir. Les quatorze premières sont volontaires, la
 dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
@@ -1271,7 +1271,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| O-1 | **Sentry ne couvre que l'API**, malgré trois documents qui annoncent « les 3 couches » (`CLAUDE.md`, `architecture-choice.md`, `cahier-des-charges-mvp.md` — seul `CONTRIBUTING.md` est exact). Le web et le mobile n'ont ni SDK ni Error Boundary : un crash de rendu donne un écran blanc côté web, ferme l'app côté mobile, et ne laisse aucune trace. Les erreurs *maîtrisées*, elles, sont bien traitées (`useMutationToast`) — c'est le filet sous les **non maîtrisées** qui manque. | 🟡 | [#183](https://github.com/Cimavia/cimavia/issues/183) *(web [#181](https://github.com/Cimavia/cimavia/issues/181) · mobile [#182](https://github.com/Cimavia/cimavia/issues/182))* |
+| ~~O-1~~ | ~~**Sentry ne couvre que l'API**~~, malgré trois documents qui annonçaient « les 3 couches ». Le web et le mobile n'avaient ni SDK ni Error Boundary : un crash de rendu donnait un écran blanc côté web, fermait l'app côté mobile, sans aucune trace. | ✅ | résolu en **[#181](https://github.com/Cimavia/cimavia/issues/181)** (web) et **[#182](https://github.com/Cimavia/cimavia/issues/182)** (mobile) — les trois documents redeviennent vrais par le code, pas par réécriture |
 | O-2 | **`@sentry/cli` déclaré en dépendance du mobile sans être importé** : il n'y sert qu'à exister au chemin `apps/mobile/node_modules/@sentry/cli`, que `sentry.gradle` construit en dur pour téléverser les sourcemaps. Son repli pnpm est inatteignable — il vit dans un `catch` que `execute()` ne déclenche jamais, `node --print require.resolve(…)` rendant une sortie vide plutôt qu'une exception quand la résolution échoue. Sans cette déclaration, le build EAS **release** échoue sur « a problem occurred starting process ». La version est épinglée sur celle qu'exige `@sentry/react-native` (2.58.4) : la laisser flotter installerait deux copies du binaire. | 🟢 | — *(bug amont ; déclencheur : une version de `@sentry/react-native` dont le `sentry.gradle` résout enfin pnpm — la dépendance pourra alors sauter)* |
 
 > **Tranché en #183** (trois projets Sentry, pas un) : `cimavia-api`, `cimavia-web`,
@@ -1292,6 +1292,13 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > déjà. Le quota de performance, lui, se vide bien plus vite depuis un navigateur ou un téléphone
 > que depuis l'API, et aucune question de perf front n'est ouverte — à monter à `0.1` le jour où il
 > y en a une.
+
+> **Tranché en #182** (un crash au tout premier rendu n'a pas d'utilisateur) : `setUser` vit dans un
+> effet, et React n'exécute pas les effets d'un rendu qui a levé — un crash au démarrage part donc
+> anonyme, d'autant que la session Better Auth n'est pas encore résolue à cet instant. Ce n'est pas
+> réparable : à ce moment-là, l'identité n'est connue de personne. Un « 0 utilisateur » sur un crash
+> de démarrage ne veut donc PAS dire que `setUser` est cassé. Tout crash survenant après le montage,
+> lui, porte bien son `id`.
 
 > **Tranché en #183** (le DSN front n'est pas un secret) : il part dans le bundle web et dans le
 > binaire mobile, n'importe qui peut le lire. Il se range donc en **variable de dépôt** (`vars.`),
