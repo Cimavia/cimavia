@@ -100,6 +100,23 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.REMINDER_DUE]: "notification.type.reminderDue",
 } as const satisfies Record<NotificationType, string>;
 
+/**
+ * Clé i18n du NOM d'un type, pour l'écran de réglages (#66).
+ *
+ * Table distincte de `NOTIFICATION_LABEL_KEY`, et ce n'est pas une duplication : celle-ci rend une
+ * PHRASE d'événement, interpolée (« {{actor}} a débriefé « {{subject}} » »), qui n'a aucun sens à
+ * côté d'un interrupteur. Ici il faut un nom de catégorie, sans paramètre — « Débrief reçu ».
+ *
+ * `Record<EmailableNotificationType, string>` : élargir la liste des types envoyables ne compile
+ * plus tant que leur libellé de réglage manque.
+ */
+export const NOTIFICATION_SETTING_LABEL_KEY = {
+  [NotificationType.PLAN_PUBLISHED]: "notification.setting.type.planPublished",
+  [NotificationType.FEEDBACK_RECEIVED]: "notification.setting.type.feedbackReceived",
+  [NotificationType.MESSAGE_RECEIVED]: "notification.setting.type.messageReceived",
+  [NotificationType.INVOICE_ISSUED]: "notification.setting.type.invoiceIssued",
+} as const satisfies Record<EmailableNotificationType, string>;
+
 // Bornage de la liste : le centre montre les récentes, pas l'historique complet. Pas de pagination
 // en première passe (dette assumée, même famille que les exercices P2-2 et les messages P5-1).
 export const NOTIFICATION_PAGE_SIZE = 50;

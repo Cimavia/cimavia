@@ -471,6 +471,14 @@
       "messageReceived": "Nouveau message de {{actor}}",
       "invoiceIssued": "Nouvelle facture reçue",
       "reminderDue": "Rappel : {{subject}}"
+    },
+    "setting": {
+      "type": {
+        "planPublished": "Nouveau cycle diffusé",
+        "feedbackReceived": "Débrief reçu",
+        "messageReceived": "Nouveau message",
+        "invoiceIssued": "Nouvelle facture"
+      }
     }
   },
   "dashboard": {
