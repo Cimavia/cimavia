@@ -31,14 +31,22 @@ pas — médias signés, push, app réelle en HTTPS — sur une image identique 
 Aucun port n'est ouvert sur la box : seul le conteneur `cloudflared` **sort** vers Cloudflare, et
 joint `api`/`web`/`minio` par leur nom de service sur le réseau interne du compose.
 
-Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un tunnel puis mapper trois
+Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un tunnel puis mapper quatre
 *public hostnames* vers les services internes :
 
-| Hostname public | Service (URL interne) |
-|---|---|
-| `api-dev.<domaine>` | `http://api:3000` |
-| `app-dev.<domaine>` | `http://web:80` |
-| `s3-dev.<domaine>`  | `http://minio:9000` |
+| Hostname public | Service (URL interne) | |
+|---|---|---|
+| `api-dev.<domaine>` | `http://api:3000` | |
+| `app-dev.<domaine>` | `http://web:80` | |
+| `s3-dev.<domaine>`  | `http://minio:9000` | |
+| `mail-dev.<domaine>` | `http://mailpit:8025` | ⚠️ **policy Access obligatoire** |
+
+> **Mailpit n'a aucune authentification.** Il expose en clair tout ce que l'API envoie, liens de
+> réinitialisation de mot de passe compris — c'est-à-dire un chemin de connexion utilisable vers
+> n'importe quel compte du tier dev. Le hostname `mail-dev` doit donc porter une policy
+> **Zero Trust → Access → Applications** (self-hosted, règle *Emails* limitée à la tienne) avant
+> le premier envoi. Les trois autres hostnames s'en passent : ils servent une API et un SPA qui
+> ont leur propre authentification.
 
 > Sous-domaines **mono-niveau** (tiret, pas point) : le SSL gratuit de Cloudflare couvre
 > `*.<domaine>` mais **pas** `*.dev.<domaine>`. `api-dev` fonctionne ; `api.dev` donnerait une
@@ -53,7 +61,8 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 
 ## Mise en route
 
-1. **Cloudflare** : tunnel créé, 3 hostnames mappés, token en main (ci-dessus).
+1. **Cloudflare** : tunnel créé, 4 hostnames mappés (dont `mail-dev`, **derrière Access**), token
+   en main (ci-dessus).
 2. **Images** : publiées sur GHCR par la CI (`API_IMAGE` / `WEB_IMAGE`). L'image **web** doit être
    buildée avec `VITE_API_URL = https://api-dev.<domaine>` (le web est figé par environnement).
 3. **Fichiers sur le NAS** : déposer `docker-compose.yml` + un `.env` (copié de `.env.example`,
@@ -69,6 +78,8 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
    - `https://api-dev.<domaine>/health` → `{"status":"ok"}`
    - `https://api-dev.<domaine>/health/ready` → `{"database":"up"}`
    - `https://app-dev.<domaine>` → l'app web se charge.
+   - `https://mail-dev.<domaine>` → Cloudflare demande d'abord de s'authentifier, **puis** la
+     boîte Mailpit s'affiche. Si elle s'affiche sans rien demander, la policy Access manque.
 
 ## Déploiement automatique (CI, runner self-hosted)
 

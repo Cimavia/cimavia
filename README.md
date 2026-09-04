@@ -17,7 +17,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 
 - Node.js ≥ 22
 - pnpm 10.34.4 (`corepack enable && corepack use pnpm@10.34.4`)
-- Docker (pour PostgreSQL **et** MinIO local — object storage S3-compatible)
+- Docker (pour PostgreSQL, MinIO — object storage S3-compatible — et Mailpit — serveur SMTP local)
 - Pour le mobile sur **appareil physique** uniquement (débrief, médias, push) : compte
   [Expo](https://expo.dev) + `eas-cli`, et un projet Firebase pour les notifications Android —
   voir « Développer sur un téléphone » plus bas.
@@ -27,11 +27,11 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 ```bash
 pnpm install
 # Variables d'env : copier les modèles et renseigner les secrets
-cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (MinIO local)
+cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (MinIO local), SMTP_* (Mailpit local)
 cp apps/web/.env.example apps/web/.env        # VITE_API_URL
 cp apps/mobile/.env.example apps/mobile/.env  # EXPO_PUBLIC_API_URL (IP LAN sur appareil/émulateur, pas localhost)
-# Démarrer PostgreSQL + MinIO local (apps/api) — MinIO crée le bucket privé au 1er démarrage
-docker compose -f apps/api/docker-compose.yml up -d   # S3 sur :9000, console MinIO sur :9001
+# Démarrer PostgreSQL + MinIO + Mailpit (apps/api) — MinIO crée le bucket privé au 1er démarrage
+docker compose -f apps/api/docker-compose.yml up -d   # S3 :9000, console MinIO :9001, SMTP :1025, boîte Mailpit :8025
 # Migrer la base
 pnpm --filter @cmv/api exec prisma migrate dev
 # Lancer tout
@@ -62,6 +62,14 @@ pnpm turbo test:e2e --filter=@cmv/api
 > Les e2e tournent contre le **MinIO du docker-compose** (bucket `cimavia-media-e2e`) : sans
 > storage réel, le flux d'upload des médias ne serait pas couvert. Le cas « storage non
 > configuré → 503 » est, lui, couvert par le test unitaire de `StorageService`.
+
+> Les e2e n'ont **pas** de SMTP : `.env.test` ne porte aucune variable `SMTP_*`, donc `MailService`
+> s'y déclare non configuré et rien ne part. C'est voulu — un envoi ne conditionne aucune réponse
+> HTTP (il ne lève jamais), et le comportement « non configuré » est couvert par son test unitaire.
+
+> **Lire les e-mails en dev** : tout ce que l'API envoie atterrit dans **Mailpit**, sur
+> <http://localhost:8025>. Rien n'est jamais relayé vers une vraie adresse — c'est ce qui rend
+> sûr de tester une réinitialisation de mot de passe sur une base de démonstration.
 
 > ⚠️ La suite **TRUNCATE toutes les tables** à l'ouverture. `.env.test` doit donc pointer sur la
 > base jetable du `docker-compose.test.yml` (5434), jamais sur celle de dev ni sur Neon — d'où le
