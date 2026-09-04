@@ -18,8 +18,9 @@ type PlanAthletePickerProps = {
  * croire que le destinataire n'a jamais été modifiable, alors qu'il l'était jusqu'à la diffusion.
  * Même grammaire que « Coller ici » sur un cycle diffusé, et que le bouton « Supprimer ».
  *
- * Dans l'en-tête, qui reste fixe au défilement : un cycle de douze semaines se parcourt longtemps,
- * et l'affectation ne doit pas exiger de remonter.
+ * Descendu de l'en-tête fixe vers le formulaire du cycle (#207) : un seul endroit pour tout ce qui
+ * définit le cycle l'emporte sur l'accès sans défilement, l'affectation se faisant une fois par
+ * cycle et non en cours de construction.
  */
 export function PlanAthletePicker({
   athleteId,
@@ -33,15 +34,15 @@ export function PlanAthletePicker({
 
   return (
     // Info-bulle portée par un span : le `title` d'un contrôle désactivé ne s'affiche pas partout.
-    <span title={isPublished ? t("plan.builder.athleteLockedPublished") : undefined}>
+    <span title={isPublished ? t("plan.header.athleteLockedPublished") : undefined}>
       <CmvSelect
-        label={t("plan.builder.athlete")}
+        label={t("plan.header.athlete")}
         name="planAthleteId"
         value={athleteId ?? ""}
         // Le choix neutre vaut « pas encore décidé », et se transmet comme tel : `null`, jamais
         // une chaîne vide que l'API prendrait pour un identifiant.
         onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
-        placeholder={t("plan.form.athletePlaceholder")}
+        placeholder={t("plan.header.athletePlaceholder")}
         // « (moi) » sur sa propre entrée, comme partout où un coach lit sa liste d'athlètes (#14).
         options={(athletes ?? []).map((relation) => ({
           value: relation.athleteId,

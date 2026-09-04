@@ -438,7 +438,28 @@
       "description": "Créez un cycle pour un de vos athlètes : semaines, séances, puis diffusion."
     },
     "card": {
-      "meta": "{{weeks}} semaine(s) · {{sessions}} séance(s) · début le {{date}}"
+      "meta": "{{weeks}} semaine(s) · {{sessions}} séance(s) · début le {{date}}",
+      "counts": "{{weeks}} semaine(s) · {{sessions}} séance(s)"
+    },
+    "header": {
+      "title": "Le cycle",
+      "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
+      "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
+      "titleLabel": "Titre du cycle",
+      "titlePlaceholder": "Cycle bloc — automne",
+      "athlete": "Destinataire",
+      "athletePlaceholder": "À définir plus tard",
+      "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
+      "descriptionLabel": "Description du cycle",
+      "descriptionPlaceholder": "Montée en charge progressive, puis décharge en dernière semaine.",
+      "startDate": "Début du cycle",
+      "startDateHint": "Un cycle démarre un lundi.",
+      "startDateSnapped": "Un cycle démarre un lundi : le début a été recalé au {{date}}.",
+      "startDateShiftLater": "Les {{sessions}} séances du cycle seront repoussées de {{days}} jour(s).",
+      "startDateShiftEarlier": "Les {{sessions}} séances du cycle seront avancées de {{days}} jour(s).",
+      "requiredLegend": "* champs obligatoires",
+      "submit": "Enregistrer",
+      "submitting": "Enregistrement…"
     },
     "form": {
       "title": "Nouvelle planification",
@@ -496,8 +517,6 @@
     "builder": {
       "back": "← Planifications",
       "addWeek": "Ajouter une semaine",
-      "athlete": "Destinataire",
-      "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",
       "publishedHint": "L'athlète voit ce cycle. Vos ajustements lui sont visibles immédiatement.",
@@ -520,8 +539,7 @@
       "sessionSaved": "Séance enregistrée",
       "sessionDeleted": "Séance supprimée",
       "weekPasted": "Semaine collée — {{count}} séance(s)",
-      "athleteAssigned": "Cycle affecté à {{name}}",
-      "athleteCleared": "Ce cycle n'a plus de destinataire",
+      "headerSaved": "Cycle enregistré",
       "weekPastedPlain": "Semaine collée"
     },
     "clipboard": {

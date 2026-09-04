@@ -63,7 +63,7 @@ describe("PlanAthletePicker", () => {
     );
 
     expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
-    expect(getByTitle("plan.builder.athleteLockedPublished")).toBeTruthy();
+    expect(getByTitle("plan.header.athleteLockedPublished")).toBeTruthy();
   });
 
   it("se ferme pendant une écriture en cours, sans rien expliquer", () => {
@@ -72,6 +72,6 @@ describe("PlanAthletePicker", () => {
     );
 
     expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
-    expect(queryByTitle("plan.builder.athleteLockedPublished")).toBeNull();
+    expect(queryByTitle("plan.header.athleteLockedPublished")).toBeNull();
   });
 });

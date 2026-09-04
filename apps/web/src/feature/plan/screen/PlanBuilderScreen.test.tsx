@@ -68,7 +68,7 @@ const plan = (over: Partial<PlanDto>): PlanDto =>
     ...over,
   }) as PlanDto;
 
-const assignAthlete = vi.fn();
+const saveHeader = vi.fn();
 
 const mount = async (over: Partial<PlanDto>, billing: unknown = null) => {
   vi.mocked(usePlan).mockReturnValue({
@@ -79,7 +79,7 @@ const mount = async (over: Partial<PlanDto>, billing: unknown = null) => {
   } as unknown as ReturnType<typeof usePlan>);
   vi.mocked(usePlanMutations).mockReturnValue({
     addWeek: { mutate: vi.fn() },
-    assignAthlete: { mutate: assignAthlete },
+    saveHeader: { mutate: saveHeader, isPending: false },
     isBusy: false,
   } as unknown as ReturnType<typeof usePlanMutations>);
   vi.mocked(usePlanBilling).mockReturnValue({ data: billing } as unknown as ReturnType<
@@ -100,14 +100,14 @@ const mount = async (over: Partial<PlanDto>, billing: unknown = null) => {
  * une chaîne mise en forme.
  */
 describe("PlanBuilderScreen — le destinataire", () => {
-  it("montre le destinataire du cycle dans l'en-tête", async () => {
+  it("montre le destinataire du cycle dans le formulaire", async () => {
     const { getByRole } = await mount({});
 
     expect((getByRole("combobox") as HTMLSelectElement).value).toBe("ath_lea");
   });
 
-  // « Pas encore choisi » est une réponse, et l'en-tête offre le geste qui la comble.
-  it("montre l'en-tête comme non affecté, sélecteur ouvert", async () => {
+  // « Pas encore choisi » est une réponse, et le formulaire offre le geste qui la comble.
+  it("montre le cycle comme non affecté, sélecteur ouvert", async () => {
     const { getByRole } = await mount({ athleteId: null, athleteName: null, athleteEmail: null });
 
     const picker = getByRole("combobox") as HTMLSelectElement;
@@ -115,18 +115,22 @@ describe("PlanBuilderScreen — le destinataire", () => {
     expect(picker.disabled).toBe(false);
   });
 
-  // Le sélecteur de l'en-tête ÉCRIT : sans ce câblage, il afficherait le destinataire sans jamais
-  // pouvoir le changer — exactement l'état d'avant #144.
-  it("affecte le cycle à l'athlète choisi dans l'en-tête", async () => {
-    const { getByRole, user } = await mount({
+  /**
+   * Le CÂBLAGE, et lui seul : ce que le formulaire décide d'envoyer a ses propres tests. Sans ce
+   * fil, le formulaire afficherait quatre champs modifiables que rien n'enregistrerait — la
+   * panne exacte que #207 vient réparer, reproduite un cran plus loin.
+   */
+  it("enregistre par la mutation du builder ce que le formulaire a changé", async () => {
+    const { getByRole, getByText, user } = await mount({
       athleteId: null,
       athleteName: null,
       athleteEmail: null,
     });
 
     await user.selectOptions(getByRole("combobox"), "ath_lea");
+    await user.click(getByText("plan.header.submit"));
 
-    expect(assignAthlete).toHaveBeenCalledWith("ath_lea");
+    expect(saveHeader).toHaveBeenCalledWith({ athleteId: "ath_lea" });
   });
 
   it("ferme la diffusion et la facturation tant que le cycle n'a pas de destinataire", async () => {

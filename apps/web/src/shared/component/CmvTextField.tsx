@@ -13,6 +13,7 @@ type CmvTextFieldProps = Pick<
   | "minLength"
   | "min"
   | "max"
+  | "disabled"
 > & {
   label: string;
   requiredMark?: boolean;
