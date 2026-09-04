@@ -496,6 +496,8 @@
     "builder": {
       "back": "← Planifications",
       "addWeek": "Ajouter une semaine",
+      "athlete": "Destinataire",
+      "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",
       "publishedHint": "L'athlète voit ce cycle. Vos ajustements lui sont visibles immédiatement.",
@@ -517,6 +519,8 @@
       "sessionSaved": "Séance enregistrée",
       "sessionDeleted": "Séance supprimée",
       "weekPasted": "Semaine collée — {{count}} séance(s)",
+      "athleteAssigned": "Cycle affecté à {{name}}",
+      "athleteCleared": "Ce cycle n'a plus de destinataire",
       "weekPastedPlain": "Semaine collée"
     },
     "clipboard": {

@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
+import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
@@ -49,7 +50,7 @@ export function PlanBuilderScreen() {
   const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
-  const { addWeek, isBusy } = usePlanMutations(planId);
+  const { addWeek, assignAthlete, isBusy } = usePlanMutations(planId);
   const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
   const { data: billing } = usePlanBilling(planId);
@@ -118,6 +119,12 @@ export function PlanBuilderScreen() {
           {/* Rappel contextuel (#45) : posé ICI plutôt que dans PlanBuilderActions, qui ne porte
               que les actions destructrices et leur gating. Un rappel se programme à tout moment,
               brouillon comme cycle diffusé. */}
+          <PlanAthletePicker
+            athleteId={plan.athleteId}
+            isPublished={isPublished}
+            isBusy={isBusy}
+            onChange={(athleteId) => assignAthlete.mutate(athleteId)}
+          />
           <ScheduleReminderButton
             entityType={ReminderEntityType.PLAN}
             entityId={planId}
