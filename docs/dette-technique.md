@@ -147,7 +147,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > facturation est remplie*. Corollaire assumé : on saisit les termes **avant** de joindre le PDF.
 > **(3)** la facture est **émise dans la transaction du `publish`** (DRAFT → PENDING, `issuedAt`
 > posé), donc l'athlète ne voit jamais de facture pour un cycle non diffusé, et diffuser sans
-> facturation est refusé (400). Ce verrou a rendu nécessaire l'ajout d'une facturation aux setups
+> facturation est refusé (400) — **sauf en auto-coaching**, où #14 a levé ce gating (on ne se
+> facture pas soi-même), et le refus est précédé depuis #144 de celui du destinataire manquant. Ce verrou a rendu nécessaire l'ajout d'une facturation aux setups
 > P4/P5 qui diffusaient un cycle — d'où le helper `billAndPublish` des e2e.
 
 ---
@@ -652,6 +653,71 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > nommant la semaine armée. Le bandeau n'est pas décoratif : le presse-papier survivant à la
 > navigation, des boutons « Coller ici » apparaîtraient sinon sur un autre cycle sans que rien ne dise
 > ce qui est armé ni d'où il vient.
+
+---
+
+## Post-MVP — Athlète facultatif sur un cycle ([#143](https://github.com/Cimavia/cimavia/issues/143))
+
+> **Tranché en #144** (le verrou se DÉPLACE, il ne disparaît pas) : `athleteId` devient facultatif à
+> la **création** et reste obligatoire à la **diffusion** — même dispositif que la facturation (P6).
+> Un cycle se construit avant qu'on sache pour qui ; il ne se diffuse pas sans savoir à qui.
+>
+> Le contrôle de `publish` passe **avant** celui des semaines et avant la branche auto-coaching.
+> L'ordre n'est pas cosmétique : un cycle sans athlète NI facturation échouerait sinon sur le
+> message de facturation, qui ne dit pas ce qui manque vraiment — et le coach chercherait un
+> montant là où il lui manque quelqu'un à qui parler. Les deux surfaces client suivent le même
+> ordre (`publishBlockedKey`, `hintKeyFor`).
+
+> **Tranché en #144** (six tables, pas cinq) : `athleteId` est dénormalisé sur toute la chaîne de
+> planification, parce que l'extension tenant filtre par un champ du modèle **interrogé** et ne sait
+> pas remonter la relation. L'issue en énumérait cinq ; il y en a **six** —
+> `scheduled_session_exercise_tag` porte la colonne elle aussi, et l'oublier laissait composer un
+> exercice sans tag dans un brouillon non affecté, puis casser en 500 dès qu'on lui en ajoutait un.
+>
+> L'invisibilité qui en découle est **structurelle et non applicative** : un `NULL` ne satisfait
+> jamais `where: { athleteId }`. Aucune règle ne pense à exclure ces cycles — ils ne peuvent pas
+> être trouvés. Un e2e le fige sur **deux** athlètes du même coach, sans quoi la propriété resterait
+> un accident heureux.
+
+> **Tranché en #144** (la propagation descend par IDENTIFIANTS, pas par filtre relationnel) :
+> `plan_week` et `scheduled_session` se joignent par `planId` ; les trois tables suivantes n'en ont
+> pas. Un `where: { scheduledSession: { plan: { … } } }` aurait tenu en une requête, mais son SQL
+> n'est vérifiable qu'à l'exécution — sur un invariant de tenant, on prend le chemin qui se lit.
+> Le tout dans **une** transaction : un cycle à moitié affecté est un cycle dont la moitié des
+> séances reste invisible de son athlète, et c'est la pire panne possible ici, parce qu'elle est
+> muette.
+
+> **Tranché en #144** (la facture brouillon SUIT le destinataire) : `issueForPlan` ne réécrit que le
+> statut de la facture, jamais son athlète. Sans propagation, « j'affecte à A, je chiffre, je
+> réaffecte à B, je diffuse » émettait à **A** une facture pour un cycle que **B** s'entraîne. Ni
+> #144 ni #145 ne voyaient ce bug — il naît de la nullabilité elle-même.
+>
+> **Détacher** un cycle déjà chiffré est en revanche refusé (409) : `Invoice.athleteId` est NOT
+> NULL, et un montant qu'on n'adresse à personne n'a pas de sens. Le refus ne bloque rien — affecter
+> quelqu'un d'autre reste ouvert, la facture suit. On n'a **pas** choisi de supprimer le brouillon,
+> qui aurait fait perdre une saisie en silence ; et un « videz d'abord la facturation » aurait été
+> une impasse, aucune route ne permettant d'effacer un brouillon de facture (`PUT` seulement).
+>
+> **Angle mort assumé** : réaffecter un brouillon chiffré **à soi-même** (compte à double capacité)
+> laisse une facture brouillon inerte — `publish` n'émet pas en auto-coaching (#14), et la section
+> est masquée. Elle ne part chez personne, elle dort. Déclencheur pour la traiter : la route de
+> suppression d'un brouillon de facture, qui manque par ailleurs.
+
+> **Précision sur l'invariant P6** : « un DRAFT existe ⇒ la facturation est remplie » gagne une
+> seconde implication — « un DRAFT existe ⇒ le cycle a un destinataire », puisque la saisie est
+> fermée sans athlète. Le verrou de `publish` sur `athleteId` n'en devient pas redondant pour
+> autant : un cycle sans athlète **ni** facturation échouerait sinon sur le mauvais message. Et
+> l'implication inverse reste fausse depuis #14 — un cycle **auto-coaché** se diffuse sans aucune
+> facture.
+
+> **Écart de maquette assumé** : `coach_builder_planification.dc.html` ne prévoit **aucun** sélecteur
+> d'athlète — son en-tête ne porte que le titre du cycle et « Diffuser le plan », le destinataire
+> n'y étant qu'un texte. Le sélecteur y a été ajouté, dans l'en-tête **fixe** : un cycle de douze
+> semaines se parcourt longtemps, et l'affectation ne doit pas obliger à remonter. Sur un cycle
+> diffusé il est **désactivé et expliqué**, jamais masqué — #145 disait les deux (« absent une fois
+> diffusé » d'un côté, « trois désactivations, une seule grammaire » de l'autre) ; c'est la seconde
+> qui l'emporte, parce qu'elle porte son raisonnement et qu'elle aligne le sélecteur sur « Coller
+> ici » et sur « Supprimer ».
 
 ---
 
