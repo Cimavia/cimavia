@@ -47,11 +47,13 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
-    if (athleteId === "" || !isMondayIsoDate(startDate)) return;
+    if (!isMondayIsoDate(startDate)) return;
 
     createPlan.mutate(
       {
-        athleteId,
+        // Le choix neutre du sélecteur vaut « pas encore décidé » (#144), et se transmet comme
+        // tel : `null`, pas une chaîne vide que l'API prendrait pour un identifiant.
+        athleteId: athleteId === "" ? null : athleteId,
         title: title.trim(),
         description: description.trim() || null,
         startDate,
@@ -66,7 +68,8 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
     );
   }
 
-  const canSubmit = athleteId !== "" && title.trim() !== "" && startDate !== "";
+  // L'athlète n'en fait plus partie : un cycle se construit avant de savoir pour qui (#144).
+  const canSubmit = title.trim() !== "" && startDate !== "";
 
   return (
     <CmvPanel
@@ -86,20 +89,24 @@ export function PlanForm({ open, onClose }: Readonly<PlanFormProps>) {
       }
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-cmv-lg">
-        <CmvSelect
-          label={t("plan.form.athlete")}
-          name="athleteId"
-          value={athleteId}
-          onChange={(event) => setAthleteId(event.target.value)}
-          placeholder={t("plan.form.athletePlaceholder")}
-          // « (moi) » sur sa propre entrée : dans une liste d'athlètes, son propre nom ne se
-          // distingue pas des autres — et écrire un cycle pour soi n'est pas le cas courant (#14).
-          options={(athletes ?? []).map((relation) => ({
-            value: relation.athleteId,
-            label: athleteLabel(relation.athleteId, relation.athleteName),
-          }))}
-          required
-        />
+        <div className="flex flex-col gap-cmv-xs">
+          <CmvSelect
+            label={t("plan.form.athlete")}
+            name="athleteId"
+            value={athleteId}
+            onChange={(event) => setAthleteId(event.target.value)}
+            // Le choix neutre porte un libellé qui DIT ce qu'il vaut. Une option vide laisserait
+            // croire à un oubli là où c'est une décision qu'on remet à plus tard (#144).
+            placeholder={t("plan.form.athletePlaceholder")}
+            // « (moi) » sur sa propre entrée : dans une liste d'athlètes, son propre nom ne se
+            // distingue pas des autres — et écrire un cycle pour soi n'est pas le cas courant (#14).
+            options={(athletes ?? []).map((relation) => ({
+              value: relation.athleteId,
+              label: athleteLabel(relation.athleteId, relation.athleteName),
+            }))}
+          />
+          <p className="text-cmv-caption text-cmv-text-lo">{t("plan.form.athleteHint")}</p>
+        </div>
 
         <CmvTextField
           label={t("plan.form.titleLabel")}

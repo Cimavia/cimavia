@@ -442,9 +442,10 @@
     },
     "form": {
       "title": "Nouvelle planification",
-      "description": "Un cycle pour un athlète. Le nombre de semaines reste libre : vous en ajouterez ou en retirerez ensuite.",
+      "description": "Le nombre de semaines reste libre : vous en ajouterez ou en retirerez ensuite.",
       "athlete": "Athlète",
-      "athletePlaceholder": "Choisir un athlète…",
+      "athletePlaceholder": "À définir plus tard",
+      "athleteHint": "Facultatif : vous pourrez choisir le destinataire tant que le cycle n'est pas diffusé.",
       "titleLabel": "Titre du cycle",
       "titlePlaceholder": "Cycle bloc — automne",
       "descriptionLabel": "Description du cycle",
