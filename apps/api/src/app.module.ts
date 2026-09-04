@@ -16,6 +16,8 @@ import { CustomMetricModule } from "./custom-metric/custom-metric.module";
 import { ExerciseModule } from "./exercise/exercise.module";
 import { FeedbackModule } from "./feedback/feedback.module";
 import { HealthModule } from "./health/health.module";
+import { MailModule } from "./infra/mail/mail.module";
+import { PasswordResetMailer } from "./infra/mail/password-reset.mailer";
 import { PrismaModule } from "./infra/prisma/prisma.module";
 import { PrismaService } from "./infra/prisma/prisma.service";
 import { InvoiceModule } from "./invoice/invoice.module";
@@ -71,12 +73,20 @@ function buildLogTargets(): TransportTargetOptions[] {
     }),
     PrismaModule,
     BetterAuthModule.forRootAsync({
-      inject: [PrismaService, ConfigService],
-      useFactory: (prisma: PrismaService, config: ConfigService<EnvSchema, true>) => ({
+      // `imports` et non un MailModule global : `PrismaService` arrive ici parce que PrismaModule
+      // est @Global, mais l'envoi de mails n'a aucune raison d'être visible de tout le monde.
+      imports: [MailModule],
+      inject: [PrismaService, ConfigService, PasswordResetMailer],
+      useFactory: (
+        prisma: PrismaService,
+        config: ConfigService<EnvSchema, true>,
+        passwordReset: PasswordResetMailer,
+      ) => ({
         auth: createAuth(prisma, {
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
           trustedOrigins: [...browserOrigins(config), ...MOBILE_SCHEMES],
+          sendResetPassword: (params) => passwordReset.send(params),
         }),
       }),
     }),

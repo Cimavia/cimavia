@@ -1,4 +1,10 @@
-import type { NotificationDto, UnreadCountDto } from "../dto/notification.schema";
+import type {
+  EmailableNotificationType,
+  NotificationDto,
+  NotificationEmailPreferenceDto,
+  UnreadCountDto,
+  UpdateNotificationEmailPreferencesInput,
+} from "../dto/notification.schema";
 import type { ApiClient } from "./client";
 
 /**
@@ -15,6 +21,16 @@ export const notificationKeys = {
   all: ["notifications"] as const,
   list: () => ["notifications", "list"] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
+};
+
+/**
+ * Clés de cache des RÉGLAGES (#65), séparées de celles des notifications elles-mêmes.
+ *
+ * Régler un canal ne change rien à ce qui a déjà été reçu : les fondre aurait fait réinvalider la
+ * liste et le badge à chaque bascule d'interrupteur, pour rien.
+ */
+export const notificationPreferenceKeys = {
+  all: ["notification-preferences"] as const,
 };
 
 export type NotificationApi = {
@@ -34,4 +50,44 @@ export function createNotificationApi(api: ApiClient): NotificationApi {
     markRead: (id) => api.patch<NotificationDto>(`/me/notifications/${id}/read`),
     markAllRead: () => api.post<void>("/me/notifications/read-all", {}),
   };
+}
+
+/**
+ * Réglages des notifications par e-mail (#65), partagés web ↔ mobile.
+ *
+ * La lecture rend la GRILLE complète — un état par type envoyable —, jamais la seule liste des
+ * types actifs : l'écran affiche ce qu'on lui donne et n'a rien à déduire d'une absence.
+ *
+ * L'écriture remplace l'ENSEMBLE. Une bascule d'interrupteur envoie donc la liste entière, pas un
+ * delta : l'écriture est idempotente, et deux bascules rapides ne peuvent pas s'écraser à moitié.
+ */
+export type NotificationPreferenceApi = {
+  list: () => Promise<NotificationEmailPreferenceDto[]>;
+  replace: (
+    input: UpdateNotificationEmailPreferencesInput,
+  ) => Promise<NotificationEmailPreferenceDto[]>;
+};
+
+export function createNotificationPreferenceApi(api: ApiClient): NotificationPreferenceApi {
+  return {
+    list: () => api.get<NotificationEmailPreferenceDto[]>("/me/notification-preferences"),
+    replace: (input) =>
+      api.put<NotificationEmailPreferenceDto[]>("/me/notification-preferences", input),
+  };
+}
+
+/**
+ * Ce que l'ENSEMBLE devient quand on bascule un type — la seule règle métier de cet écran, donc
+ * ici plutôt que dupliquée dans les deux UI (`architecture-choice.md` §7).
+ *
+ * Rend un tableau prêt à envoyer : l'API attend la liste complète des types activés, pas un delta.
+ * L'ordre suit la grille reçue, pour que deux bascules successives ne réordonnent pas la requête.
+ */
+export function toggledPreferences(
+  grid: readonly NotificationEmailPreferenceDto[],
+  type: EmailableNotificationType,
+): EmailableNotificationType[] {
+  return grid
+    .filter((row) => (row.type === type ? !row.enabled : row.enabled))
+    .map((row) => row.type);
 }

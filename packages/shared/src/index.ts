@@ -21,11 +21,22 @@ export type { InvoiceApi } from "./api/invoice.api";
 export { createInvoiceApi, invoiceKeys } from "./api/invoice.api";
 export type { MessageApi } from "./api/message.api";
 export { createMessageApi, messageKeys } from "./api/message.api";
-export type { NotificationApi } from "./api/notification.api";
-export { createNotificationApi, notificationKeys } from "./api/notification.api";
+export type { NotificationApi, NotificationPreferenceApi } from "./api/notification.api";
+export {
+  createNotificationApi,
+  createNotificationPreferenceApi,
+  notificationKeys,
+  notificationPreferenceKeys,
+  toggledPreferences,
+} from "./api/notification.api";
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
-export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./auth";
+export {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  RESET_PASSWORD_TOKEN_TTL_HOURS,
+  RESET_PASSWORD_TOKEN_TTL_SECONDS,
+} from "./auth";
 export type { Capabilities, CapabilityName, CapabilitySource } from "./capability";
 export { capabilitiesOf, hasCapability } from "./capability";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
@@ -357,21 +368,29 @@ export {
   sendMessageSchema,
 } from "./dto/message.schema";
 export type {
+  EmailableNotificationType,
   NotificationDto,
+  NotificationEmailPreferenceDto,
   NotificationEntityType as NotificationEntityTypeType,
   NotificationType as NotificationTypeType,
   PersistedNotificationType,
   UnreadCountDto,
+  UpdateNotificationEmailPreferencesInput,
 } from "./dto/notification.schema";
 export {
+  EMAILABLE_NOTIFICATION_TYPES,
+  emailableNotificationTypeSchema,
   NOTIFICATION_LABEL_KEY,
   NOTIFICATION_PAGE_SIZE,
+  NOTIFICATION_SETTING_LABEL_KEY,
   NotificationEntityType,
   NotificationType,
   notificationDtoSchema,
+  notificationEmailPreferenceDtoSchema,
   notificationEntityTypeSchema,
   notificationTypeSchema,
   unreadCountDtoSchema,
+  updateNotificationEmailPreferencesSchema,
 } from "./dto/notification.schema";
 export type {
   CopyPlanWeekInput,

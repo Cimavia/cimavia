@@ -1,18 +1,49 @@
 import { expo } from "@better-auth/expo";
-import { Locale, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, Role } from "@cmv/shared";
-import { Logger } from "@nestjs/common";
+import {
+  Locale,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  RESET_PASSWORD_TOKEN_TTL_SECONDS,
+  Role,
+} from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError } from "better-auth/api";
 
-const logger = new Logger("Auth");
+/**
+ * Envoi du lien de réinitialisation. Un callback plutôt qu'un service injecté : ce fichier est une
+ * fabrique PURE, appelée par `app.module.ts` — lui donner un `MailService` y ferait entrer la DI
+ * Nest et l'infra SMTP, dans le seul fichier qui décrit la politique d'authentification.
+ *
+ * `locale` est typé `string | null` et non `Locale` : c'est un `String` en base, pas un enum
+ * Prisma. Le catalogue de mails replie sur le français ; on ne ment pas ici sur ce qu'on sait.
+ */
+export type SendResetPassword = (params: {
+  to: string;
+  locale: string | null;
+  url: string;
+}) => Promise<void>;
 
 export type AuthConfig = {
   secret: string;
   baseURL: string;
   trustedOrigins: string[];
+  sendResetPassword: SendResetPassword;
 };
+
+/**
+ * `locale` est déclaré en `additionalFields`, donc bien présent sur l'objet rendu par l'adapter —
+ * mais le type `User` de Better Auth ne le porte pas. On le lit par une garde plutôt que par un
+ * `as` : si le champ disparaissait des `additionalFields`, on repartirait en français au lieu de
+ * planter à l'exécution sur une propriété inventée.
+ */
+function localeOf(user: unknown): string | null {
+  if (typeof user !== "object" || user == null || !("locale" in user)) {
+    return null;
+  }
+  return typeof user.locale === "string" ? user.locale : null;
+}
 
 /**
  * Instance Better Auth branchée sur le PrismaClient **unique** de l'app (adapter Prisma).
@@ -45,9 +76,12 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
       enabled: true,
       minPasswordLength: PASSWORD_MIN_LENGTH,
       maxPasswordLength: PASSWORD_MAX_LENGTH,
+      // Posée explicitement bien qu'elle vaille le défaut de la bibliothèque : c'est cette durée
+      // que l'e-mail annonce. Laissée implicite, une mise à jour de Better Auth la changerait sans
+      // toucher au texte, et le message mentirait sans qu'aucun test ne le voie.
+      resetPasswordTokenExpiresIn: RESET_PASSWORD_TOKEN_TTL_SECONDS,
       sendResetPassword: async ({ user, url }) => {
-        // MOCKED — envoi de l'email de réinitialisation. À connecter (infra mail + i18n) en P7.
-        logger.warn(`MOCKED reset-password pour ${user.email} : ${url}`);
+        await config.sendResetPassword({ to: user.email, locale: localeOf(user), url });
       },
     },
     user: {

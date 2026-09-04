@@ -21,13 +21,13 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. **Quinze dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Dix-sept dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **MI-1**, **MI-2** et **O-2**, dont le déclencheur est nommé mais dont rien n'est à
-préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud, où une
-issue n'aurait rien à suivre que le fait de s'en souvenir. Les quatorze premières sont volontaires, la
-dernière non.
+**W-1**, **Q-6**, **MI-1**, **MI-2**, **O-2**, **N-5** et **N-9**, dont le déclencheur est nommé mais
+dont rien n'est à préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud,
+où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les seize premières sont
+volontaires, la dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -159,6 +159,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
+| ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -166,6 +167,32 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > (les deux apps forcent `lng: "fr"`, **délibérément** — sans ressource `en`, un appareil anglais
 > afficherait des libellés FR avec des dates EN) et la vérification des formats. Suivi par l'épic
 > [#71](https://github.com/Cimavia/cimavia/issues/71), hors de ce registre.
+
+> **Tranché en #63** (le serveur a son propre catalogue, et c'est l'inverse du choix de #48) : les
+> e-mails sont traduits par un objet typé côté API (`infra/mail/locale/{fr,en}.ts`), pas par
+> i18next ni par les catalogues des apps. Trois conséquences que le code ne justifie pas seul.
+>
+> - **Un e-mail est FIGÉ à l'envoi.** Une notification ne stocke aucun libellé rendu (#48)
+>   précisément pour s'afficher en anglais le jour où `en.json` arrivera ; un e-mail part une fois
+>   et ne se re-rend jamais. Il doit donc être traduit à l'écriture, dans la langue que la base
+>   connaît (`User.locale`) — à un instant où personne n'est authentifié et où aucun client
+>   n'existe, Better Auth appelant `sendResetPassword` seul.
+> - **L'anglais est écrit maintenant, dormant.** Le `satisfies MailStrings` en fait une obligation
+>   de compilation : ajouter une valeur à `Locale` sans son catalogue ne compile pas. C'est le
+>   premier anglais du dépôt — les catalogues clients n'ont que `fr.json` jusqu'à
+>   [#71](https://github.com/Cimavia/cimavia/issues/71).
+> - **Aucune couleur dans le rendu.** La règle dure n°3 interdit tout `#xxxxxx` hors `@cmv/tokens`,
+>   un client mail ne lit aucune classe Tailwind, et la palette est sombre par construction —
+>   `text.hi` serait illisible sur le fond blanc d'un client mail, que Gmail et Outlook
+>   réinversent de toute façon. Le jour où l'on voudra une marque dans l'e-mail, c'est
+>   `cmvColors` qu'il faudra rendre consommable par l'API, pas un hexadécimal à la main.
+>
+> Dette restante, et elle n'a pas d'issue : le libellé du **push** est toujours rendu côté serveur
+> et en français en dur (`NotificationService`). L'encadré de #48 annonçait qu'il « suivrait le
+> catalogue serveur de #63 » — le catalogue est là et l'accueillerait sans rien changer, mais #63
+> ne le demandait pas et rien ne l'a fait. Le déclencheur est l'activation de l'anglais
+> ([#71](https://github.com/Cimavia/cimavia/issues/71)) : avant elle, traduire un push n'a aucun
+> destinataire.
 
 ---
 
@@ -334,9 +361,56 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : hérite du throttle push de P5-4. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
 | N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
-| N-5 | **Aucun réglage de notification** : ni opt-out par type, ni choix de canal. | 🟢 | [#65](https://github.com/Cimavia/cimavia/issues/65) [#66](https://github.com/Cimavia/cimavia/issues/66) *(épic mail [#61](https://github.com/Cimavia/cimavia/issues/61))* |
+| N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
 | N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
+| N-8 | **L'e-mail hérite du throttle de la messagerie** (P5-4) : une rafale de messages produit UN e-mail, qui annonce « un message » là où il y en a cinq — et aucune relance si le fil reste non lu. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) · [#98](https://github.com/Cimavia/cimavia/issues/98) |
+| N-9 | **Aucun lien vers l'entité dans l'e-mail de notification** : seul le pied « gérer mes notifications » est cliquable. Ouvrir le cycle ou la conversation demande de retrouver l'application à la main. | 🟢 | — *(déclencheur : un retour beta disant que l'e-mail ne sert à rien sans lien — voir « Tranché en #65 »)* |
+
+> **Tranché en #66** (les réglages sont une SECTION, pas un écran) : l'issue annonçait, côté
+> mobile, de « donner enfin une destination à la ligne Notifications » de la maquette
+> `athlete_profile.dc.html` — donc un écran à part, atteint par un lien. Quatre interrupteurs
+> tiennent dans la page : ils sont posés **sur place**, dans le profil, comme au web dans l'écran
+> Compte. Une navigation vers un écran qui n'aurait contenu qu'eux se serait payée à chaque
+> consultation, et la maquette datait d'avant qu'on sache combien de lignes il y aurait.
+>
+> Deux conséquences que le code ne justifie pas seul. **La bascule enregistre immédiatement**, sans
+> bouton — l'API attendant l'ENSEMBLE des types activés, chaque geste envoie un état complet et
+> idempotent ; l'écart est assumé avec la section « casquettes » juste au-dessus, qui garde son
+> bouton parce qu'elle édite un état cohérent à valider d'un bloc. Et le mobile emploie le
+> **`Switch` de React Native** là où les capacités utilisent un `Pressable` habillé : c'est le seul
+> contrôle dont l'état soit visible du harnais de rendu, `accessibilityState` étant ignoré par
+> `react-native-web` (dette **Q-6**) — un interrupteur maison n'aurait pas été éprouvable.
+
+> **Tranché en #65** (l'e-mail est un canal, pas un déclencheur) : l'envoi part de `emit()`, au
+> MÊME point que la persistance et le push, et jamais d'un appelant métier. Cinq conséquences que
+> le code ne justifie pas seul.
+>
+> - **L'opt-in est l'absence de ligne**, pas un booléen. « Jamais réglé » et « explicitement
+>   coupé » commandent la même chose ; un troisième état inventerait une distinction que rien ne
+>   lit, et aurait exigé une migration de données pour tout le parc. Couper un type SUPPRIME sa
+>   ligne — la table ne contient que ce que quelqu'un a demandé. Côté Prisma, « je coupe tout »
+>   est un `notIn: []`, que Postgres rend toujours vrai : **ne pas y ajouter de cas particulier**,
+>   il serait mort donc jamais éprouvé.
+> - **Quatre types seulement** (`EMAILABLE_NOTIFICATION_TYPES`), et c'est une LISTE, pas un
+>   `Exclude<>` comme `PersistedNotificationType` : la frontière est un choix produit révisable,
+>   pas une conséquence du modèle. Les trois ajustements de cycle en sont exclus tant que **N-6**
+>   n'est pas traitée — trois séances ajoutées produiraient trois e-mails. Élargir la liste ne
+>   compile plus tant que les gabarits manquent, dans les deux langues.
+> - **Canal indépendant du push.** L'e-mail part que le push soit arrivé ou non. Le conditionner à
+>   l'absence d'appareil aurait produit un comportement qui change tout seul le jour où
+>   l'utilisateur installe l'app — et Expo ne confirme la livraison qu'en différé (**N-7**).
+> - **La préférence est lue AVANT le destinataire.** En opt-in, le cas courant est « personne n'a
+>   rien activé » : lire l'adresse d'abord coûterait deux requêtes à chaque notification du parc.
+> - **Ni contenu de message, ni montant de facture** dans l'e-mail, et des tests le figent. Une
+>   conversation est une donnée de santé au sens du CDC, et une somme apparaîtrait dans l'aperçu
+>   d'un téléphone posé sur une table. Le gabarit n'a d'ailleurs pas de quoi le faire :
+>   `Notification` ne persiste que `actorName` et `subjectLabel` (#48).
+>
+> **Écart assumé (N-9)** : aucun lien vers l'entité. L'API devrait pour cela porter la table de
+> routage des clients, qui diffèrent (le builder est web-only, le planning de l'athlète est
+> mobile) et qui changent sans elle. Le seul lien est celui des réglages, et il n'existe que si
+> `WEB_URL` est configurée — absente, le pied disparaît et le message part quand même.
 
 > **Tranché en #48** (le modèle) : une `Notification` ne stocke **aucun libellé rendu**, seulement
 > son `type`, sa cible et les paramètres d'interpolation (`actorName`, `subjectLabel`). Deux

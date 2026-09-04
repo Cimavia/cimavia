@@ -18,11 +18,21 @@ export function ForgotPasswordScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      // On confirme toujours (pas d'énumération d'e-mails) : le lien de reset est loggé côté API (MOCKED).
-      await authClient.requestPasswordReset({
+      const { error: requestError } = await authClient.requestPasswordReset({
         email,
         redirectTo: `${window.location.origin}/reset-password`,
       });
+      /**
+       * Le client Better Auth NE LÈVE PAS sur une réponse d'erreur : il la rend. Sans cette
+       * lecture, une panne s'afficherait « e-mail envoyé » alors que rien n'est parti.
+       *
+       * Cela ne rouvre PAS l'énumération d'adresses : une adresse inconnue reçoit `status: true`
+       * sans erreur, exactement comme une adresse connue. Seule une panne se distingue.
+       */
+      if (requestError != null) {
+        setError(t("auth.errors.generic"));
+        return;
+      }
       setSent(true);
     } catch {
       setError(t("auth.errors.generic"));

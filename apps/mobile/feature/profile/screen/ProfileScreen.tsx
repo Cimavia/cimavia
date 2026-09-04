@@ -9,7 +9,7 @@ import {
   capabilityErrorKey,
   useCapabilityUpdate,
 } from "@/feature/account/hook/useCapabilityUpdate";
-import { revokeCurrentPushToken } from "@/feature/notification";
+import { NotificationEmailSection, revokeCurrentPushToken } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 import { resetQueryCache } from "@/shared/lib/query";
@@ -133,6 +133,11 @@ export function ProfileScreen() {
             disabled={unchanged || (!isCoach && !isAthlete) || update.isPending}
           />
         </View>
+
+        {/* La ligne « Notifications » de la maquette (`athlete_profile.dc.html`), remplie sur
+            place (#66). Quatre interrupteurs tiennent dans la page : un lien vers un écran qui
+            n'aurait contenu qu'eux ferait payer une navigation pour rien. */}
+        <NotificationEmailSection />
 
         <CmvButton label={t("common.logout")} onPress={onLogout} />
       </ScrollView>

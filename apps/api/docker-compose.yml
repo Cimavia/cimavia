@@ -49,6 +49,21 @@ services:
       echo 'buckets cimavia-media-dev et cimavia-media-e2e prêts (privés)'
       "
 
+  # Serveur SMTP jetable pour le dev local : capte TOUT ce que l'API envoie et ne le relaie
+  # jamais. Aucun compte cloud, et surtout aucun risque d'écrire à une vraie adresse depuis une
+  # base de test — même portabilité que MinIO, seules les variables SMTP_* changent en prod.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: cimavia_mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP (SMTP_PORT)
+      - "8025:8025" # Boîte de réception web (http://localhost:8025)
+    environment:
+      # Les messages vivent en mémoire : un `down` vide la boîte, ce qui est le comportement
+      # voulu pour un serveur de développement.
+      MP_MAX_MESSAGES: "500"
+
 volumes:
   postgres_data:
   minio_data:

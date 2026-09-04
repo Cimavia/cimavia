@@ -48,6 +48,36 @@ export const envSchema = z.object({
    * NAS, env Scaleway.
    */
   REMINDER_TICK_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
+  /**
+   * Envoi d'e-mails transactionnels (#62). Optionnel au boot comme les `S3_*` : l'API démarre
+   * sans, tout le reste fonctionne, et rien ne part — l'absence est journalisée, jamais silencieuse.
+   *
+   * Le minimum pour envoyer est `SMTP_HOST` + `SMTP_PORT` + `MAIL_FROM`. L'authentification est
+   * LUE À PART et son absence n'est pas une configuration incomplète : le Mailpit du dev local
+   * n'a pas de compte. C'est la seule divergence avec le contrat des `S3_*`, où les cinq
+   * variables vont ensemble.
+   */
+  SMTP_HOST: z.preprocess(emptyAsUndefined, z.string().optional()),
+  SMTP_PORT: z.preprocess(emptyAsUndefined, z.coerce.number().int().min(1).max(65535).optional()),
+  SMTP_USER: z.preprocess(emptyAsUndefined, z.string().optional()),
+  SMTP_PASSWORD: z.preprocess(emptyAsUndefined, z.string().optional()),
+  // Expéditeur des e-mails, au format « Nom <adresse> » ou « adresse » seule. Sans lui, aucun
+  // envoi n'est possible : un serveur SMTP refuse un message sans enveloppe d'expéditeur.
+  MAIL_FROM: z.preprocess(emptyAsUndefined, z.string().optional()),
+  /**
+   * URL publique de l'app WEB, pour le pied des e-mails de notification (#65) — « gérer mes
+   * notifications ».
+   *
+   * Distincte de `CORS_ORIGINS`, qui est une LISTE d'origines autorisées et ne désigne pas l'app
+   * canonique : y piocher la première marcherait tant que l'ordre ne change pas, c'est-à-dire
+   * jusqu'au jour où quelqu'un ajoute une origine de test en tête.
+   *
+   * Optionnelle : absente, le pied disparaît et le message part quand même. Un e-mail de
+   * notification sans porte de sortie reste préférable à pas d'e-mail du tout — mais c'est un
+   * réglage à faire en production, où un envoi récurrent sans lien de désabonnement finit
+   * classé indésirable.
+   */
+  WEB_URL: z.preprocess(emptyAsUndefined, z.url().optional()),
 });
 
 export type EnvSchema = z.infer<typeof envSchema>;

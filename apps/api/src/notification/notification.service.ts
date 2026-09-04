@@ -1,10 +1,15 @@
-import type { EnvSchema, PersistedNotificationType } from "@cmv/shared";
-import { NotificationEntityType, NotificationType } from "@cmv/shared";
+import type { EmailableNotificationType, EnvSchema, PersistedNotificationType } from "@cmv/shared";
+import {
+  EMAILABLE_NOTIFICATION_TYPES,
+  NotificationEntityType,
+  NotificationType,
+} from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
 import { ClsService } from "nestjs-cls";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
+import { NotificationMailer } from "../infra/mail/notification.mailer";
 import { PrismaService } from "../infra/prisma/prisma.service";
 import { TENANT_CLS_KEY, type TenantContext } from "../tenancy/tenant-context.type";
 
@@ -124,6 +129,7 @@ export class NotificationService {
     // Client NON scopé : voir la règle 1 ci-dessus.
     private readonly prisma: PrismaService,
     private readonly cls: ClsService,
+    private readonly mailer: NotificationMailer,
     config: ConfigService<EnvSchema, true>,
   ) {
     // Aucun secret requis pour envoyer : le token n'est utile qu'avec « Enhanced Security »
@@ -346,6 +352,56 @@ export class NotificationService {
 
     await this.persist(record);
     await this.push(record.recipientId, push);
+    await this.email(record);
+  }
+
+  /**
+   * Troisième canal (#65) : l'e-mail, si le destinataire l'a demandé pour ce type.
+   *
+   * **Opt-in** — aucune ligne de préférence, aucun envoi. C'est aussi ce qui rend ce canal
+   * silencieux pour tout le parc existant, sans migration de données.
+   *
+   * **Indépendant du push** : il part que le push soit arrivé ou non. Le conditionner à l'absence
+   * d'appareil ferait un comportement qui change tout seul le jour où l'utilisateur installe
+   * l'app — et Expo ne confirme de toute façon la livraison qu'en différé (dette N-7).
+   *
+   * **Placé après la persistance et le push, et il dégrade seul** : un envoi impossible ne doit ni
+   * empêcher la trace, ni la livraison, ni l'action métier (règles 2 et 3). Il hérite en outre de
+   * la garde anti-auto-notification, qui vit dans `emit` au-dessus.
+   */
+  private async email(record: NotificationRecord): Promise<void> {
+    try {
+      const type = emailableType(record.type);
+      if (type == null) return;
+
+      // La PRÉFÉRENCE d'abord, l'utilisateur ensuite : l'opt-in fait que le cas courant est
+      // « personne n'a rien activé », et il ne doit coûter qu'une seule requête. Lire l'adresse
+      // avant de savoir si on s'en sert en coûterait deux à chaque notification du parc.
+      //
+      // Sur le client NON scopé, comme tout ce que fait ce service : le destinataire n'est pas
+      // l'acteur courant (règle 1), et le client tenant refuserait.
+      const wanted = await this.prisma.notificationEmailPreference.findFirst({
+        where: { userId: record.recipientId, type: record.type },
+        select: { id: true },
+      });
+      if (wanted == null) return;
+
+      const recipient = await this.prisma.user.findUnique({
+        where: { id: record.recipientId },
+        select: { email: true, locale: true },
+      });
+      if (recipient == null) return;
+
+      await this.mailer.send(type, recipient, {
+        actorName: record.actorName,
+        subjectLabel: record.subjectLabel,
+      });
+    } catch (error) {
+      this.logger.error(
+        { err: error, recipientId: record.recipientId, type: record.type },
+        "Échec de l'envoi de la notification par e-mail",
+      );
+    }
   }
 
   private async persist(record: NotificationRecord): Promise<void> {
@@ -450,4 +506,14 @@ export class NotificationService {
     );
     await this.prisma.pushToken.deleteMany({ where: { id: { in: unregisteredIds } } });
   }
+}
+
+/**
+ * Le type, s'il fait partie de ceux qu'on envoie par e-mail — `null` sinon.
+ *
+ * Les trois ajustements de cycle n'y sont pas : ils arrivent par rafales et rien ne les groupe
+ * (dette N-6). La liste vit dans `@cmv/shared` parce que l'écran de réglages la rend aussi.
+ */
+function emailableType(type: PersistedNotificationType): EmailableNotificationType | null {
+  return EMAILABLE_NOTIFICATION_TYPES.find((emailable) => emailable === type) ?? null;
 }

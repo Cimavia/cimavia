@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  EMAILABLE_NOTIFICATION_TYPES,
   NOTIFICATION_LABEL_KEY,
   NotificationEntityType,
   NotificationType,
   notificationDtoSchema,
   unreadCountDtoSchema,
+  updateNotificationEmailPreferencesSchema,
 } from "./notification.schema";
 
 const NOTIFICATION = {
@@ -139,5 +141,62 @@ describe("NOTIFICATION_LABEL_KEY", () => {
     const keys = Object.values(NOTIFICATION_LABEL_KEY);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toHaveLength(Object.keys(NotificationType).length);
+  });
+});
+
+describe("notifications par e-mail — le sous-ensemble envoyable", () => {
+  /**
+   * La frontière du sous-ensemble EST la décision de #65, et elle se défait sans bruit : ajouter
+   * un type à la liste suffirait à mettre trois e-mails dans une boîte pour trois séances
+   * ajoutées au même cycle (dette N-6, aucun groupement). Ce test la fige, pour qu'un
+   * élargissement soit un geste délibéré et non un effet de bord.
+   */
+  it("exclut les trois ajustements de cycle, qui arrivent par rafales", () => {
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.PLAN_UPDATED);
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.PLAN_SESSION_ADDED);
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.PLAN_SESSION_REMOVED);
+  });
+
+  // `REMINDER_DUE` n'est jamais persisté et ne passe pas par le point d'émission commun : il ne
+  // pourrait pas partir par e-mail même si quelqu'un l'activait.
+  it("exclut le rappel dû, qui ne passe pas par le point d'émission", () => {
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.REMINDER_DUE);
+  });
+
+  it("porte les quatre types que le produit a retenus", () => {
+    expect([...EMAILABLE_NOTIFICATION_TYPES]).toEqual([
+      NotificationType.PLAN_PUBLISHED,
+      NotificationType.FEEDBACK_RECEIVED,
+      NotificationType.MESSAGE_RECEIVED,
+      NotificationType.INVOICE_ISSUED,
+    ]);
+  });
+});
+
+describe("updateNotificationEmailPreferencesSchema", () => {
+  // Le défaut du produit : rien n'est envoyé tant que rien n'est demandé. Une liste vide est donc
+  // une valeur légitime, et non une saisie incomplète à refuser.
+  it("accepte une liste vide — c'est le réglage par défaut", () => {
+    const result = updateNotificationEmailPreferencesSchema.safeParse({ enabled: [] });
+    expect(result.success).toBe(true);
+  });
+
+  /**
+   * Le refus est porté par le SCHÉMA, pas par une garde dans le service : un type hors du
+   * sous-ensemble part en 400 avant d'atteindre la moindre écriture. Sans quoi la colonne Prisma,
+   * qui porte l'enum complet, accepterait une préférence qu'aucun gabarit ne sait rendre.
+   */
+  it("refuse un type que le produit n'envoie pas par e-mail", () => {
+    const result = updateNotificationEmailPreferencesSchema.safeParse({
+      enabled: [NotificationType.PLAN_SESSION_ADDED],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepte les quatre types envoyables", () => {
+    const result = updateNotificationEmailPreferencesSchema.safeParse({
+      enabled: [...EMAILABLE_NOTIFICATION_TYPES],
+    });
+    expect(result.success).toBe(true);
   });
 });
