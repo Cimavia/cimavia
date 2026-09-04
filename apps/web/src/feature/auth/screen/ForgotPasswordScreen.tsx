@@ -18,7 +18,8 @@ export function ForgotPasswordScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      // On confirme toujours (pas d'énumération d'e-mails) : le lien de reset est loggé côté API (MOCKED).
+      // On confirme toujours, même sur une adresse inconnue : une réponse différente révélerait
+      // quels comptes existent. L'API envoie l'e-mail sans jamais faire échouer cet appel (#63).
       await authClient.requestPasswordReset({
         email,
         redirectTo: `${window.location.origin}/reset-password`,

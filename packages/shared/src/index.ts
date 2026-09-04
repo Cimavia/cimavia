@@ -25,7 +25,12 @@ export type { NotificationApi } from "./api/notification.api";
 export { createNotificationApi, notificationKeys } from "./api/notification.api";
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
-export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "./auth";
+export {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  RESET_PASSWORD_TOKEN_TTL_HOURS,
+  RESET_PASSWORD_TOKEN_TTL_SECONDS,
+} from "./auth";
 export type { Capabilities, CapabilityName, CapabilitySource } from "./capability";
 export { capabilitiesOf, hasCapability } from "./capability";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";

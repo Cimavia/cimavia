@@ -159,6 +159,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
+| ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -166,6 +167,32 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > (les deux apps forcent `lng: "fr"`, **délibérément** — sans ressource `en`, un appareil anglais
 > afficherait des libellés FR avec des dates EN) et la vérification des formats. Suivi par l'épic
 > [#71](https://github.com/Cimavia/cimavia/issues/71), hors de ce registre.
+
+> **Tranché en #63** (le serveur a son propre catalogue, et c'est l'inverse du choix de #48) : les
+> e-mails sont traduits par un objet typé côté API (`infra/mail/locale/{fr,en}.ts`), pas par
+> i18next ni par les catalogues des apps. Trois conséquences que le code ne justifie pas seul.
+>
+> - **Un e-mail est FIGÉ à l'envoi.** Une notification ne stocke aucun libellé rendu (#48)
+>   précisément pour s'afficher en anglais le jour où `en.json` arrivera ; un e-mail part une fois
+>   et ne se re-rend jamais. Il doit donc être traduit à l'écriture, dans la langue que la base
+>   connaît (`User.locale`) — à un instant où personne n'est authentifié et où aucun client
+>   n'existe, Better Auth appelant `sendResetPassword` seul.
+> - **L'anglais est écrit maintenant, dormant.** Le `satisfies MailStrings` en fait une obligation
+>   de compilation : ajouter une valeur à `Locale` sans son catalogue ne compile pas. C'est le
+>   premier anglais du dépôt — les catalogues clients n'ont que `fr.json` jusqu'à
+>   [#71](https://github.com/Cimavia/cimavia/issues/71).
+> - **Aucune couleur dans le rendu.** La règle dure n°3 interdit tout `#xxxxxx` hors `@cmv/tokens`,
+>   un client mail ne lit aucune classe Tailwind, et la palette est sombre par construction —
+>   `text.hi` serait illisible sur le fond blanc d'un client mail, que Gmail et Outlook
+>   réinversent de toute façon. Le jour où l'on voudra une marque dans l'e-mail, c'est
+>   `cmvColors` qu'il faudra rendre consommable par l'API, pas un hexadécimal à la main.
+>
+> Dette restante, et elle n'a pas d'issue : le libellé du **push** est toujours rendu côté serveur
+> et en français en dur (`NotificationService`). L'encadré de #48 annonçait qu'il « suivrait le
+> catalogue serveur de #63 » — le catalogue est là et l'accueillerait sans rien changer, mais #63
+> ne le demandait pas et rien ne l'a fait. Le déclencheur est l'activation de l'anglais
+> ([#71](https://github.com/Cimavia/cimavia/issues/71)) : avant elle, traduire un push n'a aucun
+> destinataire.
 
 ---
 

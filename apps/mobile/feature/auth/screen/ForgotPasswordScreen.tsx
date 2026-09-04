@@ -19,7 +19,8 @@ export function ForgotPasswordScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      // Le lien de reset (envoyé par e-mail, loggé côté API en MOCKED) ouvre la page web /reset-password.
+      // On confirme toujours, même sur une adresse inconnue : une réponse différente révélerait
+      // quels comptes existent. Le lien reçu par e-mail ouvre la page web /reset-password.
       await authClient.requestPasswordReset({ email });
       setSent(true);
     } catch {
