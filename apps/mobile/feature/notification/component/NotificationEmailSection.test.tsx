@@ -2,7 +2,7 @@ import { EMAILABLE_NOTIFICATION_TYPES, NotificationType } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notificationPreferenceApi } from "@/feature/notification/api";
-import { NotificationPreferencesScreen } from "@/feature/notification/screen/NotificationPreferencesScreen";
+import { NotificationEmailSection } from "@/feature/notification/component/NotificationEmailSection";
 import { pressButton, renderRn } from "@/test/render";
 
 vi.mock("@/feature/notification/api", async () => {
@@ -32,9 +32,9 @@ beforeEach(() => {
   replace.mockResolvedValue(gridWith([]));
 });
 
-describe("NotificationPreferencesScreen", () => {
+describe("NotificationEmailSection", () => {
   it("montre un interrupteur par type envoyable, tous éteints par défaut", async () => {
-    const { container } = renderRn(<NotificationPreferencesScreen />);
+    const { container } = renderRn(<NotificationEmailSection />);
 
     await waitFor(() =>
       expect(switches(container)).toHaveLength(EMAILABLE_NOTIFICATION_TYPES.length),
@@ -48,7 +48,7 @@ describe("NotificationPreferencesScreen", () => {
    */
   it("enregistre l'ensemble des types activés dès la bascule", async () => {
     list.mockResolvedValue(gridWith([NotificationType.MESSAGE_RECEIVED]));
-    const { container } = renderRn(<NotificationPreferencesScreen />);
+    const { container } = renderRn(<NotificationEmailSection />);
     await waitFor(() =>
       expect(switches(container)).toHaveLength(EMAILABLE_NOTIFICATION_TYPES.length),
     );
@@ -69,7 +69,7 @@ describe("NotificationPreferencesScreen", () => {
    */
   it("remet l'interrupteur en place quand l'enregistrement échoue", async () => {
     replace.mockRejectedValue(new Error("réseau"));
-    const { container } = renderRn(<NotificationPreferencesScreen />);
+    const { container } = renderRn(<NotificationEmailSection />);
     await waitFor(() =>
       expect(switches(container)).toHaveLength(EMAILABLE_NOTIFICATION_TYPES.length),
     );
@@ -83,7 +83,7 @@ describe("NotificationPreferencesScreen", () => {
   // panne de réseau ressemble à un écran qui charge encore.
   it("dit que la lecture a échoué plutôt que de laisser un écran vide", async () => {
     list.mockRejectedValue(new Error("réseau"));
-    const { container, queryByText } = renderRn(<NotificationPreferencesScreen />);
+    const { container, queryByText } = renderRn(<NotificationEmailSection />);
 
     await waitFor(() => expect(queryByText("common.errorTitle")).not.toBeNull());
     expect(switches(container)).toHaveLength(0);
@@ -93,7 +93,7 @@ describe("NotificationPreferencesScreen", () => {
   // écran d'erreur nu : il fait croire qu'on a essayé.
   it("relance la lecture quand on réessaie", async () => {
     list.mockRejectedValue(new Error("réseau"));
-    const { container, queryByText } = renderRn(<NotificationPreferencesScreen />);
+    const { container, queryByText } = renderRn(<NotificationEmailSection />);
     await waitFor(() => expect(queryByText("common.errorTitle")).not.toBeNull());
     const before = list.mock.calls.length;
 

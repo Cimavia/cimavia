@@ -9,7 +9,7 @@ import {
   capabilityErrorKey,
   useCapabilityUpdate,
 } from "@/feature/account/hook/useCapabilityUpdate";
-import { revokeCurrentPushToken } from "@/feature/notification";
+import { NotificationEmailSection, revokeCurrentPushToken } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 import { resetQueryCache } from "@/shared/lib/query";
@@ -134,17 +134,10 @@ export function ProfileScreen() {
           />
         </View>
 
-        {/* La ligne « Notifications » de la maquette (`athlete_profile.dc.html`), qui n'avait
-            aucune destination jusqu'ici (#66). Un `Pressable` en ligne plutôt qu'un CmvButton :
-            c'est une entrée de menu vers un autre écran, pas une action. */}
-        <Pressable
-          onPress={() => router.push("/notification-preferences")}
-          accessibilityRole="button"
-          className="flex-row items-center justify-between gap-4 rounded-lg border border-cmv-border bg-cmv-surface p-3"
-        >
-          <CmvText className="flex-1 text-cmv-text-hi">{t("notification.setting.title")}</CmvText>
-          <Ionicons name="chevron-forward" size={18} color={cmvColors.text.mid} />
-        </Pressable>
+        {/* La ligne « Notifications » de la maquette (`athlete_profile.dc.html`), remplie sur
+            place (#66). Quatre interrupteurs tiennent dans la page : un lien vers un écran qui
+            n'aurait contenu qu'eux ferait payer une navigation pour rien. */}
+        <NotificationEmailSection />
 
         <CmvButton label={t("common.logout")} onPress={onLogout} />
       </ScrollView>
