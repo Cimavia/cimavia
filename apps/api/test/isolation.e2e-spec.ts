@@ -1288,6 +1288,232 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   });
 });
 
+describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let athleteA1: Agent;
+  let athleteA2: Agent;
+  let a1Id: string;
+  let a2Id: string;
+  let b1Id: string;
+  let exerciseId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return accepted.body.athleteId;
+  }
+
+  /**
+   * Un brouillon SANS destinataire, garni d'une séance dont l'exercice porte un TAG et un
+   * document. Le tag compte : `scheduled_session_exercise_tag` est la sixième table de la chaîne
+   * dénormalisée, celle qu'on oublie — sans sa colonne nullable, composer ici casserait en 500.
+   */
+  async function draftWithoutAthlete(title: string) {
+    const plan = await coachA
+      .post("/plans")
+      .send({ title, startDate: monday, weeks: [{ type: "TRAINING" }] });
+    expect(plan.status).toBe(201);
+    const weekId = plan.body.weeks[0].id;
+    const session = await coachA.post(`/plan-weeks/${weekId}/sessions`).send({
+      title: "Séance libre",
+      scheduledDate: monday,
+      exercises: [{ sourceExerciseId: exerciseId, title: "Tractions", tags: ["dos"] }],
+    });
+    expect(session.status).toBe(201);
+    return { planId: plan.body.id as string, sessionId: session.body.id as string };
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("unassigned-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("unassigned-coach-b@cmv.test", Role.COACH);
+    athleteA1 = await signUp("unassigned-athlete-a1@cmv.test", Role.ATHLETE);
+    athleteA2 = await signUp("unassigned-athlete-a2@cmv.test", Role.ATHLETE);
+    const athleteB1 = await signUp("unassigned-athlete-b1@cmv.test", Role.ATHLETE);
+
+    a1Id = await link(coachA, athleteA1);
+    a2Id = await link(coachA, athleteA2);
+    b1Id = await link(coachB, athleteB1);
+
+    // Un exercice BLOQUÉ et TAGUÉ : les blocs donnent au décompte d'exécution un `blk_1` à
+    // cocher, le tag fait vivre la sixième table de la chaîne dénormalisée.
+    const exercise = await coachA.post("/exercises").send({
+      title: "Tractions",
+      tags: ["dos"],
+      blocks: [
+        {
+          id: "blk_1",
+          label: "Travail",
+          structure: { type: "SERIES", setCount: 3, restBetweenSetsSeconds: 120 },
+          metrics: [
+            {
+              id: "col_reps",
+              source: "CATALOG",
+              key: "REPETITIONS",
+              unit: "REPS",
+              label: null,
+              collapsed: false,
+            },
+          ],
+          rows: [{ id: "r1", values: { col_reps: 5 } }],
+        },
+      ],
+    });
+    exerciseId = exercise.body.id;
+  });
+
+  it("compose un cycle entier sans destinataire, tags compris", async () => {
+    const { planId, sessionId } = await draftWithoutAthlete("Bloc force max — pour qui ?");
+
+    const plan = await coachA.get(`/plans/${planId}`);
+    expect(plan.status).toBe(200);
+    // Les trois champs disent la MÊME absence : il n'y a pas de cycle nommé sans destinataire.
+    expect(plan.body.athleteId).toBeNull();
+    expect(plan.body.athleteName).toBeNull();
+    expect(plan.body.athleteEmail).toBeNull();
+
+    const session = await coachA.get(`/scheduled-sessions/${sessionId}`);
+    expect(session.body.exercises[0].tags).toEqual(["dos"]);
+  });
+
+  /**
+   * Le cœur de l'invariant : l'invisibilité ne vient PAS d'une règle applicative mais du filtre
+   * tenant lui-même — un `NULL` ne satisfait jamais `where: { athleteId }`. On l'éprouve sur DEUX
+   * athlètes du même coach, parce qu'un filtre cassé les servirait tous les deux.
+   */
+  it("reste invisible de TOUS les athlètes du coach, pas seulement du premier", async () => {
+    const { sessionId } = await draftWithoutAthlete("Invisible");
+
+    for (const athlete of [athleteA1, athleteA2]) {
+      const plan = await athlete.get("/me/plan");
+      expect(plan.status).toBe(200);
+      expect(plan.body).toBeNull();
+      expect((await athlete.get(`/me/scheduled-sessions/${sessionId}`)).status).toBe(404);
+    }
+  });
+
+  it("refuse de diffuser un cycle sans destinataire, et n'écrit rien", async () => {
+    const { planId } = await draftWithoutAthlete("Jamais diffusé");
+
+    const res = await coachA.post(`/plans/${planId}/publish`);
+    expect(res.status).toBe(400);
+
+    // Ni statut, ni facture : le refus tombe AVANT la transaction.
+    expect((await coachA.get(`/plans/${planId}`)).body.status).toBe("DRAFT");
+    expect((await coachA.get("/invoices")).body).toHaveLength(0);
+  });
+
+  /**
+   * L'ordre des verrous est une décision, pas un hasard : sans destinataire NI facturation, le
+   * message doit nommer ce qui manque VRAIMENT. La facturation, elle, est carrément fermée tant
+   * qu'il n'y a personne à facturer — `Invoice.athleteId` est NOT NULL, et un refus explicite
+   * vaut mieux qu'une violation de contrainte remontée en 500.
+   */
+  it("ferme la facturation avant de parler de facturation", async () => {
+    const { planId } = await draftWithoutAthlete("Pas de facture sans personne");
+
+    const billing = await coachA
+      .put(`/plans/${planId}/billing`)
+      .send({ amountCents: 5000, dueDate: monday });
+    expect(billing.status).toBe(409);
+    expect((await coachA.get(`/plans/${planId}/billing`)).status).toBe(409);
+  });
+
+  it("refuse d'affecter le cycle à l'athlète d'un autre coach", async () => {
+    const { planId } = await draftWithoutAthlete("Pas chez le voisin");
+
+    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: b1Id })).status).toBe(400);
+    expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBeNull();
+  });
+
+  /**
+   * L'affectation a-t-elle atteint TOUTE la chaîne ? La lecture du cycle ne prouverait que la
+   * table `plan`. Le décompte d'exécution, lui, s'écrit par un `updateMany` scopé à l'athlète sur
+   * `scheduled_session_exercise` : s'il était resté sans destinataire, l'écriture toucherait zéro
+   * ligne et le suivi ne reviendrait jamais — une panne parfaitement silencieuse.
+   */
+  it("affecte, propage jusqu'aux exercices, puis diffuse", async () => {
+    const { planId, sessionId } = await draftWithoutAthlete("Bloc pour Léa");
+
+    const assigned = await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    expect(assigned.status).toBe(200);
+    expect(assigned.body.athleteId).toBe(a1Id);
+    expect(assigned.body.athleteName).not.toBeNull();
+
+    expect((await billAndPublish(coachA, planId)).status).toBe(200);
+
+    const plan = await athleteA1.get("/me/plan");
+    expect(plan.body.id).toBe(planId);
+    const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(session.status).toBe(200);
+
+    const exerciseCopyId = session.body.exercises[0].id;
+    const sent = await athleteA1.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      content: null,
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [0] } } },
+    });
+    expect(sent.status).toBe(200);
+
+    const reread = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
+    expect(reread.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0] } });
+  });
+
+  it("ne laisse plus changer le destinataire d'un cycle diffusé", async () => {
+    const { planId } = await draftWithoutAthlete("Déjà parti");
+    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    expect((await billAndPublish(coachA, planId)).status).toBe(200);
+
+    const res = await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id });
+    expect(res.status).toBe(409);
+    expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBe(a1Id);
+  });
+
+  /**
+   * Le bug que la nullabilité crée si on n'y pense pas : `issueForPlan` ne réécrit que le statut
+   * de la facture, jamais son destinataire. Sans propagation, cette séquence émettrait à A1 une
+   * facture pour un cycle que A2 s'entraîne.
+   */
+  it("fait suivre la facture brouillon quand le cycle change de destinataire", async () => {
+    const { planId } = await draftWithoutAthlete("Réaffecté après chiffrage");
+    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await coachA.put(`/plans/${planId}/billing`).send({ amountCents: 7000, dueDate: monday });
+
+    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
+    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+
+    const issued = (await coachA.get("/invoices")).body.find(
+      (invoice: { planId: string }) => invoice.planId === planId,
+    );
+    expect(issued.athleteId).toBe(a2Id);
+  });
+
+  /**
+   * Détacher est permis — c'est la brique que #5 attend — SAUF sur un cycle déjà chiffré :
+   * `Invoice.athleteId` est NOT NULL, et un montant qu'on n'adresse à personne n'a pas de sens.
+   * Le coach n'est bloqué sur rien : affecter quelqu'un d'autre reste ouvert.
+   */
+  it("détache un brouillon, mais pas un brouillon déjà chiffré", async () => {
+    const { planId, sessionId } = await draftWithoutAthlete("Détachable");
+    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+
+    const detached = await coachA.patch(`/plans/${planId}`).send({ athleteId: null });
+    expect(detached.status).toBe(200);
+    expect(detached.body.athleteId).toBeNull();
+    // Redevenu invisible, comme s'il n'avait jamais été affecté — vérifié sur SA séance et non
+    // sur `/me/plan`, qui sert le cycle courant de l'athlète et parlerait donc d'un autre cycle.
+    expect((await athleteA1.get(`/me/scheduled-sessions/${sessionId}`)).status).toBe(404);
+
+    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await coachA.put(`/plans/${planId}/billing`).send({ amountCents: 4200, dueDate: monday });
+    const refused = await coachA.patch(`/plans/${planId}`).send({ athleteId: null });
+    expect(refused.status).toBe(409);
+    expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBe(a1Id);
+  });
+});
+
 describe("Débrief de séance (P4)", () => {
   let coachA: Agent;
   let athleteA1: Agent;
