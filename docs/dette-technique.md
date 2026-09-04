@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. **Seize dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Dix-sept dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **MI-1**, **MI-2**, **O-2** et **N-9**, dont le déclencheur est nommé mais dont rien
-n'est à préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud,
-où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les quinze premières sont
+**W-1**, **Q-6**, **MI-1**, **MI-2**, **O-2**, **N-5** et **N-9**, dont le déclencheur est nommé mais
+dont rien n'est à préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud,
+où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les seize premières sont
 volontaires, la dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
@@ -361,11 +361,26 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : hérite du throttle push de P5-4. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
 | N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
-| N-5 | **Réglage limité au canal e-mail** : #65 a ouvert l'opt-in par type **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. L'écran manque encore. | 🟡 | ~~[#65](https://github.com/Cimavia/cimavia/issues/65)~~ · [#66](https://github.com/Cimavia/cimavia/issues/66) *(épic mail [#61](https://github.com/Cimavia/cimavia/issues/61))* |
+| N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
 | N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
 | N-8 | **L'e-mail hérite du throttle de la messagerie** (P5-4) : une rafale de messages produit UN e-mail, qui annonce « un message » là où il y en a cinq — et aucune relance si le fil reste non lu. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) · [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-9 | **Aucun lien vers l'entité dans l'e-mail de notification** : seul le pied « gérer mes notifications » est cliquable. Ouvrir le cycle ou la conversation demande de retrouver l'application à la main. | 🟢 | — *(déclencheur : un retour beta disant que l'e-mail ne sert à rien sans lien — voir « Tranché en #65 »)* |
+
+> **Tranché en #66** (les réglages sont une SECTION, pas un écran) : l'issue annonçait, côté
+> mobile, de « donner enfin une destination à la ligne Notifications » de la maquette
+> `athlete_profile.dc.html` — donc un écran à part, atteint par un lien. Quatre interrupteurs
+> tiennent dans la page : ils sont posés **sur place**, dans le profil, comme au web dans l'écran
+> Compte. Une navigation vers un écran qui n'aurait contenu qu'eux se serait payée à chaque
+> consultation, et la maquette datait d'avant qu'on sache combien de lignes il y aurait.
+>
+> Deux conséquences que le code ne justifie pas seul. **La bascule enregistre immédiatement**, sans
+> bouton — l'API attendant l'ENSEMBLE des types activés, chaque geste envoie un état complet et
+> idempotent ; l'écart est assumé avec la section « casquettes » juste au-dessus, qui garde son
+> bouton parce qu'elle édite un état cohérent à valider d'un bloc. Et le mobile emploie le
+> **`Switch` de React Native** là où les capacités utilisent un `Pressable` habillé : c'est le seul
+> contrôle dont l'état soit visible du harnais de rendu, `accessibilityState` étant ignoré par
+> `react-native-web` (dette **Q-6**) — un interrupteur maison n'aurait pas été éprouvable.
 
 > **Tranché en #65** (l'e-mail est un canal, pas un déclencheur) : l'envoi part de `emit()`, au
 > MÊME point que la persistance et le push, et jamais d'un appelant métier. Cinq conséquences que
