@@ -712,12 +712,18 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 > **Écart de maquette assumé** : `coach_builder_planification.dc.html` ne prévoit **aucun** sélecteur
 > d'athlète — son en-tête ne porte que le titre du cycle et « Diffuser le plan », le destinataire
-> n'y étant qu'un texte. Le sélecteur y a été ajouté, dans l'en-tête **fixe** : un cycle de douze
-> semaines se parcourt longtemps, et l'affectation ne doit pas obliger à remonter. Sur un cycle
-> diffusé il est **désactivé et expliqué**, jamais masqué — #145 disait les deux (« absent une fois
-> diffusé » d'un côté, « trois désactivations, une seule grammaire » de l'autre) ; c'est la seconde
-> qui l'emporte, parce qu'elle porte son raisonnement et qu'elle aligne le sélecteur sur « Coller
-> ici » et sur « Supprimer ».
+> n'y étant qu'un texte. Le sélecteur y a été ajouté. Sur un cycle diffusé il est **désactivé et
+> expliqué**, jamais masqué — #145 disait les deux (« absent une fois diffusé » d'un côté, « trois
+> désactivations, une seule grammaire » de l'autre) ; c'est la seconde qui l'emporte, parce qu'elle
+> porte son raisonnement et qu'elle aligne le sélecteur sur « Coller ici » et sur « Supprimer ».
+>
+> **Révisé en [#207](https://github.com/Cimavia/cimavia/issues/207)** (l'emplacement, et lui seul) :
+> le sélecteur était posé dans l'en-tête **fixe**, au motif qu'un cycle de douze semaines se
+> parcourt longtemps et que l'affectation ne doit pas obliger à remonter. Il descend dans le
+> formulaire d'en-tête, avec le titre, la description et le début. Un seul endroit pour tout ce qui
+> définit le cycle l'emporte sur l'accès sans défilement : l'affectation se fait une fois par
+> cycle, pas en cours de construction. La fermeture après diffusion, elle, ne bouge pas — elle
+> s'étend même aux trois autres champs.
 
 ---
 
@@ -1477,6 +1483,55 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > en tête. Le compte se voyait comme son propre interlocuteur, et le toucher menait au refus. #198
 > écarte l'entrée dans les deux listes de fils — **là et nulle part ailleurs** : elle reste sur
 > `GET /athletes`, dont le tableau de bord et le constructeur de cycle dépendent.
+
+---
+
+## Post-MVP — Édition de l'en-tête d'un cycle ([#207](https://github.com/Cimavia/cimavia/issues/207))
+
+> **Tranché en #207** (le verrou de diffusion s'étend, il ne se dédouble pas) : `title`,
+> `description` et `startDate` rejoignent `athleteId` dans ce qu'un cycle **diffusé** ne laisse plus
+> réécrire — même 409, message distinct. La grammaire est celle du destinataire, la raison ne l'est
+> pas : là où l'athlète « en a déjà été prévenu », ici il s'entraîne dessus, et un cycle qui bouge
+> sous ses pieds est pire qu'un cycle qu'on ne peut plus corriger.
+>
+> Le 409 n'a cassé aucun usage : **aucun client n'envoyait ces trois champs**. Le web n'appelait
+> `PATCH /plans/:id` que pour `{ athleteId }`, et `/plans` n'est pas une surface mobile (#20). On a
+> fermé une porte que personne n'ouvrait — juste avant d'ouvrir l'interface qui, elle, s'en sert.
+>
+> La CAPACITÉ de décalage (`shiftSessions`) reste entière : elle sert au brouillon. Décaler un cycle
+> **diffusé** (athlète blessé, report d'une semaine) est un besoin réel, mais demande de prévenir
+> l'athlète — hors périmètre ici, à ouvrir avec [#172](https://github.com/Cimavia/cimavia/issues/172).
+
+> **Ce que l'avertissement de décalage promet, et ce qu'il ne promet pas** : déplacer le début
+> rejoue les dates de **toutes les séances**, et l'interface le dit avant l'enregistrement — sinon
+> un report d'un mois se lirait comme un simple champ de formulaire. Il ne parle que d'elles :
+> l'échéance de la facture brouillon (`Invoice.dueDate`) est une saisie du coach et **ne suit pas**,
+> décaler un cycle n'impliquant pas de décaler le paiement. La `period`, elle, reste juste sans
+> qu'on s'en occupe : `periodOf(plan)` la recalcule à l'émission, dans la transaction de `publish`.
+
+> **Écarts assumés** (le prix du constructeur direct) : « Nouvelle planification » crée la ligne en
+> base et ouvre le constructeur, donc **des brouillons vides vont s'accumuler** — un clic vaut un
+> cycle. Le recours existe déjà et reste ouvert tant qu'il est brouillon (« Supprimer le cycle »).
+>
+> Le **titre par défaut** écrit en base n'est pas le repli silencieux qu'interdit la règle dure n°5 :
+> le champ est à l'écran, vide de sens et immédiatement modifiable — la valeur ne prétend pas être
+> une donnée.
+>
+> Le raccourci **« créer N semaines d'un coup »** (`weekCount`) disparaît avec le panneau, et le
+> formulaire d'en-tête ne le reprend pas : retirer une semaine détruit ses séances, ce n'est pas un
+> champ qu'on décrémente. Un cycle de douze semaines se construit avec « Ajouter une semaine ». À
+> rouvrir si le geste se révèle pénible à l'usage.
+
+> **Écart de maquette rattrapé** : `coach_builder_planification.dc.html` réservait déjà une bande
+> « plan meta » en tête de la colonne builder — semaines, séances, **début du cycle**, description.
+> Le code les avait posées ailleurs : compteurs et date dans le sous-titre de l'`AppShell`,
+> description en paragraphe. Le formulaire reprend l'emplacement de la maquette, et la date **quitte
+> le sous-titre** plutôt que de s'y lire une seconde fois dans un autre format. `plan.card.meta` la
+> garde pour la LISTE des cycles, qui n'offre aucun formulaire où la corriger.
+>
+> Reste non implémenté de cette bande : l'indicateur « Enregistré il y a 2 min » de la maquette, qui
+> suppose un **auto-save**. Aucune surface du produit ne fonctionne ainsi (séances, facturation,
+> exercices : bouton explicite) ; l'en-tête suit la règle commune. Écart antérieur à #207, inchangé.
 
 ---
 
