@@ -1,4 +1,5 @@
 import {
+  EMAILABLE_NOTIFICATION_TYPES,
   MAX_FEEDBACK_AUDIOS,
   MAX_FEEDBACK_PHOTOS,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
@@ -15,12 +16,15 @@ import {
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
 import { configureApp } from "../src/app.setup";
+import type { MailMessage } from "../src/infra/mail/mail.service";
+import { MailService } from "../src/infra/mail/mail.service";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const TABLES = [
+  "notification_email_preference",
   "notification",
   "reminder",
   "invoice",
@@ -69,6 +73,23 @@ let app: NestFastifyApplication;
 let baseURL: string;
 
 /**
+ * Les e-mails réellement partis — le seul moyen d'affirmer un NON-envoi.
+ *
+ * `.env.test` ne porte aucune variable `SMTP_*`, donc le vrai `MailService` se déclarerait non
+ * configuré et rendrait `false` sans rien envoyer : la suite serait verte que l'opt-in fonctionne
+ * ou pas. On remplace donc le service par un double qui ENREGISTRE, et l'on vérifie ce qui aurait
+ * été livré.
+ */
+const sentMails: MailMessage[] = [];
+const mailServiceDouble = {
+  isConfigured: true,
+  send: (message: MailMessage) => {
+    sentMails.push(message);
+    return Promise.resolve(true);
+  },
+};
+
+/**
  * Inscrit un compte en envoyant ses CAPACITÉS — ce que le signup transmet depuis #12, `role` en
  * étant déduit côté API. La signature reste par rôle pour les quelque cent appels de ce fichier :
  * « un coach », « un athlète » dit mieux l'intention du test que deux booléens.
@@ -100,7 +121,12 @@ async function billAndPublish(coach: Agent, planId: string) {
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  })
+    // Un seul point de remplacement pour les deux usages (réinitialisation de mot de passe et
+    // notifications) : c'est le transport qu'on double, pas les gabarits — eux restent les vrais.
+    .overrideProvider(MailService)
+    .useValue(mailServiceDouble)
+    .compile();
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
     bodyParser: false,
   });
@@ -5847,5 +5873,171 @@ describe("Isolation multi-capacité (#18)", () => {
     const invitation = await stranger.post("/invitations").send({});
     const res = await dual.post("/invitations/accept").send({ code: invitation.body.code });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
+  let coach: Agent;
+  let athlete: Agent;
+  let otherAthlete: Agent;
+  let athleteId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const COACH = "mail-coach@cmv.test";
+  const ATHLETE = "mail-athlete@cmv.test";
+  const OTHER = "mail-other@cmv.test";
+
+  type Preference = { type: string; enabled: boolean };
+
+  const preferences = async (agent: Agent): Promise<Preference[]> =>
+    (await agent.get("/me/notification-preferences")).body;
+  const enabledOf = (grid: Preference[]): string[] =>
+    grid.filter((row) => row.enabled).map((row) => row.type);
+
+  /** Un cycle prêt à diffuser, avec sa semaine — la diffusion émet cycle PUIS facture. */
+  async function draftPlan(title: string): Promise<string> {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    return plan.body.id;
+  }
+
+  beforeAll(async () => {
+    coach = await signUp(COACH, Role.COACH);
+    athlete = await signUp(ATHLETE, Role.ATHLETE);
+    otherAthlete = await signUp(OTHER, Role.ATHLETE);
+
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    athleteId = accepted.body.athleteId;
+  });
+
+  beforeEach(() => {
+    sentMails.length = 0;
+  });
+
+  it("ne propose que les types envoyables, tous éteints par défaut", async () => {
+    const grid = await preferences(athlete);
+
+    expect(grid.map((row) => row.type)).toEqual([...EMAILABLE_NOTIFICATION_TYPES]);
+    // L'opt-in EST le comportement par défaut : un compte qui n'a jamais rien réglé ne reçoit rien.
+    expect(enabledOf(grid)).toEqual([]);
+  });
+
+  it("remplace l'ensemble activé et le relit à l'identique", async () => {
+    const put = await athlete
+      .put("/me/notification-preferences")
+      .send({ enabled: ["PLAN_PUBLISHED", "MESSAGE_RECEIVED"] });
+
+    expect(put.status).toBe(200);
+    expect(enabledOf(put.body).sort()).toEqual(["MESSAGE_RECEIVED", "PLAN_PUBLISHED"]);
+    expect(enabledOf(await preferences(athlete)).sort()).toEqual([
+      "MESSAGE_RECEIVED",
+      "PLAN_PUBLISHED",
+    ]);
+  });
+
+  // Le geste « je coupe tout » : c'est un `notIn: []` côté Prisma, qui supprime bien tout.
+  it("coupe tout sur une liste vide", async () => {
+    await athlete.put("/me/notification-preferences").send({ enabled: ["PLAN_PUBLISHED"] });
+
+    const put = await athlete.put("/me/notification-preferences").send({ enabled: [] });
+
+    expect(put.status).toBe(200);
+    expect(enabledOf(put.body)).toEqual([]);
+    expect(enabledOf(await preferences(athlete))).toEqual([]);
+  });
+
+  /**
+   * Le refus vient du SCHÉMA, avant toute écriture. Les trois ajustements de cycle arrivent par
+   * rafales et rien ne les groupe (dette N-6) : les autoriser mettrait trois e-mails dans une
+   * boîte pour trois séances ajoutées au même cycle.
+   */
+  it("refuse un type que le produit n'envoie pas par e-mail", async () => {
+    const put = await athlete
+      .put("/me/notification-preferences")
+      .send({ enabled: ["PLAN_SESSION_ADDED"] });
+
+    expect(put.status).toBe(400);
+    expect(enabledOf(await preferences(athlete))).toEqual([]);
+  });
+
+  it("les réglages d'un compte sont invisibles et intacts pour un autre", async () => {
+    await athlete.put("/me/notification-preferences").send({ enabled: ["PLAN_PUBLISHED"] });
+
+    expect(enabledOf(await preferences(otherAthlete))).toEqual([]);
+    expect(enabledOf(await preferences(coach))).toEqual([]);
+    // Et l'écriture du voisin ne défait pas la sienne.
+    await otherAthlete.put("/me/notification-preferences").send({ enabled: [] });
+    expect(enabledOf(await preferences(athlete))).toEqual(["PLAN_PUBLISHED"]);
+  });
+
+  it("un compte non authentifié n'atteint ni la lecture ni l'écriture", async () => {
+    const anonymous = request.agent(baseURL);
+    expect((await anonymous.get("/me/notification-preferences")).status).toBe(401);
+    expect((await anonymous.put("/me/notification-preferences").send({ enabled: [] })).status).toBe(
+      401,
+    );
+  });
+
+  // Le cœur de l'opt-in : sans réglage, la diffusion notifie et pousse, mais n'écrit à personne.
+  it("préférence à off : la diffusion n'envoie AUCUN e-mail", async () => {
+    await athlete.put("/me/notification-preferences").send({ enabled: [] });
+    const planId = await draftPlan("Cycle sans e-mail");
+
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+
+    expect(sentMails).toEqual([]);
+    // La trace persistée, elle, existe bien : l'e-mail est un canal de plus, pas à la place.
+    expect((await athlete.get("/me/notifications")).body.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Préférence à on, et sur UN SEUL type. La diffusion émet deux notifications — cycle puis
+   * facture : un seul e-mail doit partir. C'est ce qui prouve que le filtre est par type et non
+   * un simple interrupteur global.
+   */
+  it("préférence à on : un e-mail part, et seulement pour le type activé", async () => {
+    await athlete.put("/me/notification-preferences").send({ enabled: ["PLAN_PUBLISHED"] });
+    const planId = await draftPlan("Cycle avec e-mail");
+
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+
+    expect(sentMails).toHaveLength(1);
+    const mail = required(sentMails[0], "e-mail de diffusion");
+    expect(mail.to).toBe(ATHLETE);
+    expect(mail.subject).toContain("Cycle avec e-mail");
+    // Le corps texte accompagne toujours le HTML : sans lui, plus de messages sont classés
+    // indésirables, et certains clients n'affichent rien.
+    expect(mail.text.length).toBeGreaterThan(0);
+    expect(mail.html).toContain("</html>");
+  });
+
+  /**
+   * L'émetteur n'est jamais son propre destinataire (#14). La garde vit dans `emit`, donc
+   * l'e-mail en hérite — mais rien ne le dit au lecteur du code de l'e-mail, d'où ce test.
+   */
+  it("un coach qui se coache lui-même ne s'écrit pas", async () => {
+    const solo = await signUpWith("mail-solo@cmv.test", { isCoach: true, isAthlete: true });
+    const self = await solo.get("/athletes");
+    const selfId = required(
+      self.body.find((row: { isSelf: boolean }) => row.isSelf),
+      "relation d'auto-coaching",
+    ).athleteId;
+    await solo.put("/me/notification-preferences").send({ enabled: ["PLAN_PUBLISHED"] });
+
+    const plan = await solo.post("/plans").send({
+      athleteId: selfId,
+      title: "Cycle pour moi",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+
+    expect(sentMails).toEqual([]);
   });
 });
