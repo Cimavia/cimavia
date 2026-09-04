@@ -135,3 +135,39 @@ describe("PlansScreen — créer un cycle", () => {
     expect((getAllByText("plan.creating")[0] as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+/**
+ * Une liste qui n'a pas pu être lue n'est PAS une liste vide : proposer « créez votre premier
+ * cycle » à un coach qui en a douze est le pire des messages. L'écran dit la panne, et offre le
+ * recours.
+ */
+describe("PlansScreen — la liste ne se charge pas", () => {
+  const mountFailed = () => {
+    const refetch = vi.fn();
+    vi.mocked(usePlans).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      refetch,
+    } as unknown as ReturnType<typeof usePlans>);
+
+    return { refetch, rendered: renderInRoute(<PlansScreen />, { path: "/plans" }) };
+  };
+
+  it("dit la panne au lieu de faire passer la liste pour vide", async () => {
+    const { rendered } = mountFailed();
+    const { getByText, queryByText } = await rendered;
+
+    expect(getByText("common.errorTitle")).toBeTruthy();
+    expect(queryByText("plan.empty.title")).toBeNull();
+  });
+
+  it("relit la liste quand on réessaie", async () => {
+    const { refetch, rendered } = mountFailed();
+    const { getByText, user } = await rendered;
+
+    await user.click(getByText("common.retry"));
+
+    expect(refetch).toHaveBeenCalled();
+  });
+});
