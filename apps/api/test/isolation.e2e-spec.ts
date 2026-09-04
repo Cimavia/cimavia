@@ -1512,6 +1512,52 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     expect(refused.status).toBe(409);
     expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBe(a1Id);
   });
+
+  /**
+   * Le pendant du verrou de destinataire, sur les trois champs qui définissent le cycle (#207).
+   * Aucun client n'envoyait ces champs jusqu'ici — on ferme une porte que personne n'ouvrait,
+   * avant d'ouvrir l'interface qui, elle, s'en servira.
+   */
+  it("ne laisse plus réécrire le titre ni le début d'un cycle diffusé", async () => {
+    const { planId } = await draftWithoutAthlete("Figé par la diffusion");
+    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    expect((await billAndPublish(coachA, planId)).status).toBe(200);
+
+    expect((await coachA.patch(`/plans/${planId}`).send({ title: "Renommé" })).status).toBe(409);
+    expect(
+      (await coachA.patch(`/plans/${planId}`).send({ startDate: shiftIsoDate(monday, 7) })).status,
+    ).toBe(409);
+    expect((await coachA.patch(`/plans/${planId}`).send({ description: "Ajout" })).status).toBe(
+      409,
+    );
+
+    const plan = await coachA.get(`/plans/${planId}`);
+    expect(plan.body.title).toBe("Figé par la diffusion");
+    expect(plan.body.startDate).toBe(monday);
+    expect(plan.body.description).toBeNull();
+  });
+
+  /**
+   * Le refus vise l'ÉTAT du cycle, pas le geste : sur un brouillon, la même requête passe et
+   * emmène les séances avec elle. Sans cette moitié-là, la garde pourrait tout refuser sans que
+   * rien ne le dise.
+   */
+  it("laisse réécrire l'en-tête d'un brouillon, et décale ses séances avec lui", async () => {
+    const { planId, sessionId } = await draftWithoutAthlete("Encore modifiable");
+    const nextMonday = shiftIsoDate(monday, 7);
+
+    const patched = await coachA
+      .patch(`/plans/${planId}`)
+      .send({ title: "Bloc force max", description: "Montée en charge", startDate: nextMonday });
+    expect(patched.status).toBe(200);
+    expect(patched.body.title).toBe("Bloc force max");
+    expect(patched.body.startDate).toBe(nextMonday);
+
+    // La séance suit sa semaine : c'est l'invariant que `shiftSessions` préserve.
+    expect((await coachA.get(`/scheduled-sessions/${sessionId}`)).body.scheduledDate).toBe(
+      nextMonday,
+    );
+  });
 });
 
 describe("Débrief de séance (P4)", () => {

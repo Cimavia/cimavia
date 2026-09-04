@@ -2,7 +2,7 @@ import type { TextareaHTMLAttributes } from "react";
 
 type CmvTextAreaProps = Pick<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
-  "value" | "onChange" | "placeholder" | "required" | "name" | "rows" | "maxLength"
+  "value" | "onChange" | "placeholder" | "required" | "name" | "rows" | "maxLength" | "disabled"
 > & { label: string };
 
 export function CmvTextArea({ label, name, rows = 4, ...rest }: CmvTextAreaProps) {

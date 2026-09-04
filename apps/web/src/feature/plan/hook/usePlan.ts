@@ -2,6 +2,7 @@ import type {
   CreateScheduledSessionInput,
   PlanDto,
   PlanWeekInput,
+  UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
@@ -57,23 +58,17 @@ export function usePlanMutations(planId: string) {
   };
 
   /**
-   * Affecter, réaffecter ou détacher le destinataire du cycle (#144). Rangée avec les écritures du
-   * builder parce qu'elle invalide exactement les mêmes caches : changer de destinataire déplace
+   * Ce qui définit le cycle : son titre, sa description, son début, son destinataire (#207).
+   * Rangée avec les écritures du builder parce qu'elle invalide exactement les mêmes caches —
+   * déplacer le début rejoue les dates de toutes les séances, et changer de destinataire déplace
    * le cycle ENTIER d'une vue athlète à une autre.
    *
-   * Le toast se lit dans la réponse plutôt que dans la variable envoyée : c'est l'API qui dit le
-   * nom du destinataire, et un cycle détaché n'en a aucun à annoncer.
+   * Un seul toast pour les quatre champs : le formulaire les montre tous à l'écran, une
+   * confirmation n'a pas à répéter ce qu'on vient d'y lire.
    */
-  const assignAthlete = useMutation({
-    mutationFn: (athleteId: string | null) => updatePlan(planId, { athleteId }),
-    onSuccess: async (plan) => {
-      await invalidate();
-      if (plan.athleteName == null) {
-        toast.onSuccess("plan.toast.athleteCleared");
-        return;
-      }
-      toast.onSuccess("plan.toast.athleteAssigned", { name: plan.athleteName });
-    },
+  const saveHeader = useMutation({
+    mutationFn: (input: UpdatePlanInput) => updatePlan(planId, input),
+    onSuccess: done("plan.toast.headerSaved"),
     onError: toast.onError,
   });
 
@@ -139,7 +134,7 @@ export function usePlanMutations(planId: string) {
   });
 
   const isBusy =
-    assignAthlete.isPending ||
+    saveHeader.isPending ||
     addWeek.isPending ||
     updateWeek.isPending ||
     removeWeek.isPending ||
@@ -149,7 +144,7 @@ export function usePlanMutations(planId: string) {
     removeSession.isPending;
 
   return {
-    assignAthlete,
+    saveHeader,
     addWeek,
     updateWeek,
     removeWeek,

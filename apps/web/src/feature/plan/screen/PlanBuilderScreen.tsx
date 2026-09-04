@@ -15,8 +15,8 @@ import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
-import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
+import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
@@ -25,7 +25,6 @@ import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
-import { formatDate } from "@/shared/util/date.util";
 
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
 type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null };
@@ -59,7 +58,7 @@ export function PlanBuilderScreen() {
   const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
-  const { addWeek, assignAthlete, isBusy } = usePlanMutations(planId);
+  const { addWeek, saveHeader, isBusy } = usePlanMutations(planId);
   const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
@@ -119,22 +118,17 @@ export function PlanBuilderScreen() {
       // Le destinataire DANS le titre : devant une liste de cycles qui se ressemblent, savoir à
       // qui celui-ci s'adresse compte autant que son nom.
       title={t("plan.builder.titleWithAthlete", { title: plan.title, name: athleteTitle })}
-      subtitle={t("plan.card.meta", {
+      // La date a quitté le sous-titre : elle est devenue un champ du formulaire d'en-tête, et
+      // l'afficher aussi ici la donnerait à lire dans deux formats à deux endroits (#207).
+      subtitle={t("plan.card.counts", {
         weeks: plan.weekCount,
         sessions: plan.sessionCount,
-        date: formatDate(plan.startDate),
       })}
       actions={
         <>
           {/* Rappel contextuel (#45) : posé ICI plutôt que dans PlanBuilderActions, qui ne porte
               que les actions destructrices et leur gating. Un rappel se programme à tout moment,
               brouillon comme cycle diffusé. */}
-          <PlanAthletePicker
-            athleteId={plan.athleteId}
-            isPublished={isPublished}
-            isBusy={isBusy}
-            onChange={(athleteId) => assignAthlete.mutate(athleteId)}
-          />
           <ScheduleReminderButton
             entityType={ReminderEntityType.PLAN}
             entityId={planId}
@@ -181,13 +175,18 @@ export function PlanBuilderScreen() {
             </CmvButton>
           </div>
         )}
-
-        {plan.description == null ? null : (
-          <p className="max-w-3xl text-cmv-body text-cmv-text-mid">{plan.description}</p>
-        )}
       </div>
 
       <div className="flex flex-col gap-cmv-lg">
+        {/* Ce qui définit le cycle, AU-DESSUS des semaines : titre, destinataire, début et
+            description ne se saisissaient qu'une fois, dans un panneau qui ne revenait jamais
+            (#207). C'est aussi l'emplacement que la maquette réservait à sa bande « plan meta ». */}
+        <PlanHeaderForm
+          plan={plan}
+          isSaving={saveHeader.isPending}
+          onSave={(input) => saveHeader.mutate(input)}
+        />
+
         {plan.weeks.length === 0 ? (
           <CmvEmptyState
             title={t("plan.builder.emptyWeeks")}

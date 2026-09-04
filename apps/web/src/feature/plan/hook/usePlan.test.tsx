@@ -138,51 +138,40 @@ describe("usePlanMutations", () => {
   });
 
   /**
-   * Affecter un destinataire (#144). Le toast lit le nom dans la RÉPONSE et non dans ce qu'il a
-   * envoyé : c'est l'API qui nomme l'athlète, le client n'en connaît que l'identifiant.
+   * L'en-tête du cycle (#207). Le hook TRANSMET, il ne compose pas : c'est le formulaire qui a
+   * calculé ce qui a changé, et lui seul sait ce que le coach a touché.
    */
-  it("annonce le destinataire tel que l'API le nomme", async () => {
+  it("transmet l'en-tête tel que le formulaire l'a composé", async () => {
     updatePlanMock.mockResolvedValue({ ...planWith([]), athleteName: "Léa Moreau" });
     const { wrapper } = renderWithQueryClient();
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
     await act(async () => {
-      await result.current.assignAthlete.mutateAsync("ath_lea");
+      await result.current.saveHeader.mutateAsync({ title: "Bloc force max", athleteId: null });
     });
 
-    expect(updatePlanMock).toHaveBeenCalledWith("plan-1", { athleteId: "ath_lea" });
-    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.athleteAssigned", {
-      name: "Léa Moreau",
+    expect(updatePlanMock).toHaveBeenCalledWith("plan-1", {
+      title: "Bloc force max",
+      athleteId: null,
     });
+    // Un seul toast pour les quatre champs : le formulaire les montre tous, une confirmation n'a
+    // pas à répéter ce qu'on vient d'y lire.
+    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.headerSaved");
   });
 
   /**
-   * Détacher : un cycle sans destinataire n'a aucun nom à annoncer, d'où un message à part plutôt
-   * qu'un message à trou. `null` part tel quel — une chaîne vide serait un identifiant invalide.
+   * Réécrire l'en-tête peut tout déplacer : changer de destinataire fait passer le cycle ENTIER
+   * d'une vue athlète à une autre, et déplacer le début rejoue les dates de toutes ses séances.
+   * Les trois racines doivent tomber, comme pour n'importe quelle autre écriture du builder.
    */
-  it("annonce un cycle détaché sans prétendre nommer personne", async () => {
-    updatePlanMock.mockResolvedValue({ ...planWith([]), athleteName: null });
-    const { wrapper } = renderWithQueryClient();
-
-    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
-    await act(async () => {
-      await result.current.assignAthlete.mutateAsync(null);
-    });
-
-    expect(updatePlanMock).toHaveBeenCalledWith("plan-1", { athleteId: null });
-    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.athleteCleared");
-  });
-
-  // Changer de destinataire déplace le cycle ENTIER d'une vue athlète à une autre : les trois
-  // racines doivent tomber, comme pour n'importe quelle autre écriture du builder.
-  it("invalide les trois racines après une affectation, pas seulement la liste des cycles", async () => {
+  it("invalide les trois racines après un enregistrement d'en-tête", async () => {
     updatePlanMock.mockResolvedValue({ ...planWith([]), athleteName: "Léa Moreau" });
     const { wrapper, queryClient } = renderWithQueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
     await act(async () => {
-      await result.current.assignAthlete.mutateAsync("ath_lea");
+      await result.current.saveHeader.mutateAsync({ startDate: "2026-10-26" });
     });
 
     const roots = invalidate.mock.calls.map(([options]) => options?.queryKey);

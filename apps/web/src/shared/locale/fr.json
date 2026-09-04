@@ -425,6 +425,8 @@
       "progressCount": "{{done}} sur {{total}}"
     },
     "new": "Nouvelle planification",
+    "creating": "Création…",
+    "defaultTitle": "Nouveau cycle",
     "status": {
       "DRAFT": "Brouillon",
       "PUBLISHED": "Diffusée"
@@ -438,24 +440,32 @@
       "description": "Créez un cycle pour un de vos athlètes : semaines, séances, puis diffusion."
     },
     "card": {
-      "meta": "{{weeks}} semaine(s) · {{sessions}} séance(s) · début le {{date}}"
+      "meta": "{{weeks}} semaine(s) · {{sessions}} séance(s) · début le {{date}}",
+      "counts": "{{weeks}} semaine(s) · {{sessions}} séance(s)"
     },
-    "form": {
-      "title": "Nouvelle planification",
-      "description": "Le nombre de semaines reste libre : vous en ajouterez ou en retirerez ensuite.",
-      "athlete": "Athlète",
-      "athletePlaceholder": "À définir plus tard",
-      "athleteHint": "Facultatif : vous pourrez choisir le destinataire tant que le cycle n'est pas diffusé.",
+    "header": {
+      "title": "Le cycle",
+      "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
+      "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
       "titleLabel": "Titre du cycle",
       "titlePlaceholder": "Cycle bloc — automne",
+      "athlete": "Destinataire",
+      "athletePlaceholder": "À définir plus tard",
+      "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
       "descriptionLabel": "Description du cycle",
       "descriptionPlaceholder": "Montée en charge progressive, puis décharge en dernière semaine.",
       "startDate": "Début du cycle",
       "startDateHint": "Un cycle démarre un lundi.",
       "startDateSnapped": "Un cycle démarre un lundi : le début a été recalé au {{date}}.",
-      "weekCount": "Nombre de semaines",
-      "submit": "Créer le cycle",
-      "submitting": "Création…"
+      "startDateShiftDays": "d'un jour",
+      "startDateShiftDays_other": "de {{count}} jours",
+      "startDateShiftLater": "Vous avez modifié la date de début du cycle. La séance du cycle sera repoussée {{shift}} à l'enregistrement.",
+      "startDateShiftLater_other": "Vous avez modifié la date de début du cycle. Les {{count}} séances du cycle seront repoussées {{shift}} à l'enregistrement.",
+      "startDateShiftEarlier": "Vous avez modifié la date de début du cycle. La séance du cycle sera avancée {{shift}} à l'enregistrement.",
+      "startDateShiftEarlier_other": "Vous avez modifié la date de début du cycle. Les {{count}} séances du cycle seront avancées {{shift}} à l'enregistrement.",
+      "requiredLegend": "* champs obligatoires",
+      "submit": "Enregistrer",
+      "submitting": "Enregistrement…"
     },
     "week": {
       "number": "Semaine {{number}}",
@@ -496,8 +506,6 @@
     "builder": {
       "back": "← Planifications",
       "addWeek": "Ajouter une semaine",
-      "athlete": "Destinataire",
-      "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",
       "publishedHint": "L'athlète voit ce cycle. Vos ajustements lui sont visibles immédiatement.",
@@ -520,8 +528,7 @@
       "sessionSaved": "Séance enregistrée",
       "sessionDeleted": "Séance supprimée",
       "weekPasted": "Semaine collée — {{count}} séance(s)",
-      "athleteAssigned": "Cycle affecté à {{name}}",
-      "athleteCleared": "Ce cycle n'a plus de destinataire",
+      "headerSaved": "Cycle enregistré",
       "weekPastedPlain": "Semaine collée"
     },
     "clipboard": {
