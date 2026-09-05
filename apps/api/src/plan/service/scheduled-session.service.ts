@@ -1,6 +1,8 @@
 import type {
   CreateScheduledSessionInput,
   CustomMetric,
+  PlanDto,
+  ReorderPlanDayInput,
   ScheduledSessionDto,
   ScheduledSessionExerciseInput,
   UpdateScheduledSessionInput,
@@ -36,6 +38,7 @@ import {
   SESSION_DETAIL_INCLUDE,
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
+import { compactDay, type PositionedSession, writeDay } from "../scheduled-session.position";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
@@ -168,6 +171,9 @@ export class ScheduledSessionService {
         documents,
         carried,
       );
+
+      // Changer de jour, c'est aussi QUITTER un jour : sans ce recollage, l'ancien garde le trou.
+      if (dateChanged) await compactDay(tx, session.planWeekId, session.scheduledDate);
     });
 
     // Ajuster un cycle DÉJÀ diffusé doit prévenir l'athlète (CDC §5.7) : il a peut-être la
@@ -184,13 +190,114 @@ export class ScheduledSessionService {
     return this.getDto(id);
   }
 
+  /**
+   * Le CONTENU d'une journée et son ordre (#148, élargi en #93) — replace-all : le tableau reçu
+   * définit ce que la journée porte, et dans quel ordre.
+   *
+   * Il peut donc citer une séance posée un autre jour de la MÊME semaine : elle y est déplacée, au
+   * rang exact où le tableau la place. C'est le pendant serveur du glisser d'une case à l'autre, et
+   * ça reste le même geste que le sélecteur « Jour » du panneau de séance — d'où la même annonce
+   * (`PLAN_UPDATED`), et non celle du réordonnancement.
+   *
+   * Réordonner reste autorisé sur un cycle DIFFUSÉ, contrairement au collage de semaine (#4) qui
+   * s'y refuse : la différence n'est pas le statut, c'est le nombre d'écritures. Un collage émet
+   * une notification par séance et rien ne les groupe (dette N-6) ; ici le geste est UN.
+   */
+  async reorderDay(
+    planWeekId: string,
+    isoDate: string,
+    input: ReorderPlanDayInput,
+  ): Promise<PlanDto> {
+    const week = await this.plans.getWeekOwnedOrThrow(planWeekId);
+    const plan = await this.plans.getOwnedOrThrow(week.planId);
+    this.assertDateInWeek(plan, week, isoDate);
+
+    // Toute la SEMAINE, et non la seule journée : le tableau peut citer une séance d'un autre jour.
+    // Scopé au coach courant par l'extension tenant — une séance d'un autre coach n'y figure pas,
+    // et les contrôles ci-dessous la refusent donc comme une séance étrangère à la semaine.
+    const weekSessions = await this.db.scheduledSession.findMany({
+      where: { planWeekId },
+      select: { id: true, position: true, scheduledDate: true, title: true },
+      orderBy: { position: "asc" },
+    });
+
+    const date = toDbDate(isoDate);
+    const ordered = assertDayContent(weekSessions, input.sessionIds, date);
+
+    const moved = ordered.filter((session) => session.scheduledDate.getTime() !== date.getTime());
+    // Comparer l'état RÉSULTANT, jamais le fait qu'une requête soit passée : le `PUT` est
+    // idempotent, et renvoyer l'ordre déjà en place ne dérange pas l'athlète (même règle que le
+    // `readAt` de #105).
+    const reordered = ordered.some((session, index) => session.position !== index);
+
+    if (moved.length > 0 || reordered) {
+      // Les jours d'origine, avant écriture : après, les séances n'y sont plus et on ne saurait
+      // plus lesquels recoller.
+      const sources = [...new Set(moved.map((session) => session.scheduledDate.getTime()))];
+
+      await this.db.$transaction(async (tx) => {
+        await writeDay(tx, ordered, date);
+        for (const source of sources) {
+          await compactDay(tx, planWeekId, new Date(source));
+        }
+      });
+
+      if (plan.status === PlanStatus.PUBLISHED) {
+        await this.announce(plan, isoDate, moved);
+      }
+    }
+
+    return this.plans.get(plan.id);
+  }
+
+  /**
+   * Ce que l'athlète apprend d'un geste sur sa journée.
+   *
+   * Une séance DÉPLACÉE prime sur l'ordre : lui dire que sa journée a été réordonnée quand sa
+   * séance est passée au mardi l'enverrait chercher au mauvais endroit — le raisonnement même qui
+   * a fait distinguer les quatre types d'ajustement plutôt que les fondre en un seul.
+   *
+   * Un seul déplacement par geste dans l'interface : la boucle sert le cas où l'API est appelée
+   * autrement, et la dette N-6 (aucun groupement) ne mord pas sur un tableau qui en porte un.
+   */
+  private async announce(
+    plan: Plan,
+    isoDate: string,
+    moved: readonly { title: string }[],
+  ): Promise<void> {
+    const athleteId = athleteRecipientOrThrow(plan);
+
+    if (moved.length === 0) {
+      await this.notifications.notifyPlanSessionsReordered({
+        athleteId,
+        planId: plan.id,
+        isoDate,
+      });
+      return;
+    }
+
+    for (const session of moved) {
+      await this.notifications.notifyPlanUpdated({
+        athleteId,
+        planId: plan.id,
+        sessionTitle: session.title,
+      });
+    }
+  }
+
   async delete(id: string): Promise<void> {
     const session = await this.getOwnedOrThrow(id);
     const plan = await this.plans.getOwnedOrThrow(session.planId);
 
-    // Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
-    // copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
-    await this.db.scheduledSession.delete({ where: { id } });
+    await this.db.$transaction(async (tx) => {
+      // Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
+      // copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
+      await tx.scheduledSession.delete({ where: { id } });
+      // La journée se recolle DANS la même transaction : un trou laissé derrière ferait échouer
+      // la prochaine séance ajoutée ce jour-là, sur une contrainte d'unicité que le coach n'a
+      // aucun moyen de relier à la suppression qu'il vient de faire.
+      await compactDay(tx, session.planWeekId, session.scheduledDate);
+    });
 
     // Retirer une séance d'un cycle diffusé est l'ajustement le plus déroutant pour l'athlète :
     // sans notification, une séance disparaît de son planning sans explication — ou pire, reste
@@ -231,7 +338,13 @@ export class ScheduledSessionService {
     }
   }
 
-  // Position = rang dans la JOURNÉE (plusieurs séances possibles le même jour).
+  /**
+   * Position = rang dans la JOURNÉE (plusieurs séances possibles le même jour).
+   *
+   * Compter suffit parce que les rangs d'une journée sont CONTIGUS : c'est l'invariant que
+   * `compactDay` tient à chaque départ de séance. Le jour où il tomberait, ce compte rendrait un
+   * rang déjà occupé.
+   */
   private async nextPosition(tx: TenantTx, planWeekId: string, date: string): Promise<number> {
     return tx.scheduledSession.count({
       where: { planWeekId, scheduledDate: toDbDate(date) },
@@ -405,4 +518,48 @@ function resolveCustomMetrics(
     ...exercise,
     customMetrics: customMetricsFor(exercise.blocks ?? [], coachMetrics),
   };
+}
+
+/**
+ * Vérifie que `sessionIds` décrit une journée VALIDE, et rend ses séances dans l'ordre demandé.
+ *
+ * Deux règles, et une seule liberté :
+ *  - tout identifiant cité appartient à la SEMAINE. Un identifiant étranger désigne soit une autre
+ *    semaine, soit un autre coach — que le scope tenant a déjà rendu invisible. 400 dans les deux
+ *    cas : la demande est mal formée ;
+ *  - aucune séance déjà posée ce jour-là n'est OMISE. L'omettre ne dirait pas où elle va : elle
+ *    garderait son rang d'avant, donc des doublons et des trous sur
+ *    `@@unique([planWeekId, scheduledDate, position])`. Vider une journée se fait en déplaçant ou
+ *    en supprimant ses séances, pas en les taisant ;
+ *  - en revanche une séance d'un AUTRE jour de la semaine peut être citée : elle est déplacée ici,
+ *    au rang où le tableau la place. C'est tout l'objet de l'élargissement (#93).
+ */
+function assertDayContent<T extends PositionedSession>(
+  weekSessions: readonly T[],
+  sessionIds: readonly string[],
+  date: Date,
+): T[] {
+  const byId = new Map(weekSessions.map((session) => [session.id, session]));
+  const wanted = new Set(sessionIds);
+
+  if (wanted.size !== sessionIds.length) {
+    throw new BadRequestException("Une séance est citée deux fois dans l'ordre demandé");
+  }
+
+  const missing = weekSessions.filter(
+    (session) => session.scheduledDate.getTime() === date.getTime() && !wanted.has(session.id),
+  );
+  if (missing.length > 0) {
+    throw new BadRequestException(
+      "L'ordre doit citer TOUTES les séances déjà posées ce jour-là, sans en omettre",
+    );
+  }
+
+  return sessionIds.map((id) => {
+    const session = byId.get(id);
+    if (session == null) {
+      throw new BadRequestException(`La séance ${id} n'appartient pas à cette semaine`);
+    }
+    return session;
+  });
 }

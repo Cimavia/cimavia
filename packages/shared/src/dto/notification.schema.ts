@@ -9,12 +9,20 @@ import type { TypesValuesOf } from "../type/generics.type";
  */
 export const NotificationType = {
   PLAN_PUBLISHED: "PLAN_PUBLISHED",
-  // Les trois façons d'ajuster un cycle DÉJÀ diffusé (CDC §5.7) sont distinguées, et non fondues
+  // Les quatre façons d'ajuster un cycle DÉJÀ diffusé (CDC §5.7) sont distinguées, et non fondues
   // dans un seul « cycle modifié » : annoncer « séance modifiée » quand elle a été SUPPRIMÉE
   // enverrait l'athlète chercher une séance qui n'existe plus.
   PLAN_UPDATED: "PLAN_UPDATED",
   PLAN_SESSION_ADDED: "PLAN_SESSION_ADDED",
   PLAN_SESSION_REMOVED: "PLAN_SESSION_REMOVED",
+  /**
+   * L'ordre des séances d'une journée a changé (#148), sans qu'aucune n'ait bougé de contenu.
+   *
+   * Distinct de `PLAN_UPDATED` pour la raison qui a fait distinguer les trois ci-dessus : « séance
+   * modifiée » enverrait l'athlète chercher un changement de contenu qui n'a pas eu lieu. Son
+   * sujet est le JOUR réordonné, pas un titre de séance — un ordre n'appartient à aucune d'elles.
+   */
+  PLAN_SESSIONS_REORDERED: "PLAN_SESSIONS_REORDERED",
   FEEDBACK_RECEIVED: "FEEDBACK_RECEIVED",
   MESSAGE_RECEIVED: "MESSAGE_RECEIVED",
   INVOICE_ISSUED: "INVOICE_ISSUED",
@@ -60,11 +68,11 @@ export type PersistedNotificationType = Exclude<
 /**
  * Les types qu'on peut recevoir **par e-mail** (#65) — un sous-ensemble volontairement court.
  *
- * Les trois ajustements d'un cycle diffusé (`PLAN_UPDATED`, `PLAN_SESSION_ADDED`,
- * `PLAN_SESSION_REMOVED`) en sont exclus : ils arrivent par RAFALES et rien ne les groupe encore
- * (dette N-6). Ajouter trois séances à un cycle produirait trois e-mails, ce qui vide une boîte de
- * sa valeur et nous fait classer indésirable. Ils restent servis par le push et par le centre, où
- * une rafale coûte une ligne et non un message. `REMINDER_DUE` en est absent pour une autre
+ * Les quatre ajustements d'un cycle diffusé (`PLAN_UPDATED`, `PLAN_SESSION_ADDED`,
+ * `PLAN_SESSION_REMOVED`, `PLAN_SESSIONS_REORDERED`) en sont exclus : ils arrivent par RAFALES et
+ * rien ne les groupe encore (dette N-6). Ajouter trois séances à un cycle produirait trois e-mails,
+ * ce qui vide une boîte de sa valeur et nous fait classer indésirable. Ils restent servis par le
+ * push et par le centre, où une rafale coûte une ligne et non un message. `REMINDER_DUE` en est absent pour une autre
  * raison : il n'est jamais persisté et ne passe pas par le point d'émission commun.
  *
  * Les trois types d'invitation (#146) n'y sont pas non plus, pour une raison qui leur est propre :
@@ -120,6 +128,7 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.PLAN_UPDATED]: "notification.type.planUpdated",
   [NotificationType.PLAN_SESSION_ADDED]: "notification.type.planSessionAdded",
   [NotificationType.PLAN_SESSION_REMOVED]: "notification.type.planSessionRemoved",
+  [NotificationType.PLAN_SESSIONS_REORDERED]: "notification.type.planSessionsReordered",
   [NotificationType.FEEDBACK_RECEIVED]: "notification.type.feedbackReceived",
   [NotificationType.MESSAGE_RECEIVED]: "notification.type.messageReceived",
   [NotificationType.INVOICE_ISSUED]: "notification.type.invoiceIssued",

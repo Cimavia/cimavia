@@ -19,12 +19,23 @@ export type PlanPublishedEvent = {
   planTitle: string;
 };
 
-// Les trois ajustements d'un cycle diffusé (séance modifiée, ajoutée, retirée) portent la même
-// charge : à qui, dans quel cycle, quelle séance. Seul le libellé change.
+// Trois des quatre ajustements d'un cycle diffusé (séance modifiée, ajoutée, retirée) portent la
+// même charge : à qui, dans quel cycle, quelle séance. Seul le libellé change.
 export type PlanSessionEvent = {
   athleteId: string;
   planId: string;
   sessionTitle: string;
+};
+
+/**
+ * Le quatrième (#148) ne nomme aucune séance : un ORDRE n'appartient à aucune d'elles. Son sujet
+ * est le JOUR, transporté en date civile ISO — jamais mis en forme ici, le centre s'en charge dans
+ * la langue du lecteur (`notificationSubject`).
+ */
+export type PlanDayReorderedEvent = {
+  athleteId: string;
+  planId: string;
+  isoDate: string;
 };
 
 export type FeedbackReceivedEvent = {
@@ -96,6 +107,7 @@ type PushPayload =
   | { type: typeof NotificationType.PLAN_UPDATED; planId: string }
   | { type: typeof NotificationType.PLAN_SESSION_ADDED; planId: string }
   | { type: typeof NotificationType.PLAN_SESSION_REMOVED; planId: string }
+  | { type: typeof NotificationType.PLAN_SESSIONS_REORDERED; planId: string }
   | { type: typeof NotificationType.FEEDBACK_RECEIVED; scheduledSessionId: string }
   | { type: typeof NotificationType.MESSAGE_RECEIVED; conversationId: string }
   | { type: typeof NotificationType.INVOICE_ISSUED; invoiceId: string }
@@ -200,6 +212,34 @@ export class NotificationService {
         title: "Séance modifiée",
         body: `Ton coach a ajusté « ${event.sessionTitle} ».`,
         data: { type: NotificationType.PLAN_UPDATED, planId: event.planId },
+      },
+    );
+  }
+
+  /**
+   * L'ordre des séances d'une journée a changé, et rien d'autre.
+   *
+   * `PLAN_UPDATED` aurait envoyé l'athlète chercher un changement de CONTENU qui n'a pas eu lieu —
+   * le raisonnement même qui a fait distinguer les trois autres ajustements plutôt que les fondre.
+   */
+  async notifyPlanSessionsReordered(event: PlanDayReorderedEvent): Promise<void> {
+    this.logger.info(
+      { event: "plan.sessions.reordered", ...event },
+      "Journée réordonnée par le coach",
+    );
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.PLAN_SESSIONS_REORDERED,
+        entityType: NotificationEntityType.PLAN,
+        entityId: event.planId,
+        actorName: null,
+        subjectLabel: event.isoDate,
+      },
+      {
+        title: "Séances réordonnées",
+        body: "Ton coach a changé l'ordre de tes séances de la journée.",
+        data: { type: NotificationType.PLAN_SESSIONS_REORDERED, planId: event.planId },
       },
     );
   }

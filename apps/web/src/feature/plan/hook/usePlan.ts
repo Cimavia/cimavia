@@ -16,6 +16,7 @@ import {
   deleteScheduledSession,
   getPlan,
   planKeys,
+  reorderPlanDay,
   scheduledSessionKeys,
   updatePlan,
   updatePlanWeek,
@@ -26,6 +27,9 @@ import { useMutationToast } from "@/shared/hook/useMutationToast";
 // La semaine QUI REÇOIT et celle qu'on recopie — nommées, parce que deux `string` côte à côte
 // s'inversent en silence.
 type PasteWeekVariables = { targetWeekId: string; sourcePlanWeekId: string };
+
+// La journée visée et l'ordre voulu, en entier — l'API refuse un sous-ensemble.
+type ReorderDayVariables = { weekId: string; date: string; sessionIds: string[] };
 
 export function usePlan(planId: string) {
   return useQuery<PlanDto>({
@@ -113,6 +117,18 @@ export function usePlanMutations(planId: string) {
     onError: toast.onError,
   });
 
+  /**
+   * L'ordre des séances d'une journée (#148). Aucun toast de succès : le coach vient de déposer la
+   * carte à sa nouvelle place et la voit y rester — le lui confirmer par un bandeau à chaque
+   * glissement transformerait un geste fluide en notification permanente. L'échec, lui, se dit.
+   */
+  const reorderDay = useMutation({
+    mutationFn: ({ weekId, date, sessionIds }: ReorderDayVariables) =>
+      reorderPlanDay(weekId, date, { sessionIds }),
+    onSuccess: invalidate,
+    onError: toast.onError,
+  });
+
   const createSession = useMutation({
     mutationFn: ({ weekId, input }: { weekId: string; input: CreateScheduledSessionInput }) =>
       createScheduledSession(weekId, input),
@@ -139,6 +155,7 @@ export function usePlanMutations(planId: string) {
     updateWeek.isPending ||
     removeWeek.isPending ||
     pasteWeek.isPending ||
+    reorderDay.isPending ||
     createSession.isPending ||
     saveSession.isPending ||
     removeSession.isPending;
@@ -149,6 +166,7 @@ export function usePlanMutations(planId: string) {
     updateWeek,
     removeWeek,
     pasteWeek,
+    reorderDay,
     createSession,
     saveSession,
     removeSession,

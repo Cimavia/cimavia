@@ -2,29 +2,48 @@ import type { CapabilityName } from "../capability";
 import { type NotificationDto, NotificationType } from "../dto/notification.schema";
 
 /**
+ * Les types dont `subjectLabel` porte une DATE CIVILE et non un libellé (#148).
+ *
+ * L'API persiste la donnée (`2026-09-07`) et jamais sa mise en forme, pour la raison qui vaut
+ * déjà pour les libellés : une notification écrite aujourd'hui serait figée en français le jour où
+ * `en.json` arrive. C'est donc ici, à l'affichage, que la date devient lisible.
+ */
+const DATE_SUBJECT_TYPES: readonly NotificationType[] = [NotificationType.PLAN_SESSIONS_REORDERED];
+
+/**
  * Le SUJET d'une entrée du centre, résolu — la valeur à interpoler dans
  * `NOTIFICATION_LABEL_KEY[type]`.
  *
- * Deux sources, dans cet ordre :
+ * Trois sources, dans cet ordre :
  *
  * 1. **`subjectKey`** — un intitulé SYSTÈME, transporté comme clé i18n et traduit ici. Né du rappel
  *    auto-généré (#47), qui n'a pas de note : l'API ne fabrique pas de libellé, elle persiste le
  *    motif (règle de #48).
  * 2. **`subjectLabel`** — une VALEUR d'utilisateur (nom d'athlète, titre de cycle, note du coach),
  *    affichée telle quelle. C'est un instantané : renommer un cycle ne réécrit pas l'historique.
+ * 3. **une DATE**, quand le type le dit (`DATE_SUBJECT_TYPES`) : la valeur est une date civile ISO,
+ *    mise en forme dans la langue courante plutôt qu'affichée brute.
  *
  * `null` quand l'événement n'a pas de sujet à nommer (une facture émise, par exemple) — à charge du
  * client d'afficher « — ». Jamais une chaîne vide, qui laisserait un trou dans la phrase.
  *
  * Le traducteur est INJECTÉ plutôt qu'importé : `@cmv/shared` ne connaît pas i18next, et chaque app
  * a son instance. Même dispositif que `formatRelativeOrDateTime`.
+ *
+ * `formatFullDay` l'est pour la raison JUMELLE : chaque app tient déjà un formateur branché sur sa
+ * locale (`createFormatters`, #137). Prendre une `locale` ici rouvrirait le point d'injection que
+ * cette fabrique a fermé, et ferait diverger la date d'une notification de celle du reste de
+ * l'écran.
  */
 export function notificationSubject(
-  notification: Pick<NotificationDto, "subjectLabel" | "subjectKey">,
+  notification: Pick<NotificationDto, "type" | "subjectLabel" | "subjectKey">,
   translate: (key: string) => string,
+  formatFullDay: (isoDate: string) => string,
 ): string | null {
   if (notification.subjectKey != null) return translate(notification.subjectKey);
-  return notification.subjectLabel;
+  if (notification.subjectLabel == null) return null;
+  if (!DATE_SUBJECT_TYPES.includes(notification.type)) return notification.subjectLabel;
+  return formatFullDay(notification.subjectLabel);
 }
 
 /**
@@ -47,6 +66,7 @@ export function capabilityOfNotification(type: NotificationType): CapabilityName
     case NotificationType.PLAN_UPDATED:
     case NotificationType.PLAN_SESSION_ADDED:
     case NotificationType.PLAN_SESSION_REMOVED:
+    case NotificationType.PLAN_SESSIONS_REORDERED:
     case NotificationType.INVOICE_ISSUED:
     // Une invitation qui attend se lit forcément en athlète : c'est la capacité qu'elle propose
     // d'exercer, et la seule qui puisse l'accepter.

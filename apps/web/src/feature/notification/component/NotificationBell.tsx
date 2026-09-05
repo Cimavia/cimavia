@@ -20,7 +20,7 @@ import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminde
 import { CmvButton } from "@/shared/component";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { cn } from "@/shared/util/cn.util";
-import { formatRelativeTime } from "@/shared/util/date.util";
+import { formatFullDay, formatRelativeTime } from "@/shared/util/date.util";
 
 // Au-delà, le chiffre exact n'apporte plus rien et déforme la pastille.
 const BADGE_MAX = 99;
@@ -197,11 +197,12 @@ function NotificationRow({ notification, onSelect }: Readonly<NotificationRowPro
   // de l'émission) — on nomme alors personne plutôt que d'afficher un trou.
   //
   // Le sujet passe par `notificationSubject` : il peut être une VALEUR (note du coach, titre de
-  // cycle) ou une CLÉ à traduire (motif d'un rappel auto-généré, #47). La précédence vit dans
-  // @cmv/shared pour que les deux clients ne la réécrivent pas chacun de son côté.
+  // cycle), une CLÉ à traduire (motif d'un rappel auto-généré, #47) ou une DATE à mettre en forme
+  // (journée réordonnée, #148). La précédence vit dans @cmv/shared pour que les deux clients ne la
+  // réécrivent pas chacun de son côté.
   const label = t(NOTIFICATION_LABEL_KEY[notification.type], {
     actor: notification.actorName ?? t("notification.someone"),
-    subject: notificationSubject(notification, t) ?? "—",
+    subject: notificationSubject(notification, t, formatFullDay) ?? "—",
   });
 
   /**

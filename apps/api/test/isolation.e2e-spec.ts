@@ -6485,3 +6485,377 @@ describe("Effacer une invitation refusée (#146)", () => {
     expect((await athlete.delete("/invitations/whatever")).status).toBe(403);
   });
 });
+
+describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
+  /** Un cycle d'une semaine pour `coach`, et l'id de sa première semaine. */
+  async function weekOf(coach: Agent, athleteId: string, monday: string): Promise<string> {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Cycle des rangs",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    return plan.body.weeks[0].id;
+  }
+
+  /** Les rangs du jour, dans l'ordre où l'API les rend. */
+  async function positionsOn(coach: Agent, planId: string, date: string): Promise<number[]> {
+    const plan = await coach.get(`/plans/${planId}`);
+    return plan.body.weeks[0].sessions
+      .filter((session: { scheduledDate: string }) => session.scheduledDate === date)
+      .map((session: { position: number }) => session.position);
+  }
+
+  async function addSession(coach: Agent, weekId: string, date: string, title: string) {
+    const created = await coach.post(`/plan-weeks/${weekId}/sessions`).send({
+      scheduledDate: date,
+      title,
+    });
+    expect(created.status).toBe(201);
+    return created.body.id;
+  }
+
+  /**
+   * Le bug que ce bloc ferme : `nextPosition` COMPTE les séances du jour, ce qui ne donne un rang
+   * libre que si les rangs sont contigus. Une suppression au milieu laissait un trou, et l'ajout
+   * suivant retombait sur un rang déjà pris — 500 sur `@@unique([planWeekId, scheduledDate,
+   * position])`, pour un geste que rien ne relie à la suppression d'avant.
+   */
+  it("recolle les rangs après une suppression, et le jour reste ajoutable", async () => {
+    const coach = await signUpWith("gap-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("gap-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const athleteId = (
+      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
+    ).body.athleteId;
+
+    const monday = mondayOfCurrentWeek();
+    const weekId = await weekOf(coach, athleteId, monday);
+    const planId = (await coach.get("/plans")).body[0].id;
+
+    const first = await addSession(coach, weekId, monday, "Séance 1");
+    await addSession(coach, weekId, monday, "Séance 2");
+    await addSession(coach, weekId, monday, "Séance 3");
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
+
+    expect((await coach.delete(`/scheduled-sessions/${first}`)).status).toBe(204);
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1]);
+
+    // Le geste qui échouait : ajouter après avoir supprimé.
+    await addSession(coach, weekId, monday, "Séance 4");
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
+  });
+
+  // Déplacer une séance, c'est aussi QUITTER un jour : celui qu'on laisse se recolle comme un
+  // jour dont on a supprimé une séance, et celui qu'on rejoint prend la fin de file.
+  it("recolle le jour quitté quand une séance change de date", async () => {
+    const coach = await signUpWith("move-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("move-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const athleteId = (
+      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
+    ).body.athleteId;
+
+    const monday = mondayOfCurrentWeek();
+    const tuesday = new Date(`${monday}T00:00:00Z`);
+    tuesday.setUTCDate(tuesday.getUTCDate() + 1);
+    const tuesdayIso = tuesday.toISOString().slice(0, 10);
+
+    const weekId = await weekOf(coach, athleteId, monday);
+    const planId = (await coach.get("/plans")).body[0].id;
+
+    const first = await addSession(coach, weekId, monday, "Lundi 1");
+    await addSession(coach, weekId, monday, "Lundi 2");
+    await addSession(coach, weekId, monday, "Lundi 3");
+
+    const moved = await coach.put(`/scheduled-sessions/${first}`).send({
+      title: "Lundi 1",
+      scheduledDate: tuesdayIso,
+      exercises: [],
+    });
+    expect(moved.status).toBe(200);
+
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1]);
+    expect(await positionsOn(coach, planId, tuesdayIso)).toEqual([0]);
+
+    // Le lundi reste ajoutable : c'est ce que le trou cassait.
+    await addSession(coach, weekId, monday, "Lundi 4");
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
+  });
+});
+
+describe("Réordonner les séances d'une même journée (#148)", () => {
+  const monday = mondayOfCurrentWeek();
+
+  type Day = {
+    coach: Agent;
+    athlete: Agent;
+    planId: string;
+    weekId: string;
+    sessionIds: string[];
+  };
+
+  /** Un coach, son athlète, un cycle d'une semaine, et `count` séances le lundi. */
+  async function dayOf(slug: string, count: number): Promise<Day> {
+    const coach = await signUpWith(`${slug}-coach@cmv.test`, { isCoach: true, isAthlete: false });
+    const athlete = await signUp(`${slug}-athlete@cmv.test`, Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const athleteId = (
+      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
+    ).body.athleteId;
+
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: `Cycle ${slug}`,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const weekId = plan.body.weeks[0].id;
+
+    const sessionIds: string[] = [];
+    for (let rank = 1; rank <= count; rank += 1) {
+      const created = await coach
+        .post(`/plan-weeks/${weekId}/sessions`)
+        .send({ scheduledDate: monday, title: `Séance ${rank}` });
+      expect(created.status).toBe(201);
+      sessionIds.push(created.body.id);
+    }
+
+    return { coach, athlete, planId: plan.body.id, weekId, sessionIds };
+  }
+
+  const tuesday = new Date(`${monday}T00:00:00Z`);
+  tuesday.setUTCDate(tuesday.getUTCDate() + 1);
+  const tuesdayIso = tuesday.toISOString().slice(0, 10);
+
+  /** Les titres d'un jour, dans l'ordre rendu par l'API. */
+  async function titlesOn(day: Day, date = monday): Promise<string[]> {
+    const plan = await day.coach.get(`/plans/${day.planId}`);
+    return plan.body.weeks[0].sessions
+      .filter((session: { scheduledDate: string }) => session.scheduledDate === date)
+      .map((session: { title: string }) => session.title);
+  }
+
+  /** Ajoute une séance au jour voulu et rend son id. */
+  async function addOn(day: Day, date: string, title: string): Promise<string> {
+    const created = await day.coach
+      .post(`/plan-weeks/${day.weekId}/sessions`)
+      .send({ scheduledDate: date, title });
+    expect(created.status).toBe(201);
+    return created.body.id;
+  }
+
+  const reorder = (day: Day, sessionIds: string[]) =>
+    day.coach.put(`/plan-weeks/${day.weekId}/days/${monday}/order`).send({ sessionIds });
+
+  /**
+   * L'échange de DEUX séances est le cas qui casse : passer l'une en position 0 avant que l'autre
+   * ne l'ait libérée viole `@@unique([planWeekId, scheduledDate, position])` en cours de
+   * transaction. C'est la raison d'être des deux passes.
+   */
+  it("échange deux séances sans buter sur l'unicité", async () => {
+    const day = await dayOf("swap", 2);
+    const [first, second] = day.sessionIds;
+
+    const res = await reorder(day, [second as string, first as string]);
+
+    expect(res.status).toBe(200);
+    expect(await titlesOn(day)).toEqual(["Séance 2", "Séance 1"]);
+  });
+
+  it("réordonne trois séances, la dernière passant en tête", async () => {
+    const day = await dayOf("three", 3);
+    const [first, second, third] = day.sessionIds;
+
+    expect((await reorder(day, [third as string, first as string, second as string])).status).toBe(
+      200,
+    );
+    expect(await titlesOn(day)).toEqual(["Séance 3", "Séance 1", "Séance 2"]);
+  });
+
+  it("refuse une séance citée deux fois", async () => {
+    const day = await dayOf("dup", 2);
+    const [first] = day.sessionIds;
+
+    expect((await reorder(day, [first as string, first as string])).status).toBe(400);
+  });
+
+  /**
+   * Omettre une séance déjà posée ce jour-là ne dirait pas où elle va : elle garderait son rang
+   * d'avant, donc doublons et trous. Vider une journée se fait en déplaçant ou en supprimant.
+   */
+  it("refuse d'omettre une séance déjà posée ce jour-là", async () => {
+    const day = await dayOf("omit", 3);
+
+    expect((await reorder(day, [day.sessionIds[0] as string])).status).toBe(400);
+    expect(await titlesOn(day)).toEqual(["Séance 1", "Séance 2", "Séance 3"]);
+  });
+
+  // Une séance d'une AUTRE semaine (ou d'un autre coach, que le scope rend invisible) n'a rien à
+  // faire dans cette journée : la déplacer là franchirait une frontière que le glisser n'offre pas.
+  it("refuse une séance étrangère à la semaine", async () => {
+    const day = await dayOf("foreign", 2);
+    const other = await dayOf("foreign-other", 1);
+
+    const res = await reorder(day, [...day.sessionIds, other.sessionIds[0] as string]);
+
+    expect(res.status).toBe(400);
+    expect(await titlesOn(day)).toEqual(["Séance 1", "Séance 2"]);
+  });
+
+  describe("le déplacement d'un jour à l'autre", () => {
+    /**
+     * Le cœur de #93 élargi : le tableau DÉFINIT ce que la journée porte. Une séance du mardi qui
+     * y figure est déplacée au lundi, au rang exact où elle est placée — pas en fin de file.
+     */
+    it("accueille une séance d'un autre jour au rang exact", async () => {
+      const day = await dayOf("move-in", 2);
+      const fromTuesday = await addOn(day, tuesdayIso, "Mardi");
+
+      const res = await reorder(day, [
+        day.sessionIds[0] as string,
+        fromTuesday,
+        day.sessionIds[1] as string,
+      ]);
+
+      expect(res.status).toBe(200);
+      expect(await titlesOn(day)).toEqual(["Séance 1", "Mardi", "Séance 2"]);
+      expect(await titlesOn(day, tuesdayIso)).toEqual([]);
+    });
+
+    // Le jour d'origine se recolle : sans ça il garde un trou, et la prochaine séance qu'on y
+    // ajoute retombe sur un rang pris (le bug fermé par `compactDay`).
+    it("recolle le jour quitté, qui reste ajoutable", async () => {
+      const day = await dayOf("move-out", 1);
+      const first = await addOn(day, tuesdayIso, "Mardi 1");
+      await addOn(day, tuesdayIso, "Mardi 2");
+      await addOn(day, tuesdayIso, "Mardi 3");
+
+      expect((await reorder(day, [first, day.sessionIds[0] as string])).status).toBe(200);
+
+      expect(await titlesOn(day)).toEqual(["Mardi 1", "Séance 1"]);
+      expect(await titlesOn(day, tuesdayIso)).toEqual(["Mardi 2", "Mardi 3"]);
+      await addOn(day, tuesdayIso, "Mardi 4");
+      expect(await titlesOn(day, tuesdayIso)).toEqual(["Mardi 2", "Mardi 3", "Mardi 4"]);
+    });
+
+    // Une journée VIDE accueille : c'est le cas le plus courant du glisser, et `parking` doit
+    // savoir se passer d'un maximum qui n'existe pas.
+    it("accueille une séance dans une journée vide", async () => {
+      const day = await dayOf("move-empty", 1);
+
+      const res = await day.coach
+        .put(`/plan-weeks/${day.weekId}/days/${tuesdayIso}/order`)
+        .send({ sessionIds: day.sessionIds });
+
+      expect(res.status).toBe(200);
+      expect(await titlesOn(day)).toEqual([]);
+      expect(await titlesOn(day, tuesdayIso)).toEqual(["Séance 1"]);
+    });
+  });
+
+  /**
+   * Isolation : le scope tenant rend la séance de l'autre coach invisible AVANT tout contrôle
+   * applicatif — elle n'est donc pas « refusée », elle n'existe pas pour cette requête. La semaine
+   * visée, elle, rend 404 pour la même raison.
+   */
+  it("ne laisse pas un coach réordonner la journée d'un autre", async () => {
+    const mine = await dayOf("mine", 2);
+    const theirs = await dayOf("theirs", 2);
+
+    const res = await theirs.coach
+      .put(`/plan-weeks/${mine.weekId}/days/${monday}/order`)
+      .send({ sessionIds: [mine.sessionIds[1] as string, mine.sessionIds[0] as string] });
+
+    expect(res.status).toBe(404);
+    expect(await titlesOn(mine)).toEqual(["Séance 1", "Séance 2"]);
+  });
+
+  it("ferme la route à un athlète", async () => {
+    const day = await dayOf("closed", 2);
+
+    const res = await day.athlete
+      .put(`/plan-weeks/${day.weekId}/days/${monday}/order`)
+      .send({ sessionIds: day.sessionIds });
+
+    expect(res.status).toBe(403);
+  });
+
+  describe("sur un cycle diffusé", () => {
+    const reordered = async (agent: Agent) =>
+      ((await agent.get("/me/notifications")).body as { type: string }[]).filter(
+        (notification) => notification.type === "PLAN_SESSIONS_REORDERED",
+      );
+
+    /**
+     * Réordonner reste AUTORISÉ sur un cycle diffusé, et n'émet qu'une notification pour la
+     * journée — pas une par séance déplacée. C'est possible ici et ça ne l'était pas pour le
+     * collage de semaine (#4) parce que la route est UN geste, pas N écritures.
+     */
+    it("prévient l'athlète une seule fois, en nommant le jour", async () => {
+      const day = await dayOf("published", 3);
+      expect([200, 201]).toContain((await billAndPublish(day.coach, day.planId)).status);
+      const [first, second, third] = day.sessionIds;
+
+      expect(
+        (await reorder(day, [third as string, second as string, first as string])).status,
+      ).toBe(200);
+
+      const notifications = await reordered(day.athlete);
+      expect(notifications).toHaveLength(1);
+      // Le sujet est la DATE brute : le centre la met en forme dans la langue du lecteur.
+      expect(notifications[0]).toMatchObject({
+        entityType: "PLAN",
+        entityId: day.planId,
+        subjectLabel: monday,
+      });
+    });
+
+    /**
+     * Le `PUT` est idempotent : la comparaison porte sur les rangs RÉSULTANTS, jamais sur le fait
+     * qu'une requête soit passée. Renvoyer l'ordre déjà en place ne dérange personne.
+     */
+    it("ne prévient personne quand l'ordre ne change pas", async () => {
+      const day = await dayOf("noop", 3);
+      expect([200, 201]).toContain((await billAndPublish(day.coach, day.planId)).status);
+
+      expect((await reorder(day, day.sessionIds)).status).toBe(200);
+
+      expect(await reordered(day.athlete)).toHaveLength(0);
+    });
+
+    /**
+     * Une séance DÉPLACÉE prime sur l'ordre. Annoncer « séances réordonnées » quand la séance est
+     * passée au mardi enverrait l'athlète la chercher au mauvais endroit — et c'est déjà ce que
+     * dit le sélecteur « Jour » du panneau : même geste, même annonce.
+     */
+    it("annonce un déplacement comme une séance modifiée, pas comme un réordonnancement", async () => {
+      const day = await dayOf("moved-notif", 1);
+      expect([200, 201]).toContain((await billAndPublish(day.coach, day.planId)).status);
+      const fromTuesday = await addOn(day, tuesdayIso, "Mardi");
+
+      expect((await reorder(day, [fromTuesday, day.sessionIds[0] as string])).status).toBe(200);
+
+      expect(await reordered(day.athlete)).toHaveLength(0);
+      const updated = (
+        (await day.athlete.get("/me/notifications")).body as {
+          type: string;
+          subjectLabel: string | null;
+        }[]
+      ).filter((notification) => notification.type === "PLAN_UPDATED");
+      expect(updated).toHaveLength(1);
+      expect(updated[0]?.subjectLabel).toBe("Mardi");
+    });
+
+    // Sur un BROUILLON il n'y a rien à annoncer : le cycle n'existe pas encore pour l'athlète.
+    it("n'annonce rien sur un brouillon", async () => {
+      const day = await dayOf("draft", 2);
+      const [first, second] = day.sessionIds;
+
+      expect((await reorder(day, [second as string, first as string])).status).toBe(200);
+
+      expect(await reordered(day.athlete)).toHaveLength(0);
+    });
+  });
+});

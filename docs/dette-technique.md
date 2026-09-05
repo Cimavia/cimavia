@@ -40,7 +40,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | P2-1 | **Objets orphelins en object storage** : upload réussi mais `POST /documents` échoué → fichier dans le bucket sans ligne en base. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
 | P2-2 | **Pas de pagination** sur `GET /exercises` et `GET /sessions` : tout est renvoyé. | 🟢 | [#79](https://github.com/Cimavia/cimavia/issues/79) |
-| P2-3 | **Pas de drag & drop** dans le SessionBuilder : réordonnancement par boutons ↑/↓. | 🟢 | [#93](https://github.com/Cimavia/cimavia/issues/93) |
+| ~~P2-3~~ | ~~**Pas de drag & drop** dans le SessionBuilder~~ : réordonnancement par boutons ↑/↓. | ✅ | jamais vraie pour le `SessionBuilder`, qui a le glisser **depuis son commit de création** — [#165](https://github.com/Cimavia/cimavia/issues/165) l'annonçait (« absorbe #93 ») sans que #93 soit fermée. [#93](https://github.com/Cimavia/cimavia/issues/93), recyclée, a couvert les **deux surfaces qui manquaient** : la séance planifiée et les séances d'une journée |
 | P2-4 | **`crypto.randomUUID()` pour la clé objet**, alors que les `id` de tables sont des `cuid`. | 🟢 | — *(incohérence assumée, déclencheur : aucun)* |
 | P2-5 | **Suppression d'un document : pas de rollback**. L'objet S3 part **avant** la ligne — ordre choisi volontairement. | 🟢 | [#75](https://github.com/Cimavia/cimavia/issues/75) |
 
@@ -54,7 +54,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P3-2 | **Objets S3 orphelins après suppression d'une planif** : une copie de document partage la clé objet de la bibliothèque. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
 | P3-3 | **Documents non lisibles hors-ligne** : servis par des URLs signées à TTL court (5 min). | 🟢 | [#95](https://github.com/Cimavia/cimavia/issues/95) |
 | ~~P3-4~~ | ~~**Écrans coach de P1 jamais construits**~~ (nav, liste d'athlètes, invitation, fiche). | ✅ | résolu en **p3-8** — `CmvAppShell`, `/athletes`, invitation, fiche athlète |
-| P3-5 | **Écarts aux maquettes assumés** : pas de durée de séance (« 75 min » en pd-7/pd-9), pas de drag & drop. | 🟢 | [#94](https://github.com/Cimavia/cimavia/issues/94) · [#93](https://github.com/Cimavia/cimavia/issues/93) |
+| P3-5 | **Écart aux maquettes assumé** : pas de durée de séance (« 75 min » en pd-7/pd-9). Le glisser-déposer, lui, n'en est plus un — cf. ~~P2-3~~. | 🟢 | [#94](https://github.com/Cimavia/cimavia/issues/94) |
 | ~~P3-6~~ | ~~**Tuile « Factures en attente » non branchée**~~ : affichait `—`, marquée `// MOCKED`. | ✅ | résolue en **P6** — branchée sur `pendingCount(invoices)` |
 
 ---
@@ -1701,6 +1701,82 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > une invitation non désirée resterait en attente jusqu'à son expiration. Et le **lien profond qui
 > pré-remplit le code n'existe pas** : l'e-mail d'invitation porte le code en clair et un lien vers
 > l'inscription, ce qui suffit tant qu'aucun schéma d'URL n'est branché sur `cimavia://`.
+
+---
+
+## Post-MVP — Ordonner et déplacer les séances d'un cycle ([#93](https://github.com/Cimavia/cimavia/issues/93) · [#148](https://github.com/Cimavia/cimavia/issues/148))
+
+> **Tranché en #93** (la dette était périmée, l'issue a changé d'objet) : le `SessionBuilder` a le
+> glisser-déposer **depuis son commit de création** — #165 disait « absorbe #93, fermer en la
+> référençant », et ne l'a pas fait. #93 a donc été **recyclée** plutôt que fermée : son numéro
+> porte désormais les deux surfaces qui n'avaient réellement que des flèches, la **séance
+> planifiée** (`CompositionEditor`) et les **séances d'une journée** (`PlanDayCell`), plus le
+> déplacement d'un jour à l'autre. Fermer et rouvrir aurait perdu la trace de ce qui avait été
+> livré — c'est précisément ce qui a manqué ici.
+
+> **Tranché en #93** (pas de dnd-kit, et l'issue demandait le contraire) : le glisser tourne sur
+> `useReorderDrag` + `CmvDragHandle`, faits maison et déjà éprouvés sur cinq surfaces. La
+> dépendance que l'issue prescrivait n'a jamais été nécessaire, et le travail d'accessibilité
+> qu'elle redoutait est déjà payé : la poignée **est** un bouton focusable qui répond aux flèches.
+
+> **Tranché en #148** (la poignée SANS flèches dans la grille de semaine) : le constructeur de
+> séance double le glisser de boutons ↑/↓ ; la case d'un jour, qui fait un septième de la largeur,
+> ne le peut pas. L'issue les prescrivait pourtant. Deux boutons de plus par séance y seraient
+> illisibles, et la poignée porte déjà le chemin clavier — l'esprit de la règle tient, sa lettre
+> non. Le glisser reste **borné à la semaine** : l'état vit dans `PlanWeekCard`, et la route
+> serveur est scopée à une semaine. Deux cycles, ou deux semaines, ne communiquent pas.
+
+> **Tranché en #148** (le sujet d'une notification peut être une DATE, et reste une donnée) :
+> `PLAN_SESSIONS_REORDERED` ne nomme aucune séance — un ORDRE n'appartient à aucune d'elles. Son
+> `subjectLabel` porte le **jour en ISO**, jamais mis en forme par l'API : la règle de #48 vaut ici
+> comme ailleurs, une ligne écrite aujourd'hui resterait française le jour où `en.json` arrive.
+> `notificationSubject` reçoit donc le `formatFullDay` de l'app appelante — et non une `locale`,
+> qui rouvrirait le point d'injection que `createFormatters` (#137) a fermé.
+
+> **Tranché en #148** (un trou de position était un bug, pas une dette) : `nextPosition` COMPTE les
+> séances du jour, ce qui ne donne un rang libre que si les rangs sont contigus. Rien ne les
+> recollait après une suppression ni après un changement de jour : deux séances le lundi, on
+> supprime la première, on en ajoute une — **500** sur `@@unique([planWeekId, scheduledDate,
+> position])`, pour un geste que rien ne reliait au précédent. Corrigé dans la même PR
+> (`compactDay`), avec les deux e2e qui le prouvent. L'issue #148 ne l'avait pas vu : elle
+> n'annonçait la contrainte que pour la permutation.
+
+> **Tranché en #93** (la journée d'arrivée se DÉCLARE, elle ne se déplace pas) : déplacer une
+> séance d'un jour à l'autre aurait pu être une route à part (`PATCH …/day`). C'est la route
+> d'ordre qui s'élargit : son tableau ne décrit plus une permutation, il **définit le contenu** du
+> jour visé — l'idiome replace-all de tout le produit. Le client n'écrit donc qu'**une** journée,
+> celle d'arrivée ; le serveur retire la séance de son jour d'origine et l'y recolle. Envoyer les
+> deux journées serait deux écritures, donc deux notifications pour un seul geste. Ce qui reste
+> interdit : **omettre** une séance déjà posée ce jour-là, qui ne dirait pas où elle va.
+
+> **Tranché en #93** (un déplacement s'annonce comme une SÉANCE MODIFIÉE, pas comme un
+> réordonnancement) : changer le jour d'une séance émet déjà `PLAN_UPDATED` depuis le sélecteur
+> « Jour » du panneau. Le glisser est le même geste par un autre chemin — deux gestes identiques
+> ne doivent pas produire deux messages différents. Quand un appel déplace ET réordonne, seul le
+> déplacement s'annonce : dire « séances réordonnées » à un athlète dont la séance est passée au
+> mardi l'enverrait chercher au mauvais endroit.
+
+> **Tranché en #93** (la poignée s'affiche même sur une séance SEULE dans sa journée) : #148 la
+> masquait dans ce cas — « ce serait du décor ». C'était vrai tant que le glisser ne sortait pas
+> du jour ; ça ne l'est plus. L'affordance dit ce que le geste permet, pas ce qu'il permettait.
+
+> **Piège coûteux (#93)** — `splice` compte les indices NÉGATIFS depuis la fin. En extrayant le
+> calcul du dépôt dans un util pur, la borne que `useReorderDrag` portait a été perdue : la flèche
+> ↑ sur la première séance visait `-1` et l'aurait déplacée en **avant-dernière** place, sans rien
+> signaler. Attrapé par le test du cas limite, pas par le typecheck — un indice hors plage est un
+> `number` valide.
+
+> **Piège coûteux (#93)** — la carte de séance est DANS la case du jour, qui est elle aussi une
+> cible de dépôt. Sans `stopPropagation` sur la carte, l'événement remonte et la case écrase le
+> rang visé par celui de sa fin de file : **toute** séance déposée atterrit en dernier, et le
+> « rang exact » ne marche jamais. C'est le seul cas qu'un test à une seule journée ne voit pas.
+
+> **Tranché en #148** (le décalage de renumérotation se DÉDUIT, il n'est pas une constante) :
+> l'issue prescrivait `position + 1000`. Une journée qui porte déjà des trous — le cas d'avant ce
+> correctif — peut occuper un rang supérieur à son propre effectif, et une constante finit par
+> retomber dessus. Les deux passes garent donc au-dessus du **maximum observé**, libre par
+> construction. Sans elles, l'échange de deux séances casse : `duplicate key value violates unique
+> constraint "scheduled_session_planWeekId_scheduledDate_position_key"`, vérifié.
 
 ---
 

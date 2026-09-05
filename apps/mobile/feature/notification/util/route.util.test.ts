@@ -155,6 +155,12 @@ describe("routeForPushPayload", () => {
     [NotificationType.PLAN_SESSION_ADDED, { planId: "p-1" }, NotificationEntityType.PLAN, "p-1"],
     [NotificationType.PLAN_SESSION_REMOVED, { planId: "p-1" }, NotificationEntityType.PLAN, "p-1"],
     [
+      NotificationType.PLAN_SESSIONS_REORDERED,
+      { planId: "p-1" },
+      NotificationEntityType.PLAN,
+      "p-1",
+    ],
+    [
       NotificationType.FEEDBACK_RECEIVED,
       { scheduledSessionId: "s-1" },
       NotificationEntityType.SCHEDULED_SESSION,

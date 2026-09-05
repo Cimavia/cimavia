@@ -14,7 +14,7 @@ import { routeForNotification } from "@/feature/notification/util/route.util";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
-import { formatRelativeTime } from "@/shared/util/date.util";
+import { formatFullDay, formatRelativeTime } from "@/shared/util/date.util";
 
 /**
  * Centre de notifications (#50) : la trace de ce qui a été poussé en push. Le push est éphémère —
@@ -119,11 +119,12 @@ function NotificationCard({ notification, onSelect }: Readonly<NotificationCardP
   // de s'afficher en anglais le jour où en.json arrive. `actorName` peut manquer (utilisateur
   // introuvable à l'émission) — on nomme alors personne plutôt que d'afficher un trou.
   // Le sujet passe par `notificationSubject` : il peut être une VALEUR (note du coach, titre de
-  // cycle) ou une CLÉ à traduire (motif d'un rappel auto-généré, #47). La précédence vit dans
-  // @cmv/shared pour que les deux clients ne la réécrivent pas chacun de son côté.
+  // cycle), une CLÉ à traduire (motif d'un rappel auto-généré, #47) ou une DATE à mettre en forme
+  // (journée réordonnée, #148). La précédence vit dans @cmv/shared pour que les deux clients ne la
+  // réécrivent pas chacun de son côté.
   const label = t(NOTIFICATION_LABEL_KEY[notification.type], {
     actor: notification.actorName ?? t("notification.someone"),
-    subject: notificationSubject(notification, t) ?? "—",
+    subject: notificationSubject(notification, t, formatFullDay) ?? "—",
   });
 
   return (

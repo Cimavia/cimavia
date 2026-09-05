@@ -1,12 +1,15 @@
 import type { PlanWeekDto, ScheduledSessionSummaryDto } from "@cmv/shared";
 import { PlanWeekType, planWeekDays } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { PlanDayCell } from "@/feature/plan/component/PlanDayCell";
 import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
+import { useWeekDrag, type WeekSlot } from "@/feature/plan/hook/useWeekDrag";
+import { dayAfterDrop } from "@/feature/plan/util/week-drop.util";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
-import { formatDateRange, formatDayLabel } from "@/shared/util/date.util";
+import { formatDateRange } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -30,7 +33,7 @@ export function PlanWeekCard({
   onEditSession,
 }: Readonly<PlanWeekCardProps>) {
   const { t } = useTranslation();
-  const { updateWeek, removeWeek, pasteWeek, isBusy } = usePlanMutations(planId);
+  const { updateWeek, removeWeek, pasteWeek, reorderDay, isBusy } = usePlanMutations(planId);
   const { clipboard, copyWeek } = usePlanClipboard();
 
   /**
@@ -86,6 +89,24 @@ export function PlanWeekCard({
   // La décharge est l'exception du cycle : elle se repère au liseré, sans avoir à lire le
   // sélecteur de type semaine par semaine. L'entraînement, lui, reste neutre (design system).
   const isDeload = week.type === PlanWeekType.DELOAD;
+
+  const sessionsOn = (date: string) => sessionsByDay.get(date) ?? [];
+
+  // Une seule journée est écrite : celle d'arrivée. Le serveur retire la séance de son jour
+  // d'origine et l'y recolle — deux écritures feraient deux notifications pour un seul geste.
+  function onDrop(from: WeekSlot, to: WeekSlot) {
+    const day = dayAfterDrop(sessionsOn(from.date), sessionsOn(to.date), from, to);
+    if (day == null) return;
+    reorderDay.mutate({ weekId: week.id, ...day });
+  }
+
+  // Le chemin clavier de la poignée : un cran, DANS la journée. Sortir du jour se fait au glisser,
+  // ou par le sélecteur « Jour » du panneau — qui reste, lui, entièrement accessible au clavier.
+  function moveWithinDay(date: string, index: number, direction: -1 | 1) {
+    onDrop({ date, index }, { date, index: index + direction });
+  }
+
+  const drag = useWeekDrag(onDrop);
 
   return (
     <section
@@ -144,37 +165,18 @@ export function PlanWeekCard({
       {week.note == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{week.note}</p>}
 
       <div className="grid grid-cols-2 gap-cmv-sm md:grid-cols-4 lg:grid-cols-7">
-        {days.map((day) => {
-          const sessions = sessionsByDay.get(day) ?? [];
-          return (
-            <div
-              key={day}
-              className="flex min-h-24 flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-sm"
-            >
-              <span className="text-cmv-caption text-cmv-text-lo">{formatDayLabel(day)}</span>
-
-              {sessions.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => onEditSession(session)}
-                  className="flex flex-col gap-cmv-xs rounded-cmv-sm border border-cmv-border bg-cmv-surface px-cmv-sm py-cmv-xs text-left transition-colors hover:border-cmv-border-hi hover:bg-cmv-surface-hi"
-                >
-                  <span className="truncate text-cmv-caption text-cmv-text-hi">
-                    {session.title}
-                  </span>
-                  <span className="text-cmv-caption text-cmv-text-lo">
-                    {t("plan.session.exerciseCount", { count: session.exerciseCount })}
-                  </span>
-                </button>
-              ))}
-
-              <CmvButton variant="ghost" onClick={() => onAddSession(day)} disabled={isBusy}>
-                {t("plan.week.addSession")}
-              </CmvButton>
-            </div>
-          );
-        })}
+        {days.map((day) => (
+          <PlanDayCell
+            key={day}
+            date={day}
+            sessions={sessionsByDay.get(day) ?? []}
+            isBusy={isBusy}
+            drag={drag}
+            onAddSession={onAddSession}
+            onEditSession={onEditSession}
+            onMoveWithinDay={moveWithinDay}
+          />
+        ))}
       </div>
     </section>
   );
