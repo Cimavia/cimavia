@@ -4,19 +4,19 @@
     "email": "Adresse e-mail",
     "password": "Mot de passe",
     "loading": "Chargement…",
-    "error": "Une erreur est survenue. Réessayez.",
+    "error": "Une erreur est survenue. Réessaie.",
     "cancel": "Annuler",
     "requiredLegend": "* champs obligatoires",
     "crash": {
       "title": "L'application a rencontré un problème",
-      "description": "L'incident nous a été signalé. Rechargez la page pour reprendre où vous en étiez.",
+      "description": "L'incident nous a été signalé. Recharge la page pour reprendre où tu en étais.",
       "reload": "Recharger la page"
     },
     "confirmDelete": "Confirmer la suppression",
     "close": "Fermer",
     "logout": "Se déconnecter",
     "errorTitle": "Chargement impossible",
-    "errorDescription": "Les données n'ont pas pu être récupérées. Vérifiez votre connexion, puis réessayez.",
+    "errorDescription": "Les données n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
     "relativeTime": {
       "now": "à l'instant",
@@ -54,7 +54,7 @@
     },
     "forgot": {
       "title": "Mot de passe oublié",
-      "description": "Saisissez votre e-mail pour recevoir un lien de réinitialisation.",
+      "description": "Saisis ton e-mail pour recevoir un lien de réinitialisation.",
       "submit": "Envoyer le lien",
       "submitting": "Envoi…",
       "sent": "Si un compte existe, un lien de réinitialisation vient d'être envoyé.",
@@ -65,15 +65,15 @@
       "newPassword": "Nouveau mot de passe",
       "submit": "Réinitialiser",
       "submitting": "Réinitialisation…",
-      "success": "Mot de passe réinitialisé. Vous pouvez vous connecter.",
+      "success": "Mot de passe réinitialisé. Tu peux te connecter.",
       "invalidToken": "Lien invalide ou expiré.",
       "toLogin": "Aller à la connexion"
     },
     "errors": {
-      "generic": "Une erreur est survenue. Réessayez.",
+      "generic": "Une erreur est survenue. Réessaie.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",
       "invalidCredentials": "E-mail ou mot de passe incorrect.",
-      "noCapability": "Choisissez au moins une option."
+      "noCapability": "Choisis au moins une option."
     }
   },
   "exercise": {
@@ -124,7 +124,7 @@
   },
   "library": {
     "title": "Bibliothèque",
-    "subtitle": "Vos exercices et séances réutilisables.",
+    "subtitle": "Tes exercices et séances réutilisables.",
     "newExercise": "Nouvel exercice",
     "searchLabel": "Rechercher",
     "searchExercise": "Rechercher un exercice…",
@@ -135,7 +135,7 @@
     "newSession": "Nouvelle séance",
     "empty": {
       "title": "Aucun exercice",
-      "description": "Créez votre premier exercice : il sera réutilisable dans toutes vos séances."
+      "description": "Crée ton premier exercice : il sera réutilisable dans toutes tes séances."
     },
     "session": {
       "createTitle": "Nouvelle séance",
@@ -376,7 +376,7 @@
   },
   "plan": {
     "title": "Planifications",
-    "subtitle": "Les cycles de vos athlètes : construisez, ajustez, diffusez.",
+    "subtitle": "Les cycles de tes athlètes : construis, ajuste, diffuse.",
     "unassigned": "Athlète à définir",
     "athlete": {
       "sessionFallbackTitle": "Séance",
@@ -438,7 +438,7 @@
     },
     "empty": {
       "title": "Aucune planification",
-      "description": "Créez un cycle pour un de vos athlètes : semaines, séances, puis diffusion."
+      "description": "Crée un cycle pour un de tes athlètes : semaines, séances, puis diffusion."
     },
     "card": {
       "meta": "{{weeks}} semaine(s) · {{sessions}} séance(s) · début le {{date}}",
@@ -460,10 +460,10 @@
       "startDateSnapped": "Un cycle démarre un lundi : le début a été recalé au {{date}}.",
       "startDateShiftDays": "d'un jour",
       "startDateShiftDays_other": "de {{count}} jours",
-      "startDateShiftLater": "Vous avez modifié la date de début du cycle. La séance du cycle sera repoussée {{shift}} à l'enregistrement.",
-      "startDateShiftLater_other": "Vous avez modifié la date de début du cycle. Les {{count}} séances du cycle seront repoussées {{shift}} à l'enregistrement.",
-      "startDateShiftEarlier": "Vous avez modifié la date de début du cycle. La séance du cycle sera avancée {{shift}} à l'enregistrement.",
-      "startDateShiftEarlier_other": "Vous avez modifié la date de début du cycle. Les {{count}} séances du cycle seront avancées {{shift}} à l'enregistrement.",
+      "startDateShiftLater": "Tu as modifié la date de début du cycle. La séance du cycle sera repoussée {{shift}} à l'enregistrement.",
+      "startDateShiftLater_other": "Tu as modifié la date de début du cycle. Les {{count}} séances du cycle seront repoussées {{shift}} à l'enregistrement.",
+      "startDateShiftEarlier": "Tu as modifié la date de début du cycle. La séance du cycle sera avancée {{shift}} à l'enregistrement.",
+      "startDateShiftEarlier_other": "Tu as modifié la date de début du cycle. Les {{count}} séances du cycle seront avancées {{shift}} à l'enregistrement.",
       "submit": "Enregistrer",
       "submitting": "Enregistrement…"
     },
@@ -481,7 +481,7 @@
     "session": {
       "createTitle": "Ajouter une séance",
       "editTitle": "Séance planifiée",
-      "panelDescription": "Cette séance est une copie : la modifier ne touche pas votre bibliothèque.",
+      "panelDescription": "Cette séance est une copie : la modifier ne touche pas ta bibliothèque.",
       "day": "Jour",
       "template": "Séance modèle",
       "templateNone": "Séance vide (sans modèle)",
@@ -492,7 +492,7 @@
       "notesPlaceholder": "Bien s'échauffer les épaules avant les essais.",
       "composition": "Déroulé de la séance",
       "emptyComposition": "Aucun exercice",
-      "emptyCompositionHint": "Piochez dans votre bibliothèque, à droite.",
+      "emptyCompositionHint": "Pioche dans ta bibliothèque, à droite.",
       "pickerTitle": "Bibliothèque d'exercices",
       "exerciseCount": "{{count}} exercice(s)",
       "moveUp": "Monter",
@@ -510,11 +510,11 @@
       "addWeek": "Ajouter une semaine",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",
-      "publishedHint": "L'athlète voit ce cycle. Vos ajustements lui sont visibles immédiatement.",
+      "publishedHint": "L'athlète voit ce cycle. Tes ajustements lui sont visibles immédiatement.",
       "delete": "Supprimer le cycle",
       "emptyWeeks": "Aucune semaine",
-      "emptyWeeksHint": "Ajoutez une semaine pour commencer à poser des séances.",
-      "athleteRequired": "Choisissez le destinataire de ce cycle pour pouvoir le diffuser.",
+      "emptyWeeksHint": "Ajoute une semaine pour commencer à poser des séances.",
+      "athleteRequired": "Choisis le destinataire de ce cycle pour pouvoir le diffuser.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
       "titleWithAthlete": "{{title}} — {{name}}"
@@ -534,7 +534,7 @@
       "weekPastedPlain": "Semaine collée"
     },
     "clipboard": {
-      "banner": "Semaine {{number}} de « {{plan}} » copiée — choisissez où la coller.",
+      "banner": "Semaine {{number}} de « {{plan}} » copiée — choisis où la coller.",
       "clear": "Annuler la copie"
     },
     "tracking": {
@@ -580,7 +580,7 @@
   },
   "reminder": {
     "title": "Mes rappels",
-    "subtitle": "Ce que vous vous êtes promis de faire : renouvellements, relances, échéances.",
+    "subtitle": "Ce que tu t'es promis de faire : renouvellements, relances, échéances.",
     "dueLabel": "Échéance : {{date}}",
     "targetLine": "{{kind}} — {{label}}",
     "target": {
@@ -612,14 +612,14 @@
       "dueAt": "Échéance",
       "note": "Ce dont il faut se souvenir",
       "notePlaceholder": "Proposer le renouvellement du cycle avant la dernière semaine",
-      "hint": "Le jour de l'échéance, le rappel apparaît dans vos notifications. Vous pouvez aussi le retrouver à tout moment dans « Rappels ».",
+      "hint": "Le jour de l'échéance, le rappel apparaît dans tes notifications. Tu peux aussi le retrouver à tout moment dans « Rappels ».",
       "submit": "Programmer",
       "submitting": "Enregistrement…"
     },
     "empty": {
       "PENDING": {
         "title": "Aucun rappel à traiter",
-        "description": "Programmez un rappel depuis un cycle ou une facture : il apparaîtra ici, et dans vos notifications le jour de son échéance."
+        "description": "Programme un rappel depuis un cycle ou une facture : il apparaîtra ici, et dans tes notifications le jour de son échéance."
       },
       "HANDLED": {
         "title": "Aucun rappel traité",
@@ -705,11 +705,11 @@
     },
     "empty": {
       "title": "Aucun athlète",
-      "description": "Invitez un athlète : il rejoindra votre espace avec le code que vous lui transmettez."
+      "description": "Invite un athlète : il rejoindra ton espace avec le code que tu lui transmets."
     },
     "invitation": {
       "title": "Inviter un athlète",
-      "description": "Émettez un code, transmettez-le à votre athlète : il le saisira à son inscription.",
+      "description": "Émets un code, transmets-le à ton athlète : il le saisira à son inscription.",
       "emailLabel": "E-mail de l'athlète",
       "emailPlaceholder": "lea@exemple.fr",
       "emailHint": "Facultatif. Sans e-mail, le code est utilisable par n'importe quel athlète non encore lié.",
@@ -727,14 +727,14 @@
       "copied": "Code copié dans le presse-papiers"
     },
     "sheet": {
-      "description": "Champ libre, visible de vous seul : objectifs, points forts, notes de suivi.",
+      "description": "Champ libre, visible de toi seul : objectifs, points forts, notes de suivi.",
       "label": "Notes",
       "placeholder": "Objectif 8a en salle d'ici juin. Épaule droite sensible — surveiller le volume de tractions.",
       "submit": "Enregistrer la fiche",
       "submitting": "Enregistrement…"
     },
     "toast": {
-      "invitationCreated": "Invitation créée : transmettez le code à votre athlète",
+      "invitationCreated": "Invitation créée : transmets le code à ton athlète",
       "invitationDeleted": "Invitation effacée",
       "sheetSaved": "Fiche athlète enregistrée"
     },
@@ -772,7 +772,7 @@
       "matchCount_other": "{{count}} athlètes",
       "noMatch": {
         "title": "Aucun athlète ne correspond",
-        "description": "Modifiez votre recherche, ou revenez à « Tous » pour revoir tous vos athlètes.",
+        "description": "Modifie ta recherche, ou reviens à « Tous » pour revoir tous tes athlètes.",
         "reset": "Réinitialiser"
       }
     },
@@ -930,7 +930,7 @@
       "notePlaceholder": "Précisions sur la prestation (optionnel)",
       "save": "Enregistrer la facturation",
       "saving": "Enregistrement…",
-      "athleteRequired": "Choisissez d'abord le destinataire du cycle, en haut de la page : une facture s'adresse à quelqu'un.",
+      "athleteRequired": "Choisis d'abord le destinataire du cycle, en haut de la page : une facture s'adresse à quelqu'un.",
       "issuedHint": "La facture a été émise à la diffusion du cycle.",
       "trackLink": "Suivre dans Facturation",
       "document": "Justificatif (PDF)",
@@ -975,7 +975,7 @@
     },
     "setting": {
       "title": "Notifications par e-mail",
-      "description": "Choisissez ce que vous voulez recevoir aussi par e-mail, en plus des notifications de l'application. Rien n'est envoyé tant que vous n'avez rien activé.",
+      "description": "Choisis ce que tu veux recevoir aussi par e-mail, en plus des notifications de l'application. Rien n'est envoyé tant que tu n'as rien activé.",
       "type": {
         "planPublished": "Nouveau cycle diffusé",
         "feedbackReceived": "Débrief reçu",
@@ -1022,7 +1022,7 @@
     "title": "Mon compte",
     "capabilities": {
       "title": "Ce que je fais sur cimavia",
-      "description": "Ajoutez ou retirez une casquette à tout moment. Les deux sont possibles.",
+      "description": "Ajoute ou retire une casquette à tout moment. Les deux sont possibles.",
       "option": {
         "coach": "Coacher des athlètes",
         "athlete": "Suivre mes entraînements"
@@ -1031,11 +1031,11 @@
         "coach": "Composer des exercices et des séances, diffuser des cycles, facturer.",
         "athlete": "Consulter mes séances, les débriefer, échanger avec mon coach."
       },
-      "warnCoach": "Votre bibliothèque et vos cycles seront conservés, mais disparaîtront de votre navigation. Ils reviendront si vous réactivez cette casquette.",
-      "atLeastOne": "Gardez au moins une casquette.",
+      "warnCoach": "Ta bibliothèque et tes cycles seront conservés, mais disparaîtront de ta navigation. Ils reviendront si tu réactives cette casquette.",
+      "atLeastOne": "Garde au moins une casquette.",
       "blocked": {
-        "ACTIVE_ATHLETES": "Des athlètes vous sont rattachés. Retirez ces liens avant de cesser de coacher.",
-        "ACTIVE_COACH": "Vous êtes rattaché à un coach. Quittez cette relation avant de retirer cette casquette."
+        "ACTIVE_ATHLETES": "Des athlètes te sont rattachés : tu ne peux pas cesser de coacher tant que ces relations existent.",
+        "ACTIVE_COACH": "Tu es rattaché à un coach : cette casquette ne peut pas être retirée tant que la relation existe."
       }
     }
   }

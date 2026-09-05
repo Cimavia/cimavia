@@ -1844,6 +1844,51 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Registre : le produit tutoie ([#124](https://github.com/Cimavia/cimavia/issues/124) · [#214](https://github.com/Cimavia/cimavia/issues/214))
+
+> **Tranché en #124** (tutoiement, les deux plateformes et les DEUX rôles) : la maquette le dessine
+> jusque sur les écrans coach (« Commence par inviter ton premier athlète », « Chargement de tes
+> athlètes… »), et rien dans la doc ne la contredit. Un registre par PLATEFORME casserait à la
+> première surface partagée ([#20](https://github.com/Cimavia/cimavia/issues/20) : un coach sur
+> mobile serait soudain tutoyé) ; un registre par RÔLE coûterait des clés dédoublées pour un gain
+> nul. Ce qui a emporté la décision n'est pas la maquette seule : le tutoiement était **déjà écrit
+> partout ailleurs** — les neuf libellés de push de `NotificationService`, et le catalogue e-mail
+> `infra/mail/locale/fr.ts` qui le documentait en commentaire depuis #63. Seuls les deux catalogues
+> front avaient glissé.
+
+> **Tranché en #124** (l'impératif de politesse vouvoie autant que le pronom) : l'issue comptait les
+> pronoms — 30 chaînes web, 3 mobile. Le compte réel est **36 et 10**, parce que « Saisissez votre
+> e-mail » et « Réessayez » s'adressent à un « vous » sans jamais l'écrire. Quatre des chaînes
+> corrigées n'avaient **aucun** pronom, dont une en milieu de phrase (« copiée — choisissez où la
+> coller ») : aucun grep manuel ne les avait sorties, le contrôle F les a trouvées du premier coup.
+
+> **Tranché en #124** (un contrôle en CI, pas seulement une ligne de doc) : l'issue ne demandait
+> qu'une convention écrite. Elle n'aurait rien empêché — la dérive avait déjà **récidivé après le
+> diagnostic**, le bloc `account.capabilities` étant arrivé vouvoyé aux DEUX catalogues entre la
+> rédaction de l'issue et son traitement. D'où le contrôle **[F]** de `check:i18n`, branché sur les
+> seuls catalogues `fr.json` (`en.json` de [#87](https://github.com/Cimavia/cimavia/issues/87) n'a
+> rien à y faire) **et** sur les chaînes littérales d'`apps/api/src` : `apiErrorMessage` rend
+> `error.message` brut, un refus d'exception est donc de l'UI. Huit y ont été corrigées, dont
+> `env.validation.ts`, dev-facing — tutoyée elle aussi pour que la garde n'ait aucune exception à
+> porter.
+
+> **Tranché en #124** (le piège nommé par l'issue n'existait pas) : l'issue exigeait de préserver
+> `messages.thread.you` (« Vous : »), étiquette d'expéditeur dans un fil. **Cette clé n'a jamais
+> existé** : l'aperçu préfixé est un écart déjà consigné dans `docs/maquettes/README.md`, non
+> rendable tant que `ConversationDto` n'expose pas l'auteur du dernier message. La vigilance reste
+> juste, elle n'avait simplement pas d'objet — elle vit maintenant dans `REGISTRE_EXEMPT`, vide, qui
+> attend cette clé le jour où elle arrivera.
+
+> **Tranché en #214** (la fin du mensonge se fait dans le même passage) : les deux libellés de refus
+> `account.capabilities.blocked.*` changent de SENS en même temps que de registre — ils disaient
+> « Retirez ces liens avant de cesser de coacher », geste qu'aucune route ne sait faire. Les livrer
+> séparément aurait fait réécrire deux fois les mêmes chaînes, la seconde annulant le registre de la
+> première : la formulation proposée par #214 était elle-même vouvoyée. Le vrai recours — rompre une
+> relation — reste cadré en [#213](https://github.com/Cimavia/cimavia/issues/213), et ces deux
+> libellés redeviendront des instructions le jour où il existera.
+
+---
+
 ## Post-MVP — Hauteur des cases de la semaine athlète ([#206](https://github.com/Cimavia/cimavia/issues/206))
 
 > **Tranché en #206** (l'écart est à la MAQUETTE, pas au code) : `athlete_web.dc.html` dessine

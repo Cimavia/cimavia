@@ -94,7 +94,7 @@ export class ConversationService {
       // `coachId = moi`, donc chercher `athleteId = moi` ne peut rien trouver et le refus tomberait
       // en « Athlète inconnu » — un état faux. L'athlète est parfaitement connu, c'est soi.
       if (athleteId === actor.userId) {
-        throw new ConflictException("Vous ne pouvez pas ouvrir un fil avec vous-même");
+        throw new ConflictException("Tu ne peux pas ouvrir un fil avec toi-même");
       }
       const relation = await this.db.coachAthlete.findFirst({
         where: { athleteId, status: CoachAthleteStatus.ACTIVE },
