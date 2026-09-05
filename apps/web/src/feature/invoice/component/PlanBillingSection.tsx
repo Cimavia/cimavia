@@ -133,7 +133,7 @@ export function PlanBillingSection({
           />
         </div>
 
-        <p className="text-cmv-caption text-cmv-text-lo">{t("invoice.billing.requiredLegend")}</p>
+        <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
 
         <CmvTextArea
           label={t("invoice.billing.note")}

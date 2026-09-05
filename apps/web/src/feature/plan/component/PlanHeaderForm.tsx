@@ -177,7 +177,7 @@ export function PlanHeaderForm({ plan, isSaving, onSave }: Readonly<PlanHeaderFo
             <CmvButton type="submit" onClick={onSubmit} disabled={!canSubmit}>
               {isSaving ? t("plan.header.submitting") : t("plan.header.submit")}
             </CmvButton>
-            <p className="text-cmv-caption text-cmv-text-lo">{t("plan.header.requiredLegend")}</p>
+            <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
           </div>
         )}
       </form>

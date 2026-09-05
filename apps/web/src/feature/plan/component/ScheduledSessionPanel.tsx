@@ -174,15 +174,20 @@ export function ScheduledSessionPanel({
 
           {/* Sans modèle, la séance part vide : il lui faut au moins un titre. */}
           {isEditing || sourceSessionId === "" ? (
-            <CmvTextField
-              label={t("plan.session.titleLabel")}
-              name="sessionTitle"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder={t("plan.session.titlePlaceholder")}
-              required
-              requiredMark
-            />
+            // La légende suit le champ dans son apparition : choisir un modèle retire le titre, et
+            // laisserait sinon une légende qui n'explique plus aucun astérisque.
+            <div className="flex flex-col gap-cmv-xs">
+              <CmvTextField
+                label={t("plan.session.titleLabel")}
+                name="sessionTitle"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={t("plan.session.titlePlaceholder")}
+                required
+                requiredMark
+              />
+              <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+            </div>
           ) : (
             <p className="text-cmv-caption text-cmv-text-lo">{t("plan.session.templateHint")}</p>
           )}

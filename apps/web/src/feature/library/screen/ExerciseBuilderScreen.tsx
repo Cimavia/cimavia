@@ -160,21 +160,26 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
       <InstructionMediaProvider media={draft.media}>
         <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex flex-col gap-cmv-xl">
-            <CmvTextField
-              label={t("library.builder.titleLabel")}
-              name="title"
-              value={draft.title}
-              onChange={(event) => draft.setTitle(event.target.value)}
-              onBlur={() => setTitleTouched(true)}
-              placeholder={t("library.builder.titlePlaceholder")}
-              required
-              requiredMark
-            />
-            {titleMissing ? (
-              <p className="text-cmv-caption text-cmv-error">
-                {t("library.builder.titleRequired")}
-              </p>
-            ) : null}
+            {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
+                (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
+            <div className="flex flex-col gap-cmv-xs">
+              <CmvTextField
+                label={t("library.builder.titleLabel")}
+                name="title"
+                value={draft.title}
+                onChange={(event) => draft.setTitle(event.target.value)}
+                onBlur={() => setTitleTouched(true)}
+                placeholder={t("library.builder.titlePlaceholder")}
+                required
+                requiredMark
+              />
+              {titleMissing ? (
+                <p className="text-cmv-caption text-cmv-error">
+                  {t("library.builder.titleRequired")}
+                </p>
+              ) : null}
+              <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+            </div>
 
             <CmvTagInput
               label={t("library.tags.label")}
