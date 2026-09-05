@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { MailModule } from "../infra/mail/mail.module";
 import { AthleteSheetController } from "./controller/athlete-sheet.controller";
 import { CapabilityController } from "./controller/capability.controller";
 import { InvitationController } from "./controller/invitation.controller";
@@ -12,6 +13,9 @@ import { UserDirectoryService } from "./service/user-directory.service";
 
 // Comptes, rôles, relation coach↔athlète et fiche athlète (cf. architecture-choice §2).
 @Module({
+  // MailModule : le second canal d'une invitation nominative (#146), pour une adresse qui n'a pas
+  // encore de compte. Importé et non global — l'envoi d'e-mails n'a pas à être visible partout.
+  imports: [MailModule],
   controllers: [
     InvitationController,
     RelationController,

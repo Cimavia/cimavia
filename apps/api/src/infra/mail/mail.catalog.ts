@@ -51,6 +51,20 @@ export type NotificationMailParams = {
   subjectLabel: string | null;
 };
 
+/**
+ * Ce qu'une invitation a pour se présenter : QUI invite, et avec quel code (#146).
+ *
+ * `coachName` est nullable et chaque gabarit a donc deux formulations, comme les notifications :
+ * un nom introuvable ne doit pas empêcher l'e-mail de partir — c'est la seule chose qui atteindra
+ * jamais cette adresse, personne n'ayant de compte pour lire autre chose.
+ */
+export type InvitationMailParams = {
+  coachName: string | null;
+  code: string;
+  /** Durée de validité réelle, passée par l'appelant — jamais réécrite ici (cf. `resetPassword`). */
+  expiresInDays: number;
+};
+
 export type MailStrings = {
   code: Locale;
   common: {
@@ -65,6 +79,25 @@ export type MailStrings = {
     intro: string;
     cta: string;
     expiry: (hours: number) => string;
+    ignore: string;
+  };
+  /**
+   * Invitation d'un athlète qui n'a pas encore de compte (#146) — le SEUL e-mail du produit adressé
+   * à quelqu'un qui n'en est pas encore utilisateur.
+   *
+   * Deux conséquences sur la rédaction. Le **code** est le contenu, pas un détail : sans lui le
+   * message ne sert à rien, et il doit rester lisible même quand `WEB_URL` n'est pas configurée et
+   * que le lien disparaît. Et le message dit **qui invite**, parce que le destinataire n'a aucun
+   * autre contexte — contrairement à toutes les notifications, qui s'adressent à quelqu'un qui
+   * connaît déjà son coach.
+   */
+  invitation: {
+    subject: (coachName: string | null) => string;
+    heading: string;
+    intro: (coachName: string | null) => string;
+    codeLine: (code: string) => string;
+    expiry: (days: number) => string;
+    cta: string;
     ignore: string;
   };
   /**
@@ -90,9 +123,15 @@ export type NotificationMailInput = NotificationMailParams & {
   settingsUrl: string | null;
 };
 
+export type InvitationMailInput = InvitationMailParams & {
+  /** Lien vers l'inscription. `null` quand `WEB_URL` n'est pas configurée — le code reste, lui. */
+  registerUrl: string | null;
+};
+
 export type MailCatalog = {
   resetPassword(params: ResetPasswordParams): MailTemplate;
   notification(type: EmailableNotificationType, params: NotificationMailInput): MailTemplate;
+  invitation(params: InvitationMailInput): MailTemplate;
 };
 
 // `Record<Locale, …>` et non un objet libre : ajouter une valeur à `Locale` sans écrire son
@@ -135,6 +174,25 @@ export function mailCatalog(locale: string | null | undefined): MailCatalog {
       };
       return {
         subject: strings.resetPassword.subject,
+        text: renderText(body, strings),
+        html: renderHtml(body, strings),
+      };
+    },
+    invitation: ({ registerUrl, coachName, code, expiresInDays }) => {
+      const body = {
+        heading: strings.invitation.heading,
+        paragraphs: [
+          strings.invitation.intro(coachName),
+          // Le code AVANT le lien : c'est lui le contenu du message, et il reste seul debout
+          // quand `WEB_URL` n'est pas configurée.
+          strings.invitation.codeLine(code),
+          strings.invitation.expiry(expiresInDays),
+          strings.invitation.ignore,
+        ],
+        ...(registerUrl != null && { cta: strings.invitation.cta, url: registerUrl }),
+      };
+      return {
+        subject: strings.invitation.subject(coachName),
         text: renderText(body, strings),
         html: renderHtml(body, strings),
       };

@@ -6338,3 +6338,78 @@ describe("Notifications d'invitation (#146)", () => {
     expect(await typesOf(coachOnly)).toEqual([]);
   });
 });
+
+/**
+ * L'e-mail d'invitation (#146) — le seul message du produit adressé à quelqu'un qui n'est pas
+ * encore utilisateur. Sans lui, saisir l'adresse d'un futur athlète restait un geste sans effet :
+ * le centre et le push ne peuvent rien pour un compte qui n'existe pas.
+ */
+describe("E-mail d'invitation vers une adresse sans compte (#146)", () => {
+  let coach: Agent;
+
+  beforeAll(async () => {
+    coach = await signUpWith("mi-coach@cmv.test", { isCoach: true, isAthlete: false });
+  });
+
+  beforeEach(() => {
+    sentMails.length = 0;
+  });
+
+  it("écrit à l'adresse invitée, avec le code et le nom de l'inviteur", async () => {
+    const invitation = await coach.post("/invitations").send({ email: "mi-inconnu@cmv.test" });
+    expect(invitation.status).toBe(201);
+
+    const mail = required(sentMails[0], "e-mail d'invitation");
+    expect(mail.to).toBe("mi-inconnu@cmv.test");
+    // Le code EST le contenu : sans lui le destinataire n'a rien sur quoi agir.
+    expect(mail.text).toContain(invitation.body.code);
+    // `signUp` pose `name = email` : c'est l'adresse du coach qu'on lit comme nom.
+    expect(mail.subject).toContain("mi-coach@cmv.test");
+  });
+
+  /**
+   * Le partage des canaux, vu de l'extérieur : un compte athlète est prévenu DANS l'application,
+   * pas par e-mail. Le lui envoyer doublerait un message qu'il verra de toute façon, et
+   * `INVITATION_RECEIVED` est justement hors de l'opt-in (#65) pour cette raison.
+   */
+  it("n'écrit pas à une adresse qui a déjà un compte athlète", async () => {
+    await signUp("mi-inscrit@cmv.test", Role.ATHLETE);
+    expect((await coach.post("/invitations").send({ email: "mi-inscrit@cmv.test" })).status).toBe(
+      201,
+    );
+
+    expect(sentMails).toEqual([]);
+  });
+
+  // Personne n'est visé : le canal d'une invitation générique est le code transmis à la main.
+  it("n'écrit à personne pour une invitation générique", async () => {
+    expect((await coach.post("/invitations").send({})).status).toBe(201);
+    expect(sentMails).toEqual([]);
+  });
+
+  /**
+   * Un compte COACH SEUL ne peut pas accepter : il ne reçoit donc pas de notification, mais il
+   * n'est pas laissé sans rien pour autant — c'est l'e-mail qui le joint, avec le code qu'il
+   * pourra utiliser une fois la casquette athlète activée.
+   */
+  it("écrit à un compte qui ne porte pas la capacité athlète", async () => {
+    await signUpWith("mi-coach-seul@cmv.test", { isCoach: true, isAthlete: false });
+    expect(
+      (await coach.post("/invitations").send({ email: "mi-coach-seul@cmv.test" })).status,
+    ).toBe(201);
+
+    expect(required(sentMails[0], "e-mail d'invitation").to).toBe("mi-coach-seul@cmv.test");
+  });
+
+  /**
+   * La casse de l'adresse ne change ni la destination ni le canal. Le message part à l'adresse
+   * NORMALISÉE, celle-là même qui sera comparée à la session au moment d'accepter — sans quoi on
+   * écrirait à une forme de l'adresse et on en attendrait une autre.
+   */
+  it("écrit à l'adresse normalisée, quelle que soit la casse saisie", async () => {
+    expect((await coach.post("/invitations").send({ email: "MI-Casse@CMV.test" })).status).toBe(
+      201,
+    );
+    expect(required(sentMails[0], "e-mail d'invitation").to).toBe("mi-casse@cmv.test");
+  });
+});

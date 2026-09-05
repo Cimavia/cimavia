@@ -185,3 +185,70 @@ describe("mailCatalog — gabarits de notification", () => {
     expect(mail.subject).not.toContain("texte confidentiel");
   });
 });
+
+describe("mailCatalog — gabarit d'invitation", () => {
+  const PARAMS = { coachName: "Marc Keller", code: "7QK4M2XZ9", expiresInDays: 7 };
+
+  /**
+   * Le CODE est le contenu de ce message : sans lui, le destinataire n'a rien sur quoi agir. Il
+   * doit donc figurer dans les deux corps — et le test le vérifie AUSSI sans lien, parce que
+   * c'est le cas où il porte le message tout seul.
+   */
+  it("porte le code dans les deux corps, avec ou sans lien d'inscription", () => {
+    const withLink = mailCatalog(Locale.FR).invitation({
+      ...PARAMS,
+      registerUrl: "https://app.cimavia.fr/register",
+    });
+    expect(withLink.text).toContain("7QK4M2XZ9");
+    expect(withLink.html).toContain("7QK4M2XZ9");
+    expect(withLink.html).toContain("https://app.cimavia.fr/register");
+
+    const withoutLink = mailCatalog(Locale.FR).invitation({ ...PARAMS, registerUrl: null });
+    expect(withoutLink.text).toContain("7QK4M2XZ9");
+    expect(withoutLink.html).toContain("7QK4M2XZ9");
+    expect(withoutLink.html).not.toContain("<a href");
+  });
+
+  /**
+   * Le destinataire n'a AUCUN contexte — pas de compte, pas d'application, rien qui dise de qui
+   * vient ce message. Le nom du coach est donc dans l'objet, et c'est ce qui distingue cet e-mail
+   * d'un courrier non sollicité.
+   */
+  it("nomme l'inviteur dans l'objet, et se replie sans mentir quand le nom manque", () => {
+    expect(mailCatalog(Locale.FR).invitation({ ...PARAMS, registerUrl: null }).subject).toContain(
+      "Marc Keller",
+    );
+    const anonymous = mailCatalog(Locale.FR).invitation({
+      ...PARAMS,
+      coachName: null,
+      registerUrl: null,
+    });
+    expect(anonymous.subject.length).toBeGreaterThan(0);
+    expect(anonymous.subject).not.toContain("null");
+    expect(anonymous.text).not.toContain("null");
+  });
+
+  // Comme la validité du lien de réinitialisation : la durée annoncée est celle qu'on reçoit,
+  // jamais une valeur réécrite dans le gabarit.
+  it("interpole la durée de validité qu'on lui donne, dans les deux langues", () => {
+    expect(
+      mailCatalog(Locale.FR).invitation({ ...PARAMS, expiresInDays: 3, registerUrl: null }).text,
+    ).toContain("3 jours");
+    expect(
+      mailCatalog(Locale.EN).invitation({ ...PARAMS, expiresInDays: 3, registerUrl: null }).text,
+    ).toContain("3 days");
+    expect(fr.invitation.expiry(1)).toContain("une journée");
+    expect(en.invitation.expiry(1)).toContain("one day");
+  });
+
+  /**
+   * Le message part vers une adresse dont on ne sait RIEN — elle peut appartenir à quelqu'un qui
+   * n'a jamais entendu parler du produit. Il doit donc dire comment l'ignorer, et surtout ne rien
+   * révéler en retour : recevoir cet e-mail n'apprend à personne d'autre qu'on l'a reçu.
+   */
+  it("dit comment l'ignorer, dans les deux langues", () => {
+    expect(fr.invitation.ignore.length).toBeGreaterThan(0);
+    expect(en.invitation.ignore.length).toBeGreaterThan(0);
+    expect(en.invitation.ignore).not.toBe(fr.invitation.ignore);
+  });
+});

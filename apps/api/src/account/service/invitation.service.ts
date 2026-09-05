@@ -15,6 +15,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { InvitationMailer } from "../../infra/mail/invitation.mailer";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -51,6 +52,7 @@ export class InvitationService {
     private readonly prisma: PrismaService,
     private readonly users: UserDirectoryService,
     private readonly notifications: NotificationService,
+    private readonly mailer: InvitationMailer,
   ) {}
 
   // Coach : émet une invitation (code + expiration). coachId injecté par le tenancy layer.
@@ -72,28 +74,51 @@ export class InvitationService {
   }
 
   /**
-   * Prévenir l'invité, s'il y a quelqu'un à prévenir (#146).
+   * Prévenir l'invité — par le canal qu'il a (#146).
    *
-   * Deux issues seulement, et l'important est ce qu'elles ont en commun : **la réponse HTTP est la
-   * même**. Le coach reçoit son invitation, avec son code, que l'adresse ait un compte ou non —
-   * sinon la route dirait qui est inscrit chez nous.
+   * Trois issues, et l'important est ce qu'elles ont en commun : **la réponse HTTP est identique**.
+   * Le coach reçoit son invitation et son code dans tous les cas — sinon la route dirait qui est
+   * inscrit chez nous.
    *
-   * - **Invitation générique** (`email === null`) : personne n'est visé, rien à envoyer.
-   * - **Adresse rattachée à un compte athlète** : notification (centre + push).
+   * - **Invitation générique** (`email === null`) : personne n'est visé, rien à envoyer. Son canal
+   *   est le code transmis de la main à la main.
+   * - **Adresse rattachée à un compte athlète** : notification (centre + push). Il a une
+   *   application où lire, l'e-mail n'ajouterait rien qu'il n'y verra pas.
+   * - **Tout le reste** — pas de compte, ou un compte qui ne porte pas la capacité athlète :
+   *   e-mail. C'est le cas le PLUS COURANT, celui du nouvel athlète qu'on invite, et c'est
+   *   exactement lui qui ne recevait rien jusqu'ici.
    *
-   * Une adresse SANS compte athlète ne reçoit rien pour l'instant — et c'est le cas le plus
-   * courant, celui du nouvel athlète qu'on invite. Son canal est l'e-mail, branché juste après.
+   * Aucune des deux branches ne fait échouer la création : les deux appelés absorbent leurs
+   * pannes, comme le veut la règle 2 de `NotificationService`.
    */
-  private async announce(invitation: { id: string; coachId: string; email: string | null }) {
+  private async announce(invitation: {
+    id: string;
+    coachId: string;
+    code: string;
+    email: string | null;
+  }) {
     if (invitation.email == null) return;
 
-    const athleteId = await this.users.athleteIdByEmail(invitation.email);
-    if (athleteId == null) return;
+    // Résolu une fois pour les deux canaux : c'est la même question — qui invite ?
+    const coachName = (await this.users.namesByIds([invitation.coachId])).get(invitation.coachId);
 
-    await this.notifications.notifyInvitationReceived({
-      athleteId,
-      coachId: invitation.coachId,
-      invitationId: invitation.id,
+    const athleteId = await this.users.athleteIdByEmail(invitation.email);
+    if (athleteId != null) {
+      await this.notifications.notifyInvitationReceived({
+        athleteId,
+        coachId: invitation.coachId,
+        invitationId: invitation.id,
+      });
+      return;
+    }
+
+    await this.mailer.send({
+      to: invitation.email,
+      coachName: coachName ?? null,
+      code: invitation.code,
+      // Dérivée de la constante, jamais réécrite : l'e-mail part à la création, la durée annoncée
+      // est donc exactement celle qui reste (« les plafonds ne s'écrivent jamais en dur », #20).
+      expiresInDays: INVITATION_TTL_MS / (24 * 60 * 60 * 1000),
     });
   }
 

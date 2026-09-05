@@ -22,6 +22,21 @@ export const en = {
       hours > 1 ? `This link is valid for ${hours} hours.` : "This link is valid for one hour.",
     ignore: "If you did not ask for this, ignore this email: your password stays unchanged.",
   },
+  invitation: {
+    subject: (coachName) =>
+      coachName != null
+        ? `${coachName} invited you to Cimavia`
+        : "An invitation is waiting for you on Cimavia",
+    heading: "Join your coach on Cimavia",
+    intro: (coachName) =>
+      `${coachName ?? "A coach"} invited you to their Cimavia space, to follow your training plans and debrief your sessions.`,
+    codeLine: (code) => `Your invitation code: ${code}`,
+    expiry: (days) =>
+      days > 1 ? `This code is valid for ${days} days.` : "This code is valid for one day.",
+    cta: "Create my account",
+    ignore:
+      "If you do not know this person, ignore this email: nothing will happen, and nobody will learn that you received it.",
+  },
   // Deux formulations par gabarit, comme en français : le sujet est nullable, et des guillemets
   // vides seraient pires qu'une phrase générique.
   notification: {
