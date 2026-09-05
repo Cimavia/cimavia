@@ -3,7 +3,9 @@ import type { CoachAthleteDto, CounterpartsDto } from "../dto/coach-athlete.sche
 import type {
   AcceptInvitationInput,
   CreateInvitationInput,
+  DeclineInvitationInput,
   InvitationDto,
+  PendingInvitationDto,
 } from "../dto/invitation.schema";
 import type { ApiClient } from "./client";
 
@@ -37,6 +39,15 @@ export const athleteKeys = {
 export const invitationKeys = {
   all: ["invitations"] as const,
   list: () => ["invitations", "list"] as const,
+  /**
+   * Les invitations qui attendent l'athlète courant (#146) — SOUS la même racine que la liste du
+   * coach, et c'est voulu : les deux vues portent sur la même table, et refuser une invitation
+   * doit périmer les deux d'un seul `invalidateQueries({ queryKey: invitationKeys.all })`.
+   *
+   * Un compte à double capacité tient donc les deux en cache en même temps, sans qu'elles se
+   * marchent dessus — ce sont deux clés distinctes.
+   */
+  forMe: () => ["invitations", "for-me"] as const,
 };
 
 export const coachKeys = {
@@ -63,6 +74,11 @@ export type AccountApi = {
   saveAthleteSheet: (athleteId: string, input: UpdateAthleteSheetInput) => Promise<AthleteSheetDto>;
   listInvitations: () => Promise<InvitationDto[]>;
   createInvitation: (input: CreateInvitationInput) => Promise<InvitationDto>;
+  /**
+   * Efface une invitation REFUSÉE. 409 sur tout autre état — retirer une invitation en attente
+   * serait une révocation, qui est une transition à part et n'a pas de chemin.
+   */
+  deleteInvitation: (invitationId: string) => Promise<void>;
 
   // ── Côté athlète ───────────────────────────────────────────────────────────
   /**
@@ -70,8 +86,22 @@ export type AccountApi = {
    * l'athlète autonome est un état prévu du modèle (relation nullable dès P1).
    */
   myCoach: () => Promise<CoachAthleteDto | null>;
+  /**
+   * Les invitations nominatives qui attendent l'athlète courant (#146) — `PENDING`, non expirées,
+   * adressées à l'adresse de SA session. Le filtre n'est pas un paramètre : la route le tire de la
+   * session, sans quoi elle deviendrait l'annuaire de qui a été invité par qui.
+   *
+   * Liste vide = personne ne l'a invité. C'est un état normal, pas une erreur.
+   */
+  myInvitations: () => Promise<PendingInvitationDto[]>;
   /** Rejoint un coach avec le code qu'il a communiqué. 409 si l'athlète est déjà lié. */
   acceptInvitation: (input: AcceptInvitationInput) => Promise<CoachAthleteDto>;
+  /**
+   * Refuse une invitation. Le geste est SANS RETOUR — le coach devra réémettre —, et il exige une
+   * correspondance d'adresse stricte côté API, là où l'acceptation ne la vérifie que sur une
+   * invitation nominative.
+   */
+  declineInvitation: (input: DeclineInvitationInput) => Promise<void>;
 
   // ── Les deux côtés à la fois ───────────────────────────────────────────────
   /**
@@ -92,9 +122,12 @@ export function createAccountApi(api: ApiClient): AccountApi {
       api.put<AthleteSheetDto>(`/athletes/${athleteId}/sheet`, input),
     listInvitations: () => api.get<InvitationDto[]>("/invitations"),
     createInvitation: (input) => api.post<InvitationDto>("/invitations", input),
+    deleteInvitation: (invitationId) => api.delete<void>(`/invitations/${invitationId}`),
 
     myCoach: () => api.get<CoachAthleteDto | null>("/me/coach"),
+    myInvitations: () => api.get<PendingInvitationDto[]>("/invitations/for-me"),
     acceptInvitation: (input) => api.post<CoachAthleteDto>("/invitations/accept", input),
+    declineInvitation: (input) => api.post<void>("/invitations/decline", input),
 
     myCounterparts: () => api.get<CounterpartsDto>("/me/counterparts"),
   };

@@ -44,6 +44,19 @@ describe("createAccountApi — moitié coach", () => {
     ]);
   });
 
+  /**
+   * DELETE et non PATCH vers un statut : effacer une invitation refusée la retire pour de bon.
+   * L'API n'accepte ce verbe que sur `DECLINED` — une invitation en attente y répond 409, parce
+   * que la retirer serait une révocation, c'est-à-dire une autre transition.
+   */
+  it("efface une invitation par son id", async () => {
+    const { api, calls } = spyClient();
+
+    await createAccountApi(api).deleteInvitation("inv_1");
+
+    expect(calls).toEqual([{ method: "DELETE", path: "/invitations/inv_1", body: undefined }]);
+  });
+
   // PUT et non PATCH : la fiche est UN champ texte libre, remplacé en entier à chaque
   // enregistrement. Il n'y a rien à fusionner.
   it("lit et remplace la fiche d'un athlète", async () => {
@@ -87,6 +100,38 @@ describe("createAccountApi — moitié athlète", () => {
   });
 });
 
+describe("createAccountApi — les invitations reçues (#146)", () => {
+  /**
+   * La lecture ne porte AUCUN paramètre, et c'est la propriété qu'on fige : l'API tire l'adresse
+   * de la session. Un `?email=` transformerait la route en annuaire — qui a été invité, par qui.
+   */
+  it("lit ce qui m'attend sans passer d'adresse", async () => {
+    const { api, calls } = spyClient();
+
+    await createAccountApi(api).myInvitations();
+
+    expect(calls).toEqual([{ method: "GET", path: "/invitations/for-me", body: undefined }]);
+  });
+
+  /**
+   * Accepter et refuser sont deux TRANSITIONS distinctes, donc deux routes — mais l'acceptation
+   * reste celle qui existait : le client reprend le code de la liste et appelle
+   * `POST /invitations/accept`, plutôt qu'un second chemin vers la même transition (#105).
+   */
+  it("accepte et refuse par le même code, sur deux routes distinctes", async () => {
+    const { api, calls } = spyClient();
+    const account = createAccountApi(api);
+
+    await account.acceptInvitation({ code: "7QK4M2XZ9" });
+    await account.declineInvitation({ code: "7QK4M2XZ9" });
+
+    expect(calls).toEqual([
+      { method: "POST", path: "/invitations/accept", body: { code: "7QK4M2XZ9" } },
+      { method: "POST", path: "/invitations/decline", body: { code: "7QK4M2XZ9" } },
+    ]);
+  });
+});
+
 describe("createAccountApi — les deux côtés à la fois", () => {
   // Un GET nu, sans paramètre de titre : la route ne demande à choisir aucun espace, c'est ce qui
   // permet à la navigation de l'appeler avant de savoir lequel elle affiche (#198).
@@ -118,8 +163,18 @@ describe("clés de cache", () => {
     expect(athleteKeys.list()[0]).toBe(athleteKeys.all[0]);
     expect(athleteKeys.sheet("ath_1")[0]).toBe(athleteKeys.all[0]);
     expect(invitationKeys.list()[0]).toBe(invitationKeys.all[0]);
+    expect(invitationKeys.forMe()[0]).toBe(invitationKeys.all[0]);
     expect(coachKeys.mine()[0]).toBe(coachKeys.all[0]);
     expect(counterpartKeys.mine()[0]).toBe(counterpartKeys.all[0]);
+  });
+
+  /**
+   * Les deux vues des invitations partagent leur racine — c'est ce qui permet à un refus de
+   * périmer d'un coup la liste de l'athlète ET celle du coach — mais restent deux entrées
+   * distinctes : un compte à double capacité tient les deux en cache sans qu'elles s'écrasent.
+   */
+  it("distingue la liste du coach de celle de l'athlète", () => {
+    expect(invitationKeys.forMe()).not.toEqual(invitationKeys.list());
   });
 
   // La fiche est scopée par athlète : deux athlètes ne doivent jamais partager une entrée de cache.
