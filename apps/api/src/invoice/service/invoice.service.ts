@@ -145,7 +145,7 @@ export class InvoiceService {
     });
     if (draft != null) {
       throw new ConflictException(
-        "Ce cycle a une facturation saisie : affectez-le à un autre athlète plutôt que de le laisser sans destinataire",
+        "Ce cycle a une facturation saisie : affecte-le à un autre athlète plutôt que de le laisser sans destinataire",
       );
     }
   }
