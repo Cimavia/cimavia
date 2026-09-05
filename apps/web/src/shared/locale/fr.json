@@ -984,6 +984,19 @@
       "sinceUnknown": "Coach · date de rattachement —",
       "message": "Message"
     },
+    "invitation": {
+      "title": "{{name}} t'invite à le rejoindre",
+      "expires": "Invitation valable jusqu'au {{date}}",
+      "join": "Rejoindre {{name}}",
+      "joining": "Connexion en cours…",
+      "blocked": "Tu es déjà suivi par {{name}} : tu ne peux pas accepter une autre invitation.",
+      "decline": "Refuser",
+      "declineConfirm": "Confirmer le refus",
+      "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
+      "toast": {
+        "declined": "Invitation refusée"
+      }
+    },
     "missing": {
       "title": "Aucun coach pour l'instant",
       "description": "Saisis le code d'invitation que ton coach t'a partagé pour rejoindre son espace."

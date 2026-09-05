@@ -2,7 +2,8 @@ import type { CoachAthleteDto } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAcceptInvitation, useMyCoach } from "@/feature/coach/hook/useMyCoach";
+import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
+import { useAcceptInvitation, useMyCoach, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
 import {
   CmvAppShell,
   CmvAvatar,
@@ -22,6 +23,11 @@ import { formatDate } from "@/shared/util/date.util";
  * Trois états, comme la maquette : lié, aucun coach, code refusé. Ils ne sont pas trois variantes
  * d'un même écran mais trois situations distinctes — d'où deux rendus séparés plutôt qu'un
  * formulaire qu'on désactiverait.
+ *
+ * Un QUATRIÈME s'y superpose depuis #146 : « une invitation t'attend ». Il ne remplace aucun des
+ * trois — il se pose AU-DESSUS, dans les deux branches. Déjà lié, l'athlète la voit quand même,
+ * inacceptable mais refusable : c'est ce refus qui vide la liste d'attente de l'inviteur, et le
+ * masquer laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien.
  */
 export function MyCoachScreen() {
   const { t } = useTranslation();
@@ -43,13 +49,39 @@ export function MyCoachScreen() {
       ) : null}
 
       {!isPending && !isError ? (
-        coach == null ? (
-          <JoinCoachForm />
-        ) : (
-          <LinkedCoachCard coach={coach} />
-        )
+        <div className="flex flex-col gap-cmv-lg">
+          <PendingInvitations currentCoachName={coach?.coachName ?? null} />
+          {coach == null ? <JoinCoachForm /> : <LinkedCoachCard coach={coach} />}
+        </div>
       ) : null}
     </CmvAppShell>
+  );
+}
+
+/**
+ * Ce qui attend l'athlète, s'il y a quelque chose — et rien du tout sinon.
+ *
+ * **Une requête en échec ne s'annonce pas comme une liste vide** : dans les deux cas on ne rend
+ * rien, mais on n'écrit jamais « aucune invitation » sur une API injoignable. C'est le même
+ * raisonnement que l'état d'erreur de l'écran, qui refuse d'afficher le formulaire de code quand
+ * il n'a pas pu lire — sauf qu'ici l'absence d'invitation est le cas ORDINAIRE, et qu'un bandeau
+ * d'erreur pour ça inquiéterait sans rien apprendre. L'écran reste utilisable : le formulaire de
+ * code, lui, est dessous.
+ */
+function PendingInvitations({ currentCoachName }: Readonly<{ currentCoachName: string | null }>) {
+  const { data: invitations } = useMyInvitations();
+  if (invitations == null || invitations.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-cmv-md">
+      {invitations.map((invitation) => (
+        <PendingInvitationCard
+          key={invitation.id}
+          invitation={invitation}
+          currentCoachName={currentCoachName}
+        />
+      ))}
+    </div>
   );
 }
 
