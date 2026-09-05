@@ -1859,11 +1859,15 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > d'eux-mêmes. Le seul ajout à la carte est un `mt-auto` sur le statut, qui vaut zéro tant qu'il n'y
 > a pas de hauteur en trop à distribuer : un seul rendu, deux contextes.
 
-> **Tranché en #206** (le plancher et l'étirement sont bornés à `xl`) : la rangée de sept jours
-> n'existe qu'à partir de `xl`. En `md:grid-cols-2` on égaliserait des paires que personne ne
-> compare, et en une colonne on ferait monter à 96 px des cartes qui n'ont rien à aligner — du blanc
-> à faire défiler sur écran étroit. Sous `xl`, le rendu est donc **inchangé**, `min-h-24` restant
-> sur la boîte « Repos », qui y tient seule le plancher de la journée.
+> **Tranché en #206** (le plancher vaut à TOUTES les largeurs, après un aller-retour) : le premier
+> jet bornait plancher et étirement à `xl`, au motif que la rangée de sept jours n'existe que là.
+> Le rendu réel a démenti : en `md:grid-cols-2`, la boîte « Repos » gardait son `min-h-24` quand la
+> carte de séance n'en avait toujours aucun — l'écart de plancher exact que l'issue décrit, laissé
+> intact là où on le voit. Le plancher est donc porté par le conteneur du jour, sans préfixe, et
+> retiré de la boîte « Repos » : un seul plancher, une seule définition. L'écart assumé de l'issue
+> ne portait que sur l'**autre** geste, `auto-rows-fr` sur la grille EXTERNE, qui donnerait à
+> chacune des huit cases de `md` la hauteur de la plus haute séance de la semaine. Celui-là n'est
+> toujours pas posé : les rangées de `md` restent indépendantes les unes des autres.
 
 ---
 
