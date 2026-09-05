@@ -49,7 +49,7 @@ export function CmvCrashScreen({ error }: Readonly<CmvCrashScreenProps>) {
         {translatedOr(
           t("common.crash.description"),
           "common.crash.description",
-          "L'incident nous a été signalé. Rechargez la page pour reprendre où vous en étiez.",
+          "L'incident nous a été signalé. Recharge la page pour reprendre où tu en étais.",
         )}
       </p>
       <CmvButton onClick={() => window.location.reload()}>
