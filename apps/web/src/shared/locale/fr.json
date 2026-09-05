@@ -534,7 +534,7 @@
       "weekPastedPlain": "Semaine collée"
     },
     "clipboard": {
-      "banner": "Semaine {{number}} de « {{plan}} » copiée — choisissez où la coller.",
+      "banner": "Semaine {{number}} de « {{plan}} » copiée — choisis où la coller.",
       "clear": "Annuler la copie"
     },
     "tracking": {

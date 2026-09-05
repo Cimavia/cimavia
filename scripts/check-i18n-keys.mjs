@@ -20,6 +20,7 @@
  *      chaque valeur littérale affectée à cette variable (elles sont passées en dur, cf.
  *      `SessionBuilder` / `ScheduledSessionPanel`).
  *   E. Clés mortes — présentes au catalogue, mentionnées nulle part (non bloquant sans `--strict`).
+ *   F. Registre — aucun vouvoiement, ni au catalogue français ni dans les chaînes de l'API.
  *
  * CE QU'IL NE PEUT PAS VÉRIFIER : les valeurs derrière `${x}` en B, qui viennent d'un enum au
  * runtime. B garantit que le nœud parent existe ; C et D vont plus loin quand la forme le permet.
@@ -33,7 +34,7 @@
 
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -261,6 +262,86 @@ function leafKeys(node, prefix = "") {
   );
 }
 
+// ── Registre (contrôle F) ────────────────────────────────────────────────────
+
+/**
+ * Le produit TUTOIE son lecteur — les deux plateformes, les deux rôles, e-mails et push compris
+ * (`architecture-choice.md` §10, tranché en #124). Ce contrôle refuse le vouvoiement AVANT qu'il
+ * n'entre au catalogue.
+ *
+ * POURQUOI un contrôle plutôt qu'une ligne de doc : la dérive s'était déjà produite deux fois — le
+ * catalogue web en entier, puis le bloc `account.capabilities` ajouté vouvoyé AUX DEUX catalogues
+ * APRÈS que #124 l'ait diagnostiquée. Une convention que rien n'applique n'est pas une convention.
+ *
+ * DEUX MOTIFS, parce que le pronom ne suffit pas : « Saisissez votre e-mail » vouvoie par le
+ * pronom, « Réessayez » par le seul impératif. Trois des chaînes trouvées en #124 n'avaient aucun
+ * pronom — aucun grep manuel ne les avait sorties, celui-ci les a trouvées du premier coup.
+ *
+ * PÉRIMÈTRE : les catalogues FRANÇAIS des deux apps, et les chaînes littérales d'`apps/api/src`
+ * (refus d'exception rendus tels quels par `apiErrorMessage`, catalogue e-mail, libellés de push).
+ * Le jour où `en.json` arrive (#87) il ne doit PAS passer ici : le contrôle est branché sur les
+ * seuls catalogues `fr.json`.
+ */
+const VOUVOIEMENT = /(?<!\p{L})(?:vous|votre|vos|veuillez)(?!\p{L})/giu;
+const IMPERATIF = /(?<!\p{L})\p{L}+ez(?!\p{L})/giu;
+
+// Les mots en -ez qui ne sont pas des verbes. À compléter, jamais à contourner.
+const NON_VERBES = new Set(["assez", "chez", "nez", "rez"]);
+
+/**
+ * Les clés où « vous » désigne un TIERS et non le lecteur. Vide aujourd'hui : elle existe pour
+ * l'aperçu « Vous : » du fil de conversation, que la maquette prévoit et que `ConversationDto` ne
+ * sait pas encore rendre (l'auteur du dernier message n'est pas exposé). Le jour où il arrive, il
+ * s'inscrit ICI plutôt que de faire sauter le contrôle.
+ */
+const REGISTRE_EXEMPT = new Set([]);
+
+// Les chaînes littérales d'un source TypeScript : doubles quotes et gabarits — Biome normalise les
+// quotes simples, il n'y a rien d'autre à lire. Les commentaires passent au travers, et c'est
+// voulu : ils ne s'affichent nulle part.
+const LITTERAUX = [/"((?:[^"\\]|\\.)*)"/g, /`((?:[^`\\]|\\.)*)`/g];
+
+// Le mot fautif, ou `null`. Le mot plutôt qu'un booléen : c'est lui qui rend l'erreur actionnable.
+function vouvoiement(text) {
+  const pronom = text.match(VOUVOIEMENT);
+  if (pronom != null) return pronom[0];
+  for (const [mot] of text.matchAll(IMPERATIF)) {
+    if (!NON_VERBES.has(mot.toLowerCase())) return mot;
+  }
+  return null;
+}
+
+function checkRegistre(catalog) {
+  const errors = [];
+  for (const key of leafKeys(catalog)) {
+    if (REGISTRE_EXEMPT.has(key)) continue;
+    const mot = vouvoiement(nodeAt(catalog, key));
+    if (mot != null) errors.push(`[F] vouvoiement (« ${mot} ») : ${key}`);
+  }
+  return errors;
+}
+
+function checkApiRegistre() {
+  const errors = [];
+  const out = execSync(
+    `find ${resolve(ROOT, "apps/api/src")} -type f -name '*.ts' ! -name '*.spec.ts'`,
+    { encoding: "utf8" },
+  );
+  for (const file of out.trim().split("\n").filter(Boolean)) {
+    const src = readFileSync(file, "utf8");
+    for (const pattern of LITTERAUX) {
+      for (const [, value] of src.matchAll(pattern)) {
+        const mot = vouvoiement(value);
+        if (mot == null) continue;
+        errors.push(
+          `[F] vouvoiement (« ${mot} ») : ${relative(ROOT, file)} — ${value.slice(0, 70)}`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
 // ── Contrôles ────────────────────────────────────────────────────────────────
 
 function checkLiterals(catalog, literals, errors) {
@@ -354,7 +435,10 @@ function check({ app, catalog: catalogPath, sources }) {
   checkDynamicPrefixes(catalog, found, errors, reachable, unverified);
   checkVariablePrefixes(catalog, found.variablePrefixes, found.prefixLiterals, errors, reachable);
 
-  return { app, errors, dead: findDeadKeys(catalog, reachable), unverified };
+  // Le registre ne concerne que le français : `en.json` (#87) n'a pas de vouvoiement à trouver.
+  const registre = catalogPath.endsWith("fr.json") ? checkRegistre(catalog) : [];
+
+  return { app, errors, registre, dead: findDeadKeys(catalog, reachable), unverified };
 }
 
 // ── Rapport ──────────────────────────────────────────────────────────────────
@@ -363,7 +447,7 @@ const strict = process.argv.includes("--strict");
 let failed = false;
 
 for (const target of TARGETS) {
-  const { app, errors, dead, unverified } = check(target);
+  const { app, errors, registre, dead, unverified } = check(target);
   console.log(`\n=== ${app} ===`);
 
   if (errors.length === 0) {
@@ -371,6 +455,13 @@ for (const target of TARGETS) {
   } else {
     failed = true;
     for (const error of errors) console.log(`❌ ${error}`);
+  }
+
+  if (registre.length === 0) {
+    console.log("registre : tutoiement partout ✅");
+  } else {
+    failed = true;
+    for (const error of registre) console.log(`❌ ${error}`);
   }
 
   if (dead.length > 0) {
@@ -387,6 +478,15 @@ for (const target of TARGETS) {
     );
     for (const name of names) console.log(`   ${name}.\${…}`);
   }
+}
+
+const apiRegistre = checkApiRegistre();
+console.log("\n=== api ===");
+if (apiRegistre.length === 0) {
+  console.log("registre : tutoiement partout ✅");
+} else {
+  failed = true;
+  for (const error of apiRegistre) console.log(`❌ ${error}`);
 }
 
 process.exit(failed ? 1 : 0);
