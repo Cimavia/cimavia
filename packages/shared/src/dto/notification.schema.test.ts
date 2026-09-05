@@ -174,10 +174,14 @@ describe("notifications par e-mail — le sous-ensemble envoyable", () => {
    * ajoutées au même cycle (dette N-6, aucun groupement). Ce test la fige, pour qu'un
    * élargissement soit un geste délibéré et non un effet de bord.
    */
-  it("exclut les trois ajustements de cycle, qui arrivent par rafales", () => {
+  it("exclut les quatre ajustements de cycle, qui arrivent par rafales", () => {
     expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.PLAN_UPDATED);
     expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.PLAN_SESSION_ADDED);
     expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.PLAN_SESSION_REMOVED);
+    // Le réordonnancement (#148) n'arrive PAS par rafale — la route est un geste unique. Il reste
+    // pourtant hors e-mail : savoir par courriel que l'ordre d'une journée a changé n'appelle
+    // aucune action, là où le centre et le push le disent au bon moment et sans encombrer.
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.PLAN_SESSIONS_REORDERED);
   });
 
   // `REMINDER_DUE` n'est jamais persisté et ne passe pas par le point d'émission commun : il ne
