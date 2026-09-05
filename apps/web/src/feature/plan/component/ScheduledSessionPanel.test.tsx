@@ -29,6 +29,8 @@ vi.mock("@/feature/library/api", async (importOriginal) => ({
 }));
 
 const SUBMIT = "plan.session.submit";
+// TITLE porte l'astérisque d'obligation et se vise donc par son RÔLE : `getByLabelText` lit le
+// `textContent` du `<label>`, astérisque compris, et ne le trouverait plus (« Tranché en #97 »).
 const TITLE = "plan.session.titleLabel";
 const NOTES = "plan.session.notesLabel";
 const TEMPLATE = "plan.session.template";
@@ -96,9 +98,9 @@ describe("ScheduledSessionPanel", () => {
 
     it("envoie le titre nettoyé et aucune séance source", async () => {
       createMock.mockResolvedValue(session());
-      const { user, getByRole, getByLabelText, onClose } = setup();
+      const { user, getByRole, onClose } = setup();
 
-      await user.type(getByLabelText(TITLE), "  Séance haute  ");
+      await user.type(getByRole("textbox", { name: TITLE }), "  Séance haute  ");
       await user.click(getByRole("button", { name: SUBMIT }));
 
       await waitFor(() =>

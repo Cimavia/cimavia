@@ -181,6 +181,7 @@ export function ScheduledSessionPanel({
               onChange={(event) => setTitle(event.target.value)}
               placeholder={t("plan.session.titlePlaceholder")}
               required
+              requiredMark
             />
           ) : (
             <p className="text-cmv-caption text-cmv-text-lo">{t("plan.session.templateHint")}</p>

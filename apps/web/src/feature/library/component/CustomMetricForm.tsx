@@ -129,6 +129,7 @@ export function CustomMetricForm({
         placeholder={t("library.builder.custom.labelPlaceholder")}
         minLength={1}
         required
+        requiredMark
       />
 
       <CmvTextField
