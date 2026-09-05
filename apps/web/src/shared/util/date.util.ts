@@ -4,6 +4,7 @@ import { formatters } from "@/shared/util/formatter.util";
 export const {
   formatDate,
   formatDayLabel,
+  formatFullDay,
   formatWeekday,
   formatDayNumber,
   formatDateRange,

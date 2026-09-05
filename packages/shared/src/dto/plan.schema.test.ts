@@ -3,6 +3,7 @@ import {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
+  reorderPlanDaySchema,
   updateScheduledSessionSchema,
 } from "./plan.schema";
 
@@ -97,6 +98,36 @@ describe("copyPlanWeekSchema", () => {
   it("refuse toute date proposée par le client (schéma strict)", () => {
     const result = copyPlanWeekSchema.safeParse({
       sourcePlanWeekId: "pw_1",
+      scheduledDate: "2026-10-14",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("reorderPlanDaySchema", () => {
+  it("ne demande que l'ordre voulu (la journée est la ressource de la route)", () => {
+    const parsed = reorderPlanDaySchema.parse({ sessionIds: ["ss_2", "ss_1"] });
+    expect(parsed.sessionIds).toEqual(["ss_2", "ss_1"]);
+  });
+
+  /**
+   * Une journée d'une seule séance se réordonne sans rien changer : un client qui renvoie ce
+   * qu'il affiche ne doit pas recevoir un 400. Une journée VIDE, elle, n'a rien à réordonner.
+   */
+  it("accepte une seule séance mais refuse une liste vide", () => {
+    expect(reorderPlanDaySchema.safeParse({ sessionIds: ["ss_1"] }).success).toBe(true);
+    expect(reorderPlanDaySchema.safeParse({ sessionIds: [] }).success).toBe(false);
+  });
+
+  it("refuse un identifiant vide", () => {
+    expect(reorderPlanDaySchema.safeParse({ sessionIds: ["ss_1", ""] }).success).toBe(false);
+  });
+
+  // La date et la semaine sont dans l'URL. Les accepter dans le corps, même ignorées, laisserait
+  // croire qu'on peut réordonner une journée autre que celle qu'on adresse.
+  it("refuse une journée proposée dans le corps (schéma strict)", () => {
+    const result = reorderPlanDaySchema.safeParse({
+      sessionIds: ["ss_1"],
       scheduledDate: "2026-10-14",
     });
     expect(result.success).toBe(false);

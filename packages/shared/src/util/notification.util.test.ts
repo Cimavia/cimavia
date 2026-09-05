@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { NotificationType } from "../dto/notification.schema";
-import { capabilityOfMessage, capabilityOfNotification } from "./notification.util";
+import {
+  capabilityOfMessage,
+  capabilityOfNotification,
+  notificationSubject,
+} from "./notification.util";
 
 describe("capabilityOfNotification", () => {
   /**
@@ -13,6 +17,7 @@ describe("capabilityOfNotification", () => {
       NotificationType.PLAN_UPDATED,
       NotificationType.PLAN_SESSION_ADDED,
       NotificationType.PLAN_SESSION_REMOVED,
+      NotificationType.PLAN_SESSIONS_REORDERED,
       NotificationType.INVOICE_ISSUED,
     ]) {
       expect(capabilityOfNotification(type)).toBe("athlete");
@@ -57,5 +62,64 @@ describe("capabilityOfMessage", () => {
     const thread = { coachId: "u_coach", athleteId: "u_athlete" };
     expect(capabilityOfMessage("u_coach", thread)).toBe("coach");
     expect(capabilityOfMessage("u_athlete", thread)).toBe("athlete");
+  });
+});
+
+describe("notificationSubject", () => {
+  const translate = (key: string) => `traduit:${key}`;
+  const formatFullDay = (isoDate: string) => `jour:${isoDate}`;
+
+  const notification = (over: Partial<Parameters<typeof notificationSubject>[0]> = {}) => ({
+    type: NotificationType.PLAN_UPDATED,
+    subjectLabel: null,
+    subjectKey: null,
+    ...over,
+  });
+
+  it("traduit un intitulé système avant tout le reste", () => {
+    const subject = notificationSubject(
+      notification({ subjectKey: "reminder.reason.invoice", subjectLabel: "ignoré" }),
+      translate,
+      formatFullDay,
+    );
+
+    expect(subject).toBe("traduit:reminder.reason.invoice");
+  });
+
+  it("rend telle quelle la valeur écrite par un utilisateur", () => {
+    const subject = notificationSubject(
+      notification({ subjectLabel: "Bloc force" }),
+      translate,
+      formatFullDay,
+    );
+
+    expect(subject).toBe("Bloc force");
+  });
+
+  /**
+   * Le jour réordonné (#148) est persisté en date ISO, pas en toutes lettres : l'API ne fabrique
+   * jamais de libellé, sinon la ligne resterait française le jour où `en.json` arrive.
+   */
+  it("met en forme la date d'une journée réordonnée", () => {
+    const subject = notificationSubject(
+      notification({ type: NotificationType.PLAN_SESSIONS_REORDERED, subjectLabel: "2026-09-07" }),
+      translate,
+      formatFullDay,
+    );
+
+    expect(subject).toBe("jour:2026-09-07");
+  });
+
+  // `null` et non une chaîne vide, qui laisserait un trou dans la phrase : c'est au client
+  // d'afficher « — ».
+  it("ne nomme rien quand l'événement n'a pas de sujet", () => {
+    expect(notificationSubject(notification(), translate, formatFullDay)).toBeNull();
+    expect(
+      notificationSubject(
+        notification({ type: NotificationType.PLAN_SESSIONS_REORDERED }),
+        translate,
+        formatFullDay,
+      ),
+    ).toBeNull();
   });
 });

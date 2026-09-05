@@ -186,6 +186,24 @@ export const updateScheduledSessionSchema = z
   .strict();
 export type UpdateScheduledSessionInput = z.infer<typeof updateScheduledSessionSchema>;
 
+/**
+ * L'ordre des séances d'UNE journée (#148) — replace-all, comme toute composition du produit :
+ * l'ordre du tableau DÉFINIT les positions, il ne les décrit pas.
+ *
+ * Le tableau doit être EXHAUSTIF, et le service le vérifie : accepter un sous-ensemble laisserait
+ * les séances tues à leur position d'avant, donc des trous et des collisions sur
+ * `@@unique([planWeekId, scheduledDate, position])`. Une permutation, jamais un extrait.
+ *
+ * `min(1)` plutôt que `min(2)` : réordonner une journée d'une seule séance est un no-op légitime
+ * (un client qui renvoie ce qu'il affiche), là où une journée vide n'a rien à réordonner.
+ */
+export const reorderPlanDaySchema = z
+  .object({
+    sessionIds: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
+export type ReorderPlanDayInput = z.infer<typeof reorderPlanDaySchema>;
+
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 
 export const scheduledSessionExerciseDtoSchema = z.object({
