@@ -5,6 +5,7 @@ import {
   type CreateInvitationInput,
   type InvitationDto,
   InvitationStatus,
+  type PendingInvitationDto,
 } from "@cmv/shared";
 import {
   BadRequestException,
@@ -15,13 +16,31 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toCoachAthleteDto } from "../coach-athlete.mapper";
-import { toInvitationDto } from "../invitation.mapper";
+import { toInvitationDto, toPendingInvitationDto } from "../invitation.mapper";
 import { UserDirectoryService } from "./user-directory.service";
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
+
+/**
+ * L'adresse sous la forme qui sert à COMPARER — jamais à afficher.
+ *
+ * Deux chaînes tapées par deux personnes différentes se rencontrent ici : le coach saisit
+ * l'adresse de son athlète, l'athlète a saisi la sienne à l'inscription. Rien ne garantit la même
+ * casse ni l'absence d'espace collé au copier-coller, et une comparaison brute rendait alors une
+ * invitation **définitivement inutilisable** — refusée à l'acceptation, invisible dans la liste,
+ * sans qu'aucun message ne dise pourquoi. C'est le contraire de ce que l'invitation nominative
+ * promet.
+ *
+ * Normalisée à l'écriture ET à la comparaison : la première seule ne rattraperait pas les lignes
+ * déjà en base, la seconde seule laisserait la colonne porter deux formes du même destinataire.
+ */
+function forComparison(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 @Injectable()
 export class InvitationService {
@@ -31,6 +50,7 @@ export class InvitationService {
     // Client de base (non scopé) : redemption = flux d'onboarding cross-tenant.
     private readonly prisma: PrismaService,
     private readonly users: UserDirectoryService,
+    private readonly notifications: NotificationService,
   ) {}
 
   // Coach : émet une invitation (code + expiration). coachId injecté par le tenancy layer.
@@ -39,14 +59,42 @@ export class InvitationService {
       // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
       data: {
         code: randomBytes(9).toString("base64url"),
-        email: input.email ?? null,
+        // Normalisée dès l'entrée : c'est cette colonne qu'on compare à l'adresse d'une session.
+        email: input.email == null ? null : forComparison(input.email),
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
       } satisfies Omit<
         Prisma.InvitationUncheckedCreateInput,
         "coachId"
       > as Prisma.InvitationUncheckedCreateInput,
     });
+    await this.announce(invitation);
     return toInvitationDto(invitation);
+  }
+
+  /**
+   * Prévenir l'invité, s'il y a quelqu'un à prévenir (#146).
+   *
+   * Deux issues seulement, et l'important est ce qu'elles ont en commun : **la réponse HTTP est la
+   * même**. Le coach reçoit son invitation, avec son code, que l'adresse ait un compte ou non —
+   * sinon la route dirait qui est inscrit chez nous.
+   *
+   * - **Invitation générique** (`email === null`) : personne n'est visé, rien à envoyer.
+   * - **Adresse rattachée à un compte athlète** : notification (centre + push).
+   *
+   * Une adresse SANS compte athlète ne reçoit rien pour l'instant — et c'est le cas le plus
+   * courant, celui du nouvel athlète qu'on invite. Son canal est l'e-mail, branché juste après.
+   */
+  private async announce(invitation: { id: string; coachId: string; email: string | null }) {
+    if (invitation.email == null) return;
+
+    const athleteId = await this.users.athleteIdByEmail(invitation.email);
+    if (athleteId == null) return;
+
+    await this.notifications.notifyInvitationReceived({
+      athleteId,
+      coachId: invitation.coachId,
+      invitationId: invitation.id,
+    });
   }
 
   // Coach : liste ses invitations (scopé coachId).
@@ -55,6 +103,77 @@ export class InvitationService {
       orderBy: { createdAt: "desc" },
     });
     return invitations.map(toInvitationDto);
+  }
+
+  /**
+   * Athlète : les invitations qui l'ATTENDENT (#146). Jusqu'ici, une adresse saisie par le coach
+   * ne servait qu'à restreindre l'acceptation — jamais à prévenir l'intéressé, qui devait recevoir
+   * le code par un autre canal.
+   *
+   * Trois filtres, et chacun retire quelque chose de différent :
+   * - **l'adresse de la SESSION**, jamais un paramètre. Un `?email=` transformerait cette route en
+   *   annuaire : qui a été invité, et par quel coach.
+   * - **`PENDING`**, ce qui écarte aussi ce qu'on a déjà refusé — un refus vide la liste, sinon il
+   *   ne servirait à rien.
+   * - **non expirée**, l'expiration n'étant pas un statut mais une date : une invitation périmée
+   *   serait proposée puis refusée à l'acceptation.
+   *
+   * Une invitation GÉNÉRIQUE (`email === null`) n'apparaît pour personne : elle n'est adressée à
+   * personne, et la faire remonter la donnerait au premier arrivé.
+   *
+   * Client de BASE, comme `accept` : `Invitation` n'a qu'un scope coach dans `TENANT_SCOPES`, et
+   * le client tenant lèverait (fail closed) plutôt que de rendre une liste vide.
+   */
+  async listForMe(athlete: { email: string }): Promise<PendingInvitationDto[]> {
+    const invitations = await this.prisma.invitation.findMany({
+      where: {
+        email: forComparison(athlete.email),
+        status: InvitationStatus.PENDING,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (invitations.length === 0) return [];
+
+    const names = await this.users.namesByIds(invitations.map((invitation) => invitation.coachId));
+    return invitations.map((invitation) => toPendingInvitationDto(invitation, names));
+  }
+
+  /**
+   * Athlète : refuse une invitation (#146). Une transition à part entière, d'où sa propre route —
+   * la règle « un seul chemin vers une transition » (#105) n'interdit pas deux transitions
+   * distinctes.
+   *
+   * **La correspondance d'e-mail est exigée en toutes circonstances**, là où `accept` ne la
+   * vérifie que sur une invitation nominative. Sans ça, le premier détenteur d'un code générique
+   * le brûlerait pour tout le monde — refuser est irréversible, le coach devrait réémettre.
+   *
+   * Un athlète DÉJÀ LIÉ peut refuser, et c'est même le cas utile : cela vide la liste d'attente du
+   * coach, qui saurait enfin que son invitation n'aboutira pas.
+   */
+  async decline(athlete: { id: string; email: string }, code: string): Promise<void> {
+    const invitation = await this.prisma.invitation.findUnique({ where: { code } });
+    if (!invitation || invitation.status !== InvitationStatus.PENDING) {
+      throw new NotFoundException("Invitation introuvable ou déjà utilisée");
+    }
+    if (invitation.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException("Invitation expirée");
+    }
+    if (invitation.email == null || invitation.email !== forComparison(athlete.email)) {
+      throw new BadRequestException("Invitation destinée à une autre adresse");
+    }
+
+    await this.prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { status: InvitationStatus.DECLINED },
+    });
+    // APRÈS l'écriture, comme partout : une notification est un effet de bord, et l'action métier
+    // a déjà réussi quand elle part.
+    await this.notifications.notifyInvitationDeclined({
+      coachId: invitation.coachId,
+      athleteId: athlete.id,
+      invitationId: invitation.id,
+    });
   }
 
   // Athlète : rejoint un coach via un code. Client de base (l'athlète n'est pas encore lié).
@@ -68,7 +187,7 @@ export class InvitationService {
     if (invitation.expiresAt.getTime() < Date.now()) {
       throw new BadRequestException("Invitation expirée");
     }
-    if (invitation.email != null && invitation.email !== athlete.email) {
+    if (invitation.email != null && invitation.email !== forComparison(athlete.email)) {
       throw new BadRequestException("Invitation destinée à une autre adresse");
     }
     // Invariant : au plus 1 coach par athlète (athleteId UNIQUE en base).
@@ -97,6 +216,12 @@ export class InvitationService {
         },
       }),
     ]);
+    await this.notifications.notifyInvitationAccepted({
+      coachId: invitation.coachId,
+      athleteId: athlete.id,
+      invitationId: invitation.id,
+    });
+
     const names = await this.users.namesByIds([relation.coachId, relation.athleteId]);
     return toCoachAthleteDto(relation, names);
   }

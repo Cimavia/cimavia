@@ -3624,9 +3624,15 @@ describe("Centre de notifications (#48)", () => {
     });
   });
 
+  /**
+   * Depuis #146, la boîte du coach n'est plus VIDE : l'acceptation de son invitation s'y range.
+   * L'assertion porte donc sur ce qu'elle a toujours voulu dire — rien de ce que le coach a
+   * lui-même émis — plutôt que sur un total qui ne mesurait cela que par accident.
+   */
   it("l'émetteur n'est pas destinataire : le coach n'a rien reçu de sa propre diffusion", async () => {
-    expect(await inbox(coachA)).toHaveLength(0);
-    expect(await unread(coachA)).toBe(0);
+    const list = await inbox(coachA);
+    expect(list.filter((n) => n.type.startsWith("PLAN_"))).toEqual([]);
+    expect(list.filter((n) => n.type === "INVOICE_ISSUED")).toEqual([]);
   });
 
   it("ajuster une séance diffusée notifie l'athlète, avec le titre de la séance", async () => {
@@ -3783,7 +3789,9 @@ describe("Centre de notifications (#48)", () => {
   it("isolation : un tiers ne voit aucune notification des autres", async () => {
     expect(await inbox(athleteB1)).toHaveLength(0);
     expect(await unread(athleteB1)).toBe(0);
-    expect(await inbox(coachB)).toHaveLength(0);
+    // Le coach B a UNE entrée, et une seule : son propre athlète l'a rejoint (#146). Rien de ce
+    // qui s'est passé chez A — c'est bien l'isolation qu'on mesure, pas une boîte vide.
+    expect((await inbox(coachB)).map((n) => n.type)).toEqual(["INVITATION_ACCEPTED"]);
   });
 });
 
@@ -5679,10 +5687,11 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     const unread = await dual.get("/me/notifications/unread-count");
     expect(unread.status).toBe(200);
-    // Reçu en athlète : cycle diffusé + facture émise. Reçu en coach : le débrief.
+    // Reçu en athlète : cycle diffusé + facture émise. Reçu en coach : `myAthlete` qui l'a
+    // rejoint (#146), puis son débrief. Les quatre se rangent des deux côtés sans se mélanger.
     expect(unread.body.athlete).toBe(2);
-    expect(unread.body.coach).toBe(1);
-    expect(unread.body.count).toBe(3);
+    expect(unread.body.coach).toBe(2);
+    expect(unread.body.count).toBe(4);
   });
 
   /**
@@ -5711,8 +5720,9 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     const unread = await dual.get("/me/notifications/unread-count");
     expect(unread.status).toBe(200);
-    // Le message tombe du côté COACH : c'est là que `dual` tient ce fil.
-    expect(unread.body).toMatchObject({ coach: 1, athlete: 0, count: 1 });
+    // Le message tombe du côté COACH : c'est là que `dual` tient ce fil. Il s'ajoute à l'athlète
+    // qui vient de le rejoindre (#146), reçu du même côté — rien ne passe côté athlète.
+    expect(unread.body).toMatchObject({ coach: 2, athlete: 0, count: 2 });
   });
 
   // Un compte mono-capacité voit tout d'un seul côté : la ventilation ne lui coûte rien et ne
@@ -6039,5 +6049,292 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
     expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
 
     expect(sentMails).toEqual([]);
+  });
+});
+
+/**
+ * L'adresse d'une invitation nominative est tapée par le COACH, celle du compte par l'athlète
+ * lui-même. Rien ne garantit la même casse, et la comparaison brute rendait alors l'invitation
+ * définitivement inutilisable : refusée à l'acceptation, sans message qui dise pourquoi.
+ */
+describe("Invitation nominative : la casse de l'adresse ne décide de rien", () => {
+  it("accepte une invitation dont l'adresse a été saisie en majuscules", async () => {
+    const coach = await signUpWith("case-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("case-athlete@cmv.test", Role.ATHLETE);
+
+    const invitation = await coach.post("/invitations").send({ email: "CASE-Athlete@CMV.test" });
+    expect(invitation.status).toBe(201);
+    // Normalisée à l'écriture : ce qui est stocké est comparable à l'adresse d'une session.
+    expect(invitation.body.email).toBe("case-athlete@cmv.test");
+
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+  });
+
+  // La normalisation ne DÉSARME pas la restriction : elle la rend seulement praticable.
+  it("refuse toujours un athlète dont l'adresse n'est pas celle de l'invitation", async () => {
+    const coach = await signUpWith("case-coach-2@cmv.test", { isCoach: true, isAthlete: false });
+    const other = await signUp("case-other@cmv.test", Role.ATHLETE);
+
+    const invitation = await coach.post("/invitations").send({ email: "Quelquun@CMV.test" });
+    const refused = await other.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(refused.status).toBe(400);
+  });
+});
+
+/**
+ * `GET /invitations/for-me` et `POST /invitations/decline` (#146) — les deux gestes qui manquaient
+ * à l'athlète. L'invitation nominative existait au modèle, mais rien ne la lui montrait : le coach
+ * saisissait une adresse en croyant déclencher quelque chose.
+ */
+describe("Invitations qui m'attendent, et refus (#146)", () => {
+  it("ne montre une invitation nominative qu'à l'adresse visée", async () => {
+    const coach = await signUpWith("fm-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const target = await signUp("fm-target@cmv.test", Role.ATHLETE);
+    const other = await signUp("fm-other@cmv.test", Role.ATHLETE);
+    await coach.post("/invitations").send({ email: "fm-target@cmv.test" });
+
+    const mine = await target.get("/invitations/for-me");
+    expect(mine.status).toBe(200);
+    expect(mine.body).toHaveLength(1);
+    expect((await other.get("/invitations/for-me")).body).toEqual([]);
+  });
+
+  /**
+   * Le DTO ne porte NI l'adresse (c'est la sienne) NI le `coachId` : la route dirait sinon qui
+   * invite qui. Le `coachName` y est, lui — sans quoi la carte annoncerait une invitation sans
+   * pouvoir nommer son émetteur.
+   */
+  it("ne dit à l'athlète que ce qu'il a besoin de savoir", async () => {
+    const coach = await signUpWith("fm-shape-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("fm-shape@cmv.test", Role.ATHLETE);
+    await coach.post("/invitations").send({ email: "fm-shape@cmv.test" });
+
+    const entry = required((await athlete.get("/invitations/for-me")).body[0], "invitation reçue");
+    expect(Object.keys(entry).sort()).toEqual([
+      "coachName",
+      "code",
+      "createdAt",
+      "expiresAt",
+      "id",
+    ]);
+    expect(entry.coachName).toBe("fm-shape-coach@cmv.test");
+  });
+
+  // Une invitation générique n'est adressée à personne : la faire remonter la donnerait au
+  // premier arrivé, alors que son canal est le code transmis de la main à la main.
+  it("ne montre à personne une invitation générique", async () => {
+    const coach = await signUpWith("fm-generic-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("fm-generic@cmv.test", Role.ATHLETE);
+    await coach.post("/invitations").send({});
+
+    expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+  });
+
+  /**
+   * L'expiration n'est pas un statut mais une date : sans ce filtre, une invitation périmée serait
+   * proposée à l'athlète, puis refusée à l'acceptation. Aucune route ne sait fabriquer une
+   * invitation expirée — on recule l'échéance en base, seul moyen d'atteindre ce cas.
+   */
+  it("ne montre pas une invitation expirée", async () => {
+    const coach = await signUpWith("fm-expired-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("fm-expired@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({ email: "fm-expired@cmv.test" });
+
+    await app.get(PrismaService).invitation.update({
+      where: { id: invitation.body.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+  });
+
+  it("retire de la liste ce que l'athlète a déjà accepté", async () => {
+    const coach = await signUpWith("fm-taken-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("fm-taken@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({ email: "fm-taken@cmv.test" });
+    await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+  });
+
+  it("retire de la liste ce que l'athlète a refusé, et le dit au coach", async () => {
+    const coach = await signUpWith("fm-decline-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("fm-decline@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({ email: "fm-decline@cmv.test" });
+
+    const declined = await athlete
+      .post("/invitations/decline")
+      .send({ code: invitation.body.code });
+    expect(declined.status).toBe(204);
+
+    expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+    const seenByCoach = required(
+      (await coach.get("/invitations")).body.find(
+        (row: { id: string }) => row.id === invitation.body.id,
+      ),
+      "invitation côté coach",
+    );
+    // DECLINED, jamais REVOKED : le coach doit lire « on m'a dit non », pas « j'ai annulé ».
+    expect(seenByCoach.status).toBe("DECLINED");
+  });
+
+  /**
+   * Le refus est plus strict que l'acceptation : il exige la correspondance d'adresse EN TOUTES
+   * CIRCONSTANCES. Sans cela, le premier détenteur d'un code générique le brûlerait pour tout le
+   * monde, et le coach devrait réémettre sans jamais savoir pourquoi.
+   */
+  it("refuse un refus qui ne vient pas de l'adresse visée", async () => {
+    const coach = await signUpWith("fm-strict-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const other = await signUp("fm-strict-other@cmv.test", Role.ATHLETE);
+    const nominative = await coach.post("/invitations").send({ email: "fm-strict@cmv.test" });
+    const generic = await coach.post("/invitations").send({});
+
+    expect(
+      (await other.post("/invitations/decline").send({ code: nominative.body.code })).status,
+    ).toBe(400);
+    expect(
+      (await other.post("/invitations/decline").send({ code: generic.body.code })).status,
+    ).toBe(400);
+  });
+
+  /**
+   * Un athlète DÉJÀ LIÉ voit l'invitation et peut la refuser. La masquer laisserait un coach
+   * persuadé d'avoir invité quelqu'un qui ne verrait jamais rien ; interdire le refus laisserait
+   * l'invitation en attente pour toujours.
+   */
+  it("laisse un athlète déjà lié voir l'invitation et la refuser", async () => {
+    const first = await signUpWith("fm-linked-first@cmv.test", { isCoach: true, isAthlete: false });
+    const second = await signUpWith("fm-linked-second@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("fm-linked@cmv.test", Role.ATHLETE);
+
+    const join = await first.post("/invitations").send({});
+    await athlete.post("/invitations/accept").send({ code: join.body.code });
+
+    const secondInvitation = await second.post("/invitations").send({
+      email: "fm-linked@cmv.test",
+    });
+    expect((await athlete.get("/invitations/for-me")).body).toHaveLength(1);
+    expect(
+      (await athlete.post("/invitations/decline").send({ code: secondInvitation.body.code }))
+        .status,
+    ).toBe(204);
+    expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+  });
+
+  // Les deux routes sont celles de l'athlète : un coach n'a pas d'invitation qui l'attende.
+  it("ferme les deux routes à un coach", async () => {
+    const coach = await signUpWith("fm-closed@cmv.test", { isCoach: true, isAthlete: false });
+    expect((await coach.get("/invitations/for-me")).status).toBe(403);
+    expect((await coach.post("/invitations/decline").send({ code: "x" })).status).toBe(403);
+  });
+});
+
+/**
+ * Les trois temps d'une invitation, côté centre de notifications (#146). L'adresse saisie par le
+ * coach ne servait qu'à restreindre l'acceptation ; elle prévient désormais, quand il y a
+ * quelqu'un à prévenir.
+ */
+describe("Notifications d'invitation (#146)", () => {
+  const typesOf = async (agent: Agent): Promise<string[]> =>
+    (await agent.get("/me/notifications")).body.map((n: { type: string }) => n.type);
+
+  it("prévient l'athlète qu'une invitation nominative l'attend", async () => {
+    const coach = await signUpWith("ni-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("ni-athlete@cmv.test", Role.ATHLETE);
+    await coach.post("/invitations").send({ email: "ni-athlete@cmv.test" });
+
+    const entry = required(
+      (await athlete.get("/me/notifications")).body[0],
+      "notification d'invitation",
+    );
+    expect(entry).toMatchObject({
+      type: "INVITATION_RECEIVED",
+      entityType: "INVITATION",
+      // `signUp` pose `name = email` : c'est donc l'adresse du coach qu'on lit en acteur.
+      actorName: "ni-coach@cmv.test",
+      subjectLabel: null,
+      readAt: null,
+    });
+  });
+
+  it("remonte au coach que son invitation a été acceptée, puis refusée par un autre", async () => {
+    const coach = await signUpWith("ni-answer-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const joining = await signUp("ni-joining@cmv.test", Role.ATHLETE);
+    const refusing = await signUp("ni-refusing@cmv.test", Role.ATHLETE);
+
+    const toJoin = await coach.post("/invitations").send({ email: "ni-joining@cmv.test" });
+    await joining.post("/invitations/accept").send({ code: toJoin.body.code });
+
+    const toRefuse = await coach.post("/invitations").send({ email: "ni-refusing@cmv.test" });
+    await refusing.post("/invitations/decline").send({ code: toRefuse.body.code });
+
+    const inbox = (await coach.get("/me/notifications")).body;
+    expect(inbox.find((n: { type: string }) => n.type === "INVITATION_ACCEPTED")).toMatchObject({
+      actorName: "ni-joining@cmv.test",
+      entityType: "INVITATION",
+    });
+    expect(inbox.find((n: { type: string }) => n.type === "INVITATION_DECLINED")).toMatchObject({
+      actorName: "ni-refusing@cmv.test",
+      entityType: "INVITATION",
+    });
+  });
+
+  /**
+   * Le cas le plus COURANT — inviter quelqu'un qui n'a pas encore de compte — et il ne doit ni
+   * lever, ni écrire quoi que ce soit. L'invitation part avec son code, exactement comme si
+   * l'adresse était connue : sans cette symétrie, la réponse dirait qui est inscrit chez nous.
+   */
+  it("n'écrit aucune notification pour une adresse sans compte, et n'échoue pas", async () => {
+    const coach = await signUpWith("ni-unknown-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const res = await coach.post("/invitations").send({ email: "personne@cmv.test" });
+    expect(res.status).toBe(201);
+    expect(res.body.code).toEqual(expect.any(String));
+  });
+
+  // Une invitation générique n'est adressée à personne : il n'y a personne à prévenir.
+  it("n'écrit aucune notification pour une invitation générique", async () => {
+    const coach = await signUpWith("ni-generic-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("ni-generic@cmv.test", Role.ATHLETE);
+    await coach.post("/invitations").send({});
+
+    expect(await typesOf(athlete)).toEqual([]);
+  });
+
+  /**
+   * Une adresse rattachée à un compte COACH SEUL n'est pas notifiée : il ne peut pas accepter, et
+   * la pastille s'allumerait sur un espace où il n'aurait rien à faire. Il n'est pas introuvable
+   * pour autant — il est à joindre autrement.
+   */
+  it("ne notifie pas un compte qui ne porte pas la capacité athlète", async () => {
+    const coach = await signUpWith("ni-cc-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const coachOnly = await signUpWith("ni-coach-only@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    await coach.post("/invitations").send({ email: "ni-coach-only@cmv.test" });
+
+    expect(await typesOf(coachOnly)).toEqual([]);
   });
 });
