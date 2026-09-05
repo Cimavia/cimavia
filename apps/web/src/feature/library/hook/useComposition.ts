@@ -43,17 +43,26 @@ export function useComposition<T extends CompositionRow>(
     setItems((current) => current.filter((item) => item.key !== key));
   }
 
-  // Déplace une ligne d'un cran ; la position finale = l'ordre du tableau (l'API la déduit).
-  function moveItem(index: number, direction: -1 | 1) {
+  /**
+   * Déplace une ligne À un index — la forme qu'attend le glisser-déposer, qui connaît son point de
+   * départ et son point d'arrivée, jamais la distance entre les deux.
+   *
+   * La position finale = l'ordre du tableau (l'API la déduit) : rien à renuméroter ici.
+   */
+  function moveTo(from: number, to: number) {
     setItems((current) => {
-      const target = index + direction;
-      if (target < 0 || target >= current.length) return current;
+      if (to < 0 || to >= current.length) return current;
       const next = [...current];
-      const [moved] = next.splice(index, 1);
+      const [moved] = next.splice(from, 1);
       if (moved == null) return current;
-      next.splice(target, 0, moved);
+      next.splice(to, 0, moved);
       return next;
     });
+  }
+
+  // Déplace une ligne d'un cran — la forme qu'attendent les flèches et le clavier.
+  function moveItem(index: number, direction: -1 | 1) {
+    moveTo(index, index + direction);
   }
 
   function setNote(key: string, value: string) {
@@ -62,5 +71,5 @@ export function useComposition<T extends CompositionRow>(
     );
   }
 
-  return { items, addExercise, removeItem, moveItem, setNote };
+  return { items, addExercise, removeItem, moveItem, moveTo, setNote };
 }

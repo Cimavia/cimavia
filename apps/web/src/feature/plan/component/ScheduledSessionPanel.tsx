@@ -98,7 +98,8 @@ export function ScheduledSessionPanel({
   const [title, setTitle] = useState(session?.title ?? "");
   const [notes, setNotes] = useState(session?.notes ?? "");
   const [scheduledDate, setScheduledDate] = useState(date);
-  const { items, addExercise, removeItem, moveItem, setNote } = useSessionComposition(session);
+  const { items, addExercise, removeItem, moveItem, moveTo, setNote } =
+    useSessionComposition(session);
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
@@ -200,6 +201,7 @@ export function ScheduledSessionPanel({
                 items={items}
                 labelPrefix="plan.session"
                 onMove={moveItem}
+                onMoveTo={moveTo}
                 onRemove={removeItem}
                 onNoteChange={setNote}
               />

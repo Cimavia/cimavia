@@ -496,6 +496,7 @@
       "exerciseCount": "{{count}} exercice(s)",
       "moveUp": "Monter",
       "moveDown": "Descendre",
+      "moveExercise": "Déplacer l'exercice",
       "remove": "Retirer",
       "delete": "Supprimer la séance",
       "submit": "Enregistrer",
