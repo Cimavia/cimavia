@@ -1889,6 +1889,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Hauteur des cases de la semaine athlète ([#206](https://github.com/Cimavia/cimavia/issues/206))
+
+> **Tranché en #206** (l'écart est à la MAQUETTE, pas au code) : `athlete_web.dc.html` dessine
+> elle-même la rangée en dents de scie — chaque jour y est un bloc nu, la carte prend la hauteur de
+> son texte, et seul « Repos » porte un `min-height:100px`. L'implémentation lui était donc
+> **fidèle** : ce que la grille fait désormais est un écart assumé, dans le sens inverse de ~~P3-5~~
+> (le code rend mieux que la maquette). Sans cette ligne, une relecture de la maquette rétablit le
+> défaut en croyant corriger une dérive.
+
+> **Tranché en #206** (l'étirement s'écrit dans la COLONNE, jamais dans la carte) :
+> `AthleteSessionCard` sert aussi la liste verticale de `/sessions`, où étirer n'aurait aucun sens.
+> C'est le conteneur du jour qui porte `flex-1` + `auto-rows-fr` — les éléments de grille s'étirent
+> d'eux-mêmes. Le seul ajout à la carte est un `mt-auto` sur le statut, qui vaut zéro tant qu'il n'y
+> a pas de hauteur en trop à distribuer : un seul rendu, deux contextes.
+
+> **Tranché en #206** (le plancher vaut à TOUTES les largeurs, après un aller-retour) : le premier
+> jet bornait plancher et étirement à `xl`, au motif que la rangée de sept jours n'existe que là.
+> Le rendu réel a démenti : en `md:grid-cols-2`, la boîte « Repos » gardait son `min-h-24` quand la
+> carte de séance n'en avait toujours aucun — l'écart de plancher exact que l'issue décrit, laissé
+> intact là où on le voit. Le plancher est donc porté par le conteneur du jour, sans préfixe, et
+> retiré de la boîte « Repos » : un seul plancher, une seule définition. L'écart assumé de l'issue
+> ne portait que sur l'**autre** geste, `auto-rows-fr` sur la grille EXTERNE, qui donnerait à
+> chacune des huit cases de `md` la hauteur de la plus haute séance de la semaine. Celui-là n'est
+> toujours pas posé : les rangées de `md` restent indépendantes les unes des autres.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

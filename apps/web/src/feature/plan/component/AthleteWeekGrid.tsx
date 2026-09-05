@@ -50,14 +50,29 @@ export function AthleteWeekGrid({ week, today }: Readonly<AthleteWeekGridProps>)
               ) : null}
             </div>
 
-            {sessions.length === 0 ? (
-              // Un jour sans séance est une information, pas un trou : le cycle prévoit du repos.
-              <div className="flex min-h-24 items-center justify-center rounded-cmv-md border border-cmv-border border-dashed p-cmv-sm">
-                <span className="text-cmv-caption text-cmv-text-lo">{t("plan.athlete.rest")}</span>
-              </div>
-            ) : (
-              sessions.map((session) => <AthleteSessionCard key={session.id} session={session} />)
-            )}
+            {/* Le contenu du jour dans SA propre grille. La colonne tient déjà la hauteur de la
+                rangée (élément de grille, `stretch`), mais c'est un flex colonne : `stretch` y joue
+                sur la largeur, pas sur la hauteur, et la boîte reste à la taille de son texte.
+                `flex-1` lui donne la hauteur restante, `auto-rows-fr` la passe à ses enfants — qui
+                s'étirent d'eux-mêmes, sans que `AthleteSessionCard` ait à le savoir (elle sert
+                aussi la liste verticale de `/sessions`, où un étirement n'aurait aucun sens).
+
+                `min-h-24` est porté ICI, et non plus par la seule boîte « Repos » : cet écart de
+                plancher est ce qui faisait paraître un jour de repos PLUS HAUT qu'une séance
+                courte. Il vaut à toutes les largeurs — deux cases voisines se comparent à l'œil en
+                deux colonnes comme en sept. */}
+            <div className="grid min-h-24 flex-1 auto-rows-fr gap-cmv-sm">
+              {sessions.length === 0 ? (
+                // Un jour sans séance est une information, pas un trou : le cycle prévoit du repos.
+                <div className="flex items-center justify-center rounded-cmv-md border border-cmv-border border-dashed p-cmv-sm">
+                  <span className="text-cmv-caption text-cmv-text-lo">
+                    {t("plan.athlete.rest")}
+                  </span>
+                </div>
+              ) : (
+                sessions.map((session) => <AthleteSessionCard key={session.id} session={session} />)
+              )}
+            </div>
           </div>
         );
       })}
