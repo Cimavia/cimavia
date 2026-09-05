@@ -13,7 +13,7 @@ export function validateEnv(config: Record<string, unknown>) {
 
     throw new Error(
       `\n❌ Variables d'environnement invalides :\n${formatted}\n` +
-        `Vérifiez votre fichier .env (voir .env.template pour les variables requises)\n`,
+        `Vérifie ton fichier .env (voir .env.template pour les variables requises)\n`,
     );
   }
 
