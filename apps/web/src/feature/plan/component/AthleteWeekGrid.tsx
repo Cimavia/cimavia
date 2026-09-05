@@ -57,14 +57,14 @@ export function AthleteWeekGrid({ week, today }: Readonly<AthleteWeekGridProps>)
                 s'étirent d'eux-mêmes, sans que `AthleteSessionCard` ait à le savoir (elle sert
                 aussi la liste verticale de `/sessions`, où un étirement n'aurait aucun sens).
 
-                Tout est borné à `xl` : c'est là, et là seulement, que les sept jours se lisent
-                côte à côte. En dessous, une grille à une colonne du même `gap` rend exactement ce
-                que rendait la pile. */}
-            <div className="grid gap-cmv-sm xl:min-h-24 xl:flex-1 xl:auto-rows-fr">
+                `min-h-24` est porté ICI, et non plus par la seule boîte « Repos » : cet écart de
+                plancher est ce qui faisait paraître un jour de repos PLUS HAUT qu'une séance
+                courte. Il vaut à toutes les largeurs — deux cases voisines se comparent à l'œil en
+                deux colonnes comme en sept. */}
+            <div className="grid min-h-24 flex-1 auto-rows-fr gap-cmv-sm">
               {sessions.length === 0 ? (
                 // Un jour sans séance est une information, pas un trou : le cycle prévoit du repos.
-                // Son `min-h-24` reste : sous `xl`, c'est le seul plancher de la journée.
-                <div className="flex min-h-24 items-center justify-center rounded-cmv-md border border-cmv-border border-dashed p-cmv-sm">
+                <div className="flex items-center justify-center rounded-cmv-md border border-cmv-border border-dashed p-cmv-sm">
                   <span className="text-cmv-caption text-cmv-text-lo">
                     {t("plan.athlete.rest")}
                   </span>
