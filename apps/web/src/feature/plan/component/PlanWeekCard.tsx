@@ -5,6 +5,8 @@ import { PlanDayCell } from "@/feature/plan/component/PlanDayCell";
 import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
+import { useWeekDrag, type WeekSlot } from "@/feature/plan/hook/useWeekDrag";
+import { dayAfterDrop } from "@/feature/plan/util/week-drop.util";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDateRange } from "@/shared/util/date.util";
@@ -88,6 +90,24 @@ export function PlanWeekCard({
   // sélecteur de type semaine par semaine. L'entraînement, lui, reste neutre (design system).
   const isDeload = week.type === PlanWeekType.DELOAD;
 
+  const sessionsOn = (date: string) => sessionsByDay.get(date) ?? [];
+
+  // Une seule journée est écrite : celle d'arrivée. Le serveur retire la séance de son jour
+  // d'origine et l'y recolle — deux écritures feraient deux notifications pour un seul geste.
+  function onDrop(from: WeekSlot, to: WeekSlot) {
+    const day = dayAfterDrop(sessionsOn(from.date), sessionsOn(to.date), from, to);
+    if (day == null) return;
+    reorderDay.mutate({ weekId: week.id, ...day });
+  }
+
+  // Le chemin clavier de la poignée : un cran, DANS la journée. Sortir du jour se fait au glisser,
+  // ou par le sélecteur « Jour » du panneau — qui reste, lui, entièrement accessible au clavier.
+  function moveWithinDay(date: string, index: number, direction: -1 | 1) {
+    onDrop({ date, index }, { date, index: index + direction });
+  }
+
+  const drag = useWeekDrag(onDrop);
+
   return (
     <section
       className={cn(
@@ -151,11 +171,10 @@ export function PlanWeekCard({
             date={day}
             sessions={sessionsByDay.get(day) ?? []}
             isBusy={isBusy}
+            drag={drag}
             onAddSession={onAddSession}
             onEditSession={onEditSession}
-            onReorder={(date, sessionIds) =>
-              reorderDay.mutate({ weekId: week.id, date, sessionIds })
-            }
+            onMoveWithinDay={moveWithinDay}
           />
         ))}
       </div>
