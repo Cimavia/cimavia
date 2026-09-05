@@ -136,6 +136,7 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
     case NotificationType.PLAN_UPDATED:
     case NotificationType.PLAN_SESSION_ADDED:
     case NotificationType.PLAN_SESSION_REMOVED:
+    case NotificationType.PLAN_SESSIONS_REORDERED:
       return targetFor(NotificationEntityType.PLAN, payload.planId, capabilities);
     case NotificationType.FEEDBACK_RECEIVED:
       return targetFor(
