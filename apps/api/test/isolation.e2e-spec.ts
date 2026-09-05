@@ -6485,3 +6485,102 @@ describe("Effacer une invitation refusée (#146)", () => {
     expect((await athlete.delete("/invitations/whatever")).status).toBe(403);
   });
 });
+
+describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
+  /** Un cycle d'une semaine pour `coach`, et l'id de sa première semaine. */
+  async function weekOf(coach: Agent, athleteId: string, monday: string): Promise<string> {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Cycle des rangs",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    return plan.body.weeks[0].id;
+  }
+
+  /** Les rangs du jour, dans l'ordre où l'API les rend. */
+  async function positionsOn(coach: Agent, planId: string, date: string): Promise<number[]> {
+    const plan = await coach.get(`/plans/${planId}`);
+    return plan.body.weeks[0].sessions
+      .filter((session: { scheduledDate: string }) => session.scheduledDate === date)
+      .map((session: { position: number }) => session.position);
+  }
+
+  async function addSession(coach: Agent, weekId: string, date: string, title: string) {
+    const created = await coach.post(`/plan-weeks/${weekId}/sessions`).send({
+      scheduledDate: date,
+      title,
+    });
+    expect(created.status).toBe(201);
+    return created.body.id;
+  }
+
+  /**
+   * Le bug que ce bloc ferme : `nextPosition` COMPTE les séances du jour, ce qui ne donne un rang
+   * libre que si les rangs sont contigus. Une suppression au milieu laissait un trou, et l'ajout
+   * suivant retombait sur un rang déjà pris — 500 sur `@@unique([planWeekId, scheduledDate,
+   * position])`, pour un geste que rien ne relie à la suppression d'avant.
+   */
+  it("recolle les rangs après une suppression, et le jour reste ajoutable", async () => {
+    const coach = await signUpWith("gap-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("gap-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const athleteId = (
+      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
+    ).body.athleteId;
+
+    const monday = mondayOfCurrentWeek();
+    const weekId = await weekOf(coach, athleteId, monday);
+    const planId = (await coach.get("/plans")).body[0].id;
+
+    const first = await addSession(coach, weekId, monday, "Séance 1");
+    await addSession(coach, weekId, monday, "Séance 2");
+    await addSession(coach, weekId, monday, "Séance 3");
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
+
+    expect((await coach.delete(`/scheduled-sessions/${first}`)).status).toBe(204);
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1]);
+
+    // Le geste qui échouait : ajouter après avoir supprimé.
+    await addSession(coach, weekId, monday, "Séance 4");
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
+  });
+
+  // Déplacer une séance, c'est aussi QUITTER un jour : celui qu'on laisse se recolle comme un
+  // jour dont on a supprimé une séance, et celui qu'on rejoint prend la fin de file.
+  it("recolle le jour quitté quand une séance change de date", async () => {
+    const coach = await signUpWith("move-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("move-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const athleteId = (
+      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
+    ).body.athleteId;
+
+    const monday = mondayOfCurrentWeek();
+    const tuesday = new Date(`${monday}T00:00:00Z`);
+    tuesday.setUTCDate(tuesday.getUTCDate() + 1);
+    const tuesdayIso = tuesday.toISOString().slice(0, 10);
+
+    const weekId = await weekOf(coach, athleteId, monday);
+    const planId = (await coach.get("/plans")).body[0].id;
+
+    const first = await addSession(coach, weekId, monday, "Lundi 1");
+    await addSession(coach, weekId, monday, "Lundi 2");
+    await addSession(coach, weekId, monday, "Lundi 3");
+
+    const moved = await coach.put(`/scheduled-sessions/${first}`).send({
+      title: "Lundi 1",
+      scheduledDate: tuesdayIso,
+      exercises: [],
+    });
+    expect(moved.status).toBe(200);
+
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1]);
+    expect(await positionsOn(coach, planId, tuesdayIso)).toEqual([0]);
+
+    // Le lundi reste ajoutable : c'est ce que le trou cassait.
+    await addSession(coach, weekId, monday, "Lundi 4");
+    expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
+  });
+});

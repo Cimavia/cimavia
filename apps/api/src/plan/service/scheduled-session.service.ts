@@ -36,6 +36,7 @@ import {
   SESSION_DETAIL_INCLUDE,
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
+import { compactDay } from "../scheduled-session.position";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
@@ -168,6 +169,9 @@ export class ScheduledSessionService {
         documents,
         carried,
       );
+
+      // Changer de jour, c'est aussi QUITTER un jour : sans ce recollage, l'ancien garde le trou.
+      if (dateChanged) await compactDay(tx, session.planWeekId, session.scheduledDate);
     });
 
     // Ajuster un cycle DÉJÀ diffusé doit prévenir l'athlète (CDC §5.7) : il a peut-être la
@@ -188,9 +192,15 @@ export class ScheduledSessionService {
     const session = await this.getOwnedOrThrow(id);
     const plan = await this.plans.getOwnedOrThrow(session.planId);
 
-    // Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
-    // copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
-    await this.db.scheduledSession.delete({ where: { id } });
+    await this.db.$transaction(async (tx) => {
+      // Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
+      // copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
+      await tx.scheduledSession.delete({ where: { id } });
+      // La journée se recolle DANS la même transaction : un trou laissé derrière ferait échouer
+      // la prochaine séance ajoutée ce jour-là, sur une contrainte d'unicité que le coach n'a
+      // aucun moyen de relier à la suppression qu'il vient de faire.
+      await compactDay(tx, session.planWeekId, session.scheduledDate);
+    });
 
     // Retirer une séance d'un cycle diffusé est l'ajustement le plus déroutant pour l'athlète :
     // sans notification, une séance disparaît de son planning sans explication — ou pire, reste
@@ -231,7 +241,13 @@ export class ScheduledSessionService {
     }
   }
 
-  // Position = rang dans la JOURNÉE (plusieurs séances possibles le même jour).
+  /**
+   * Position = rang dans la JOURNÉE (plusieurs séances possibles le même jour).
+   *
+   * Compter suffit parce que les rangs d'une journée sont CONTIGUS : c'est l'invariant que
+   * `compactDay` tient à chaque départ de séance. Le jour où il tomberait, ce compte rendrait un
+   * rang déjà occupé.
+   */
   private async nextPosition(tx: TenantTx, planWeekId: string, date: string): Promise<number> {
     return tx.scheduledSession.count({
       where: { planWeekId, scheduledDate: toDbDate(date) },
