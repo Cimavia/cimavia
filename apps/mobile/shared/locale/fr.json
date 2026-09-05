@@ -564,8 +564,8 @@
       "warnCoach": "Ta bibliothèque et tes cycles seront conservés, mais disparaîtront de ta navigation. Ils reviendront si tu réactives cette casquette.",
       "atLeastOne": "Garde au moins une casquette.",
       "blocked": {
-        "ACTIVE_ATHLETES": "Des athlètes vous sont rattachés. Retirez ces liens avant de cesser de coacher.",
-        "ACTIVE_COACH": "Vous êtes rattaché à un coach. Quittez cette relation avant de retirer cette casquette."
+        "ACTIVE_ATHLETES": "Des athlètes te sont rattachés : tu ne peux pas cesser de coacher tant que ces relations existent.",
+        "ACTIVE_COACH": "Tu es rattaché à un coach : cette casquette ne peut pas être retirée tant que la relation existe."
       }
     }
   }
