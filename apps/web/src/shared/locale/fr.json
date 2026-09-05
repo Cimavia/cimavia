@@ -715,6 +715,11 @@
       "submitting": "Émission…",
       "pending": "Invitations en attente",
       "emptyPending": "Aucune invitation en attente",
+      "declined": "Invitations refusées",
+      "sentOn": "émise le {{date}}",
+      "resend": "Réémettre",
+      "delete": "Effacer",
+      "deleteConfirm": "Confirmer",
       "expires": "expire le {{date}}",
       "copy": "Copier",
       "copied": "Code copié dans le presse-papiers"
@@ -728,6 +733,7 @@
     },
     "toast": {
       "invitationCreated": "Invitation créée : transmettez le code à votre athlète",
+      "invitationDeleted": "Invitation effacée",
       "sheetSaved": "Fiche athlète enregistrée"
     },
     "self": "{{name}} (moi)"
