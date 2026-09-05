@@ -21,12 +21,13 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
-autonomes. **Dix-sept dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Vingt-et-une dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **MI-1**, **MI-2**, **O-2**, **N-5** et **N-9**, dont le déclencheur est nommé mais
+**W-1**, **Q-6**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3** et **I-4**,
+dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud,
-où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les seize premières sont
+où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les vingt premières sont
 volontaires, la dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
@@ -1606,6 +1607,100 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Reste non implémenté de cette bande : l'indicateur « Enregistré il y a 2 min » de la maquette, qui
 > suppose un **auto-save**. Aucune surface du produit ne fonctionne ainsi (séances, facturation,
 > exercices : bouton explicite) ; l'en-tête suit la règle commune. Écart antérieur à #207, inchangé.
+
+---
+
+## Post-MVP — Invitations qui attendent, refus et e-mail ([#146](https://github.com/Cimavia/cimavia/issues/146) · [#147](https://github.com/Cimavia/cimavia/issues/147))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| I-1 | **L'e-mail d'invitation part en français**, quelle que soit la langue du destinataire. Il n'y a pas de `User.locale` à lire pour une adresse SANS compte, et `mailStringsFor(null)` replie sur le français. Seule une invitation portant elle-même une langue fermerait l'écart. | 🟢 | — *(déclencheur : un coach qui invite un athlète anglophone — l'anglais est déjà écrit au catalogue, il manque seulement de quoi le choisir)* |
+| I-2 | **Les deux mailers nomment une route WEB en clair** — `/account` (`NotificationMailer`) et `/register` (`InvitationMailer`). Aucun test ne peut les garder : l'API ne connaît pas le routeur du client. Renommer `account.tsx` ou `register.tsx` casse le lien **en silence**. Le nom du fichier est cité dans un commentaire à côté de chaque URL — c'est la seule parade, un `grep` le trouve. | 🟢 | — *(déclencheur : le jour où l'on renomme une route web ; rien à préparer avant)* |
+| I-3 | **`InvitationStatus.REVOKED` reste une valeur sans chemin** : aucune route ne la pose, et `DELETE /invitations/:id` la refuse comme les autres états non refusés. Un coach ne peut donc pas annuler une invitation encore en attente — il attend son expiration (7 jours). | 🟢 | — *(déclencheur : un coach qui veut retirer une invitation émise par erreur)* |
+| I-4 | **Rien ne rattrape un `.env` local en retard sur `.env.example`** (transverse, découvert ici). Les variables `SMTP_*` / `WEB_URL` ajoutées en [#61](https://github.com/Cimavia/cimavia/issues/61) manquaient un mois plus tard sur la machine de dev : l'e-mail d'invitation ne partait pas, et **rien ne le disait à l'écran** — seul un `WARN` dans les logs. Même famille que la migration non appliquée, qui a produit une notification muette le même jour. | 🟡 | — *(déclencheur : c'est arrivé deux fois en une session ; une vérification au démarrage — clés absentes, migrations en attente — reste à ouvrir)* |
+
+> **Tranché en #146** (le canal dépend de l'adresse, et la réponse HTTP ne le trahit jamais) :
+> émettre une invitation nominative prend l'une de trois voies, et ce qu'elles ont en commun est le
+> cœur de la décision — **le coach reçoit son invitation et son code à l'identique dans les trois
+> cas**. Sans cette symétrie, la route deviendrait un oracle d'existence de compte.
+>
+> - **Adresse absente** (invitation générique) : rien. Personne n'est visé ; son canal est le code
+>   transmis de la main à la main.
+> - **Adresse rattachée à un compte portant la capacité ATHLÈTE** : notification (centre + push).
+>   Il a une application où lire, l'e-mail doublerait un message qu'il verra de toute façon.
+> - **Tout le reste** — pas de compte, ou un compte sans capacité athlète : **e-mail**. C'est le cas
+>   le plus courant, celui du nouvel athlète qu'on invite, et c'est exactement lui qui ne recevait
+>   rien : le déclencheur écrit dans #146 n'était traité qu'à moitié tant que ce canal manquait.
+>
+> Les trois types `INVITATION_*` restent **hors de `EMAILABLE_NOTIFICATION_TYPES`** : ils ne visent
+> que des comptes existants. L'e-mail d'invitation, lui, n'est pas soumis à l'opt-in de #65 — cet
+> opt-in est un réglage de compte, et le destinataire n'en a pas.
+
+> **Tranché en #146** (l'adresse se compare NORMALISÉE, et c'était un bug) : `Invitation.email` est
+> tapé par le coach, `User.email` par l'athlète. La comparaison était brute, si bien qu'une adresse
+> saisie `Lea@Exemple.fr` pour un compte `lea@exemple.fr` produisait une invitation **définitivement
+> inutilisable** — refusée à l'acceptation, sans message qui dise pourquoi. Normalisée à l'écriture
+> **et** à la comparaison : la première seule ne rattraperait pas les lignes déjà en base, la
+> seconde seule laisserait la colonne porter deux formes du même destinataire.
+
+> **Tranché en #146** (`DECLINED` est une valeur à part, et le seul état qui s'efface) : « le coach
+> a annulé » (`REVOKED`) et « l'athlète a dit non » (`DECLINED`) ne se remplacent pas — les fondre
+> ferait perdre au coach la seule information qui l'intéresse.
+>
+> `DELETE /invitations/:id` n'accepte donc que `DECLINED`, et le refus des trois autres états n'est
+> pas une précaution : chacun perdrait quelque chose de différent. **`PENDING`** — la retirer serait
+> une révocation, c'est-à-dire une autre transition ; la déguiser en suppression ferait disparaître
+> un code encore utilisable sans le dire à qui l'a reçu (dette **I-3**). **`ACCEPTED`** — la ligne
+> est la trace de la façon dont la relation s'est nouée (`acceptedByAthleteId`). **`REVOKED`** —
+> aucune route ne la produit, l'autoriser écrirait un chemin que rien n'éprouve.
+>
+> Le refus exige une **correspondance d'adresse en toutes circonstances**, là où l'acceptation ne la
+> vérifie que sur une invitation nominative : sans cela, le premier détenteur d'un code générique le
+> brûlerait pour tout le monde.
+
+> **Tranché en #147** (la carte s'affiche dans les DEUX branches — l'issue disait le contraire) :
+> son corps rangeait la carte d'invitation dans la seule branche « aucun coach », où un athlète déjà
+> lié n'arrive jamais ; #146, lui, exigeait qu'il la voie. Les deux ne pouvaient pas être vrais.
+>
+> C'est #146 qui l'emporte, et pour une raison qui n'est pas d'arbitrage mais d'usage : **refuser
+> est le geste UTILE dans ce cas** — c'est lui qui vide la liste d'attente de l'inviteur. La masquer
+> laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien. « Rejoindre » est
+> alors désactivé **avec sa raison écrite au-dessus** : un bouton grisé sans explication laisse
+> chercher ce qui cloche, alors que la cause est une règle du produit (au plus un coach).
+>
+> Le libellé ne dit pas « quitte d'abord cette relation » : **aucune route ne supprime une
+> `CoachAthlete`**. Envoyer vers un geste inexistant serait pire que de ne rien proposer — c'est
+> exactement ce que fait déjà, à tort, `account.capabilities.blocked.ACTIVE_COACH`.
+
+> **Tranché en #147** (`INVITATION_DECLINED` SUPPRIME une destination, il n'en comble pas une) :
+> c'est le seul branchement sur le TYPE des deux tables de routage, et l'exact inverse du repli de
+> `REMINDER_DUE` (#46) — là-bas le type comble une destination absente, ici il en retire une qui
+> existe. La raison n'est pas que l'écran manque : il est là, c'est le panneau d'invitations du
+> coach. C'est l'**entité** qui est morte — l'invitation refusée a quitté `PENDING`, elle ne
+> s'affiche plus, et l'y envoyer ferait chercher une ligne qui n'y est plus.
+>
+> Les deux autres se branchent par CAPACITÉ comme le reste de la table, sans une ligne sur le type :
+> coach → `/` (web) et `/dashboard` (mobile), où le nouvel athlète apparaît ; athlète → `/my-coach`
+> et `/join`, où l'invitation s'accepte. L'entrée `{ to: "/" }` du web porte son `search` — trois
+> clés requises mais possiblement `undefined` (#123) —, sans quoi elle ne compile pas.
+
+> **Tranché en #147** (le premier motif de confirmation du mobile est un composant, pas une alerte
+> native) : `apps/mobile` n'avait AUCUN geste destructif confirmé, ni le moindre `Alert.alert`. Le
+> refus d'invitation en demandait un, et l'alerte native aurait été le réflexe — elle est écartée
+> pour deux raisons cumulées : elle ignore NativeWind (donc les tokens, règle dure n°3), et elle est
+> invisible du harnais de rendu, qui monte l'arbre en `react-native-web` (dette **Q-6**). Un geste
+> protégé par une alerte serait un geste **non éprouvé**. `CmvConfirmButton` est donc le jumeau de
+> celui du web, armement en deux temps compris — la parité est le point : un même refus doit
+> demander la même chose des deux côtés.
+
+> **Écarts de maquette assumés** : `auth_onboarding.dc.html` § *MOBILE · ACCEPTATION D'INVITATION*
+> décrit un **écran plein** — avatar, « Marc Keller t'invite », code **pré-rempli depuis ton lien
+> d'invitation**, « Rejoindre Marc ». Trois écarts, tous volontaires. La carte se pose **au-dessus
+> du formulaire** plutôt que de remplacer l'écran, parce qu'elle ne doit pas fermer le chemin des
+> invitations génériques. Elle porte un **« Refuser »** que la maquette ne prévoit pas, sans quoi
+> une invitation non désirée resterait en attente jusqu'à son expiration. Et le **lien profond qui
+> pré-remplit le code n'existe pas** : l'e-mail d'invitation porte le code en clair et un lien vers
+> l'inscription, ce qui suffit tant qu'aucun schéma d'URL n'est branché sur `cimavia://`.
 
 ---
 
