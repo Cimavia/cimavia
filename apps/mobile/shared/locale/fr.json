@@ -48,17 +48,17 @@
     },
     "forgot": {
       "title": "Mot de passe oublié",
-      "description": "Saisissez votre e-mail pour recevoir un lien de réinitialisation.",
+      "description": "Saisis ton e-mail pour recevoir un lien de réinitialisation.",
       "submit": "Envoyer le lien",
       "submitting": "Envoi…",
       "sent": "Si un compte existe, un lien de réinitialisation vient d'être envoyé.",
       "back": "Retour à la connexion"
     },
     "errors": {
-      "generic": "Une erreur est survenue. Réessayez.",
+      "generic": "Une erreur est survenue. Réessaie.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",
       "invalidCredentials": "E-mail ou mot de passe incorrect.",
-      "noCapability": "Choisissez au moins une option."
+      "noCapability": "Choisis au moins une option."
     }
   },
   "exercise": {
@@ -442,7 +442,7 @@
     "empty": {
       "PENDING": {
         "title": "Aucun rappel à traiter",
-        "description": "Programmez un rappel depuis une facture : il apparaîtra ici, et dans vos notifications le jour de son échéance."
+        "description": "Programme un rappel depuis une facture : il apparaîtra ici, et dans tes notifications le jour de son échéance."
       },
       "HANDLED": {
         "title": "Aucun rappel traité",
@@ -456,7 +456,7 @@
       "dueAt": "Échéance",
       "note": "Ce dont il faut se souvenir",
       "notePlaceholder": "Relancer la facture avant la fin du mois",
-      "hint": "Le jour de l'échéance, le rappel apparaît dans vos notifications. Vous le retrouvez à tout moment dans « Mes rappels ».",
+      "hint": "Le jour de l'échéance, le rappel apparaît dans tes notifications. Tu le retrouves à tout moment dans « Mes rappels ».",
       "submit": "Programmer",
       "submitting": "Enregistrement…"
     },
@@ -552,7 +552,7 @@
   "account": {
     "capabilities": {
       "title": "Ce que je fais sur cimavia",
-      "description": "Ajoutez ou retirez une casquette à tout moment. Les deux sont possibles.",
+      "description": "Ajoute ou retire une casquette à tout moment. Les deux sont possibles.",
       "option": {
         "coach": "Coacher des athlètes",
         "athlete": "Suivre mes entraînements"
@@ -561,8 +561,8 @@
         "coach": "Composer des exercices et des séances, diffuser des cycles, facturer.",
         "athlete": "Consulter mes séances, les débriefer, échanger avec mon coach."
       },
-      "warnCoach": "Votre bibliothèque et vos cycles seront conservés, mais disparaîtront de votre navigation. Ils reviendront si vous réactivez cette casquette.",
-      "atLeastOne": "Gardez au moins une casquette.",
+      "warnCoach": "Ta bibliothèque et tes cycles seront conservés, mais disparaîtront de ta navigation. Ils reviendront si tu réactives cette casquette.",
+      "atLeastOne": "Garde au moins une casquette.",
       "blocked": {
         "ACTIVE_ATHLETES": "Des athlètes vous sont rattachés. Retirez ces liens avant de cesser de coacher.",
         "ACTIVE_COACH": "Vous êtes rattaché à un coach. Quittez cette relation avant de retirer cette casquette."
