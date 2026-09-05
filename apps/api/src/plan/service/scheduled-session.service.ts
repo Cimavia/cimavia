@@ -1,6 +1,8 @@
 import type {
   CreateScheduledSessionInput,
   CustomMetric,
+  PlanDto,
+  ReorderPlanDayInput,
   ScheduledSessionDto,
   ScheduledSessionExerciseInput,
   UpdateScheduledSessionInput,
@@ -36,7 +38,7 @@ import {
   SESSION_DETAIL_INCLUDE,
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
-import { compactDay } from "../scheduled-session.position";
+import { compactDay, writePositions } from "../scheduled-session.position";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
@@ -186,6 +188,52 @@ export class ScheduledSessionService {
     }
 
     return this.getDto(id);
+  }
+
+  /**
+   * L'ordre des séances d'UNE journée (#148) — replace-all : le tableau reçu DÉFINIT les rangs.
+   *
+   * Réordonner reste autorisé sur un cycle DIFFUSÉ, contrairement au collage de semaine (#4) qui
+   * s'y refuse : la différence n'est pas le statut, c'est le nombre d'écritures. Un collage émet
+   * une notification par séance et rien ne les groupe (dette N-6) ; ici le geste est UN, donc son
+   * annonce l'est aussi.
+   */
+  async reorderDay(
+    planWeekId: string,
+    isoDate: string,
+    input: ReorderPlanDayInput,
+  ): Promise<PlanDto> {
+    const week = await this.plans.getWeekOwnedOrThrow(planWeekId);
+    const plan = await this.plans.getOwnedOrThrow(week.planId);
+    this.assertDateInWeek(plan, week, isoDate);
+
+    // Scopé au coach courant par l'extension tenant : une séance d'un autre coach n'y figure pas,
+    // et la vérification d'exhaustivité ci-dessous la refuse donc comme une séance étrangère.
+    const sessions = await this.db.scheduledSession.findMany({
+      where: { planWeekId, scheduledDate: toDbDate(isoDate) },
+      select: { id: true, position: true },
+      orderBy: { position: "asc" },
+    });
+
+    const ordered = assertSameSessions(sessions, input.sessionIds);
+    // Comparer les rangs RÉSULTANTS, jamais le fait qu'une requête soit passée : le `PUT` est
+    // idempotent, et renvoyer l'ordre déjà en place ne dérange pas l'athlète (même règle que le
+    // `readAt` de #105).
+    const changed = ordered.some((session, index) => session.position !== index);
+
+    if (changed) {
+      await this.db.$transaction((tx) => writePositions(tx, ordered));
+
+      if (plan.status === PlanStatus.PUBLISHED) {
+        await this.notifications.notifyPlanSessionsReordered({
+          athleteId: athleteRecipientOrThrow(plan),
+          planId: plan.id,
+          isoDate,
+        });
+      }
+    }
+
+    return this.plans.get(plan.id);
   }
 
   async delete(id: string): Promise<void> {
@@ -421,4 +469,40 @@ function resolveCustomMetrics(
     ...exercise,
     customMetrics: customMetricsFor(exercise.blocks ?? [], coachMetrics),
   };
+}
+
+/**
+ * Vérifie que `sessionIds` est une PERMUTATION des séances de la journée, et rend celles-ci dans
+ * l'ordre demandé.
+ *
+ * Un sous-ensemble est refusé, et ce n'est pas de la rigueur gratuite : les séances tues
+ * garderaient leur rang d'avant, donc des doublons et des trous sur
+ * `@@unique([planWeekId, scheduledDate, position])`. Un identifiant étranger l'est aussi — il
+ * désigne soit une séance d'un autre jour, soit une séance d'un autre coach, que le scope tenant a
+ * déjà rendue invisible. Les deux cas sont des 400 : la demande est mal formée, l'état ne s'y
+ * prête pas moins.
+ */
+function assertSameSessions(
+  sessions: readonly { id: string; position: number }[],
+  sessionIds: readonly string[],
+): { id: string; position: number }[] {
+  const byId = new Map(sessions.map((session) => [session.id, session]));
+  const wanted = new Set(sessionIds);
+
+  if (wanted.size !== sessionIds.length) {
+    throw new BadRequestException("Une séance est citée deux fois dans l'ordre demandé");
+  }
+  if (sessionIds.length !== sessions.length) {
+    throw new BadRequestException(
+      "L'ordre doit citer TOUTES les séances de la journée, et rien d'autre",
+    );
+  }
+
+  return sessionIds.map((id) => {
+    const session = byId.get(id);
+    if (session == null) {
+      throw new BadRequestException(`La séance ${id} n'est pas une séance de cette journée`);
+    }
+    return session;
+  });
 }

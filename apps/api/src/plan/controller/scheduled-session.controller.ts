@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nest
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateScheduledSessionDto } from "../dto/create-scheduled-session.dto";
+import { ReorderPlanDayDto } from "../dto/reorder-plan-day.dto";
 import { UpdateScheduledSessionDto } from "../dto/update-scheduled-session.dto";
 import { ScheduledSessionService } from "../service/scheduled-session.service";
 
@@ -16,6 +17,19 @@ export class ScheduledSessionController {
   @Post("plan-weeks/:planWeekId/sessions")
   create(@Param("planWeekId") planWeekId: string, @Body() dto: CreateScheduledSessionDto) {
     return this.sessions.create(planWeekId, dto);
+  }
+
+  /**
+   * L'ordre des séances d'une JOURNÉE (#148) — la journée est la ressource, d'où son adressage
+   * dans l'URL et non dans le corps. Replace-all, comme toute composition du produit.
+   */
+  @Put("plan-weeks/:planWeekId/days/:date/order")
+  reorderDay(
+    @Param("planWeekId") planWeekId: string,
+    @Param("date") date: string,
+    @Body() dto: ReorderPlanDayDto,
+  ) {
+    return this.sessions.reorderDay(planWeekId, date, dto);
   }
 
   @Get("scheduled-sessions/:id")

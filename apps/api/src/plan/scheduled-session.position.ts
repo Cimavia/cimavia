@@ -19,8 +19,14 @@ type PositionedSession = { id: string; position: number };
  * Le décalage se DÉDUIT du maximum observé au lieu d'être une constante : une journée qui porte
  * déjà des trous (cas d'avant #148) peut occuper un rang supérieur à son propre effectif, et un
  * `+ effectif` fixe retomberait dessus.
+ *
+ * Deux appelants, une seule écriture de ce piège : recoller une journée après un départ, et la
+ * réordonner sur demande du coach.
  */
-async function writePositions(tx: TenantTx, ordered: readonly PositionedSession[]): Promise<void> {
+export async function writePositions(
+  tx: TenantTx,
+  ordered: readonly PositionedSession[],
+): Promise<void> {
   if (ordered.length === 0) return;
 
   const parking = Math.max(...ordered.map((session) => session.position)) + 1;
