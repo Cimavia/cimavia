@@ -31,9 +31,14 @@ export function CmvTextField({ label, name, requiredMark, ...rest }: CmvTextFiel
         {label}
         {/* `aria-hidden` : sans lui l'astérisque entre dans le NOM ACCESSIBLE du champ, qui
             s'annonce « Montant astérisque ». L'obligation est déjà portée par `required`, que le
-            lecteur d'écran restitue seul — le repère n'est donc que visuel. */}
+            lecteur d'écran restitue seul — le repère n'est donc que visuel.
+
+            `accent-on` et non `error` : la famille d'état interdit son `DEFAULT` en texte (trop
+            sombre sur `surface` — 4.20:1, sous le seuil AA), et le rouge appartient à l'ERREUR de
+            validation, pas à l'annonce d'une obligation. Les maquettes dessinent d'ailleurs cet
+            astérisque en terracotta. */}
         {requiredMark ? (
-          <span aria-hidden="true" className="text-cmv-error">
+          <span aria-hidden="true" className="text-cmv-accent-on">
             {" *"}
           </span>
         ) : null}
