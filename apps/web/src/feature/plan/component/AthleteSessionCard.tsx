@@ -33,7 +33,11 @@ export function AthleteSessionCard({ session }: Readonly<AthleteSessionCardProps
       <span className="text-cmv-caption text-cmv-text-lo">
         {t("plan.athlete.exerciseCount", { count: session.exerciseCount })}
       </span>
-      <span className="text-cmv-caption text-cmv-accent">
+      {/* `mt-auto` colle le statut au BAS de la carte, et n'agit que là où il y a de la hauteur en
+          trop à distribuer — la grille de semaine, qui étire ses cartes (#206). Dans la liste
+          verticale, la carte fait la taille de son texte : la marge vaut alors zéro. C'est ce qui
+          aligne les « Fait » d'une même rangée sans donner deux rendus à un seul composant. */}
+      <span className="mt-auto text-cmv-caption text-cmv-accent">
         {t(`plan.athlete.sessionStatus.${session.status}`)}
       </span>
     </Link>
