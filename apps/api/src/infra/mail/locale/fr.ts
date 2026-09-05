@@ -25,6 +25,26 @@ export const fr = {
       "Si tu n'es pas à l'origine de cette demande, ignore cet e-mail : ton mot de passe reste inchangé.",
   },
   /**
+   * L'invitation d'un athlète sans compte. Tutoiement comme partout, et le nom du coach en objet :
+   * c'est ce qui distingue ce message d'un courrier non sollicité dans une boîte qui ne nous
+   * connaît pas encore.
+   */
+  invitation: {
+    subject: (coachName) =>
+      coachName != null
+        ? `${coachName} t'invite sur Cimavia`
+        : "Une invitation t'attend sur Cimavia",
+    heading: "Rejoins ton coach sur Cimavia",
+    intro: (coachName) =>
+      `${coachName ?? "Un coach"} t'invite à rejoindre son espace sur Cimavia, pour y suivre tes planifications et débriefer tes séances.`,
+    codeLine: (code) => `Ton code d'invitation : ${code}`,
+    expiry: (days) =>
+      days > 1 ? `Ce code est valable ${days} jours.` : "Ce code est valable une journée.",
+    cta: "Créer mon compte",
+    ignore:
+      "Si tu ne connais pas cette personne, ignore cet e-mail : rien ne se passera, et personne n'apprendra que tu l'as reçu.",
+  },
+  /**
    * Un gabarit par type envoyable. Chacun a DEUX formulations, selon que le sujet est connu ou
    * non : `subjectLabel` est nullable (règle dure n°5), et une phrase à guillemets vides serait
    * pire qu'une phrase générique. Le repli n'est donc pas un défaut silencieux, c'est une seconde

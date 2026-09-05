@@ -107,6 +107,43 @@ describe("routeForNotification — repli des rappels dus", () => {
   });
 });
 
+describe("routeForNotification — l'invitation (#146)", () => {
+  /**
+   * Branchée par CAPACITÉ, comme le reste de la table : le coach revient à son tableau de bord,
+   * où le nouvel athlète apparaît ; l'athlète va à l'écran où l'invitation s'accepte.
+   */
+  it("mène le coach au tableau de bord et l'athlète à l'écran de rattachement", () => {
+    const dto = entry({
+      type: NotificationType.INVITATION_ACCEPTED,
+      entityType: NotificationEntityType.INVITATION,
+      entityId: "inv-1",
+    });
+    expect(routeForNotification(dto, COACH)).toBe("/dashboard");
+    expect(routeForNotification(dto, ATHLETE)).toBe("/join");
+  });
+
+  /**
+   * Le seul type dont la destination est SUPPRIMÉE plutôt que déduite — l'exact inverse du repli
+   * des rappels dus, qui en COMBLE une absente. L'écran existe pourtant : c'est que l'ENTITÉ est
+   * morte, l'invitation refusée ayant quitté `PENDING`.
+   */
+  it("ne mène nulle part quand l'invitation a été refusée, cloche comme push", () => {
+    const dto = entry({
+      type: NotificationType.INVITATION_DECLINED,
+      entityType: NotificationEntityType.INVITATION,
+      entityId: "inv-2",
+    });
+    expect(routeForNotification(dto, COACH)).toBeNull();
+    expect(routeForNotification(dto, ATHLETE)).toBeNull();
+    expect(
+      routeForPushPayload(
+        { type: NotificationType.INVITATION_DECLINED, invitationId: "inv-2" },
+        COACH,
+      ),
+    ).toBeNull();
+  });
+});
+
 describe("routeForPushPayload", () => {
   /**
    * Les DEUX portes d'entrée doivent dire la même chose : ouvrir le push et toucher la ligne du
@@ -130,6 +167,23 @@ describe("routeForPushPayload", () => {
       "c-1",
     ],
     [NotificationType.INVOICE_ISSUED, { invoiceId: "i-1" }, NotificationEntityType.INVOICE, "i-1"],
+    /**
+     * Les deux invitations qui MÈNENT quelque part (#146). Leur clé d'id est `invitationId`, et le
+     * typecheck ne l'aurait pas réclamée : la charge utile est `unknown`, un type oublié tomberait
+     * dans le `default` et le push ne mènerait nulle part là où la cloche mène quelque part.
+     */
+    [
+      NotificationType.INVITATION_RECEIVED,
+      { invitationId: "inv-1" },
+      NotificationEntityType.INVITATION,
+      "inv-1",
+    ],
+    [
+      NotificationType.INVITATION_ACCEPTED,
+      { invitationId: "inv-1" },
+      NotificationEntityType.INVITATION,
+      "inv-1",
+    ],
   ])("mène %s au même endroit que la ligne du centre", (type, ids, entityType, entityId) => {
     for (const capabilities of [COACH, ATHLETE]) {
       expect(routeForPushPayload({ type, ...ids }, capabilities)).toBe(

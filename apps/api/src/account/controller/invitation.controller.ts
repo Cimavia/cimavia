@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Session, type UserSession } from "@thallesp/nestjs-better-auth";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { AcceptInvitationDto } from "../dto/accept-invitation.dto";
 import { CreateInvitationDto } from "../dto/create-invitation.dto";
+import { DeclineInvitationDto } from "../dto/decline-invitation.dto";
 import { InvitationService } from "../service/invitation.service";
 
 @ApiTags("invitations")
@@ -23,9 +24,43 @@ export class InvitationController {
     return this.invitations.listMine();
   }
 
+  /**
+   * Coach : efface une invitation refusée, pour que sa liste cesse de la lui montrer. Refusé
+   * (409) sur tout autre état — retirer une invitation en attente serait une révocation, qui est
+   * une transition à part et n'a pas de chemin.
+   */
+  @Delete(":id")
+  @HttpCode(204)
+  @RequireCapability("coach")
+  async remove(@Param("id") id: string) {
+    await this.invitations.remove(id);
+  }
+
+  /**
+   * Athlète : ce qui l'attend (#146). Le filtre vient de la SESSION et d'elle seule — aucun
+   * paramètre d'adresse, qui ferait de cette route l'annuaire des invitations émises.
+   */
+  @Get("for-me")
+  @RequireCapability("athlete")
+  listForMe(@Session() session: UserSession) {
+    return this.invitations.listForMe({ email: session.user.email });
+  }
+
   @Post("accept")
   @RequireCapability("athlete")
   accept(@Session() session: UserSession, @Body() dto: AcceptInvitationDto) {
     return this.invitations.accept({ id: session.user.id, email: session.user.email }, dto.code);
+  }
+
+  /**
+   * Athlète : refuse une invitation. Rien à rendre — l'invitation refusée quitte la liste, et
+   * c'est le seul état que le client ait besoin de constater. D'où un 204 plutôt qu'un DTO dont
+   * personne ne lirait le contenu.
+   */
+  @Post("decline")
+  @HttpCode(204)
+  @RequireCapability("athlete")
+  async decline(@Session() session: UserSession, @Body() dto: DeclineInvitationDto) {
+    await this.invitations.decline({ id: session.user.id, email: session.user.email }, dto.code);
   }
 }

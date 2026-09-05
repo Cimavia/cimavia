@@ -698,6 +698,7 @@
     "invitationStatus": {
       "PENDING": "En attente",
       "ACCEPTED": "Acceptée",
+      "DECLINED": "Refusée",
       "REVOKED": "Révoquée"
     },
     "empty": {
@@ -714,6 +715,11 @@
       "submitting": "Émission…",
       "pending": "Invitations en attente",
       "emptyPending": "Aucune invitation en attente",
+      "declined": "Invitations refusées",
+      "sentOn": "émise le {{date}}",
+      "resend": "Réémettre",
+      "delete": "Effacer",
+      "deleteConfirm": "Confirmer",
       "expires": "expire le {{date}}",
       "copy": "Copier",
       "copied": "Code copié dans le presse-papiers"
@@ -727,6 +733,7 @@
     },
     "toast": {
       "invitationCreated": "Invitation créée : transmettez le code à votre athlète",
+      "invitationDeleted": "Invitation effacée",
       "sheetSaved": "Fiche athlète enregistrée"
     },
     "self": "{{name}} (moi)"
@@ -959,6 +966,9 @@
       "feedbackReceived": "{{actor}} a débriefé « {{subject}} »",
       "messageReceived": "Nouveau message de {{actor}}",
       "invoiceIssued": "Nouvelle facture reçue",
+      "invitationReceived": "{{actor}} t'invite à rejoindre son espace",
+      "invitationAccepted": "{{actor}} a rejoint ton espace",
+      "invitationDeclined": "{{actor}} a refusé ton invitation",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {
@@ -979,6 +989,19 @@
       "since": "Coach · suivi depuis le {{date}}",
       "sinceUnknown": "Coach · date de rattachement —",
       "message": "Message"
+    },
+    "invitation": {
+      "title": "{{name}} t'invite à le rejoindre",
+      "expires": "Invitation valable jusqu'au {{date}}",
+      "join": "Rejoindre {{name}}",
+      "joining": "Connexion en cours…",
+      "blocked": "Tu es déjà suivi par {{name}} : tu ne peux pas accepter une autre invitation.",
+      "decline": "Refuser",
+      "declineConfirm": "Confirmer le refus",
+      "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
+      "toast": {
+        "declined": "Invitation refusée"
+      }
     },
     "missing": {
       "title": "Aucun coach pour l'instant",

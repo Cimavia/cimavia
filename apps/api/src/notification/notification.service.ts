@@ -50,6 +50,29 @@ export type InvoiceIssuedEvent = {
   invoiceId: string;
 };
 
+/**
+ * Une invitation nominative vient d'être émise (#146), et l'adresse visée a un compte athlète.
+ *
+ * Le coach est passé par son ID et non par son nom : le résoudre ici garde au même endroit la
+ * lecture de `User` (table hors scope tenant) et le « une notification ne casse jamais l'action
+ * métier » — l'appelant n'a rien à faire de plus qu'émettre.
+ */
+export type InvitationReceivedEvent = {
+  athleteId: string;
+  coachId: string;
+  invitationId: string;
+};
+
+/**
+ * L'athlète a répondu — rejoint ou refusé. Une seule charge pour les deux, comme les trois
+ * ajustements de cycle : mêmes parties, même entité, seul le sens de la réponse change.
+ */
+export type InvitationAnsweredEvent = {
+  coachId: string;
+  athleteId: string;
+  invitationId: string;
+};
+
 export type ReminderDueEvent = {
   // Le coach qui s'est écrit ce rappel — un rappel n'a pas d'autre destinataire.
   coachId: string;
@@ -76,6 +99,9 @@ type PushPayload =
   | { type: typeof NotificationType.FEEDBACK_RECEIVED; scheduledSessionId: string }
   | { type: typeof NotificationType.MESSAGE_RECEIVED; conversationId: string }
   | { type: typeof NotificationType.INVOICE_ISSUED; invoiceId: string }
+  | { type: typeof NotificationType.INVITATION_RECEIVED; invitationId: string }
+  | { type: typeof NotificationType.INVITATION_ACCEPTED; invitationId: string }
+  | { type: typeof NotificationType.INVITATION_DECLINED; invitationId: string }
   // Le seul type poussé SANS ligne en base (#47) : l'entrée du centre reste calculée à la lecture.
   // Sa clé d'id est `reminderId`, comme les autres sont `planId` ou `invoiceId`.
   | { type: typeof NotificationType.REMINDER_DUE; reminderId: string };
@@ -292,6 +318,91 @@ export class NotificationService {
         title: "Nouvelle facture",
         body: "Ton coach t'a émis une facture.",
         data: { type: NotificationType.INVOICE_ISSUED, invoiceId: event.invoiceId },
+      },
+    );
+  }
+
+  /**
+   * Une invitation nominative attend son destinataire (#146). Le seul des trois où l'athlète est
+   * prévenu ; les deux suivants remontent sa réponse au coach.
+   *
+   * Émis UNIQUEMENT quand l'adresse visée a un compte athlète — l'appelant l'a résolu avant
+   * d'appeler. Une adresse inconnue n'est pas un échec : c'est le cas courant de l'invitation d'un
+   * nouvel athlète, et son canal est l'e-mail.
+   */
+  async notifyInvitationReceived(event: InvitationReceivedEvent): Promise<void> {
+    this.logger.info({ event: "invitation.received", ...event }, "Invitation adressée à un compte");
+    const coachName = await this.userName(event.coachId);
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.INVITATION_RECEIVED,
+        entityType: NotificationEntityType.INVITATION,
+        entityId: event.invitationId,
+        actorName: coachName,
+        subjectLabel: null,
+      },
+      {
+        title: "Invitation",
+        // Le nom EST l'information : un athlète non lié n'a aucun contexte qui dise de qui vient
+        // cette invitation, contrairement à un cycle diffusé par le coach qu'il a déjà.
+        body: `${coachName ?? "Un coach"} t'invite à rejoindre son espace.`,
+        data: {
+          type: NotificationType.INVITATION_RECEIVED,
+          invitationId: event.invitationId,
+        },
+      },
+    );
+  }
+
+  // L'athlète a rejoint : le coach le verra apparaître dans son tableau de suivi.
+  async notifyInvitationAccepted(event: InvitationAnsweredEvent): Promise<void> {
+    this.logger.info({ event: "invitation.accepted", ...event }, "Invitation acceptée");
+    const athleteName = await this.userName(event.athleteId);
+    await this.emit(
+      {
+        recipientId: event.coachId,
+        type: NotificationType.INVITATION_ACCEPTED,
+        entityType: NotificationEntityType.INVITATION,
+        entityId: event.invitationId,
+        actorName: athleteName,
+        subjectLabel: null,
+      },
+      {
+        title: "Invitation acceptée",
+        body: `${athleteName ?? "Un athlète"} a rejoint ton espace.`,
+        data: {
+          type: NotificationType.INVITATION_ACCEPTED,
+          invitationId: event.invitationId,
+        },
+      },
+    );
+  }
+
+  /**
+   * L'athlète a refusé. C'est la SEULE trace qu'il en restera pour le coach au moment où ça se
+   * produit : l'invitation quitte `PENDING` et disparaît de son panneau d'invitations en attente.
+   * Sans cette notification, un refus serait indiscernable d'une invitation qu'on ignore.
+   */
+  async notifyInvitationDeclined(event: InvitationAnsweredEvent): Promise<void> {
+    this.logger.info({ event: "invitation.declined", ...event }, "Invitation refusée");
+    const athleteName = await this.userName(event.athleteId);
+    await this.emit(
+      {
+        recipientId: event.coachId,
+        type: NotificationType.INVITATION_DECLINED,
+        entityType: NotificationEntityType.INVITATION,
+        entityId: event.invitationId,
+        actorName: athleteName,
+        subjectLabel: null,
+      },
+      {
+        title: "Invitation refusée",
+        body: `${athleteName ?? "Un athlète"} a refusé ton invitation.`,
+        data: {
+          type: NotificationType.INVITATION_DECLINED,
+          invitationId: event.invitationId,
+        },
       },
     );
   }

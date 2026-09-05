@@ -25,6 +25,18 @@ describe("capabilityOfNotification", () => {
   });
 
   /**
+   * Les trois temps d'une invitation (#146) se partagent entre les deux espaces, et c'est ce que
+   * ce test fige : l'invitation elle-même est reçue en athlète (c'est la capacité qu'elle propose
+   * d'exercer), les deux réponses en coach (c'est lui qui l'a émise). Les ranger tous du même côté
+   * ferait clignoter la pastille de l'espace où il n'y a rien à faire.
+   */
+  it("sépare l'invitation reçue de ses deux réponses", () => {
+    expect(capabilityOfNotification(NotificationType.INVITATION_RECEIVED)).toBe("athlete");
+    expect(capabilityOfNotification(NotificationType.INVITATION_ACCEPTED)).toBe("coach");
+    expect(capabilityOfNotification(NotificationType.INVITATION_DECLINED)).toBe("coach");
+  });
+
+  /**
    * Le message est le seul type indécidable : les deux côtés d'un fil en reçoivent. Rendre « coach »
    * par défaut rangerait la moitié des messages du mauvais côté — mieux vaut ne pas répondre et
    * laisser l'appelant résoudre depuis la conversation.

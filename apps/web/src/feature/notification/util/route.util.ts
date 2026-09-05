@@ -1,4 +1,9 @@
-import { type Capabilities, type NotificationDto, NotificationEntityType } from "@cmv/shared";
+import {
+  type Capabilities,
+  type NotificationDto,
+  NotificationEntityType,
+  NotificationType,
+} from "@cmv/shared";
 
 type NotificationTarget =
   | { to: "/plans/$planId"; params: { planId: string } }
@@ -6,7 +11,24 @@ type NotificationTarget =
   | { to: "/feedbacks" }
   | { to: "/messages" }
   | { to: "/planning" }
-  | { to: "/invoices" };
+  | { to: "/invoices" }
+  | { to: "/my-coach" }
+  /**
+   * Le tableau de suivi du coach. Il porte son `search` — trois clés REQUISES mais possiblement
+   * `undefined` (#123) — parce que la route l'exige : sous `exactOptionalPropertyTypes`, « absente »
+   * et « présente à undefined » ne sont pas la même chose, et `navigate({ to: "/" })` seul ne
+   * compile pas. Les quatre autres appelants de cette route du dépôt passent le même objet.
+   */
+  | {
+      to: "/";
+      search: { q: undefined; filter: undefined; athlete: undefined };
+    };
+
+/** L'accueil du coach, sans filtre : ce que le tableau montre quand on n'a rien demandé. */
+const COACH_HOME = {
+  to: "/",
+  search: { q: undefined, filter: undefined, athlete: undefined },
+} as const satisfies NotificationTarget;
 
 /**
  * Où mène une notification quand on clique dessus. Le web n'a pas (encore) d'écran par débrief ni
@@ -35,6 +57,18 @@ export function routeForNotification(
   capabilities: Capabilities,
 ): NotificationTarget | null {
   const { isCoach } = capabilities;
+
+  /**
+   * Une invitation REFUSÉE ne mène nulle part, et c'est décidé AVANT la table — le seul type dont
+   * la destination soit supprimée plutôt que déduite.
+   *
+   * À ne pas confondre avec le repli de `REMINDER_DUE` côté mobile (#46), qui en est l'exact
+   * inverse : là-bas le type COMBLE une destination absente, ici il en RETIRE une qui existe. La
+   * raison n'est pas que l'écran manque — il est là, c'est le panneau d'invitations du coach —
+   * mais que l'ENTITÉ est morte : l'invitation refusée a quitté `PENDING`, et le coach y
+   * chercherait une ligne qui n'y est plus.
+   */
+  if (notification.type === NotificationType.INVITATION_DECLINED) return null;
 
   switch (notification.entityType) {
     /**
@@ -65,6 +99,14 @@ export function routeForNotification(
     // Servie aux deux rôles depuis #27 : même route, contenu scopé par le tenant.
     case NotificationEntityType.INVOICE:
       return { to: "/invoices" };
+    /**
+     * L'invitation (#146) se branche par CAPACITÉ comme tout le reste de cette table, et les deux
+     * destinations tombent sans une seule ligne de branchement sur le type : le coach va voir le
+     * nouvel athlète apparaître dans son tableau de suivi — c'est ce qu'on vient de lui annoncer —
+     * et l'athlète va à l'écran où l'invitation s'accepte.
+     */
+    case NotificationEntityType.INVITATION:
+      return isCoach ? COACH_HOME : { to: "/my-coach" };
     default:
       return null;
   }

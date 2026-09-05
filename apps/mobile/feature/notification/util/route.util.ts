@@ -36,6 +36,9 @@ function targetFor(
    */
   if (capabilities.isCoach) {
     if (entityType === NotificationEntityType.INVOICE) return "/invoices";
+    // Une invitation à laquelle on a répondu ramène le coach à son tableau de bord : c'est là que
+    // le nouvel athlète apparaît, et c'est ce qu'on vient de lui annoncer (#146).
+    if (entityType === NotificationEntityType.INVITATION) return "/dashboard";
     // Le coach reçoit `SCHEDULED_SESSION` pour un débrief reçu : on ouvre CE débrief, pas la liste.
     if (entityType === NotificationEntityType.SCHEDULED_SESSION) {
       return entityId == null ? null : `/feedbacks/${entityId}`;
@@ -49,6 +52,9 @@ function targetFor(
   switch (entityType) {
     case NotificationEntityType.PLAN:
       return "/planning";
+    // L'écran où l'invitation s'accepte — ou se refuse (#146).
+    case NotificationEntityType.INVITATION:
+      return "/join";
     case NotificationEntityType.SCHEDULED_SESSION:
       return entityId == null ? null : `/session/${entityId}`;
     case NotificationEntityType.CONVERSATION:
@@ -81,6 +87,17 @@ export function routeForNotification(
   notification: NotificationDto,
   capabilities: Capabilities,
 ): Href | null {
+  /**
+   * Une invitation REFUSÉE ne mène nulle part, et c'est décidé AVANT la table — le seul type dont
+   * la destination est SUPPRIMÉE plutôt que déduite.
+   *
+   * L'exact inverse du repli ci-dessous : `REMINDER_DUE` COMBLE une destination absente, celui-ci
+   * en RETIRE une qui existe. La raison n'est pas que l'écran manque — le tableau de bord est là —
+   * mais que l'ENTITÉ est morte : l'invitation refusée a quitté `PENDING`, elle ne s'affiche plus
+   * dans le panneau du coach, et l'y envoyer le ferait chercher une ligne qui n'y est plus.
+   */
+  if (notification.type === NotificationType.INVITATION_DECLINED) return null;
+
   const target = targetFor(notification.entityType, notification.entityId, capabilities);
   if (target != null) return target;
 
@@ -102,6 +119,7 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
     conversationId?: string;
     invoiceId?: string;
     reminderId?: string;
+    invitationId?: string;
   } | null;
 
   switch (payload?.type) {
@@ -129,6 +147,20 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
       return targetFor(NotificationEntityType.CONVERSATION, payload.conversationId, capabilities);
     case NotificationType.INVOICE_ISSUED:
       return targetFor(NotificationEntityType.INVOICE, payload.invoiceId, capabilities);
+    /**
+     * Les trois temps d'une invitation (#146). Leur clé d'id est `invitationId` — le typecheck ne
+     * l'aurait PAS réclamée : cette fonction lit une charge utile `unknown`, et un type oublié
+     * tomberait simplement dans le `default`. Un push qui ne mène nulle part là où la cloche mène
+     * quelque part est précisément la divergence que cette traduction existe pour empêcher.
+     *
+     * Le refus est écarté ici comme il l'est dans la cloche : sa destination est supprimée, pas
+     * absente.
+     */
+    case NotificationType.INVITATION_RECEIVED:
+    case NotificationType.INVITATION_ACCEPTED:
+      return targetFor(NotificationEntityType.INVITATION, payload.invitationId, capabilities);
+    case NotificationType.INVITATION_DECLINED:
+      return null;
     default:
       return null;
   }

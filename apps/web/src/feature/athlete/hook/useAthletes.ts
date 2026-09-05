@@ -42,6 +42,26 @@ export function useInvitations() {
   });
 }
 
+/**
+ * Efface une invitation REFUSÉE (#146).
+ *
+ * L'API n'accepte ce geste que sur `DECLINED` : retirer une invitation en attente serait une
+ * révocation, c'est-à-dire une autre transition. Un 409 remonte donc tel quel par `onError` — le
+ * message du serveur est plus précis que tout libellé générique.
+ */
+export function useDeleteInvitation() {
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+  return useMutation({
+    mutationFn: (invitationId: string) => accountApi.deleteInvitation(invitationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invitationKeys.all });
+      toast.onSuccess("athlete.toast.invitationDeleted");
+    },
+    onError: toast.onError,
+  });
+}
+
 export function useCreateInvitation() {
   const queryClient = useQueryClient();
   const toast = useMutationToast();

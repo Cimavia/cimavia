@@ -56,6 +56,39 @@ describe("routeForNotification", () => {
   });
 
   /**
+   * L'invitation se branche par CAPACITÉ, comme le reste de la table : le coach va voir le nouvel
+   * athlète apparaître dans son tableau de suivi, l'athlète va à l'écran où l'invitation
+   * s'accepte. Le `search` de l'accueil n'est pas décoratif — la route l'exige, et
+   * `navigate({ to: "/" })` seul ne compilerait pas.
+   */
+  it("mène le coach à son tableau de suivi et l'athlète à son écran de rattachement", () => {
+    const dto = {
+      ...notification(NotificationEntityType.INVITATION, "inv-1"),
+      type: NotificationType.INVITATION_ACCEPTED,
+    };
+    expect(routeForNotification(dto, COACH)).toEqual({
+      to: "/",
+      search: { q: undefined, filter: undefined, athlete: undefined },
+    });
+    expect(routeForNotification(dto, ATHLETE)).toEqual({ to: "/my-coach" });
+  });
+
+  /**
+   * Le seul type dont la destination est SUPPRIMÉE plutôt que déduite, et le seul branchement sur
+   * le type de toute la table. L'écran existe pourtant — c'est le panneau d'invitations du coach —
+   * mais l'entité est morte : l'invitation refusée a quitté `PENDING`, et l'y envoyer le ferait
+   * chercher une ligne qui n'y est plus.
+   */
+  it("ne mène nulle part quand l'invitation a été refusée, des deux côtés", () => {
+    const dto = {
+      ...notification(NotificationEntityType.INVITATION, "inv-2"),
+      type: NotificationType.INVITATION_DECLINED,
+    };
+    expect(routeForNotification(dto, COACH)).toBeNull();
+    expect(routeForNotification(dto, ATHLETE)).toBeNull();
+  });
+
+  /**
    * `null` et non une destination approximative : la cloche marque alors la notification lue sans
    * naviguer. Une app plus ancienne que l'API ne doit pas deviner où mène un type qu'elle ignore.
    */
