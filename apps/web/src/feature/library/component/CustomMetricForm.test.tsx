@@ -17,6 +17,9 @@ vi.mock("@/feature/library/api", async (importOriginal) => ({
   updateCustomMetric: updateMock,
 }));
 
+// LABEL porte l'astérisque d'obligation, UNIT non — d'où deux façons de les viser. `getByLabelText`
+// lit le `textContent` du `<label>`, astérisque compris, et ne trouve donc plus le champ marqué ;
+// `getByRole` lit le nom accessible, que l'`aria-hidden` du repère laisse propre (« Tranché en #97 »).
 const LABEL = "library.builder.custom.label";
 const UNIT = "library.builder.custom.unit";
 const SUBMIT = "library.builder.custom.submit";
@@ -54,9 +57,9 @@ describe("CustomMetricForm", () => {
     });
 
     it("refuse une échelle de moins de deux paliers", async () => {
-      const { user, getByRole, getByLabelText } = setup();
+      const { user, getByRole } = setup();
 
-      await user.type(getByLabelText(LABEL), "Ressenti");
+      await user.type(getByRole("textbox", { name: LABEL }), "Ressenti");
       await user.click(getByRole("button", { name: "library.builder.valueType.SCALE" }));
 
       // Un seul palier ne se compare à rien : l'échelle n'ordonnerait rien, et « progression sur
@@ -65,9 +68,9 @@ describe("CustomMetricForm", () => {
     });
 
     it("autorise l'envoi une fois l'échelle remplie", async () => {
-      const { user, getByRole, getByLabelText } = setup();
+      const { user, getByRole } = setup();
 
-      await user.type(getByLabelText(LABEL), "Cotation");
+      await user.type(getByRole("textbox", { name: LABEL }), "Cotation");
       await user.click(getByRole("button", { name: "library.builder.valueType.SCALE" }));
       await user.click(getByRole("button", { name: SCALE_FR }));
 
@@ -78,9 +81,9 @@ describe("CustomMetricForm", () => {
   describe("ce qui part au serveur", () => {
     it("envoie null plutôt qu'une unité vide", async () => {
       createMock.mockResolvedValue(metric());
-      const { user, getByRole, getByLabelText } = setup();
+      const { user, getByRole } = setup();
 
-      await user.type(getByLabelText(LABEL), "  Fatigue  ");
+      await user.type(getByRole("textbox", { name: LABEL }), "  Fatigue  ");
       await user.click(getByRole("button", { name: SUBMIT }));
 
       // `""` s'afficherait comme un espace collé au nombre ; l'absence d'unité est une donnée,
@@ -99,7 +102,7 @@ describe("CustomMetricForm", () => {
       createMock.mockResolvedValue(metric());
       const { user, getByRole, getByLabelText } = setup();
 
-      await user.type(getByLabelText(LABEL), "Charge");
+      await user.type(getByRole("textbox", { name: LABEL }), "Charge");
       await user.type(getByLabelText(UNIT), "kg");
       // Des paliers saisis PUIS abandonnés au profit d'un autre type : ils ne doivent pas suivre.
       await user.click(getByRole("button", { name: "library.builder.valueType.SCALE" }));
@@ -120,22 +123,22 @@ describe("CustomMetricForm", () => {
     it("remonte la métrique créée et vide le formulaire", async () => {
       const created = metric({ id: "cm-neuve", label: "Fatigue" });
       createMock.mockResolvedValue(created);
-      const { user, getByRole, getByLabelText, onCreated } = setup();
+      const { user, getByRole, onCreated } = setup();
 
-      await user.type(getByLabelText(LABEL), "Fatigue");
+      await user.type(getByRole("textbox", { name: LABEL }), "Fatigue");
       await user.click(getByRole("button", { name: SUBMIT }));
 
       // C'est le SERVEUR qui attribue l'identifiant, et c'est lui que le picker pose aussitôt en
       // colonne : remonter la saisie locale poserait une colonne sans identité.
       await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created));
-      expect(getByLabelText(LABEL)).toHaveValue("");
+      expect(getByRole("textbox", { name: LABEL })).toHaveValue("");
     });
 
     it("affiche le message de l'API quand la création échoue", async () => {
       createMock.mockRejectedValue(new ApiError(409, "Cotation déjà nommée ainsi", null));
-      const { user, getByRole, getByLabelText, findByText } = setup();
+      const { user, getByRole, findByText } = setup();
 
-      await user.type(getByLabelText(LABEL), "Fatigue");
+      await user.type(getByRole("textbox", { name: LABEL }), "Fatigue");
       await user.click(getByRole("button", { name: SUBMIT }));
 
       // Le message de l'API est déjà actionnable ; le remplacer par un générique ferait perdre la
@@ -150,17 +153,17 @@ describe("CustomMetricForm", () => {
         metric({ label: "Ressenti", unit: "/10", valueType: MetricValueType.NUMBER }),
       );
 
-      expect(getByLabelText(LABEL)).toHaveValue("Ressenti");
+      expect(getByRole("textbox", { name: LABEL })).toHaveValue("Ressenti");
       expect(getByLabelText(UNIT)).toHaveValue("/10");
       expect(getByRole("button", { name: UPDATE })).toBeInTheDocument();
     });
 
     it("ne recharge pas le formulaire à chaque frappe", async () => {
       const editing = metric({ label: "Ressenti" });
-      const { user, getByLabelText, rerender } = setup(editing);
+      const { user, getByRole, rerender } = setup(editing);
 
-      await user.clear(getByLabelText(LABEL));
-      await user.type(getByLabelText(LABEL), "Ressenti global");
+      await user.clear(getByRole("textbox", { name: LABEL }));
+      await user.type(getByRole("textbox", { name: LABEL }), "Ressenti global");
       // Un rendu déclenché par autre chose (une requête d'arrière-plan, un état du parent) sur la
       // MÊME métrique : la saisie en cours doit survivre.
       rerender(
@@ -172,14 +175,14 @@ describe("CustomMetricForm", () => {
         />,
       );
 
-      expect(getByLabelText(LABEL)).toHaveValue("Ressenti global");
+      expect(getByRole("textbox", { name: LABEL })).toHaveValue("Ressenti global");
     });
 
     it("envoie la modification sur l'identifiant existant", async () => {
       updateMock.mockResolvedValue(metric({ label: "Ressenti global" }));
-      const { user, getByLabelText, getByRole, onUpdated } = setup(metric({ label: "Ressenti" }));
+      const { user, getByRole, onUpdated } = setup(metric({ label: "Ressenti" }));
 
-      await user.type(getByLabelText(LABEL), " global");
+      await user.type(getByRole("textbox", { name: LABEL }), " global");
       await user.click(getByRole("button", { name: UPDATE }));
 
       await waitFor(() =>
@@ -192,14 +195,12 @@ describe("CustomMetricForm", () => {
     });
 
     it("rend la main et vide le formulaire à l'annulation", async () => {
-      const { user, getByRole, getByLabelText, onCancelEdit } = setup(
-        metric({ label: "Ressenti" }),
-      );
+      const { user, getByRole, onCancelEdit } = setup(metric({ label: "Ressenti" }));
 
       await user.click(getByRole("button", { name: "library.builder.cancel" }));
 
       expect(onCancelEdit).toHaveBeenCalled();
-      expect(getByLabelText(LABEL)).toHaveValue("");
+      expect(getByRole("textbox", { name: LABEL })).toHaveValue("");
     });
   });
 });

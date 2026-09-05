@@ -6,6 +6,7 @@
     "loading": "Chargement…",
     "error": "Une erreur est survenue. Réessayez.",
     "cancel": "Annuler",
+    "requiredLegend": "* champs obligatoires",
     "crash": {
       "title": "L'application a rencontré un problème",
       "description": "L'incident nous a été signalé. Rechargez la page pour reprendre où vous en étiez.",
@@ -463,7 +464,6 @@
       "startDateShiftLater_other": "Vous avez modifié la date de début du cycle. Les {{count}} séances du cycle seront repoussées {{shift}} à l'enregistrement.",
       "startDateShiftEarlier": "Vous avez modifié la date de début du cycle. La séance du cycle sera avancée {{shift}} à l'enregistrement.",
       "startDateShiftEarlier_other": "Vous avez modifié la date de début du cycle. Les {{count}} séances du cycle seront avancées {{shift}} à l'enregistrement.",
-      "requiredLegend": "* champs obligatoires",
       "submit": "Enregistrer",
       "submitting": "Enregistrement…"
     },
@@ -928,7 +928,6 @@
       "dueDate": "Échéance",
       "note": "Note",
       "notePlaceholder": "Précisions sur la prestation (optionnel)",
-      "requiredLegend": "* champs obligatoires",
       "save": "Enregistrer la facturation",
       "saving": "Enregistrement…",
       "athleteRequired": "Choisissez d'abord le destinataire du cycle, en haut de la page : une facture s'adresse à quelqu'un.",

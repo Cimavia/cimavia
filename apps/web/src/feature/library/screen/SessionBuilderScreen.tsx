@@ -152,19 +152,26 @@ function SessionBuilder({
     >
       <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex min-w-0 flex-col gap-cmv-xl">
-          <CmvTextField
-            label={t("library.session.titleLabel")}
-            name="title"
-            value={draft.title}
-            onChange={(event) => draft.setTitle(event.target.value)}
-            onBlur={() => setTitleTouched(true)}
-            placeholder={t("library.session.titlePlaceholder")}
-            required
-            requiredMark
-          />
-          {titleTouched && draft.trimmedTitle === "" ? (
-            <p className="text-cmv-caption text-cmv-error">{t("library.session.titleRequired")}</p>
-          ) : null}
+          {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
+              (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
+          <div className="flex flex-col gap-cmv-xs">
+            <CmvTextField
+              label={t("library.session.titleLabel")}
+              name="title"
+              value={draft.title}
+              onChange={(event) => draft.setTitle(event.target.value)}
+              onBlur={() => setTitleTouched(true)}
+              placeholder={t("library.session.titlePlaceholder")}
+              required
+              requiredMark
+            />
+            {titleTouched && draft.trimmedTitle === "" ? (
+              <p className="text-cmv-caption text-cmv-error">
+                {t("library.session.titleRequired")}
+              </p>
+            ) : null}
+            <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+          </div>
 
           <CmvTextArea
             label={t("library.session.notesLabel")}

@@ -159,11 +159,11 @@ describe("MetricPicker", () => {
         scale: null,
       } as unknown as CustomMetric;
       createMock.mockResolvedValue(created);
-      const { user, getByRole, getByLabelText, onChange } = setup(
+      const { user, getByRole, onChange } = setup(
         blockWith([catalogMetric("m-1", MetricKey.LOAD)]),
       );
 
-      await user.type(getByLabelText("library.builder.custom.label"), "Ressenti");
+      await user.type(getByRole("textbox", { name: "library.builder.custom.label" }), "Ressenti");
       await user.click(getByRole("button", { name: "library.builder.custom.submit" }));
 
       // Créée ICI et posée aussitôt : sortir du constructeur pour définir une cotation puis y

@@ -89,6 +89,8 @@ export function ScheduleReminderButton({
         }
       >
         <div className="flex flex-col gap-cmv-lg">
+          {/* Aucun astérisque ici, et c'est délibéré : les DEUX champs du panneau sont obligatoires,
+              donc le repère ne distinguerait rien — même cas que l'auth (« Tranché en #97 »). */}
           {/* Un instant, pas une date : le rappel se déclenche à une heure, et le champ natif la
               saisit dans le fuseau du coach (converti en UTC à l'envoi). */}
           <CmvTextField
@@ -97,7 +99,7 @@ export function ScheduleReminderButton({
             type="datetime-local"
             value={dueAtLocal}
             onChange={(event) => setDueAtLocal(event.target.value)}
-            requiredMark
+            required
           />
 
           <CmvTextArea

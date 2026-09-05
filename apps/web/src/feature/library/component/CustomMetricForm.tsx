@@ -129,6 +129,7 @@ export function CustomMetricForm({
         placeholder={t("library.builder.custom.labelPlaceholder")}
         minLength={1}
         required
+        requiredMark
       />
 
       <CmvTextField
@@ -180,6 +181,7 @@ export function CustomMetricForm({
             {t("library.builder.cancel")}
           </CmvButton>
         ) : null}
+        <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
       </div>
     </section>
   );
