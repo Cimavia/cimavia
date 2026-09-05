@@ -360,6 +360,17 @@
       "description": "Ton coach t'a transmis un code d'invitation ? Saisis-le pour recevoir tes planifications.",
       "action": "Rejoindre mon coach"
     },
+    "invitation": {
+      "title": "{{name}} t'invite à le rejoindre",
+      "expires": "Invitation valable jusqu'au {{date}}",
+      "join": "Rejoindre {{name}}",
+      "joining": "Connexion en cours…",
+      "blocked": "Tu es déjà suivi par {{name}} : tu ne peux pas accepter une autre invitation.",
+      "decline": "Refuser",
+      "declineConfirm": "Confirmer le refus",
+      "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
+      "declineError": "Impossible de refuser cette invitation. Vérifie ta connexion."
+    },
     "join": {
       "title": "Rejoindre mon coach",
       "description": "Saisis le code d'invitation que ton coach t'a communiqué.",

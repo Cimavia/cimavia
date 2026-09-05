@@ -6,4 +6,6 @@ import { api } from "@/shared/lib/api";
 // session tenu par SecureStore).
 export const accountApi = createAccountApi(api);
 
-export { coachKeys } from "@cmv/shared";
+// `invitationKeys` sert aux deux bouts : la liste du coach (`feature/athlete`) et celle qui
+// attend l'athlète (#146). Même racine, donc un refus périme les deux d'un coup.
+export { coachKeys, invitationKeys } from "@cmv/shared";
