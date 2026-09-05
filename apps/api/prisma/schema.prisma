@@ -144,9 +144,13 @@ enum CoachAthleteStatus {
   ACTIVE
 }
 
+// DECLINED est une valeur À PART, jamais un REVOKED réutilisé (#146) : « le coach a annulé » et
+// « l'athlète a dit non » sont deux faits différents, et le second est le seul qui apprenne
+// quelque chose au coach.
 enum InvitationStatus {
   PENDING
   ACCEPTED
+  DECLINED
   REVOKED
 }
 
@@ -804,6 +808,12 @@ enum NotificationType {
   FEEDBACK_RECEIVED
   MESSAGE_RECEIVED
   INVOICE_ISSUED
+  // Les trois temps d'une invitation nominative (#146). Ils sont PERSISTÉS, donc ils doivent
+  // figurer ici : `PersistedNotificationType` les inclut côté @cmv/shared, et Prisma échouerait à
+  // l'exécution sur une valeur qu'il ne connaît pas. `REMINDER_DUE` reste le seul type absent.
+  INVITATION_RECEIVED
+  INVITATION_ACCEPTED
+  INVITATION_DECLINED
 }
 
 // Ce que la notification désigne, pour router à l'ouverture. Aujourd'hui dérivable du `type` — on
@@ -814,6 +824,9 @@ enum NotificationEntityType {
   SCHEDULED_SESSION
   CONVERSATION
   INVOICE
+  // L'invitation elle-même (#146). Première cible dont aucun écran n'affiche l'entité : les deux
+  // destinations dépendent de la capacité du destinataire, pas de `entityId`.
+  INVITATION
 }
 
 model Notification {
