@@ -165,6 +165,7 @@ L'isolation des données est garantie **à la couche données**, pas par la seul
 ## 10. i18n
 
 - **Aucune string en dur** dans l'UI dès P0 : tout passe par **i18next** (+ `expo-localization` mobile). Français = langue par défaut ; `en.json` ajouté en P7. Formats date/montant localisés.
+- **Le produit TUTOIE son lecteur** — les deux plateformes, les deux rôles, e-mails et libellés de push compris ([#124](https://github.com/Cimavia/cimavia/issues/124)). Ni par plateforme (la parité [#20](https://github.com/Cimavia/cimavia/issues/20) la casserait au premier écran partagé), ni par rôle (des clés dédoublées pour un gain nul). L'**impératif de politesse** vouvoie autant que le pronom : « Saisissez votre e-mail » est aussi fautif que « votre ». Le contrôle **[F]** de `check:i18n` le refuse — aux deux catalogues `fr.json` **et** aux chaînes littérales d'`apps/api/src`, que `apiErrorMessage` affiche telles quelles.
 
 ---
 
