@@ -130,7 +130,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P6-1 | **Astérisques d'obligation partiels** : seul le formulaire de facturation marque ses champs requis (`CmvTextField requiredMark`). | 🟢 | [#97](https://github.com/Cimavia/cimavia/issues/97) |
+| ~~P6-1~~ | ~~**Astérisques d'obligation partiels**~~ : la ligne datait, et disait « seul le formulaire de facturation » alors que quatre autres surfaces avaient reçu `requiredMark` entre-temps. | ✅ | résolue en [#97](https://github.com/Cimavia/cimavia/issues/97) — le repère suit désormais une règle écrite, et non l'ordre d'arrivée des écrans |
 | P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 | P6-3 | **Suppression d'un cycle diffusé bloquée côté UI seulement** : `DELETE /plans/:id` accepterait encore un `PUBLISHED`, et effacerait sa facture émise. | 🟡 | [#85](https://github.com/Cimavia/cimavia/issues/85) |
 
@@ -1777,6 +1777,70 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > retomber dessus. Les deux passes garent donc au-dessus du **maximum observé**, libre par
 > construction. Sans elles, l'échange de deux séances casse : `duplicate key value violates unique
 > constraint "scheduled_session_planWeekId_scheduledDate_position_key"`, vérifié.
+
+---
+
+## Post-MVP — Repère de champ obligatoire ([#97](https://github.com/Cimavia/cimavia/issues/97))
+
+> **Tranché en #97** (l'astérisque parle du FORMULAIRE, pas du cycle) : un astérisque veut dire
+> « obligatoire pour valider *ce formulaire-ci* », jamais « obligatoire pour diffuser ». C'est ce
+> qui autorise la facturation à marquer montant et échéance — un `DRAFT` est toujours complet —
+> sans contredire l'encadré *Tranché en #144*, et ce qui interdit de marquer l'athlète d'un cycle,
+> qui n'entre pas dans son `canSubmit`. Sans cette phrase, la revue champ par champ n'a pas de
+> critère et chaque écran retranche à son goût.
+
+> **Tranché en #97** (on ne marque que les formulaires MIXTES) : le repère distingue l'obligatoire
+> du facultatif ; là où tout est obligatoire, il n'informe personne. L'auth (connexion, inscription,
+> mot de passe oublié, réinitialisation), le code coach et le **panneau de rappel** restent donc
+> nus — ce dernier a même *perdu* l'astérisque qu'il portait sur son échéance. Corollaire : la prop
+> n'est **pas** dérivée de `required`, qui n'exprime pas ce choix. Corollaire du corollaire, `unit`
+> d'une métrique maison reste nue à côté d'un `label` marqué : c'est le contraste qui informe.
+
+> **Tranché en #97** (ni `CmvSelect` ni `CmvTextArea` ne reçoivent la prop) : l'issue demandait les
+> deux. Après inventaire, **aucun appelant** ne la réclame — les deux `CmvSelect` du produit sont
+> un choix facultatif et un champ obligatoire à la diffusion seulement ; la seule zone de texte
+> requise, la note d'un rappel, vit dans un panneau que la règle ci-dessus laisse nu. Ajouter la
+> prop aurait créé du code mort dans le design system. Le jour où un formulaire mixte a besoin de
+> l'une des deux, le patron à recopier est celui de `CmvTextField` — `aria-hidden` compris.
+
+> **Tranché en #97** (le repère est MUET, et c'est ce qui le rend correct) : l'astérisque vit dans
+> le `<label>`. Sans `aria-hidden="true"`, il entre dans le **nom accessible** du champ, qui
+> s'annonce « Montant astérisque » — c'est ce que faisaient les sept champs déjà marqués. L'attribut
+> `required` porte déjà l'obligation pour les lecteurs d'écran ; le repère n'est donc que visuel.
+>
+> **Piège de test qui en découle** : `getByLabelText` lit le `textContent` du `<label>`, astérisque
+> compris, et ne trouve plus un champ marqué — même avec l'`aria-hidden`, qui ne change pas le
+> texte. `getByRole("textbox", { name })` lit le nom accessible et le trouve. **Marquer un champ
+> casse donc les tests qui le visaient par son label** : douze l'ont été ici. Le message
+> (`Unable to find a label with the text of: …`) ne dit rien de l'astérisque, et c'est ce qui rend
+> le piège coûteux la première fois.
+
+> **Tranché en #97** (l'astérisque est terracotta, pas rouge) : `text-cmv-error` sortait à
+> **4.20:1** sur `surface`, sous le seuil AA de 4.5 — l'en-tête de `tailwind-preset.js` interdit
+> justement le `DEFAULT` d'une famille d'état en texte. `text-cmv-accent-on` donne **7.32:1** et
+> suit les maquettes, qui dessinent ce repère en terracotta et gardent le rouge pour l'**erreur de
+> validation** (bordure `error` + message `error-on`). Le mélange des deux effaçait cette frontière.
+>
+> **Angle mort non traité ici** : `text-cmv-error` est employé comme texte à **quarante autres
+> endroits**, messages `titleRequired` des deux constructeurs compris, tous sous AA. Même famille
+> que [#178](https://github.com/Cimavia/cimavia/issues/178) — là un token *inexistant*, ici un token
+> du *mauvais rôle*, et aucune porte ne voit ni l'un ni l'autre.
+
+> **Tranché en #97** (le mobile sort du périmètre, faute de quoi le porter) : son `CmvTextField`
+> n'a ni `required` ni repère, son `<Text>` de label n'est **pas associé** au `TextInput` — RN n'a
+> pas de `htmlFor` — et surtout **React Native n'expose aucun état accessible `required`**
+> (`accessibilityState` = disabled/selected/checked/busy/expanded). Un astérisque y serait purement
+> décoratif, sans la contrepartie sémantique qui rend le geste correct sur le web. C'est le terrain
+> de [#199](https://github.com/Cimavia/cimavia/issues/199), qui traite déjà l'accessibilité des
+> composants partagés du mobile.
+
+> **Tranché en #97** (une légende par SURFACE, pas par composant) : `common.requiredLegend` remplace
+> les deux clés dupliquées `invoice.billing.requiredLegend` et `plan.header.requiredLegend`. Trois
+> écrans montraient jusqu'ici un astérisque que rien n'expliquait. La légende suit son champ quand
+> celui-ci est conditionnel : sur la séance planifiée, choisir un modèle retire le titre **et** la
+> légende, qui n'expliquerait plus aucun astérisque. Le formulaire de métrique maison a sa propre
+> légende sans faire doublon avec celle du constructeur d'exercice : il vit dans un `CmvPanel`, donc
+> sur une autre surface.
 
 ---
 
