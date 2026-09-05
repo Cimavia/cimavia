@@ -805,6 +805,9 @@ enum NotificationType {
   PLAN_UPDATED
   PLAN_SESSION_ADDED
   PLAN_SESSION_REMOVED
+  // L'ordre des séances d'une journée a changé (#148), sans qu'aucune n'ait bougé de contenu :
+  // un type à part, pour ne pas envoyer l'athlète chercher une modification qui n'a pas eu lieu.
+  PLAN_SESSIONS_REORDERED
   FEEDBACK_RECEIVED
   MESSAGE_RECEIVED
   INVOICE_ISSUED
