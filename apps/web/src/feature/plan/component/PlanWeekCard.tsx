@@ -1,12 +1,13 @@
 import type { PlanWeekDto, ScheduledSessionSummaryDto } from "@cmv/shared";
 import { PlanWeekType, planWeekDays } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { PlanDayCell } from "@/feature/plan/component/PlanDayCell";
 import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
-import { formatDateRange, formatDayLabel } from "@/shared/util/date.util";
+import { formatDateRange } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -30,7 +31,7 @@ export function PlanWeekCard({
   onEditSession,
 }: Readonly<PlanWeekCardProps>) {
   const { t } = useTranslation();
-  const { updateWeek, removeWeek, pasteWeek, isBusy } = usePlanMutations(planId);
+  const { updateWeek, removeWeek, pasteWeek, reorderDay, isBusy } = usePlanMutations(planId);
   const { clipboard, copyWeek } = usePlanClipboard();
 
   /**
@@ -144,37 +145,19 @@ export function PlanWeekCard({
       {week.note == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{week.note}</p>}
 
       <div className="grid grid-cols-2 gap-cmv-sm md:grid-cols-4 lg:grid-cols-7">
-        {days.map((day) => {
-          const sessions = sessionsByDay.get(day) ?? [];
-          return (
-            <div
-              key={day}
-              className="flex min-h-24 flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-sm"
-            >
-              <span className="text-cmv-caption text-cmv-text-lo">{formatDayLabel(day)}</span>
-
-              {sessions.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => onEditSession(session)}
-                  className="flex flex-col gap-cmv-xs rounded-cmv-sm border border-cmv-border bg-cmv-surface px-cmv-sm py-cmv-xs text-left transition-colors hover:border-cmv-border-hi hover:bg-cmv-surface-hi"
-                >
-                  <span className="truncate text-cmv-caption text-cmv-text-hi">
-                    {session.title}
-                  </span>
-                  <span className="text-cmv-caption text-cmv-text-lo">
-                    {t("plan.session.exerciseCount", { count: session.exerciseCount })}
-                  </span>
-                </button>
-              ))}
-
-              <CmvButton variant="ghost" onClick={() => onAddSession(day)} disabled={isBusy}>
-                {t("plan.week.addSession")}
-              </CmvButton>
-            </div>
-          );
-        })}
+        {days.map((day) => (
+          <PlanDayCell
+            key={day}
+            date={day}
+            sessions={sessionsByDay.get(day) ?? []}
+            isBusy={isBusy}
+            onAddSession={onAddSession}
+            onEditSession={onEditSession}
+            onReorder={(date, sessionIds) =>
+              reorderDay.mutate({ weekId: week.id, date, sessionIds })
+            }
+          />
+        ))}
       </div>
     </section>
   );

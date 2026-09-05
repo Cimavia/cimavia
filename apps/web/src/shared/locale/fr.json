@@ -471,6 +471,7 @@
       "number": "Semaine {{number}}",
       "sessionCount": "{{count}} séance(s)",
       "addSession": "+ Séance",
+      "moveSession": "Déplacer la séance",
       "delete": "Supprimer la semaine",
       "copy": "Copier",
       "paste": "Coller ici",

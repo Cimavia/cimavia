@@ -5,6 +5,7 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
+  ReorderPlanDayInput,
   ScheduledSessionDto,
   UpdatePlanInput,
   UpdatePlanWeekInput,
@@ -72,6 +73,19 @@ export function deletePlanWeek(weekId: string): Promise<PlanDto> {
 // corps. Aucune date n'est transmise — l'API les recalcule depuis le lundi de la semaine cible.
 export function copyPlanWeek(targetWeekId: string, input: CopyPlanWeekInput): Promise<PlanDto> {
   return api.post<PlanDto>(`/plan-weeks/${targetWeekId}/copy-from`, input);
+}
+
+/**
+ * L'ordre des séances d'UNE journée. La journée est la ressource — semaine et date vivent donc
+ * dans l'URL — et le corps ne porte que l'ordre voulu, en entier : c'est une permutation, pas un
+ * extrait (l'API refuse un sous-ensemble).
+ */
+export function reorderPlanDay(
+  weekId: string,
+  date: string,
+  input: ReorderPlanDayInput,
+): Promise<PlanDto> {
+  return api.put<PlanDto>(`/plan-weeks/${weekId}/days/${date}/order`, input);
 }
 
 // ── Séances planifiées ───────────────────────────────────────────────────────
