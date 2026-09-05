@@ -19,6 +19,20 @@ export const NotificationType = {
   MESSAGE_RECEIVED: "MESSAGE_RECEIVED",
   INVOICE_ISSUED: "INVOICE_ISSUED",
   /**
+   * Les trois temps d'une invitation nominative (#146), chacun reçu par une partie différente :
+   * l'athlète apprend qu'une invitation l'attend, le coach apprend qu'on lui a répondu.
+   *
+   * `INVITATION_RECEIVED` n'est émis QUE si l'adresse invitée correspond à un compte capable de
+   * répondre. Une adresse inconnue n'est pas un échec — c'est le cas courant de l'invitation d'un
+   * nouvel athlète, et son canal est l'e-mail, pas le centre.
+   *
+   * Refus et acceptation sont deux types distincts, comme `DECLINED` et `ACCEPTED` en base : dire
+   * au coach « on t'a répondu » sans dire quoi ne lui apprendrait rien.
+   */
+  INVITATION_RECEIVED: "INVITATION_RECEIVED",
+  INVITATION_ACCEPTED: "INVITATION_ACCEPTED",
+  INVITATION_DECLINED: "INVITATION_DECLINED",
+  /**
    * Rappel du coach arrivé à échéance (#51). Le SEUL type qui n'existe pas dans l'enum Prisma : il
    * n'est jamais persisté, l'entrée est calculée à chaque lecture depuis la table `reminder`
    * (`reminderToNotificationDto`). Aucun push non plus — il n'y a pas de scheduler pour le déclencher
@@ -53,6 +67,11 @@ export type PersistedNotificationType = Exclude<
  * une rafale coûte une ligne et non un message. `REMINDER_DUE` en est absent pour une autre
  * raison : il n'est jamais persisté et ne passe pas par le point d'émission commun.
  *
+ * Les trois types d'invitation (#146) n'y sont pas non plus, pour une raison qui leur est propre :
+ * ils ne s'adressent QU'À des comptes existants. Une adresse sans compte reçoit l'e-mail
+ * d'invitation lui-même, qui n'est pas une notification — le push et le centre suffisent donc à
+ * des destinataires qui ont, par construction, une application où lire.
+ *
  * C'est une LISTE et non un `Exclude<>` comme `PersistedNotificationType` : la frontière est un
  * choix produit révisable, pas une conséquence du modèle. Élargir se fait ici, et le catalogue de
  * gabarits (`Record<EmailableNotificationType, …>`) refuse alors de compiler tant que les textes
@@ -78,6 +97,13 @@ export const NotificationEntityType = {
   SCHEDULED_SESSION: "SCHEDULED_SESSION",
   CONVERSATION: "CONVERSATION",
   INVOICE: "INVOICE",
+  /**
+   * L'invitation elle-même (#146). Sa cible ne se lit dans AUCUN écran : les deux destinations
+   * possibles — le tableau de suivi du coach, l'écran de rattachement de l'athlète — dépendent de
+   * la capacité et non de l'entité. `entityId` reste renseigné pour la traçabilité, et pour le
+   * jour où une invitation aura sa propre page.
+   */
+  INVITATION: "INVITATION",
 } as const;
 export type NotificationEntityType = TypesValuesOf<typeof NotificationEntityType>;
 export const notificationEntityTypeSchema = z.enum(NotificationEntityType);
@@ -97,6 +123,9 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.FEEDBACK_RECEIVED]: "notification.type.feedbackReceived",
   [NotificationType.MESSAGE_RECEIVED]: "notification.type.messageReceived",
   [NotificationType.INVOICE_ISSUED]: "notification.type.invoiceIssued",
+  [NotificationType.INVITATION_RECEIVED]: "notification.type.invitationReceived",
+  [NotificationType.INVITATION_ACCEPTED]: "notification.type.invitationAccepted",
+  [NotificationType.INVITATION_DECLINED]: "notification.type.invitationDeclined",
   [NotificationType.REMINDER_DUE]: "notification.type.reminderDue",
 } as const satisfies Record<NotificationType, string>;
 

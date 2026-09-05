@@ -48,10 +48,16 @@ export function capabilityOfNotification(type: NotificationType): CapabilityName
     case NotificationType.PLAN_SESSION_ADDED:
     case NotificationType.PLAN_SESSION_REMOVED:
     case NotificationType.INVOICE_ISSUED:
+    // Une invitation qui attend se lit forcément en athlète : c'est la capacité qu'elle propose
+    // d'exercer, et la seule qui puisse l'accepter.
+    case NotificationType.INVITATION_RECEIVED:
       return "athlete";
     // Le débrief est écrit par l'athlète et lu par son coach ; le rappel est un outil du coach.
     case NotificationType.FEEDBACK_RECEIVED:
     case NotificationType.REMINDER_DUE:
+    // Les deux réponses à une invitation reviennent à celui qui l'a émise, donc au coach.
+    case NotificationType.INVITATION_ACCEPTED:
+    case NotificationType.INVITATION_DECLINED:
       return "coach";
     case NotificationType.MESSAGE_RECEIVED:
       return null;

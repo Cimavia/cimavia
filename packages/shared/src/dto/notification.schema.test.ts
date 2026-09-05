@@ -96,6 +96,29 @@ describe("notificationDtoSchema", () => {
     expect(notificationDtoSchema.safeParse(withoutKey).success).toBe(false);
   });
 
+  /**
+   * Une invitation (#146) est la première cible dont AUCUN écran n'affiche l'entité : la
+   * destination se décide sur la capacité, pas sur `entityId`. Le DTO la porte quand même — le
+   * schéma doit donc l'accepter, sans quoi le centre refuserait de parser ce que l'API émet.
+   */
+  it("accepte les trois temps d'une invitation", () => {
+    for (const type of [
+      NotificationType.INVITATION_RECEIVED,
+      NotificationType.INVITATION_ACCEPTED,
+      NotificationType.INVITATION_DECLINED,
+    ]) {
+      const result = notificationDtoSchema.safeParse({
+        ...NOTIFICATION,
+        type,
+        entityType: NotificationEntityType.INVITATION,
+        entityId: "inv_1",
+        actorName: "Marc Keller",
+        subjectLabel: null,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
   it("refuse un horodatage qui n'est pas une date ISO", () => {
     expect(notificationDtoSchema.safeParse({ ...NOTIFICATION, createdAt: "hier" }).success).toBe(
       false,
@@ -161,6 +184,18 @@ describe("notifications par e-mail — le sous-ensemble envoyable", () => {
   // pourrait pas partir par e-mail même si quelqu'un l'activait.
   it("exclut le rappel dû, qui ne passe pas par le point d'émission", () => {
     expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.REMINDER_DUE);
+  });
+
+  /**
+   * Les trois types d'invitation (#146) en sont exclus pour une raison qui leur est propre : ils
+   * ne visent que des comptes existants, qui ont donc une application où lire. L'adresse SANS
+   * compte reçoit l'e-mail d'invitation lui-même, qui n'est pas une notification et ne se règle
+   * pas depuis cet écran — l'y proposer laisserait croire qu'on peut couper une invitation.
+   */
+  it("exclut les trois temps d'une invitation, servis par le push et le centre", () => {
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.INVITATION_RECEIVED);
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.INVITATION_ACCEPTED);
+    expect(EMAILABLE_NOTIFICATION_TYPES).not.toContain(NotificationType.INVITATION_DECLINED);
   });
 
   it("porte les quatre types que le produit a retenus", () => {

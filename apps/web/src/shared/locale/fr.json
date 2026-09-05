@@ -698,6 +698,7 @@
     "invitationStatus": {
       "PENDING": "En attente",
       "ACCEPTED": "Acceptée",
+      "DECLINED": "Refusée",
       "REVOKED": "Révoquée"
     },
     "empty": {
@@ -959,6 +960,9 @@
       "feedbackReceived": "{{actor}} a débriefé « {{subject}} »",
       "messageReceived": "Nouveau message de {{actor}}",
       "invoiceIssued": "Nouvelle facture reçue",
+      "invitationReceived": "{{actor}} t'invite à rejoindre son espace",
+      "invitationAccepted": "{{actor}} a rejoint ton espace",
+      "invitationDeclined": "{{actor}} a refusé ton invitation",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {
