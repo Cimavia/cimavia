@@ -131,6 +131,34 @@ export class InvitationService {
   }
 
   /**
+   * Coach : efface une invitation REFUSÉE (#146). Le seul état qui s'efface, et le refus des trois
+   * autres n'est pas une précaution — chacun perdrait quelque chose de différent :
+   *
+   * - **`PENDING`** : la retirer serait une RÉVOCATION, c'est-à-dire une autre transition. Elle a
+   *   sa valeur (`REVOKED`) et n'a pas encore de chemin ; la déguiser en suppression ferait
+   *   disparaître un code encore utilisable sans jamais le dire à qui l'a reçu.
+   * - **`ACCEPTED`** : la ligne est la trace de la façon dont la relation s'est nouée
+   *   (`acceptedByAthleteId`). L'effacer effacerait cette trace.
+   * - **`REVOKED`** : aucune route ne la produit aujourd'hui. L'autoriser écrirait un chemin que
+   *   rien n'emprunte, donc que rien n'éprouve.
+   *
+   * Client TENANT, contrairement aux trois méthodes de l'athlète : `Invitation` est scopée
+   * `coachId`, et c'est exactement le filtre qu'on veut. Une invitation d'un autre coach rend donc
+   * **404** et non 403 — on ne confirme pas l'existence de ce qu'on n'a pas le droit de voir.
+   */
+  async remove(id: string): Promise<void> {
+    const invitation = await this.db.invitation.findFirst({ where: { id } });
+    if (invitation == null) {
+      throw new NotFoundException("Invitation introuvable");
+    }
+    if (invitation.status !== InvitationStatus.DECLINED) {
+      throw new ConflictException("Seule une invitation refusée peut être effacée");
+    }
+
+    await this.db.invitation.delete({ where: { id } });
+  }
+
+  /**
    * Athlète : les invitations qui l'ATTENDENT (#146). Jusqu'ici, une adresse saisie par le coach
    * ne servait qu'à restreindre l'acceptation — jamais à prévenir l'intéressé, qui devait recevoir
    * le code par un autre canal.

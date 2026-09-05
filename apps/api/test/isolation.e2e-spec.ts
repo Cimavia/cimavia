@@ -6413,3 +6413,75 @@ describe("E-mail d'invitation vers une adresse sans compte (#146)", () => {
     expect(required(sentMails[0], "e-mail d'invitation").to).toBe("mi-casse@cmv.test");
   });
 });
+
+/**
+ * `DELETE /invitations/:id` (#146) — le geste qui manquait au coach une fois qu'on lui a dit non.
+ * Une invitation refusée quitte `PENDING` : elle disparaît de sa liste d'attente mais reste en
+ * base, et rien ne lui permettait de solder la ligne.
+ */
+describe("Effacer une invitation refusée (#146)", () => {
+  /** Une invitation nominative que `athlete` vient de refuser. */
+  async function declinedInvitation(coach: Agent, athlete: Agent, email: string): Promise<string> {
+    const invitation = await coach.post("/invitations").send({ email });
+    expect(
+      (await athlete.post("/invitations/decline").send({ code: invitation.body.code })).status,
+    ).toBe(204);
+    return invitation.body.id;
+  }
+
+  it("efface une invitation refusée, et elle quitte la liste du coach", async () => {
+    const coach = await signUpWith("rm-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("rm-athlete@cmv.test", Role.ATHLETE);
+    const id = await declinedInvitation(coach, athlete, "rm-athlete@cmv.test");
+
+    expect((await coach.delete(`/invitations/${id}`)).status).toBe(204);
+    expect((await coach.get("/invitations")).body).toEqual([]);
+  });
+
+  /**
+   * Le cœur de la règle : retirer une invitation EN ATTENTE serait une révocation — une autre
+   * transition, qui a sa valeur (`REVOKED`) et pas encore de chemin. La déguiser en suppression
+   * ferait disparaître un code encore utilisable sans le dire à qui l'a reçu.
+   */
+  it("refuse d'effacer une invitation encore en attente", async () => {
+    const coach = await signUpWith("rm-pending-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const pending = await coach.post("/invitations").send({});
+
+    expect((await coach.delete(`/invitations/${pending.body.id}`)).status).toBe(409);
+    expect((await coach.get("/invitations")).body).toHaveLength(1);
+  });
+
+  // Une invitation acceptée est la trace de la façon dont la relation s'est nouée : elle reste.
+  it("refuse d'effacer une invitation acceptée", async () => {
+    const coach = await signUpWith("rm-taken-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("rm-taken-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+
+    expect((await coach.delete(`/invitations/${invitation.body.id}`)).status).toBe(409);
+  });
+
+  /**
+   * Isolation : l'invitation d'un autre coach rend **404**, pas 403. Confirmer l'existence de ce
+   * qu'on n'a pas le droit de voir serait déjà en dire trop — c'est le scope tenant qui répond,
+   * pas une garde applicative.
+   */
+  it("ne laisse pas un coach effacer l'invitation refusée d'un autre", async () => {
+    const owner = await signUpWith("rm-owner@cmv.test", { isCoach: true, isAthlete: false });
+    const intruder = await signUpWith("rm-intruder@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("rm-victim@cmv.test", Role.ATHLETE);
+    const id = await declinedInvitation(owner, athlete, "rm-victim@cmv.test");
+
+    expect((await intruder.delete(`/invitations/${id}`)).status).toBe(404);
+    expect((await owner.get("/invitations")).body).toHaveLength(1);
+  });
+
+  // La route est celle du coach : un athlète n'efface pas ce qu'il vient de refuser.
+  it("ferme la route à un athlète", async () => {
+    const athlete = await signUp("rm-closed@cmv.test", Role.ATHLETE);
+    expect((await athlete.delete("/invitations/whatever")).status).toBe(403);
+  });
+});

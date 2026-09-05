@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { Session, type UserSession } from "@thallesp/nestjs-better-auth";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
@@ -22,6 +22,18 @@ export class InvitationController {
   @RequireCapability("coach")
   listMine() {
     return this.invitations.listMine();
+  }
+
+  /**
+   * Coach : efface une invitation refusée, pour que sa liste cesse de la lui montrer. Refusé
+   * (409) sur tout autre état — retirer une invitation en attente serait une révocation, qui est
+   * une transition à part et n'a pas de chemin.
+   */
+  @Delete(":id")
+  @HttpCode(204)
+  @RequireCapability("coach")
+  async remove(@Param("id") id: string) {
+    await this.invitations.remove(id);
   }
 
   /**
