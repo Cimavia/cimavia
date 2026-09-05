@@ -147,7 +147,7 @@ export class ExerciseService {
     const usedInSessions = await this.db.sessionExercise.count({ where: { exerciseId: id } });
     if (usedInSessions > 0) {
       throw new ConflictException(
-        `Exercice utilisé dans ${usedInSessions} séance(s) : retirez-le d'abord de ces séances`,
+        `Exercice utilisé dans ${usedInSessions} séance(s) : retire-le d'abord de ces séances`,
       );
     }
 

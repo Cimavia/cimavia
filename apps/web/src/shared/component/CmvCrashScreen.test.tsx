@@ -19,7 +19,7 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: translate }) }));
 const CATALOGUE: Record<string, string> = {
   "common.crash.title": "L'application a rencontré un problème",
   "common.crash.description":
-    "L'incident nous a été signalé. Rechargez la page pour reprendre où vous en étiez.",
+    "L'incident nous a été signalé. Recharge la page pour reprendre où tu en étais.",
   "common.crash.reload": "Recharger la page",
 };
 

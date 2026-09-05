@@ -145,7 +145,7 @@ export class InvoiceService {
     });
     if (draft != null) {
       throw new ConflictException(
-        "Ce cycle a une facturation saisie : affectez-le à un autre athlète plutôt que de le laisser sans destinataire",
+        "Ce cycle a une facturation saisie : affecte-le à un autre athlète plutôt que de le laisser sans destinataire",
       );
     }
   }
@@ -325,7 +325,7 @@ export class InvoiceService {
      * refus ici, le coach saisirait des termes qui ne seraient jamais émis.
      */
     if (plan.coachId === plan.athleteId) {
-      throw new ConflictException("Un cycle que vous vous écrivez à vous-même ne se facture pas");
+      throw new ConflictException("Un cycle que tu t'écris à toi-même ne se facture pas");
     }
     return { ...plan, athleteId: plan.athleteId };
   }

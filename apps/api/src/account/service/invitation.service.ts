@@ -248,7 +248,7 @@ export class InvitationService {
       where: { athleteId: athlete.id },
     });
     if (existing) {
-      throw new ConflictException("Vous êtes déjà lié à un coach");
+      throw new ConflictException("Tu es déjà lié à un coach");
     }
     await this.assertNoCycle(invitation.coachId, athlete.id);
 
@@ -296,7 +296,7 @@ export class InvitationService {
    */
   private async assertNoCycle(coachId: string, athleteId: string): Promise<void> {
     if (coachId === athleteId) {
-      throw new ConflictException("Vous ne pouvez pas être votre propre coach");
+      throw new ConflictException("Tu ne peux pas être ton propre coach");
     }
 
     const seen = new Set<string>([athleteId]);
@@ -305,7 +305,7 @@ export class InvitationService {
     while (current != null) {
       if (seen.has(current)) {
         if (current === athleteId) {
-          throw new ConflictException("Ce lien créerait une boucle avec vos propres athlètes");
+          throw new ConflictException("Ce lien créerait une boucle avec tes propres athlètes");
         }
         throw new Error(
           `[relation] cycle DÉJÀ présent dans CoachAthlete en remontant depuis ${coachId}`,
