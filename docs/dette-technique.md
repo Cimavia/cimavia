@@ -1704,14 +1704,15 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
-## Post-MVP — Réordonner les séances d'une journée ([#93](https://github.com/Cimavia/cimavia/issues/93) · [#148](https://github.com/Cimavia/cimavia/issues/148))
+## Post-MVP — Ordonner et déplacer les séances d'un cycle ([#93](https://github.com/Cimavia/cimavia/issues/93) · [#148](https://github.com/Cimavia/cimavia/issues/148))
 
 > **Tranché en #93** (la dette était périmée, l'issue a changé d'objet) : le `SessionBuilder` a le
 > glisser-déposer **depuis son commit de création** — #165 disait « absorbe #93, fermer en la
 > référençant », et ne l'a pas fait. #93 a donc été **recyclée** plutôt que fermée : son numéro
 > porte désormais les deux surfaces qui n'avaient réellement que des flèches, la **séance
-> planifiée** (`CompositionEditor`) et les **séances d'une journée** (`PlanDayCell`). Fermer et
-> rouvrir aurait perdu la trace de ce qui avait été livré — c'est précisément ce qui a manqué ici.
+> planifiée** (`CompositionEditor`) et les **séances d'une journée** (`PlanDayCell`), plus le
+> déplacement d'un jour à l'autre. Fermer et rouvrir aurait perdu la trace de ce qui avait été
+> livré — c'est précisément ce qui a manqué ici.
 
 > **Tranché en #93** (pas de dnd-kit, et l'issue demandait le contraire) : le glisser tourne sur
 > `useReorderDrag` + `CmvDragHandle`, faits maison et déjà éprouvés sur cinq surfaces. La
@@ -1722,8 +1723,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > séance double le glisser de boutons ↑/↓ ; la case d'un jour, qui fait un septième de la largeur,
 > ne le peut pas. L'issue les prescrivait pourtant. Deux boutons de plus par séance y seraient
 > illisibles, et la poignée porte déjà le chemin clavier — l'esprit de la règle tient, sa lettre
-> non. Le glisser reste **borné à la journée** : changer de jour, c'est écrire `scheduledDate`,
-> une autre écriture et une autre issue.
+> non. Le glisser reste **borné à la semaine** : l'état vit dans `PlanWeekCard`, et la route
+> serveur est scopée à une semaine. Deux cycles, ou deux semaines, ne communiquent pas.
 
 > **Tranché en #148** (le sujet d'une notification peut être une DATE, et reste une donnée) :
 > `PLAN_SESSIONS_REORDERED` ne nomme aucune séance — un ORDRE n'appartient à aucune d'elles. Son
@@ -1739,6 +1740,36 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > position])`, pour un geste que rien ne reliait au précédent. Corrigé dans la même PR
 > (`compactDay`), avec les deux e2e qui le prouvent. L'issue #148 ne l'avait pas vu : elle
 > n'annonçait la contrainte que pour la permutation.
+
+> **Tranché en #93** (la journée d'arrivée se DÉCLARE, elle ne se déplace pas) : déplacer une
+> séance d'un jour à l'autre aurait pu être une route à part (`PATCH …/day`). C'est la route
+> d'ordre qui s'élargit : son tableau ne décrit plus une permutation, il **définit le contenu** du
+> jour visé — l'idiome replace-all de tout le produit. Le client n'écrit donc qu'**une** journée,
+> celle d'arrivée ; le serveur retire la séance de son jour d'origine et l'y recolle. Envoyer les
+> deux journées serait deux écritures, donc deux notifications pour un seul geste. Ce qui reste
+> interdit : **omettre** une séance déjà posée ce jour-là, qui ne dirait pas où elle va.
+
+> **Tranché en #93** (un déplacement s'annonce comme une SÉANCE MODIFIÉE, pas comme un
+> réordonnancement) : changer le jour d'une séance émet déjà `PLAN_UPDATED` depuis le sélecteur
+> « Jour » du panneau. Le glisser est le même geste par un autre chemin — deux gestes identiques
+> ne doivent pas produire deux messages différents. Quand un appel déplace ET réordonne, seul le
+> déplacement s'annonce : dire « séances réordonnées » à un athlète dont la séance est passée au
+> mardi l'enverrait chercher au mauvais endroit.
+
+> **Tranché en #93** (la poignée s'affiche même sur une séance SEULE dans sa journée) : #148 la
+> masquait dans ce cas — « ce serait du décor ». C'était vrai tant que le glisser ne sortait pas
+> du jour ; ça ne l'est plus. L'affordance dit ce que le geste permet, pas ce qu'il permettait.
+
+> **Piège coûteux (#93)** — `splice` compte les indices NÉGATIFS depuis la fin. En extrayant le
+> calcul du dépôt dans un util pur, la borne que `useReorderDrag` portait a été perdue : la flèche
+> ↑ sur la première séance visait `-1` et l'aurait déplacée en **avant-dernière** place, sans rien
+> signaler. Attrapé par le test du cas limite, pas par le typecheck — un indice hors plage est un
+> `number` valide.
+
+> **Piège coûteux (#93)** — la carte de séance est DANS la case du jour, qui est elle aussi une
+> cible de dépôt. Sans `stopPropagation` sur la carte, l'événement remonte et la case écrase le
+> rang visé par celui de sa fin de file : **toute** séance déposée atterrit en dernier, et le
+> « rang exact » ne marche jamais. C'est le seul cas qu'un test à une seule journée ne voit pas.
 
 > **Tranché en #148** (le décalage de renumérotation se DÉDUIT, il n'est pas une constante) :
 > l'issue prescrivait `position + 1000`. Une journée qui porte déjà des trous — le cas d'avant ce
