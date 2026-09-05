@@ -187,12 +187,14 @@ export const updateScheduledSessionSchema = z
 export type UpdateScheduledSessionInput = z.infer<typeof updateScheduledSessionSchema>;
 
 /**
- * L'ordre des séances d'UNE journée (#148) — replace-all, comme toute composition du produit :
- * l'ordre du tableau DÉFINIT les positions, il ne les décrit pas.
+ * Le CONTENU d'une journée et son ordre (#148, élargi en #93) — replace-all, comme toute
+ * composition du produit : le tableau DÉFINIT ce que la journée porte, il ne le décrit pas.
  *
- * Le tableau doit être EXHAUSTIF, et le service le vérifie : accepter un sous-ensemble laisserait
- * les séances tues à leur position d'avant, donc des trous et des collisions sur
- * `@@unique([planWeekId, scheduledDate, position])`. Une permutation, jamais un extrait.
+ * Il peut citer une séance posée un AUTRE jour de la même semaine : elle y est déplacée, au rang
+ * exact où le tableau la place. En revanche il ne peut OMETTRE aucune séance déjà posée ce
+ * jour-là — l'omettre ne dirait pas où elle va, et le service refuse : elle garderait son rang
+ * d'avant, donc des trous et des collisions sur
+ * `@@unique([planWeekId, scheduledDate, position])`.
  *
  * `min(1)` plutôt que `min(2)` : réordonner une journée d'une seule séance est un no-op légitime
  * (un client qui renvoie ce qu'il affiche), là où une journée vide n'a rien à réordonner.

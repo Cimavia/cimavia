@@ -1,12 +1,13 @@
 import type { TenantTx } from "../tenancy/tenancy.extension";
-import { toDbDate } from "../util/date.util";
 
-/** Ce qu'il faut d'une séance pour la ranger : son identité et son rang actuel. */
-type PositionedSession = { id: string; position: number };
+/** Ce qu'il faut d'une séance pour la ranger : son identité, son rang et le jour où elle est. */
+export type PositionedSession = { id: string; position: number; scheduledDate: Date };
 
 /**
- * `position` = rang dans la JOURNÉE, et `@@unique([planWeekId, scheduledDate, position])` le tient.
+ * Écrit une journée ENTIÈRE : ses séances, dans l'ordre donné, rangées sur `0..n-1` et posées à la
+ * date voulue.
  *
+ * `position` = rang dans la JOURNÉE, et `@@unique([planWeekId, scheduledDate, position])` le tient.
  * Cette contrainte mord PENDANT l'écriture, pas seulement à la fin : Prisma émet une instruction
  * par ligne, et un état intermédiaire qui la viole fait échouer toute la transaction. Échanger
  * deux séances par deux `UPDATE` successifs est donc impossible en l'état — la première écriture
@@ -16,24 +17,33 @@ type PositionedSession = { id: string; position: number };
  * plus aucune collision n'est possible, puis on écrit les rangs définitifs sur une journée vide de
  * toute position basse.
  *
- * Le décalage se DÉDUIT du maximum observé au lieu d'être une constante : une journée qui porte
- * déjà des trous (cas d'avant #148) peut occuper un rang supérieur à son propre effectif, et un
+ * `parking` se calcule sur les séances DÉJÀ à cette date, et non sur toutes celles qu'on écrit :
+ * une séance venue d'un autre jour (#93) y arrive avec un rang qui n'a aucun sens ici — le sien
+ * chez elle — et le prendre en compte ne ferait que garer plus haut que nécessaire. Ce qui compte
+ * est de dépasser ce que la date d'arrivée occupe.
+ *
+ * Le décalage se DÉDUIT de ce maximum au lieu d'être une constante : une journée qui porte déjà
+ * des trous (cas d'avant #148) peut occuper un rang supérieur à son propre effectif, et un
  * `+ effectif` fixe retomberait dessus.
  *
- * Deux appelants, une seule écriture de ce piège : recoller une journée après un départ, et la
- * réordonner sur demande du coach.
+ * `scheduledDate` est réécrite sur TOUTE la liste, y compris les séances qui n'ont pas bougé de
+ * jour : distinguer coûterait une branche pour économiser une écriture sans effet.
  */
-export async function writePositions(
+export async function writeDay(
   tx: TenantTx,
   ordered: readonly PositionedSession[],
+  date: Date,
 ): Promise<void> {
   if (ordered.length === 0) return;
 
-  const parking = Math.max(...ordered.map((session) => session.position)) + 1;
+  const staying = ordered.filter((session) => session.scheduledDate.getTime() === date.getTime());
+  const parking =
+    staying.length === 0 ? 0 : Math.max(...staying.map((session) => session.position)) + 1;
+
   for (const [index, session] of ordered.entries()) {
     await tx.scheduledSession.update({
       where: { id: session.id },
-      data: { position: parking + index },
+      data: { scheduledDate: date, position: parking + index },
     });
   }
   for (const [index, session] of ordered.entries()) {
@@ -52,17 +62,12 @@ export async function writePositions(
 export async function compactDay(tx: TenantTx, planWeekId: string, date: Date): Promise<void> {
   const sessions = await tx.scheduledSession.findMany({
     where: { planWeekId, scheduledDate: date },
-    select: { id: true, position: true },
+    select: { id: true, position: true, scheduledDate: true },
     orderBy: { position: "asc" },
   });
 
   // Déjà contigus : ne rien écrire évite deux `UPDATE` par séance sur chaque suppression.
   if (sessions.every((session, index) => session.position === index)) return;
 
-  await writePositions(tx, sessions);
-}
-
-/** La même journée, adressée par sa date ISO. */
-export function compactDayAt(tx: TenantTx, planWeekId: string, isoDate: string): Promise<void> {
-  return compactDay(tx, planWeekId, toDbDate(isoDate));
+  await writeDay(tx, sessions, date);
 }
