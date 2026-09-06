@@ -1997,6 +1997,91 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Planifications lues par athlète ([#225](https://github.com/Cimavia/cimavia/issues/225))
+
+> **Tranché en #225** (on lit des ATHLÈTES, plus des cycles) : `/plans` servait une grille de cartes
+> rangée par date de début, à charge pour le coach de recomposer de tête qu'un même athlète en avait
+> un en cours, un à venir et deux terminés — dix-huit cartes pour répondre à « où en est Léa ».
+> L'écran groupe désormais par athlète — cycle courant, échéance, historique dépliable et paginé —
+> et la dérivation entière (situation, échéance, ordre des lignes, ordre de l'historique) vit dans
+> `@cmv/shared` (`plan-row.util.ts`). Même raisonnement qu'en #120 : un tri faux ne se voit pas, rien
+> à l'écran ne le signale, d'où des fonctions pures et mesurées plutôt qu'une composition dans le JSX.
+>
+> Corollaire assumé, le même qu'en #120 : le tableau ne connaît que les athlètes ayant **au moins un
+> cycle**. Celui qui n'a jamais été planifié n'a pas de ligne — le lister demanderait le
+> `GET /athletes` que #225 retire justement de cet écran. Il reste visible au **tableau de bord**
+> (#113), qui part des athlètes et non des cycles, et le sous-titre dit « N athlètes planifiés »,
+> pas l'écurie entière.
+
+> **Tranché en #225** (l'ordre se lit dans la colonne qu'il trie) : les lignes se rangent par
+> situation — `ENDED` d'abord (l'athlète n'a plus rien, et `selectCurrentPlan` aurait élu un cycle à
+> venir s'il en existait un), puis les cycles en cours par fin la plus proche, puis ceux à venir, qui
+> ne demandent rien. La colonne de droite dit quelque chose pour les trois — « terminé depuis 3
+> semaines », « se termine dans 1 semaine », « commence le 21 sept. » — si bien qu'elle raconte le
+> tri de haut en bas. C'est ce qui l'a fait préférer à la variante « N cycles » de la maquette : un
+> décompte ne reflète aucun ordre, et un tri faux y serait invisible.
+>
+> Conséquence : la planche annonçait « Trié par fin de cycle la plus proche » dans la barre d'outils.
+> Le libellé est **retiré** — la facturation n'en a pas, et il était faux dans les quatre frames.
+
+> **Tranché en #225** (un athlète sans cycle DIFFUSÉ n'a pas d'époque) : entre l'affectation d'un
+> brouillon et sa diffusion — le parcours normal depuis #207 — un athlète n'a que des brouillons.
+> Sa `situation` est alors `null`, sa colonne « Cycle » rend « — », et il n'apparaît sous **aucun
+> segment**, seulement sous « Tous ». Ouvrir un quatrième segment donnerait un nom d'époque à ce qui
+> n'en a pas ; le ranger dans « Terminés » inventerait un travail au coach. Il se range **deuxième**
+> au tri, derrière celui qui n'a plus rien et devant ceux dont un cycle court : rien ne lui est servi
+> non plus, mais le coach a commencé.
+>
+> Corollaire visible : `countPlanAthletesBySituation.ALL` peut **dépasser** la somme des trois autres
+> segments. C'est exact, et c'est le prix de ne pas inventer d'époque. Cas non dessiné par la
+> maquette — à rouvrir si le bac des brouillons ne suffit pas à le rendre lisible.
+
+> **Tranché en #225** (le recouvrement avec le tableau de bord est assumé) : `/` porte déjà une
+> colonne « Planification » par athlète (cycle courant, semaine n/N, phase, #113). Les deux écrans ne
+> répondent pas à la même question — le tableau de bord dit « qui a besoin de moi maintenant »,
+> l'état de l'instant sur une ligne ; la liste des cycles dit « qu'est-ce que je lui ai construit »,
+> l'historique, les brouillons et les cycles terminés. La colonne du dashboard **reste**. Le
+> dispositif qui empêche les deux de diverger est `currentAthletePlan`, exportée d'`athlete-row.util.ts`
+> en #225 et désormais seule à choisir le cycle courant — deux dérivations parallèles auraient fini
+> par désigner deux cycles différents pour le même athlète, sur deux écrans qu'un coach lit à la suite.
+
+> **Signalé, pas corrigé, en #225** ([#172](https://github.com/Cimavia/cimavia/issues/172)) : deux
+> cycles diffusés qui se chevauchent restent servis à moitié — `selectCurrentPlan` en retient un, et
+> l'athlète ignore l'autre. Cet écran est le seul endroit du produit où le coach peut le VOIR : une
+> pastille sur la ligne, un bandeau en tête du dépli qui nomme le cycle invisible. Le correctif vit
+> dans `AthletePlanService` et **#172 reste ouverte** — ne pas la fermer sur la foi de ce rendu.
+>
+> Piège du signalement, et raison d'être du bandeau : c'est le cycle commencé le PLUS TÔT qui est
+> invisible, `selectCurrentPlan` retenant le plus récemment démarré (« le coach en a diffusé un
+> remplaçant »). La maquette avait l'inverse ; l'implémentation suit le produit.
+
+> **Assumé en #225** (pas de pagination) : `GET /plans` n'est toujours pas borné, et cette issue ne
+> le borne pas — même famille que **D-1** et l'épic [#68](https://github.com/Cimavia/cimavia/issues/68).
+> Le groupement réduit le nombre de LIGNES visibles, ce qui est le vrai problème de lecture ; le
+> volume réseau reste entier. Seul l'historique déplié pagine, à cinq par athlète.
+
+> **Trouvé en chemin, corrigé en #225** (une annotation `i18n-values` appartient au fichier qui BÂTIT
+> la clé) : `i18n-values plan.status: PlanStatus` vivait dans `PlanList`, qui n'assemblait pas cette
+> clé — c'est `PlanStatusLine` qui le fait. Le registre de `check:i18n` étant global (cf. l'encadré
+> *Trouvé en chemin, corrigé en #120* ci-dessus), il était couvert par accident, et la suppression de
+> `PlanList` l'a mis au jour. Deuxième symptôme du même défaut de portée du script.
+
+> **Trouvé en chemin, corrigé en #225** (une clé citée par une annotation doit être une FEUILLE) :
+> `checkSuffixesUnder` exige que `prefix.VALEUR` soit une chaîne au catalogue. Une clé pluralisée en
+> `_one`/`_other` seulement n'en est pas une, et l'annotation échoue. Le catalogue porte donc le
+> **singulier sur la clé de base** plus une variante `_other` (`plan.deadline.ENDS_IN`), comme
+> `library.builder.usedInSessions`. Là où le nombre est toujours ≥ 2 ou toujours neutre, on passe
+> `n` et non `count`, pour ne pas déclencher une pluralisation sans variante — convention héritée
+> d'`InvoiceToolbar`.
+
+> **Extrait en #225** (`pagination.util.ts`) : `pageOfInvoices` était déjà générique mais nommée
+> d'après les factures, et l'historique des cycles pagine à l'identique. `pageOf` et
+> `HISTORY_PAGE_SIZE` vivent désormais à part ; `pageOfInvoices`, `InvoicePage` et
+> `INVOICE_HISTORY_PAGE_SIZE` en sont des alias, pour leurs appelants et parce qu'ils disent CE QU'ON
+> pagine. Aucun changement de comportement.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
