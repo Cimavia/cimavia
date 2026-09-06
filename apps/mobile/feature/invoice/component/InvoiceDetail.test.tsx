@@ -1,8 +1,30 @@
 import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
 import { screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvoiceDetail } from "@/feature/invoice/component/InvoiceDetail";
+import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 import { pressButton, renderRn } from "@/test/render";
+
+// Les mutations ont leurs propres tests : ce qui s'éprouve ici est CE QUI les déclenche.
+vi.mock("@/feature/invoice/hook/useInvoices", () => ({
+  useUpdateInvoiceStatus: vi.fn(),
+  useCancelInvoice: vi.fn(),
+}));
+
+const setStatus = vi.fn();
+const cancelInvoice = vi.fn();
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(useUpdateInvoiceStatus).mockReturnValue({
+    mutate: setStatus,
+    isPending: false,
+  } as unknown as ReturnType<typeof useUpdateInvoiceStatus>);
+  vi.mocked(useCancelInvoice).mockReturnValue({
+    mutate: cancelInvoice,
+    isPending: false,
+  } as unknown as ReturnType<typeof useCancelInvoice>);
+});
 
 /**
  * Ce qui s'éprouve ici est ce que le détail DÉCIDE : quelles lignes existent selon l'état de la
@@ -41,21 +63,10 @@ function invoice(overrides: Partial<InvoiceDto> = {}): InvoiceDto {
  * vide — et le test passerait à côté de tout ce qu'il croit presser.
  */
 function setup(dto: InvoiceDto, canManage = true) {
-  const onMarkPaid = vi.fn();
-  const onReopen = vi.fn();
-  const onCancel = vi.fn();
   const { baseElement } = renderRn(
-    <InvoiceDetail
-      invoice={dto}
-      canManage={canManage}
-      busy={false}
-      onClose={vi.fn()}
-      onMarkPaid={onMarkPaid}
-      onReopen={onReopen}
-      onCancel={onCancel}
-    />,
+    <InvoiceDetail invoice={dto} canManage={canManage} onClose={vi.fn()} />,
   );
-  return { onMarkPaid, onReopen, onCancel, baseElement };
+  return { baseElement };
 }
 
 describe("InvoiceDetail", () => {
@@ -94,12 +105,12 @@ describe("InvoiceDetail", () => {
   // Impayée : le coach déclare le règlement, et peut se poser un rappel. Pas de retour arrière —
   // il n'y a rien à défaire.
   it("offre au coach de marquer payée, de se poser un rappel et d'annuler", () => {
-    const { onMarkPaid, baseElement } = setup(invoice());
+    const { baseElement } = setup(invoice());
 
     expect(screen.getByText("reminder.schedule")).toBeTruthy();
     expect(screen.getByText("invoice.coach.cancel")).toBeTruthy();
     pressButton(baseElement, "invoice.coach.markPaid");
-    expect(onMarkPaid).toHaveBeenCalledOnce();
+    expect(setStatus).toHaveBeenCalledWith({ id: "inv-1", status: InvoiceStatus.PAID });
   });
 
   /**
@@ -108,16 +119,19 @@ describe("InvoiceDetail", () => {
    * effleurement, sans rien à défaire derrière.
    */
   it("protège l'annulation et n'avertit qu'une fois armée", () => {
-    const { onCancel, baseElement } = setup(invoice());
+    const { baseElement } = setup(invoice());
 
     expect(screen.queryByText("invoice.coach.cancelHint")).toBeNull();
 
     pressButton(baseElement, "invoice.coach.cancel");
-    expect(onCancel).not.toHaveBeenCalled();
+    expect(cancelInvoice).not.toHaveBeenCalled();
     expect(screen.getByText("invoice.coach.cancelHint")).toBeTruthy();
 
     pressButton(baseElement, "invoice.coach.cancelConfirm");
-    expect(onCancel).toHaveBeenCalledOnce();
+    // L'endpoint DÉDIÉ, jamais le toggle de statut : `CANCELLED` ouvert au toggle contournerait la
+    // garde qui l'interdit depuis autre chose que `PENDING`.
+    expect(cancelInvoice).toHaveBeenCalledWith("inv-1");
+    expect(setStatus).not.toHaveBeenCalled();
   });
 
   /**
@@ -136,16 +150,16 @@ describe("InvoiceDetail", () => {
    */
   it("protège le retour arrière d'une facture payée", () => {
     const paid = invoice({ status: InvoiceStatus.PAID, paidAt: "2026-08-02T09:00:00.000Z" });
-    const { onReopen, baseElement } = setup(paid);
+    const { baseElement } = setup(paid);
 
     expect(screen.getByText("invoice.panel.paidAt")).toBeTruthy();
     expect(screen.queryByText("invoice.coach.markPaid")).toBeNull();
 
     pressButton(baseElement, "invoice.coach.reopen");
-    expect(onReopen).not.toHaveBeenCalled();
+    expect(setStatus).not.toHaveBeenCalled();
 
     pressButton(baseElement, "invoice.coach.reopenConfirm");
-    expect(onReopen).toHaveBeenCalledOnce();
+    expect(setStatus).toHaveBeenCalledWith({ id: "inv-1", status: InvoiceStatus.PENDING });
   });
 
   /**

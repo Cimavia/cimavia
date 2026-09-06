@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Linking, Modal, Pressable, ScrollView, View } from "react-native";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
-import type { InvoiceDetailProps } from "@/feature/invoice/hook/useInvoiceDetail";
+import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvButton, CmvConfirmButton, CmvText } from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
@@ -34,24 +34,25 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  * `canManage` gouverne le pied, et lui seul — la lecture est identique des deux côtés.
  */
 
-type InvoiceDetailViewProps = InvoiceDetailProps & {
+type InvoiceDetailProps = {
+  invoice: InvoiceDto;
   /**
    * Le coach pilote, l'athlète consulte. Un booléen plutôt que le rôle : le détail n'a pas à savoir
    * QUI regarde, seulement ce qui lui est permis.
    */
   canManage: boolean;
+  onClose: () => void;
 };
 
-export function InvoiceDetail({
-  invoice,
-  canManage,
-  busy,
-  onClose,
-  onMarkPaid,
-  onReopen,
-  onCancel,
-}: Readonly<InvoiceDetailViewProps>) {
+export function InvoiceDetail({ invoice, canManage, onClose }: Readonly<InvoiceDetailProps>) {
   const { t } = useTranslation();
+  // Les gestes vivent avec les boutons qui les portent. La racine du cache est invalidée par les
+  // deux mutations : le tableau de bord tire ses tuiles de facturation de la même liste.
+  const updateStatus = useUpdateInvoiceStatus();
+  const cancel = useCancelInvoice();
+  // Une mutation en cours éteint TOUS les gestes : confirmer deux fois enverrait deux requêtes,
+  // dont la seconde échouerait sur une facture qui a déjà changé d'état.
+  const busy = updateStatus.isPending || cancel.isPending;
   const isPaid = invoice.status === InvoiceStatus.PAID;
   // Annulée = terminal (l'API refuse tout retour en 409) : aucune action, et le montant barré —
   // plus personne ne doit rien.
@@ -155,9 +156,9 @@ export function InvoiceDetail({
           invoice={invoice}
           canManage={canManage}
           busy={busy}
-          onMarkPaid={onMarkPaid}
-          onReopen={onReopen}
-          onCancel={onCancel}
+          onMarkPaid={() => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PAID })}
+          onReopen={() => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PENDING })}
+          onCancel={() => cancel.mutate(invoice.id)}
         />
       </View>
     </Modal>

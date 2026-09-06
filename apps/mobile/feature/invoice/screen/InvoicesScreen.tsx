@@ -121,7 +121,9 @@ export function InvoicesScreen() {
 
       {/* Monté seulement quand une facture est ouverte : les gestes n'ont alors plus à se garder
           d'une cible absente, et le détail n'a pas de cas « rien à montrer » à porter. */}
-      {detail.props == null ? null : <InvoiceDetail {...detail.props} canManage={isCoach} />}
+      {detail.invoice == null ? null : (
+        <InvoiceDetail invoice={detail.invoice} canManage={isCoach} onClose={detail.close} />
+      )}
     </CmvScreen>
   );
 }

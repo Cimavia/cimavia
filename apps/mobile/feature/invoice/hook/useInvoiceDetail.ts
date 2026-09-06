@@ -1,58 +1,36 @@
-import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
+import type { InvoiceDto } from "@cmv/shared";
 import { useState } from "react";
-import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 
 /**
- * Le détail d'une facture, câblé : laquelle est ouverte, et ce qu'on peut lui faire.
+ * QUELLE facture est ouverte — et rien d'autre.
  *
- * Un hook plutôt que quelques lignes dans l'écran, parce que c'est UNE seule affaire — la facture
- * ouverte et ses mutations ne se comprennent pas l'une sans l'autre — et parce que les deux vues
- * (celle du coach, celle de l'athlète) ouvrent le MÊME détail : le câblage n'appartient à aucune
- * des deux. Même découpe qu'`useInvoicePanel` côté web.
- *
- * Retient un ID, et non la facture : marquée payée, elle est REMPLACÉE dans le cache par la version
+ * Retient un ID, jamais la facture : marquée payée, elle est REMPLACÉE dans le cache par la version
  * renvoyée par l'API. Garder une copie figerait l'écran sur l'état d'avant, et il proposerait
  * encore « Marquer payée » sur une facture qui vient de l'être.
+ *
+ * Les MUTATIONS n'entrent pas ici, contrairement au `useInvoicePanel` du web : sur mobile le détail
+ * est un `Modal` qui possède ses boutons, et les gestes vivent avec eux plutôt qu'à deux fichiers de
+ * distance. Ce hook ne décide donc que d'une chose, et le dit par son type de retour.
  */
 
-export type InvoiceDetailProps = {
-  invoice: InvoiceDto;
-  busy: boolean;
-  onClose: () => void;
-  onMarkPaid: () => void;
-  onReopen: () => void;
-  onCancel: () => void;
-};
-
-export type InvoiceDetail = {
-  /** Ce qu'il faut passer au détail, ou `null` quand aucune facture n'est ouverte. */
-  props: InvoiceDetailProps | null;
+export type OpenInvoice = {
+  /** La facture ouverte, ou `null` quand le détail est fermé. */
+  invoice: InvoiceDto | null;
   open: (invoiceId: string) => void;
+  close: () => void;
 };
 
-export function useInvoiceDetail(invoices: readonly InvoiceDto[] | undefined): InvoiceDetail {
+export function useInvoiceDetail(invoices: readonly InvoiceDto[] | undefined): OpenInvoice {
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
-  const updateStatus = useUpdateInvoiceStatus();
-  const cancel = useCancelInvoice();
-
-  /**
-   * Relue dans la liste à chaque rendu. Une facture qui en disparaît (liste rafraîchie, athlète
-   * détaché) referme donc le détail d'elle-même, plutôt que d'y laisser un fantôme sur lequel agir.
-   */
-  const invoice = invoices?.find((entry) => entry.id === openInvoiceId) ?? null;
 
   return {
+    /**
+     * Relue dans la liste à chaque rendu. Une facture qui en disparaît (liste rafraîchie, athlète
+     * détaché) referme donc le détail d'elle-même, plutôt que d'y laisser un fantôme sur lequel
+     * agir.
+     */
+    invoice: invoices?.find((entry) => entry.id === openInvoiceId) ?? null,
     open: setOpenInvoiceId,
-    props:
-      invoice == null
-        ? null
-        : {
-            invoice,
-            busy: updateStatus.isPending || cancel.isPending,
-            onClose: () => setOpenInvoiceId(null),
-            onMarkPaid: () => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PAID }),
-            onReopen: () => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PENDING }),
-            onCancel: () => cancel.mutate(invoice.id),
-          },
+    close: () => setOpenInvoiceId(null),
   };
 }
