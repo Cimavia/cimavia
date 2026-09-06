@@ -2,23 +2,18 @@ import {
   buildInvoiceAthleteRows,
   type InvoiceAthleteRow,
   type InvoiceDto,
-  InvoiceState,
-  InvoiceStatus,
-  resolveInvoiceState,
+  sortAthleteInvoices,
   todayIsoDate,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { CoachInvoiceSection } from "@/feature/invoice/component/CoachInvoiceSection";
 import { InvoiceDetailPanel } from "@/feature/invoice/component/InvoiceDetailPanel";
-import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
+import { InvoiceHistoryTable } from "@/feature/invoice/component/InvoiceHistoryTable";
 import { useInvoicePanel } from "@/feature/invoice/hook/useInvoicePanel";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
-import { CmvAppShell, CmvCard, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { useActingCapability } from "@/shared/hook/useCapabilities";
-import { cn } from "@/shared/util/cn.util";
-import { formatDate } from "@/shared/util/date.util";
-import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 /**
  * Suivi des factures ÉMISES (p6-2). L'émission n'est PAS ici : elle se fait à la diffusion d'un
@@ -58,7 +53,12 @@ export function InvoicesScreen() {
   // Les deux vues s'excluent, et chacune n'existe qu'avec de quoi la remplir : décidé ici en
   // valeurs, plutôt qu'en conditions empilées dans le JSX.
   const coachRows = hasInvoices && isCoach ? rows : null;
-  const athleteInvoices = hasInvoices && !isCoach ? invoices : null;
+  /**
+   * L'athlète voit le MÊME tableau, à plat : il n'a qu'un coach, donc rien à grouper. Trié comme
+   * l'historique du coach — ses retards en tête, le reste du plus récent au plus ancien.
+   */
+  const athleteInvoices =
+    hasInvoices && !isCoach ? sortAthleteInvoices(invoices, todayIsoDate()) : null;
   // Le vide ne s'annonce ni pendant le chargement ni sur une panne : trois états, trois rendus.
   const showEmpty = !isPending && !isError && !hasInvoices;
 
@@ -91,31 +91,9 @@ export function InvoicesScreen() {
       )}
 
       {athleteInvoices == null ? null : (
-        <AthleteInvoiceList invoices={athleteInvoices} onOpen={panel.open} />
+        <InvoiceHistoryTable invoices={athleteInvoices} onOpenInvoice={panel.open} />
       )}
     </CmvAppShell>
-  );
-}
-
-/**
- * Les cartes de l'athlète, en attendant sa vue à plat. Une pile simple : il n'a qu'un coach, donc
- * rien à grouper, et une seule facture à la fois l'intéresse — la sienne.
- */
-function AthleteInvoiceList({
-  invoices,
-  onOpen,
-}: Readonly<{ invoices: readonly InvoiceDto[]; onOpen: (invoiceId: string) => void }>) {
-  return (
-    <div className="flex flex-col gap-cmv-sm">
-      {invoices.map((invoice) => (
-        <InvoiceRow
-          key={invoice.id}
-          invoice={invoice}
-          canManage={false}
-          onOpen={() => onOpen(invoice.id)}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -156,69 +134,4 @@ function coachSummary(t: TFunction, rows: readonly InvoiceAthleteRow<InvoiceDto>
   return overdue === 0
     ? athletes
     : `${athletes} · ${t("invoice.summary.overdue", { count: overdue })}`;
-}
-
-type InvoiceRowProps = {
-  invoice: InvoiceDto;
-  /**
-   * De qui la carte porte le nom. Ce qu'on peut FAIRE de la facture est passé au panneau, plus à
-   * la carte : elle n'a plus qu'à savoir quel nom écrire.
-   */
-  canManage: boolean;
-  onOpen: () => void;
-};
-
-function InvoiceRow({ invoice, canManage, onOpen }: Readonly<InvoiceRowProps>) {
-  const { t } = useTranslation();
-  const isPaid = invoice.status === InvoiceStatus.PAID;
-  // Annulée = terminal (l'API refuse tout retour en 409) : le montant est barré, plus personne ne
-  // doit rien. Le panneau, lui, ne propose alors aucune action.
-  const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
-  // L'échéance dépassée se colore aussi (maquette pd-8) : c'est elle que le coach cherche des yeux.
-  const isOverdue = resolveInvoiceState(invoice, todayIsoDate()) === InvoiceState.OVERDUE;
-
-  return (
-    <CmvCard onClick={onOpen}>
-      <div className="flex items-start gap-cmv-md">
-        <div className="flex flex-1 flex-col gap-cmv-xs">
-          {/* La facture porte les deux noms : chacun lit celui de l'AUTRE partie. Le coach suit
-              N athlètes, l'athlète n'a qu'un coach — d'où le préfixe « De » de son côté, qui dit
-              d'où vient la facture plutôt que de répéter son propre nom sur chaque carte. */}
-          <div className="flex items-center gap-cmv-sm">
-            <h3 className="text-cmv-subtitle text-cmv-text-hi">
-              {canManage ? invoice.athleteName : t("invoice.byCoach", { name: invoice.coachName })}
-            </h3>
-            <InvoiceStatusBadge invoice={invoice} />
-          </div>
-
-          <p
-            className={cn(
-              "font-cmv-display text-cmv-title",
-              isCancelled ? "text-cmv-text-lo line-through" : "text-cmv-text-hi",
-            )}
-          >
-            {formatMoney(invoice.amountCents, invoice.currency)}
-          </p>
-
-          <p className="text-cmv-caption text-cmv-text-mid">
-            {/* Le cycle facturé — cœur du lien facture ↔ planification. */}
-            {invoice.planTitle ?? "—"} ·{" "}
-            {t("invoice.periodLabel", { period: formatPeriod(invoice.period) })}
-          </p>
-
-          <p
-            className={cn("text-cmv-caption", isOverdue ? "text-cmv-error-on" : "text-cmv-text-lo")}
-          >
-            {t("invoice.dueLabel", { date: formatDate(invoice.dueDate) })}
-            {/* paidAt null tant qu'impayée : rendu « — » (jamais un fallback silencieux). */}
-            {isPaid && invoice.paidAt != null
-              ? ` · ${t("invoice.paidAtLabel", { date: formatDate(invoice.paidAt.slice(0, 10)) })}`
-              : ""}
-          </p>
-
-          {invoice.note == null ? null : <p className="text-cmv-text-mid">{invoice.note}</p>}
-        </div>
-      </div>
-    </CmvCard>
-  );
 }

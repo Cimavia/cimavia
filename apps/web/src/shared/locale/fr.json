@@ -948,8 +948,7 @@
       },
       "paidOn": "Payée le {{date}}",
       "overdueOn": "Échue le {{date}}",
-      "range": "{{from}}–{{to}} sur {{total}} factures",
-      "hint": "Cinq factures par page, les plus récentes d'abord — les retards restent en tête quelle que soit la page."
+      "range": "{{from}}–{{to}} sur {{total}} factures"
     },
     "noMatch": {
       "title": "Aucun athlète ne correspond",
@@ -962,9 +961,7 @@
       "note": "Note",
       "document": "Justificatif"
     },
-    "periodLabel": "Période : {{period}}",
     "dueLabel": "Échéance : {{date}}",
-    "paidAtLabel": "payée le {{date}}",
     "status": {
       "pending": "À échéance",
       "paid": "Payée",

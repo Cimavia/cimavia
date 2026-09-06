@@ -249,19 +249,51 @@ describe("InvoicesScreen — coach", () => {
 });
 
 describe("InvoicesScreen — athlète", () => {
-  it("garde ses cartes, sans tableau ni barre de situation", async () => {
-    const { getByRole, queryByRole } = await setup({ data: [LEA_OVERDUE] }, "athlete");
+  it("lit le même tableau, à plat : ni groupement ni barre de situation", async () => {
+    const { getByText, queryByRole, queryByText } = await setup(
+      { data: [LEA_OVERDUE, LEA_PAID] },
+      "athlete",
+    );
 
+    // Il n'a qu'un coach : rien à chercher, rien à filtrer, personne à déplier.
     expect(queryByRole("searchbox")).toBeNull();
-    expect(getByRole("button", { name: /invoice.byCoach/ })).toBeTruthy();
+    expect(queryByText("invoice.table.columns.athlete")).toBeNull();
+    // Ses factures sont directement là, colonnes comprises.
+    expect(getByText("invoice.history.columns.period")).toBeTruthy();
+    expect(getByText("invoice.history.overdueOn")).toBeTruthy();
+    expect(getByText("invoice.history.paidOn")).toBeTruthy();
+  });
+
+  it("range ses retards en tête, même devant une facture plus récente et réglée", async () => {
+    const recentlyPaid = invoice({
+      id: "inv_recent",
+      period: "2026-08",
+      status: InvoiceStatus.PAID,
+      paidAt: "2026-08-02T09:00:00Z",
+    });
+    const { getAllByText } = await setup(
+      { data: [recentlyPaid, LEA_PAID, LEA_OVERDUE] },
+      "athlete",
+    );
+
+    // Juin est en retard : il passe devant août, pourtant plus récent et réglé.
+    expect(getAllByText(/ 2026$/).map((cell) => cell.textContent)).toEqual([
+      "juin 2026",
+      "août 2026",
+      "mai 2026",
+    ]);
   });
 
   it("ouvre le panneau en lecture, sans aucun geste", async () => {
-    const { user, getByRole, queryByRole } = await setup({ data: [LEA_OVERDUE] }, "athlete");
+    const { user, getByText, getByRole, queryByRole } = await setup(
+      { data: [LEA_OVERDUE] },
+      "athlete",
+    );
 
-    await user.click(getByRole("button", { name: /invoice.byCoach/ }));
+    await user.click(getByText("juin 2026"));
 
-    expect(getByRole("complementary")).toBeTruthy();
+    // Le titre nomme le COACH : l'athlète n'a pas à lire son propre nom sur sa facture.
+    expect(getByRole("complementary", { name: /invoice.byCoach/ })).toBeTruthy();
     expect(queryByRole("button", { name: "invoice.markPaid" })).toBeNull();
     expect(queryByRole("button", { name: "invoice.cancel" })).toBeNull();
   });

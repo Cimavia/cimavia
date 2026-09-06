@@ -74,16 +74,13 @@ export function CoachInvoiceSection({ rows, onOpenInvoice }: Readonly<CoachInvoi
           description={t("invoice.noMatch.description")}
         />
       ) : (
-        <>
-          <InvoiceAthleteTable
-            rows={visible}
-            expandedAthleteId={athlete ?? null}
-            // Recliquer sur l'athlète déplié le referme : un seul historique ouvert à la fois.
-            onToggle={(athleteId) => go({ athlete: athleteId === athlete ? undefined : athleteId })}
-            onOpenInvoice={onOpenInvoice}
-          />
-          <p className="text-cmv-caption text-cmv-text-lo">{t("invoice.history.hint")}</p>
-        </>
+        <InvoiceAthleteTable
+          rows={visible}
+          expandedAthleteId={athlete ?? null}
+          // Recliquer sur l'athlète déplié le referme : un seul historique ouvert à la fois.
+          onToggle={(athleteId) => go({ athlete: athleteId === athlete ? undefined : athleteId })}
+          onOpenInvoice={onOpenInvoice}
+        />
       )}
     </div>
   );
