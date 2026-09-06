@@ -412,7 +412,10 @@
       },
       "markPaid": "Marquer payée",
       "reopen": "Marquer impayée",
-      "reopenConfirm": "Confirmer"
+      "reopenConfirm": "Confirmer",
+      "cancel": "Annuler la facture",
+      "cancelConfirm": "Annuler définitivement",
+      "cancelHint": "Une facture annulée ne peut plus revenir en arrière."
     },
     "panel": {
       "dueDate": "Échéance",

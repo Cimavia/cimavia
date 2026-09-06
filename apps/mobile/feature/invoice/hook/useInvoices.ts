@@ -37,3 +37,24 @@ export function useUpdateInvoiceStatus() {
     },
   });
 }
+
+/**
+ * Annulation d'une facture — coach seul, et gardée en amont : l'API ne l'accepte que depuis
+ * `PENDING`, et refuse en 409 toute ré-annulation comme tout retour arrière. TERMINAL, donc, et
+ * c'est ce qui justifie la confirmation en deux temps côté UI.
+ *
+ * Un endpoint dédié plutôt que le toggle de statut, et pas par symétrie : `CANCELLED` ouvert au
+ * toggle contournerait précisément cette garde. Le cycle facturé n'est PAS affecté — annuler une
+ * facture n'annule pas la prestation.
+ */
+export function useCancelInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => invoiceApi.cancel(id),
+    onSuccess: () => {
+      // Racine entière : le tableau de bord tire ses deux tuiles de facturation de la même liste.
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+    },
+  });
+}

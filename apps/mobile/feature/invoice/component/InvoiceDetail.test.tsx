@@ -43,6 +43,7 @@ function invoice(overrides: Partial<InvoiceDto> = {}): InvoiceDto {
 function setup(dto: InvoiceDto, canManage = true) {
   const onMarkPaid = vi.fn();
   const onReopen = vi.fn();
+  const onCancel = vi.fn();
   const { baseElement } = renderRn(
     <InvoiceDetail
       invoice={dto}
@@ -51,9 +52,10 @@ function setup(dto: InvoiceDto, canManage = true) {
       onClose={vi.fn()}
       onMarkPaid={onMarkPaid}
       onReopen={onReopen}
+      onCancel={onCancel}
     />,
   );
-  return { onMarkPaid, onReopen, baseElement };
+  return { onMarkPaid, onReopen, onCancel, baseElement };
 }
 
 describe("InvoiceDetail", () => {
@@ -91,12 +93,41 @@ describe("InvoiceDetail", () => {
 
   // Impayée : le coach déclare le règlement, et peut se poser un rappel. Pas de retour arrière —
   // il n'y a rien à défaire.
-  it("offre au coach de marquer payée et de se poser un rappel", () => {
+  it("offre au coach de marquer payée, de se poser un rappel et d'annuler", () => {
     const { onMarkPaid, baseElement } = setup(invoice());
 
     expect(screen.getByText("reminder.schedule")).toBeTruthy();
+    expect(screen.getByText("invoice.coach.cancel")).toBeTruthy();
     pressButton(baseElement, "invoice.coach.markPaid");
     expect(onMarkPaid).toHaveBeenCalledOnce();
+  });
+
+  /**
+   * L'annulation est TERMINALE — l'API refuse ensuite tout retour en 409 —, et c'est ce que
+   * l'avertissement dit, au dernier moment où il peut servir. Un appui unique la poserait sur un
+   * effleurement, sans rien à défaire derrière.
+   */
+  it("protège l'annulation et n'avertit qu'une fois armée", () => {
+    const { onCancel, baseElement } = setup(invoice());
+
+    expect(screen.queryByText("invoice.coach.cancelHint")).toBeNull();
+
+    pressButton(baseElement, "invoice.coach.cancel");
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByText("invoice.coach.cancelHint")).toBeTruthy();
+
+    pressButton(baseElement, "invoice.coach.cancelConfirm");
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  /**
+   * Payée : plus rien à annuler. L'API le refuserait (l'annulation part de `PENDING` seulement) —
+   * offrir le bouton mènerait à une erreur pour un geste qui n'a jamais été possible.
+   */
+  it("n'offre pas d'annuler une facture déjà payée", () => {
+    setup(invoice({ status: InvoiceStatus.PAID, paidAt: "2026-08-02T09:00:00.000Z" }));
+
+    expect(screen.queryByText("invoice.coach.cancel")).toBeNull();
   });
 
   /**
@@ -126,6 +157,7 @@ describe("InvoiceDetail", () => {
 
     expect(screen.queryByText("invoice.coach.markPaid")).toBeNull();
     expect(screen.queryByText("invoice.coach.reopen")).toBeNull();
+    expect(screen.queryByText("invoice.coach.cancel")).toBeNull();
     expect(screen.queryByText("reminder.schedule")).toBeNull();
   });
 
@@ -139,6 +171,7 @@ describe("InvoiceDetail", () => {
 
     expect(screen.getByText("invoice.panel.dueDate")).toBeTruthy();
     expect(screen.queryByText("invoice.coach.markPaid")).toBeNull();
+    expect(screen.queryByText("invoice.coach.cancel")).toBeNull();
     expect(screen.queryByText("reminder.schedule")).toBeNull();
   });
 });

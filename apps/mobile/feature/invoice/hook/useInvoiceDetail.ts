@@ -1,6 +1,6 @@
 import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
 import { useState } from "react";
-import { useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
+import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 
 /**
  * Le détail d'une facture, câblé : laquelle est ouverte, et ce qu'on peut lui faire.
@@ -21,6 +21,7 @@ export type InvoiceDetailProps = {
   onClose: () => void;
   onMarkPaid: () => void;
   onReopen: () => void;
+  onCancel: () => void;
 };
 
 export type InvoiceDetail = {
@@ -32,6 +33,7 @@ export type InvoiceDetail = {
 export function useInvoiceDetail(invoices: readonly InvoiceDto[] | undefined): InvoiceDetail {
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
   const updateStatus = useUpdateInvoiceStatus();
+  const cancel = useCancelInvoice();
 
   /**
    * Relue dans la liste à chaque rendu. Une facture qui en disparaît (liste rafraîchie, athlète
@@ -46,10 +48,11 @@ export function useInvoiceDetail(invoices: readonly InvoiceDto[] | undefined): I
         ? null
         : {
             invoice,
-            busy: updateStatus.isPending,
+            busy: updateStatus.isPending || cancel.isPending,
             onClose: () => setOpenInvoiceId(null),
             onMarkPaid: () => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PAID }),
             onReopen: () => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PENDING }),
+            onCancel: () => cancel.mutate(invoice.id),
           },
   };
 }

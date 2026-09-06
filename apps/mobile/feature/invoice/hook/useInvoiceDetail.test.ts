@@ -2,12 +2,16 @@ import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useInvoiceDetail } from "@/feature/invoice/hook/useInvoiceDetail";
-import { useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
+import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 
 // La mutation a ses propres tests ; ce qui s'éprouve ici est le CHOIX de la facture ouverte.
-vi.mock("@/feature/invoice/hook/useInvoices", () => ({ useUpdateInvoiceStatus: vi.fn() }));
+vi.mock("@/feature/invoice/hook/useInvoices", () => ({
+  useUpdateInvoiceStatus: vi.fn(),
+  useCancelInvoice: vi.fn(),
+}));
 
 const mutate = vi.fn();
+const cancelMutate = vi.fn();
 
 function invoice(id: string): InvoiceDto {
   return {
@@ -38,6 +42,10 @@ function setup(initial: InvoiceDto[]) {
     mutate,
     isPending: false,
   } as unknown as ReturnType<typeof useUpdateInvoiceStatus>);
+  vi.mocked(useCancelInvoice).mockReturnValue({
+    mutate: cancelMutate,
+    isPending: false,
+  } as unknown as ReturnType<typeof useCancelInvoice>);
 
   return renderHook(({ invoices }: { invoices: InvoiceDto[] }) => useInvoiceDetail(invoices), {
     initialProps: { invoices: initial },
@@ -91,6 +99,19 @@ describe("useInvoiceDetail", () => {
 
     result.current.props?.onReopen();
     expect(mutate).toHaveBeenCalledWith({ id: "inv-1", status: InvoiceStatus.PENDING });
+  });
+
+  /**
+   * L'annulation passe par son PROPRE endpoint, et non par le toggle de statut : `CANCELLED`
+   * ouvert au toggle contournerait la garde qui l'interdit depuis autre chose que `PENDING`.
+   */
+  it("annule par l'endpoint dédié, jamais par le toggle de statut", () => {
+    const { result } = setup([invoice("inv-1")]);
+    act(() => result.current.open("inv-1"));
+
+    result.current.props?.onCancel();
+    expect(cancelMutate).toHaveBeenCalledWith("inv-1");
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it("referme le détail sur demande", () => {

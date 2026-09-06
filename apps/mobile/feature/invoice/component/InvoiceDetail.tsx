@@ -49,6 +49,7 @@ export function InvoiceDetail({
   onClose,
   onMarkPaid,
   onReopen,
+  onCancel,
 }: Readonly<InvoiceDetailViewProps>) {
   const { t } = useTranslation();
   const isPaid = invoice.status === InvoiceStatus.PAID;
@@ -156,6 +157,7 @@ export function InvoiceDetail({
           busy={busy}
           onMarkPaid={onMarkPaid}
           onReopen={onReopen}
+          onCancel={onCancel}
         />
       </View>
     </Modal>
@@ -192,15 +194,17 @@ type InvoiceActionsProps = {
   busy: boolean;
   onMarkPaid: () => void;
   onReopen: () => void;
+  onCancel: () => void;
 };
 
 /**
  * Le pied. Rien pour l'athlète, rien non plus sur une facture annulée : un pied vide vaut mieux
  * qu'un bouton éteint, qui laisse chercher ce qui le rallumerait.
  *
- * Les gestes sont réservés au coach, et pas par politesse : `PATCH /invoices/:id/status` est gardée
- * `@Roles([COACH])`, et `ScheduleReminderButton` touche `Reminder` — la seule entité scopée
- * `coachId` SEUL. Un athlète qui l'atteindrait prendrait une erreur, pas un 403.
+ * Les gestes sont réservés au coach, et pas par politesse : `PATCH /invoices/:id/status` et
+ * `POST /invoices/:id/cancel` sont gardées `@Roles([COACH])`, et `ScheduleReminderButton` touche
+ * `Reminder` — la seule entité scopée `coachId` SEUL. Un athlète qui l'atteindrait prendrait une
+ * erreur, pas un 403.
  */
 function InvoiceActions({
   invoice,
@@ -208,6 +212,7 @@ function InvoiceActions({
   busy,
   onMarkPaid,
   onReopen,
+  onCancel,
 }: Readonly<InvoiceActionsProps>) {
   const { t } = useTranslation();
   if (!canManage || invoice.status === InvoiceStatus.CANCELLED) return null;
@@ -241,6 +246,21 @@ function InvoiceActions({
         entityId={invoice.id}
         targetLabel={formatPeriod(invoice.period)}
       />
+      {/* Tertiaire, et discret AU REPOS : sous « Marquer payée », un bouton rouge crierait plus
+          fort que l'action qu'on vient chercher ici neuf fois sur dix. Sa gravité apparaît à
+          l'armement — d'où `ghost`, et d'où l'avertissement, que le retour arrière n'a pas :
+          celui-ci se défait, l'annulation est refusée en 409 dès qu'elle est posée. */}
+      <View className="pt-1">
+        <CmvConfirmButton
+          variant="ghost"
+          label={t("invoice.coach.cancel")}
+          confirmLabel={t("invoice.coach.cancelConfirm")}
+          cancelLabel={t("common.cancel")}
+          confirmHint={t("invoice.coach.cancelHint")}
+          onConfirm={onCancel}
+          disabled={busy}
+        />
+      </View>
     </View>
   );
 }
