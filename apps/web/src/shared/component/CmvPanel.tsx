@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { cn } from "@/shared/util/cn.util";
 
 // md = formulaire simple (exercice) ; lg = mise en page à deux colonnes (builder de séance).
@@ -20,6 +20,17 @@ type CmvPanelProps = {
   size?: CmvPanelSize;
 };
 
+/**
+ * Les panneaux OUVERTS, du plus ancien au plus récent — pour qu'Échap ne ferme que celui du dessus.
+ *
+ * Deux panneaux peuvent se superposer : le panneau de détail d'une facture porte « Programmer un
+ * rappel », qui ouvre le sien. Chacun posant son écouteur sur `window`, tous étaient appelés — et
+ * annuler le rappel refermait aussi la facture qu'on lisait derrière. Un état de module plutôt
+ * qu'un contexte : la pile décrit ce qui est à l'écran, pas ce qu'un arbre React contient, et deux
+ * panneaux montés dans deux sous-arbres différents se superposent aussi bien.
+ */
+const openPanels: object[] = [];
+
 // Panneau latéral (slide-over) — support des formulaires exercice / séance (cf. maquette).
 export function CmvPanel({
   open,
@@ -30,15 +41,33 @@ export function CmvPanel({
   footer,
   size = "md",
 }: Readonly<CmvPanelProps>) {
+  /**
+   * `onClose` est lu dans une ref plutôt que déclaré en dépendance : les appelants passent une
+   * flèche en ligne, l'effet se relancerait donc à chaque rendu — et la pile serait redépilée puis
+   * réempilée, plaçant sur le dessus un panneau que rien n'a rouvert. L'effet ne dépend ainsi que
+   * de l'OUVERTURE, qui est exactement ce que la pile suit.
+   */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   // Échap ferme le panneau. Effet monté seulement quand le panneau est ouvert.
   useEffect(() => {
     if (!open) return;
+    // Une identité propre à CETTE ouverture — deux panneaux se distinguent par leur objet.
+    const self = {};
+    openPanels.push(self);
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && openPanels.at(-1) === self) onCloseRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      const index = openPanels.lastIndexOf(self);
+      if (index !== -1) openPanels.splice(index, 1);
+    };
+  }, [open]);
 
   if (!open) return null;
 
