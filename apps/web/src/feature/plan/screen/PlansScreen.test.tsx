@@ -63,8 +63,10 @@ const mount = async (plans: PlanSummaryDto[] = []) => {
     refetch: vi.fn(),
   } as unknown as ReturnType<typeof usePlans>);
 
+  // `/plans/` et non `/plans` : c'est l'id que `CoachPlanSection` réclame par `getRouteApi`, et
+  // c'est par cette chaîne que sa lecture de l'URL retrouve son match.
   return renderInRoute(<PlansScreen />, {
-    path: "/plans",
+    path: "/plans/",
     links: ["/plans/$planId"],
   });
 };
@@ -132,6 +134,36 @@ describe("PlansScreen — créer un cycle", () => {
 });
 
 /**
+ * Le bac des brouillons sans destinataire (#144, #225) : ces cycles n'appartiennent à personne et
+ * n'ont donc aucune ligne dans le tableau des athlètes. Sans lui, ils seraient invisibles.
+ */
+describe("PlansScreen — les brouillons sans destinataire", () => {
+  const orphan: PlanSummaryDto = {
+    ...existingPlan,
+    id: "pln_orphan",
+    athleteId: null,
+    athleteName: null,
+    athleteEmail: null,
+    title: "Trail — volume long",
+  };
+
+  it("sort les brouillons sans destinataire du tableau, dans leur propre bac", async () => {
+    const { getByText } = await mount([existingPlan, orphan]);
+
+    expect(getByText("plan.drafts.title")).toBeTruthy();
+    expect(getByText("Trail — volume long")).toBeTruthy();
+    // L'athlète du cycle affecté garde sa ligne : le bac ne prend que les orphelins.
+    expect(getByText("Léa Moreau")).toBeTruthy();
+  });
+
+  it("ne montre aucun bac quand chaque cycle a son destinataire", async () => {
+    const { queryByText } = await mount([existingPlan]);
+
+    expect(queryByText("plan.drafts.title")).toBeNull();
+  });
+});
+
+/**
  * Une liste qui n'a pas pu être lue n'est PAS une liste vide : proposer « créez votre premier
  * cycle » à un coach qui en a douze est le pire des messages. L'écran dit la panne, et offre le
  * recours.
@@ -146,7 +178,7 @@ describe("PlansScreen — la liste ne se charge pas", () => {
       refetch,
     } as unknown as ReturnType<typeof usePlans>);
 
-    return { refetch, rendered: renderInRoute(<PlansScreen />, { path: "/plans" }) };
+    return { refetch, rendered: renderInRoute(<PlansScreen />, { path: "/plans/" }) };
   };
 
   it("dit la panne au lieu de faire passer la liste pour vide", async () => {

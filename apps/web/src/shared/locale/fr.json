@@ -441,7 +441,6 @@
       "description": "Crée un cycle pour un de tes athlètes : semaines, séances, puis diffusion."
     },
     "card": {
-      "meta": "{{weeks}} semaine(s) · {{sessions}} séance(s) · début le {{date}}",
       "counts": "{{weeks}} semaine(s) · {{sessions}} séance(s)"
     },
     "header": {
@@ -603,6 +602,11 @@
     "noMatch": {
       "title": "Aucun athlète ne correspond",
       "description": "Change ta recherche ou reviens à « Tous »."
+    },
+    "drafts": {
+      "title": "Brouillons sans destinataire",
+      "hint": "Tu les construis avant de savoir pour qui",
+      "startsOn": "Début {{date}}"
     }
   },
   "nav": {

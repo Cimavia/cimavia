@@ -1,12 +1,14 @@
-import { mondayOfIsoWeek, PlanWeekType, todayIsoDate } from "@cmv/shared";
+import { mondayOfIsoWeek, PlanWeekType, todayIsoDate, unassignedDraftPlans } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { PlanList } from "@/feature/plan/component/PlanList";
+import { CoachPlanSection } from "@/feature/plan/component/CoachPlanSection";
+import { UnassignedDraftsSection } from "@/feature/plan/component/UnassignedDraftsSection";
 import { DEFAULT_WEEK_COUNT } from "@/feature/plan/constant";
 import { useCreatePlan, usePlans } from "@/feature/plan/hook/usePlans";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 
-// Liste des planifications du coach (p3-1). Surface coach : l'API refuse déjà l'athlète en 403.
+// Liste des planifications du coach (p3-1, reprise en #225). Surface coach : l'API refuse déjà
+// l'athlète en 403.
 export function PlansScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -30,8 +32,8 @@ export function PlansScreen() {
    * se saisit et se corrige maintenant en haut du constructeur.
    *
    * Le prix, assumé : des brouillons vides vont s'accumuler — un clic vaut une ligne en base.
-   * Le recours existe déjà et reste ouvert tant que le cycle est brouillon (« Supprimer le
-   * cycle »).
+   * Depuis #225 ils ne se perdent plus dans une grille : ils ont leur bac, en tête de l'écran. Le
+   * recours reste ouvert tant que le cycle est brouillon (« Supprimer le cycle »).
    */
   function onNewPlan() {
     if (startDate == null) return;
@@ -73,6 +75,9 @@ export function PlansScreen() {
         />
       ) : null}
 
+      {/* Erreur, vide et chargement sont trois états distincts : « Aucune planification » sur une
+          panne réseau serait un mensonge. Le vide de la RECHERCHE, lui, appartient à la section —
+          seule à savoir ce que la barre d'outils demande. */}
       {!isPending && !isError && !hasPlans ? (
         <CmvEmptyState
           title={t("plan.empty.title")}
@@ -81,7 +86,14 @@ export function PlansScreen() {
         />
       ) : null}
 
-      {hasPlans ? <PlanList plans={plans} /> : null}
+      {hasPlans ? (
+        <div className="flex flex-col gap-cmv-lg">
+          {/* Le bac AVANT le tableau : ces cycles n'ont pas de ligne d'athlète, et ce sont les
+              seuls sur lesquels il reste une décision à prendre. */}
+          <UnassignedDraftsSection drafts={unassignedDraftPlans(plans)} />
+          <CoachPlanSection plans={plans} />
+        </div>
+      ) : null}
     </CmvAppShell>
   );
 }
