@@ -1916,6 +1916,87 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Facturation lue par athlète ([#120](https://github.com/Cimavia/cimavia/issues/120))
+
+> **Tranché en #120** (on lit des ATHLÈTES, plus des factures) : `/invoices` servait une liste plate
+> de cartes, à charge pour le coach de recomposer de tête qu'un même athlète en avait trois en
+> retard. L'écran groupe désormais par athlète — situation, montant dû, historique dépliable et
+> paginé — et la dérivation entière (situation, somme due, ordre des lignes, ordre de l'historique)
+> vit dans `@cmv/shared` (`invoice-row.util.ts`). C'est une décision PRODUIT : un tri faux ne se
+> voit pas, rien à l'écran ne le signale, d'où des fonctions pures et mesurées plutôt qu'une
+> composition dans le JSX.
+>
+> Corollaire assumé : le tableau ne liste que les athlètes **facturés**. Un athlète sans facture n'a
+> pas de ligne, et le sous-titre dit « N athlètes facturés » — pas l'écurie entière, qui
+> demanderait un second `GET /athletes` pour un nombre qui ne décrit pas ce qu'on a sous les yeux.
+
+> **Tranché en #120** (la gravité tient à l'ÉTAT, jamais au NOMBRE) : la planche v2 colore le
+> montant dû en `error` « quand plusieurs factures sont impayées » — Théo, un seul retard, y a son
+> montant en neutre — et adoucit la pastille « 1 en retard » d'un ton par rapport à « 3 en retard ».
+> C'est l'inverse de l'arbitrage de #37 sur les statuts de facture, et le défaut se voit sur un cas
+> voisin : deux factures **à venir** peindraient un athlète en rouge alors qu'il ne doit rien
+> d'échu. Retenu : un athlète en retard est rouge, quel qu'en soit le nombre.
+>
+> Le dispositif qui le garantit est `INVOICE_SITUATION_STATE`, qui mappe la situation vers un
+> `InvoiceState` et emprunte sa couleur à `INVOICE_STATE_BADGE`. Surtout **pas** une seconde table
+> de couleurs : elle dériverait de la première, et le même athlète se lirait « en retard » en rouge
+> sur le tableau de bord et en orange sur la facturation. Un test tient l'équivalence.
+>
+> Écarts de maquette assumés, dans ce sens : `#e5c07a` (hors palette) et `info.on` sur « à
+> échéance » ne sont pas repris. Le reste de la planche est conforme aux tokens.
+
+> **Tranché en #120** (une facture ANNULÉE ne pèse sur aucun agrégat, et reste visible) : elle
+> n'est due par personne — la compter dans le montant dû serait faux, la ranger dans « à jour »
+> serait le fallback silencieux qu'interdit la règle dure n°5. Elle reste dans l'historique de
+> l'athlète, barrée : on ne fait pas disparaître une facture qui a existé. Corollaire : un athlète
+> dont l'unique facture est annulée est « à jour » **sans sous-titre**, faute de règlement à dater —
+> « à jour » énonce « il ne doit rien », pas « tout va bien ».
+
+> **Tranché en #120** (le non-réglé se lit sur le `status`, jamais sur l'état dérivé) :
+> `resolveInvoiceState` rend `null` sur une échéance illisible, et la facture disparaîtrait alors du
+> montant dû sans que personne ne le voie. `status === PENDING` ne ment pas — `PAID` et `CANCELLED`
+> sont les deux seules façons de ne plus rien devoir. Une impayée à date illisible reste donc « à
+> échéance », montant compris, et c'est seulement son sous-titre qui se tait.
+
+> **Tranché en #120** (les notes ⓘ de la planche sont des ANNOTATIONS, pas de l'UI) : trois lignes
+> à icône ⓘ ferment les frames de `coach_facturation_v2.dc.html`. Deux s'adressent sans ambiguïté au
+> lecteur du canvas (« c'est le signal qu'on cherche d'un coup d'œil », « Rien à relancer : pas de
+> bandeau, pas de bouton d'alerte »). La troisième — « Cinq factures par page… » — a d'abord été
+> rendue à l'écran, puis retirée : même icône, même style, même position. Convention à retenir pour
+> les planches suivantes.
+
+> **Écarté du périmètre de #120** : le bouton « Relancer les retards » de l'en-tête, celui
+> « Relancer les 3 » du bandeau d'athlète, et la phrase « Aucune relance envoyée depuis le 2 août ».
+> Relancer un athlète n'existe pas — `NotificationType` n'a que `INVOICE_ISSUED`, aucune trace de
+> relance n'est persistée, et un rappel `INVOICE_OVERDUE` est **déjà** auto-généré pour le coach
+> (`reminder-tick.service.ts`), si bien qu'un bouton qui en créerait ferait doublon. C'est une
+> fonctionnalité — geste sortant, canal, garde anti-spam — pas un rendu.
+
+> **Écarté du périmètre de #120** : la colonne « Numéro » (`F-2026-041`). `Invoice` n'a pas de
+> numéro, et un vrai numéro de facture est une mention légale — séquentielle, unique, jamais
+> réattribuée. Écart déjà consigné deux fois (`maquettes/README.md` pour `athlete_web` et
+> `coach_mobile`, puis [#150](https://github.com/Cimavia/cimavia/issues/150)) ; l'historique affiche
+> la **période** à la place. Aucune issue ouverte : décision de ne pas le traiter.
+
+> **Trouvé en chemin, corrigé en #120** (deux panneaux superposés se fermaient ensemble) : le
+> panneau de détail d'une facture porte « Programmer un rappel », qui ouvre le sien — première
+> superposition du dépôt, les sept autres appelants de `CmvPanel` montent depuis une page. Chacun
+> posant son écouteur sur `window`, annuler le rappel refermait la facture qu'on lisait derrière.
+> `CmvPanel` tient désormais une pile au niveau du MODULE — elle décrit ce qui est à l'écran, pas ce
+> qu'un arbre React contient. Le piège du correctif : les huit appelants passent une flèche **en
+> ligne** à `onClose` ; la laisser en dépendance de l'effet dépilait puis réempilait le panneau à
+> chaque rendu, remettant sur le dessus celui que rien n'avait rouvert. `onClose` est lu dans une
+> ref, l'effet ne dépend que de l'ouverture.
+
+> **Trouvé en chemin, corrigé en #120** (`check:i18n` résout les constantes par leur NOM, sans
+> portée) : deux nouvelles tables déclaraient chacune un `COLUMNS`, comme `AthleteTrackingTable`.
+> Le registre du script étant global, `i18n-values invoice.table.columns: COLUMNS` réclamait l'union
+> des trois — `invoice.table.columns.feedbacks`, entre autres. Renommées `ATHLETE_COLUMNS` et
+> `HISTORY_COLUMNS`. Règle générale : une constante citée par une annotation `i18n-values` doit
+> porter un nom **unique dans le dépôt**.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
