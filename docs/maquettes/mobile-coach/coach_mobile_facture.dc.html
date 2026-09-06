@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; background:#0a0f14; }
+  a { color:#e8966f; text-decoration:none; }
+  a:hover { color:#d07049; }
+  *::-webkit-scrollbar { width:10px; height:10px; }
+  *::-webkit-scrollbar-thumb { background:#2b3742; border-radius:8px; border:3px solid #0a0f14; }
+  [data-noscroll]::-webkit-scrollbar { display:none; }
+</style>
+</helmet>
+
+<div style="position:absolute; left:0px; top:0px">
+  <div data-drags-parent="1" style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:18px; cursor:grab">COACH MOBILE — FACTURES</div>
+  <div style="display:flex; gap:48px; align-items:flex-start">
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">1 · LISTE PAR ATHLÈTE — SEUL ÉCRAN À MONTRER LE SÉLECTEUR DE CASQUETTE, À DROITE DU TITRE</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="padding:60px 20px 16px; background:linear-gradient(180deg,#141d25,#0e141a)">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px"><div style="font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Facturation</div><span style="display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:999px; background:#141d25; border:1px solid #3a4854; flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c1.6-3.7 4-5.5 7-5.5s5.4 1.8 7 5.5"></path></svg><span style="font:600 12.5px/16px 'IBM Plex Sans',sans-serif; color:#dceff3">Coach</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10l4 4 4-4"></path></svg></span></div>
+        <div style="font:400 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:9px">6 athlètes facturés · 2 en retard de paiement</div>
+      </div>
+        <div style="position:relative; margin-bottom:6px">
+          <div data-noscroll="1" style="display:flex; gap:8px; padding:2px 20px 14px; overflow-x:auto; scrollbar-width:none">
+            <span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#1c2630; border:1px solid #3a4854; flex-shrink:0; font:600 12.5px/16px 'IBM Plex Sans',sans-serif; color:#dceff3">Tous 6</span><span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#141d25; border:1px solid #2b3742; flex-shrink:0; font:500 12.5px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">En retard 2</span><span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#141d25; border:1px solid #2b3742; flex-shrink:0; font:500 12.5px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">À échéance 2</span><span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#141d25; border:1px solid #2b3742; flex-shrink:0; font:500 12.5px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">À jour 2</span>
+          </div>
+          <div style="position:absolute; top:0; right:0; width:34px; height:100%; background:linear-gradient(90deg,rgba(14,20,26,0),#0e141a); pointer-events:none"></div>
+        </div>
+      <div data-noscroll="1" style="flex:1; min-height:0; padding:0 20px 24px; overflow-y:auto; scrollbar-width:none; display:flex; flex-direction:column; gap:9px">
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">LB</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Léa Bonnet</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">3 en retard</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Depuis 68 jours</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#e89089; font-variant-numeric:tabular-nums">540 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">TM</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Théo Marchand</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">1 en retard</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Depuis 12 jours</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#e89089; font-variant-numeric:tabular-nums">180 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">SN</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Sarah Nguyen</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e6c478">1 à échéance</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Le 25 août</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums">180 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">YB</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Yanis Belkacem</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e6c478">1 à échéance</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Le 3 sept.</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums">90 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">AR</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Adrien Roux</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#9fcdb1">À jour</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Dernière le 2 août</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#6b93a0; font-variant-numeric:tabular-nums">—</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">CF</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Camille Fabre</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#9fcdb1">À jour</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Dernière le 28 juil.</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#6b93a0; font-variant-numeric:tabular-nums">—</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+      </div>
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 14px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 12px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Athlètes</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="position:absolute; top:-3px; right:8px; width:8px; height:8px; border-radius:50%; background:#c2603a; border:1.5px solid #141d25"></span><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Messages</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:600 9.5px/1 'IBM Plex Sans',sans-serif; color:#dceff3">Factures</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5a5 5 0 00-5 5V12l-1.8 3.2h13.6L17 12V8.5a5 5 0 00-5-5z"></path><path d="M10 18.5a2 2 0 004 0"></path></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Notifications</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">2 · LISTE — LÉA BONNET DÉPLIÉE SUR PLACE, LA LISTE CONTINUE SOUS SON HISTORIQUE</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="padding:60px 20px 16px; background:linear-gradient(180deg,#141d25,#0e141a)">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px"><div style="font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Facturation</div></div>
+        <div style="font:400 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:9px">6 athlètes facturés · 2 en retard de paiement</div>
+      </div>
+        <div style="position:relative; margin-bottom:6px">
+          <div data-noscroll="1" style="display:flex; gap:8px; padding:2px 20px 14px; overflow-x:auto; scrollbar-width:none">
+            <span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#1c2630; border:1px solid #3a4854; flex-shrink:0; font:600 12.5px/16px 'IBM Plex Sans',sans-serif; color:#dceff3">Tous 6</span><span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#141d25; border:1px solid #2b3742; flex-shrink:0; font:500 12.5px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">En retard 2</span><span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#141d25; border:1px solid #2b3742; flex-shrink:0; font:500 12.5px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">À échéance 2</span><span style="display:inline-flex; align-items:center; padding:9px 15px; border-radius:999px; background:#141d25; border:1px solid #2b3742; flex-shrink:0; font:500 12.5px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">À jour 2</span>
+          </div>
+          <div style="position:absolute; top:0; right:0; width:34px; height:100%; background:linear-gradient(90deg,rgba(14,20,26,0),#0e141a); pointer-events:none"></div>
+        </div>
+      <div data-noscroll="1" style="flex:1; min-height:0; padding:0 20px 24px; overflow-y:auto; scrollbar-width:none; display:flex; flex-direction:column; gap:9px">
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#1c2630; border:1px solid #3a4854; border-radius:12px 12px 0 0">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">LB</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Léa Bonnet</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">3 en retard</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Depuis 68 jours</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#e89089; font-variant-numeric:tabular-nums">540 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; transform:rotate(180deg)"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="background:#0a0f14; border:1px solid #3a4854; border-top:0; border-radius:0 0 12px 12px; padding:0 0 0 14px">
+            <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-bottom:1px solid #2b3742">
+              <div style="flex:1; min-width:0">
+                <div style="display:flex; align-items:center; gap:9px"><span style="font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Août 2026</span><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">En retard</span></span></div>
+                <div style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089; margin-top:6px">Échue le 5 août</div>
+              </div>
+              <div style="font:600 14.5px/19px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums;  flex-shrink:0">180 €</div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-bottom:1px solid #2b3742">
+              <div style="flex:1; min-width:0">
+                <div style="display:flex; align-items:center; gap:9px"><span style="font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Juillet 2026</span><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">En retard</span></span></div>
+                <div style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089; margin-top:6px">Échue le 5 juillet</div>
+              </div>
+              <div style="font:600 14.5px/19px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums;  flex-shrink:0">180 €</div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-bottom:1px solid #2b3742">
+              <div style="flex:1; min-width:0">
+                <div style="display:flex; align-items:center; gap:9px"><span style="font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Juin 2026</span><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">En retard</span></span></div>
+                <div style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089; margin-top:6px">Échue le 5 juin</div>
+              </div>
+              <div style="font:600 14.5px/19px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums;  flex-shrink:0">180 €</div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-bottom:1px solid #2b3742">
+              <div style="flex:1; min-width:0">
+                <div style="display:flex; align-items:center; gap:9px"><span style="font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Mai 2026</span><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#9fcdb1">Payée</span></span></div>
+                <div style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px">Payée le 3 mai</div>
+              </div>
+              <div style="font:600 14.5px/19px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums;  flex-shrink:0">180 €</div>
+            </div>
+            <div style="display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-bottom:1px solid #2b3742">
+              <div style="flex:1; min-width:0">
+                <div style="display:flex; align-items:center; gap:9px"><span style="font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#aab6c2">Mars 2026</span><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:#1c2630; border:1px solid #3a4854; white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">Annulée</span></span></div>
+                <div style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px">Échéance : 5 mars 2026</div>
+              </div>
+              <div style="font:600 14.5px/19px 'IBM Plex Mono',monospace; color:#6b93a0; font-variant-numeric:tabular-nums; text-decoration:line-through; flex-shrink:0">90 €</div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px 12px 0">
+              <span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">1–5 sur 9 factures</span>
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="min-width:32px; height:32px; padding:0 10px; border-radius:9px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 12.5px/1 'IBM Plex Mono',monospace; color:#dceff3">1</span>
+                <span style="min-width:32px; height:32px; padding:0 10px; border-radius:9px; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; font:500 12.5px/1 'IBM Plex Mono',monospace; color:#aab6c2">2</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">TM</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Théo Marchand</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">1 en retard</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Depuis 12 jours</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#e89089; font-variant-numeric:tabular-nums">180 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">SN</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Sarah Nguyen</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e6c478">1 à échéance</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Le 25 août</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums">180 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">YB</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Yanis Belkacem</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(214,162,63,.16); border:1px solid rgba(214,162,63,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e6c478">1 à échéance</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Le 3 sept.</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#dceff3; font-variant-numeric:tabular-nums">90 €</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">AR</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Adrien Roux</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#9fcdb1">À jour</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Dernière le 2 août</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#6b93a0; font-variant-numeric:tabular-nums">—</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; padding:14px; background:#141d25; border:1px solid #2b3742; border-radius:12px">
+            <span style="width:38px; height:38px; border-radius:999px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0; font:600 12.5px/1 'Space Grotesk',sans-serif; color:#dceff3">CF</span>
+            <div style="flex:1; min-width:0">
+              <div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">Camille Fabre</div>
+              <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#9fcdb1">À jour</span></span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">Dernière le 28 juil.</span></div>
+            </div>
+            <div style="text-align:right; flex-shrink:0"><div style="font:600 15px/20px 'IBM Plex Mono',monospace; color:#6b93a0; font-variant-numeric:tabular-nums">—</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M8 10l4 4 4-4"></path></svg>
+          </div>
+      </div>
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 14px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 12px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Athlètes</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="position:absolute; top:-3px; right:8px; width:8px; height:8px; border-radius:50%; background:#c2603a; border:1.5px solid #141d25"></span><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Messages</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:600 9.5px/1 'IBM Plex Sans',sans-serif; color:#dceff3">Factures</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5a5 5 0 00-5 5V12l-1.8 3.2h13.6L17 12V8.5a5 5 0 00-5-5z"></path><path d="M10 18.5a2 2 0 004 0"></path></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Notifications</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">3 · DÉTAIL — FACTURE IMPAYÉE, TROIS ACTIONS</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="display:flex; align-items:center; gap:12px; padding:58px 20px 14px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <span style="width:34px; height:34px; border-radius:10px; background:#141d25; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></span>
+        <div style="min-width:0"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Léa Bonnet · Août 2026</div></div>
+      </div>
+      <div data-noscroll="1" style="flex:1; min-height:0; padding:16px 20px 4px; overflow-y:auto; scrollbar-width:none">
+        <div style="display:flex; align-items:center; gap:14px; padding:4px 0 18px">
+          <div style="font:700 36px/40px 'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:-.01em; color:#dceff3; ">180 €</div>
+          <span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">En retard</span></span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Échéance</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#e89089; text-align:right">5 août 2026</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Cycle</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; text-align:right">Prépa bloc hiver</span></div>
+        <div style="padding:13px 0; border-bottom:1px solid #2b3742"><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Note</div><div style="font:400 13.5px/21px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:7px">Tarif ajusté : deux séances reportées sur septembre.</div></div>
+      </div>
+      <div style="padding:16px 20px 34px; display:flex; flex-direction:column; gap:10px; border-top:1px solid #2b3742; background:#0e141a">
+        <div style="display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 18px; border-radius:11px; background:#c2603a; font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Marquer payée</div>
+        <div style="display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 18px; border-radius:11px; background:#1c2630; border:1px solid #3a4854; font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Programmer un rappel</div>
+        <div style="margin-top:8px"><div style="display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 18px; border-radius:11px; background:transparent; border:1px solid #2b3742; font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#aab6c2">Annuler la facture</div></div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">4 · DÉTAIL — FACTURE PAYÉE AVEC JUSTIFICATIF</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="display:flex; align-items:center; gap:12px; padding:58px 20px 14px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <span style="width:34px; height:34px; border-radius:10px; background:#141d25; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></span>
+        <div style="min-width:0"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Adrien Roux · Août 2026</div></div>
+      </div>
+      <div data-noscroll="1" style="flex:1; min-height:0; padding:16px 20px 4px; overflow-y:auto; scrollbar-width:none">
+        <div style="display:flex; align-items:center; gap:14px; padding:4px 0 18px">
+          <div style="font:700 36px/40px 'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:-.01em; color:#dceff3; ">180 €</div>
+          <span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#9fcdb1">Payée</span></span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Échéance</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; text-align:right">5 août 2026</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Paiement</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1; text-align:right">Payée le 2 août 2026</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Cycle</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; text-align:right">Reprise estivale</span></div>
+        <div style="padding:13px 0; border-bottom:1px solid #2b3742"><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Justificatif</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:9px; padding:12px 14px; border-radius:11px; background:#141d25; border:1px solid #2b3742"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><path d="M14 2v6h6"></path></svg><span style="font:600 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">Voir le PDF</span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">facture-aout-2026.pdf</span></div>
+        </div>
+      </div>
+      <div style="padding:16px 20px 34px; display:flex; flex-direction:column; gap:10px; border-top:1px solid #2b3742; background:#0e141a">
+        <div style="display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 18px; border-radius:11px; background:#1c2630; border:1px solid #3a4854; font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Marquer impayée</div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">5 · DÉTAIL — « MARQUER IMPAYÉE » ARMÉ, SANS PHRASE</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="display:flex; align-items:center; gap:12px; padding:58px 20px 14px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <span style="width:34px; height:34px; border-radius:10px; background:#141d25; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></span>
+        <div style="min-width:0"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Adrien Roux · Août 2026</div></div>
+      </div>
+      <div data-noscroll="1" style="flex:1; min-height:0; padding:16px 20px 4px; overflow-y:auto; scrollbar-width:none">
+        <div style="display:flex; align-items:center; gap:14px; padding:4px 0 18px">
+          <div style="font:700 36px/40px 'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:-.01em; color:#dceff3; ">180 €</div>
+          <span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#9fcdb1">Payée</span></span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Échéance</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; text-align:right">5 août 2026</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Paiement</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1; text-align:right">Payée le 2 août 2026</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Cycle</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; text-align:right">Reprise estivale</span></div>
+        <div style="padding:13px 0; border-bottom:1px solid #2b3742"><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Justificatif</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:9px; padding:12px 14px; border-radius:11px; background:#141d25; border:1px solid #2b3742"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><path d="M14 2v6h6"></path></svg><span style="font:600 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">Voir le PDF</span><span style="font:400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">facture-aout-2026.pdf</span></div>
+        </div>
+      </div>
+      <div style="padding:16px 20px 34px; display:flex; flex-direction:column; gap:10px; border-top:1px solid #2b3742; background:#0e141a">
+        <div style="display:flex; gap:10px"><div style="flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 18px; border-radius:11px; background:#1c2630; border:1px solid #3a4854; font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#dceff3">Confirmer</div><div style="flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 18px; border-radius:11px; background:transparent; border:1px solid #2b3742; font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#aab6c2">Annuler</div></div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">6 · DÉTAIL — « ANNULER LA FACTURE » ARMÉ, AVEC SA PHRASE (geste irréversible)</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="display:flex; align-items:center; gap:12px; padding:58px 20px 14px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <span style="width:34px; height:34px; border-radius:10px; background:#141d25; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></span>
+        <div style="min-width:0"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Léa Bonnet · Août 2026</div></div>
+      </div>
+      <div data-noscroll="1" style="flex:1; min-height:0; padding:16px 20px 4px; overflow-y:auto; scrollbar-width:none">
+        <div style="display:flex; align-items:center; gap:14px; padding:4px 0 18px">
+          <div style="font:700 36px/40px 'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:-.01em; color:#dceff3; ">180 €</div>
+          <span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e89089">En retard</span></span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Échéance</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#e89089; text-align:right">5 août 2026</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Cycle</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; text-align:right">Prépa bloc hiver</span></div>
+        <div style="padding:13px 0; border-bottom:1px solid #2b3742"><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Note</div><div style="font:400 13.5px/21px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:7px">Tarif ajusté : deux séances reportées sur septembre.</div></div>
+      </div>
+      <div style="padding:16px 20px 34px; display:flex; flex-direction:column; gap:10px; border-top:1px solid #2b3742; background:#0e141a">
+        <div style="font:400 13px/19px 'IBM Plex Sans',sans-serif; color:#aab6c2">Une facture annulée ne peut plus revenir en arrière.</div>
+        <div style="display:flex; gap:10px"><div style="flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 14px; border-radius:11px; background:rgba(210,86,75,.16); border:1px solid rgba(210,86,75,.34); font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#e89089">Annuler définitivement</div><div style="flex:1; display:flex; align-items:center; justify-content:center; min-height:48px; padding:13px 18px; border-radius:11px; background:transparent; border:1px solid #2b3742; font:600 14px/19px 'IBM Plex Sans',sans-serif; color:#aab6c2">Annuler</div></div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">7 · DÉTAIL — FACTURE ANNULÉE, ÉTAT TERMINAL SANS PIED D’ACTIONS</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="display:flex; align-items:center; gap:12px; padding:58px 20px 14px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <span style="width:34px; height:34px; border-radius:10px; background:#141d25; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></span>
+        <div style="min-width:0"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Léa Bonnet · Mars 2026</div></div>
+      </div>
+      <div data-noscroll="1" style="flex:1; min-height:0; padding:16px 20px 4px; overflow-y:auto; scrollbar-width:none">
+        <div style="display:flex; align-items:center; gap:14px; padding:4px 0 18px">
+          <div style="font:700 36px/40px 'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:-.01em; color:#6b93a0; text-decoration:line-through;">90 €</div>
+          <span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:#1c2630; border:1px solid #3a4854; white-space:nowrap"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#aab6c2">Annulée</span></span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Échéance</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:right">5 mars 2026</span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Cycle</span><span style="font:500 13.5px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; text-align:right">Reprise hiver</span></div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  <div style="flex-shrink:0; width:402px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">8 · ÉTAT VIDE — TITRE SEUL, AUCUN BOUTON</div>
+  <x-import component="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; min-height:874px; background:#0e141a; display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; position:relative">
+      <div style="padding:60px 20px 16px; background:linear-gradient(180deg,#141d25,#0e141a)">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px"><div style="font:700 24px/1.1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Facturation</div></div>
+        
+      </div>
+      <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:24px 30px">
+        <div style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:13px">
+          <span style="width:54px; height:54px; border-radius:14px; background:#141d25; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg></span>
+          <div style="font:700 18px/23px 'Space Grotesk',sans-serif; color:#dceff3">Aucune facture émise</div>
+          <div style="font:400 13.5px/21px 'IBM Plex Sans',sans-serif; color:#aab6c2">Les factures sont émises à la diffusion d'un cycle — la facturation se saisit dans le builder, sur le web.</div>
+        </div>
+      </div>
+      <div style="position:sticky; bottom:0; background:linear-gradient(180deg,rgba(14,20,26,0),#0e141a 30%); padding:14px 14px 30px">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:12px 12px; box-shadow:0 -6px 24px -10px rgba(0,0,0,.6)">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Athlètes</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12" rx="3.5"></rect><path d="M8 17 L8 20 L12.5 17"></path></svg><span style="position:absolute; top:-3px; right:8px; width:8px; height:8px; border-radius:50%; background:#c2603a; border:1.5px solid #141d25"></span><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Messages</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"></rect><path d="M3.5 10h17M7.5 15h4"></path></svg><span style="font:600 9.5px/1 'IBM Plex Sans',sans-serif; color:#dceff3">Factures</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5a5 5 0 00-5 5V12l-1.8 3.2h13.6L17 12V8.5a5 5 0 00-5-5z"></path><path d="M10 18.5a2 2 0 004 0"></path></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Notifications</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.3"></circle><path d="M5.5 19.5 C5.5 15.6 8.6 14 12 14 C15.4 14 18.5 15.6 18.5 19.5"></path></svg><span style="font:500 9.5px/1 'IBM Plex Sans',sans-serif; color:#6b93a0">Profil</span></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+  </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script type="text/plain"></script>
+</body>
+</html>

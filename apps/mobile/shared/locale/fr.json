@@ -23,7 +23,8 @@
       "day_other": "il y a {{count}} jours"
     },
     "save": "Enregistrer",
-    "saving": "Enregistrement…"
+    "saving": "Enregistrement…",
+    "close": "Fermer"
   },
   "auth": {
     "login": {
@@ -408,10 +409,18 @@
       "empty": {
         "title": "Aucune facture émise",
         "description": "Les factures sont émises à la diffusion d'un cycle — la facturation se saisit dans le builder, sur le web."
-      }
+      },
+      "markPaid": "Marquer payée",
+      "reopen": "Marquer impayée",
+      "reopenConfirm": "Confirmer"
     },
-    "markPaid": "Marquer payée",
-    "reopen": "Marquer impayée"
+    "panel": {
+      "dueDate": "Échéance",
+      "paidAt": "Paiement",
+      "plan": "Cycle",
+      "note": "Note",
+      "document": "Justificatif"
+    }
   },
   "reminder": {
     "state": {

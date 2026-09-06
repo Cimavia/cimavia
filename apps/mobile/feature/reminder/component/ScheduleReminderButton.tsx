@@ -70,8 +70,14 @@ export function ScheduleReminderButton({
 
   return (
     <>
-      <Pressable onPress={onOpen} className="rounded-lg border border-cmv-border px-3 py-2">
-        <CmvText className="text-cmv-accent text-sm">{t("reminder.schedule")}</CmvText>
+      {/* Bouton SECONDAIRE pleine largeur : son unique point d'appel est le pied du détail d'une
+          facture, sous « Marquer payée ». Un petit bouton à gauche y romprait l'alignement des
+          gestes, et le texte accent le ferait lire comme l'action principale — qu'il n'est pas. */}
+      <Pressable
+        onPress={onOpen}
+        className="items-center rounded-lg border border-cmv-border-hi bg-cmv-surface-hi px-4 py-3"
+      >
+        <CmvText className="text-cmv-text-hi">{t("reminder.schedule")}</CmvText>
       </Pressable>
 
       <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>

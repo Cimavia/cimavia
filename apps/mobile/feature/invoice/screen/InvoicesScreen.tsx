@@ -2,7 +2,6 @@ import {
   type InvoiceDto,
   InvoiceState,
   InvoiceStatus,
-  ReminderEntityType,
   resolveInvoiceState,
   todayIsoDate,
 } from "@cmv/shared";
@@ -10,27 +9,15 @@ import { cmvColors } from "@cmv/tokens";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { InvoiceDetail } from "@/feature/invoice/component/InvoiceDetail";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
-import { useInvoices, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
+import { useInvoiceDetail } from "@/feature/invoice/hook/useInvoiceDetail";
+import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 // Le fichier du hook et non le baril de la feature : celui-ci réexporte un écran, et y passer
 // rouvrirait le cycle que ce sélecteur vient de fermer.
 import { useUnreadByCapability } from "@/feature/notification/hook/useNotifications";
-import { ScheduleReminderButton } from "@/feature/reminder";
-import {
-  CmvButton,
-  CmvCapabilitySwitch,
-  CmvErrorState,
-  CmvScreen,
-  CmvText,
-} from "@/shared/component";
+import { CmvCapabilitySwitch, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useActingCapability } from "@/shared/hook/useExercisedCapability";
 import { formatDate } from "@/shared/util/date.util";
@@ -54,7 +41,8 @@ export function InvoicesScreen() {
   // d'écrans qui affichent le sélecteur.
   const { data: unread } = useUnreadByCapability();
   const { data: invoices, isPending, isError, isRefetching, refetch } = useInvoices();
-  const updateStatus = useUpdateInvoiceStatus();
+  // La facture ouverte et ses gestes : une seule affaire, et la même pour les deux titres.
+  const detail = useInvoiceDetail(invoices);
 
   // Refetch à chaque fois que l'écran passe au premier plan — notamment à l'ouverture depuis la
   // notification « Nouvelle facture » : sans ça, le cache persisté afficherait l'ancienne liste.
@@ -109,41 +97,44 @@ export function InvoicesScreen() {
         ) : null}
 
         {(invoices ?? []).map((invoice) => (
-          <InvoiceCard
-            key={invoice.id}
-            invoice={invoice}
-            canManage={isCoach}
-            busy={updateStatus.isPending}
-            onSetStatus={(status) => updateStatus.mutate({ id: invoice.id, status })}
-          />
+          <InvoiceCard key={invoice.id} invoice={invoice} onOpen={() => detail.open(invoice.id)} />
         ))}
       </ScrollView>
+
+      {/* Monté seulement quand une facture est ouverte : les gestes n'ont alors plus à se garder
+          d'une cible absente, et le détail n'a pas de cas « rien à montrer » à porter. */}
+      {detail.props == null ? null : <InvoiceDetail {...detail.props} canManage={isCoach} />}
     </CmvScreen>
   );
 }
 
 type InvoiceCardProps = {
   invoice: InvoiceDto;
-  /**
-   * Le coach pilote le statut, l'athlète consulte. Un booléen plutôt que le rôle : la carte n'a pas
-   * à savoir QUI regarde, seulement ce qui lui est permis.
-   */
-  canManage: boolean;
-  busy: boolean;
-  onSetStatus: (status: typeof InvoiceStatus.PAID | typeof InvoiceStatus.PENDING) => void;
+  onOpen: () => void;
 };
 
-function InvoiceCard({ invoice, canManage, busy, onSetStatus }: Readonly<InvoiceCardProps>) {
+/**
+ * Une facture dans la liste à plat — celle que garde l'ATHLÈTE, qui n'a qu'un coach et donc rien à
+ * grouper (#224). Le coach, lui, lit ses factures groupées par athlète.
+ *
+ * La carte ne porte plus ni la note, ni le justificatif, ni les actions : tout cela vit maintenant
+ * dans `InvoiceDetail`, où ça tient. Elle ne garde que ce qui permet de RECONNAÎTRE la facture —
+ * son cycle, son montant, son état, sa date — et mène au reste.
+ */
+function InvoiceCard({ invoice, onOpen }: Readonly<InvoiceCardProps>) {
   const { t } = useTranslation();
   const isPaid = invoice.status === InvoiceStatus.PAID;
-  // Annulée = terminal (l'API refuse tout retour en 409) : la carte ne propose aucune action, et le
-  // montant est barré — plus personne ne doit rien.
+  // Annulée = terminal (l'API refuse tout retour en 409) : le montant est barré — plus personne ne
+  // doit rien.
   const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
   // L'échéance dépassée se colore aussi (maquette pd-8) : c'est l'information qui appelle une action.
   const isOverdue = resolveInvoiceState(invoice, todayIsoDate()) === InvoiceState.OVERDUE;
 
   return (
-    <View className="gap-2 rounded-lg border border-cmv-border bg-cmv-bg-1 p-4">
+    <Pressable
+      onPress={onOpen}
+      className="gap-2 rounded-lg border border-cmv-border bg-cmv-bg-1 p-4"
+    >
       <View className="flex-row items-center justify-between gap-2">
         {/* Le cycle facturé — cœur du lien facture ↔ planification. */}
         <CmvText className="flex-1 text-cmv-text-hi">{invoice.planTitle ?? "—"}</CmvText>
@@ -160,10 +151,9 @@ function InvoiceCard({ invoice, canManage, busy, onSetStatus }: Readonly<Invoice
         {formatMoney(invoice.amountCents, invoice.currency)}
       </CmvText>
 
-      {/* La facture porte les deux noms : chacun lit celui de l'AUTRE partie. Le coach suit N
-          athlètes, l'athlète n'a qu'un coach. */}
+      {/* La facture porte les deux noms : chacun lit celui de l'AUTRE partie. */}
       <CmvText className="text-cmv-text-mid text-sm">
-        {canManage ? invoice.athleteName : t("invoice.byCoach", { name: invoice.coachName })} ·{" "}
+        {t("invoice.byCoach", { name: invoice.coachName })} ·{" "}
         {t("invoice.periodLabel", { period: formatPeriod(invoice.period) })}
       </CmvText>
 
@@ -174,51 +164,6 @@ function InvoiceCard({ invoice, canManage, busy, onSetStatus }: Readonly<Invoice
           ? ` · ${t("invoice.paidAtLabel", { date: formatDate(invoice.paidAt.slice(0, 10)) })}`
           : ""}
       </CmvText>
-
-      {invoice.note == null ? null : (
-        <CmvText className="text-cmv-text-mid text-sm">{invoice.note}</CmvText>
-      )}
-
-      {/* Marquage manuel du règlement — coach seul, et l'API le garde aussi (`@Roles([COACH])`).
-          Le paiement réel est externe en MVP : ce bouton déclare, il n'encaisse pas. Réversible,
-          parce qu'un paiement posé à tort doit pouvoir se corriger. */}
-      {canManage && !isCancelled ? (
-        <CmvButton
-          label={isPaid ? t("invoice.reopen") : t("invoice.markPaid")}
-          onPress={() => onSetStatus(isPaid ? InvoiceStatus.PENDING : InvoiceStatus.PAID)}
-          disabled={busy}
-        />
-      ) : null}
-
-      {/* Rappel contextuel (#46), offert sur les factures qui restent à régler SEULEMENT : se
-          rappeler de relancer une facture payée ou annulée n'a aucun sens. La période nomme la
-          cible, comme dans la liste des rappels.
-
-          Réservé au coach, et pas par politesse : `Reminder` est la seule entité scopée `coachId`
-          SEUL. Un athlète qui l'atteint prend une *erreur* (fail closed), pas un 403 — d'où le
-          `canManage`, seconde des deux gardes qu'exige ce modèle. */}
-      {canManage && !isPaid && !isCancelled ? (
-        <View className="self-start">
-          <ScheduleReminderButton
-            entityType={ReminderEntityType.INVOICE}
-            entityId={invoice.id}
-            targetLabel={formatPeriod(invoice.period)}
-          />
-        </View>
-      ) : null}
-
-      {/* Justificatif PDF : URL GET signée (TTL court), ouverte par le lecteur du téléphone. */}
-      {invoice.documentUrl == null ? null : (
-        <Pressable
-          onPress={() => {
-            const url = invoice.documentUrl;
-            if (url != null) void Linking.openURL(url);
-          }}
-          className="self-start rounded-lg border border-cmv-border px-3 py-2"
-        >
-          <CmvText className="text-cmv-accent text-sm">{t("invoice.viewDocument")}</CmvText>
-        </Pressable>
-      )}
-    </View>
+    </Pressable>
   );
 }
