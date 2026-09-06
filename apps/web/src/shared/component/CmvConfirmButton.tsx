@@ -12,6 +12,11 @@ type CmvConfirmButtonProps = {
    * d'actions serrée. `label` reste utilisé comme intitulé accessible, jamais perdu.
    */
   icon?: ReactNode;
+  /**
+   * Ce que la confirmation engage, écrit UNE FOIS le bouton armé. Au repos il n'y a rien à
+   * avertir ; armé, c'est le dernier moment où le dire. Omis, le bouton se comporte comme avant.
+   */
+  confirmHint?: string;
 };
 
 /**
@@ -26,6 +31,7 @@ export function CmvConfirmButton({
   onConfirm,
   disabled,
   icon,
+  confirmHint,
 }: Readonly<CmvConfirmButtonProps>) {
   const [armed, setArmed] = useState(false);
 
@@ -43,7 +49,10 @@ export function CmvConfirmButton({
   }
 
   return (
-    <div className="flex items-center gap-cmv-xs">
+    <div className="flex flex-wrap items-center gap-cmv-xs">
+      {confirmHint == null ? null : (
+        <span className="text-cmv-caption text-cmv-text-mid">{confirmHint}</span>
+      )}
       <CmvButton
         variant="danger"
         disabled={disabled}

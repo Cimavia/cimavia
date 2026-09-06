@@ -2,26 +2,19 @@ import {
   type InvoiceDto,
   InvoiceState,
   InvoiceStatus,
-  ReminderEntityType,
   resolveInvoiceState,
   todayIsoDate,
 } from "@cmv/shared";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { InvoiceDetailPanel } from "@/feature/invoice/component/InvoiceDetailPanel";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import {
   useCancelInvoice,
   useInvoices,
   useUpdateInvoiceStatus,
 } from "@/feature/invoice/hook/useInvoices";
-import { ScheduleReminderButton } from "@/feature/reminder";
-import {
-  CmvAppShell,
-  CmvButton,
-  CmvCard,
-  CmvConfirmButton,
-  CmvEmptyState,
-  CmvErrorState,
-} from "@/shared/component";
+import { CmvAppShell, CmvCard, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { useActingCapability } from "@/shared/hook/useCapabilities";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
@@ -29,10 +22,12 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 /**
  * Suivi des factures ÉMISES (p6-2). L'émission n'est PAS ici : elle se fait à la diffusion d'un
- * cycle (la facturation se saisit dans le builder). Cet écran ne fait que suivre le statut. Le
- * marquage « payé » est manuel (paiement réel externe en MVP) ; le retour arrière « impayé » est
- * confirmé en deux temps (CmvConfirmButton) — poser un paiement à tort se corrige, mais pas à la
- * légère.
+ * cycle (la facturation se saisit dans le builder). Cet écran ne fait que suivre le statut.
+ *
+ * Les gestes vivent désormais dans `InvoiceDetailPanel` (#120), plus sur la carte : ils y étaient
+ * empilés à droite de chaque ligne, et le tableau qui remplace ces cartes ne peut pas les porter.
+ * L'écran garde les MUTATIONS — c'est lui qui possède le cache — et ne passe au panneau que la
+ * facture ouverte et de quoi agir dessus.
  *
  * La MÊME ressource sert les deux rôles (#27) : `GET /invoices` est scopée par le tenant, le coach
  * y lit ce qu'il a émis et l'athlète ce qu'il doit. Ce qui diffère, c'est ce qu'on peut en faire —
@@ -49,6 +44,14 @@ export function InvoicesScreen() {
   const { data: invoices, isPending, isError, refetch } = useInvoices();
   const updateStatus = useUpdateInvoiceStatus();
   const cancel = useCancelInvoice();
+
+  /**
+   * L'ID de la facture ouverte, et non l'objet : marquée payée, elle est REMPLACÉE dans le cache
+   * par la version renvoyée par l'API. Garder une copie figerait le panneau sur l'état d'avant, et
+   * il proposerait encore « Marquer payée » sur une facture qui vient de l'être.
+   */
+  const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
+  const openInvoice = invoices?.find((invoice) => invoice.id === openInvoiceId) ?? null;
 
   // Erreur, vide et chargement sont trois états distincts : « Aucune facture » sur une panne
   // réseau serait un mensonge.
@@ -82,6 +85,24 @@ export function InvoicesScreen() {
         />
       ) : null}
 
+      <InvoiceDetailPanel
+        invoice={openInvoice}
+        canManage={isCoach}
+        busy={updateStatus.isPending || cancel.isPending}
+        onClose={() => setOpenInvoiceId(null)}
+        onMarkPaid={() =>
+          openInvoice == null
+            ? undefined
+            : updateStatus.mutate({ id: openInvoice.id, status: InvoiceStatus.PAID })
+        }
+        onReopen={() =>
+          openInvoice == null
+            ? undefined
+            : updateStatus.mutate({ id: openInvoice.id, status: InvoiceStatus.PENDING })
+        }
+        onCancel={() => (openInvoice == null ? undefined : cancel.mutate(openInvoice.id))}
+      />
+
       {hasInvoices ? (
         <div className="flex flex-col gap-cmv-sm">
           {invoices.map((invoice) => (
@@ -89,12 +110,7 @@ export function InvoicesScreen() {
               key={invoice.id}
               invoice={invoice}
               canManage={isCoach}
-              busy={updateStatus.isPending || cancel.isPending}
-              onMarkPaid={() => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PAID })}
-              onReopen={() =>
-                updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PENDING })
-              }
-              onCancel={() => cancel.mutate(invoice.id)}
+              onOpen={() => setOpenInvoiceId(invoice.id)}
             />
           ))}
         </div>
@@ -106,35 +122,24 @@ export function InvoicesScreen() {
 type InvoiceRowProps = {
   invoice: InvoiceDto;
   /**
-   * Le coach pilote (marquer payée, rouvrir, annuler, se poser un rappel), l'athlète consulte. Un
-   * booléen plutôt que le rôle : la carte n'a pas à savoir QUI regarde, seulement ce qui lui est
-   * permis.
+   * De qui la carte porte le nom. Ce qu'on peut FAIRE de la facture est passé au panneau, plus à
+   * la carte : elle n'a plus qu'à savoir quel nom écrire.
    */
   canManage: boolean;
-  busy: boolean;
-  onMarkPaid: () => void;
-  onReopen: () => void;
-  onCancel: () => void;
+  onOpen: () => void;
 };
 
-function InvoiceRow({
-  invoice,
-  canManage,
-  busy,
-  onMarkPaid,
-  onReopen,
-  onCancel,
-}: Readonly<InvoiceRowProps>) {
+function InvoiceRow({ invoice, canManage, onOpen }: Readonly<InvoiceRowProps>) {
   const { t } = useTranslation();
   const isPaid = invoice.status === InvoiceStatus.PAID;
-  // Annulée = terminal (l'API refuse tout retour en 409) : la carte ne propose plus aucune action,
-  // et le montant est barré — plus personne ne doit rien.
+  // Annulée = terminal (l'API refuse tout retour en 409) : le montant est barré, plus personne ne
+  // doit rien. Le panneau, lui, ne propose alors aucune action.
   const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
   // L'échéance dépassée se colore aussi (maquette pd-8) : c'est elle que le coach cherche des yeux.
   const isOverdue = resolveInvoiceState(invoice, todayIsoDate()) === InvoiceState.OVERDUE;
 
   return (
-    <CmvCard>
+    <CmvCard onClick={onOpen}>
       <div className="flex items-start gap-cmv-md">
         <div className="flex flex-1 flex-col gap-cmv-xs">
           {/* La facture porte les deux noms : chacun lit celui de l'AUTRE partie. Le coach suit
@@ -173,69 +178,6 @@ function InvoiceRow({
           </p>
 
           {invoice.note == null ? null : <p className="text-cmv-text-mid">{invoice.note}</p>}
-        </div>
-
-        <div className="flex flex-col gap-cmv-sm">
-          {/* Tout ce qui suit jusqu'au justificatif est réservé au coach, et pas seulement par
-              politesse : `PATCH /invoices/:id/status` et `POST /invoices/:id/cancel` sont gardées
-              `@Roles([COACH])`, et surtout `ScheduleReminderButton` touche `Reminder` — la seule
-              entité scopée `coachId` SEUL. Un athlète qui l'atteint prend une *erreur*, pas un 403
-              (fail closed) : ce test est la seconde des deux gardes qu'exige ce modèle. */}
-          {canManage && isPaid ? (
-            <div className="flex justify-end">
-              <CmvConfirmButton
-                label={t("invoice.reopen")}
-                confirmLabel={t("invoice.reopenConfirm")}
-                cancelLabel={t("common.cancel")}
-                onConfirm={onReopen}
-                disabled={busy}
-              />
-            </div>
-          ) : null}
-
-          {canManage && !isPaid && !isCancelled ? (
-            <>
-              <div className="flex justify-end">
-                <CmvButton variant="secondary" onClick={onMarkPaid} disabled={busy}>
-                  {t("invoice.markPaid")}
-                </CmvButton>
-              </div>
-              {/* Rappel contextuel (#45) : offert sur les factures qui restent à régler seulement —
-                  se rappeler de relancer une facture payée ou annulée n'a aucun sens. La période
-                  nomme la cible, comme dans la liste des rappels. */}
-              <div className="flex justify-end">
-                <ScheduleReminderButton
-                  entityType={ReminderEntityType.INVOICE}
-                  entityId={invoice.id}
-                  targetLabel={formatPeriod(invoice.period)}
-                  variant="ghost"
-                />
-              </div>
-              {/* Annulation en deux temps : irréversible côté API (409 sur tout retour). */}
-              <div className="flex justify-end">
-                <CmvConfirmButton
-                  label={t("invoice.cancel")}
-                  confirmLabel={t("invoice.cancelConfirm")}
-                  cancelLabel={t("common.cancel")}
-                  onConfirm={onCancel}
-                  disabled={busy}
-                />
-              </div>
-            </>
-          ) : null}
-
-          {/* Justificatif PDF en pied de carte, aligné à droite. URL GET signée (TTL court), ouverte
-          dans un onglet — même geste que le bouton « Voir le PDF » côté athlète mobile. */}
-          {invoice.documentUrl == null ? null : (
-            <div className="flex justify-end">
-              <CmvButton
-                variant="secondary"
-                onClick={() => window.open(invoice.documentUrl ?? "", "_blank", "noopener")}
-              >
-                {t("invoice.viewDocument")}
-              </CmvButton>
-            </div>
-          )}
         </div>
       </div>
     </CmvCard>

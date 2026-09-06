@@ -907,6 +907,14 @@
     "reopenConfirm": "Confirmer",
     "cancel": "Annuler la facture",
     "cancelConfirm": "Annuler définitivement",
+    "cancelHint": "Une facture annulée ne peut plus revenir en arrière.",
+    "panel": {
+      "dueDate": "Échéance",
+      "paidAt": "Paiement",
+      "plan": "Cycle",
+      "note": "Note",
+      "document": "Justificatif"
+    },
     "periodLabel": "Période : {{period}}",
     "dueLabel": "Échéance : {{date}}",
     "paidAtLabel": "payée le {{date}}",
