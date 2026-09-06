@@ -53,6 +53,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `web-coach/coach_debrief.dc.html` | [#121](https://github.com/Cimavia/cimavia/issues/121) | Débriefs coach sur **web** : boîte de réception (liste + volet de lecture) + état vide | refonte de `/feedbacks` | ✅ *(le composer de réponse arrive avec [#193](https://github.com/Cimavia/cimavia/issues/193))* |
 | `web-coach/coach_facturation_v2.dc.html` | [#120](https://github.com/Cimavia/cimavia/issues/120) | **6 frames** — facturation groupée par athlète : liste, athlète déplié + panneau « en retard », historique paginé + confirmation en deux temps, athlète à jour + panneau « payée », état vide, panneau « annulée » | refonte de `/invoices`, remplace pd-8 | ✅ |
 | `web-coach/coach_planification.dc.html` | [#225](https://github.com/Cimavia/cimavia/issues/225) | **6 frames** — planifications groupées par athlète : liste + bac de brouillons (variante A), liste + échéance (variante B), athlète déplié avec historique paginé et brouillon affecté, chevauchement de deux cycles diffusés, état vide, recherche sans résultat | refonte de `/plans` | ✅ |
+| `mobile-coach/coach_mobile_facture.dc.html` | [#224](https://github.com/Cimavia/cimavia/issues/224) | **8 frames** — facturation du coach sur **mobile** : liste par athlète (seule frame à porter le sélecteur de casquette), athlète déplié sur place avec historique paginé, détail en écran plein (impayée / payée / annulée), les deux confirmations en deux temps, état vide | portage mobile de [#120](https://github.com/Cimavia/cimavia/issues/120) | ✅ |
 | `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `mobile-athlete/athlete_seance_lecture.dc.html` | — | **13 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
@@ -99,10 +100,15 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   `/athletes` a été **supprimée** en [#113](https://github.com/Cimavia/cimavia/issues/113) (le
   tableau vit sur `/`), et pas d'entrée « Rappels ». La sidebar de référence est celle du code
   (`CmvAppShell`), pas celle de cette planche.
-- **`coach_mobile.dc.html` — pas d'écran de détail de facture** : la maquette en prévoit un, la
-  carte de la liste affiche déjà tout ce qu'il montrerait (montant, période, échéance, note,
-  justificatif, statut). Le web coach fonctionne à l'identique — liste de cartes, actions sur la
-  carte. La planche a été dessinée avant que ce motif se fixe.
+- **`coach_mobile.dc.html` — écran de détail de facture : écart LEVÉ** : cette note tenait le
+  détail pour inutile, au motif que la carte de la liste montrait déjà tout (montant, période,
+  échéance, note, justificatif, statut) et que « le web coach fonctionne à l'identique ». Les deux
+  motifs sont tombés avec [#120](https://github.com/Cimavia/cimavia/issues/120) : le web groupe
+  désormais par athlète, et une **ligne** de tableau ne porte ni la note, ni le cycle, ni le
+  justificatif — d'où `InvoiceDetailPanel`. La surface de détail redevient donc nécessaire sur
+  téléphone aussi ; elle est dessinée par `coach_mobile_facture.dc.html`
+  ([#224](https://github.com/Cimavia/cimavia/issues/224)), en écran plein plutôt qu'en panneau
+  latéral, qui n'a pas de sens sur mobile.
 - **`coach_mobile.dc.html` — pas d'onglet « Débriefs »** : la barre en compte quatre, et les
   débriefs s'atteignent par la tuile du tableau de bord (comme la maquette le montre). En revanche
   l'onglet **Notifications** a été AJOUTÉ, absent de la planche : c'est la seule surface où le coach

@@ -23,7 +23,8 @@
       "day_other": "il y a {{count}} jours"
     },
     "save": "Enregistrer",
-    "saving": "Enregistrement…"
+    "saving": "Enregistrement…",
+    "close": "Fermer"
   },
   "auth": {
     "login": {
@@ -408,10 +409,52 @@
       "empty": {
         "title": "Aucune facture émise",
         "description": "Les factures sont émises à la diffusion d'un cycle — la facturation se saisit dans le builder, sur le web."
+      },
+      "markPaid": "Marquer payée",
+      "reopen": "Marquer impayée",
+      "reopenConfirm": "Confirmer",
+      "cancel": "Annuler la facture",
+      "cancelConfirm": "Annuler définitivement",
+      "cancelHint": "Une facture annulée ne peut plus revenir en arrière.",
+      "summary": {
+        "athletes": "{{count}} athlète facturé",
+        "athletes_other": "{{count}} athlètes facturés",
+        "overdue": "{{count}} en retard de paiement",
+        "overdue_other": "{{count}} en retard de paiement"
+      },
+      "situationFilter": {
+        "ALL": "Tous {{n}}",
+        "OVERDUE": "En retard {{n}}",
+        "DUE": "À échéance {{n}}",
+        "UP_TO_DATE": "À jour {{n}}"
+      },
+      "situation": {
+        "OVERDUE": "{{n}} en retard",
+        "DUE": "{{n}} à échéance",
+        "UP_TO_DATE": "À jour"
+      },
+      "rowSubtitle": {
+        "OVERDUE_SINCE": "Depuis {{n}} jours",
+        "NEXT_DUE": "Le {{date}}",
+        "LAST_PAID": "Dernière le {{date}}"
+      },
+      "history": {
+        "paidOn": "Payée le {{date}}",
+        "overdueOn": "Échue le {{date}}",
+        "range": "{{from}}–{{to}} sur {{total}} factures"
+      },
+      "noMatch": {
+        "title": "Aucun athlète ne correspond",
+        "description": "Reviens à « Tous » pour revoir toute ta facturation."
       }
     },
-    "markPaid": "Marquer payée",
-    "reopen": "Marquer impayée"
+    "panel": {
+      "dueDate": "Échéance",
+      "paidAt": "Paiement",
+      "plan": "Cycle",
+      "note": "Note",
+      "document": "Justificatif"
+    }
   },
   "reminder": {
     "state": {

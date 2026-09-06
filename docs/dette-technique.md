@@ -2097,6 +2097,66 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Facturation mobile lue par athlète ([#224](https://github.com/Cimavia/cimavia/issues/224))
+
+> **Tranché en #224** (le détail est un ÉCRAN PLEIN, pas une feuille par le bas) : la maquette
+> proposait les deux, et la feuille se justifiait par « le retour est un balayage ». Ce balayage
+> n'est pas livrable — `apps/mobile` n'a ni `react-native-gesture-handler` ni `reanimated`, et un
+> geste de fermeture ne serait pas observable par le harnais de rendu (`react-native-web`, dette
+> **Q-6**) : la surface la mieux protégée de l'app se serait éprouvée à l'œil. Le `Modal
+> animationType="slide"` plein écran est le motif que l'app a déjà (`ScheduleReminderButton`,
+> `CmvImageViewer`), il ne coûte aucune dépendance, et il se teste.
+>
+> Piège rencontré et figé par un commentaire : `Modal` (react-native-web) rend dans un **portail**,
+> accroché au `body`. Un test qui interroge `container` y trouve un `<div />` vide et passe à côté de
+> tout ce qu'il croit presser, sans échouer bruyamment. Les tests de cette surface interrogent
+> `baseElement`.
+
+> **Tranché en #224** (l'historique se DÉPLIE, il ne se pousse pas) : la maquette en faisait d'abord
+> un écran dédié par athlète. Avec le détail déjà en écran plein, cela empilait liste → historique →
+> détail — trois écrans pour lire une note de facture — et faisait perdre la vue d'ensemble à chaque
+> athlète consulté. Le déplié sur place garde deux niveaux, n'ajoute aucune route Expo, et reprend
+> le comportement du web (#120). Un seul athlète ouvert à la fois : la question posée à cet écran est
+> « qui me doit quelque chose », tout ouvrir la reposerait à zéro.
+
+> **Tranché en #224** (une facture ANNULÉE montre son échéance, pas sa date d'annulation) : la
+> maquette écrivait « Annulée le 12 mars ». `InvoiceDto` ne porte AUCUN `cancelledAt` — la date
+> n'existe nulle part. Elle tombe donc dans le cas général et affiche « Échéance : … », comme le web
+> ; sa pastille et son montant barré suffisent à dire ce qui lui est arrivé. Même famille d'erreur
+> que le numéro de facture consigné au README des maquettes pour `coach_mobile.dc.html`.
+
+> **Tranché en #224** (le décompte d'une chip n'est pas stylable à part) : la maquette colorait le
+> nombre par situation, en police distincte du libellé. `invoice.coach.situationFilter.*` interpole
+> ce nombre DANS la chaîne (« En retard {{n}} »), comme le web depuis #120 — et une chaîne
+> interpolée ne peut pas porter deux styles. Le scinder aurait fait diverger deux barres d'outils
+> qui doivent se ressembler, pour un gain décoratif. Les chips rendent un libellé homogène.
+
+> **Rattrapé en #224** (annotation `i18n-values` sur une constante ÉTALÉE) : `INVOICE_ROW_FILTERS`
+> vaut `["ALL", ...INVOICE_SITUATIONS]`, et `check:i18n` ne déplie pas l'étalement — il n'y lisait
+> que `ALL`, et signalait trois clés vivantes comme mortes. L'annotation correcte est celle du web :
+> `INVOICE_SITUATIONS, ALL`. À retenir avec la règle voisine du nom unique : une annotation
+> `i18n-values` doit citer des tableaux de **littéraux**, jamais une constante composée.
+
+> **Écart LEVÉ en #224** (l'annulation existe enfin sur mobile) : `useCancelInvoice` n'y était pas,
+> alors que `invoiceApi.cancel` était déjà servi par `createInvoiceApi` dans `@cmv/shared` — seul le
+> branchement manquait. Le coach a désormais les quatre gestes des deux côtés. Deux props additives
+> l'ont permis sur `CmvConfirmButton` (mobile) : `confirmHint`, que le web avait déjà, et `variant`
+> (`danger` par défaut et inchangé, `secondary`, `ghost`), qui laisse un pied de page hiérarchiser
+> trois actions. `ghost` armé emploie `error.soft` / `line` / `on` — un `text-cmv-error` de moins,
+> mais [#218](https://github.com/Cimavia/cimavia/issues/218) reste ouverte pour les autres, dont
+> celui que `danger` conserve.
+
+> **Écart assumé en #224** (pas de recherche par nom sur mobile) : c'est un confort de web, sur une
+> liste que le coach parcourt des yeux — les chips de situation suffisent à trancher. À reprendre le
+> jour où un coach bêta suit assez d'athlètes pour que le défilement coûte plus qu'un champ.
+
+> **Écart assumé en #224** (l'athlète garde sa liste À PLAT) : il n'a qu'un coach, il n'y a rien à
+> grouper — même choix qu'au web. Sa carte a néanmoins perdu la note, le justificatif et les
+> actions, qui vivent désormais au détail : les deux titres ouvrent le MÊME écran, et la carte
+> redevient ce qu'elle doit être, une porte d'entrée.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
