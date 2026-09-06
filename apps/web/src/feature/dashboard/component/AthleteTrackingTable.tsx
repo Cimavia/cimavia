@@ -129,7 +129,11 @@ function PlanCell({
   if (plan == null) {
     if (!canOfferPlan) return <span className="text-cmv-text-lo">—</span>;
     return (
-      <Link to="/plans" className="text-cmv-accent-on text-cmv-caption hover:underline">
+      <Link
+        to="/plans"
+        search={{ q: undefined, state: undefined, athlete: undefined }}
+        className="text-cmv-accent-on text-cmv-caption hover:underline"
+      >
         {t("dashboard.table.createPlan")}
       </Link>
     );
@@ -139,6 +143,7 @@ function PlanCell({
     <div className="flex flex-col gap-cmv-xs">
       <Link
         to="/plans"
+        search={{ q: undefined, state: undefined, athlete: undefined }}
         className="truncate text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
       >
         {plan.title}

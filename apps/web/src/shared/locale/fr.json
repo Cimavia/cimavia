@@ -552,6 +552,15 @@
         "ROUND": "{{done}} sur {{total}} tours",
         "STEP": "{{done}} sur {{total}} étapes"
       }
+    },
+    "searchLabel": "Chercher un athlète",
+    "searchPlaceholder": "Nom ou prénom",
+    "stateLabel": "État",
+    "stateFilter": {
+      "ALL": "Tous {{n}}",
+      "ONGOING": "En cours {{n}}",
+      "UPCOMING": "À venir {{n}}",
+      "ENDED": "Terminés {{n}}"
     }
   },
   "nav": {
