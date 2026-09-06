@@ -58,7 +58,7 @@ function countInvoicesInState(
  * Attention, ce n'est PAS `status === PENDING` : une facture en retard porte ce statut-là aussi
  * (`OVERDUE` est dérivé, jamais stocké). Compter le statut brut ferait apparaître chaque facture en
  * retard ici ET dans `countOverdueInvoices` — le coach lirait deux fois la même facture, et la tuile
- * « en attente » rangerait parmi les factures qui vont bien celles qui ne vont justement pas bien.
+ * « à échéance » rangerait parmi les factures qui vont bien celles qui ne vont justement pas bien.
  *
  * Avec cette définition, les deux compteurs **partitionnent** l'impayé :
  * `countPendingInvoices + countOverdueInvoices = total des factures non réglées`.

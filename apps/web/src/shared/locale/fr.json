@@ -791,7 +791,7 @@
       "remindersDueHint": "Échéance passée, encore à traiter.",
       "overdueInvoices": "Factures en retard",
       "overdueInvoicesHint": "Échéance dépassée, à relancer.",
-      "invoices": "Factures en attente",
+      "invoices": "Factures à échéance",
       "invoicesHint": "Émises, échéance pas encore dépassée.",
       "notifications": "Notifications non lues",
       "notificationsHint": "Le détail est dans la cloche, en haut à droite."
@@ -911,7 +911,7 @@
     "dueLabel": "Échéance : {{date}}",
     "paidAtLabel": "payée le {{date}}",
     "status": {
-      "pending": "En attente",
+      "pending": "À échéance",
       "paid": "Payée",
       "overdue": "En retard",
       "cancelled": "Annulée"
