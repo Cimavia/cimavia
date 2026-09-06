@@ -70,7 +70,13 @@ export function PlanBuilderActions({
           cancelLabel={t("common.cancel")}
           disabled={isBusy || isPublished}
           onConfirm={() =>
-            removePlan.mutate(planId, { onSuccess: () => navigate({ to: "/plans" }) })
+            removePlan.mutate(planId, {
+              onSuccess: () =>
+                navigate({
+                  to: "/plans",
+                  search: { q: undefined, state: undefined, athlete: undefined },
+                }),
+            })
           }
         />
       </span>

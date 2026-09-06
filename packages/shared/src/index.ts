@@ -577,6 +577,7 @@ export type {
 export {
   ATHLETE_ROW_FILTERS,
   buildAthleteRows,
+  currentAthletePlan,
   visibleAthleteRows,
 } from "./util/athlete-row.util";
 export {
@@ -677,9 +678,12 @@ export {
   capabilityOfNotification,
   notificationSubject,
 } from "./util/notification.util";
+export type { Page } from "./util/pagination.util";
+export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";
 export type {
   PlanPeriod,
   PlanPhase,
+  PlanState,
   PlanWeekRange,
   PlanWeekRef,
   SessionProgress,
@@ -688,8 +692,11 @@ export type {
 export {
   isDateInPlanWeek,
   isSelfCoached,
+  PLAN_STATE_BADGE,
+  PLAN_STATES,
   planEndDate,
   planPhase,
+  planState,
   planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,
@@ -697,6 +704,22 @@ export {
   selectCurrentPlan,
   weekSessionProgress,
 } from "./util/plan.util";
+export type {
+  PlanAthleteRow,
+  PlanDeadline,
+  PlanOverlap,
+  PlanRowFilter,
+  PlanRowQuery,
+  PlanRowSource,
+} from "./util/plan-row.util";
+export {
+  buildPlanAthleteRows,
+  countPlanAthletesBySituation,
+  PLAN_ROW_FILTERS,
+  sortAthletePlans,
+  unassignedDraftPlans,
+  visiblePlanAthleteRows,
+} from "./util/plan-row.util";
 export type {
   ReminderFeedSource,
   ReminderLabel,

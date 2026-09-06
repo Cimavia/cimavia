@@ -151,7 +151,7 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
     plan:
       input.plans == null
         ? null
-        : toRowPlan(plansByAthlete.get(athlete.athleteId) ?? [], input.today),
+        : currentAthletePlan(plansByAthlete.get(athlete.athleteId) ?? [], input.today),
     unreadFeedbacks:
       input.feedbacks == null
         ? null
@@ -168,15 +168,29 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
 }
 
 /**
- * Le cycle à afficher, choisi par `selectCurrentPlan` — source UNIQUE de ce choix (en cours > à
- * venir > terminé), qu'on ne reconstitue pas ici.
+ * Le cycle à afficher pour un athlète, choisi par `selectCurrentPlan` — source UNIQUE de ce choix
+ * (en cours > à venir > terminé), qu'on ne reconstitue pas ici.
  *
  * Sa priorité donne à `phase` une propriété qu'elle n'aurait pas sur un cycle isolé : un
  * `ENDED` ici signifie « terminé ET rien derrière », puisqu'un cycle à venir aurait été élu à sa
  * place. C'est ce qui rend « ce cycle est fini » lisible comme « cet athlète attend une suite ».
+ *
+ * Exportée depuis #225, où la liste des planifications a besoin du MÊME cycle courant que le
+ * tableau de bord : deux dérivations parallèles finiraient par désigner deux cycles différents
+ * pour le même athlète, sur deux écrans qu'un coach lit à la suite.
+ *
+ * Le filtre est ICI et non chez l'appelant, pour la même raison : un brouillon n'est pas encore le
+ * cycle de l'athlète (il ne le voit pas), et un cycle sans destinataire n'appartient à personne
+ * (#144). Laisser cette règle au bord ferait diverger le prochain écran qui s'y branche.
  */
-function toRowPlan(plans: readonly AthletePlanSource[], today: string): AthleteRowPlan | null {
-  const plan = selectCurrentPlan(plans, today);
+export function currentAthletePlan<T extends AthletePlanSource>(
+  plans: readonly T[],
+  today: string,
+): AthleteRowPlan | null {
+  const published = plans.filter(
+    (plan) => plan.status === PlanStatus.PUBLISHED && plan.athleteId != null,
+  );
+  const plan = selectCurrentPlan(published, today);
   if (plan == null) return null;
   return {
     id: plan.id,
@@ -252,7 +266,7 @@ function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {
       return row.plan == null;
     /**
      * Cycle terminé, et rien derrière — `selectCurrentPlan` aurait élu un cycle à venir s'il en
-     * existait un (cf. `toRowPlan`). Un `phase: null` (cycle non situable) n'est PAS capturé : on
+     * existait un (cf. `currentAthletePlan`). Un `phase: null` (cycle non situable) n'est PAS capturé : on
      * ne range pas un cycle illisible parmi les terminés, ce serait inventer un travail au coach.
      */
     case "ENDED_PLAN":

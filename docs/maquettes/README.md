@@ -52,6 +52,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `shared/design_system_white.dc.html` | [#1](https://github.com/Cimavia/cimavia/issues/1) | Design system en thème **clair** (couleurs, typo, composants, radii/spacing) | thème clair (v1.0) | ⏳ |
 | `web-coach/coach_debrief.dc.html` | [#121](https://github.com/Cimavia/cimavia/issues/121) | Débriefs coach sur **web** : boîte de réception (liste + volet de lecture) + état vide | refonte de `/feedbacks` | ✅ *(le composer de réponse arrive avec [#193](https://github.com/Cimavia/cimavia/issues/193))* |
 | `web-coach/coach_facturation_v2.dc.html` | [#120](https://github.com/Cimavia/cimavia/issues/120) | **6 frames** — facturation groupée par athlète : liste, athlète déplié + panneau « en retard », historique paginé + confirmation en deux temps, athlète à jour + panneau « payée », état vide, panneau « annulée » | refonte de `/invoices`, remplace pd-8 | ✅ |
+| `web-coach/coach_planification.dc.html` | [#225](https://github.com/Cimavia/cimavia/issues/225) | **6 frames** — planifications groupées par athlète : liste + bac de brouillons (variante A), liste + échéance (variante B), athlète déplié avec historique paginé et brouillon affecté, chevauchement de deux cycles diffusés, état vide, recherche sans résultat | refonte de `/plans` | ✅ |
 | `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `mobile-athlete/athlete_seance_lecture.dc.html` | — | **13 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
@@ -137,6 +138,23 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   et « 1 envoyée » (Yanis), même couleur et même segment. Lapsus tranché avant implémentation :
   « à échéance » partout, et `invoice.status.pending` du catalogue est passé de « En attente » à
   « À échéance » sur les deux plateformes.
+- **`coach_planification.dc.html` — la variante A n'est pas implémentée** : la planche propose deux
+  colonnes de droite, « N cycles » (frame 1) et l'échéance (frame 2). Seule la seconde part : elle
+  seule dit QUAND agir, et elle seule laisse vérifier l'ordre des lignes à l'œil, puisque c'est elle
+  qu'il trie. Le décompte reste lisible au pied de l'historique déplié (« 1–5 sur 7 cycles »).
+- **`coach_planification.dc.html` — « terminé » n'est pas plus en retrait que « brouillon »** : la
+  planche distingue les deux pastilles neutres par leur fond (plein contre transparent). `CmvBadge`
+  n'a pas cette nuance, et l'ajouter est une décision de design system, pas de cet écran. Les deux
+  états partagent donc `neutral`. Aucune issue ouverte.
+- **`coach_planification.dc.html` — le chevauchement montrait le mauvais cycle** : la frame 4 donne
+  « Volume estival » (début le plus ANCIEN) comme cycle courant d'Adrien. C'est l'inverse de ce que
+  fait le produit — `selectCurrentPlan` retient le plus récemment démarré (« le coach en a diffusé
+  un remplaçant »), et c'est donc « Volume estival » qui est invisible de l'athlète. L'implémentation
+  suit le produit ; la planche n'a pas été redessinée sur ce point.
+- **`coach_planification.dc.html` — le bandeau d'anomalie ne dit pas quoi faire** : la planche y
+  ajoute « Ouvre l'un des deux pour décaler ses dates ». Une instruction en toutes lettres est une
+  note de design (même convention que les ⓘ de la facturation, ci-dessus) : le bandeau se limite à
+  son constat.
 - ~~**`coach_debrief.dc.html` — répondre depuis le volet de lecture**~~ : **levé en #193**. La
   réponse existe, sous la forme d'un `Message` rattaché au débrief (`Message.sessionFeedbackId`,
   déjà au schéma et déjà validé côté serveur depuis P5 — il n'avait simplement aucune UI). Le

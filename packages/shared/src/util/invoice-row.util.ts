@@ -1,6 +1,7 @@
 import { InvoiceStatus } from "../dto/invoice.schema";
 import { daysBetweenIsoDates } from "./date.util";
 import { InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
+import { HISTORY_PAGE_SIZE, type Page, pageOf } from "./pagination.util";
 import { comparableText } from "./search.util";
 
 /**
@@ -302,10 +303,7 @@ export function visibleInvoiceAthleteRows<T extends InvoiceRowSource>(
 
   return rows
     .filter(
-      (row) =>
-        (query.filter === "ALL" || row.situation === query.filter) &&
-        // Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
-        (needle === "" || comparableText(row.athleteName).includes(needle)),
+      (row) => (query.filter === "ALL" || row.situation === query.filter) && matches(row, needle),
     )
     .sort(
       (left, right) =>
@@ -336,60 +334,42 @@ function compareWithinSituation(
 // ── Historique paginé ────────────────────────────────────────────────────────
 
 /**
- * Cinq factures par page (maquette) : de quoi couvrir les retards courants sans faire défiler
- * l'écran entier quand un athlète cumule des années d'historique.
+ * La pagination de l'historique vit dans `pagination.util.ts` depuis #225 : la liste des cycles
+ * découpe le sien exactement pareil, à la même taille, et deux copies auraient fini par diverger
+ * sur une borne. Les noms d'ici restent, eux, pour leurs appelants — ils disent CE QU'ON pagine.
  */
-export const INVOICE_HISTORY_PAGE_SIZE = 5;
+export const INVOICE_HISTORY_PAGE_SIZE = HISTORY_PAGE_SIZE;
+export type InvoicePage<T> = Page<T>;
+export const pageOfInvoices = pageOf;
 
-export type InvoicePage<T> = {
-  items: T[];
-  /** Page effectivement rendue, 1-based et BORNÉE : une demande hors bornes est ramenée dedans. */
-  page: number;
-  /** Toujours ≥ 1 : une liste vide a une page vide, pas zéro page. */
-  pageCount: number;
-  /** Rangs 1-based du premier et du dernier élément — « 6–10 sur 14 ». `0` sur une liste vide. */
-  from: number;
-  to: number;
-  total: number;
-};
-
-/**
- * La tranche à afficher. Borne la page plutôt que de rendre une liste vide : supprimer la dernière
- * facture d'une page 3 ne doit pas laisser le coach devant un tableau vide sans savoir pourquoi.
- */
-export function pageOfInvoices<T>(
-  invoices: readonly T[],
-  page: number,
-  size: number = INVOICE_HISTORY_PAGE_SIZE,
-): InvoicePage<T> {
-  const total = invoices.length;
-  const pageCount = Math.max(1, Math.ceil(total / size));
-  const current = Math.min(Math.max(Math.trunc(page), 1), pageCount);
-  const start = (current - 1) * size;
-  const items = invoices.slice(start, start + size);
-
-  return {
-    items,
-    page: current,
-    pageCount,
-    from: items.length === 0 ? 0 : start + 1,
-    to: start + items.length,
-    total,
-  };
+// Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
+function matches(row: InvoiceAthleteRow<InvoiceRowSource>, needle: string): boolean {
+  return needle === "" || comparableText(row.athleteName).includes(needle);
 }
 
 /**
- * Combien d'athlètes dans chaque situation — les compteurs des segments. Comptés sur les lignes
- * NON filtrées : un segment doit annoncer ce qu'il contient, pas ce qu'il reste après le filtre
- * en cours, sinon « En retard 2 » deviendrait « En retard 0 » dès qu'on ouvre « À jour ».
+ * Combien d'athlètes dans chaque situation — les compteurs des segments.
+ *
+ * Deux règles, et elles ne disent PAS la même chose :
+ *
+ *  - le SEGMENT choisi est ignoré. Le compter ferait tomber les trois autres à zéro dès qu'on
+ *    ouvre « À jour », et on ne pourrait plus en sortir ;
+ *  - la RECHERCHE, elle, est appliquée. Elle restreint la population, là où le segment ne fait que
+ *    la trancher : sans elle, un nom tapé au clavier laisserait « En retard 2 » à l'écran alors
+ *    qu'aucun athlète de ce nom n'est en retard — un décompte non nul qui ne mène nulle part, et
+ *    un clic pour rien. Distinction manquée en #120, corrigée en #225 sur les deux écrans.
  */
 export function countAthletesBySituation(
   rows: readonly InvoiceAthleteRow<InvoiceRowSource>[],
+  search = "",
 ): Record<InvoiceRowFilter, number> {
+  const needle = comparableText(search);
+  const searched = rows.filter((row) => matches(row, needle));
+
   return {
-    ALL: rows.length,
-    OVERDUE: rows.filter((row) => row.situation === "OVERDUE").length,
-    DUE: rows.filter((row) => row.situation === "DUE").length,
-    UP_TO_DATE: rows.filter((row) => row.situation === "UP_TO_DATE").length,
+    ALL: searched.length,
+    OVERDUE: searched.filter((row) => row.situation === "OVERDUE").length,
+    DUE: searched.filter((row) => row.situation === "DUE").length,
+    UP_TO_DATE: searched.filter((row) => row.situation === "UP_TO_DATE").length,
   };
 }

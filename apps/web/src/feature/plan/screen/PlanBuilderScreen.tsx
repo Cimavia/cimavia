@@ -94,7 +94,7 @@ export function PlanBuilderScreen() {
     );
   }
   if (plan == null) {
-    return <Navigate to="/plans" />;
+    return <Navigate to="/plans" search={{ q: undefined, state: undefined, athlete: undefined }} />;
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
@@ -148,7 +148,11 @@ export function PlanBuilderScreen() {
       }
     >
       <div className="mb-cmv-lg flex flex-col gap-cmv-sm">
-        <Link to="/plans" className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi">
+        <Link
+          to="/plans"
+          search={{ q: undefined, state: undefined, athlete: undefined }}
+          className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
+        >
           {t("plan.builder.back")}
         </Link>
 

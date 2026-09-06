@@ -384,6 +384,33 @@ describe("countAthletesBySituation", () => {
   it("compte zéro partout sur une liste vide", () => {
     expect(countAthletesBySituation([])).toEqual({ ALL: 0, OVERDUE: 0, DUE: 0, UP_TO_DATE: 0 });
   });
+
+  /**
+   * La recherche, contrairement au segment, RESTREINT la population : elle ne tranche pas la liste,
+   * elle la réduit. Sans ça un segment annonce un nombre qui ne mène nulle part (#225).
+   */
+  it("applique la recherche, là où il ignore le segment", () => {
+    // « bon » ne laisse que Léa Bonnet.
+    const counts = countAthletesBySituation(rowsOf(), "bon");
+    expect(counts.ALL).toBe(1);
+    expect(counts.OVERDUE + counts.DUE + counts.UP_TO_DATE).toBe(1);
+  });
+
+  it("aucun segment ne peut annoncer un nombre qui ne mène nulle part", () => {
+    const rows = rowsOf();
+    const search = "bon";
+    const counts = countAthletesBySituation(rows, search);
+
+    for (const filter of INVOICE_ROW_FILTERS) {
+      const visible = visibleInvoiceAthleteRows(rows, { search, filter, locale: "fr" });
+      expect(visible).toHaveLength(counts[filter]);
+    }
+  });
+
+  it("cherche sans casse ni accent, comme la liste qu'il décompte", () => {
+    expect(countAthletesBySituation(rowsOf(), "LÉA").ALL).toBe(1);
+    expect(countAthletesBySituation(rowsOf(), "lea").ALL).toBe(1);
+  });
 });
 
 describe("pageOfInvoices", () => {

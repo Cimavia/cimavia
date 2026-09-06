@@ -3,6 +3,14 @@ import { PlanStatus } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { CmvBadge } from "@/shared/component";
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+//
+// L'annotation vivait dans `PlanList`, qui n'assemblait pas cette clé — le registre du script
+// étant global, elle couvrait ce fichier par accident. La suppression de `PlanList` en #225 l'a
+// mise au jour : une annotation appartient au fichier qui BÂTIT la clé.
+// i18n-values plan.status: PlanStatus
+
 type PlanStatusLineProps = {
   status: PlanDto["status"];
   /** Un cycle sans destinataire ne se diffuse pas (#144) : c'est ce qui manque en premier. */
