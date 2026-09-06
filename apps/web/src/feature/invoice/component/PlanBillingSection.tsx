@@ -92,7 +92,7 @@ export function PlanBillingSection({
           {/* Depuis le builder : le coach suit ce qu'il a ÉMIS. */}
           <Link
             to="/invoices"
-            search={{ as: "coach" }}
+            search={{ as: "coach", q: undefined, situation: undefined, athlete: undefined }}
             className="text-cmv-caption text-cmv-accent hover:underline"
           >
             {t("invoice.billing.trackLink")}

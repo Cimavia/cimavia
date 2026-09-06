@@ -908,6 +908,53 @@
     "cancel": "Annuler la facture",
     "cancelConfirm": "Annuler définitivement",
     "cancelHint": "Une facture annulée ne peut plus revenir en arrière.",
+    "summary": {
+      "athletes": "{{count}} athlète facturé",
+      "athletes_other": "{{count}} athlètes facturés",
+      "overdue": "{{count}} en retard de paiement",
+      "overdue_other": "{{count}} en retard de paiement"
+    },
+    "searchLabel": "Chercher un athlète",
+    "searchPlaceholder": "Nom ou prénom",
+    "situationLabel": "Situation",
+    "situationFilter": {
+      "ALL": "Tous {{n}}",
+      "OVERDUE": "En retard {{n}}",
+      "DUE": "À échéance {{n}}",
+      "UP_TO_DATE": "À jour {{n}}"
+    },
+    "situation": {
+      "OVERDUE": "{{n}} en retard",
+      "DUE": "{{n}} à échéance",
+      "UP_TO_DATE": "À jour"
+    },
+    "rowSubtitle": {
+      "OVERDUE_SINCE": "Depuis {{n}} jours",
+      "NEXT_DUE": "Le {{date}}",
+      "LAST_PAID": "Dernière le {{date}}"
+    },
+    "table": {
+      "columns": {
+        "athlete": "Athlète",
+        "situation": "Situation",
+        "amountDue": "Montant dû"
+      }
+    },
+    "history": {
+      "columns": {
+        "period": "Période",
+        "amount": "Montant",
+        "dueDate": "Échéance"
+      },
+      "paidOn": "Payée le {{date}}",
+      "overdueOn": "Échue le {{date}}",
+      "range": "{{from}}–{{to}} sur {{total}} factures",
+      "hint": "Cinq factures par page, les plus récentes d'abord — les retards restent en tête quelle que soit la page."
+    },
+    "noMatch": {
+      "title": "Aucun athlète ne correspond",
+      "description": "Change ta recherche ou reviens à « Tous »."
+    },
     "panel": {
       "dueDate": "Échéance",
       "paidAt": "Paiement",
