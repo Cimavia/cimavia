@@ -3,11 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import { PlanList } from "@/feature/plan/component/PlanList";
 import { renderInRoute } from "../../../../test/render";
 
-vi.mock("@/feature/athlete/hook/useAthletes", () => ({
-  useAthletes: () => ({
-    data: [{ athleteId: "ath_lea", athleteName: "Léa Moreau", isSelf: false }],
-  }),
-}));
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach_1" } } }) },
 }));
@@ -67,14 +62,30 @@ describe("PlanList — le destinataire", () => {
     expect(router.state.location.pathname).toBe("/plans/pln_1");
   });
 
-  // Un athlète que la liste des relations ne rend pas (relation retirée depuis) : là, on ne sait
-  // pas — et « à définir » serait un mensonge, il a été défini.
-  it("garde le tiret pour un destinataire introuvable", async () => {
+  /**
+   * Le nom vient du DTO, et le DTO le tient de `Plan.athlete` — la clé étrangère vers `User`, pas
+   * de la relation coach↔athlète. Un athlète dont la relation a été retirée reste donc NOMMÉ ici.
+   * La liste le rendait « — » tant qu'elle résolvait par `GET /athletes` : elle cachait un nom
+   * qu'elle avait déjà.
+   */
+  it("nomme un athlète absent de la liste des relations", async () => {
     const { getByText, queryByText } = await mount([
-      plan({ athleteId: "ath_disparu", athleteName: "Parti Ailleurs" }),
+      plan({ athleteId: "ath_hors_relation", athleteName: "Parti Ailleurs" }),
+    ]);
+
+    expect(getByText("Parti Ailleurs")).toBeTruthy();
+    expect(queryByText("—")).toBeNull();
+  });
+
+  // Le seul cas qui reste pour « — » : le mapper pose les trois champs ensemble, donc il ne devrait
+  // pas se produire — mais le type l'autorise, et « null » en clair serait pire.
+  it("garde le tiret sur un destinataire posé sans nom", async () => {
+    const { getByText, queryByText } = await mount([
+      plan({ athleteId: "ath_sans_nom", athleteName: null }),
     ]);
 
     expect(getByText("—")).toBeTruthy();
+    // « À définir » prétendrait qu'il reste un choix à faire : il a été fait.
     expect(queryByText("plan.unassigned")).toBeNull();
   });
 });

@@ -9,12 +9,7 @@ vi.mock("@/feature/plan/hook/usePlans", () => ({
   usePlans: vi.fn(),
   useCreatePlan: vi.fn(),
 }));
-// La liste résout le nom du destinataire par ces deux-là : leur transport a ses propres tests.
-vi.mock("@/feature/athlete/hook/useAthletes", () => ({
-  useAthletes: () => ({
-    data: [{ athleteId: "ath_lea", athleteName: "Léa Moreau", isSelf: false }],
-  }),
-}));
+// La session sert à `useAthleteLabel`, qui marque « (moi) » sur un cycle auto-coaché.
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach_1" } } }) },
 }));
