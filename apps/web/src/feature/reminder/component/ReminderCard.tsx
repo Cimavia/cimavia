@@ -151,7 +151,7 @@ function ReminderTarget({ reminder }: Readonly<{ reminder: ReminderDto }>) {
     // Les rappels sont un outil du coach : la facture visée est une facture ÉMISE.
     <Link
       to="/invoices"
-      search={{ as: "coach" }}
+      search={{ as: "coach", q: undefined, situation: undefined, athlete: undefined }}
       className="text-cmv-caption text-cmv-accent-on hover:underline"
     >
       {line}

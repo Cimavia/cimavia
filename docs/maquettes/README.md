@@ -36,7 +36,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `web-coach/coach_dashboard_athletes.dc.html` | pd-4 | Dashboard coach + liste des athlètes (+ vide + skeleton) | P1 | ✅ |
 | `web-coach/coach_fiche_athlete.dc.html` | pd-5 | Fiche athlète (AthleteProfile) + note édition/vide | P1 | ✅ |
 | `web-coach/coach_bibliotheque.dc.html` | pd-6 | Bibliothèque : Exercise (liste + form) + SessionBuilder + onglet Séances + état vide | P2 | ✅ |
-| `web-coach/coach_facturation.dc.html` | pd-8 | Émission & suivi de factures (Invoice) + vide | P6 | ✅ |
+| `web-coach/coach_facturation.dc.html` | pd-8 | Émission & suivi de factures (Invoice) + vide | P6 | ⚠️ **périmée** — remplacée par `coach_facturation_v2.dc.html` ([#120](https://github.com/Cimavia/cimavia/issues/120)). Gardée pour l'historique : elle dessine une liste PLATE et un panneau « Émettre une facture » que le modèle P6 a rendu impossible. Ne pas s'y référer. |
 | `mobile-athlete/athlete_debrief_seance.dc.html` | pd-10 | Débrief de séance (SessionFeedback + médias) + vide/upload/erreur | P4 | ✅ |
 | `mobile-athlete/athlete_factures.dc.html` | pd-11 | Consultation factures (athlète) + détail | P6 | ✅ |
 | `shared/conversation_1_1.dc.html` | pd-12 | Conversation 1:1 web + mobile, Composer texte/audio/médias + états vides + message non envoyé/hors-ligne | P5 | ✅ |
@@ -51,6 +51,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `shared/messagerie_web_athlete_mobile_coach.dc.html` | [#20](https://github.com/Cimavia/cimavia/issues/20) | **6 frames** — les deux combinaisons que `conversation_1_1.dc.html` ne couvrait **pas** : web × athlète (fil unique / fil vide / aucun coach) et mobile × coach (liste des fils / liste vide / fil ouvert) | [#29](https://github.com/Cimavia/cimavia/issues/29) [#34](https://github.com/Cimavia/cimavia/issues/34) | ✅ |
 | `shared/design_system_white.dc.html` | [#1](https://github.com/Cimavia/cimavia/issues/1) | Design system en thème **clair** (couleurs, typo, composants, radii/spacing) | thème clair (v1.0) | ⏳ |
 | `web-coach/coach_debrief.dc.html` | [#121](https://github.com/Cimavia/cimavia/issues/121) | Débriefs coach sur **web** : boîte de réception (liste + volet de lecture) + état vide | refonte de `/feedbacks` | ✅ *(le composer de réponse arrive avec [#193](https://github.com/Cimavia/cimavia/issues/193))* |
+| `web-coach/coach_facturation_v2.dc.html` | [#120](https://github.com/Cimavia/cimavia/issues/120) | **6 frames** — facturation groupée par athlète : liste, athlète déplié + panneau « en retard », historique paginé + confirmation en deux temps, athlète à jour + panneau « payée », état vide, panneau « annulée » | refonte de `/invoices`, remplace pd-8 | ✅ |
 | `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `mobile-athlete/athlete_seance_lecture.dc.html` | — | **13 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
@@ -108,6 +109,34 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
 - **`coach_mobile.dc.html` — invitation partagée, pas copiée** : la planche a « Copier le code »,
   l'implémentation propose « Partager » (`Share` de React Native). `expo-clipboard` n'est pas une
   dépendance du projet, et partager couvre mieux le cas réel (SMS, WhatsApp). Dette **M-5**.
+- **`coach_facturation_v2.dc.html` — les notes ⓘ sont des ANNOTATIONS, pas de l'UI** : trois lignes
+  à icône ⓘ ferment des frames (« Un athlète avec plusieurs factures impayées affiche le montant
+  cumulé en teinte error… », « Cinq factures par page… », « Rien à relancer : pas de bandeau… »).
+  Deux s'adressent sans ambiguïté au lecteur du canvas ; la troisième a d'abord été rendue à
+  l'écran en #120, puis retirée. **Convention pour les planches suivantes** : une ⓘ en pied de
+  frame commente le design, elle ne se traduit pas.
+- **`coach_facturation_v2.dc.html` — colonne « Numéro »** (`F-2026-041`) : `InvoiceDto` n'a **pas de
+  numéro**, et un vrai numéro de facture est une mention légale (séquentielle, unique, jamais
+  réattribuée). Troisième relevé du même écart, après `athlete_web` / `coach_mobile` ci-dessus et
+  [#150](https://github.com/Cimavia/cimavia/issues/150). Colonne **retirée** en #120 ; l'historique
+  affiche la période. Décision de ne pas traiter — aucune issue ouverte.
+- **`coach_facturation_v2.dc.html` — « Relancer les retards » / « Relancer les 3 » / « Aucune
+  relance envoyée depuis le 2 août »** : relancer un athlète n'existe pas (`NotificationType` n'a
+  que `INVOICE_ISSUED`, aucune trace de relance n'est persistée) et le rappel `INVOICE_OVERDUE` du
+  coach est déjà auto-généré. **Retiré** en #120 ; c'est une fonctionnalité à cadrer, pas un rendu.
+  Le bandeau de résumé, lui, est gardé — réduit à son constat.
+- **`coach_facturation_v2.dc.html` — couleurs de situation** : `#e5c07a` (hors palette) sur « 1 en
+  retard » et `info.on` sur « à échéance » ne sont **pas** repris — la gravité tient à l'état, pas
+  au nombre (cf. l'encadré *Tranché en #120* du journal de dette). Le reste de la planche est
+  conforme aux tokens, nuances `-on` comprises.
+- **`coach_facturation_v2.dc.html` — sous-titre « 6 athlètes »** : l'état vide annonce l'écurie
+  entière (« Les six athlètes apparaîtront… ») alors qu'aucune facture n'existe. L'implémentation
+  compte les athlètes **facturés** (« N athlètes facturés ») : annoncer l'écurie demanderait un
+  second `GET /athletes` pour un nombre qui ne décrit pas le tableau affiché.
+- **`coach_facturation_v2.dc.html` — deux libellés pour une situation** : « 1 à échéance » (Sarah)
+  et « 1 envoyée » (Yanis), même couleur et même segment. Lapsus tranché avant implémentation :
+  « à échéance » partout, et `invoice.status.pending` du catalogue est passé de « En attente » à
+  « À échéance » sur les deux plateformes.
 - ~~**`coach_debrief.dc.html` — répondre depuis le volet de lecture**~~ : **levé en #193**. La
   réponse existe, sous la forme d'un `Message` rattaché au débrief (`Message.sessionFeedbackId`,
   déjà au schéma et déjà validé côté serveur depuis P5 — il n'avait simplement aucune UI). Le

@@ -624,6 +624,26 @@ export {
   resolveInvoiceState,
 } from "./util/invoice.util";
 export type {
+  InvoiceAthleteRow,
+  InvoicePage,
+  InvoiceRowFilter,
+  InvoiceRowQuery,
+  InvoiceRowSource,
+  InvoiceRowSubtitle,
+  InvoiceSituation,
+} from "./util/invoice-row.util";
+export {
+  buildInvoiceAthleteRows,
+  countAthletesBySituation,
+  INVOICE_HISTORY_PAGE_SIZE,
+  INVOICE_ROW_FILTERS,
+  INVOICE_SITUATION_STATE,
+  INVOICE_SITUATIONS,
+  pageOfInvoices,
+  sortAthleteInvoices,
+  visibleInvoiceAthleteRows,
+} from "./util/invoice-row.util";
+export type {
   MediaBatch,
   MediaBatchStep,
   MediaRecapLine,

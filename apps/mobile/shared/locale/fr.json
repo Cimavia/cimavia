@@ -393,7 +393,7 @@
     "dueLabel": "Échéance : {{date}}",
     "paidAtLabel": "payée le {{date}}",
     "status": {
-      "pending": "En attente",
+      "pending": "À échéance",
       "paid": "Payée",
       "overdue": "En retard",
       "cancelled": "Annulée"
@@ -512,7 +512,7 @@
       "overdueInvoicesHint": "Échéance dépassée, à relancer.",
       "athletes": "Athlètes suivis",
       "athletesHint": "Relations actives",
-      "invoices": "Factures en attente",
+      "invoices": "Factures à échéance",
       "invoicesHint": "Émises, échéance pas encore dépassée.",
       "reminders": "Rappels dus",
       "remindersHint": "Échéance passée, à traiter."

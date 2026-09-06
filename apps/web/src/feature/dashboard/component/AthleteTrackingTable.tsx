@@ -238,7 +238,10 @@ function InvoiceCell({ state }: Readonly<{ state: AthleteRow["invoiceState"] }>)
   const { variant, labelKey } = INVOICE_STATE_BADGE[state];
   return (
     // Tableau de suivi du coach : les factures qu'il a émises.
-    <Link to="/invoices" search={{ as: "coach" }}>
+    <Link
+      to="/invoices"
+      search={{ as: "coach", q: undefined, situation: undefined, athlete: undefined }}
+    >
       <CmvBadge variant={variant} dot>
         {t(labelKey)}
       </CmvBadge>

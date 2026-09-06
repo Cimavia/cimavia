@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import { type CapabilityName, INVOICE_ROW_FILTERS, type InvoiceRowFilter } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { InvoicesScreen } from "@/feature/invoice";
 import { CmvRoleGate } from "@/shared/component";
@@ -19,16 +19,52 @@ import { CmvRoleGate } from "@/shared/component";
  * « absente » et « présente à undefined » ne sont pas la même chose, et TanStack construit
  * toujours l'objet.
  */
-export type InvoicesSearch = { as: CapabilityName | undefined };
+/**
+ * `?q=`, `?situation=` et `?athlete=` — l'état de la barre d'outils et l'athlète déplié vivent
+ * dans l'URL, comme ceux du tableau de suivi (#123).
+ *
+ * Une vue filtrée se recharge, se met en favori et survit à un aller-retour vers un autre écran :
+ * un filtre qui ne passe pas F5 n'est pas le même produit. Ce qui n'y est PAS, délibérément : la
+ * page de l'historique déplié. Elle appartient à un athlète et meurt avec son dépliage — l'écrire
+ * dans l'URL obligerait à la nettoyer à chaque repli, pour un lien que personne ne partage.
+ *
+ * `situation` absente vaut « Tous ». Une valeur inconnue y est ramenée : un paramètre malformé
+ * n'est pas une mesure métier manquante, et refuser de rendre l'écran serait disproportionné.
+ */
+export type InvoicesSearch = {
+  as: CapabilityName | undefined;
+  q: string | undefined;
+  situation: InvoiceRowFilter | undefined;
+  athlete: string | undefined;
+};
 
 export function parseAsSearch(value: unknown): CapabilityName | undefined {
   return value === "coach" || value === "athlete" ? value : undefined;
 }
 
-export const Route = createFileRoute("/invoices")({
-  validateSearch: (search: Record<string, unknown>): InvoicesSearch => ({
+// `find` plutôt qu'`includes` : `INVOICE_ROW_FILTERS.includes(x)` exigerait de forcer le type de
+// `x` avant de l'avoir vérifié, ce qui vide le contrôle de son sens.
+function toSituation(value: unknown): InvoiceRowFilter | undefined {
+  return INVOICE_ROW_FILTERS.find((known) => known === value);
+}
+
+/**
+ * Nommée et exportée plutôt qu'écrite en ligne : c'est la seule chose de ce fichier qui DÉCIDE —
+ * ce qu'une URL bricolée à la main devient avant d'atteindre l'écran — et elle s'éprouve alors
+ * sans monter de routeur.
+ */
+export function parseInvoicesSearch(search: Record<string, unknown>): InvoicesSearch {
+  return {
     as: parseAsSearch(search.as),
-  }),
+    q: typeof search.q === "string" && search.q.length > 0 ? search.q : undefined,
+    situation: toSituation(search.situation),
+    athlete:
+      typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
+  };
+}
+
+export const Route = createFileRoute("/invoices")({
+  validateSearch: parseInvoicesSearch,
   component: () => (
     <CmvRoleGate capability={["coach", "athlete"]}>
       <InvoicesScreen />

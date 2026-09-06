@@ -791,7 +791,7 @@
       "remindersDueHint": "Échéance passée, encore à traiter.",
       "overdueInvoices": "Factures en retard",
       "overdueInvoicesHint": "Échéance dépassée, à relancer.",
-      "invoices": "Factures en attente",
+      "invoices": "Factures à échéance",
       "invoicesHint": "Émises, échéance pas encore dépassée.",
       "notifications": "Notifications non lues",
       "notificationsHint": "Le détail est dans la cloche, en haut à droite."
@@ -907,11 +907,63 @@
     "reopenConfirm": "Confirmer",
     "cancel": "Annuler la facture",
     "cancelConfirm": "Annuler définitivement",
-    "periodLabel": "Période : {{period}}",
+    "cancelHint": "Une facture annulée ne peut plus revenir en arrière.",
+    "summary": {
+      "athletes": "{{count}} athlète facturé",
+      "athletes_other": "{{count}} athlètes facturés",
+      "overdue": "{{count}} en retard de paiement",
+      "overdue_other": "{{count}} en retard de paiement"
+    },
+    "searchLabel": "Chercher un athlète",
+    "searchPlaceholder": "Nom ou prénom",
+    "situationLabel": "Situation",
+    "situationFilter": {
+      "ALL": "Tous {{n}}",
+      "OVERDUE": "En retard {{n}}",
+      "DUE": "À échéance {{n}}",
+      "UP_TO_DATE": "À jour {{n}}"
+    },
+    "situation": {
+      "OVERDUE": "{{n}} en retard",
+      "DUE": "{{n}} à échéance",
+      "UP_TO_DATE": "À jour"
+    },
+    "rowSubtitle": {
+      "OVERDUE_SINCE": "Depuis {{n}} jours",
+      "NEXT_DUE": "Le {{date}}",
+      "LAST_PAID": "Dernière le {{date}}"
+    },
+    "table": {
+      "columns": {
+        "athlete": "Athlète",
+        "situation": "Situation",
+        "amountDue": "Montant dû"
+      }
+    },
+    "history": {
+      "columns": {
+        "period": "Période",
+        "amount": "Montant",
+        "dueDate": "Échéance"
+      },
+      "paidOn": "Payée le {{date}}",
+      "overdueOn": "Échue le {{date}}",
+      "range": "{{from}}–{{to}} sur {{total}} factures"
+    },
+    "noMatch": {
+      "title": "Aucun athlète ne correspond",
+      "description": "Change ta recherche ou reviens à « Tous »."
+    },
+    "panel": {
+      "dueDate": "Échéance",
+      "paidAt": "Paiement",
+      "plan": "Cycle",
+      "note": "Note",
+      "document": "Justificatif"
+    },
     "dueLabel": "Échéance : {{date}}",
-    "paidAtLabel": "payée le {{date}}",
     "status": {
-      "pending": "En attente",
+      "pending": "À échéance",
       "paid": "Payée",
       "overdue": "En retard",
       "cancelled": "Annulée"
