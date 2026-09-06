@@ -2074,6 +2074,21 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `n` et non `count`, pour ne pas déclencher une pluralisation sans variante — convention héritée
 > d'`InvoiceToolbar`.
 
+> **Trouvé en chemin, corrigé en #225 — sur les deux écrans** (segment et recherche ne se comptent
+> pas pareil) : #120 avait posé « les décomptes se font sur les lignes NON filtrées », pour la bonne
+> raison qu'ouvrir « À jour » ne doit pas mettre les autres segments à zéro — on ne pourrait plus en
+> sortir. La règle avait été étendue telle quelle à la RECHERCHE, sans que le raisonnement soit
+> reposé. Or les deux ne font pas la même chose : le segment TRANCHE la liste, la recherche la
+> RÉDUIT. Conséquence visible en bêta : « mar » tapé au clavier laissait « Terminés 1 » à l'écran
+> alors qu'aucun athlète nommé « mar » n'a de cycle terminé — un décompte non nul dont le clic mène
+> à « Aucun athlète ne correspond ».
+>
+> `countAthletesBySituation` et `countPlanAthletesBySituation` prennent désormais la recherche et
+> ignorent toujours le segment. Corrigé des DEUX côtés dans le même commit : c'est le même défaut,
+> et le réparer d'un seul aurait fait diverger deux barres d'outils qui doivent se ressembler. Un
+> test par écran tient l'invariant qui manquait — pour chaque segment, son décompte égale le nombre
+> de lignes que le clic donnerait.
+
 > **Extrait en #225** (`pagination.util.ts`) : `pageOfInvoices` était déjà générique mais nommée
 > d'après les factures, et l'historique des cycles pagine à l'identique. `pageOf` et
 > `HISTORY_PAGE_SIZE` vivent désormais à part ; `pageOfInvoices`, `InvoicePage` et

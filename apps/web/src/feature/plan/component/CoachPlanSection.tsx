@@ -42,7 +42,8 @@ export function CoachPlanSection({ plans }: Readonly<CoachPlanSectionProps>) {
    */
   const rows = buildPlanAthleteRows(plans, todayIsoDate()) ?? [];
   const visible = visiblePlanAthleteRows(rows, { search: q ?? "", filter, locale: i18n.language });
-  const counts = countPlanAthletesBySituation(rows);
+  // La recherche restreint les décomptes, le segment choisi non — cf. la fonction pour le pourquoi.
+  const counts = countPlanAthletesBySituation(rows, q ?? "");
 
   /**
    * `replace` partout : la barre est un RÉGLAGE DE VUE, pas une étape de navigation. Sans lui,

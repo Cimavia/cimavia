@@ -303,10 +303,7 @@ export function visibleInvoiceAthleteRows<T extends InvoiceRowSource>(
 
   return rows
     .filter(
-      (row) =>
-        (query.filter === "ALL" || row.situation === query.filter) &&
-        // Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
-        (needle === "" || comparableText(row.athleteName).includes(needle)),
+      (row) => (query.filter === "ALL" || row.situation === query.filter) && matches(row, needle),
     )
     .sort(
       (left, right) =>
@@ -345,18 +342,34 @@ export const INVOICE_HISTORY_PAGE_SIZE = HISTORY_PAGE_SIZE;
 export type InvoicePage<T> = Page<T>;
 export const pageOfInvoices = pageOf;
 
+// Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
+function matches(row: InvoiceAthleteRow<InvoiceRowSource>, needle: string): boolean {
+  return needle === "" || comparableText(row.athleteName).includes(needle);
+}
+
 /**
- * Combien d'athlètes dans chaque situation — les compteurs des segments. Comptés sur les lignes
- * NON filtrées : un segment doit annoncer ce qu'il contient, pas ce qu'il reste après le filtre
- * en cours, sinon « En retard 2 » deviendrait « En retard 0 » dès qu'on ouvre « À jour ».
+ * Combien d'athlètes dans chaque situation — les compteurs des segments.
+ *
+ * Deux règles, et elles ne disent PAS la même chose :
+ *
+ *  - le SEGMENT choisi est ignoré. Le compter ferait tomber les trois autres à zéro dès qu'on
+ *    ouvre « À jour », et on ne pourrait plus en sortir ;
+ *  - la RECHERCHE, elle, est appliquée. Elle restreint la population, là où le segment ne fait que
+ *    la trancher : sans elle, un nom tapé au clavier laisserait « En retard 2 » à l'écran alors
+ *    qu'aucun athlète de ce nom n'est en retard — un décompte non nul qui ne mène nulle part, et
+ *    un clic pour rien. Distinction manquée en #120, corrigée en #225 sur les deux écrans.
  */
 export function countAthletesBySituation(
   rows: readonly InvoiceAthleteRow<InvoiceRowSource>[],
+  search = "",
 ): Record<InvoiceRowFilter, number> {
+  const needle = comparableText(search);
+  const searched = rows.filter((row) => matches(row, needle));
+
   return {
-    ALL: rows.length,
-    OVERDUE: rows.filter((row) => row.situation === "OVERDUE").length,
-    DUE: rows.filter((row) => row.situation === "DUE").length,
-    UP_TO_DATE: rows.filter((row) => row.situation === "UP_TO_DATE").length,
+    ALL: searched.length,
+    OVERDUE: searched.filter((row) => row.situation === "OVERDUE").length,
+    DUE: searched.filter((row) => row.situation === "DUE").length,
+    UP_TO_DATE: searched.filter((row) => row.situation === "UP_TO_DATE").length,
   };
 }

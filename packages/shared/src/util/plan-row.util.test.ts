@@ -335,10 +335,41 @@ describe("countPlanAthletesBySituation", () => {
     });
   });
 
-  it("compte sur les lignes NON filtrées, pour que le segment annonce ce qu'il contient", () => {
+  it("ignore le SEGMENT choisi, sinon on ne pourrait plus en sortir", () => {
     const built = rows();
     const visible = visiblePlanAthleteRows(built, { ...QUERY, filter: "ENDED" });
+    // « En cours » annonce toujours ses 2 pendant qu'on regarde les terminés.
     expect(countPlanAthletesBySituation(built).ONGOING).toBe(2);
     expect(visible).toHaveLength(1);
+  });
+
+  /**
+   * La recherche, elle, restreint la population : elle ne tranche pas la liste, elle la réduit.
+   * Sans ça, un segment annonce un nombre qui ne mène nulle part.
+   */
+  it("applique la RECHERCHE, elle", () => {
+    // « bon » ne laisse que Léa Bonnet, dont le cycle court.
+    expect(countPlanAthletesBySituation(rows(), "bon")).toEqual({
+      ALL: 1,
+      ONGOING: 1,
+      UPCOMING: 0,
+      ENDED: 0,
+    });
+  });
+
+  it("aucun segment ne peut annoncer un nombre qui ne mène nulle part", () => {
+    const built = rows();
+    const search = "bon";
+    const counts = countPlanAthletesBySituation(built, search);
+
+    for (const filter of ["ALL", "ONGOING", "UPCOMING", "ENDED"] as const) {
+      const visible = visiblePlanAthleteRows(built, { ...QUERY, search, filter });
+      expect(visible).toHaveLength(counts[filter]);
+    }
+  });
+
+  it("cherche sans casse ni accent, comme la liste qu'elle décompte", () => {
+    expect(countPlanAthletesBySituation(rows(), "LÉA").ALL).toBe(1);
+    expect(countPlanAthletesBySituation(rows(), "lea").ALL).toBe(1);
   });
 });

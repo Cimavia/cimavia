@@ -361,10 +361,7 @@ export function visiblePlanAthleteRows<T extends PlanRowSource>(
 
   return rows
     .filter(
-      (row) =>
-        (query.filter === "ALL" || row.situation === query.filter) &&
-        // Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
-        (needle === "" || comparableText(row.athleteName).includes(needle)),
+      (row) => (query.filter === "ALL" || row.situation === query.filter) && matches(row, needle),
     )
     .sort(
       (left, right) =>
@@ -400,10 +397,22 @@ function compareWithinSituation(
   return a.endDate.localeCompare(b.endDate);
 }
 
+// Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
+function matches(row: PlanAthleteRow<PlanRowSource>, needle: string): boolean {
+  return needle === "" || comparableText(row.athleteName).includes(needle);
+}
+
 /**
- * Combien d'athlètes dans chaque situation — les compteurs des segments. Comptés sur les lignes
- * NON filtrées : un segment doit annoncer ce qu'il contient, pas ce qu'il reste après le filtre en
- * cours, sinon « En cours 4 » deviendrait « En cours 0 » dès qu'on ouvre « Terminés ».
+ * Combien d'athlètes dans chaque situation — les compteurs des segments.
+ *
+ * Deux règles, et elles ne disent PAS la même chose :
+ *
+ *  - le SEGMENT choisi est ignoré. Le compter ferait tomber les trois autres à zéro dès qu'on
+ *    ouvre « Terminés », et on ne pourrait plus en sortir ;
+ *  - la RECHERCHE, elle, est appliquée. Elle restreint la population, là où le segment ne fait que
+ *    la trancher : sans elle, « mar » tapé au clavier laisserait « Terminés 1 » à l'écran alors
+ *    qu'aucun athlète nommé « mar » n'a de cycle terminé — un décompte non nul qui ne mène nulle
+ *    part, et un clic pour rien.
  *
  * Ils comptent des ATHLÈTES et non des cycles, parce que le tableau affiche des athlètes : « 18 »
  * au-dessus de six lignes ne répondrait à aucune question. `ALL` peut donc dépasser la somme des
@@ -411,11 +420,15 @@ function compareWithinSituation(
  */
 export function countPlanAthletesBySituation(
   rows: readonly PlanAthleteRow<PlanRowSource>[],
+  search = "",
 ): Record<PlanRowFilter, number> {
+  const needle = comparableText(search);
+  const searched = rows.filter((row) => matches(row, needle));
+
   return {
-    ALL: rows.length,
-    ONGOING: rows.filter((row) => row.situation === "ONGOING").length,
-    UPCOMING: rows.filter((row) => row.situation === "UPCOMING").length,
-    ENDED: rows.filter((row) => row.situation === "ENDED").length,
+    ALL: searched.length,
+    ONGOING: searched.filter((row) => row.situation === "ONGOING").length,
+    UPCOMING: searched.filter((row) => row.situation === "UPCOMING").length,
+    ENDED: searched.filter((row) => row.situation === "ENDED").length,
   };
 }
