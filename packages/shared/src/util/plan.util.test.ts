@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { PlanStatus } from "../dto/plan.schema";
 import { shiftIsoDate } from "./date.util";
 import {
   isDateInPlanWeek,
   isSelfCoached,
+  PLAN_STATE_BADGE,
+  PLAN_STATES,
   planEndDate,
   planPhase,
+  planState,
   planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,
@@ -284,5 +288,31 @@ describe("isSelfCoached", () => {
   // d'un cycle qui n'a personne à facturer.
   it("ne prend pas un cycle sans destinataire pour un cycle solo", () => {
     expect(isSelfCoached({ coachId: "u1", athleteId: null })).toBe(false);
+  });
+});
+
+describe("planState", () => {
+  const DRAFT = { status: PlanStatus.DRAFT, startDate: "2026-07-13", weekCount: 8 };
+  const PUBLISHED = { ...DRAFT, status: PlanStatus.PUBLISHED };
+
+  it("un brouillon est un brouillon, quelle que soit sa date", () => {
+    // Daté de l'an prochain, il n'est pourtant pas « à venir » : il n'est promis à personne.
+    expect(planState({ ...DRAFT, startDate: "2027-01-04" }, "2026-09-09")).toBe("DRAFT");
+    expect(planState(DRAFT, "2026-09-09")).toBe("DRAFT");
+  });
+
+  it("un cycle diffusé prend son époque", () => {
+    expect(planState(PUBLISHED, "2026-06-01")).toBe("UPCOMING");
+    expect(planState(PUBLISHED, "2026-08-01")).toBe("ONGOING");
+    expect(planState(PUBLISHED, "2026-10-01")).toBe("ENDED");
+  });
+
+  it("n'invente pas d'état sur un cycle non situable", () => {
+    expect(planState({ ...PUBLISHED, weekCount: 0 }, "2026-09-09")).toBeNull();
+  });
+
+  it("chaque état a sa couleur, et « en cours » porte l'accent", () => {
+    expect(PLAN_STATE_BADGE.ONGOING).toBe("accent");
+    for (const state of PLAN_STATES) expect(PLAN_STATE_BADGE[state]).toBeTruthy();
   });
 });

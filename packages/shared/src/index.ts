@@ -683,6 +683,7 @@ export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";
 export type {
   PlanPeriod,
   PlanPhase,
+  PlanState,
   PlanWeekRange,
   PlanWeekRef,
   SessionProgress,
@@ -691,8 +692,11 @@ export type {
 export {
   isDateInPlanWeek,
   isSelfCoached,
+  PLAN_STATE_BADGE,
+  PLAN_STATES,
   planEndDate,
   planPhase,
+  planState,
   planWeekCopyShiftDays,
   planWeekDays,
   planWeekNumber,

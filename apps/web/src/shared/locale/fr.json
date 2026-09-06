@@ -561,6 +561,48 @@
       "ONGOING": "En cours {{n}}",
       "UPCOMING": "À venir {{n}}",
       "ENDED": "Terminés {{n}}"
+    },
+    "table": {
+      "columns": {
+        "athlete": "Athlète",
+        "plan": "Cycle",
+        "deadline": "Échéance"
+      }
+    },
+    "history": {
+      "columns": {
+        "plan": "Cycle",
+        "weeks": "Semaines",
+        "startDate": "Début"
+      },
+      "weeks": "{{n}} sem.",
+      "range": "{{from}}–{{to}} sur {{total}} cycles"
+    },
+    "state": {
+      "DRAFT": "Brouillon",
+      "UPCOMING": "À venir",
+      "ONGOING": "En cours · S{{week}}",
+      "ENDED": "Terminé"
+    },
+    "row": {
+      "week": "S{{week}}/{{total}}"
+    },
+    "deadline": {
+      "ENDS_THIS_WEEK": "Se termine cette semaine",
+      "ENDS_IN": "Se termine dans {{count}} semaine",
+      "ENDS_IN_other": "Se termine dans {{count}} semaines",
+      "ENDED_THIS_WEEK": "Terminé cette semaine",
+      "ENDED_SINCE": "Terminé depuis {{count}} semaine",
+      "ENDED_SINCE_other": "Terminé depuis {{count}} semaines",
+      "STARTS_ON": "Commence le {{date}}"
+    },
+    "overlap": {
+      "flag": "{{n}} cycles diffusés",
+      "notice": "Ces cycles se chevauchent du {{from}} au {{to}} : « {{hidden}} » ne lui est pas servi."
+    },
+    "noMatch": {
+      "title": "Aucun athlète ne correspond",
+      "description": "Change ta recherche ou reviens à « Tous »."
     }
   },
   "nav": {

@@ -1,7 +1,7 @@
 // Logique pure des planifications (cycle → semaines → séances), partagée API ↔ web ↔ mobile.
 // S'appuie sur le calendrier générique (date.util) : ici, seule la notion de CYCLE est traitée.
 
-import { ScheduledSessionStatus } from "../dto/plan.schema";
+import { PlanStatus, ScheduledSessionStatus } from "../dto/plan.schema";
 import { DAYS_PER_WEEK, daysBetweenIsoDates, isIsoDate, shiftIsoDate } from "./date.util";
 
 // Une semaine de plan, bornes incluses (lundi → dimanche).
@@ -216,3 +216,39 @@ function pickByStartDate<T extends PlanPeriod>(
 export function isSelfCoached(plan: { coachId: string; athleteId: string | null }): boolean {
   return plan.athleteId != null && plan.coachId === plan.athleteId;
 }
+
+/**
+ * Ce qu'une pastille de cycle annonce (#225) : son STATUT tant qu'il est brouillon, son ÉPOQUE
+ * ensuite. Quatre valeurs et pas deux échelles côte à côte — un brouillon daté de la semaine
+ * prochaine n'est pas « à venir », il n'est encore promis à personne.
+ */
+export const PLAN_STATES = ["DRAFT", "UPCOMING", "ONGOING", "ENDED"] as const;
+export type PlanState = (typeof PLAN_STATES)[number];
+
+/**
+ * `null` quand le cycle n'est pas situable (dates illisibles) — surtout pas un état par défaut,
+ * qui rangerait un cycle illisible parmi les terminés.
+ */
+export function planState(
+  plan: PlanPeriod & { status: PlanStatus },
+  date: string,
+): PlanState | null {
+  return plan.status === PlanStatus.DRAFT ? "DRAFT" : planPhase(plan, date);
+}
+
+/**
+ * La couleur de chaque état, décidée sur la maquette et tenue en un seul endroit — comme
+ * `INVOICE_STATE_BADGE`. Une seconde table dériverait de celle-ci, et le même cycle se lirait
+ * « en cours » en orange sur un écran et en bleu sur l'autre.
+ *
+ * L'accent terracotta est réservé à l'action primaire — et à « en cours », qui EST le moment dont
+ * le coach s'occupe. Écart assumé à la planche : « terminé » y est plus en retrait que
+ * « brouillon » (fond transparent contre fond plein), nuance que `CmvBadge` n'a pas et qui
+ * demanderait une variante de plus au design system.
+ */
+export const PLAN_STATE_BADGE = {
+  DRAFT: "neutral",
+  UPCOMING: "info",
+  ONGOING: "accent",
+  ENDED: "neutral",
+} as const satisfies Record<PlanState, "neutral" | "info" | "accent">;
