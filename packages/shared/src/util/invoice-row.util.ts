@@ -1,6 +1,7 @@
 import { InvoiceStatus } from "../dto/invoice.schema";
 import { daysBetweenIsoDates } from "./date.util";
 import { InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
+import { HISTORY_PAGE_SIZE, type Page, pageOf } from "./pagination.util";
 import { comparableText } from "./search.util";
 
 /**
@@ -336,47 +337,13 @@ function compareWithinSituation(
 // ── Historique paginé ────────────────────────────────────────────────────────
 
 /**
- * Cinq factures par page (maquette) : de quoi couvrir les retards courants sans faire défiler
- * l'écran entier quand un athlète cumule des années d'historique.
+ * La pagination de l'historique vit dans `pagination.util.ts` depuis #225 : la liste des cycles
+ * découpe le sien exactement pareil, à la même taille, et deux copies auraient fini par diverger
+ * sur une borne. Les noms d'ici restent, eux, pour leurs appelants — ils disent CE QU'ON pagine.
  */
-export const INVOICE_HISTORY_PAGE_SIZE = 5;
-
-export type InvoicePage<T> = {
-  items: T[];
-  /** Page effectivement rendue, 1-based et BORNÉE : une demande hors bornes est ramenée dedans. */
-  page: number;
-  /** Toujours ≥ 1 : une liste vide a une page vide, pas zéro page. */
-  pageCount: number;
-  /** Rangs 1-based du premier et du dernier élément — « 6–10 sur 14 ». `0` sur une liste vide. */
-  from: number;
-  to: number;
-  total: number;
-};
-
-/**
- * La tranche à afficher. Borne la page plutôt que de rendre une liste vide : supprimer la dernière
- * facture d'une page 3 ne doit pas laisser le coach devant un tableau vide sans savoir pourquoi.
- */
-export function pageOfInvoices<T>(
-  invoices: readonly T[],
-  page: number,
-  size: number = INVOICE_HISTORY_PAGE_SIZE,
-): InvoicePage<T> {
-  const total = invoices.length;
-  const pageCount = Math.max(1, Math.ceil(total / size));
-  const current = Math.min(Math.max(Math.trunc(page), 1), pageCount);
-  const start = (current - 1) * size;
-  const items = invoices.slice(start, start + size);
-
-  return {
-    items,
-    page: current,
-    pageCount,
-    from: items.length === 0 ? 0 : start + 1,
-    to: start + items.length,
-    total,
-  };
-}
+export const INVOICE_HISTORY_PAGE_SIZE = HISTORY_PAGE_SIZE;
+export type InvoicePage<T> = Page<T>;
+export const pageOfInvoices = pageOf;
 
 /**
  * Combien d'athlètes dans chaque situation — les compteurs des segments. Comptés sur les lignes
