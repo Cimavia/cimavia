@@ -2,12 +2,60 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { CmvText } from "./CmvText";
 
+/**
+ * L'habillage AU REPOS, et le poids que le geste prend une fois armé. Mêmes noms que les variantes
+ * du `CmvButton` web (`secondary`, `ghost`, `danger`) : un pied de page qui range trois actions
+ * doit pouvoir les hiérarchiser des deux côtés avec le même mot.
+ *
+ * `danger` reste le défaut, et reste l'habillage historique : un geste destructif s'annonce dès le
+ * repos. `ghost` sert le geste destructif qui est aussi TERTIAIRE — annuler une facture, sous
+ * « Marquer payée » : il ne doit pas crier plus fort que l'action principale, et sa gravité
+ * n'apparaît qu'à l'armement. `secondary` sert le geste RÉVERSIBLE, qu'on protège d'un
+ * effleurement sans le peindre en rouge : rouvrir une facture payée se corrige.
+ */
+type CmvConfirmVariant = "danger" | "secondary" | "ghost";
+
+const REST_CLASSES: Record<CmvConfirmVariant, string> = {
+  danger: "border border-cmv-error",
+  secondary: "border border-cmv-border-hi bg-cmv-surface-hi",
+  ghost: "border border-cmv-border",
+};
+
+const REST_TEXT: Record<CmvConfirmVariant, string> = {
+  danger: "text-cmv-error",
+  secondary: "text-cmv-text-hi",
+  ghost: "text-cmv-text-mid",
+};
+
+/**
+ * L'armement révèle la gravité : `ghost` passe alors aux nuances d'état (`soft` / `line` / `on`),
+ * jamais au DEFAULT en texte, qui ne passe pas AA sur nos fonds.
+ */
+const CONFIRM_CLASSES: Record<CmvConfirmVariant, string> = {
+  danger: "bg-cmv-error",
+  secondary: "border border-cmv-border-hi bg-cmv-surface-hi",
+  ghost: "border border-cmv-error-line bg-cmv-error-soft",
+};
+
+const CONFIRM_TEXT: Record<CmvConfirmVariant, string> = {
+  danger: "text-cmv-text-hi",
+  secondary: "text-cmv-text-hi",
+  ghost: "text-cmv-error-on",
+};
+
 type CmvConfirmButtonProps = {
   label: string;
   confirmLabel: string;
   cancelLabel: string;
   onConfirm: () => void;
   disabled?: boolean;
+  variant?: CmvConfirmVariant;
+  /**
+   * Ce que la confirmation engage, écrit UNE FOIS le bouton armé — parité avec le web. Au repos il
+   * n'y a rien à avertir ; armé, c'est le dernier moment où le dire. Omis, le bouton se comporte
+   * comme avant.
+   */
+  confirmHint?: string;
 };
 
 /**
@@ -33,6 +81,8 @@ export function CmvConfirmButton({
   cancelLabel,
   onConfirm,
   disabled,
+  variant = "danger",
+  confirmHint,
 }: Readonly<CmvConfirmButtonProps>) {
   const [armed, setArmed] = useState(false);
   const dimmed = disabled === true ? "opacity-50" : "";
@@ -42,32 +92,39 @@ export function CmvConfirmButton({
       <Pressable
         onPress={() => setArmed(true)}
         disabled={disabled}
-        className={`rounded-lg border border-cmv-error px-4 py-3 ${dimmed}`}
+        className={`rounded-lg px-4 py-3 ${REST_CLASSES[variant]} ${dimmed}`}
       >
-        <CmvText className="text-center text-cmv-error">{label}</CmvText>
+        <CmvText className={`text-center ${REST_TEXT[variant]}`}>{label}</CmvText>
       </Pressable>
     );
   }
 
   return (
-    <View className="flex-row gap-2">
-      <Pressable
-        onPress={() => {
-          setArmed(false);
-          onConfirm();
-        }}
-        disabled={disabled}
-        className={`flex-1 rounded-lg bg-cmv-error px-4 py-3 ${dimmed}`}
-      >
-        <CmvText className="text-center text-cmv-text-hi">{confirmLabel}</CmvText>
-      </Pressable>
-      <Pressable
-        onPress={() => setArmed(false)}
-        disabled={disabled}
-        className={`flex-1 rounded-lg border border-cmv-border px-4 py-3 ${dimmed}`}
-      >
-        <CmvText className="text-center text-cmv-text-mid">{cancelLabel}</CmvText>
-      </Pressable>
+    <View className="gap-2">
+      {/* Au-dessus des boutons, et non à côté : sur un téléphone, une phrase mise en ligne avec
+          eux les écraserait tous les trois. */}
+      {confirmHint == null ? null : (
+        <CmvText className="text-cmv-text-mid text-sm">{confirmHint}</CmvText>
+      )}
+      <View className="flex-row gap-2">
+        <Pressable
+          onPress={() => {
+            setArmed(false);
+            onConfirm();
+          }}
+          disabled={disabled}
+          className={`flex-1 rounded-lg px-4 py-3 ${CONFIRM_CLASSES[variant]} ${dimmed}`}
+        >
+          <CmvText className={`text-center ${CONFIRM_TEXT[variant]}`}>{confirmLabel}</CmvText>
+        </Pressable>
+        <Pressable
+          onPress={() => setArmed(false)}
+          disabled={disabled}
+          className={`flex-1 rounded-lg border border-cmv-border px-4 py-3 ${dimmed}`}
+        >
+          <CmvText className="text-center text-cmv-text-mid">{cancelLabel}</CmvText>
+        </Pressable>
+      </View>
     </View>
   );
 }
