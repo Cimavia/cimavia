@@ -20,7 +20,7 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#68](https://github.com/Cimavia/cimavia/issues/68) pagination ·
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
-[#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus dix issues
+[#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
 autonomes. **Vingt-et-une dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
@@ -137,7 +137,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du webm/opus, qu'iOS peut ne pas lire. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | P5-4 | **Throttle push « first-unread » sans reprise temporelle** : une rafale de messages = 1 push, sans rappel. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
-| P5-5 | **Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile), et entre mobile et web. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
+| ~~P5-5~~ | ~~**Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile)~~. La moitié mobile↔web n'a jamais été une dette : elle s'est réglée en promotion **intra-app** côté web (#26), ce que la ligne d'origine annonçait à tort comme un partage à faire. | ✅ | résolue en [#96](https://github.com/Cimavia/cimavia/issues/96) — `shared/util/media.util.ts` paramétré par un `MediaProfile`, le déclencheur ayant fini par survenir : les deux copies contrôlaient les plafonds à deux endroits différents |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 > **Tranché en #190** (répondre à un débrief) : la réponse est un **`Message` rattaché**
@@ -887,7 +887,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 186 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
-| M-4 | **Préparation média toujours dupliquée entre les deux features mobile** (`feedback` ↔ `message`). La moitié web a été résolue en #26 par une promotion **intra-app** ; la moitié mobile reste. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
+| ~~M-4~~ | ~~**Préparation média toujours dupliquée entre les deux features mobile**~~ (`feedback` ↔ `message`) — doublon de **P5-5**, la même dette suivie à deux endroits. | ✅ | résolue en [#96](https://github.com/Cimavia/cimavia/issues/96) — voir **P5-5** |
 | M-5 | **Pas de presse-papier sur mobile** : l'invitation se transmet par `Share` (SMS, WhatsApp) et non par « Copier le code » comme la maquette. `expo-clipboard` n'est pas une dépendance du projet. | 🟢 | — *(déclencheur : un coach qui veut coller le code ailleurs)* |
 > **Corrigé en #194, trouvé par accident** : `useUnreadNotificationCount` et `useUnreadByCapability`
 > (#176) partageaient une clé de cache — voulu, c'est la même requête — mais avec **deux `queryFn`
@@ -1265,10 +1265,13 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > comme un type qu'il n'est pas — et `prepareWebMedia` a été rebranché dessus pour que les deux
 > lectures ne puissent plus diverger.
 >
-> **Reste dupliqué, et c'est [#96](https://github.com/Cimavia/cimavia/issues/96)** : les quatre
-> `failureReason`/`rejectedReason` ont la même forme mais pas le même contenu — chacune nomme les
-> clés de sa feature, et côté mobile chacune teste un `MediaRejectedError` **différent**, les deux
-> features en définissant chacune un (dette **M-4**). Les unifier demande de traiter #96 d'abord.
+> **Reste dupliqué** : les quatre `failureReason`/`rejectedReason` ont la même forme mais pas le
+> même contenu — chacune nomme les clés de sa feature. L'obstacle qu'ajoutait le mobile est **levé
+> depuis #96** : ses deux features testaient chacune un `MediaRejectedError` différent, il n'y en a
+> plus qu'un, celui de `shared/util/media.util.ts`. Ce qui reste n'est plus un empêchement mais un
+> arbitrage : les clés étant propres à chaque feature, unifier demanderait de les passer en
+> paramètre — soit le `MediaProfile` déjà là côté mobile, sans équivalent commun aux deux
+> plateformes.
 >
 > **Tranché en beta** (plafonds relevés à **20 photos / 10 vidéos / 20 notes vocales**, depuis
 > 5/3/15) : la sélection multiple a rendu visible ce que l'ajout un par un cachait — le picker
