@@ -69,7 +69,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
-| P4-3 | **Vol de token push possible** : `POST /me/push-tokens` réaffecte au compte courant un token déjà enregistré. | 🟡 | [#90](https://github.com/Cimavia/cimavia/issues/90) |
+| ~~P4-3~~ | ~~**Vol de token push possible**~~ : `POST /me/push-tokens` réaffectait au compte courant un token déjà enregistré. | ✅ | résolue en [#90](https://github.com/Cimavia/cimavia/issues/90) — un **secret d'installation**, émis par l'API et gardé en `expo-secure-store`, conditionne la réaffectation |
 | P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo dans le lecteur système depuis **#151**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
 | P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
 | ~~P2-1~~ / ~~P3-2~~ | *(inchangées)* P4 n'ajoute **aucun** nouveau cas : un média de débrief n'est jamais copié ni partagé, sa suppression purge l'objet directement. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
@@ -77,6 +77,46 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > **Résolu en P4** : ~~P3-1~~ (push non envoyé) — `expo-server-sdk` est branché dans
 > `NotificationService`, sans que les appelants aient bougé. ~~P3-6~~ côté débriefs — la tuile
 > « Débriefs à relire » est connectée (la tuile factures a suivi en P6).
+
+> **Tranché en #90** (prouver l'appareil sans passer par le canal push) : l'issue prescrivait un
+> **challenge poussé au token** — l'API émet un nonce, le client renvoie ce qu'il a reçu. Écarté
+> pour deux raisons que l'énoncé ne pouvait pas voir. D'abord iOS **étrangle les pushes
+> silencieux** : le cas n°1 de la réaffectation est le téléphone de dev qui passe du compte coach
+> au compte athlète, et on l'aurait fait dépendre du canal le moins fiable, avec un échec muet.
+> Ensuite l'e2e qu'exigeait l'issue serait devenu **malhonnête** — « réaffectation avec challenge
+> valide → 2xx » n'est testable sans téléphone qu'en allant lire le nonce en base, c'est-à-dire en
+> testant la table plutôt que la preuve.
+>
+> Ce qui le remplace répond à la même question — « es-tu la même installation ? » — par un
+> **secret d'installation** : le client le présente, l'API ne garde que son empreinte
+> (`installationSecretHash`, sha256, comparé en temps constant). Qui connaît le token sans être
+> sur l'appareil ne l'a pas ; l'appareil qui change de main, lui, l'a toujours et passe. Aucun
+> aller-retour push, donc aucun chemin hors-ligne à prévoir, et l'e2e se fait en HTTP pur.
+>
+> **Le secret est émis par l'API, pas tiré par le téléphone** — l'inverse aurait été plus naturel.
+> Le mobile n'a aucune source d'aléa cryptographique : ni `expo-crypto`, ni polyfill
+> `crypto.getRandomValues` dans le runtime Expo 56. Le faire tirer côté client coûtait un module
+> natif et un rebuild du dev client, pour un aléa que `randomBytes` produit déjà. Le téléphone n'a
+> donc qu'à le **conserver**, ce que `expo-secure-store` fait déjà pour la session.
+>
+> **Le propriétaire n'est jamais refusé** : présenter un mauvais secret sur SA propre ligne
+> déclenche une **réémission**, pas un 403. Sa session prouve déjà que la ligne est à lui — le
+> secret n'a rien à prouver là. C'est le chemin de reprise d'un trousseau effacé ; sans lui, un
+> appareil ayant perdu son secret ne serait plus jamais réaffectable.
+>
+> **La fenêtre héritée est assumée, et se referme seule** : une ligne d'avant #90 ne porte aucune
+> empreinte, personne ne peut donc rien prouver dessus — elle est **adoptée** au premier
+> enregistrement, qui la scelle du même geste. La refuser aurait condamné les appareils de la
+> bêta. `usePushToken` réenregistrant à chaque montage, chaque appareil ferme sa propre fenêtre
+> à la première ouverture de l'app à jour, et rien n'est pire qu'avant entre-temps.
+>
+> **Ce que l'issue disait de travers** : son déclencheur — « à revoir si un usage multi-comptes
+> par appareil apparaît réellement (épic #7) » — était **désamorcé, pas déclenché**. #7 a livré
+> les capacités sur un **seul compte** (voir « Tranché en #129 » et « Tranché en #9 ») : un
+> coach-athlète a un basculeur d'espace, pas deux comptes. Et l'impact annoncé était doublement
+> inexact : le vol est **auto-guérissant** (la victime reprend son token à sa prochaine ouverture
+> d'app), mais la bascule faisait aussi afficher les notifications de l'attaquant **sur l'écran de
+> la victime** — nuisance, pas fuite. Traité quand même, comme durcissement avant iOS.
 
 > **Rattrapages faits en P4** (hors périmètre annoncé, révélés par le test de bout en bout) :
 > **p4-5** l'écran mobile « rejoindre un coach » — `POST /invitations/accept` existait et était
