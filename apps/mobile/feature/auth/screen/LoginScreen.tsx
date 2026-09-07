@@ -6,8 +6,8 @@ import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
-import { resetQueryCache } from "@/shared/lib/query";
 import { landingTab } from "@/shared/lib/tabs";
 export function LoginScreen() {
   const { t } = useTranslation();
@@ -36,7 +36,7 @@ export function LoginScreen() {
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
       // ici sans qu'aucune déconnexion soit passée, et le cache du précédent serait resservi.
-      await resetQueryCache();
+      await resetAccountData();
       router.replace("/planning");
     } catch {
       setError(t("auth.errors.generic"));
