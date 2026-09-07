@@ -154,6 +154,8 @@
       "composition": "Déroulé · {{count}} exercice(s)",
       "notes": "Consignes du coach",
       "link": "Document",
+      "documentOffline": "Ce document n'est pas sur ton téléphone. Reconnecte-toi pour l'ouvrir.",
+      "documentUnavailable": "Ce document n'a pas pu être ouvert.",
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
       "emptyTitle": "Cette séance est vide",

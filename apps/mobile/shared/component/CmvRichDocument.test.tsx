@@ -8,6 +8,11 @@ import { CmvRichDocument } from "./CmvRichDocument";
  * Le réseau est piloté PAR TEST, contrairement au harnais global qui le fige à « connecté » :
  * tout l'objet de ces cas est de séparer les deux causes d'échec d'une image.
  */
+const localDocumentUri = vi.fn<() => string | null>(() => null);
+vi.mock("@/shared/lib/document-cache", () => ({
+  localDocumentUri: () => localDocumentUri(),
+}));
+
 let reachable: boolean | null = true;
 vi.mock("expo-network", () => ({
   useNetworkState: () => ({ isConnected: true, isInternetReachable: reachable }),
@@ -51,17 +56,27 @@ function instructionImage(): ExerciseDocumentDto {
   };
 }
 
-function renderImageBlock(document: ExerciseDocumentDto, mediaId = "media-1") {
+function renderImageBlock(
+  document: ExerciseDocumentDto,
+  mediaId = "media-1",
+  planId: string | null = "plan-1",
+) {
   return renderRn(
     <CmvRichDocument
       blocks={[{ type: RichBlockType.IMAGE, mediaId, caption: "Position basse" }]}
       documents={[document]}
+      planId={planId}
     />,
   );
 }
 
+function renderedSource(container: HTMLElement): string | null {
+  return container.querySelector("img")?.getAttribute("src") ?? null;
+}
+
 beforeEach(() => {
   reachable = true;
+  localDocumentUri.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -133,5 +148,45 @@ describe("CmvRichDocument — image de consigne", () => {
     expect(screen.queryByText("common.imageOffline")).toBeNull();
     expect(screen.queryByText("common.imageUnavailable")).toBeNull();
     expect(screen.queryByText("Position basse")).toBeNull();
+  });
+});
+
+describe("CmvRichDocument — image descendue sur l'appareil", () => {
+  /**
+   * Tout l'objet de #95 : l'image lue depuis le disque ne périme pas et ne demande aucun réseau.
+   * Elle passe donc devant l'URL signée même EN LIGNE — l'aller-retour au storage n'apporterait
+   * rien de plus qu'une latence.
+   */
+  it("préfère le fichier local à l'url signée", () => {
+    localDocumentUri.mockReturnValue("file:///documents/plan-documents/plan-1/media-1.png");
+    stubImageLoading("load");
+
+    const { container } = renderImageBlock(instructionImage());
+
+    expect(renderedSource(container)).toBe("file:///documents/plan-documents/plan-1/media-1.png");
+  });
+
+  it("retombe sur l'url signée tant que le fichier n'est pas descendu", () => {
+    stubImageLoading("load");
+    const document = instructionImage();
+
+    const { container } = renderImageBlock(document);
+
+    expect(renderedSource(container)).toBe(document.url);
+  });
+
+  /**
+   * Hors de tout cycle — une consigne de bibliothèque — il n'y a pas de magasin où chercher :
+   * `null` dit l'absence de cycle, pas l'absence de fichier.
+   */
+  it("ne consulte pas le magasin sans cycle", () => {
+    localDocumentUri.mockReturnValue("file:///documents/plan-documents/plan-1/media-1.png");
+    stubImageLoading("load");
+    const document = instructionImage();
+
+    const { container } = renderImageBlock(document, "media-1", null);
+
+    expect(localDocumentUri).not.toHaveBeenCalled();
+    expect(renderedSource(container)).toBe(document.url);
   });
 });

@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Image, Linking, Text, View } from "react-native";
 import { CmvText } from "@/shared/component/CmvText";
+import { localDocumentUri } from "@/shared/lib/document-cache";
 
 /**
  * Rendu NATIF d'une consigne structurée — le pendant React Native de `CmvRichDocument` côté web.
@@ -152,22 +153,35 @@ type CmvRichDocumentProps = {
   blocks: RichDocument | null;
   /** Les documents de l'exercice — c'est parmi eux que les `mediaId` se résolvent. */
   documents: readonly ExerciseDocumentDto[];
+  /**
+   * Le cycle dont cette consigne est une copie diffusée, ou `null` hors de tout cycle (une
+   * consigne de bibliothèque, qu'aucune lecture hors-ligne ne concerne). Il désigne le magasin où
+   * chercher l'image sur l'appareil — sans lui, il n'y a que l'URL signée.
+   */
+  planId: string | null;
 };
 
-export function CmvRichDocument({ blocks, documents }: Readonly<CmvRichDocumentProps>) {
+export function CmvRichDocument({ blocks, documents, planId }: Readonly<CmvRichDocumentProps>) {
   /**
    * Le document ne stocke qu'un `mediaId` (règle dure n°7) : l'URL est signée et expire, la graver
    * ferait afficher des images mortes trois mois plus tard. On la retrouve à chaque lecture parmi
    * les documents d'usage INSTRUCTION.
+   *
+   * Le FICHIER LOCAL passe devant quand il est là (#95) : il ne périme pas, ne demande pas de
+   * réseau, et évite l'aller-retour au storage même en ligne. L'URL signée reste le repli — elle
+   * seule existe tant que la passe de téléchargement n'a pas eu lieu.
    */
   const urlById = useMemo(
     () =>
       new Map(
         documents
           .filter((document) => document.usage === DocumentUsage.INSTRUCTION)
-          .map((document) => [document.id, document.url]),
+          .map((document) => [
+            document.id,
+            (planId == null ? null : localDocumentUri(planId, document)) ?? document.url,
+          ]),
       ),
-    [documents],
+    [documents, planId],
   );
 
   // Une consigne absente n'affiche RIEN — pas de « aucune consigne », qui serait du bruit sur une

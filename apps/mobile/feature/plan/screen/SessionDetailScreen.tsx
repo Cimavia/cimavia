@@ -298,6 +298,7 @@ function SessionExercises({
         <ExerciseCard
           key={exercise.id}
           exercise={exercise}
+          planId={session.planId}
           index={index}
           customMetrics={exercise.customMetrics}
           tracking={local.tracking[exercise.id] ?? null}
