@@ -117,9 +117,22 @@ const PREFIX_NAME = /[Pp]refix$/;
  */
 const ANNOTATION = /i18n-values\s+([\w.]+)\s*:\s*([^\n*]+)/g;
 
-// `export const X = { A: "A" } as const` et `const Y = ["a", "b"] as const` : les deux formes qui
-// portent un ensemble de valeurs dans ce dépôt.
-const CONST_ENUM = /(?:export\s+)?const\s+(\w+)\s*=\s*([{[])([\s\S]*?)[}\]]\s*as const/g;
+/**
+ * `export const X = { A: "A" } as const` et `const Y = ["a", "b"] as const` : les deux formes qui
+ * portent un ensemble de valeurs dans ce dépôt.
+ *
+ * ⚠️ `[^;]` et non `[\s\S]` dans le corps, et c'est un CORRECTIF (#172) : le quantificateur
+ * paresseux traversait les instructions. Une déclaration ordinaire — `const others = [second,
+ * ...rest];` — ouvrait un match qui courait jusqu'au prochain `as const` du fichier, enregistrait
+ * l'énumération suivante sous le nom de la variable, et faisait DISPARAÎTRE la vraie. Symptôme
+ * observé : `plan.stateFilter.PLAN_ROW_FILTERS` déclarée absente, à des dizaines de lignes de la
+ * cause, alors que `PLAN_ROW_FILTERS` était bien exportée.
+ *
+ * Un point-virgule termine une instruction et ne peut pas apparaître à l'intérieur d'un littéral de
+ * tableau ou d'objet : l'interdire borne le match à la déclaration en cours. Ce n'est pas un
+ * analyseur syntaxique — il en faudrait un pour être exact —, mais c'est la borne qui manquait.
+ */
+const CONST_ENUM = /(?:export\s+)?const\s+(\w+)\s*=\s*([{[])([^;]*?)[}\]]\s*as const/g;
 
 // Les littéraux affectés à une variable de préfixe (`labelPrefix="library.session"`), qui rendent
 // le contrôle D possible : sans eux, `${labelPrefix}` serait indéchiffrable.
