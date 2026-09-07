@@ -1,4 +1,3 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import type { EnvSchema } from "@cmv/shared";
 import {
   type CanActivate,
@@ -8,6 +7,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { constantTimeEquals } from "../../util/crypto.util";
 
 /**
  * En-tête portant le secret partagé. Nommé plutôt qu'un `Authorization: Bearer` : ce n'est pas une
@@ -15,19 +15,6 @@ import { ConfigService } from "@nestjs/config";
  * l'y brancher un jour.
  */
 export const REMINDER_TICK_HEADER = "x-cimavia-tick-secret";
-
-/**
- * Compare en temps CONSTANT, après hachage. Le hachage n'est pas là pour protéger le secret mais
- * pour ramener les deux entrées à la même longueur : `timingSafeEqual` lève sur des tampons de
- * tailles différentes, et faire précéder l'appel d'un `length ===` divulguerait la longueur du
- * secret par le temps de réponse.
- */
-function matchesSecret(provided: string, expected: string): boolean {
-  return timingSafeEqual(
-    createHash("sha256").update(provided).digest(),
-    createHash("sha256").update(expected).digest(),
-  );
-}
 
 /**
  * Garde du déclencheur de rappels (#47). La route est publique au sens de Better Auth
@@ -56,7 +43,7 @@ export class ReminderTickGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<{ headers: Record<string, unknown> }>();
     const provided = request.headers[REMINDER_TICK_HEADER];
 
-    if (typeof provided !== "string" || !matchesSecret(provided, expected)) {
+    if (typeof provided !== "string" || !constantTimeEquals(provided, expected)) {
       throw new UnauthorizedException("Déclenchement refusé");
     }
     return true;

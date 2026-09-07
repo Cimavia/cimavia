@@ -7,6 +7,10 @@ import { router } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { registerPushToken, revokePushToken } from "@/feature/notification/api";
+import {
+  readInstallationSecret,
+  storeInstallationSecret,
+} from "@/feature/notification/util/installation-secret";
 import { routeForPushPayload } from "@/feature/notification/util/route.util";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 
@@ -58,10 +62,21 @@ async function registerDevice(): Promise<void> {
     const token = await resolveExpoPushToken();
     if (token == null) return;
 
-    await registerPushToken({
+    // Le secret prouve à l'API que c'est la MÊME installation qu'à l'enregistrement précédent
+    // (#90) — sans lui, qui connaîtrait ce token pourrait le réenregistrer sur son compte et nous
+    // priver de nos notifications. Absent au premier lancement : l'API en émet un.
+    const secret = await readInstallationSecret();
+    const registered = await registerPushToken({
       token,
       platform: Platform.OS === "ios" ? PushPlatform.IOS : PushPlatform.ANDROID,
+      ...(secret == null ? {} : { installationSecret: secret }),
     });
+
+    // `null` veut dire « garde celui que tu as », jamais « efface-le » : n'écrire que ce que
+    // l'API vient d'émettre.
+    if (registered.installationSecret != null) {
+      await storeInstallationSecret(registered.installationSecret);
+    }
   } catch {
     // Silencieux par choix : la permission refusée est un cas NORMAL, et une panne de push ne
     // doit pas polluer un écran de planning. Les erreurs de livraison, elles, sont tracées côté

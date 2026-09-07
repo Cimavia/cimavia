@@ -452,7 +452,9 @@ export type {
 export {
   EXPO_PUSH_TOKEN_PATTERN,
   expoPushTokenSchema,
+  installationSecretSchema,
   isExpoPushToken,
+  PUSH_INSTALLATION_SECRET_BYTES,
   PushPlatform,
   pushPlatformSchema,
   pushTokenDtoSchema,
