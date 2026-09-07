@@ -8,8 +8,6 @@ import type {
 import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
-  maxFeedbackMediaSizeBytes,
-  megabytesOf,
   sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
@@ -17,15 +15,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
+import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
+import { myPlanKeys } from "@/feature/plan/api";
+import type { RecordedAudio } from "@/shared/component";
+import { StorageUploadError, uploadFileToStorage, uploadPartsToStorage } from "@/shared/lib/upload";
 import {
   MediaRejectedError,
   type PreparedMedia,
   prepareAudio,
   prepareMedia,
-} from "@/feature/feedback/util/media.util";
-import { myPlanKeys } from "@/feature/plan/api";
-import type { RecordedAudio } from "@/shared/component";
-import { StorageUploadError, uploadFileToStorage, uploadPartsToStorage } from "@/shared/lib/upload";
+} from "@/shared/util/media.util";
 
 // Après un ajout/retrait de média, la séance a pu passer en DONE : le planning et le détail
 // doivent suivre, sinon ils afficheraient encore « À faire ».
@@ -63,7 +62,11 @@ export function useAddFeedbackMedia(sessionId: string) {
   const upload = async (asset: ImagePicker.ImagePickerAsset, current: MediaBatchStep) => {
     setStep(current);
     setProgress(0);
-    await prepareAndUpload(sessionId, asset, setProgress);
+    await uploadAndAttach(
+      sessionId,
+      await prepareMedia(asset, FEEDBACK_MEDIA_PROFILE),
+      setProgress,
+    );
     invalidate();
   };
 
@@ -78,25 +81,6 @@ export function useAddFeedbackMedia(sessionId: string) {
 }
 
 /**
- * La taille est revérifiée APRÈS compression : c'est la taille finale qui est signée dans l'URL,
- * et le storage refuse tout autre poids.
- */
-async function prepareAndUpload(
-  sessionId: string,
-  asset: ImagePicker.ImagePickerAsset,
-  onProgress: (percent: number) => void,
-): Promise<void> {
-  const media = await prepareMedia(asset);
-  if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
-    throw new MediaRejectedError(
-      media.type === MediaType.VIDEO ? "feedback.media.videoTooBig" : "feedback.media.imageTooBig",
-      { max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)) },
-    );
-  }
-  await uploadAndAttach(sessionId, media, onProgress);
-}
-
-/**
  * Débrief vocal (P5) : la note vocale vient de l'enregistreur partagé (pas d'un picker). Même flux
  * ensuite — URL signée → upload direct → rattachement — et le débrief passe en DONE.
  */
@@ -107,7 +91,7 @@ export function useAddFeedbackAudio(sessionId: string) {
   const mutation = useMutation({
     mutationFn: (audio: RecordedAudio) => {
       setProgress(0);
-      return uploadAndAttach(sessionId, prepareAudio(audio), setProgress);
+      return uploadAndAttach(sessionId, prepareAudio(audio, FEEDBACK_MEDIA_PROFILE), setProgress);
     },
     onSuccess: invalidate,
   });

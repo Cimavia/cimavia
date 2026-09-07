@@ -6,34 +6,22 @@ import type {
 } from "@cmv/shared";
 import { MediaType, mediaRecapText, remainingMediaSlots } from "@cmv/shared";
 import type { ImagePickerAsset } from "expo-image-picker";
-import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { MediaGrid } from "@/feature/feedback/component/MediaGrid";
 import { MediaPicker } from "@/feature/feedback/component/MediaPicker";
+import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import {
   pickFeedbackAssets,
   useAddFeedbackAudio,
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
 } from "@/feature/feedback/hook/useFeedbackMedia";
-import { MediaRejectedError } from "@/feature/feedback/util/media.util";
 import { CmvText } from "@/shared/component";
 import { apiErrorMessage } from "@/shared/lib/api";
+import { MediaRejectedError, mediaErrorMessage } from "@/shared/util/media.util";
 import { assetMediaKind } from "@/shared/util/media-kind.util";
-
-/**
- * Un refus métier (fichier trop lourd, permission refusée) porte sa propre clé i18n ; une panne
- * technique garde le message de l'API. Les deux se disent — aucune ne se masque. Le refus de
- * l'enregistreur, qui précède l'upload, est porté à la main (`manualKey`).
- */
-function mediaErrorMessage(error: unknown, manualKey: string | null, t: TFunction): string | null {
-  if (manualKey != null) return t(manualKey);
-  if (error == null) return null;
-  if (error instanceof MediaRejectedError) return t(error.reasonKey, error.params);
-  return apiErrorMessage(error) ?? t("feedback.media.uploadError");
-}
 
 type FeedbackMediaSectionProps = {
   sessionId: string;
@@ -103,7 +91,12 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
     );
   }
 
-  const error = mediaErrorMessage(addAudio.error ?? removeMedia.error, preUploadErrorKey, t);
+  const error = mediaErrorMessage(
+    addAudio.error ?? removeMedia.error,
+    preUploadErrorKey,
+    t,
+    FEEDBACK_MEDIA_PROFILE,
+  );
 
   return (
     <View className="gap-3 border-cmv-border border-t pt-4">

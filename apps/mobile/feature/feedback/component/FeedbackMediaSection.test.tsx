@@ -8,9 +8,9 @@ import {
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
 } from "@/feature/feedback/hook/useFeedbackMedia";
-import { MediaRejectedError } from "@/feature/feedback/util/media.util";
 import { CmvButton, type RecordedAudio } from "@/shared/component";
 import { ApiError } from "@/shared/lib/api";
+import { MediaRejectedError } from "@/shared/util/media.util";
 import { press, pressButton, renderRn } from "@/test/render";
 
 /**
