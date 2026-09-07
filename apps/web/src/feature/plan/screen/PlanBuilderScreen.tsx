@@ -2,11 +2,14 @@ import {
   isSelfCoached,
   type PlanDto,
   PlanStatus,
+  type PlanSummaryDto,
   type PlanWeekDto,
   PlanWeekType,
+  planAudience,
   ReminderEntityType,
   type ScheduledSessionDto,
   type ScheduledSessionSummaryDto,
+  todayIsoDate,
 } from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
@@ -22,6 +25,7 @@ import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
+import { usePlans } from "@/feature/plan/hook/usePlans";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
@@ -38,6 +42,15 @@ type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null }
  * Un cycle dont la facturation a un sens : il a un destinataire, et ce n'est pas soi (#14, #144).
  * L'API refuse la lecture des termes dans les deux autres cas — la question ne se pose donc pas.
  */
+/**
+ * Les cycles à comparer : ceux du coach, MOINS la copie que sa liste porte de celui qu'on regarde,
+ * PLUS celui qu'on regarde. La liste peut être périmée d'une diffusion ou d'un changement de date
+ * qu'on vient de faire ici, et `planAudience` doit répondre sur l'état affiché, pas sur un cache.
+ */
+function siblingsOf(plan: PlanDto, coachPlans: readonly PlanSummaryDto[]): PlanSummaryDto[] {
+  return [plan, ...coachPlans.filter((item) => item.id !== plan.id)];
+}
+
 function isBillable(plan: PlanDto | undefined): boolean {
   return plan != null && plan.athleteId != null && !isSelfCoached(plan);
 }
@@ -58,6 +71,12 @@ export function PlanBuilderScreen() {
   const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: plan, isPending, isError, refetch } = usePlan(planId);
+  /**
+   * Les autres cycles du coach, pour dire ce que l'athlète voit de CELUI-CI (#172). La liste est
+   * déjà en cache dès qu'on arrive depuis `/plans` ; ailleurs elle coûte une requête, et c'est le
+   * prix de ne plus affirmer « l'athlète voit ce cycle » sans l'avoir vérifié.
+   */
+  const { data: coachPlans } = usePlans();
   const { addWeek, saveHeader, isBusy } = usePlanMutations(planId);
   const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
@@ -99,6 +118,10 @@ export function PlanBuilderScreen() {
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
   const hasAthlete = plan.athleteId != null;
+  // `null` tant que la liste n'a pas répondu : la ligne de statut se tait plutôt que d'affirmer.
+  const audience =
+    coachPlans == null ? null : planAudience(plan, siblingsOf(plan, coachPlans), todayIsoDate());
+  const titlesById = new Map((coachPlans ?? []).map((item) => [item.id, item.title]));
   const athleteTitle = athleteHeading(plan, athleteLabel, t("plan.unassigned"));
 
   function onOpenCreate(week: PlanWeekDto, date: string) {
@@ -161,6 +184,8 @@ export function PlanBuilderScreen() {
           hasAthlete={hasAthlete}
           isBillingFilled={billing != null}
           requiresBilling={!isSelfCoached(plan)}
+          audience={audience}
+          titlesById={titlesById}
         />
 
         {/* Le presse-papier survit à la navigation (c'est ce qui rend le collage inter-cycle

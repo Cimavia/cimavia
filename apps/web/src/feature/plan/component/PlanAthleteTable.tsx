@@ -1,4 +1,4 @@
-import type { PlanAthleteRow, PlanDeadline, PlanOverlap, PlanSummaryDto } from "@cmv/shared";
+import type { PlanAthleteRow, PlanConcurrency, PlanDeadline, PlanSummaryDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { PlanHistoryTable } from "@/feature/plan/component/PlanHistoryTable";
 import { CMV_TABLE, CmvAvatar, CmvBadge } from "@/shared/component";
@@ -93,7 +93,7 @@ function AthleteRow({ row, expanded, onToggle }: Readonly<AthleteRowProps>) {
           <CmvAvatar name={row.athleteName} />
           <span className="flex flex-col">
             <span className="text-cmv-text-hi">{athleteLabel(row.athleteId, row.athleteName)}</span>
-            <OverlapFlag overlap={row.overlap} />
+            <ConcurrencyFlag concurrency={row.concurrency} />
           </span>
         </span>
 
@@ -109,7 +109,7 @@ function AthleteRow({ row, expanded, onToggle }: Readonly<AthleteRowProps>) {
           détache pas. Même géométrie que celui de la facturation. */}
       {expanded ? (
         <div className="flex flex-col gap-cmv-sm px-cmv-lg pb-cmv-md">
-          <OverlapNotice overlap={row.overlap} plans={row.plans} />
+          <ConcurrencyNotice concurrency={row.concurrency} plans={row.plans} />
           <PlanHistoryTable plans={row.plans} />
         </div>
       ) : null}
@@ -170,45 +170,50 @@ function DeadlineCell({
 }
 
 /**
- * Le signalement de chevauchement sur la ligne repliée (#172) : deux cycles diffusés courent, et
- * l'athlète n'en voit qu'un. Une pastille, pas un bandeau — la ligne doit rester d'une hauteur.
+ * Deux cycles diffusés courent en même temps, sur la ligne repliée (#172). Une pastille, pas un
+ * bandeau — la ligne doit rester d'une hauteur.
+ *
+ * Ce signalement disait « N cycles diffusés » pour annoncer une anomalie : l'athlète n'en voyait
+ * qu'un. Depuis #172 il les voit tous, et ce qui reste à dire au coach est une CHARGE — son
+ * athlète mène deux cycles de front. Le libellé a changé avec le fait.
  */
-function OverlapFlag({ overlap }: Readonly<{ overlap: PlanOverlap | null }>) {
+function ConcurrencyFlag({ concurrency }: Readonly<{ concurrency: PlanConcurrency | null }>) {
   const { t } = useTranslation();
-  if (overlap == null) return null;
+  if (concurrency == null) return null;
 
   return (
     <span className="text-cmv-caption text-cmv-warning-on">
-      {t("plan.overlap.flag", { n: overlap.hiddenPlanIds.length + 1 })}
+      {t("plan.concurrency.flag", { n: concurrency.planIds.length })}
     </span>
   );
 }
 
 /**
- * Le bandeau de l'anomalie, en TÊTE du dépli — comme celui de la facturation, et pour la même
- * raison : ce qui explique la ligne se lit avant son détail, pas au milieu du tableau.
+ * Le bandeau, en TÊTE du dépli — comme celui de la facturation, et pour la même raison : ce qui
+ * explique la ligne se lit avant son détail, pas au milieu du tableau.
  *
- * Il nomme le cycle INVISIBLE, jamais celui qui est servi : c'est le contre-intuitif de #172, et
- * c'est toute l'information. L'athlète voit le cycle commencé le plus TARD.
+ * Il nomme TOUS les cycles concernés, sans en privilégier aucun. Avant #172 il désignait le cycle
+ * « non servi », parce qu'il en existait un : l'API n'en rendait qu'un seul. Ce n'est plus vrai, et
+ * garder cette phrase aurait fait annoncer par l'écran une anomalie corrigée.
  */
-function OverlapNotice({
-  overlap,
+function ConcurrencyNotice({
+  concurrency,
   plans,
-}: Readonly<{ overlap: PlanOverlap | null; plans: readonly PlanSummaryDto[] }>) {
+}: Readonly<{ concurrency: PlanConcurrency | null; plans: readonly PlanSummaryDto[] }>) {
   const { t } = useTranslation();
-  if (overlap == null) return null;
+  if (concurrency == null) return null;
 
-  const hidden = plans
-    .filter((plan) => overlap.hiddenPlanIds.includes(plan.id))
+  const titles = plans
+    .filter((plan) => concurrency.planIds.includes(plan.id))
     .map((plan) => plan.title)
     .join(", ");
 
   return (
     <p className="rounded-cmv-md border border-cmv-warning-line bg-cmv-warning-soft px-cmv-md py-cmv-sm text-cmv-caption text-cmv-warning-on">
-      {t("plan.overlap.notice", {
-        from: formatDate(overlap.from),
-        to: formatDate(overlap.to),
-        hidden,
+      {t("plan.concurrency.notice", {
+        from: formatDate(concurrency.from),
+        to: formatDate(concurrency.to),
+        titles,
       })}
     </p>
   );

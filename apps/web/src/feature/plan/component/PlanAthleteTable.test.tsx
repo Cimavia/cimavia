@@ -40,7 +40,8 @@ const LEA_DRAFT = plan({
   status: PlanStatus.DRAFT,
 });
 
-// Deux cycles diffusés qui se chevauchent : l'athlète ne voit que le plus récemment commencé.
+// Deux cycles diffusés qui courent ensemble : depuis #172 l'athlète suit les deux (#225 signalait
+// l'inverse, du temps où l'API n'en servait qu'un).
 const ADRIEN = { athleteId: "ath_adrien", athleteName: "Adrien Roux" };
 const VOLUME = plan({
   ...ADRIEN,
@@ -121,30 +122,34 @@ describe("PlanAthleteTable", () => {
     expect(onToggle).toHaveBeenCalledWith("ath_lea");
   });
 
-  it("signale sur la ligne les deux cycles diffusés qui se chevauchent", async () => {
+  it("signale sur la ligne les deux cycles diffusés menés de front", async () => {
     const { getByText } = await mount([VOLUME, TRAIL]);
 
-    expect(getByText("plan.overlap.flag")).toBeTruthy();
+    expect(getByText("plan.concurrency.flag")).toBeTruthy();
   });
 
-  it("montre le cycle réellement servi — le plus récemment commencé", async () => {
+  /**
+   * La colonne RÉSUME l'athlète en une ligne et n'en montre donc qu'un — le plus récemment
+   * démarré. Ce n'est plus « celui qui est servi » depuis #172, où l'athlète a cessé d'ignorer
+   * l'autre : c'est le bandeau du dépli qui nomme les deux.
+   */
+  it("résume par un seul cycle, le plus récemment commencé", async () => {
     const { getByText, queryByText } = await mount([VOLUME, TRAIL]);
 
     expect(getByText("Prépa trail court")).toBeTruthy();
-    // « Volume estival » est le cycle INVISIBLE de l'athlète : il n'occupe pas la colonne.
     expect(queryByText("Volume estival")).toBeNull();
   });
 
-  it("le bandeau d'anomalie ouvre le dépli, avant l'historique", async () => {
+  it("le bandeau ouvre le dépli, avant l'historique", async () => {
     const { getByText } = await mount([VOLUME, TRAIL], "ath_adrien");
 
-    expect(getByText("plan.overlap.notice")).toBeTruthy();
+    expect(getByText("plan.concurrency.notice")).toBeTruthy();
   });
 
   it("ne signale rien quand un seul cycle court", async () => {
     const { queryByText } = await mount([LEA_ONGOING], "ath_lea");
 
-    expect(queryByText("plan.overlap.flag")).toBeNull();
-    expect(queryByText("plan.overlap.notice")).toBeNull();
+    expect(queryByText("plan.concurrency.flag")).toBeNull();
+    expect(queryByText("plan.concurrency.notice")).toBeNull();
   });
 });

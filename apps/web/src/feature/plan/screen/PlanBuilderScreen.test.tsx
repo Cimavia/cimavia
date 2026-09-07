@@ -1,7 +1,15 @@
-import { type PlanDto, PlanStatus } from "@cmv/shared";
+import {
+  mondayOfIsoWeek,
+  type PlanDto,
+  PlanStatus,
+  type PlanSummaryDto,
+  shiftIsoDate,
+  todayIsoDate,
+} from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
+import { usePlans } from "@/feature/plan/hook/usePlans";
 import { PlanBuilderScreen } from "@/feature/plan/screen/PlanBuilderScreen";
 import { renderInRoute } from "../../../../test/render";
 
@@ -22,6 +30,8 @@ vi.mock("@/feature/invoice/hook/useInvoices", () => ({
 vi.mock("@/feature/plan/hook/usePlans", () => ({
   useDeletePlan: () => ({ mutate: vi.fn(), isPending: false }),
   usePublishPlan: () => ({ mutate: vi.fn(), isPending: false }),
+  // Les autres cycles du coach, dont l'écran tire ce que l'athlète voit de celui-ci (#172).
+  usePlans: vi.fn(),
 }));
 vi.mock("@/feature/athlete/hook/useAthletes", () => ({
   useAthletes: () => ({
@@ -70,7 +80,16 @@ const plan = (over: Partial<PlanDto>): PlanDto =>
 
 const saveHeader = vi.fn();
 
-const mount = async (over: Partial<PlanDto>, billing: unknown = null) => {
+const mount = async (
+  over: Partial<PlanDto>,
+  billing: unknown = null,
+  // `null` = la liste n'a pas encore répondu, ce qui est un cas à part (#172). Pas `undefined` :
+  // le passer explicitement déclencherait la valeur par défaut du paramètre.
+  coachPlans: PlanSummaryDto[] | null = [],
+) => {
+  vi.mocked(usePlans).mockReturnValue({
+    data: coachPlans ?? undefined,
+  } as unknown as ReturnType<typeof usePlans>);
   vi.mocked(usePlan).mockReturnValue({
     data: plan(over),
     isPending: false,
@@ -160,5 +179,46 @@ describe("PlanBuilderScreen — le destinataire", () => {
     await mount({});
 
     expect(usePlanBilling).toHaveBeenCalledWith("pln_1", true);
+  });
+});
+
+/**
+ * Le cœur de #172 côté coach : l'écran affirmait « L'athlète voit ce cycle » dès la diffusion, sans
+ * condition. Ce qui s'éprouve ici est qu'il dit maintenant LAQUELLE des situations est vraie — et
+ * qu'il se tait tant qu'il ne sait pas.
+ */
+describe("PlanBuilderScreen — ce que l'athlète voit du cycle", () => {
+  const TODAY_MONDAY = mondayOfIsoWeek(todayIsoDate()) ?? "2026-10-12";
+  const nextMonday = (weeks: number) => shiftIsoDate(TODAY_MONDAY, weeks * 7) ?? TODAY_MONDAY;
+
+  const summary = (over: Partial<PlanSummaryDto>): PlanSummaryDto =>
+    ({ ...plan({}), status: PlanStatus.PUBLISHED, weekCount: 4, ...over }) as PlanSummaryDto;
+
+  const ongoing = { status: PlanStatus.PUBLISHED, startDate: TODAY_MONDAY, weekCount: 4 } as const;
+
+  it("se tait tant que la liste des cycles n'a pas répondu", async () => {
+    const { container } = await mount(ongoing, null, null);
+
+    expect(container.textContent).not.toContain("plan.builder.audience");
+  });
+
+  it("confirme la visibilité d'un cycle en cours et seul à l'être", async () => {
+    const { getByText } = await mount(ongoing, null, []);
+
+    expect(getByText("plan.builder.audience.VISIBLE_ALONE")).toBeTruthy();
+  });
+
+  it("annonce la date d'un cycle diffusé qui n'a pas encore commencé", async () => {
+    const { getByText } = await mount({ ...ongoing, startDate: nextMonday(3) }, null, []);
+
+    expect(getByText("plan.builder.audience.VISIBLE_UPCOMING")).toBeTruthy();
+  });
+
+  // Ce que l'accumulation rend possible, et que le coach doit savoir avant d'en ajouter un.
+  it("signale un second cycle mené en parallèle par le même athlète", async () => {
+    const other = summary({ id: "pln_2", title: "Prépa falaise", startDate: TODAY_MONDAY });
+    const { getByText } = await mount(ongoing, null, [other]);
+
+    expect(getByText("plan.builder.audience.VISIBLE_WITH")).toBeTruthy();
   });
 });
