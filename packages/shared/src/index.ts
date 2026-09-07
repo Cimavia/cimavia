@@ -580,6 +580,20 @@ export {
   currentAthletePlan,
   visibleAthleteRows,
 } from "./util/athlete-row.util";
+export type {
+  AthleteCalendarCycle,
+  AthleteCalendarDay,
+  AthleteCalendarEntry,
+  AthleteCalendarWeek,
+  CalendarPlan,
+  CalendarSession,
+  CalendarWeek,
+} from "./util/athlete-week.util";
+export {
+  athleteCalendarBounds,
+  athleteCalendarWeek,
+  defaultAthleteMonday,
+} from "./util/athlete-week.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,
@@ -681,6 +695,8 @@ export {
 export type { Page } from "./util/pagination.util";
 export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";
 export type {
+  PlanAudience,
+  PlanAudienceSource,
   PlanPeriod,
   PlanPhase,
   PlanState,
@@ -694,6 +710,7 @@ export {
   isSelfCoached,
   PLAN_STATE_BADGE,
   PLAN_STATES,
+  planAudience,
   planEndDate,
   planPhase,
   planState,
@@ -702,12 +719,13 @@ export {
   planWeekNumber,
   planWeekRange,
   selectCurrentPlan,
+  selectVisiblePlans,
   weekSessionProgress,
 } from "./util/plan.util";
 export type {
   PlanAthleteRow,
+  PlanConcurrency,
   PlanDeadline,
-  PlanOverlap,
   PlanRowFilter,
   PlanRowQuery,
   PlanRowSource,
