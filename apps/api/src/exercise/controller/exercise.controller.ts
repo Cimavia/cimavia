@@ -4,7 +4,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateExerciseDto } from "../dto/create-exercise.dto";
 import { UpdateExerciseDto } from "../dto/update-exercise.dto";
-import type { ListExercisesFilters } from "../service/exercise.service";
+import type { ListExercisesFilters } from "../exercise.where";
 import { ExerciseService } from "../service/exercise.service";
 
 @ApiTags("exercises")

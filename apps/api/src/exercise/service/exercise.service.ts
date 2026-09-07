@@ -15,12 +15,8 @@ import {
   type ExerciseWithDocuments,
   toExerciseDto,
 } from "../exercise.mapper";
+import { exerciseListWhere, type ListExercisesFilters } from "../exercise.where";
 import { DocumentCleanupService } from "./document-cleanup.service";
-
-export type ListExercisesFilters = {
-  tag?: string;
-  search?: string;
-};
 
 @Injectable()
 export class ExerciseService {
@@ -109,13 +105,8 @@ export class ExerciseService {
   }
 
   async list(filters: ListExercisesFilters): Promise<ExerciseDto[]> {
-    const where: Prisma.ExerciseWhereInput = {};
-    // `some` et non `every` : un exercice porte plusieurs tags, filtrer sur l'un d'eux le retient.
-    if (filters.tag) where.tags = { some: { name: filters.tag } };
-    if (filters.search) where.title = { contains: filters.search, mode: "insensitive" };
-
     const exercises = await this.db.exercise.findMany({
-      where,
+      where: exerciseListWhere(filters),
       include: EXERCISE_DETAIL_INCLUDE,
       orderBy: { title: "asc" },
     });
