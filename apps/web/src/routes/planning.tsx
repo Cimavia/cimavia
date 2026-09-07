@@ -20,12 +20,18 @@ import { CmvRoleGate } from "@/shared/component";
  */
 export type PlanningSearch = { from: string | undefined };
 
+/**
+ * Exportée pour être éprouvée seule, comme `parsePlansSearch` : ce qu'une URL bricolée à la main —
+ * ou héritée du `?week=<n>` d'avant #172 — devient avant d'atteindre l'écran.
+ */
+export function parsePlanningSearch(search: Record<string, unknown>): PlanningSearch {
+  const raw = search.from;
+  // Un LUNDI, et rien d'autre : une grille décalée d'un jour serait pire qu'un retour au défaut.
+  return { from: typeof raw === "string" && isMondayIsoDate(raw) ? raw : undefined };
+}
+
 export const Route = createFileRoute("/planning")({
-  validateSearch: (search: Record<string, unknown>): PlanningSearch => {
-    const raw = search.from;
-    // Un LUNDI, et rien d'autre : une grille décalée d'un jour serait pire qu'un retour au défaut.
-    return { from: typeof raw === "string" && isMondayIsoDate(raw) ? raw : undefined };
-  },
+  validateSearch: parsePlanningSearch,
   component: () => (
     <CmvRoleGate capability="athlete">
       <AthletePlanningScreen />
