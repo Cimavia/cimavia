@@ -624,8 +624,9 @@ export class NotificationService {
    * d'application, message trop gros…) était jusqu'ici parfaitement silencieux — l'API croyait
    * avoir envoyé, le téléphone ne recevait rien, et aucun log ne le disait.
    *
-   * On journalise l'**id** de la ligne, jamais le token : ce n'est pas un secret, mais qui le
-   * connaît peut détourner les notifications de quelqu'un (dette P4-3).
+   * On journalise l'**id** de la ligne, jamais le token. Depuis #90, le connaître ne suffit plus
+   * à détourner les notifications de quelqu'un — il faut le secret d'installation — mais un log
+   * n'a aucune raison de porter l'adresse d'un appareil identifié quand son id suffit.
    */
   private async handleTickets(
     userId: string,

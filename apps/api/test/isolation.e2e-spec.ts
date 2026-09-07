@@ -2446,6 +2446,8 @@ describe("Tokens de notification push (P4)", () => {
   let other: Agent;
 
   const TOKEN = "ExponentPushToken[athlete-device-1]";
+  // Le secret émis à l'athlète au premier enregistrement — ce que `expo-secure-store` garderait.
+  let secret: string;
 
   beforeAll(async () => {
     coach = await signUp("push-coach@cmv.test", Role.COACH);
@@ -2459,6 +2461,11 @@ describe("Tokens de notification push (P4)", () => {
     expect(asAthlete.status).toBe(201);
     expect(asAthlete.body).toMatchObject({ token: TOKEN, platform: "IOS" });
 
+    // Le secret d'installation (#90) est émis ICI, et une seule fois : la base n'en garde que
+    // l'empreinte, personne ne pourra le redonner.
+    expect(typeof asAthlete.body.installationSecret).toBe("string");
+    secret = asAthlete.body.installationSecret;
+
     const asCoach = await coach
       .post("/me/push-tokens")
       .send({ token: "ExponentPushToken[coach-device]", platform: "ANDROID" });
@@ -2466,24 +2473,96 @@ describe("Tokens de notification push (P4)", () => {
   });
 
   // L'app réenregistre son token à chaque démarrage : ce n'est pas un doublon.
-  it("réenregistrer le même appareil met la ligne à jour", async () => {
-    const again = await athlete.post("/me/push-tokens").send({ token: TOKEN, platform: "ANDROID" });
+  it("réenregistrer le même appareil met la ligne à jour sans réémettre de secret", async () => {
+    const again = await athlete
+      .post("/me/push-tokens")
+      .send({ token: TOKEN, platform: "ANDROID", installationSecret: secret });
     expect(again.status).toBe(201);
     expect(again.body.platform).toBe("ANDROID");
+    // `null` dit « garde celui que tu as », et surtout pas « tu n'en as pas ».
+    expect(again.body.installationSecret).toBeNull();
+  });
+
+  // Chemin de reprise d'un SecureStore effacé : la session prouve déjà que la ligne est à lui.
+  it("réémet un secret au propriétaire qui a perdu le sien", async () => {
+    const res = await athlete.post("/me/push-tokens").send({ token: TOKEN, platform: "IOS" });
+
+    expect(res.status).toBe(201);
+    expect(typeof res.body.installationSecret).toBe("string");
+    expect(res.body.installationSecret).not.toBe(secret);
+    secret = res.body.installationSecret;
+  });
+
+  // Le cœur de #90 : connaître l'adresse ne suffit plus. Sans ce refus, qui connaîtrait le token
+  // d'un tiers le priverait de ses notifications (dette P4-3).
+  it("refuse la réaffectation à qui ne connaît que le token", async () => {
+    const withoutSecret = await other
+      .post("/me/push-tokens")
+      .send({ token: TOKEN, platform: "IOS" });
+    expect(withoutSecret.status).toBe(403);
+
+    const withWrongSecret = await other
+      .post("/me/push-tokens")
+      .send({ token: TOKEN, platform: "IOS", installationSecret: "z".repeat(43) });
+    expect(withWrongSecret.status).toBe(403);
+
+    // Et la victime garde son appareil : le refus n'a rien détaché au passage.
+    const stillMine = await athlete
+      .post("/me/push-tokens")
+      .send({ token: TOKEN, platform: "IOS", installationSecret: secret });
+    expect(stillMine.body.installationSecret).toBeNull();
   });
 
   // Le token est unique en base : sans réaffectation, se reconnecter avec un autre compte sur
-  // le même téléphone violerait la contrainte (500).
-  it("un appareil qui change de main est réaffecté au dernier compte connecté", async () => {
-    const stolen = await other.post("/me/push-tokens").send({ token: TOKEN, platform: "IOS" });
-    expect(stolen.status).toBe(201);
+  // le même téléphone violerait la contrainte (500). C'est le cas du dev qui teste coach puis
+  // athlète sur le même téléphone — il doit continuer de passer.
+  it("réaffecte un appareil qui change de main sur preuve d'installation", async () => {
+    const handover = await other
+      .post("/me/push-tokens")
+      .send({ token: TOKEN, platform: "IOS", installationSecret: secret });
+    expect(handover.status).toBe(201);
+    // Le secret survit à la bascule : le nouveau compte le détient déjà, rien à réémettre.
+    expect(handover.body.installationSecret).toBeNull();
 
     // L'ancien propriétaire ne le révoque plus : la ligne ne lui appartient plus.
     const revokeByPrevious = await athlete.delete(`/me/push-tokens/${TOKEN}`);
     expect(revokeByPrevious.status).toBe(204);
     expect(
-      (await other.post("/me/push-tokens").send({ token: TOKEN, platform: "IOS" })).status,
+      (
+        await other
+          .post("/me/push-tokens")
+          .send({ token: TOKEN, platform: "IOS", installationSecret: secret })
+      ).status,
     ).toBe(201);
+  });
+
+  // Toutes les lignes d'avant #90 sont dans ce cas. Les refuser condamnerait les appareils de la
+  // bêta : on adopte, et le même geste scelle la ligne — la fenêtre se referme d'elle-même.
+  it("adopte une ligne héritée sans empreinte, puis la scelle", async () => {
+    const legacy = "ExponentPushToken[appareil-herite]";
+    const owner = await signUp("push-legacy@cmv.test", Role.ATHLETE);
+    await owner.post("/me/push-tokens").send({ token: legacy, platform: "IOS" });
+    // Ce qu'est une ligne d'avant #90 : la colonne n'existait pas.
+    await app.get(PrismaService).pushToken.update({
+      where: { token: legacy },
+      data: { installationSecretHash: null },
+    });
+
+    const adopted = await other.post("/me/push-tokens").send({ token: legacy, platform: "IOS" });
+    expect(adopted.status).toBe(201);
+    expect(typeof adopted.body.installationSecret).toBe("string");
+
+    // Scellée : la même requête, rejouée, ne passe plus.
+    expect(
+      (await owner.post("/me/push-tokens").send({ token: legacy, platform: "IOS" })).status,
+    ).toBe(403);
+  });
+
+  it("refuse un secret d'installation malformé (400)", async () => {
+    const res = await athlete
+      .post("/me/push-tokens")
+      .send({ token: TOKEN, platform: "IOS", installationSecret: "court" });
+    expect(res.status).toBe(400);
   });
 
   it("refuse un token qui ne pourrait jamais être livré (400)", async () => {

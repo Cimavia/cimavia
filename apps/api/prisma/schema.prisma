@@ -653,6 +653,10 @@ model PushToken {
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String       @unique // ExponentPushToken[…] — l'adresse de livraison
   platform  PushPlatform // sans effet sur la livraison (Expo route seul) : diagnostic prod
+  // Empreinte du secret d'installation (#90) — JAMAIS le clair : un dump de la base ne doit pas
+  // suffire à détourner un appareil. `null` = ligne héritée d'avant #90, adoptée sans preuve au
+  // premier enregistrement, et scellée par le même geste.
+  installationSecretHash String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
