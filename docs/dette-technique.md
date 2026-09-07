@@ -154,6 +154,29 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+> **Tranché en #211** (consulter n'est pas saisir) : `GET /plans/:id/billing` ne porte plus que le
+> **404** du cycle introuvable. Les trois refus qu'il opposait — cycle diffusé (400), sans
+> destinataire (409, #144), écrit pour soi (409, #14) — sont des règles de **saisie**, et restent
+> entiers sur les **quatre écritures** (`PUT billing`, `POST document/upload-url`, `PUT document`,
+> `DELETE document`).
+>
+> Ce n'est pas une tolérance concédée : dans ces trois cas, **aucun brouillon ne peut exister**.
+> Diffusé, `issueForPlan` l'a passé en `PENDING` dans la transaction du `publish` ; sans
+> destinataire, `assertPlanDetachable` interdit de détacher un cycle déjà chiffré ; en
+> auto-coaching, `saveDraft` n'a jamais laissé écrire quoi que ce soit. La réponse est `null` **par
+> construction** — la lecture ne divulgue donc rien, elle cesse simplement de reprocher au client
+> d'avoir posé une question dont la réponse était toujours la même. Un 400 disait « tu n'avais pas
+> le droit de demander », et ces erreurs auraient fait du bruit dans Sentry sans désigner de panne.
+>
+> Côté web, la conséquence est structurelle et vaut d'être dite : la lecture n'a plus qu'**un seul
+> appelant** (`PlanBuilderScreen`), qui descend `billing` en prop à `PlanBillingSection`. Deux
+> observateurs sur la même clé TanStack rendaient la garde `enabled` **inopérante** — il suffisait
+> que l'un des deux soit actif pour que la requête parte, et c'est exactement ce qui a produit le
+> défaut. Le `enabled` qui subsiste n'est plus un garde-fou contre une erreur, c'est une économie :
+> on ne pose pas une question dont on tient déjà la réponse.
+
+---
+
 ## P7 — i18n & Déploiement FR
 
 | # | Dette | Statut | Suivi |

@@ -160,8 +160,9 @@ describe("PlanBuilderScreen — le destinataire", () => {
   });
 
   /**
-   * L'API refuse la lecture des termes sur un cycle qu'on ne peut pas facturer — sans
-   * destinataire (#144) comme en auto-coaching (#14). On ne pose pas la question.
+   * La SEULE garde de cette lecture vit ici depuis #211 : la section de facturation reçoit ce
+   * qu'on lit, elle ne le redemande plus. Trois cas où aucun brouillon ne peut exister, donc
+   * trois questions qu'on ne pose pas — l'API y répondrait `null`, mais au prix d'un aller-retour.
    */
   it("ne demande pas les termes d'un cycle sans destinataire", async () => {
     await mount({ athleteId: null, athleteName: null, athleteEmail: null });
@@ -171,6 +172,17 @@ describe("PlanBuilderScreen — le destinataire", () => {
 
   it("ne demande pas les termes d'un cycle écrit pour soi", async () => {
     await mount({ athleteId: "coach_1", athleteName: "Moi" });
+
+    expect(usePlanBilling).toHaveBeenCalledWith("pln_1", false);
+  });
+
+  /**
+   * Le défaut de #211, côté client : ouvrir un cycle diffusé posait la question quand même, et
+   * l'API la refusait. Le statut manquait aux deux gardes d'alors — celle-ci est la seule qui
+   * reste, elle le porte.
+   */
+  it("ne demande pas les termes d'un cycle diffusé", async () => {
+    await mount({ status: PlanStatus.PUBLISHED });
 
     expect(usePlanBilling).toHaveBeenCalledWith("pln_1", false);
   });

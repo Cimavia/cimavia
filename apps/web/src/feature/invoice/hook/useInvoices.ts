@@ -57,13 +57,17 @@ export function useCancelInvoice() {
   });
 }
 
-// Termes de facturation DRAFT du cycle (section du builder). `null` tant que rien n'est saisi.
 /**
- * Les termes de facturation du cycle, ou `null` tant que rien n'est saisi.
+ * Les termes de facturation DRAFT du cycle, ou `null` tant que rien n'est saisi.
  *
- * `enabled` parce que l'API REFUSE cette lecture sur un cycle qu'on ne peut pas facturer — sans
- * destinataire (409, #144) ou écrit pour soi-même (409, #14). L'appeler quand même coûterait deux
- * requêtes vouées à l'échec (`retry: 1`) pour une réponse qu'on connaît déjà.
+ * `enabled` n'est plus un garde-fou : depuis #211 l'API TOLÈRE cette lecture partout, et rend
+ * `null` sur un cycle diffusé, sans destinataire ou écrit pour soi — les trois cas où aucun
+ * brouillon ne peut exister. C'est donc une économie, pas une protection : on ne pose pas une
+ * question dont on tient déjà la réponse.
+ *
+ * Un SEUL appelant décide (`PlanBuilderScreen`), et c'est délibéré. Deux observateurs sur cette
+ * clé rendaient la garde inopérante — il suffisait que l'un des deux soit actif pour que la
+ * requête parte, et c'est exactement ce qui a produit #211.
  */
 export function usePlanBilling(planId: string, enabled = true) {
   return useQuery<InvoiceDto | null>({

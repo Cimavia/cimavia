@@ -1473,15 +1473,22 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
    * message doit nommer ce qui manque VRAIMENT. La facturation, elle, est carrément fermée tant
    * qu'il n'y a personne à facturer — `Invoice.athleteId` est NOT NULL, et un refus explicite
    * vaut mieux qu'une violation de contrainte remontée en 500.
+   *
+   * La LECTURE, elle, ne refuse rien (#211) : un cycle sans destinataire n'a pas de brouillon —
+   * `assertPlanDetachable` interdit d'en détacher un qui soit chiffré — et `null` le dit sans
+   * reprocher au client d'avoir demandé.
    */
-  it("ferme la facturation avant de parler de facturation", async () => {
+  it("ferme la saisie de facturation sans fermer sa lecture", async () => {
     const { planId } = await draftWithoutAthlete("Pas de facture sans personne");
 
     const billing = await coachA
       .put(`/plans/${planId}/billing`)
       .send({ amountCents: 5000, dueDate: monday });
     expect(billing.status).toBe(409);
-    expect((await coachA.get(`/plans/${planId}/billing`)).status).toBe(409);
+
+    const read = await coachA.get(`/plans/${planId}/billing`);
+    expect(read.status).toBe(200);
+    expect(read.body).toBeNull();
   });
 
   it("refuse d'affecter le cycle à l'athlète d'un autre coach", async () => {
@@ -3474,11 +3481,48 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
     expect(detail.body.athleteName).toBe("inv-athlete-a1@cmv.test");
   });
 
+  /**
+   * Les QUATRE écritures, pas seulement la saisie des termes : une fois la facture émise, ni le
+   * montant ni le justificatif ne bougent plus. Les éprouver ensemble est ce qui rend la
+   * tolérance de la lecture (#211) lisible — c'est la lecture SEULE qui s'ouvre.
+   */
   it("la facturation est figée une fois le cycle diffusé", async () => {
-    const res = await coachA
+    const saved = await coachA
       .put(`/plans/${planId}/billing`)
       .send({ amountCents: 9999, dueDate: monday });
-    expect(res.status).toBe(400);
+    expect(saved.status).toBe(400);
+
+    const signed = await coachA
+      .post(`/plans/${planId}/billing/document/upload-url`)
+      .send({ fileName: "rectif.pdf", mimeType: "application/pdf", size: 1_000 });
+    expect(signed.status).toBe(400);
+
+    const attached = await coachA.put(`/plans/${planId}/billing/document`).send({
+      storagePath: "athlete/x/invoice/y/rectif.pdf",
+      fileName: "rectif.pdf",
+      mimeType: "application/pdf",
+      size: 1_000,
+    });
+    expect(attached.status).toBe(400);
+
+    expect((await coachA.delete(`/plans/${planId}/billing/document`)).status).toBe(400);
+  });
+
+  /**
+   * Le défaut de #211 : ouvrir un cycle diffusé dans le builder déclenchait cette lecture, et
+   * l'API la refusait en 400 — une rafale de requêtes vouées à l'échec, qui aurait fait du bruit
+   * dans Sentry sans désigner de panne.
+   *
+   * `null` n'est pas une concession : la facture est passée PENDING dans la transaction du
+   * `publish`, il n'y a PLUS de brouillon à lire. La réponse est vraie, elle l'a toujours été.
+   */
+  it("lire la facturation d'un cycle diffusé rend null, pas une erreur", async () => {
+    const read = await coachA.get(`/plans/${planId}/billing`);
+    expect(read.status).toBe(200);
+    expect(read.body).toBeNull();
+
+    // Le scope tenant garde le dernier mot : le cycle d'un autre coach reste introuvable.
+    expect((await coachB.get(`/plans/${planId}/billing`)).status).toBe(404);
   });
 
   it("un autre coach ne voit ni ne modifie la facture (scope tenant → 404)", async () => {
@@ -5516,8 +5560,12 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect(mine.body.map((plan: { title: string }) => plan.title)).toContain("Ma prépa");
   });
 
-  // On ne se facture pas soi-même : un refus explicite, plutôt qu'un brouillon saisi pour rien.
-  it("refuse de facturer un cycle écrit pour soi (409)", async () => {
+  /**
+   * On ne se facture pas soi-même : un refus explicite à la SAISIE, plutôt qu'un brouillon saisi
+   * pour rien. La lecture, elle, rend `null` (#211) — puisque ce refus garantit qu'aucun
+   * brouillon n'a jamais pu être écrit, il n'y a rien à protéger d'une consultation.
+   */
+  it("refuse de facturer un cycle écrit pour soi (409), mais en tolère la lecture", async () => {
     const plan = await solo.post("/plans").send({
       athleteId: soloId,
       title: "Cycle non facturable",
@@ -5528,6 +5576,10 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
       .put(`/plans/${plan.body.id}/billing`)
       .send({ amountCents: 5000, dueDate: monday });
     expect(res.status).toBe(409);
+
+    const read = await solo.get(`/plans/${plan.body.id}/billing`);
+    expect(read.status).toBe(200);
+    expect(read.body).toBeNull();
   });
 
   /**

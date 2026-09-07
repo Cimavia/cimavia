@@ -4,7 +4,6 @@ import { type ChangeEvent, type SubmitEvent, useEffect, useRef, useState } from 
 import { useTranslation } from "react-i18next";
 import {
   useAttachInvoiceDocument,
-  usePlanBilling,
   useRemoveInvoiceDocument,
   useSavePlanBilling,
 } from "@/feature/invoice/hook/useInvoices";
@@ -19,6 +18,13 @@ type PlanBillingSectionProps = {
    * personne à facturer, et l'API refuse la saisie en 409.
    */
   hasAthlete: boolean;
+  /**
+   * Les termes déjà saisis, `null` s'il n'y en a pas, `undefined` tant que la réponse n'est pas
+   * là. Reçus du builder plutôt que relus ici (#211) : la lecture n'a qu'une garde, et c'est la
+   * sienne. Deux observateurs sur la même clé de requête suffisaient à la rendre inopérante — il
+   * suffisait que l'un des deux soit actif pour que la requête parte.
+   */
+  billing: InvoiceDto | null | undefined;
 };
 
 /**
@@ -31,9 +37,9 @@ export function PlanBillingSection({
   planId,
   isPublished,
   hasAthlete,
+  billing,
 }: Readonly<PlanBillingSectionProps>) {
   const { t } = useTranslation();
-  const { data: billing } = usePlanBilling(planId, hasAthlete);
   const save = useSavePlanBilling(planId);
 
   const [amount, setAmount] = useState("");
