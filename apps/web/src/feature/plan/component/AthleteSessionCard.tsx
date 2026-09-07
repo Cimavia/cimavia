@@ -8,6 +8,12 @@ import { useTranslation } from "react-i18next";
 
 type AthleteSessionCardProps = {
   session: ScheduledSessionSummaryDto;
+  /**
+   * Le cycle d'où vient la séance, quand l'athlète en suit plusieurs (#172). `null` = un seul
+   * cycle : l'étiquette serait alors la même partout, et ne distinguerait rien. C'est l'appelant
+   * qui le sait — la carte, elle, ne voit qu'une séance.
+   */
+  planLabel?: string | null;
 };
 
 /**
@@ -20,7 +26,10 @@ type AthleteSessionCardProps = {
  * modèle — et sa propre frame le pose sur un jour À VENIR, ce qui n'aurait de sens dans aucune
  * définition. `DONE` est posé par le débrief, et c'est la seule chose qu'on sache.
  */
-export function AthleteSessionCard({ session }: Readonly<AthleteSessionCardProps>) {
+export function AthleteSessionCard({
+  session,
+  planLabel = null,
+}: Readonly<AthleteSessionCardProps>) {
   const { t } = useTranslation();
 
   return (
@@ -29,6 +38,9 @@ export function AthleteSessionCard({ session }: Readonly<AthleteSessionCardProps
       params={{ sessionId: session.id }}
       className="flex flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-sm transition-colors hover:border-cmv-border-hi"
     >
+      {planLabel == null ? null : (
+        <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{planLabel}</span>
+      )}
       <span className="font-cmv-display text-cmv-body text-cmv-text-hi">{session.title}</span>
       <span className="text-cmv-caption text-cmv-text-lo">
         {t("plan.athlete.exerciseCount", { count: session.exerciseCount })}

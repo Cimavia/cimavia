@@ -15,8 +15,9 @@ import { comparableText } from "./search.util";
  *
  * Même dispositif qu'`invoice-row.util.ts` (#120), et pour la même raison : la situation d'un
  * athlète, l'ordre des lignes et celui de leur historique sont des décisions PRODUIT. Un tri faux
- * ne se voit pas — rien à l'écran ne le signale — d'où des fonctions pures et mesurées plutôt
- * qu'une composition dans le JSX, que la couverture n'atteint pas (§11).
+ * ne se voit pas — rien à l'écran ne le signale — d'où des fonctions pures, qu'un test attaque sur
+ * ce qu'elles DÉCIDENT. Composées dans le JSX, elles resteraient mesurées (§11 couvre les écrans),
+ * mais seulement à travers ce qui s'affiche : l'ordre ne se vérifierait plus qu'à l'œil.
  *
  * La jointure est faite côté client sur une liste déjà chargée (`GET /plans`, scopée par le
  * tenant) : aucun endpoint d'agrégat, aucune requête de plus. Corollaire assumé, le même qu'en
@@ -60,18 +61,20 @@ export type PlanDeadline =
   | { kind: "STARTS_ON"; date: string };
 
 /**
- * Deux cycles diffusés qui se chevauchent — l'anomalie de [#172], que cet écran est le seul
- * endroit du produit à pouvoir montrer.
+ * Plusieurs cycles diffusés qui courent en même temps chez le même athlète.
  *
- * L'API n'en sert qu'un (`AthletePlanService.myCurrentPlan` → `selectCurrentPlan`), et l'athlète
- * ignore l'existence de l'autre. Ce type SIGNALE la situation, il ne la corrige pas : le correctif
- * vit côté API et reste ouvert. Le nommer ici est ce qui évite qu'on croie l'avoir traité.
+ * **Ce n'était pas ça avant #172.** Le type s'appelait `PlanOverlap` et portait un `servedPlanId`
+ * face à des `hiddenPlanIds` : l'API n'en servait qu'un, et l'athlète ignorait l'existence des
+ * autres. Ce n'est plus vrai — les cycles s'accumulent, l'athlète les voit tous, et il n'y a donc
+ * plus rien de « servi » ni de « caché » à distinguer. Le renommage est le correctif : garder les
+ * anciens noms aurait laissé l'écran annoncer une anomalie résolue.
+ *
+ * Ce qui reste vrai et mérite d'être dit au coach : sur cette fenêtre, son athlète mène **deux
+ * cycles de front**. Ce n'est pas une erreur, c'est une charge.
  */
-export type PlanOverlap = {
-  /** Celui que l'athlète voit réellement — l'élu de `selectCurrentPlan`. */
-  servedPlanId: string;
-  /** Les autres, diffusés et en cours eux aussi, mais invisibles de l'athlète. Jamais vide. */
-  hiddenPlanIds: [string, ...string[]];
+export type PlanConcurrency = {
+  /** Tous les cycles qui courent ensemble, l'élu compris. Toujours au moins deux. */
+  planIds: [string, string, ...string[]];
   /** La fenêtre commune à tous ces cycles, bornes incluses — ce que le bandeau annonce. */
   from: string;
   to: string;
@@ -99,8 +102,8 @@ export type PlanAthleteRow<T extends PlanRowSource = PlanRowSource> = {
   currentPlan: AthleteRowPlan | null;
   /** Ce qu'annonce la colonne de droite. `null` quand rien de vrai ne peut être dit. */
   deadline: PlanDeadline | null;
-  /** `null` = rien d'anormal, le cas de très loin le plus fréquent. */
-  overlap: PlanOverlap | null;
+  /** `null` = un seul cycle court, le cas de très loin le plus fréquent. */
+  concurrency: PlanConcurrency | null;
   /** TOUS ses cycles, brouillons affectés compris, DÉJÀ triés (cf. `sortAthletePlans`). */
   plans: T[];
 };
@@ -155,7 +158,7 @@ function toRow<T extends PlanRowSource>(
     situation: currentPlan?.phase ?? null,
     currentPlan,
     deadline: toDeadline(currentPlan, today),
-    overlap: toOverlap(plans, currentPlan, today),
+    concurrency: toConcurrency(plans, today),
     plans: sortAthletePlans(plans),
   };
 }
@@ -208,21 +211,17 @@ function fullWeeksBetween(from: string | null, to: string | null): number | null
 }
 
 /**
- * Les cycles diffusés qui se chevauchent aujourd'hui (#172). `null` dès qu'il y en a moins de deux
- * — l'immense majorité des lignes.
+ * Les cycles diffusés qui courent ensemble aujourd'hui (#172). `null` dès qu'il y en a moins de
+ * deux — l'immense majorité des lignes.
  *
- * Le cycle SERVI est celui qu'a élu `currentAthletePlan`, et surtout pas le premier de la liste :
- * `selectCurrentPlan` retient le plus récemment démarré (« le coach en a diffusé un remplaçant »),
- * si bien que le cycle commencé le PLUS TÔT est celui que l'athlète ne voit pas. C'est
- * contre-intuitif, et c'est précisément ce qui rend l'anomalie invisible sans cet écran.
+ * Ne désigne AUCUN cycle privilégié, et c'est le changement de #172 : l'athlète les voit tous, il
+ * n'y a plus de « servi » face à des « cachés ». Ce que la ligne signale est une charge cumulée,
+ * plus une anomalie de lecture.
  */
-function toOverlap<T extends PlanRowSource>(
+function toConcurrency<T extends PlanRowSource>(
   plans: readonly T[],
-  currentPlan: AthleteRowPlan | null,
   today: string,
-): PlanOverlap | null {
-  if (currentPlan == null) return null;
-
+): PlanConcurrency | null {
   /**
    * Les cycles retenus portent leur fin CALCULÉE : un cycle en cours en a forcément une, et la
    * recalculer plus bas obligerait à retraiter un `null` qui ne peut plus se produire.
@@ -237,30 +236,25 @@ function toOverlap<T extends PlanRowSource>(
    * les bornes de la fenêtre s'accumulent alors depuis un cycle RÉEL — sans valeur initiale
    * inventée, et sans `reduce` sans accumulateur, que Sonar refuse à juste titre.
    */
-  const [head, ...tail] = ongoing;
-  if (head == null || tail.length === 0) return null;
-
-  const hidden = ongoing.filter((plan) => plan.id !== currentPlan.id).map((plan) => plan.id);
-  const [firstHidden, ...restHidden] = hidden;
-  // Inatteignable — l'élu est l'un des cycles en cours, il en reste donc au moins un autre. Le
-  // garde-fou est là pour le typage du tuple, pas pour un cas à chercher.
-  if (firstHidden == null) return null;
+  const [first, second, ...rest] = ongoing;
+  if (first == null || second == null) return null;
 
   /**
    * La fenêtre COMMUNE : le plus tardif des débuts, le plus précoce des fins. C'est la période
-   * pendant laquelle l'athlète est réellement privé d'un cycle, et non l'union des deux, qui
-   * exagérerait l'anomalie.
+   * pendant laquelle l'athlète mène réellement les deux de front, et non l'union des deux, qui
+   * exagérerait la charge. Le premier cycle sert d'amorce ET reste dans le parcours : le
+   * comparer à lui-même est sans effet, et évite une seconde liste dont on n'a pas besoin.
    */
-  const from = tail.reduce(
+  const from = ongoing.reduce(
     (latest, plan) => (plan.startDate > latest ? plan.startDate : latest),
-    head.startDate,
+    first.startDate,
   );
-  const to = tail.reduce(
+  const to = ongoing.reduce(
     (earliest, plan) => (plan.endDate < earliest ? plan.endDate : earliest),
-    head.endDate,
+    first.endDate,
   );
 
-  return { servedPlanId: currentPlan.id, hiddenPlanIds: [firstHidden, ...restHidden], from, to };
+  return { planIds: [first.id, second.id, ...rest.map((plan) => plan.id)], from, to };
 }
 
 /**

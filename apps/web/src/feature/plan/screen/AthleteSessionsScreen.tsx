@@ -3,7 +3,7 @@ import { todayIsoDate } from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AthleteSessionCard } from "@/feature/plan/component/AthleteSessionCard";
-import { useMyPlan } from "@/feature/plan/hook/useMyPlan";
+import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import {
   CmvAppShell,
   CmvEmptyState,
@@ -19,23 +19,26 @@ import { formatDayLabel } from "@/shared/util/date.util";
 
 export type SessionsSegment = "upcoming" | "past";
 
+/** Une séance et le cycle d'où elle vient — le nom voyage avec elle, il ne se rejoint pas au rendu. */
+type SessionEntry = { session: ScheduledSessionSummaryDto; planTitle: string };
+
 const route = getRouteApi("/sessions/");
 
 /**
- * Toutes les séances du cycle à plat, en deux segments (#25).
+ * Toutes les séances des cycles servis à plat, en deux segments (#25).
  *
  * L'écran que la sidebar de `athlete_web.dc.html` annonçait dans ses douze frames sans jamais le
  * dessiner ; son contenu vient de la planche mobile (`athlete_seance.dc.html`, frames
  * `SÉANCES — LISTE` / `— LISTE VIDE`), en layout desktop.
  *
- * Aucune requête propre : les séances sont déjà dans le cycle chargé par le planning, et c'est
+ * Aucune requête propre : les séances sont déjà dans les cycles chargés par le planning, et c'est
  * exactement ce qui justifie que l'API n'expose que deux routes à l'athlète.
  */
 export function AthleteSessionsScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { segment } = route.useSearch();
-  const { data: plan, isPending, isError, refetch } = useMyPlan();
+  const { data: plans, isPending, isError, refetch } = useMyPlans();
 
   const today = todayIsoDate();
 
@@ -50,19 +53,34 @@ export function AthleteSessionsScreen() {
    * à la plus ancienne (ce qu'on vient de faire est en tête). Un tri unique mettrait à chaque fois
    * en tête la ligne dont on se soucie le moins.
    */
-  const sessions = (plan?.weeks ?? [])
-    .flatMap((week) => week.sessions)
-    .filter((session) =>
+  const entries = (plans ?? [])
+    .flatMap((plan) =>
+      plan.weeks.flatMap((week) =>
+        week.sessions.map((session) => ({ session, planTitle: plan.title })),
+      ),
+    )
+    .filter(({ session }) =>
       segment === "upcoming" ? session.scheduledDate >= today : session.scheduledDate < today,
     )
     .sort((a, b) =>
       segment === "upcoming"
-        ? a.scheduledDate.localeCompare(b.scheduledDate)
-        : b.scheduledDate.localeCompare(a.scheduledDate),
+        ? a.session.scheduledDate.localeCompare(b.session.scheduledDate)
+        : b.session.scheduledDate.localeCompare(a.session.scheduledDate),
     );
 
+  // Le nom du cycle n'apparaît que si l'athlète en suit plusieurs (#172) : répété sur chaque carte
+  // d'un cycle unique, il serait du bruit — c'est ce qui DISTINGUE qui mérite d'être écrit.
+  const showPlanTitle = (plans ?? []).length > 1;
+
   return (
-    <CmvAppShell title={t("plan.athlete.sessions.title")} subtitle={plan?.title ?? "—"}>
+    <CmvAppShell
+      title={t("plan.athlete.sessions.title")}
+      // Le nombre de cycles plutôt qu'un titre : avec plusieurs, en nommer un seul serait faux, et
+      // les concaténer donnerait un sous-titre illisible. `—` tant que la liste n'a pas répondu.
+      subtitle={
+        plans == null ? "—" : t("plan.athlete.sessions.cycleCount", { count: plans.length })
+      }
+    >
       <div className="flex flex-col gap-cmv-lg">
         <CmvSegmented
           options={options}
@@ -85,14 +103,16 @@ export function AthleteSessionsScreen() {
           />
         ) : null}
 
-        {!isPending && !isError && sessions.length === 0 ? (
+        {!isPending && !isError && entries.length === 0 ? (
           <CmvEmptyState
             title={t("plan.athlete.sessions.empty")}
             description={t("plan.athlete.sessions.emptyHint")}
           />
         ) : null}
 
-        {sessions.length === 0 ? null : <SessionsByDay sessions={sessions} />}
+        {entries.length === 0 ? null : (
+          <SessionsByDay entries={entries} showPlanTitle={showPlanTitle} />
+        )}
       </div>
     </CmvAppShell>
   );
@@ -102,12 +122,15 @@ export function AthleteSessionsScreen() {
  * Groupées par jour, l'intitulé au-dessus. Le groupe est construit en parcourant la liste DÉJÀ
  * triée : c'est ce qui garantit que l'ordre des jours suit celui du segment, sans le retrier.
  */
-function SessionsByDay({ sessions }: Readonly<{ sessions: ScheduledSessionSummaryDto[] }>) {
-  const days: { date: string; sessions: ScheduledSessionSummaryDto[] }[] = [];
-  for (const session of sessions) {
+function SessionsByDay({
+  entries,
+  showPlanTitle,
+}: Readonly<{ entries: SessionEntry[]; showPlanTitle: boolean }>) {
+  const days: { date: string; entries: SessionEntry[] }[] = [];
+  for (const entry of entries) {
     const last = days.at(-1);
-    if (last?.date === session.scheduledDate) last.sessions.push(session);
-    else days.push({ date: session.scheduledDate, sessions: [session] });
+    if (last?.date === entry.session.scheduledDate) last.entries.push(entry);
+    else days.push({ date: entry.session.scheduledDate, entries: [entry] });
   }
 
   return (
@@ -117,11 +140,16 @@ function SessionsByDay({ sessions }: Readonly<{ sessions: ScheduledSessionSummar
           <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
             {formatDayLabel(day.date)}
           </h2>
-          {/* Plusieurs séances le même jour : `position` est le rang DANS la journée. */}
-          {[...day.sessions]
-            .sort((a, b) => a.position - b.position)
-            .map((session) => (
-              <AthleteSessionCard key={session.id} session={session} />
+          {/* Plusieurs séances le même jour : `position` est le rang DANS la journée. Deux cycles
+              peuvent y poser chacun la sienne — l'ordre reste celui des cycles, puis du rang. */}
+          {[...day.entries]
+            .sort((a, b) => a.session.position - b.session.position)
+            .map((entry) => (
+              <AthleteSessionCard
+                key={entry.session.id}
+                session={entry.session}
+                planLabel={showPlanTitle ? entry.planTitle : null}
+              />
             ))}
         </section>
       ))}

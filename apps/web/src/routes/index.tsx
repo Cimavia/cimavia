@@ -59,7 +59,7 @@ export const Route = createFileRoute("/")({
   component: () => (
     <CmvRoleGate
       capability="coach"
-      fallback={<Navigate to="/planning" search={{ week: undefined }} replace />}
+      fallback={<Navigate to="/planning" search={{ from: undefined }} replace />}
     >
       <DashboardScreen />
     </CmvRoleGate>

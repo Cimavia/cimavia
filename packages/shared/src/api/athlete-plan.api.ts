@@ -4,8 +4,8 @@ import type { ApiClient } from "./client";
 /**
  * Appels HTTP de la LECTURE de planification par l'athlète, partagés web ↔ mobile.
  *
- * Deux routes suffisent aux trois écrans (planning, liste des séances, détail) : le cycle courant
- * porte déjà ses semaines et ses séances, la liste s'en dérive sans requête de plus.
+ * Deux routes suffisent aux trois écrans (planning, liste des séances, détail) : les cycles servis
+ * portent déjà leurs semaines et leurs séances, la liste s'en dérive sans requête de plus.
  *
  * ⚠️ Ce module n'a rien de commun avec la surface COACH (`/plans`, `/plan-weeks`,
  * `/scheduled-sessions`), qui reste dans `apps/web` : ce ne sont pas deux copies d'un même appel
@@ -33,24 +33,29 @@ import type { ApiClient } from "./client";
  */
 export const myPlanKeys = {
   all: ["my-plan"] as const,
-  current: () => ["my-plan", "current"] as const,
+  /**
+   * Les cycles que l'athlète voit — au pluriel depuis #172, où ils ont cessé de se remplacer. La
+   * clé a changé de nom AVEC la route : garder `current` aurait laissé croire qu'un seul cycle
+   * répond, et c'est cette croyance-là qui a produit le défaut.
+   */
+  visible: () => ["my-plan", "visible"] as const,
   session: (sessionId: string) => ["my-plan", "session", sessionId] as const,
 };
 
 export type AthletePlanApi = {
   /**
-   * Le cycle courant de l'athlète — semaines et séances comprises —, ou `null` s'il n'a aucun
-   * cycle diffusé. Le `null` est un état normal : pas encore de coach, ou coach qui n'a rien
-   * diffusé.
+   * Tous les cycles diffusés que l'athlète voit — semaines et séances comprises —, en cours puis à
+   * venir. Liste VIDE s'il n'en a aucun : pas encore de coach, ou coach qui n'a rien diffusé. Le
+   * `null` reste au niveau de la requête, que les écrans traitent séparément (chargement, panne).
    */
-  current: () => Promise<PlanDto | null>;
+  visible: () => Promise<PlanDto[]>;
   /** Détail d'une séance : exercices, consignes, documents (URLs signées, donc réseau requis). */
   session: (sessionId: string) => Promise<ScheduledSessionDto>;
 };
 
 export function createAthletePlanApi(api: ApiClient): AthletePlanApi {
   return {
-    current: () => api.get<PlanDto | null>("/me/plan"),
+    visible: () => api.get<PlanDto[]>("/me/plans"),
     session: (sessionId) => api.get<ScheduledSessionDto>(`/me/scheduled-sessions/${sessionId}`),
   };
 }

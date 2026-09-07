@@ -28,15 +28,17 @@ describe("createAthletePlanApi", () => {
    * gardées `@Roles([ATHLETE])`. La surface coach est un autre contrôleur, avec d'autres droits —
    * s'y tromper donnerait un 403, pas une liste vide.
    */
-  it("lit le cycle courant et une séance sous /me", async () => {
+  it("lit les cycles visibles et une séance sous /me", async () => {
     const { api, calls } = spyClient();
     const plans = createAthletePlanApi(api);
 
-    await plans.current();
+    await plans.visible();
     await plans.session("ss_123");
 
+    // `/me/plans` au pluriel : les cycles diffusés s'accumulent (#172), et `/me/plan` — qui n'en
+    // servait qu'un — a été retirée avec la bascule des clients.
     expect(calls).toEqual([
-      { method: "GET", path: "/me/plan", body: undefined },
+      { method: "GET", path: "/me/plans", body: undefined },
       { method: "GET", path: "/me/scheduled-sessions/ss_123", body: undefined },
     ]);
   });
@@ -45,7 +47,7 @@ describe("createAthletePlanApi", () => {
   // vit dans sa propre surface.
   it("n'expose que de la lecture", () => {
     const { api } = spyClient();
-    expect(Object.keys(createAthletePlanApi(api)).sort()).toEqual(["current", "session"]);
+    expect(Object.keys(createAthletePlanApi(api)).sort()).toEqual(["session", "visible"]);
   });
 });
 
@@ -64,7 +66,7 @@ describe("myPlanKeys", () => {
   // Racine unique : le détail d'une séance est un zoom sur le cycle, pas une autre ressource. Une
   // invalidation de `all` doit faire tomber les deux — c'est ce dont le débrief a besoin.
   it("range le cycle et ses séances sous la même racine", () => {
-    expect(myPlanKeys.current()[0]).toBe(myPlanKeys.all[0]);
+    expect(myPlanKeys.visible()[0]).toBe(myPlanKeys.all[0]);
     expect(myPlanKeys.session("ss_1")[0]).toBe(myPlanKeys.all[0]);
   });
 

@@ -1,5 +1,5 @@
-import type { PlanWeekDto, ScheduledSessionSummaryDto } from "@cmv/shared";
-import { PlanWeekType, ScheduledSessionStatus } from "@cmv/shared";
+import type { AthleteCalendarWeek, CalendarPlan, ScheduledSessionSummaryDto } from "@cmv/shared";
+import { athleteCalendarWeek, PlanWeekType, ScheduledSessionStatus } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteWeekGrid } from "./AthleteWeekGrid";
@@ -27,22 +27,37 @@ const session = (
   exerciseCount: 3,
 });
 
-const week = (sessions: ScheduledSessionSummaryDto[], startDate = MONDAY): PlanWeekDto => ({
-  id: "pw_1",
-  weekNumber: 1,
-  type: PlanWeekType.TRAINING,
-  note: null,
-  startDate,
-  endDate: "2026-10-18",
-  sessions,
+/** Un cycle d'une semaine démarrant le lundi de référence — le plus petit qui alimente la grille. */
+const plan = (
+  id: string,
+  title: string,
+  sessions: ScheduledSessionSummaryDto[],
+): CalendarPlan<ScheduledSessionSummaryDto> => ({
+  id,
+  title,
+  startDate: MONDAY,
+  weekCount: 1,
+  weeks: [{ weekNumber: 1, type: PlanWeekType.TRAINING, note: null, startDate: MONDAY, sessions }],
 });
+
+/**
+ * La semaine est composée par la VRAIE dérivation partagée plutôt qu'à la main : c'est ce qui lie
+ * ce test au contrat que l'écran utilise, et non à une structure de sept jours recopiée ici.
+ */
+function calendarWeek(
+  plans: CalendarPlan<ScheduledSessionSummaryDto>[],
+): AthleteCalendarWeek<ScheduledSessionSummaryDto> {
+  const week = athleteCalendarWeek(plans, MONDAY);
+  if (week == null) throw new Error("[test] semaine civile non composable");
+  return week;
+}
 
 /**
  * La grille est montée dans un VRAI routeur : `AthleteSessionCard` est un `<Link>`, et sans la
  * route de destination le lien tombe au rendu — l'absence de test tenait pour partie à ça.
  */
-const mount = (weekDto: PlanWeekDto, today = MONDAY) =>
-  renderInRoute(<AthleteWeekGrid week={weekDto} today={today} />, {
+const mount = (week: AthleteCalendarWeek<ScheduledSessionSummaryDto>, today = MONDAY) =>
+  renderInRoute(<AthleteWeekGrid week={week} today={today} />, {
     path: "/planning",
     links: ["/sessions/$sessionId"],
   });
@@ -65,7 +80,7 @@ const columnAt = (container: HTMLElement, index: number): HTMLElement => {
 
 describe("AthleteWeekGrid", () => {
   it("affiche les sept jours même quand la semaine ne contient aucune séance", async () => {
-    const { container, getAllByText } = await mount(week([]));
+    const { container, getAllByText } = await mount(calendarWeek([plan("p_1", "Bloc", [])]));
 
     // Sept colonnes, sept « Repos » : une semaine vide se lit « le cycle prévoit du repos », et
     // non « rien à afficher ».
@@ -75,7 +90,7 @@ describe("AthleteWeekGrid", () => {
 
   it("pose la séance dans la colonne de son jour et laisse les six autres au repos", async () => {
     const { container, getAllByText, getByText } = await mount(
-      week([session("ss_1", "Bloc force max", 0)]),
+      calendarWeek([plan("p_1", "Bloc", [session("ss_1", "Bloc force max", 0)])]),
     );
 
     // Mercredi = le 3e jour d'une semaine qui commence le lundi.
@@ -86,7 +101,9 @@ describe("AthleteWeekGrid", () => {
 
   it("range deux séances d'un même jour par leur position, sans les répartir sur deux colonnes", async () => {
     const { container, getAllByText, getByText } = await mount(
-      week([session("ss_2", "Renfo", 1), session("ss_1", "Voie", 0)]),
+      calendarWeek([
+        plan("p_1", "Bloc", [session("ss_2", "Renfo", 1), session("ss_1", "Voie", 0)]),
+      ]),
     );
 
     // `position` est le rang DANS la journée : la liste arrive dans l'ordre de l'API, pas dans le
@@ -102,17 +119,39 @@ describe("AthleteWeekGrid", () => {
   });
 
   it("ne marque « aujourd'hui » que sur le jour courant", async () => {
-    const { container, getAllByText, getByText } = await mount(week([]), WEDNESDAY);
+    const { container, getAllByText, getByText } = await mount(
+      calendarWeek([plan("p_1", "Bloc", [])]),
+      WEDNESDAY,
+    );
 
     expect(getAllByText(TODAY)).toHaveLength(1);
     expect(columnAt(container, 2)).toContainElement(getByText(TODAY));
   });
 
-  it("ne dessine aucune grille quand la semaine n'est pas situable", async () => {
-    // Date illisible : sept colonnes fausses vaudraient moins que rien du tout.
-    const { container, queryByText } = await mount(week([], "pas-une-date"));
+  /**
+   * Le cœur de #172 côté grille : deux cycles peuvent poser une séance le même jour, et sans le
+   * nom du cycle les deux cartes sont indiscernables.
+   */
+  it("nomme le cycle de chaque séance quand deux cycles courent la même semaine", async () => {
+    const { container, getByText } = await mount(
+      calendarWeek([
+        plan("p_1", "Cycle Bloc", [session("ss_1", "Force max", 0)]),
+        plan("p_2", "Prépa falaise", [session("ss_2", "Voie longue", 0)]),
+      ]),
+    );
 
-    expect(columnsOf(container)).toHaveLength(0);
-    expect(queryByText(REST)).toBeNull();
+    const wednesday = columnAt(container, 2);
+    expect(wednesday).toContainElement(getByText("Cycle Bloc"));
+    expect(wednesday).toContainElement(getByText("Prépa falaise"));
+  });
+
+  // L'étiquette DISTINGUE ; répétée sur chaque carte d'un cycle unique, elle ne distinguerait rien
+  // et déplacerait la lecture du contenu vers son origine.
+  it("tait le nom du cycle quand il n'y en a qu'un", async () => {
+    const { queryByText } = await mount(
+      calendarWeek([plan("p_1", "Cycle Bloc", [session("ss_1", "Force max", 0)])]),
+    );
+
+    expect(queryByText("Cycle Bloc")).toBeNull();
   });
 });

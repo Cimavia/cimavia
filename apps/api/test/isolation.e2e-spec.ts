@@ -1215,9 +1215,9 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   });
 
   it("un brouillon est INVISIBLE de l'athlète (le scope tenant ne filtre pas le statut)", async () => {
-    const plan = await athleteA1.get("/me/plan");
-    expect(plan.status).toBe(200);
-    expect(plan.body).toBeNull();
+    const plans = await athleteA1.get("/me/plans");
+    expect(plans.status).toBe(200);
+    expect(plans.body).toEqual([]);
 
     // Même en connaissant l'id exact de la séance.
     expect((await athleteA1.get(`/me/scheduled-sessions/${scheduledId}`)).status).toBe(404);
@@ -1261,12 +1261,14 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   });
 
   it("l'athlète consulte SON cycle diffusé (semaines + séances) et le détail d'une séance", async () => {
-    const plan = await athleteA1.get("/me/plan");
-    expect(plan.status).toBe(200);
-    expect(plan.body.id).toBe(planId);
-    expect(plan.body.weeks).toHaveLength(2);
-    expect(plan.body.weeks[0].sessions).toHaveLength(1);
-    expect(plan.body.weeks[0].sessions[0]).toMatchObject({
+    const plans = await athleteA1.get("/me/plans");
+    expect(plans.status).toBe(200);
+    expect(plans.body).toHaveLength(1);
+    const plan = plans.body[0];
+    expect(plan.id).toBe(planId);
+    expect(plan.weeks).toHaveLength(2);
+    expect(plan.weeks[0].sessions).toHaveLength(1);
+    expect(plan.weeks[0].sessions[0]).toMatchObject({
       id: scheduledId,
       scheduledDate: monday,
       status: "PLANNED",
@@ -1280,7 +1282,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   });
 
   it("l'athlète d'un autre coach ne voit rien de ce cycle", async () => {
-    expect((await athleteB1.get("/me/plan")).body).toBeNull();
+    expect((await athleteB1.get("/me/plans")).body).toEqual([]);
     expect((await athleteB1.get(`/me/scheduled-sessions/${scheduledId}`)).status).toBe(404);
   });
 
@@ -1291,7 +1293,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       403,
     );
     // Symétrie : les routes /me/* sont réservées à l'athlète.
-    expect((await coachA.get("/me/plan")).status).toBe(403);
+    expect((await coachA.get("/me/plans")).status).toBe(403);
   });
 
   // C'est l'arbitrage du modèle : l'instance est une copie autonome (sourceExerciseId en SetNull),
@@ -1414,9 +1416,9 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     const { sessionId } = await draftWithoutAthlete("Invisible");
 
     for (const athlete of [athleteA1, athleteA2]) {
-      const plan = await athlete.get("/me/plan");
-      expect(plan.status).toBe(200);
-      expect(plan.body).toBeNull();
+      const plans = await athlete.get("/me/plans");
+      expect(plans.status).toBe(200);
+      expect(plans.body).toEqual([]);
       expect((await athlete.get(`/me/scheduled-sessions/${sessionId}`)).status).toBe(404);
     }
   });
@@ -1471,8 +1473,8 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
 
     expect((await billAndPublish(coachA, planId)).status).toBe(200);
 
-    const plan = await athleteA1.get("/me/plan");
-    expect(plan.body.id).toBe(planId);
+    const plans = await athleteA1.get("/me/plans");
+    expect(plans.body.map((visible: { id: string }) => visible.id)).toContain(planId);
     const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
     expect(session.status).toBe(200);
 
@@ -1529,7 +1531,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     expect(detached.status).toBe(200);
     expect(detached.body.athleteId).toBeNull();
     // Redevenu invisible, comme s'il n'avait jamais été affecté — vérifié sur SA séance et non
-    // sur `/me/plan`, qui sert le cycle courant de l'athlète et parlerait donc d'un autre cycle.
+    // sur `/me/plans`, qui sert les cycles visibles de l'athlète et parlerait donc d'un autre cycle.
     expect((await athleteA1.get(`/me/scheduled-sessions/${sessionId}`)).status).toBe(404);
 
     await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
@@ -4984,12 +4986,12 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
   });
 
   /**
-   * `GET /me/plan` est `@Roles([ATHLETE])`. C'est le mur sur lequel le mobile s'est cassé : trois
+   * `GET /me/plans` est `@Roles([ATHLETE])`. C'est le mur sur lequel le mobile s'est cassé : trois
    * redirections envoyaient tout le monde sur `/planning`, et un coach y prenait un 403 dès la
    * connexion.
    */
   it("refuse au coach les surfaces /me de l'athlète", async () => {
-    expect((await coach.get("/me/plan")).status).toBe(403);
+    expect((await coach.get("/me/plans")).status).toBe(403);
     expect((await coach.get("/me/coach")).status).toBe(403);
   });
 
@@ -5475,9 +5477,9 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
   // Le cycle diffusé se lit par les routes ATHLÈTE, comme n'importe quel autre : c'est tout
   // l'intérêt d'avoir gardé la state machine.
   it("relit son propre cycle par les routes athlète", async () => {
-    const mine = await solo.get("/me/plan");
+    const mine = await solo.get("/me/plans");
     expect(mine.status).toBe(200);
-    expect(mine.body?.title).toBe("Ma prépa");
+    expect(mine.body.map((plan: { title: string }) => plan.title)).toContain("Ma prépa");
   });
 
   // On ne se facture pas soi-même : un refus explicite, plutôt qu'un brouillon saisi pour rien.
@@ -5816,9 +5818,9 @@ describe("Isolation multi-capacité (#18)", () => {
 
   it("n'atteint le cycle d'un étranger ni en coach ni en athlète", async () => {
     expect((await dual.get(`/plans/${strangerPlanId}`)).status).toBe(404);
-    // Côté athlète, il ne lit que le sien : celui de l'étranger n'est pas « le cycle courant ».
-    const mine = await dual.get("/me/plan");
-    expect(mine.body?.id).not.toBe(strangerPlanId);
+    // Côté athlète, il ne lit que les siens : celui de l'étranger n'est jamais servi.
+    const mine = await dual.get("/me/plans");
+    expect(mine.body.map((plan: { id: string }) => plan.id)).not.toContain(strangerPlanId);
   });
 
   // Sa liste d'athlètes est la SIENNE : celui d'un autre coach n'y figure pas, même si les deux
@@ -6857,5 +6859,156 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
 
       expect(await reordered(day.athlete)).toHaveLength(0);
     });
+  });
+});
+/**
+ * #172 : un cycle diffusé pouvait rester invisible de son destinataire. `GET /me/plan` n'en servait
+ * qu'un (`selectCurrentPlan`), si bien qu'un second cycle diffusé — facturé, notifié — n'atteignait
+ * jamais l'athlète, et que rien nulle part ne le signalait au coach.
+ *
+ * `GET /me/plans` les sert TOUS. Ce que ces tests tiennent, c'est l'accumulation : diffuser
+ * n'écarte rien de ce qui est déjà diffusé.
+ */
+describe("Les cycles diffusés s'accumulent chez l'athlète (#172)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let athleteMany: Agent;
+  let athleteEnded: Agent;
+  let athleteDraft: Agent;
+  let athleteB1: Agent;
+  let draftSessionId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const weeksFrom = (mondays: number): string => {
+    const date = shiftIsoDate(monday, mondays * 7);
+    if (date == null) throw new Error("[test] date de départ de cycle introuvable");
+    return date;
+  };
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return accepted.body.athleteId;
+  }
+
+  /**
+   * Un cycle garni d'une séance, pour que la lecture athlète porte sur autre chose qu'un en-tête.
+   * Le nombre de semaines décide de l'ÉPOQUE autant que la date de début : un cycle d'une semaine
+   * démarré il y a deux semaines est terminé, pas en cours.
+   */
+  async function draft(
+    coach: Agent,
+    athleteId: string,
+    title: string,
+    startDate: string,
+    weekCount = 1,
+  ) {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title,
+      startDate,
+      weeks: Array.from({ length: weekCount }, () => ({ type: "TRAINING" })),
+    });
+    expect(plan.status).toBe(201);
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title: `Séance — ${title}`, scheduledDate: startDate });
+    expect(session.status).toBe(201);
+    return { planId: plan.body.id as string, sessionId: session.body.id as string };
+  }
+
+  async function published(
+    coach: Agent,
+    athleteId: string,
+    title: string,
+    startDate: string,
+    weekCount = 1,
+  ) {
+    const { planId } = await draft(coach, athleteId, title, startDate, weekCount);
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+    return planId;
+  }
+
+  const titlesSeenBy = async (athlete: Agent): Promise<string[]> => {
+    const res = await athlete.get("/me/plans");
+    expect(res.status).toBe(200);
+    return (res.body as { title: string }[]).map((plan) => plan.title);
+  };
+
+  beforeAll(async () => {
+    coachA = await signUp("cumul-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("cumul-coach-b@cmv.test", Role.COACH);
+    athleteMany = await signUp("cumul-many@cmv.test", Role.ATHLETE);
+    athleteEnded = await signUp("cumul-ended@cmv.test", Role.ATHLETE);
+    athleteDraft = await signUp("cumul-draft@cmv.test", Role.ATHLETE);
+    athleteB1 = await signUp("cumul-b1@cmv.test", Role.ATHLETE);
+
+    const manyId = await link(coachA, athleteMany);
+    const endedId = await link(coachA, athleteEnded);
+    const draftId = await link(coachA, athleteDraft);
+    await link(coachB, athleteB1);
+
+    // Deux cycles qui COURENT tous les deux, plus un qui arrive : le cas que #172 servait à moitié.
+    await published(coachA, manyId, "En cours depuis 2 semaines", weeksFrom(-2), 4);
+    await published(coachA, manyId, "En cours depuis lundi", weeksFrom(0));
+    await published(coachA, manyId, "À venir dans 6 semaines", weeksFrom(6));
+
+    // Deux cycles terminés, rien derrière.
+    await published(coachA, endedId, "Terminé il y a longtemps", weeksFrom(-20));
+    await published(coachA, endedId, "Terminé récemment", weeksFrom(-8));
+
+    ({ sessionId: draftSessionId } = await draft(coachA, draftId, "Brouillon", weeksFrom(0)));
+  });
+
+  it("sert les DEUX cycles en cours, et pas seulement le dernier démarré", async () => {
+    const titles = await titlesSeenBy(athleteMany);
+    expect(titles).toContain("En cours depuis 2 semaines");
+    expect(titles).toContain("En cours depuis lundi");
+  });
+
+  it("sert aussi le cycle à venir, en cours d'abord et par date de début croissante", async () => {
+    expect(await titlesSeenBy(athleteMany)).toEqual([
+      "En cours depuis 2 semaines",
+      "En cours depuis lundi",
+      "À venir dans 6 semaines",
+    ]);
+  });
+
+  it("sert les semaines et les séances de chaque cycle, pas seulement leurs en-têtes", async () => {
+    const res = await athleteMany.get("/me/plans");
+    for (const plan of res.body as { weeks: { sessions: unknown[] }[] }[]) {
+      // La séance est posée en semaine 1 de chaque cycle ; les semaines suivantes sont vides.
+      expect(plan.weeks.length).toBeGreaterThanOrEqual(1);
+      expect(plan.weeks[0]?.sessions).toHaveLength(1);
+    }
+  });
+
+  /**
+   * Le repli, et il compte : sans lui, un athlète entre deux cycles verrait un écran vide au lieu
+   * du dernier cycle reçu. Un seul cycle, le plus récent — pas son historique entier.
+   */
+  it("retombe sur le dernier cycle terminé, seul, quand plus rien ne court", async () => {
+    expect(await titlesSeenBy(athleteEnded)).toEqual(["Terminé récemment"]);
+  });
+
+  it("rend une liste VIDE — jamais null — pour un athlète sans cycle diffusé", async () => {
+    const res = await athleteDraft.get("/me/plans");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("ne sert JAMAIS un brouillon, même en connaissant l'id exact de sa séance", async () => {
+    expect(await titlesSeenBy(athleteDraft)).toEqual([]);
+    expect((await athleteDraft.get(`/me/scheduled-sessions/${draftSessionId}`)).status).toBe(404);
+  });
+
+  it("ne fuit rien vers l'athlète d'un autre coach", async () => {
+    expect(await titlesSeenBy(athleteB1)).toEqual([]);
+  });
+
+  it("reste fermée au coach, comme le reste de /me (@Roles ATHLETE)", async () => {
+    expect((await coachA.get("/me/plans")).status).toBe(403);
+    expect((await coachB.get("/me/plans")).status).toBe(403);
   });
 });

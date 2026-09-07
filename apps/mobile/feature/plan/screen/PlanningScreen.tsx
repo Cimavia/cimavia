@@ -1,5 +1,5 @@
-import type { PlanDto, PlanWeekDto } from "@cmv/shared";
-import { todayIsoDate } from "@cmv/shared";
+import type { AthleteCalendarWeek, PlanDto, ScheduledSessionSummaryDto } from "@cmv/shared";
+import { athleteCalendarWeek, mondayOfIsoWeek, todayIsoDate } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,7 @@ import { ActivityIndicator, RefreshControl, ScrollView } from "react-native";
 import { useMyCoach } from "@/feature/coach";
 import { CurrentWeekSection } from "@/feature/plan/component/CurrentWeekSection";
 import { PlanningNotice } from "@/feature/plan/component/PlanningNotice";
-import { currentWeek, useMyPlan } from "@/feature/plan/hook/useMyPlan";
+import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 
@@ -15,44 +15,49 @@ import { OfflineBanner } from "@/shared/component/OfflineBanner";
  * Ce que l'écran a à montrer, en un seul état — les six cas s'excluent, et l'exclusivité vaut
  * mieux affirmée ici que reconstituée à chaque bloc par une conjonction de négations.
  *
- * Deux nuances qui ne se devinent pas :
+ * Trois nuances qui ne se devinent pas :
  *  - « sans coach » et « coach sans cycle diffusé » sont DIFFÉRENTS : dire à un athlète non
  *    rattaché que son coach n'a rien diffusé le laisserait attendre pour rien ;
- *  - hors-ligne, le cache sert encore le cycle — l'erreur n'a donc de sens que sans données.
+ *  - hors-ligne, le cache sert encore les cycles — l'erreur n'a donc de sens que sans données ;
+ *  - « aucun cycle n'a cours cette semaine » n'est pas « semaine de repos ». Les deux montrent
+ *    zéro séance et disent l'inverse l'un de l'autre : seul `cycles` les sépare (#172).
  */
 type PlanningState =
   | { kind: "loading" }
   | { kind: "error" }
   | { kind: "noCoach" }
   | { kind: "noPlan" }
-  | { kind: "outOfCycle"; plan: PlanDto }
-  | { kind: "week"; week: PlanWeekDto };
+  | { kind: "outOfCycle" }
+  | { kind: "week"; week: AthleteCalendarWeek<ScheduledSessionSummaryDto> };
 
-function resolvePlanningState(
+export function resolvePlanningState(
   isPending: boolean,
   isError: boolean,
-  plan: PlanDto | null | undefined,
+  plans: PlanDto[] | undefined,
   hasCoach: boolean,
-  week: PlanWeekDto | null,
+  week: AthleteCalendarWeek<ScheduledSessionSummaryDto> | null,
 ): PlanningState {
   if (isPending) return { kind: "loading" };
-  if (plan == null) {
-    if (isError) return { kind: "error" };
-    return hasCoach ? { kind: "noPlan" } : { kind: "noCoach" };
-  }
-  // Un cycle existe mais aucune semaine ne contient aujourd'hui : il est fini ou à venir. On le
-  // dit, plutôt que d'afficher la semaine 1 comme si c'était la semaine courante.
-  return week == null ? { kind: "outOfCycle", plan } : { kind: "week", week };
+  if (plans == null) return isError ? { kind: "error" } : { kind: "noCoach" };
+  if (plans.length === 0) return hasCoach ? { kind: "noPlan" } : { kind: "noCoach" };
+  // Des cycles existent, mais aucun ne couvre la semaine en cours : ils sont finis, ou pas encore
+  // commencés. On le dit — sept lignes de « Repos » diraient exactement le contraire.
+  if (week == null || week.cycles.length === 0) return { kind: "outOfCycle" };
+  return { kind: "week", week };
 }
 
-// Vue semaine de l'athlète (p3-4) : la semaine EN COURS de son cycle diffusé.
+// Vue semaine de l'athlète (p3-4) : la semaine CIVILE en cours, alimentée par tous ses cycles.
 export function PlanningScreen() {
   const { t } = useTranslation();
-  const { data: plan, isPending, isError, isRefetching, refetch } = useMyPlan();
+  const { data: plans, isPending, isError, isRefetching, refetch } = useMyPlans();
   const { data: coach } = useMyCoach();
 
   const today = todayIsoDate();
-  const state = resolvePlanningState(isPending, isError, plan, coach != null, currentWeek(plan));
+  const monday = mondayOfIsoWeek(today);
+  // Toujours la semaine en cours, jamais un repli sur le début d'un cycle : l'écran s'intitule
+  // « Cette semaine », et lui montrer une autre semaine sous ce titre serait un mensonge.
+  const week = monday == null || plans == null ? null : athleteCalendarWeek(plans, monday);
+  const state = resolvePlanningState(isPending, isError, plans, coach != null, week);
 
   return (
     <CmvScreen>
@@ -90,7 +95,7 @@ export function PlanningScreen() {
         ) : null}
 
         {state.kind === "outOfCycle" ? (
-          <PlanningNotice title={state.plan.title} description={t("plan.outOfCycle")} />
+          <PlanningNotice title={t("plan.thisWeek")} description={t("plan.outOfCycle")} />
         ) : null}
 
         {state.kind === "week" ? <CurrentWeekSection week={state.week} today={today} /> : null}

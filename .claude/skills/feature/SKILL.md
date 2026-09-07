@@ -96,6 +96,7 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
 - Une **décision que le code ne justifie pas seul** se consigne en encadré « Tranché en #N ».
 - Les issues à créer se proposent, puis se créent après validation (→ skill `issue`).
 - Toute anomalie de board (statut, titre désynchronisé, relation manquante) se signale.
+- Mettre le statut "en cours" sur les issues correspondant au développement demandé
 
 ## 8. Test
 - Préparer un plan de test à la fin de chaque issue pour que le développeur test

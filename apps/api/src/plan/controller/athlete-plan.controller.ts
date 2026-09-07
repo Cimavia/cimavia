@@ -11,10 +11,13 @@ import { AthletePlanService } from "../service/athlete-plan.service";
 export class AthletePlanController {
   constructor(private readonly plans: AthletePlanService) {}
 
-  // Le cycle courant avec ses semaines et ses séances — `null` si aucun plan diffusé.
-  @Get("plan")
-  myPlan() {
-    return this.plans.myCurrentPlan();
+  /**
+   * Tous les cycles diffusés que l'athlète voit, semaines et séances comprises — liste vide s'il
+   * n'en a aucun (#172). Ils s'ACCUMULENT : un second cycle diffusé n'en remplace pas un premier.
+   */
+  @Get("plans")
+  myPlans() {
+    return this.plans.myVisiblePlans();
   }
 
   @Get("scheduled-sessions/:id")

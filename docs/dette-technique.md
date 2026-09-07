@@ -1575,7 +1575,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > La CAPACITÉ de décalage (`shiftSessions`) reste entière : elle sert au brouillon. Décaler un cycle
 > **diffusé** (athlète blessé, report d'une semaine) est un besoin réel, mais demande de prévenir
-> l'athlète — hors périmètre ici, à ouvrir avec [#172](https://github.com/Cimavia/cimavia/issues/172).
+> l'athlète — hors périmètre ici. Le renvoi vers #172 était une **erreur d'aiguillage** : #172 traite
+> l'invisibilité d'un cycle diffusé, pas son report. Le sujet vit désormais dans
+> [#231](https://github.com/Cimavia/cimavia/issues/231), dont le déclencheur est un coach qui le
+> demande — aucun ne l'a fait à ce jour.
 
 > **Ce que l'avertissement de décalage promet, et ce qu'il ne promet pas** : déplacer le début
 > rejoue les dates de **toutes les séances**, et l'interface le dit avant l'enregistrement — sinon
@@ -1898,6 +1901,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > (le code rend mieux que la maquette). Sans cette ligne, une relecture de la maquette rétablit le
 > défaut en croyant corriger une dérive.
 
+> ⚠️ **Amendé en #172** : les deux encadrés qui suivent décrivent l'étirement des cartes, retiré
+> depuis. Le geste qu'ils justifient (`flex-1` + `auto-rows-fr` sur le conteneur du jour) rendait la
+> carte d'un jour peu chargé aussi haute que la pile d'un jour plein — voir *Cycles diffusés cumulés*
+> plus bas. Ce qui SURVIT d'eux : le plancher vaut à toutes les largeurs, et rien de tout cela ne
+> s'écrit dans `AthleteSessionCard`, qui sert aussi la liste verticale de `/sessions`.
+
 > **Tranché en #206** (l'étirement s'écrit dans la COLONNE, jamais dans la carte) :
 > `AthleteSessionCard` sert aussi la liste verticale de `/sessions`, où étirer n'aurait aucun sens.
 > C'est le conteneur du jour qui porte `flex-1` + `auto-rows-fr` — les éléments de grille s'étirent
@@ -2045,15 +2054,18 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > en #225 et désormais seule à choisir le cycle courant — deux dérivations parallèles auraient fini
 > par désigner deux cycles différents pour le même athlète, sur deux écrans qu'un coach lit à la suite.
 
-> **Signalé, pas corrigé, en #225** ([#172](https://github.com/Cimavia/cimavia/issues/172)) : deux
-> cycles diffusés qui se chevauchent restent servis à moitié — `selectCurrentPlan` en retient un, et
-> l'athlète ignore l'autre. Cet écran est le seul endroit du produit où le coach peut le VOIR : une
-> pastille sur la ligne, un bandeau en tête du dépli qui nomme le cycle invisible. Le correctif vit
-> dans `AthletePlanService` et **#172 reste ouverte** — ne pas la fermer sur la foi de ce rendu.
+> **Signalé en #225, corrigé en #172** : #225 avait posé une pastille et un bandeau pour montrer que
+> deux cycles diffusés qui se chevauchent n'étaient servis qu'à moitié — `selectCurrentPlan` en
+> retenait un, l'athlète ignorait l'autre —, en précisant que le correctif vivait dans
+> `AthletePlanService` et qu'il ne fallait pas fermer #172 sur la foi de ce rendu. C'est fait : les
+> cycles s'accumulent, l'athlète les voit tous.
 >
-> Piège du signalement, et raison d'être du bandeau : c'est le cycle commencé le PLUS TÔT qui est
-> invisible, `selectCurrentPlan` retenant le plus récemment démarré (« le coach en a diffusé un
-> remplaçant »). La maquette avait l'inverse ; l'implémentation suit le produit.
+> Le signalement, lui, **a dû être repris** : ses noms disaient l'anomalie corrigée. `PlanOverlap`
+> (`servedPlanId` / `hiddenPlanIds`) est devenu `PlanConcurrency` (`planIds`), et
+> `plan.overlap.notice` — « « P1 » ne lui est pas servi » — a laissé place à `plan.concurrency`, qui
+> dit ce qui reste vrai : sur cette fenêtre, l'athlète mène deux cycles **de front**. C'est une
+> charge, plus un défaut de lecture. Le piège que #225 documentait (le cycle commencé le plus tôt est
+> l'invisible) n'existe plus, et son paragraphe est retiré avec lui.
 
 > **Assumé en #225** (pas de pagination) : `GET /plans` n'est toujours pas borné, et cette issue ne
 > le borne pas — même famille que **D-1** et l'épic [#68](https://github.com/Cimavia/cimavia/issues/68).
@@ -2094,6 +2106,215 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `HISTORY_PAGE_SIZE` vivent désormais à part ; `pageOfInvoices`, `InvoicePage` et
 > `INVOICE_HISTORY_PAGE_SIZE` en sont des alias, pour leurs appelants et parce qu'ils disent CE QU'ON
 > pagine. Aucun changement de comportement.
+
+---
+
+## Post-MVP — Cycles diffusés cumulés ([#172](https://github.com/Cimavia/cimavia/issues/172))
+
+> **Tranché en #172** (les cycles diffusés s'ACCUMULENT, ils ne se remplacent pas) : un coach
+> diffusait un second cycle pour un athlète qui en avait déjà un, obtenait un `200`, sa facture était
+> émise et sa notification partie — et l'athlète ne voyait rien. `GET /me/plan` n'en servait qu'un,
+> élu par `selectCurrentPlan` (« en cours > à venir > terminé »), et le choix était **délibéré** :
+> l'athlète avait un cycle courant, pas une bibliothèque de cycles.
+>
+> Le silence était le vrai défaut, mais le corriger en le SIGNALANT au coach aurait laissé debout la
+> lecture qui le produit. `GET /me/plans` sert désormais **tous** les cycles en cours et à venir. Un
+> athlète peut suivre deux cycles la même semaine ; c'est un cas d'usage (un bloc de force et une
+> prépa falaise), pas une anomalie à empêcher.
+>
+> Conséquence sur le vocabulaire, à ne pas laisser dériver : `selectCurrentPlan` **reste**, et n'est
+> plus ce que voit l'athlète. Il désigne le cycle qui RÉSUME un athlète en une ligne — la colonne du
+> tableau de bord (#113), la ligne de la liste (#225) —, parce qu'une cellule n'en contient qu'un et
+> que « plusieurs » n'y répond pas. Son commentaire disait « le coach en a diffusé un remplaçant → le
+> plus récent gagne » : la moitié « remplacement » est **fausse depuis #172** et a été retirée, le
+> départage par date de début la plus récente reste.
+
+> **Tranché en #172** (un cycle à venir est promis, donc visible) : la règle d'avant masquait un
+> cycle diffusé jusqu'à sa date de début — non par décision, mais faute de place dans une réponse à
+> un seul cycle. L'athlète voit désormais ce qui l'attend. C'était la question ouverte du corps de
+> #172 (« c'est peut-être le vrai sujet ») ; elle l'était.
+
+> **Tranché en #172** (le dernier cycle terminé reste servi, seul) : quand plus rien ne court ni
+> n'arrive, `selectVisiblePlans` retombe sur le dernier cycle terminé. Ce n'est pas une complaisance
+> au sens de la règle dure n°5 mais l'état « hors cycle » que les deux clients affichent déjà — sans
+> lui, un athlète entre deux cycles verrait un écran vide au lieu du dernier cycle reçu. Son
+> HISTORIQUE, lui, n'est pas servi : un seul cycle, le plus récent.
+
+> **Tranché en #172** (liste vide ≠ `null`) : `GET /me/plans` rend `[]` pour un athlète sans cycle
+> diffusé. La question a reçu une réponse ; le `null` reste réservé à la requête qui n'a pas abouti,
+> et les deux clients distinguent déjà les deux. Les confondre ferait attendre son coach à un athlète
+> qui n'a qu'une panne réseau.
+
+> **Tranché en #172** (l'ossature du planning athlète devient la semaine CIVILE) : les deux écrans
+> étaient bâtis sur « la semaine N d'UN cycle » — `?week=3` dans l'URL, une `PlanWeekDto` dans la
+> grille, `resolveShownWeek` pour choisir laquelle. Deux cycles concurrents n'ont aucune raison d'en
+> être à la même semaine : la S3 de l'un tombe sur la S1 de l'autre. Le numéro de semaine a donc
+> cessé d'être l'ossature de l'écran pour redevenir ce qu'il est — **une propriété de chaque cycle**,
+> affichée avec lui dans le bandeau de tête, avec son type de semaine et la note du coach.
+>
+> L'URL du web suit : `?from=<lundi ISO>` remplace `?week=<n>`, validée comme un LUNDI et rien
+> d'autre. Une grille décalée d'un jour serait pire qu'un retour au défaut.
+>
+> Le mobile, lui, n'a pas de navigation de semaine et n'en gagne pas : il montre **toujours** la
+> semaine en cours, jamais un repli sur le début d'un cycle — son titre dit « Cette semaine », et
+> lui faire coiffer une autre semaine serait un mensonge. `defaultAthleteMonday` n'y sert donc pas.
+
+> **Tranché en #172** (« hors cycle » et « semaine de repos » se disent différemment) : les deux
+> montrent zéro séance et signifient l'inverse l'un de l'autre — l'un que rien n'est prévu parce que
+> plus aucun cycle ne court, l'autre que le cycle prévoit du repos. `AthleteCalendarWeek.cycles` est
+> ce qui les sépare, et les deux écrans le lisent : vide → on le DIT, non vide → sept jours dont
+> certains au repos. Sans cette distinction, un cycle terminé se lirait comme une semaine calme.
+
+> **Tranché en #172** (le nom du cycle ne s'écrit que s'il distingue) : les cartes de séance portent
+> leur cycle **uniquement** quand la semaine en compte plusieurs. Avec un seul, ce serait la même
+> étiquette répétée sept fois — du bruit qui déplace la lecture du contenu vers son origine, et sur
+> mobile de la place prise pour rien. Avec deux, c'est la seule chose qui rende deux séances du même
+> mardi distinctes. C'est l'appelant qui tranche (`showPlanTitle`) : la carte ne voit qu'une séance
+> et ne peut pas le savoir.
+
+> **Assumé en #172** (une séance peut être faite en avance, et rien ne l'empêche) : un cycle à venir
+> devient visible, donc ses séances deviennent atteignables, et `getPublishedSessionOrThrow` ne teste
+> que `PUBLISHED` — l'athlète peut débriefer une séance prévue le mois prochain. **Aucun verrou n'est
+> posé** : une séance faite en avance est un fait réel, et l'interdire inventerait une règle que
+> personne n'a demandée. À rouvrir si un coach s'en plaint.
+
+> **Tranché en #172** (le constructeur dit LAQUELLE des six situations est vraie, ou se tait) :
+> `plan.builder.publishedHint` affirmait « L'athlète voit ce cycle. Tes ajustements lui sont visibles
+> immédiatement. » dès `status === PUBLISHED`, **sans aucune condition**. C'est mot pour mot le
+> mensonge que le corps de #172 a reproduit au curl. `planAudience` rend les six cas
+> (`NOT_PUBLISHED`, `VISIBLE_UPCOMING`, `VISIBLE_ALONE`, `VISIBLE_WITH`, `ENDED_SUPERSEDED`,
+> `ENDED_LAST`) et `null` sur un cycle non situable — jamais « il le voit » par défaut, qui est
+> exactement le repli qu'interdit la règle dure n°5 et la nature même du défaut corrigé.
+>
+> Le dispositif qui empêche la rechute : `planAudience` **dérive de `selectVisiblePlans`**, la même
+> fonction que sert l'API. Deux dérivations parallèles auraient fini par se contredire — et c'est un
+> écart entre ce que le coach lit et ce que l'API sert qui a produit #172. Un test tient l'invariant :
+> le bandeau ne dit « visible » que pour les cycles réellement servis.
+
+> **Assumé en #172** (rien au moment de diffuser) : le bandeau est **permanent** sur le constructeur
+> plutôt qu'une confirmation au clic sur « Diffuser ». Ce qu'il dit reste vrai trois semaines plus
+> tard, quand le coach rouvre le cycle, alors qu'une confirmation ne se lit qu'une fois — et pas par
+> celui qui revient. `CmvConfirmButton.confirmHint` existe si on change d'avis. Le constructeur
+> charge pour cela `GET /plans` (`usePlans`), déjà en cache dès qu'on arrive depuis `/plans` : c'est
+> le prix de ne plus affirmer sans avoir vérifié.
+
+> **Trouvé en chemin, CORRIGÉ en #172** (`scripts/check-i18n-keys.mjs` : un `const x = [` avalait
+> l'énumération suivante) : le registre du script repère les énumérations par la regex
+> `const (\w+) = ([{[])[\s\S]*?[}\]] as const`. Le `[\s\S]*?` est paresseux mais **traversait les
+> instructions** : une déclaration ordinaire `const others = [second, ...rest];` placée avant un
+> `export const PLAN_ROW_FILTERS = [...] as const` dans le même fichier consommait tout l'intervalle,
+> enregistrait l'énumération sous le nom `others`, et faisait disparaître la vraie. `check:i18n`
+> échouait alors sur `plan.stateFilter.PLAN_ROW_FILTERS` — une clé sans rapport avec la ligne fautive,
+> à des dizaines de lignes d'elle.
+>
+> Le corps du match est désormais `[^;]*?` : un point-virgule termine une instruction et ne peut pas
+> apparaître dans un littéral de tableau ou d'objet, si bien que le match ne peut plus sortir de la
+> déclaration en cours. Ce n'est pas un analyseur syntaxique — il en faudrait un pour être exact —,
+> mais c'est la borne qui manquait. Éprouvé en réintroduisant la ligne fautive : le script passe.
+>
+> Correctif **hors sujet de la PR, fait sur demande** : le piège restait posé pour le prochain, et
+> son symptôme ne désignait pas sa cause.
+
+> **Corrigé en #172** (une piste `auto` ne s'aligne pas entre deux grilles séparées) : les tableaux
+> de `/plans` — la liste par athlète comme l'historique déplié — posaient leur gabarit de colonnes
+> sur l'en-tête ET sur chaque ligne, avec le commentaire « sinon les intitulés se décalent du
+> contenu ». La promesse était fausse : ce sont des grilles **distinctes**, et leur dernière piste,
+> déclarée `auto`, s'y calculait indépendamment — nulle pour le `<span />` de l'en-tête, large de la
+> pastille ou du chevron pour une ligne, et **différente d'une ligne à l'autre** selon que la
+> pastille dit « À venir » ou « En cours · S3 ». Tout ce qui restait, distribué en `fr`, se décalait
+> d'autant : les colonnes « Semaines » et « Début » flottaient de quelques pixels par ligne.
+>
+> La dernière piste est désormais **fixe** (`8rem` pour la pastille d'état, `1.5rem` pour le
+> chevron), et son contenu `justify-self-end` pour garder le rendu d'avant. Règle à retenir : un
+> gabarit partagé entre plusieurs conteneurs de grille ne peut contenir que des pistes dont la
+> taille ne dépend pas du contenu.
+
+> **Corrigé en #172, et c'est un revirement partiel de #206** (une carte ne prend plus la taille que
+> les jours voisins lui laissent) : #206 avait donné à chaque jour la hauteur de sa colonne et à ses
+> cartes une part égale de cette hauteur (`flex-1` + `auto-rows-fr`). Conséquence non voulue, et
+> invisible tant que tous les jours portaient le même nombre de séances : **la carte d'un jour qui
+> n'en a qu'une devenait aussi haute que les trois d'un jour chargé**. L'accumulation des cycles
+> (#172) rend ce déséquilibre ordinaire — un jour peut désormais porter les séances de deux cycles
+> quand son voisin n'en porte aucune.
+>
+> Nouvelle règle : **toutes les cartes de la semaine ont la même hauteur, celle de la plus remplie.**
+> Elle se tient par une `subgrid` — les sept jours partagent les RANGÉES de la grille de la semaine,
+> et les rangées `1fr` d'une grille de hauteur libre s'égalisent sur la plus haute. Aucune carte
+> n'est étirée, aucun jour ne dicte la taille d'un autre.
+>
+> Frontière assumée, et c'est la même qu'en #206 : l'égalisation ne vaut qu'en `xl`, où la rangée de
+> sept jours existe. En dessous, les jours s'empilent, il n'y a plus de rangée commune à égaliser, et
+> les cartes reprennent la taille de leur contenu — avec le **plancher** `min-h-24`, qui lui vaut à
+> toutes les largeurs. Ce que #206 avait posé sans préfixe reste sans préfixe.
+>
+> Le rendu s'appuie sur deux variables CSS (`--cmv-week-rows`, `--cmv-week-span`) plutôt que sur des
+> classes calculées : Tailwind ne génère que les classes qu'il voit écrites en toutes lettres, et un
+> nom assemblé à l'exécution ne produirait aucune règle. Aucun `calc()` dans un `grid-row: span`, dont
+> le support est moins sûr qu'une simple substitution de variable.
+
+> **Corrigé en #172** (un client d'authentification réel dans jsdom fait échouer une suite VERTE) :
+> la CI est tombée sur `Lint + Typecheck + Test` avec **63 fichiers et 519 tests passés** et
+> `Errors 1 error` — Vitest échoue sur une erreur non gérée même quand aucun test ne tombe. La trace :
+> `ReferenceError: window is not defined` dans `cleanupBroadcastSetup` de `better-auth`, déclenchée
+> par un `Timeout` de `nanostores`.
+>
+> Cause : `@/shared/lib/auth` **crée le client au chargement du module**, et `CmvAppShell` l'importe.
+> Un test qui remplace `CmvAppShell` par `importOriginal` évalue quand même le graphe entier : le
+> client réel s'arme alors d'un temporisateur de session qui **survit à la destruction du jsdom**.
+> Quand il se déclenche, il n'y a plus de `window`.
+>
+> Deux fichiers sur soixante-cinq tiraient `@/shared/component` sans mocker `@/shared/lib/auth` —
+> `AthletePlanningScreen.test.tsx` (ajouté ici) et `MyCoachScreen.test.tsx` (#146, antérieur). Le
+> second expliquait aussi un « flake » local : ce test tombait environ une fois sur trois quand
+> `turbo typecheck test` chargeait les quatre paquets en parallèle. **Même cause, deux symptômes.**
+> Diagnostic établi par sonde (un `console.error` en tête du module d'auth) : deux évaluations avant,
+> zéro après.
+>
+> Règle qui en sort : **un test qui monte quoi que ce soit tirant `@/shared/component` mocke
+> `@/shared/lib/auth`**. Ce n'est pas une commodité de test, c'est ce qui empêche un minuteur réel
+> d'exister. Le défaut ne se voit pas localement — il dépend de l'ordre et de la durée des fichiers.
+
+> **Corrigé en #172, trouvé en cherchant l'autre** (`findByRole` résout AVANT que l'écran ait fini de
+> se rendre) : `MyCoachScreen.test.tsx` (#146) tombait environ une fois sur trois, d'autant plus
+> souvent que la machine était chargée. Ce n'était pas un défaut de lenteur mais une **course** :
+> l'écran fait deux requêtes, `findByRole` sur le bouton résout dès que `myInvitations` a répondu,
+> et `myCoach` répond ensuite en re-rendant l'écran — le nœud obtenu est alors détaché, le clic
+> atterrit dans le vide, la mutation ne part pas, et le `waitFor` qui suit expire.
+>
+> Le correctif n'est pas un délai plus long : on exige d'abord un marqueur de CHAQUE requête
+> (`coach.join.codeLabel` pour l'une, le bouton pour l'autre), puis on requête le bouton **à
+> l'instant du clic**. Éprouvé 5 fois de suite, plus la porte complète sous contention.
+>
+> Le motif est général et vaut pour tout écran à plusieurs requêtes : `findBy*` dit « c'est
+> apparu », jamais « l'écran a fini ». Cliquer sur son résultat suppose qu'aucune autre requête ne
+> re-rendra la zone — supposition fausse dès qu'il y en a deux.
+
+> **Assumé en #172** (la couverture du nouveau code se paie sur les écrans, pas sur les dérivations) :
+> le quality gate Sonar a refusé la PR sur `new_coverage` à **74,4 %** pour un seuil de 80 — seule
+> condition rouge, duplication à 0 % et notes A partout. Les 45 lignes manquantes se concentraient sur
+> **trois écrans à 0 %** que la PR touchait sans qu'aucun test ne les ait jamais montés :
+> `AthleteSessionsScreen` (web), `SessionsScreen` et `CurrentWeekSection` (mobile). Les dérivations
+> partagées, elles, étaient déjà entre 95 et 100 %.
+>
+> C'est le corollaire de ce que §11 dit de la couverture : mettre une décision dans une fonction pure
+> ne dispense pas de monter l'écran qui l'affiche — ça déplace seulement ce que chaque test peut
+> affirmer. Les trois écrans ont désormais le leur, et `parsePlanningSearch` a été extraite de sa
+> route pour être éprouvée seule, comme `parsePlansSearch` l'était déjà.
+
+> **Corrigé en #172, dette M-6 appliquée** : `CACHE_SCHEMA_VERSION` passe à `"3"`
+> (`apps/mobile/shared/lib/query.tsx`). La clé de cache ET la forme des données ont changé —
+> `["my-plan","current"]` portait UN `PlanDto`, `["my-plan","visible"]` porte une LISTE. Sans bump,
+> un athlète dont le cache persisté est encore chaud aurait reçu un objet là où les écrans attendent
+> un tableau, pendant les sept jours de rétention, et **pas chez le développeur, dont le cache est
+> neuf**. C'est exactement le scénario que M-6 décrit ; il ne s'est pas produit parce qu'on y a
+> pensé, ce qui reste le défaut que #184 doit fermer.
+
+> **Assumé en #172** (`GET /me/plans` n'est pas borné) : N cycles complets, semaines et séances
+> comprises — même famille que **D-1** et l'épic
+> [#68](https://github.com/Cimavia/cimavia/issues/68). En pratique un à trois cycles ; le déclencheur
+> d'une pagination serait un athlète qui en cumule assez pour que la charge se voie, ce que le
+> produit ne permet pas aujourd'hui. Une seule requête de détail pour les N cycles (`id: { in: [] }`)
+> et non une par cycle : c'est le nombre de requêtes qui aurait mordu en premier, pas leur taille.
 
 ---
 

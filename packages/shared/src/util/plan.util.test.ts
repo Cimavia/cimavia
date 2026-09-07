@@ -6,6 +6,7 @@ import {
   isSelfCoached,
   PLAN_STATE_BADGE,
   PLAN_STATES,
+  planAudience,
   planEndDate,
   planPhase,
   planState,
@@ -14,6 +15,7 @@ import {
   planWeekNumber,
   planWeekRange,
   selectCurrentPlan,
+  selectVisiblePlans,
   weekSessionProgress,
 } from "./plan.util";
 
@@ -166,9 +168,10 @@ describe("selectCurrentPlan", () => {
     expect(selectCurrentPlan([past], "2026-10-20")?.id).toBe("past");
   });
 
+  // Le RÉSUMÉ n'en retient qu'un ; l'athlète, lui, les voit tous (cf. selectVisiblePlans).
   it("départage plusieurs cycles en cours par la date de début la plus récente", () => {
-    const replacement = { id: "replacement", startDate: "2026-10-19", weekCount: 2 };
-    expect(selectCurrentPlan([ongoing, replacement], "2026-10-20")?.id).toBe("replacement");
+    const second = { id: "second", startDate: "2026-10-19", weekCount: 2 };
+    expect(selectCurrentPlan([ongoing, second], "2026-10-20")?.id).toBe("second");
   });
 
   it("retourne null sans plan exploitable (pas de valeur de repli)", () => {
@@ -177,6 +180,161 @@ describe("selectCurrentPlan", () => {
     expect(
       selectCurrentPlan([{ id: "empty", startDate: MONDAY, weekCount: 0 }], MONDAY),
     ).toBeNull();
+  });
+});
+
+describe("selectVisiblePlans", () => {
+  const past = { id: "past", startDate: "2026-09-07", weekCount: 4 }; // → 2026-10-04
+  const ongoing = { id: "ongoing", startDate: MONDAY, weekCount: 4 }; // → 2026-11-08
+  const second = { id: "second", startDate: "2026-10-19", weekCount: 2 }; // → 2026-11-01
+  const upcoming = { id: "upcoming", startDate: "2026-11-09", weekCount: 4 };
+
+  const idsAt = (plans: { id: string; startDate: string; weekCount: number }[], today: string) =>
+    selectVisiblePlans(plans, today).map((plan) => plan.id);
+
+  it("sert TOUS les cycles en cours, pas seulement le dernier démarré", () => {
+    expect(idsAt([ongoing, second], "2026-10-20")).toEqual(["ongoing", "second"]);
+  });
+
+  it("sert un cycle à venir en même temps qu'un cycle en cours", () => {
+    expect(idsAt([upcoming, ongoing], "2026-10-14")).toEqual(["ongoing", "upcoming"]);
+  });
+
+  it("écarte les cycles terminés dès qu'un autre court ou arrive", () => {
+    expect(idsAt([past, ongoing], "2026-10-14")).toEqual(["ongoing"]);
+    expect(idsAt([past, upcoming], "2026-10-20")).toEqual(["upcoming"]);
+  });
+
+  it("retombe sur le dernier cycle terminé, seul, quand plus rien ne court", () => {
+    const older = { id: "older", startDate: "2026-08-03", weekCount: 2 };
+    expect(idsAt([older, past], "2026-10-20")).toEqual(["past"]);
+  });
+
+  it("rend une liste vide, jamais null, quand il n'y a aucun cycle exploitable", () => {
+    expect(selectVisiblePlans([], "2026-10-14")).toEqual([]);
+    // Cycle sans semaine : aucune période, donc aucune époque → ignoré.
+    expect(selectVisiblePlans([{ id: "empty", startDate: MONDAY, weekCount: 0 }], MONDAY)).toEqual(
+      [],
+    );
+  });
+
+  it("rend une liste vide sur une date illisible plutôt que de deviner une époque", () => {
+    expect(selectVisiblePlans([ongoing], "pas-une-date")).toEqual([]);
+  });
+
+  it("départage par l'id deux cycles partant le même lundi (ordre stable)", () => {
+    const b = { id: "b", startDate: MONDAY, weekCount: 4 };
+    const a = { id: "a", startDate: MONDAY, weekCount: 4 };
+    expect(idsAt([b, a], "2026-10-14")).toEqual(["a", "b"]);
+  });
+
+  it("range les cycles en cours avant ceux à venir, chacun par date de début croissante", () => {
+    const later = { id: "later", startDate: "2026-12-07", weekCount: 2 };
+    expect(idsAt([later, upcoming, second, ongoing], "2026-10-20")).toEqual([
+      "ongoing",
+      "second",
+      "upcoming",
+      "later",
+    ]);
+  });
+
+  it("s'accorde avec selectCurrentPlan : le résumé est TOUJOURS l'un des cycles visibles", () => {
+    for (const today of ["2026-09-14", "2026-10-14", "2026-10-20", "2026-11-10", "2026-12-25"]) {
+      const visible = idsAt([past, ongoing, second, upcoming], today);
+      const current = selectCurrentPlan([past, ongoing, second, upcoming], today);
+      expect(visible).toContain(current?.id);
+    }
+  });
+});
+
+describe("planAudience", () => {
+  const of = (
+    id: string,
+    startDate: string,
+    weekCount: number,
+    status: PlanStatus = PlanStatus.PUBLISHED,
+  ) => ({ id, athleteId: "ath_lea", startDate, weekCount, status });
+
+  const ongoing = of("ongoing", MONDAY, 4); // 2026-10-12 → 2026-11-08
+  const alsoOngoing = of("also", "2026-10-19", 3); // → 2026-11-08
+  const upcoming = of("upcoming", "2026-11-09", 4);
+  const ended = of("ended", "2026-08-31", 2); // → 2026-09-13
+
+  it("un brouillon n'est vu de personne, quelle que soit sa date", () => {
+    const draft = of("draft", MONDAY, 4, PlanStatus.DRAFT);
+    expect(planAudience(draft, [draft], "2026-10-14")).toEqual({ kind: "NOT_PUBLISHED" });
+  });
+
+  it("un cycle en cours et seul à l'être : l'athlète le voit, sans rien d'autre", () => {
+    expect(planAudience(ongoing, [ongoing], "2026-10-14")).toEqual({ kind: "VISIBLE_ALONE" });
+  });
+
+  // Ce que #172 rend possible : deux cycles menés de front, et le coach doit le savoir.
+  it("nomme les autres cycles que l'athlète mène en parallèle", () => {
+    expect(planAudience(ongoing, [ongoing, alsoOngoing], "2026-10-20")).toEqual({
+      kind: "VISIBLE_WITH",
+      otherPlanIds: ["also"],
+    });
+  });
+
+  it("un cycle à venir est VISIBLE, et annonce sa date de début", () => {
+    expect(planAudience(upcoming, [ongoing, upcoming], "2026-10-14")).toEqual({
+      kind: "VISIBLE_UPCOMING",
+      startDate: "2026-11-09",
+    });
+  });
+
+  it("un cycle terminé que d'autres ont remplacé nomme ce que l'athlète suit désormais", () => {
+    expect(planAudience(ended, [ended, ongoing], "2026-10-14")).toEqual({
+      kind: "ENDED_SUPERSEDED",
+      insteadPlanIds: ["ongoing"],
+    });
+  });
+
+  // Le repli de `selectVisiblePlans` : sans suite, l'athlète voit encore son dernier cycle.
+  it("un cycle terminé sans rien derrière reste vu de l'athlète", () => {
+    expect(planAudience(ended, [ended], "2026-10-14")).toEqual({ kind: "ENDED_LAST" });
+  });
+
+  it("ignore les cycles d'un AUTRE athlète, même passés dans la même liste", () => {
+    const somebodyElse = { ...of("other", MONDAY, 4), athleteId: "ath_adrien" };
+    expect(planAudience(ongoing, [ongoing, somebodyElse], "2026-10-14")).toEqual({
+      kind: "VISIBLE_ALONE",
+    });
+  });
+
+  it("ignore les brouillons des voisins : personne ne les suit", () => {
+    const draft = of("draft", "2026-10-19", 3, PlanStatus.DRAFT);
+    expect(planAudience(ongoing, [ongoing, draft], "2026-10-20")).toEqual({
+      kind: "VISIBLE_ALONE",
+    });
+  });
+
+  /**
+   * Le repli interdit : sur un cycle non situable, dire « il le voit » est exactement le défaut
+   * qu'on corrige — une affirmation vraie par défaut plutôt que par vérification.
+   */
+  it("rend null sur un cycle non situable, jamais « il le voit »", () => {
+    const broken = of("broken", MONDAY, 0);
+    expect(planAudience(broken, [broken], "2026-10-14")).toBeNull();
+    expect(planAudience(ongoing, [ongoing], "pas-une-date")).toBeNull();
+  });
+
+  /**
+   * L'invariant qui empêche le constructeur de mentir : ce que le bandeau annonce est exactement ce
+   * que l'API sert. Les deux dérivent de `selectVisiblePlans`, et ce test tient le lien.
+   */
+  it("ne dit « visible » que pour les cycles que selectVisiblePlans sert vraiment", () => {
+    const all = [ended, ongoing, alsoOngoing, upcoming];
+    for (const today of ["2026-09-07", "2026-10-14", "2026-10-20", "2026-11-20"]) {
+      const served = selectVisiblePlans(all, today).map((item) => item.id);
+      for (const candidate of all) {
+        const audience = planAudience(candidate, all, today);
+        if (audience == null) continue;
+        const claimsVisible = audience.kind.startsWith("VISIBLE") || audience.kind === "ENDED_LAST";
+        expect(claimsVisible).toBe(served.includes(candidate.id));
+      }
+    }
   });
 });
 

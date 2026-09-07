@@ -1,12 +1,17 @@
-import type { PlanDto, PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
-import { isDateInPlanWeek, todayIsoDate } from "@cmv/shared";
+import type { PlanDto, ScheduledSessionDto } from "@cmv/shared";
+import { myPlanKeys } from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
-import { athletePlanApi, myPlanKeys } from "@/feature/plan/api";
+import { athletePlanApi } from "@/feature/plan/api";
 
-export function useMyPlan() {
-  return useQuery<PlanDto | null>({
-    queryKey: myPlanKeys.current(),
-    queryFn: athletePlanApi.current,
+/**
+ * Les cycles diffusés que l'athlète voit — au PLURIEL depuis #172, où ils ont cessé de se
+ * remplacer les uns les autres. Liste vide s'il n'en a aucun ; le `null` du hook reste celui de la
+ * requête, que l'écran distingue déjà (hors-ligne, le cache sert encore les cycles).
+ */
+export function useMyPlans() {
+  return useQuery<PlanDto[]>({
+    queryKey: myPlanKeys.visible(),
+    queryFn: athletePlanApi.visible,
   });
 }
 
@@ -15,14 +20,4 @@ export function useScheduledSession(sessionId: string) {
     queryKey: myPlanKeys.session(sessionId),
     queryFn: () => athletePlanApi.session(sessionId),
   });
-}
-
-// La semaine du cycle qui contient aujourd'hui, ou `null` si le cycle n'a pas (encore / plus)
-// cours — pas de repli sur la semaine 1, qui afficherait un passé pour un présent.
-export function currentWeek(plan: PlanDto | null | undefined): PlanWeekDto | null {
-  if (plan == null) return null;
-  const today = todayIsoDate();
-  return (
-    plan.weeks.find((week) => isDateInPlanWeek(plan.startDate, week.weekNumber, today)) ?? null
-  );
 }

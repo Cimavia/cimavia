@@ -21,7 +21,7 @@ export function LoginScreen() {
 
   if (!isPending && session != null) {
     // Destination DÉRIVÉE de la capacité, comme sur l'écran d'entrée : `/planning` en dur
-    // envoyait un coach sur `GET /me/plan`, qui est `@Roles([ATHLETE])`.
+    // envoyait un coach sur `GET /me/plans`, qui est `@Roles([ATHLETE])`.
     return <Redirect href={landingTab(capabilities) ?? "/login"} />;
   }
 
