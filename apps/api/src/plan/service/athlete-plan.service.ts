@@ -1,5 +1,5 @@
 import type { PlanDto, ScheduledSessionDto } from "@cmv/shared";
-import { PlanStatus, selectCurrentPlan, todayIsoDate } from "@cmv/shared";
+import { PlanStatus, selectVisiblePlans, todayIsoDate } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { ScheduledSession } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
@@ -34,19 +34,23 @@ export class AthletePlanService {
   ) {}
 
   /**
-   * Le cycle courant de l'athlète, avec ses semaines et ses séances — la vue planning tient dans
-   * cette seule requête (utile pour le cache hors-ligne). `null` s'il n'a aucun plan diffusé :
-   * pas de plan vide de complaisance (règle dure n°5).
+   * TOUS les cycles diffusés que l'athlète voit, avec leurs semaines et leurs séances — la vue
+   * planning tient dans cette seule requête (utile pour le cache hors-ligne).
+   *
+   * Liste VIDE s'il n'a aucun cycle diffusé, jamais `null` : la question a reçu une réponse, et
+   * les clients réservent leur `null` à la requête qui n'a pas abouti. Confondre les deux ferait
+   * attendre son coach à un athlète qui n'a qu'une panne réseau.
+   *
+   * Le choix des cycles est une fonction pure partagée (`selectVisiblePlans`, @cmv/shared) :
+   * l'API et les clients ne peuvent pas diverger là-dessus.
    */
-  async myCurrentPlan(): Promise<PlanDto | null> {
+  async myVisiblePlans(): Promise<PlanDto[]> {
     const plans = await this.db.plan.findMany({
       where: { status: PlanStatus.PUBLISHED },
       include: PLAN_COUNTS_INCLUDE,
     });
 
-    // Le choix « en cours > à venir > terminé » est une fonction pure partagée (@cmv/shared) :
-    // l'API et les clients ne peuvent pas diverger là-dessus.
-    const current = selectCurrentPlan(
+    const visible = selectVisiblePlans(
       plans.map((plan) => ({
         id: plan.id,
         startDate: toIsoDate(plan.startDate),
@@ -54,14 +58,28 @@ export class AthletePlanService {
       })),
       todayIsoDate(),
     );
-    if (current == null) return null;
+    if (visible.length === 0) return [];
 
-    const detail = await this.db.plan.findFirst({
-      where: { id: current.id, status: PlanStatus.PUBLISHED },
+    /**
+     * UNE seule requête de détail pour N cycles, et non une par cycle : `findMany` avec un `in`
+     * plutôt qu'une boucle de `findFirst`. Le filtre `PUBLISHED` est répété ici bien que
+     * `visible` n'en contienne pas d'autre — c'est la garde du service, et elle ne se relâche pas
+     * parce qu'un appelant interne a déjà filtré.
+     */
+    const details = await this.db.plan.findMany({
+      where: { id: { in: visible.map((plan) => plan.id) }, status: PlanStatus.PUBLISHED },
       include: PLAN_DETAIL_INCLUDE,
     });
-    if (detail == null) return null;
-    return toPlanDto(detail);
+
+    /**
+     * L'ordre est une DONNÉE (en cours d'abord, puis à venir) : Prisma ne le rend pas, on le
+     * réapplique depuis `visible`. Les clients affichent les cycles dans l'ordre reçu.
+     */
+    const byId = new Map(details.map((detail) => [detail.id, detail]));
+    return visible.flatMap((plan) => {
+      const detail = byId.get(plan.id);
+      return detail == null ? [] : [toPlanDto(detail)];
+    });
   }
 
   // Détail d'une séance : exercices, consignes et documents (URLs GET signées).
