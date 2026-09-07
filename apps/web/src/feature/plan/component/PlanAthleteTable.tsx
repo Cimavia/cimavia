@@ -25,8 +25,14 @@ import { formatDate } from "@/shared/util/date.util";
 
 const PLAN_ATHLETE_COLUMNS = ["athlete", "plan", "deadline"] as const;
 
-/** L'en-tête et les lignes partagent leur grille — sinon les intitulés se décalent du contenu. */
-const GRID = "grid grid-cols-[2fr_2fr_1.5fr_auto] items-center gap-cmv-lg";
+/**
+ * L'en-tête et les lignes partagent leur grille — sinon les intitulés se décalent du contenu.
+ *
+ * Dernière piste FIXE et non `auto` : l'en-tête et chaque ligne sont des grilles séparées, si bien
+ * qu'une piste `auto` valait zéro pour le `<span />` de l'en-tête et la largeur du chevron pour une
+ * ligne. Les intitulés se décalaient de ce chevron — peu, mais visiblement.
+ */
+const GRID = "grid grid-cols-[2fr_2fr_1.5fr_1.5rem] items-center gap-cmv-lg";
 
 type PlanAthleteTableProps = {
   rows: readonly PlanAthleteRow<PlanSummaryDto>[];
@@ -100,7 +106,7 @@ function AthleteRow({ row, expanded, onToggle }: Readonly<AthleteRowProps>) {
         <CurrentPlanCell row={row} />
         <DeadlineCell deadline={row.deadline} ending={row.situation === "ONGOING"} />
 
-        <span aria-hidden className="text-cmv-text-lo">
+        <span aria-hidden className="justify-self-end text-cmv-text-lo">
           {expanded ? "▾" : "▸"}
         </span>
       </button>

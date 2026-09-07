@@ -33,8 +33,17 @@ import { formatDate } from "@/shared/util/date.util";
 
 const PLAN_HISTORY_COLUMNS = ["plan", "weeks", "startDate"] as const;
 
-/** L'en-tête et les lignes partagent leur grille — sinon les intitulés se décalent du contenu. */
-const GRID = "grid grid-cols-[2fr_1fr_1.2fr_auto] items-center gap-cmv-lg";
+/**
+ * L'en-tête et les lignes partagent leur grille — sinon les intitulés se décalent du contenu.
+ *
+ * La dernière piste est FIXE, et c'est ce qui rend la promesse ci-dessus vraie. En `auto`, elle ne
+ * l'était pas : l'en-tête et chaque ligne sont des grilles SÉPARÉES, une piste `auto` s'y calcule
+ * donc indépendamment — nulle pour le `<span />` de l'en-tête, large de la pastille pour une ligne,
+ * et différente d'une ligne à l'autre selon que la pastille dit « À venir » ou « En cours · S3 ».
+ * Le reste de la largeur, distribué en `fr`, décalait d'autant. Une piste fixe donne aux quatre
+ * colonnes la même géométrie partout.
+ */
+const GRID = "grid grid-cols-[2fr_1fr_1.2fr_8rem] items-center gap-cmv-lg";
 
 type PlanHistoryTableProps = {
   /** Déjà triés. Non vide : une ligne d'athlète naît d'au moins un cycle. */
@@ -80,7 +89,9 @@ export function PlanHistoryTable({ plans }: Readonly<PlanHistoryTableProps>) {
             {t("plan.history.weeks", { n: plan.weekCount })}
           </span>
           <span className="text-cmv-text-mid">{formatDate(plan.startDate)}</span>
-          <PlanStateBadge plan={plan} today={today} />
+          <span className="justify-self-end">
+            <PlanStateBadge plan={plan} today={today} />
+          </span>
         </button>
       ))}
 
