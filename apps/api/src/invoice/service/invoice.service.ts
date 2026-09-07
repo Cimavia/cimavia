@@ -57,9 +57,18 @@ export class InvoiceService {
 
   // ── Builder : facture DRAFT du cycle ─────────────────────────────────────────
 
-  // Termes de facturation du cycle courant (DRAFT), ou null tant que le coach n'a rien saisi.
+  /**
+   * Termes de facturation du cycle courant (DRAFT), ou `null` tant que le coach n'a rien saisi.
+   *
+   * CONSULTER n'est pas SAISIR (#211) : cette lecture ne porte que le 404 du cycle introuvable,
+   * là où les écritures gardent leurs trois refus. Rien n'est divulgué pour autant — dans les
+   * trois cas qu'elle cesse de refuser, AUCUN brouillon ne peut exister : diffusé, `issueForPlan`
+   * l'a passé en PENDING ; sans destinataire, `assertPlanDetachable` interdit de détacher un
+   * cycle chiffré ; en auto-coaching, `saveDraft` n'a jamais laissé rien écrire. La réponse est
+   * `null` par construction, et un 400 disait seulement « tu n'avais pas le droit de demander ».
+   */
   async getDraftByPlan(planId: string): Promise<InvoiceDto | null> {
-    await this.getDraftablePlanOrThrow(planId);
+    await this.getOwnedPlanOrThrow(planId);
     const draft = await this.db.invoice.findFirst({
       where: { planId, status: InvoiceStatus.DRAFT },
     });
@@ -297,12 +306,27 @@ export class InvoiceService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  // Le cycle du coach courant, refusé s'il est déjà diffusé (facturation figée à l'émission).
-  private async getDraftablePlanOrThrow(planId: string): Promise<BillablePlan> {
+  /**
+   * Le cycle du coach courant, et rien de plus. Le scope tenant fait le tri : le cycle d'un autre
+   * coach est introuvable, pas interdit.
+   *
+   * Séparé des refus de saisie (#211) pour que la LECTURE des termes puisse s'y appuyer seule.
+   */
+  private async getOwnedPlanOrThrow(planId: string): Promise<Plan> {
     const plan = await this.db.plan.findFirst({ where: { id: planId } });
     if (plan == null) {
       throw new NotFoundException("Cycle introuvable");
     }
+    return plan;
+  }
+
+  /**
+   * Le cycle du coach courant sur lequel on peut SAISIR des termes : brouillon, adressé, et pas à
+   * soi-même. Les trois refus sont des règles d'écriture — la lecture, elle, passe par
+   * `getOwnedPlanOrThrow` (#211).
+   */
+  private async getDraftablePlanOrThrow(planId: string): Promise<BillablePlan> {
+    const plan = await this.getOwnedPlanOrThrow(planId);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new BadRequestException("Cycle déjà diffusé : sa facturation est figée");
     }
