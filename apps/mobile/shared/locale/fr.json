@@ -3,7 +3,7 @@
     "email": "Adresse e-mail",
     "password": "Mot de passe",
     "logout": "Se déconnecter",
-    "offline": "Hors-ligne — séances en cache, documents indisponibles",
+    "offline": "Hors-ligne — tu vois les données de ton dernier passage",
     "imageOffline": "Image indisponible hors ligne",
     "imageUnavailable": "Image indisponible",
     "errorTitle": "Chargement impossible",

@@ -52,7 +52,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | ~~P3-1~~ | ~~**Push non envoyé à la diffusion**~~ : `notifyPlanPublished` journalisait au lieu d'émettre. | ✅ | résolu en **p4-4** — `expo-server-sdk` branché dans `NotificationService`, table `PushToken` |
 | P3-2 | **Objets S3 orphelins après suppression d'une planif** : une copie de document partage la clé objet de la bibliothèque. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
-| P3-3 | **Documents non lisibles hors-ligne** : servis par des URLs signées à TTL court (5 min). | 🟢 | [#95](https://github.com/Cimavia/cimavia/issues/95) |
+| ~~P3-3~~ | ~~**Documents non lisibles hors-ligne**~~ : servis par des URLs signées à TTL court (5 min). | ✅ | résolue en [#95](https://github.com/Cimavia/cimavia/issues/95) — documents ET déroulé descendus sur l'appareil à la première ouverture en ligne. Le TTL, lui, n'a pas bougé : c'est le CLIENT qui a changé |
 | ~~P3-4~~ | ~~**Écrans coach de P1 jamais construits**~~ (nav, liste d'athlètes, invitation, fiche). | ✅ | résolu en **p3-8** — `CmvAppShell`, `/athletes`, invitation, fiche athlète |
 | P3-5 | **Écart aux maquettes assumé** : pas de durée de séance (« 75 min » en pd-7/pd-9). Le glisser-déposer, lui, n'en est plus un — cf. ~~P2-3~~. | 🟢 | [#94](https://github.com/Cimavia/cimavia/issues/94) |
 | ~~P3-6~~ | ~~**Tuile « Factures en attente » non branchée**~~ : affichait `—`, marquée `// MOCKED`. | ✅ | résolue en **P6** — branchée sur `pendingCount(invoices)` |
@@ -1066,7 +1066,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | V-1 | **Pas de lecture vidéo EN LIGNE sur mobile** : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | 🟢 | — *(déclencheur : le coach beta juge la sortie de l'app gênante → voie `expo-video`)* |
-| V-2 | **URL signée périmée non vérifiée hors du débrief** : les documents de séance et le justificatif de facture ouvrent l'URL du cache telle quelle. Le débrief la vérifie depuis #151 (`isSignedUrlUsable`), pas eux — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
+| V-2 | **URL signée périmée non vérifiée hors du débrief** : le justificatif de facture (mobile **et** web) et les documents de séance **côté web** ouvrent l'URL du cache telle quelle. Le débrief la vérifie depuis #151 (`isSignedUrlUsable`), pas eux — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
 
 > **Tranché** (le lecteur système plutôt qu'`expo-video`) : lire la vidéo **dans** l'app demande
 > `expo-video`, donc un module natif, donc un nouveau **client de dev** en plus de l'APK preview —
@@ -2495,6 +2495,72 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > ligne, ni mention dans l'en-tête des dettes sans issue. Elle n'a été vue que parce que #123 a
 > aligné les recherches client à côté d'elle. La règle de capture n'a pas joué ; c'est le seul
 > constat à en tirer, il n'y a rien à rattraper d'autre.
+
+---
+
+## Post-MVP — Documents de séance hors-ligne ([#95](https://github.com/Cimavia/cimavia/issues/95))
+
+> **Tranché en #95** (le quota se compte en CYCLES VISIBLES, pas en Mo) : l'issue proposait les
+> deux. Aucune taille n'existe nulle part — ni sur `ScheduledSessionExerciseDocument`, ni dans
+> `ExerciseDocumentDto` — alors que l'API la reçoit à l'upload (`requestUploadUrlSchema.size`), la
+> valide contre les 20 Mo de `MAX_DOCUMENT_SIZE_BYTES`, et la jette. Un budget en Mo aurait donc
+> commencé par une migration, un backfill par `HeadObject`, et un champ de plus au contrat, pour
+> arbitrer un volume que le plafond par document borne déjà. La règle retenue tient en une phrase
+> qu'on peut dire à l'athlète : **ce que ton coach t'a diffusé et qui n'est pas fini**. Sans cette
+> ligne, la première relecture verra une issue qui parlait de Mo et un code qui n'en parle pas.
+
+> **Tranché en #95** (les fichiers restent EN CLAIR dans le sandbox) : chiffrer aurait durci le
+> maillon le moins sensible. AsyncStorage garde déjà, en clair et sept jours durant, les séances,
+> messages, factures et coordonnées de l'athlète ; un PDF d'entraînement à côté ne change pas la
+> nature de ce qu'un appareil déverrouillé expose. La clé aurait de toute façon vécu sur le même
+> téléphone, et l'ouverture externe aurait exigé un déchiffrement vers un fichier temporaire clair
+> — soit le même risque, au prix d'un chiffrement en flux sur des fichiers de 20 Mo. À rouvrir si
+> le HDS devient une cible, mais alors pour TOUT le stockage local, pas pour les seuls documents.
+
+> **Tranché en #95** (`Paths.document`, pas `Paths.cache`) : l'OS vide le répertoire de cache sous
+> pression mémoire, c'est-à-dire potentiellement la veille de la séance, après des jours sans
+> ouvrir l'app — exactement le moment que la fonctionnalité existe pour couvrir. Le prix assumé est
+> que ces fichiers entrent dans la sauvegarde iCloud de l'appareil.
+
+> **Tranché en #95** (« à la diffusion » se lit « au premier passage de l'app en ligne ») : aucune
+> tâche de fond n'est installée, et iOS n'en garantit de toute façon aucune échéance. La passe est
+> donc montée sur le PLANNING — l'écran d'accueil de l'athlète, donc son dernier passage en ligne
+> avant la salle — et non à l'ouverture d'une séance, où il est déjà trop tard. La notification
+> push de diffusion sert de rabatteur : c'est elle qui ramène l'athlète dans l'app.
+
+> **Découvert en route** (ce qu'aucune lecture de l'issue ne donnait) : l'issue affirmait que « le
+> cache athlète conserve la structure des séances hors-ligne, mais pas les documents ». C'était
+> FAUX de moitié. `PlanWeekDto.sessions` ne porte que des `ScheduledSessionSummaryDto` — un titre
+> et un `exerciseCount` ; le déroulé vit dans `ScheduledSessionDto`, chargé par
+> `useScheduledSession` à l'ouverture de la séance et **rien ne le préchargeait** (aucun
+> `prefetchQuery` ni `ensureQueryData` dans tout le mobile). Le hors-ligne ne tenait donc que pour
+> les séances DÉJÀ OUVERTES en ligne : l'athlète qui arrivait en salle sans avoir ouvert la séance
+> de mardi tombait sur `CmvErrorState`. La promesse de `query.tsx` — « l'athlète qui ouvre cimavia
+> en salle, sans réseau, doit retrouver ses séances » — n'était vraie que par accident. Combler ce
+> trou ne coûtait rien de plus : il fallait de toute façon charger chaque `ScheduledSessionDto`
+> pour connaître ses documents.
+
+> **Tranché en #95** (`expo-sharing` plutôt que `Linking` pour une pièce jointe locale) : un
+> `file://` du sandbox n'est ouvrable par AUCUNE autre application sur Android — `Linking.openURL`
+> y lève `FileUriExposedException`, le système exigeant un `content://` délivré par un
+> FileProvider. `Sharing.shareAsync` est ce passage. Conséquence à assumer : c'est un « ouvrir
+> avec » proposé par l'OS, là où la maquette (cadre 9) annonce que « le PDF s'ouvre dans
+> Cimavia ». L'extension du nom d'origine est conservée à l'écriture du fichier pour qu'iOS déduise
+> d'elle le type à ouvrir, sans table de correspondance UTI à tenir.
+
+> **Corrigé au passage** (trouvé en lisant le composant, pas en testant) : `ImageBlock` de
+> `CmvRichDocument` posait un état `"failed"` sur `onError` et ne le rendait **nulle part**. Sur
+> échec, le spinner disparaissait en laissant un rectangle gris de 224 px, muet — ce que le
+> docstring du composant, deux lignes plus haut, désigne lui-même comme « lu comme un bug ». Le
+> cadre **11c · SANS RÉSEAU** de `athlete_seance_lecture.dc.html` prescrivait ce cas depuis
+> toujours. Il est rendu, et il DIT sa cause : hors réseau l'image reviendra, en ligne elle est
+> perdue pour cette lecture — annoncer « hors ligne » à un athlète connecté l'enverrait vérifier
+> une connexion qui marche. Le composant n'avait jusque-là aucun fichier de test.
+
+> ⚠️ **Écart de maquette non traité** : le cadre 9 affiche « progression-charge.pdf · **1,1 Mo** ·
+> PDF ». La taille n'existant nulle part (cf. le premier encadré), elle n'est pas rendue — la
+> pièce jointe montre son nom seul. Le jour où un budget en Mo se justifiera, la migration servira
+> les deux besoins d'un coup.
 
 ---
 
