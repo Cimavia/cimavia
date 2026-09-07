@@ -9,26 +9,21 @@ import type {
   RequestMessageUploadUrlInput,
   SendMessageInput,
 } from "@cmv/shared";
-import {
-  MAX_MESSAGE_MEDIA_BATCH,
-  MediaType,
-  MessageType,
-  sendMediaBatch,
-  UploadMode,
-} from "@cmv/shared";
+import { MAX_MESSAGE_MEDIA_BATCH, MediaType, sendMediaBatch, UploadMode } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
-import {
-  MediaRejectedError,
-  type PreparedMessageMedia,
-  prepareAsset,
-  prepareAudio,
-} from "@/feature/message/util/media.util";
+import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import type { RecordedAudio } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import { StorageUploadError, uploadFileToStorage, uploadPartsToStorage } from "@/shared/lib/upload";
+import {
+  MediaRejectedError,
+  type PreparedMedia,
+  prepareAudio,
+  prepareMedia,
+} from "@/shared/util/media.util";
 import { assetMediaKind } from "@/shared/util/media-kind.util";
 
 /**
@@ -66,7 +61,7 @@ export function useSendMessageMedia(
 
   const audio = useMutation({
     mutationFn: (recorded: RecordedAudio) =>
-      uploadAndSend(conversationId, prepareAudio(recorded), as, attachment),
+      uploadAndSend(conversationId, prepareAudio(recorded, MESSAGE_MEDIA_PROFILE), as, attachment),
     onSuccess: invalidate,
   });
 
@@ -76,7 +71,12 @@ export function useSendMessageMedia(
    */
   const upload = async (asset: ImagePicker.ImagePickerAsset, current: MediaBatchStep) => {
     setStep(current);
-    await uploadAndSend(conversationId, await prepareAsset(asset), as, attachment);
+    await uploadAndSend(
+      conversationId,
+      await prepareMedia(asset, MESSAGE_MEDIA_PROFILE),
+      as,
+      attachment,
+    );
     invalidate();
   };
 
@@ -144,7 +144,7 @@ function failureReason(error: unknown): MediaRecapReason {
 
 async function uploadAndSend(
   conversationId: string,
-  media: PreparedMessageMedia,
+  media: PreparedMedia,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
   as: CapabilityName | null,
   attachment: { sessionFeedbackId: string } | undefined,
@@ -181,7 +181,7 @@ async function uploadAndSend(
 async function sendInParts(
   conversationId: string,
   ticket: MultipartUploadTicket,
-  media: PreparedMessageMedia,
+  media: PreparedMedia,
   as: CapabilityName | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
@@ -237,8 +237,8 @@ async function pickImagesOrVideos(): Promise<ImagePicker.ImagePickerAsset[]> {
 
 // Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive entre la taille
 // signée et la taille rattachée.
-function toUploadUrlInput(media: PreparedMessageMedia): RequestMessageUploadUrlInput {
-  if (media.type === MessageType.IMAGE) {
+function toUploadUrlInput(media: PreparedMedia): RequestMessageUploadUrlInput {
+  if (media.type === MediaType.IMAGE) {
     return {
       type: media.type,
       fileName: media.fileName,

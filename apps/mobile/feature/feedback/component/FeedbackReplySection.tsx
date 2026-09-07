@@ -5,8 +5,9 @@ import { View } from "react-native";
 import type { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageBubble } from "@/feature/message/component/MessageBubble";
-import { mediaErrorMessage } from "@/feature/message/util/media.util";
+import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { CmvText } from "@/shared/component";
+import { mediaErrorMessage } from "@/shared/util/media.util";
 
 type Reply = ReturnType<typeof useFeedbackReply>;
 
@@ -62,7 +63,12 @@ export function FeedbackReplyComposer({
   onRecap: (recap: readonly MediaRecapLine[]) => void;
 }>) {
   const { t } = useTranslation();
-  const mediaError = mediaErrorMessage(reply.audioError, preUploadErrorKey, t);
+  const mediaError = mediaErrorMessage(
+    reply.audioError,
+    preUploadErrorKey,
+    t,
+    MESSAGE_MEDIA_PROFILE,
+  );
 
   return (
     <View>
