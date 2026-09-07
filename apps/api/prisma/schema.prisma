@@ -236,6 +236,11 @@ model Exercise {
   coachId     String
   coach       User     @relation("CoachExercises", fields: [coachId], references: [id], onDelete: Cascade)
   title       String
+  /// Le `title` sous sa forme comparable (`comparableText` de @cmv/shared) : sans casse et sans
+  /// accent. Rempli à CHAQUE écriture du titre, jamais servi dans un DTO — c'est une clé de
+  /// comparaison, pas une donnée de l'exercice. Non-null : « pas encore rempli » ne doit pas
+  /// exister, sinon le filtre écarterait la ligne sans que rien ne le dise (règle dure n°5).
+  titleSearch String
   description String? // consignes — nullable, pas de fallback (règle dure n°5)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
