@@ -4,6 +4,8 @@
     "password": "Mot de passe",
     "logout": "Se déconnecter",
     "offline": "Hors-ligne — séances en cache, documents indisponibles",
+    "imageOffline": "Image indisponible hors ligne",
+    "imageUnavailable": "Image indisponible",
     "errorTitle": "Chargement impossible",
     "errorDescription": "Tes séances n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",

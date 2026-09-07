@@ -6,7 +6,9 @@ import {
   RichBlockType,
   type RichDocument,
 } from "@cmv/shared";
+import { useNetworkState } from "expo-network";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Image, Linking, Text, View } from "react-native";
 import { CmvText } from "@/shared/component/CmvText";
 
@@ -95,11 +97,17 @@ function Block({
 /**
  * Une image de consigne. Elle porte son état de chargement : sur un téléphone en salle, le réseau
  * est lent ou absent, et une zone vide sans explication se lit comme un bug.
+ *
+ * L'échec DIT sa cause, et les deux ne se confondent pas : hors réseau l'image reviendra, en
+ * ligne elle est perdue pour cette lecture (URL signée périmée, objet disparu). Annoncer
+ * « hors ligne » à un athlète connecté l'enverrait vérifier sa connexion pour rien.
  */
 function ImageBlock({
   block,
   resolveImage,
 }: Readonly<{ block: Extract<RichBlock, { type: "IMAGE" }>; resolveImage: ResolveImage }>) {
+  const { t } = useTranslation();
+  const network = useNetworkState();
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
   const source = resolveImage(block.mediaId);
 
@@ -121,6 +129,15 @@ function ImageBlock({
         {state === "loading" ? (
           <View className="absolute inset-0 items-center justify-center">
             <ActivityIndicator />
+          </View>
+        ) : null}
+        {state === "failed" ? (
+          <View className="absolute inset-0 items-center justify-center px-4">
+            <CmvText className="text-center text-cmv-text-lo text-xs">
+              {network.isInternetReachable === false
+                ? t("common.imageOffline")
+                : t("common.imageUnavailable")}
+            </CmvText>
           </View>
         ) : null}
       </View>
