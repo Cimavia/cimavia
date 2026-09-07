@@ -393,9 +393,8 @@
       "today": "Aujourd'hui",
       "rest": "Repos",
       "doneCount": "{{done}}/{{total}} séances faites",
-      "outOfCycle": "Ton cycle n'a pas encore commencé, ou il est terminé : cette semaine n'est pas la semaine courante.",
+      "outOfCycle": "Aucun de tes cycles n'a cours cette semaine-là.",
       "week": {
-        "numberAndType": "Semaine {{number}} · {{type}}",
         "previous": "Semaine précédente",
         "today": "Aujourd'hui",
         "next": "Semaine suivante"
@@ -413,7 +412,9 @@
         "upcoming": "À venir",
         "past": "Passées",
         "empty": "Aucune séance",
-        "emptyHint": "Rien à afficher dans cette période."
+        "emptyHint": "Rien à afficher dans cette période.",
+        "cycleCount": "{{count}} cycle en cours",
+        "cycleCount_other": "{{count}} cycles en cours"
       },
       "backToPlanning": "← Mon planning",
       "summary": "Sommaire",
@@ -423,7 +424,10 @@
       "emptyTitle": "Cette séance est vide",
       "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler.",
       "progress": "Ma progression",
-      "progressCount": "{{done}} sur {{total}}"
+      "progressCount": "{{done}} sur {{total}}",
+      "cycle": {
+        "week": "S{{number}}/{{total}} · {{type}}"
+      }
     },
     "new": "Nouvelle planification",
     "creating": "Création…",
@@ -509,14 +513,20 @@
       "addWeek": "Ajouter une semaine",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",
-      "publishedHint": "L'athlète voit ce cycle. Tes ajustements lui sont visibles immédiatement.",
       "delete": "Supprimer le cycle",
       "emptyWeeks": "Aucune semaine",
       "emptyWeeksHint": "Ajoute une semaine pour commencer à poser des séances.",
       "athleteRequired": "Choisis le destinataire de ce cycle pour pouvoir le diffuser.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
-      "titleWithAthlete": "{{title}} — {{name}}"
+      "titleWithAthlete": "{{title}} — {{name}}",
+      "audience": {
+        "VISIBLE_UPCOMING": "Ton athlète voit ce cycle. Il démarre le {{date}}.",
+        "VISIBLE_ALONE": "Ton athlète voit ce cycle. Tes ajustements lui sont visibles immédiatement.",
+        "VISIBLE_WITH": "Ton athlète voit ce cycle, et mène « {{others}} » en parallèle.",
+        "ENDED_SUPERSEDED": "Ce cycle est terminé. Ton athlète suit désormais « {{instead}} ».",
+        "ENDED_LAST": "Ce cycle est terminé. C'est le dernier que ton athlète a reçu."
+      }
     },
     "toast": {
       "created": "Cycle « {{title}} » créé",
@@ -595,10 +605,6 @@
       "ENDED_SINCE_other": "Terminé depuis {{count}} semaines",
       "STARTS_ON": "Commence le {{date}}"
     },
-    "overlap": {
-      "flag": "{{n}} cycles diffusés",
-      "notice": "Ces cycles se chevauchent du {{from}} au {{to}} : « {{hidden}} » ne lui est pas servi."
-    },
     "noMatch": {
       "title": "Aucun athlète ne correspond",
       "description": "Change ta recherche ou reviens à « Tous »."
@@ -607,6 +613,10 @@
       "title": "Brouillons sans destinataire",
       "hint": "Tu les construis avant de savoir pour qui",
       "startsOn": "Début {{date}}"
+    },
+    "concurrency": {
+      "flag": "{{n}} cycles de front",
+      "notice": "Ton athlète mène « {{titles}} » en parallèle du {{from}} au {{to}}."
     }
   },
   "nav": {

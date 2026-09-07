@@ -95,7 +95,7 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
               dernier cas. Le planning est le parent naturel d'une séance. */}
       <Link
         to="/planning"
-        search={{ week: undefined }}
+        search={{ from: undefined }}
         className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
       >
         {t("plan.athlete.backToPlanning")}

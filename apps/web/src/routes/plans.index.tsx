@@ -47,7 +47,7 @@ export function parsePlansSearch(search: Record<string, unknown>): PlansSearch {
 }
 
 // Liste des cycles du coach : coach seul. L'athlète lit SON cycle par une autre surface
-// (`/me/plan`, à venir avec #25) — ce n'est ni la même route ni les mêmes données.
+// (`/me/plans`, #25) — ce n'est ni la même route ni les mêmes données.
 export const Route = createFileRoute("/plans/")({
   validateSearch: parsePlansSearch,
   component: () => (

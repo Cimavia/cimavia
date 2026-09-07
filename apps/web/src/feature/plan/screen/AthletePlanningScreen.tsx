@@ -1,10 +1,22 @@
-import type { PlanDto, PlanWeekDto } from "@cmv/shared";
-import { PlanWeekType, todayIsoDate, weekSessionProgress } from "@cmv/shared";
+import type {
+  AthleteCalendarCycle,
+  AthleteCalendarWeek,
+  ScheduledSessionSummaryDto,
+} from "@cmv/shared";
+import {
+  athleteCalendarBounds,
+  athleteCalendarWeek,
+  defaultAthleteMonday,
+  PlanWeekType,
+  shiftIsoDate,
+  todayIsoDate,
+  weekSessionProgress,
+} from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMyCoach } from "@/feature/coach";
 import { AthleteWeekGrid } from "@/feature/plan/component/AthleteWeekGrid";
-import { resolveShownWeek, useMyPlan } from "@/feature/plan/hook/useMyPlan";
+import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import { CmvAppShell, CmvBadge, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { formatDateRange } from "@/shared/util/date.util";
 
@@ -15,18 +27,23 @@ import { formatDateRange } from "@/shared/util/date.util";
 const route = getRouteApi("/planning");
 
 /**
- * Le planning de l'athlète sur web (#25) : une semaine du cycle diffusé, en grille de sept jours.
+ * Le planning de l'athlète sur web (#25) : une semaine CIVILE en grille de sept jours, alimentée
+ * par tous les cycles diffusés qu'il suit (#172).
  *
- * La semaine affichée vit dans l'URL (`?week=3`) et non dans un `useState` : c'est ce qui rend un
- * lien partageable et le bouton Retour utile. `replace: true` — parcourir six semaines ne doit pas
+ * La semaine vit dans l'URL (`?from=<lundi>`) et non dans un `useState` : c'est ce qui rend un lien
+ * partageable et le bouton Retour utile. `replace: true` — parcourir six semaines ne doit pas
  * empiler six entrées d'historique.
+ *
+ * La composition de la semaine vit dans `@cmv/shared` (`athleteCalendarWeek`) : quel cycle a cours,
+ * quelle séance tombe quel jour et dans quel ordre sont des décisions produit, et une composition
+ * dans le JSX les mettrait hors de portée d'un test unitaire.
  */
 export function AthletePlanningScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { week: requestedWeek } = route.useSearch();
+  const { from: requestedMonday } = route.useSearch();
 
-  const { data: plan, isPending, isError, refetch } = useMyPlan();
+  const { data: plans, isPending, isError, refetch } = useMyPlans();
   // Sans coach, il n'y a pas de cycle à attendre — et le dire évite de laisser patienter pour rien.
   const { data: coach } = useMyCoach();
 
@@ -54,7 +71,11 @@ export function AthletePlanningScreen() {
     );
   }
 
-  if (plan == null) {
+  const defaultMonday = defaultAthleteMonday(plans, today);
+  const monday = requestedMonday ?? defaultMonday;
+  const week = monday == null ? null : athleteCalendarWeek(plans, monday);
+
+  if (week == null) {
     return (
       <CmvAppShell title={t("plan.athlete.title")}>
         <CmvEmptyState
@@ -69,74 +90,105 @@ export function AthletePlanningScreen() {
     );
   }
 
-  const { week, isOutOfCycle } = resolveShownWeek(plan, today, requestedWeek);
-  const goToWeek = (weekNumber: number | undefined) =>
-    navigate({ to: "/planning", search: { week: weekNumber }, replace: true });
+  const bounds = athleteCalendarBounds(plans);
+  const goToMonday = (target: string | undefined) =>
+    navigate({ to: "/planning", search: { from: target }, replace: true });
 
   return (
-    <CmvAppShell title={t("plan.athlete.title")} subtitle={plan.title}>
+    <CmvAppShell
+      title={t("plan.athlete.title")}
+      subtitle={formatDateRange(week.startDate, week.endDate)}
+    >
       <div className="flex flex-col gap-cmv-lg">
-        {/* Le cycle n'a pas cours : on affiche quand même une semaine (la première), mais on dit
-            que ce n'est pas la semaine courante — sinon un cycle terminé se lirait comme en cours. */}
-        {isOutOfCycle ? (
+        {/* Ce qui court cette semaine, AVANT la grille : avec deux cycles concurrents, savoir sur
+            quoi on est engagé conditionne la lecture des sept cases (#172). */}
+        <CycleList cycles={week.cycles} />
+
+        <WeekHeader
+          week={week}
+          bounds={bounds}
+          isDefault={requestedMonday == null}
+          onGoToMonday={goToMonday}
+        />
+
+        {/* Aucun cycle n'a cours cette semaine-là. On affiche quand même les sept jours — c'est la
+            navigation qui a mené ici —, mais on le DIT : sinon une semaine hors cycle se lirait
+            comme une semaine de repos, qui est l'exact contraire. */}
+        {week.cycles.length === 0 ? (
           <p className="text-cmv-body text-cmv-text-mid">{t("plan.athlete.outOfCycle")}</p>
         ) : null}
 
-        {week == null ? (
-          <CmvEmptyState
-            title={t("plan.athlete.empty.title")}
-            description={t("plan.athlete.empty.description")}
-          />
-        ) : (
-          <>
-            <WeekHeader
-              plan={plan}
-              week={week}
-              onGoToWeek={goToWeek}
-              isCurrent={!isOutOfCycle && requestedWeek == null}
-            />
-            <AthleteWeekGrid week={week} today={today} />
-          </>
-        )}
+        <AthleteWeekGrid week={week} today={today} />
       </div>
     </CmvAppShell>
   );
 }
 
+/**
+ * Les cycles qui ont cours cette semaine, avec leur avancement. C'est ici que vit tout ce que le
+ * numéro de semaine portait avant #172 : « S3/4 », le type de la semaine, la note du coach — trois
+ * choses qui appartiennent à UN cycle et qui ne peuvent donc plus coiffer la grille entière.
+ *
+ * `null` quand il n'y en a aucun : la phrase « hors cycle » de l'écran dit déjà la situation, et un
+ * cadre vide au-dessus d'elle ne dirait rien de plus.
+ */
+function CycleList({ cycles }: Readonly<{ cycles: readonly AthleteCalendarCycle[] }>) {
+  const { t } = useTranslation();
+  if (cycles.length === 0) return null;
+
+  return (
+    <ul className="flex flex-col gap-cmv-sm">
+      {cycles.map((cycle) => (
+        <li
+          key={cycle.planId}
+          className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm"
+        >
+          <span className="font-cmv-display text-cmv-body text-cmv-text-hi">{cycle.title}</span>
+          {/* La décharge se colore, l'entraînement reste neutre : la couleur marque l'EXCEPTION du
+              cycle, pas sa règle (arbitrage #37). */}
+          <CmvBadge variant={cycle.type === PlanWeekType.DELOAD ? "info" : "neutral"}>
+            {t("plan.athlete.cycle.week", {
+              number: cycle.weekNumber,
+              total: cycle.weekCount,
+              type: t(`plan.athlete.weekType.${cycle.type}`),
+            })}
+          </CmvBadge>
+          {cycle.note == null ? null : (
+            <span className="text-cmv-caption text-cmv-text-mid">{cycle.note}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 type WeekHeaderProps = {
-  plan: PlanDto;
-  week: PlanWeekDto;
-  isCurrent: boolean;
-  onGoToWeek: (weekNumber: number | undefined) => void;
+  week: AthleteCalendarWeek<ScheduledSessionSummaryDto>;
+  bounds: { firstMonday: string; lastMonday: string } | null;
+  isDefault: boolean;
+  onGoToMonday: (monday: string | undefined) => void;
 };
 
-function WeekHeader({ plan, week, isCurrent, onGoToWeek }: Readonly<WeekHeaderProps>) {
+/**
+ * La navigation d'une semaine à l'autre, bornée par la plage réelle des cycles servis : sans
+ * bornes, l'athlète parcourt indéfiniment des semaines vides qui ne lui apprennent rien.
+ */
+function WeekHeader({ week, bounds, isDefault, onGoToMonday }: Readonly<WeekHeaderProps>) {
   const { t } = useTranslation();
-  const progress = weekSessionProgress(week.sessions);
 
-  const hasPrevious = week.weekNumber > 1;
-  const hasNext = week.weekNumber < plan.weekCount;
+  const sessions = week.days.flatMap((day) => day.entries.map((entry) => entry.session));
+  const progress = weekSessionProgress(sessions);
+
+  const previous = shiftIsoDate(week.startDate, -7);
+  const next = shiftIsoDate(week.startDate, 7);
+  const hasPrevious = previous != null && bounds != null && previous >= bounds.firstMonday;
+  const hasNext = next != null && bounds != null && next <= bounds.lastMonday;
 
   return (
     <div className="flex flex-wrap items-center gap-cmv-md">
-      <div className="flex flex-col gap-cmv-xs">
-        <div className="flex items-center gap-cmv-sm">
-          {/* La décharge se colore, l'entraînement reste neutre : la couleur marque l'EXCEPTION
-              du cycle, pas sa règle (arbitrage #37). */}
-          <CmvBadge variant={week.type === PlanWeekType.DELOAD ? "info" : "neutral"}>
-            {t("plan.athlete.week.numberAndType", {
-              number: week.weekNumber,
-              type: t(`plan.athlete.weekType.${week.type}`),
-            })}
-          </CmvBadge>
-          <span className="font-cmv-mono text-cmv-caption text-cmv-text-mid">
-            {formatDateRange(week.startDate, week.endDate)}
-          </span>
-        </div>
-        {week.note == null ? null : (
-          <p className="text-cmv-caption text-cmv-text-mid">{week.note}</p>
-        )}
-      </div>
+      <span className="font-cmv-mono text-cmv-caption text-cmv-text-mid">
+        {formatDateRange(week.startDate, week.endDate)}
+      </span>
 
       <div className="flex-1" />
 
@@ -144,19 +196,19 @@ function WeekHeader({ plan, week, isCurrent, onGoToWeek }: Readonly<WeekHeaderPr
         <CmvButton
           variant="secondary"
           disabled={!hasPrevious}
-          onClick={() => onGoToWeek(week.weekNumber - 1)}
+          onClick={() => onGoToMonday(previous ?? undefined)}
         >
           {t("plan.athlete.week.previous")}
         </CmvButton>
-        {/* `undefined` et non le numéro de la semaine courante : retirer le paramètre rend la page
-            à son défaut, qui suivra le calendrier demain sans qu'on ait à y toucher. */}
-        <CmvButton variant="ghost" disabled={isCurrent} onClick={() => onGoToWeek(undefined)}>
+        {/* `undefined` et non le lundi courant : retirer le paramètre rend la page à son défaut,
+            qui suivra le calendrier la semaine prochaine sans qu'on ait à y toucher. */}
+        <CmvButton variant="ghost" disabled={isDefault} onClick={() => onGoToMonday(undefined)}>
           {t("plan.athlete.week.today")}
         </CmvButton>
         <CmvButton
           variant="secondary"
           disabled={!hasNext}
-          onClick={() => onGoToWeek(week.weekNumber + 1)}
+          onClick={() => onGoToMonday(next ?? undefined)}
         >
           {t("plan.athlete.week.next")}
         </CmvButton>

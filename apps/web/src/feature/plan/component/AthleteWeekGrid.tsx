@@ -1,12 +1,11 @@
-import type { PlanWeekDto } from "@cmv/shared";
-import { planWeekDays } from "@cmv/shared";
+import type { AthleteCalendarWeek, ScheduledSessionSummaryDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { AthleteSessionCard } from "@/feature/plan/component/AthleteSessionCard";
 import { cn } from "@/shared/util/cn.util";
 import { formatDayNumber, formatWeekday } from "@/shared/util/date.util";
 
 type AthleteWeekGridProps = {
-  week: PlanWeekDto;
+  week: AthleteCalendarWeek<ScheduledSessionSummaryDto>;
   today: string;
 };
 
@@ -15,23 +14,21 @@ type AthleteWeekGridProps = {
  * (celui-ci empile les jours). C'est le seul endroit où les deux plateformes divergent vraiment
  * sur cet écran, et c'est la raison d'être de la maquette web dédiée.
  *
- * Les sept jours viennent de `planWeekDays`, jamais des séances : une semaine sans aucune séance
- * doit quand même afficher ses sept colonnes, sinon « rien de prévu » se lirait « rien à afficher ».
+ * Les sept jours viennent de `athleteCalendarWeek`, jamais des séances : une semaine sans aucune
+ * séance doit quand même afficher ses sept colonnes, sinon « rien de prévu » se lirait « rien à
+ * afficher ».
+ *
+ * Le nom du cycle n'apparaît sur les cartes QUE si la semaine en compte plusieurs (#172) : avec un
+ * seul cycle, il serait la même étiquette répétée sept fois — du bruit qui déplace la lecture du
+ * contenu vers son origine. Avec deux, il est ce qui rend deux séances du même mardi distinctes.
  */
 export function AthleteWeekGrid({ week, today }: Readonly<AthleteWeekGridProps>) {
   const { t } = useTranslation();
-  const days = planWeekDays(week.startDate);
-
-  // `null` = la semaine n'est pas situable (date illisible). On ne dessine pas une grille fausse.
-  if (days == null) return null;
+  const showPlanTitle = week.cycles.length > 1;
 
   return (
     <div className="grid gap-cmv-sm md:grid-cols-2 xl:grid-cols-7">
-      {days.map((day) => {
-        // Plusieurs séances possibles le même jour : `position` est le rang DANS la journée.
-        const sessions = week.sessions
-          .filter((session) => session.scheduledDate === day)
-          .sort((a, b) => a.position - b.position);
+      {week.days.map(({ date: day, entries }) => {
         const isToday = day === today;
 
         return (
@@ -62,7 +59,7 @@ export function AthleteWeekGrid({ week, today }: Readonly<AthleteWeekGridProps>)
                 courte. Il vaut à toutes les largeurs — deux cases voisines se comparent à l'œil en
                 deux colonnes comme en sept. */}
             <div className="grid min-h-24 flex-1 auto-rows-fr gap-cmv-sm">
-              {sessions.length === 0 ? (
+              {entries.length === 0 ? (
                 // Un jour sans séance est une information, pas un trou : le cycle prévoit du repos.
                 <div className="flex items-center justify-center rounded-cmv-md border border-cmv-border border-dashed p-cmv-sm">
                   <span className="text-cmv-caption text-cmv-text-lo">
@@ -70,7 +67,13 @@ export function AthleteWeekGrid({ week, today }: Readonly<AthleteWeekGridProps>)
                   </span>
                 </div>
               ) : (
-                sessions.map((session) => <AthleteSessionCard key={session.id} session={session} />)
+                entries.map((entry) => (
+                  <AthleteSessionCard
+                    key={entry.session.id}
+                    session={entry.session}
+                    planLabel={showPlanTitle ? entry.planTitle : null}
+                  />
+                ))
               )}
             </div>
           </div>

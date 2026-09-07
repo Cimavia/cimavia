@@ -25,7 +25,7 @@ export function useUpsertMyFeedback(sessionId: string, onSaved?: () => void) {
       onSaved?.();
       queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
       queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });
+      queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
       // La liste COACH des débriefs vit dans le même cache dès qu'un compte cumule les deux
       // capacités (#14) : sans cette invalidation, l'auteur ne retrouve pas son propre débrief
       // côté coach avant l'expiration du `staleTime` (une minute). Sans effet pour un athlète

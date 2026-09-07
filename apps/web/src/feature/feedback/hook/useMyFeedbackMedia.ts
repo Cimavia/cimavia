@@ -39,7 +39,7 @@ function useInvalidateFeedback(sessionId: string) {
   return () => {
     queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
     queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
-    queryClient.invalidateQueries({ queryKey: myPlanKeys.current() });
+    queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
     // Idem : en auto-coaching, l'auteur est aussi le lecteur (#14).
     queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
   };
