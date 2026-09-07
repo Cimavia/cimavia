@@ -1,12 +1,28 @@
 import type { AthleteCalendarWeek, PlanDto, ScheduledSessionSummaryDto } from "@cmv/shared";
-import { athleteCalendarWeek, PlanStatus, PlanWeekType, ScheduledSessionStatus } from "@cmv/shared";
-import { describe, expect, it } from "vitest";
+import {
+  athleteCalendarWeek,
+  mondayOfIsoWeek,
+  PlanStatus,
+  PlanWeekType,
+  ScheduledSessionStatus,
+  shiftIsoDate,
+  todayIsoDate,
+} from "@cmv/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useMyCoach } from "@/feature/coach";
+import { CurrentWeekSection } from "@/feature/plan/component/CurrentWeekSection";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
-import { resolvePlanningState } from "@/feature/plan/screen/PlanningScreen";
+import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
+import { PlanningScreen, resolvePlanningState } from "@/feature/plan/screen/PlanningScreen";
 import { renderRn } from "@/test/render";
 
-const MONDAY = "2026-10-12";
-const WEDNESDAY = "2026-10-14";
+vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useMyPlans: vi.fn() }));
+vi.mock("@/feature/coach", () => ({ useMyCoach: vi.fn() }));
+// Le bandeau hors-ligne écoute l'état réseau : hors sujet ici.
+vi.mock("@/shared/component/OfflineBanner", () => ({ OfflineBanner: () => null }));
+
+const MONDAY = mondayOfIsoWeek(todayIsoDate()) ?? "2026-10-12";
+const WEDNESDAY = shiftIsoDate(MONDAY, 2) ?? MONDAY;
 
 const session = (id: string, title: string, scheduledDate: string): ScheduledSessionSummaryDto => ({
   id,
@@ -21,7 +37,12 @@ const session = (id: string, title: string, scheduledDate: string): ScheduledSes
   exerciseCount: 2,
 });
 
-function plan(id: string, title: string, sessions: ScheduledSessionSummaryDto[]): PlanDto {
+function plan(
+  id: string,
+  title: string,
+  sessions: ScheduledSessionSummaryDto[],
+  { startDate = MONDAY, note = null }: { startDate?: string; note?: string | null } = {},
+): PlanDto {
   return {
     id,
     coachId: "coach_1",
@@ -30,7 +51,7 @@ function plan(id: string, title: string, sessions: ScheduledSessionSummaryDto[])
     athleteEmail: "lea@example.test",
     title,
     description: null,
-    startDate: MONDAY,
+    startDate,
     status: PlanStatus.PUBLISHED,
     publishedAt: "2026-10-01T10:00:00Z",
     weekCount: 1,
@@ -42,9 +63,9 @@ function plan(id: string, title: string, sessions: ScheduledSessionSummaryDto[])
         id: "pw_1",
         weekNumber: 1,
         type: PlanWeekType.TRAINING,
-        note: null,
-        startDate: MONDAY,
-        endDate: "2026-10-18",
+        note,
+        startDate,
+        endDate: shiftIsoDate(startDate, 6) ?? startDate,
         sessions,
       },
     ],
@@ -120,5 +141,83 @@ describe("PlanWeekList", () => {
   it("affiche les sept jours, « Repos » sur ceux qui n'ont rien", () => {
     const { getAllByText } = renderRn(<PlanWeekList week={weekOf([BLOC])} today={MONDAY} />);
     expect(getAllByText("plan.rest")).toHaveLength(6);
+  });
+});
+
+/**
+ * L'écran complet, une fois les six cas résolus : ce qui s'éprouve ici est le CÂBLAGE — que chaque
+ * état atteigne bien le bloc qui lui correspond, et que la semaine montrée soit celle d'aujourd'hui.
+ */
+describe("PlanningScreen", () => {
+  const mount = (
+    data: PlanDto[] | undefined,
+    over: { isPending?: boolean; isError?: boolean } = {},
+  ) => {
+    vi.mocked(useMyPlans).mockReturnValue({
+      data,
+      isPending: over.isPending ?? false,
+      isError: over.isError ?? false,
+      isRefetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useMyPlans>);
+    return renderRn(<PlanningScreen />);
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useMyCoach).mockReturnValue({ data: { id: "coach_1" } } as unknown as ReturnType<
+      typeof useMyCoach
+    >);
+  });
+
+  it("dit à l'athlète sans coach que c'est un coach qui lui manque", () => {
+    vi.mocked(useMyCoach).mockReturnValue({ data: null } as unknown as ReturnType<
+      typeof useMyCoach
+    >);
+    expect(mount([]).getByText("coach.missing.title")).toBeTruthy();
+  });
+
+  it("dit à l'athlète rattaché que son coach n'a rien diffusé", () => {
+    expect(mount([]).getByText("plan.empty.title")).toBeTruthy();
+  });
+
+  it("dit quand aucun cycle n'a cours cette semaine, plutôt que sept lignes de repos", () => {
+    const past = shiftIsoDate(MONDAY, -70) ?? MONDAY;
+    const ended = plan("p_vieux", "Cycle fini", [], { startDate: past });
+
+    expect(mount([ended]).getByText("plan.outOfCycle")).toBeTruthy();
+  });
+
+  it("montre la semaine en cours, séances des deux cycles comprises", () => {
+    const { getByText } = mount([BLOC, FALAISE]);
+
+    expect(getByText("plan.thisWeek")).toBeTruthy();
+    expect(getByText("Force max")).toBeTruthy();
+    expect(getByText("Voie longue")).toBeTruthy();
+  });
+});
+
+/** L'en-tête de la semaine et le bandeau des cycles en cours. */
+describe("CurrentWeekSection", () => {
+  it("annonce chaque cycle en cours, avec sa note de semaine", () => {
+    const noted = plan("p_bloc", "Cycle Bloc", [session("ss_bloc", "Force max", WEDNESDAY)], {
+      note: "Montée en charge",
+    });
+    const { getAllByText, getByText } = renderRn(
+      <CurrentWeekSection week={weekOf([noted, FALAISE])} today={MONDAY} />,
+    );
+
+    // Deux occurrences par cycle, et c'est voulu : le bandeau dit ce qui court, l'étiquette de la
+    // carte dit d'où vient LA séance — sans elle, deux séances du même jour se confondent.
+    expect(getAllByText("Cycle Bloc")).toHaveLength(2);
+    expect(getAllByText("Prépa falaise")).toHaveLength(2);
+    expect(getByText("Montée en charge")).toBeTruthy();
+  });
+
+  it("titre la semaine et compte ses séances faites", () => {
+    const { getByText } = renderRn(<CurrentWeekSection week={weekOf([BLOC])} today={MONDAY} />);
+
+    expect(getByText("plan.thisWeek")).toBeTruthy();
+    expect(getByText(/plan\.doneCount/)).toBeTruthy();
   });
 });
