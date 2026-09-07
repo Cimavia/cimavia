@@ -2406,8 +2406,16 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > piège réel de la voie retenue n'est pas là : c'est `ExerciseService.update`, qui n'écrit `title`
 > que sous `!== undefined`. `titleSearch` passe sous la **même** garde — sans quoi un renommage
 > laisserait la ligne introuvable par l'ancien mot comme par le nouveau, sans rien d'anormal à
-> l'écran. C'est la seule chose que ce changement pouvait casser en silence, et le test de
-> `exerciseListWhere` tient l'autre moitié du contrat, la symétrie de la lecture.
+> l'écran. Le test de `exerciseListWhere` tient la symétrie de la LECTURE ; un e2e tient l'autre
+> moitié — il renomme, puis vérifie que l'ancien mot ne ramène plus rien et que le nouveau ramène
+> la ligne.
+>
+> Cet e2e n'était pas prévu : la Quality Gate l'a réclamé (couverture du code neuf à **76,9 %**,
+> 10 lignes et conditions sur 13). Ce qu'elle désignait n'était pas une dette du changement mais un
+> angle mort d'avant lui — **`PATCH /exercises/:id` portant un titre n'était exercé par AUCUN e2e**
+> depuis P2. La ligne n'est devenue visible que parce que le correctif l'a déplacée dans un bloc.
+> C'est le cas d'école de ce que la gate sur le code neuf est censée attraper : elle ne mesure pas
+> la qualité du diff, elle éclaire ce que le diff touche.
 
 > **Tranché en #141** (`titleSearch` est NON-NULL) : la rendre nullable créerait un troisième état,
 > « pas encore rempli », que le filtre écarterait sans le dire — une ligne invisible sans erreur.
