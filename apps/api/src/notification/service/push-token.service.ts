@@ -70,11 +70,13 @@ export class PushTokenService {
   }
 }
 
-function toPushTokenDto(row: PushToken): PushTokenDto {
+function toPushTokenDto(row: PushToken, issuedSecret: string | null = null): PushTokenDto {
   return {
     id: row.id,
     token: row.token,
     platform: row.platform,
+    // `null` tant que rien n'est émis : le client garde le secret qu'il détient déjà.
+    installationSecret: issuedSecret,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
