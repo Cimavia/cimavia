@@ -34,15 +34,6 @@ import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null };
 
 /**
- * Le destinataire tel qu'il s'écrit dans le titre : son nom, ou le fait qu'il reste à choisir
- * (#144). Sorti du composant, qui frôle le seuil de complexité de la porte qualité — et parce que
- * « pas encore choisi » est une réponse à afficher, pas un cas d'erreur à replier sur un tiret.
- */
-/**
- * Un cycle dont la facturation a un sens : il a un destinataire, et ce n'est pas soi (#14, #144).
- * L'API refuse la lecture des termes dans les deux autres cas — la question ne se pose donc pas.
- */
-/**
  * Les cycles à comparer : ceux du coach, MOINS la copie que sa liste porte de celui qu'on regarde,
  * PLUS celui qu'on regarde. La liste peut être périmée d'une diffusion ou d'un changement de date
  * qu'on vient de faire ici, et `planAudience` doit répondre sur l'état affiché, pas sur un cache.
@@ -51,10 +42,31 @@ function siblingsOf(plan: PlanDto, coachPlans: readonly PlanSummaryDto[]): PlanS
   return [plan, ...coachPlans.filter((item) => item.id !== plan.id)];
 }
 
+/**
+ * Un cycle dont des termes DRAFT peuvent exister : un brouillon, adressé à quelqu'un, et pas à
+ * soi (#14, #144). Diffusé, la facture est passée PENDING dans la transaction du `publish` — il
+ * n'y a plus de brouillon à lire.
+ *
+ * L'API ne REFUSE plus cette lecture (#211), elle rend `null` dans les trois cas. Ce n'est donc
+ * plus un garde-fou contre une erreur, mais le refus de poser une question dont on connaît déjà
+ * la réponse. Et c'est le SEUL endroit où elle se pose : la section de facturation reçoit ce
+ * qu'on lit ici, plutôt que de le redemander sous une garde qui devrait s'accorder avec celle-ci
+ * — deux gardes sur une même clé de requête sont ce qui a produit le défaut.
+ */
 function isBillable(plan: PlanDto | undefined): boolean {
-  return plan != null && plan.athleteId != null && !isSelfCoached(plan);
+  return (
+    plan != null &&
+    plan.status !== PlanStatus.PUBLISHED &&
+    plan.athleteId != null &&
+    !isSelfCoached(plan)
+  );
 }
 
+/**
+ * Le destinataire tel qu'il s'écrit dans le titre : son nom, ou le fait qu'il reste à choisir
+ * (#144). Sorti du composant, qui frôle le seuil de complexité de la porte qualité — et parce que
+ * « pas encore choisi » est une réponse à afficher, pas un cas d'erreur à replier sur un tiret.
+ */
 function athleteHeading(
   plan: { athleteId: string | null; athleteName: string | null },
   athleteLabel: (athleteId: string, athleteName: string) => string,
@@ -80,6 +92,7 @@ export function PlanBuilderScreen() {
   const { addWeek, saveHeader, isBusy } = usePlanMutations(planId);
   const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
+  // Lue UNE fois ici, puis descendue à la section — cf. `isBillable`.
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
@@ -250,7 +263,12 @@ export function PlanBuilderScreen() {
             refuse la saisie (#14) : laisser la section visible proposerait un formulaire
             obligatoire que rien n'accepterait. */}
         {!isSelfCoached(plan) && (
-          <PlanBillingSection planId={planId} isPublished={isPublished} hasAthlete={hasAthlete} />
+          <PlanBillingSection
+            planId={planId}
+            isPublished={isPublished}
+            hasAthlete={hasAthlete}
+            billing={billing}
+          />
         )}
       </div>
 

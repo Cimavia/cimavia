@@ -1,16 +1,15 @@
+import type { InvoiceDto } from "@cmv/shared";
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanBillingSection } from "@/feature/invoice/component/PlanBillingSection";
 import {
   useAttachInvoiceDocument,
-  usePlanBilling,
   useRemoveInvoiceDocument,
   useSavePlanBilling,
 } from "@/feature/invoice/hook/useInvoices";
 import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/invoice/hook/useInvoices", () => ({
-  usePlanBilling: vi.fn(),
   useSavePlanBilling: vi.fn(),
   useAttachInvoiceDocument: vi.fn(),
   useRemoveInvoiceDocument: vi.fn(),
@@ -28,18 +27,27 @@ vi.mocked(useAttachInvoiceDocument).mockReturnValue(
 vi.mocked(useRemoveInvoiceDocument).mockReturnValue(
   idle as unknown as ReturnType<typeof useRemoveInvoiceDocument>,
 );
-// Remis à chaque test : les compteurs d'appel doivent repartir de zéro, et le brouillon par
-// défaut être « aucun terme saisi » — un test qui en pose un ne doit pas décrire le suivant.
+// Remis à chaque test : les compteurs d'appel doivent repartir de zéro — un test qui enregistre
+// ne doit pas décrire le suivant.
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(usePlanBilling).mockReturnValue({
-    data: null,
-  } as unknown as ReturnType<typeof usePlanBilling>);
 });
 
-const mount = (props: { isPublished?: boolean; hasAthlete?: boolean }) =>
+// `billing` arrive en prop depuis le builder (#211) : la section ne lit plus rien elle-même. Par
+// défaut « aucun terme saisi », l'état d'un cycle qu'on vient d'ouvrir.
+const mount = (props: {
+  isPublished?: boolean;
+  hasAthlete?: boolean;
+  billing?: InvoiceDto | null;
+}) =>
   renderInRoute(
-    <PlanBillingSection planId="pln_1" isPublished={false} hasAthlete={true} {...props} />,
+    <PlanBillingSection
+      planId="pln_1"
+      isPublished={false}
+      hasAthlete={true}
+      billing={null}
+      {...props}
+    />,
     { path: "/plans/$planId", params: { planId: "pln_1" }, links: ["/invoices"] },
   );
 
@@ -70,16 +78,6 @@ describe("PlanBillingSection — le verrou de destinataire", () => {
     expect(getByText("invoice.billing.title")).toBeTruthy();
     expect(getByText("invoice.billing.athleteRequired")).toBeTruthy();
     expect(queryByText("invoice.billing.save")).toBeNull();
-  });
-
-  /**
-   * L'API refuse cette lecture en 409 sans destinataire : la poser quand même coûterait deux
-   * requêtes vouées à l'échec pour une réponse qu'on connaît déjà.
-   */
-  it("ne demande pas les termes d'un cycle qu'on ne peut pas facturer", async () => {
-    await mount({ hasAthlete: false });
-
-    expect(usePlanBilling).toHaveBeenCalledWith("pln_1", false);
   });
 
   /**
@@ -117,11 +115,13 @@ describe("PlanBillingSection — le verrou de destinataire", () => {
 
   // Les termes déjà enregistrés repeuplent le formulaire, montant réaffiché en EUROS.
   it("préremplit le formulaire avec les termes déjà saisis", async () => {
-    vi.mocked(usePlanBilling).mockReturnValue({
-      data: { amountCents: 6000, dueDate: "2026-11-05", note: "Cycle automne" },
-    } as unknown as ReturnType<typeof usePlanBilling>);
-
-    const { container } = await mount({});
+    const { container } = await mount({
+      billing: {
+        amountCents: 6000,
+        dueDate: "2026-11-05",
+        note: "Cycle automne",
+      } as InvoiceDto,
+    });
 
     expect((container.querySelector("#amount") as HTMLInputElement).value).toBe("60");
     expect((container.querySelector("#note") as HTMLTextAreaElement).value).toBe("Cycle automne");
