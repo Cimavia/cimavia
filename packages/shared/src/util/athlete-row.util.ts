@@ -227,9 +227,10 @@ export type AthleteRowQuery = {
  * Ce que le tableau affiche : les lignes retenues, **dans l'ordre où les afficher**.
  *
  * Sélection et tri dans la MÊME fonction, délibérément. Les composer dans le composant laisserait
- * la moitié de la décision hors de toute mesure de couverture (le web n'est pas instrumenté, §11) —
- * or l'ordre est une décision produit, pas un détail de rendu : il remplace le tri « activité
- * récente » de la maquette, écarté faute de donnée honnête (cf. #123).
+ * la moitié de la décision derrière un test de rendu, qui ne l'atteint qu'à travers ce qui
+ * s'affiche — le web EST instrumenté (§11 couvre les écrans), mais couvrir une ligne n'est pas
+ * affirmer ce qu'elle décide. Or l'ordre est une décision produit, pas un détail de rendu : il
+ * remplace le tri « activité récente » de la maquette, écarté faute de donnée honnête (cf. #123).
  *
  * L'ordre est **alphabétique**, et c'est le pendant de la recherche par nom : on cherche quelqu'un
  * par son nom, la liste est rangée par nom. L'ordre d'arrivée servi par l'API (`joinedAt desc`)

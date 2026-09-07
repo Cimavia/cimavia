@@ -15,8 +15,9 @@ import { comparableText } from "./search.util";
  *
  * Même dispositif qu'`invoice-row.util.ts` (#120), et pour la même raison : la situation d'un
  * athlète, l'ordre des lignes et celui de leur historique sont des décisions PRODUIT. Un tri faux
- * ne se voit pas — rien à l'écran ne le signale — d'où des fonctions pures et mesurées plutôt
- * qu'une composition dans le JSX, que la couverture n'atteint pas (§11).
+ * ne se voit pas — rien à l'écran ne le signale — d'où des fonctions pures, qu'un test attaque sur
+ * ce qu'elles DÉCIDENT. Composées dans le JSX, elles resteraient mesurées (§11 couvre les écrans),
+ * mais seulement à travers ce qui s'affiche : l'ordre ne se vérifierait plus qu'à l'œil.
  *
  * La jointure est faite côté client sur une liste déjà chargée (`GET /plans`, scopée par le
  * tenant) : aucun endpoint d'agrégat, aucune requête de plus. Corollaire assumé, le même qu'en
