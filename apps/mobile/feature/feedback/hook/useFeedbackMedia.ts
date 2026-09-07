@@ -89,7 +89,7 @@ async function prepareAndUpload(
   const media = await prepareMedia(asset);
   if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
     throw new MediaRejectedError(
-      media.type === MediaType.VIDEO ? "feedback.media.videoTooBig" : "feedback.media.photoTooBig",
+      media.type === MediaType.VIDEO ? "feedback.media.videoTooBig" : "feedback.media.imageTooBig",
       { max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)) },
     );
   }

@@ -110,7 +110,7 @@ function prepareVideo(asset: ImagePickerAsset): PreparedMedia {
   }
   const durationSeconds = Math.ceil(asset.duration / 1000);
   if (durationSeconds > MAX_FEEDBACK_VIDEO_DURATION_SECONDS) {
-    throw new MediaRejectedError("feedback.media.videoDuration", {
+    throw new MediaRejectedError("feedback.media.videoTooLong", {
       max: MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
     });
   }
