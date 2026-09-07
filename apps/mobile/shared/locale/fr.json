@@ -126,7 +126,7 @@
   "plan": {
     "thisWeek": "Cette semaine",
     "rest": "Repos",
-    "outOfCycle": "Aucune séance cette semaine : ton cycle n'a pas encore commencé, ou il est terminé.",
+    "outOfCycle": "Aucun de tes cycles n'a cours cette semaine : ils sont terminés, ou pas encore commencés.",
     "doneCount": "{{done}}/{{total}} séances faites",
     "weekType": {
       "TRAINING": "Entraînement",
@@ -136,9 +136,6 @@
       "PLANNED": "À faire",
       "DONE": "Fait",
       "SKIPPED": "Sautée"
-    },
-    "week": {
-      "numberAndType": "Semaine {{number}} · {{type}}"
     },
     "empty": {
       "title": "Aucune séance planifiée",
@@ -233,6 +230,9 @@
       "targetRounds_other": "objectif {{count}} tours · indicatif",
       "topDone": "Top fait",
       "roundDone": "Tour fait"
+    },
+    "cycle": {
+      "week": "S{{number}}/{{total}} · {{type}}"
     }
   },
   "media": {

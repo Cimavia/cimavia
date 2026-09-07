@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { SessionCard } from "@/feature/plan/component/SessionCard";
-import { useMyPlan } from "@/feature/plan/hook/useMyPlan";
+import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
@@ -15,25 +15,36 @@ import { formatFullDay } from "@/shared/util/date.util";
 
 type SessionsTab = "upcoming" | "past";
 
-// Onglet Séances (p3-4) : à venir / passées, dérivés du cycle courant — aucune requête de plus.
+/** Une séance et le cycle d'où elle vient — le nom voyage avec elle, il ne se rejoint pas au rendu. */
+type SessionEntry = { session: ScheduledSessionSummaryDto; planTitle: string };
+
+// Onglet Séances (p3-4) : à venir / passées, dérivées des cycles servis — aucune requête de plus.
 export function SessionsScreen() {
   const { t } = useTranslation();
-  const { data: plan, isPending, isError, refetch } = useMyPlan();
+  const { data: plans, isPending, isError, refetch } = useMyPlans();
   const [tab, setTab] = useState<SessionsTab>("upcoming");
 
   const today = todayIsoDate();
-  const allSessions = (plan?.weeks ?? []).flatMap((week) => week.sessions);
 
-  const sessions = allSessions
-    .filter((session) =>
+  const entries: SessionEntry[] = (plans ?? [])
+    .flatMap((plan) =>
+      plan.weeks.flatMap((week) =>
+        week.sessions.map((session) => ({ session, planTitle: plan.title })),
+      ),
+    )
+    .filter(({ session }) =>
       tab === "upcoming" ? session.scheduledDate >= today : session.scheduledDate < today,
     )
     // À venir : la plus proche d'abord. Passées : la plus récente d'abord.
     .sort((a, b) =>
       tab === "upcoming"
-        ? a.scheduledDate.localeCompare(b.scheduledDate)
-        : b.scheduledDate.localeCompare(a.scheduledDate),
+        ? a.session.scheduledDate.localeCompare(b.session.scheduledDate)
+        : b.session.scheduledDate.localeCompare(a.session.scheduledDate),
     );
+
+  // Le nom du cycle n'apparaît que si l'athlète en suit plusieurs (#172) : répété sur chaque carte
+  // d'un cycle unique, il serait du bruit — c'est ce qui DISTINGUE qui mérite d'être écrit.
+  const showPlanTitle = (plans ?? []).length > 1;
 
   return (
     <CmvScreen>
@@ -60,21 +71,24 @@ export function SessionsScreen() {
       <ScrollView contentContainerClassName="gap-3 px-4 pb-4">
         {isPending ? <ActivityIndicator /> : null}
 
-        {isError && plan == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
+        {isError && plans == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
-        {!isPending && !isError && sessions.length === 0 ? (
+        {!isPending && !isError && entries.length === 0 ? (
           <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
             <CmvText className="text-cmv-text-hi">{t("plan.sessions.empty")}</CmvText>
             <CmvText className="text-cmv-text-mid text-sm">{t("plan.sessions.emptyHint")}</CmvText>
           </View>
         ) : null}
 
-        {sessions.map((session: ScheduledSessionSummaryDto) => (
-          <View key={session.id} className="gap-1">
+        {entries.map((entry) => (
+          <View key={entry.session.id} className="gap-1">
             <CmvText className="text-cmv-text-lo text-xs">
-              {formatFullDay(session.scheduledDate)}
+              {formatFullDay(entry.session.scheduledDate)}
             </CmvText>
-            <SessionCard session={session} />
+            <SessionCard
+              session={entry.session}
+              planLabel={showPlanTitle ? entry.planTitle : null}
+            />
           </View>
         ))}
       </ScrollView>

@@ -73,7 +73,9 @@ export async function resetQueryCache(): Promise<void> {
  *
  * À remplacer par la version du produit quand elle existera (#184).
  */
-const CACHE_SCHEMA_VERSION = "2";
+// "3" depuis #172 : `["my-plan","current"]` (UN cycle) est devenue `["my-plan","visible"]`
+// (une LISTE). Un cache non busté servirait un objet là où les écrans attendent un tableau.
+const CACHE_SCHEMA_VERSION = "3";
 
 /**
  * Ponts app ↔ TanStack Query. Sans eux, RIEN ne déclenche jamais de refetch : `refetchOnWindowFocus`
