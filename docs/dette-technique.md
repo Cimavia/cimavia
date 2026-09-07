@@ -2252,6 +2252,55 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > nom assemblé à l'exécution ne produirait aucune règle. Aucun `calc()` dans un `grid-row: span`, dont
 > le support est moins sûr qu'une simple substitution de variable.
 
+> **Corrigé en #172** (un client d'authentification réel dans jsdom fait échouer une suite VERTE) :
+> la CI est tombée sur `Lint + Typecheck + Test` avec **63 fichiers et 519 tests passés** et
+> `Errors 1 error` — Vitest échoue sur une erreur non gérée même quand aucun test ne tombe. La trace :
+> `ReferenceError: window is not defined` dans `cleanupBroadcastSetup` de `better-auth`, déclenchée
+> par un `Timeout` de `nanostores`.
+>
+> Cause : `@/shared/lib/auth` **crée le client au chargement du module**, et `CmvAppShell` l'importe.
+> Un test qui remplace `CmvAppShell` par `importOriginal` évalue quand même le graphe entier : le
+> client réel s'arme alors d'un temporisateur de session qui **survit à la destruction du jsdom**.
+> Quand il se déclenche, il n'y a plus de `window`.
+>
+> Deux fichiers sur soixante-cinq tiraient `@/shared/component` sans mocker `@/shared/lib/auth` —
+> `AthletePlanningScreen.test.tsx` (ajouté ici) et `MyCoachScreen.test.tsx` (#146, antérieur). Le
+> second expliquait aussi un « flake » local : ce test tombait environ une fois sur trois quand
+> `turbo typecheck test` chargeait les quatre paquets en parallèle. **Même cause, deux symptômes.**
+> Diagnostic établi par sonde (un `console.error` en tête du module d'auth) : deux évaluations avant,
+> zéro après.
+>
+> Règle qui en sort : **un test qui monte quoi que ce soit tirant `@/shared/component` mocke
+> `@/shared/lib/auth`**. Ce n'est pas une commodité de test, c'est ce qui empêche un minuteur réel
+> d'exister. Le défaut ne se voit pas localement — il dépend de l'ordre et de la durée des fichiers.
+
+> **Corrigé en #172, trouvé en cherchant l'autre** (`findByRole` résout AVANT que l'écran ait fini de
+> se rendre) : `MyCoachScreen.test.tsx` (#146) tombait environ une fois sur trois, d'autant plus
+> souvent que la machine était chargée. Ce n'était pas un défaut de lenteur mais une **course** :
+> l'écran fait deux requêtes, `findByRole` sur le bouton résout dès que `myInvitations` a répondu,
+> et `myCoach` répond ensuite en re-rendant l'écran — le nœud obtenu est alors détaché, le clic
+> atterrit dans le vide, la mutation ne part pas, et le `waitFor` qui suit expire.
+>
+> Le correctif n'est pas un délai plus long : on exige d'abord un marqueur de CHAQUE requête
+> (`coach.join.codeLabel` pour l'une, le bouton pour l'autre), puis on requête le bouton **à
+> l'instant du clic**. Éprouvé 5 fois de suite, plus la porte complète sous contention.
+>
+> Le motif est général et vaut pour tout écran à plusieurs requêtes : `findBy*` dit « c'est
+> apparu », jamais « l'écran a fini ». Cliquer sur son résultat suppose qu'aucune autre requête ne
+> re-rendra la zone — supposition fausse dès qu'il y en a deux.
+
+> **Assumé en #172** (la couverture du nouveau code se paie sur les écrans, pas sur les dérivations) :
+> le quality gate Sonar a refusé la PR sur `new_coverage` à **74,4 %** pour un seuil de 80 — seule
+> condition rouge, duplication à 0 % et notes A partout. Les 45 lignes manquantes se concentraient sur
+> **trois écrans à 0 %** que la PR touchait sans qu'aucun test ne les ait jamais montés :
+> `AthleteSessionsScreen` (web), `SessionsScreen` et `CurrentWeekSection` (mobile). Les dérivations
+> partagées, elles, étaient déjà entre 95 et 100 %.
+>
+> C'est le corollaire de ce que §11 dit de la couverture : mettre une décision dans une fonction pure
+> ne dispense pas de monter l'écran qui l'affiche — ça déplace seulement ce que chaque test peut
+> affirmer. Les trois écrans ont désormais le leur, et `parsePlanningSearch` a été extraite de sa
+> route pour être éprouvée seule, comme `parsePlansSearch` l'était déjà.
+
 > **Corrigé en #172, dette M-6 appliquée** : `CACHE_SCHEMA_VERSION` passe à `"3"`
 > (`apps/mobile/shared/lib/query.tsx`). La clé de cache ET la forme des données ont changé —
 > `["my-plan","current"]` portait UN `PlanDto`, `["my-plan","visible"]` porte une LISTE. Sans bump,
