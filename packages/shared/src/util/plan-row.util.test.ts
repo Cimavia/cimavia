@@ -205,21 +205,29 @@ describe("l'échéance, qui rend l'ordre vérifiable à l'œil", () => {
   });
 });
 
-describe("le chevauchement de deux cycles diffusés (#172)", () => {
+/**
+ * Ce bloc éprouvait le CHEVAUCHEMENT tant qu'un cycle en masquait un autre. Depuis #172 les cycles
+ * s'accumulent : l'athlète les voit tous, il n'y a plus de « servi » face à des « cachés », et ce
+ * qui reste à dire au coach est une charge cumulée.
+ */
+describe("deux cycles diffusés menés de front (#172)", () => {
   it("ne signale rien quand un seul cycle court", () => {
-    expect(rowOf(LEA.athleteId).overlap).toBeNull();
+    expect(rowOf(LEA.athleteId).concurrency).toBeNull();
   });
 
-  it("l'athlète voit le cycle commencé le PLUS TARD, l'autre lui est invisible", () => {
-    expect(rowOf(ADRIEN.athleteId).overlap).toEqual({
-      servedPlanId: ADRIEN_TRAIL.id,
-      hiddenPlanIds: [ADRIEN_VOLUME.id],
+  it("nomme TOUS les cycles qui courent ensemble, sans en privilégier aucun", () => {
+    expect(rowOf(ADRIEN.athleteId).concurrency).toEqual({
+      planIds: [ADRIEN_VOLUME.id, ADRIEN_TRAIL.id],
       from: "2026-08-24",
       to: "2026-10-04",
     });
   });
 
-  it("la ligne montre le cycle réellement servi, pas le plus ancien", () => {
+  /**
+   * La colonne, elle, n'en montre qu'un : elle RÉSUME l'athlète en une ligne, et « plusieurs »
+   * n'est pas une réponse à « où en est Adrien ». C'est le rôle de `concurrency` de dire le reste.
+   */
+  it("la colonne résume par le cycle le plus récemment démarré", () => {
     expect(rowOf(ADRIEN.athleteId).currentPlan).toMatchObject({
       id: ADRIEN_TRAIL.id,
       currentWeek: 3,
@@ -227,7 +235,7 @@ describe("le chevauchement de deux cycles diffusés (#172)", () => {
     });
   });
 
-  it("un brouillon qui recouvre un cycle en cours n'est pas une anomalie", () => {
+  it("un brouillon qui recouvre un cycle en cours ne compte pas : personne ne le suit", () => {
     const overlappingDraft = plan({
       ...ADRIEN,
       id: "pln_draft_overlap",
@@ -235,7 +243,7 @@ describe("le chevauchement de deux cycles diffusés (#172)", () => {
       weekCount: 6,
       status: PlanStatus.DRAFT,
     });
-    expect(rowOf(ADRIEN.athleteId, [ADRIEN_VOLUME, overlappingDraft]).overlap).toBeNull();
+    expect(rowOf(ADRIEN.athleteId, [ADRIEN_VOLUME, overlappingDraft]).concurrency).toBeNull();
   });
 });
 
