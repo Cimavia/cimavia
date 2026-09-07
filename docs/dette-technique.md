@@ -1901,6 +1901,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > (le code rend mieux que la maquette). Sans cette ligne, une relecture de la maquette rétablit le
 > défaut en croyant corriger une dérive.
 
+> ⚠️ **Amendé en #172** : les deux encadrés qui suivent décrivent l'étirement des cartes, retiré
+> depuis. Le geste qu'ils justifient (`flex-1` + `auto-rows-fr` sur le conteneur du jour) rendait la
+> carte d'un jour peu chargé aussi haute que la pile d'un jour plein — voir *Cycles diffusés cumulés*
+> plus bas. Ce qui SURVIT d'eux : le plancher vaut à toutes les largeurs, et rien de tout cela ne
+> s'écrit dans `AthleteSessionCard`, qui sert aussi la liste verticale de `/sessions`.
+
 > **Tranché en #206** (l'étirement s'écrit dans la COLONNE, jamais dans la carte) :
 > `AthleteSessionCard` sert aussi la liste verticale de `/sessions`, où étirer n'aurait aucun sens.
 > C'est le conteneur du jour qui porte `flex-1` + `auto-rows-fr` — les éléments de grille s'étirent
@@ -2192,18 +2198,59 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > charge pour cela `GET /plans` (`usePlans`), déjà en cache dès qu'on arrive depuis `/plans` : c'est
 > le prix de ne plus affirmer sans avoir vérifié.
 
-> **Trouvé en chemin, SIGNALÉ en #172** (`scripts/check-i18n-keys.mjs` : un `const x = [` avale
-> l'enum suivant) : le registre du script repère les énumérations par la regex
-> `const (\w+) = ([{[])[\s\S]*?[}\]] as const`. Le `[\s\S]*?` est paresseux mais **traverse les
+> **Trouvé en chemin, CORRIGÉ en #172** (`scripts/check-i18n-keys.mjs` : un `const x = [` avalait
+> l'énumération suivante) : le registre du script repère les énumérations par la regex
+> `const (\w+) = ([{[])[\s\S]*?[}\]] as const`. Le `[\s\S]*?` est paresseux mais **traversait les
 > instructions** : une déclaration ordinaire `const others = [second, ...rest];` placée avant un
-> `export const PLAN_ROW_FILTERS = [...] as const` dans le même fichier consomme tout l'intervalle,
-> enregistre l'enum sous le nom `others`, et fait disparaître le vrai. `check:i18n` a alors échoué sur
-> `plan.stateFilter.PLAN_ROW_FILTERS`, une clé sans rapport avec la ligne fautive.
+> `export const PLAN_ROW_FILTERS = [...] as const` dans le même fichier consommait tout l'intervalle,
+> enregistrait l'énumération sous le nom `others`, et faisait disparaître la vraie. `check:i18n`
+> échouait alors sur `plan.stateFilter.PLAN_ROW_FILTERS` — une clé sans rapport avec la ligne fautive,
+> à des dizaines de lignes d'elle.
 >
-> Contourné ici en n'écrivant pas cette variable intermédiaire — mais le piège reste posé pour le
-> prochain, et son symptôme ne désigne pas sa cause. **Non corrigé** : le script n'est pas le sujet de
-> cette PR. Déclencheur d'une reprise : la prochaine fois qu'il se produit, ou une lecture par AST
-> plutôt que par regex.
+> Le corps du match est désormais `[^;]*?` : un point-virgule termine une instruction et ne peut pas
+> apparaître dans un littéral de tableau ou d'objet, si bien que le match ne peut plus sortir de la
+> déclaration en cours. Ce n'est pas un analyseur syntaxique — il en faudrait un pour être exact —,
+> mais c'est la borne qui manquait. Éprouvé en réintroduisant la ligne fautive : le script passe.
+>
+> Correctif **hors sujet de la PR, fait sur demande** : le piège restait posé pour le prochain, et
+> son symptôme ne désignait pas sa cause.
+
+> **Corrigé en #172** (une piste `auto` ne s'aligne pas entre deux grilles séparées) : les tableaux
+> de `/plans` — la liste par athlète comme l'historique déplié — posaient leur gabarit de colonnes
+> sur l'en-tête ET sur chaque ligne, avec le commentaire « sinon les intitulés se décalent du
+> contenu ». La promesse était fausse : ce sont des grilles **distinctes**, et leur dernière piste,
+> déclarée `auto`, s'y calculait indépendamment — nulle pour le `<span />` de l'en-tête, large de la
+> pastille ou du chevron pour une ligne, et **différente d'une ligne à l'autre** selon que la
+> pastille dit « À venir » ou « En cours · S3 ». Tout ce qui restait, distribué en `fr`, se décalait
+> d'autant : les colonnes « Semaines » et « Début » flottaient de quelques pixels par ligne.
+>
+> La dernière piste est désormais **fixe** (`8rem` pour la pastille d'état, `1.5rem` pour le
+> chevron), et son contenu `justify-self-end` pour garder le rendu d'avant. Règle à retenir : un
+> gabarit partagé entre plusieurs conteneurs de grille ne peut contenir que des pistes dont la
+> taille ne dépend pas du contenu.
+
+> **Corrigé en #172, et c'est un revirement partiel de #206** (une carte ne prend plus la taille que
+> les jours voisins lui laissent) : #206 avait donné à chaque jour la hauteur de sa colonne et à ses
+> cartes une part égale de cette hauteur (`flex-1` + `auto-rows-fr`). Conséquence non voulue, et
+> invisible tant que tous les jours portaient le même nombre de séances : **la carte d'un jour qui
+> n'en a qu'une devenait aussi haute que les trois d'un jour chargé**. L'accumulation des cycles
+> (#172) rend ce déséquilibre ordinaire — un jour peut désormais porter les séances de deux cycles
+> quand son voisin n'en porte aucune.
+>
+> Nouvelle règle : **toutes les cartes de la semaine ont la même hauteur, celle de la plus remplie.**
+> Elle se tient par une `subgrid` — les sept jours partagent les RANGÉES de la grille de la semaine,
+> et les rangées `1fr` d'une grille de hauteur libre s'égalisent sur la plus haute. Aucune carte
+> n'est étirée, aucun jour ne dicte la taille d'un autre.
+>
+> Frontière assumée, et c'est la même qu'en #206 : l'égalisation ne vaut qu'en `xl`, où la rangée de
+> sept jours existe. En dessous, les jours s'empilent, il n'y a plus de rangée commune à égaliser, et
+> les cartes reprennent la taille de leur contenu — avec le **plancher** `min-h-24`, qui lui vaut à
+> toutes les largeurs. Ce que #206 avait posé sans préfixe reste sans préfixe.
+>
+> Le rendu s'appuie sur deux variables CSS (`--cmv-week-rows`, `--cmv-week-span`) plutôt que sur des
+> classes calculées : Tailwind ne génère que les classes qu'il voit écrites en toutes lettres, et un
+> nom assemblé à l'exécution ne produirait aucune règle. Aucun `calc()` dans un `grid-row: span`, dont
+> le support est moins sûr qu'une simple substitution de variable.
 
 > **Corrigé en #172, dette M-6 appliquée** : `CACHE_SCHEMA_VERSION` passe à `"3"`
 > (`apps/mobile/shared/lib/query.tsx`). La clé de cache ET la forme des données ont changé —
