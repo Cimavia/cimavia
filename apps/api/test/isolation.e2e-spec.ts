@@ -318,6 +318,40 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(other.body.map((e: { id: string }) => e.id)).not.toContain(exerciseAId);
   });
 
+  /**
+   * La recherche par titre est insensible aux accents (#141), et le reste APRÈS un renommage.
+   * Ce second point est le seul que rien d'autre ne protège : `titleSearch` est écrite sous la
+   * même garde que `title`, et si elles divergeaient, l'exercice deviendrait introuvable par
+   * l'ancien mot comme par le nouveau — sans erreur, sans log, sans rien à l'écran.
+   */
+  it("trouve un titre accentué sans l'accent, et suit le renommage", async () => {
+    const created = await coachA.post("/exercises").send({ title: "Échauffement — dévers" });
+    expect(created.status).toBe(201);
+    const id: string = created.body.id;
+
+    const idsFound = async (agent: Agent, search: string) => {
+      const res = await agent.get("/exercises").query({ search });
+      expect(res.status).toBe(200);
+      return res.body.map((exercise: { id: string }) => exercise.id);
+    };
+
+    // Les quatre façons de le taper ramènent la même ligne — c'est le défaut de l'issue.
+    for (const typed of ["echauffement", "Échauffement", "DEVERS", "dévers"]) {
+      expect(await idsFound(coachA, typed)).toContain(id);
+    }
+
+    // Et le scope tenant s'applique toujours : la recherche ne le fait pas sauter.
+    expect(await idsFound(coachB, "echauffement")).toHaveLength(0);
+
+    const renamed = await coachA.patch(`/exercises/${id}`).send({ title: "Gainage postural" });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.title).toBe("Gainage postural");
+
+    // La forme comparable a suivi : l'ancien mot ne ramène plus rien, le nouveau ramène la ligne.
+    expect(await idsFound(coachA, "echauffement")).toHaveLength(0);
+    expect(await idsFound(coachA, "POSTURAL")).toContain(id);
+  });
+
   it("compte les séances MODÈLES qui référencent l'exercice, pas les copies diffusées", async () => {
     const fresh = await coachA.post("/exercises").send({ title: "Gainage latéral" });
     expect(fresh.body.usedInSessionCount).toBe(0);

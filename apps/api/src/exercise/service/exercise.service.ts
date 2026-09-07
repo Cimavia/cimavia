@@ -1,4 +1,9 @@
-import type { CreateExerciseInput, ExerciseDto, UpdateExerciseInput } from "@cmv/shared";
+import {
+  type CreateExerciseInput,
+  comparableText,
+  type ExerciseDto,
+  type UpdateExerciseInput,
+} from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
@@ -10,12 +15,8 @@ import {
   type ExerciseWithDocuments,
   toExerciseDto,
 } from "../exercise.mapper";
+import { exerciseListWhere, type ListExercisesFilters } from "../exercise.where";
 import { DocumentCleanupService } from "./document-cleanup.service";
-
-export type ListExercisesFilters = {
-  tag?: string;
-  search?: string;
-};
 
 @Injectable()
 export class ExerciseService {
@@ -65,6 +66,7 @@ export class ExerciseService {
     const created = await this.db.exercise.create({
       data: {
         title: input.title,
+        titleSearch: comparableText(input.title),
         description: input.description ?? null,
         // `?? null` / `?? []` : à la création, « champ absent » et « champ vide » se confondent.
         // C'est à la mise à jour qu'ils divergent — là, `undefined` veut dire « ne touche pas ».
@@ -103,13 +105,8 @@ export class ExerciseService {
   }
 
   async list(filters: ListExercisesFilters): Promise<ExerciseDto[]> {
-    const where: Prisma.ExerciseWhereInput = {};
-    // `some` et non `every` : un exercice porte plusieurs tags, filtrer sur l'un d'eux le retient.
-    if (filters.tag) where.tags = { some: { name: filters.tag } };
-    if (filters.search) where.title = { contains: filters.search, mode: "insensitive" };
-
     const exercises = await this.db.exercise.findMany({
-      where,
+      where: exerciseListWhere(filters),
       include: EXERCISE_DETAIL_INCLUDE,
       orderBy: { title: "asc" },
     });
@@ -123,7 +120,12 @@ export class ExerciseService {
   async update(id: string, input: UpdateExerciseInput): Promise<ExerciseDto> {
     await this.getOwnedOrThrow(id);
     const data: Prisma.ExerciseUpdateInput = {};
-    if (input.title !== undefined) data.title = input.title;
+    // Les deux ensemble, sous la MÊME garde : un titre modifié sans sa forme comparable laisserait
+    // la ligne introuvable par l'ancien mot autant que par le nouveau, sans rien afficher d'anormal.
+    if (input.title !== undefined) {
+      data.title = input.title;
+      data.titleSearch = comparableText(input.title);
+    }
     if (input.description !== undefined) data.description = input.description;
     if (input.instructions !== undefined)
       data.instructions = toInstructionsInput(input.instructions);

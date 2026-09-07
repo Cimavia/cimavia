@@ -2378,6 +2378,63 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Recherche d'exercices sans accent ([#141](https://github.com/Cimavia/cimavia/issues/141))
+
+> **Tranché en #141** (la normalisation vit en TYPESCRIPT, pas dans Postgres) : l'issue proposait
+> l'extension `unaccent`. Refusée — elle poserait une **seconde** définition de « sans accent »
+> (table de translittération par locale) à côté de celle de `comparableText` (@cmv/shared), et les
+> deux divergeraient au premier caractère qu'elles ne traitent pas pareil. Or le défaut que l'issue
+> nomme est exactement celui-là : deux champs de recherche voisins qui ne se comportent pas pareil.
+> Le corriger en dupliquant la règle un étage plus bas l'aurait reconduit. La colonne `titleSearch`
+> est donc remplie par la MÊME fonction que les recherches client alignées en #123.
+>
+> Le backfill, lui, est du SQL — il ne peut pas être autre chose. Il reproduit la fonction terme à
+> terme avec `normalize(…, NFD)`, **natif depuis PG 13**, donc toujours sans extension ; il ne
+> s'exécute qu'une fois et le commentaire de la migration le dit, pour que personne ne le prenne
+> pour la règle.
+
+> **Tranché en #141** (AUCUN index, et ce n'est pas un oubli) : l'issue demandait un index
+> d'expression en `text_pattern_ops`. Il n'aurait jamais servi — le filtre est un `contains`, donc
+> un `LIKE '%x%'`, qu'aucun btree ne peut satisfaire ; `text_pattern_ops` ne sert que les préfixes.
+> Le seul index utile serait un GIN `pg_trgm`, soit une extension pour des dizaines de lignes par
+> coach, déjà réduites par l'index `coachId`. Consigné ici parce qu'un index absent ne se justifie
+> pas tout seul, et sera reproposé sinon.
+
+> **Tranché en #141** (colonne normalisée plutôt que `$queryRaw`) : la seconde voie de l'issue
+> aurait **contourné l'extension de tenancy** (§6 de `architecture-choice.md`), imposant un
+> `coachId` explicite et un e2e d'isolation pour prouver ce que le client scopé fait déjà seul. Le
+> piège réel de la voie retenue n'est pas là : c'est `ExerciseService.update`, qui n'écrit `title`
+> que sous `!== undefined`. `titleSearch` passe sous la **même** garde — sans quoi un renommage
+> laisserait la ligne introuvable par l'ancien mot comme par le nouveau, sans rien d'anormal à
+> l'écran. Le test de `exerciseListWhere` tient la symétrie de la LECTURE ; un e2e tient l'autre
+> moitié — il renomme, puis vérifie que l'ancien mot ne ramène plus rien et que le nouveau ramène
+> la ligne.
+>
+> Cet e2e n'était pas prévu : la Quality Gate l'a réclamé (couverture du code neuf à **76,9 %**,
+> 10 lignes et conditions sur 13). Ce qu'elle désignait n'était pas une dette du changement mais un
+> angle mort d'avant lui — **`PATCH /exercises/:id` portant un titre n'était exercé par AUCUN e2e**
+> depuis P2. La ligne n'est devenue visible que parce que le correctif l'a déplacée dans un bloc.
+> C'est le cas d'école de ce que la gate sur le code neuf est censée attraper : elle ne mesure pas
+> la qualité du diff, elle éclaire ce que le diff touche.
+
+> **Tranché en #141** (`titleSearch` est NON-NULL) : la rendre nullable créerait un troisième état,
+> « pas encore rempli », que le filtre écarterait sans le dire — une ligne invisible sans erreur.
+> C'est la règle dure n°5 lue dans le bon sens : `null` doit vouloir dire quelque chose. Ici il ne
+> voudrait rien dire, donc il n'existe pas. Le `DEFAULT ''` de la migration ne sert qu'à poser la
+> colonne sur les lignes déjà là et **ne lui survit pas**.
+
+> **Fermé par #79** (le filtrage client n'est pas une option, malgré les voisins) : `LibraryPicker`
+> et `ExercisePicker` filtrent en mémoire, et il aurait été tentant d'aligner la liste dessus.
+> [#79](https://github.com/Cimavia/cimavia/issues/79) paginera `GET /exercises` — filtrer une page
+> deviendrait faux. Écrit ici pour que la voie ne soit pas rouverte.
+
+> **Ce qui a manqué au journal** : cette dette a vécu depuis P2 sans jamais y être écrite — ni
+> ligne, ni mention dans l'en-tête des dettes sans issue. Elle n'a été vue que parce que #123 a
+> aligné les recherches client à côté d'elle. La règle de capture n'a pas joué ; c'est le seul
+> constat à en tirer, il n'y a rien à rattraper d'autre.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
