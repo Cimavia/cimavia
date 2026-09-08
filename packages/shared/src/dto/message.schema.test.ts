@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  FEEDBACK_EVENT_LABEL_KEY,
+  FEEDBACK_EVENT_MESSAGE_TYPES,
+  isFeedbackEventMessage,
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
   MESSAGE_TEXT_MAX_LENGTH,
@@ -172,5 +175,51 @@ describe("messageDtoSchema — le rattachement résolu", () => {
       },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("avis de débrief", () => {
+  /**
+   * LA garantie qui rend ces types sûrs : `sendMessageSchema` est une union discriminée sur les
+   * quatre types qu'un humain écrit. Un client qui tenterait de se fabriquer un avis — donc de
+   * faire dire au fil que l'athlète a débriefé — est refusé par le pipe, avant tout service.
+   */
+  it("n'est jamais acceptable en entrée d'envoi, quoi qu'un client tente", () => {
+    for (const type of FEEDBACK_EVENT_MESSAGE_TYPES) {
+      expect(sendMessageSchema.safeParse({ type }).success).toBe(false);
+      expect(sendMessageSchema.safeParse({ type, sessionFeedbackId: "f1" }).success).toBe(false);
+      expect(sendMessageSchema.safeParse({ type, content: "j'ai débriefé" }).success).toBe(false);
+    }
+  });
+
+  it("se distingue des types qu'un humain écrit", () => {
+    expect(isFeedbackEventMessage(MessageType.FEEDBACK_CREATED)).toBe(true);
+    expect(isFeedbackEventMessage(MessageType.FEEDBACK_UPDATED)).toBe(true);
+    expect(isFeedbackEventMessage(MessageType.TEXT)).toBe(false);
+    expect(isFeedbackEventMessage(MessageType.AUDIO)).toBe(false);
+  });
+
+  // Un avis n'a ni texte ni média : c'est un pointeur vers le débrief, et rien d'autre.
+  it("traverse le DTO sans contenu ni média", () => {
+    const result = messageDtoSchema.safeParse({
+      id: "m1",
+      conversationId: "c1",
+      senderId: "u1",
+      type: MessageType.FEEDBACK_CREATED,
+      content: null,
+      media: null,
+      scheduledSessionId: null,
+      sessionFeedbackId: "f1",
+      attachment: null,
+      readAt: null,
+      createdAt: "2026-09-07T10:00:00.000Z",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("porte une clé de libellé par type, littérale et distincte", () => {
+    const keys = FEEDBACK_EVENT_MESSAGE_TYPES.map((type) => FEEDBACK_EVENT_LABEL_KEY[type]);
+    expect(keys).toEqual(["messages.feedback.created", "messages.feedback.updated"]);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });

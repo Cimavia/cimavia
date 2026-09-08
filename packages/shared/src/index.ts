@@ -336,6 +336,7 @@ export {
 } from "./dto/media.schema";
 export type {
   ConversationDto,
+  FeedbackEventMessageType,
   MessageAttachmentDto,
   MessageAttachmentType as MessageAttachmentTypeType,
   MessageAudioMimeType,
@@ -348,7 +349,10 @@ export type {
 } from "./dto/message.schema";
 export {
   conversationDtoSchema,
+  FEEDBACK_EVENT_LABEL_KEY,
+  FEEDBACK_EVENT_MESSAGE_TYPES,
   isAllowedMessageAudioMime,
+  isFeedbackEventMessage,
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
   MAX_MESSAGE_IMAGE_SIZE_BYTES,

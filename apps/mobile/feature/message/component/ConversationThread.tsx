@@ -7,11 +7,12 @@ import { ActivityIndicator, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageList } from "@/feature/message/component/MessageList";
+import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook/useConversation";
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
-import { mediaErrorMessage } from "@/feature/message/util/media.util";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
+import { mediaErrorMessage } from "@/shared/util/media.util";
 
 type ConversationThreadProps = {
   /**
@@ -63,7 +64,12 @@ export function ConversationThread({
 
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
-  const mediaError = mediaErrorMessage(media.audioError, preUploadErrorKey, t);
+  const mediaError = mediaErrorMessage(
+    media.audioError,
+    preUploadErrorKey,
+    t,
+    MESSAGE_MEDIA_PROFILE,
+  );
 
   // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la conversation
   // (pas les messages) : le prochain poll ramène `readAt` posé et la condition retombe — pas de

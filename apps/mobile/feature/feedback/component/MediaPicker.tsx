@@ -41,20 +41,6 @@ export function MediaPicker({
 
   return (
     <View className="gap-2">
-      <CmvText className="text-cmv-text-mid text-xs">
-        {t("feedback.media.remaining", {
-          photos: photosLeft,
-          videos: videosLeft,
-          audios: audiosLeft,
-        })}
-      </CmvText>
-
-      <CmvButton
-        label={t("feedback.media.addMedia")}
-        onPress={onAddMedia}
-        disabled={isUploading || photosLeft + videosLeft <= 0}
-      />
-
       {/* Note vocale : l'enregistreur s'étend en bandeau pendant la capture. */}
       <View className="flex-row items-center gap-3 rounded-lg border border-cmv-border bg-cmv-surface px-4 py-2">
         <CmvText className="flex-1 text-cmv-text-mid text-sm">
@@ -66,6 +52,23 @@ export function MediaPicker({
           disabled={isUploading || audiosLeft <= 0}
         />
       </View>
+
+      <CmvButton
+        label={t("feedback.media.addMedia")}
+        onPress={onAddMedia}
+        disabled={isUploading || photosLeft + videosLeft <= 0}
+      />
+
+      {/* Les places restantes viennent APRÈS les deux gestes, et non avant : c'est une note de bas
+          de bloc, qu'on lit quand un bouton s'est éteint — pas un préambule à traverser pour
+          atteindre ce qu'on est venu faire. */}
+      <CmvText className="text-cmv-text-mid text-xs">
+        {t("feedback.media.remaining", {
+          photos: photosLeft,
+          videos: videosLeft,
+          audios: audiosLeft,
+        })}
+      </CmvText>
 
       {/* Une vidéo longue en 4G prend des dizaines de secondes, et davantage encore depuis que
           l'envoi découpé lève le plafond : sans indicateur, l'écran paraît figé. Le rang n'est dit

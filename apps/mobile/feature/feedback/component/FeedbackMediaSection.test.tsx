@@ -8,9 +8,9 @@ import {
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
 } from "@/feature/feedback/hook/useFeedbackMedia";
-import { MediaRejectedError } from "@/feature/feedback/util/media.util";
 import { CmvButton, type RecordedAudio } from "@/shared/component";
 import { ApiError } from "@/shared/lib/api";
+import { MediaRejectedError } from "@/shared/util/media.util";
 import { press, pressButton, renderRn } from "@/test/render";
 
 /**
@@ -275,9 +275,10 @@ describe("FeedbackMediaSection", () => {
 /**
  * Ces quatre-là sont passées à `sendMediaBatch` (@cmv/shared) et jamais appelées par la section
  * elle-même : c'est le lot qui les invoque, sur chaque média qu'il écarte. Elles décident du
- * LIBELLÉ que l'athlète lit, et c'est exactement là qu'un défaut a déjà été trouvé — mobile et web
- * ne nomment pas toujours pareil (`photoTooBig` contre `imageTooBig`). On les récupère telles
- * qu'elles ont été transmises, puis on les appelle.
+ * LIBELLÉ que l'athlète lit, et c'est exactement là qu'un défaut a déjà été trouvé — le débrief
+ * mobile nommait `photoTooBig` ce que la messagerie et le web appelaient `imageTooBig`, si bien
+ * qu'un même refus portait deux noms. On les récupère telles qu'elles ont été transmises, puis on
+ * les appelle.
  */
 describe("FeedbackMediaSection — ce que la section dicte au lot", () => {
   async function batchOptions() {

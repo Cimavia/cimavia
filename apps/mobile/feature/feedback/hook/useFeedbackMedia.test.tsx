@@ -5,6 +5,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ImagePickerAsset } from "expo-image-picker";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MediaRejectedError } from "@/shared/util/media.util";
 import { pickFeedbackAssets, useAddFeedbackAudio, useAddFeedbackMedia } from "./useFeedbackMedia";
 
 const {
@@ -56,7 +57,7 @@ vi.mock("@/feature/plan/api", async () => ({
 
 // `MediaRejectedError` est redéfinie ici et non importée : le hook la prend de CE module, donc les
 // `instanceof` du code testé portent bien sur cette classe-là.
-vi.mock("@/feature/feedback/util/media.util", () => ({
+vi.mock("@/shared/util/media.util", () => ({
   MediaRejectedError: class extends Error {
     constructor(
       readonly reasonKey: string,
@@ -204,12 +205,13 @@ describe("useAddFeedbackMedia", () => {
   });
 
   /**
-   * La taille est revérifiée APRÈS compression : c'est la taille finale qui est signée dans l'URL,
-   * et le storage refuse tout autre poids. Échouer ici coûte une compression ; échouer après,
-   * un transfert entier.
+   * Un média que la préparation refuse (trop lourd après compression, trop long, illisible) ne
+   * doit RIEN déclencher : échouer ici coûte une compression, échouer après coûte un transfert
+   * entier. Quel refus exactement, et sur quel plafond, c'est l'affaire du util partagé — ce test
+   * ne vérifie que la conséquence côté hook, et la ligne de récapitulatif qui en sort.
    */
-  it("refuse un média trop lourd sans demander d'URL", async () => {
-    prepareMediaMock.mockResolvedValue(prepared(Number.MAX_SAFE_INTEGER));
+  it("ne demande aucune URL quand la préparation refuse le média", async () => {
+    prepareMediaMock.mockRejectedValue(new MediaRejectedError("feedback.media.imageTooBig"));
     const { result } = renderHook(() => useAddFeedbackMedia(SESSION_ID), { wrapper });
 
     let recap: Awaited<ReturnType<typeof result.current.addAssets>> = [];

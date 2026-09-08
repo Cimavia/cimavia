@@ -42,7 +42,7 @@ export class ConversationService {
   async open(input: OpenConversationInput): Promise<ConversationDto> {
     const actor = currentActor(this.cls);
     const { coachId, athleteId } = await this.resolvePair(actor, input.athleteId);
-    const conversation = await this.getOrCreate(coachId, athleteId);
+    const conversation = await this.ensure(coachId, athleteId);
     const [dto] = await this.toDtos([conversation], actor);
     if (dto == null) {
       throw new Error("[message] conversation ouverte mais non mappable");
@@ -115,11 +115,15 @@ export class ConversationService {
   }
 
   /**
+   * Le fil d'une relation, créé s'il n'existe pas. Public parce que l'ouverture par un utilisateur
+   * n'est plus le seul chemin : le serveur y pose aussi les avis de débrief (#96), pour un athlète
+   * qui n'a peut-être jamais ouvert la messagerie — donc dont le fil n'existe pas encore.
+   *
    * `findFirst` + `create` (l'`upsert` Prisma est interdit par le client tenant). La course entre
    * deux ouvertures simultanées est inoffensive : le second `create` viole `[coachId, athleteId]`
    * (P2002) → on relit le fil déjà posé.
    */
-  private async getOrCreate(coachId: string, athleteId: string): Promise<Conversation> {
+  async ensure(coachId: string, athleteId: string): Promise<Conversation> {
     const existing = await this.db.conversation.findFirst({ where: { coachId, athleteId } });
     if (existing != null) return existing;
 

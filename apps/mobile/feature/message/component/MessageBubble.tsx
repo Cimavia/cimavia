@@ -3,6 +3,8 @@ import {
   type AttachmentTarget,
   attachmentTarget,
   type CapabilityName,
+  FEEDBACK_EVENT_LABEL_KEY,
+  isFeedbackEventMessage,
   MESSAGE_ATTACHMENT_LABEL_KEY,
   type MessageAttachmentDto,
   type MessageDto,
@@ -68,7 +70,12 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
 
   return (
     <Pressable onPress={() => router.push(routeOf(target, as))} hitSlop={4}>
-      <View className="mb-2 self-start rounded-lg bg-cmv-bg-1 px-2 py-1">{label}</View>
+      {/* La BORDURE est ce qui dit qu'on peut appuyer : sur un fond sombre, le seul `bg-cmv-bg-1`
+          ne se détachait pas assez de la bulle pour qu'on y voie autre chose qu'un intertitre.
+          Le web la porte depuis le début — la puce se lit désormais pareil des deux côtés. */}
+      <View className="self-start rounded-lg border border-cmv-border bg-cmv-bg-1 px-2 py-1">
+        {label}
+      </View>
     </Pressable>
   );
 }
@@ -90,11 +97,38 @@ function routeOf(target: AttachmentTarget, as: CapabilityName): Href {
     : `/session/${target.scheduledSessionId}/feedback`;
 }
 
+/**
+ * Un AVIS de débrief n'est pas une parole : personne ne l'a écrit, le serveur l'a posé. Pas de
+ * bulle, donc — ni fond, ni cadre —, mais le même bord que les messages de l'athlète, puisque c'est
+ * son geste qu'on annonce. Cadré à droite, « Débrief déposé » se lirait comme une phrase qu'il
+ * aurait tapée.
+ *
+ * Le libellé d'abord, le lien ensuite, sur une seule ligne : on lit ce qui s'est passé, puis où
+ * aller le voir. La puce reste — c'est elle qui porte le LIEN, seul intérêt de l'avis.
+ */
+function FeedbackEventNotice({ message }: Readonly<{ message: MessageDto }>) {
+  const { t } = useTranslation();
+  if (!isFeedbackEventMessage(message.type)) return null;
+
+  return (
+    <View className="max-w-[80%] flex-row items-center gap-2 self-start">
+      <CmvText className="text-cmv-text-mid text-xs">
+        {t(FEEDBACK_EVENT_LABEL_KEY[message.type])}
+      </CmvText>
+      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
+    </View>
+  );
+}
+
 export function MessageBubble({
   message,
   mine,
   hideAttachment = false,
 }: Readonly<MessageBubbleProps>) {
+  if (isFeedbackEventMessage(message.type)) {
+    return <FeedbackEventNotice message={message} />;
+  }
+
   return (
     <View
       className={`max-w-[80%] rounded-2xl px-3 py-2 ${
@@ -104,7 +138,9 @@ export function MessageBubble({
       {/* `null` couvre DEUX cas : le message ne porte sur rien, ou sa cible a disparu (SetNull).
           Les deux se rendent pareil — une bulle ordinaire, pas un « à propos de quelque chose ». */}
       {message.attachment == null || hideAttachment ? null : (
-        <AttachmentChip attachment={message.attachment} />
+        <View className="mb-2">
+          <AttachmentChip attachment={message.attachment} />
+        </View>
       )}
 
       {message.content != null ? (

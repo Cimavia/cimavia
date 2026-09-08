@@ -2,6 +2,36 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
 /**
+ * Les trois « managers » globaux de better-auth, neutralisés AVANT qu'ils ne s'installent — même
+ * garde que le harnais web, et pour la même raison : le mobile construit son client avec
+ * `createAuthClient` de `better-auth/react`, donc le même atome de session, et il rend lui aussi
+ * sous jsdom.
+ *
+ * Leur `setup()` vérifie `typeof window` / `typeof document`, mais la fonction de nettoyage qu'il
+ * REND les lit sans garde. Or nanostores programme ce nettoyage À RETARDEMENT (~1 s) au départ du
+ * dernier abonné — donc au `cleanup()` plus bas. Une seconde après, le fichier est fini, jsdom est
+ * démonté, et la fermeture lève hors de tout test : la suite échoue alors que tout est vert.
+ *
+ * Posé ici par PRÉVENTION : le défaut s'est manifesté côté web (suite plus lente), jamais encore
+ * ici. Les trois singletons vivant sur `globalThis` par `Symbol.for`, ils survivent au démontage et
+ * traversent les fichiers — l'erreur accuse alors le fichier qui tourne, jamais celui qui l'a
+ * programmée, et devient très coûteuse à retrouver. Rien n'est perdu : ces trois-là ne réagissent
+ * qu'à un changement d'onglet, de focus ou de connexion, qu'aucun test n'exerce.
+ */
+const inertAuthManager = { subscribe: () => () => {}, setup: () => () => {} };
+const authGlobals = globalThis as Record<symbol, unknown>;
+authGlobals[Symbol.for("better-auth:broadcast-channel")] = { ...inertAuthManager, post: () => {} };
+authGlobals[Symbol.for("better-auth:focus-manager")] = {
+  ...inertAuthManager,
+  setFocused: () => {},
+};
+authGlobals[Symbol.for("better-auth:online-manager")] = {
+  ...inertAuthManager,
+  isOnline: true,
+  setOnline: () => {},
+};
+
+/**
  * `AsyncStorage` remplacé par une Map, pour TOUS les tests du mobile.
  *
  * Posé dans le harnais et non fichier par fichier : le vrai module est natif, et un test qui

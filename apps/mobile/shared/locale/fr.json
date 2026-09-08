@@ -271,9 +271,9 @@
       "noSlotVideo": "Plus de place pour une vidéo dans ce débrief.",
       "unnamedFile": "Fichier sans nom",
       "permission": "cimavia a besoin d'accéder à tes photos pour les joindre au débrief.",
-      "photoTooBig": "Cette photo dépasse {{max}} Mo, même après compression.",
+      "imageTooBig": "Cette photo dépasse {{max}} Mo, même après compression.",
       "videoTooBig": "Cette vidéo dépasse {{max}} Mo. Filme plus court ou baisse la qualité dans l'appareil photo.",
-      "videoDuration": "Cette vidéo dépasse {{max}} secondes.",
+      "videoTooLong": "Cette vidéo dépasse {{max}} secondes.",
       "audioTooBig": "Cette note vocale dépasse {{max}} Mo.",
       "audioTooLong": "Une note vocale ne peut pas dépasser {{max}} minutes.",
       "videoFormat": "Ce format de vidéo n'est pas géré. Filme depuis l'application appareil photo.",
@@ -352,7 +352,13 @@
     "preview": {
       "IMAGE": "Photo",
       "VIDEO": "Vidéo",
-      "AUDIO": "Note vocale"
+      "AUDIO": "Note vocale",
+      "FEEDBACK_CREATED": "Débrief déposé",
+      "FEEDBACK_UPDATED": "Débrief mis à jour"
+    },
+    "feedback": {
+      "created": "Débrief déposé",
+      "updated": "Débrief mis à jour"
     },
     "attachment": {
       "session": "À propos de : {{title}} · {{date}}",

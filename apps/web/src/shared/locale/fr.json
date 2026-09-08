@@ -745,7 +745,9 @@
     "preview": {
       "AUDIO": "🎤 Message vocal",
       "IMAGE": "📷 Photo",
-      "VIDEO": "🎥 Vidéo"
+      "VIDEO": "🎥 Vidéo",
+      "FEEDBACK_CREATED": "📝 Débrief déposé",
+      "FEEDBACK_UPDATED": "📝 Débrief mis à jour"
     },
     "athlete": {
       "subtitle": "Ton fil avec ton coach.",
@@ -754,6 +756,10 @@
         "description": "La messagerie n'est disponible qu'avec un coach. Rejoins-en un avec son code d'invitation pour commencer à échanger.",
         "action": "Aller à « Mon coach »"
       }
+    },
+    "feedback": {
+      "created": "Débrief déposé",
+      "updated": "Débrief mis à jour"
     },
     "attachment": {
       "session": "À propos de : {{title}} · {{date}}",

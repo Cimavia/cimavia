@@ -11,7 +11,7 @@ const {
   sendMessageMock,
   completeMock,
   abortMock,
-  prepareAssetMock,
+  prepareMediaMock,
   prepareAudioMock,
   uploadFileMock,
   uploadPartsMock,
@@ -22,7 +22,7 @@ const {
   sendMessageMock: vi.fn(),
   completeMock: vi.fn(),
   abortMock: vi.fn(),
-  prepareAssetMock: vi.fn(),
+  prepareMediaMock: vi.fn(),
   prepareAudioMock: vi.fn(),
   uploadFileMock: vi.fn(),
   uploadPartsMock: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock("@/feature/message/api", async () => ({
   messageKeys: (await import("@cmv/shared")).messageKeys,
 }));
 
-vi.mock("@/feature/message/util/media.util", () => ({
+vi.mock("@/shared/util/media.util", () => ({
   MediaRejectedError: class extends Error {
     constructor(
       readonly reasonKey: string,
@@ -54,7 +54,7 @@ vi.mock("@/feature/message/util/media.util", () => ({
       super(reasonKey);
     }
   },
-  prepareAsset: prepareAssetMock,
+  prepareMedia: prepareMediaMock,
   prepareAudio: prepareAudioMock,
 }));
 
@@ -94,7 +94,7 @@ const onPickError = vi.fn();
 
 beforeEach(() => {
   onPickError.mockClear();
-  prepareAssetMock.mockImplementation((item: ImagePickerAsset) =>
+  prepareMediaMock.mockImplementation((item: ImagePickerAsset) =>
     Promise.resolve({
       type: MessageType.IMAGE,
       uri: item.uri,

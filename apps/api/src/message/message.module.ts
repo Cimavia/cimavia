@@ -5,6 +5,7 @@ import { PlanModule } from "../plan/plan.module";
 import { ConversationController } from "./controller/conversation.controller";
 import { MessageController } from "./controller/message.controller";
 import { ConversationService } from "./service/conversation.service";
+import { FeedbackAnnouncerService } from "./service/feedback-announcer.service";
 import { MessageService } from "./service/message.service";
 import { MessageAttachmentResolver } from "./service/message-attachment.resolver";
 import { MessageMediaService } from "./service/message-media.service";
@@ -17,9 +18,16 @@ import { MessageMediaService } from "./service/message-media.service";
 @Module({
   imports: [StorageModule, AccountModule, PlanModule],
   controllers: [ConversationController, MessageController],
-  providers: [ConversationService, MessageService, MessageMediaService, MessageAttachmentResolver],
+  providers: [
+    ConversationService,
+    MessageService,
+    MessageMediaService,
+    MessageAttachmentResolver,
+    FeedbackAnnouncerService,
+  ],
   // Le débrief rend les messages qui lui sont rattachés : il lui faut le même résolveur, et le
-  // même mapper. Sens unique — la messagerie n'importe pas FeedbackModule.
-  exports: [MessageAttachmentResolver],
+  // même mapper. Il pose aussi ses avis dans le fil (#96), d'où l'annonceur. Sens unique — la
+  // messagerie n'importe pas FeedbackModule.
+  exports: [MessageAttachmentResolver, FeedbackAnnouncerService],
 })
 export class MessageModule {}

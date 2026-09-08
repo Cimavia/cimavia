@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationThread } from "@/feature/message/component/ConversationThread";
 import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook/useConversation";
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
-import { MediaRejectedError } from "@/feature/message/util/media.util";
 import { CmvButton, type RecordedAudio } from "@/shared/component";
 import { ApiError } from "@/shared/lib/api";
+import { MediaRejectedError } from "@/shared/util/media.util";
 import { press, pressButton, renderRn } from "@/test/render";
 
 /**
