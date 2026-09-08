@@ -682,6 +682,10 @@ enum MessageType {
   AUDIO
   IMAGE
   VIDEO
+  // Avis posés par le SERVEUR quand l'athlète dépose ou complète un débrief (#96) : ni texte ni
+  // média, seulement `sessionFeedbackId`. Le libellé se rend côté client — rien de traduit en base.
+  FEEDBACK_CREATED
+  FEEDBACK_UPDATED
 }
 
 model Conversation {

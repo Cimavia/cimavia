@@ -16,15 +16,46 @@ import {
  * média, l'enum est distinct du `MediaType` du débrief : le débrief vocal ajoutera `AUDIO` là-bas,
  * pas ici. Image et vidéo réutilisent les bornes du débrief (mêmes plafonds génériques, source
  * unique) ; l'audio a les siennes.
+ *
+ * Les deux derniers ne sont pas écrits par quelqu'un : ce sont des **avis**, posés par le serveur
+ * quand l'athlète dépose ou complète un débrief. Ils ne portent NI texte NI média — seulement leur
+ * `sessionFeedbackId` —, et leur libellé se rend côté client (`FEEDBACK_EVENT_LABEL_KEY`). Écrire
+ * la phrase en base la figerait en français, ce que « Tranché en #48 » a déjà écarté pour les
+ * notifications. Ils restent hors de `sendMessageSchema` : aucun client ne peut en fabriquer un.
  */
 export const MessageType = {
   TEXT: "TEXT",
   AUDIO: "AUDIO",
   IMAGE: "IMAGE",
   VIDEO: "VIDEO",
+  FEEDBACK_CREATED: "FEEDBACK_CREATED",
+  FEEDBACK_UPDATED: "FEEDBACK_UPDATED",
 } as const;
 export type MessageType = TypesValuesOf<typeof MessageType>;
 export const messageTypeSchema = z.enum(MessageType);
+
+/**
+ * Les types qu'aucun humain n'écrit. Sert des deux côtés : le serveur y lit ce qu'il a déjà annoncé
+ * pour un débrief, les clients ce qu'ils doivent rendre comme un avis plutôt que comme une bulle.
+ */
+export const FEEDBACK_EVENT_MESSAGE_TYPES = [
+  MessageType.FEEDBACK_CREATED,
+  MessageType.FEEDBACK_UPDATED,
+] as const;
+export type FeedbackEventMessageType = (typeof FEEDBACK_EVENT_MESSAGE_TYPES)[number];
+
+export function isFeedbackEventMessage(type: MessageType): type is FeedbackEventMessageType {
+  return (FEEDBACK_EVENT_MESSAGE_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Le libellé d'un avis, en clés LITTÉRALES — comme `MESSAGE_ATTACHMENT_LABEL_KEY`, et pour la même
+ * raison : une clé assemblée depuis le type n'est vue ni par TypeScript ni par `check:i18n`.
+ */
+export const FEEDBACK_EVENT_LABEL_KEY = {
+  [MessageType.FEEDBACK_CREATED]: "messages.feedback.created",
+  [MessageType.FEEDBACK_UPDATED]: "messages.feedback.updated",
+} as const satisfies Record<FeedbackEventMessageType, string>;
 
 export const MESSAGE_TEXT_MAX_LENGTH = 5000;
 
