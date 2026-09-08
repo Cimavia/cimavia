@@ -695,6 +695,20 @@ export {
   metricUnitLabel,
 } from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
+export type {
+  MultipartPart,
+  MultipartUploadRunner,
+  PartFailure,
+} from "./util/multipart-upload.util";
+export {
+  isRetryablePartFailure,
+  MULTIPART_PART_MAX_ATTEMPTS,
+  MULTIPART_RETRY_DELAYS_MS,
+  multipartPartsOf,
+  multipartRetryDelayMs,
+  runMultipartUpload,
+  uploadPercentOf,
+} from "./util/multipart-upload.util";
 export { initialsOf } from "./util/name.util";
 export {
   capabilityOfMessage,
