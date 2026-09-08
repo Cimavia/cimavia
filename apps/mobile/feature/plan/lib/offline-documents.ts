@@ -1,7 +1,18 @@
-import { isSignedUrlUsable, myPlanKeys, type PlanDto, type ScheduledSessionDto } from "@cmv/shared";
+import {
+  isSignedUrlUsable,
+  myPlanKeys,
+  type PlanDto,
+  type ScheduledSessionDto,
+  type ScheduledSessionSummaryDto,
+} from "@cmv/shared";
 import type { QueryClient } from "@tanstack/react-query";
 import { athletePlanApi } from "@/feature/plan/api";
-import { cacheDocument, localDocumentUri, purgePlansExcept } from "@/shared/lib/document-cache";
+import {
+  cacheDocument,
+  localDocumentUri,
+  purgePlansExcept,
+  storeGeneration,
+} from "@/shared/lib/document-cache";
 
 /**
  * Met l'appareil à jour de ce que l'athlète doit pouvoir lire sans réseau (#95) : le DÉROULÉ de
@@ -61,17 +72,37 @@ export async function syncOfflineDocuments(
   // demande de la place pour les nouveaux. Cycle terminé et relation rompue passent tous deux ici.
   purgePlansExcept(plans.map((plan) => plan.id));
 
+  // L'époque du magasin AU DÉPART : tout ce qui suit n'a de sens que pour le compte qui l'a
+  // ouverte. Une déconnexion la fait changer, et la passe s'arrête là où elle en est.
+  const startedAt = storeGeneration();
+
+  for (const summary of scheduledSessionsOf(plans)) {
+    if (storeGeneration() !== startedAt) return;
+    await cacheSessionDocuments(queryClient, summary.planId, summary.id, startedAt);
+  }
+}
+
+/** Les séances de tous les cycles visibles, à plat — chacune sait de quel cycle elle relève. */
+function* scheduledSessionsOf(plans: readonly PlanDto[]): Generator<ScheduledSessionSummaryDto> {
   for (const plan of plans) {
     for (const week of plan.weeks) {
-      for (const summary of week.sessions) {
-        const session = await loadSession(queryClient, plan.id, summary.id);
-        if (session == null) continue;
-
-        for (const document of missingDocuments(plan.id, session)) {
-          await cacheDocument(plan.id, document);
-        }
-      }
+      yield* week.sessions;
     }
+  }
+}
+
+async function cacheSessionDocuments(
+  queryClient: QueryClient,
+  planId: string,
+  sessionId: string,
+  startedAt: number,
+): Promise<void> {
+  const session = await loadSession(queryClient, planId, sessionId);
+  if (session == null) return;
+
+  for (const document of missingDocuments(planId, session)) {
+    if (storeGeneration() !== startedAt) return;
+    await cacheDocument(planId, document);
   }
 }
 

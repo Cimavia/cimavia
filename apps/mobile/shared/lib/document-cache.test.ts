@@ -70,9 +70,8 @@ vi.mock("expo-file-system", () => ({
   Paths: { document: { uri: DOCUMENTS } },
 }));
 
-const { cacheDocument, localDocumentUri, purgeAllDocuments, purgePlansExcept } = await import(
-  "./document-cache"
-);
+const { cacheDocument, localDocumentUri, purgeAllDocuments, purgePlansExcept, storeGeneration } =
+  await import("./document-cache");
 
 const ROOT = `${DOCUMENTS}/plan-documents`;
 
@@ -222,5 +221,29 @@ describe("purgeAllDocuments", () => {
 
   it("ne lève pas quand il n'y a rien à effacer", () => {
     expect(() => purgeAllDocuments()).not.toThrow();
+  });
+});
+
+describe("storeGeneration", () => {
+  /**
+   * L'époque est ce qui permet à une passe de téléchargement en vol de s'apercevoir que le compte
+   * a changé sous elle. Sans elle, elle continuait d'écrire les séances du compte quitté dans le
+   * cache du suivant.
+   */
+  it("change à chaque purge totale", () => {
+    const before = storeGeneration();
+
+    purgeAllDocuments();
+
+    expect(storeGeneration()).not.toBe(before);
+  });
+
+  it("ne change pas pour une purge partielle, qui ne quitte aucun compte", async () => {
+    await cacheDocument("plan-1", fileDocument());
+    const before = storeGeneration();
+
+    purgePlansExcept([]);
+
+    expect(storeGeneration()).toBe(before);
   });
 });

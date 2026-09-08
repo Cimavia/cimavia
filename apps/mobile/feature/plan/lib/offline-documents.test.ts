@@ -18,11 +18,13 @@ const localDocumentUri = vi.fn<(planId: string, document: ExerciseDocumentDto) =
   () => null,
 );
 const purgePlansExcept = vi.fn();
+let generation = 0;
 vi.mock("@/shared/lib/document-cache", () => ({
   cacheDocument: (...args: unknown[]) => cacheDocument(...(args as [])),
   localDocumentUri: (planId: string, document: ExerciseDocumentDto) =>
     localDocumentUri(planId, document),
   purgePlansExcept: (ids: readonly string[]) => purgePlansExcept(ids),
+  storeGeneration: () => generation,
 }));
 
 const fetchSession = vi.fn<(id: string) => Promise<ScheduledSessionDto>>();
@@ -126,6 +128,7 @@ function newQueryClient() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  generation = 0;
   localDocumentUri.mockReturnValue(null);
   cacheDocument.mockResolvedValue(true);
 });
@@ -246,6 +249,36 @@ describe("syncOfflineDocuments", () => {
 
     expect(purgePlansExcept).toHaveBeenCalledWith([]);
     expect(fetchSession).not.toHaveBeenCalled();
+    expect(cacheDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncOfflineDocuments — changement de compte en cours de passe", () => {
+  /**
+   * Une passe dure : quarante séances tirées l'une après l'autre. L'athlète peut se déconnecter au
+   * milieu, et rien ne l'arrêtait — elle écrivait alors les séances du compte QUITTÉ dans le cache
+   * que la déconnexion venait de vider. La purge totale change l'époque du magasin ; la passe le
+   * voit à l'itération suivante et s'arrête.
+   */
+  it("abandonne dès que le magasin change d'époque", async () => {
+    fetchSession.mockImplementation(async (id) => {
+      generation += 1;
+      return session(id, []);
+    });
+
+    await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1", "s-2", "s-3"])]);
+
+    expect(fetchSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("ne descend plus rien après un changement d'époque", async () => {
+    fetchSession.mockImplementation(async (id) => {
+      generation += 1;
+      return session(id, [document()]);
+    });
+
+    await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1"])]);
+
     expect(cacheDocument).not.toHaveBeenCalled();
   });
 });

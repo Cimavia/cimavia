@@ -23,6 +23,22 @@ import { Directory, File, Paths } from "expo-file-system";
 
 const ROOT_DIRECTORY_NAME = "plan-documents";
 
+/**
+ * L'ÉPOQUE du magasin : incrémentée à chaque purge totale, donc à chaque changement de compte.
+ *
+ * Une passe de téléchargement dure — quarante séances tirées l'une après l'autre — et rien
+ * n'empêchait l'athlète de se déconnecter au milieu. Elle continuait alors sur sa lancée, écrivant
+ * les séances du compte QUITTÉ dans un cache que `resetAccountData` venait de vider, et des
+ * fichiers dans un magasin qu'il venait d'effacer. C'est la fuite entre comptes que le journal
+ * décrit déjà pour le cache de requêtes, réintroduite par la porte de derrière. Comparer l'époque
+ * la referme sans que la passe ait à connaître l'authentification.
+ */
+let generation = 0;
+
+export function storeGeneration(): number {
+  return generation;
+}
+
 // Bornée et filtrée : `fileName` vient du coach, et sert ici à composer un chemin.
 const EXTENSION_PATTERN = /^[a-z0-9]{1,8}$/;
 
@@ -127,6 +143,9 @@ export function purgePlansExcept(keptPlanIds: readonly string[]): void {
  * plus lisible.
  */
 export function purgeAllDocuments(): void {
+  // AVANT la suppression : ce qui compte est qu'aucune passe en vol ne se croie plus légitime,
+  // même si l'effacement lui-même échoue.
+  generation += 1;
   try {
     const root = rootDirectory();
     if (root.exists) root.delete();
