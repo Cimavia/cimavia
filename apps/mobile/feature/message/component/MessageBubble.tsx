@@ -70,7 +70,12 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
 
   return (
     <Pressable onPress={() => router.push(routeOf(target, as))} hitSlop={4}>
-      <View className="self-start rounded-lg bg-cmv-bg-1 px-2 py-1">{label}</View>
+      {/* La BORDURE est ce qui dit qu'on peut appuyer : sur un fond sombre, le seul `bg-cmv-bg-1`
+          ne se détachait pas assez de la bulle pour qu'on y voie autre chose qu'un intertitre.
+          Le web la porte depuis le début — la puce se lit désormais pareil des deux côtés. */}
+      <View className="self-start rounded-lg border border-cmv-border bg-cmv-bg-1 px-2 py-1">
+        {label}
+      </View>
     </Pressable>
   );
 }
