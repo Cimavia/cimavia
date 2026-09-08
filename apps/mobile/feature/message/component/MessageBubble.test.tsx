@@ -121,3 +121,52 @@ describe("MessageBubble — les médias", () => {
     expect(container.querySelector("img")).not.toBeNull();
   });
 });
+
+/**
+ * Un avis n'est pas une parole : le serveur le pose. Ce qui s'éprouve ici est qu'il ne se DÉGUISE
+ * pas en message de l'athlète, tout en gardant le lien qui est sa seule raison d'être.
+ */
+describe("MessageBubble — les avis de débrief", () => {
+  function renderNotice(type: MessageDto["type"], mine: boolean) {
+    vi.mocked(useActingCapability).mockReturnValue("coach");
+    const dto = { ...message(feedbackAttachment), type, content: null } as MessageDto;
+    return renderRn(<MessageBubble message={dto} mine={mine} />);
+  }
+
+  it("dit ce qui s'est passé, et garde la puce qui mène au débrief", () => {
+    const { queryByText } = renderNotice("FEEDBACK_CREATED", false);
+
+    expect(queryByText("messages.feedback.created")).not.toBeNull();
+    expect(queryByText(FEEDBACK_LABEL)).not.toBeNull();
+  });
+
+  it("distingue un dépôt d'un complément", () => {
+    const { queryByText } = renderNotice("FEEDBACK_UPDATED", false);
+
+    expect(queryByText("messages.feedback.updated")).not.toBeNull();
+    expect(queryByText("messages.feedback.created")).toBeNull();
+  });
+
+  // La puce reste cliquable : un avis qui ne mène nulle part ne servirait à rien.
+  it("mène au débrief quand on presse sa puce", () => {
+    const { getByText } = renderNotice("FEEDBACK_CREATED", false);
+
+    press(getByText(FEEDBACK_LABEL));
+
+    expect(vi.mocked(router.push)).toHaveBeenCalledWith("/feedbacks/s1");
+  });
+
+  /**
+   * `mine` ne doit RIEN changer : aligné du côté de l'athlète, « Débrief déposé » se lirait comme
+   * une phrase qu'il aurait tapée.
+   */
+  it("se rend pareil, que le lecteur soit l'auteur du geste ou non", () => {
+    // Comparé sur le CONTENU de chaque rendu, et non par une requête par texte : les deux vivent
+    // dans le même document, une recherche globale trouverait les deux à la fois.
+    const auteur = renderNotice("FEEDBACK_CREATED", true).container.textContent;
+    const lecteur = renderNotice("FEEDBACK_CREATED", false).container.textContent;
+
+    expect(auteur).toContain("messages.feedback.created");
+    expect(auteur).toBe(lecteur);
+  });
+});

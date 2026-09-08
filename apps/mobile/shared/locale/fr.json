@@ -348,7 +348,13 @@
     "preview": {
       "IMAGE": "Photo",
       "VIDEO": "Vidéo",
-      "AUDIO": "Note vocale"
+      "AUDIO": "Note vocale",
+      "FEEDBACK_CREATED": "Débrief déposé",
+      "FEEDBACK_UPDATED": "Débrief mis à jour"
+    },
+    "feedback": {
+      "created": "Débrief déposé",
+      "updated": "Débrief mis à jour"
     },
     "attachment": {
       "session": "À propos de : {{title}} · {{date}}",

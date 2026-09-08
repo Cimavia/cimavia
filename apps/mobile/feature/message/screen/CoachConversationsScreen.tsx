@@ -12,7 +12,7 @@ import { formatRelativeTime } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
-// i18n-values messages.preview: IMAGE, VIDEO, AUDIO
+// i18n-values messages.preview: IMAGE, VIDEO, AUDIO, FEEDBACK_CREATED, FEEDBACK_UPDATED
 
 type Row = { athleteId: string; athleteName: string; conversation: ConversationDto | null };
 

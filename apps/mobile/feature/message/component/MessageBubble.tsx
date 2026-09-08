@@ -3,6 +3,8 @@ import {
   type AttachmentTarget,
   attachmentTarget,
   type CapabilityName,
+  FEEDBACK_EVENT_LABEL_KEY,
+  isFeedbackEventMessage,
   MESSAGE_ATTACHMENT_LABEL_KEY,
   type MessageAttachmentDto,
   type MessageDto,
@@ -90,11 +92,36 @@ function routeOf(target: AttachmentTarget, as: CapabilityName): Href {
     : `/session/${target.scheduledSessionId}/feedback`;
 }
 
+/**
+ * Un AVIS de débrief n'est pas une parole : personne ne l'a écrit, le serveur l'a posé. Il se rend
+ * donc au centre et en sourdine, jamais en bulle alignée d'un côté — « Débrief déposé » cadré à
+ * droite se lirait comme une phrase que l'athlète aurait tapée.
+ *
+ * La puce reste : c'est elle qui porte le LIEN, et le seul intérêt de l'avis est d'y mener.
+ */
+function FeedbackEventNotice({ message }: Readonly<{ message: MessageDto }>) {
+  const { t } = useTranslation();
+  if (!isFeedbackEventMessage(message.type)) return null;
+
+  return (
+    <View className="max-w-[80%] items-center self-center">
+      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
+      <CmvText className="text-cmv-text-mid text-xs">
+        {t(FEEDBACK_EVENT_LABEL_KEY[message.type])}
+      </CmvText>
+    </View>
+  );
+}
+
 export function MessageBubble({
   message,
   mine,
   hideAttachment = false,
 }: Readonly<MessageBubbleProps>) {
+  if (isFeedbackEventMessage(message.type)) {
+    return <FeedbackEventNotice message={message} />;
+  }
+
   return (
     <View
       className={`max-w-[80%] rounded-2xl px-3 py-2 ${
