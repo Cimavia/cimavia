@@ -1010,7 +1010,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | U-3 | **Pas de progression sur la messagerie mobile** : le fil n'expose que `mediaBusy` (désactivation), sans indicateur chiffré — contrairement au débrief mobile et aux deux surfaces web. | 🟢 | — *(déclencheur : un envoi de vidéo lourde jugé « figé » dans un fil)* |
 | U-4 | **Le seuil de découpage est calé sur un plafond d'hébergeur, non vérifié automatiquement** : `MULTIPART_THRESHOLD_BYTES` (80 Mo) tient sa valeur des 100 Mo mesurés au bord Cloudflare. Aucun test ne le confronte à la réalité. | 🟢 | — *(déclencheur : changement de plan Cloudflare ou d'hébergement)* |
 | U-5 | **Pas de reprise entre deux LANCEMENTS d'app** : le réessai de #152 couvre l'accroc réseau, pas l'app tuée en cours d'envoi. L'`uploadId` ne vit qu'en mémoire ; après un plantage, les parts montées sont perdues pour le client et l'upload devient orphelin. Le rattraper demanderait de le persister côté serveur. | 🟢 | — *(déclencheur : un athlète qui signale un envoi perdu APRÈS une fermeture d'app, pas après une coupure)* |
-| U-6 | **La purge des uploads abandonnés est posée à la main, et rien ne vérifie qu'elle l'est** : la règle de cycle de vie `AbortIncompleteMultipartUpload` se règle dans la console Scaleway. Aucun test, aucun démarrage ne la relit — et **MinIO ne sait pas l'appliquer** (mesuré, cf. l'encadré ci-dessous), donc le dev n'a pas de filet du tout. | 🟢 | — *(déclencheur : bucket de prod recréé, changement d'hébergeur, ou une facture de stockage inexpliquée)* |
+| U-6 | **La purge des uploads abandonnés est posée à la main, et rien ne vérifie qu'elle l'est** : la règle vit dans `deploy/prod/bucket-lifecycle.json`, mais c'est un `aws s3api` lancé au doigt le jour de la création du bucket. Aucun test, aucun démarrage ne la relit — et **MinIO ne sait pas l'appliquer** (mesuré, cf. l'encadré ci-dessous), donc le dev n'a pas de filet du tout. | 🟢 | — *(déclencheur : bucket cloud créé ou recréé, changement d'hébergeur, ou une facture de stockage inexpliquée)* |
 
 > **Mesuré** (les deux faits qui dictent toute la conception, et qu'aucune lecture du code ne
 > donnerait) :
@@ -1081,13 +1081,35 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > donc rendue monotone : l'utilisateur voit une pause, ce qui est exactement ce qui se passe, là
 > où un recul lui ferait croire à un envoi qui recommence.
 >
+> **MESURÉ SUR APPAREIL — le mode de défaillance dominant est un GEL, pas un rejet.** Le premier
+> jet du réessai ne se déclenchait que sur une erreur, et il n'en venait aucune : au passage
+> wifi → 5G, la requête en cours ne casse pas, elle **s'immobilise**. Le socket reste ouvert sur une
+> interface morte, la progression se tait, la promesse ne se règle jamais — l'envoi reste « en
+> cours » indéfiniment. D'où le **chien de garde** : sans un octet pendant 20 s, on coupe
+> nous-mêmes (`AbortSignal` côté mobile, `xhr.abort()` côté web) et la part repart. Le minuteur est
+> remis à zéro à chaque octet, donc un envoi lent mais vivant ne le déclenche pas.
+>
+> **Le troisième essai, lui, ne prouvait rien** — et c'est une leçon de banc d'essai plus que de
+> code. « La 5G ne prend jamais le relais, mais au retour du wifi c'est bon » ressemblait à un
+> réessai défaillant ; c'est en réalité le seul résultat possible. Le dev local signe ses URLs avec
+> une IP **LAN** (`S3_ENDPOINT=http://192.168.x.x:9000`) : passer en 5G sort du réseau, et il n'y a
+> plus rien à joindre. Le chien de garde coupait, réessayait, et retombait sur le même néant. Le
+> basculement wifi ↔ cellulaire ne se teste que contre le tier NAS, dont `s3-dev` est public — c'est
+> précisément pourquoi le tunnel existe (`deploy/dev/README.md`). Second essai,
+> réseau coupé NET des deux côtés : le retour dépassait les 4 s que couvrait l'échelle d'origine, et
+> l'envoi était déjà perdu — d'où cinq paliers (1, 3, 8, 20, 30 s) tenant un peu plus d'une minute,
+> ce que les URLs signées à une heure permettent largement. **Aucun test de bureau n'aurait donné
+> ces deux faits** : jsdom et Vitest rejettent proprement, un vrai téléphone gèle.
+>
 > **MESURÉ — MinIO accepte la règle de cycle de vie et jette la clause en silence.** `mc ilm rule
 > add` n'a aucun drapeau pour les uploads incomplets ; `mc ilm import` perd le champ ; et par le
 > SDK, une règle réduite à `AbortIncompleteMultipartUpload` est refusée en 400, tandis
 > qu'accompagnée d'une `Expiration` elle est **acceptée puis relue sans la clause** (confirmé par
 > le SDK ET par `mc ilm export`, sur `RELEASE.2025-09-07`). Câbler ça dans `docker-compose.yml`
 > aurait écrit une garantie fausse. La règle ne vaut donc que pour **Scaleway**, seul tier où des
-> parts orphelines se paient — le volume MinIO du dev étant jetable. C'est **U-6**.
+> parts orphelines se paient — le volume MinIO du dev étant jetable. La règle est rangée dans
+> `deploy/prod/bucket-lifecycle.json` avec sa procédure, la prod n'étant pas encore montée ; ce
+> qu'aucun automatisme ne relit reste **U-6**.
 
 > **Appris** (le symptôme ne désignait pas sa cause) : le rapport initial était « les vidéos de plus
 > de 50 Mo ne passent pas, alors que j'ai augmenté la taille ». Les deux moitiés étaient trompeuses.
