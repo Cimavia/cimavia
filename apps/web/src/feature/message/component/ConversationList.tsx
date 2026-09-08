@@ -6,7 +6,7 @@ import { cn } from "@/shared/util/cn.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
-// i18n-values messages.preview: IMAGE, VIDEO, AUDIO
+// i18n-values messages.preview: IMAGE, VIDEO, AUDIO, FEEDBACK_CREATED, FEEDBACK_UPDATED
 
 // Une ligne = un athlète, enrichi de son fil s'il existe (aperçu + non-lus). Sans fil, la ligne
 // reste cliquable : la sélectionner crée le fil.

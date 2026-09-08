@@ -137,3 +137,51 @@ describe("MessageBubble — les médias", () => {
     expect(container.querySelector("video")).toBeNull();
   });
 });
+
+/**
+ * Un avis n'est pas une parole : le serveur le pose. Ce qui s'éprouve ici est qu'il ne se DÉGUISE
+ * pas en message — ni bulle alignée, ni couleur d'auteur — tout en gardant le lien qui est sa seule
+ * raison d'être.
+ */
+describe("MessageBubble — les avis de débrief", () => {
+  function renderNotice(type: MessageDto["type"], mine: boolean) {
+    vi.mocked(useActingCapability).mockReturnValue("coach");
+    const dto = {
+      ...message(feedbackAttachment),
+      type,
+      content: null,
+      media: null,
+    } as MessageDto;
+    return renderInRoute(<MessageBubble message={dto} mine={mine} />, {
+      path: "/messages",
+      links: LINKS,
+    });
+  }
+
+  it("dit ce qui s'est passé, et mène au débrief", async () => {
+    const { queryByText } = await renderNotice("FEEDBACK_CREATED", false);
+
+    expect(queryByText("messages.feedback.created")).not.toBeNull();
+    expect(queryByText(FEEDBACK_LABEL)).not.toBeNull();
+  });
+
+  it("distingue un dépôt d'un complément", async () => {
+    const { queryByText } = await renderNotice("FEEDBACK_UPDATED", false);
+
+    expect(queryByText("messages.feedback.updated")).not.toBeNull();
+    expect(queryByText("messages.feedback.created")).toBeNull();
+  });
+
+  /**
+   * `mine` ne doit RIEN changer : un avis se rend au centre quel que soit le lecteur. Aligné à
+   * droite chez l'athlète, « Débrief déposé » se lirait comme une phrase qu'il aurait tapée.
+   */
+  it("se rend au centre, que le lecteur soit l'auteur du geste ou non", async () => {
+    const auteur = await renderNotice("FEEDBACK_CREATED", true);
+    const lecteur = await renderNotice("FEEDBACK_CREATED", false);
+
+    expect(auteur.container.querySelector(".self-center")).not.toBeNull();
+    expect(lecteur.container.querySelector(".self-center")).not.toBeNull();
+    expect(auteur.container.querySelector(".self-end")).toBeNull();
+  });
+});

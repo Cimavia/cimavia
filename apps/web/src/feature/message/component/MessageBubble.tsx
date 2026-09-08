@@ -1,6 +1,8 @@
 import {
   AttachmentDestination,
   attachmentTarget,
+  FEEDBACK_EVENT_LABEL_KEY,
+  isFeedbackEventMessage,
   MESSAGE_ATTACHMENT_LABEL_KEY,
   type MessageAttachmentDto,
   type MessageDto,
@@ -107,11 +109,36 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
   );
 }
 
+/**
+ * Un AVIS de débrief n'est pas une parole : personne ne l'a écrit, le serveur l'a posé. Il se rend
+ * donc au centre et en sourdine, jamais en bulle alignée d'un côté — « Débrief déposé » cadré à
+ * droite se lirait comme une phrase que l'athlète aurait tapée.
+ *
+ * La puce reste : c'est elle qui porte le LIEN, et le seul intérêt de l'avis est d'y mener.
+ */
+function FeedbackEventNotice({ message }: Readonly<{ message: MessageDto }>) {
+  const { t } = useTranslation();
+  if (!isFeedbackEventMessage(message.type)) return null;
+
+  return (
+    <div className="flex max-w-[70%] flex-col items-center self-center">
+      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
+      <p className="text-cmv-caption text-cmv-text-mid">
+        {t(FEEDBACK_EVENT_LABEL_KEY[message.type])}
+      </p>
+    </div>
+  );
+}
+
 export function MessageBubble({
   message,
   mine,
   hideAttachment = false,
 }: Readonly<MessageBubbleProps>) {
+  if (isFeedbackEventMessage(message.type)) {
+    return <FeedbackEventNotice message={message} />;
+  }
+
   return (
     <div
       className={cn(
