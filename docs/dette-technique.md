@@ -2709,6 +2709,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Numéro de version du produit ([#184](https://github.com/Cimavia/cimavia/issues/184))
+
+> **Tranché en #185** (le numéro se coupe sur `main`, pas à la promotion) : `main → staging →
+> production` fait avancer le **même** numéro, elle n'en attribue pas un nouveau. Que `staging` soit
+> en 1.3.0 pendant que `production` est en 1.2.0 est l'état normal — une seule lignée, deux têtes de
+> lecture décalées par le temps de promotion. Le tier reste porté par `APP_ENV`, jamais par le
+> numéro : les confondre rendrait impossible de dire qu'une même version tourne à deux endroits.
+
+> **Tranché en #185** (aucun garde-fou mécanique sur un `feat` qui ne se voit pas) : l'épic posait
+> la question des scopes techniques — un `feat(ci):` produirait un mineur sans rien changer pour un
+> utilisateur. Le cas **n'existe pas dans ce dépôt** : sur 716 commits, zéro `feat(ci|infra|deps)`,
+> parce que `ci` y est un **type** et non un scope. Trois raisons de ne pas armer la règle malgré
+> tout : `scope-enum` est indifférent au type et ne saurait pas l'exprimer sans convertir
+> `.commitlintrc.json` en config JS à plugin ; une liste noire sur `deps` entrerait en collision
+> avec le `chore(deps):` de Dependabot ; et surtout un filtre par scope défendrait l'hypothèse
+> nommée en laissant passer le vrai risque — un `feat(api):` interne, que rien ne distingue d'une
+> fonctionnalité. La porte est **humaine et déjà là** : rien n'est numéroté sans que la PR de
+> release soit mergée, et c'est à ce moment que le CHANGELOG se lit. `Release-As:` corrige un bump
+> faux.
+
+> **Tranché en #185** (les six paquets restent à `0.0.0`) : ils sont tous `private` et aucun n'est
+> publié — cinq numéros indépendants n'auraient aucun lecteur. Seule la racine porte la version, et
+> `release-please` n'est configuré que sur `.`. La question se rouvre le jour où un paquet serait
+> publié.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

@@ -1,0 +1,64 @@
+name: Release
+
+# Maintient en PERMANENCE une PR de release ouverte sur `main` : elle porte le bump du
+# `package.json` racine et le CHANGELOG rédigé depuis le dernier tag, et se met à jour à chaque
+# merge. La merger pose le tag `vX.Y.Z` et la GitHub Release — c'est le seul geste manuel, et il
+# décide QUAND on livre, jamais quel numéro (celui-là se déduit des types de commit).
+#
+# Ce workflow n'ajoute AUCUN check requis et n'en renomme aucun : les rulesets exigent les trois
+# jobs de `ci.yml` par leur nom exact (cf. « Appris en #130 », docs/dette-technique.md).
+
+on:
+  push:
+    branches: [main]
+
+# `cancel-in-progress: false` : deux merges rapprochés doivent produire deux mises à jour de la PR
+# de release, pas une seule. Annuler la première laisserait la PR décrire un état qui n'existe plus.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Aucun droit pour le GITHUB_TOKEN : tout passe par le jeton d'installation de l'App ci-dessous.
+permissions: {}
+
+jobs:
+  release-please:
+    name: PR de release
+    runs-on: ubuntu-latest
+
+    steps:
+      # POURQUOI une App GitHub, et pas le GITHUB_TOKEN par défaut : une PR ouverte par ce dernier
+      # ne DÉCLENCHE PAS les workflows. Les trois checks requis ne seraient donc jamais rapportés et
+      # la PR de release resterait éternellement sur « Waiting for status to be reported » — le mode
+      # d'échec que CONTRIBUTING.md documente déjà à propos du renommage des jobs.
+      #
+      # POURQUOI pas un PAT classique, qui lèverait la même limite : jeton longue durée, de la
+      # portée du COMPTE entier, réutilisable partout s'il fuit. Le jeton d'installation d'une App
+      # est éphémère (1 h), limité à ce dépôt, restreint à `contents` + `pull-requests`, et se
+      # révoque seul.
+      #
+      # `required_signatures` ne s'y oppose pas : les commits créés via l'API GitHub sont signés
+      # par GitHub et apparaissent « verified ».
+      #
+      # `client-id` et non `app-id` : ce dernier est DÉPRÉCIÉ depuis la v3 de l'action. Les deux
+      # identifient la même App et se lisent sur la même page de réglages — le Client ID
+      # (`Iv23li…`) est simplement celui que l'action continuera d'accepter.
+      - name: Jeton d'installation de l'App
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # Pas de `actions/checkout` : l'action travaille entièrement par l'API GitHub. Un checkout ne
+      # lui servirait à rien et donnerait au runner une copie du dépôt sans raison.
+      #
+      # Les deux fichiers sont passés EXPLICITEMENT bien qu'ils soient aussi les valeurs par
+      # défaut : renommer l'un des deux doit casser ici, visiblement, et pas retomber en silence
+      # sur une configuration vide qui traiterait le dépôt comme un paquet npm ordinaire.
+      - name: Ouvre ou met à jour la PR de release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
