@@ -106,6 +106,10 @@ type WeekNavButtonProps = {
  *
  * Les flèches portent leur libellé en accessibilité (#199) : « ← » ne se lit pas à voix haute, et
  * les trois libellés entiers côte à côte ne tiennent pas en largeur sur un téléphone.
+ *
+ * Pas d'`accessibilityState={{ disabled }}` : `Pressable` le dérive déjà de `disabled` sur natif, et
+ * c'est la prop héritée dont la dette **Q-6** demande de s'éloigner — `react-native-web` ne la mappe
+ * sur aucun attribut ARIA, alors que `disabled` seul rend bien `aria-disabled`.
  */
 function WeekNavButton({
   label,
@@ -120,7 +124,6 @@ function WeekNavButton({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled }}
       className={`min-h-11 items-center justify-center rounded-lg border border-cmv-border px-4 ${
         grow === true ? "flex-1" : ""
       } ${disabled ? "opacity-40" : ""}`}
