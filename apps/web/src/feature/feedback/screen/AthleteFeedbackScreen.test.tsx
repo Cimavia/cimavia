@@ -137,6 +137,7 @@ beforeEach(() => {
     isUploading: false,
     step: null,
     progress: 0,
+    retry: null,
   });
 });
 
@@ -364,6 +365,52 @@ describe("AthleteFeedbackScreen", () => {
    * Ces fonctions ne sont appelées que depuis `@cmv/shared` — les éprouver ici est le seul endroit
    * où l'on vérifie que le débrief nomme ses propres refus, et pas ceux de la messagerie.
    */
+  describe("ce que l'écran dit pendant un envoi", () => {
+    const uploading = (over: Record<string, unknown>) =>
+      addMediaMock.mockReturnValue({
+        addFiles: addFilesMock,
+        addAudio: vi.fn(),
+        audioError: null,
+        isUploading: true,
+        step: null,
+        progress: 40,
+        retry: null,
+        ...over,
+      });
+
+    it("montre l'avancement tant que l'envoi progresse", async () => {
+      uploading({});
+      const { findByText } = await setup();
+
+      expect(await findByText(/feedback\.media\.uploading/)).toBeInTheDocument();
+    });
+
+    /**
+     * Un réessai PREND la place du pourcentage : c'est lui qui explique pourquoi la barre n'avance
+     * plus. Les laisser tous les deux ferait lire « 40 % » comme un envoi qui progresse, alors que
+     * c'est précisément ce qui n'arrive plus.
+     */
+    it("remplace l'avancement par l'avis de reprise quand une part est réessayée", async () => {
+      uploading({ retry: { attempt: 2, maxAttempts: 6 } });
+      const { findByText, queryByText } = await setup();
+
+      expect(await findByText(/feedback\.media\.retrying/)).toBeInTheDocument();
+      expect(queryByText(/feedback\.media\.uploading/)).toBeNull();
+    });
+
+    // « Envoi 1 / 1 » serait du bruit : un lot d'un seul média n'a pas de rang.
+    it("ne dit le rang du lot que s'il y a un rang à dire", async () => {
+      uploading({ step: { index: 1, total: 1, fileName: "a.jpg" } });
+      const solo = await setup();
+      expect(solo.queryByText(/feedback\.media\.batchProgress/)).toBeNull();
+      solo.unmount();
+
+      uploading({ step: { index: 2, total: 3, fileName: "a.jpg" } });
+      const { findByText } = await setup();
+      expect(await findByText(/feedback\.media\.batchProgress/)).toBeInTheDocument();
+    });
+  });
+
   describe("les libellés que l'écran confie au lot", () => {
     const photo = (name: string) => new File(["x"], name, { type: "image/jpeg" });
 
