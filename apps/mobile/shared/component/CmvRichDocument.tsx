@@ -6,9 +6,12 @@ import {
   RichBlockType,
   type RichDocument,
 } from "@cmv/shared";
+import { useNetworkState } from "expo-network";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Image, Linking, Text, View } from "react-native";
 import { CmvText } from "@/shared/component/CmvText";
+import { localDocumentUri } from "@/shared/lib/document-cache";
 
 /**
  * Rendu NATIF d'une consigne structurée — le pendant React Native de `CmvRichDocument` côté web.
@@ -95,11 +98,17 @@ function Block({
 /**
  * Une image de consigne. Elle porte son état de chargement : sur un téléphone en salle, le réseau
  * est lent ou absent, et une zone vide sans explication se lit comme un bug.
+ *
+ * L'échec DIT sa cause, et les deux ne se confondent pas : hors réseau l'image reviendra, en
+ * ligne elle est perdue pour cette lecture (URL signée périmée, objet disparu). Annoncer
+ * « hors ligne » à un athlète connecté l'enverrait vérifier sa connexion pour rien.
  */
 function ImageBlock({
   block,
   resolveImage,
 }: Readonly<{ block: Extract<RichBlock, { type: "IMAGE" }>; resolveImage: ResolveImage }>) {
+  const { t } = useTranslation();
+  const network = useNetworkState();
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
   const source = resolveImage(block.mediaId);
 
@@ -123,6 +132,15 @@ function ImageBlock({
             <ActivityIndicator />
           </View>
         ) : null}
+        {state === "failed" ? (
+          <View className="absolute inset-0 items-center justify-center px-4">
+            <CmvText className="text-center text-cmv-text-lo text-xs">
+              {network.isInternetReachable === false
+                ? t("common.imageOffline")
+                : t("common.imageUnavailable")}
+            </CmvText>
+          </View>
+        ) : null}
       </View>
       {block.caption == null || block.caption === "" ? null : (
         <CmvText className="text-cmv-text-lo text-xs">{block.caption}</CmvText>
@@ -135,22 +153,35 @@ type CmvRichDocumentProps = {
   blocks: RichDocument | null;
   /** Les documents de l'exercice — c'est parmi eux que les `mediaId` se résolvent. */
   documents: readonly ExerciseDocumentDto[];
+  /**
+   * Le cycle dont cette consigne est une copie diffusée, ou `null` hors de tout cycle (une
+   * consigne de bibliothèque, qu'aucune lecture hors-ligne ne concerne). Il désigne le magasin où
+   * chercher l'image sur l'appareil — sans lui, il n'y a que l'URL signée.
+   */
+  planId: string | null;
 };
 
-export function CmvRichDocument({ blocks, documents }: Readonly<CmvRichDocumentProps>) {
+export function CmvRichDocument({ blocks, documents, planId }: Readonly<CmvRichDocumentProps>) {
   /**
    * Le document ne stocke qu'un `mediaId` (règle dure n°7) : l'URL est signée et expire, la graver
    * ferait afficher des images mortes trois mois plus tard. On la retrouve à chaque lecture parmi
    * les documents d'usage INSTRUCTION.
+   *
+   * Le FICHIER LOCAL passe devant quand il est là (#95) : il ne périme pas, ne demande pas de
+   * réseau, et évite l'aller-retour au storage même en ligne. L'URL signée reste le repli — elle
+   * seule existe tant que la passe de téléchargement n'a pas eu lieu.
    */
   const urlById = useMemo(
     () =>
       new Map(
         documents
           .filter((document) => document.usage === DocumentUsage.INSTRUCTION)
-          .map((document) => [document.id, document.url]),
+          .map((document) => [
+            document.id,
+            (planId == null ? null : localDocumentUri(planId, document)) ?? document.url,
+          ]),
       ),
-    [documents],
+    [documents, planId],
   );
 
   // Une consigne absente n'affiche RIEN — pas de « aucune consigne », qui serait du bruit sur une

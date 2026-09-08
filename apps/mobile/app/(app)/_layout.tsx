@@ -45,9 +45,14 @@ export default function AppTabsLayout() {
    * pourtant correcte. Tant que la session n'est pas résolue, on ne redirige pas — sinon toute
    * capacité paraîtrait absente le temps d'un aller-retour.
    */
-  const redirect = capabilities.isPending
-    ? null
-    : redirectForPath(pathname, capabilities, counterparts);
+  /**
+   * Tant que la session n'est pas résolue ET présente, on ne redirige pas : `capabilitiesOf` rend
+   * « aucune capacité » sur une session absente comme sur une session inconnue, et rediriger
+   * là-dessus déposerait l'utilisateur sur le premier onglet sans capacité au lieu du sien.
+   * `isPending` ne suffisait pas — une session tout juste quittée est résolue et vide.
+   */
+  const sessionKnown = !capabilities.isPending && capabilities.isAuthenticated;
+  const redirect = sessionKnown ? redirectForPath(pathname, capabilities, counterparts) : null;
   if (redirect != null) return <Redirect href={redirect} />;
 
   return (

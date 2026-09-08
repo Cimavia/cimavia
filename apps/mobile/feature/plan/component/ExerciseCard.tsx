@@ -14,14 +14,16 @@ import {
   timerFor,
   trackingSummary,
 } from "@cmv/shared";
+import { useNetworkState } from "expo-network";
 import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Linking, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { DosageBlock } from "@/feature/plan/component/DosageBlock";
 import { DurationChip } from "@/feature/plan/component/DurationChip";
 import { TrackingList } from "@/feature/plan/component/TrackingList";
 import type { RunnerContext } from "@/feature/plan/hook/useSegmentRunner";
+import { type OpenDocumentOutcome, openDocument } from "@/feature/plan/lib/open-document";
 import { CmvRichDocument, CmvText } from "@/shared/component";
 
 // i18n-values plan.tracking.open: TrackingUnit
@@ -30,6 +32,8 @@ import { CmvRichDocument, CmvText } from "@/shared/component";
 
 type ExerciseCardProps = {
   exercise: ScheduledSessionExerciseDto;
+  /** Le cycle dont la séance est issue : il localise les documents descendus sur l'appareil. */
+  planId: string;
   index: number;
   customMetrics: readonly CustomMetric[];
   tracking: ExerciseTracking | null;
@@ -47,6 +51,7 @@ type ExerciseCardProps = {
  */
 export function ExerciseCard({
   exercise,
+  planId,
   index,
   customMetrics,
   tracking,
@@ -56,6 +61,12 @@ export function ExerciseCard({
 }: Readonly<ExerciseCardProps>) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const network = useNetworkState();
+  const isOnline = network.isInternetReachable !== false;
+
+  // Une seule pièce jointe en échec à la fois : l'athlète en tape une, et le message porte sur
+  // celle-là. En garder plusieurs laisserait traîner l'échec d'un document déjà rouvert depuis.
+  const [failure, setFailure] = useState<{ id: string; outcome: OpenDocumentOutcome } | null>(null);
 
   const summary = trackingSummary(exercise.blocks, tracking);
   // L'unité NOMME le lien : « Suivre mes séries », « mes tops », « mes tours », « mes étapes ».
@@ -150,19 +161,38 @@ export function ExerciseCard({
       ) : null}
 
       {open ? (
-        <CmvRichDocument blocks={exercise.instructions} documents={exercise.documents} />
+        <CmvRichDocument
+          blocks={exercise.instructions}
+          documents={exercise.documents}
+          planId={planId}
+        />
       ) : null}
 
       {attachments.map((document) => (
-        <Pressable
-          key={document.id}
-          onPress={() => Linking.openURL(document.url)}
-          className="rounded-lg border border-cmv-border bg-cmv-bg-1 px-3 py-2"
-        >
-          <CmvText className="text-cmv-text-mid text-sm" numberOfLines={1}>
-            {document.fileName ?? t("plan.session.link")}
-          </CmvText>
-        </Pressable>
+        <View key={document.id} className="gap-1">
+          <Pressable
+            onPress={() => {
+              void openDocument(planId, document, isOnline).then((outcome) =>
+                setFailure(outcome === "opened" ? null : { id: document.id, outcome }),
+              );
+            }}
+            className="rounded-lg border border-cmv-border bg-cmv-bg-1 px-3 py-2"
+          >
+            <CmvText className="text-cmv-text-mid text-sm" numberOfLines={1}>
+              {document.fileName ?? t("plan.session.link")}
+            </CmvText>
+          </Pressable>
+
+          {/* L'échec se dit SOUS la pièce jointe concernée : le mobile n'a pas de toasts, et un
+              message global n'apprendrait pas laquelle des trois n'a pas voulu s'ouvrir. */}
+          {failure?.id === document.id ? (
+            <CmvText className="text-cmv-text-lo text-xs">
+              {failure.outcome === "offline"
+                ? t("plan.session.documentOffline")
+                : t("plan.session.documentUnavailable")}
+            </CmvText>
+          ) : null}
+        </View>
       ))}
     </View>
   );

@@ -30,8 +30,9 @@ import { formatFullDay } from "@/shared/util/date.util";
 
 /**
  * Détail d'une séance (p3-4) : consignes du coach, déroulé, documents.
- * Les documents sont des URLs signées à durée courte : ils exigent le réseau, contrairement au
- * déroulé qui, lui, reste lisible depuis le cache (dette P3-3).
+ * Déroulé ET documents sont lisibles hors réseau depuis #95 : la passe montée sur le planning les
+ * descend sur l'appareil au dernier passage en ligne. Ce qu'elle n'a pas eu le temps de descendre
+ * retombe sur l'URL signée, et le dit quand le réseau manque.
  */
 export function SessionDetailScreen() {
   const { t } = useTranslation();
@@ -298,6 +299,7 @@ function SessionExercises({
         <ExerciseCard
           key={exercise.id}
           exercise={exercise}
+          planId={session.planId}
           index={index}
           customMetrics={exercise.customMetrics}
           tracking={local.tracking[exercise.id] ?? null}
