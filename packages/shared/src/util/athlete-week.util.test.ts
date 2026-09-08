@@ -3,6 +3,7 @@ import { PlanWeekType } from "../dto/plan.schema";
 import {
   athleteCalendarBounds,
   athleteCalendarWeek,
+  athleteWeekNeighbours,
   type CalendarPlan,
   type CalendarSession,
   defaultAthleteMonday,
@@ -146,6 +147,36 @@ describe("athleteCalendarBounds", () => {
   it("rend null sans cycle situable plutôt que d'ouvrir une navigation vide", () => {
     expect(athleteCalendarBounds([])).toBeNull();
     expect(athleteCalendarBounds([plan("vide", "Sans semaine", MONDAY, [])])).toBeNull();
+  });
+});
+
+describe("athleteWeekNeighbours", () => {
+  // BLOC court sur deux semaines : les lundis atteignables sont le 12 et le 19 octobre.
+  const bounds = athleteCalendarBounds([BLOC]);
+
+  it("rend les deux voisines quand la semaine est au milieu de la plage", () => {
+    const large = athleteCalendarBounds([BLOC, plan("suite", "Suite", "2026-11-09", [{}])]);
+    expect(athleteWeekNeighbours("2026-10-19", large)).toEqual({
+      previous: MONDAY,
+      next: "2026-10-26",
+    });
+  });
+
+  // Ce qui GRISE la commande. Sans bornes, l'athlète défilerait indéfiniment des semaines vides.
+  it("coupe le côté qui sortirait de la plage servie", () => {
+    expect(athleteWeekNeighbours(MONDAY, bounds).previous).toBeNull();
+    expect(athleteWeekNeighbours("2026-10-19", bounds).next).toBeNull();
+  });
+
+  // Les bornes sont INCLUSES : la dernière semaine d'un cycle reste atteignable.
+  it("garde la borne elle-même atteignable", () => {
+    expect(athleteWeekNeighbours(MONDAY, bounds).next).toBe("2026-10-19");
+    expect(athleteWeekNeighbours("2026-10-19", bounds).previous).toBe(MONDAY);
+  });
+
+  it("ne mène nulle part sans plage, ni depuis un lundi illisible", () => {
+    expect(athleteWeekNeighbours(MONDAY, null)).toEqual({ previous: null, next: null });
+    expect(athleteWeekNeighbours("pas-une-date", bounds)).toEqual({ previous: null, next: null });
   });
 });
 
