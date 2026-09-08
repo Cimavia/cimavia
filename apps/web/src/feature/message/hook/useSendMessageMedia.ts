@@ -12,7 +12,9 @@ import {
   MAX_MESSAGE_MEDIA_BATCH,
   MediaType,
   MessageType,
+  type MultipartRetry,
   mediaRecapText,
+  runMultipartUpload,
   sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
@@ -25,7 +27,7 @@ import { useToast } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
-import { uploadInParts, uploadToSignedUrl } from "@/shared/lib/upload";
+import { sendWebPart, uploadToSignedUrl, webPartFailure } from "@/shared/lib/upload";
 import {
   attachableMediaKind,
   MediaRejectedError,
@@ -58,6 +60,8 @@ export function useSendMessageMedia(
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState(0);
   const [step, setStep] = useState<MediaBatchStep | null>(null);
+  // Ce que la barre dit quand elle n'avance plus : sans ça, trois minutes de silence.
+  const [retry, setRetry] = useState<MultipartRetry | null>(null);
   const as = useExercisedCapability();
 
   const attachment = options?.attachment;
@@ -70,10 +74,12 @@ export function useSendMessageMedia(
   const audio = useMutation({
     mutationFn: (recorded: RecordedWebAudio) => {
       setProgress(0);
+      setRetry(null);
       return prepareAndSend(
         conversationId,
         { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
         setProgress,
+        setRetry,
         as,
         attachment,
       );
@@ -89,7 +95,15 @@ export function useSendMessageMedia(
   const upload = async (file: File, current: MediaBatchStep) => {
     setStep(current);
     setProgress(0);
-    await prepareAndSend(conversationId, { kind: "file", file }, setProgress, as, attachment);
+    setRetry(null);
+    await prepareAndSend(
+      conversationId,
+      { kind: "file", file },
+      setProgress,
+      setRetry,
+      as,
+      attachment,
+    );
     invalidate();
   };
 
@@ -113,7 +127,10 @@ export function useSendMessageMedia(
       send: upload,
       rejectedReason,
       failureReason,
-    }).finally(() => setStep(null));
+    }).finally(() => {
+      setStep(null);
+      setRetry(null);
+    });
 
     for (const entry of recap) {
       toast.error(
@@ -130,6 +147,7 @@ export function useSendMessageMedia(
     isUploading: step != null || audio.isPending,
     step,
     progress,
+    retry,
   };
 }
 
@@ -154,17 +172,19 @@ async function prepareAndSend(
   conversationId: string,
   source: WebMediaSource,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
   as: CapabilityName | null,
   attachment: { sessionFeedbackId: string } | undefined,
 ): Promise<MessageDto> {
   const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
-  return uploadAndSend(conversationId, prepared, onProgress, as, attachment);
+  return uploadAndSend(conversationId, prepared, onProgress, onRetry, as, attachment);
 }
 
 async function uploadAndSend(
   conversationId: string,
   media: PreparedWebMedia,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
   as: CapabilityName | null,
   attachment: { sessionFeedbackId: string } | undefined,
@@ -176,7 +196,7 @@ async function uploadAndSend(
   if (ticket.mode === UploadMode.SINGLE) {
     await uploadToSignedUrl(ticket.uploadUrl, media.file, onProgress);
   } else {
-    await sendInParts(conversationId, ticket, media.file, onProgress, as);
+    await sendInParts(conversationId, ticket, media.file, onProgress, onRetry, as);
   }
 
   const sendInput = {
@@ -188,32 +208,34 @@ async function uploadAndSend(
 }
 
 /**
- * Envoi découpé : les parts, puis la clôture qui les recolle. Tout échec ABANDONNE l'upload — les
- * parts d'un upload jamais clos restent facturées SANS apparaître à l'inventaire du bucket, donc
- * personne ne les retrouverait pour les purger. Jumeau de `sendInParts` du débrief ; à promouvoir
- * en util partagé si un 3ᵉ appelant apparaît (cf. #96).
+ * Envoi découpé : les parts, puis la clôture qui les recolle. Tant qu'elle n'a pas eu lieu, rien
+ * n'existe dans le bucket — le message porterait un chemin vide.
+ *
+ * La boucle, le réessai et l'abandon vivent dans `runMultipartUpload` (`@cmv/shared`) : ce qui
+ * était écrit quatre fois — débrief et messagerie, web et mobile — l'est désormais une seule.
+ * Il ne reste ici que ce qui appartient au fil : quelle conversation clore, sous quel titre.
+ *
+ * `file.size` et non la taille DÉCLARÉE : c'est le fichier réel qu'on découpe, et le confronter au
+ * ticket signale un écart avant d'avoir poussé le moindre octet.
  */
-async function sendInParts(
+function sendInParts(
   conversationId: string,
   ticket: MultipartUploadTicket,
   file: File,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
   as: CapabilityName | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
-  try {
-    await uploadInParts(file, ticket.partUrls, ticket.partSize, onProgress);
-    await messageApi.completeMediaUpload(
-      conversationId,
-      { ...upload, partCount: ticket.partUrls.length },
-      as,
-    );
-  } catch (error) {
-    // L'échec de l'abandon est avalé : il ne doit pas masquer l'erreur d'origine, la seule sur
-    // laquelle l'utilisateur peut agir.
-    await messageApi.abortMediaUpload(conversationId, upload, as).catch(() => undefined);
-    throw error;
-  }
+  return runMultipartUpload(ticket, file.size, {
+    sendPart: (part, onSentBytes) => sendWebPart(file, part, onSentBytes),
+    failureOf: webPartFailure,
+    complete: (partCount) =>
+      messageApi.completeMediaUpload(conversationId, { ...upload, partCount }, as),
+    abort: () => messageApi.abortMediaUpload(conversationId, upload, as),
+    onProgress,
+    onRetry,
+  });
 }
 
 // Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive de taille.

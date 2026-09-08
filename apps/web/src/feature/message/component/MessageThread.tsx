@@ -98,6 +98,7 @@ export function MessageThread({
         sending={send.isPending}
         mediaBusy={media.isUploading}
         progress={media.progress}
+        retry={media.retry}
         step={media.step}
       />
     </div>

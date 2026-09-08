@@ -21,13 +21,13 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-deux dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Vingt-quatre dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
+déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3** et **I-4**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud,
-où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les vingt premières sont
+où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les vingt-trois premières sont
 volontaires, la dernière non.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
@@ -1005,10 +1005,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| U-1 | **Aucune reprise d'un envoi interrompu** : toute erreur abandonne l'upload entier, l'utilisateur recommence de zéro. Une coupure à la part 38/40 jette 380 Mo déjà montés. | 🟡 | [#152](https://github.com/Cimavia/cimavia/issues/152) |
-| U-2 | **`sendInParts` écrit quatre fois** (débrief ↔ messagerie × web ↔ mobile) : même corps, seuls l'API appelée et les clés i18n diffèrent. | 🟢 | [#96](https://github.com/Cimavia/cimavia/issues/96) |
+| ~~U-1~~ | ~~**Aucune reprise d'un envoi interrompu**~~ : toute erreur abandonnait l'upload entier. | ✅ | résolue en [#152](https://github.com/Cimavia/cimavia/issues/152) — une part qui tombe est **réessayée** (1 s puis 3 s), et l'upload n'est abandonné que sur échec définitif. Ce qui reste, c'est **U-5** |
+| ~~U-2~~ | ~~**`sendInParts` écrit quatre fois**~~ (débrief ↔ messagerie × web ↔ mobile). | ✅ | résolue en [#152](https://github.com/Cimavia/cimavia/issues/152) — la boucle vit dans `runMultipartUpload` (`@cmv/shared`), les apps n'y branchent que le transport et les deux appels d'API. Le suivi pointait [#96](https://github.com/Cimavia/cimavia/issues/96), qui portait sur la **préparation** média mobile et n'a jamais touché `sendInParts` : lien faux, corrigé ici |
 | U-3 | **Pas de progression sur la messagerie mobile** : le fil n'expose que `mediaBusy` (désactivation), sans indicateur chiffré — contrairement au débrief mobile et aux deux surfaces web. | 🟢 | — *(déclencheur : un envoi de vidéo lourde jugé « figé » dans un fil)* |
 | U-4 | **Le seuil de découpage est calé sur un plafond d'hébergeur, non vérifié automatiquement** : `MULTIPART_THRESHOLD_BYTES` (80 Mo) tient sa valeur des 100 Mo mesurés au bord Cloudflare. Aucun test ne le confronte à la réalité. | 🟢 | — *(déclencheur : changement de plan Cloudflare ou d'hébergement)* |
+| U-5 | **Pas de reprise entre deux LANCEMENTS d'app** : le réessai de #152 couvre l'accroc réseau, pas l'app tuée en cours d'envoi. L'`uploadId` ne vit qu'en mémoire ; après un plantage, les parts montées sont perdues pour le client et l'upload devient orphelin. Le rattraper demanderait de le persister côté serveur. | 🟢 | — *(déclencheur : un athlète qui signale un envoi perdu APRÈS une fermeture d'app, pas après une coupure)* |
+| U-6 | **La purge des uploads abandonnés est posée à la main, et rien ne vérifie qu'elle l'est** : la règle vit dans `deploy/prod/bucket-lifecycle.json`, mais c'est un `aws s3api` lancé au doigt le jour de la création du bucket. Aucun test, aucun démarrage ne la relit — et **MinIO ne sait pas l'appliquer** (mesuré, cf. l'encadré ci-dessous), donc le dev n'a pas de filet du tout. | 🟢 | — *(déclencheur : bucket cloud créé ou recréé, changement d'hébergeur, ou une facture de stockage inexpliquée)* |
 
 > **Mesuré** (les deux faits qui dictent toute la conception, et qu'aucune lecture du code ne
 > donnerait) :
@@ -1047,9 +1049,67 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > supplémentaires. Le mode est décidé par l'API à partir de la seule taille — le client n'a pas voix
 > au chapitre, le seuil étant une contrainte d'infrastructure et non une préférence.
 >
-> **Tout échec abandonne l'upload.** Les parts d'un upload jamais clos restent facturées **sans
-> apparaître à l'inventaire du bucket** : personne ne les retrouverait pour les purger. On paie un
-> envoi à refaire (U-1) plutôt qu'une fuite invisible.
+> **Tout échec abandonnait l'upload** — ~~renversé en #152~~, et sur une prémisse à moitié fausse.
+> Les parts d'un upload jamais clos sont bien facturées sans apparaître à `ListObjects`, mais
+> **`ListMultipartUploads` les liste**, avec leur date d'initiation (vérifié sur MinIO). Elles
+> n'étaient donc pas introuvables. Ce qui est vrai, et suffisait à l'arbitrage d'alors, c'est que
+> rien ne les ramassait.
+
+> **Tranché en #152** (ce qui jetait 380 Mo n'était pas ce que l'issue croyait) : l'issue posait
+> que la reprise était bloquée parce que l'`uploadId` « n'est stocké nulle part ». Faux pour le
+> scénario qu'elle décrivait : à la part 38 sur 40, l'`uploadId` est en mémoire et ses URLs signées
+> valent encore une heure. Ce qui jetait les parts montées, c'était **notre propre**
+> `catch → abort → throw`. Le réessai ne demande donc **aucune** persistance — celle-ci n'achète
+> que le cas « app tuée », resté en **U-5**.
+>
+> **Il n'y avait aucun réessai, nulle part** — ni par part, ni en PUT unique. Un accroc sur la part
+> **1** sur 40 tuait l'envoi aussi sûrement que sur la 38ᵉ. Le manque le moins cher à combler ne
+> s'appelait pas « reprise ».
+>
+> **On ne réessaie que ce qu'un réessai peut corriger** : coupure réseau, 408, 429, 5xx. Un 403 de
+> signature ou un 400 de taille naît d'une part qui ne CONVIENT pas — la renvoyer coûterait trois
+> fois son poids pour se faire redire non. Deux tentatives de plus au maximum, à 1 s puis 3 s :
+> ces délais couvrent l'accroc, pas la panne durable, qui doit rendre la main à l'utilisateur.
+>
+> **Renvoyer une part sous le même `PartNumber` la REMPLACE** (vérifié sur MinIO : `ListParts` n'en
+> voit qu'une, l'objet recollé porte les octets de la seconde). Le serveur relisant déjà les ETags
+> lui-même, le nouveau est pris sans rien changer à la clôture — c'est ce qui rend le réessai sûr
+> sans un seul aller-retour de plus.
+>
+> **La barre TIENT au lieu de reculer.** Un réessai renvoie la part depuis son premier octet ;
+> rapportée telle quelle, la progression reculerait de dix mégaoctets à chaque accroc. Elle est
+> donc rendue monotone : l'utilisateur voit une pause, ce qui est exactement ce qui se passe, là
+> où un recul lui ferait croire à un envoi qui recommence.
+>
+> **MESURÉ SUR APPAREIL — le mode de défaillance dominant est un GEL, pas un rejet.** Le premier
+> jet du réessai ne se déclenchait que sur une erreur, et il n'en venait aucune : au passage
+> wifi → 5G, la requête en cours ne casse pas, elle **s'immobilise**. Le socket reste ouvert sur une
+> interface morte, la progression se tait, la promesse ne se règle jamais — l'envoi reste « en
+> cours » indéfiniment. D'où le **chien de garde** : sans un octet pendant 20 s, on coupe
+> nous-mêmes (`AbortSignal` côté mobile, `xhr.abort()` côté web) et la part repart. Le minuteur est
+> remis à zéro à chaque octet, donc un envoi lent mais vivant ne le déclenche pas.
+>
+> **Le troisième essai, lui, ne prouvait rien** — et c'est une leçon de banc d'essai plus que de
+> code. « La 5G ne prend jamais le relais, mais au retour du wifi c'est bon » ressemblait à un
+> réessai défaillant ; c'est en réalité le seul résultat possible. Le dev local signe ses URLs avec
+> une IP **LAN** (`S3_ENDPOINT=http://192.168.x.x:9000`) : passer en 5G sort du réseau, et il n'y a
+> plus rien à joindre. Le chien de garde coupait, réessayait, et retombait sur le même néant. Le
+> basculement wifi ↔ cellulaire ne se teste que contre le tier NAS, dont `s3-dev` est public — c'est
+> précisément pourquoi le tunnel existe (`deploy/dev/README.md`). Second essai,
+> réseau coupé NET des deux côtés : le retour dépassait les 4 s que couvrait l'échelle d'origine, et
+> l'envoi était déjà perdu — d'où cinq paliers (1, 3, 8, 20, 30 s) tenant un peu plus d'une minute,
+> ce que les URLs signées à une heure permettent largement. **Aucun test de bureau n'aurait donné
+> ces deux faits** : jsdom et Vitest rejettent proprement, un vrai téléphone gèle.
+>
+> **MESURÉ — MinIO accepte la règle de cycle de vie et jette la clause en silence.** `mc ilm rule
+> add` n'a aucun drapeau pour les uploads incomplets ; `mc ilm import` perd le champ ; et par le
+> SDK, une règle réduite à `AbortIncompleteMultipartUpload` est refusée en 400, tandis
+> qu'accompagnée d'une `Expiration` elle est **acceptée puis relue sans la clause** (confirmé par
+> le SDK ET par `mc ilm export`, sur `RELEASE.2025-09-07`). Câbler ça dans `docker-compose.yml`
+> aurait écrit une garantie fausse. La règle ne vaut donc que pour **Scaleway**, seul tier où des
+> parts orphelines se paient — le volume MinIO du dev étant jetable. La règle est rangée dans
+> `deploy/prod/bucket-lifecycle.json` avec sa procédure, la prod n'étant pas encore montée ; ce
+> qu'aucun automatisme ne relit reste **U-6**.
 
 > **Appris** (le symptôme ne désignait pas sa cause) : le rapport initial était « les vidéos de plus
 > de 50 Mo ne passent pas, alors que j'ai augmenté la taille ». Les deux moitiés étaient trompeuses.

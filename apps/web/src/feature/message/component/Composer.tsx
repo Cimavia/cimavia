@@ -1,4 +1,4 @@
-import type { MediaBatchStep } from "@cmv/shared";
+import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
@@ -14,6 +14,8 @@ type ComposerProps = {
   sending: boolean;
   mediaBusy: boolean;
   progress: number;
+  /** Le réessai en cours, `null` tant que l'envoi avance normalement. */
+  retry: MultipartRetry | null;
   /** Le fichier en cours dans un lot, `null` hors envoi. */
   step: MediaBatchStep | null;
 };
@@ -34,6 +36,7 @@ export function Composer({
   sending,
   mediaBusy,
   progress,
+  retry,
   step,
 }: Readonly<ComposerProps>) {
   const { t } = useTranslation();
@@ -162,8 +165,12 @@ export function Composer({
               })}
             </p>
           ) : null}
+          {/* Un réessai PREND la place du pourcentage : c'est lui qui explique pourquoi la barre
+              n'avance plus. Laisser les deux ferait lire « 45 % » comme un envoi qui progresse. */}
           <p className="text-cmv-caption text-cmv-text-mid">
-            {t("messages.media.uploading", { percent: String(progress) })}
+            {retry == null
+              ? t("messages.media.uploading", { percent: String(progress) })
+              : t("messages.media.retrying", { attempt: retry.attempt, max: retry.maxAttempts })}
           </p>
         </div>
       ) : null}

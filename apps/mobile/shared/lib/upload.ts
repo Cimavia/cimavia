@@ -1,3 +1,5 @@
+import type { MultipartPart, PartFailure } from "@cmv/shared";
+import { MULTIPART_STALL_TIMEOUT_MS, uploadPercentOf } from "@cmv/shared";
 import { File, FileMode, Paths, UploadType } from "expo-file-system";
 
 /**
@@ -31,9 +33,33 @@ import { File, FileMode, Paths, UploadType } from "expo-file-system";
 export type StorageUploadReason = "unreachable" | "rejected";
 
 export class StorageUploadError extends Error {
-  constructor(readonly reason: StorageUploadReason) {
+  constructor(
+    readonly reason: StorageUploadReason,
+    /**
+     * La même panne, dite à la politique de réessai plutôt qu'à l'utilisateur : `reason` choisit
+     * un libellé, `failure` décide s'il vaut la peine de renvoyer la part. Un 503 et un 403 sont
+     * tous deux « rejected » pour l'athlète, et n'appellent pas du tout le même geste.
+     */
+    readonly failure: PartFailure,
+  ) {
     super(reason);
   }
+}
+
+/** Ce que le storage a répondu, ou `null` si l'échec ne vient pas de lui. */
+export function storagePartFailure(error: unknown): PartFailure | null {
+  return error instanceof StorageUploadError ? error.failure : null;
+}
+
+/**
+ * La taille du fichier tel qu'il est SUR LE DISQUE — celle qu'on va réellement découper, et celle
+ * que la boucle confronte au ticket avant de pousser le moindre octet.
+ *
+ * `File` implémente `Blob` : `size` est un nombre, pas un nullable. Le `size: number | null` qu'on
+ * croise dans `expo-file-system` est celui de `FileHandle`, pas celui-ci.
+ */
+export function storageFileSize(uri: string): number {
+  return new File(uri).size;
 }
 
 /**
@@ -51,47 +77,40 @@ export async function uploadFileToStorage(
 ): Promise<void> {
   const file = new File(fileUri);
   await put(file, uploadUrl, { "Content-Type": mimeType }, (sent) =>
-    onProgress(percentOf(sent, file.size)),
+    onProgress(uploadPercentOf(sent, file.size)),
   );
 }
 
 // Discriminant des fichiers de cache, monotone pour la durée de vie du process.
 let uploadSequence = 0;
 
-export async function uploadPartsToStorage(
+/**
+ * UNE part d'un envoi découpé. La boucle qui l'appelle, l'ordre et le réessai vivent dans
+ * `runMultipartUpload` (`@cmv/shared`) ; ici, seule la lecture par plage et le PUT.
+ *
+ * Le fichier de cache porte un compteur de process et non un tirage aléatoire : deux envois
+ * simultanés (un débrief et un message) écriraient sinon dans le même fichier et se
+ * corrompraient l'un l'autre. On cherche l'unicité, pas l'imprévisibilité — un générateur
+ * pseudo-aléatoire n'apporterait ici qu'une collision possible et une alerte de sécurité.
+ *
+ * Aucun Content-Type : `UploadPartCommand` ne le signe pas (le type de l'objet est fixé à
+ * l'ouverture de l'upload). Seul `Content-Length` l'est, et le chemin natif le pose.
+ */
+export async function sendStoragePart(
   sourceUri: string,
-  partUrls: readonly string[],
-  partSize: number,
-  onProgress: (percent: number) => void = noop,
+  part: MultipartPart,
+  onSentBytes: (sentBytes: number) => void,
 ): Promise<void> {
-  const source = new File(sourceUri);
-  const totalBytes = source.size;
-  // Deux envois simultanés (un débrief et un message, par exemple) écriraient sinon dans le même
-  // fichier de cache et se corrompraient l'un l'autre. Un COMPTEUR et non un tirage aléatoire :
-  // on cherche l'unicité au sein du process, pas de l'imprévisibilité — un générateur
-  // pseudo-aléatoire n'apporterait ici qu'une collision possible et une alerte de sécurité.
   uploadSequence += 1;
-  const token = `${Date.now().toString(36)}-${uploadSequence}`;
+  const name = `${Date.now().toString(36)}-${uploadSequence}`;
+  const cached = writePartToCache(new File(sourceUri), part.start, part.length, name);
 
-  for (const [index, url] of partUrls.entries()) {
-    const start = index * partSize;
-    // La dernière part est tronquée à la fin du fichier ; les autres font exactement `partSize`,
-    // qui vient du TICKET et non d'une constante locale — c'est avec cette valeur que le serveur
-    // a signé le `ContentLength` de chaque part.
-    const length = Math.min(partSize, totalBytes - start);
-    const part = writePartToCache(source, start, length, `${token}-${index + 1}`);
-
-    try {
-      // La progression est rapportée sur le TOTAL du fichier, pas sur la part : `start` est le
-      // cumul des parts déjà montées, sans quoi la barre repartirait de zéro à chaque part.
-      // Aucun Content-Type : `UploadPartCommand` ne le signe pas (le type de l'objet est fixé à
-      // l'ouverture de l'upload). Seul `Content-Length` l'est, et le chemin natif le pose.
-      await put(part, url, {}, (sent) => onProgress(percentOf(start + sent, totalBytes)));
-    } finally {
-      // Y COMPRIS en cas d'échec : un envoi de 40 parts abandonné en route laisserait sinon
-      // des centaines de Mo dans le cache de l'app.
-      part.delete();
-    }
+  try {
+    await put(cached, part.url, {}, onSentBytes);
+  } finally {
+    // Y COMPRIS en cas d'échec, réessai compris : un envoi de 40 parts abandonné en route
+    // laisserait sinon des centaines de Mo dans le cache de l'app.
+    cached.delete();
   }
 }
 
@@ -108,33 +127,55 @@ function writePartToCache(source: File, start: number, length: number, name: str
   return part;
 }
 
+/**
+ * Un PUT, sous surveillance : sans le moindre octet pendant `MULTIPART_STALL_TIMEOUT_MS`, on COUPE.
+ *
+ * MESURÉ sur appareil : au passage wifi → 5G, la requête ne casse pas, elle GÈLE. Le socket reste
+ * ouvert sur une interface morte, `onProgress` se tait, et la promesse ne se règle jamais. Sans ce
+ * chien de garde, aucun réessai ne peut partir — il attend une erreur qui ne viendra pas, et
+ * l'utilisateur voit un envoi immobile qu'il finira par abandonner à la main.
+ *
+ * Le minuteur est remis à zéro à chaque octet : un envoi lent mais vivant ne le déclenche jamais.
+ * Une coupure de notre fait est un `unreachable` — c'est bien ce qu'elle décrit, et c'est ce qui la
+ * rend réessayable.
+ */
 async function put(
   file: File,
   url: string,
   headers: Record<string, string>,
   onSentBytes: (sentBytes: number) => void,
 ): Promise<void> {
+  const watchdog = new AbortController();
+  let timer = setTimeout(() => watchdog.abort(), MULTIPART_STALL_TIMEOUT_MS);
+  const keepAlive = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => watchdog.abort(), MULTIPART_STALL_TIMEOUT_MS);
+  };
+
   let status: number;
   try {
     const result = await file.upload(url, {
       httpMethod: "PUT",
       uploadType: UploadType.BINARY_CONTENT,
       headers,
-      onProgress: ({ bytesSent }) => onSentBytes(bytesSent),
+      signal: watchdog.signal,
+      onProgress: ({ bytesSent }) => {
+        keepAlive();
+        onSentBytes(bytesSent);
+      },
     });
     status = result.status;
   } catch {
-    throw new StorageUploadError("unreachable");
+    // Le gel et la coupure franche arrivent ici pareillement, et appellent le même geste :
+    // renvoyer la part. Les distinguer n'apporterait rien à l'athlète.
+    throw new StorageUploadError("unreachable", { kind: "unreachable" });
+  } finally {
+    clearTimeout(timer);
   }
 
   if (status < 200 || status >= 300) {
-    throw new StorageUploadError("rejected");
+    throw new StorageUploadError("rejected", { kind: "status", status });
   }
-}
-
-function percentOf(sentBytes: number, totalBytes: number): number {
-  if (totalBytes <= 0) return 100;
-  return Math.min(100, Math.round((sentBytes / totalBytes) * 100));
 }
 
 function noop(): void {

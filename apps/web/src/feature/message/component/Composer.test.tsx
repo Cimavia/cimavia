@@ -22,6 +22,7 @@ const props = () => ({
   sending: false,
   mediaBusy: false,
   progress: 0,
+  retry: null,
   step: null,
 });
 

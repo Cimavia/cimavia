@@ -8,6 +8,8 @@ import type {
 import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MediaType,
+  type MultipartRetry,
+  runMultipartUpload,
   sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
@@ -18,7 +20,13 @@ import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import { myPlanKeys } from "@/feature/plan/api";
 import type { RecordedAudio } from "@/shared/component";
-import { StorageUploadError, uploadFileToStorage, uploadPartsToStorage } from "@/shared/lib/upload";
+import {
+  StorageUploadError,
+  sendStoragePart,
+  storageFileSize,
+  storagePartFailure,
+  uploadFileToStorage,
+} from "@/shared/lib/upload";
 import {
   MediaRejectedError,
   type PreparedMedia,
@@ -54,6 +62,8 @@ export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
   const [step, setStep] = useState<MediaBatchStep | null>(null);
+  // Ce que la barre dit quand elle n'avance plus : sans ça, trois minutes de silence.
+  const [retry, setRetry] = useState<MultipartRetry | null>(null);
 
   /**
    * Le cache est invalidé à CHAQUE média plutôt qu'à la fin : la grille se remplit au fur et à
@@ -62,10 +72,12 @@ export function useAddFeedbackMedia(sessionId: string) {
   const upload = async (asset: ImagePicker.ImagePickerAsset, current: MediaBatchStep) => {
     setStep(current);
     setProgress(0);
+    setRetry(null);
     await uploadAndAttach(
       sessionId,
       await prepareMedia(asset, FEEDBACK_MEDIA_PROFILE),
       setProgress,
+      setRetry,
     );
     invalidate();
   };
@@ -75,9 +87,12 @@ export function useAddFeedbackMedia(sessionId: string) {
   const addAssets = (
     batch: Omit<MediaBatch<ImagePicker.ImagePickerAsset>, "send">,
   ): Promise<MediaRecapLine[]> =>
-    sendMediaBatch({ ...batch, send: upload }).finally(() => setStep(null));
+    sendMediaBatch({ ...batch, send: upload }).finally(() => {
+      setStep(null);
+      setRetry(null);
+    });
 
-  return { addAssets, isUploading: step != null, step, progress };
+  return { addAssets, isUploading: step != null, step, progress, retry };
 }
 
 /**
@@ -87,16 +102,23 @@ export function useAddFeedbackMedia(sessionId: string) {
 export function useAddFeedbackAudio(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
+  const [retry, setRetry] = useState<MultipartRetry | null>(null);
 
   const mutation = useMutation({
     mutationFn: (audio: RecordedAudio) => {
       setProgress(0);
-      return uploadAndAttach(sessionId, prepareAudio(audio, FEEDBACK_MEDIA_PROFILE), setProgress);
+      setRetry(null);
+      return uploadAndAttach(
+        sessionId,
+        prepareAudio(audio, FEEDBACK_MEDIA_PROFILE),
+        setProgress,
+        setRetry,
+      );
     },
     onSuccess: invalidate,
   });
 
-  return { ...mutation, progress };
+  return { ...mutation, progress, retry };
 }
 
 export function useDeleteFeedbackMedia(sessionId: string) {
@@ -114,6 +136,7 @@ async function uploadAndAttach(
   sessionId: string,
   media: PreparedMedia,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ) {
   const input = toUploadUrlInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
@@ -123,7 +146,7 @@ async function uploadAndAttach(
     if (ticket.mode === UploadMode.SINGLE) {
       await uploadFileToStorage(ticket.uploadUrl, media.uri, media.mimeType, onProgress);
     } else {
-      await sendInParts(sessionId, ticket, media, onProgress);
+      await sendInParts(sessionId, ticket, media, onProgress, onRetry);
     }
   } catch (error) {
     throw toFeedbackMediaError(error);
@@ -136,29 +159,27 @@ async function uploadAndAttach(
  * Envoi découpé : les parts, puis la clôture qui les recolle en un objet. Tant qu'elle n'a pas eu
  * lieu, rien n'existe dans le bucket — le rattachement porterait sur un chemin vide.
  *
- * Tout échec ABANDONNE l'upload. Les parts déjà montées d'un upload jamais clos restent facturées
- * SANS apparaître à l'inventaire du bucket : personne ne les retrouverait pour les purger à la
- * main. On paie donc un envoi à refaire depuis le début plutôt qu'une fuite invisible.
+ * La boucle, le réessai et l'abandon vivent dans `runMultipartUpload` (`@cmv/shared`) : ce qui
+ * était écrit quatre fois — débrief et messagerie, web et mobile — l'est désormais une seule.
+ * Il ne reste ici que ce qui appartient au débrief : quelle séance clore, et quel fichier découper.
  */
-async function sendInParts(
+function sendInParts(
   sessionId: string,
   ticket: MultipartUploadTicket,
   media: PreparedMedia,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
-  try {
-    await uploadPartsToStorage(media.uri, ticket.partUrls, ticket.partSize, onProgress);
-    await athleteFeedbackApi.completeMediaUpload(sessionId, {
-      ...upload,
-      partCount: ticket.partUrls.length,
-    });
-  } catch (error) {
-    // L'échec de l'abandon lui-même est avalé : il ne doit pas masquer l'erreur d'origine, la
-    // seule que l'athlète peut comprendre et sur laquelle il peut agir.
-    await athleteFeedbackApi.abortMediaUpload(sessionId, upload).catch(() => undefined);
-    throw error;
-  }
+  return runMultipartUpload(ticket, storageFileSize(media.uri), {
+    sendPart: (part, onSentBytes) => sendStoragePart(media.uri, part, onSentBytes),
+    failureOf: storagePartFailure,
+    complete: (partCount) =>
+      athleteFeedbackApi.completeMediaUpload(sessionId, { ...upload, partCount }),
+    abort: () => athleteFeedbackApi.abortMediaUpload(sessionId, upload),
+    onProgress,
+    onRetry,
+  });
 }
 
 // Le transport est neutre (cf. `shared/lib/upload.ts`) : c'est ici que ses deux échecs prennent

@@ -13,7 +13,8 @@ const {
   deleteMock,
   prepareMock,
   singleUploadMock,
-  partsUploadMock,
+  sendPartMock,
+  partFailureMock,
 } = vi.hoisted(() => ({
   requestUrlMock: vi.fn(),
   attachMock: vi.fn(),
@@ -22,7 +23,8 @@ const {
   deleteMock: vi.fn(),
   prepareMock: vi.fn(),
   singleUploadMock: vi.fn(),
-  partsUploadMock: vi.fn(),
+  sendPartMock: vi.fn(),
+  partFailureMock: vi.fn(),
 }));
 
 vi.mock("@/feature/feedback/api", async (importOriginal) => ({
@@ -49,16 +51,28 @@ vi.mock("@/shared/util/media.util", async (importOriginal) => ({
 
 vi.mock("@/shared/lib/upload", () => ({
   uploadToSignedUrl: singleUploadMock,
-  uploadInParts: partsUploadMock,
+  sendWebPart: sendPartMock,
+  webPartFailure: partFailureMock,
 }));
 
 const SESSION_ID = "ss-1";
 
-const file = (name: string) => new File(["x"], name, { type: "image/jpeg" });
+/**
+ * Le File PÈSE ce que le descripteur déclarera : l'envoi découpé confronte le fichier RÉEL au
+ * ticket, et un stub d'un octet pour mille octets annoncés ne décrit aucune situation réelle.
+ *
+ * La taille est POSÉE et non allouée : un cas de refus déclare des centaines de mégaoctets, qu'on
+ * ne va pas réserver en mémoire pour vérifier qu'ils sont refusés.
+ */
+const file = (name: string, bytes = 1) => {
+  const stub = new File(["x"], name, { type: "image/jpeg" });
+  Object.defineProperty(stub, "size", { value: bytes });
+  return stub;
+};
 
 const prepared = (size: number) => ({
   type: MediaType.IMAGE,
-  file: file("voie.jpg"),
+  file: file("voie.jpg", size),
   fileName: "voie.jpg",
   mimeType: "image/jpeg",
   size,
@@ -70,7 +84,9 @@ const partsTicket = {
   storagePath: "k/1",
   uploadId: "up-1",
   partUrls: ["https://p1", "https://p2"],
-  partSize: 8,
+  // Deux parts pour les 1 000 octets du média préparé : le ticket et le fichier doivent
+  // s'accorder, sinon chaque part se ferait refuser sur son `ContentLength`.
+  partSize: 500,
 };
 
 /** Le lot tel que l'écran le compose : c'est lui qui apporte quotas et libellés, pas le hook. */
@@ -94,7 +110,9 @@ beforeEach(() => {
   requestUrlMock.mockResolvedValue(singleTicket);
   attachMock.mockResolvedValue({ id: "md-1" });
   singleUploadMock.mockResolvedValue(undefined);
-  partsUploadMock.mockResolvedValue(undefined);
+  sendPartMock.mockResolvedValue(undefined);
+  // Par défaut, un échec dont la provenance est inconnue : jamais réessayé.
+  partFailureMock.mockReturnValue(null);
 });
 
 describe("useAddFeedbackMedia", () => {
@@ -194,7 +212,11 @@ describe("useAddFeedbackMedia", () => {
 
     // C'est l'API qui décide de la forme de l'envoi : le client ne fait qu'obéir au ticket.
     expect(singleUploadMock).not.toHaveBeenCalled();
-    expect(partsUploadMock).toHaveBeenCalledOnce();
+    // Une requête par part, dans l'ordre, chacune sur sa plage du fichier.
+    expect(sendPartMock.mock.calls.map(([, part]) => part)).toEqual([
+      { partNumber: 1, url: "https://p1", start: 0, length: 500 },
+      { partNumber: 2, url: "https://p2", start: 500, length: 500 },
+    ]);
     expect(completeMock).toHaveBeenCalledWith(SESSION_ID, {
       storagePath: "k/1",
       uploadId: "up-1",
@@ -203,13 +225,42 @@ describe("useAddFeedbackMedia", () => {
   });
 
   /**
-   * Les parts d'un upload jamais clos restent FACTURÉES sans apparaître à l'inventaire du bucket :
-   * personne ne les retrouverait pour les purger. On paie un envoi à refaire plutôt qu'une fuite
-   * invisible.
+   * Le gain de #152, vu du hook : la part 2 tombe sur une coupure, l'upload reste OUVERT, et la
+   * part 1 déjà montée n'est pas jetée. C'est exactement ce qui, avant, faisait recommencer
+   * 380 Mo à cause d'un accroc sur la 38ᵉ part.
    */
-  it("abandonne l'upload découpé quand une part échoue", async () => {
+  it("réessaie une part coupée sans refaire l'envoi depuis le début", async () => {
     requestUrlMock.mockResolvedValue(partsTicket);
-    partsUploadMock.mockRejectedValue(new Error("réseau"));
+    partFailureMock.mockReturnValue({ kind: "unreachable" });
+    let attempts = 0;
+    sendPartMock.mockImplementation((_file: File, part: { partNumber: number }) => {
+      if (part.partNumber !== 2) return Promise.resolve();
+      attempts += 1;
+      return attempts === 1 ? Promise.reject(new Error("coupure")) : Promise.resolve();
+    });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useAddFeedbackMedia(SESSION_ID), { wrapper });
+
+    await act(() => result.current.addFiles(batch([file("longue.mp4")])));
+
+    // La part 1 n'est PAS renvoyée : seule celle qui est tombée repart.
+    expect(sendPartMock.mock.calls.map(([, part]) => part.partNumber)).toEqual([1, 2, 2]);
+    expect(completeMock).toHaveBeenCalledWith(SESSION_ID, {
+      storagePath: "k/1",
+      uploadId: "up-1",
+      partCount: 2,
+    });
+    expect(abortMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Les parts d'un upload jamais clos restent FACTURÉES sans apparaître à l'inventaire du bucket.
+   * On n'abandonne donc que quand il n'y a plus rien à tenter — ici, un refus que le réessai ne
+   * corrigerait pas.
+   */
+  it("abandonne l'upload découpé quand une part échoue définitivement", async () => {
+    requestUrlMock.mockResolvedValue(partsTicket);
+    sendPartMock.mockRejectedValue(new Error("réseau"));
     abortMock.mockResolvedValue(undefined);
     const { wrapper } = renderWithQueryClient();
     const { result } = renderHook(() => useAddFeedbackMedia(SESSION_ID), { wrapper });

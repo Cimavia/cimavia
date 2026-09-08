@@ -1,4 +1,4 @@
-import type { MediaBatchStep } from "@cmv/shared";
+import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, View } from "react-native";
 import { CmvAudioRecorder, CmvButton, CmvText, type RecordedAudio } from "@/shared/component";
@@ -13,6 +13,8 @@ type MediaPickerProps = {
   isUploading: boolean;
   /** Avancement de l'envoi en cours, 0-100. */
   progress: number;
+  /** Le réessai en cours, `null` tant que l'envoi avance normalement. */
+  retry: MultipartRetry | null;
   /** Le média en cours dans un lot, `null` hors envoi. */
   step: MediaBatchStep | null;
 };
@@ -35,6 +37,7 @@ export function MediaPicker({
   onRecorderError,
   isUploading,
   progress,
+  retry,
   step,
 }: Readonly<MediaPickerProps>) {
   const { t } = useTranslation();
@@ -86,8 +89,15 @@ export function MediaPicker({
           ) : null}
           <View className="flex-row items-center gap-2">
             <ActivityIndicator />
+            {/* Un réessai PREND la place du pourcentage : c'est lui qui explique pourquoi la
+                barre n'avance plus. */}
             <CmvText className="text-cmv-text-mid text-xs">
-              {t("feedback.media.uploading", { percent: progress })}
+              {retry == null
+                ? t("feedback.media.uploading", { percent: progress })
+                : t("feedback.media.retrying", {
+                    attempt: retry.attempt,
+                    max: retry.maxAttempts,
+                  })}
             </CmvText>
           </View>
         </View>

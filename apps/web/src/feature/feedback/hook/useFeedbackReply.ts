@@ -27,6 +27,7 @@ export function useFeedbackReply(input: FeedbackReplyInput) {
     sendAudio: media.sendAudio,
     mediaBusy: media.isUploading,
     progress: media.progress,
+    retry: media.retry,
     step: media.step,
   };
 }

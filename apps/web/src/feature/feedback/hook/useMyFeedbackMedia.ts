@@ -4,6 +4,7 @@ import type {
   MediaBatchStep,
   MediaRecapLine,
   MediaTypeType,
+  MultipartRetry,
   MultipartUploadTicket,
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
@@ -13,6 +14,7 @@ import {
   megabytesOf,
   myFeedbackKeys,
   myPlanKeys,
+  runMultipartUpload,
   sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
@@ -21,7 +23,7 @@ import { useState } from "react";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
-import { uploadInParts, uploadToSignedUrl } from "@/shared/lib/upload";
+import { sendWebPart, uploadToSignedUrl, webPartFailure } from "@/shared/lib/upload";
 import {
   MediaRejectedError,
   type PreparedWebMedia,
@@ -57,14 +59,18 @@ export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
   const [step, setStep] = useState<MediaBatchStep | null>(null);
+  // Ce que la barre dit quand elle n'avance plus : sans ça, trois minutes de silence.
+  const [retry, setRetry] = useState<MultipartRetry | null>(null);
 
   const audio = useMutation({
     mutationFn: (recorded: RecordedWebAudio) => {
       setProgress(0);
+      setRetry(null);
       return prepareAndUpload(
         sessionId,
         { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
         setProgress,
+        setRetry,
       );
     },
     onSuccess: invalidate,
@@ -78,14 +84,18 @@ export function useAddFeedbackMedia(sessionId: string) {
   const upload = async (file: File, current: MediaBatchStep) => {
     setStep(current);
     setProgress(0);
-    await prepareAndUpload(sessionId, { kind: "file", file }, setProgress);
+    setRetry(null);
+    await prepareAndUpload(sessionId, { kind: "file", file }, setProgress, setRetry);
     invalidate();
   };
 
   // L'appelant décide de la POLITIQUE du lot (places restantes, plafond, libellés des refus) ;
   // le hook n'impose que l'envoi.
   const addFiles = (batch: Omit<MediaBatch<File>, "send">): Promise<MediaRecapLine[]> =>
-    sendMediaBatch({ ...batch, send: upload }).finally(() => setStep(null));
+    sendMediaBatch({ ...batch, send: upload }).finally(() => {
+      setStep(null);
+      setRetry(null);
+    });
 
   return {
     addFiles,
@@ -95,6 +105,7 @@ export function useAddFeedbackMedia(sessionId: string) {
     isUploading: step != null || audio.isPending,
     step,
     progress,
+    retry,
   };
 }
 
@@ -107,6 +118,7 @@ async function prepareAndUpload(
   sessionId: string,
   source: WebMediaSource,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const media = await prepareWebMedia(source, FEEDBACK_MEDIA_PROFILE);
   if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
@@ -114,7 +126,7 @@ async function prepareAndUpload(
       max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)),
     });
   }
-  await uploadAndAttach(sessionId, media, onProgress);
+  await uploadAndAttach(sessionId, media, onProgress, onRetry);
 }
 
 export function useDeleteFeedbackMedia(sessionId: string) {
@@ -137,6 +149,7 @@ async function uploadAndAttach(
   sessionId: string,
   media: PreparedWebMedia,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const descriptor = {
     type: media.type,
@@ -154,7 +167,7 @@ async function uploadAndAttach(
   if (ticket.mode === UploadMode.SINGLE) {
     await uploadToSignedUrl(ticket.uploadUrl, media.file, onProgress);
   } else {
-    await sendInParts(sessionId, ticket, media.file, onProgress);
+    await sendInParts(sessionId, ticket, media.file, onProgress, onRetry);
   }
 
   await athleteFeedbackApi.attachMedia(sessionId, {
@@ -167,28 +180,29 @@ async function uploadAndAttach(
  * Envoi découpé : les parts, puis la clôture qui les recolle en un objet. Tant qu'elle n'a pas eu
  * lieu, rien n'existe dans le bucket — le rattachement porterait sur un chemin vide.
  *
- * Tout échec ABANDONNE l'upload. Les parts déjà montées d'un upload jamais clos restent facturées
- * SANS apparaître à l'inventaire du bucket : personne ne les retrouverait pour les purger à la
- * main. On paie donc un envoi à refaire depuis le début plutôt qu'une fuite invisible — le jour où
- * une reprise sera offerte, c'est ici qu'elle se branchera.
+ * La boucle, le réessai et l'abandon vivent dans `runMultipartUpload` (`@cmv/shared`) : ce qui
+ * était écrit quatre fois — débrief et messagerie, web et mobile — l'est désormais une seule.
+ * Il ne reste ici que ce qui appartient au débrief : quelle séance clore, et quel fichier découper.
+ *
+ * `file.size` et non la taille DÉCLARÉE : c'est le fichier réel qu'on découpe, et le confronter au
+ * ticket signale un écart avant d'avoir poussé le moindre octet, là où le storage ne le dirait
+ * qu'en refusant chaque part sur son `ContentLength`.
  */
-async function sendInParts(
+function sendInParts(
   sessionId: string,
   ticket: MultipartUploadTicket,
   file: File,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
-  try {
-    await uploadInParts(file, ticket.partUrls, ticket.partSize, onProgress);
-    await athleteFeedbackApi.completeMediaUpload(sessionId, {
-      ...upload,
-      partCount: ticket.partUrls.length,
-    });
-  } catch (error) {
-    // L'échec de l'abandon lui-même est avalé : il ne doit pas masquer l'erreur d'origine, la
-    // seule que l'athlète peut comprendre et sur laquelle il peut agir.
-    await athleteFeedbackApi.abortMediaUpload(sessionId, upload).catch(() => undefined);
-    throw error;
-  }
+  return runMultipartUpload(ticket, file.size, {
+    sendPart: (part, onSentBytes) => sendWebPart(file, part, onSentBytes),
+    failureOf: webPartFailure,
+    complete: (partCount) =>
+      athleteFeedbackApi.completeMediaUpload(sessionId, { ...upload, partCount }),
+    abort: () => athleteFeedbackApi.abortMediaUpload(sessionId, upload),
+    onProgress,
+    onRetry,
+  });
 }

@@ -130,6 +130,12 @@ EAS renvoie un lien de téléchargement de l'APK à installer sur le téléphone
 le tunnel Cloudflare, l'app fonctionne **hors du réseau maison** — plus besoin d'IP LAN ni de
 port-proxy WSL2 (cf. README racine §WSL2, qui ne concerne plus que le dev local avec Metro).
 
+> **Corollaire — tester un CHANGEMENT de réseau exige ce tier, pas le dev local.** En local,
+> `EXPO_PUBLIC_API_URL` et `S3_ENDPOINT` pointent une IP LAN (`192.168.x.x`) : couper le wifi met
+> le téléphone en 5G, donc hors du LAN, où plus rien n'est joignable. Un envoi qui « ne reprend pas
+> en 5G » n'y prouve donc rien — il n'y a simplement plus de serveur à atteindre. Le basculement
+> wifi ↔ cellulaire ne se teste qu'avec `api-dev` et `s3-dev` publics, c'est-à-dire ici.
+
 ## Déploiement manuel (dépannage)
 
 Le déploiement est automatique (ci-dessus). En dépannage, depuis le NAS :

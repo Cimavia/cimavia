@@ -9,7 +9,13 @@ import type {
   RequestMessageUploadUrlInput,
   SendMessageInput,
 } from "@cmv/shared";
-import { MAX_MESSAGE_MEDIA_BATCH, MediaType, sendMediaBatch, UploadMode } from "@cmv/shared";
+import {
+  MAX_MESSAGE_MEDIA_BATCH,
+  MediaType,
+  runMultipartUpload,
+  sendMediaBatch,
+  UploadMode,
+} from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
@@ -17,7 +23,13 @@ import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import type { RecordedAudio } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
-import { StorageUploadError, uploadFileToStorage, uploadPartsToStorage } from "@/shared/lib/upload";
+import {
+  StorageUploadError,
+  sendStoragePart,
+  storageFileSize,
+  storagePartFailure,
+  uploadFileToStorage,
+} from "@/shared/lib/upload";
 import {
   MediaRejectedError,
   type PreparedMedia,
@@ -174,30 +186,31 @@ async function uploadAndSend(
 }
 
 /**
- * Envoi découpé : les parts, puis la clôture qui les recolle. Tout échec ABANDONNE l'upload — les
- * parts d'un upload jamais clos restent facturées SANS apparaître à l'inventaire du bucket, donc
- * personne ne les retrouverait pour les purger.
+ * Envoi découpé : les parts, puis la clôture qui les recolle. Tant qu'elle n'a pas eu lieu, rien
+ * n'existe dans le bucket — le message porterait un chemin vide.
+ *
+ * La boucle, le réessai et l'abandon vivent dans `runMultipartUpload` (`@cmv/shared`) : ce qui
+ * était écrit quatre fois — débrief et messagerie, web et mobile — l'est désormais une seule.
+ *
+ * `onProgress` est `null` et pas un rappel vide : le fil mobile n'affiche AUCUN indicateur chiffré,
+ * seulement une désactivation. C'est la dette U-3, et l'écrire ici la rend visible.
  */
-async function sendInParts(
+function sendInParts(
   conversationId: string,
   ticket: MultipartUploadTicket,
   media: PreparedMedia,
   as: CapabilityName | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
-  try {
-    await uploadPartsToStorage(media.uri, ticket.partUrls, ticket.partSize);
-    await messageApi.completeMediaUpload(
-      conversationId,
-      { ...upload, partCount: ticket.partUrls.length },
-      as,
-    );
-  } catch (error) {
-    // L'échec de l'abandon est avalé : il ne doit pas masquer l'erreur d'origine, la seule sur
-    // laquelle l'utilisateur peut agir.
-    await messageApi.abortMediaUpload(conversationId, upload, as).catch(() => undefined);
-    throw error;
-  }
+  return runMultipartUpload(ticket, storageFileSize(media.uri), {
+    sendPart: (part, onSentBytes) => sendStoragePart(media.uri, part, onSentBytes),
+    failureOf: storagePartFailure,
+    complete: (partCount) =>
+      messageApi.completeMediaUpload(conversationId, { ...upload, partCount }, as),
+    abort: () => messageApi.abortMediaUpload(conversationId, upload, as),
+    onProgress: null,
+    onRetry: null,
+  });
 }
 
 /**

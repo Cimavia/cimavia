@@ -269,6 +269,7 @@
       "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
       "remove": "Retirer",
       "uploading": "Envoi en cours… {{percent}} %",
+      "retrying": "Connexion interrompue — nouvelle tentative {{attempt}}/{{max}}…",
       "batchProgress": "Envoi {{index}} / {{total}} — {{fileName}}",
       "recapTitle": "Ces fichiers n'ont pas été joints :",
       "noSlotImage": "Plus de place pour une photo dans ce débrief.",
