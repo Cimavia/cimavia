@@ -11,7 +11,8 @@ const {
   abortMock,
   prepareMock,
   singleUploadMock,
-  partsUploadMock,
+  sendPartMock,
+  partFailureMock,
   toastErrorMock,
 } = vi.hoisted(() => ({
   requestUrlMock: vi.fn(),
@@ -20,7 +21,8 @@ const {
   abortMock: vi.fn(),
   prepareMock: vi.fn(),
   singleUploadMock: vi.fn(),
-  partsUploadMock: vi.fn(),
+  sendPartMock: vi.fn(),
+  partFailureMock: vi.fn(),
   toastErrorMock: vi.fn(),
 }));
 
@@ -43,7 +45,8 @@ vi.mock("@/shared/util/media.util", async (importOriginal) => ({
 
 vi.mock("@/shared/lib/upload", () => ({
   uploadToSignedUrl: singleUploadMock,
-  uploadInParts: partsUploadMock,
+  sendWebPart: sendPartMock,
+  webPartFailure: partFailureMock,
 }));
 
 vi.mock("@/shared/component", () => ({ useToast: () => ({ error: toastErrorMock }) }));
@@ -52,11 +55,19 @@ vi.mock("@/shared/hook/useCapabilities", () => ({ useExercisedCapability: () => 
 
 const CONVERSATION_ID = "cv-1";
 
-const file = (name: string, type = "image/jpeg") => new File(["x"], name, { type });
+/**
+ * Le File PÈSE ce que le descripteur déclare : l'envoi découpé confronte le fichier RÉEL au ticket
+ * avant de pousser le moindre octet. La taille est posée et non allouée.
+ */
+const file = (name: string, type = "image/jpeg", bytes = 1) => {
+  const stub = new File(["x"], name, { type });
+  Object.defineProperty(stub, "size", { value: bytes });
+  return stub;
+};
 
 const prepared = {
   type: MediaType.IMAGE,
-  file: file("photo.jpg"),
+  file: file("photo.jpg", "image/jpeg", 1_000),
   fileName: "photo.jpg",
   mimeType: "image/jpeg",
   size: 1_000,
@@ -72,7 +83,21 @@ beforeEach(() => {
   });
   sendMessageMock.mockResolvedValue({ id: "msg-1" });
   singleUploadMock.mockResolvedValue(undefined);
+  sendPartMock.mockResolvedValue(undefined);
+  // Par défaut, un échec dont la provenance est inconnue : jamais réessayé.
+  partFailureMock.mockReturnValue(null);
+  completeMock.mockResolvedValue(undefined);
+  abortMock.mockResolvedValue(undefined);
 });
+
+// Deux parts pour les 1 000 octets du média préparé : le ticket et le fichier doivent s'accorder.
+const partsTicket = {
+  mode: UploadMode.MULTIPART,
+  storagePath: "k/1",
+  uploadId: "up-1",
+  partUrls: ["https://p1", "https://p2"],
+  partSize: 500,
+};
 
 const setup = () => {
   const { wrapper, queryClient } = renderWithQueryClient();
@@ -90,6 +115,49 @@ describe("useSendMessageMedia", () => {
     // Chaque média EST un message : trois fichiers font trois messages, pas un message à trois
     // pièces jointes.
     expect(singleUploadMock).toHaveBeenCalledTimes(3);
+  });
+
+  /**
+   * Le chemin découpé n'était couvert nulle part côté messagerie : seul le débrief l'était, alors
+   * que les deux surfaces portaient le même code.
+   */
+  it("découpe l'envoi quand l'API le demande, puis clôt l'upload", async () => {
+    requestUrlMock.mockResolvedValue(partsTicket);
+    const { result } = setup();
+
+    act(() => result.current.sendFiles([file("longue.mp4", "video/mp4", 1_000)]));
+
+    await waitFor(() => expect(sendMessageMock).toHaveBeenCalledTimes(1));
+    expect(singleUploadMock).not.toHaveBeenCalled();
+    expect(sendPartMock.mock.calls.map(([, part]) => part)).toEqual([
+      { partNumber: 1, url: "https://p1", start: 0, length: 500 },
+      { partNumber: 2, url: "https://p2", start: 500, length: 500 },
+    ]);
+    expect(completeMock).toHaveBeenCalledWith(
+      CONVERSATION_ID,
+      { storagePath: "k/1", uploadId: "up-1", partCount: 2 },
+      null,
+    );
+    expect(abortMock).not.toHaveBeenCalled();
+  });
+
+  // Le titre exercé traverse jusqu'à l'abandon : un envoi est une écriture dans un fil, et
+  // renoncer en est une aussi.
+  it("abandonne l'upload découpé quand une part échoue définitivement", async () => {
+    requestUrlMock.mockResolvedValue(partsTicket);
+    sendPartMock.mockRejectedValue(new Error("réseau"));
+    const { result } = setup();
+
+    act(() => result.current.sendFiles([file("longue.mp4", "video/mp4", 1_000)]));
+
+    await waitFor(() => expect(abortMock).toHaveBeenCalledTimes(1));
+    expect(abortMock).toHaveBeenCalledWith(
+      CONVERSATION_ID,
+      { storagePath: "k/1", uploadId: "up-1" },
+      null,
+    );
+    expect(completeMock).not.toHaveBeenCalled();
+    expect(sendMessageMock).not.toHaveBeenCalled();
   });
 
   /**

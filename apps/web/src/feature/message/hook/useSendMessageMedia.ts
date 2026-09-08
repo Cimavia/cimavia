@@ -13,6 +13,7 @@ import {
   MediaType,
   MessageType,
   mediaRecapText,
+  runMultipartUpload,
   sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
@@ -25,7 +26,7 @@ import { useToast } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
-import { uploadInParts, uploadToSignedUrl } from "@/shared/lib/upload";
+import { sendWebPart, uploadToSignedUrl, webPartFailure } from "@/shared/lib/upload";
 import {
   attachableMediaKind,
   MediaRejectedError,
@@ -188,12 +189,17 @@ async function uploadAndSend(
 }
 
 /**
- * Envoi découpé : les parts, puis la clôture qui les recolle. Tout échec ABANDONNE l'upload — les
- * parts d'un upload jamais clos restent facturées SANS apparaître à l'inventaire du bucket, donc
- * personne ne les retrouverait pour les purger. Jumeau de `sendInParts` du débrief ; à promouvoir
- * en util partagé si un 3ᵉ appelant apparaît (cf. #96).
+ * Envoi découpé : les parts, puis la clôture qui les recolle. Tant qu'elle n'a pas eu lieu, rien
+ * n'existe dans le bucket — le message porterait un chemin vide.
+ *
+ * La boucle, le réessai et l'abandon vivent dans `runMultipartUpload` (`@cmv/shared`) : ce qui
+ * était écrit quatre fois — débrief et messagerie, web et mobile — l'est désormais une seule.
+ * Il ne reste ici que ce qui appartient au fil : quelle conversation clore, sous quel titre.
+ *
+ * `file.size` et non la taille DÉCLARÉE : c'est le fichier réel qu'on découpe, et le confronter au
+ * ticket signale un écart avant d'avoir poussé le moindre octet.
  */
-async function sendInParts(
+function sendInParts(
   conversationId: string,
   ticket: MultipartUploadTicket,
   file: File,
@@ -201,19 +207,14 @@ async function sendInParts(
   as: CapabilityName | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
-  try {
-    await uploadInParts(file, ticket.partUrls, ticket.partSize, onProgress);
-    await messageApi.completeMediaUpload(
-      conversationId,
-      { ...upload, partCount: ticket.partUrls.length },
-      as,
-    );
-  } catch (error) {
-    // L'échec de l'abandon est avalé : il ne doit pas masquer l'erreur d'origine, la seule sur
-    // laquelle l'utilisateur peut agir.
-    await messageApi.abortMediaUpload(conversationId, upload, as).catch(() => undefined);
-    throw error;
-  }
+  return runMultipartUpload(ticket, file.size, {
+    sendPart: (part, onSentBytes) => sendWebPart(file, part, onSentBytes),
+    failureOf: webPartFailure,
+    complete: (partCount) =>
+      messageApi.completeMediaUpload(conversationId, { ...upload, partCount }, as),
+    abort: () => messageApi.abortMediaUpload(conversationId, upload, as),
+    onProgress,
+  });
 }
 
 // Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive de taille.

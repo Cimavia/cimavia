@@ -13,6 +13,7 @@ import {
   megabytesOf,
   myFeedbackKeys,
   myPlanKeys,
+  runMultipartUpload,
   sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
@@ -21,7 +22,7 @@ import { useState } from "react";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
-import { uploadInParts, uploadToSignedUrl } from "@/shared/lib/upload";
+import { sendWebPart, uploadToSignedUrl, webPartFailure } from "@/shared/lib/upload";
 import {
   MediaRejectedError,
   type PreparedWebMedia,
@@ -167,28 +168,27 @@ async function uploadAndAttach(
  * Envoi découpé : les parts, puis la clôture qui les recolle en un objet. Tant qu'elle n'a pas eu
  * lieu, rien n'existe dans le bucket — le rattachement porterait sur un chemin vide.
  *
- * Tout échec ABANDONNE l'upload. Les parts déjà montées d'un upload jamais clos restent facturées
- * SANS apparaître à l'inventaire du bucket : personne ne les retrouverait pour les purger à la
- * main. On paie donc un envoi à refaire depuis le début plutôt qu'une fuite invisible — le jour où
- * une reprise sera offerte, c'est ici qu'elle se branchera.
+ * La boucle, le réessai et l'abandon vivent dans `runMultipartUpload` (`@cmv/shared`) : ce qui
+ * était écrit quatre fois — débrief et messagerie, web et mobile — l'est désormais une seule.
+ * Il ne reste ici que ce qui appartient au débrief : quelle séance clore, et quel fichier découper.
+ *
+ * `file.size` et non la taille DÉCLARÉE : c'est le fichier réel qu'on découpe, et le confronter au
+ * ticket signale un écart avant d'avoir poussé le moindre octet, là où le storage ne le dirait
+ * qu'en refusant chaque part sur son `ContentLength`.
  */
-async function sendInParts(
+function sendInParts(
   sessionId: string,
   ticket: MultipartUploadTicket,
   file: File,
   onProgress: (percent: number) => void,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
-  try {
-    await uploadInParts(file, ticket.partUrls, ticket.partSize, onProgress);
-    await athleteFeedbackApi.completeMediaUpload(sessionId, {
-      ...upload,
-      partCount: ticket.partUrls.length,
-    });
-  } catch (error) {
-    // L'échec de l'abandon lui-même est avalé : il ne doit pas masquer l'erreur d'origine, la
-    // seule que l'athlète peut comprendre et sur laquelle il peut agir.
-    await athleteFeedbackApi.abortMediaUpload(sessionId, upload).catch(() => undefined);
-    throw error;
-  }
+  return runMultipartUpload(ticket, file.size, {
+    sendPart: (part, onSentBytes) => sendWebPart(file, part, onSentBytes),
+    failureOf: webPartFailure,
+    complete: (partCount) =>
+      athleteFeedbackApi.completeMediaUpload(sessionId, { ...upload, partCount }),
+    abort: () => athleteFeedbackApi.abortMediaUpload(sessionId, upload),
+    onProgress,
+  });
 }

@@ -1,10 +1,36 @@
+import type { MultipartPart, PartFailure } from "@cmv/shared";
+import { uploadPercentOf } from "@cmv/shared";
+
 /**
  * Envoi d'un binaire vers l'object storage, via la ou les URL(s) PUT signée(s) délivrées par
  * l'API — le binaire ne transite jamais par l'API (cf. architecture-choice §7 Médias).
  *
  * XMLHttpRequest et non fetch : seul XHR expose la progression d'upload (`upload.onprogress`),
  * nécessaire à la barre de progression. Pas de cookie envoyé (autre origine que l'API).
+ *
+ * Ce module ne connaît QU'UNE requête à la fois. L'ordre des parts, le réessai de celle qui tombe
+ * et la clôture vivent dans `runMultipartUpload` (`@cmv/shared`), partagés avec le mobile.
  */
+
+/**
+ * Un échec qui porte ce que le storage a répondu, et pas seulement une phrase.
+ *
+ * Le statut était jusqu'ici perdu dans le texte du message — lisible par un humain, illisible par
+ * la politique de réessai, qui doit distinguer un 503 passager d'un 403 de signature.
+ */
+export class StoragePutError extends Error {
+  constructor(
+    readonly failure: PartFailure,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** Ce que le storage a répondu, ou `null` si l'échec ne vient pas de lui. */
+export function webPartFailure(error: unknown): PartFailure | null {
+  return error instanceof StoragePutError ? error.failure : null;
+}
 
 /**
  * Un PUT signé. La progression est rapportée en OCTETS et non en pourcentage : un envoi découpé
@@ -37,9 +63,17 @@ function putSigned(
         resolve();
         return;
       }
-      reject(new Error(`Échec de l'envoi (${xhr.status})`));
+      reject(
+        new StoragePutError(
+          { kind: "status", status: xhr.status },
+          `Échec de l'envoi (${xhr.status})`,
+        ),
+      );
     };
-    xhr.onerror = () => reject(new Error("Échec de l'envoi (réseau)"));
+    xhr.onerror = () =>
+      reject(new StoragePutError({ kind: "unreachable" }, "Échec de l'envoi (réseau)"));
+    // Une annulation n'est PAS un accroc : c'est une décision, et la réessayer irait contre elle.
+    // Elle sort donc sans `PartFailure`, ce qui la rend non réessayable par construction.
     xhr.onabort = () => reject(new Error("Envoi annulé"));
 
     xhr.send(body);
@@ -53,41 +87,23 @@ export function uploadToSignedUrl(
   onProgress: (percent: number) => void,
 ): Promise<void> {
   // Doit correspondre au Content-Type signé par l'API, sinon la signature est rejetée.
-  return putSigned(uploadUrl, file, file.type, (sent) => onProgress(percentOf(sent, file.size)));
+  return putSigned(uploadUrl, file, file.type, (sent) =>
+    onProgress(uploadPercentOf(sent, file.size)),
+  );
 }
 
 /**
- * Envoi DÉCOUPÉ : une requête par part, séquentiellement.
- *
- * Séquentiel et non parallèle : la progression reste monotone et lisible, et l'on ne sature pas
- * le lien montant d'un athlète souvent en 4G. Le gain d'un envoi parallèle viendrait au prix d'une
- * barre qui avance par à-coups — à reconsidérer si la lenteur devient le reproche.
+ * UNE part d'un envoi découpé. La boucle qui l'appelle vit dans `@cmv/shared` ; ici, seul le
+ * découpage du `File` et le PUT.
  *
  * Les parts ne portent PAS de Content-Type : `UploadPartCommand` ne le signe pas (le type de
- * l'objet est fixé à l'ouverture de l'upload), et `slice()` sans argument rend un Blob de type
- * vide — le navigateur n'en pose donc aucun.
+ * l'objet est fixé à l'ouverture de l'upload), et `slice()` rend un Blob de type vide — le
+ * navigateur n'en pose donc aucun.
  */
-export async function uploadInParts(
+export function sendWebPart(
   file: File,
-  partUrls: readonly string[],
-  partSize: number,
-  onProgress: (percent: number) => void,
+  part: MultipartPart,
+  onSentBytes: (sentBytes: number) => void,
 ): Promise<void> {
-  let sentBytes = 0;
-
-  for (const [index, url] of partUrls.entries()) {
-    const start = index * partSize;
-    const part = file.slice(start, Math.min(start + partSize, file.size));
-    // Figé avant l'envoi : `sentBytes` bouge à chaque part, la fermeture doit voir le cumul des
-    // parts DÉJÀ terminées, pas sa valeur au moment où la progression est rapportée.
-    const sentBefore = sentBytes;
-
-    await putSigned(url, part, null, (sent) => onProgress(percentOf(sentBefore + sent, file.size)));
-    sentBytes += part.size;
-  }
-}
-
-function percentOf(sentBytes: number, totalBytes: number): number {
-  if (totalBytes <= 0) return 100;
-  return Math.min(100, Math.round((sentBytes / totalBytes) * 100));
+  return putSigned(part.url, file.slice(part.start, part.start + part.length), null, onSentBytes);
 }
