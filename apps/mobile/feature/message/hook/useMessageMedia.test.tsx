@@ -14,7 +14,9 @@ const {
   prepareMediaMock,
   prepareAudioMock,
   uploadFileMock,
-  uploadPartsMock,
+  sendPartMock,
+  partFailureMock,
+  fileSizeMock,
   permissionMock,
   launchLibraryMock,
 } = vi.hoisted(() => ({
@@ -25,7 +27,9 @@ const {
   prepareMediaMock: vi.fn(),
   prepareAudioMock: vi.fn(),
   uploadFileMock: vi.fn(),
-  uploadPartsMock: vi.fn(),
+  sendPartMock: vi.fn(),
+  partFailureMock: vi.fn(),
+  fileSizeMock: vi.fn(),
   permissionMock: vi.fn(),
   launchLibraryMock: vi.fn(),
 }));
@@ -65,7 +69,9 @@ vi.mock("@/shared/lib/upload", () => ({
     }
   },
   uploadFileToStorage: uploadFileMock,
-  uploadPartsToStorage: uploadPartsMock,
+  sendStoragePart: sendPartMock,
+  storagePartFailure: partFailureMock,
+  storageFileSize: fileSizeMock,
 }));
 
 vi.mock("@/shared/hook/useExercisedCapability", () => ({ useExercisedCapability: () => null }));
@@ -111,9 +117,68 @@ beforeEach(() => {
   sendMessageMock.mockResolvedValue({ id: "msg-1" });
   uploadFileMock.mockResolvedValue(undefined);
   permissionMock.mockResolvedValue({ granted: true });
+  sendPartMock.mockResolvedValue(undefined);
+  // Par défaut, un échec dont la provenance est inconnue : jamais réessayé.
+  partFailureMock.mockReturnValue(null);
+  // Le fichier sur le disque pèse ce que le ticket suppose : sinon la boucle refuse de partir.
+  fileSizeMock.mockReturnValue(1_000);
+  completeMock.mockResolvedValue(undefined);
+  abortMock.mockResolvedValue(undefined);
 });
 
+// Deux parts pour les 1 000 octets du média préparé : le ticket et le fichier doivent s'accorder.
+const partsTicket = {
+  mode: UploadMode.MULTIPART,
+  storagePath: "k/1",
+  uploadId: "up-1",
+  partUrls: ["https://p1", "https://p2"],
+  partSize: 500,
+};
+
 describe("useSendMessageMedia", () => {
+  /**
+   * Le chemin découpé n'était couvert nulle part côté messagerie : seul le débrief l'était, alors
+   * que les deux surfaces portaient le même code.
+   */
+  it("découpe l'envoi quand l'API le demande, puis clôt l'upload", async () => {
+    requestUrlMock.mockResolvedValue(partsTicket);
+    launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("longue.mp4")] });
+    const { result } = setup();
+
+    await act(() => result.current.pickAndSend(onPickError));
+
+    expect(uploadFileMock).not.toHaveBeenCalled();
+    expect(sendPartMock.mock.calls.map(([, part]) => part)).toEqual([
+      { partNumber: 1, url: "https://p1", start: 0, length: 500 },
+      { partNumber: 2, url: "https://p2", start: 500, length: 500 },
+    ]);
+    expect(completeMock).toHaveBeenCalledWith(
+      CONVERSATION_ID,
+      { storagePath: "k/1", uploadId: "up-1", partCount: 2 },
+      null,
+    );
+    expect(abortMock).not.toHaveBeenCalled();
+  });
+
+  // Le titre exercé traverse jusqu'à l'abandon : un envoi est une écriture dans un fil, et
+  // renoncer en est une aussi.
+  it("abandonne l'upload découpé quand une part échoue définitivement", async () => {
+    requestUrlMock.mockResolvedValue(partsTicket);
+    sendPartMock.mockRejectedValue(new Error("réseau"));
+    launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("longue.mp4")] });
+    const { result } = setup();
+
+    await act(() => result.current.pickAndSend(onPickError));
+
+    expect(abortMock).toHaveBeenCalledWith(
+      CONVERSATION_ID,
+      { storagePath: "k/1", uploadId: "up-1" },
+      null,
+    );
+    expect(completeMock).not.toHaveBeenCalled();
+    expect(sendMessageMock).not.toHaveBeenCalled();
+  });
+
   it("envoie un message par média, dans l'ordre de la sélection", async () => {
     launchLibraryMock.mockResolvedValue({
       canceled: false,
