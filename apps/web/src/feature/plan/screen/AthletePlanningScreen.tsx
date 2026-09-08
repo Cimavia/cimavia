@@ -1,4 +1,5 @@
 import type {
+  AthleteCalendarBounds,
   AthleteCalendarCycle,
   AthleteCalendarWeek,
   ScheduledSessionSummaryDto,
@@ -6,9 +7,9 @@ import type {
 import {
   athleteCalendarBounds,
   athleteCalendarWeek,
+  athleteWeekNeighbours,
   defaultAthleteMonday,
   PlanWeekType,
-  shiftIsoDate,
   todayIsoDate,
   weekSessionProgress,
 } from "@cmv/shared";
@@ -164,7 +165,7 @@ function CycleList({ cycles }: Readonly<{ cycles: readonly AthleteCalendarCycle[
 
 type WeekHeaderProps = {
   week: AthleteCalendarWeek<ScheduledSessionSummaryDto>;
-  bounds: { firstMonday: string; lastMonday: string } | null;
+  bounds: AthleteCalendarBounds | null;
   isDefault: boolean;
   onGoToMonday: (monday: string | undefined) => void;
 };
@@ -172,6 +173,10 @@ type WeekHeaderProps = {
 /**
  * La navigation d'une semaine à l'autre, bornée par la plage réelle des cycles servis : sans
  * bornes, l'athlète parcourt indéfiniment des semaines vides qui ne lui apprennent rien.
+ *
+ * Où s'arrête la plage est une DÉCISION, pas un détail de rendu : elle vit dans `@cmv/shared`
+ * (#236), où le mobile lit la même — deux clients qui se bornent différemment se contrediraient
+ * sur les mêmes cycles.
  */
 function WeekHeader({ week, bounds, isDefault, onGoToMonday }: Readonly<WeekHeaderProps>) {
   const { t } = useTranslation();
@@ -179,10 +184,7 @@ function WeekHeader({ week, bounds, isDefault, onGoToMonday }: Readonly<WeekHead
   const sessions = week.days.flatMap((day) => day.entries.map((entry) => entry.session));
   const progress = weekSessionProgress(sessions);
 
-  const previous = shiftIsoDate(week.startDate, -7);
-  const next = shiftIsoDate(week.startDate, 7);
-  const hasPrevious = previous != null && bounds != null && previous >= bounds.firstMonday;
-  const hasNext = next != null && bounds != null && next <= bounds.lastMonday;
+  const { previous, next } = athleteWeekNeighbours(week.startDate, bounds);
 
   return (
     <div className="flex flex-wrap items-center gap-cmv-md">
@@ -195,7 +197,7 @@ function WeekHeader({ week, bounds, isDefault, onGoToMonday }: Readonly<WeekHead
       <div className="flex items-center gap-cmv-sm">
         <CmvButton
           variant="secondary"
-          disabled={!hasPrevious}
+          disabled={previous == null}
           onClick={() => onGoToMonday(previous ?? undefined)}
         >
           {t("plan.athlete.week.previous")}
@@ -207,7 +209,7 @@ function WeekHeader({ week, bounds, isDefault, onGoToMonday }: Readonly<WeekHead
         </CmvButton>
         <CmvButton
           variant="secondary"
-          disabled={!hasNext}
+          disabled={next == null}
           onClick={() => onGoToMonday(next ?? undefined)}
         >
           {t("plan.athlete.week.next")}

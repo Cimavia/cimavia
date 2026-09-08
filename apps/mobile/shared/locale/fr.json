@@ -126,10 +126,14 @@
     "spaceUnread_other": "{{count}} non lues dans cet espace"
   },
   "plan": {
-    "thisWeek": "Cette semaine",
     "rest": "Repos",
-    "outOfCycle": "Aucun de tes cycles n'a cours cette semaine : ils sont terminés, ou pas encore commencés.",
+    "outOfCycle": "Aucun de tes cycles n'a cours cette semaine-là.",
     "doneCount": "{{done}}/{{total}} séances faites",
+    "week": {
+      "previous": "Semaine précédente",
+      "today": "Aujourd'hui",
+      "next": "Semaine suivante"
+    },
     "weekType": {
       "TRAINING": "Entraînement",
       "DELOAD": "Décharge"

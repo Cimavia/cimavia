@@ -587,10 +587,12 @@ export {
   visibleAthleteRows,
 } from "./util/athlete-row.util";
 export type {
+  AthleteCalendarBounds,
   AthleteCalendarCycle,
   AthleteCalendarDay,
   AthleteCalendarEntry,
   AthleteCalendarWeek,
+  AthleteWeekNeighbours,
   CalendarPlan,
   CalendarSession,
   CalendarWeek,
@@ -598,6 +600,7 @@ export type {
 export {
   athleteCalendarBounds,
   athleteCalendarWeek,
+  athleteWeekNeighbours,
   defaultAthleteMonday,
 } from "./util/athlete-week.util";
 export {

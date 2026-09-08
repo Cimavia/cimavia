@@ -7,7 +7,13 @@
 // propriété de chaque cycle, affichée avec lui.
 
 import type { PlanWeekType } from "../dto/plan.schema";
-import { DAYS_PER_WEEK, isIsoDate, isMondayIsoDate, mondayOfIsoWeek } from "./date.util";
+import {
+  DAYS_PER_WEEK,
+  isIsoDate,
+  isMondayIsoDate,
+  mondayOfIsoWeek,
+  shiftIsoDate,
+} from "./date.util";
 import { planEndDate, planWeekDays } from "./plan.util";
 
 /** Le strict nécessaire pour poser une séance dans un jour : sa date et son rang dans la journée. */
@@ -130,6 +136,9 @@ export function athleteCalendarWeek<S extends CalendarSession>(
   };
 }
 
+/** Jusqu'où l'athlète peut naviguer : premier et dernier lundi atteignables, bornes INCLUSES. */
+export type AthleteCalendarBounds = { firstMonday: string; lastMonday: string };
+
 /**
  * Jusqu'où la navigation peut aller : le lundi de la première semaine et celui de la dernière,
  * tous cycles confondus. C'est ce qui grise les flèches — sans bornes, l'athlète navigue
@@ -140,7 +149,7 @@ export function athleteCalendarWeek<S extends CalendarSession>(
  */
 export function athleteCalendarBounds<S extends CalendarSession>(
   plans: readonly CalendarPlan<S>[],
-): { firstMonday: string; lastMonday: string } | null {
+): AthleteCalendarBounds | null {
   const mondays = plans.flatMap((plan) => {
     const endDate = planEndDate(plan.startDate, plan.weekCount);
     const first = mondayOfIsoWeek(plan.startDate);
@@ -158,6 +167,35 @@ export function athleteCalendarBounds<S extends CalendarSession>(
     }),
     { firstMonday: head.first, lastMonday: head.last },
   );
+}
+
+/** Les deux semaines atteignables depuis celle qu'on affiche — `null` du côté où il n'y en a pas. */
+export type AthleteWeekNeighbours = { previous: string | null; next: string | null };
+
+/**
+ * Les voisines de la semaine affichée, ramenées à la plage réellement servie par les cycles.
+ *
+ * `null` d'un côté veut dire « pas de semaine de ce côté », que ce soit parce qu'on est SUR la
+ * borne ou parce que `monday` est illisible. Les deux causes se rendent de la même façon — une
+ * commande désactivée — et les distinguer donnerait à l'appelant un cas qu'il ne saurait pas
+ * traiter autrement.
+ *
+ * Sans bornes, les deux sont `null` : c'est déjà ce que `athleteCalendarBounds` affirme en rendant
+ * `null` — aucun cycle n'est situable, il n'y a donc pas de plage à parcourir.
+ */
+export function athleteWeekNeighbours(
+  monday: string,
+  bounds: AthleteCalendarBounds | null,
+): AthleteWeekNeighbours {
+  if (bounds == null) return { previous: null, next: null };
+
+  const previous = shiftIsoDate(monday, -DAYS_PER_WEEK);
+  const next = shiftIsoDate(monday, DAYS_PER_WEEK);
+
+  return {
+    previous: previous != null && previous >= bounds.firstMonday ? previous : null,
+    next: next != null && next <= bounds.lastMonday ? next : null,
+  };
 }
 
 /**

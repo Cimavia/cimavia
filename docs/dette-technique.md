@@ -21,10 +21,10 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-et-une dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Vingt-deux dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **V-1**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3** et **I-4**,
+**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3** et **I-4**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud,
 où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les vingt premières sont
@@ -270,6 +270,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30` — `new_lines` (34 349) dépasse `ncloc` (30 247), donc TOUT le dépôt est « du code neuf » et `new_coverage` plafonne à 31,4 % contre un seuil de 80. Les PR passent (Sonar y diffe contre la base) ; c'est le job sur `push: main` qui échouera à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt. | 🔴 | — *(réglage d'interface, à faire avant le prochain merge sur `main`)* |
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
+| Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
 
 > **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
 > tient à des choix qui ressemblent, de loin, à des maladresses à corriger :
@@ -2224,6 +2225,14 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Le mobile, lui, n'a pas de navigation de semaine et n'en gagne pas : il montre **toujours** la
 > semaine en cours, jamais un repli sur le début d'un cycle — son titre dit « Cette semaine », et
 > lui faire coiffer une autre semaine serait un mensonge. `defaultAthleteMonday` n'y sert donc pas.
+>
+> ⚠️ **Ce dernier paragraphe est RENVERSÉ depuis [#236](https://github.com/Cimavia/cimavia/issues/236)**,
+> et gardé ici pour ce qu'il apprend : son argument tenait tout entier sur le TITRE de l'écran, qui
+> était une conséquence du choix et non sa raison. Le web se coiffe de la plage de dates et personne
+> ne s'y perd — c'est donc le titre qui est tombé, pas la navigation. Le corps de #229 avait
+> d'ailleurs prévu l'issue exacte que #236 a livrée (« `resolvePlanningState` perd son cas
+> `outOfCycle` ») : c'est l'implémentation qui avait pris l'autre chemin, et cet encadré qui l'avait
+> entériné. La suite est en « Tranché en #236 », plus bas.
 
 > **Tranché en #172** (« hors cycle » et « semaine de repos » se disent différemment) : les deux
 > montrent zéro séance et signifient l'inverse l'un de l'autre — l'un que rien n'est prévu parce que
@@ -2597,6 +2606,46 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > PDF ». La taille n'existant nulle part (cf. le premier encadré), elle n'est pas rendue — la
 > pièce jointe montre son nom seul. Le jour où un budget en Mo se justifiera, la migration servira
 > les deux besoins d'un coup.
+
+---
+
+## Post-MVP — Navigation de semaine sur mobile ([#236](https://github.com/Cimavia/cimavia/issues/236))
+
+> **Tranché en #236** (l'écran perd son titre plutôt que sa navigation) : « Cette semaine » coiffait
+> le planning athlète du mobile, et interdisait à lui seul d'en montrer une autre. C'est la plage de
+> dates qui coiffe désormais l'écran, comme sur le web — un titre qui ment une fois sur deux vaut
+> moins qu'un repère qui dit toujours vrai, et « Aujourd'hui » fermé dit qu'on est bien sur la
+> semaine en cours. `plan.thisWeek` est mort avec lui et a quitté le catalogue ; `plan.outOfCycle` a
+> repris la formulation du web (« cette semaine-là »), sa phrase ne parlant plus forcément de la
+> semaine courante.
+>
+> **Écart de maquette assumé** : `mobile-athlete/athlete-planning_semaine.dc.html` porte ce titre et
+> ne dessine aucune commande. Il n'y a rien à y revenir — la maquette décrit un écran qui ne pouvait
+> montrer qu'une semaine.
+
+> **Tranché en #236** (« hors cycle » cesse d'être un état de l'écran) : `resolvePlanningState` passe
+> de six cas à cinq. Une semaine sans cycle est une semaine **comme une autre** — ses sept jours, ses
+> commandes —, que le rendu commente d'une phrase au-dessus. En faire un état exclusif lui retirait
+> ses commandes : « suivant » menait à un cul-de-sac d'où plus rien ne ramenait. Ce que #172 sépare
+> reste séparé, mais au RENDU (`week.cycles` vide) et non dans le type.
+>
+> Le cul-de-sac qui reste est l'autre : `week == null`, des cycles existent mais aucun n'est situable
+> dans le temps. Il n'y a alors aucune semaine à parcourir, et l'écran rend son état vide — même
+> repli que le web.
+
+> **Tranché en #236** (jusqu'où va la navigation se décide dans `@cmv/shared`) :
+> `athleteWeekNeighbours(monday, bounds)` remplace les quatre lignes que le `WeekHeader` du web
+> portait en propre. Une borne est une DÉCISION, pas un détail de rendu : deux clients qui se
+> bornent différemment se contrediraient sur les mêmes cycles. Le corps de #236 annonçait « rien
+> n'est à écrire dans `@cmv/shared` » — vrai des dérivations, qui existaient toutes ; faux des
+> bornes, qui n'existaient qu'au web.
+
+> **Tranché en #236** (boutons seuls, et la semaine choisie ne survit pas à l'onglet) : la semaine
+> vit dans un `useState` qui repart au défaut à chaque montage — revenir à Planning doit montrer où
+> on en est. Le prix est qu'**aucun lien profond ne peut désigner une semaine sur mobile**, là où le
+> web a `?from=` ; à rouvrir le jour où une notification devra ouvrir une semaine précise. Le
+> balayage horizontal n'est pas retenu non plus : la semaine vit dans un `ScrollView` vertical, et
+> un `PagerView` changerait la structure de l'écran pour un geste que personne n'a encore réclamé.
 
 ---
 
