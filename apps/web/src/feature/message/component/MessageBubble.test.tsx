@@ -173,15 +173,22 @@ describe("MessageBubble — les avis de débrief", () => {
   });
 
   /**
-   * `mine` ne doit RIEN changer : un avis se rend au centre quel que soit le lecteur. Aligné à
-   * droite chez l'athlète, « Débrief déposé » se lirait comme une phrase qu'il aurait tapée.
+   * `mine` ne doit RIEN changer : un avis reste au bord de l'athlète, dont il annonce le geste.
+   * Renvoyé à droite chez lui, « Débrief déposé » se lirait comme une phrase qu'il aurait tapée —
+   * et `self-end` est précisément ce qui produirait cet alignement.
    */
-  it("se rend au centre, que le lecteur soit l'auteur du geste ou non", async () => {
+  it("reste au même bord, que le lecteur soit l'auteur du geste ou non", async () => {
     const auteur = await renderNotice("FEEDBACK_CREATED", true);
     const lecteur = await renderNotice("FEEDBACK_CREATED", false);
 
-    expect(auteur.container.querySelector(".self-center")).not.toBeNull();
-    expect(lecteur.container.querySelector(".self-center")).not.toBeNull();
     expect(auteur.container.querySelector(".self-end")).toBeNull();
+    expect(auteur.container.textContent).toBe(lecteur.container.textContent);
+  });
+
+  // Le libellé se lit AVANT le lien : ce qui s'est passé, puis où aller le voir.
+  it("place le libellé avant le lien, sur une seule ligne", async () => {
+    const { container } = await renderNotice("FEEDBACK_CREATED", false);
+
+    expect(container.textContent).toBe(`messages.feedback.created${FEEDBACK_LABEL}`);
   });
 });

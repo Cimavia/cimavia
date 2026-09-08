@@ -49,7 +49,7 @@ function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
  * défaut — sans lui, la puce fait toute la largeur du message et cesse d'être une pastille.
  */
 const CHIP =
-  "mb-cmv-sm inline-flex max-w-full items-center self-start rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid";
+  "inline-flex max-w-full items-center self-start rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid";
 
 /**
  * « À propos de… » : ce sur quoi porte le message, en tête de bulle.
@@ -110,22 +110,24 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
 }
 
 /**
- * Un AVIS de débrief n'est pas une parole : personne ne l'a écrit, le serveur l'a posé. Il se rend
- * donc au centre et en sourdine, jamais en bulle alignée d'un côté — « Débrief déposé » cadré à
- * droite se lirait comme une phrase que l'athlète aurait tapée.
+ * Un AVIS de débrief n'est pas une parole : personne ne l'a écrit, le serveur l'a posé. Pas de
+ * bulle, donc — ni fond, ni cadre —, mais le même bord que les messages de l'athlète, puisque c'est
+ * son geste qu'on annonce. Cadré à droite, « Débrief déposé » se lirait comme une phrase qu'il
+ * aurait tapée.
  *
- * La puce reste : c'est elle qui porte le LIEN, et le seul intérêt de l'avis est d'y mener.
+ * Le libellé d'abord, le lien ensuite, sur une seule ligne : on lit ce qui s'est passé, puis où
+ * aller le voir. La puce reste — c'est elle qui porte le LIEN, seul intérêt de l'avis.
  */
 function FeedbackEventNotice({ message }: Readonly<{ message: MessageDto }>) {
   const { t } = useTranslation();
   if (!isFeedbackEventMessage(message.type)) return null;
 
   return (
-    <div className="flex max-w-[70%] flex-col items-center self-center">
-      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
+    <div className="flex max-w-[70%] flex-row items-center gap-cmv-sm self-start">
       <p className="text-cmv-caption text-cmv-text-mid">
         {t(FEEDBACK_EVENT_LABEL_KEY[message.type])}
       </p>
+      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
     </div>
   );
 }
@@ -151,7 +153,9 @@ export function MessageBubble({
       {/* `null` couvre DEUX cas : le message ne porte sur rien, ou sa cible a disparu (SetNull).
           Les deux se rendent pareil — une bulle ordinaire, pas un « à propos de quelque chose ». */}
       {message.attachment == null || hideAttachment ? null : (
-        <AttachmentChip attachment={message.attachment} />
+        <div className="mb-cmv-sm">
+          <AttachmentChip attachment={message.attachment} />
+        </div>
       )}
 
       {message.content != null ? (

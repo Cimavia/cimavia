@@ -156,9 +156,16 @@ describe("MessageBubble — les avis de débrief", () => {
     expect(vi.mocked(router.push)).toHaveBeenCalledWith("/feedbacks/s1");
   });
 
+  // Le libellé se lit AVANT le lien : ce qui s'est passé, puis où aller le voir.
+  it("place le libellé avant le lien", () => {
+    const { container } = renderNotice("FEEDBACK_CREATED", false);
+
+    expect(container.textContent).toBe(`messages.feedback.created${FEEDBACK_LABEL}`);
+  });
+
   /**
-   * `mine` ne doit RIEN changer : aligné du côté de l'athlète, « Débrief déposé » se lirait comme
-   * une phrase qu'il aurait tapée.
+   * `mine` ne doit RIEN changer : un avis reste au bord de l'athlète, dont il annonce le geste.
+   * Renvoyé de son côté, « Débrief déposé » se lirait comme une phrase qu'il aurait tapée.
    */
   it("se rend pareil, que le lecteur soit l'auteur du geste ou non", () => {
     // Comparé sur le CONTENU de chaque rendu, et non par une requête par texte : les deux vivent
