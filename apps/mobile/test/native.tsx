@@ -122,6 +122,10 @@ vi.mock("expo-file-system", () => ({
   UploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
 }));
 
+vi.mock("expo-intent-launcher", () => ({
+  startActivityAsync: vi.fn(async () => ({ resultCode: -1 })),
+}));
+
 vi.mock("expo-sharing", () => ({
   isAvailableAsync: vi.fn(async () => true),
   shareAsync: vi.fn(async () => undefined),

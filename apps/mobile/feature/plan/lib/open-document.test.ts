@@ -4,6 +4,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const localDocumentUri = vi.fn<() => string | null>(() => null);
 vi.mock("@/shared/lib/document-cache", () => ({ localDocumentUri: () => localDocumentUri() }));
 
+let contentUri = "content://fr.cimavia.app/doc-1.pdf";
+vi.mock("expo-file-system", () => ({
+  File: class {
+    get contentUri() {
+      return contentUri;
+    }
+  },
+}));
+
+const startActivityAsync = vi.fn<(action: string, params: object) => Promise<unknown>>(
+  async () => ({ resultCode: -1 }),
+);
+vi.mock("expo-intent-launcher", () => ({
+  startActivityAsync: (action: string, params: object) => startActivityAsync(action, params),
+}));
+
 const isAvailableAsync = vi.fn<() => Promise<boolean>>(async () => true);
 const shareAsync = vi.fn<(uri: string, options: object) => Promise<void>>(async () => undefined);
 vi.mock("expo-sharing", () => ({
@@ -11,19 +27,28 @@ vi.mock("expo-sharing", () => ({
   shareAsync: (uri: string, options: object) => shareAsync(uri, options),
 }));
 
+let platform = "android";
 const openURL = vi.fn<(url: string) => Promise<void>>(async () => undefined);
-vi.mock("react-native", () => ({ Linking: { openURL: (url: string) => openURL(url) } }));
+vi.mock("react-native", () => ({
+  Linking: { openURL: (url: string) => openURL(url) },
+  Platform: {
+    get OS() {
+      return platform;
+    },
+  },
+}));
 
 const { openDocument } = await import("./open-document");
 
 const LOCAL_URI = "file:///documents/plan-documents/plan-1/doc-1.pdf";
+const SIGNED_URL = "https://storage.test/signed";
 
 function attachment(overrides: Partial<ExerciseDocumentDto> = {}): ExerciseDocumentDto {
   return {
     id: "doc-1",
     type: DocumentType.FILE,
     usage: DocumentUsage.ATTACHMENT,
-    url: "https://storage.test/signed",
+    url: SIGNED_URL,
     fileName: "progression.pdf",
     mimeType: "application/pdf",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -33,65 +58,107 @@ function attachment(overrides: Partial<ExerciseDocumentDto> = {}): ExerciseDocum
 
 beforeEach(() => {
   vi.clearAllMocks();
+  platform = "android";
+  contentUri = "content://fr.cimavia.app/doc-1.pdf";
   localDocumentUri.mockReturnValue(null);
   isAvailableAsync.mockResolvedValue(true);
-  shareAsync.mockResolvedValue(undefined);
   openURL.mockResolvedValue(undefined);
 });
 
-describe("openDocument — fichier sur l'appareil", () => {
+describe("openDocument — android", () => {
   /**
-   * Le cas que #95 existe pour servir : en salle, sans réseau, la pièce jointe s'ouvre quand même.
+   * Le correctif du retour bêta : la première version passait par `Sharing.shareAsync`, qui
+   * proposait d'ENVOYER le PDF à ses contacts au lieu de le montrer. `ACTION_VIEW` est le geste
+   * qui ouvre, et il exige le `content://` — un `file://` du sandbox lèverait
+   * `FileUriExposedException`.
    */
-  it("ouvre le fichier local hors réseau", async () => {
+  it("ouvre le fichier local par une intention de lecture", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+
+    await expect(openDocument("plan-1", attachment(), false)).resolves.toBe("opened");
+
+    expect(startActivityAsync).toHaveBeenCalledWith("android.intent.action.VIEW", {
+      data: "content://fr.cimavia.app/doc-1.pdf",
+      flags: 1,
+      type: "application/pdf",
+    });
+    expect(shareAsync).not.toHaveBeenCalled();
+  });
+
+  /** Sans le drapeau, le lecteur reçoit une uri qu'il n'a pas le droit de lire. */
+  it("accorde la permission de lecture sur l'uri transmise", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+
+    await openDocument("plan-1", attachment(), false);
+
+    expect(startActivityAsync).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ flags: 1 }),
+    );
+  });
+
+  it("laisse android déduire le type quand le document n'en porte pas", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+
+    await openDocument("plan-1", attachment({ mimeType: null }), false);
+
+    expect(startActivityAsync).toHaveBeenCalledWith("android.intent.action.VIEW", {
+      data: "content://fr.cimavia.app/doc-1.pdf",
+      flags: 1,
+    });
+  });
+
+  it("retombe sur l'url signée quand aucun lecteur ne sait ouvrir le type", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+    startActivityAsync.mockRejectedValue(new Error("ActivityNotFound"));
+
+    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+
+    expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
+  });
+
+  it("retombe sur l'url signée quand le fichier ne fournit pas de content uri", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+    contentUri = "";
+
+    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+
+    expect(startActivityAsync).not.toHaveBeenCalled();
+    expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
+  });
+
+  /** Un lecteur absent ET pas de réseau : on le DIT, plutôt que d'échouer en silence. */
+  it("annonce le hors-réseau quand l'ouverture locale échoue sans réseau", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+    startActivityAsync.mockRejectedValue(new Error("ActivityNotFound"));
+
+    await expect(openDocument("plan-1", attachment(), false)).resolves.toBe("offline");
+  });
+});
+
+describe("openDocument — ios", () => {
+  /**
+   * iOS n'a pas d'`ACTION_VIEW` : `UIActivityViewController` est la voie documentée, et sa feuille
+   * porte un aperçu Quick Look en tête. Asymétrie assumée, faute d'embarquer un visionneur.
+   */
+  it("passe par la feuille système, seule voie disponible", async () => {
+    platform = "ios";
     localDocumentUri.mockReturnValue(LOCAL_URI);
 
     await expect(openDocument("plan-1", attachment(), false)).resolves.toBe("opened");
 
     expect(shareAsync).toHaveBeenCalledWith(LOCAL_URI, { mimeType: "application/pdf" });
-    expect(openURL).not.toHaveBeenCalled();
+    expect(startActivityAsync).not.toHaveBeenCalled();
   });
 
-  /**
-   * Même en ligne : le fichier local ne périme pas, là où l'URL signée dure cinq minutes. Aller
-   * au storage quand l'octet est déjà là n'ajouterait qu'une latence et un risque de 403.
-   */
-  it("préfère le fichier local même en ligne", async () => {
-    localDocumentUri.mockReturnValue(LOCAL_URI);
-
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
-
-    expect(openURL).not.toHaveBeenCalled();
-  });
-
-  it("n'invente pas de type mime quand le document n'en porte pas", async () => {
-    localDocumentUri.mockReturnValue(LOCAL_URI);
-
-    await openDocument("plan-1", attachment({ mimeType: null }), false);
-
-    expect(shareAsync).toHaveBeenCalledWith(LOCAL_URI, {});
-  });
-
-  /**
-   * Partage indisponible sur l'appareil : ce n'est pas une raison de renoncer si le réseau, lui,
-   * est là. L'URL signée reste une voie.
-   */
-  it("retombe sur l'url signée quand le partage est indisponible", async () => {
+  it("retombe sur l'url signée quand la feuille est indisponible", async () => {
+    platform = "ios";
     localDocumentUri.mockReturnValue(LOCAL_URI);
     isAvailableAsync.mockResolvedValue(false);
 
     await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
 
-    expect(openURL).toHaveBeenCalledWith("https://storage.test/signed");
-  });
-
-  it("retombe sur l'url signée quand le partage échoue", async () => {
-    localDocumentUri.mockReturnValue(LOCAL_URI);
-    shareAsync.mockRejectedValue(new Error("refusé"));
-
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
-
-    expect(openURL).toHaveBeenCalledWith("https://storage.test/signed");
+    expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
   });
 });
 
@@ -99,11 +166,12 @@ describe("openDocument — rien sur l'appareil", () => {
   it("ouvre l'url signée en ligne", async () => {
     await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
 
-    expect(openURL).toHaveBeenCalledWith("https://storage.test/signed");
+    expect(startActivityAsync).not.toHaveBeenCalled();
+    expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
   });
 
   /**
-   * Le repli EXPLICITE que réclamait l'issue : sans fichier ni réseau, on le DIT. Ouvrir l'URL
+   * Le repli EXPLICITE que réclamait l'issue : sans fichier ni réseau, on le dit. Ouvrir l'url
    * signée mènerait à une page d'erreur du storage, en XML brut.
    */
   it("annonce le hors-réseau plutôt que d'ouvrir une url morte", async () => {
@@ -129,10 +197,6 @@ describe("openDocument — lien externe", () => {
     expect(openURL).toHaveBeenCalledWith("https://youtube.test/demo");
   });
 
-  /**
-   * Un lien externe n'a pas de copie possible : hors réseau il n'y a rien à ouvrir, et le dire
-   * vaut mieux que lancer un navigateur sur une page blanche.
-   */
   it("annonce le hors-réseau pour un lien externe", async () => {
     const link = attachment({ type: DocumentType.LINK });
 
