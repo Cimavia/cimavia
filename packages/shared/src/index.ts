@@ -697,6 +697,7 @@ export {
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export type {
   MultipartPart,
+  MultipartRetry,
   MultipartUploadRunner,
   PartFailure,
 } from "./util/multipart-upload.util";
@@ -704,6 +705,7 @@ export {
   isRetryablePartFailure,
   MULTIPART_PART_MAX_ATTEMPTS,
   MULTIPART_RETRY_DELAYS_MS,
+  MULTIPART_STALL_TIMEOUT_MS,
   multipartPartsOf,
   multipartRetryDelayMs,
   runMultipartUpload,

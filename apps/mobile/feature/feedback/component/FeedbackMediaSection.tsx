@@ -123,6 +123,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
         onRecorderError={setPreUploadErrorKey}
         isUploading={addMedia.isUploading || addAudio.isPending}
         progress={addMedia.isUploading ? addMedia.progress : addAudio.progress}
+        retry={addMedia.isUploading ? addMedia.retry : addAudio.retry}
         step={addMedia.step}
       />
 

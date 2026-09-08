@@ -3,7 +3,9 @@ import { type MultipartUploadTicket, UploadMode } from "../dto/upload.schema";
 import {
   isRetryablePartFailure,
   MULTIPART_PART_MAX_ATTEMPTS,
+  MULTIPART_RETRY_DELAYS_MS,
   type MultipartPart,
+  type MultipartRetry,
   type MultipartUploadRunner,
   multipartPartsOf,
   multipartRetryDelayMs,
@@ -29,6 +31,7 @@ function fakeRunner(overrides: Partial<MultipartUploadRunner> = {}) {
   const sent: number[] = [];
   const percents: number[] = [];
   const waited: number[] = [];
+  const retries: (MultipartRetry | null)[] = [];
   const base: MultipartUploadRunner = {
     sendPart: async (part: MultipartPart) => {
       sent.push(part.partNumber);
@@ -37,6 +40,7 @@ function fakeRunner(overrides: Partial<MultipartUploadRunner> = {}) {
     complete: async () => undefined,
     abort: async () => undefined,
     onProgress: (percent) => percents.push(percent),
+    onRetry: (retry) => retries.push(retry),
     wait: async (delayMs) => {
       waited.push(delayMs);
     },
@@ -50,7 +54,7 @@ function fakeRunner(overrides: Partial<MultipartUploadRunner> = {}) {
     complete: vi.fn(merged.complete),
     abort: vi.fn(merged.abort),
   };
-  return { runner, sent, percents, waited };
+  return { runner, sent, percents, waited, retries };
 }
 
 class FakeFailure extends Error {
@@ -82,6 +86,17 @@ describe("multipartRetryDelayMs", () => {
   it("attend de plus en plus longtemps entre les tentatives", () => {
     expect(multipartRetryDelayMs(1)).toBe(1_000);
     expect(multipartRetryDelayMs(2)).toBe(3_000);
+    expect(multipartRetryDelayMs(5)).toBe(30_000);
+  });
+
+  /**
+   * Coupé net sur appareil (wifi ET 5G), le réseau revenait au-delà des quatre secondes que
+   * couvrait le premier jet, et l'envoi était déjà perdu. L'échelle doit tenir la poche de réseau,
+   * pas seulement l'accroc.
+   */
+  it("tient plus d'une minute au total, de quoi traverser une zone blanche", () => {
+    const total = MULTIPART_RETRY_DELAYS_MS.reduce((sum, delay) => sum + delay, 0);
+    expect(total).toBeGreaterThan(60_000);
   });
 
   // `null` et non `0` : « plus de tentative » n'est pas « réessayer tout de suite ».
@@ -185,7 +200,7 @@ describe("runMultipartUpload", () => {
 
     await expect(runMultipartUpload(ticketOf(2), 15, runner)).rejects.toBe(boom);
     expect(runner.sendPart).toHaveBeenCalledTimes(MULTIPART_PART_MAX_ATTEMPTS);
-    expect(waited).toEqual([1_000, 3_000]);
+    expect(waited).toEqual([...MULTIPART_RETRY_DELAYS_MS]);
     expect(runner.abort).toHaveBeenCalledTimes(1);
     expect(runner.complete).not.toHaveBeenCalled();
   });
@@ -267,6 +282,7 @@ describe("runMultipartUpload", () => {
         complete: async () => undefined,
         abort: async () => undefined,
         onProgress: null,
+        onRetry: null,
       };
 
       const done = runMultipartUpload(ticketOf(1), 10, runner);
@@ -277,6 +293,58 @@ describe("runMultipartUpload", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe("avis de réessai", () => {
+    /**
+     * Sans ce signal, un réseau mort laisse la barre figée près de trois minutes sans un mot —
+     * six tentatives à 20 s de gel, plus une minute de paliers. C'est le « c'est bloqué » de U-3.
+     */
+    it("annonce chaque tentative à venir, avec sa borne", async () => {
+      const { runner, retries } = fakeRunner({
+        sendPart: async () => {
+          throw unreachable();
+        },
+      });
+
+      await expect(runMultipartUpload(ticketOf(1), 10, runner)).rejects.toThrow();
+
+      expect(retries).toEqual(
+        MULTIPART_RETRY_DELAYS_MS.map((_unused, index) => ({
+          attempt: index + 2,
+          maxAttempts: MULTIPART_PART_MAX_ATTEMPTS,
+        })),
+      );
+    });
+
+    it("efface l'avis dès que la part passe", async () => {
+      let attempts = 0;
+      const { runner, retries } = fakeRunner({
+        sendPart: async () => {
+          attempts += 1;
+          if (attempts === 1) throw unreachable();
+        },
+      });
+
+      await runMultipartUpload(ticketOf(1), 10, runner);
+
+      expect(retries).toEqual([{ attempt: 2, maxAttempts: MULTIPART_PART_MAX_ATTEMPTS }, null]);
+    });
+
+    // L'écran n'a pas à se redessiner parce que la part 12 réessaie au même rang que la 11.
+    it("ne répète pas deux fois le même état", async () => {
+      const { runner, retries } = fakeRunner();
+
+      await runMultipartUpload(ticketOf(3), 25, runner);
+
+      expect(retries).toEqual([]);
+    });
+
+    it("se passe d'avis là où l'écran n'affiche rien", async () => {
+      const { runner } = fakeRunner({ onRetry: null, onProgress: null });
+
+      await expect(runMultipartUpload(ticketOf(2), 15, runner)).resolves.toBeUndefined();
+    });
   });
 
   describe("progression", () => {

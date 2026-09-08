@@ -12,6 +12,7 @@ const base = {
   onRecorderError: vi.fn(),
   isUploading: false,
   progress: 0,
+  retry: null,
   step: null,
 };
 
@@ -65,6 +66,20 @@ describe("MediaPicker", () => {
     expect(queryByText("feedback.media.uploading")).toBeNull();
     rerender(<MediaPicker {...base} isUploading progress={40} />);
     expect(queryByText("feedback.media.uploading")).not.toBeNull();
+  });
+
+  /**
+   * Un réessai PREND la place du pourcentage : c'est lui qui explique pourquoi la barre n'avance
+   * plus. Les laisser tous les deux ferait lire « 40 % » comme un envoi qui progresse, alors que
+   * c'est précisément ce qui n'arrive plus.
+   */
+  it("remplace l'avancement par l'avis de reprise quand une part est réessayée", () => {
+    const { queryByText } = renderRn(
+      <MediaPicker {...base} isUploading progress={40} retry={{ attempt: 2, maxAttempts: 6 }} />,
+    );
+
+    expect(queryByText("feedback.media.retrying")).not.toBeNull();
+    expect(queryByText("feedback.media.uploading")).toBeNull();
   });
 
   it("ne dit le rang du lot que s'il y a un rang à dire", () => {

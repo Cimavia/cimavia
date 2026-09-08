@@ -101,6 +101,7 @@ export function FeedbackReplyThread({
           sending={reply.sending || !reply.ready}
           mediaBusy={reply.mediaBusy || !reply.ready}
           progress={reply.progress}
+          retry={reply.retry}
           step={reply.step}
         />
       </div>

@@ -209,6 +209,7 @@ function sendInParts(
       messageApi.completeMediaUpload(conversationId, { ...upload, partCount }, as),
     abort: () => messageApi.abortMediaUpload(conversationId, upload, as),
     onProgress: null,
+    onRetry: null,
   });
 }
 

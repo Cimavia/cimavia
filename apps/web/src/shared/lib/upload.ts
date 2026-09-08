@@ -1,5 +1,5 @@
 import type { MultipartPart, PartFailure } from "@cmv/shared";
-import { uploadPercentOf } from "@cmv/shared";
+import { MULTIPART_STALL_TIMEOUT_MS, uploadPercentOf } from "@cmv/shared";
 
 /**
  * Envoi d'un binaire vers l'object storage, via la ou les URL(s) PUT signée(s) délivrées par
@@ -50,11 +50,29 @@ function putSigned(
       xhr.setRequestHeader("Content-Type", contentType);
     }
 
+    // Sans le moindre octet pendant `MULTIPART_STALL_TIMEOUT_MS`, on coupe nous-mêmes : une
+    // requête peut GELER sur un lien mort au lieu d'échouer (mesuré sur mobile au passage
+    // wifi → 5G, mais un navigateur n'y échappe pas davantage). Sans ce chien de garde, rien ne
+    // rejette et le réessai attend une erreur qui ne viendra jamais. Le minuteur est remis à zéro
+    // à chaque octet : un envoi lent mais vivant ne le déclenche pas.
+    let stalled = false;
+    let timer = setTimeout(stop, MULTIPART_STALL_TIMEOUT_MS);
+    function stop() {
+      stalled = true;
+      xhr.abort();
+    }
+    const keepAlive = () => {
+      clearTimeout(timer);
+      timer = setTimeout(stop, MULTIPART_STALL_TIMEOUT_MS);
+    };
+
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
+        keepAlive();
         onSentBytes(event.loaded);
       }
     };
+    xhr.onloadend = () => clearTimeout(timer);
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         // `onprogress` peut s'arrêter avant le dernier octet : on cale sur la taille réelle,
@@ -72,9 +90,15 @@ function putSigned(
     };
     xhr.onerror = () =>
       reject(new StoragePutError({ kind: "unreachable" }, "Échec de l'envoi (réseau)"));
-    // Une annulation n'est PAS un accroc : c'est une décision, et la réessayer irait contre elle.
-    // Elle sort donc sans `PartFailure`, ce qui la rend non réessayable par construction.
-    xhr.onabort = () => reject(new Error("Envoi annulé"));
+    // Deux annulations qu'on ne confond pas : celle du chien de garde décrit un lien mort, donc un
+    // `unreachable` réessayable ; toute autre est une DÉCISION, et la réessayer irait contre elle —
+    // elle sort sans `PartFailure`, ce qui la rend non réessayable par construction.
+    xhr.onabort = () =>
+      reject(
+        stalled
+          ? new StoragePutError({ kind: "unreachable" }, "Envoi interrompu (aucune progression)")
+          : new Error("Envoi annulé"),
+      );
 
     xhr.send(body);
   });

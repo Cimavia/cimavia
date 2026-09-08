@@ -4,6 +4,7 @@ import type {
   MediaBatchStep,
   MediaRecapLine,
   MediaTypeType,
+  MultipartRetry,
   MultipartUploadTicket,
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
@@ -58,14 +59,18 @@ export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
   const [step, setStep] = useState<MediaBatchStep | null>(null);
+  // Ce que la barre dit quand elle n'avance plus : sans ça, trois minutes de silence.
+  const [retry, setRetry] = useState<MultipartRetry | null>(null);
 
   const audio = useMutation({
     mutationFn: (recorded: RecordedWebAudio) => {
       setProgress(0);
+      setRetry(null);
       return prepareAndUpload(
         sessionId,
         { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
         setProgress,
+        setRetry,
       );
     },
     onSuccess: invalidate,
@@ -79,14 +84,18 @@ export function useAddFeedbackMedia(sessionId: string) {
   const upload = async (file: File, current: MediaBatchStep) => {
     setStep(current);
     setProgress(0);
-    await prepareAndUpload(sessionId, { kind: "file", file }, setProgress);
+    setRetry(null);
+    await prepareAndUpload(sessionId, { kind: "file", file }, setProgress, setRetry);
     invalidate();
   };
 
   // L'appelant décide de la POLITIQUE du lot (places restantes, plafond, libellés des refus) ;
   // le hook n'impose que l'envoi.
   const addFiles = (batch: Omit<MediaBatch<File>, "send">): Promise<MediaRecapLine[]> =>
-    sendMediaBatch({ ...batch, send: upload }).finally(() => setStep(null));
+    sendMediaBatch({ ...batch, send: upload }).finally(() => {
+      setStep(null);
+      setRetry(null);
+    });
 
   return {
     addFiles,
@@ -96,6 +105,7 @@ export function useAddFeedbackMedia(sessionId: string) {
     isUploading: step != null || audio.isPending,
     step,
     progress,
+    retry,
   };
 }
 
@@ -108,6 +118,7 @@ async function prepareAndUpload(
   sessionId: string,
   source: WebMediaSource,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const media = await prepareWebMedia(source, FEEDBACK_MEDIA_PROFILE);
   if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
@@ -115,7 +126,7 @@ async function prepareAndUpload(
       max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)),
     });
   }
-  await uploadAndAttach(sessionId, media, onProgress);
+  await uploadAndAttach(sessionId, media, onProgress, onRetry);
 }
 
 export function useDeleteFeedbackMedia(sessionId: string) {
@@ -138,6 +149,7 @@ async function uploadAndAttach(
   sessionId: string,
   media: PreparedWebMedia,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const descriptor = {
     type: media.type,
@@ -155,7 +167,7 @@ async function uploadAndAttach(
   if (ticket.mode === UploadMode.SINGLE) {
     await uploadToSignedUrl(ticket.uploadUrl, media.file, onProgress);
   } else {
-    await sendInParts(sessionId, ticket, media.file, onProgress);
+    await sendInParts(sessionId, ticket, media.file, onProgress, onRetry);
   }
 
   await athleteFeedbackApi.attachMedia(sessionId, {
@@ -181,6 +193,7 @@ function sendInParts(
   ticket: MultipartUploadTicket,
   file: File,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
   return runMultipartUpload(ticket, file.size, {
@@ -190,5 +203,6 @@ function sendInParts(
       athleteFeedbackApi.completeMediaUpload(sessionId, { ...upload, partCount }),
     abort: () => athleteFeedbackApi.abortMediaUpload(sessionId, upload),
     onProgress,
+    onRetry,
   });
 }

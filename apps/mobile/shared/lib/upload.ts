@@ -1,5 +1,5 @@
 import type { MultipartPart, PartFailure } from "@cmv/shared";
-import { uploadPercentOf } from "@cmv/shared";
+import { MULTIPART_STALL_TIMEOUT_MS, uploadPercentOf } from "@cmv/shared";
 import { File, FileMode, Paths, UploadType } from "expo-file-system";
 
 /**
@@ -127,23 +127,50 @@ function writePartToCache(source: File, start: number, length: number, name: str
   return part;
 }
 
+/**
+ * Un PUT, sous surveillance : sans le moindre octet pendant `MULTIPART_STALL_TIMEOUT_MS`, on COUPE.
+ *
+ * MESURÉ sur appareil : au passage wifi → 5G, la requête ne casse pas, elle GÈLE. Le socket reste
+ * ouvert sur une interface morte, `onProgress` se tait, et la promesse ne se règle jamais. Sans ce
+ * chien de garde, aucun réessai ne peut partir — il attend une erreur qui ne viendra pas, et
+ * l'utilisateur voit un envoi immobile qu'il finira par abandonner à la main.
+ *
+ * Le minuteur est remis à zéro à chaque octet : un envoi lent mais vivant ne le déclenche jamais.
+ * Une coupure de notre fait est un `unreachable` — c'est bien ce qu'elle décrit, et c'est ce qui la
+ * rend réessayable.
+ */
 async function put(
   file: File,
   url: string,
   headers: Record<string, string>,
   onSentBytes: (sentBytes: number) => void,
 ): Promise<void> {
+  const watchdog = new AbortController();
+  let timer = setTimeout(() => watchdog.abort(), MULTIPART_STALL_TIMEOUT_MS);
+  const keepAlive = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => watchdog.abort(), MULTIPART_STALL_TIMEOUT_MS);
+  };
+
   let status: number;
   try {
     const result = await file.upload(url, {
       httpMethod: "PUT",
       uploadType: UploadType.BINARY_CONTENT,
       headers,
-      onProgress: ({ bytesSent }) => onSentBytes(bytesSent),
+      signal: watchdog.signal,
+      onProgress: ({ bytesSent }) => {
+        keepAlive();
+        onSentBytes(bytesSent);
+      },
     });
     status = result.status;
   } catch {
+    // Le gel et la coupure franche arrivent ici pareillement, et appellent le même geste :
+    // renvoyer la part. Les distinguer n'apporterait rien à l'athlète.
     throw new StorageUploadError("unreachable", { kind: "unreachable" });
+  } finally {
+    clearTimeout(timer);
   }
 
   if (status < 200 || status >= 300) {

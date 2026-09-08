@@ -44,14 +44,28 @@ export function isRetryablePartFailure(failure: PartFailure): boolean {
 }
 
 /**
- * L'attente avant chaque nouvelle tentative. Croissante : une coupure de tunnel se rouvre en une
- * seconde, un basculement wifi → 4G demande plus.
+ * Sans le moindre octet pendant ce délai, on considère la part PERDUE et on coupe nous-mêmes.
  *
- * Volontairement court et borné. Ces délais n'ont pas à couvrir une panne durable — c'est le rôle
- * du message d'erreur, qui rend la main à l'utilisateur — seulement l'accroc de quelques secondes
- * qui, aujourd'hui, jette un envoi presque terminé.
+ * MESURÉ sur appareil : quand le mobile passe du wifi à la 5G, la requête en cours ne casse pas —
+ * elle GÈLE. Le socket reste ouvert sur une interface morte, la barre s'arrête, et rien ne rejette
+ * jamais. Aucun réessai ne pouvait donc partir : il attendait une erreur qui ne venait pas. C'est
+ * le mode de défaillance le plus courant, et c'était l'angle mort du premier jet de #152.
+ *
+ * 20 s parce que le compteur est remis à zéro à CHAQUE octet reçu : un envoi lent, mais qui
+ * avance, ne le déclenche jamais. Seul un transfert réellement immobile l'atteint.
  */
-export const MULTIPART_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000];
+export const MULTIPART_STALL_TIMEOUT_MS = 20_000;
+
+/**
+ * L'attente avant chaque nouvelle tentative. Croissante : une coupure de tunnel se rouvre en une
+ * seconde, un basculement d'interface ou une sortie de zone blanche demandent bien plus.
+ *
+ * L'échelle a été RALLONGÉE après un essai sur appareil : coupé net (wifi et 5G), le réseau
+ * revenait au-delà des quatre secondes que couvrait le premier jet, et l'envoi était déjà perdu.
+ * Ces cinq paliers tiennent un peu plus d'une minute — les URLs signées valant une heure, on peut
+ * se le permettre, et l'alternative est de rejeter 380 Mo pour une poche de réseau.
+ */
+export const MULTIPART_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000, 8_000, 20_000, 30_000];
 
 /** Une tentative initiale, plus une par délai prévu. */
 export const MULTIPART_PART_MAX_ATTEMPTS = MULTIPART_RETRY_DELAYS_MS.length + 1;
@@ -113,6 +127,15 @@ export function multipartPartsOf(
  * (la séance ou le fil, et le titre exercé) : la boucle n'a pas à savoir à quoi appartient l'envoi
  * qu'elle mène.
  */
+/**
+ * Où en est le réessai, pour que l'écran puisse le DIRE au lieu de laisser une barre immobile.
+ *
+ * `maxAttempts` accompagne `attempt` parce que « nouvelle tentative » sans borne inquiète autant
+ * qu'un silence : c'est de savoir que ça s'arrêtera que vient le calme. `attempt` est celle qui
+ * VA être tentée, pas celle qui vient d'échouer.
+ */
+export type MultipartRetry = { attempt: number; maxAttempts: number };
+
 export type MultipartUploadRunner = {
   /** Matérialise la part et la pousse. `onSentBytes` compte DANS la part, pas dans le fichier. */
   sendPart: (part: MultipartPart, onSentBytes: (sentBytes: number) => void) => Promise<void>;
@@ -128,6 +151,16 @@ export type MultipartUploadRunner = {
   abort: () => Promise<void>;
   /** `null` là où aucune barre n'est nourrie — la messagerie mobile, aujourd'hui (dette U-3). */
   onProgress: ((percent: number) => void) | null;
+  /**
+   * Le réessai en cours, `null` dès que l'envoi reprend. Deux `null` à ne pas confondre : celui du
+   * rappel lui-même veut dire « cette surface n'affiche rien », celui de son argument « on n'est
+   * plus en train de réessayer ».
+   *
+   * Sans ce signal, un réseau vraiment mort laisse la barre figée pendant environ trois minutes
+   * (six tentatives à 20 s de gel, plus une minute de paliers) sans un mot — soit exactement le
+   * « c'est bloqué » qui a produit la dette U-3.
+   */
+  onRetry: ((retry: MultipartRetry | null) => void) | null;
   /** Point d'injection des tests : sans lui, chaque cas de réessai attendrait vraiment. */
   wait?: (delayMs: number) => Promise<void>;
 };
@@ -159,9 +192,10 @@ export async function runMultipartUpload(
   }
 
   const report = monotonicProgress(runner.onProgress, totalBytes);
+  const reportRetry = retryReporter(runner.onRetry);
   try {
     for (const part of parts) {
-      await sendPartWithRetries(part, runner, report);
+      await sendPartWithRetries(part, runner, report, reportRetry);
     }
     await runner.complete(parts.length);
   } catch (error) {
@@ -176,12 +210,16 @@ async function sendPartWithRetries(
   part: MultipartPart,
   runner: MultipartUploadRunner,
   report: (sentBytes: number) => void,
+  reportRetry: (retry: MultipartRetry | null) => void,
 ): Promise<void> {
   const wait = runner.wait ?? sleep;
 
   for (let attempt = 1; ; attempt += 1) {
     try {
       await runner.sendPart(part, (sentBytes) => report(part.start + sentBytes));
+      // La part est passée : l'écran doit cesser d'annoncer un réessai, même si les suivantes
+      // retomberont peut-être dessus.
+      reportRetry(null);
       // La progression peut s'arrêter avant le dernier octet : on cale sur la fin de la part,
       // sinon une barre resterait bloquée à 98 % sur un envoi pourtant terminé.
       report(part.start + part.length);
@@ -193,6 +231,7 @@ async function sendPartWithRetries(
       // L'erreur d'ORIGINE est relancée, jamais une erreur de synthèse : c'est elle qui porte le
       // libellé que le débrief ou la messagerie sait traduire.
       if (delayMs == null) throw error;
+      reportRetry({ attempt: attempt + 1, maxAttempts: MULTIPART_PART_MAX_ATTEMPTS });
       await wait(delayMs);
     }
   }
@@ -217,6 +256,22 @@ function monotonicProgress(
     if (percent <= highest) return;
     highest = percent;
     onProgress(percent);
+  };
+}
+
+/**
+ * Le réessai courant, sans répéter deux fois la même chose : l'écran n'a pas à se redessiner parce
+ * que la part 12 réessaie au même rang que la part 11.
+ */
+function retryReporter(
+  onRetry: ((retry: MultipartRetry | null) => void) | null,
+): (retry: MultipartRetry | null) => void {
+  let last: MultipartRetry | null = null;
+  return (retry) => {
+    if (onRetry == null) return;
+    if (last?.attempt === retry?.attempt) return;
+    last = retry;
+    onRetry(retry);
   };
 }
 

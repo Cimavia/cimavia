@@ -1,8 +1,10 @@
 import type {
   FeedbackTracking,
+  MediaBatchStep,
   MediaRecapLine,
   MediaRecapReason,
   MediaRejection,
+  MultipartRetry,
   ScheduledSessionDto,
   SessionFeedbackDto,
 } from "@cmv/shared";
@@ -271,6 +273,42 @@ function FeedbackSubmitRail({
   );
 }
 
+/**
+ * L'état d'un envoi en cours. Extrait de `FeedbackMediaSection` parce que l'avis de réessai l'a
+ * poussée au-delà du seuil de complexité de Biome — et parce que ces trois lignes forment un tout
+ * qui se lit mieux ensemble qu'au milieu d'un écran.
+ */
+function MediaUploadStatus({
+  progress,
+  retry,
+  step,
+}: Readonly<{ progress: number; retry: MultipartRetry | null; step: MediaBatchStep | null }>) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="flex flex-col gap-cmv-xs">
+      {/* Le rang n'est dit que s'il y a un rang à dire : « Envoi 1 / 1 » serait du bruit. */}
+      {step != null && step.total > 1 ? (
+        <span className="text-cmv-caption text-cmv-text-mid">
+          {t("feedback.media.batchProgress", {
+            index: step.index,
+            total: step.total,
+            fileName: step.fileName ?? t("feedback.media.unnamedFile"),
+          })}
+        </span>
+      ) : null}
+      {/* Un réessai PREND la place du pourcentage : c'est lui qui explique pourquoi la barre
+          n'avance plus. Laisser les deux ferait lire « 45 % » comme un envoi qui progresse. */}
+      <span className="text-cmv-caption text-cmv-text-mid">
+        {retry == null
+          ? t("feedback.media.uploading", { percent: progress })
+          : t("feedback.media.retrying", { attempt: retry.attempt, max: retry.maxAttempts })}
+      </span>
+      <CmvProgressBar percent={progress} label={t("feedback.media.uploadProgress")} />
+    </div>
+  );
+}
+
 // Photos, vidéos et notes vocales : quotas, ajout, retrait.
 function FeedbackMediaSection({
   sessionId,
@@ -403,22 +441,7 @@ function FeedbackMediaSection({
       </div>
 
       {add.isUploading ? (
-        <div className="flex flex-col gap-cmv-xs">
-          {/* Le rang n'est dit que s'il y a un rang à dire : « Envoi 1 / 1 » serait du bruit. */}
-          {add.step != null && add.step.total > 1 ? (
-            <span className="text-cmv-caption text-cmv-text-mid">
-              {t("feedback.media.batchProgress", {
-                index: add.step.index,
-                total: add.step.total,
-                fileName: add.step.fileName ?? t("feedback.media.unnamedFile"),
-              })}
-            </span>
-          ) : null}
-          <span className="text-cmv-caption text-cmv-text-mid">
-            {t("feedback.media.uploading", { percent: add.progress })}
-          </span>
-          <CmvProgressBar percent={add.progress} label={t("feedback.media.uploadProgress")} />
-        </div>
+        <MediaUploadStatus progress={add.progress} retry={add.retry} step={add.step} />
       ) : null}
 
       {recap.length === 0 ? null : (

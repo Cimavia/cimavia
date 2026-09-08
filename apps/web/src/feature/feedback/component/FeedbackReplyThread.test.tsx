@@ -43,6 +43,7 @@ function mockReply(overrides: Record<string, unknown> = {}) {
     sendAudio: vi.fn(),
     mediaBusy: false,
     progress: 0,
+    retry: null,
     step: null,
     ...overrides,
   } as ReturnType<typeof useFeedbackReply>);

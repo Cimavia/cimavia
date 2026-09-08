@@ -12,6 +12,7 @@ import {
   MAX_MESSAGE_MEDIA_BATCH,
   MediaType,
   MessageType,
+  type MultipartRetry,
   mediaRecapText,
   runMultipartUpload,
   sendMediaBatch,
@@ -59,6 +60,8 @@ export function useSendMessageMedia(
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState(0);
   const [step, setStep] = useState<MediaBatchStep | null>(null);
+  // Ce que la barre dit quand elle n'avance plus : sans ça, trois minutes de silence.
+  const [retry, setRetry] = useState<MultipartRetry | null>(null);
   const as = useExercisedCapability();
 
   const attachment = options?.attachment;
@@ -71,10 +74,12 @@ export function useSendMessageMedia(
   const audio = useMutation({
     mutationFn: (recorded: RecordedWebAudio) => {
       setProgress(0);
+      setRetry(null);
       return prepareAndSend(
         conversationId,
         { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
         setProgress,
+        setRetry,
         as,
         attachment,
       );
@@ -90,7 +95,15 @@ export function useSendMessageMedia(
   const upload = async (file: File, current: MediaBatchStep) => {
     setStep(current);
     setProgress(0);
-    await prepareAndSend(conversationId, { kind: "file", file }, setProgress, as, attachment);
+    setRetry(null);
+    await prepareAndSend(
+      conversationId,
+      { kind: "file", file },
+      setProgress,
+      setRetry,
+      as,
+      attachment,
+    );
     invalidate();
   };
 
@@ -114,7 +127,10 @@ export function useSendMessageMedia(
       send: upload,
       rejectedReason,
       failureReason,
-    }).finally(() => setStep(null));
+    }).finally(() => {
+      setStep(null);
+      setRetry(null);
+    });
 
     for (const entry of recap) {
       toast.error(
@@ -131,6 +147,7 @@ export function useSendMessageMedia(
     isUploading: step != null || audio.isPending,
     step,
     progress,
+    retry,
   };
 }
 
@@ -155,17 +172,19 @@ async function prepareAndSend(
   conversationId: string,
   source: WebMediaSource,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
   as: CapabilityName | null,
   attachment: { sessionFeedbackId: string } | undefined,
 ): Promise<MessageDto> {
   const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
-  return uploadAndSend(conversationId, prepared, onProgress, as, attachment);
+  return uploadAndSend(conversationId, prepared, onProgress, onRetry, as, attachment);
 }
 
 async function uploadAndSend(
   conversationId: string,
   media: PreparedWebMedia,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
   as: CapabilityName | null,
   attachment: { sessionFeedbackId: string } | undefined,
@@ -177,7 +196,7 @@ async function uploadAndSend(
   if (ticket.mode === UploadMode.SINGLE) {
     await uploadToSignedUrl(ticket.uploadUrl, media.file, onProgress);
   } else {
-    await sendInParts(conversationId, ticket, media.file, onProgress, as);
+    await sendInParts(conversationId, ticket, media.file, onProgress, onRetry, as);
   }
 
   const sendInput = {
@@ -204,6 +223,7 @@ function sendInParts(
   ticket: MultipartUploadTicket,
   file: File,
   onProgress: (percent: number) => void,
+  onRetry: (retry: MultipartRetry | null) => void,
   as: CapabilityName | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
@@ -214,6 +234,7 @@ function sendInParts(
       messageApi.completeMediaUpload(conversationId, { ...upload, partCount }, as),
     abort: () => messageApi.abortMediaUpload(conversationId, upload, as),
     onProgress,
+    onRetry,
   });
 }
 
