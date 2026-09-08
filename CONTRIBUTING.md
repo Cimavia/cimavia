@@ -52,12 +52,49 @@ git config --global user.name "Your Name"
 
 Puis ajouter la clé publique sur GitHub en **Signing Key** (Settings → SSH and GPG keys).
 
+## Versions et releases
+
+**Un seul numéro pour tout le monorepo**, porté par le `package.json` racine et le tag git. Les six
+paquets restent à `0.0.0` : ils sont `private`, personne ne lit leur version. Départ à `1.0.0`.
+
+Le numéro est **une sémantique produit, pas de bibliothèque** :
+
+| | Ce que ça veut dire | Types de commit |
+|---|---|---|
+| **Majeur** | Rupture de compatibilité entre l'API et un mobile déjà installé — le cas réel, faute d'OTA — ou refonte. | `feat!:` · `BREAKING CHANGE` |
+| **Mineur** | Fonctionnalité visible par un Coach ou un Athlete. | `feat:` |
+| **Patch** | Correctif. | `fix:` · `perf:` |
+| *(rien)* | Ne bouge aucun numéro, mais apparaît au CHANGELOG sous « Technique ». | `ci:` · `chore:` · `refactor:` |
+
+Le déroulé, qui ne change rien aux habitudes : tu pousses tes commits conventionnels, et
+`release.yml` maintient **en permanence une PR de release ouverte** portant le bump et le CHANGELOG
+depuis le dernier tag. Elle se met à jour à chaque merge sur `main`. Le jour où tu veux livrer, tu
+la merges : le tag `vX.Y.Z` et la GitHub Release se posent tout seuls.
+
+**Le type décide du numéro, toi tu décides du moment.** Aucune livraison ne part sans ton merge, et
+c'est là que tu relis ce que la version contient.
+
+> **Aucun garde-fou n'interdit un `feat` qui ne se voit pas** — ni sur le scope, ni ailleurs. Un
+> `feat(ci):` produirait un mineur sans rien changer pour un utilisateur, mais le cas ne s'est
+> jamais présenté : `ci` est un **type** ici, pas un scope, et le travail technique se commite déjà
+> en `ci:` / `chore:` / `refactor:`. Surtout, un filtre par scope laisserait passer le vrai risque —
+> un `feat(api):` interne, que rien ne distingue d'une fonctionnalité. La porte est la PR de
+> release, que tu lis avant de la merger. Si le numéro calculé est faux, un commit vide portant
+> `Release-As: 1.4.0` dans son **corps** le force : c'est la seule exception assumée à la règle du
+> commit sur une seule ligne.
+
+**La promotion ne renumérote pas.** `main → staging → production` fait avancer le *même* numéro.
+Que `staging` soit en 1.3.0 pendant que `production` est en 1.2.0 est l'état **normal** : une seule
+lignée, deux têtes de lecture décalées par le temps de promotion. Le tier est porté par `APP_ENV`,
+jamais par le numéro.
+
 ## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 
 **Secrets** — ce que seule la CI doit connaître :
 
 - `SONAR_TOKEN` — SonarCloud.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
+- `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185). Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
 - `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181). C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
 
 **Variables** (onglet *Variables*), pas des secrets — elles partent dans le bundle ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
