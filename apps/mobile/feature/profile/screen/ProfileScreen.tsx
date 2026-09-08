@@ -11,8 +11,8 @@ import {
 } from "@/feature/account/hook/useCapabilityUpdate";
 import { NotificationEmailSection, revokeCurrentPushToken } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
+import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
-import { resetQueryCache } from "@/shared/lib/query";
 
 // i18n-values account.capabilities.option: coach, athlete
 // i18n-values account.capabilities.hint: coach, athlete
@@ -59,9 +59,9 @@ export function ProfileScreen() {
     // l'utilisateur connecté, elle n'aurait plus d'effet après le signOut.
     await revokeCurrentPushToken();
     await authClient.signOut();
-    // Le cookie part, le cache RESTAIT — persisté sept jours et frais cinq minutes, il était
-    // resservi tel quel au compte suivant sur cet appareil.
-    await resetQueryCache();
+    // Le cookie part, ce que l'appareil garde RESTAIT — cache persisté sept jours et frais cinq
+    // minutes, documents descendus pour le hors-ligne : tout était resservi au compte suivant.
+    await resetAccountData();
     router.replace("/login");
   }
 

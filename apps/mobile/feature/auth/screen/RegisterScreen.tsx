@@ -7,8 +7,8 @@ import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
-import { resetQueryCache } from "@/shared/lib/query";
 import { landingTab } from "@/shared/lib/tabs";
 
 /**
@@ -71,8 +71,13 @@ export function RegisterScreen() {
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
       // ici sans qu'aucune déconnexion soit passée, et le cache du précédent serait resservi.
-      await resetQueryCache();
-      router.replace("/planning");
+      await resetAccountData();
+      // AUCUNE navigation ici : c'est la garde de session en tête de ce composant qui aiguille,
+      // une fois la session RÉSOLUE, vers l'onglet que la capacité autorise. Un `replace` en dur
+      // partait avant elle et sur une route athlète — un compte dont la session n'avait pas encore
+      // repris se voyait alors refuser `/planning` par `redirectForPath`, qui le déposait sur le
+      // premier onglet sans capacité (Messages) avec une barre amputée de la moitié de ses
+      // entrées. Le commentaire de la garde disait déjà pourquoi `/planning` en dur est faux.
     } catch {
       setError(t("auth.errors.generic"));
     } finally {

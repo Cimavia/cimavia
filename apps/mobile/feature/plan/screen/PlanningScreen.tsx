@@ -8,6 +8,7 @@ import { useMyCoach } from "@/feature/coach";
 import { CurrentWeekSection } from "@/feature/plan/component/CurrentWeekSection";
 import { PlanningNotice } from "@/feature/plan/component/PlanningNotice";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
+import { useOfflineDocuments } from "@/feature/plan/hook/useOfflineDocuments";
 import { CmvErrorState, CmvScreen } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 
@@ -51,6 +52,10 @@ export function PlanningScreen() {
   const { t } = useTranslation();
   const { data: plans, isPending, isError, isRefetching, refetch } = useMyPlans();
   const { data: coach } = useMyCoach();
+
+  // Le planning est l'écran d'accueil de l'athlète, donc le dernier passage en ligne avant la
+  // salle : c'est là qu'on met séances et documents sur l'appareil, pas à l'ouverture d'une séance.
+  useOfflineDocuments();
 
   const today = todayIsoDate();
   const monday = mondayOfIsoWeek(today);

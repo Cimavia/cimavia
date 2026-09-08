@@ -5,8 +5,11 @@ import { CmvText } from "@/shared/component/CmvText";
 
 /**
  * Bandeau « hors-ligne » (p3-5). Le contenu reste affiché — il vient du cache persisté — mais
- * l'athlète doit savoir qu'il consulte des données figées, et que les documents ne s'ouvriront
- * pas (URLs signées, réseau requis).
+ * l'athlète doit savoir qu'il consulte des données FIGÉES, arrêtées à son dernier passage.
+ *
+ * Il ne parle plus des documents depuis #95 : ceux des cycles diffusés sont sur l'appareil, et
+ * les annoncer perdus d'avance serait faux. Ce qui manque vraiment se dit à l'endroit exact où
+ * ça manque — sous la pièce jointe, à la place de l'image.
  */
 export function OfflineBanner() {
   const { t } = useTranslation();
