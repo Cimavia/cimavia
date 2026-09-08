@@ -2540,13 +2540,46 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > trou ne coûtait rien de plus : il fallait de toute façon charger chaque `ScheduledSessionDto`
 > pour connaître ses documents.
 
-> **Tranché en #95** (`expo-sharing` plutôt que `Linking` pour une pièce jointe locale) : un
-> `file://` du sandbox n'est ouvrable par AUCUNE autre application sur Android — `Linking.openURL`
-> y lève `FileUriExposedException`, le système exigeant un `content://` délivré par un
-> FileProvider. `Sharing.shareAsync` est ce passage. Conséquence à assumer : c'est un « ouvrir
-> avec » proposé par l'OS, là où la maquette (cadre 9) annonce que « le PDF s'ouvre dans
-> Cimavia ». L'extension du nom d'origine est conservée à l'écriture du fichier pour qu'iOS déduise
-> d'elle le type à ouvrir, sans table de correspondance UTI à tenir.
+> **Tranché en #95** (OUVRIR n'est pas PARTAGER) : un `file://` du sandbox n'est ouvrable par
+> AUCUNE autre application sur Android — `Linking.openURL` y lève `FileUriExposedException`, le
+> système exigeant un `content://` délivré par un FileProvider. La première version en a conclu
+> que `Sharing.shareAsync` était le passage : il fournit bien ce `content://`, mais **en ouvrant la
+> feuille de partage**. On proposait à l'athlète d'envoyer son PDF à ses contacts au lieu de le lui
+> montrer — retour du bêta, sur appareil, là où aucun test ne pouvait le voir : le mock répondait
+> « partage réussi » et l'assertion portait sur l'appel, pas sur ce que l'utilisateur voyait.
+> Le geste juste est l'intention `ACTION_VIEW` (`expo-intent-launcher`), à qui on tend le
+> `contentUri` que `File` expose déjà, avec `FLAG_GRANT_READ_URI_PERMISSION` — sans ce drapeau
+> l'ouverture échoue APRÈS l'affichage du sélecteur, ce qui se lit comme un bug du lecteur.
+> **iOS garde `Sharing`** : `UIActivityViewController` y est la voie documentée, sa feuille porte
+> un aperçu Quick Look en tête, et l'asymétrie est assumée faute d'embarquer un visionneur. Reste
+> l'écart au cadre 9 de la maquette, qui annonce que « le PDF s'ouvre dans Cimavia » : c'est un
+> « ouvrir avec » de l'OS. L'extension du nom d'origine, conservée à l'écriture, sert des deux
+> côtés — elle aide Android à trouver un lecteur quand le type MIME manque, et iOS à déduire ce
+> qu'il présente.
+
+> **Corrigé en marge de #95** (la passe de téléchargement survivait à la déconnexion) : trouvé en
+> testant le changement de compte. La passe est LONGUE — quarante séances tirées l'une après
+> l'autre — et rien ne l'arrêtait quand l'athlète se déconnectait au milieu. Elle continuait donc
+> d'écrire les séances du compte QUITTÉ dans le cache que `resetAccountData` venait de vider, et le
+> persister les recopiait sur le disque : la fuite entre comptes que ce même journal décrit pour le
+> cache de requêtes (#198), réintroduite par la porte de derrière et par le code censé la fermer.
+> La leçon n'est pas « vider aussi » mais **« un traitement long doit savoir pour qui il
+> travaille »** : `purgeAllDocuments` incrémente une ÉPOQUE, la passe capture la sienne au départ
+> et abandonne dès qu'elle diverge — avant chaque requête, pas seulement entre deux cycles. Aucune
+> connaissance de l'authentification n'entre dans la passe.
+
+> **Corrigé en marge de #95** (l'aiguillage après connexion partait avant la session) : trouvé en
+> testant, et SANS rapport avec le hors-ligne. `LoginScreen` et `RegisterScreen` faisaient un
+> `router.replace("/planning")` en dur — juste sous un commentaire expliquant pourquoi `/planning`
+> en dur est faux, et à trois lignes d'une garde qui dérive déjà la destination de la capacité.
+> Ce `replace` partait avant que la session ait repris : `redirectForPath` voyait « aucune
+> capacité » (`capabilitiesOf` rend le même vide pour « session absente » et « session inconnue »),
+> refusait `/planning` et déposait l'utilisateur sur le premier onglet SANS capacité — Messages —
+> avec une barre amputée de la moitié de ses entrées. Le symptôme se lisait « il manque des données
+> et des onglets », ce qui envoyait chercher du côté du cache. Les deux `replace` sont retirés : la
+> garde suffit, et `app/(app)/_layout.tsx` ne tranche plus tant que la session n'est pas résolue
+> **et présente** — `isPending` seul ne suffisait pas, une session tout juste quittée étant résolue
+> et vide.
 
 > **Corrigé au passage** (trouvé en lisant le composant, pas en testant) : `ImageBlock` de
 > `CmvRichDocument` posait un état `"failed"` sur `onError` et ne le rendait **nulle part**. Sur
