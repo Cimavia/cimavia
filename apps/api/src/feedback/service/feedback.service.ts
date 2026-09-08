@@ -4,11 +4,12 @@ import type {
   SessionFeedbackDto,
   UpsertSessionFeedbackInput,
 } from "@cmv/shared";
-import { ScheduledSessionStatus } from "@cmv/shared";
+import { FEEDBACK_EVENT_MESSAGE_TYPES, ScheduledSessionStatus } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import { toMessageDto } from "../../message/message.mapper";
+import { FeedbackAnnouncerService } from "../../message/service/feedback-announcer.service";
 import { MessageAttachmentResolver } from "../../message/service/message-attachment.resolver";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
@@ -37,6 +38,8 @@ export class FeedbackService {
     // Les réponses rattachées au débrief sont des messages : même mapper, même résolveur de
     // rattachement que la messagerie — sans quoi on aurait deux façons de rendre un message.
     private readonly attachments: MessageAttachmentResolver,
+    // Déposer un débrief laisse un avis dans le fil (#96) : le coach revient par la messagerie.
+    private readonly announcer: FeedbackAnnouncerService,
   ) {}
 
   /**
@@ -60,6 +63,7 @@ export class FeedbackService {
     if (input.tracking !== undefined) {
       await this.writeTracking(scheduledSessionId, input.tracking);
     }
+    await this.announcer.announce(feedback);
     return this.getOrThrow(scheduledSessionId);
   }
 
@@ -128,6 +132,7 @@ export class FeedbackService {
       scheduledSessionId,
       sessionTitle: session.title,
     });
+    await this.announcer.announce(feedback);
 
     return feedback;
   }
@@ -168,7 +173,9 @@ export class FeedbackService {
    */
   private async attachedMessages(sessionFeedbackId: string): Promise<MessageDto[]> {
     const messages = await this.db.message.findMany({
-      where: { sessionFeedbackId },
+      // Les AVIS sont écartés : ils annoncent ce débrief-ci, les afficher dedans reviendrait à
+      // dire « débrief déposé » au milieu du débrief qu'on est en train de lire.
+      where: { sessionFeedbackId, type: { notIn: [...FEEDBACK_EVENT_MESSAGE_TYPES] } },
       orderBy: { createdAt: "asc" },
     });
     if (messages.length === 0) return [];

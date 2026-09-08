@@ -18,6 +18,7 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
+import { FeedbackAnnouncerService } from "../../message/service/feedback-announcer.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -41,6 +42,8 @@ export class FeedbackMediaService {
     private readonly feedback: FeedbackService,
     // Garde « séance de l'athlète courant, dans un cycle PUBLISHED » — source unique (P3).
     private readonly athletePlans: AthletePlanService,
+    // Joindre un média à un débrief est aussi une activité à annoncer dans le fil (#96).
+    private readonly announcer: FeedbackAnnouncerService,
   ) {}
 
   /**
@@ -127,6 +130,9 @@ export class FeedbackMediaService {
     const media = await this.db.feedbackMedia.create({
       data: data as Prisma.FeedbackMediaUncheckedCreateInput,
     });
+    // Appelé une fois PAR média : c'est l'annonceur qui décide s'il y a quelque chose à dire, et
+    // c'est pour ça que vingt photos d'un même geste ne font pas vingt bulles.
+    await this.announcer.announce(feedback);
     return toFeedbackMediaDto(media, this.storage);
   }
 
