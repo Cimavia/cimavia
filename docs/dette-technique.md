@@ -900,7 +900,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > chaud — il ne l'est plus au premier lancement, ni après un changement de `buster`, ni chez un
 > nouvel utilisateur. La projection se fait désormais par `select`, à la lecture, sur les deux apps.
 
-| M-6 | **Le `buster` du cache persisté se bump à la main** (`CACHE_SCHEMA_VERSION`, `shared/lib/query.tsx`). Rien ne force à y penser : oublier de l'incrémenter après un ajout de champ au DTO fait planter l'écran chez l'utilisateur, pendant les sept jours de rétention du cache — et pas chez celui qui développe, dont le cache est neuf. À remplacer par la version du produit. | 🟡 | [#184](https://github.com/Cimavia/cimavia/issues/184) |
+| ~~M-6~~ | ~~**Le `buster` du cache persisté se bump à la main**~~ (`CACHE_SCHEMA_VERSION`, `shared/lib/query.tsx`) : rien ne forçait à y penser, et la panne ne se voit pas chez celui qui développe — son cache est toujours neuf. | ✅ | résolue en **#187** — le buster est la version du produit, lue par `currentAppVersion()` |
 
 > **Tranché en #137** (un formateur ne rend jamais du vide) : les libellés et valeurs de métrique
 > vivent désormais dans `@cmv/shared` (`metricLabel`, `metricUnitLabel`, `formatMetricValue`,
@@ -2729,6 +2729,37 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > fonctionnalité. La porte est **humaine et déjà là** : rien n'est numéroté sans que la PR de
 > release soit mergée, et c'est à ce moment que le CHANGELOG se lit. `Release-As:` corrige un bump
 > faux.
+
+> **Tranché en #187** (le tier a DEUX vocabulaires, et on ne les uniformise pas) : `AppTier` compte
+> quatre valeurs. Le web lit `VITE_APP_ENV` (`development | staging | production`, aligné sur
+> l'`APP_ENV` de l'API), le mobile lit `Constants.expoConfig.extra.appVariant`
+> (`development | preview | production`, posé par `app.config.ts`). `staging` n'existe que d'un
+> côté, `preview` que de l'autre — parce que ce sont deux chaînes de livraison différentes, un
+> build EAS interne n'étant pas un déploiement de serveur. L'issue affirmait que « le tier vient
+> d'`APP_ENV` » ; c'est faux sur mobile, où `sentry.ts` explique déjà pourquoi inventer une
+> `EXPO_PUBLIC_APP_ENV` de plus serait la mauvaise voie. L'union accueille les deux plutôt que de
+> fabriquer un troisième vocabulaire que personne n'émettrait.
+
+> **Tranché en #187** (une ligne de pied, pas un écran « À propos ») : l'issue posait la question
+> ouverte, et la maquette y répondait déjà — `athlete_profile.dc.html` se termine par
+> `Cimavia · v1.0.0`, sous « Se déconnecter ». Son « À trancher » s'appuyait par ailleurs sur une
+> affirmation périmée, « aucun écran de réglages n'existe » : le mobile a `ProfileScreen` et le web
+> `AccountScreen` depuis #13. Il n'y avait donc rien à créer, seulement une ligne à poser.
+
+> **Tranché en #187** (deux clés i18n plutôt qu'une avec substitution) : `account.about.version` et
+> `account.about.unknown`. Une clé unique où l'on aurait injecté `—` aurait marché à l'écran, mais
+> le harnais de test tourne en `cimode` et **perd l'interpolation** : le cas d'absence serait
+> devenu indistinguable du cas nominal, donc intestable. Deux clés rendent la décision de l'écran
+> observable — c'est elle qu'on éprouve, la mise en forme du numéro étant couverte à 100 % dans
+> `@cmv/shared`.
+
+> **Tranché en #187** (le buster du cache est le NUMÉRO NU, pas le libellé affiché) : `query.tsx`
+> lit `currentAppVersion()` et non `appVersionLabel()`. Le libellé porte le suffixe de tier,
+> c'est-à-dire de la présentation ; l'identité d'un schéma de cache n'en dépend pas. Corollaire
+> de la fermeture de **M-6** : le cache est jeté à CHAQUE montée de version, même sans changement de
+> DTO. Ce sur-bust est assumé — une première ouverture qui recharge coûte infiniment moins qu'un
+> écran mort pendant sept jours, et surtout l'oubli devient impossible au lieu d'improbable. Sans
+> OTA, une montée de version est de toute façon un build de store.
 
 > **Tranché en #186** (l'identité d'un artefact est `1.2.0+3f2a1c`, jamais le numéro nu) : entre
 > deux releases, le tier dev republie une image à CHAQUE push sur `main` alors que le numéro
