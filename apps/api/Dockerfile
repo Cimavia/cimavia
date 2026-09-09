@@ -4,6 +4,12 @@
 # (Clever Cloud HDS) : seules les variables d'environnement changent — c'est la portabilité
 # revendiquée au CDC §7.5, et la construire ici permet de la vérifier sur le NAS avant la prod.
 #
+# Une nuance depuis #186 : la VERSION, elle, est figée au build (`APP_VERSION` / `APP_BUILD` plus
+# bas). Ça ne contredit pas la phrase ci-dessus, ça la précise — une image par version, promue
+# TELLE QUELLE d'un tier à l'autre par simple retag. Reconstruire pour promouvoir donnerait deux
+# binaires différents sous le même numéro (dépendances résolues autrement, image de base qui a
+# dérivé), et le « 1.2.0 validé en staging » ne serait plus celui qui part en prod.
+#
 # Base glibc (bookworm-slim) et NON alpine : `@sentry/profiling-node` est un module natif dont
 # les binaires précompilés ciblent la glibc. Prisma, lui, n'impose rien — Prisma 7 avec l'adapter
 # pg utilise le compilateur WASM (query_compiler_fast_bg.wasm), donc aucun moteur Rust de requête
