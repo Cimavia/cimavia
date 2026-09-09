@@ -2730,6 +2730,26 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > release soit mergée, et c'est à ce moment que le CHANGELOG se lit. `Release-As:` corrige un bump
 > faux.
 
+> **Appris en #187** (le mobile n'a RIEN à composer pour sa release Sentry, et c'est voulu) : l'API
+> et le web assemblent `1.2.0+3f2a1c` à la main, le mobile non — et il ne s'agit pas d'un oubli. Le
+> SDK le fait déjà seul, depuis la couche native :
+>
+> ```js
+> event.release = `${nativeRelease.id}@${nativeRelease.version}+${nativeRelease.build}`;
+> event.dist    = `${nativeRelease.build}`;
+> ```
+>
+> `version` vient d'`app.json` (écrit dans `Info.plist` et `build.gradle` au prebuild), `build` du
+> `versionCode` / `buildNumber` géré par EAS. Ce qui manquait n'était donc pas le mécanisme mais la
+> vérité de la donnée : `app.json` annonçait `1.0.0`. Le brancher sur `extra-files` en #186 a suffi
+> à rendre ce nom exact.
+>
+> Le problème d'unicité qui impose le `+sha` ailleurs ne se pose pas ici : `autoIncrement` d'EAS
+> garantit un `build` distinct à chaque build. Les trois couches ont chacune une identité unique,
+> par trois mécanismes différents — un `release` explicite côté API et web, la dérivation native
+> côté mobile. Une issue avait été envisagée pour « nommer les releases Hermes » ; elle aurait
+> inventé du travail.
+
 > **Tranché en #187** (le tier a DEUX vocabulaires, et on ne les uniformise pas) : `AppTier` compte
 > quatre valeurs. Le web lit `VITE_APP_ENV` (`development | staging | production`, aligné sur
 > l'`APP_ENV` de l'API), le mobile lit `Constants.expoConfig.extra.appVariant`
