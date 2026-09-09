@@ -14,7 +14,14 @@ import { defineConfig } from "vite";
  * et l'étape `builder` de l'image n'en a donc aucun : la détection échouerait précisément là où le
  * seul build qui compte a lieu. Le plugin l'INJECTE aussi dans le bundle, si bien que le SDK le
  * rapporte tout seul — ce qui est téléversé et ce qui est signalé bougent ensemble, par cette
- * variable. C'est le point de raccord de #186, qui y mettra la version du produit à la place du sha.
+ * variable.
+ *
+ * Depuis #186, le workflow y met `1.2.0+3f2a1c` — et surtout PAS la version seule, contrairement à
+ * ce que cette ligne annonçait. Le tier dev republie une image à CHAQUE push sur `main` alors que
+ * le numéro n'avance qu'au merge de la PR de release : plusieurs bundles porteraient alors le même
+ * nom de release, et le dernier téléversement de sourcemaps écraserait les précédents.
+ * L'unminification désignerait le mauvais code sans rien dire — exactement la panne contre laquelle
+ * le garde-fou ci-dessous a été écrit.
  */
 const SENTRY_AUTH_TOKEN = process.env.SENTRY_AUTH_TOKEN;
 const SENTRY_RELEASE = process.env.SENTRY_RELEASE;

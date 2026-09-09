@@ -13,9 +13,9 @@
 #   docker build -f apps/web/Dockerfile \
 #     --build-arg VITE_API_URL=https://api.staging.example \
 #     --build-arg VITE_SENTRY_DSN=https://…@…ingest.sentry.io/… \
-#     --build-arg VITE_APP_ENV=staging \
+#     --build-arg VITE_APP_ENV=staging --build-arg VITE_APP_VERSION=1.2.0 \
 #     --build-arg SENTRY_ORG=… --build-arg SENTRY_PROJECT=cimavia-web \
-#     --build-arg SENTRY_RELEASE=$(git rev-parse HEAD) \
+#     --build-arg SENTRY_RELEASE=1.2.0+3f2a1c \
 #     --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN .
 #
 # Sans le secret, le build aboutit quand même : les sourcemaps ne sont simplement pas publiées.
@@ -65,6 +65,15 @@ ARG VITE_SENTRY_DSN=
 ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
 ARG VITE_APP_ENV=development
 ENV VITE_APP_ENV=$VITE_APP_ENV
+
+# La version du produit, figée dans le bundle comme tout le reste (#186). Sans valeur, l'écran de
+# compte affiche `—` : un build local n'a pas de version, et en inventer une la rendrait
+# indiscernable d'une vraie (règle dure n°5).
+#
+# Pas de `VITE_APP_BUILD` en face : personne ne l'afficherait. Ce qui distingue deux bundles
+# portant le MÊME numéro, c'est le nom de release Sentry ci-dessous, et lui seul en a besoin.
+ARG VITE_APP_VERSION=
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
 
 # Téléversement des sourcemaps. L'organisation, le projet et la release ne sont pas des secrets ;
 # le JETON, lui, en est un — d'où le montage BuildKit et non un ARG. Un ARG serait gravé dans
