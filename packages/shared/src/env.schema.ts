@@ -9,6 +9,19 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  /**
+   * Version du produit (`1.2.0`) et identité du build (le sha court), INJECTÉES AU BUILD de
+   * l'image (#186) — jamais posées dans le `.env` du NAS, qui en ferait une seconde source de
+   * vérité, modifiable à côté de l'artefact et donc capable de mentir sur ce qui tourne.
+   *
+   * Les deux sont OPTIONNELLES : un `pnpm dev` local n'en a aucune, et l'API doit démarrer pareil.
+   * Absentes, ce qui les lit répond `null` — jamais un numéro inventé (règle dure n°5).
+   *
+   * Deux variables et non une chaîne pré-assemblée : l'affichage et Swagger veulent le numéro nu,
+   * Sentry veut l'identité complète `1.2.0+3f2a1c`. Les coller ici priverait les premiers du leur.
+   */
+  APP_VERSION: z.preprocess(emptyAsUndefined, z.string().optional()),
+  APP_BUILD: z.preprocess(emptyAsUndefined, z.string().optional()),
   DATABASE_URL: z.url(),
   DIRECT_URL: z.preprocess(emptyAsUndefined, z.url().optional()),
   // Better Auth : secret de signature (obligatoire) + URL publique de l'API (base des liens).

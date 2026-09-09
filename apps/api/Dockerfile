@@ -107,6 +107,20 @@ COPY --chmod=755 apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.
 # rares écritures (logs pnpm, temp Prisma) vont dans /home/node et /tmp, déjà accessibles.
 USER node
 
+# Version du produit et identité du build, injectées PAR LE WORKFLOW au moment du build (#186).
+# Elles vivent DANS l'image, pas dans le `.env` du NAS : une variable d'exécution serait une
+# seconde source de vérité, modifiable à côté de l'artefact, donc capable de dire une version que
+# le binaire n'est pas. Ici, l'image EST sa version.
+#
+# Déclarées le plus tard possible : un ARG invalide toutes les couches qui le suivent, et ces deux
+# valeurs changent à chaque build — les poser plus haut recompilerait Prisma à chaque fois.
+#
+# Absentes (build local, `docker build` à la main), l'API démarre pareil et le dit.
+ARG APP_VERSION
+ENV APP_VERSION=$APP_VERSION
+ARG APP_BUILD
+ENV APP_BUILD=$APP_BUILD
+
 ENV PORT=3000
 EXPOSE 3000
 
