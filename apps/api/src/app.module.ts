@@ -28,6 +28,7 @@ import { PlanModule } from "./plan/plan.module";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
 import { TenancyModule } from "./tenancy/tenancy.module";
+import { VersionModule } from "./version/version.module";
 
 /**
  * Cibles de transport pino :
@@ -104,6 +105,7 @@ function buildLogTargets(): TransportTargetOptions[] {
     InvoiceModule,
     ReminderModule,
     HealthModule,
+    VersionModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
 })
