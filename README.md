@@ -19,8 +19,9 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 - pnpm 10.34.4 (`corepack enable && corepack use pnpm@10.34.4`)
 - Docker (pour PostgreSQL, MinIO — object storage S3-compatible — et Mailpit — serveur SMTP local)
 - Pour le mobile sur **appareil physique** uniquement (débrief, médias, push) : compte
-  [Expo](https://expo.dev) + `eas-cli`, et un projet Firebase pour les notifications Android —
-  voir « Développer sur un téléphone » plus bas.
+  [Expo](https://expo.dev) + `eas-cli`, un projet Firebase pour les notifications Android, et une
+  adhésion à l'**Apple Developer Program** pour tout ce qui touche iOS — voir « Développer sur un
+  téléphone » plus bas.
 
 ## Démarrage
 
@@ -121,8 +122,9 @@ En production le problème disparaît (Scaleway est une adresse publique).
 
 **2. Un module natif impose un rebuild.** Le code JS se recharge à chaud (`r` dans Metro), mais
 `expo-notifications`, `expo-image-picker`, `expo-device`… vivent dans le binaire. Après ajout
-d'une dépendance native : `eas build --profile development --platform android`, puis désinstaller
-l'ancienne app avant d'installer l'APK. Symptôme d'un build périmé :
+d'une dépendance native : `pnpm build:dev:android` ou `pnpm build:dev:ios` depuis `apps/mobile`,
+puis désinstaller l'ancienne app avant d'installer le binaire. La règle vaut **des deux côtés** —
+un module natif est dans le binaire quel que soit l'OS. Symptôme d'un build périmé :
 `Cannot find native module 'X'`, suivi d'une cascade de `Route is missing the required default
 export` (l'import qui lève casse le routing entier — une seule cause, pas dix).
 
@@ -145,9 +147,38 @@ ne pas les redéclarer dans `app.json`. Les trois schemes sont des origines de c
 (`apps/api/src/config/origins.ts`) ; le client mobile lit le sien via `Constants.expoConfig.scheme`.
 `slug` et `extra.eas.projectId` restent communs : un seul projet EAS, plusieurs app ids.
 
-### Notifications push (Android)
+### Builds iOS (distribution ad hoc)
 
-Expo passe par Firebase Cloud Messaging. Deux fichiers **distincts**, à ne pas confondre :
+Rien n'est versionné ici : tout vit chez Apple et chez Expo. `eas build --platform ios` tourne sur
+un worker macOS, **aucun Mac n'est requis** — seul `expo run:ios` en demande un.
+
+Le bêta reçoit le profil `preview`, seul profil `internal` qui vise déjà `api-dev`. Le profil
+`production` reste orienté store et **n'est pas installable** sur un iPhone bêta : c'est voulu, il
+attend l'App Store.
+
+**Enregistrer l'appareil AVANT de construire.** C'est le piège qui n'a pas d'équivalent Android :
+la distribution `internal` d'iOS signe le binaire pour une liste d'appareils, identifiés par
+**UDID**.
+
+```bash
+eas device:create                 # une fois par iPhone, avant son premier build
+pnpm build:preview:ios            # depuis apps/mobile
+```
+
+Un appareil ajouté **après** ne peut pas installer un binaire déjà signé : il faut reconstruire.
+Cent appareils par an au maximum.
+
+Laisse `eas build` créer les identifiants — les trois app ids (`fr.cimavia.app`, `.dev`,
+`.preview`), le certificat de distribution, les profils de provisionnement et la clé APNs. Les
+fabriquer à la main dans le portail Apple est le piège symétrique du keystore Android.
+
+### Notifications push (Android et iOS)
+
+Les deux plateformes passent par Expo, mais **pas par le même transport** : Firebase Cloud
+Messaging côté Android, APNs côté iOS. Rien de tout ça n'est dans le dépôt, sauf le fichier
+Firebase.
+
+**Android — Firebase.** Deux fichiers **distincts**, à ne pas confondre :
 
 - `google-services.json` (Firebase → Paramètres → app Android) → se dépose dans `apps/mobile/`,
   référencé par `app.json` (`android.googleServicesFile`). Ne s'uploade **nulle part**. Il doit
@@ -160,6 +191,17 @@ Expo passe par Firebase Cloud Messaging. Deux fichiers **distincts**, à ne pas 
 
 Laisse `eas build` générer le keystore (ne pas passer par l'assistant « New Application
 Identifier » d'expo.dev). `EXPO_ACCESS_TOKEN` reste optionnel : les push partent sans.
+
+**iOS — APNs.** Aucun fichier à déposer dans le dépôt, et **aucun équivalent de
+`google-services.json`** : une **clé APNs** (`.p8`, générée dans le portail Apple) suffit, déposée
+chez Expo → Credentials → iOS. `eas build` la crée tout seul si tu le laisses faire, ce qui est la
+voie recommandée. Une clé vaut pour **toutes** les app ids d'un même compte Apple, là où Firebase
+exige un client par variante.
+
+L'entitlement `com.apple.developer.usernotifications.time-sensitive` d'`app.json` est ce qui
+autorise la bannière du minuteur de séance **téléphone verrouillé**. Et `usePushToken` demande la
+permission avec `allowAlert` : sans cette option, iOS accorde la permission **sans bannière** et le
+push arrive sans que rien ne s'affiche (#134).
 
 ### Cas particulier WSL2 + Docker Desktop
 
