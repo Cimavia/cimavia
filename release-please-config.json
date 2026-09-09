@@ -6,7 +6,10 @@
     ".": {
       "release-type": "node",
       "package-name": "cimavia",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        { "type": "json", "path": "apps/mobile/app.json", "jsonpath": "$.expo.version" }
+      ]
     }
   },
   "changelog-sections": [
