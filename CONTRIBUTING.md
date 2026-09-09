@@ -63,8 +63,12 @@ Le numéro est **une sémantique produit, pas de bibliothèque** :
 |---|---|---|
 | **Majeur** | Rupture de compatibilité entre l'API et un mobile déjà installé — le cas réel, faute d'OTA — ou refonte. | `feat!:` · `BREAKING CHANGE` |
 | **Mineur** | Fonctionnalité visible par un Coach ou un Athlete. | `feat:` |
-| **Patch** | Correctif. | `fix:` · `perf:` |
-| *(rien)* | Ne bouge aucun numéro, mais apparaît au CHANGELOG sous « Technique ». | `ci:` · `chore:` · `refactor:` |
+| **Patch** | **Tout le reste**, sans exception : correctif, travail technique, documentation, tests. | `fix:` · `perf:` · `ci:` · `chore:` · `refactor:` · `docs:` · `test:` |
+
+Le calcul ne connaît que ces trois cas, et rien d'autre : `rupture → majeur`, `feat → mineur`,
+**tout autre type → patch**. Masquer un type du CHANGELOG (`docs:`, `test:`) ne le retire pas du
+calcul. Un patch peut donc ne rien contenir de visible — sans conséquence, puisqu'il n'existe que
+le jour où tu merges la PR de release.
 
 Le déroulé, qui ne change rien aux habitudes : tu pousses tes commits conventionnels, et
 `release.yml` maintient **en permanence une PR de release ouverte** portant le bump et le CHANGELOG
