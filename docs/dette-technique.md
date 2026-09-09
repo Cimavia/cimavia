@@ -2729,6 +2729,22 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > release soit mergée, et c'est à ce moment que le CHANGELOG se lit. `Release-As:` corrige un bump
 > faux.
 
+> **Appris en #185** (deux réglages qui paraissent anodins et cassent la pose du tag) — la première
+> PR de release s'est ouverte, s'est mergée, et n'a produit **ni tag ni GitHub Release** :
+>
+> - **`separate-pull-requests: false` ne doit PAS être écrit** quand le dépôt n'a qu'un paquet. La
+>   valeur par défaut vaut déjà `Object.keys(repositoryConfig).length === 1`, donc `true` ici ;
+>   l'écrire à `false` réveille le plugin `Merge`, qui renomme la branche de release en
+>   `release-please--branches--main` — **sans composant**. Or la phase de release lit le composant
+>   dans le NOM DE LA BRANCHE et le compare à celui configuré (`cimavia`, déduit du nom du paquet) :
+>   `undefined` ≠ `cimavia`, la release est abandonnée en silence. Le message suivant,
+>   `There are untagged, merged release PRs outstanding - aborting`, verrouille alors toute
+>   exécution ultérieure jusqu'à ce que le label `autorelease: pending` de la PR soit retiré.
+> - **Un tag git nu ne suffit pas à amorcer** : `release-please` cherche des **GitHub Releases** et
+>   non des tags (`Could not find releases` sur un dépôt qui portait pourtant `v1.0.0`). Seul le
+>   `bootstrap-sha` a évité un CHANGELOG rédigé sur 716 commits. Toute reprise manuelle doit donc
+>   créer la Release, pas seulement le tag.
+
 > **Tranché en #185** (les six paquets restent à `0.0.0`) : ils sont tous `private` et aucun n'est
 > publié — cinq numéros indépendants n'auraient aucun lecteur. Seule la racine porte la version, et
 > `release-please` n'est configuré que sur `.`. La question se rouvre le jour où un paquet serait
