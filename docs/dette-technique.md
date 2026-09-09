@@ -21,15 +21,18 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-trois dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Vingt-six dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+**IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3** et **I-4**,
+**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
+**IOS-2** et **IOS-3**,
 dont le déclencheur est nommé mais
-dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
+dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires sauf une. **Q-5**, longtemps citée
 ici comme la seule involontaire, ne l'est plus : elle est suivie par
 [#186](https://github.com/Cimavia/cimavia/issues/186) depuis que la version envoyée au scan rend le
-mode « previous version » atteignable.
+mode « previous version » atteignable. La place est reprise par **IOS-6** — `timer-alert.ts` sans
+aucun test — qui attend son issue.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -2787,6 +2790,61 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > publié — cinq numéros indépendants n'auraient aucun lecteur. Seule la racine porte la version, et
 > `release-please` n'est configuré que sur `.`. La question se rouvre le jour où un paquet serait
 > publié.
+
+---
+
+## Post-MVP — Build et distribution iOS ([#134](https://github.com/Cimavia/cimavia/issues/134))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| IOS-1 | **Les chaînes de permission iOS ne passent pas par i18next** (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. Les localiser demande des fichiers `InfoPlist.strings` par langue, hors de ce que la config Expo expose. Français seulement. | 🟡 | [#71](https://github.com/Cimavia/cimavia/issues/71) |
+| IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
+| IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet en distribution ad hoc, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi TestFlight ou App Store)* |
+| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins, sans que rien ne le signale. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
+| IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
+| IOS-6 | **`timer-alert.ts` n'a aucun test** (0 % mesuré) : le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — les deux fichiers étaient à zéro, seul le second est remonté à 100 %. | 🟡 | — *(involontaire, issue à ouvrir)* |
+
+> **Tranché en #134** (ad hoc plutôt que TestFlight) : la bêta passe par la distribution `internal`,
+> qui signe le binaire pour une liste d'UDID. Le prix est réel — un appareil ajouté après un build
+> ne peut pas l'installer, il faut reconstruire, et le plafond est de cent appareils par an. Ce
+> qu'on achète en échange est l'absence de revue Apple, donc l'absence de délai qu'on ne maîtrise
+> pas, sur une bêta qui compte un coach. TestFlight reste le seul chemin qui ressemble à la mise en
+> vente : la question se rouvrira avec elle, pas avant. **Corollaire** : `submit.production` reste
+> VIDE dans `eas.json` — c'est une décision, pas un oubli, et rien ne se soumet nulle part.
+>
+> Le bêta reçoit donc le profil `preview`, seul profil `internal` visant déjà `api-dev`. Le profil
+> `production` n'est pas installable sur un iPhone de bêta, et n'a pas à l'être.
+
+> **Tranché en #134** (`ios.supportsTablet` passe à `false`) : il était à `true` depuis toujours et
+> personne n'a jamais vu un écran de cimavia sur iPad. Le laisser engageait l'app à être regardée en
+> grand format à la revue Apple, captures d'écran comprises, pour une surface que rien ne vérifie.
+> Le grand écran est déjà couvert par le web ([#20](https://github.com/Cimavia/cimavia/issues/20)).
+> Fermer la cible ne coûte rien tant que personne ne la demande.
+
+> **Découvert en #134** (couper la clé micro du picker aurait tué l'enregistrement vocal ANDROID) :
+> l'issue demandait `cameraPermission: false` ET `microphonePermission: false` sur
+> `expo-image-picker`, pour que l'ordre des plugins cesse de décider quelle chaîne l'`Info.plist`
+> reçoit. Le raisonnement était juste, le geste non. Ce plugin n'écrit pas que des clés iOS : à
+> `false`, il appelle `withBlockedPermissions` sur `android.permission.RECORD_AUDIO`, qui pose un
+> `tools:node="remove"` dans le manifeste. `expo-audio` déclare bien cette permission, mais le
+> contrôle de doublon (`isPermissionAlreadyRequested`) ne compare que `android:name` : il voit
+> l'entrée bloquée comme déjà présente et ne la remplace jamais. Dans les DEUX ordres de mods
+> possibles, `RECORD_AUDIO` sort du manifeste final — et rien n'échoue au build.
+>
+> Le geste juste est de donner au picker **la même chaîne** qu'`expo-audio` plutôt que `false` :
+> les deux plugins écrivent alors la même valeur, l'ordre redevient indifférent (l'objectif visé),
+> et aucune permission Android n'est bloquée. C'est ce que paie IOS-4. `cameraPermission: false`
+> reste, lui : rien n'appelle `launchCameraAsync` dans le dépôt, et bloquer `CAMERA` côté Android
+> est un gain.
+>
+> La leçon vaut au-delà du cas : **un plugin de config Expo nommé d'après une permission iOS peut
+> agir sur Android**, et un `false` y veut dire « interdis à tout le monde », pas « ne déclare rien ».
+
+> **Découvert en #134** (le mock de permission notifiait un refus que personne n'avait demandé) :
+> `test/native.tsx` rendait `{ status: "granted" }` là où le vrai module rend AUSSI le booléen
+> `granted`, seul champ que lisent `usePushToken` et `timer-alert`. Il valait donc `undefined`, tout
+> appelant concluait au refus, et n'importe quel test écrit sur ce mock serait passé au vert sans
+> rien éprouver. Un mock incomplet ne rate pas un test : il en fabrique un faux.
 
 ---
 
