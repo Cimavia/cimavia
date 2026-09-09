@@ -209,12 +209,27 @@ jobs:
       # ⚠️ Rend la gate BLOQUANTE pour toutes les PR. À ne fusionner qu'une fois la gate au vert,
       # sinon c'est le dépôt entier qui se ferme. La définition du « code neuf » compte autant que
       # le seuil : une période mal réglée fait échouer des PR irréprochables.
+      # Lue à la source. `sonar-project.properties` serait le mauvais endroit : le numéro y
+      # deviendrait une seconde valeur à tenir à la main, périmée dès le premier bump.
+      - name: Version analysée
+        id: version
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
         with:
           # 300 s par défaut. La gate se calcule en quelques secondes ; ce délai n'existe que pour
           # qu'une lenteur de SonarCloud ne bloque pas le runner indéfiniment.
-          args: -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+          # `projectVersion` : sans lui, chaque analyse était enregistrée « not provided » — et un
+          # événement VERSION de ce nom a fini par polluer la frise du projet. C'est aussi ce qui
+          # rend possible le mode « previous version » du code neuf (dette Q-5).
+          # `buildString` identifie le build SANS créer d'événement de version, là où le sha en
+          # `projectVersion` en poserait un par commit.
+          args: >-
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300
+            -Dsonar.projectVersion=${{ steps.version.outputs.version }}
+            -Dsonar.buildString=${{ github.sha }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io

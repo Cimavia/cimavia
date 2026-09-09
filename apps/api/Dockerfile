@@ -4,6 +4,12 @@
 # (Clever Cloud HDS) : seules les variables d'environnement changent — c'est la portabilité
 # revendiquée au CDC §7.5, et la construire ici permet de la vérifier sur le NAS avant la prod.
 #
+# Une nuance depuis #186 : la VERSION, elle, est figée au build (`APP_VERSION` / `APP_BUILD` plus
+# bas). Ça ne contredit pas la phrase ci-dessus, ça la précise — une image par version, promue
+# TELLE QUELLE d'un tier à l'autre par simple retag. Reconstruire pour promouvoir donnerait deux
+# binaires différents sous le même numéro (dépendances résolues autrement, image de base qui a
+# dérivé), et le « 1.2.0 validé en staging » ne serait plus celui qui part en prod.
+#
 # Base glibc (bookworm-slim) et NON alpine : `@sentry/profiling-node` est un module natif dont
 # les binaires précompilés ciblent la glibc. Prisma, lui, n'impose rien — Prisma 7 avec l'adapter
 # pg utilise le compilateur WASM (query_compiler_fast_bg.wasm), donc aucun moteur Rust de requête
@@ -106,6 +112,20 @@ COPY --chmod=755 apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.
 # inutile ici — l'application ne fait que LIRE /app, et les fichiers sont world-readable. Les
 # rares écritures (logs pnpm, temp Prisma) vont dans /home/node et /tmp, déjà accessibles.
 USER node
+
+# Version du produit et identité du build, injectées PAR LE WORKFLOW au moment du build (#186).
+# Elles vivent DANS l'image, pas dans le `.env` du NAS : une variable d'exécution serait une
+# seconde source de vérité, modifiable à côté de l'artefact, donc capable de dire une version que
+# le binaire n'est pas. Ici, l'image EST sa version.
+#
+# Déclarées le plus tard possible : un ARG invalide toutes les couches qui le suivent, et ces deux
+# valeurs changent à chaque build — les poser plus haut recompilerait Prisma à chaque fois.
+#
+# Absentes (build local, `docker build` à la main), l'API démarre pareil et le dit.
+ARG APP_VERSION
+ENV APP_VERSION=$APP_VERSION
+ARG APP_BUILD
+ENV APP_BUILD=$APP_BUILD
 
 ENV PORT=3000
 EXPOSE 3000

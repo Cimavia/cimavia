@@ -21,14 +21,15 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-quatre dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Vingt-trois dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3** et **I-4**,
 dont le déclencheur est nommé mais
-dont rien n'est à préparer avant qu'il survienne ; et **Q-5** enfin, qui se règle dans une interface SonarCloud,
-où une issue n'aurait rien à suivre que le fait de s'en souvenir. Les vingt-trois premières sont
-volontaires, la dernière non.
+dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
+ici comme la seule involontaire, ne l'est plus : elle est suivie par
+[#186](https://github.com/Cimavia/cimavia/issues/186) depuis que la version envoyée au scan rend le
+mode « previous version » atteignable.
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -268,7 +269,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 | Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
-| Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30` — `new_lines` (34 349) dépasse `ncloc` (30 247), donc TOUT le dépôt est « du code neuf » et `new_coverage` plafonne à 31,4 % contre un seuil de 80. Les PR passent (Sonar y diffe contre la base) ; c'est le job sur `push: main` qui échouera à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt. | 🔴 | — *(réglage d'interface, à faire avant le prochain merge sur `main`)* |
+| Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30`, héritée de l'instance et jamais choisie (`parentOrigin: INSTANCE`). Tout ce qui a moins d'un mois pèse donc dans `new_coverage`, seule condition rouge — **66,5 % contre un seuil de 80** au 9 septembre 2026 (c'était 31,4 % à la rédaction, quand `new_lines` dépassait encore `ncloc`). Les PR passent, Sonar y diffant contre la base ; c'est le job sur `push: main` qui échoue à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt — mais **le mode « previous version » n'était pas disponible** tant qu'aucune version n'était envoyée au scan. | 🔴 | [#186](https://github.com/Cimavia/cimavia/issues/186) *(qui pose `sonar.projectVersion` et rend l'arbitrage possible ; le réglage reste une action d'interface)* |
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
 
@@ -2728,6 +2729,43 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > fonctionnalité. La porte est **humaine et déjà là** : rien n'est numéroté sans que la PR de
 > release soit mergée, et c'est à ce moment que le CHANGELOG se lit. `Release-As:` corrige un bump
 > faux.
+
+> **Tranché en #186** (l'identité d'un artefact est `1.2.0+3f2a1c`, jamais le numéro nu) : entre
+> deux releases, le tier dev republie une image à CHAQUE push sur `main` alors que le numéro
+> n'avance qu'au merge de la PR de release. Dix builds différents portent donc le même numéro. Le
+> nommer seul suffirait à casser deux choses : côté Sentry, les sourcemaps web téléversées sous ce
+> nom s'écrasent entre elles et l'unminification désigne le mauvais code, sans rien dire ; côté
+> GHCR, un tag `1.2.0` repoussé à chaque fois change de contenu. Le numéro rend LISIBLE, le sha
+> rend UNIQUE, et l'on a besoin des deux. `APP_VERSION` et `APP_BUILD` voyagent donc séparément —
+> Swagger, `GET /version` et l'écran d'à-propos veulent la première moitié seule.
+
+> **Tranché en #186** (le tag Docker versionné n'est posé que sur le commit de bump) : corollaire du
+> précédent. `deploy-dev.yml` détecte ce commit en comparant le `package.json` de HEAD à celui de
+> HEAD~1, **et non en cherchant le tag `vX.Y.Z`** : `release.yml` le pose en réaction au MÊME push,
+> et rien n'ordonne les deux workflows — s'y fier serait une course. Le contenu du fichier, lui, est
+> déjà là. C'est aussi pourquoi `package.json` et `CHANGELOG.md` sont entrés dans les `paths` du
+> déploiement : le commit de bump ne touche qu'eux, et sans ça le NAS aurait gardé l'ancien numéro
+> jusqu'au prochain push de feature — l'écran d'à-propos aurait menti sur le tier où on le lit le
+> plus.
+
+> **Tranché en #186** (la version s'expose sur une route AUTHENTIFIÉE, pas sur `/health`) :
+> `/health` est publique, et la version qui tourne dit quels correctifs sont passés et lesquels ne
+> le sont pas. La divulgation est mineure et courante, mais elle se décide plutôt qu'elle ne se
+> subit, et tous les lecteurs de cette information ont une session. Contrepartie assumée : le smoke
+> check du déploiement, qui sonde `/health` sans session, ne peut plus dire quelle version il vient
+> de rendre saine — c'est le journal de démarrage de `main.ts` qui le fait, au même endroit que le
+> tier.
+
+> **Tranché en #186** (la promotion RETAGUE, elle ne reconstruit pas) : contrainte posée AVANT que
+> les workflows `staging` et `production` existent, parce qu'elle est impossible à rattraper après.
+> Une image `1.2.0` validée en staging doit être le binaire exact qui part en prod : reconstruire
+> donnerait deux artefacts différents sous le même numéro — dépendances résolues autrement, image de
+> base qui a dérivé. L'en-tête du `Dockerfile` de l'API a été précisé en conséquence : « une seule
+> image » veut dire une image PAR VERSION, promue telle quelle, le tier restant porté par `APP_ENV`.
+>
+> **L'image web est l'exception, et elle est structurelle** : un SPA fige `VITE_API_URL` dans son
+> bundle au build, elle ne peut donc pas être promue par retag. Elle est reconstruite par tier —
+> mais depuis le MÊME tag git, jamais depuis la branche de promotion.
 
 > **Appris en #185** (deux réglages qui paraissent anodins et cassent la pose du tag) — la première
 > PR de release s'est ouverte, s'est mergée, et n'a produit **ni tag ni GitHub Release** :

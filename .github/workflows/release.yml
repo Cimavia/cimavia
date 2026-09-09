@@ -11,6 +11,11 @@ name: Release
 on:
   push:
     branches: [main]
+  # Rejouer la vérification SANS pousser. Il a fallu deux fois, pendant #185, relancer ce workflow à
+  # la main via `gh run rerun` sur un identifiant qu'il fallait retrouver : une PR de release peut
+  # se retrouver bloquée par un état à corriger ailleurs (un label, un tag manquant), et rien ne la
+  # débloque tant qu'aucun commit n'arrive sur `main`.
+  workflow_dispatch:
 
 # `cancel-in-progress: false` : deux merges rapprochés doivent produire deux mises à jour de la PR
 # de release, pas une seule. Annuler la première laisserait la PR décrire un état qui n'existe plus.

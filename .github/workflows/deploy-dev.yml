@@ -18,6 +18,11 @@ on:
       - "pnpm-lock.yaml"
       - "deploy/dev/**"
       - ".github/workflows/deploy-dev.yml"
+      # Le commit de bump de `release-please` ne touche QUE ces deux fichiers. Sans eux ici, la
+      # version montée sur le NAS resterait la précédente jusqu'au prochain push de feature —
+      # l'écran « à propos » afficherait un numéro faux, sur le tier où on le lit le plus.
+      - "package.json"
+      - "CHANGELOG.md"
 
 concurrency:
   group: deploy-dev-${{ github.ref }}
@@ -44,14 +49,44 @@ jobs:
             dockerfile: apps/web/Dockerfile
 
     steps:
+      # `fetch-depth: 2` : l'étape « Version du produit » compare le `package.json` de HEAD à celui
+      # de HEAD~1 pour savoir si CE commit est le bump. Un clone superficiel d'un seul commit ne
+      # permettrait pas la comparaison.
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 2
 
       # GHCR exige un namespace en minuscules ; le propriétaire du dépôt peut contenir des
       # majuscules. On le normalise une fois ici.
       - name: Namespace GHCR (minuscules)
         id: ns
         run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      # La version du produit et l'identité du build, lues À LA SOURCE (`package.json` racine) et
+      # jamais recopiées ailleurs.
+      #
+      # `is_release` répond à « ce commit EST-il le bump ? » en comparant la version à celle du
+      # commit précédent. On ne s'appuie PAS sur le tag `vX.Y.Z` : `release.yml` le pose en réaction
+      # au MÊME push, et l'ordre des deux workflows n'est pas garanti — le tag pourrait ne pas
+      # exister encore ici. Le contenu du fichier, lui, est déjà là.
+      #
+      # C'est ce qui rend le tag Docker versionné IMMUABLE : entre deux releases le numéro ne bouge
+      # pas alors que le code, lui, est republié à chaque push. Poser `1.2.0` à chaque fois en
+      # ferait une étiquette qui change de contenu, c'est-à-dire qui ment.
+      - name: Version du produit
+        id: version
+        run: |
+          version="$(jq -r .version package.json)"
+          previous="$(git show HEAD~1:package.json 2>/dev/null | jq -r .version || echo "")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          if [ "$version" != "$previous" ]; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Commit de release : les images seront aussi taguées $version."
+          else
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
 
       # Le web fige VITE_API_URL dans le bundle AU BUILD : il faut l'URL publique de l'API du tier
       # dev. Absente, on échoue tôt plutôt que de publier une image web pointant sur localhost.
@@ -93,7 +128,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Tag mobile `dev` (celui que référence deploy/dev/docker-compose.yml) + tag immuable par SHA
-      # (traçabilité / rollback).
+      # (traçabilité / rollback) + le NUMÉRO, mais uniquement sur le commit qui le fait avancer.
+      #
+      # `enable` sur le troisième est le cœur du sujet : entre deux releases, dix pushes produisent
+      # dix images différentes sous le MÊME numéro. Les taguer toutes `1.2.0` rendrait cette
+      # étiquette mouvante — et un tag de version qui change de contenu ne vaut pas mieux que pas de
+      # tag du tout. Elle n'est posée qu'une fois, sur l'image qui est vraiment cette version.
       - name: Métadonnées (tags)
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
@@ -102,6 +142,7 @@ jobs:
           tags: |
             type=raw,value=dev
             type=sha
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.is_release == 'true' }}
 
       - name: Build & push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -120,16 +161,24 @@ jobs:
           # VITE_APP_ENV est un LITTÉRAL et non une variable de dépôt de plus : le NAS *est* le
           # tier dev, ce workflow ne construit rien d'autre.
           #
-          # SENTRY_RELEASE = le sha du commit. C'est aussi le nom sous lequel le plugin injecte la
-          # release dans le bundle, donc ce que le SDK rapportera : les sourcemaps et les erreurs se
-          # retrouvent sous le même nom. #186 y mettra la version du produit.
+          # SENTRY_RELEASE vaut `1.2.0+3f2a1c` depuis #186, et non plus le sha nu ni — surtout — la
+          # version seule. C'est le nom sous lequel le plugin injecte la release dans le bundle,
+          # donc ce que le SDK rapportera : sourcemaps et erreurs se retrouvent sous le même nom.
+          # Le numéro le rend LISIBLE, le sha le rend UNIQUE — et l'unicité n'est pas négociable,
+          # dix pushes séparant deux releases écraseraient sinon les sourcemaps les uns des autres.
+          #
+          # L'API reçoit les deux moitiés SÉPARÉMENT : Swagger et `GET /version` veulent le numéro
+          # nu, seul `instrument.ts` recolle l'identité complète.
           build-args: |
+            ${{ matrix.image == 'cimavia-api' && format('APP_VERSION={0}', steps.version.outputs.version) || '' }}
+            ${{ matrix.image == 'cimavia-api' && format('APP_BUILD={0}', steps.version.outputs.build) || '' }}
             ${{ matrix.image == 'cimavia-web' && format('VITE_API_URL={0}', vars.DEV_PUBLIC_API_URL) || '' }}
             ${{ matrix.image == 'cimavia-web' && format('VITE_SENTRY_DSN={0}', vars.DEV_SENTRY_DSN_WEB) || '' }}
             ${{ matrix.image == 'cimavia-web' && 'VITE_APP_ENV=development' || '' }}
+            ${{ matrix.image == 'cimavia-web' && format('VITE_APP_VERSION={0}', steps.version.outputs.version) || '' }}
             ${{ matrix.image == 'cimavia-web' && format('SENTRY_ORG={0}', vars.SENTRY_ORG) || '' }}
             ${{ matrix.image == 'cimavia-web' && format('SENTRY_PROJECT={0}', vars.SENTRY_PROJECT_WEB) || '' }}
-            ${{ matrix.image == 'cimavia-web' && format('SENTRY_RELEASE={0}', github.sha) || '' }}
+            ${{ matrix.image == 'cimavia-web' && format('SENTRY_RELEASE={0}+{1}', steps.version.outputs.version, steps.version.outputs.build) || '' }}
           # Le jeton passe par un SECRET BuildKit et non un build-arg : un ARG finit dans
           # `docker history` de l'image publiée sur GHCR. Absent, le build aboutit quand même et ne
           # publie simplement aucune sourcemap.

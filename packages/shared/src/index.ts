@@ -562,6 +562,8 @@ export {
   S3_MIN_PART_SIZE_BYTES,
   UploadMode,
 } from "./dto/upload.schema";
+export type { VersionDto } from "./dto/version.schema";
+export { versionDtoSchema } from "./dto/version.schema";
 export type { EnvSchema } from "./env.schema";
 export { envSchema } from "./env.schema";
 export type { Locale as LocaleType } from "./locale";
