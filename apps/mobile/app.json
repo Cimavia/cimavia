@@ -30,7 +30,14 @@
       "expo-secure-store",
       "expo-localization",
       "expo-notifications",
-      "expo-image-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "cimavia a besoin d'accéder à ta photothèque pour joindre photos et vidéos à un débrief ou à un message.",
+          "cameraPermission": false,
+          "microphonePermission": "cimavia utilise le micro pour enregistrer tes messages vocaux."
+        }
+      ],
       "expo-sharing",
       [
         "expo-audio",
