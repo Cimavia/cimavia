@@ -19,6 +19,25 @@ try {
   // Pas de .env : les variables sont déjà dans l'environnement (conteneur, CI).
 }
 
+/**
+ * Nom de release Sentry : ce qui rattache une erreur à un état du produit. Sans lui, aucune issue
+ * n'est attribuable à une version — impossible de dire si un bug est déjà corrigé.
+ *
+ * `1.2.0+3f2a1c` et NON `1.2.0` nu. Le tier dev republie une image à CHAQUE push sur `main`, alors
+ * que le numéro, lui, ne bouge qu'au merge de la PR de release : plusieurs builds différents
+ * porteraient donc la même release. Sur le web, où des sourcemaps sont téléversées sous ce nom, le
+ * dernier envoi gagne et l'unminification désigne le mauvais code — en silence. Ici l'API n'en
+ * téléverse pas, mais le nom doit vouloir dire la même chose des deux côtés.
+ *
+ * Les deux moitiés vont ENSEMBLE : le workflow les injecte d'un bloc, et une identité amputée de
+ * son build n'identifie plus un build. À défaut, `undefined` — Sentry range l'erreur sans version,
+ * ce qui est vrai, plutôt que sous un numéro inventé (règle dure n°5).
+ */
+const release =
+  process.env.APP_VERSION && process.env.APP_BUILD
+    ? `${process.env.APP_VERSION}+${process.env.APP_BUILD}`
+    : undefined;
+
 Sentry.init({
   // Le DSN identifie ton projet Sentry — vide en dev si SENTRY_DSN non configuré
   dsn: process.env.SENTRY_DSN || undefined,
@@ -43,6 +62,7 @@ Sentry.init({
   // instrument.ts s'exécutant avant NestJS (donc avant ConfigModule/Zod), on lit process.env
   // directement, avec le même défaut que le schéma (@cmv/shared).
   environment: process.env.APP_ENV || "development",
+  release,
   enabled: !!process.env.SENTRY_DSN,
   sendDefaultPii: true,
 });
