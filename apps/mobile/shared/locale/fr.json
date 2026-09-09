@@ -625,6 +625,10 @@
         "ACTIVE_ATHLETES": "Des athlètes te sont rattachés : tu ne peux pas cesser de coacher tant que ces relations existent.",
         "ACTIVE_COACH": "Tu es rattaché à un coach : cette casquette ne peut pas être retirée tant que la relation existe."
       }
+    },
+    "about": {
+      "version": "cimavia · v{{version}}",
+      "unknown": "cimavia · —"
     }
   }
 }
