@@ -101,10 +101,23 @@ export async function revokeCurrentPushToken(): Promise<void> {
   }
 }
 
+/**
+ * Les options iOS sont EXPLICITES, comme dans `timer-alert.ts` : sans `allowAlert`, la permission
+ * est accordée SANS bannière, et le push arrive sans que rien ne s'affiche. Android les ignore,
+ * ce qui a laissé l'écart vivre invisible jusqu'au premier build iPhone (#134).
+ *
+ * `allowBadge: false` suit le minuteur sans rien coûter : `NotificationService` n'envoie que
+ * `title`, `body`, `data` et `sound` — aucun `badge` ne partirait qu'on refuserait ici.
+ */
+function requestPushPermission(): Promise<Notifications.NotificationPermissionsStatus> {
+  return Notifications.requestPermissionsAsync({
+    ios: { allowAlert: true, allowSound: true, allowBadge: false },
+  });
+}
+
 async function resolveExpoPushToken(): Promise<string | null> {
   const existing = await Notifications.getPermissionsAsync();
-  const granted =
-    existing.granted || (await Notifications.requestPermissionsAsync()).granted === true;
+  const granted = existing.granted || (await requestPushPermission()).granted === true;
   if (!granted) return null;
 
   // Le projectId est indispensable hors Expo Go : sans lui, Expo ne sait pas à quel projet
