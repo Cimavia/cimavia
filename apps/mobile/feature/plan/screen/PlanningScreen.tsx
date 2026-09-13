@@ -3,6 +3,7 @@ import {
   athleteCalendarBounds,
   athleteCalendarWeek,
   defaultAthleteMonday,
+  mondayOfIsoWeek,
   todayIsoDate,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
@@ -90,7 +91,7 @@ export function PlanningScreen() {
         <WeekNavHeader
           week={state.week}
           bounds={plans == null ? null : athleteCalendarBounds(plans)}
-          isDefault={chosenMonday == null}
+          todayMonday={mondayOfIsoWeek(today)}
           onGoToMonday={setChosenMonday}
         />
       ) : null}
