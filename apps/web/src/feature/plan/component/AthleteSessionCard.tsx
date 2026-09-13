@@ -36,6 +36,7 @@ export function AthleteSessionCard({
     <Link
       to="/sessions/$sessionId"
       params={{ sessionId: session.id }}
+      search={{ from: undefined }}
       className="flex flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-sm transition-colors hover:border-cmv-border-hi"
     >
       {planLabel == null ? null : (

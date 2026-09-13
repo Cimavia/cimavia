@@ -79,6 +79,7 @@ export function AthleteSessionScreen() {
 function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { from } = route.useSearch();
 
   const remote = useMemo(
     () => Object.fromEntries(session.exercises.map((exercise) => [exercise.id, exercise.tracking])),
@@ -146,10 +147,12 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
         <AthleteSessionRail
           session={session}
           tracking={local.tracking}
+          // La semaine du planning passe au débrief, qui la rendra au retour (#251).
           onOpenFeedback={() =>
             navigate({
               to: "/sessions/$sessionId/feedback",
               params: { sessionId: session.id },
+              search: { from },
             })
           }
         />

@@ -53,9 +53,10 @@ describe("routeForNotification", () => {
       to: "/feedbacks",
       search: { feedback: undefined, session: undefined },
     });
-    expect(routeForNotification(dto, ATHLETE)).toEqual({
+    expect(routeForNotification(dto, ATHLETE)).toStrictEqual({
       to: "/sessions/$sessionId",
       params: { sessionId: "session-7" },
+      search: { from: undefined },
     });
   });
 

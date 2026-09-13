@@ -11,13 +11,13 @@ import {
  * pas la même chose, et `<Link to="/planning">` seul ne compile pas.
  *
  * ⚠️ Rien ne le vérifie ICI. `navigate(target)` sur cette union échappe au contrôle de TanStack,
- * qui accepte alors une cible sans `search` : la table a vécu ainsi pour quatre routes sur cinq
- * sans que le typecheck bronche (#251). Une route qui gagne un `validateSearch` se reporte ici à la
- * main — l'oubli ne se voit qu'en relisant la route.
+ * qui accepte alors une cible sans `search` : en #251, quatre des cinq routes qui en exigeaient un
+ * n'en portaient aucun ici, sans que le typecheck bronche. Une route qui gagne un `validateSearch`
+ * se reporte donc à la main — l'oubli ne se voit qu'en relisant la route.
  */
 type NotificationTarget =
   | { to: "/plans/$planId"; params: { planId: string } }
-  | { to: "/sessions/$sessionId"; params: { sessionId: string } }
+  | { to: "/sessions/$sessionId"; params: { sessionId: string }; search: { from: undefined } }
   | { to: "/feedbacks"; search: { feedback: undefined; session: undefined } }
   | { to: "/messages"; search: { athlete: undefined; as: undefined } }
   | { to: "/planning"; search: { from: undefined } }
@@ -96,11 +96,18 @@ export function routeForNotification(
      * par débrief : on ouvre la section. La branche athlète est écrite quand même, comme sur
      * mobile — cette table décrit où vit une cible pour une capacité, pas quelles notifications
      * existent, et la destination existe désormais (#25).
+     *
+     * Côté athlète, aucune semaine de planning n'accompagne la séance : on n'arrive pas du planning,
+     * et « ← Mon planning » rouvrira donc son défaut (#251).
      */
     case NotificationEntityType.SCHEDULED_SESSION:
       return isCoach
         ? { to: "/feedbacks", search: { feedback: undefined, session: undefined } }
-        : { to: "/sessions/$sessionId", params: { sessionId: notification.entityId } };
+        : {
+            to: "/sessions/$sessionId",
+            params: { sessionId: notification.entityId },
+            search: { from: undefined },
+          };
     // Servie aux deux rôles depuis #29 : même route, contenu décidé par l'écran (N fils pour le
     // coach, un seul pour l'athlète).
     case NotificationEntityType.CONVERSATION:
