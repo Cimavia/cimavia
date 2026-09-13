@@ -2746,6 +2746,50 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Retour au planning depuis une séance ([#251](https://github.com/Cimavia/cimavia/issues/251))
+
+> **Tranché en #251** (« ← Mon planning » rouvre la semaine d'où l'on vient, pas celle de la
+> séance) : le lien retour effaçait `?from=` en dur, si bien que l'athlète qui préparait sa semaine
+> suivante retombait sur le défaut après chaque séance. L'autre lecture —
+> `mondayOfIsoWeek(session.scheduledDate)`, sans rien transporter — est écartée : le lien promet de
+> revenir là où on était, et une séance ouverte depuis la semaine prochaine peut très bien tomber
+> dans une autre.
+>
+> La semaine **voyage** donc avec l'athlète : la carte de la grille la pose sur l'URL de la séance,
+> la séance la passe au débrief, le débrief la rend à la séance, et le retour la rend au planning.
+> Elle est validée sur le LAYOUT `sessions.$sessionId.tsx`, qui couvre séance et débrief d'un coup,
+> par `parsePlanningSearch` lui-même — c'est la même donnée relayée, et un second parseur finirait
+> par diverger du premier.
+>
+> Elle est relayée **telle quelle**, sans être recalculée : `undefined` quand le planning est sur
+> son défaut. Poser `week.startDate` à la place rendrait explicite un défaut qui ne l'était pas, et
+> le retour figerait une semaine que l'URL nue aurait fait suivre au calendrier.
+>
+> Arrivé d'ailleurs — liste Séances, bulle de message, notification —, il n'y a aucune semaine
+> d'origine, et le planning rouvre son **défaut**. Le repli sur la semaine de la séance, plus utile
+> depuis une notification sur une séance à venir, ferait mener le même lien à deux endroits selon
+> le chemin, sans que rien à l'écran ne le dise.
+>
+> Le mobile n'est pas concerné : `/session/[id]` s'ouvre par-dessus les onglets, et l'onglet
+> Planning garde son `useState` en dessous (#236).
+
+> **Appris en #251** (`navigate()` sur une union échappe au contrôle de `search`) : un
+> `<Link to="/planning">` sans `search` ne compile pas quand la route a un `validateSearch`. Mais
+> `NotificationBell` appelle `navigate(target)` avec l'union `NotificationTarget`, et TanStack ne
+> vérifie alors plus rien : quatre des cinq cibles qui exigeaient un `search` n'en portaient aucun,
+> sans que le typecheck bronche. Sans effet à l'exécution — la route comble —, mais c'est
+> exactement le trou par lequel la cible de séance aurait échappé à #251 : ajouter un
+> `validateSearch` au layout a fait réclamer cinq liens au compilateur, et pas celui-là. La table
+> porte désormais tous ses `search`, et son test les compare en `toStrictEqual` : `toEqual` ignore
+> les clés à `undefined`, et laisserait passer une clé oubliée.
+>
+> Corollaire côté tests : l'objet `router.state.location.search` de TanStack **échoue** à
+> `toStrictEqual({})` même vide : c'est un objet SANS prototype, et `toStrictEqual` compare aussi
+> les types. Une navigation s'affirme sur `location.href`, qui dit en une chaîne le chemin et la
+> semaine — ou leur absence.
+
+---
+
 ## Post-MVP — Numéro de version du produit ([#184](https://github.com/Cimavia/cimavia/issues/184))
 
 > **Tranché en #185** (le numéro se coupe sur `main`, pas à la promotion) : `main → staging →
