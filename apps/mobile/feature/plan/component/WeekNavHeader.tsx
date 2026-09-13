@@ -12,10 +12,13 @@ import { formatDateRange } from "@/shared/util/date.util";
 type WeekNavHeaderProps = {
   week: AthleteCalendarWeek<ScheduledSessionSummaryDto>;
   bounds: AthleteCalendarBounds | null;
-  /** Vrai tant que l'athlète n'a choisi aucune semaine — c'est ce qui ferme « Aujourd'hui ». */
-  isDefault: boolean;
-  /** `null` = revenir au défaut, et non « le lundi d'aujourd'hui » — cf. `PlanningScreen`. */
-  onGoToMonday: (monday: string | null) => void;
+  /**
+   * Le lundi de la semaine d'aujourd'hui — et non « la semaine par défaut ». Les deux coïncident
+   * tant qu'un cycle a cours, et c'est ce qui a longtemps masqué la confusion (#240) : hors cycle,
+   * le défaut ouvre le début du cycle servi, qui n'est pas aujourd'hui.
+   */
+  todayMonday: string | null;
+  onGoToMonday: (monday: string) => void;
 };
 
 /**
@@ -27,12 +30,13 @@ type WeekNavHeaderProps = {
  *
  * La plage de dates a remplacé le titre « Cette semaine » : dès qu'on peut en regarder une autre,
  * ce titre ment une fois sur deux. Les dates, elles, disent toujours vrai — et « Aujourd'hui »
- * fermé dit qu'on y est.
+ * fermé dit qu'on est sur la semaine d'aujourd'hui, ce que « aucune semaine choisie » ne garantit
+ * pas hors cycle (#240).
  */
 export function WeekNavHeader({
   week,
   bounds,
-  isDefault,
+  todayMonday,
   onGoToMonday,
 }: Readonly<WeekNavHeaderProps>) {
   const { t } = useTranslation();
@@ -66,22 +70,24 @@ export function WeekNavHeader({
           label="←"
           accessibilityLabel={t("plan.week.previous")}
           disabled={previous == null}
-          onPress={() => onGoToMonday(previous)}
+          onPress={() => previous != null && onGoToMonday(previous)}
         />
-        {/* `null` et non le lundi courant : effacer le choix rend l'écran à son défaut, qui suivra
-            le calendrier la semaine prochaine sans qu'on ait à y toucher. */}
+        {/* Le lundi d'aujourd'hui, EXPLICITE, et non l'effacement du choix (#240) : effacer rend
+            l'écran à son défaut, qui hors cycle ouvre le début du cycle servi — le bouton mentirait
+            sur sa destination. Hors de la plage des cycles, il y mène quand même : c'est ce que
+            l'athlète a demandé, et la phrase « hors cycle » dit pourquoi la semaine est vide. */}
         <WeekNavButton
           label={t("plan.week.today")}
           accessibilityLabel={t("plan.week.today")}
-          disabled={isDefault}
-          onPress={() => onGoToMonday(null)}
+          disabled={todayMonday == null || week.startDate === todayMonday}
+          onPress={() => todayMonday != null && onGoToMonday(todayMonday)}
           grow
         />
         <WeekNavButton
           label="→"
           accessibilityLabel={t("plan.week.next")}
           disabled={next == null}
-          onPress={() => onGoToMonday(next)}
+          onPress={() => next != null && onGoToMonday(next)}
         />
       </View>
     </View>

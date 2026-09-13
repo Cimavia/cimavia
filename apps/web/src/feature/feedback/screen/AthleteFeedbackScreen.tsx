@@ -111,6 +111,7 @@ function FeedbackBody({
   feedback: SessionFeedbackDto | null;
 }>) {
   const { t } = useTranslation();
+  const { from } = route.useSearch();
   const remote = useMemo(
     () =>
       Object.fromEntries(
@@ -146,10 +147,12 @@ function FeedbackBody({
   return (
     <div className="flex flex-col gap-cmv-lg">
       {/* Retour vers LA SÉANCE et non le planning : le débrief est son enfant, et c'est de là
-          qu'on vient. */}
+          qu'on vient. La semaine du planning suit (#251) — sans elle, « ← Mon planning » oublierait
+          d'où l'athlète est parti dès qu'il est passé par le débrief. */}
       <Link
         to="/sessions/$sessionId"
         params={{ sessionId }}
+        search={{ from }}
         className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
       >
         {t("feedback.backToSession")}

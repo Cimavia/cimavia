@@ -127,7 +127,7 @@
   },
   "plan": {
     "rest": "Repos",
-    "outOfCycle": "Aucun de tes cycles n'a cours cette semaine-là.",
+    "outOfCycle": "Cette semaine ne fait partie d'aucun de tes cycles.",
     "doneCount": "{{done}}/{{total}} séances faites",
     "week": {
       "previous": "Semaine précédente",

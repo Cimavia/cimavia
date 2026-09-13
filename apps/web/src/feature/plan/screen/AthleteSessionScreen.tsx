@@ -79,6 +79,7 @@ export function AthleteSessionScreen() {
 function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { from } = route.useSearch();
 
   const remote = useMemo(
     () => Object.fromEntries(session.exercises.map((exercise) => [exercise.id, exercise.tracking])),
@@ -92,10 +93,15 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
     <div className="flex flex-col gap-cmv-lg">
       {/* Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
               liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
-              dernier cas. Le planning est le parent naturel d'une séance. */}
+              dernier cas. Le planning est le parent naturel d'une séance.
+
+              La ROUTE est fixe, la semaine ne l'est plus (#251) : celle d'où l'athlète est venu,
+              relayée par l'URL de la séance, et non celle de la séance — « ← Mon planning » promet
+              de revenir là où on était. Arrivé d'ailleurs, il n'y en a pas, et le planning rouvre
+              son défaut. */}
       <Link
         to="/planning"
-        search={{ from: undefined }}
+        search={{ from }}
         className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
       >
         {t("plan.athlete.backToPlanning")}
@@ -146,10 +152,12 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
         <AthleteSessionRail
           session={session}
           tracking={local.tracking}
+          // La semaine du planning passe au débrief, qui la rendra au retour (#251).
           onOpenFeedback={() =>
             navigate({
               to: "/sessions/$sessionId/feedback",
               params: { sessionId: session.id },
+              search: { from },
             })
           }
         />

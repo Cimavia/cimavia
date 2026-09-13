@@ -271,8 +271,8 @@ describe("PlanningScreen", () => {
     expect(isClosed(getByRole("button", { name: "plan.week.next" }))).toBe(true);
   });
 
-  // Fermé au départ : il n'y a nulle part d'où revenir tant qu'on n'a pas bougé.
-  it("ramène au défaut, et s'y ferme", () => {
+  // Fermé au départ : un cycle a cours, le défaut EST la semaine d'aujourd'hui.
+  it("ramène à la semaine d'aujourd'hui, et s'y ferme", () => {
     const { getByRole, getByText } = mount([
       plan("p_deux", "Deux semaines", [session("ss_s1", "Force max", WEDNESDAY)], { weekCount: 2 }),
     ]);
@@ -283,6 +283,47 @@ describe("PlanningScreen", () => {
     press(getByRole("button", { name: "plan.week.today" }));
 
     expect(getByText("Force max")).toBeTruthy();
+    expect(isClosed(getByRole("button", { name: "plan.week.today" }))).toBe(true);
+  });
+
+  /**
+   * #240 : hors cycle, le défaut se replie sur le début du cycle servi — qui n'est pas aujourd'hui.
+   * « Aujourd'hui » s'ouvre donc, et mène à la semaine d'aujourd'hui, même hors de la plage.
+   */
+  it("s'ouvre sur un cycle terminé, et mène à aujourd'hui plutôt qu'au début du cycle", () => {
+    const past = shiftIsoDate(MONDAY, -70) ?? MONDAY;
+    const ended = plan("p_vieux", "Cycle fini", [session("ss_fini", "Bloc long", past)], {
+      startDate: past,
+    });
+    const { getByRole, getByText, queryByText } = mount([ended]);
+
+    expect(getByText("Bloc long")).toBeTruthy();
+    expect(isClosed(getByRole("button", { name: "plan.week.today" }))).toBe(false);
+
+    press(getByRole("button", { name: "plan.week.today" }));
+
+    expect(queryByText("Bloc long")).toBeNull();
+    expect(getByText("plan.outOfCycle")).toBeTruthy();
+    expect(isClosed(getByRole("button", { name: "plan.week.today" }))).toBe(true);
+  });
+
+  it("s'ouvre sur un cycle à venir, et mène à la semaine d'aujourd'hui", () => {
+    const soon = plan(
+      "p_soon",
+      "Reprise",
+      [session("ss_soon", "Réathlétisation", NEXT_WEDNESDAY)],
+      {
+        startDate: NEXT_MONDAY,
+      },
+    );
+    const { getByRole, getByText, queryByText } = mount([soon]);
+
+    expect(isClosed(getByRole("button", { name: "plan.week.today" }))).toBe(false);
+
+    press(getByRole("button", { name: "plan.week.today" }));
+
+    expect(queryByText("Réathlétisation")).toBeNull();
+    expect(getByText("plan.outOfCycle")).toBeTruthy();
     expect(isClosed(getByRole("button", { name: "plan.week.today" }))).toBe(true);
   });
 

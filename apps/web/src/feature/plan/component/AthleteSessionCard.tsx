@@ -14,6 +14,16 @@ type AthleteSessionCardProps = {
    * qui le sait — la carte, elle, ne voit qu'une séance.
    */
   planLabel?: string | null;
+  /**
+   * La semaine du PLANNING d'où l'on ouvre la séance (#251) : le `from` de son URL, relayé tel
+   * quel pour que « ← Mon planning » rouvre exactement l'URL quittée. `undefined` quand le
+   * planning est sur son défaut — poser `week.startDate` rendrait explicite un défaut qui ne
+   * l'était pas —, et depuis la liste Séances, d'où l'on ne vient d'aucune semaine.
+   *
+   * Requise, bien que possiblement `undefined` : chaque appelant DOIT dire d'où il ouvre la séance.
+   * Optionnelle, la liste l'aurait omise sans y penser, et la grille aussi.
+   */
+  planningFrom: string | undefined;
 };
 
 /**
@@ -29,6 +39,7 @@ type AthleteSessionCardProps = {
 export function AthleteSessionCard({
   session,
   planLabel = null,
+  planningFrom,
 }: Readonly<AthleteSessionCardProps>) {
   const { t } = useTranslation();
 
@@ -36,6 +47,7 @@ export function AthleteSessionCard({
     <Link
       to="/sessions/$sessionId"
       params={{ sessionId: session.id }}
+      search={{ from: planningFrom }}
       className="flex flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-sm transition-colors hover:border-cmv-border-hi"
     >
       {planLabel == null ? null : (

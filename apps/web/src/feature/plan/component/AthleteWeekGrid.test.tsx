@@ -56,8 +56,12 @@ function calendarWeek(
  * La grille est montée dans un VRAI routeur : `AthleteSessionCard` est un `<Link>`, et sans la
  * route de destination le lien tombe au rendu — l'absence de test tenait pour partie à ça.
  */
-const mount = (week: AthleteCalendarWeek<ScheduledSessionSummaryDto>, today = MONDAY) =>
-  renderInRoute(<AthleteWeekGrid week={week} today={today} />, {
+const mount = (
+  week: AthleteCalendarWeek<ScheduledSessionSummaryDto>,
+  today = MONDAY,
+  planningFrom: string | undefined = undefined,
+) =>
+  renderInRoute(<AthleteWeekGrid week={week} today={today} planningFrom={planningFrom} />, {
     path: "/planning",
     links: ["/sessions/$sessionId"],
   });
@@ -79,6 +83,28 @@ const columnAt = (container: HTMLElement, index: number): HTMLElement => {
 };
 
 describe("AthleteWeekGrid", () => {
+  /**
+   * #251 : la carte emporte la semaine du planning, pour que « ← Mon planning » rouvre celle qu'on
+   * regardait. Relayée TELLE QUELLE — absente sur le défaut, sans quoi la séance rendrait
+   * explicite un défaut qui ne l'était pas.
+   */
+  it("ouvre la séance avec la semaine du planning, et sans semaine depuis le défaut", async () => {
+    const week = calendarWeek([plan("p_1", "Bloc", [session("ss_1", "Bloc force max", 0)])]);
+
+    const fromWeek = await mount(week, MONDAY, "2026-10-19");
+    expect(fromWeek.getByText("Bloc force max").closest("a")).toHaveAttribute(
+      "href",
+      "/sessions/ss_1?from=2026-10-19",
+    );
+    fromWeek.unmount();
+
+    const fromDefault = await mount(week, MONDAY, undefined);
+    expect(fromDefault.getByText("Bloc force max").closest("a")).toHaveAttribute(
+      "href",
+      "/sessions/ss_1",
+    );
+  });
+
   it("affiche les sept jours même quand la semaine ne contient aucune séance", async () => {
     const { container, getAllByText } = await mount(calendarWeek([plan("p_1", "Bloc", [])]));
 

@@ -393,7 +393,7 @@
       "today": "Aujourd'hui",
       "rest": "Repos",
       "doneCount": "{{done}}/{{total}} séances faites",
-      "outOfCycle": "Aucun de tes cycles n'a cours cette semaine-là.",
+      "outOfCycle": "Cette semaine ne fait partie d'aucun de tes cycles.",
       "week": {
         "previous": "Semaine précédente",
         "today": "Aujourd'hui",
