@@ -2676,9 +2676,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > le planning athlète du mobile, et interdisait à lui seul d'en montrer une autre. C'est la plage de
 > dates qui coiffe désormais l'écran, comme sur le web — un titre qui ment une fois sur deux vaut
 > moins qu'un repère qui dit toujours vrai, et « Aujourd'hui » fermé dit qu'on est bien sur la
-> semaine en cours. `plan.thisWeek` est mort avec lui et a quitté le catalogue ; `plan.outOfCycle` a
-> repris la formulation du web (« cette semaine-là »), sa phrase ne parlant plus forcément de la
-> semaine courante.
+> semaine en cours. ⚠️ Cette dernière affirmation était **fausse à la livraison de #236**, et n'est
+> vraie que depuis [#240](https://github.com/Cimavia/cimavia/issues/240) : le bouton se fermait sur
+> « aucune semaine choisie », qui n'est la semaine en cours que si un cycle a cours — cf. « Tranché
+> en #240 », plus bas. `plan.thisWeek` est mort avec lui et a quitté le catalogue ;
+> `plan.outOfCycle` a repris la formulation du web (« cette semaine-là »), sa phrase ne parlant plus
+> forcément de la semaine courante.
 >
 > **Écart de maquette assumé** : `mobile-athlete/athlete-planning_semaine.dc.html` porte ce titre et
 > ne dessine aucune commande. Il n'y a rien à y revenir — la maquette décrit un écran qui ne pouvait
@@ -2707,6 +2710,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > web a `?from=` ; à rouvrir le jour où une notification devra ouvrir une semaine précise. Le
 > balayage horizontal n'est pas retenu non plus : la semaine vit dans un `ScrollView` vertical, et
 > un `PagerView` changerait la structure de l'écran pour un geste que personne n'a encore réclamé.
+
+---
+
+## Post-MVP — « Aujourd'hui » sur le planning athlète ([#240](https://github.com/Cimavia/cimavia/issues/240))
+
+> **Tranché en #240** (« Aujourd'hui » veut dire la semaine d'aujourd'hui, pas le défaut) : les deux
+> écrans fermaient le bouton sur « aucune semaine choisie » et le faisaient mener au défaut. Or
+> `defaultAthleteMonday` ne rend la semaine d'aujourd'hui que si un cycle a cours ; sinon il se
+> replie sur le début du cycle servi — terminé ou à venir. Le bouton était alors grisé comme si on
+> y était, et pressé il ramenait au début du cycle. Le cas courant (un cycle en cours) masquait le
+> défaut, parce que le défaut EST alors aujourd'hui : c'est ce qui l'a fait traverser #229 et #236.
+>
+> Le bouton compare désormais la semaine affichée au lundi d'aujourd'hui et y mène explicitement.
+> **Le repli de `defaultAthleteMonday` ne bouge pas** (#172) : c'est la lecture qu'en faisaient les
+> boutons qui était fausse, pas le repli.
+>
+> Conséquence sur l'URL du web : le bouton pose `?from=<lundi>` au lieu de retirer le paramètre.
+> Le défaut qui suit le calendrier reste celui de l'URL nue — un lien partagé ; un bouton qui
+> promet aujourd'hui doit y mener, quel que soit le défaut.
+
+> **Tranché en #240** (hors de la plage des cycles, « Aujourd'hui » y mène quand même) : cycle
+> terminé ou à venir, la semaine d'aujourd'hui tombe hors de `athleteCalendarBounds`. Le bouton
+> l'ouvre malgré tout — c'est ce que l'athlète a demandé, et la phrase « hors cycle » dit pourquoi
+> la semaine est vide. L'autre lecture, un bouton fermé hors plage, laissait un bouton grisé sans
+> que rien n'explique pourquoi.
+>
+> **Écart assumé** : depuis une semaine hors plage, les flèches avancent **d'une semaine à la fois**
+> (`athleteWeekNeighbours` ne vérifie que la borne du côté où l'on va) et ne sautent pas jusqu'à la
+> plage. Or `selectVisiblePlans` sert le dernier cycle terminé **sans limite de durée** : un cycle
+> fini il y a dix semaines demande dix pressions sur « ← », à travers des semaines vides, pour être
+> retrouvé. Un `?from=` bricolé le permettait déjà ; le bouton en fait un chemin ordinaire. À
+> rouvrir si un retour bêta s'en plaint — la sortie est un saut vers la borne la plus proche dans
+> `athleteWeekNeighbours`, partagé par les deux clients.
 
 ---
 
