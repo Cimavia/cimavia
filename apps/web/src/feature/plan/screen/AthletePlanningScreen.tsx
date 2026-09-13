@@ -9,6 +9,7 @@ import {
   athleteCalendarWeek,
   athleteWeekNeighbours,
   defaultAthleteMonday,
+  mondayOfIsoWeek,
   PlanWeekType,
   todayIsoDate,
   weekSessionProgress,
@@ -92,7 +93,7 @@ export function AthletePlanningScreen() {
   }
 
   const bounds = athleteCalendarBounds(plans);
-  const goToMonday = (target: string | undefined) =>
+  const goToMonday = (target: string) =>
     navigate({ to: "/planning", search: { from: target }, replace: true });
 
   return (
@@ -108,7 +109,7 @@ export function AthletePlanningScreen() {
         <WeekHeader
           week={week}
           bounds={bounds}
-          isDefault={requestedMonday == null}
+          todayMonday={mondayOfIsoWeek(today)}
           onGoToMonday={goToMonday}
         />
 
@@ -166,8 +167,13 @@ function CycleList({ cycles }: Readonly<{ cycles: readonly AthleteCalendarCycle[
 type WeekHeaderProps = {
   week: AthleteCalendarWeek<ScheduledSessionSummaryDto>;
   bounds: AthleteCalendarBounds | null;
-  isDefault: boolean;
-  onGoToMonday: (monday: string | undefined) => void;
+  /**
+   * Le lundi de la semaine d'aujourd'hui — et non « la semaine par défaut ». Les deux coïncident
+   * tant qu'un cycle a cours, et c'est ce qui a longtemps masqué la confusion (#240) : hors cycle,
+   * le défaut ouvre le début du cycle servi, qui n'est pas aujourd'hui.
+   */
+  todayMonday: string | null;
+  onGoToMonday: (monday: string) => void;
 };
 
 /**
@@ -178,7 +184,7 @@ type WeekHeaderProps = {
  * (#236), où le mobile lit la même — deux clients qui se bornent différemment se contrediraient
  * sur les mêmes cycles.
  */
-function WeekHeader({ week, bounds, isDefault, onGoToMonday }: Readonly<WeekHeaderProps>) {
+function WeekHeader({ week, bounds, todayMonday, onGoToMonday }: Readonly<WeekHeaderProps>) {
   const { t } = useTranslation();
 
   const sessions = week.days.flatMap((day) => day.entries.map((entry) => entry.session));
@@ -198,19 +204,28 @@ function WeekHeader({ week, bounds, isDefault, onGoToMonday }: Readonly<WeekHead
         <CmvButton
           variant="secondary"
           disabled={previous == null}
-          onClick={() => onGoToMonday(previous ?? undefined)}
+          onClick={() => previous != null && onGoToMonday(previous)}
         >
           {t("plan.athlete.week.previous")}
         </CmvButton>
-        {/* `undefined` et non le lundi courant : retirer le paramètre rend la page à son défaut,
-            qui suivra le calendrier la semaine prochaine sans qu'on ait à y toucher. */}
-        <CmvButton variant="ghost" disabled={isDefault} onClick={() => onGoToMonday(undefined)}>
+        {/* Le lundi d'aujourd'hui, EXPLICITE, et non le retrait du paramètre (#240) : retirer
+            `from` rend la page à son défaut, qui hors cycle ouvre le début du cycle servi — le
+            bouton mentirait sur sa destination. Le défaut qui suit le calendrier reste celui de
+            l'URL nue, d'un lien partagé ; un bouton qui promet aujourd'hui doit y mener.
+
+            Hors de la plage des cycles, il y mène quand même : c'est ce que l'athlète a demandé,
+            et la phrase « hors cycle » dit pourquoi la semaine est vide. */}
+        <CmvButton
+          variant="ghost"
+          disabled={todayMonday == null || week.startDate === todayMonday}
+          onClick={() => todayMonday != null && onGoToMonday(todayMonday)}
+        >
           {t("plan.athlete.week.today")}
         </CmvButton>
         <CmvButton
           variant="secondary"
           disabled={next == null}
-          onClick={() => onGoToMonday(next ?? undefined)}
+          onClick={() => next != null && onGoToMonday(next)}
         >
           {t("plan.athlete.week.next")}
         </CmvButton>

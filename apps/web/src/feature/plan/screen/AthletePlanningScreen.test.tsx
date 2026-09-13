@@ -217,3 +217,70 @@ describe("AthletePlanningScreen", () => {
     expect(getByText("plan.athlete.week.next")).toBeEnabled();
   });
 });
+
+/**
+ * « Aujourd'hui » dit la semaine d'AUJOURD'HUI, pas « la semaine par défaut » (#240). Les deux
+ * coïncident tant qu'un cycle a cours — c'est ce qui a masqué le défaut —, et divergent dès que le
+ * défaut se replie sur le début du cycle servi.
+ */
+describe("AthletePlanningScreen — « Aujourd'hui »", () => {
+  const TODAY = "plan.athlete.week.today";
+
+  it("reste fermé sur la semaine d'aujourd'hui, quand un cycle a cours", async () => {
+    const { getByText } = await mount({ data: [BLOC] });
+    expect(getByText(TODAY)).toBeDisabled();
+  });
+
+  it("s'ouvre sur un cycle terminé, et mène à aujourd'hui plutôt qu'au début du cycle", async () => {
+    const ended = plan("p_fini", "Cycle fini", [
+      week(1, nextMonday(-6), [session("ss_fini", "Bloc long", nextMonday(-6))]),
+      week(2, nextMonday(-5), []),
+    ]);
+    const { getByText, queryByText, router, user } = await mount({ data: [ended] });
+
+    // Le défaut ouvre le début du cycle, six semaines en arrière : ce n'est pas aujourd'hui.
+    expect(getByText("Bloc long")).toBeInTheDocument();
+    expect(getByText(TODAY)).toBeEnabled();
+
+    await user.click(getByText(TODAY));
+
+    // Hors de la plage des cycles, et c'est voulu : la phrase dit pourquoi la semaine est vide.
+    expect(router.state.location.search).toEqual({ from: THIS_MONDAY });
+    expect(getByText("plan.athlete.outOfCycle")).toBeInTheDocument();
+    expect(queryByText("Bloc long")).toBeNull();
+    expect(getByText(TODAY)).toBeDisabled();
+  });
+
+  it("s'ouvre sur un cycle à venir, et mène à la semaine d'aujourd'hui", async () => {
+    const soon = plan("p_soon", "Reprise", [
+      week(1, nextMonday(1), [session("ss_soon", "Réathlétisation", nextMonday(1))]),
+    ]);
+    const { getByText, router, user } = await mount({ data: [soon] });
+
+    expect(getByText("Réathlétisation")).toBeInTheDocument();
+    expect(getByText(TODAY)).toBeEnabled();
+
+    await user.click(getByText(TODAY));
+
+    expect(router.state.location.search).toEqual({ from: THIS_MONDAY });
+    expect(getByText("plan.athlete.outOfCycle")).toBeInTheDocument();
+  });
+
+  /**
+   * Un lundi EXPLICITE, et non le retrait du paramètre : c'est ce qui fait mener le bouton à
+   * aujourd'hui quel que soit le défaut.
+   */
+  it("ramène à la semaine d'aujourd'hui après navigation, et s'y ferme", async () => {
+    const { getByText, router, user } = await mount({ data: [BLOC] });
+
+    await user.click(getByText("plan.athlete.week.next"));
+    expect(router.state.location.search).toEqual({ from: nextMonday(1) });
+    expect(getByText(TODAY)).toBeEnabled();
+
+    await user.click(getByText(TODAY));
+
+    expect(router.state.location.search).toEqual({ from: THIS_MONDAY });
+    expect(getByText("Force max")).toBeInTheDocument();
+    expect(getByText(TODAY)).toBeDisabled();
+  });
+});
