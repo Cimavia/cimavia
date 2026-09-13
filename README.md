@@ -147,26 +147,55 @@ ne pas les redéclarer dans `app.json`. Les trois schemes sont des origines de c
 (`apps/api/src/config/origins.ts`) ; le client mobile lit le sien via `Constants.expoConfig.scheme`.
 `slug` et `extra.eas.projectId` restent communs : un seul projet EAS, plusieurs app ids.
 
-### Builds iOS (distribution ad hoc)
+### Builds iOS (TestFlight pour la bêta)
 
 Rien n'est versionné ici : tout vit chez Apple et chez Expo. `eas build --platform ios` tourne sur
-un worker macOS, **aucun Mac n'est requis** — seul `expo run:ios` en demande un.
+un worker macOS, **aucun Mac ni aucun iPhone n'est requis** pour construire — seul `expo run:ios`
+demande un Mac.
 
-Le bêta reçoit le profil `preview`, seul profil `internal` qui vise déjà `api-dev`. Le profil
-`production` reste orienté store et **n'est pas installable** sur un iPhone bêta : c'est voulu, il
-attend l'App Store.
+| Profil | Distribution | Arrive sur l'iPhone par | Sert à |
+|---|---|---|---|
+| `development` | `internal` | un lien EAS, UDID enregistré | le dev client, branché sur Metro |
+| `preview` | `internal` | un lien EAS, UDID enregistré | un build interne ponctuel |
+| `testflight` | `store` | l'app TestFlight | **la bêta** |
+| `production` | `store` | l'App Store | la mise en vente, plus tard |
 
-**Enregistrer l'appareil AVANT de construire.** C'est le piège qui n'a pas d'équivalent Android :
-la distribution `internal` d'iOS signe le binaire pour une liste d'appareils, identifiés par
-**UDID**.
+`testflight` étend `preview` : même variante (`fr.cimavia.app.preview`), même API (`api-dev`). Seule
+la signature change, et avec elle le chemin jusqu'au téléphone.
+
+**Envoyer un build de bêta** — depuis `apps/mobile`, identifiant Apple demandé au premier envoi :
 
 ```bash
-eas device:create                 # une fois par iPhone, avant son premier build
-pnpm build:preview:ios            # depuis apps/mobile
+pnpm build:testflight:ios
+```
+
+Le script passe `--auto-submit`, et ce n'est pas un confort : `eas submit` lancé SEUL lit
+l'identifiant iOS dans `app.config.ts` sans `APP_VARIANT`, retombe sur la variante `development` et
+vise `fr.cimavia.app.dev`. `--auto-submit` reprend celui du build qui vient de sortir. Le premier
+envoi crée la fiche App Store Connect de `.preview`, distincte de la future app de production.
+
+**Ajouter un testeur** — interne uniquement, dans App Store Connect :
+
+1. *Utilisateurs et accès* → inviter son adresse Apple ;
+2. une fois le build traité par Apple, *TestFlight* → groupe interne → l'y ajouter ;
+3. le testeur accepte l'invitation d'équipe, installe l'app **TestFlight**, puis cimavia depuis
+   celle-ci.
+
+Pas de lien public : il est réservé aux testeurs **externes**, dont le premier build passe par une
+revue Apple qui applique les consignes de l'App Store — et l'app ne sait pas encore supprimer un
+compte (#256). Un testeur interne n'a aucune revue, mais il devient **utilisateur de ton compte App
+Store Connect** : choisis-lui le rôle le plus restreint. Un build TestFlight expire au bout de
+90 jours ; iOS 16.4 minimum sur le téléphone.
+
+**Le dev client reste en ad hoc.** `development` et `preview` signent le binaire pour une liste
+d'appareils identifiés par **UDID** — le piège qui n'a pas d'équivalent Android :
+
+```bash
+eas device:create                 # une fois par iPhone, AVANT son premier build
+pnpm build:dev:ios                # depuis apps/mobile
 ```
 
 Un appareil ajouté **après** ne peut pas installer un binaire déjà signé : il faut reconstruire.
-Cent appareils par an au maximum.
 
 Laisse `eas build` créer les identifiants — les trois app ids (`fr.cimavia.app`, `.dev`,
 `.preview`), le certificat de distribution, les profils de provisionnement et la clé APNs. Les

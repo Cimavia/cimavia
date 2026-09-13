@@ -124,7 +124,9 @@ workflow. Ils vivent donc chez Apple, chez Google ou chez Expo — et un seul fi
 | App ids `fr.cimavia.app`, `.dev`, `.preview` | portail Apple | `eas build` |
 | Certificat de distribution et profils de provisionnement | portail Apple, copie chez Expo | `eas build` |
 | Clé APNs (`.p8`) | portail Apple, déposée chez Expo | `eas build` |
-| UDID des iPhones de bêta | expo.dev → Credentials → iOS | `eas device:create` |
+| Fiche App Store Connect de `fr.cimavia.app.preview` | App Store Connect | le premier `pnpm build:testflight:ios` |
+| Testeurs TestFlight internes | App Store Connect → Utilisateurs et accès | toi, à la main |
+| UDID des iPhones du dev client | expo.dev → Credentials → iOS | `eas device:create` |
 
 `google-services.json` est la seule exception à « rien dans le dépôt », et c'est assumé : il ne
 porte que des identifiants **clients** (sender id, clé d'API restreinte au package et à l'empreinte
