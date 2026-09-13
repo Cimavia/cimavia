@@ -2799,21 +2799,37 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | IOS-1 | **Les chaînes de permission iOS ne passent pas par i18next** (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. Français seulement. Les localiser ne demande pourtant rien d'exotique : la clé `expo.locales` d'`app.json` génère un `InfoPlist.strings` par langue au prebuild (`@expo/config-plugins`, `ios/Locales.js`). #134 affirmait le contraire, et cette ligne l'a d'abord recopié. | 🟡 | [#254](https://github.com/Cimavia/cimavia/issues/254) |
 | IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
-| IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet en distribution ad hoc, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi TestFlight ou App Store)* |
+| IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet tant qu'aucune revue n'a lieu — la bêta passe par des testeurs TestFlight internes —, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi à des testeurs TestFlight EXTERNES, ou à l'App Store — les testeurs internes ne passent aucune revue)* |
 | IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins, sans que rien ne le signale. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
 | IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
 | IOS-6 | **La chaîne de notification du minuteur n'a aucun test** (0 % mesuré) : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — seul ce dernier est remonté à 100 %. | 🟡 | [#253](https://github.com/Cimavia/cimavia/issues/253) |
 
-> **Tranché en #134** (ad hoc plutôt que TestFlight) : la bêta passe par la distribution `internal`,
-> qui signe le binaire pour une liste d'UDID. Le prix est réel — un appareil ajouté après un build
-> ne peut pas l'installer, il faut reconstruire, et le plafond est de cent appareils par an. Ce
-> qu'on achète en échange est l'absence de revue Apple, donc l'absence de délai qu'on ne maîtrise
-> pas, sur une bêta qui compte un coach. TestFlight reste le seul chemin qui ressemble à la mise en
-> vente : la question se rouvrira avec elle, pas avant. **Corollaire** : `submit.production` reste
-> VIDE dans `eas.json` — c'est une décision, pas un oubli, et rien ne se soumet nulle part.
+> **Tranché en #134** (TestFlight interne plutôt qu'ad hoc — arbitrage RENVERSÉ en cours de PR) :
+> la bêta passait d'abord par la distribution `internal`, qui signe le binaire pour une liste
+> d'UDID. Choisie pour l'absence de revue Apple, elle a buté sur un fait que l'arbitrage n'avait pas
+> posé : **le développeur n'a pas d'iPhone, le coach bêta en a un**. L'ad hoc aurait exigé de
+> collecter l'UDID du coach avant chaque build, et de reconstruire pour tout appareil ajouté ensuite.
 >
-> Le bêta reçoit donc le profil `preview`, seul profil `internal` visant déjà `api-dev`. Le profil
-> `production` n'est pas installable sur un iPhone de bêta, et n'a pas à l'être.
+> TestFlight ne signe pour aucun appareil. Un profil `testflight` étend `preview` — même variante,
+> même API `api-dev` — et ne change que la signature (`distribution: store`) et la numérotation
+> (`autoIncrement`, chaque envoi exigeant un numéro neuf). Le testeur est **interne** : aucune
+> revue, au prix d'un accès — même restreint — au compte App Store Connect. Les testeurs externes
+> auraient évité cet accès, mais leur premier build passe une revue qui applique les consignes de
+> l'App Store (règle 2.2), et l'app ne sait pas supprimer un compte (#256).
+>
+> L'ad hoc n'est pas supprimé : `development` et `preview` restent `internal`, le dev client en
+> ayant besoin pour se brancher sur Metro. `submit.production` reste sans identifiants tant que
+> rien ne part vers l'App Store ; les deux profils d'envoi fixent seulement la langue de la fiche
+> à `fr-FR`, qu'`eas-cli` mettrait sinon à `en-US`.
+
+> **Découvert en #134** (`eas submit` lancé seul vise la mauvaise app) : pour trouver l'identifiant
+> iOS, `eas submit` prend dans l'ordre une surcharge, le `bundleIdentifier` du profil d'envoi, puis
+> `app.config.ts` évalué **sans** `APP_VARIANT` — les profils d'envoi n'ont pas d'`env`. Il retombe
+> donc sur la variante `development` et vise `fr.cimavia.app.dev`, quel que soit le build envoyé.
+> Seul `eas build --auto-submit` pose la surcharge, depuis l'identifiant du build qui vient de
+> sortir. C'est pourquoi `build:testflight:ios` passe le drapeau, et pourquoi la commande de
+> production devra le passer aussi. Lu dans `eas-cli` (`submit/ios/AppProduce.js`,
+> `build/runBuildAndSubmit.js`), pas encore observé : aucun envoi n'est parti.
 
 > **Tranché en #134** (`ios.supportsTablet` passe à `false`) : il était à `true` depuis toujours et
 > personne n'a jamais vu un écran de cimavia sur iPad. Le laisser engageait l'app à être regardée en
