@@ -120,7 +120,10 @@ export function AthletePlanningScreen() {
           <p className="text-cmv-body text-cmv-text-mid">{t("plan.athlete.outOfCycle")}</p>
         ) : null}
 
-        <AthleteWeekGrid week={week} today={today} />
+        {/* Le `from` DEMANDÉ, et non la semaine affichée : sur le défaut, il n'y en a pas, et la
+            séance ne doit pas en inventer un — le retour rouvrira alors le défaut, qui suit le
+            calendrier (#251). */}
+        <AthleteWeekGrid week={week} today={today} planningFrom={requestedMonday} />
       </div>
     </CmvAppShell>
   );

@@ -216,6 +216,26 @@ describe("AthletePlanningScreen", () => {
     const { getByText } = await mount({ data: [BLOC] });
     expect(getByText("plan.athlete.week.next")).toBeEnabled();
   });
+
+  /**
+   * #251 : les cartes emportent le `from` DEMANDÉ par l'URL, pas la semaine affichée. Sur le
+   * défaut, les deux montrent la même semaine, et pourtant la séance ne doit rien porter — le retour
+   * rouvrira le défaut, qui suit le calendrier.
+   */
+  it("relaie aux séances la semaine demandée par l'URL, et rien sur le défaut", async () => {
+    const onDefault = await mount({ data: [BLOC] });
+    expect(onDefault.getByText("Force max").closest("a")).toHaveAttribute(
+      "href",
+      "/sessions/ss_bloc",
+    );
+    onDefault.unmount();
+
+    const requested = await mount({ data: [BLOC] }, { from: THIS_MONDAY });
+    expect(requested.getByText("Force max").closest("a")).toHaveAttribute(
+      "href",
+      `/sessions/ss_bloc?from=${THIS_MONDAY}`,
+    );
+  });
 });
 
 /**

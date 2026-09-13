@@ -149,6 +149,8 @@ function SessionsByDay({
                 key={entry.session.id}
                 session={entry.session}
                 planLabel={showPlanTitle ? entry.planTitle : null}
+                // On n'ouvre pas la séance depuis une semaine du planning : aucune à rendre (#251).
+                planningFrom={undefined}
               />
             ))}
         </section>

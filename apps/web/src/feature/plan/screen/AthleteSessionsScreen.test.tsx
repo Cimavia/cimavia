@@ -156,4 +156,13 @@ describe("AthleteSessionsScreen", () => {
     const { queryByText } = await mount({ data: [BLOC] }, "upcoming");
     expect(queryByText("Cycle Bloc")).toBeNull();
   });
+
+  /**
+   * #251 : la carte est la même que celle de la grille, mais on n'ouvre pas la séance depuis une
+   * semaine du planning. Elle n'en transmet donc aucune, et « ← Mon planning » rouvrira le défaut.
+   */
+  it("ouvre la séance sans semaine de planning à rendre", async () => {
+    const { getByText } = await mount({ data: [BLOC] }, "upcoming");
+    expect(getByText("Force max").closest("a")).toHaveAttribute("href", "/sessions/ss_demain");
+  });
 });

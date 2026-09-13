@@ -14,6 +14,7 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
 const SESSION_ID = "ss-1";
 const MONDAY = "2026-10-12";
 const OPEN_FEEDBACK = "feedback.open";
+const BACK = "plan.athlete.backToPlanning";
 
 /** Une séance d'un exercice : sans exercice, le rail RETIRE le bouton de débrief. */
 const session = (): ScheduledSessionDto =>
@@ -60,6 +61,26 @@ afterEach(() => {
 });
 
 describe("AthleteSessionScreen", () => {
+  /**
+   * Le cœur de #251 : l'athlète qui préparait sa semaine suivante retombait sur la semaine par
+   * défaut après chaque séance. Le retour rouvre la semaine d'où il vient — pas celle de la séance.
+   */
+  it("ramène au planning sur la semaine qu'on regardait", async () => {
+    const { findByRole } = await setup({ from: MONDAY });
+
+    expect(await findByRole("link", { name: BACK })).toHaveAttribute(
+      "href",
+      `/planning?from=${MONDAY}`,
+    );
+  });
+
+  // Arrivé par la liste, un message ou une notification : aucune semaine d'origine, donc le défaut.
+  it("ramène au planning par défaut quand on n'arrive pas du planning", async () => {
+    const { findByRole } = await setup();
+
+    expect(await findByRole("link", { name: BACK })).toHaveAttribute("href", "/planning");
+  });
+
   /**
    * La semaine du planning TRAVERSE le débrief : perdue à cette étape, le retour au planning ne
    * saurait plus où ramener l'athlète qui est passé par lui.

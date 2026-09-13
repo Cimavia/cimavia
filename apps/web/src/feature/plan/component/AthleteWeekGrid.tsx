@@ -8,6 +8,8 @@ import { formatDayNumber, formatWeekday } from "@/shared/util/date.util";
 type AthleteWeekGridProps = {
   week: AthleteCalendarWeek<ScheduledSessionSummaryDto>;
   today: string;
+  /** Le `from` de l'URL du planning, relayé à chaque carte — cf. `AthleteSessionCard` (#251). */
+  planningFrom: string | undefined;
 };
 
 /**
@@ -42,7 +44,7 @@ type AthleteWeekGridProps = {
  * de leur contenu, avec le plancher `min-h-24` pour tout le monde. C'est la même frontière que
  * celle posée en #206 — ce qui vaut à toutes les largeurs est le PLANCHER, pas l'égalisation.
  */
-export function AthleteWeekGrid({ week, today }: Readonly<AthleteWeekGridProps>) {
+export function AthleteWeekGrid({ week, today, planningFrom }: Readonly<AthleteWeekGridProps>) {
   const { t } = useTranslation();
   const showPlanTitle = week.cycles.length > 1;
 
@@ -125,6 +127,7 @@ export function AthleteWeekGrid({ week, today }: Readonly<AthleteWeekGridProps>)
                     key={entry.session.id}
                     session={entry.session}
                     planLabel={showPlanTitle ? entry.planTitle : null}
+                    planningFrom={planningFrom}
                   />
                 ))
               )}
