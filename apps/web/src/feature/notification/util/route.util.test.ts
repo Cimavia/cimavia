@@ -23,6 +23,12 @@ const notification = (entityType: string, entityId = "entity-1"): NotificationDt
     createdAt: "2026-08-15T09:00:00.000Z",
   }) as NotificationDto;
 
+/**
+ * Toute cible qui porte un `search` se compare en `toStrictEqual`, pas en `toEqual` : ce dernier
+ * ignore les clés à `undefined`, si bien qu'une clé exigée par la route et oubliée par la cible
+ * passerait. Or c'est exactement l'oubli que le typage ne voit pas — `navigate(target)` sur une
+ * union échappe au contrôle de TanStack (#251) —, et ce fichier est le seul endroit à le remarquer.
+ */
 describe("routeForNotification", () => {
   /**
    * La destination dépend de la CAPACITÉ, pas du seul type : les deux rôles reçoivent des
@@ -35,12 +41,18 @@ describe("routeForNotification", () => {
       to: "/plans/$planId",
       params: { planId: "plan-42" },
     });
-    expect(routeForNotification(dto, ATHLETE)).toEqual({ to: "/planning" });
+    expect(routeForNotification(dto, ATHLETE)).toStrictEqual({
+      to: "/planning",
+      search: { from: undefined },
+    });
   });
 
   it("mène le coach à la section débriefs et l'athlète à SA séance", () => {
     const dto = notification(NotificationEntityType.SCHEDULED_SESSION, "session-7");
-    expect(routeForNotification(dto, COACH)).toEqual({ to: "/feedbacks" });
+    expect(routeForNotification(dto, COACH)).toStrictEqual({
+      to: "/feedbacks",
+      search: { feedback: undefined, session: undefined },
+    });
     expect(routeForNotification(dto, ATHLETE)).toEqual({
       to: "/sessions/$sessionId",
       params: { sessionId: "session-7" },
@@ -48,11 +60,15 @@ describe("routeForNotification", () => {
   });
 
   it.each([
-    [NotificationEntityType.CONVERSATION, "/messages"],
-    [NotificationEntityType.INVOICE, "/invoices"],
-  ])("sert %s aux deux rôles sur la même route, le contenu étant scopé par le tenant", (entityType, to) => {
-    expect(routeForNotification(notification(entityType), COACH)).toEqual({ to });
-    expect(routeForNotification(notification(entityType), ATHLETE)).toEqual({ to });
+    [NotificationEntityType.CONVERSATION, "/messages", { athlete: undefined, as: undefined }],
+    [
+      NotificationEntityType.INVOICE,
+      "/invoices",
+      { as: undefined, q: undefined, situation: undefined, athlete: undefined },
+    ],
+  ])("sert %s aux deux rôles sur la même route, le contenu étant scopé par le tenant", (entityType, to, search) => {
+    expect(routeForNotification(notification(entityType), COACH)).toStrictEqual({ to, search });
+    expect(routeForNotification(notification(entityType), ATHLETE)).toStrictEqual({ to, search });
   });
 
   /**
@@ -66,7 +82,7 @@ describe("routeForNotification", () => {
       ...notification(NotificationEntityType.INVITATION, "inv-1"),
       type: NotificationType.INVITATION_ACCEPTED,
     };
-    expect(routeForNotification(dto, COACH)).toEqual({
+    expect(routeForNotification(dto, COACH)).toStrictEqual({
       to: "/",
       search: { q: undefined, filter: undefined, athlete: undefined },
     });
