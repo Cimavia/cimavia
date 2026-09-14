@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/Cimavia/cimavia/compare/v1.2.0...v1.2.1) (2026-09-13)
+
+
+### Corrections
+
+* **infra:** tirer minio de quay.io en version épinglée, ses images ont quitté docker hub ([b6531a6](https://github.com/Cimavia/cimavia/commit/b6531a6773f01127fc2cc33d52c928dd9d741ab5))
+
 ## [1.2.0](https://github.com/Cimavia/cimavia/compare/v1.1.0...v1.2.0) (2026-09-11)
 
 
