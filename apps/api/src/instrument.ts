@@ -58,7 +58,7 @@ Sentry.init({
 
   // Environnement — apparaît dans le dashboard Sentry pour filtrer les issues. On lit APP_ENV
   // (le TIER de déploiement), pas NODE_ENV (le MODE runtime) : sur le NAS comme en prod l'image
-  // tourne en NODE_ENV=production, donc s'y fier taguerait staging ET prod comme "production".
+  // tourne en NODE_ENV=production, donc s'y fier taguerait preview ET prod comme "production".
   // instrument.ts s'exécutant avant NestJS (donc avant ConfigModule/Zod), on lit process.env
   // directement, avec le même défaut que le schéma (@cmv/shared).
   environment: process.env.APP_ENV || "development",
