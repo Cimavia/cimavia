@@ -1,13 +1,12 @@
 name: Deploy — dev (NAS)
 
-# Tier « development » du modèle local → dev(NAS) → staging → prod : un push sur `main` publie les
-# images sur GHCR. Le déploiement sur le NAS (pull + up sur le runner self-hosted) est ajouté
-# dans un job séparé au commit suivant. staging/production auront leurs propres workflows.
+# Tier du NAS : un push sur `main` publie les images sur GHCR, puis le job `deploy` les monte sur le
+# NAS par le runner self-hosted. La production aura son propre workflow.
 #
 # NB : la porte qualité (lint/typecheck/test) tourne en parallèle via ci.yml. Le build d'image
 # échoue de toute façon sur une erreur de type (nest build = tsc) ; un test rouge, lui, ne bloque
 # pas la publication à ce tier — c'est assumé pour garder la boucle dev rapide. On resserrera pour
-# staging/prod.
+# la prod.
 
 on:
   push:

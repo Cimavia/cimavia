@@ -2844,6 +2844,28 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `EXPO_PUBLIC_APP_ENV` de plus serait la mauvaise voie. L'union accueille les deux plutôt que de
 > fabriquer un troisième vocabulaire que personne n'émettrait.
 
+> **Renversé en #261** (un seul mot, `preview`, sur les trois couches) : la raison de l'encadré
+> précédent a disparu. Les deux chaînes de livraison n'en font plus qu'une : l'épic
+> [#260](https://github.com/Cimavia/cimavia/issues/260) fait du NAS l'environnement preview, et le
+> build EAS `preview` pointe déjà dessus. Garder `staging` côté serveur aurait laissé un même
+> environnement porter deux noms selon qui le lit — et un environnement à deux noms finit par en
+> porter trois. `AppTier`, `APP_ENV` et le `env` de `GET /version` comptent donc trois valeurs,
+> `development | preview | production`.
+>
+> - **`staging` est refusé explicitement** par le test du DTO, et pas seulement absent de l'union :
+>   le laisser passer rouvrirait en silence le vocabulaire qu'on referme.
+> - **Aucun client installé ne casse** : aucun serveur n'a jamais émis `staging`, le NAS tournait en
+>   `development`.
+> - **La branche garde un rôle** : `preview` pointera sur la version promue chez le Coach bêta
+>   ([#266](https://github.com/Cimavia/cimavia/issues/266)), elle ne se contente pas de changer de
+>   nom.
+> - **Le NAS lui-même s'appelle encore `dev`** — hostnames, variables, workflow, dossier,
+>   `APP_ENV=development`. Son renommage demande une bascule sans coupure et un nouveau build mobile :
+>   il est suivi à part, en [#271](https://github.com/Cimavia/cimavia/issues/271).
+>
+> Les entrées de #185 et #186, qui disent `main → staging → production`, ne sont pas réécrites :
+> c'est ce qu'on savait alors, et celle-ci suffit à les relire.
+
 > **Tranché en #187** (une ligne de pied, pas un écran « À propos ») : l'issue posait la question
 > ouverte, et la maquette y répondait déjà — `athlete_profile.dc.html` se termine par
 > `Cimavia · v1.0.0`, sous « Se déconnecter ». Son « À trancher » s'appuyait par ailleurs sur une

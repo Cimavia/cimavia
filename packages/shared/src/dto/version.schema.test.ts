@@ -32,8 +32,11 @@ describe("versionDtoSchema", () => {
   /**
    * Le tier est une liste FERMÉE, alignée sur `APP_ENV`. L'ouvrir laisserait un jour passer une
    * valeur que l'écran d'à-propos afficherait telle quelle en suffixe, sans que rien ne bronche.
+   *
+   * `staging` en fait partie depuis #261 : c'est l'ancien nom de `preview`, et le laisser passer
+   * rouvrirait le second vocabulaire que ce renommage referme.
    */
-  it("refuse un tier qui n'existe pas", () => {
-    expect(() => versionDtoSchema.parse({ version: null, build: null, env: "preprod" })).toThrow();
+  it.each(["staging", "preprod"])("refuse le tier %s, qui n'existe pas", (env) => {
+    expect(() => versionDtoSchema.parse({ version: null, build: null, env })).toThrow();
   });
 });

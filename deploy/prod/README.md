@@ -1,4 +1,4 @@
-# Déploiement — object storage des tiers CLOUD (staging, prod)
+# Déploiement — object storage du tier cloud (prod)
 
 Ce qui doit être posé **sur le bucket** et que le code ne peut pas poser lui-même. À appliquer au
 moment où le bucket Scaleway est créé — d'ici là, ce dossier est la mémoire de l'opération.

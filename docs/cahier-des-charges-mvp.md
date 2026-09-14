@@ -235,7 +235,7 @@ packages/
 L'affichage est conditionné par le **rôle** (`User.role`), pas par la plateforme : les deux rôles accèdent aux deux clients. Conventions détaillées par couche dans `architecture-choice.md`.
 
 ### 7.4 Environnements
-- **local** (Docker `postgres:18-alpine`), **staging**, **production** (GitLab Flow : `feature/*` → `main` → `staging` → `production`).
+- **local** (Docker `postgres:18-alpine`), **preview**, **production** (GitLab Flow : `feature/*` → `main` → `preview` → `production`).
 - Schéma versionné via **migrations Prisma** (`prisma migrate`) ; jamais de modif manuelle non versionnée en prod. BDD MVP = Neon free (Prisma-natif).
 
 ### 7.5 Hébergement français : résidence vs souveraineté

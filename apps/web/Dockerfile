@@ -5,15 +5,15 @@
 # Différence ASSUMÉE avec l'image API : le web est construit PAR ENVIRONNEMENT, pas une fois pour
 # tous. Les variables `VITE_*` sont lues via `import.meta.env` et figées dans le bundle au moment
 # du `vite build` (c'est la nature d'un SPA statique — aucune variable n'existe plus à
-# l'exécution). Il faut donc un build par cible : `--build-arg VITE_API_URL=https://api.staging.
-# <domaine>` pour le NAS, un autre pour la prod. L'API, elle, reste une image unique pilotée par
+# l'exécution). Il faut donc un build par cible : un `VITE_API_URL` pour le NAS, un
+# autre pour la prod. L'API, elle, reste une image unique pilotée par
 # ses variables d'environnement au démarrage.
 #
 # Build depuis la RACINE du monorepo (le contexte doit voir pnpm-lock.yaml et packages/) :
 #   docker build -f apps/web/Dockerfile \
-#     --build-arg VITE_API_URL=https://api.staging.example \
+#     --build-arg VITE_API_URL=https://api-preview.example \
 #     --build-arg VITE_SENTRY_DSN=https://…@…ingest.sentry.io/… \
-#     --build-arg VITE_APP_ENV=staging --build-arg VITE_APP_VERSION=1.2.0 \
+#     --build-arg VITE_APP_ENV=preview --build-arg VITE_APP_VERSION=1.2.0 \
 #     --build-arg SENTRY_ORG=… --build-arg SENTRY_PROJECT=cimavia-web \
 #     --build-arg SENTRY_RELEASE=1.2.0+3f2a1c \
 #     --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN .

@@ -5,12 +5,12 @@ d'architecture, voir `docs/architecture-choice.md`.
 
 ## Git flow (GitLab Flow)
 
-Merge unidirectionnel `feature/* → main → staging → production` (jamais en sens inverse).
+Merge unidirectionnel `feature/* → main → preview → production` (jamais en sens inverse).
 
 - `main` : branche de dev, **protégée** (ruleset « Main ») — PR obligatoire, les trois checks
   ci-dessous verts requis, commits signés, ni force-push ni suppression. Le push direct, autorisé
   jusqu'en #130, ne l'est plus : une porte qu'on peut contourner ne garde rien.
-- `staging` / `production` : cibles de promotion **protégées** (ruleset « Production ») — mêmes
+- `preview` / `production` : cibles de promotion **protégées** (ruleset « Production ») — mêmes
   exigences, plus l'historique linéaire.
 
 CI (`.github/workflows/`) :
@@ -26,7 +26,7 @@ CI (`.github/workflows/`) :
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 
-Les trois tournent sur push/PR vers `main`, `staging`, `production`.
+Les trois tournent sur push/PR vers `main`, `preview`, `production`.
 
 > Ces libellés sont ceux des **jobs**, et c'est sous ce nom exact que les rulesets les exigent —
 > pas sous le nom du workflow. Renommer un job décroche donc la porte qui le référence : le check
@@ -87,8 +87,8 @@ c'est là que tu relis ce que la version contient.
 > `Release-As: 1.4.0` dans son **corps** le force : c'est la seule exception assumée à la règle du
 > commit sur une seule ligne.
 
-**La promotion ne renumérote pas.** `main → staging → production` fait avancer le *même* numéro.
-Que `staging` soit en 1.3.0 pendant que `production` est en 1.2.0 est l'état **normal** : une seule
+**La promotion ne renumérote pas.** `main → preview → production` fait avancer le *même* numéro.
+Que `preview` soit en 1.3.0 pendant que `production` est en 1.2.0 est l'état **normal** : une seule
 lignée, deux têtes de lecture décalées par le temps de promotion. Le tier est porté par `APP_ENV`,
 jamais par le numéro.
 

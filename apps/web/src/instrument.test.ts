@@ -45,9 +45,9 @@ describe("instrument", () => {
 
   it("tague le tier de déploiement, pas le mode de build", async () => {
     vi.stubEnv("VITE_SENTRY_DSN", "https://clef@o0.ingest.sentry.io/1");
-    vi.stubEnv("VITE_APP_ENV", "staging");
+    vi.stubEnv("VITE_APP_ENV", "preview");
 
-    expect(await loadInstrument()).toMatchObject({ environment: "staging" });
+    expect(await loadInstrument()).toMatchObject({ environment: "preview" });
   });
 
   it("retombe sur `development` quand le tier n'est pas renseigné", async () => {
