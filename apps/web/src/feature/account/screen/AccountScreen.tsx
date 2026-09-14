@@ -5,6 +5,7 @@ import { IoWarningOutline } from "react-icons/io5";
 import { useCapabilityUpdate } from "@/feature/account/hook/useCapabilityUpdate";
 import { NotificationEmailSection } from "@/feature/notification";
 import { CmvAppShell, CmvButton } from "@/shared/component";
+import { appVersionLabel } from "@/shared/lib/app-version";
 import { authClient } from "@/shared/lib/auth";
 
 // i18n-values account.capabilities.option: coach, athlete
@@ -26,6 +27,7 @@ export function AccountScreen() {
     new Set(OPTIONS.filter((name) => (name === "coach" ? current.isCoach : current.isAthlete))),
   );
   const update = useCapabilityUpdate();
+  const version = appVersionLabel();
 
   const isCoach = selected.has("coach");
   const isAthlete = selected.has("athlete");
@@ -104,6 +106,14 @@ export function AccountScreen() {
       <div className="mt-cmv-xl">
         <NotificationEmailSection />
       </div>
+
+      {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), sous le dernier bloc : c'est la
+          seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison mobile est un
+          build de store et un Athlete peut rester des semaines sur un binaire ancien sans le
+          savoir. Discrète à dessein — on la cherche, on ne la subit pas. */}
+      <p className="mt-cmv-xl text-cmv-caption text-cmv-text-lo">
+        {version == null ? t("account.about.unknown") : t("account.about.version", { version })}
+      </p>
     </CmvAppShell>
   );
 }

@@ -5,20 +5,28 @@ import {
   NotificationType,
 } from "@cmv/shared";
 
+/**
+ * Chaque cible porte le `search` que sa route EXIGE — des clés requises mais possiblement
+ * `undefined` : sous `exactOptionalPropertyTypes`, « absente » et « présente à undefined » ne sont
+ * pas la même chose, et `<Link to="/planning">` seul ne compile pas.
+ *
+ * ⚠️ Rien ne le vérifie ICI. `navigate(target)` sur cette union échappe au contrôle de TanStack,
+ * qui accepte alors une cible sans `search` : en #251, quatre des cinq routes qui en exigeaient un
+ * n'en portaient aucun ici, sans que le typecheck bronche. Une route qui gagne un `validateSearch`
+ * se reporte donc à la main — l'oubli ne se voit qu'en relisant la route.
+ */
 type NotificationTarget =
   | { to: "/plans/$planId"; params: { planId: string } }
-  | { to: "/sessions/$sessionId"; params: { sessionId: string } }
-  | { to: "/feedbacks" }
-  | { to: "/messages" }
-  | { to: "/planning" }
-  | { to: "/invoices" }
+  | { to: "/sessions/$sessionId"; params: { sessionId: string }; search: { from: undefined } }
+  | { to: "/feedbacks"; search: { feedback: undefined; session: undefined } }
+  | { to: "/messages"; search: { athlete: undefined; as: undefined } }
+  | { to: "/planning"; search: { from: undefined } }
+  | {
+      to: "/invoices";
+      search: { as: undefined; q: undefined; situation: undefined; athlete: undefined };
+    }
   | { to: "/my-coach" }
-  /**
-   * Le tableau de suivi du coach. Il porte son `search` — trois clés REQUISES mais possiblement
-   * `undefined` (#123) — parce que la route l'exige : sous `exactOptionalPropertyTypes`, « absente »
-   * et « présente à undefined » ne sont pas la même chose, et `navigate({ to: "/" })` seul ne
-   * compile pas. Les quatre autres appelants de cette route du dépôt passent le même objet.
-   */
+  // Le tableau de suivi du coach, sans filtre (#123).
   | {
       to: "/";
       search: { q: undefined; filter: undefined; athlete: undefined };
@@ -73,32 +81,43 @@ export function routeForNotification(
   switch (notification.entityType) {
     /**
      * Le coach va à SON builder, l'athlète à SON planning. Pas de lien fin vers la semaine
-     * concernée côté athlète : `entityId` est le cycle, pas la semaine, et il n'a de toute façon
-     * qu'un cycle courant. Conséquence assumée — « une séance a été ajoutée » ouvre la semaine
-     * courante, qui n'est pas forcément celle où la séance a atterri. Mieux vaut le planning que
-     * rien.
+     * concernée côté athlète : `entityId` est le cycle, pas la semaine, et un cycle en compte
+     * plusieurs. Conséquence assumée — « une séance a été ajoutée » ouvre le planning sur son
+     * DÉFAUT (`from` absent) : la semaine d'aujourd'hui quand un cycle a cours, le début du cycle
+     * servi sinon (#240). Pas forcément celle où la séance a atterri, mais mieux vaut le planning
+     * que rien.
      */
     case NotificationEntityType.PLAN:
       return isCoach
         ? { to: "/plans/$planId", params: { planId: notification.entityId } }
-        : { to: "/planning" };
+        : { to: "/planning", search: { from: undefined } };
     /**
      * Ce type n'est émis QU'AU COACH aujourd'hui (`FEEDBACK_RECEIVED`), et le web n'a pas d'écran
      * par débrief : on ouvre la section. La branche athlète est écrite quand même, comme sur
      * mobile — cette table décrit où vit une cible pour une capacité, pas quelles notifications
      * existent, et la destination existe désormais (#25).
+     *
+     * Côté athlète, aucune semaine de planning n'accompagne la séance : on n'arrive pas du planning,
+     * et « ← Mon planning » rouvrira donc son défaut (#251).
      */
     case NotificationEntityType.SCHEDULED_SESSION:
       return isCoach
-        ? { to: "/feedbacks" }
-        : { to: "/sessions/$sessionId", params: { sessionId: notification.entityId } };
+        ? { to: "/feedbacks", search: { feedback: undefined, session: undefined } }
+        : {
+            to: "/sessions/$sessionId",
+            params: { sessionId: notification.entityId },
+            search: { from: undefined },
+          };
     // Servie aux deux rôles depuis #29 : même route, contenu décidé par l'écran (N fils pour le
     // coach, un seul pour l'athlète).
     case NotificationEntityType.CONVERSATION:
-      return { to: "/messages" };
+      return { to: "/messages", search: { athlete: undefined, as: undefined } };
     // Servie aux deux rôles depuis #27 : même route, contenu scopé par le tenant.
     case NotificationEntityType.INVOICE:
-      return { to: "/invoices" };
+      return {
+        to: "/invoices",
+        search: { as: undefined, q: undefined, situation: undefined, athlete: undefined },
+      };
     /**
      * L'invitation (#146) se branche par CAPACITÉ comme tout le reste de cette table, et les deux
      * destinations tombent sans une seule ligne de branchement sur le type : le coach va voir le

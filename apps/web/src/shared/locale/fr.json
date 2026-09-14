@@ -393,7 +393,7 @@
       "today": "Aujourd'hui",
       "rest": "Repos",
       "doneCount": "{{done}}/{{total}} séances faites",
-      "outOfCycle": "Aucun de tes cycles n'a cours cette semaine-là.",
+      "outOfCycle": "Cette semaine ne fait partie d'aucun de tes cycles.",
       "week": {
         "previous": "Semaine précédente",
         "today": "Aujourd'hui",
@@ -1162,6 +1162,10 @@
         "ACTIVE_ATHLETES": "Des athlètes te sont rattachés : tu ne peux pas cesser de coacher tant que ces relations existent.",
         "ACTIVE_COACH": "Tu es rattaché à un coach : cette casquette ne peut pas être retirée tant que la relation existe."
       }
+    },
+    "about": {
+      "version": "cimavia · v{{version}}",
+      "unknown": "cimavia · —"
     }
   }
 }

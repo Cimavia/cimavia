@@ -12,6 +12,7 @@ import {
 import { NotificationEmailSection, revokeCurrentPushToken } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
 import { resetAccountData } from "@/shared/lib/account-reset";
+import { appVersionLabel } from "@/shared/lib/app-version";
 import { authClient } from "@/shared/lib/auth";
 
 // i18n-values account.capabilities.option: coach, athlete
@@ -24,6 +25,7 @@ export function ProfileScreen() {
   const router = useRouter();
   const { data: session, refetch } = authClient.useSession();
   const current = capabilitiesOf(session?.user);
+  const version = appVersionLabel();
 
   const [selected, setSelected] = useState<Set<CapabilityName>>(
     new Set(OPTIONS.filter((name) => (name === "coach" ? current.isCoach : current.isAthlete))),
@@ -140,6 +142,14 @@ export function ProfileScreen() {
         <NotificationEmailSection />
 
         <CmvButton label={t("common.logout")} onPress={onLogout} />
+
+        {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), SOUS la déconnexion : c'est la
+            seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison est un build
+            de store et un Athlete peut rester des semaines sur un binaire ancien sans le savoir —
+            un retour de bêta sans ce numéro coûte un aller-retour à chaque fois. */}
+        <CmvText className="text-center text-cmv-text-lo text-xs">
+          {version == null ? t("account.about.unknown") : t("account.about.version", { version })}
+        </CmvText>
       </ScrollView>
     </CmvScreen>
   );

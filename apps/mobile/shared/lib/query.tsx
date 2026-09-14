@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { addNetworkStateListener } from "expo-network";
 import type { ReactNode } from "react";
 import { AppState, type AppStateStatus } from "react-native";
+import { currentAppVersion } from "@/shared/lib/app-version";
 
 // Le cache survit à la fermeture de l'app pendant une semaine : l'athlète qui ouvre cimavia en
 // salle, sans réseau, doit retrouver ses séances — c'est tout l'objet de la lecture hors-ligne.
@@ -71,11 +72,20 @@ export async function resetQueryCache(): Promise<void> {
  * qu'un écran mort. La parade inverse (un `?? []` dans chaque composant) ne protégerait que
  * l'endroit auquel on a pensé, et masquerait le vrai problème partout ailleurs.
  *
- * À remplacer par la version du produit quand elle existera (#184).
+ * Le buster est désormais la VERSION DU PRODUIT (#187, dette M-6), et non plus un compteur tenu à
+ * la main. Rien ne forçait à penser à l'incrémenter : la panne ne se voit pas chez celui qui
+ * développe, dont le cache est toujours neuf. Elle se voyait chez l'athlète, pendant sept jours.
+ *
+ * Ce que ça change : le cache est jeté à CHAQUE montée de version, même quand aucun DTO n'a bougé.
+ * Ce sur-bust est assumé — une première ouverture qui recharge coûte infiniment moins qu'un écran
+ * mort une semaine, et un oubli devient impossible plutôt qu'improbable. Sans OTA, une montée de
+ * version est de toute façon un build de store : l'utilisateur en installe une, il n'en subit pas
+ * une par jour.
+ *
+ * `null` hors image (`pnpm start`) : `buster` reçoit alors la chaîne vide, valeur par défaut de
+ * TanStack, et le cache local du poste de développement n'est pas jeté à chaque lancement.
  */
-// "3" depuis #172 : `["my-plan","current"]` (UN cycle) est devenue `["my-plan","visible"]`
-// (une LISTE). Un cache non busté servirait un objet là où les écrans attendent un tableau.
-const CACHE_SCHEMA_VERSION = "3";
+const CACHE_SCHEMA_VERSION = currentAppVersion() ?? "";
 
 /**
  * Ponts app ↔ TanStack Query. Sans eux, RIEN ne déclenche jamais de refetch : `refetchOnWindowFocus`

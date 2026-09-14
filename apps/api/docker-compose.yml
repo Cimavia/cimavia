@@ -20,7 +20,11 @@ services:
   # Object storage S3-compatible pour le dev local (remplace Scaleway sans compte ni CB).
   # Portabilité : seules les variables S3_* changent pour basculer sur Scaleway/Cellar.
   minio:
-    image: minio/minio:latest
+    # quay.io et une version ÉPINGLÉE, plus `minio/minio:latest` : MinIO a retiré ses images de Docker
+    # Hub (404 le 2026-09-13, E2E et déploiement NAS cassés d'un coup) et ne publie plus d'édition
+    # communautaire depuis septembre 2025. Ce tag est le même digest que l'ancien `latest` de Docker
+    # Hub — rien ne change à l'exécution ni pour les données. Figé, donc sans correctif : dette P7-4.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: cimavia_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -35,7 +39,8 @@ services:
 
   # Crée le bucket privé au démarrage puis s'arrête (idempotent).
   minio-setup:
-    image: minio/mc:latest
+    # Même registre et même raison que `minio` ci-dessus — digest identique à l'ancien `latest`.
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: cimavia_minio_setup
     depends_on:
       - minio

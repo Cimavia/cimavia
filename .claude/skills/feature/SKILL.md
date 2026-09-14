@@ -23,6 +23,12 @@ quoi lire, quelles questions poser, et dans quel ordre livrer.
 
 - Lire l'issue : `gh api repos/Cimavia/cimavia/issues/<n>`. **`gh issue view` est cassé** sur ce
   dépôt (dépréciation Projects classic).
+- **`gh pr edit` est cassé de la même façon** — il passe par GraphQL et échoue sur
+  `repository.pullRequest.projectCards`. Constaté en #185 : le message d'erreur s'affiche, **et le
+  label n'a pas bougé**. Toute écriture sur une PR passe donc par REST, ex. pour un label :
+  `gh api -X DELETE "repos/Cimavia/cimavia/issues/<n>/labels/<nom%20encodé>"` puis
+  `gh api -X POST "repos/Cimavia/cimavia/issues/<n>/labels" -f "labels[]=<nom>"`. **Vérifier après
+  coup** (`gh api ".../labels" --jq '[.[].name]'`) : c'est le seul moyen de voir l'échec.
 - Remonter la famille : épic parente, issues sœurs **déjà fermées**, jalon, labels. Les corps des
   sœurs livrées portent les décisions structurantes qui contraignent encore le travail.
 - Sans numéro d'issue : demander s'il faut en créer une d'abord (→ skill `issue`).

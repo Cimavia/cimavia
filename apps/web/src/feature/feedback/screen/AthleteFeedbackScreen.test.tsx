@@ -111,10 +111,11 @@ const feedback = (over: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto =>
     ...over,
   }) as unknown as SessionFeedbackDto;
 
-function setup() {
+function setup(search: Record<string, string> = {}) {
   return renderInRoute(<AthleteFeedbackScreen />, {
     path: ROUTE,
     params: { sessionId: SESSION_ID },
+    search,
     links: [`/sessions/$sessionId`],
   });
 }
@@ -612,6 +613,19 @@ describe("AthleteFeedbackScreen", () => {
     expect(await findByRole("link", { name: "feedback.backToSession" })).toHaveAttribute(
       "href",
       `/sessions/${SESSION_ID}`,
+    );
+  });
+
+  /**
+   * #251 : la semaine du planning d'où l'athlète est parti TRAVERSE le débrief. Perdue ici, le
+   * « ← Mon planning » de la séance ne saurait plus où le ramener.
+   */
+  it("garde la semaine du planning en revenant à la séance", async () => {
+    const { findByRole } = await setup({ from: "2026-10-12" });
+
+    expect(await findByRole("link", { name: "feedback.backToSession" })).toHaveAttribute(
+      "href",
+      `/sessions/${SESSION_ID}?from=2026-10-12`,
     );
   });
 });

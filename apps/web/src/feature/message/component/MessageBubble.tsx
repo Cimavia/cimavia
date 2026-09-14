@@ -72,11 +72,14 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
     date: formatDate(attachment.scheduledDate),
   });
 
+  // Aucune semaine de planning n'est transmise, ni vers la séance ni vers le débrief : on n'arrive
+  // pas du planning, et « ← Mon planning » rouvrira donc son défaut (#251).
   if (target.destination === AttachmentDestination.SESSION) {
     return (
       <Link
         to="/sessions/$sessionId"
         params={{ sessionId: target.scheduledSessionId }}
+        search={{ from: undefined }}
         className={cn(CHIP, "hover:text-cmv-text-hi")}
       >
         {label}
@@ -102,6 +105,7 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
     <Link
       to="/sessions/$sessionId/feedback"
       params={{ sessionId: target.scheduledSessionId }}
+      search={{ from: undefined }}
       className={cn(CHIP, "hover:text-cmv-text-hi")}
     >
       {label}
