@@ -63,16 +63,17 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 
 1. **Cloudflare** : tunnel créé, 4 hostnames mappés (dont `mail-dev`, **derrière Access**), token
    en main (ci-dessus).
-2. **Images** : publiées sur GHCR par la CI (`API_IMAGE` / `WEB_IMAGE`). L'image **web** doit être
-   buildée avec `VITE_API_URL = https://api-dev.<domaine>` (le web est figé par environnement).
-3. **Fichiers sur le NAS** : déposer `docker-compose.yml` + un `.env` (copié de `.env.example`,
-   renseigné). Générer les secrets :
+2. **Images** : rien à préparer. La CI publie l'image de l'API à chaque push sur `main`, et le NAS
+   ne tire que la version **promue** (voir « Déploiement » ci-dessous).
+3. **Fichiers sur le NAS** : un dossier stable avec un `.env` (copié de `.env.example`, renseigné).
+   Le `docker-compose.yml`, lui, ne se copie pas : le script le télécharge au commit de la version
+   promue. Générer les secrets :
    ```bash
    openssl rand -base64 32   # BETTER_AUTH_SECRET (différent de la prod)
    openssl rand -base64 24   # POSTGRES_PASSWORD, S3_SECRET_ACCESS_KEY
    ```
-4. **Runner + premier déploiement** : voir « Déploiement automatique » ci-dessous. Le premier
-   `up` applique les migrations Prisma seul (`migrate deploy` dans l'entrypoint) et crée le bucket
+4. **Déploiement tiré + première promotion** : voir « Déploiement » ci-dessous. Le premier `up`
+   applique les migrations Prisma seul (`migrate deploy` dans l'entrypoint) et crée le bucket
    privé MinIO (`minio-setup`, idempotent).
 5. **Vérifier** (le test qui compte se fait depuis le **téléphone**, hors réseau maison) :
    - `https://api-dev.<domaine>/health` → `{"status":"ok"}`
@@ -81,31 +82,77 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
    - `https://mail-dev.<domaine>` → Cloudflare demande d'abord de s'authentifier, **puis** la
      boîte Mailpit s'affiche. Si elle s'affiche sans rien demander, la policy Access manque.
 
-## Déploiement automatique (CI, runner self-hosted)
+## Déploiement : le NAS tire la version promue
 
-Un push sur `main` déclenche `.github/workflows/deploy-dev.yml` : build + push des images sur
-GHCR, puis un job `deploy` qui tourne **sur le NAS** (runner self-hosted) et fait
-`docker compose pull && up -d`, suivi d'un smoke check `GET /health`. Aucun port entrant : le
-runner **sort** vers GitHub, comme cloudflared sort vers Cloudflare.
+GitHub ne pousse plus rien vers le NAS (#266) : le runner auto-hébergé qui le faisait était inscrit
+sur un dépôt public, donc exécutable par un workflow venu d'une PR. Désormais :
 
-**Installer le runner (une fois)** — Repo GitHub → Settings → Actions → Runners → *New
-self-hosted runner* → Linux/x64 :
+1. un push sur `main` publie l'image de l'API, et rien d'autre ;
+2. une version n'arrive chez le Coach que si on la **promeut** (`promote-preview.yml`, voir
+   `CONTRIBUTING.md` § *Versions et releases*) : le workflow construit son web et pose le tag
+   `preview` sur les deux images ;
+3. toutes les 5 minutes, `pull-preview.sh` tire le tag `preview`. S'il a changé, il télécharge le
+   compose **du commit promu**, le valide contre le `.env`, lance `up -d` et attend que l'API soit
+   saine.
 
-- Sur le NAS, faire tourner le runner avec **accès au démon Docker** (le plus simple : le lancer
-  en conteneur avec `/var/run/docker.sock` monté, ou installer `docker` CLI à côté). Le job fait
-  du `docker compose`, il lui faut donc parler au Docker du NAS.
-- À l'enregistrement, lui donner le **label `cimavia-dev`** (en plus de `self-hosted`) : c'est ce
-  que cible `runs-on` du workflow.
-- Déposer le `.env` renseigné à un chemin **stable** sur le NAS (hors git), et pointer la variable
-  de dépôt **`DEV_ENV_FILE`** dessus (Settings → Secrets and variables → Actions → *Variables*),
-  ex. `/volume1/docker/cimavia-dev/.env`. Le job échoue proprement si ce fichier manque.
+Aucun port entrant ni aucun accès de GitHub au NAS : c'est le NAS qui sort, vers GHCR et GitHub.
 
-Variables de dépôt nécessaires (Actions → *Variables*, non sensibles) :
+### Installer (une fois)
+
+**1. Un jeton GHCR en lecture** — GitHub → *Settings → Developer settings → Personal access tokens →
+Tokens (classic) → Generate new token (classic)* : scope **`read:packages` seul**, expiration d'un an
+(un rappel dans l'agenda). GHCR n'accepte ni jeton *fine-grained* ni jeton d'App.
+
+**2. Sur le NAS, en root, dans le dossier du `.env`** :
+
+```bash
+cd /volume1/<…>/cimavia-dev                       # le dossier qui contient le .env
+mkdir -p .docker && chmod 700 .docker
+read -rs TOKEN                                     # Entrée, PUIS coller le jeton, Entrée
+echo "$TOKEN" | DOCKER_CONFIG="$PWD/.docker" docker login ghcr.io -u <compte GitHub> --password-stdin
+unset TOKEN
+curl -fsSL https://raw.githubusercontent.com/Cimavia/cimavia/main/deploy/dev/pull-preview.sh -o pull-preview.sh
+chmod 700 pull-preview.sh
+bash pull-preview.sh; echo "code $?"               # 0 : rien n'est encore promu
+```
+
+> **Jamais le jeton sur la ligne de commande** (`read -rs TOKEN ghp_…`) : il resterait dans
+> l'historique du shell root. `read` se tape seul, le jeton se colle ensuite.
+
+**3. La tâche planifiée** — *Panneau de configuration → Planificateur de tâches → Créer → Tâche
+planifiée → Script défini par l'utilisateur* :
+
+- *Général* : utilisateur **root** ;
+- *Programmer* : tous les jours, **toutes les 5 minutes**, de 00:00 à 23:55 ;
+- *Paramètres de tâche* : `bash /volume1/<…>/cimavia-dev/pull-preview.sh`, et « Envoyer les détails
+  d'exécution par e-mail » **uniquement en cas d'arrêt anormal** : le NAS signale lui-même un échec.
+
+**4. Variables de dépôt** (Actions → *Variables*, non sensibles) :
 
 | Variable | Valeur |
 |---|---|
-| `DEV_PUBLIC_API_URL` | `https://api-dev.<domaine>` — figée dans le build web |
-| `DEV_ENV_FILE` | chemin absolu du `.env` sur le NAS |
+| `DEV_PUBLIC_API_URL` | `https://api-dev.<domaine>` — figée dans le build web de la promotion, qui la sonde ensuite |
+| `DEV_SENTRY_DSN_WEB` | le DSN du projet Sentry web |
+
+### Le script ne se met pas à jour tout seul
+
+Le **compose** suit la version promue ; le **script**, lui, est la copie posée à l'installation. Quand
+`pull-preview.sh` change dans le dépôt, relancer la commande `curl` ci-dessus après le merge.
+
+### Quand ça échoue
+
+Trois endroits le disent : le run de promotion devient rouge au bout de 20 minutes, la tâche DSM
+envoie son e-mail, et le journal `pull-preview/pull-preview.log` (dans le dossier du `.env`) dit
+pourquoi.
+
+| Dans le journal | Cause probable |
+|---|---|
+| `tirage de …cimavia-api:preview : … unauthorized` | jeton GHCR expiré ou révoqué : en créer un, refaire le `docker login` |
+| `compose de … invalide avec ce .env` | une ligne cassée dans le `.env` (une commande collée dedans, une variable renommée par la version promue) |
+| `API non saine après 300s` | l'API ne démarre pas, souvent une migration : `docker logs` du conteneur `api` |
+
+Une fois la cause réglée, le prochain passage réessaie seul. Si seule la confirmation du workflow a
+échoué, *Re-run failed jobs* la relance sans republier.
 
 ## Données
 
@@ -138,11 +185,14 @@ port-proxy WSL2 (cf. README racine §WSL2, qui ne concerne plus que le dev local
 
 ## Déploiement manuel (dépannage)
 
-Le déploiement est automatique (ci-dessus). En dépannage, depuis le NAS :
+Tout passe par le script, y compris en dépannage. Depuis le dossier du `.env`, en root :
 
 ```bash
-docker login ghcr.io -u OWNER            # si les images sont privées
-docker compose --env-file /chemin/.env pull
-docker compose --env-file /chemin/.env up -d --remove-orphans
+bash pull-preview.sh; echo "code $?"     # rejoue un passage (le verrou empêche d'en lancer deux)
+tail -n 50 pull-preview/pull-preview.log
+rm pull-preview/deployed                 # force le redéploiement de la version déjà en place
 ```
-Seule la couche applicative change ; Postgres et MinIO gardent leurs volumes.
+
+Un `docker compose up` lancé à la main s'arrête sur `API_IMAGE` / `WEB_IMAGE` manquantes : c'est
+voulu, ces images sont épinglées par le script. Seule la couche applicative change ; Postgres et
+MinIO gardent leurs volumes.
