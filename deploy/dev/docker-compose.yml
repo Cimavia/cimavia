@@ -17,9 +17,10 @@
 # l'hébergement de vraies données de santé est réservé à la prod (Clever Cloud HDS). Aucun script
 # de copie prod → NAS ne doit exister.
 #
-# Les images api/web sont TIRÉES depuis GHCR (publiées par la CI). Le NAS ne construit rien :
-# `docker compose pull && up -d`. Les valeurs viennent d'un `.env` déposé À CÔTÉ de ce compose
-# sur le NAS (hors git) — modèle : .env.example.
+# Les images api/web sont TIRÉES depuis GHCR : la version promue, que `pull-preview.sh` va chercher
+# toutes les 5 minutes et passe ici épinglée par digest (#266). Le NAS ne construit rien, et ce
+# compose n'est pas copié à la main : le script le télécharge au commit de la version promue. Les
+# autres valeurs viennent d'un `.env` déposé sur le NAS (hors git) — modèle : .env.example.
 #
 # Réseau : aucun port publié sur l'hôte. Seul cloudflared sort (vers Cloudflare), et il joint
 # api/web/minio/mailpit par nom de service sur le réseau interne. Les quatre hostnames publics
@@ -79,7 +80,7 @@ services:
       "
 
   api:
-    image: ${API_IMAGE}
+    image: ${API_IMAGE:?posée par pull-preview.sh}
     container_name: cimavia_dev_api
     restart: unless-stopped
     depends_on:
@@ -149,7 +150,7 @@ services:
       MP_MAX_MESSAGES: "500"
 
   web:
-    image: ${WEB_IMAGE}
+    image: ${WEB_IMAGE:?posée par pull-preview.sh}
     container_name: cimavia_dev_web
     restart: unless-stopped
 
