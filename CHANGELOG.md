@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.2](https://github.com/Cimavia/cimavia/compare/v1.2.1...v1.2.2) (2026-09-14)
+
+
+### Technique
+
+* renommer le tier staging en preview ([3d82d91](https://github.com/Cimavia/cimavia/commit/3d82d91db0ca258a24edadbeade8233f372739a6))
+* renommer le tier staging en preview pour un seul vocabulaire sur les trois couches ([fce0b32](https://github.com/Cimavia/cimavia/commit/fce0b32d11620d99308b7ee486eea61b49581485))
+* viser la branche preview et retirer staging des commentaires de build et de deploiement ([4dc47a2](https://github.com/Cimavia/cimavia/commit/4dc47a257c3d0c709877571b56bc3996b2f84520))
+
 ## [1.2.1](https://github.com/Cimavia/cimavia/compare/v1.2.0...v1.2.1) (2026-09-13)
 
 
