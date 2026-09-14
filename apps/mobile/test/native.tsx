@@ -168,10 +168,20 @@ vi.mock("expo-linking", () => ({
 
 vi.mock("expo-device", () => ({ isDevice: true, deviceName: "test" }));
 
+/**
+ * Les deux appels de permission rendent `granted` EN PLUS de `status` — c'est ce que le vrai
+ * `NotificationPermissionsStatus` expose, et c'est le booléen que lisent `usePushToken` et
+ * `timer-alert`. Le mock ne rendait que `status` : `granted` y valait `undefined`, tout appelant
+ * concluait au refus, et un test écrit dessus passait au vert en n'éprouvant rien.
+ */
 vi.mock("expo-notifications", () => ({
   getExpoPushTokenAsync: vi.fn(async () => ({ data: "ExponentPushToken[test]" })),
-  getPermissionsAsync: vi.fn(async () => ({ status: "granted" })),
-  requestPermissionsAsync: vi.fn(async () => ({ status: "granted" })),
+  getPermissionsAsync: vi.fn(async () => ({ status: "granted", granted: true, canAskAgain: true })),
+  requestPermissionsAsync: vi.fn(async () => ({
+    status: "granted",
+    granted: true,
+    canAskAgain: true,
+  })),
   setNotificationHandler: vi.fn(),
   scheduleNotificationAsync: vi.fn(async () => "notif-1"),
   cancelScheduledNotificationAsync: vi.fn(async () => undefined),

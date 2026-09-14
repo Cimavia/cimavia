@@ -110,6 +110,36 @@ jamais par le numéro.
 
 **Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/dev/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
 
+## Identifiants de build mobile
+
+**Aucun ne passe par GitHub Actions** : les builds EAS partent du poste de développement, pas d'un
+workflow. Ils vivent donc chez Apple, chez Google ou chez Expo — et un seul fichier est versionné.
+
+| Identifiant | Où il vit | Qui le crée |
+|---|---|---|
+| Keystore Android | expo.dev → Credentials → Android | `eas build`, **jamais à la main** |
+| Clé de compte de service FCM V1 | expo.dev → Credentials → Android | Firebase, puis déposée chez Expo |
+| `google-services.json` | `apps/mobile/`, **versionné** | Firebase |
+| Adhésion Apple Developer Program | compte Apple (99 $/an) | toi, préalable à tout le reste |
+| App ids `fr.cimavia.app`, `.dev`, `.preview` | portail Apple | `eas build` |
+| Certificat de distribution et profils de provisionnement | portail Apple, copie chez Expo | `eas build` |
+| Clé APNs (`.p8`) | portail Apple, déposée chez Expo | `eas build` |
+| Fiche App Store Connect de `fr.cimavia.app.preview` | App Store Connect | le premier `pnpm build:testflight:ios` |
+| Testeurs TestFlight internes | App Store Connect → Utilisateurs et accès | toi, à la main |
+| UDID des iPhones du dev client | expo.dev → Credentials → iOS | `eas device:create` |
+
+`google-services.json` est la seule exception à « rien dans le dépôt », et c'est assumé : il ne
+porte que des identifiants **clients** (sender id, clé d'API restreinte au package et à l'empreinte
+de signature), que chaque APK distribué embarque de toute façon. La clé de compte de service, elle,
+est un vrai secret et ne descend jamais ici.
+
+**Rien de symétrique côté iOS** : la clé APNs remplace à elle seule le couple fichier + clé de
+service, et elle vaut pour les trois app ids d'un même compte Apple. Là où Firebase exige un client
+déclaré par variante, Apple n'exige rien de tel.
+
+`EXPO_ACCESS_TOKEN` reste optionnel des deux côtés. `SENTRY_AUTH_TOKEN`, lui, est posé en secret
+EAS (`eas secret:create --scope project`) et non dans `eas.json`, qui est versionné.
+
 ## Observabilité
 
 **Trois projets Sentry** — `cimavia-api`, `cimavia-web`, `cimavia-mobile` (#183). Releases et sourcemaps s'attachent par projet : mêler un bundle Vite et un bundle Hermes dans un seul projet rendrait l'unminification hasardeuse.

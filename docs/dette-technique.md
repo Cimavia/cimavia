@@ -21,10 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-trois dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3** et **C-1**, dont
+autonomes. **Vingt-six dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+**IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3** et **I-4**,
+**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
+**IOS-2** et **IOS-3**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, ne l'est plus : elle est suivie par
@@ -226,6 +228,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
 | ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
 | P7-4 | **MinIO est figé, et vulnérable là où il est exposé** : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | 🟡 | [#257](https://github.com/Cimavia/cimavia/issues/257) |
+| P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -2919,6 +2922,77 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > publié — cinq numéros indépendants n'auraient aucun lecteur. Seule la racine porte la version, et
 > `release-please` n'est configuré que sur `.`. La question se rouvre le jour où un paquet serait
 > publié.
+
+---
+
+## Post-MVP — Build et distribution iOS ([#134](https://github.com/Cimavia/cimavia/issues/134))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| IOS-1 | **Les chaînes de permission iOS ne passent pas par i18next** (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. Français seulement. Les localiser ne demande pourtant rien d'exotique : la clé `expo.locales` d'`app.json` génère un `InfoPlist.strings` par langue au prebuild (`@expo/config-plugins`, `ios/Locales.js`). #134 affirmait le contraire, et cette ligne l'a d'abord recopié. | 🟡 | [#254](https://github.com/Cimavia/cimavia/issues/254) |
+| IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
+| IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet tant qu'aucune revue n'a lieu — la bêta passe par des testeurs TestFlight internes —, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi à des testeurs TestFlight EXTERNES, ou à l'App Store — les testeurs internes ne passent aucune revue)* |
+| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins, sans que rien ne le signale. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
+| IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
+| IOS-6 | **La chaîne de notification du minuteur n'a aucun test** (0 % mesuré) : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — seul ce dernier est remonté à 100 %. | 🟡 | [#253](https://github.com/Cimavia/cimavia/issues/253) |
+
+> **Tranché en #134** (TestFlight interne plutôt qu'ad hoc — arbitrage RENVERSÉ en cours de PR) :
+> la bêta passait d'abord par la distribution `internal`, qui signe le binaire pour une liste
+> d'UDID. Choisie pour l'absence de revue Apple, elle a buté sur un fait que l'arbitrage n'avait pas
+> posé : **le développeur n'a pas d'iPhone, le coach bêta en a un**. L'ad hoc aurait exigé de
+> collecter l'UDID du coach avant chaque build, et de reconstruire pour tout appareil ajouté ensuite.
+>
+> TestFlight ne signe pour aucun appareil. Un profil `testflight` étend `preview` — même variante,
+> même API `api-dev` — et ne change que la signature (`distribution: store`) et la numérotation
+> (`autoIncrement`, chaque envoi exigeant un numéro neuf). Le testeur est **interne** : aucune
+> revue, au prix d'un accès — même restreint — au compte App Store Connect. Les testeurs externes
+> auraient évité cet accès, mais leur premier build passe une revue qui applique les consignes de
+> l'App Store (règle 2.2), et l'app ne sait pas supprimer un compte (#256).
+>
+> L'ad hoc n'est pas supprimé : `development` et `preview` restent `internal`, le dev client en
+> ayant besoin pour se brancher sur Metro. `submit.production` reste sans identifiants tant que
+> rien ne part vers l'App Store ; les deux profils d'envoi fixent seulement la langue de la fiche
+> à `fr-FR`, qu'`eas-cli` mettrait sinon à `en-US`.
+
+> **Découvert en #134** (`eas submit` lancé seul vise la mauvaise app) : pour trouver l'identifiant
+> iOS, `eas submit` prend dans l'ordre une surcharge, le `bundleIdentifier` du profil d'envoi, puis
+> `app.config.ts` évalué **sans** `APP_VARIANT` — les profils d'envoi n'ont pas d'`env`. Il retombe
+> donc sur la variante `development` et vise `fr.cimavia.app.dev`, quel que soit le build envoyé.
+> Seul `eas build --auto-submit` pose la surcharge, depuis l'identifiant du build qui vient de
+> sortir. C'est pourquoi `build:testflight:ios` passe le drapeau, et pourquoi la commande de
+> production devra le passer aussi. Lu dans `eas-cli` (`submit/ios/AppProduce.js`,
+> `build/runBuildAndSubmit.js`), pas encore observé : aucun envoi n'est parti.
+
+> **Tranché en #134** (`ios.supportsTablet` passe à `false`) : il était à `true` depuis toujours et
+> personne n'a jamais vu un écran de cimavia sur iPad. Le laisser engageait l'app à être regardée en
+> grand format à la revue Apple, captures d'écran comprises, pour une surface que rien ne vérifie.
+> Le grand écran est déjà couvert par le web ([#20](https://github.com/Cimavia/cimavia/issues/20)).
+> Fermer la cible ne coûte rien tant que personne ne la demande.
+
+> **Découvert en #134** (couper la clé micro du picker aurait tué l'enregistrement vocal ANDROID) :
+> l'issue demandait `cameraPermission: false` ET `microphonePermission: false` sur
+> `expo-image-picker`, pour que l'ordre des plugins cesse de décider quelle chaîne l'`Info.plist`
+> reçoit. Le raisonnement était juste, le geste non. Ce plugin n'écrit pas que des clés iOS : à
+> `false`, il appelle `withBlockedPermissions` sur `android.permission.RECORD_AUDIO`, qui pose un
+> `tools:node="remove"` dans le manifeste. `expo-audio` déclare bien cette permission, mais le
+> contrôle de doublon (`isPermissionAlreadyRequested`) ne compare que `android:name` : il voit
+> l'entrée bloquée comme déjà présente et ne la remplace jamais. Dans les DEUX ordres de mods
+> possibles, `RECORD_AUDIO` sort du manifeste final — et rien n'échoue au build.
+>
+> Le geste juste est de donner au picker **la même chaîne** qu'`expo-audio` plutôt que `false` :
+> les deux plugins écrivent alors la même valeur, l'ordre redevient indifférent (l'objectif visé),
+> et aucune permission Android n'est bloquée. C'est ce que paie IOS-4. `cameraPermission: false`
+> reste, lui : rien n'appelle `launchCameraAsync` dans le dépôt, et bloquer `CAMERA` côté Android
+> est un gain.
+>
+> La leçon vaut au-delà du cas : **un plugin de config Expo nommé d'après une permission iOS peut
+> agir sur Android**, et un `false` y veut dire « interdis à tout le monde », pas « ne déclare rien ».
+
+> **Découvert en #134** (le mock de permission notifiait un refus que personne n'avait demandé) :
+> `test/native.tsx` rendait `{ status: "granted" }` là où le vrai module rend AUSSI le booléen
+> `granted`, seul champ que lisent `usePushToken` et `timer-alert`. Il valait donc `undefined`, tout
+> appelant concluait au refus, et n'importe quel test écrit sur ce mock serait passé au vert sans
+> rien éprouver. Un mock incomplet ne rate pas un test : il en fabrique un faux.
 
 ---
 
