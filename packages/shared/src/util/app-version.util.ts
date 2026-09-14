@@ -1,21 +1,20 @@
 /**
- * Le tier tel que chaque client sait le nommer (#187).
+ * Le tier, le même mot sur les trois couches (#261).
  *
- * Quatre valeurs et non trois : le web lit `VITE_APP_ENV` (`development | staging | production`,
- * aligné sur l'`APP_ENV` de l'API) tandis que le mobile lit `Constants.expoConfig.extra.appVariant`
- * (`development | preview | production`, posé par `app.config.ts`). `preview` n'existe que côté
- * mobile, `staging` que côté web — et cette divergence est ASSUMÉE : ce sont deux chaînes de
- * livraison différentes, un build EAS interne n'étant pas un déploiement de serveur. L'union les
- * accueille toutes deux plutôt que d'inventer un vocabulaire commun que personne n'émettrait.
+ * Le web le lit dans `VITE_APP_ENV`, l'API dans `APP_ENV`, le mobile dans
+ * `Constants.expoConfig.extra.appVariant` (posé par `app.config.ts`) : trois lectures, un seul
+ * vocabulaire. #187 en avait assumé deux — `staging` pour un déploiement de serveur, `preview` pour
+ * un build EAS interne qui pointait sur le NAS — parce que c'étaient deux chaînes de livraison.
+ * Le NAS retiré, le build `preview` pointe sur l'environnement preview : il ne reste qu'une chaîne,
+ * et un environnement qui porte deux noms selon qui le lit finit par en porter trois.
  */
-export type AppTier = "development" | "preview" | "staging" | "production";
+export type AppTier = "development" | "preview" | "production";
 
 // i18n-exempt : ce ne sont pas des libellés traduisibles mais des noms de tiers, les mêmes dans
-// toutes les langues — « dev » ne se traduit pas plus que « staging ».
+// toutes les langues — « dev » ne se traduit pas plus que « preview ».
 const TIER_SUFFIX: Record<AppTier, string | null> = {
   development: "dev",
   preview: "preview",
-  staging: "staging",
   production: null,
 };
 

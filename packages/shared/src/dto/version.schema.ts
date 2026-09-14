@@ -17,7 +17,7 @@ import { z } from "zod";
 export const versionDtoSchema = z.object({
   version: z.string().nullable(),
   build: z.string().nullable(),
-  env: z.enum(["development", "staging", "production"]),
+  env: z.enum(["development", "preview", "production"]),
 });
 
 export type VersionDto = z.infer<typeof versionDtoSchema>;

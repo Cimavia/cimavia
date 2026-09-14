@@ -41,8 +41,8 @@ describe("VersionService", () => {
    * Le tier ne se déduit PAS du numéro : une même version passe successivement par les trois.
    */
   it("rend le tier indépendamment de la version", () => {
-    const service = serviceReading({ APP_VERSION: "1.2.0", APP_ENV: "staging" });
+    const service = serviceReading({ APP_VERSION: "1.2.0", APP_ENV: "preview" });
 
-    expect(service.current()).toEqual({ version: "1.2.0", build: null, env: "staging" });
+    expect(service.current()).toEqual({ version: "1.2.0", build: null, env: "preview" });
   });
 });

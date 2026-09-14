@@ -8,9 +8,9 @@ afterEach(() => {
 describe("appVersionLabel (web)", () => {
   it("compose le numéro et le tier figés dans le bundle", () => {
     vi.stubEnv("VITE_APP_VERSION", "1.2.0");
-    vi.stubEnv("VITE_APP_ENV", "staging");
+    vi.stubEnv("VITE_APP_ENV", "preview");
 
-    expect(appVersionLabel()).toBe("1.2.0 (staging)");
+    expect(appVersionLabel()).toBe("1.2.0 (preview)");
   });
 
   it("se tait sur le tier en production", () => {

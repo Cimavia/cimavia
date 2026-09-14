@@ -14,7 +14,6 @@ describe("formatAppVersion", () => {
   it.each<[AppTier, string]>([
     ["development", "1.2.0 (dev)"],
     ["preview", "1.2.0 (preview)"],
-    ["staging", "1.2.0 (staging)"],
   ])("nomme le tier %s", (tier, expected) => {
     expect(formatAppVersion("1.2.0", tier)).toBe(expected);
   });
