@@ -1,12 +1,17 @@
-name: Deploy — dev (NAS)
+name: Images — API (GHCR)
 
-# Tier du NAS : un push sur `main` publie les images sur GHCR, puis le job `deploy` les monte sur le
-# NAS par le runner self-hosted. La production aura son propre workflow.
+# Un push sur `main` publie l'image de l'API sur GHCR, et rien d'autre : plus aucun déploiement ne
+# part d'ici (#266). Le NAS tire lui-même la version PROMUE (`promote-preview.yml` pose le tag
+# `preview`, `deploy/dev/pull-preview.sh` le tire), et c'est cette promotion qui exige des checks
+# verts. Un test rouge ne bloque donc pas la publication d'une image : il bloque son envoi chez le
+# Coach.
 #
-# NB : la porte qualité (lint/typecheck/test) tourne en parallèle via ci.yml. Le build d'image
-# échoue de toute façon sur une erreur de type (nest build = tsc) ; un test rouge, lui, ne bloque
-# pas la publication à ce tier — c'est assumé pour garder la boucle dev rapide. On resserrera pour
-# la prod.
+# L'image WEB ne se construit plus ici. Elle fige l'URL de l'API au build et se reconstruit par tier,
+# depuis le tag de la version, au moment de la promotion (#186). La construire aussi sur `main` ne
+# servait plus personne, et aurait téléversé ses sourcemaps sous le même nom de release Sentry que
+# le build de promotion.
+#
+# Le nom du fichier suit encore l'ancien rôle : son renommage appartient à #271.
 
 on:
   push:
@@ -15,37 +20,28 @@ on:
       - "apps/**"
       - "packages/**"
       - "pnpm-lock.yaml"
-      - "deploy/dev/**"
       - ".github/workflows/deploy-dev.yml"
-      # Le commit de bump de `release-please` ne touche QUE ces deux fichiers. Sans eux ici, la
-      # version montée sur le NAS resterait la précédente jusqu'au prochain push de feature —
-      # l'écran « à propos » afficherait un numéro faux, sur le tier où on le lit le plus.
+      # Le commit de bump de `release-please` ne touche QUE ces deux fichiers. Sans eux ici, il ne
+      # construirait rien : l'image `X.Y.Z` n'existerait pas, et la version serait impossible à
+      # promouvoir.
       - "package.json"
       - "CHANGELOG.md"
 
-concurrency:
-  group: deploy-dev-${{ github.ref }}
-  cancel-in-progress: true
+# PAS de `concurrency` : l'ancien groupe par branche annulait la construction en cours au push
+# suivant, et remplaçait de toute façon une exécution en attente par la plus récente. Un merge suivant
+# de près la PR de release suffisait à perdre l'image `X.Y.Z` — la seule que la promotion sait
+# retaguer. Chaque commit construit donc la sienne, jusqu'au bout.
 
-# Aucun droit par défaut : chaque job déclare les siens (moindre privilège). Seul le job qui publie
-# a besoin d'écrire sur GHCR ; celui qui déploie n'a qu'à lire.
+# Aucun droit par défaut : le job déclare les siens (moindre privilège).
 permissions: {}
 
 jobs:
   build-and-push:
-    name: Build & push ${{ matrix.image }} → GHCR
+    name: Build & push cimavia-api → GHCR
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: cimavia-api
-            dockerfile: apps/api/Dockerfile
-          - image: cimavia-web
-            dockerfile: apps/web/Dockerfile
 
     steps:
       # `fetch-depth: 2` : l'étape « Version du produit » compare le `package.json` de HEAD à celui
@@ -78,42 +74,15 @@ jobs:
         run: |
           version="$(jq -r .version package.json)"
           previous="$(git show HEAD~1:package.json 2>/dev/null | jq -r .version || echo "")"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "build=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$version"
+            echo "build=${GITHUB_SHA::7}"
+          } >> "$GITHUB_OUTPUT"
           if [ "$version" != "$previous" ]; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Commit de release : les images seront aussi taguées $version."
+            echo "::notice::Commit de release : l'image sera aussi taguée $version."
           else
             echo "is_release=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Le web fige VITE_API_URL dans le bundle AU BUILD : il faut l'URL publique de l'API du tier
-      # dev. Absente, on échoue tôt plutôt que de publier une image web pointant sur localhost.
-      - name: Vérifier DEV_PUBLIC_API_URL (web uniquement)
-        if: matrix.image == 'cimavia-web'
-        run: |
-          if [ -z "${{ vars.DEV_PUBLIC_API_URL }}" ]; then
-            echo "::error::Variable de dépôt DEV_PUBLIC_API_URL vide — l'image web pointerait sur localhost."
-            exit 1
-          fi
-
-      # Le DSN, lui, n'est PAS vérifié : vide, le SDK reste inerte et l'app marche — contrairement à
-      # une URL d'API vide, qui livrerait un SPA cassé. Ce qui est vérifié ici est la COHÉRENCE du
-      # téléversement des sourcemaps : dès qu'un jeton existe, `vite.config.ts` exige aussi l'org et
-      # le projet. Sans ce garde-fou, l'oubli d'une variable ferait échouer le build d'image sur un
-      # message enfoui dans les logs de Docker.
-      - name: Vérifier la cohérence Sentry (web uniquement)
-        if: matrix.image == 'cimavia-web'
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: |
-          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
-            echo "::notice::Aucun SENTRY_AUTH_TOKEN — les sourcemaps ne seront pas publiées."
-            exit 0
-          fi
-          if [ -z "${{ vars.SENTRY_ORG }}" ] || [ -z "${{ vars.SENTRY_PROJECT_WEB }}" ]; then
-            echo "::error::SENTRY_AUTH_TOKEN est défini mais SENTRY_ORG ou SENTRY_PROJECT_WEB manque."
-            exit 1
           fi
 
       - name: Setup Buildx
@@ -126,126 +95,40 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Tag mobile `dev` (celui que référence deploy/dev/docker-compose.yml) + tag immuable par SHA
-      # (traçabilité / rollback) + le NUMÉRO, mais uniquement sur le commit qui le fait avancer.
+      # Tag immuable par SHA (traçabilité) + le NUMÉRO, mais uniquement sur le commit qui le fait
+      # avancer : c'est lui que la promotion retague. Plus de tag mobile `dev` : plus personne ne le
+      # tire depuis que le NAS suit `preview`.
       #
-      # `enable` sur le troisième est le cœur du sujet : entre deux releases, dix pushes produisent
-      # dix images différentes sous le MÊME numéro. Les taguer toutes `1.2.0` rendrait cette
-      # étiquette mouvante — et un tag de version qui change de contenu ne vaut pas mieux que pas de
-      # tag du tout. Elle n'est posée qu'une fois, sur l'image qui est vraiment cette version.
+      # `enable` sur le numéro est le cœur du sujet : entre deux releases, dix pushes produisent dix
+      # images différentes sous le MÊME numéro. Les taguer toutes `1.2.0` rendrait cette étiquette
+      # mouvante — et un tag de version qui change de contenu ne vaut pas mieux que pas de tag du
+      # tout. Elle n'est posée qu'une fois, sur l'image qui est vraiment cette version.
+      #
+      # Les étiquettes OCI qu'ajoute cette action portent `org.opencontainers.image.revision` : c'est
+      # par elle que le NAS retrouve le commit d'une image, donc le compose qui va avec.
       - name: Métadonnées (tags)
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ghcr.io/${{ steps.ns.outputs.owner }}/${{ matrix.image }}
+          images: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-api
           tags: |
-            type=raw,value=dev
             type=sha
             type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.is_release == 'true' }}
 
+      # Les deux moitiés de l'identité voyagent SÉPARÉMENT : Swagger et `GET /version` veulent le
+      # numéro nu, seul `instrument.ts` recolle `1.2.0+3f2a1c` pour Sentry (#186).
       - name: Build & push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: apps/api/Dockerfile
           # Le NAS (DS720+) est en x86_64 : build natif amd64, pas d'émulation.
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # build-args uniquement pour le web. Forme multi-ligne et non le ternaire d'une seule
-          # valeur d'avant : `format()` ne tient pas six arguments lisiblement, et la liste vide
-          # est ce que reçoit l'API.
-          #
-          # VITE_APP_ENV est un LITTÉRAL et non une variable de dépôt de plus : le NAS *est* le
-          # tier dev, ce workflow ne construit rien d'autre.
-          #
-          # SENTRY_RELEASE vaut `1.2.0+3f2a1c` depuis #186, et non plus le sha nu ni — surtout — la
-          # version seule. C'est le nom sous lequel le plugin injecte la release dans le bundle,
-          # donc ce que le SDK rapportera : sourcemaps et erreurs se retrouvent sous le même nom.
-          # Le numéro le rend LISIBLE, le sha le rend UNIQUE — et l'unicité n'est pas négociable,
-          # dix pushes séparant deux releases écraseraient sinon les sourcemaps les uns des autres.
-          #
-          # L'API reçoit les deux moitiés SÉPARÉMENT : Swagger et `GET /version` veulent le numéro
-          # nu, seul `instrument.ts` recolle l'identité complète.
           build-args: |
-            ${{ matrix.image == 'cimavia-api' && format('APP_VERSION={0}', steps.version.outputs.version) || '' }}
-            ${{ matrix.image == 'cimavia-api' && format('APP_BUILD={0}', steps.version.outputs.build) || '' }}
-            ${{ matrix.image == 'cimavia-web' && format('VITE_API_URL={0}', vars.DEV_PUBLIC_API_URL) || '' }}
-            ${{ matrix.image == 'cimavia-web' && format('VITE_SENTRY_DSN={0}', vars.DEV_SENTRY_DSN_WEB) || '' }}
-            ${{ matrix.image == 'cimavia-web' && 'VITE_APP_ENV=development' || '' }}
-            ${{ matrix.image == 'cimavia-web' && format('VITE_APP_VERSION={0}', steps.version.outputs.version) || '' }}
-            ${{ matrix.image == 'cimavia-web' && format('SENTRY_ORG={0}', vars.SENTRY_ORG) || '' }}
-            ${{ matrix.image == 'cimavia-web' && format('SENTRY_PROJECT={0}', vars.SENTRY_PROJECT_WEB) || '' }}
-            ${{ matrix.image == 'cimavia-web' && format('SENTRY_RELEASE={0}+{1}', steps.version.outputs.version, steps.version.outputs.build) || '' }}
-          # Le jeton passe par un SECRET BuildKit et non un build-arg : un ARG finit dans
-          # `docker history` de l'image publiée sur GHCR. Absent, le build aboutit quand même et ne
-          # publie simplement aucune sourcemap.
-          secrets: |
-            ${{ matrix.image == 'cimavia-web' && format('sentry_auth_token={0}', secrets.SENTRY_AUTH_TOKEN) || '' }}
+            APP_VERSION=${{ steps.version.outputs.version }}
+            APP_BUILD=${{ steps.version.outputs.build }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  deploy:
-    name: Déploiement sur le NAS
-    needs: build-and-push
-    # Runner self-hosted installé sur le NAS, étiqueté « cimavia-dev » : le job s'exécute donc
-    # DANS le réseau du NAS (aucun port entrant à ouvrir — le runner sort vers GitHub). Le label
-    # évite qu'un autre runner self-hosted ne récupère le job.
-    runs-on: [self-hosted, cimavia-dev]
-    permissions:
-      contents: read
-      packages: read # tire les images publiées par le job précédent, n'en publie aucune
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      # Le .env (secrets, hostnames, images) vit sur le NAS, hors git. DEV_ENV_FILE = son chemin
-      # absolu (variable de dépôt). On échoue tôt s'il manque plutôt que de laisser compose partir
-      # avec des variables vides.
-      - name: Vérifier le fichier .env
-        run: |
-          if [ -z "${{ vars.DEV_ENV_FILE }}" ]; then
-            echo "::error::Variable de dépôt DEV_ENV_FILE non définie (chemin du .env sur le NAS)."
-            exit 1
-          fi
-          if [ ! -f "${{ vars.DEV_ENV_FILE }}" ]; then
-            echo "::error::${{ vars.DEV_ENV_FILE }} introuvable sur le runner."
-            exit 1
-          fi
-
-      - name: Login GHCR
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USER: ${{ github.actor }}
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-
-      - name: Pull & up
-        env:
-          COMPOSE_FILE: deploy/dev/docker-compose.yml
-          ENV_FILE: ${{ vars.DEV_ENV_FILE }}
-        run: |
-          docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
-          docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
-
-      # Smoke check : l'API applique ses migrations au démarrage (entrypoint) puis écoute. On
-      # sonde /health DEPUIS le conteneur (node y est présent) — pas besoin de l'URL publique ni
-      # d'attendre Cloudflare. Le job échoue si l'API n'est pas saine, ce qui rend le déploiement
-      # rouge dans GitHub.
-      - name: Smoke check GET /health
-        run: |
-          for i in $(seq 1 30); do
-            if docker exec cimavia_dev_api node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
-              echo "✓ API saine après déploiement"
-              exit 0
-            fi
-            echo "… attente de l'API ($i/30)"
-            sleep 2
-          done
-          echo "::error::API non saine après déploiement — 50 dernières lignes de log :"
-          docker logs --tail 50 cimavia_dev_api || true
-          exit 1
-
-      - name: Logout GHCR
-        if: always()
-        run: docker logout ghcr.io

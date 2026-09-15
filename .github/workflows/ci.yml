@@ -1,10 +1,13 @@
 name: CI
 
+# Sur `main` seulement : `preview` et `production` n'avancent plus par PR mais par promotion d'une
+# version (#266), qui vérifie que CE commit a déjà passé les checks ici. Les relancer sur la branche
+# de promotion rejouerait les mêmes tests sur le même commit.
 on:
   push:
-    branches: [main, preview, production]
+    branches: [main]
   pull_request:
-    branches: [main, preview, production]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
