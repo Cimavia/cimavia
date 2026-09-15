@@ -46,14 +46,14 @@ fail() {
 LOCK="$STATE_DIR/lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
   # Verrou laissé par un passage interrompu (redémarrage du NAS) : repris au-delà de 30 minutes.
-  [ -n "$(find "$LOCK" -maxdepth 0 -mmin +30 2>/dev/null)" ] || exit 0
+  [[ -n "$(find "$LOCK" -maxdepth 0 -mmin +30 2>/dev/null)" ]] || exit 0
   rmdir "$LOCK" && mkdir "$LOCK"
 fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"; rmdir "$LOCK" 2>/dev/null || true' EXIT
 
 # Journal borné : un passage toutes les 5 minutes, pendant des mois.
-if [ -f "$LOG" ] && [ "$(wc -l <"$LOG")" -gt 5000 ]; then
+if [[ -f "$LOG" && "$(wc -l <"$LOG")" -gt 5000 ]]; then
   tail -n 2000 "$LOG" >"$tmp/log" && cat "$tmp/log" >"$LOG"
 fi
 
@@ -65,7 +65,7 @@ elif command -v docker-compose >/dev/null 2>&1; then
 else
   fail "ni « docker compose » ni « docker-compose »"
 fi
-[ -f "$ENV_FILE" ] || fail "$ENV_FILE introuvable"
+[[ -f "$ENV_FILE" ]] || fail "$ENV_FILE introuvable"
 
 # ── 1. La version promue ─────────────────────────────────────────────────────
 if ! out="$(docker pull -q "$API_REF" 2>&1)"; then
@@ -79,15 +79,16 @@ fi
 docker pull -q "$WEB_REF" >/dev/null 2>&1 || fail "tirage de $WEB_REF impossible"
 
 digest_of() {
-  docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$1" | grep "^${1%:*}@" | head -n1
+  local ref="$1"
+  docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$ref" | grep "^${ref%:*}@" | head -n1
 }
 API_DIGEST="$(digest_of "$API_REF")"
 WEB_DIGEST="$(digest_of "$WEB_REF")"
-[ -n "$API_DIGEST" ] && [ -n "$WEB_DIGEST" ] || fail "digest introuvable après le tirage"
+[[ -n "$API_DIGEST" && -n "$WEB_DIGEST" ]] || fail "digest introuvable après le tirage"
 
 # ── 2. Rien de nouveau ? ─────────────────────────────────────────────────────
 CURRENT="$API_DIGEST $WEB_DIGEST"
-if [ -f "$STATE_DIR/deployed" ] && [ "$(cat "$STATE_DIR/deployed")" = "$CURRENT" ]; then
+if [[ -f "$STATE_DIR/deployed" && "$(cat "$STATE_DIR/deployed")" == "$CURRENT" ]]; then
   exit 0
 fi
 
@@ -95,13 +96,14 @@ fi
 REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$API_REF")"
 [[ "$REVISION" =~ ^[0-9a-f]{40}$ ]] || fail "commit absent des étiquettes de l'image de l'API : « $REVISION »"
 COMPOSE_FILE=""
+# HTTPS exigé jusque dans les redirections : ce fichier décide de ce qui tourne sur le NAS, en root.
 for path in $COMPOSE_PATHS; do
-  if curl -fsSL --max-time 30 "$RAW/$REVISION/$path" -o "$tmp/docker-compose.yml" 2>/dev/null; then
+  if curl --proto '=https' --proto-redir '=https' -fsSL --max-time 30 "$RAW/$REVISION/$path" -o "$tmp/docker-compose.yml" 2>/dev/null; then
     COMPOSE_FILE="$tmp/docker-compose.yml"
     break
   fi
 done
-[ -n "$COMPOSE_FILE" ] || fail "aucun compose au commit $REVISION"
+[[ -n "$COMPOSE_FILE" ]] || fail "aucun compose au commit $REVISION"
 
 # ── 4. Valider, puis déployer ────────────────────────────────────────────────
 # Épinglées par digest, et non par tag : une promotion peut déplacer `preview` pendant ce passage.
@@ -114,7 +116,7 @@ NEW_PROJECT="$(compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" config 2>/dev/n
 OLD_PROJECT="$(cat "$STATE_DIR/project" 2>/dev/null || true)"
 # Un projet renommé (#271) garde ses volumes sous leur ancien nom : l'ancien projet doit être ARRÊTÉ
 # d'abord, sinon deux PostgreSQL écriraient dans le même volume.
-if [ -n "$OLD_PROJECT" ] && [ "$OLD_PROJECT" != "$NEW_PROJECT" ]; then
+if [[ -n "$OLD_PROJECT" && "$OLD_PROJECT" != "$NEW_PROJECT" ]]; then
   log "projet renommé : $OLD_PROJECT → $NEW_PROJECT, arrêt de l'ancien"
   compose -p "$OLD_PROJECT" -f "$STATE_DIR/docker-compose.yml" --env-file "$ENV_FILE" down --remove-orphans >>"$LOG" 2>&1 ||
     fail "arrêt de $OLD_PROJECT impossible : rien n'a été démarré"
@@ -127,10 +129,10 @@ compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans >>"$LOG
 # ── 5. L'API est-elle saine ? ────────────────────────────────────────────────
 # La sonde de l'image interroge /health ; les migrations se jouent avant que l'API n'écoute.
 api_id="$(compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -q api)"
-[ -n "$api_id" ] || fail "conteneur api introuvable après up"
+[[ -n "$api_id" ]] || fail "conteneur api introuvable après up"
 waited=0
-until [ "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$api_id")" = "healthy" ]; do
-  if [ "$waited" -ge "$HEALTH_TIMEOUT_S" ]; then
+until [[ "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$api_id")" == "healthy" ]]; do
+  if [[ "$waited" -ge "$HEALTH_TIMEOUT_S" ]]; then
     fail "API non saine après ${HEALTH_TIMEOUT_S}s : $(docker logs --tail 20 "$api_id" 2>&1 | tr '\n' ' ')"
   fi
   sleep 10
