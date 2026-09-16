@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.3](https://github.com/Cimavia/cimavia/compare/v1.2.2...v1.2.3) (2026-09-16)
+
+
+### Corrections
+
+* **infra:** exiger https dans les redirections du script du nas et suivre les regles shell de sonar ([b3e1792](https://github.com/Cimavia/cimavia/commit/b3e17929497bb493a6cc539b14d88f88a0de8c01))
+
+
+### Technique
+
+* construire l image de l api par commit sans annulation et retirer le runner du nas ([48c64a1](https://github.com/Cimavia/cimavia/commit/48c64a1ec2a177f77af58be5776295725c76fa92))
+* **infra:** tirer la version promue depuis le nas au lieu de la pousser par un runner ([745da18](https://github.com/Cimavia/cimavia/commit/745da18f32b7371fc56eac3f6a39319d879feffc))
+* promouvoir une version publiee vers preview sans reconstruire l image de l api ([04e4a2c](https://github.com/Cimavia/cimavia/commit/04e4a2cc1bc6afd322b7593640dd1441d8bcfa62))
+
 ## [1.2.2](https://github.com/Cimavia/cimavia/compare/v1.2.1...v1.2.2) (2026-09-14)
 
 
