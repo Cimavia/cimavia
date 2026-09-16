@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.4](https://github.com/Cimavia/cimavia/compare/v1.2.3...v1.2.4) (2026-09-16)
+
+
+### Technique
+
+* copier les images de stockage dans ghcr et signaler une version epinglee en retard ([ef1f464](https://github.com/Cimavia/cimavia/commit/ef1f464821c02128d7a834099c8078b077431db7))
+
 ## [1.2.3](https://github.com/Cimavia/cimavia/compare/v1.2.2...v1.2.3) (2026-09-16)
 
 
