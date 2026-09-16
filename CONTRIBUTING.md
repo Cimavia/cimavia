@@ -10,8 +10,11 @@ Merge unidirectionnel `feature/* → main → preview → production` (jamais en
 - `main` : branche de dev, **protégée** (ruleset « Main ») — PR obligatoire, les trois checks
   ci-dessous verts requis, commits signés, ni force-push ni suppression. Le push direct, autorisé
   jusqu'en #130, ne l'est plus : une porte qu'on peut contourner ne garde rien.
-- `preview` / `production` : cibles de promotion **protégées** (ruleset « Production ») — mêmes
-  exigences, plus l'historique linéaire.
+- `preview` / `production` : cibles de promotion **fermées** (ruleset « Production ») — ni PR, ni
+  push, pas même le tien : suppression et force-push interdits, commits signés, et « Restrict
+  updates » dont la **seule exception est l'App de release**. Elles n'avancent qu'en fast-forward,
+  par la promotion d'une version (voir *Versions et releases*). `preview` pointe sur ce qui tourne
+  chez le Coach bêta (#266).
 
 CI (`.github/workflows/`) :
 
@@ -26,12 +29,15 @@ CI (`.github/workflows/`) :
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 
-Les trois tournent sur push/PR vers `main`, `preview`, `production`.
+Les trois tournent sur push/PR vers `main`, et seulement là : une branche de promotion ne reçoit
+que des commits déjà passés par `main`, et `promote-preview.yml` vérifie que ces trois checks y sont
+verts avant d'envoyer quoi que ce soit.
 
 > Ces libellés sont ceux des **jobs**, et c'est sous ce nom exact que les rulesets les exigent —
 > pas sous le nom du workflow. Renommer un job décroche donc la porte qui le référence : le check
-> requis n'arrive jamais et la PR reste bloquée sur « Waiting for status to be reported ». Toute
-> renommage se répercute dans les deux rulesets (Settings → Rules).
+> requis n'arrive jamais et la PR reste bloquée sur « Waiting for status to be reported ». Tout
+> renommage se répercute dans le ruleset « Main » (Settings → Rules) **et** dans la liste des
+> checks de `promote-preview.yml`, qui refuserait sinon toute promotion.
 
 ## Commits
 
@@ -92,23 +98,36 @@ Que `preview` soit en 1.3.0 pendant que `production` est en 1.2.0 est l'état **
 lignée, deux têtes de lecture décalées par le temps de promotion. Le tier est porté par `APP_ENV`,
 jamais par le numéro.
 
+**Envoyer une version chez le Coach** (#266) — rien ne part sur le NAS au merge d'une PR :
+
+1. merger la PR de release : le tag `vX.Y.Z` et l'image `cimavia-api:X.Y.Z` se posent seuls ;
+2. *Actions → Promotion — preview → Run workflow*, avec `X.Y.Z` ;
+3. le workflow construit le web de cette version, pose le tag `preview` sur les deux images, avance
+   la branche `preview`, puis attend que le NAS ait redémarré (jusqu'à 20 minutes).
+
+On peut **sauter des versions** : 1.3.0 et 1.4.0 publiées, seule 1.5.0 promue, les migrations
+manquantes s'appliquent dans l'ordre au démarrage. On ne revient **jamais en arrière** par
+promotion — une version plus ancienne tournerait sur un schéma déjà migré ; le workflow le refuse.
+Un retour se fait par restauration ou par un correctif. Promouvoir un commit sans release n'est pas
+prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récent.
+
 ## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 
 **Secrets** — ce que seule la CI doit connaître :
 
 - `SONAR_TOKEN` — SonarCloud.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
-- `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185). Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
-- `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181). C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
+- `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
+- `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web de la promotion. C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
 
 **Variables** (onglet *Variables*), pas des secrets — elles partent dans le bundle ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
 
-- `DEV_ENV_FILE` — chemin du `.env` sur le NAS · `DEV_PUBLIC_API_URL` — l'URL publique de l'API du tier dev.
+- `DEV_PUBLIC_API_URL` — l'URL publique de l'API du NAS : figée dans le build web de la promotion, sondée par elle après coup, et appelée par `reminder-tick.yml`.
 - `DEV_SENTRY_DSN_WEB` — le DSN du projet web, lisible par tout visiteur du site.
 - `SENTRY_ORG` — le slug de l'organisation Sentry.
 - `SENTRY_PROJECT_WEB` — `cimavia-web`.
 
-**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/dev/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
+**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/dev/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/dev/README.md`). Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
 
 ## Identifiants de build mobile
 

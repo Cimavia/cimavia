@@ -1,0 +1,329 @@
+name: Promotion — preview
+
+# Envoie une version PUBLIÉE chez le Coach bêta (#266). Lancé à la main, jamais par un push : c'est
+# la décision humaine entre un merge sur `main` et les vraies données du NAS (#260).
+#
+# Le NAS ne reçoit plus rien de GitHub. Il tire lui-même le tag `preview` des images, toutes les
+# 5 minutes (`deploy/dev/pull-preview.sh`) : ce workflow se contente de DÉPLACER ce tag, puis attend
+# de voir le NAS redémarrer.
+#
+#   1. vérifier   — la version existe, avance, a passé ses checks, et son image est publiée ;
+#   2. construire — l'image web, depuis le tag git de la version (#186 : le bundle fige l'URL de
+#                   l'API, il se reconstruit par tier, mais jamais depuis une branche) ;
+#   3. publier    — `preview` sur l'image de l'API sans la reconstruire, puis sur le web, puis la
+#                   branche `preview` avancée jusqu'au tag ;
+#   4. confirmer  — l'API du NAS a redémarré et répond.
+#
+# Rien n'est déplacé tant que la construction du web n'a pas réussi. Si seule la confirmation
+# échoue (NAS éteint, jeton GHCR expiré…), « Re-run failed jobs » la relance sans rien republier :
+# relancer tout le workflow serait refusé, la version étant déjà celle de `preview`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version publiée à envoyer sur preview, sans « v » (ex. 1.2.2)"
+        required: true
+        type: string
+
+# Une promotion à la fois : deux retags croisés laisseraient l'API d'une version et le web de l'autre.
+concurrency:
+  group: promote-preview
+  cancel-in-progress: false
+
+# Aucun droit par défaut : chaque job déclare les siens.
+permissions: {}
+
+jobs:
+  verify:
+    name: Vérifier la version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+      packages: read
+    outputs:
+      sha: ${{ steps.version.outputs.sha }}
+      short: ${{ steps.version.outputs.short }}
+      registry: ${{ steps.version.outputs.registry }}
+    steps:
+      # L'entrée passe par l'environnement, jamais interpolée dans le script : une valeur tapée à la
+      # main ne doit pas pouvoir devenir du shell.
+      - name: Format de la version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::« $VERSION » n'est pas un numéro de version X.Y.Z."
+            exit 1
+          fi
+
+      # Historique complet : il faut les tags, `main` et `preview` pour comparer.
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: La version, sa place dans l'historique
+        id: version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! sha="$(git rev-parse --verify --quiet "refs/tags/v${VERSION}^{commit}")"; then
+            echo "::error::Le tag v${VERSION} n'existe pas : seule une version publiée se promeut."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::v${VERSION} n'est pas sur main."
+            exit 1
+          fi
+
+          # Jamais en arrière, jamais deux fois : une version plus ancienne tournerait sur un schéma
+          # déjà migré par la plus récente. Un retour se fait par restauration (#268) ou correctif.
+          # Avant la toute première promotion, `preview` pointe sur un commit de P0 : 0.0.0.
+          current="$(git show origin/preview:package.json 2>/dev/null | jq -r '.version // empty' || true)"
+          current="${current:-0.0.0}"
+          highest="$(printf '%s\n%s\n' "$current" "$VERSION" | sort -V | tail -n1)"
+          if [ "$VERSION" = "$current" ] || [ "$highest" != "$VERSION" ]; then
+            echo "::error::preview est en ${current} : v${VERSION} ne la fait pas avancer."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor origin/preview "$sha"; then
+            echo "::error::La branche preview n'est pas un ancêtre de v${VERSION} : avance impossible sans réécrire."
+            exit 1
+          fi
+
+          {
+            echo "sha=$sha"
+            echo "short=${sha::7}"
+            echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice::preview ${current} → ${VERSION} (${sha::7})"
+
+      # Les trois checks que le ruleset exigeait avant que la promotion ne passe par ce workflow. Le
+      # commit promu les a passés sur `main` ; on le vérifie au lieu de le croire. En cas de relance
+      # d'un check, seul le dernier passage compte.
+      - name: Checks requis verts sur ce commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.version.outputs.sha }}
+        run: |
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs?per_page=100")"
+          failed=0
+          for name in "Lint + Typecheck + Test" "E2E (isolation multi-tenant)" "SonarCloud Analysis"; do
+            conclusion="$(jq -r --arg n "$name" '[.check_runs[] | select(.name == $n)] | sort_by(.started_at) | last | .conclusion // "absent"' <<<"$runs")"
+            echo "${name} : ${conclusion}"
+            [ "$conclusion" = "success" ] || failed=1
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::Un check requis n'est pas vert sur ${SHA::7} : cette version ne part pas chez le Coach."
+            exit 1
+          fi
+
+      - name: Login GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Le tag versionné n'est posé que sur le commit de bump, et seulement si sa construction a
+      # abouti (#186). Absent, il n'y a rien à retaguer : on ne reconstruit pas pour autant.
+      - name: Image de l'API publiée
+        env:
+          REF: ${{ steps.version.outputs.registry }}/cimavia-api:${{ inputs.version }}
+        run: |
+          if ! docker buildx imagetools inspect "$REF" >/dev/null 2>&1; then
+            echo "::error::${REF} introuvable : la construction du commit de release a-t-elle abouti ?"
+            exit 1
+          fi
+
+      # Le web fige cette URL dans son bundle : vide, il pointerait sur localhost.
+      - name: Vérifier DEV_PUBLIC_API_URL
+        run: |
+          if [ -z "${{ vars.DEV_PUBLIC_API_URL }}" ]; then
+            echo "::error::Variable de dépôt DEV_PUBLIC_API_URL vide — le web ne saurait pas joindre l'API du NAS."
+            exit 1
+          fi
+
+  build-web:
+    name: Construire le web de v${{ inputs.version }}
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      # Le TAG et non une branche : le bundle doit être exactement le code de la version promue.
+      - name: Checkout de v${{ inputs.version }}
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+
+      # Même garde-fou que `deploy-dev.yml` : un jeton sans organisation ni projet ferait échouer le
+      # build sur un message enfoui dans les logs de Docker.
+      - name: Vérifier la cohérence Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::notice::Aucun SENTRY_AUTH_TOKEN — les sourcemaps ne seront pas publiées."
+            exit 0
+          fi
+          if [ -z "${{ vars.SENTRY_ORG }}" ] || [ -z "${{ vars.SENTRY_PROJECT_WEB }}" ]; then
+            echo "::error::SENTRY_AUTH_TOKEN est défini mais SENTRY_ORG ou SENTRY_PROJECT_WEB manque."
+            exit 1
+          fi
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Login GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Poussée sous `preview-X.Y.Z` et pas encore sous `preview` : le tag que le NAS tire ne bouge
+      # qu'une fois l'API retaguée, au job suivant.
+      #
+      # `SENTRY_RELEASE` porte le même nom que la release de l'API (`1.2.2+3f2a1c`, #186). Plus aucun
+      # build web ne part de `main`, donc aucun autre bundle ne téléverse de sourcemaps sous ce nom.
+      #
+      # L'étiquette `revision` n'est lue par personne côté web ; elle y est pour qu'une image se dise
+      # d'où elle vient, comme celle de l'API, dont le NAS lit la même étiquette.
+      - name: Build & push
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ needs.verify.outputs.registry }}/cimavia-web:preview-${{ inputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.verify.outputs.sha }}
+            org.opencontainers.image.version=${{ inputs.version }}
+          build-args: |
+            VITE_API_URL=${{ vars.DEV_PUBLIC_API_URL }}
+            VITE_SENTRY_DSN=${{ vars.DEV_SENTRY_DSN_WEB }}
+            VITE_APP_ENV=preview
+            VITE_APP_VERSION=${{ inputs.version }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT_WEB }}
+            SENTRY_RELEASE=${{ inputs.version }}+${{ needs.verify.outputs.short }}
+          # Le jeton passe par un secret BuildKit, jamais un build-arg qui finirait dans `docker history`.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    name: Publier sur preview
+    needs: [verify, build-web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      promoted_at: ${{ steps.branch.outputs.promoted_at }}
+    steps:
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Login GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # La promotion RETAGUE, elle ne reconstruit pas (#186) : `preview` désigne l'image validée sur
+      # `main`, à l'octet près. On le vérifie par le digest plutôt que de le supposer.
+      - name: preview sur l'image de l'API
+        env:
+          REGISTRY: ${{ needs.verify.outputs.registry }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          src="$(docker buildx imagetools inspect "${REGISTRY}/cimavia-api:${VERSION}" --format '{{json .Manifest}}' | jq -r .digest)"
+          docker buildx imagetools create --tag "${REGISTRY}/cimavia-api:preview" "${REGISTRY}/cimavia-api@${src}"
+          dst="$(docker buildx imagetools inspect "${REGISTRY}/cimavia-api:preview" --format '{{json .Manifest}}' | jq -r .digest)"
+          if [ "$src" != "$dst" ]; then
+            echo "::error::cimavia-api:preview (${dst}) n'est pas l'image de ${VERSION} (${src})."
+            exit 1
+          fi
+          echo "cimavia-api:preview → ${src}"
+
+      - name: preview sur l'image du web
+        env:
+          REGISTRY: ${{ needs.verify.outputs.registry }}
+          DIGEST: ${{ needs.build-web.outputs.digest }}
+        run: |
+          docker buildx imagetools create --tag "${REGISTRY}/cimavia-web:preview" "${REGISTRY}/cimavia-web@${DIGEST}"
+          echo "cimavia-web:preview → ${DIGEST}"
+
+      # Le jeton de l'App de release, seule exception au ruleset qui protège `preview` : un
+      # `GITHUB_TOKEN` ne peut pas passer outre une règle « Restrict updates ».
+      - name: Jeton d'installation de l'App
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      # Une avance, jamais une réécriture : le ruleset refuserait un non-fast-forward, et le job
+      # `verify` a déjà établi que `preview` est un ancêtre du tag. La branche dit ce qui tourne chez
+      # le Coach.
+      - name: Avancer la branche preview
+        id: branch
+        env:
+          SHA: ${{ needs.verify.outputs.sha }}
+        run: |
+          git push origin "${SHA}:refs/heads/preview"
+          echo "promoted_at=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+  confirm:
+    name: Attendre le NAS
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # Le NAS tire toutes les 5 minutes, puis télécharge, migre et attend sa propre sonde : compter
+      # jusqu'à 20 minutes. `/health` est public mais ne dit pas la version, et c'est voulu (#186) :
+      # on reconnaît le redémarrage à un `uptime` plus court que le temps écoulé depuis la promotion.
+      # Un redémarrage sans rapport dans cette fenêtre tromperait la sonde ; c'est improbable, et
+      # `/health/ready` reste exigé derrière.
+      - name: L'API du NAS a redémarré et répond
+        env:
+          API_URL: ${{ vars.DEV_PUBLIC_API_URL }}
+          PROMOTED_AT: ${{ needs.publish.outputs.promoted_at }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          deadline=$((PROMOTED_AT + 20 * 60))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            elapsed=$(( $(date +%s) - PROMOTED_AT ))
+            if uptime="$(curl -fsS --max-time 10 "${API_URL%/}/health" | jq -r '.uptime // empty')" && [ -n "$uptime" ]; then
+              if awk -v u="$uptime" -v e="$elapsed" 'BEGIN { exit !(u < e) }' \
+                && curl -fsS --max-time 10 "${API_URL%/}/health/ready" >/dev/null; then
+                echo "::notice::v${VERSION} est en ligne sur le NAS (API redémarrée il y a ${uptime%.*} s)."
+                exit 0
+              fi
+              echo "… API en ligne depuis ${uptime%.*} s, pas encore redémarrée (${elapsed} s écoulées)"
+            else
+              echo "… API injoignable (${elapsed} s écoulées) — redémarrage probablement en cours"
+            fi
+            sleep 20
+          done
+          echo "::error::Le NAS n'a pas redémarré sur v${VERSION} en 20 minutes. À regarder sur le NAS : la tâche planifiée, pull-preview/pull-preview.log (jeton GHCR, .env, migration), puis « Re-run failed jobs »."
+          exit 1

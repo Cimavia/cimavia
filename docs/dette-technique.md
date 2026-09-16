@@ -229,6 +229,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
 | P7-4 | **MinIO est figé, et vulnérable là où il est exposé** : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | 🟡 | [#257](https://github.com/Cimavia/cimavia/issues/257) |
 | P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) |
+| ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -262,6 +263,63 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > ne le demandait pas et rien ne l'a fait. Le déclencheur est l'activation de l'anglais
 > ([#71](https://github.com/Cimavia/cimavia/issues/71)) : avant elle, traduire un push n'a aucun
 > destinataire.
+
+> **Tranché en #266** (on promeut une VERSION, jamais un merge) : jusqu'ici, chaque push sur `main`
+> partait sur le NAS dans la minute, migrations comprises — une migration fautive frappait les
+> données du Coach sans que personne ait rien validé. Désormais `promote-preview.yml`, lancé à la
+> main avec un numéro publié, pose le tag `preview` et le NAS le tire.
+>
+> - **Une release d'abord.** Promouvoir un commit quelconque aurait marché, mais la ligne de version
+>   de l'écran de compte afficherait l'ancien numéro sur du code plus récent : un retour de bêta
+>   citerait un numéro faux, ce que #187 existait précisément pour empêcher.
+> - **Sauter des versions, oui ; revenir en arrière, jamais.** `migrate deploy` rattrape les
+>   migrations manquantes dans l'ordre, mais une version plus ancienne tournerait sur un schéma déjà
+>   migré. Le workflow refuse tout numéro inférieur ou égal à celui que porte la branche `preview`.
+> - **La branche `preview` dit ce qui tourne**, avancée en fast-forward par l'App de release, seule
+>   exception au ruleset « Production » (« Restrict updates »). Corollaire à ne pas relire de
+>   travers : la règle « historique linéaire » du ruleset ne contraint plus rien, `main` contient
+>   des commits de merge et l'App passe outre ; elle ne s'appliquerait qu'à qui ne peut de toute
+>   façon rien pousser.
+> - **Les checks sont vérifiés, pas rejoués.** `ci.yml` ne tourne plus que sur `main` : le commit
+>   promu y a déjà passé les trois checks, et le workflow le vérifie par l'API avant de publier.
+
+> **Tranché en #266** (le NAS tire, et c'est le compose DU COMMIT PROMU qu'il déploie) : sans
+> runner, plus rien n'apporte au NAS une copie à jour de `deploy/dev/docker-compose.yml`. Une copie
+> à la main aurait divergé dès le premier changement du compose — et quatre issues ouvertes le
+> modifient. `pull-preview.sh` lit donc dans l'image de l'API l'étiquette
+> `org.opencontainers.image.revision` et télécharge le compose de ce commit (le dépôt est public).
+>
+> - **Le script, lui, est une copie** : il ne se met pas à jour tout seul, et le runbook le dit.
+> - **Les images sont épinglées par digest**, pas par tag : une promotion peut déplacer `preview`
+>   pendant un passage. D'où `image: ${API_IMAGE:?…}` dans le compose, qui refuse de démarrer sans
+>   le script.
+> - **Un projet compose renommé** (#271) garde ses volumes sous leur ancien nom : le script arrête
+>   l'ancien projet avant de démarrer le nouveau, sinon deux PostgreSQL écriraient dans le même
+>   volume.
+> - **GHCR reste privé**, avec un jeton classique `read:packages` posé sur le NAS. Un tag `preview`
+>   public dirait à tout le monde quelle version tourne — ce que « Tranché en #186 » a refusé en
+>   mettant la version derrière authentification.
+
+> **Tranché en #266** (reconnaître le redémarrage sans exposer la version) : un déploiement tiré ne
+> rougit plus rien dans GitHub. Le workflow de promotion attend donc, jusqu'à 20 minutes, un
+> `uptime` de `/health` plus court que le temps écoulé depuis la promotion, puis `/health/ready`.
+> Limite assumée : un redémarrage sans rapport dans cette fenêtre tromperait la sonde. L'autre voie
+> — publier le numéro sur `/health` — défaisait #186. Le NAS signale aussi ses échecs lui-même
+> (e-mail de la tâche DSM sur code de sortie non nul).
+
+> **Tranché en #266** (plus d'image web sur `main`, plus de `concurrency` sur la construction) :
+> l'image web n'avait plus de lecteur, et ses sourcemaps auraient été téléversées sous le même nom
+> de release Sentry (`1.2.2+3f2a1c`) que le build de promotion — l'écrasement que #186 voulait
+> éviter. Quant au groupe `cancel-in-progress` par branche, il annulait la construction en cours au
+> push suivant et remplaçait de toute façon une exécution en attente : un merge suivant de près la
+> PR de release suffisait à perdre l'image `X.Y.Z`, la seule que la promotion sait retaguer.
+
+> **Appris en #266** (un `.env` cassé ne se voyait que dans l'onglet Actions) : le 2026-09-14, la
+> commande de sauvegarde de #264 s'est retrouvée collée dans le `.env` du NAS. `docker compose` a
+> refusé de le lire, et trois déploiements d'affilée ont échoué sur « Pull & up » — le Coach est
+> resté sur l'image de la veille sans que rien ne le lui dise, ni à personne hors de GitHub.
+> `pull-preview.sh` valide désormais le compose contre le `.env` (`config -q`) avant d'agir, écrit
+> la cause dans son journal, et sort en erreur pour que la tâche DSM l'envoie par e-mail.
 
 ---
 
