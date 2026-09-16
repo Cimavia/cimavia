@@ -39,6 +39,12 @@ verts avant d'envoyer quoi que ce soit.
 > renommage se répercute dans le ruleset « Main » (Settings → Rules) **et** dans la liste des
 > checks de `promote-preview.yml`, qui refuserait sinon toute promotion.
 
+**Images tierces** — `mirror-images.yml` copie SILO et son client `mc` dans `ghcr.io/cimavia` (paquets
+**publics**), pour que les composes les tirent de là : une panne de quay.io ou de Docker Hub ne bloque plus
+l'E2E (#257). Il tourne au merge de son fichier, chaque lundi, et à la main pour une version précise.
+Chaque lundi, il ouvre aussi l'issue `[silo-version]` si un compose épingle une version plus ancienne
+que la dernière publiée : Dependabot ne comprend pas les tags `RELEASE.…` et ne le ferait pas.
+
 ## Commits
 
 Convention **Conventional Commits**, sujet en minuscule (vérifié par commitlint).
