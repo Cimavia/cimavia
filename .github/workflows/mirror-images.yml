@@ -1,0 +1,153 @@
+name: Images tierces — miroir GHCR
+
+# Copie dans notre GHCR les images de stockage qu'on ne construit pas (#257) : SILO, le fork maintenu
+# de MinIO, et son client `mc`. Les composes du dépôt les tirent de `ghcr.io/cimavia/…`, jamais de
+# leur registre d'origine.
+#
+# Pourquoi un miroir : le 2026-09-13, MinIO a retiré ses images de Docker Hub et l'E2E — check
+# requis sur `main` — est tombé d'un coup ; le 2026-09-15, une panne de quay.io a bloqué une PR
+# pendant des heures. Docker Hub, où publie SILO, limite en plus les tirages anonymes. Une image
+# déjà copiée chez nous ne dépend plus d'aucun de ces trois-là.
+#
+# Pourquoi il surveille aussi les versions : Dependabot ne comprend pas les tags `RELEASE.…` de
+# MinIO et de ses forks (dependabot-core#11680). Chaque semaine, le workflow copie donc la dernière
+# version publiée, puis ouvre une issue si un compose en épingle une plus ancienne. Monter le tag
+# reste une PR relue : les e2e la rejouent contre la nouvelle version, et le NAS ne la reçoit qu'à
+# la promotion suivante.
+
+on:
+  schedule:
+    # Le lundi matin : une version de SILO corrige souvent une faille, une semaine suffit à la voir.
+    - cron: "0 6 * * 1"
+  # Pour copier tout de suite une version précise — celle qu'une PR veut épingler, par exemple.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version à copier en plus de la dernière (ex. RELEASE.2026-09-16T00-00-00Z), vide sinon"
+        required: false
+        type: string
+  # Au merge de ce fichier : le miroir existe avant que le moindre compose ne le référence.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/mirror-images.yml"
+
+concurrency:
+  group: mirror-images
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  mirror:
+    name: Copier et surveiller SILO et mc
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Login GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pour chaque image : la dernière version publiée, la version demandée à la main, et celles que
+      # les composes épinglent déjà — une image référencée qui manquerait au miroir casserait l'E2E.
+      # La copie reprend l'index multi-architecture tel quel ; une version déjà présente est sautée.
+      #
+      # Seuls les tags de la forme `RELEASE.AAAA-MM-JJTHH-MM-SSZ` comptent : ils se trient comme des
+      # dates, là où `latest` ou les variantes `-distroless` et `-arm64` désignent autre chose.
+      - name: Copier les versions dans ghcr.io/cimavia
+        id: mirror
+        env:
+          REQUESTED: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          pattern='^RELEASE\.[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z$'
+          if [[ -n "$REQUESTED" && ! "$REQUESTED" =~ $pattern ]]; then
+            echo "::error::« $REQUESTED » n'est pas un tag RELEASE.AAAA-MM-JJTHH-MM-SSZ."
+            exit 1
+          fi
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+
+          for name in silo mc; do
+            latest="$(curl -fsS "https://hub.docker.com/v2/repositories/pgsty/${name}/tags?page_size=100&ordering=last_updated" \
+              | jq -r '.results[].name' | grep -E "$pattern" | sort | tail -n1)"
+            if [[ -z "$latest" ]]; then
+              echo "::error::Aucune version RELEASE.… trouvée pour pgsty/${name}."
+              exit 1
+            fi
+            echo "${name}_latest=${latest}" >> "$GITHUB_OUTPUT"
+
+            mapfile -t pinned < <(grep -hoE "ghcr\.io/${owner}/${name}:RELEASE\.[0-9TZ-]+" apps/api/docker-compose.yml deploy/dev/docker-compose.yml | sed 's/.*://' || true)
+            for tag in $(printf '%s\n' "$latest" "$REQUESTED" "${pinned[@]}" | grep -E "$pattern" | sort -u); do
+              dst="ghcr.io/${owner}/${name}:${tag}"
+              if docker buildx imagetools inspect "$dst" >/dev/null 2>&1; then
+                echo "${dst} : déjà présente"
+                continue
+              fi
+              docker buildx imagetools create --tag "$dst" "docker.io/pgsty/${name}:${tag}"
+              echo "::notice::${dst} copiée depuis docker.io/pgsty/${name}:${tag}"
+            done
+          done
+
+      # Une seule issue ouverte à la fois : mise à jour si elle existe, créée sinon, et rien si les
+      # composes sont à jour. Le titre sert de clé — le REST, parce que `gh issue` passe par une API
+      # GraphQL cassée sur ce dépôt (dépréciation des Projects classic).
+      - name: Signaler une version épinglée en retard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SILO_LATEST: ${{ steps.mirror.outputs.silo_latest }}
+          MC_LATEST: ${{ steps.mirror.outputs.mc_latest }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          behind=""
+          for name in silo mc; do
+            latest_var="${name^^}_LATEST"
+            latest="${!latest_var}"
+            for tag in $(grep -hoE "ghcr\.io/${owner}/${name}:RELEASE\.[0-9TZ-]+" apps/api/docker-compose.yml deploy/dev/docker-compose.yml | sed 's/.*://' | sort -u || true); do
+              if [[ "$tag" < "$latest" ]]; then
+                behind+="- \`${name}\` : épinglée en \`${tag}\`, dernière publiée \`${latest}\`"$'\n'
+              fi
+            done
+          done
+
+          title="[silo-version] - Une version plus récente de SILO est disponible"
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" --jq ".[] | select(.pull_request == null and .title == \"${title}\") | .number" | head -n1)"
+
+          if [[ -z "$behind" ]]; then
+            echo "Les composes épinglent la dernière version."
+            exit 0
+          fi
+
+          body="$(cat <<EOF
+          Les composes épinglent une version de SILO ou de son client plus ancienne que la dernière publiée. La nouvelle est **déjà copiée** dans \`ghcr.io/${owner}\` : la monter ne dépend d'aucun registre tiers.
+
+          ${behind}
+          ## À faire
+
+          - Lire ce qui a changé, **sécurité d'abord** : [registre de sécurité de SILO](https://silo.pgsty.com/blog/security/) · [versions de SILO](https://github.com/pgsty/silo/releases).
+          - Monter les tags dans \`apps/api/docker-compose.yml\` et \`deploy/dev/docker-compose.yml\`.
+          - La CI rejoue les e2e contre la nouvelle version ; le NAS la reçoit à la promotion suivante.
+
+          Issue tenue à jour par \`mirror-images.yml\` : elle se réécrit chaque semaine tant que les composes n'ont pas rattrapé la dernière version.
+          EOF
+          )"
+
+          if [[ -n "$existing" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/${existing}" -f body="$body" --jq '"issue #\(.number) mise à jour"'
+          else
+            jq -n --arg title "$title" --arg body "$body" \
+              '{title: $title, body: $body, labels: ["area: infra", "type: chore", "prio: high"]}' \
+              | gh api "repos/${GITHUB_REPOSITORY}/issues" --input - --jq '"issue #\(.number) ouverte"'
+          fi
