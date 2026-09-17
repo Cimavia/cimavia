@@ -22,14 +22,15 @@ aws s3api put-bucket-lifecycle-configuration \
 aws s3api get-bucket-lifecycle-configuration --bucket "$S3_BUCKET" --endpoint-url "$S3_ENDPOINT"
 ```
 
-> ⚠️ **Relire est le vrai test.** MinIO (dev local et NAS) **accepte cette règle et en jette la
-> clause en silence** : mesuré sur `RELEASE.2025-09-07`, une règle réduite à
+> ⚠️ **Relire est le vrai test.** SILO (dev local et NAS), comme MinIO avant lui, **accepte cette
+> règle et en jette la clause en silence** : mesuré sur MinIO `RELEASE.2025-09-07`, puis à
+> l'identique sur SILO `RELEASE.2026-09-16` (#257), une règle réduite à
 > `AbortIncompleteMultipartUpload` part en 400, et accompagnée d'une `Expiration` elle est acceptée
 > puis relue **sans** la clause — confirmé par le SDK AWS *et* par `mc ilm export`. Si
 > `AbortIncompleteMultipartUpload` ne revient pas dans la réponse du `get`, la règle ne fait rien.
 > C'est la dette **U-6** de `docs/dette-technique.md`.
 
-Le dev n'a donc aucun filet, et c'est assumé : son volume MinIO est jetable
+Le dev n'a donc aucun filet, et c'est assumé : son volume SILO est jetable
 (`docker compose down -v`), les parts orphelines n'y coûtent rien. Pour voir ce qui traîne sur un
 bucket, quel qu'il soit :
 

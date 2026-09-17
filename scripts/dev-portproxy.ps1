@@ -3,7 +3,7 @@
 #
 # Pourquoi : en mode reseau NAT (defaut de WSL2), WSL a une IP privee que le LAN ne connait pas.
 # Windows, lui, est sur le reseau : on lui fait donc relayer les deux ports.
-# MinIO n'y figure PAS : il tourne sous Docker Desktop, cote Windows, donc deja expose au LAN.
+# SILO (le storage) n'y figure PAS : il tourne sous Docker Desktop, cote Windows, donc deja expose au LAN.
 #
 # Le mode "mirrored" supprimerait ce besoin, mais rend injoignables les ports publies par
 # Docker Desktop (WSL possede alors l'adresse, et rien n'y ecoute pour eux) : le storage devient

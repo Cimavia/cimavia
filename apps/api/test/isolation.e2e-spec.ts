@@ -558,7 +558,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
   });
 
   // Le fail-closed « storage non configuré → 503 » est couvert par le test unitaire de
-  // StorageService : les e2e tournent désormais avec le MinIO du docker-compose, sans quoi le
+  // StorageService : les e2e tournent désormais avec le SILO du docker-compose, sans quoi le
   // flux médias de P4 (upload signé → rattachement → purge) ne serait pas testable.
   it("URL d'upload : signée sur le bucket privé", async () => {
     const res = await coachA
@@ -3527,7 +3527,7 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
       .send({ fileName: "facture-juillet.pdf", mimeType: "application/pdf", size: 20_000 });
     expect(signed.status).toBe(201);
 
-    // PUT direct vers le storage (MinIO), taille signée opposable — comme les médias de débrief.
+    // PUT direct vers le storage (SILO), taille signée opposable — comme les médias de débrief.
     const put = await fetch(signed.body.uploadUrl, {
       method: "PUT",
       body: Buffer.alloc(20_000, 1),

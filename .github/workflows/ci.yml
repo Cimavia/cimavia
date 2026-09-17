@@ -122,11 +122,12 @@ jobs:
 
       # Un conteneur de service GitHub n'exécuterait PAS cet entrypoint : le bucket n'existerait
       # pas, et le flux médias de P4 (URL signée → PUT direct → rattachement → purge) échouerait —
-      # c'est la moitié de ce que ces e2e protègent. `run --rm` démarre MinIO, joue l'entrypoint
+      # c'est la moitié de ce que ces e2e protègent. `run --rm` démarre SILO, joue l'entrypoint
       # idempotent et propage son code de sortie : c'est la barrière de disponibilité, pas un sleep.
-      # Seul `minio` démarre ici, pas le Postgres de dev du même compose (5432).
-      - name: Démarre MinIO et crée le bucket e2e
-        run: docker compose -f apps/api/docker-compose.yml run --rm minio-setup
+      # Seul `silo` démarre ici, pas le Postgres de dev du même compose (5432). Les deux images viennent
+      # du miroir GHCR public : aucune connexion à un registre, aucune dépendance à Docker Hub (#257).
+      - name: Démarre SILO et crée le bucket e2e
+        run: docker compose -f apps/api/docker-compose.yml run --rm silo-setup
 
       # Via Turbo pour la dépendance `^build` : les e2e bootent le vrai AppModule, qui importe
       # @cmv/shared depuis son `dist` — absent après une installation `--ignore-scripts`.

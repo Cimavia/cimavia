@@ -227,7 +227,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
 | ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
-| P7-4 | **MinIO est figé, et vulnérable là où il est exposé** : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | 🟡 | [#257](https://github.com/Cimavia/cimavia/issues/257) |
+| ~~P7-4~~ | ~~**MinIO est figé, et vulnérable là où il est exposé**~~ : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | ✅ | résolue en **[#257](https://github.com/Cimavia/cimavia/issues/257)** — SILO, fork maintenu de MinIO qui corrige les deux failles (`RELEASE.2026-04-17`), tiré d'un miroir `ghcr.io/cimavia` ; les données du NAS restent dans leur volume |
 | P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) |
 | ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
 
@@ -320,6 +320,63 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > resté sur l'image de la veille sans que rien ne le lui dise, ni à personne hors de GitHub.
 > `pull-preview.sh` valide désormais le compose contre le `.env` (`config -q`) avant d'agir, écrit
 > la cause dans son journal, et sort en erreur pour que la tâche DSM l'envoie par e-mail.
+
+> **Tranché en #257** (SILO maintenant, Garage sur déclencheur) : MinIO communautaire est figé, et
+> sa dernière image acceptait des écritures d'objets **sans authentification** pour qui connaît une
+> clé d'accès — or elle est en clair dans chaque URL signée (`X-Amz-Credential`), et c'est la clé
+> root sur le NAS. Deux remplaçants couvraient nos huit opérations S3 et le CORS :
+>
+> - **SILO** (`pgsty/silo`), le fork maintenu de MinIO : **changement d'image**, même API, mêmes
+>   variables `MINIO_*`, même format sur disque. Ses correctifs sont prouvés, pas supposés : son
+>   registre de sécurité donne `CVE-2026-41145` et `CVE-2026-40344` corrigées en
+>   `RELEASE.2026-04-17`, dont les notes citent les deux avis GitHub, et `CVE-2025-62506` en
+>   `RELEASE.2025-12-03`. Revers : un mainteneur principal.
+> - **Garage** (Deuxfleurs) : le choix le plus durable — plusieurs mainteneurs, purge des envois
+>   abandonnés appliquée (U-6), droits par clé et par bucket (#267) — mais il coûtait une migration
+>   des médias réels du NAS et un CORS à poser partout, là où MinIO et SILO l'acceptent d'office.
+>
+> SILO ferme la faille sans toucher aux données et ne ferme aucune porte : passer à Garage plus tard
+> coûtera ce que ça coûte aujourd'hui. **Déclencheurs pour Garage** : SILO ne publie plus rien
+> pendant trois mois, tarde sur un correctif critique, ou la purge absente (U-6) se met à coûter.
+
+> **Mesuré en #257** (SILO se conduit comme MinIO, défaut compris) — `RELEASE.2026-09-16`, en local :
+> les 359 e2e passent ; `ListMultipartUploads` voit un envoi ouvert ; `ListParts` ne voit qu'une
+> part après un renvoi signé sous le même `PartNumber`, et l'objet recollé porte les octets du
+> second envoi ; le préflight CORS d'un `PUT` signé depuis le web local répond 204 sans
+> configuration ; la règle de `deploy/prod/bucket-lifecycle.json` est **refusée** (400), et
+> accompagnée d'une `Expiration` elle est acceptée puis relue **sans** la clause d'abandon —
+> exactement le comportement de MinIO. Un seul écart : SILO expose `ETag` en CORS sur la réponse du
+> `PUT`. Le client n'en a pas l'usage, l'API relisant les ETags par `ListParts`.
+
+> **Tranché en #257** (les images de stockage viennent de NOTRE registre) : le 2026-09-13, MinIO a
+> retiré ses images de Docker Hub et l'E2E — check requis — est tombé d'un coup ; le 2026-09-15, une
+> panne de quay.io a bloqué une PR pendant des heures. `mirror-images.yml` copie donc SILO et `mc`
+> dans `ghcr.io/cimavia`, et les composes ne tirent que de là. Les deux paquets sont **publics**
+> (irréversible, et sans conséquence : ce sont des copies d'images publiques), ce qui épargne tout
+> `docker login` en CI comme en local. Il a fallu autoriser les paquets publics dans les réglages
+> de l'organisation, qui les interdisaient.
+>
+> **Dependabot n'en suit pas les versions, et ce n'est pas un oubli** : il ne comprend pas les tags
+> `RELEASE.…` de MinIO et de ses forks (dependabot-core#11680). Le même workflow copie chaque lundi
+> la dernière version publiée et tient à jour une issue `[silo-version]` tant qu'un compose en
+> épingle une plus ancienne. Monter le tag reste une PR relue, rejouée par les e2e.
+
+> **Tranché en #257** (renommer `minio` en `silo` sans perdre une donnée) : le service, les
+> conteneurs et l'étape de CI changent de nom ; **les volumes, non**. Déclarés sous leur nom réel
+> (`name: api_minio_data` en local, `cimavia-dev_minio_data` sur le NAS, relevé par
+> `docker volume ls`), ils sont repris tels quels — renommer le volume aurait démarré un stockage
+> vide. Deux faits mesurés rendent le changement sûr :
+>
+> - `docker compose up -d --remove-orphans` **arrête et supprime l'ancien conteneur avant de créer le
+>   nouveau** : deux serveurs n'écrivent jamais ensemble dans le même volume. Un objet écrit par
+>   `minio` a été relu par `silo`.
+> - Sur le NAS, le service `silo` garde un **alias réseau `minio`** : le tunnel Cloudflare vise
+>   encore `http://minio:9000`, et la promotion qui renomme le service ne coupe donc pas les médias
+>   du Coach. Le tunnel passe à `silo:9000` et l'alias disparaît avec #271.
+>
+> La bascule du NAS ne demande rien de plus : `pull-preview.sh` télécharge le compose de la version
+> promue et passe par `up -d --remove-orphans`. En local, un poste qui avait déjà le compose doit
+> lancer une fois `up -d --remove-orphans` (README).
 
 ---
 
@@ -1073,7 +1130,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | U-3 | **Pas de progression sur la messagerie mobile** : le fil n'expose que `mediaBusy` (désactivation), sans indicateur chiffré — contrairement au débrief mobile et aux deux surfaces web. | 🟢 | — *(déclencheur : un envoi de vidéo lourde jugé « figé » dans un fil)* |
 | U-4 | **Le seuil de découpage est calé sur un plafond d'hébergeur, non vérifié automatiquement** : `MULTIPART_THRESHOLD_BYTES` (80 Mo) tient sa valeur des 100 Mo mesurés au bord Cloudflare. Aucun test ne le confronte à la réalité. | 🟢 | — *(déclencheur : changement de plan Cloudflare ou d'hébergement)* |
 | U-5 | **Pas de reprise entre deux LANCEMENTS d'app** : le réessai de #152 couvre l'accroc réseau, pas l'app tuée en cours d'envoi. L'`uploadId` ne vit qu'en mémoire ; après un plantage, les parts montées sont perdues pour le client et l'upload devient orphelin. Le rattraper demanderait de le persister côté serveur. | 🟢 | — *(déclencheur : un athlète qui signale un envoi perdu APRÈS une fermeture d'app, pas après une coupure)* |
-| U-6 | **La purge des uploads abandonnés est posée à la main, et rien ne vérifie qu'elle l'est** : la règle vit dans `deploy/prod/bucket-lifecycle.json`, mais c'est un `aws s3api` lancé au doigt le jour de la création du bucket. Aucun test, aucun démarrage ne la relit — et **MinIO ne sait pas l'appliquer** (mesuré, cf. l'encadré ci-dessous), donc le dev n'a pas de filet du tout. | 🟢 | — *(déclencheur : bucket cloud créé ou recréé, changement d'hébergeur, ou une facture de stockage inexpliquée)* |
+| U-6 | **La purge des uploads abandonnés est posée à la main, et rien ne vérifie qu'elle l'est** : la règle vit dans `deploy/prod/bucket-lifecycle.json`, mais c'est un `aws s3api` lancé au doigt le jour de la création du bucket. Aucun test, aucun démarrage ne la relit — et **ni MinIO ni SILO ne savent l'appliquer** (mesuré sur MinIO, cf. l'encadré ci-dessous, puis sur SILO en #257), donc le dev et le NAS n'ont pas de filet du tout. Garage l'applique : c'est l'un des déclencheurs de son adoption. | 🟢 | — *(déclencheur : bucket cloud créé ou recréé, changement d'hébergeur, ou une facture de stockage inexpliquée)* |
 
 > **Mesuré** (les deux faits qui dictent toute la conception, et qu'aucune lecture du code ne
 > donnerait) :

@@ -44,8 +44,8 @@ export const envSchema = z.object({
   S3_BUCKET: z.preprocess(emptyAsUndefined, z.string().optional()),
   S3_ACCESS_KEY_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
   S3_SECRET_ACCESS_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
-  // Path-style (http://endpoint/bucket/…) requis par MinIO local ; virtual-hosted (défaut)
-  // pour Scaleway. "true" pour le dev MinIO, vide/"false" en prod.
+  // Path-style (http://endpoint/bucket/…) requis par SILO, en local comme sur le NAS ;
+  // virtual-hosted (défaut) pour Scaleway. "true" pour SILO, vide/"false" en prod.
   S3_FORCE_PATH_STYLE: z.preprocess(emptyAsUndefined, z.enum(["true", "false"]).optional()),
   // Notifications push Expo. Aucun secret n'est requis pour envoyer : le token d'accès ne
   // devient nécessaire que si l'on active « Enhanced Security » sur le compte Expo. Absent,

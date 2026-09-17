@@ -23,7 +23,7 @@
 # autres valeurs viennent d'un `.env` déposé sur le NAS (hors git) — modèle : .env.example.
 #
 # Réseau : aucun port publié sur l'hôte. Seul cloudflared sort (vers Cloudflare), et il joint
-# api/web/minio/mailpit par nom de service sur le réseau interne. Les quatre hostnames publics
+# api/web/silo/mailpit par nom de service sur le réseau interne. Les quatre hostnames publics
 # (api-/app-/s3-/mail-) sont mappés vers ces services dans le dashboard Cloudflare Zero Trust.
 
 name: cimavia-dev
@@ -45,35 +45,40 @@ services:
       timeout: 5s
       retries: 5
 
-  # Object storage S3-compatible. Reste MinIO ici (Cellar seulement en prod) : c'est le meilleur
-  # test de la portabilité S3_* — le même binaire API tourne sur MinIO (path-style) puis sur
-  # Cellar (virtual-hosted) sans recompiler.
-  minio:
-    # quay.io et une version ÉPINGLÉE, plus `minio/minio:latest` : MinIO a retiré ses images de Docker
-    # Hub (404 le 2026-09-13, ce déploiement et l'E2E cassés d'un coup) et ne publie plus d'édition
-    # communautaire depuis septembre 2025. Ce tag est le même digest que l'ancien `latest` de Docker
-    # Hub — rien ne change à l'exécution ni pour les données. Figé, donc sans correctif : dette P7-4.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: cimavia_dev_minio
+  # Object storage S3-compatible, exposé sur `s3-dev` : c'est le téléphone qui appelle les URLs
+  # signées. SILO, le fork maintenu de MinIO (#257) — la dernière image MinIO figée acceptait des
+  # écritures SANS authentification pour qui connaissait la clé d'accès, lisible dans chaque URL
+  # signée. Même API, mêmes variables `MINIO_*`, même format sur disque : le volume se relit tel
+  # quel. Tirée du miroir GHCR, épinglée (voir le compose local).
+  silo:
+    image: ghcr.io/cimavia/silo:RELEASE.2026-09-16T00-00-00Z
+    container_name: cimavia_dev_silo
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
     volumes:
-      - minio_data:/data
+      - silo_data:/data
+    # Le tunnel Cloudflare vise encore `http://minio:9000` : l'alias garde ce nom joignable, pour
+    # que la promotion qui renomme le service ne coupe pas les médias du Coach. Il disparaît avec
+    # #271, quand le tunnel visera `silo:9000`.
+    networks:
+      default:
+        aliases:
+          - minio
 
   # Crée le bucket privé au premier démarrage puis s'arrête (idempotent). Même pattern que le
-  # compose de dev local : la boucle `until` tient lieu d'attente, l'image minio n'ayant pas de sonde.
-  minio-setup:
-    # Même registre et même raison que `minio` ci-dessus — digest identique à l'ancien `latest`.
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-    container_name: cimavia_dev_minio_setup
+  # compose de dev local : la boucle `until` tient lieu d'attente, l'image SILO n'ayant pas de sonde.
+  silo-setup:
+    # Même miroir et même version que `silo` ci-dessus.
+    image: ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z
+    container_name: cimavia_dev_silo_setup
     depends_on:
-      - minio
+      - silo
     entrypoint: >
       /bin/sh -c "
-      until mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID} ${S3_SECRET_ACCESS_KEY}; do echo 'attente MinIO…'; sleep 1; done &&
+      until mc alias set local http://silo:9000 ${S3_ACCESS_KEY_ID} ${S3_SECRET_ACCESS_KEY}; do echo 'attente SILO…'; sleep 1; done &&
       mc mb --ignore-existing local/${S3_BUCKET} &&
       mc anonymous set none local/${S3_BUCKET} &&
       echo 'bucket ${S3_BUCKET} prêt (privé)'
@@ -101,7 +106,7 @@ services:
       # Origine web publique : entre dans CORS + trustedOrigins (cf. browserOrigins). Le scheme
       # mobile cimavia:// est ajouté côté code, pas ici.
       CORS_ORIGINS: ${PUBLIC_WEB_URL}
-      # ⚠️ URL PUBLIQUE du storage, PAS http://minio:9000 : l'API SIGNE les URLs S3 avec cette
+      # ⚠️ URL PUBLIQUE du storage, PAS http://silo:9000 : l'API SIGNE les URLs S3 avec cette
       # valeur, et c'est le TÉLÉPHONE qui les appelle (le binaire ne transite jamais par l'API).
       # Un endpoint interne signerait des URLs injoignables depuis le mobile — exactement le piège
       # S3_ENDPOINT documenté au README §WSL2. Conséquence assumée : les rares appels S3 côté
@@ -167,9 +172,14 @@ services:
     depends_on:
       - api
       - web
-      - minio
+      - silo
       - mailpit
 
 volumes:
   postgres_data:
-  minio_data:
+  # Le service s'appelait `minio` jusqu'en #257 : le volume garde son NOM RÉEL sur le NAS, relevé par
+  # `docker volume ls`. Le renommer ferait démarrer un stockage VIDE, les médias du Coach restant dans
+  # l'ancien. `pull-preview.sh` passe par `up -d --remove-orphans`, qui supprime l'ancien conteneur
+  # AVANT de créer le nouveau (mesuré) : deux serveurs n'écrivent jamais dans ce volume ensemble.
+  silo_data:
+    name: cimavia-dev_minio_data
