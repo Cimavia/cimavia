@@ -18,7 +18,7 @@ export const MULTIPART_THRESHOLD_BYTES = 80 * 1024 * 1024;
 
 /**
  * Taille d'une part. 10 Mio, encadrés des deux côtés :
- * - PLANCHER — S3 (et MinIO) refusent toute part non finale sous 5 Mio ;
+ * - PLANCHER — S3 (et SILO) refusent toute part non finale sous 5 Mio ;
  * - PLAFOND — chaque part est UNE requête HTTP, donc soumise aux 100 Mo du bord Cloudflare ;
  * - MÉMOIRE — le mobile lit la part dans un `Uint8Array` avant de l'écrire sur disque. C'est la
  *   contrainte qui a tranché : sur Android, `File.slice()` s'est révélé charger le fichier ENTIER
@@ -123,9 +123,11 @@ export type MultipartUploadTicket = Extract<
  * Clôture d'un upload découpé : le storage recolle les parts en UN objet.
  *
  * Aucun ETag ici, et c'est délibéré. S3 en produit un par part, que le `complete` doit citer — mais
- * les lire côté client imposerait au storage d'exposer l'en-tête `ETag` en CORS, ce que MinIO ne
- * fait pas par défaut (vérifié : le préflight ne renvoie aucun `access-control-expose-headers`).
- * L'API les récupère donc elle-même par `ListParts`. Le client s'en trouve allégé, web et mobile
+ * les lire côté client imposerait au storage d'exposer l'en-tête `ETag` en CORS, ce qu'aucun ne
+ * garantit : MinIO ne le faisait pas par défaut (vérifié : le préflight ne renvoie aucun
+ * `access-control-expose-headers`), SILO l'expose sur la réponse du `PUT` (mesuré en #257), et un
+ * storage managé ne le fait que si sa règle CORS le déclare. L'API les récupère donc elle-même par
+ * `ListParts`. Le client s'en trouve allégé, web et mobile
  * traités à l'identique, et c'est le SERVEUR qui constate ce qui a réellement atterri plutôt que
  * de croire ce que le client déclare.
  */

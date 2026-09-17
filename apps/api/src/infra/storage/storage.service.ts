@@ -69,7 +69,8 @@ export class StorageService {
       endpoint: s3.endpoint,
       region: s3.region,
       credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
-      // MinIO local (endpoint sans DNS de sous-domaine) → path-style ; Scaleway → virtual-hosted.
+      // SILO, local ou NAS (endpoint sans DNS de sous-domaine) → path-style ;
+      // Scaleway → virtual-hosted.
       forcePathStyle: s3.forcePathStyle,
     });
     this.bucket = s3.bucket;
@@ -227,7 +228,8 @@ export class StorageService {
 
   /**
    * Recolle les parts en UN objet. Les ETags sont relus par `ListParts` côté serveur plutôt que
-   * fournis par le client (cf. `upload.schema.ts` — MinIO n'expose pas l'en-tête `ETag` en CORS).
+   * fournis par le client (cf. `upload.schema.ts` — aucun storage ne garantit l'en-tête `ETag`
+   * en CORS).
    *
    * `expectedPartCount` n'est pas une ceinture de sécurité optionnelle : S3 recolle SANS BRONCHER
    * ce qu'on lui donne. Une part manquante produirait une vidéo tronquée, parfaitement valide aux

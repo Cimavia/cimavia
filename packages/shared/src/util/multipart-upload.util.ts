@@ -174,9 +174,9 @@ export type MultipartUploadRunner = {
  *
  * On n'abandonne QUE sur échec définitif, et c'est le changement de #152 : abandonner au premier
  * accroc jetait les parts déjà montées alors que l'upload était encore parfaitement ouvert.
- * Renvoyer une part sous le même `PartNumber` la REMPLACE côté S3 — vérifié sur MinIO : `ListParts`
- * n'en voit qu'une, et le serveur relisant les ETags lui-même, le nouveau est pris sans rien
- * changer à la clôture.
+ * Renvoyer une part sous le même `PartNumber` la REMPLACE côté S3 — vérifié sur MinIO, puis sur
+ * SILO en #257 : `ListParts` n'en voit qu'une, et le serveur relisant les ETags lui-même, le
+ * nouveau est pris sans rien changer à la clôture.
  */
 export async function runMultipartUpload(
   ticket: MultipartUploadTicket,

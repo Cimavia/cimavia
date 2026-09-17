@@ -110,7 +110,7 @@ describe("StorageService — storage configuré", () => {
 
     // La branche MULTIPART n'est PAS testée ici : `CreateMultipartUpload` est un vrai appel au
     // storage, là où la signature d'une URL est purement locale. Elle est couverte de bout en bout
-    // par les e2e (débrief et messagerie), qui tournent contre le MinIO du docker-compose.
+    // par les e2e (débrief et messagerie), qui tournent contre le SILO du docker-compose.
   });
 
   it("laisse aux parts un TTL plus long qu'au PUT unique", async () => {
