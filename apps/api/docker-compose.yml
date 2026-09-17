@@ -19,13 +19,16 @@ services:
 
   # Object storage S3-compatible pour le dev local (remplace Scaleway sans compte ni CB).
   # Portabilité : seules les variables S3_* changent pour basculer sur Scaleway/Cellar.
-  minio:
-    # quay.io et une version ÉPINGLÉE, plus `minio/minio:latest` : MinIO a retiré ses images de Docker
-    # Hub (404 le 2026-09-13, E2E et déploiement NAS cassés d'un coup) et ne publie plus d'édition
-    # communautaire depuis septembre 2025. Ce tag est le même digest que l'ancien `latest` de Docker
-    # Hub — rien ne change à l'exécution ni pour les données. Figé, donc sans correctif : dette P7-4.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: cimavia_minio
+  silo:
+    # SILO, le fork maintenu de MinIO (#257) : MinIO ne publie plus d'édition communautaire, et la
+    # dernière image figée restait visée par deux écritures sans authentification. Même API, mêmes
+    # variables `MINIO_*`, même format sur disque — le volume d'avant se relit tel quel.
+    #
+    # Tirée de NOTRE miroir GHCR, jamais de Docker Hub : l'E2E est un check requis, et un registre
+    # tiers en panne ou qui retire ses images le bloquerait (`mirror-images.yml`). Version ÉPINGLÉE ;
+    # l'issue `[silo-version]` signale quand une plus récente est copiée.
+    image: ghcr.io/cimavia/silo:RELEASE.2026-09-16T00-00-00Z
+    container_name: cimavia_silo
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -35,18 +38,18 @@ services:
       - "9000:9000" # API S3 (endpoint)
       - "9001:9001" # Console web (http://localhost:9001)
     volumes:
-      - minio_data:/data
+      - silo_data:/data
 
-  # Crée le bucket privé au démarrage puis s'arrête (idempotent).
-  minio-setup:
-    # Même registre et même raison que `minio` ci-dessus — digest identique à l'ancien `latest`.
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-    container_name: cimavia_minio_setup
+  # Crée le bucket privé au démarrage puis s'arrête (idempotent). `mc` est le client de SILO.
+  silo-setup:
+    # Même miroir et même version que `silo` ci-dessus.
+    image: ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z
+    container_name: cimavia_silo_setup
     depends_on:
-      - minio
+      - silo
     entrypoint: >
       /bin/sh -c "
-      until mc alias set local http://minio:9000 cimavia cimavia_dev_secret; do echo 'attente MinIO…'; sleep 1; done &&
+      until mc alias set local http://silo:9000 cimavia cimavia_dev_secret; do echo 'attente SILO…'; sleep 1; done &&
       mc mb --ignore-existing local/cimavia-media-dev &&
       mc anonymous set none local/cimavia-media-dev &&
       mc mb --ignore-existing local/cimavia-media-e2e &&
@@ -56,7 +59,7 @@ services:
 
   # Serveur SMTP jetable pour le dev local : capte TOUT ce que l'API envoie et ne le relaie
   # jamais. Aucun compte cloud, et surtout aucun risque d'écrire à une vraie adresse depuis une
-  # base de test — même portabilité que MinIO, seules les variables SMTP_* changent en prod.
+  # base de test — même portabilité que SILO, seules les variables SMTP_* changent en prod.
   mailpit:
     image: axllent/mailpit:latest
     container_name: cimavia_mailpit
@@ -71,4 +74,8 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
+  # Le service s'appelait `minio` jusqu'en #257 : le volume garde son NOM RÉEL (`api` étant le
+  # nom de projet, déduit du dossier). Le renommer ferait démarrer un stockage vide, les médias de
+  # dev restant dans l'ancien.
+  silo_data:
+    name: api_minio_data
