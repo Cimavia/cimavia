@@ -17,7 +17,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 
 - Node.js ≥ 22
 - pnpm 10.34.4 (`corepack enable && corepack use pnpm@10.34.4`)
-- Docker (pour PostgreSQL, MinIO — object storage S3-compatible — et Mailpit — serveur SMTP local)
+- Docker (pour PostgreSQL, SILO — object storage S3-compatible, fork maintenu de MinIO — et Mailpit — serveur SMTP local)
 - Pour le mobile sur **appareil physique** uniquement (débrief, médias, push) : compte
   [Expo](https://expo.dev) + `eas-cli`, un projet Firebase pour les notifications Android, et une
   adhésion à l'**Apple Developer Program** pour tout ce qui touche iOS — voir « Développer sur un
@@ -28,16 +28,22 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 ```bash
 pnpm install
 # Variables d'env : copier les modèles et renseigner les secrets
-cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (MinIO local), SMTP_* (Mailpit local)
+cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (SILO local), SMTP_* (Mailpit local)
 cp apps/web/.env.example apps/web/.env        # VITE_API_URL
 cp apps/mobile/.env.example apps/mobile/.env  # EXPO_PUBLIC_API_URL (IP LAN sur appareil/émulateur, pas localhost)
-# Démarrer PostgreSQL + MinIO + Mailpit (apps/api) — MinIO crée le bucket privé au 1er démarrage
-docker compose -f apps/api/docker-compose.yml up -d   # S3 :9000, console MinIO :9001, SMTP :1025, boîte Mailpit :8025
+# Démarrer PostgreSQL + SILO + Mailpit (apps/api) — SILO crée le bucket privé au 1er démarrage
+docker compose -f apps/api/docker-compose.yml up -d   # S3 :9000, console SILO :9001, SMTP :1025, boîte Mailpit :8025
 # Migrer la base
 pnpm --filter @cmv/api exec prisma migrate dev
 # Lancer tout
 pnpm turbo dev
 ```
+
+> **Passage de MinIO à SILO** (#257), une seule fois sur un poste qui avait déjà le compose :
+> `docker compose -f apps/api/docker-compose.yml up -d --remove-orphans`. Le service s'appelle
+> désormais `silo` ; sans `--remove-orphans`, les anciens conteneurs `cimavia_minio*` restent
+> là. Le volume `api_minio_data` est repris tel quel, sous son ancien nom : les médias de dev ne
+> bougent pas.
 
 ## Commandes
 
@@ -51,16 +57,16 @@ pnpm turbo typecheck test                # (la CI bloque aussi sur les e2e, plus
 pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
 pnpm check:i18n --strict                 # + les clés mortes — exigé en local, pas en CI
 pnpm --filter @cmv/api exec prisma migrate dev
-# Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + MinIO sur son bucket e2e)
+# Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + SILO sur son bucket e2e)
 cp apps/api/.env.test.example apps/api/.env.test   # une fois — rien à renseigner
 docker compose -f apps/api/docker-compose.test.yml up -d
-docker compose -f apps/api/docker-compose.yml run --rm minio-setup   # crée les buckets (idempotent)
+docker compose -f apps/api/docker-compose.yml run --rm silo-setup   # crée les buckets (idempotent)
 # Via turbo, pas `pnpm --filter` : la tâche dépend de `^build`, et les e2e bootent le vrai
 # AppModule — qui importe @cmv/shared depuis son `dist`. Sans build préalable, ça casse à l'import.
 pnpm turbo test:e2e --filter=@cmv/api
 ```
 
-> Les e2e tournent contre le **MinIO du docker-compose** (bucket `cimavia-media-e2e`) : sans
+> Les e2e tournent contre le **SILO du docker-compose** (bucket `cimavia-media-e2e`) : sans
 > storage réel, le flux d'upload des médias ne serait pas couvert. Le cas « storage non
 > configuré → 503 » est, lui, couvert par le test unitaire de `StorageService`.
 
@@ -235,13 +241,13 @@ push arrive sans que rien ne s'affiche (#134).
 ### Cas particulier WSL2 + Docker Desktop
 
 Configuration asymétrique et source de tous les pièges : **l'API et Metro tournent dans WSL**,
-**MinIO tourne côté Windows** (Docker Desktop). Le mode réseau change donc qui est joignable :
+**SILO tourne côté Windows** (Docker Desktop). Le mode réseau change donc qui est joignable :
 
-- **NAT** (défaut — *recommandé*) : Windows possède l'IP LAN, donc Docker Desktop expose MinIO
+- **NAT** (défaut — *recommandé*) : Windows possède l'IP LAN, donc Docker Desktop expose SILO
   nativement. Seuls les ports de WSL ont besoin d'un relais :
   `powershell -ExecutionPolicy Bypass -File scripts\dev-portproxy.ps1` (**admin**) — **à rejouer
   après chaque `wsl --shutdown`**, l'IP de WSL change ;
-- **mirrored** : l'inverse — WSL possède l'IP, l'API est directement joignable mais **MinIO
+- **mirrored** : l'inverse — WSL possède l'IP, l'API est directement joignable mais **SILO
   devient inaccessible au téléphone**. À éviter tant que le storage est sous Docker Desktop.
 
 Le téléphone vise **toujours l'IP LAN de Windows**, jamais le `172.x` de WSL (adresse interne).
@@ -260,7 +266,7 @@ Trois obstacles rencontrés, dans l'ordre où ils mordent :
    New-NetFirewallRule -DisplayName "cimavia dev" -Direction Inbound -Protocol TCP -LocalPort 3000,8081,9000 -Action Allow
    ```
 2. **Règles de blocage Docker Desktop** — Windows en crée quand on répond « Annuler » à son
-   invite, et **un blocage l'emporte sur une autorisation** : MinIO reste injoignable malgré la
+   invite, et **un blocage l'emporte sur une autorisation** : SILO reste injoignable malgré la
    règle ci-dessus. À désactiver (**admin**) :
    ```powershell
    Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True |
@@ -276,7 +282,8 @@ Vérification, depuis le navigateur **du téléphone** — c'est le seul test qu
 le PC étant un faux négatif en mode *mirrored* :
 
 - `http://<ip>:3000/health` → l'API répond ;
-- `http://<ip>:9000/minio/health/live` → **page blanche = succès** (200, corps vide).
+- `http://<ip>:9000/minio/health/live` → **page blanche = succès** (200, corps vide). SILO a gardé
+  les routes `/minio/*` de MinIO, d'où le chemin.
 
 ## Conventions
 

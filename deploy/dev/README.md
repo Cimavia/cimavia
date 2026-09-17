@@ -21,7 +21,7 @@ pas — médias signés, push, app réelle en HTTPS — sur une image identique 
 ## Prérequis matériels (DS720+)
 
 - Le DS720+ est en **x86_64** (Celeron J4125) : les images `amd64` tournent nativement.
-- **RAM** : 2 Go d'origine, c'est juste pour API Node + PostgreSQL + MinIO. Ajouter une barrette
+- **RAM** : 2 Go d'origine, c'est juste pour API Node + PostgreSQL + SILO. Ajouter une barrette
   (1 slot libre) avant de commencer est fortement recommandé.
 - **Container Manager** (le Docker de DSM) installé depuis le Centre de paquets.
 - DSM occupe déjà 5000/5001 ; on ne publie **aucun** port de toute façon (cf. réseau ci-dessous).
@@ -29,7 +29,7 @@ pas — médias signés, push, app réelle en HTTPS — sur une image identique 
 ## Exposition — Cloudflare Tunnel
 
 Aucun port n'est ouvert sur la box : seul le conteneur `cloudflared` **sort** vers Cloudflare, et
-joint `api`/`web`/`minio` par leur nom de service sur le réseau interne du compose.
+joint `api`/`web`/`silo` par leur nom de service sur le réseau interne du compose.
 
 Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un tunnel puis mapper quatre
 *public hostnames* vers les services internes :
@@ -38,7 +38,7 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 |---|---|---|
 | `api-dev.<domaine>` | `http://api:3000` | |
 | `app-dev.<domaine>` | `http://web:80` | |
-| `s3-dev.<domaine>`  | `http://minio:9000` | |
+| `s3-dev.<domaine>`  | `http://silo:9000` | `minio:9000` marche encore : alias gardé jusqu'à #271 |
 | `mail-dev.<domaine>` | `http://mailpit:8025` | ⚠️ **policy Access obligatoire** |
 
 > **Mailpit n'a aucune authentification.** Il expose en clair tout ce que l'API envoie, liens de
@@ -74,7 +74,7 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
    ```
 4. **Déploiement tiré + première promotion** : voir « Déploiement » ci-dessous. Le premier `up`
    applique les migrations Prisma seul (`migrate deploy` dans l'entrypoint) et crée le bucket
-   privé MinIO (`minio-setup`, idempotent).
+   privé SILO (`silo-setup`, idempotent).
 5. **Vérifier** (le test qui compte se fait depuis le **téléphone**, hors réseau maison) :
    - `https://api-dev.<domaine>/health` → `{"status":"ok"}`
    - `https://api-dev.<domaine>/health/ready` → `{"database":"up"}`
@@ -156,7 +156,8 @@ Une fois la cause réglée, le prochain passage réessaie seul. Si seule la conf
 
 ## Données
 
-- Volumes nommés `postgres_data` et `minio_data` (persistés par Container Manager). À inclure dans
+- Volumes nommés `postgres_data` et `silo_data` (persistés par Container Manager). Le second garde
+  son nom d'avant #257 sur le NAS, `cimavia-dev_minio_data` : le renommer démarrerait un stockage vide. À inclure dans
   la sauvegarde du NAS.
 - La base ne contient que des **données de seed** (cf. règle dure). Un script de seed dédié sera
   ajouté ultérieurement ; en attendant, créer les comptes de test via l'app.
@@ -195,4 +196,4 @@ rm pull-preview/deployed                 # force le redéploiement de la version
 
 Un `docker compose up` lancé à la main s'arrête sur `API_IMAGE` / `WEB_IMAGE` manquantes : c'est
 voulu, ces images sont épinglées par le script. Seule la couche applicative change ; Postgres et
-MinIO gardent leurs volumes.
+SILO gardent leurs volumes.

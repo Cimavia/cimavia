@@ -97,7 +97,7 @@ E2E et builds de production, selon ce qui est touché. **Les e2e sont un check r
 
 ```bash
 docker compose -f apps/api/docker-compose.test.yml up -d
-docker compose -f apps/api/docker-compose.yml run --rm minio-setup
+docker compose -f apps/api/docker-compose.yml run --rm silo-setup
 pnpm turbo test:e2e --filter=@cmv/api
 
 pnpm --filter @cmv/web exec vite build
@@ -123,7 +123,7 @@ vers les 100%, la duplication vers 0% et le nombre d'issue vers 0.
 
 ## Hébergement
 
-- **Dev local** : PostgreSQL + **MinIO** (object storage S3-compatible) via `apps/api/docker-compose.yml`. Bucket privé créé au 1er démarrage. Aucun compte cloud requis — bascule prod = variables `S3_*` (`S3_FORCE_PATH_STYLE=true` pour MinIO, `false` pour Scaleway).
+- **Dev local** : PostgreSQL + **SILO** (object storage S3-compatible, fork maintenu de MinIO, tiré du miroir `ghcr.io/cimavia`) via `apps/api/docker-compose.yml`. Bucket privé créé au 1er démarrage. Aucun compte cloud requis — bascule prod = variables `S3_*` (`S3_FORCE_PATH_STYLE=true` pour SILO, `false` pour Scaleway).
 - **MVP (gratuit)** : API → Scaleway Serverless Containers · médias → Scaleway Object Storage (FR) · **BDD → Neon free** (EU, Prisma-natif). Redis **différé**.
 - **v1.0 (souverain FR)** : bascule **Clever Cloud** (app + PostgreSQL + Redis + Cellar S3, HDS). Portabilité = variables d'env, rien de propriétaire.
 
