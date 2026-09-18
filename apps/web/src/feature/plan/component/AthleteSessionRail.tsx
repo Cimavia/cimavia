@@ -17,9 +17,9 @@ type AthleteSessionRailProps = {
 /**
  * Le rail de droite : sommaire, note du coach, et le débrief collé en bas.
  *
- * Quand il n'y a rien à sommer — une séance sans exercice —, le rail se réduit à ce qui existe
- * encore : le lien vers le coach. Un rail qui garderait ses intitulés vides ferait croire à un
- * chargement qui n'arrive jamais.
+ * Le rail se réduit à ce qui EXISTE : sans exercice, ni sommaire ni progression — un rail qui
+ * garderait ses intitulés vides ferait croire à un chargement qui n'arrive jamais. Le débrief,
+ * lui, reste (#276) : il ne dépend pas de la composition, et c'est le seul geste qui reste.
  */
 export function AthleteSessionRail({
   session,
@@ -88,17 +88,15 @@ export function AthleteSessionRail({
         {t("plan.athlete.contactCoach")}
       </Link>
 
-      {/* RETIRÉ — pas grisé — sur une séance vide : un bouton mort se tape quand même, et
-          l'anomalie est celle du coach, pas de l'athlète. */}
-      {hasExercises ? (
-        <CmvButton onClick={onOpenFeedback}>
-          {/* Le libellé dit si le débrief existe DÉJÀ : « débriefer » sur une séance débriefée
-              laisserait croire qu'on écrase. */}
-          {session.status === ScheduledSessionStatus.DONE
-            ? t("feedback.openDone")
-            : t("feedback.open")}
-        </CmvButton>
-      ) : null}
+      {/* INCONDITIONNEL (#276) : une séance sans exercice se débriefe comme les autres. Seul le
+          SOMMAIRE ci-dessus dépend de la composition — il n'y a rien à sommer. */}
+      <CmvButton onClick={onOpenFeedback}>
+        {/* Le libellé dit si le débrief existe DÉJÀ : « débriefer » sur une séance débriefée
+            laisserait croire qu'on écrase. Il suit le STATUT, jamais la composition. */}
+        {session.status === ScheduledSessionStatus.DONE
+          ? t("feedback.openDone")
+          : t("feedback.open")}
+      </CmvButton>
     </aside>
   );
 }

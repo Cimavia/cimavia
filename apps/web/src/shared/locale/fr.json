@@ -421,8 +421,8 @@
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
       "contactCoach": "Écrire à mon coach",
-      "emptyTitle": "Cette séance est vide",
-      "emptyDescription": "Ton coach n'y a pas encore mis d'exercice. Tu peux le lui signaler.",
+      "emptyTitle": "Pas de déroulé détaillé",
+      "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer.",
       "progress": "Ma progression",
       "progressCount": "{{done}} sur {{total}}",
       "cycle": {

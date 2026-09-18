@@ -16,7 +16,7 @@ const MONDAY = "2026-10-12";
 const OPEN_FEEDBACK = "feedback.open";
 const BACK = "plan.athlete.backToPlanning";
 
-/** Une séance d'un exercice : sans exercice, le rail RETIRE le bouton de débrief. */
+/** Une séance d'un exercice — le cas ordinaire, dont le rail tire son sommaire. */
 const session = (): ScheduledSessionDto =>
   ({
     id: SESSION_ID,
@@ -36,6 +36,14 @@ const session = (): ScheduledSessionDto =>
       },
     ],
   }) as unknown as ScheduledSessionDto;
+
+/**
+ * Une séance SANS exercice : « footing, repos actif » se compose exactement comme ça, et rien dans
+ * le schéma partagé ne l'interdit. Le jeu de données manquait — d'où #276, qui n'aurait pas pu
+ * arriver si ce cas avait été monté une fois.
+ */
+const emptySession = (): ScheduledSessionDto =>
+  ({ ...session(), title: "Footing, repos actif", exercises: [] }) as ScheduledSessionDto;
 
 /**
  * L'écran est monté sous l'id EXACT que réclame son `getRouteApi` — la feuille `.index`, avec sa
@@ -100,5 +108,53 @@ describe("AthleteSessionScreen", () => {
     await user.click(await findByRole("button", { name: OPEN_FEEDBACK }));
 
     expect(router.state.location.href).toBe(`/sessions/${SESSION_ID}/feedback`);
+  });
+
+  // Le témoin du cas suivant : sans lui, « ferme le sommaire » passerait sur un rail qui ne le
+  // monte jamais.
+  it("monte le sommaire du rail sur une séance composée", async () => {
+    const { findByText } = await setup();
+
+    expect(await findByText("plan.athlete.summary")).toBeInTheDocument();
+  });
+
+  /**
+   * #276 : le rail RETIRAIT le bouton sur une séance sans exercice, au motif que l'anomalie était
+   * celle du coach. Or le débrief est le seul geste qui reste à l'athlète — c'est par lui qu'il
+   * envoie sa trace —, et rien côté serveur n'y a jamais fait obstacle.
+   */
+  describe("sur une séance sans exercice", () => {
+    beforeEach(() => {
+      getSessionMock.mockResolvedValue(emptySession());
+    });
+
+    it("garde le bouton de débrief", async () => {
+      const { findByRole } = await setup();
+
+      expect(await findByRole("button", { name: OPEN_FEEDBACK })).toBeInTheDocument();
+    });
+
+    it("mène au débrief, la semaine du planning avec lui", async () => {
+      const { findByRole, router, user } = await setup({ from: MONDAY });
+
+      await user.click(await findByRole("button", { name: OPEN_FEEDBACK }));
+
+      expect(router.state.location.href).toBe(`/sessions/${SESSION_ID}/feedback?from=${MONDAY}`);
+    });
+
+    // Seul le SOMMAIRE dépend de la composition : sans exercice, il n'y a rien à sommer.
+    it("ferme le sommaire du rail, qui n'aurait rien à sommer", async () => {
+      const { findByRole, queryByText } = await setup();
+      await findByRole("button", { name: OPEN_FEEDBACK });
+
+      expect(queryByText("plan.athlete.summary")).not.toBeInTheDocument();
+    });
+
+    // On constate le vide sans désigner de coupable — l'écran ne dit plus « ton coach a oublié ».
+    it("constate l'absence de déroulé", async () => {
+      const { findByText } = await setup();
+
+      expect(await findByText("plan.athlete.emptyTitle")).toBeInTheDocument();
+    });
   });
 });

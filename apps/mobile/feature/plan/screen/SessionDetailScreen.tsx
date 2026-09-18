@@ -112,17 +112,16 @@ export function SessionDetailScreen() {
 
             {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
                 déroulé, pas enterrée sous la liste des exercices.
-                RETIRÉE — pas grisée — sur une séance vide : un bouton mort se tape quand même. */}
-            {session.exercises.length === 0 ? null : (
-              <CmvButton
-                label={
-                  session.status === ScheduledSessionStatus.DONE
-                    ? t("feedback.openDone")
-                    : t("feedback.open")
-                }
-                onPress={() => router.push(`/session/${session.id}/feedback`)}
-              />
-            )}
+                INCONDITIONNEL (#276) : sans exercice, c'est le SEUL geste qui reste, et celui par
+                lequel la trace part au coach. Le libellé suit le STATUT, jamais la composition. */}
+            <CmvButton
+              label={
+                session.status === ScheduledSessionStatus.DONE
+                  ? t("feedback.openDone")
+                  : t("feedback.open")
+              }
+              onPress={() => router.push(`/session/${session.id}/feedback`)}
+            />
 
             <SessionExercises
               session={session}
@@ -276,8 +275,9 @@ function SessionExercises({
         {t("plan.session.composition", { count: session.exercises.length })}
       </CmvText>
 
-      {/* Une séance diffusée SANS exercice est l'anomalie du coach : on la constate sans
-          culpabiliser l'athlète, et le bouton de débrief a déjà été retiré plus haut. */}
+      {/* Une séance sans exercice n'est PAS forcément un oubli du coach : « footing, repos
+          actif » se compose exactement comme ça (#276). On le constate sans désigner de coupable,
+          et sans rien retirer — le bouton de débrief, plus haut, reste ouvert. */}
       {session.exercises.length === 0 ? (
         <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
           <CmvText className="text-cmv-text-hi">{t("plan.session.emptyTitle")}</CmvText>

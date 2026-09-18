@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/Cimavia/cimavia/compare/v1.2.5...v1.3.0) (2026-09-18)
+
+
+### Fonctionnalités
+
+* **web,mobile:** ouvrir le débrief d'une séance sans exercice, seul geste qui lui reste ([956b88f](https://github.com/Cimavia/cimavia/commit/956b88f2c992188acfbc4df2d15f58677e797d81))
+
 ## [1.2.5](https://github.com/Cimavia/cimavia/compare/v1.2.4...v1.2.5) (2026-09-17)
 
 
