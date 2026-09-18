@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/Cimavia/cimavia/compare/v1.3.0...v1.4.0) (2026-09-18)
+
+
+### Fonctionnalités
+
+* **infra:** sauvegarder chaque nuit la base et les medias du nas ([bc0e971](https://github.com/Cimavia/cimavia/commit/bc0e971d6dcf2a105687dd8f563def0931f1dac7))
+
+
+### Corrections
+
+* **infra:** rendre l endpoint du stockage parametrable dans le script de sauvegarde ([aa52b35](https://github.com/Cimavia/cimavia/commit/aa52b35f42f18e8c7d81a8a8d5ff1628bca1f1d9))
+
 ## [1.3.0](https://github.com/Cimavia/cimavia/compare/v1.2.5...v1.3.0) (2026-09-18)
 
 
