@@ -377,9 +377,12 @@ la séance en cours.
   et l'athlète voit titre + consigne, rien d'autre : pas de grille vide, pas de phrase de dosage,
   pas de case à cocher. Une grille SANS LIGNE, elle, garde ses en-têtes — le coach voit ce qu'on
   va lui demander — et l'aperçu athlète annonce « le dosage apparaîtra ici dès la première ligne ».
-- **Une séance vide côté athlète est l'anomalie du COACH.** On ne culpabilise pas l'athlète et on
-  ne lui demande pas de la réparer : on constate, et on offre de la signaler. Le bouton de débrief
-  est **retiré, pas grisé** — un bouton mort se tape quand même.
+- **Une séance sans exercice est un cas LÉGITIME**, et non l'anomalie du coach — « footing, repos
+  actif » se compose exactement comme ça, et rien dans le schéma partagé ne l'interdit. **Le bouton
+  de débrief reste** (#276) : c'est le seul geste qui reste à l'athlète, et celui par lequel sa
+  trace part au coach. On constate l'absence de déroulé sans désigner de coupable, faute de pouvoir
+  distinguer le voulu de l'oublié. ⚠️ **L'écran 7 de la planche ne vaut plus** : il retire le bouton
+  et pose une action « Le signaler à Marc » qui n'a jamais été construite.
 - **Un débrief entièrement vide s'envoie.** « J'ai fait la séance, rien à dire » est une réponse
   valable, et forcer du texte n'en produit que de creux. Le bouton reste actif ; une ligne dit ce
   qui partira, et le rail le détaille : séance faite, aucun commentaire, aucun décompte.
@@ -388,8 +391,9 @@ la séance en cours.
 - **L'amorçage du suivi tient en un indice** — « Coche au fur et à mesure », en pastille accent,
   au-dessus de la liste, dans l'écran de suivi ouvert. Première séance seulement, disparaît au
   premier tap, définitivement. Pas de visite guidée, pas de modale, pas de série d'infobulles.
-- **Le rail web se réduit à ce qui existe encore.** Sans sommaire, sans progression, sans débrief,
-  il ne garde que le lien vers le coach — et l'action n'apparaît qu'une fois, dans le rail.
+- **Le rail web se réduit à ce qui existe encore.** Sans exercice, ni sommaire ni progression : il
+  n'y a rien à sommer ni à compter. Il garde la note du coach, le lien vers lui et **le débrief**,
+  qui ne dépend pas de la composition (#276) — et l'action n'apparaît qu'une fois, dans le rail.
 
 ### Vocabulaire
 
