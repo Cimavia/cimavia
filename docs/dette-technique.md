@@ -3133,6 +3133,57 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Débrief d'une séance sans exercice ([#276](https://github.com/Cimavia/cimavia/issues/276))
+
+> **Tranché en #276** (une séance sans exercice garde son débrief — l'inverse de #166 et #167) :
+> les deux clients RETIRAIENT le bouton, au motif que « la séance vide est l'anomalie du coach » et
+> qu'« un bouton mort se tape quand même ». La seconde moitié est vraie, la première est fausse
+> deux fois. **Le bouton n'était pas mort** : aucune garde serveur ne regarde la composition sur le
+> chemin du débrief — `getPublishedSessionOrThrow` ne filtre que le cycle diffusé, et
+> `getOrCreateWritable` crée le débrief et passe la séance en `DONE` sans rien demander d'autre. Et
+> **une séance sans structure n'est pas forcément un oubli** : « footing, repos actif » se compose
+> comme ça, sans qu'aucun `min(1)` du schéma partagé ne s'y oppose. Même forme d'erreur que celle
+> corrigée en #172, où deux cycles diffusés la même semaine étaient un cas d'usage et non une
+> anomalie à empêcher — et même mouvement que « une séance À VENIR se coche et se débriefe »
+> ci-dessus : une garde posée sur une prémisse que rien ne vérifiait.
+>
+> La garde était **purement cliente**, des deux côtés. Rien n'a bougé côté serveur, et l'écran de
+> débrief tenait déjà sans exercice : `FeedbackTrackingSection` rend `null` quand rien n'est
+> décomptable. Un débrief texte-seul est un état légitime par décision écrite
+> (`CONTEXT.cimavia.md` § `SessionFeedback`).
+>
+> **Ce qui reste conditionnel côté web** : le sommaire du rail et la progression. Sans exercice, il
+> n'y a rien à sommer ni à compter — c'est le bouton seul qui sort de `hasExercises`.
+>
+> **L'état vide devient NEUTRE.** Il accusait le coach (« Ton coach n'y a pas encore mis
+> d'exercice ») au-dessus d'un bouton désormais actif, ce qui ferait dire deux choses contradictoires
+> au même écran. Rien dans le modèle ne sépare le voulu de l'oublié, donc le texte ne tranche pas :
+> il constate l'absence de déroulé et rappelle que le débrief reste ouvert. Marquer une séance comme
+> **volontairement libre** — champ sur `ScheduledSession`, UI de composition, propagation à la copie
+> de semaine (#4) — a été examiné et **écarté ici** : c'est un chantier qui demande sa validation,
+> et #276 reste vraie de toute façon.
+>
+> **Écart assumé** : le coach n'est toujours pas prévenu qu'il diffuse une séance sans exercice, et
+> ça ne change pas ici — on ouvre le débrief à l'athlète, on ne touche pas au geste du coach.
+> L'oubli réel, celui que #166 voulait attraper, reste silencieux des deux côtés. C'est le prix de
+> ne pas savoir distinguer les deux cas, et il se paie du bon côté : un athlète qui débriefe une
+> séance que son coach a oublié de composer le lui dit mieux qu'un état vide ne le ferait.
+
+> **Découvert en #276** (la décision vivait dans une doc que l'issue ne citait pas) : #166 et #167
+> ne laissaient aucune trace ici — ni ligne, ni encadré. Leur raisonnement vivait dans quatre
+> commentaires de code, les corps des deux issues, et surtout `docs/maquettes/README.md`
+> § « Ce qui est tranché », lu avant de coder. Rien ne s'opposait donc à ce qu'on l'inverse par
+> inadvertance. Le README des maquettes est repris dans la même PR ; l'écran 7 de
+> `shared/coach_athlete_etats_vides.dc.html` est **périmé** et le dit désormais.
+
+> **Couverture ouverte en #276** : `SessionDetailScreen` (mobile) n'avait **aucun** fichier de test
+> — l'écran de séance de l'athlète, chrono compris, n'était tenu par rien. Il passe de 0 à ~70 % de
+> statements. La carte d'exercice y est réduite à un stub : elle a son propre test, et la monter
+> ferait entrer documents et réseau dans un test d'écran. Les segments du déroulé sont bâtis **dans**
+> la fabrique `vi.mock`, hissée au-dessus des imports : y citer `SegmentKind` lèverait au chargement.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

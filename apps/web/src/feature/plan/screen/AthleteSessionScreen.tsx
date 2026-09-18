@@ -119,8 +119,9 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
             {t("plan.athlete.composition", { count: session.exercises.length })}
           </h2>
 
-          {/* Une séance diffusée sans exercice est l'anomalie du COACH : on la constate sans
-                  demander à l'athlète de la réparer. */}
+          {/* Une séance sans exercice n'est PAS forcément un oubli du coach : « footing, repos
+                  actif » se compose exactement comme ça (#276). On le constate sans désigner de
+                  coupable — le débrief, dans le rail, reste ouvert. */}
           {session.exercises.length === 0 ? (
             <CmvCard>
               <div className="flex flex-col gap-cmv-xs">
