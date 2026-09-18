@@ -157,10 +157,99 @@ Une fois la cause réglée, le prochain passage réessaie seul. Si seule la conf
 ## Données
 
 - Volumes nommés `postgres_data` et `silo_data` (persistés par Container Manager). Le second garde
-  son nom d'avant #257 sur le NAS, `cimavia-dev_minio_data` : le renommer démarrerait un stockage vide. À inclure dans
-  la sauvegarde du NAS.
-- La base ne contient que des **données de seed** (cf. règle dure). Un script de seed dédié sera
-  ajouté ultérieurement ; en attendant, créer les comptes de test via l'app.
+  son nom d'avant #257 sur le NAS, `cimavia-dev_minio_data` : le renommer démarrerait un stockage vide.
+- Ce sont les **vraies données du Coach bêta** depuis #260 : leur sauvegarde est ci-dessous, pas
+  optionnelle.
+
+## Sauvegarde (#268)
+
+`backup.sh` tourne chaque nuit et fabrique, dans `backup/` à côté du `.env` :
+
+- `base/cimavia-<date>.dump` — un `pg_dump -Fc`, **relu** avant d'être gardé. Copier les fichiers du
+  volume PostgreSQL à chaud ne vaudrait rien : une copie prise pendant une écriture est incohérente.
+- `media/` — le miroir du bucket, **suppressions comprises** : la copie est l'image exacte du
+  stockage, sinon un média effacé y survivrait indéfiniment (#285).
+- `manifest-<date>.txt` — dump, taille, empreinte SHA-256, nombre d'objets, poids des médias : de
+  quoi vérifier une sauvegarde **sans rien restaurer**.
+- `backup.log` — une ligne par nuit, et la cause en cas d'échec.
+
+Les **7 derniers** dumps sont gardés, par nombre et non par âge : un NAS arrêté trois semaines ne
+doit pas se réveiller sans aucune sauvegarde.
+
+> ⚠️ **Ces copies restent sur le NAS.** Elles protègent d'un `down -v`, d'un bug qui efface, d'une
+> migration fautive, d'une suppression par erreur. Elles ne protègent **ni** de la panne de disque,
+> **ni** du rançongiciel, **ni** du vol ou de l'incendie. C'est un écart assumé le temps que preview
+> vive sur le NAS ; le hors-site est manuel, ci-dessous.
+
+### Installer (une fois)
+
+```bash
+cd /volume1/<…>/cimavia-dev                  # le dossier qui contient le .env
+curl -fsSL https://raw.githubusercontent.com/Cimavia/cimavia/main/deploy/dev/backup.sh -o backup.sh
+chmod 700 backup.sh
+bash backup.sh; echo "code $?"               # 0, puis lire backup/manifest-*.txt
+```
+
+Puis une **tâche planifiée DSM** (*Panneau de configuration → Planificateur de tâches → Créer →
+Tâche planifiée → Script défini par l'utilisateur*) : utilisateur **root**, tous les jours à **03:00**,
+commande `bash /volume1/<…>/cimavia-dev/backup.sh`, et « Envoyer les détails d'exécution par e-mail »
+**uniquement en cas d'arrêt anormal**.
+
+Comme `pull-preview.sh`, ce script est une **copie** : quand il change dans le dépôt, relancer le
+`curl` ci-dessus.
+
+### Emporter une copie hors du NAS
+
+À faire de temps en temps, et **avant toute opération risquée** (promotion qui touche au stockage,
+migration). Une seule commande fabrique une archive chiffrée :
+
+```bash
+cd /volume1/<…>/cimavia-dev/backup
+tar -cf - base media manifest-*.txt | openssl enc -aes-256-cbc -pbkdf2 -salt -out "cimavia-$(date +%F).tar.enc"
+```
+
+Copie ensuite le `.tar.enc` ailleurs (poste, disque externe). La phrase de passe vit dans ton
+gestionnaire de mots de passe : **sans elle, l'archive ne vaut rien**. Pour la relire :
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -in cimavia-<date>.tar.enc | tar -xf -
+```
+
+### Restaurer, et le vérifier
+
+Une sauvegarde jamais restaurée n'en est pas une. **À refaire après chaque modification du script.**
+Tout se passe sur le poste de développement, **à côté** de la base de dev, sans rien écraser.
+
+```bash
+# 1. Récupérer le dump et les médias de la nuit depuis le NAS (scp, File Station…)
+
+# 2. Une base et un bucket dédiés, dans la pile locale
+docker exec cimavia_postgres createdb -U cimavia cimavia_restore
+docker exec -i cimavia_postgres pg_restore -U cimavia -d cimavia_restore --no-owner --no-acl < base/cimavia-<date>.dump
+
+# 3. Les médias dans un bucket à part
+docker run --rm --network api_default -v "$PWD/media:/media" --entrypoint sh \
+  ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z -c \
+  "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null \
+   && mc mb --ignore-existing s/cimavia-restore && mc mirror --quiet /media s/cimavia-restore \
+   && mc ls --recursive --summarize s/cimavia-restore | tail -2"
+
+# 4. Lancer l'API sur cette base et ce bucket, puis le web
+DATABASE_URL="postgresql://cimavia:cimavia@localhost:5432/cimavia_restore" S3_BUCKET=cimavia-restore \
+  pnpm --filter @cmv/api dev
+```
+
+**Ce qui prouve que la sauvegarde vaut quelque chose** : se connecter avec le compte du Coach et son
+mot de passe **inchangé**, ouvrir une planification, lire une vidéo de débrief et un PDF de facture.
+Le nombre d'objets affiché à l'étape 3 doit être celui du manifeste.
+
+Ménage une fois le test fait :
+
+```bash
+docker exec cimavia_postgres dropdb -U cimavia cimavia_restore
+docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z -c \
+  "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null && mc rb --force s/cimavia-restore"
+```
 
 ## App mobile de test (beta)
 

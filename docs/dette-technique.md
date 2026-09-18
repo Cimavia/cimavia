@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-six dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-sept dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
-**IOS-2** et **IOS-3**,
+**IOS-2**, **IOS-3** et **P7-7**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, ne l'est plus : elle est suivie par
@@ -230,6 +230,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~P7-4~~ | ~~**MinIO est figé, et vulnérable là où il est exposé**~~ : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | ✅ | résolue en **[#257](https://github.com/Cimavia/cimavia/issues/257)** — SILO, fork maintenu de MinIO qui corrige les deux failles (`RELEASE.2026-04-17`), tiré d'un miroir `ghcr.io/cimavia` ; les données du NAS restent dans leur volume |
 | P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) |
 | ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
+| P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/dev/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -377,6 +378,31 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > La bascule du NAS ne demande rien de plus : `pull-preview.sh` télécharge le compose de la version
 > promue et passe par `up -d --remove-orphans`. En local, un poste qui avait déjà le compose doit
 > lancer une fois `up -d --remove-orphans` (README).
+
+> **Tranché en #268** (le script fabrique une copie COHÉRENTE, il ne l'emporte pas) : sauvegarder le
+> NAS, c'est deux gestes de nature différente. Le premier demande de savoir ce qu'on sauvegarde —
+> copier les fichiers du volume PostgreSQL à chaud ne vaut rien, il faut un `pg_dump`, et le relire
+> pour prouver qu'il n'est pas tronqué ; c'est ce que fait le script, versionné. Le second, emporter
+> la copie ailleurs, ne demande aucune connaissance du projet : Hyper Backup ou une archive chiffrée
+> le font mieux qu'un script maison. Ils ne sont donc pas mêlés.
+>
+> - **Le miroir des médias reflète les suppressions** (`mc mirror --remove`). L'inverse aurait fait
+>   survivre indéfiniment tout média effacé, ce qu'un droit à l'effacement
+>   ([#285](https://github.com/Cimavia/cimavia/issues/285)) ne peut pas accepter. L'historique long,
+>   ce sont les copies manuelles.
+> - **La rétention compte les dumps, elle ne regarde pas leur âge** : sept fichiers gardés. Une
+>   rétention par âge laisserait un NAS éteint trois semaines se réveiller sans aucune sauvegarde.
+> - **Le manifeste existe pour qu'on vérifie sans restaurer** : nombre d'objets, tailles, empreinte
+>   du dump. Le script refuse d'ailleurs de finir si la copie et le bucket ne comptent pas le même
+>   nombre d'objets.
+> - **Le chiffrement n'intervient qu'à la sortie du NAS** : sur place, la copie n'est pas plus
+>   exposée que les données vivantes, à côté desquelles elle vit.
+
+> **Renversé en #268** (la règle « données synthétiques uniquement » du NAS n'existe plus, et il a
+> fallu du temps pour l'écrire) : l'en-tête de `deploy/dev/docker-compose.yml` l'affirme encore, et
+> c'est #271 qui la retirera. En attendant, le NAS porte les vraies planifications, les vrais médias
+> et les vrais comptes du Coach bêta — c'est ce qui a rendu #266, #257, #268 et #285 nécessaires,
+> chacune fermant une tolérance que cette règle rendait acceptable.
 
 ---
 
