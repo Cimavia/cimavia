@@ -28,7 +28,14 @@ ENV_FILE="${ENV_FILE:-$STACK_DIR/.env}"
 BACKUP_DIR="${BACKUP_DIR:-$STACK_DIR/backup}"
 PG_CONTAINER="${PG_CONTAINER:-cimavia_dev_postgres}"
 DOCKER_NETWORK="${DOCKER_NETWORK:-cimavia-dev_default}"
+# L'endpoint du stockage, en pièces détachées pour être surchargeable d'un bloc. Par défaut, le
+# service `silo` du réseau interne du compose, en clair : ce saut ne quitte jamais le NAS, et le
+# chiffrer coûterait un aller-retour par le tunnel Cloudflare pour rien. Un stockage distant se
+# vise en posant S3_SCHEME=https et S3_HOST.
+S3_SCHEME="${S3_SCHEME:-http}"
 S3_HOST="${S3_HOST:-silo}"
+S3_PORT="${S3_PORT:-9000}"
+S3_ENDPOINT="${S3_ENDPOINT:-${S3_SCHEME}://${S3_HOST}:${S3_PORT}}"
 MC_IMAGE="${MC_IMAGE:-ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z}"
 KEEP_DUMPS="${KEEP_DUMPS:-7}"
 MIN_FREE_MB="${MIN_FREE_MB:-2048}"
@@ -93,7 +100,7 @@ mv "$tmp/base.dump" "$dump"
 # survivrait indéfiniment ici, ce qu'un effacement RGPD (#285) ne peut pas accepter. L'historique
 # long, ce sont les copies manuelles.
 docker run --rm --network "$DOCKER_NETWORK" -v "$BACKUP_DIR/media:/backup" --entrypoint sh "$MC_IMAGE" -c \
-  "mc alias set nas http://${S3_HOST}:9000 '$(val S3_ACCESS_KEY_ID)' '$(val S3_SECRET_ACCESS_KEY)' >/dev/null \
+  "mc alias set nas ${S3_ENDPOINT} '$(val S3_ACCESS_KEY_ID)' '$(val S3_SECRET_ACCESS_KEY)' >/dev/null \
    && mc mirror --quiet --overwrite --remove nas/$(val S3_BUCKET) /backup \
    && mc ls --recursive --summarize nas/$(val S3_BUCKET) | tail -2" >"$tmp/mc" 2>"$tmp/err" ||
   fail "miroir des médias : $(tr '\n' ' ' <"$tmp/err")"
