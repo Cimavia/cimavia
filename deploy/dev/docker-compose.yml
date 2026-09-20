@@ -23,8 +23,8 @@
 # autres valeurs viennent d'un `.env` déposé sur le NAS (hors git) — modèle : .env.example.
 #
 # Réseau : aucun port publié sur l'hôte. Seul cloudflared sort (vers Cloudflare), et il joint
-# api/web/silo/mailpit par nom de service sur le réseau interne. Les quatre hostnames publics
-# (api-/app-/s3-/mail-) sont mappés vers ces services dans le dashboard Cloudflare Zero Trust.
+# api/web/silo par nom de service sur le réseau interne. Les trois hostnames publics
+# (api-/app-/s3-) sont mappés vers ces services dans le dashboard Cloudflare Zero Trust.
 
 name: cimavia-dev
 
@@ -142,32 +142,22 @@ services:
       # variables listées dans ce bloc. Absente, la route de tick répond 503 alors que la valeur est
       # pourtant bien dans le `.env` — le symptôme ne désigne pas sa cause.
       REMINDER_TICK_SECRET: ${REMINDER_TICK_SECRET:-}
-      # Envoi d'e-mails. Par défaut le Mailpit du compose (service ci-dessous), joint par nom sur
-      # le réseau interne : le tier dev n'écrit JAMAIS à une vraie adresse, ce qui va avec la règle
-      # dure « données synthétiques seulement » de l'en-tête. Surchargeables par le `.env` le jour
-      # où l'on voudra viser un vrai fournisseur depuis le NAS.
+      # Envoi d'e-mails — un VRAI fournisseur depuis #269 (Scaleway TEM), plus la boîte jetable
+      # qu'était Mailpit : le Coach bêta et ses Athletes ne recevaient ni invitation, ni lien de
+      # réinitialisation, ni notification.
+      # AUCUN repli, et c'est le choix de #269 : une variable oubliée laisse l'envoi ÉTEINT, ce
+      # que `MailService` journalise à chaque tentative. Un repli sur une boîte locale rendrait
+      # l'oubli invisible — tout aurait l'air parti, et rien ne serait arrivé.
       # ⚠️ À déclarer ICI, comme REMINDER_TICK_SECRET ci-dessus : le conteneur ne reçoit QUE les
       # variables listées dans ce bloc. Absentes, l'envoi reste muet alors que le `.env` les porte.
-      SMTP_HOST: ${SMTP_HOST:-mailpit}
-      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: "${MAIL_FROM:-Cimavia <no-reply@cimavia.fr>}"
       # Pied des e-mails de notification (#65) : la même URL publique que CORS_ORIGINS ci-dessus,
       # mais nommée — CORS_ORIGINS est une liste, elle ne désigne pas l'app canonique.
       WEB_URL: ${PUBLIC_WEB_URL}
-
-  # Boîte de réception jetable du tier dev : capte les e-mails de l'API et ne les relaie jamais.
-  # C'est ce qui rend un lien de réinitialisation lisible DEPUIS LE TÉLÉPHONE (via le tunnel),
-  # sans qu'aucun message ne parte vers une vraie adresse.
-  # ⚠️ Son interface n'a PAS d'authentification : le hostname `mail-dev` doit être protégé par une
-  # policy Cloudflare Access. Un lien de réinitialisation est un chemin de connexion utilisable.
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: cimavia_dev_mailpit
-    restart: unless-stopped
-    environment:
-      MP_MAX_MESSAGES: "500"
 
   web:
     image: ${WEB_IMAGE:?posée par pull-preview.sh}
@@ -188,7 +178,6 @@ services:
       - api
       - web
       - silo
-      - mailpit
 
 volumes:
   postgres_data:

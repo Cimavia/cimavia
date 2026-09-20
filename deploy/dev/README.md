@@ -31,7 +31,7 @@ pas — médias signés, push, app réelle en HTTPS — sur une image identique 
 Aucun port n'est ouvert sur la box : seul le conteneur `cloudflared` **sort** vers Cloudflare, et
 joint `api`/`web`/`silo` par leur nom de service sur le réseau interne du compose.
 
-Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un tunnel puis mapper quatre
+Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un tunnel puis mapper trois
 *public hostnames* vers les services internes :
 
 | Hostname public | Service (URL interne) | |
@@ -39,14 +39,11 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 | `api-dev.<domaine>` | `http://api:3000` | |
 | `app-dev.<domaine>` | `http://web:80` | |
 | `s3-dev.<domaine>`  | `http://silo:9000` | `minio:9000` marche encore : alias gardé jusqu'à #271 |
-| `mail-dev.<domaine>` | `http://mailpit:8025` | ⚠️ **policy Access obligatoire** |
 
-> **Mailpit n'a aucune authentification.** Il expose en clair tout ce que l'API envoie, liens de
-> réinitialisation de mot de passe compris — c'est-à-dire un chemin de connexion utilisable vers
-> n'importe quel compte du tier dev. Le hostname `mail-dev` doit donc porter une policy
-> **Zero Trust → Access → Applications** (self-hosted, règle *Emails* limitée à la tienne) avant
-> le premier envoi. Les trois autres hostnames s'en passent : ils servent une API et un SPA qui
-> ont leur propre authentification.
+> **`app-dev` est derrière Cloudflare Access** (#263), les deux autres non : l'API est appelée par
+> le téléphone, qui ne sait pas résoudre un écran de connexion, et `s3-dev` sert les URLs signées
+> que ce même téléphone appelle. Un quatrième hostname a existé jusqu'à #269, `mail-dev`, qui
+> exposait la boîte Mailpit du tier — il n'a plus de service derrière lui.
 
 > Sous-domaines **mono-niveau** (tiret, pas point) : le SSL gratuit de Cloudflare couvre
 > `*.<domaine>` mais **pas** `*.dev.<domaine>`. `api-dev` fonctionne ; `api.dev` donnerait une
@@ -61,7 +58,7 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 
 ## Mise en route
 
-1. **Cloudflare** : tunnel créé, 4 hostnames mappés (dont `mail-dev`, **derrière Access**), token
+1. **Cloudflare** : tunnel créé, 3 hostnames mappés (dont `app-dev`, **derrière Access**), token
    en main (ci-dessus).
 2. **Images** : rien à préparer. La CI publie l'image de l'API à chaque push sur `main`, et le NAS
    ne tire que la version **promue** (voir « Déploiement » ci-dessous).
@@ -78,9 +75,8 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 5. **Vérifier** (le test qui compte se fait depuis le **téléphone**, hors réseau maison) :
    - `https://api-dev.<domaine>/health` → `{"status":"ok"}`
    - `https://api-dev.<domaine>/health/ready` → `{"database":"up"}`
-   - `https://app-dev.<domaine>` → l'app web se charge.
-   - `https://mail-dev.<domaine>` → Cloudflare demande d'abord de s'authentifier, **puis** la
-     boîte Mailpit s'affiche. Si elle s'affiche sans rien demander, la policy Access manque.
+   - `https://app-dev.<domaine>` → Cloudflare demande une adresse et un code, **puis** l'app web
+     se charge. Si elle se charge sans rien demander, la policy Access manque (#263).
 
 ## Déploiement : le NAS tire la version promue
 
@@ -192,6 +188,40 @@ docker compose up -d api
 > L'inscription refusée répond **403**, et les deux apps affichent « demande une invitation à ton
 > coach ». Le formulaire, lui, reste visible : le client ne connaît pas le mode, et une route qui
 > l'annoncerait renseignerait surtout qui sonde l'API.
+
+## Envoi d'e-mails (#269)
+
+Jusqu'à #269, tout ce que l'API envoyait atterrissait dans une boîte **Mailpit** que seul toi
+pouvais lire : le Coach bêta et ses Athletes ne recevaient ni invitation, ni lien de
+réinitialisation, ni notification. Le tier écrit maintenant à de **vraies adresses**, par
+**Scaleway Transactional Email** (300 messages par mois offerts).
+
+| Variable du `.env` | Valeur |
+|---|---|
+| `SMTP_HOST` | `smtp.tem.scaleway.com` |
+| `SMTP_PORT` | `465` — TLS implicite, ce que `MailService` applique **sur ce port précis** |
+| `SMTP_USER` | l'**ID du projet** Scaleway (un UUID), pas une adresse |
+| `SMTP_PASSWORD` | la clé secrète de l'application IAM `cimavia-preview-mail` |
+| `MAIL_FROM` | `Cimavia <no-reply@cimavia.fr>` — une adresse du domaine vérifié |
+
+**Aucun repli** : une variable oubliée laisse l'envoi éteint et `MailService` le journalise à
+chaque tentative. C'est volontaire — un repli sur une boîte locale rendrait l'oubli invisible.
+
+> ⚠️ **La clé d'API expire le 20 septembre 2027.** Scaleway plafonne les clés à douze mois. Ce
+> jour-là les envois s'arrêteront, et le seul symptôme sera un échec d'authentification SMTP dans
+> les logs. En regénérer une (IAM → Applications → `cimavia-preview-mail` → API keys) et remplacer
+> `SMTP_PASSWORD`.
+
+L'application IAM ne porte qu'une permission, `TransactionalEmailEmailApiCreate` : elle peut
+**envoyer**, pas relire les messages partis ni toucher à la configuration du domaine. La clé vit
+sur le NAS, c'est donc elle qui peut fuiter.
+
+**Vérifier qu'un message est bien parti** : Console Scaleway → *Transactional Email* → **Email
+activity**. Dans le message reçu, les en-têtes doivent porter `spf=pass` et `dkim=pass`.
+
+**Recevoir du courrier sur `@cimavia.fr`** passe par Cloudflare Email Routing, pas par Scaleway :
+`contact@` et `dmarc@` sont réexpédiées vers la boîte personnelle. `no-reply@` n'est **pas** routée
+— ce qui lui répond rebondit, et c'est voulu.
 
 ## Deux identités pour le stockage (#267)
 

@@ -3272,6 +3272,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > test qui veut un AUTRE environnement que celui de `vitest.config.e2e.ts` doit poser ses variables
 > puis importer `AppModule` **dynamiquement**.
 
+> **Tranché en #269** (le tier dev écrit à de VRAIES adresses, et n'a plus de filet) : ses e-mails
+> s'arrêtaient dans une boîte Mailpit que seul le dev pouvait lire — le Coach bêta et ses Athletes
+> ne recevaient ni invitation, ni lien de réinitialisation, ni notification, et `mail-dev` gardait
+> en clair des chemins de connexion vers des comptes réels. Cinq conséquences que le code ne
+> justifie pas seul.
+>
+> - **Aucun repli après le retrait de Mailpit.** Une variable `SMTP_*` oubliée laisse l'envoi
+>   ÉTEINT, ce que `MailService` journalise à chaque tentative. Un repli sur une boîte locale
+>   rendrait l'oubli invisible : tout aurait l'air parti, et rien ne serait arrivé.
+> - **Port 465, donc TLS implicite.** `MailService` déduit le chiffrement du seul numéro de port
+>   (465 = TLS dès le premier octet, STARTTLS ailleurs). 587 fonctionnerait ; ce qu'il ne faut pas
+>   faire, c'est inventer un troisième port en croyant ne choisir qu'une route.
+> - **Le login SMTP n'est pas une adresse** : c'est l'ID du PROJET Scaleway, et le mot de passe la
+>   clé secrète d'une application IAM portant la seule permission `TransactionalEmailEmailApiCreate`
+>   — envoyer, ni relire les messages partis ni toucher au domaine. C'est la clé qui vit sur le NAS,
+>   donc celle qui peut fuiter.
+> - **Elle expire au bout d'un an** (plafond Scaleway, le 2027-09-20 pour celle-ci). Ce jour-là les
+>   envois s'arrêtent, et le seul symptôme est un échec d'authentification SMTP dans les logs. Noté
+>   dans `deploy/dev/README.md`, faute d'un endroit où une date s'impose d'elle-même.
+> - **Recevoir du courrier passe par Cloudflare Email Routing, pas par le MX « blackhole »** que
+>   l'issue prévoyait : sans adresse sur le domaine, le `rua` de DMARC n'a nulle part où arriver, et
+>   l'effacement RGPD ([#285](https://github.com/Cimavia/cimavia/issues/285)) demandera de toute
+>   façon une adresse joignable. Conséquence apprise en le posant : un domaine ne porte qu'**un
+>   seul** enregistrement SPF, celui de Scaleway et celui de Cloudflare ont donc dû être fusionnés
+>   en une ligne (`include:_spf.tem.scaleway.com include:_spf.mx.cloudflare.net -all`). `no-reply@`
+>   n'est délibérément pas routée : ce qui lui répond doit rebondir.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
