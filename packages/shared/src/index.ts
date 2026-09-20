@@ -798,6 +798,13 @@ export {
   toggleUnit,
 } from "./util/session-tracking.util";
 export { isSignedUrlUsable, SIGNED_URL_TTL_SECONDS } from "./util/signed-url.util";
+export type { SignupMode } from "./util/signup.util";
+export {
+  isEmailAllowed,
+  normalizeEmail,
+  parseEmailList,
+  SIGNUP_MODES,
+} from "./util/signup.util";
 export {
   formatTrainingDuration,
   parseTrainingDuration,

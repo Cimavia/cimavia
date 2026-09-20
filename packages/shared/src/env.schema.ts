@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SIGNUP_MODES } from "./util/signup.util";
 
 // Une variable d'env optionnelle vide ("") est traitée comme absente, pas comme
 // une valeur invalide : .env / .env.example contiennent des placeholders vides
@@ -33,6 +34,32 @@ export const envSchema = z.object({
   // Origines navigateur autorisées (CORS + trustedOrigins), séparées par des virgules.
   // Ex. : "http://localhost:5173". Le scheme mobile (cimavia://) est ajouté côté code.
   CORS_ORIGINS: z.preprocess(emptyAsUndefined, z.string().optional()),
+  /**
+   * Qui a le droit de créer un compte (#263).
+   *
+   * `open` : n'importe qui, c'est le comportement de la production. `invitation` : uniquement une
+   * adresse déjà invitée nominativement, ou listée dans `SIGNUP_ALLOWED_EMAILS` — c'est preview,
+   * dont l'URL n'a rien de secret (elle est figée dans l'APK et dans chaque e-mail envoyé) et qui
+   * porte pourtant de vraies données.
+   *
+   * SANS DÉFAUT, seule variable de ce fichier dans ce cas avec les secrets : une valeur par défaut
+   * choisirait à la place de l'exploitant, et le jour où l'on oublie de la poser, elle choisirait
+   * silencieusement. Ici l'API refuse de démarrer — un environnement qui ne dit pas qui peut s'y
+   * inscrire est un environnement mal configuré, pas un environnement ouvert (règle dure n°5).
+   */
+  SIGNUP_MODE: z.enum(SIGNUP_MODES),
+  /**
+   * Les adresses qui peuvent s'inscrire en mode `invitation` sans avoir été invitées, séparées
+   * par des virgules.
+   *
+   * Elle existe pour les COACHS : personne ne les invite, et sans elle un environnement fermé
+   * n'accueillerait plus jamais le premier compte. Les athlètes, eux, passent par l'invitation
+   * nominative de leur coach et n'ont rien à faire ici.
+   *
+   * Optionnelle, et son absence ne rouvre rien : elle rétrécit la porte au seul jeu des
+   * invitations en cours.
+   */
+  SIGNUP_ALLOWED_EMAILS: z.preprocess(emptyAsUndefined, z.string().optional()),
   SENTRY_DSN: z.preprocess(emptyAsUndefined, z.url().optional()),
   AXIOM_TOKEN: z.preprocess(emptyAsUndefined, z.string().optional()),
   AXIOM_DATASET: z.preprocess(emptyAsUndefined, z.string().optional()),

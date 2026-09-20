@@ -29,8 +29,8 @@ export class UserDirectoryService {
    * faire. Il n'est pas pour autant introuvable — il est simplement à joindre autrement.
    *
    * Comparaison INSENSIBLE à la casse : l'adresse vient du coach, le compte a été créé par
-   * l'athlète, et deux personnes n'écrivent pas forcément pareil (cf. `forComparison` dans
-   * `InvitationService`).
+   * l'athlète, et deux personnes n'écrivent pas forcément pareil (cf. `normalizeEmail`, dans
+   * `@cmv/shared`).
    */
   async athleteIdByEmail(email: string): Promise<string | null> {
     const user = await this.prisma.user.findFirst({

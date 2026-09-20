@@ -5,6 +5,7 @@ import {
   type CreateInvitationInput,
   type InvitationDto,
   InvitationStatus,
+  normalizeEmail,
   type PendingInvitationDto,
 } from "@cmv/shared";
 import {
@@ -26,23 +27,6 @@ import { UserDirectoryService } from "./user-directory.service";
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
-/**
- * L'adresse sous la forme qui sert à COMPARER — jamais à afficher.
- *
- * Deux chaînes tapées par deux personnes différentes se rencontrent ici : le coach saisit
- * l'adresse de son athlète, l'athlète a saisi la sienne à l'inscription. Rien ne garantit la même
- * casse ni l'absence d'espace collé au copier-coller, et une comparaison brute rendait alors une
- * invitation **définitivement inutilisable** — refusée à l'acceptation, invisible dans la liste,
- * sans qu'aucun message ne dise pourquoi. C'est le contraire de ce que l'invitation nominative
- * promet.
- *
- * Normalisée à l'écriture ET à la comparaison : la première seule ne rattraperait pas les lignes
- * déjà en base, la seconde seule laisserait la colonne porter deux formes du même destinataire.
- */
-function forComparison(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 @Injectable()
 export class InvitationService {
   constructor(
@@ -62,7 +46,7 @@ export class InvitationService {
       data: {
         code: randomBytes(9).toString("base64url"),
         // Normalisée dès l'entrée : c'est cette colonne qu'on compare à l'adresse d'une session.
-        email: input.email == null ? null : forComparison(input.email),
+        email: input.email == null ? null : normalizeEmail(input.email),
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
       } satisfies Omit<
         Prisma.InvitationUncheckedCreateInput,
@@ -180,7 +164,7 @@ export class InvitationService {
   async listForMe(athlete: { email: string }): Promise<PendingInvitationDto[]> {
     const invitations = await this.prisma.invitation.findMany({
       where: {
-        email: forComparison(athlete.email),
+        email: normalizeEmail(athlete.email),
         status: InvitationStatus.PENDING,
         expiresAt: { gt: new Date() },
       },
@@ -212,7 +196,7 @@ export class InvitationService {
     if (invitation.expiresAt.getTime() < Date.now()) {
       throw new BadRequestException("Invitation expirée");
     }
-    if (invitation.email == null || invitation.email !== forComparison(athlete.email)) {
+    if (invitation.email == null || invitation.email !== normalizeEmail(athlete.email)) {
       throw new BadRequestException("Invitation destinée à une autre adresse");
     }
 
@@ -240,7 +224,7 @@ export class InvitationService {
     if (invitation.expiresAt.getTime() < Date.now()) {
       throw new BadRequestException("Invitation expirée");
     }
-    if (invitation.email != null && invitation.email !== forComparison(athlete.email)) {
+    if (invitation.email != null && invitation.email !== normalizeEmail(athlete.email)) {
       throw new BadRequestException("Invitation destinée à une autre adresse");
     }
     // Invariant : au plus 1 coach par athlète (athleteId UNIQUE en base).
