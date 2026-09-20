@@ -56,8 +56,11 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+      # Le compte root du stockage, et lui seul : il administre, il ne sert jamais à l'API (#267).
+      # `:?` plutôt qu'un repli — sans ces valeurs, le stockage démarrerait avec des identifiants
+      # que personne n'a choisis.
+      MINIO_ROOT_USER: ${S3_ROOT_USER:?compte root du stockage, voir .env.example}
+      MINIO_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:?mot de passe root du stockage}
     volumes:
       - silo_data:/data
     # Le tunnel Cloudflare vise encore `http://minio:9000` : l'alias garde ce nom joignable, pour
@@ -68,8 +71,9 @@ services:
         aliases:
           - minio
 
-  # Crée le bucket privé au premier démarrage puis s'arrête (idempotent). Même pattern que le
-  # compose de dev local : la boucle `until` tient lieu d'attente, l'image SILO n'ayant pas de sonde.
+  # Crée le bucket privé et la clé de l'API au premier démarrage, puis s'arrête (idempotent). Même
+  # pattern que le compose de dev local : la boucle `until` tient lieu d'attente, l'image SILO n'ayant
+  # pas de sonde. C'est le SEUL service qui se connecte en root.
   silo-setup:
     # Même miroir et même version que `silo` ci-dessus.
     image: ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z
@@ -78,10 +82,14 @@ services:
       - silo
     entrypoint: >
       /bin/sh -c "
-      until mc alias set local http://silo:9000 ${S3_ACCESS_KEY_ID} ${S3_SECRET_ACCESS_KEY}; do echo 'attente SILO…'; sleep 1; done &&
+      until mc alias set local http://silo:9000 ${S3_ROOT_USER} ${S3_ROOT_PASSWORD}; do echo 'attente SILO…'; sleep 1; done &&
       mc mb --ignore-existing local/${S3_BUCKET} &&
       mc anonymous set none local/${S3_BUCKET} &&
-      echo 'bucket ${S3_BUCKET} prêt (privé)'
+      printf '%s' '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:PutObject\",\"s3:GetObject\",\"s3:DeleteObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],\"Resource\":[\"arn:aws:s3:::${S3_BUCKET}/*\"]}]}' > /tmp/api-policy.json &&
+      mc admin policy create local cimavia-api /tmp/api-policy.json 2>/dev/null || true &&
+      mc admin user add local ${S3_ACCESS_KEY_ID} ${S3_SECRET_ACCESS_KEY} &&
+      mc admin policy attach local cimavia-api --user ${S3_ACCESS_KEY_ID} 2>/dev/null || true &&
+      echo 'bucket ${S3_BUCKET} prêt (privé) et clé ${S3_ACCESS_KEY_ID} limitée à ses objets'
       "
 
   api:
