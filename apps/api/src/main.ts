@@ -9,6 +9,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { configureApp } from "./app.setup";
+import { docsEnabled } from "./config/docs";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -28,16 +29,21 @@ async function bootstrap(): Promise<void> {
   const port = configService.get("PORT", { infer: true });
   const version = configService.get("APP_VERSION", { infer: true });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle("cimavia API")
-    .setDescription("API de suivi de la relation coach ↔ athlète")
-    // `dev` et non un numéro de repli : hors image, il n'y a PAS de version, et écrire « 0.0.0 »
-    // (ce que faisait cette ligne) laissait croire le contraire. Le mot nomme l'absence.
-    .setVersion(version ?? "dev")
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup("docs", app, document);
+  // Publiée hors production seulement (#263) : `/docs` décrit toute la surface de l'API sans
+  // demander à s'authentifier. Le document n'est même pas CONSTRUIT quand il ne sert pas.
+  const exposeDocs = docsEnabled(configService.get("NODE_ENV", { infer: true }));
+  if (exposeDocs) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle("cimavia API")
+      .setDescription("API de suivi de la relation coach ↔ athlète")
+      // `dev` et non un numéro de repli : hors image, il n'y a PAS de version, et écrire « 0.0.0 »
+      // (ce que faisait cette ligne) laissait croire le contraire. Le mot nomme l'absence.
+      .setVersion(version ?? "dev")
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup("docs", app, document);
+  }
 
   // CORS et validation sont posés par configureApp() (partagé avec les e2e) — cf. app.setup.ts.
   await app.listen(port ?? 3000, "0.0.0.0");
@@ -48,7 +54,7 @@ async function bootstrap(): Promise<void> {
   // authentification : `GET /version` est derrière l'AuthGuard, et la sonde de déploiement ne peut
   // donc plus dire quelle version elle vient de rendre saine.
   logger.log(
-    `Env: ${configService.get("APP_ENV", { infer: true })} · NODE_ENV: ${configService.get("NODE_ENV", { infer: true })} · Version: ${version ?? "non injectée"}`,
+    `Env: ${configService.get("APP_ENV", { infer: true })} · NODE_ENV: ${configService.get("NODE_ENV", { infer: true })} · Version: ${version ?? "non injectée"} · Docs: ${exposeDocs ? "/docs" : "fermées"}`,
   );
 }
 

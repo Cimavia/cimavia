@@ -45,6 +45,17 @@ export default defineConfig({
       PORT: process.env.PORT ?? "3001",
       // Origine navigateur fixée : le test de preflight CORS ne doit pas dépendre du .env local.
       CORS_ORIGINS: "http://localhost:5173",
+      /**
+       * Mode d'inscription (#263), fixé ici et non dans `.env.test` : c'est une VALEUR DE
+       * FIXTURE. La suite d'isolation inscrit une centaine de comptes sans invitation — elle a
+       * besoin d'un environnement ouvert, et le dire ici évite un `.env.test` qui aurait l'air
+       * d'un réglage à choisir.
+       *
+       * Le mode FERMÉ a sa propre suite (`signup-mode.e2e-spec.ts`), qui pose la variable
+       * elle-même avant de monter son app : les deux modes ne peuvent pas cohabiter dans une
+       * seule instance, la politique étant lue au démarrage.
+       */
+      SIGNUP_MODE: "open",
       // Object storage : le SILO de `docker-compose.yml`, sur un bucket e2e dédié. La suite a donc
       // DEUX prérequis Docker — `docker-compose.test.yml` (la base e2e, port 5434) et ce SILO —
       // sans quoi le flux médias de P4 (upload signé, rattachement, purge) ne serait pas couvert.

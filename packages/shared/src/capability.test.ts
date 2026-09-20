@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { capabilitiesOf, hasCapability } from "./capability";
+import {
+  capabilitiesOf,
+  hasCapability,
+  SELECTABLE_CAPABILITIES,
+  toggledCapability,
+} from "./capability";
 import { Role } from "./role";
 
 const NONE = { isCoach: false, isAthlete: false };
@@ -99,5 +104,40 @@ describe("hasCapability", () => {
     const both = capabilitiesOf({ isCoach: true, isAthlete: true });
     expect(hasCapability(both, "coach")).toBe(true);
     expect(hasCapability(both, "athlete")).toBe(true);
+  });
+});
+
+describe("toggledCapability", () => {
+  it("ajoute ce qui manque et retire ce qui est là", () => {
+    const athleteOnly = new Set<"coach" | "athlete">(["athlete"]);
+
+    expect([...toggledCapability(athleteOnly, "coach")]).toEqual(["athlete", "coach"]);
+    expect([...toggledCapability(athleteOnly, "athlete")]).toEqual([]);
+  });
+
+  /**
+   * Un nouvel ensemble à chaque fois, jamais l'ancien muté : React compare par référence, et une
+   * mutation en place laisserait la case cochée à l'écran sans que rien ne redessine.
+   */
+  it("ne touche jamais l'ensemble reçu", () => {
+    const current = new Set<"coach" | "athlete">(["athlete"]);
+
+    const next = toggledCapability(current, "coach");
+
+    expect(next).not.toBe(current);
+    expect([...current]).toEqual(["athlete"]);
+  });
+});
+
+describe("SELECTABLE_CAPABILITIES", () => {
+  // Les deux capacités, dans l'ordre d'affichage, et leur libellé traduit — pas une chaîne en dur.
+  it("propose coach puis athlète, chacune avec sa clé i18n", () => {
+    expect(SELECTABLE_CAPABILITIES.map((capability) => capability.name)).toEqual([
+      "coach",
+      "athlete",
+    ]);
+    expect(
+      SELECTABLE_CAPABILITIES.every(({ labelKey }) => labelKey.startsWith("auth.register.")),
+    ).toBe(true);
   });
 });

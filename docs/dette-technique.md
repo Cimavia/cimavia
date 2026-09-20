@@ -232,6 +232,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
 | P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/dev/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
 | ~~P7-8~~ | ~~**L'API signait ses URLs avec le compte ROOT du stockage**~~ : `deploy/dev/docker-compose.yml` passait la même paire à `MINIO_ROOT_USER` et à `S3_ACCESS_KEY_ID`. Or une clé d'accès est lisible **en clair dans chaque URL signée** (`X-Amz-Credential`), et c'est tout ce qu'exigeaient les deux écritures sans authentification que SILO corrige. Une fuite de l'environnement de l'API donnait l'administration complète du stockage, pas l'accès à ses médias. **Jamais inscrite ici** : le NAS n'a longtemps porté que des données synthétiques. | ✅ | résolue en **[#267](https://github.com/Cimavia/cimavia/issues/267)** — une clé dédiée, limitée aux objets du bucket, créée par `silo-setup` |
+| P7-9 | **Une adresse invitée s'inscrit sans être vérifiée** : depuis [#263](https://github.com/Cimavia/cimavia/issues/263), preview n'accepte que les adresses invitées ou listées — mais rien ne prouve que celui qui s'inscrit **possède** l'adresse. Qui connaît l'adresse d'un Athlete invité et pas encore inscrit peut créer le compte à sa place, lire le code d'invitation et accepter la liaison. Le mode `invitation` ferme la porte à qui ne connaît aucune adresse, pas à qui en connaît une. | 🟡 | [#270](https://github.com/Cimavia/cimavia/issues/270) |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -3239,6 +3240,64 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > statements. La carte d'exercice y est réduite à un stub : elle a son propre test, et la monter
 > ferait entrer documents et réseau dans un test d'écran. Les segments du déroulé sont bâtis **dans**
 > la fabrique `vi.mock`, hissée au-dessus des imports : y citer `SegmentKind` lèverait au chargement.
+
+> **Tranché en #263** (un environnement déclare qui peut s'y inscrire, sinon l'API ne démarre pas) :
+> l'inscription était ouverte partout, et `/docs` publiait la carte de l'API sur tous les
+> environnements. Quatre conséquences que le code ne justifie pas seul.
+>
+> - **`SIGNUP_MODE` n'a AUCUN défaut**, seule variable non secrète de `env.schema.ts` dans ce cas
+>   (règle dure n°5) : un défaut choisirait à la place de l'exploitant, et le jour de l'oubli il
+>   choisirait en silence. Le compose du NAS, lui, ferme de son côté (`${SIGNUP_MODE:-invitation}`).
+>   Les deux ne se contredisent pas : le schéma refuse un environnement **muet**, le compose donne
+>   sa politique à un **tier précis**, et un `.env` incomplet ne doit pas empêcher un déploiement
+>   tout en n'ouvrant jamais la porte.
+> - **Un lien générique n'autorise personne.** Une `Invitation` sans adresse n'identifie pas son
+>   destinataire : elle ne peut donc rien dire *avant* l'inscription, et l'accepter rouvrirait
+>   l'environnement à quiconque recopie un code. Sur preview, le Coach invite par l'adresse.
+> - **Le formulaire reste visible sur un environnement fermé**, et le refus n'arrive qu'à l'envoi.
+>   Le client n'a aucun moyen de connaître le mode : il faudrait que l'API le publie sur une route
+>   non authentifiée, donc qu'elle annonce sa politique à qui la sonde. Le coût est un aller-retour
+>   pour l'athlète ; l'alternative renseigne l'attaquant.
+> - **Swagger se coupe sur `NODE_ENV`, donc en production aussi.** `APP_ENV` aurait laissé `/docs`
+>   ouvert exactement là où on ferme la porte (le NAS tourne une image, donc `NODE_ENV=production`,
+>   avec `APP_ENV=development` comme simple étiquette), et sa valeur par défaut aurait rouvert la
+>   carte au premier oubli. Le seul environnement qui la garde est celui qui tourne depuis les
+>   sources.
+
+> **Appris en #263** (`ConfigModule.forRoot()` valide à l'IMPORT, pas au montage) : la suite e2e du
+> mode fermé passait **au vert contre une app ouverte**. `forRoot()` s'exécute à l'évaluation du
+> décorateur de `AppModule`, c'est-à-dire au premier `import` du fichier — bien avant
+> `Test.createTestingModule`. Poser `process.env.SIGNUP_MODE` dans un `beforeAll` arrivait donc
+> toujours trop tard, et six tests affirmaient des refus qui ne pouvaient pas se produire. Tout
+> test qui veut un AUTRE environnement que celui de `vitest.config.e2e.ts` doit poser ses variables
+> puis importer `AppModule` **dynamiquement**.
+
+> **Tranché en #269** (le tier dev écrit à de VRAIES adresses, et n'a plus de filet) : ses e-mails
+> s'arrêtaient dans une boîte Mailpit que seul le dev pouvait lire — le Coach bêta et ses Athletes
+> ne recevaient ni invitation, ni lien de réinitialisation, ni notification, et `mail-dev` gardait
+> en clair des chemins de connexion vers des comptes réels. Cinq conséquences que le code ne
+> justifie pas seul.
+>
+> - **Aucun repli après le retrait de Mailpit.** Une variable `SMTP_*` oubliée laisse l'envoi
+>   ÉTEINT, ce que `MailService` journalise à chaque tentative. Un repli sur une boîte locale
+>   rendrait l'oubli invisible : tout aurait l'air parti, et rien ne serait arrivé.
+> - **Port 465, donc TLS implicite.** `MailService` déduit le chiffrement du seul numéro de port
+>   (465 = TLS dès le premier octet, STARTTLS ailleurs). 587 fonctionnerait ; ce qu'il ne faut pas
+>   faire, c'est inventer un troisième port en croyant ne choisir qu'une route.
+> - **Le login SMTP n'est pas une adresse** : c'est l'ID du PROJET Scaleway, et le mot de passe la
+>   clé secrète d'une application IAM portant la seule permission `TransactionalEmailEmailApiCreate`
+>   — envoyer, ni relire les messages partis ni toucher au domaine. C'est la clé qui vit sur le NAS,
+>   donc celle qui peut fuiter.
+> - **Elle expire au bout d'un an** (plafond Scaleway, le 2027-09-20 pour celle-ci). Ce jour-là les
+>   envois s'arrêtent, et le seul symptôme est un échec d'authentification SMTP dans les logs. Noté
+>   dans `deploy/dev/README.md`, faute d'un endroit où une date s'impose d'elle-même.
+> - **Recevoir du courrier passe par Cloudflare Email Routing, pas par le MX « blackhole »** que
+>   l'issue prévoyait : sans adresse sur le domaine, le `rua` de DMARC n'a nulle part où arriver, et
+>   l'effacement RGPD ([#285](https://github.com/Cimavia/cimavia/issues/285)) demandera de toute
+>   façon une adresse joignable. Conséquence apprise en le posant : un domaine ne porte qu'**un
+>   seul** enregistrement SPF, celui de Scaleway et celui de Cloudflare ont donc dû être fusionnés
+>   en une ligne (`include:_spf.tem.scaleway.com include:_spf.mx.cloudflare.net -all`). `no-reply@`
+>   n'est délibérément pas routée : ce qui lui répond doit rebondir.
 
 ---
 
