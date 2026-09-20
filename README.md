@@ -28,7 +28,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 ```bash
 pnpm install
 # Variables d'env : copier les modèles et renseigner les secrets
-cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (clé dédiée créée par silo-setup), SMTP_* (Mailpit local)
+cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, SIGNUP_MODE (open en local, sans défaut), S3_* (clé dédiée créée par silo-setup), SMTP_* (Mailpit local)
 cp apps/web/.env.example apps/web/.env        # VITE_API_URL
 cp apps/mobile/.env.example apps/mobile/.env  # EXPO_PUBLIC_API_URL (IP LAN sur appareil/émulateur, pas localhost)
 # Démarrer PostgreSQL + SILO + Mailpit (apps/api) — SILO crée le bucket privé au 1er démarrage
@@ -293,6 +293,7 @@ le PC étant un faux négatif en mode *mirrored* :
 - Composants design system : préfixe `Cmv`
 - Packages : scope `@cmv/*`
 - Auth : **Better Auth** (email/mot de passe) sur les 3 couches ; profil (`role`, `locale`) sur `user`
+- Inscription : **l'environnement déclare qui peut s'y inscrire** — `SIGNUP_MODE` (`open` | `invitation`) **sans valeur par défaut**, l'API refuse de démarrer s'il se tait. En `invitation`, seules entrent une adresse invitée **nominativement** (un lien générique n'identifie personne) ou listée dans `SIGNUP_ALLOWED_EMAILS` — la porte des coachs, que personne n'invite. Le refus tombe avant la création, en **403**. Pour la même raison, `/docs` (Swagger) n'est monté qu'hors `NODE_ENV=production` : toute image le ferme, `pnpm dev` le garde
 - Multi-tenant : isolation à la couche données (tenancy interceptor + Prisma Client Extension) — voir `docs/architecture-choice.md` §6
 - i18n : **i18next** dès le départ, aucune string en dur (FR ; EN en P7)
 - Argent : montants en **centimes entiers** (`amountCents`), jamais de float ; formatage localisé par `formatMoney` / `formatInvoicePeriod` (`@cmv/shared`) — source unique, pas de calcul dans le JSX

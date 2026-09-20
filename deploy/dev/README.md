@@ -161,6 +161,38 @@ Une fois la cause réglée, le prochain passage réessaie seul. Si seule la conf
 - Ce sont les **vraies données du Coach bêta** depuis #260 : leur sauvegarde est ci-dessous, pas
   optionnelle.
 
+## Qui peut créer un compte (#263)
+
+Ce tier est joignable publiquement — son URL est figée dans l'APK et dans chaque e-mail qu'il
+envoie — et sa règle dure est « données synthétiques seulement ». Les deux ne tiennent ensemble que
+si un inconnu ne peut pas s'y inscrire : l'inscription y est donc **fermée**.
+
+| Variable du `.env` | Effet |
+|---|---|
+| `SIGNUP_MODE` | `invitation` (le défaut du compose, même si le `.env` se tait) ou `open`. **À ne pas passer à `open` sur ce tier** |
+| `SIGNUP_ALLOWED_EMAILS` | les adresses qui peuvent s'inscrire **sans invitation**, séparées par des virgules |
+
+Deux portes, et deux seulement :
+
+- **un Coach** : son adresse dans `SIGNUP_ALLOWED_EMAILS`, parce que personne ne l'invite ;
+- **un Athlete** : une invitation **nominative** en cours, créée par son coach depuis l'app.
+
+Un lien d'invitation **générique** (sans adresse) ne suffit pas : il n'identifie personne, donc il
+ne peut rien autoriser avant l'inscription. Sur ce tier, on invite par l'adresse.
+
+Ajouter un Coach se fait donc à la main, et le changement ne prend qu'au redémarrage de l'API :
+
+```bash
+sudo -i
+cd /volume1/docker/cimavia-dev        # le dossier du .env
+vi .env                               # SIGNUP_ALLOWED_EMAILS=coach@exemple.fr,autre@exemple.fr
+docker compose up -d api
+```
+
+> L'inscription refusée répond **403**, et les deux apps affichent « demande une invitation à ton
+> coach ». Le formulaire, lui, reste visible : le client ne connaît pas le mode, et une route qui
+> l'annoncerait renseignerait surtout qui sonde l'API.
+
 ## Deux identités pour le stockage (#267)
 
 L'API ne connaît plus le compte root du stockage. C'est ce qui sépare « une clé qui fuit » de « le
