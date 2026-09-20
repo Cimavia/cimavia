@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.1](https://github.com/Cimavia/cimavia/compare/v1.4.0...v1.4.1) (2026-09-20)
+
+
+### Technique
+
+* **infra:** donner a l api une cle s3 limitee aux objets de ses buckets ([fb65ed8](https://github.com/Cimavia/cimavia/commit/fb65ed855a9160f2bafbd4c6df15c1984f2c995c))
+* **infra:** separer la cle root du stockage de celle de l api sur le nas ([f5a840b](https://github.com/Cimavia/cimavia/commit/f5a840ba7a57a097fbdb2334d0e64c75e8df168f))
+* **infra:** vider le bucket e2e au demarrage du setup plutot que de l accumuler ([04f8b4d](https://github.com/Cimavia/cimavia/commit/04f8b4d9dabb9c11c7f2886d297cf011bd92be14))
+
 ## [1.4.0](https://github.com/Cimavia/cimavia/compare/v1.3.0...v1.4.0) (2026-09-18)
 
 
