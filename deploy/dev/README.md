@@ -223,6 +223,52 @@ activity**. Dans le message reçu, les en-têtes doivent porter `spf=pass` et `d
 `contact@` et `dmarc@` sont réexpédiées vers la boîte personnelle. `no-reply@` n'est **pas** routée
 — ce qui lui répond rebondit, et c'est voulu.
 
+## Faire entrer quelqu'un dans la bêta
+
+Trois cas, et une règle qui les gouverne tous les trois : **la liste `SIGNUP_ALLOWED_EMAILS`
+autorise à CRÉER un compte, l'invitation nominative LIE à un coach.** Ce sont deux gestes
+distincts, et certains n'en demandent qu'un.
+
+> ⚠️ **Access d'abord, invitation ensuite.** Un lien d'e-mail envoyé à quelqu'un qui n'est pas dans
+> la policy `beta-web` s'arrête sur une demande de code qu'il ne peut pas satisfaire, sans rien lui
+> dire d'utile. Vrai pour l'invitation comme pour la réinitialisation de mot de passe, que le
+> mobile renvoie vers le web.
+
+### Un Coach
+
+Personne ne l'invite : c'est le seul cas qui demande une intervention sur le NAS.
+
+1. **Cloudflare Access** → *Applications* → `app-dev` → politique `beta-web` → *Include → Emails* :
+   ajouter son adresse.
+2. **`.env` du NAS** : ajouter l'adresse à `SIGNUP_ALLOWED_EMAILS` (séparateur : la virgule), puis
+   `docker compose up -d api` — la liste est lue au démarrage.
+3. Lui donner l'app (`eas build --profile preview --platform android`, § *App mobile de test*) ou
+   l'URL du web.
+4. Il crée son compte avec **l'adresse autorisée**, case *coach* cochée.
+
+### Un Athlete
+
+Aucune intervention sur le NAS : c'est son coach qui ouvre la porte, depuis l'app.
+
+1. **Cloudflare Access** : ajouter son adresse à `beta-web`.
+2. **Son coach l'invite par son ADRESSE** (l'invitation nominative), pas par un lien générique :
+   un lien sans adresse n'identifie personne, donc n'autorise aucune inscription.
+3. Lui donner l'app.
+4. Il crée son compte avec **l'adresse invitée**, case *athlète* cochée, puis accepte l'invitation
+   qui l'attend dans l'app.
+
+### Quelqu'un qui est les deux
+
+Les capacités sont **cumulables** : à l'inscription, on coche les deux cases. Ce qui change est
+seulement *par quelle porte* il entre.
+
+- **Un coach qui se coache lui-même** : exactement le cas « Coach » ci-dessus, avec les deux cases
+  cochées. Aucune invitation — il n'a pas de coach, il est son propre athlète.
+- **Un coach qui est aussi l'athlète de quelqu'un d'autre** : les deux gestes, dans cet ordre —
+  l'adresse dans `SIGNUP_ALLOWED_EMAILS` **ou** une invitation de son futur coach lui permet de
+  s'inscrire, puis il accepte l'invitation pour être lié. Rappel de l'invariant : **au plus un
+  coach par athlète**, et l'API refuse la seconde liaison (`409`).
+
 ## Deux identités pour le stockage (#267)
 
 L'API ne connaît plus le compte root du stockage. C'est ce qui sépare « une clé qui fuit » de « le
