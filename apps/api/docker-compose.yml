@@ -40,7 +40,9 @@ services:
     volumes:
       - silo_data:/data
 
-  # Crée le bucket privé au démarrage puis s'arrête (idempotent). `mc` est le client de SILO.
+  # Crée les buckets privés et la clé de l'API au démarrage, puis s'arrête (idempotent). `mc` est le
+  # client de SILO, et le SEUL à se connecter en root ici : l'API, elle, reçoit une clé qui ne peut
+  # rien faire d'autre que manipuler les objets de ses buckets (#267).
   silo-setup:
     # Même miroir et même version que `silo` ci-dessus.
     image: ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z
@@ -54,7 +56,11 @@ services:
       mc anonymous set none local/cimavia-media-dev &&
       mc mb --ignore-existing local/cimavia-media-e2e &&
       mc anonymous set none local/cimavia-media-e2e &&
-      echo 'buckets cimavia-media-dev et cimavia-media-e2e prêts (privés)'
+      printf '%s' '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:PutObject\",\"s3:GetObject\",\"s3:DeleteObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],\"Resource\":[\"arn:aws:s3:::cimavia-media-dev/*\",\"arn:aws:s3:::cimavia-media-e2e/*\"]}]}' > /tmp/api-policy.json &&
+      mc admin policy create local cimavia-api /tmp/api-policy.json 2>/dev/null || true &&
+      mc admin user add local cimavia-api cimavia_dev_api_secret &&
+      mc admin policy attach local cimavia-api --user cimavia-api 2>/dev/null || true &&
+      echo 'buckets prêts (privés) et clé cimavia-api limitée à leurs objets'
       "
 
   # Serveur SMTP jetable pour le dev local : capte TOUT ce que l'API envoie et ne le relaie

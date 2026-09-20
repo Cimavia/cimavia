@@ -53,8 +53,10 @@ export default defineConfig({
       S3_ENDPOINT: "http://localhost:9000",
       S3_REGION: "us-east-1",
       S3_BUCKET: "cimavia-media-e2e",
-      S3_ACCESS_KEY_ID: "cimavia",
-      S3_SECRET_ACCESS_KEY: "cimavia_dev_secret",
+      // La clé DÉDIÉE, pas le compte root du stockage (#267) : une permission oubliée dans sa policy
+      // doit faire échouer la CI, pas se découvrir en panne sur le NAS. `silo-setup` la crée.
+      S3_ACCESS_KEY_ID: "cimavia-api",
+      S3_SECRET_ACCESS_KEY: "cimavia_dev_api_secret",
       S3_FORCE_PATH_STYLE: "true",
       /**
        * Secret du déclencheur de rappels (#47), fixé ici comme les `S3_*` : c'est une VALEUR DE
