@@ -70,7 +70,7 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
    promue. Générer les secrets :
    ```bash
    openssl rand -base64 32   # BETTER_AUTH_SECRET (différent de la prod)
-   openssl rand -base64 24   # POSTGRES_PASSWORD, S3_SECRET_ACCESS_KEY
+   openssl rand -hex 24      # POSTGRES_PASSWORD, S3_ROOT_PASSWORD, S3_SECRET_ACCESS_KEY
    ```
 4. **Déploiement tiré + première promotion** : voir « Déploiement » ci-dessous. Le premier `up`
    applique les migrations Prisma seul (`migrate deploy` dans l'entrypoint) et crée le bucket
@@ -161,9 +161,30 @@ Une fois la cause réglée, le prochain passage réessaie seul. Si seule la conf
 - Ce sont les **vraies données du Coach bêta** depuis #260 : leur sauvegarde est ci-dessous, pas
   optionnelle.
 
+## Deux identités pour le stockage (#267)
+
+L'API ne connaît plus le compte root du stockage. C'est ce qui sépare « une clé qui fuit » de « le
+stockage est à prendre » : la clé de l'API apparaît **en clair dans chaque URL signée**
+(`X-Amz-Credential`), et c'est précisément ce qu'exigeaient les failles que SILO corrige.
+
+| Identité | Variables du `.env` | Ce qu'elle peut |
+|---|---|---|
+| **root** | `S3_ROOT_USER`, `S3_ROOT_PASSWORD` | tout administrer : créer la clé de l'API (`silo-setup`), lister le bucket (`backup.sh`). Ne sort jamais du NAS |
+| **API** | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | lire, écrire et supprimer les **objets** du bucket, gérer ses envois découpés. Ni lister, ni administrer |
+
+`silo-setup` réapplique cette policy à chaque démarrage : changer un secret dans le `.env` suffit à
+le faire prendre au déploiement suivant, l'API et le stockage redémarrant ensemble.
+
+> ⚠️ **Après la bascule, changer le mot de passe root.** Jusqu'à #267, c'est lui que l'API portait
+> dans son environnement : il doit être considéré comme connu. Poser une nouvelle valeur dans
+> `S3_ROOT_PASSWORD`, promouvoir, puis vérifier que `backup.sh` passe encore.
+
 ## Sauvegarde (#268)
 
 `backup.sh` tourne chaque nuit et fabrique, dans `backup/` à côté du `.env` :
+
+Le script prend le compte **root** : le miroir liste le bucket, ce que la clé de l'API ne peut
+pas faire (#267).
 
 - `base/cimavia-<date>.dump` — un `pg_dump -Fc`, **relu** avant d'être gardé. Copier les fichiers du
   volume PostgreSQL à chaud ne vaudrait rien : une copie prise pendant une écriture est incohérente.
@@ -242,6 +263,35 @@ DATABASE_URL="postgresql://cimavia:cimavia@localhost:5432/cimavia_restore" S3_BU
 **Ce qui prouve que la sauvegarde vaut quelque chose** : se connecter avec le compte du Coach et son
 mot de passe **inchangé**, ouvrir une planification, lire une vidéo de débrief et un PDF de facture.
 Le nombre d'objets affiché à l'étape 3 doit être celui du manifeste.
+
+**Deux contrôles qui se lisent sans ouvrir l'app**, et qui valent d'être faits à chaque restauration.
+
+Le premier compare la base restaurée à celle d'origine, table par table — il n'a de sens que si les
+deux tournent encore :
+
+```bash
+Q="SELECT table_name, (xpath('/row/cnt/text()', query_to_xml(format('select count(*) as cnt from %I.%I', table_schema, table_name), false, true, '')))[1]::text::int AS n FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
+docker exec cimavia_postgres psql -U cimavia -d cimavia -At -F'|' -c "$Q" > /tmp/src.txt
+docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -At -F'|' -c "$Q" > /tmp/dst.txt
+diff /tmp/src.txt /tmp/dst.txt && echo "nombres de lignes identiques"
+```
+
+Le second vérifie que **chaque média référencé par la base existe dans le stockage restauré** :
+
+```bash
+P="SELECT \"storagePath\" FROM feedback_media UNION SELECT \"storagePath\" FROM exercise_document UNION SELECT \"storagePath\" FROM scheduled_session_exercise_document UNION SELECT \"storagePath\" FROM message WHERE \"storagePath\" IS NOT NULL UNION SELECT \"documentPath\" FROM invoice WHERE \"documentPath\" IS NOT NULL;"
+docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -At -c "$P" | sed '/^$/d' | sort > /tmp/paths.txt
+docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z -c \
+  "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null && mc ls --recursive s/cimavia-restore" \
+  | awk '{print $NF}' | sort > /tmp/objects.txt
+comm -23 /tmp/paths.txt /tmp/objects.txt    # chemins SANS objet : doit être vide
+comm -13 /tmp/paths.txt /tmp/objects.txt | wc -l   # objets non référencés : voir ci-dessous
+```
+
+**Un chemin sans objet est une sauvegarde incomplète** : elle ne vaut rien tant que ce n'est pas
+compris. Des **objets non référencés**, en revanche, sont normaux — ce sont les envois abandonnés
+que personne ne ramasse (dette **U-6**). Leur nombre dit ce que cette dette coûte : 19 sur un poste
+de développement au 2026-09-20, pour 101 chemins référencés.
 
 Ménage une fois le test fait :
 

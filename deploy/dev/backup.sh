@@ -73,11 +73,25 @@ command -v docker >/dev/null 2>&1 || fail "docker introuvable dans $PATH"
 # diverger, et la sauvegarde viserait la mauvaise base. `sed` retire les guillemets éventuels.
 val() {
   local key="$1"
-  grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'
+  # `|| true` : une variable absente rend une chaîne vide. Sans lui, `grep` sort en 1, et `set -e`
+  # arrête le script au milieu d une affectation — donc avant même d avoir pu journaliser pourquoi.
+  grep -E "^${key}=" "$ENV_FILE" | tail -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' || true
 }
-for var in POSTGRES_USER POSTGRES_DB S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_BUCKET; do
+for var in POSTGRES_USER POSTGRES_DB S3_BUCKET; do
   [[ -n "$(val "$var")" ]] || fail "$var absente de $ENV_FILE"
 done
+
+# Le miroir LISTE le bucket, ce que la clé de l'API ne peut pas faire depuis #267 : sa policy ne
+# porte que sur les objets. La sauvegarde est une tâche d'administration, elle prend donc le compte
+# root. Le repli sur la clé de l'API garde le script utilisable contre un stockage qui n'a qu'une
+# identité — un dev local d'avant #267, par exemple.
+S3_KEY="$(val S3_ROOT_USER)"
+S3_SECRET="$(val S3_ROOT_PASSWORD)"
+if [[ -z "$S3_KEY" ]]; then
+  S3_KEY="$(val S3_ACCESS_KEY_ID)"
+  S3_SECRET="$(val S3_SECRET_ACCESS_KEY)"
+fi
+[[ -n "$S3_KEY" && -n "$S3_SECRET" ]] || fail "aucune identité de stockage dans $ENV_FILE (S3_ROOT_USER ou S3_ACCESS_KEY_ID)"
 
 # Une sauvegarde qui remplit le disque casserait ce qu'elle protège.
 free_mb="$(df -Pm "$BACKUP_DIR" | awk 'NR==2 {print $4}')"
@@ -100,7 +114,7 @@ mv "$tmp/base.dump" "$dump"
 # survivrait indéfiniment ici, ce qu'un effacement RGPD (#285) ne peut pas accepter. L'historique
 # long, ce sont les copies manuelles.
 docker run --rm --network "$DOCKER_NETWORK" -v "$BACKUP_DIR/media:/backup" --entrypoint sh "$MC_IMAGE" -c \
-  "mc alias set nas ${S3_ENDPOINT} '$(val S3_ACCESS_KEY_ID)' '$(val S3_SECRET_ACCESS_KEY)' >/dev/null \
+  "mc alias set nas ${S3_ENDPOINT} '${S3_KEY}' '${S3_SECRET}' >/dev/null \
    && mc mirror --quiet --overwrite --remove nas/$(val S3_BUCKET) /backup \
    && mc ls --recursive --summarize nas/$(val S3_BUCKET) | tail -2" >"$tmp/mc" 2>"$tmp/err" ||
   fail "miroir des médias : $(tr '\n' ' ' <"$tmp/err")"
