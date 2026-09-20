@@ -264,6 +264,35 @@ DATABASE_URL="postgresql://cimavia:cimavia@localhost:5432/cimavia_restore" S3_BU
 mot de passe **inchangé**, ouvrir une planification, lire une vidéo de débrief et un PDF de facture.
 Le nombre d'objets affiché à l'étape 3 doit être celui du manifeste.
 
+**Deux contrôles qui se lisent sans ouvrir l'app**, et qui valent d'être faits à chaque restauration.
+
+Le premier compare la base restaurée à celle d'origine, table par table — il n'a de sens que si les
+deux tournent encore :
+
+```bash
+Q="SELECT table_name, (xpath('/row/cnt/text()', query_to_xml(format('select count(*) as cnt from %I.%I', table_schema, table_name), false, true, '')))[1]::text::int AS n FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
+docker exec cimavia_postgres psql -U cimavia -d cimavia -At -F'|' -c "$Q" > /tmp/src.txt
+docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -At -F'|' -c "$Q" > /tmp/dst.txt
+diff /tmp/src.txt /tmp/dst.txt && echo "nombres de lignes identiques"
+```
+
+Le second vérifie que **chaque média référencé par la base existe dans le stockage restauré** :
+
+```bash
+P="SELECT \"storagePath\" FROM feedback_media UNION SELECT \"storagePath\" FROM exercise_document UNION SELECT \"storagePath\" FROM scheduled_session_exercise_document UNION SELECT \"storagePath\" FROM message WHERE \"storagePath\" IS NOT NULL UNION SELECT \"documentPath\" FROM invoice WHERE \"documentPath\" IS NOT NULL;"
+docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -At -c "$P" | sed '/^$/d' | sort > /tmp/paths.txt
+docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z -c \
+  "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null && mc ls --recursive s/cimavia-restore" \
+  | awk '{print $NF}' | sort > /tmp/objects.txt
+comm -23 /tmp/paths.txt /tmp/objects.txt    # chemins SANS objet : doit être vide
+comm -13 /tmp/paths.txt /tmp/objects.txt | wc -l   # objets non référencés : voir ci-dessous
+```
+
+**Un chemin sans objet est une sauvegarde incomplète** : elle ne vaut rien tant que ce n'est pas
+compris. Des **objets non référencés**, en revanche, sont normaux — ce sont les envois abandonnés
+que personne ne ramasse (dette **U-6**). Leur nombre dit ce que cette dette coûte : 19 sur un poste
+de développement au 2026-09-20, pour 101 chemins référencés.
+
 Ménage une fois le test fait :
 
 ```bash
