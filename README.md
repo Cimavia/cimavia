@@ -28,7 +28,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 ```bash
 pnpm install
 # Variables d'env : copier les modèles et renseigner les secrets
-cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (SILO local), SMTP_* (Mailpit local)
+cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, S3_* (clé dédiée créée par silo-setup), SMTP_* (Mailpit local)
 cp apps/web/.env.example apps/web/.env        # VITE_API_URL
 cp apps/mobile/.env.example apps/mobile/.env  # EXPO_PUBLIC_API_URL (IP LAN sur appareil/émulateur, pas localhost)
 # Démarrer PostgreSQL + SILO + Mailpit (apps/api) — SILO crée le bucket privé au 1er démarrage
@@ -60,7 +60,7 @@ pnpm --filter @cmv/api exec prisma migrate dev
 # Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + SILO sur son bucket e2e)
 cp apps/api/.env.test.example apps/api/.env.test   # une fois — rien à renseigner
 docker compose -f apps/api/docker-compose.test.yml up -d
-docker compose -f apps/api/docker-compose.yml run --rm silo-setup   # crée les buckets (idempotent)
+docker compose -f apps/api/docker-compose.yml run --rm silo-setup   # buckets + clé de l'API (idempotent), et vide le bucket e2e
 # Via turbo, pas `pnpm --filter` : la tâche dépend de `^build`, et les e2e bootent le vrai
 # AppModule — qui importe @cmv/shared depuis son `dist`. Sans build préalable, ça casse à l'import.
 pnpm turbo test:e2e --filter=@cmv/api

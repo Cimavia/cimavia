@@ -70,7 +70,7 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
    promue. Générer les secrets :
    ```bash
    openssl rand -base64 32   # BETTER_AUTH_SECRET (différent de la prod)
-   openssl rand -base64 24   # POSTGRES_PASSWORD, S3_SECRET_ACCESS_KEY
+   openssl rand -hex 24      # POSTGRES_PASSWORD, S3_ROOT_PASSWORD, S3_SECRET_ACCESS_KEY
    ```
 4. **Déploiement tiré + première promotion** : voir « Déploiement » ci-dessous. Le premier `up`
    applique les migrations Prisma seul (`migrate deploy` dans l'entrypoint) et crée le bucket
@@ -161,9 +161,30 @@ Une fois la cause réglée, le prochain passage réessaie seul. Si seule la conf
 - Ce sont les **vraies données du Coach bêta** depuis #260 : leur sauvegarde est ci-dessous, pas
   optionnelle.
 
+## Deux identités pour le stockage (#267)
+
+L'API ne connaît plus le compte root du stockage. C'est ce qui sépare « une clé qui fuit » de « le
+stockage est à prendre » : la clé de l'API apparaît **en clair dans chaque URL signée**
+(`X-Amz-Credential`), et c'est précisément ce qu'exigeaient les failles que SILO corrige.
+
+| Identité | Variables du `.env` | Ce qu'elle peut |
+|---|---|---|
+| **root** | `S3_ROOT_USER`, `S3_ROOT_PASSWORD` | tout administrer : créer la clé de l'API (`silo-setup`), lister le bucket (`backup.sh`). Ne sort jamais du NAS |
+| **API** | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | lire, écrire et supprimer les **objets** du bucket, gérer ses envois découpés. Ni lister, ni administrer |
+
+`silo-setup` réapplique cette policy à chaque démarrage : changer un secret dans le `.env` suffit à
+le faire prendre au déploiement suivant, l'API et le stockage redémarrant ensemble.
+
+> ⚠️ **Après la bascule, changer le mot de passe root.** Jusqu'à #267, c'est lui que l'API portait
+> dans son environnement : il doit être considéré comme connu. Poser une nouvelle valeur dans
+> `S3_ROOT_PASSWORD`, promouvoir, puis vérifier que `backup.sh` passe encore.
+
 ## Sauvegarde (#268)
 
 `backup.sh` tourne chaque nuit et fabrique, dans `backup/` à côté du `.env` :
+
+Le script prend le compte **root** : le miroir liste le bucket, ce que la clé de l'API ne peut
+pas faire (#267).
 
 - `base/cimavia-<date>.dump` — un `pg_dump -Fc`, **relu** avant d'être gardé. Copier les fichiers du
   volume PostgreSQL à chaud ne vaudrait rien : une copie prise pendant une écriture est incohérente.
