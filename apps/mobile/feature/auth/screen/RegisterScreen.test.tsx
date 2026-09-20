@@ -90,38 +90,23 @@ describe("RegisterScreen (mobile)", () => {
 
   describe("ce que dit l'échec", () => {
     /**
-     * LE cas de #263 côté téléphone. Le message générique (« une erreur est survenue, réessaie »)
-     * ferait recommencer une saisie juste, indéfiniment : l'APK porte l'URL de l'environnement en
-     * dur, aucune tentative ne passera. Le seul geste utile est de demander une invitation.
+     * LE cas de #263 côté téléphone, et la raison de cette table. Le message générique ferait
+     * recommencer une saisie juste, indéfiniment : l'APK porte l'URL de l'environnement en dur,
+     * aucune tentative ne passera. 422 est le seul code que Better Auth réserve à l'e-mail déjà
+     * pris ; les autres validations sont des 400, donc génériques.
      */
-    it("dit que les inscriptions sont fermées sur un 403", async () => {
-      signUp.mockResolvedValue({ error: { status: 403 } } as never);
+    it.each([
+      [403, "auth.errors.signupClosed"],
+      [422, "auth.errors.emailInUse"],
+      [400, "auth.errors.generic"],
+    ])("traduit le refus %s en %s", async (status, message) => {
+      signUp.mockResolvedValue({ error: { status } } as never);
       const { container, queryByText } = renderRn(<RegisterScreen />);
       fillIdentity(container);
 
       pressButton(container, SUBMIT);
 
-      await vi.waitFor(() => expect(queryByText("auth.errors.signupClosed")).not.toBeNull());
-    });
-
-    it("nomme l'e-mail déjà pris sur un 422", async () => {
-      signUp.mockResolvedValue({ error: { status: 422 } } as never);
-      const { container, queryByText } = renderRn(<RegisterScreen />);
-      fillIdentity(container);
-
-      pressButton(container, SUBMIT);
-
-      await vi.waitFor(() => expect(queryByText("auth.errors.emailInUse")).not.toBeNull());
-    });
-
-    it("retombe sur le message générique pour tout autre code", async () => {
-      signUp.mockResolvedValue({ error: { status: 400 } } as never);
-      const { container, queryByText } = renderRn(<RegisterScreen />);
-      fillIdentity(container);
-
-      pressButton(container, SUBMIT);
-
-      await vi.waitFor(() => expect(queryByText("auth.errors.generic")).not.toBeNull());
+      await vi.waitFor(() => expect(queryByText(message)).not.toBeNull());
     });
 
     /**

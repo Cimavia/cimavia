@@ -1,4 +1,5 @@
 import type { CapabilityName } from "@cmv/shared";
+import { SELECTABLE_CAPABILITIES, signUpErrorKey, toggledCapability } from "@cmv/shared";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,36 +11,6 @@ import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { landingTab } from "@/shared/lib/tabs";
-
-/**
- * Les capacités proposées à l'inscription. Cumulables (#7) : un coach qui se coache lui-même coche
- * les deux. `role` n'est plus envoyé — l'API le déduit comme persona d'atterrissage (#12).
- */
-const SELECTABLE_CAPABILITIES: { name: CapabilityName; labelKey: string }[] = [
-  { name: "coach", labelKey: "auth.register.capabilityCoach" },
-  { name: "athlete", labelKey: "auth.register.capabilityAthlete" },
-];
-
-/**
- * Ce que dit un refus d'inscription, par code — jumeau de la table du web.
- *
- * - 403 : l'environnement n'accepte pas d'inscription (#263). Ce n'est pas la saisie qui est en
- *   cause, et sur un téléphone c'est encore plus vrai qu'ailleurs : l'APK porte l'URL en dur, on
- *   n'y change pas de serveur en réessayant.
- * - 422 : seul code que Better Auth réserve à l'e-mail déjà utilisé au sign-up (les autres
- *   validations sont des 400, qu'un message « e-mail déjà pris » ferait mentir).
- */
-const SIGN_UP_ERROR_KEY: Record<number, string> = {
-  403: "auth.errors.signupClosed",
-  422: "auth.errors.emailInUse",
-};
-
-/** Bascule une capacité sans muter l'état existant (React compare par référence). */
-function toggled(current: Set<CapabilityName>, name: CapabilityName): Set<CapabilityName> {
-  const next = new Set(current);
-  if (!next.delete(name)) next.add(name);
-  return next;
-}
 
 export function RegisterScreen() {
   const { t } = useTranslation();
@@ -77,7 +48,7 @@ export function RegisterScreen() {
         isAthlete: selected.has("athlete"),
       });
       if (signUpError != null) {
-        setError(t(SIGN_UP_ERROR_KEY[signUpError.status] ?? "auth.errors.generic"));
+        setError(t(signUpErrorKey(signUpError.status)));
         return;
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
@@ -125,7 +96,7 @@ export function RegisterScreen() {
             return (
               <Pressable
                 key={name}
-                onPress={() => setSelected(toggled(selected, name))}
+                onPress={() => setSelected(toggledCapability(selected, name))}
                 // Case à cocher et non bouton : ce sont deux choix INDÉPENDANTS, et VoiceOver doit
                 // l'annoncer ainsi — sans quoi rien ne dit qu'on peut cocher les deux.
                 accessibilityRole="checkbox"

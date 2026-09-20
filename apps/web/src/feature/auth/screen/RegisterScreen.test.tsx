@@ -97,39 +97,25 @@ describe("RegisterScreen", () => {
   });
 
   describe("ce que dit l'échec", () => {
-    it("nomme l'e-mail déjà pris sur un 422", async () => {
-      signUpMock.mockResolvedValue({ error: { status: 422 } });
+    /**
+     * Le message n'est pas cosmétique. « Une erreur est survenue, réessaie » ferait recommencer
+     * une saisie juste : sur un environnement fermé (403, #263) aucune tentative ne passera, et
+     * une adresse déjà prise ne se corrige pas non plus en réessayant. 422 est le SEUL code que
+     * Better Auth réserve à l'e-mail déjà utilisé au sign-up — les autres validations sont des
+     * 400, qu'un message « e-mail déjà pris » ferait mentir.
+     */
+    it.each([
+      [403, "auth.errors.signupClosed"],
+      [422, "auth.errors.emailInUse"],
+      [400, "auth.errors.generic"],
+    ])("traduit le refus %s en %s", async (status, message) => {
+      signUpMock.mockResolvedValue({ error: { status } });
       const view = await setup();
       await fillIdentity(view);
 
       await view.user.click(view.getByRole("button", { name: SUBMIT }));
 
-      // 422 est le SEUL code que Better Auth réserve à l'e-mail déjà utilisé au sign-up ; les
-      // autres validations sont des 400, qu'un message « e-mail déjà pris » ferait mentir.
-      expect(await view.findByText("auth.errors.emailInUse")).toBeInTheDocument();
-    });
-
-    it("dit que les inscriptions sont fermées sur un 403", async () => {
-      signUpMock.mockResolvedValue({ error: { status: 403 } });
-      const view = await setup();
-      await fillIdentity(view);
-
-      await view.user.click(view.getByRole("button", { name: SUBMIT }));
-
-      // Le message générique (« une erreur est survenue, réessaie ») ferait recommencer une
-      // saisie juste : sur cet environnement, aucune tentative ne passera (#263). Le seul geste
-      // utile est de demander une invitation à son coach, et c'est ce que le message dit.
-      expect(await view.findByText("auth.errors.signupClosed")).toBeInTheDocument();
-    });
-
-    it("retombe sur le message générique pour tout autre code", async () => {
-      signUpMock.mockResolvedValue({ error: { status: 400 } });
-      const view = await setup();
-      await fillIdentity(view);
-
-      await view.user.click(view.getByRole("button", { name: SUBMIT }));
-
-      expect(await view.findByText("auth.errors.generic")).toBeInTheDocument();
+      expect(await view.findByText(message)).toBeInTheDocument();
     });
 
     it("dit quelque chose même quand l'appel casse", async () => {

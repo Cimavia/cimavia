@@ -38,7 +38,12 @@ export {
   RESET_PASSWORD_TOKEN_TTL_SECONDS,
 } from "./auth";
 export type { Capabilities, CapabilityName, CapabilitySource } from "./capability";
-export { capabilitiesOf, hasCapability } from "./capability";
+export {
+  capabilitiesOf,
+  hasCapability,
+  SELECTABLE_CAPABILITIES,
+  toggledCapability,
+} from "./capability";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
 export type { UpdateCapabilitiesInput } from "./dto/capability.schema";
@@ -804,6 +809,7 @@ export {
   normalizeEmail,
   parseEmailList,
   SIGNUP_MODES,
+  signUpErrorKey,
 } from "./util/signup.util";
 export {
   formatTrainingDuration,

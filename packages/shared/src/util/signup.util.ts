@@ -65,3 +65,22 @@ export function isEmailAllowed(email: string, allowed: readonly string[]): boole
 
   return allowed.some((candidate) => normalizeEmail(candidate) === normalized);
 }
+
+/**
+ * La clé i18n qui dit POURQUOI une inscription est refusée, d'après le code HTTP.
+ *
+ * Partagée entre le web et le mobile — ils la déclaraient à l'identique, et c'est exactement le
+ * genre de table qui diverge : le jour où l'API distingue un code de plus, une seule des deux
+ * apps l'apprendrait.
+ *
+ * - **403** : l'environnement n'accepte pas d'inscription (#263). La saisie n'y est pour rien, et
+ *   faire recommencer un formulaire juste serait la pire réponse possible.
+ * - **422** : le SEUL code que Better Auth réserve à l'e-mail déjà utilisé au sign-up ; les autres
+ *   validations sont des 400, qu'un message « e-mail déjà pris » ferait mentir.
+ * - le reste, y compris une panne réseau qui ne porte aucun code : le message générique.
+ */
+export function signUpErrorKey(status: number | undefined): string {
+  if (status === 403) return "auth.errors.signupClosed";
+  if (status === 422) return "auth.errors.emailInUse";
+  return "auth.errors.generic";
+}

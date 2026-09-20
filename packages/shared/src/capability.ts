@@ -57,3 +57,29 @@ export type CapabilitySource = {
 export function capabilitiesOf(user: CapabilitySource | null | undefined): Capabilities {
   return { isCoach: user?.isCoach === true, isAthlete: user?.isAthlete === true };
 }
+
+/**
+ * Les capacités proposées à l'inscription, dans l'ordre d'affichage, avec la clé i18n de leur
+ * libellé. Partagée parce que les deux écrans d'inscription la déclaraient à l'identique : deux
+ * listes, c'est un jour où l'une en propose trois et l'autre deux.
+ *
+ * Elles sont **cumulables** (#7) : un coach qui se coache lui-même coche les deux. `role` n'est
+ * plus envoyé — l'API le déduit comme persona d'atterrissage (#12).
+ */
+export const SELECTABLE_CAPABILITIES: readonly { name: CapabilityName; labelKey: string }[] = [
+  { name: "coach", labelKey: "auth.register.capabilityCoach" },
+  { name: "athlete", labelKey: "auth.register.capabilityAthlete" },
+];
+
+/**
+ * Bascule une capacité sans muter l'ensemble existant : React compare par référence, et une
+ * mutation en place ne redessinerait rien.
+ */
+export function toggledCapability(
+  current: ReadonlySet<CapabilityName>,
+  name: CapabilityName,
+): Set<CapabilityName> {
+  const next = new Set(current);
+  if (!next.delete(name)) next.add(name);
+  return next;
+}

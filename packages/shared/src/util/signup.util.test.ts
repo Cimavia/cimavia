@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEmailAllowed, normalizeEmail, parseEmailList } from "./signup.util";
+import { isEmailAllowed, normalizeEmail, parseEmailList, signUpErrorKey } from "./signup.util";
 
 describe("normalizeEmail", () => {
   /**
@@ -59,5 +59,24 @@ describe("isEmailAllowed", () => {
 
   it("refuse tout quand la liste est vide", () => {
     expect(isEmailAllowed("coach@exemple.fr", [])).toBe(false);
+  });
+});
+
+describe("signUpErrorKey", () => {
+  /**
+   * Les deux seuls codes que l'API distingue, et la raison d'être de cette table : le message
+   * générique (« une erreur est survenue, réessaie ») ferait recommencer une saisie juste dans les
+   * deux cas — une inscription fermée ne passera jamais, une adresse déjà prise non plus.
+   */
+  it.each([
+    [403, "auth.errors.signupClosed"],
+    [422, "auth.errors.emailInUse"],
+  ])("nomme le refus %s", (status, expected) => {
+    expect(signUpErrorKey(status)).toBe(expected);
+  });
+
+  // 400 (validation), 500, et l'absence de code — une panne réseau ne porte aucun statut.
+  it.each([400, 401, 500, undefined])("retombe sur le générique pour %s", (status) => {
+    expect(signUpErrorKey(status)).toBe("auth.errors.generic");
   });
 });
