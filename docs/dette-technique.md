@@ -3299,6 +3299,16 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   en une ligne (`include:_spf.tem.scaleway.com include:_spf.mx.cloudflare.net -all`). `no-reply@`
 >   n'est délibérément pas routée : ce qui lui répond doit rebondir.
 
+> **Appris en #269** (une recréation à la main fait RECULER preview, sans rien dire) : le compose du
+> NAS lit `${API_IMAGE}`, que `pull-preview.sh` exporte au digest de la version promue — une
+> variable du shell l'emportant sur le `.env`. Un `docker compose up -d api` lancé à la main n'a pas
+> cet export : il retombe sur la valeur du `.env`, celle du bootstrap, et remplace la version
+> promue par une plus ancienne. Le script ne le rattrape pas — son marqueur `deployed` dit que le
+> tag `preview` n'a pas bougé, donc il sort sans rien faire. Constaté le 2026-09-20, une 1.5.0
+> promue depuis quinze minutes tournant déjà en 1.4.1 : le seul symptôme était `/docs` encore
+> ouvert. D'où la consigne du README — **pour appliquer un changement du `.env`, effacer
+> `pull-preview/deployed` et relancer le script**, jamais `up -d` à la main.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)

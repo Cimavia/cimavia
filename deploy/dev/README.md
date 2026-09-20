@@ -180,10 +180,23 @@ Ajouter un Coach se fait donc à la main, et le changement ne prend qu'au redém
 
 ```bash
 sudo -i
-cd /volume1/docker/cimavia-dev        # le dossier du .env
+cd /volume1/<…>/cimavia-dev           # le dossier du .env
 vi .env                               # SIGNUP_ALLOWED_EMAILS=coach@exemple.fr,autre@exemple.fr
-docker compose up -d api
+rm -f pull-preview/deployed           # sans ça, le script voit « rien de nouveau » et ne fait rien
+bash pull-preview.sh
+tail -n 3 pull-preview/pull-preview.log
 ```
+
+> ⚠️ **Passer par le script, jamais par un `docker compose up -d api` à la main.** Le compose lit
+> `${API_IMAGE}`, et une variable du shell l'emporte sur le `.env` : `pull-preview.sh` exporte le
+> digest de la version promue, une invocation manuelle retombe sur ce que le `.env` contient. Si
+> c'est une vieille valeur (celle du bootstrap, § *Déploiement manuel*), preview **recule d'une
+> version sans rien dire** — et le script ne le rattrapera pas, son marqueur `deployed` indiquant
+> que le tag `preview` n'a pas bougé. Mesuré le 2026-09-20 : une recréation à la main a remplacé
+> la 1.5.0 fraîchement promue par l'image d'avant.
+>
+> Et recréer, pas redémarrer : un conteneur reçoit son environnement **à sa création**. Un
+> `restart` relancerait le même processus avec les anciennes valeurs, sans le moindre message.
 
 > L'inscription refusée répond **403**, et les deux apps affichent « demande une invitation à ton
 > coach ». Le formulaire, lui, reste visible : le client ne connaît pas le mode, et une route qui
@@ -241,7 +254,8 @@ Personne ne l'invite : c'est le seul cas qui demande une intervention sur le NAS
 1. **Cloudflare Access** → *Applications* → `app-dev` → politique `beta-web` → *Include → Emails* :
    ajouter son adresse.
 2. **`.env` du NAS** : ajouter l'adresse à `SIGNUP_ALLOWED_EMAILS` (séparateur : la virgule), puis
-   `docker compose up -d api` — la liste est lue au démarrage.
+   recréer le conteneur (commande exacte au § *Qui peut créer un compte*) — la liste est lue au
+   démarrage.
 3. Lui donner l'app (`eas build --profile preview --platform android`, § *App mobile de test*) ou
    l'URL du web.
 4. Il crée son compte avec **l'adresse autorisée**, case *coach* cochée.
