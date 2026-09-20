@@ -40,7 +40,11 @@ services:
     volumes:
       - silo_data:/data
 
-  # Crée les buckets privés et la clé de l'API au démarrage, puis s'arrête (idempotent). `mc` est le
+  # Crée les buckets privés et la clé de l'API au démarrage, puis s'arrête (idempotent). Il VIDE au
+  # passage le bucket e2e : chaque exécution des e2e y laisse ses médias et personne ne les efface —
+  # 5969 objets pour 27 Gio relevés sur un poste de développement. En CI, le stockage est jetable,
+  # donc sans effet. Le bucket de DEV n'est jamais vidé : on y travaille avec ses propres données.
+  # `mc` est le
   # client de SILO, et le SEUL à se connecter en root ici : l'API, elle, reçoit une clé qui ne peut
   # rien faire d'autre que manipuler les objets de ses buckets (#267).
   silo-setup:
@@ -56,6 +60,7 @@ services:
       mc anonymous set none local/cimavia-media-dev &&
       mc mb --ignore-existing local/cimavia-media-e2e &&
       mc anonymous set none local/cimavia-media-e2e &&
+      mc rm --recursive --force --quiet local/cimavia-media-e2e > /dev/null 2>&1 || true &&
       printf '%s' '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:PutObject\",\"s3:GetObject\",\"s3:DeleteObject\",\"s3:AbortMultipartUpload\",\"s3:ListMultipartUploadParts\"],\"Resource\":[\"arn:aws:s3:::cimavia-media-dev/*\",\"arn:aws:s3:::cimavia-media-e2e/*\"]}]}' > /tmp/api-policy.json &&
       mc admin policy create local cimavia-api /tmp/api-policy.json 2>/dev/null || true &&
       mc admin user add local cimavia-api cimavia_dev_api_secret &&
