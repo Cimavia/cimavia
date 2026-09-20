@@ -114,6 +114,13 @@ services:
       # Origine web publique : entre dans CORS + trustedOrigins (cf. browserOrigins). Le scheme
       # mobile cimavia:// est ajouté côté code, pas ici.
       CORS_ORIGINS: ${PUBLIC_WEB_URL}
+      # Qui peut créer un compte (#263). Défaut `invitation` posé ICI, et c'est le point : ce
+      # tier est joignable publiquement, et sa règle dure « données synthétiques seulement » ne
+      # tient que si un inconnu ne peut pas s'y inscrire. Un `.env` qui oublierait la ligne doit
+      # laisser la porte FERMÉE, pas l'ouvrir. `SIGNUP_ALLOWED_EMAILS` est la porte des coachs,
+      # que personne n'invite — les athlètes, eux, passent par l'invitation de leur coach.
+      SIGNUP_MODE: ${SIGNUP_MODE:-invitation}
+      SIGNUP_ALLOWED_EMAILS: ${SIGNUP_ALLOWED_EMAILS:-}
       # ⚠️ URL PUBLIQUE du storage, PAS http://silo:9000 : l'API SIGNE les URLs S3 avec cette
       # valeur, et c'est le TÉLÉPHONE qui les appelle (le binaire ne transite jamais par l'API).
       # Un endpoint interne signerait des URLs injoignables depuis le mobile — exactement le piège

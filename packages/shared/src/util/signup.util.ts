@@ -1,8 +1,11 @@
 /**
  * Qui a le droit de créer un compte (#263).
  *
- * Preview porte de vraies données et son URL n'est pas secrète — elle est figée dans l'APK et dans
- * chaque e-mail envoyé. La fermer demande donc que l'API refuse, pas qu'on cache l'adresse.
+ * Preview est joignable publiquement et son URL n'a rien de secret : elle est figée dans l'APK
+ * installé sur les téléphones et dans chaque e-mail qu'il envoie. Or ce tier n'accepte QUE des
+ * données synthétiques (règle dure de `deploy/dev/docker-compose.yml`, ce qui le tient hors du
+ * périmètre HDS) — et une inscription ouverte est précisément ce qui y ferait entrer de vrais
+ * comptes et de vraies données. La fermer demande donc que l'API refuse, pas qu'on taise l'URL.
  *
  * Tout ce qui se décide SANS la base vit ici : normaliser une adresse, lire la liste de
  * l'environnement, dire si une adresse y figure. La seule question qui reste au service est

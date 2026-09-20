@@ -10,6 +10,8 @@ import type { TransportTargetOptions } from "pino";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
 import { CapabilityModule } from "./auth/capability.module";
+import { SignupModule } from "./auth/signup.module";
+import { SignupPolicy } from "./auth/signup.policy";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEMES } from "./config/origins";
 import { CustomMetricModule } from "./custom-metric/custom-metric.module";
@@ -76,18 +78,20 @@ function buildLogTargets(): TransportTargetOptions[] {
     BetterAuthModule.forRootAsync({
       // `imports` et non un MailModule global : `PrismaService` arrive ici parce que PrismaModule
       // est @Global, mais l'envoi de mails n'a aucune raison d'être visible de tout le monde.
-      imports: [MailModule],
-      inject: [PrismaService, ConfigService, PasswordResetMailer],
+      imports: [MailModule, SignupModule],
+      inject: [PrismaService, ConfigService, PasswordResetMailer, SignupPolicy],
       useFactory: (
         prisma: PrismaService,
         config: ConfigService<EnvSchema, true>,
         passwordReset: PasswordResetMailer,
+        signup: SignupPolicy,
       ) => ({
         auth: createAuth(prisma, {
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
           trustedOrigins: [...browserOrigins(config), ...MOBILE_SCHEMES],
           sendResetPassword: (params) => passwordReset.send(params),
+          mayCreateAccount: (email) => signup.mayCreateAccount(email),
         }),
       }),
     }),
