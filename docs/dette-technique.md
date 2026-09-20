@@ -231,6 +231,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) |
 | ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
 | P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/dev/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
+| ~~P7-8~~ | ~~**L'API signait ses URLs avec le compte ROOT du stockage**~~ : `deploy/dev/docker-compose.yml` passait la même paire à `MINIO_ROOT_USER` et à `S3_ACCESS_KEY_ID`. Or une clé d'accès est lisible **en clair dans chaque URL signée** (`X-Amz-Credential`), et c'est tout ce qu'exigeaient les deux écritures sans authentification que SILO corrige. Une fuite de l'environnement de l'API donnait l'administration complète du stockage, pas l'accès à ses médias. **Jamais inscrite ici** : le NAS n'a longtemps porté que des données synthétiques. | ✅ | résolue en **[#267](https://github.com/Cimavia/cimavia/issues/267)** — une clé dédiée, limitée aux objets du bucket, créée par `silo-setup` |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -403,6 +404,37 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > c'est #271 qui la retirera. En attendant, le NAS porte les vraies planifications, les vrais médias
 > et les vrais comptes du Coach bêta — c'est ce qui a rendu #266, #257, #268 et #285 nécessaires,
 > chacune fermant une tolérance que cette règle rendait acceptable.
+
+> **Tranché en #267** (deux identités, et `ListBucket` n'est pas pour l'API) : le stockage a
+> désormais un compte **root**, qui administre et ne sort jamais du NAS, et une clé **d'API** qui ne
+> peut que lire, écrire et supprimer les objets du bucket — plus gérer ses envois découpés. C'est la
+> clé d'API qui voyage dans les URL signées ; elle ne doit donner accès qu'à ce qu'elle sert.
+>
+> - **Le droit de LISTER n'y est pas**, et ce n'est pas un oubli : l'API n'énumère jamais le bucket.
+>   C'est `backup.sh` qui en a besoin, pour son miroir — il prend donc le compte root, ce qui est
+>   cohérent, une sauvegarde étant une tâche d'administration. Vérifié : avec la seule clé d'API, le
+>   miroir échoue en `Access Denied`.
+> - **Les e2e tournent sous la clé restreinte.** Une permission oubliée doit faire rougir la CI, pas
+>   se découvrir en panne sur le NAS. Les 359 e2e, envois découpés compris, passent sous cette policy.
+> - **`silo-setup` réapplique la policy à chaque démarrage** : changer un secret dans le `.env` suffit
+>   à le faire prendre au déploiement suivant, l'API et le stockage redémarrant ensemble.
+> - **Le mot de passe root est à changer après la bascule** : il a vécu dans l'environnement de l'API,
+>   donc il est à considérer comme connu.
+
+> **Appris en #267** (le bucket e2e grossissait sans que personne ne le voie) : chaque exécution des
+> e2e laisse ses médias derrière elle — **5969 objets pour 27 Gio** relevés sur un poste de
+> développement, dont 54 pour la seule exécution suivante. En CI, le stockage est jetable, donc rien
+> ne le signalait. `silo-setup` vide désormais ce bucket au démarrage ; celui de dev, jamais, puisqu'on
+> y travaille avec ses propres données. Le chiffre a été découvert en sauvegardant ce bucket par
+> erreur pendant un test — une sauvegarde qui copie 27 Gio dit quelque chose que personne n'avait
+> regardé.
+
+> **Appris en #267** (un script qui s'arrête sans rien dire) : dans `backup.sh`, lire une variable
+> absente du `.env` faisait sortir `grep` en 1 ; sous `set -e`, une affectation dont la substitution
+> échoue **arrête le script sur-le-champ** — donc avant la ligne qui aurait journalisé pourquoi. Le
+> repli sur une autre identité n'était jamais atteint, et le journal restait vide. Corrigé par un
+> `|| true` dans le lecteur de variables. À retenir pour tout script du dépôt : sous `set -e`, chaque
+> `var="$(…)"` est une sortie silencieuse possible.
 
 ---
 
@@ -1156,7 +1188,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | U-3 | **Pas de progression sur la messagerie mobile** : le fil n'expose que `mediaBusy` (désactivation), sans indicateur chiffré — contrairement au débrief mobile et aux deux surfaces web. | 🟢 | — *(déclencheur : un envoi de vidéo lourde jugé « figé » dans un fil)* |
 | U-4 | **Le seuil de découpage est calé sur un plafond d'hébergeur, non vérifié automatiquement** : `MULTIPART_THRESHOLD_BYTES` (80 Mo) tient sa valeur des 100 Mo mesurés au bord Cloudflare. Aucun test ne le confronte à la réalité. | 🟢 | — *(déclencheur : changement de plan Cloudflare ou d'hébergement)* |
 | U-5 | **Pas de reprise entre deux LANCEMENTS d'app** : le réessai de #152 couvre l'accroc réseau, pas l'app tuée en cours d'envoi. L'`uploadId` ne vit qu'en mémoire ; après un plantage, les parts montées sont perdues pour le client et l'upload devient orphelin. Le rattraper demanderait de le persister côté serveur. | 🟢 | — *(déclencheur : un athlète qui signale un envoi perdu APRÈS une fermeture d'app, pas après une coupure)* |
-| U-6 | **La purge des uploads abandonnés est posée à la main, et rien ne vérifie qu'elle l'est** : la règle vit dans `deploy/prod/bucket-lifecycle.json`, mais c'est un `aws s3api` lancé au doigt le jour de la création du bucket. Aucun test, aucun démarrage ne la relit — et **ni MinIO ni SILO ne savent l'appliquer** (mesuré sur MinIO, cf. l'encadré ci-dessous, puis sur SILO en #257), donc le dev et le NAS n'ont pas de filet du tout. Garage l'applique : c'est l'un des déclencheurs de son adoption. | 🟢 | — *(déclencheur : bucket cloud créé ou recréé, changement d'hébergeur, ou une facture de stockage inexpliquée)* |
+| U-6 | **La purge des uploads abandonnés est posée à la main, et rien ne vérifie qu'elle l'est** : la règle vit dans `deploy/prod/bucket-lifecycle.json`, mais c'est un `aws s3api` lancé au doigt le jour de la création du bucket. Mesurée depuis #267 par le contrôle chemins ↔ objets de la procédure de restauration : **19 objets non référencés pour 101 référencés** sur un poste de développement au 2026-09-20. Aucun test, aucun démarrage ne relit la règle — et **ni MinIO ni SILO ne savent l'appliquer** (mesuré sur MinIO, cf. l'encadré ci-dessous, puis sur SILO en #257), donc le dev et le NAS n'ont pas de filet du tout. Garage l'applique : c'est l'un des déclencheurs de son adoption. | 🟢 | — *(déclencheur : bucket cloud créé ou recréé, changement d'hébergeur, ou une facture de stockage inexpliquée)* |
 
 > **Mesuré** (les deux faits qui dictent toute la conception, et qu'aucune lecture du code ne
 > donnerait) :
