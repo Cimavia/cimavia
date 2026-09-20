@@ -20,6 +20,20 @@ const SELECTABLE_CAPABILITIES: { name: CapabilityName; labelKey: string }[] = [
   { name: "athlete", labelKey: "auth.register.capabilityAthlete" },
 ];
 
+/**
+ * Ce que dit un refus d'inscription, par code — jumeau de la table du web.
+ *
+ * - 403 : l'environnement n'accepte pas d'inscription (#263). Ce n'est pas la saisie qui est en
+ *   cause, et sur un téléphone c'est encore plus vrai qu'ailleurs : l'APK porte l'URL en dur, on
+ *   n'y change pas de serveur en réessayant.
+ * - 422 : seul code que Better Auth réserve à l'e-mail déjà utilisé au sign-up (les autres
+ *   validations sont des 400, qu'un message « e-mail déjà pris » ferait mentir).
+ */
+const SIGN_UP_ERROR_KEY: Record<number, string> = {
+  403: "auth.errors.signupClosed",
+  422: "auth.errors.emailInUse",
+};
+
 /** Bascule une capacité sans muter l'état existant (React compare par référence). */
 function toggled(current: Set<CapabilityName>, name: CapabilityName): Set<CapabilityName> {
   const next = new Set(current);
@@ -63,10 +77,7 @@ export function RegisterScreen() {
         isAthlete: selected.has("athlete"),
       });
       if (signUpError != null) {
-        // 422 (UNPROCESSABLE_ENTITY) = e-mail déjà utilisé : seul 422 du sign-up côté Better Auth
-        // (les autres validations sont des 400). Cf. web RegisterScreen.
-        const emailInUse = signUpError.status === 422;
-        setError(t(emailInUse ? "auth.errors.emailInUse" : "auth.errors.generic"));
+        setError(t(SIGN_UP_ERROR_KEY[signUpError.status] ?? "auth.errors.generic"));
         return;
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
