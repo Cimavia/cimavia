@@ -19,6 +19,20 @@ const SELECTABLE_CAPABILITIES: { name: CapabilityName; labelKey: string }[] = [
   { name: "athlete", labelKey: "auth.register.capabilityAthlete" },
 ];
 
+/**
+ * Ce que dit un refus d'inscription, par code. Une table plutôt qu'une suite de ternaires : les
+ * codes que l'API distingue vraiment tiennent en deux lignes, et tout le reste est générique.
+ *
+ * - 403 : l'environnement n'accepte pas d'inscription (#263). Ce n'est pas la saisie qui est en
+ *   cause, et envoyer corriger un formulaire juste serait la pire réponse possible.
+ * - 422 : le SEUL code que Better Auth réserve à l'e-mail déjà utilisé au sign-up ; les autres
+ *   validations sont des 400, qu'un message « e-mail déjà pris » ferait mentir.
+ */
+const SIGN_UP_ERROR_KEY: Record<number, string> = {
+  403: "auth.errors.signupClosed",
+  422: "auth.errors.emailInUse",
+};
+
 /** Bascule une capacité sans muter l'état existant (React compare par référence). */
 function toggled(current: Set<CapabilityName>, name: CapabilityName): Set<CapabilityName> {
   const next = new Set(current);
@@ -61,10 +75,7 @@ export function RegisterScreen() {
         isAthlete: capabilities.has("athlete"),
       });
       if (signUpError) {
-        // 422 (UNPROCESSABLE_ENTITY) = e-mail déjà utilisé : c'est le seul 422 du sign-up côté
-        // Better Auth (les autres validations — email/mot de passe invalides — sont des 400).
-        const emailInUse = signUpError.status === 422;
-        setError(t(emailInUse ? "auth.errors.emailInUse" : "auth.errors.generic"));
+        setError(t(SIGN_UP_ERROR_KEY[signUpError.status] ?? "auth.errors.generic"));
         return;
       }
       // Même raison qu'à la connexion : rien du compte précédent ne doit survivre au changement.

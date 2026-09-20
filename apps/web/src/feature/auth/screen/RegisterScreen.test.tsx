@@ -109,6 +109,19 @@ describe("RegisterScreen", () => {
       expect(await view.findByText("auth.errors.emailInUse")).toBeInTheDocument();
     });
 
+    it("dit que les inscriptions sont fermées sur un 403", async () => {
+      signUpMock.mockResolvedValue({ error: { status: 403 } });
+      const view = await setup();
+      await fillIdentity(view);
+
+      await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+      // Le message générique (« une erreur est survenue, réessaie ») ferait recommencer une
+      // saisie juste : sur cet environnement, aucune tentative ne passera (#263). Le seul geste
+      // utile est de demander une invitation à son coach, et c'est ce que le message dit.
+      expect(await view.findByText("auth.errors.signupClosed")).toBeInTheDocument();
+    });
+
     it("retombe sur le message générique pour tout autre code", async () => {
       signUpMock.mockResolvedValue({ error: { status: 400 } });
       const view = await setup();
