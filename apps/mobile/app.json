@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "cimavia",
+    "slug": "cimavia",
+    "version": "1.5.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "entitlements": {
+        "com.apple.developer.usernotifications.time-sensitive": true
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "cimavia-3o",
+          "project": "cimavia-mobile"
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "cimavia a besoin d'accéder à ta photothèque pour joindre photos et vidéos à un débrief ou à un message.",
+          "cameraPermission": false,
+          "microphonePermission": "cimavia utilise le micro pour enregistrer tes messages vocaux."
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "cimavia utilise le micro pour enregistrer tes messages vocaux."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "412cffac-62a8-432c-9f18-04107c70e2cb"
+      }
+    }
+  }
+}
