@@ -225,9 +225,14 @@ chaque tentative. C'est volontaire — un repli sur une boîte locale rendrait l
 > les logs. En regénérer une (IAM → Applications → `cimavia-preview-mail` → API keys) et remplacer
 > `SMTP_PASSWORD`.
 
-L'application IAM ne porte qu'une permission, `TransactionalEmailEmailApiCreate` : elle peut
-**envoyer**, pas relire les messages partis ni toucher à la configuration du domaine. La clé vit
-sur le NAS, c'est donc elle qui peut fuiter.
+L'application IAM ne porte qu'une permission, **`TransactionalEmailEmailSmtpCreate`** : elle peut
+envoyer **par SMTP**, pas relire les messages partis ni toucher à la configuration du domaine. La
+clé vit sur le NAS, c'est donc elle qui peut fuiter.
+
+> ⚠️ Scaleway a **deux** permissions d'envoi, et leurs noms se ressemblent :
+> `TransactionalEmailEmailApiCreate` ne couvre que l'API HTTP, `…SmtpCreate` le relais SMTP. Avec
+> la première, l'authentification SMTP réussit puis le serveur répond `535 5.7.8 Permission
+> denied` — un message qui ne désigne pas sa cause. Cherché une heure le 2026-09-20.
 
 **Vérifier qu'un message est bien parti** : Console Scaleway → *Transactional Email* → **Email
 activity**. Dans le message reçu, les en-têtes doivent porter `spf=pass` et `dkim=pass`.
