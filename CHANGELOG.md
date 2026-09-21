@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/Cimavia/cimavia/compare/v1.5.0...v1.5.1) (2026-09-21)
+
+
+### Corrections
+
+* **mobile:** restaurer app.json et retirer les fichiers eas crees a la racine ([9c22bdf](https://github.com/Cimavia/cimavia/commit/9c22bdf7d2f3871830a86ad4bb08b8855b4176e0))
+* **mobile:** restaurer la configuration eas supprimee par megarde ([f74073b](https://github.com/Cimavia/cimavia/commit/f74073bdab26b4e5410a406871fec921cabf807e))
+
 ## [1.5.0](https://github.com/Cimavia/cimavia/compare/v1.4.1...v1.5.0) (2026-09-20)
 
 
