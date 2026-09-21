@@ -3284,10 +3284,15 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Port 465, donc TLS implicite.** `MailService` déduit le chiffrement du seul numéro de port
 >   (465 = TLS dès le premier octet, STARTTLS ailleurs). 587 fonctionnerait ; ce qu'il ne faut pas
 >   faire, c'est inventer un troisième port en croyant ne choisir qu'une route.
-> - **Le login SMTP n'est pas une adresse** : c'est l'ID du PROJET Scaleway, et le mot de passe la
->   clé secrète d'une application IAM portant la seule permission `TransactionalEmailEmailApiCreate`
->   — envoyer, ni relire les messages partis ni toucher au domaine. C'est la clé qui vit sur le NAS,
->   donc celle qui peut fuiter.
+> - **Le login SMTP n'est pas une adresse** : c'est l'ID du PROJET Scaleway — et chez Scaleway le
+>   projet par défaut porte le MÊME UUID que l'organisation, ce qui fait douter de la bonne valeur
+>   quand elle est déjà posée. Le mot de passe est la clé secrète d'une application IAM portant la
+>   seule permission `TransactionalEmailEmailSmtpCreate` : envoyer par SMTP, ni relire les messages
+>   partis ni toucher au domaine. C'est la clé qui vit sur le NAS, donc celle qui peut fuiter.
+> - **Deux permissions d'envoi, et le mauvais nom coûte une heure** : `…EmailApiCreate` ne couvre
+>   que l'API HTTP, `…EmailSmtpCreate` le relais SMTP. Avec la première, l'authentification réussit
+>   et le serveur répond `535 5.7.8 Permission denied` — indiscernable d'un mauvais mot de passe.
+>   L'envoi par l'API HTTP, lui, passait : c'est ce qui a permis de séparer identifiants et droits.
 > - **Elle expire au bout d'un an** (plafond Scaleway, le 2027-09-20 pour celle-ci). Ce jour-là les
 >   envois s'arrêtent, et le seul symptôme est un échec d'authentification SMTP dans les logs. Noté
 >   dans `deploy/dev/README.md`, faute d'un endroit où une date s'impose d'elle-même.
@@ -3298,6 +3303,16 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   seul** enregistrement SPF, celui de Scaleway et celui de Cloudflare ont donc dû être fusionnés
 >   en une ligne (`include:_spf.tem.scaleway.com include:_spf.mx.cloudflare.net -all`). `no-reply@`
 >   n'est délibérément pas routée : ce qui lui répond doit rebondir.
+
+> **Appris en #269** (une recréation à la main fait RECULER preview, sans rien dire) : le compose du
+> NAS lit `${API_IMAGE}`, que `pull-preview.sh` exporte au digest de la version promue — une
+> variable du shell l'emportant sur le `.env`. Un `docker compose up -d api` lancé à la main n'a pas
+> cet export : il retombe sur la valeur du `.env`, celle du bootstrap, et remplace la version
+> promue par une plus ancienne. Le script ne le rattrape pas — son marqueur `deployed` dit que le
+> tag `preview` n'a pas bougé, donc il sort sans rien faire. Constaté le 2026-09-20, une 1.5.0
+> promue depuis quinze minutes tournant déjà en 1.4.1 : le seul symptôme était `/docs` encore
+> ouvert. D'où la consigne du README — **pour appliquer un changement du `.env`, effacer
+> `pull-preview/deployed` et relancer le script**, jamais `up -d` à la main.
 
 ---
 
