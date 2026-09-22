@@ -47,7 +47,11 @@ export function CmvAudioRecorder({
         onError?.("messages.audio.permission");
         return;
       }
-      await setAudioModeAsync({ allowsRecording: true });
+      // Le mode passe EN ENTIER : le natif ne fusionne pas, il repart de ses défauts, et ceux
+      // d'iOS posent `playsInSilentMode: false` (le type TS annonce `true`, qui est celui
+      // d'Android). iOS refuse alors `allowsRecording` seul et lève avant d'atteindre le micro
+      // (#393). La paire est indissociable.
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
       onRecordingChange?.(true);

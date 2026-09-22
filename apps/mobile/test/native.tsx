@@ -86,17 +86,34 @@ vi.mock("expo-router", () => {
   };
 });
 
+/**
+ * `setAudioModeAsync` est aussi strict que le natif iOS, le plus strict des deux : un mode non
+ * fourni y vaut son défaut SWIFT (`playsInSilentMode: false`), et `allowsRecording` sans
+ * `playsInSilentMode` y lève. Un faux qui résolvait toujours a laissé passer #393 jusqu'à l'iPhone
+ * de la bêta.
+ *
+ * Les deux hooks d'enregistrement sont des `vi.fn` pour qu'un test puisse fixer l'enregistreur et
+ * son état ; leur comportement par défaut reste celui d'un enregistreur au repos.
+ */
 vi.mock("expo-audio", () => ({
   useAudioPlayer: () => ({ play: vi.fn(), pause: vi.fn(), seekTo: vi.fn(), remove: vi.fn() }),
   useAudioPlayerStatus: () => ({ playing: false, currentTime: 0, duration: 0, isLoaded: true }),
-  useAudioRecorder: () => ({
+  useAudioRecorder: vi.fn(() => ({
     record: vi.fn(),
     stop: vi.fn(),
     prepareToRecordAsync: vi.fn(async () => undefined),
     uri: null,
-  }),
-  useAudioRecorderState: () => ({ isRecording: false, durationMillis: 0 }),
-  setAudioModeAsync: vi.fn(async () => undefined),
+  })),
+  useAudioRecorderState: vi.fn(() => ({ isRecording: false, durationMillis: 0 })),
+  setAudioModeAsync: vi.fn(
+    async (mode: Readonly<{ allowsRecording?: boolean; playsInSilentMode?: boolean }>) => {
+      if (mode.allowsRecording === true && mode.playsInSilentMode !== true) {
+        throw new Error(
+          "playsInSilentMode == false and allowsRecording == true cannot be set on iOS",
+        );
+      }
+    },
+  ),
   requestRecordingPermissionsAsync: vi.fn(async () => ({ granted: true })),
   RecordingPresets: { HIGH_QUALITY: {} },
 }));
