@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react-native";
 import { waitFor } from "@testing-library/react";
 import {
   requestRecordingPermissionsAsync,
@@ -86,6 +87,8 @@ describe("CmvAudioRecorder — démarrage", () => {
     );
     expect(setAudioModeAsync).not.toHaveBeenCalled();
     expect(recorder.record).not.toHaveBeenCalled();
+    // Un refus est un choix de l'utilisateur, pas une panne : rien à remonter.
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
   it("signale un mode audio refusé par le natif, avant d'atteindre le micro", async () => {
@@ -144,5 +147,30 @@ describe("CmvAudioRecorder — retour au mode lecture sur échec", () => {
       expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
     );
     expect(setAudioModeAsync).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("CmvAudioRecorder — remontée à Sentry", () => {
+  it("remonte la cause d'un démarrage échoué", async () => {
+    const cause = new Error("micro occupé");
+    recorder.prepareToRecordAsync.mockRejectedValueOnce(cause);
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause);
+  });
+
+  it("remonte la cause d'un arrêt échoué", async () => {
+    recording(3000);
+    const cause = new Error("arrêt impossible");
+    recorder.stop.mockRejectedValueOnce(cause);
+    const { container, onError } = setup();
+
+    press(icon(container, "trash-outline"));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause);
   });
 });

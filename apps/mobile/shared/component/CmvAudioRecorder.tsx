@@ -1,6 +1,7 @@
 import { formatMmSs } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
+import * as Sentry from "@sentry/react-native";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -70,7 +71,10 @@ export function CmvAudioRecorder({
       await recorder.prepareToRecordAsync();
       recorder.record();
       onRecordingChange?.(true);
-    } catch {
+    } catch (error) {
+      // Le natif NOMME la panne (#393 : « playsInSilentMode == false and allowsRecording == true
+      // cannot be set on iOS ») ; sans cette remontée, seul le message générique la signale.
+      Sentry.captureException(error);
       await restorePlayback();
       onError?.("messages.audio.recordError");
     }
@@ -87,7 +91,8 @@ export function CmvAudioRecorder({
       if (keep && recorder.uri != null && durationSeconds > 0) {
         onRecorded({ uri: recorder.uri, durationSeconds });
       }
-    } catch {
+    } catch (error) {
+      Sentry.captureException(error);
       await restorePlayback();
       onRecordingChange?.(false);
       onError?.("messages.audio.recordError");
