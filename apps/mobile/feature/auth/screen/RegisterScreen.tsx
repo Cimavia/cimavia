@@ -1,4 +1,5 @@
 import type { CapabilityName } from "@cmv/shared";
+import { SELECTABLE_CAPABILITIES, signUpErrorKey, toggledCapability } from "@cmv/shared";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,22 +11,6 @@ import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { landingTab } from "@/shared/lib/tabs";
-
-/**
- * Les capacités proposées à l'inscription. Cumulables (#7) : un coach qui se coache lui-même coche
- * les deux. `role` n'est plus envoyé — l'API le déduit comme persona d'atterrissage (#12).
- */
-const SELECTABLE_CAPABILITIES: { name: CapabilityName; labelKey: string }[] = [
-  { name: "coach", labelKey: "auth.register.capabilityCoach" },
-  { name: "athlete", labelKey: "auth.register.capabilityAthlete" },
-];
-
-/** Bascule une capacité sans muter l'état existant (React compare par référence). */
-function toggled(current: Set<CapabilityName>, name: CapabilityName): Set<CapabilityName> {
-  const next = new Set(current);
-  if (!next.delete(name)) next.add(name);
-  return next;
-}
 
 export function RegisterScreen() {
   const { t } = useTranslation();
@@ -63,10 +48,7 @@ export function RegisterScreen() {
         isAthlete: selected.has("athlete"),
       });
       if (signUpError != null) {
-        // 422 (UNPROCESSABLE_ENTITY) = e-mail déjà utilisé : seul 422 du sign-up côté Better Auth
-        // (les autres validations sont des 400). Cf. web RegisterScreen.
-        const emailInUse = signUpError.status === 422;
-        setError(t(emailInUse ? "auth.errors.emailInUse" : "auth.errors.generic"));
+        setError(t(signUpErrorKey(signUpError.status)));
         return;
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
@@ -114,7 +96,7 @@ export function RegisterScreen() {
             return (
               <Pressable
                 key={name}
-                onPress={() => setSelected(toggled(selected, name))}
+                onPress={() => setSelected(toggledCapability(selected, name))}
                 // Case à cocher et non bouton : ce sont deux choix INDÉPENDANTS, et VoiceOver doit
                 // l'annoncer ainsi — sans quoi rien ne dit qu'on peut cocher les deux.
                 accessibilityRole="checkbox"

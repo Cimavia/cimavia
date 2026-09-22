@@ -31,7 +31,7 @@ pas — médias signés, push, app réelle en HTTPS — sur une image identique 
 Aucun port n'est ouvert sur la box : seul le conteneur `cloudflared` **sort** vers Cloudflare, et
 joint `api`/`web`/`silo` par leur nom de service sur le réseau interne du compose.
 
-Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un tunnel puis mapper quatre
+Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un tunnel puis mapper trois
 *public hostnames* vers les services internes :
 
 | Hostname public | Service (URL interne) | |
@@ -39,14 +39,11 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 | `api-dev.<domaine>` | `http://api:3000` | |
 | `app-dev.<domaine>` | `http://web:80` | |
 | `s3-dev.<domaine>`  | `http://silo:9000` | `minio:9000` marche encore : alias gardé jusqu'à #271 |
-| `mail-dev.<domaine>` | `http://mailpit:8025` | ⚠️ **policy Access obligatoire** |
 
-> **Mailpit n'a aucune authentification.** Il expose en clair tout ce que l'API envoie, liens de
-> réinitialisation de mot de passe compris — c'est-à-dire un chemin de connexion utilisable vers
-> n'importe quel compte du tier dev. Le hostname `mail-dev` doit donc porter une policy
-> **Zero Trust → Access → Applications** (self-hosted, règle *Emails* limitée à la tienne) avant
-> le premier envoi. Les trois autres hostnames s'en passent : ils servent une API et un SPA qui
-> ont leur propre authentification.
+> **`app-dev` est derrière Cloudflare Access** (#263), les deux autres non : l'API est appelée par
+> le téléphone, qui ne sait pas résoudre un écran de connexion, et `s3-dev` sert les URLs signées
+> que ce même téléphone appelle. Un quatrième hostname a existé jusqu'à #269, `mail-dev`, qui
+> exposait la boîte Mailpit du tier — il n'a plus de service derrière lui.
 
 > Sous-domaines **mono-niveau** (tiret, pas point) : le SSL gratuit de Cloudflare couvre
 > `*.<domaine>` mais **pas** `*.dev.<domaine>`. `api-dev` fonctionne ; `api.dev` donnerait une
@@ -61,7 +58,7 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 
 ## Mise en route
 
-1. **Cloudflare** : tunnel créé, 4 hostnames mappés (dont `mail-dev`, **derrière Access**), token
+1. **Cloudflare** : tunnel créé, 3 hostnames mappés (dont `app-dev`, **derrière Access**), token
    en main (ci-dessus).
 2. **Images** : rien à préparer. La CI publie l'image de l'API à chaque push sur `main`, et le NAS
    ne tire que la version **promue** (voir « Déploiement » ci-dessous).
@@ -78,9 +75,8 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 5. **Vérifier** (le test qui compte se fait depuis le **téléphone**, hors réseau maison) :
    - `https://api-dev.<domaine>/health` → `{"status":"ok"}`
    - `https://api-dev.<domaine>/health/ready` → `{"database":"up"}`
-   - `https://app-dev.<domaine>` → l'app web se charge.
-   - `https://mail-dev.<domaine>` → Cloudflare demande d'abord de s'authentifier, **puis** la
-     boîte Mailpit s'affiche. Si elle s'affiche sans rien demander, la policy Access manque.
+   - `https://app-dev.<domaine>` → Cloudflare demande une adresse et un code, **puis** l'app web
+     se charge. Si elle se charge sans rien demander, la policy Access manque (#263).
 
 ## Déploiement : le NAS tire la version promue
 
@@ -160,6 +156,137 @@ Une fois la cause réglée, le prochain passage réessaie seul. Si seule la conf
   son nom d'avant #257 sur le NAS, `cimavia-dev_minio_data` : le renommer démarrerait un stockage vide.
 - Ce sont les **vraies données du Coach bêta** depuis #260 : leur sauvegarde est ci-dessous, pas
   optionnelle.
+
+## Qui peut créer un compte (#263)
+
+Ce tier est joignable publiquement — son URL est figée dans l'APK et dans chaque e-mail qu'il
+envoie — et sa règle dure est « données synthétiques seulement ». Les deux ne tiennent ensemble que
+si un inconnu ne peut pas s'y inscrire : l'inscription y est donc **fermée**.
+
+| Variable du `.env` | Effet |
+|---|---|
+| `SIGNUP_MODE` | `invitation` (le défaut du compose, même si le `.env` se tait) ou `open`. **À ne pas passer à `open` sur ce tier** |
+| `SIGNUP_ALLOWED_EMAILS` | les adresses qui peuvent s'inscrire **sans invitation**, séparées par des virgules |
+
+Deux portes, et deux seulement :
+
+- **un Coach** : son adresse dans `SIGNUP_ALLOWED_EMAILS`, parce que personne ne l'invite ;
+- **un Athlete** : une invitation **nominative** en cours, créée par son coach depuis l'app.
+
+Un lien d'invitation **générique** (sans adresse) ne suffit pas : il n'identifie personne, donc il
+ne peut rien autoriser avant l'inscription. Sur ce tier, on invite par l'adresse.
+
+Ajouter un Coach se fait donc à la main, et le changement ne prend qu'au redémarrage de l'API :
+
+```bash
+sudo -i
+cd /volume1/<…>/cimavia-dev           # le dossier du .env
+vi .env                               # SIGNUP_ALLOWED_EMAILS=coach@exemple.fr,autre@exemple.fr
+rm -f pull-preview/deployed           # sans ça, le script voit « rien de nouveau » et ne fait rien
+bash pull-preview.sh
+tail -n 3 pull-preview/pull-preview.log
+```
+
+> ⚠️ **Passer par le script, jamais par un `docker compose up -d api` à la main.** Le compose lit
+> `${API_IMAGE}`, et une variable du shell l'emporte sur le `.env` : `pull-preview.sh` exporte le
+> digest de la version promue, une invocation manuelle retombe sur ce que le `.env` contient. Si
+> c'est une vieille valeur (celle du bootstrap, § *Déploiement manuel*), preview **recule d'une
+> version sans rien dire** — et le script ne le rattrapera pas, son marqueur `deployed` indiquant
+> que le tag `preview` n'a pas bougé. Mesuré le 2026-09-20 : une recréation à la main a remplacé
+> la 1.5.0 fraîchement promue par l'image d'avant.
+>
+> Et recréer, pas redémarrer : un conteneur reçoit son environnement **à sa création**. Un
+> `restart` relancerait le même processus avec les anciennes valeurs, sans le moindre message.
+
+> L'inscription refusée répond **403**, et les deux apps affichent « demande une invitation à ton
+> coach ». Le formulaire, lui, reste visible : le client ne connaît pas le mode, et une route qui
+> l'annoncerait renseignerait surtout qui sonde l'API.
+
+## Envoi d'e-mails (#269)
+
+Jusqu'à #269, tout ce que l'API envoyait atterrissait dans une boîte **Mailpit** que seul toi
+pouvais lire : le Coach bêta et ses Athletes ne recevaient ni invitation, ni lien de
+réinitialisation, ni notification. Le tier écrit maintenant à de **vraies adresses**, par
+**Scaleway Transactional Email** (300 messages par mois offerts).
+
+| Variable du `.env` | Valeur |
+|---|---|
+| `SMTP_HOST` | `smtp.tem.scaleway.com` |
+| `SMTP_PORT` | `465` — TLS implicite, ce que `MailService` applique **sur ce port précis** |
+| `SMTP_USER` | l'**ID du projet** Scaleway (un UUID), pas une adresse |
+| `SMTP_PASSWORD` | la clé secrète de l'application IAM `cimavia-preview-mail` |
+| `MAIL_FROM` | `Cimavia <no-reply@cimavia.fr>` — une adresse du domaine vérifié |
+
+**Aucun repli** : une variable oubliée laisse l'envoi éteint et `MailService` le journalise à
+chaque tentative. C'est volontaire — un repli sur une boîte locale rendrait l'oubli invisible.
+
+> ⚠️ **La clé d'API expire le 20 septembre 2027.** Scaleway plafonne les clés à douze mois. Ce
+> jour-là les envois s'arrêteront, et le seul symptôme sera un échec d'authentification SMTP dans
+> les logs. En regénérer une (IAM → Applications → `cimavia-preview-mail` → API keys) et remplacer
+> `SMTP_PASSWORD`.
+
+L'application IAM ne porte qu'une permission, **`TransactionalEmailEmailSmtpCreate`** : elle peut
+envoyer **par SMTP**, pas relire les messages partis ni toucher à la configuration du domaine. La
+clé vit sur le NAS, c'est donc elle qui peut fuiter.
+
+> ⚠️ Scaleway a **deux** permissions d'envoi, et leurs noms se ressemblent :
+> `TransactionalEmailEmailApiCreate` ne couvre que l'API HTTP, `…SmtpCreate` le relais SMTP. Avec
+> la première, l'authentification SMTP réussit puis le serveur répond `535 5.7.8 Permission
+> denied` — un message qui ne désigne pas sa cause. Cherché une heure le 2026-09-20.
+
+**Vérifier qu'un message est bien parti** : Console Scaleway → *Transactional Email* → **Email
+activity**. Dans le message reçu, les en-têtes doivent porter `spf=pass` et `dkim=pass`.
+
+**Recevoir du courrier sur `@cimavia.fr`** passe par Cloudflare Email Routing, pas par Scaleway :
+`contact@` et `dmarc@` sont réexpédiées vers la boîte personnelle. `no-reply@` n'est **pas** routée
+— ce qui lui répond rebondit, et c'est voulu.
+
+## Faire entrer quelqu'un dans la bêta
+
+Trois cas, et une règle qui les gouverne tous les trois : **la liste `SIGNUP_ALLOWED_EMAILS`
+autorise à CRÉER un compte, l'invitation nominative LIE à un coach.** Ce sont deux gestes
+distincts, et certains n'en demandent qu'un.
+
+> ⚠️ **Access d'abord, invitation ensuite.** Un lien d'e-mail envoyé à quelqu'un qui n'est pas dans
+> la policy `beta-web` s'arrête sur une demande de code qu'il ne peut pas satisfaire, sans rien lui
+> dire d'utile. Vrai pour l'invitation comme pour la réinitialisation de mot de passe, que le
+> mobile renvoie vers le web.
+
+### Un Coach
+
+Personne ne l'invite : c'est le seul cas qui demande une intervention sur le NAS.
+
+1. **Cloudflare Access** → *Applications* → `app-dev` → politique `beta-web` → *Include → Emails* :
+   ajouter son adresse.
+2. **`.env` du NAS** : ajouter l'adresse à `SIGNUP_ALLOWED_EMAILS` (séparateur : la virgule), puis
+   recréer le conteneur (commande exacte au § *Qui peut créer un compte*) — la liste est lue au
+   démarrage.
+3. Lui donner l'app (`eas build --profile preview --platform android`, § *App mobile de test*) ou
+   l'URL du web.
+4. Il crée son compte avec **l'adresse autorisée**, case *coach* cochée.
+
+### Un Athlete
+
+Aucune intervention sur le NAS : c'est son coach qui ouvre la porte, depuis l'app.
+
+1. **Cloudflare Access** : ajouter son adresse à `beta-web`.
+2. **Son coach l'invite par son ADRESSE** (l'invitation nominative), pas par un lien générique :
+   un lien sans adresse n'identifie personne, donc n'autorise aucune inscription.
+3. Lui donner l'app.
+4. Il crée son compte avec **l'adresse invitée**, case *athlète* cochée, puis accepte l'invitation
+   qui l'attend dans l'app.
+
+### Quelqu'un qui est les deux
+
+Les capacités sont **cumulables** : à l'inscription, on coche les deux cases. Ce qui change est
+seulement *par quelle porte* il entre.
+
+- **Un coach qui se coache lui-même** : exactement le cas « Coach » ci-dessus, avec les deux cases
+  cochées. Aucune invitation — il n'a pas de coach, il est son propre athlète.
+- **Un coach qui est aussi l'athlète de quelqu'un d'autre** : les deux gestes, dans cet ordre —
+  l'adresse dans `SIGNUP_ALLOWED_EMAILS` **ou** une invitation de son futur coach lui permet de
+  s'inscrire, puis il accepte l'invitation pour être lié. Rappel de l'invariant : **au plus un
+  coach par athlète**, et l'API refuse la seconde liaison (`409`).
 
 ## Deux identités pour le stockage (#267)
 

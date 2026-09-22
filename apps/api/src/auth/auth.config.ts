@@ -30,6 +30,14 @@ export type AuthConfig = {
   baseURL: string;
   trustedOrigins: string[];
   sendResetPassword: SendResetPassword;
+  /**
+   * L'environnement accepte-t-il de créer un compte pour cette adresse (#263) ?
+   *
+   * Un callback, pour la même raison que `sendResetPassword` : la réponse demande la base (une
+   * invitation nominative en cours) et la configuration, et ce fichier est une fabrique PURE.
+   * `SignupPolicy` porte la décision, celle-ci ne fait qu'en appliquer le verdict.
+   */
+  mayCreateAccount: (email: string) => Promise<boolean>;
 };
 
 /**
@@ -116,6 +124,16 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
       user: {
         create: {
           before: async (user) => {
+            // AVANT toute autre validation : sur un environnement fermé, la question n'est pas de
+            // savoir si la demande est bien formée, mais si l'on accepte des inscriptions. 403 et
+            // non 400 — la demande n'a rien de fautif, c'est l'environnement qui refuse ; les deux
+            // clients s'appuient sur ce code pour dire « passe par ton coach » plutôt que
+            // « corrige ta saisie ».
+            if (!(await config.mayCreateAccount(user.email))) {
+              throw new APIError("FORBIDDEN", {
+                message: "inscription fermée sur cet environnement",
+              });
+            }
             const { isCoach = false, isAthlete = false } = user as {
               isCoach?: boolean;
               isAthlete?: boolean;

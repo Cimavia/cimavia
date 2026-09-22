@@ -1,5 +1,10 @@
 import type { CapabilityName } from "@cmv/shared";
-import { PASSWORD_MIN_LENGTH } from "@cmv/shared";
+import {
+  PASSWORD_MIN_LENGTH,
+  SELECTABLE_CAPABILITIES,
+  signUpErrorKey,
+  toggledCapability,
+} from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { type SubmitEvent, useState } from "react";
@@ -8,23 +13,6 @@ import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { authClient } from "@/shared/lib/auth";
 import { AuthLayout } from "../component/AuthLayout";
-
-/**
- * Les capacités proposées à l'inscription, dans l'ordre d'affichage. Elles sont **cumulables**
- * (#7) : un coach qui se coache lui-même coche les deux. `role` n'est plus envoyé — l'API le
- * déduit comme persona d'atterrissage (#12).
- */
-const SELECTABLE_CAPABILITIES: { name: CapabilityName; labelKey: string }[] = [
-  { name: "coach", labelKey: "auth.register.capabilityCoach" },
-  { name: "athlete", labelKey: "auth.register.capabilityAthlete" },
-];
-
-/** Bascule une capacité sans muter l'état existant (React compare par référence). */
-function toggled(current: Set<CapabilityName>, name: CapabilityName): Set<CapabilityName> {
-  const next = new Set(current);
-  if (!next.delete(name)) next.add(name);
-  return next;
-}
 
 export function RegisterScreen() {
   const { t } = useTranslation();
@@ -61,10 +49,7 @@ export function RegisterScreen() {
         isAthlete: capabilities.has("athlete"),
       });
       if (signUpError) {
-        // 422 (UNPROCESSABLE_ENTITY) = e-mail déjà utilisé : c'est le seul 422 du sign-up côté
-        // Better Auth (les autres validations — email/mot de passe invalides — sont des 400).
-        const emailInUse = signUpError.status === 422;
-        setError(t(emailInUse ? "auth.errors.emailInUse" : "auth.errors.generic"));
+        setError(t(signUpErrorKey(signUpError.status)));
         return;
       }
       // Même raison qu'à la connexion : rien du compte précédent ne doit survivre au changement.
@@ -129,7 +114,7 @@ export function RegisterScreen() {
                     type="checkbox"
                     className="sr-only"
                     checked={checked}
-                    onChange={() => setCapabilities(toggled(capabilities, name))}
+                    onChange={() => setCapabilities(toggledCapability(capabilities, name))}
                   />
                   {t(labelKey)}
                 </label>

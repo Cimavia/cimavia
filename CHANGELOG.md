@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.5.1](https://github.com/Cimavia/cimavia/compare/v1.5.0...v1.5.1) (2026-09-21)
+
+
+### Corrections
+
+* **mobile:** restaurer app.json et retirer les fichiers eas crees a la racine ([9c22bdf](https://github.com/Cimavia/cimavia/commit/9c22bdf7d2f3871830a86ad4bb08b8855b4176e0))
+* **mobile:** restaurer la configuration eas supprimee par megarde ([f74073b](https://github.com/Cimavia/cimavia/commit/f74073bdab26b4e5410a406871fec921cabf807e))
+
+## [1.5.0](https://github.com/Cimavia/cimavia/compare/v1.4.1...v1.5.0) (2026-09-20)
+
+
+### Fonctionnalités
+
+* **api:** fermer l inscription aux invites sur les environnements non ouverts ([3ab5ad5](https://github.com/Cimavia/cimavia/commit/3ab5ad55fae64d553eebfcf8a0be8df84dd679bb))
+* **api:** ne plus publier la documentation swagger en production ([e89546b](https://github.com/Cimavia/cimavia/commit/e89546bd11b36aad129f7682adc87bd1abb37ba3))
+* **deploy:** envoyer les e-mails du nas par scaleway et retirer mailpit ([56d91fc](https://github.com/Cimavia/cimavia/commit/56d91fc5f94fdc87ea3989a85b800e8626855e28))
+* **mobile:** dire a l inscription refusee de passer par son coach ([a43f74e](https://github.com/Cimavia/cimavia/commit/a43f74e47a2a33cac36a663a01c1afca98d3c515))
+* **shared:** valider le mode d inscription et normaliser les adresses sans base ([bd063a0](https://github.com/Cimavia/cimavia/commit/bd063a0002c167b42f59bb4ecbce8182bf32a888))
+* **web:** dire a l inscription refusee de passer par son coach ([0544277](https://github.com/Cimavia/cimavia/commit/05442778b7f84c4dd1e76531d7f41cc4a29a8228))
+
+
+### Technique
+
+* **shared:** mutualiser le choix des capacites et le message d inscription refusee ([1f83134](https://github.com/Cimavia/cimavia/commit/1f8313409f0d3f23e97866b509723293f20b72d4))
+
 ## [1.4.1](https://github.com/Cimavia/cimavia/compare/v1.4.0...v1.4.1) (2026-09-20)
 
 
