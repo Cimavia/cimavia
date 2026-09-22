@@ -174,3 +174,65 @@ describe("CmvAudioRecorder — remontée à Sentry", () => {
     expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause);
   });
 });
+
+describe("CmvAudioRecorder — au repos", () => {
+  it("n'ouvre pas le micro quand le parent le ferme", () => {
+    const onError = vi.fn();
+    const { container } = renderRn(
+      <CmvAudioRecorder onRecorded={vi.fn()} onError={onError} disabled />,
+    );
+
+    press(icon(container, "mic-outline"));
+
+    expect(requestRecordingPermissionsAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("CmvAudioRecorder — fin d'enregistrement", () => {
+  it("affiche la durée en cours", () => {
+    recording(75_000);
+    const { getByText } = setup();
+
+    expect(getByText("1:15")).not.toBeNull();
+  });
+
+  it("envoie la note, avec sa durée arrondie, et rend la lecture", async () => {
+    recording(3400);
+    const { container, onRecorded, onRecordingChange, onError } = setup();
+
+    press(icon(container, "send"));
+
+    await waitFor(() =>
+      expect(onRecorded).toHaveBeenCalledExactlyOnceWith({
+        uri: "file:///cache/note.m4a",
+        durationSeconds: 3,
+      }),
+    );
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+    expect(onRecordingChange).toHaveBeenCalledWith(false);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Règle dure n°5 : une note sans fichier ou sans durée n'est pas « une note de 0 s », c'est
+   * l'absence de note. Rien ne remonte au parent — et l'arrêt se fait quand même.
+   */
+  it.each([
+    { cas: "la corbeille", iconName: "trash-outline", durationMillis: 3000, uri: "file:///n.m4a" },
+    { cas: "une durée arrondie à 0", iconName: "send", durationMillis: 400, uri: "file:///n.m4a" },
+    { cas: "un fichier absent", iconName: "send", durationMillis: 3000, uri: null },
+  ])("ne transmet rien pour $cas", async ({ iconName, durationMillis, uri }) => {
+    recording(durationMillis);
+    recorder.uri = uri;
+    const { container, onRecorded, onRecordingChange, onError } = setup();
+
+    press(icon(container, iconName));
+
+    await waitFor(() => expect(onRecordingChange).toHaveBeenCalledWith(false));
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+    expect(onRecorded).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+});
