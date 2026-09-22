@@ -1,6 +1,7 @@
 import { formatMmSs } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
+import * as Sentry from "@sentry/react-native";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -22,6 +23,21 @@ type CmvAudioRecorderProps = {
   onError?: (reasonKey: string) => void;
   disabled?: boolean;
 };
+
+/**
+ * Rebascule en mode LECTURE : le mode « record » posé au démarrage rendrait muette la lecture des
+ * notes vocales qui suit (piège classique expo-audio).
+ */
+const PLAYBACK_MODE = { allowsRecording: false, playsInSilentMode: true } as const;
+
+/**
+ * Le retour au mode lecture sur un chemin d'ÉCHEC : un micro pris par une autre app laisserait
+ * sinon la session iOS en `.playAndRecord`. Best-effort — l'erreur qui a mené ici prime sur la
+ * sienne.
+ */
+async function restorePlayback() {
+  await setAudioModeAsync(PLAYBACK_MODE).catch(() => undefined);
+}
 
 /**
  * Enregistreur audio partagé (messagerie, et débrief vocal à venir). Au repos : un bouton micro.
@@ -47,11 +63,19 @@ export function CmvAudioRecorder({
         onError?.("messages.audio.permission");
         return;
       }
-      await setAudioModeAsync({ allowsRecording: true });
+      // Le mode passe EN ENTIER : le natif ne fusionne pas, il repart de ses défauts, et ceux
+      // d'iOS posent `playsInSilentMode: false` (le type TS annonce `true`, qui est celui
+      // d'Android). iOS refuse alors `allowsRecording` seul et lève avant d'atteindre le micro
+      // (#393). La paire est indissociable.
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
       onRecordingChange?.(true);
-    } catch {
+    } catch (error) {
+      // Le natif NOMME la panne (#393 : « playsInSilentMode == false and allowsRecording == true
+      // cannot be set on iOS ») ; sans cette remontée, seul le message générique la signale.
+      Sentry.captureException(error);
+      await restorePlayback();
       onError?.("messages.audio.recordError");
     }
   };
@@ -62,14 +86,14 @@ export function CmvAudioRecorder({
     const durationSeconds = Math.round(state.durationMillis / 1000);
     try {
       await recorder.stop();
-      // Rebascule en mode LECTURE : le mode « record » posé au démarrage rendrait muette la
-      // lecture des notes vocales qui suit (piège classique expo-audio).
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      await setAudioModeAsync(PLAYBACK_MODE);
       onRecordingChange?.(false);
       if (keep && recorder.uri != null && durationSeconds > 0) {
         onRecorded({ uri: recorder.uri, durationSeconds });
       }
-    } catch {
+    } catch (error) {
+      Sentry.captureException(error);
+      await restorePlayback();
       onRecordingChange?.(false);
       onError?.("messages.audio.recordError");
     } finally {
