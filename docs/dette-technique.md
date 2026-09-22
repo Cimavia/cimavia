@@ -3129,7 +3129,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
 | IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet tant qu'aucune revue n'a lieu — la bêta passe par des testeurs TestFlight internes —, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi à des testeurs TestFlight EXTERNES, ou à l'App Store — les testeurs internes ne passent aucune revue)* |
 | IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins, sans que rien ne le signale. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
-| IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
+| IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. `playsInSilentMode` en faisait partie : il s'est matérialisé en bêta et est sorti de la ligne en [#393](https://github.com/Cimavia/cimavia/issues/393) (encadré ci-dessous). Le suivi pointait sur #134, fermée le 2026-09-14 : la dette n'était plus suivie par rien jusqu'à #394. | 🟡 | [#394](https://github.com/Cimavia/cimavia/issues/394) |
 | IOS-6 | **La chaîne de notification du minuteur n'a aucun test** (0 % mesuré) : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — seul ce dernier est remonté à 100 %. | 🟡 | [#253](https://github.com/Cimavia/cimavia/issues/253) |
 
 > **Tranché en #134** (TestFlight interne plutôt qu'ad hoc — arbitrage RENVERSÉ en cours de PR) :
@@ -3189,6 +3189,23 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `granted`, seul champ que lisent `usePushToken` et `timer-alert`. Il valait donc `undefined`, tout
 > appelant concluait au refus, et n'importe quel test écrit sur ce mock serait passé au vert sans
 > rien éprouver. Un mock incomplet ne rate pas un test : il en fabrique un faux.
+
+> **Découvert en #393** (le premier élément d'IOS-5 à tourner était cassé, et le faux l'avait
+> caché) : la note vocale échouait sur TOUT iPhone, avant même d'atteindre le micro — messagerie
+> comme débrief, Coach comme Athlete. `setAudioModeAsync` n'est pas une mise à jour partielle : le
+> natif recompose le mode entier depuis les défauts de son `Record`, et ces défauts divergent —
+> `playsInSilentMode` vaut `false` en Swift, `true` en Kotlin. iOS refuse `allowsRecording` sans
+> lui (`AudioUtils.validateAudioMode`). Le type TS annonce `@default true` : c'est le défaut
+> d'Android, pas une garantie. D'où la règle dans `CmvAudioRecorder` : **le mode passe en entier**.
+>
+> Le faux d'`expo-audio` (`test/native.tsx`) résolvait toujours, et c'est lui qui a laissé la panne
+> filer jusqu'à la bêta. Il lève désormais comme iOS, le plus strict des deux natifs : un mode non
+> fourni y vaut son défaut SWIFT. Même leçon que l'encadré précédent, dans l'autre sens — un faux
+> trop permissif ne rate pas un test, il rate une panne.
+>
+> Le diagnostic existait dès le premier appui : le natif nomme l'erreur, mais le `catch` la
+> jetait. C'est ce qui a fait de `CmvAudioRecorder` le **premier appel métier** de
+> `Sentry.captureException` côté mobile — jusque-là seul `CmvCrashScreen` capturait.
 
 ---
 
