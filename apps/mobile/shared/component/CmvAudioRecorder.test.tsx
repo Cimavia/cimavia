@@ -36,6 +36,16 @@ function icon(container: HTMLElement, name: string): Element {
   return found.parentElement;
 }
 
+const PLAYBACK_MODE = { allowsRecording: false, playsInSilentMode: true };
+
+/** Monte le composant EN COURS d'enregistrement : c'est l'état natif qui gouverne le bandeau. */
+function recording(durationMillis: number) {
+  vi.mocked(useAudioRecorderState).mockReturnValue({
+    isRecording: true,
+    durationMillis,
+  } as ReturnType<typeof useAudioRecorderState>);
+}
+
 beforeEach(() => {
   recorder = fakeRecorder();
   vi.mocked(useAudioRecorder).mockReturnValue(
@@ -89,5 +99,50 @@ describe("CmvAudioRecorder — démarrage", () => {
     );
     expect(recorder.prepareToRecordAsync).not.toHaveBeenCalled();
     expect(onRecordingChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("CmvAudioRecorder — retour au mode lecture sur échec", () => {
+  it("rétablit la lecture quand le micro ne se prépare pas", async () => {
+    // Le cas du micro déjà pris par une autre app : le mode « record » est posé, puis tout tombe.
+    recorder.prepareToRecordAsync.mockRejectedValueOnce(new Error("micro occupé"));
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
+    );
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+  });
+
+  it("rétablit la lecture quand l'arrêt échoue", async () => {
+    recording(3000);
+    recorder.stop.mockRejectedValueOnce(new Error("arrêt impossible"));
+    const { container, onError, onRecordingChange, onRecorded } = setup();
+
+    press(icon(container, "send"));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
+    );
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+    expect(onRecordingChange).toHaveBeenCalledWith(false);
+    expect(onRecorded).not.toHaveBeenCalled();
+  });
+
+  it("garde l'erreur d'origine quand le retour au mode lecture échoue aussi", async () => {
+    recorder.prepareToRecordAsync.mockRejectedValueOnce(new Error("micro occupé"));
+    vi.mocked(setAudioModeAsync)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("session audio perdue"));
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
+    );
+    expect(setAudioModeAsync).toHaveBeenCalledTimes(2);
   });
 });

@@ -24,6 +24,21 @@ type CmvAudioRecorderProps = {
 };
 
 /**
+ * Rebascule en mode LECTURE : le mode « record » posé au démarrage rendrait muette la lecture des
+ * notes vocales qui suit (piège classique expo-audio).
+ */
+const PLAYBACK_MODE = { allowsRecording: false, playsInSilentMode: true } as const;
+
+/**
+ * Le retour au mode lecture sur un chemin d'ÉCHEC : un micro pris par une autre app laisserait
+ * sinon la session iOS en `.playAndRecord`. Best-effort — l'erreur qui a mené ici prime sur la
+ * sienne.
+ */
+async function restorePlayback() {
+  await setAudioModeAsync(PLAYBACK_MODE).catch(() => undefined);
+}
+
+/**
  * Enregistreur audio partagé (messagerie, et débrief vocal à venir). Au repos : un bouton micro.
  * Pendant l'enregistrement : un bandeau minuteur + annuler / envoyer. Composant de design system
  * réutilisable — d'où sa place dans `shared/component`.
@@ -56,6 +71,7 @@ export function CmvAudioRecorder({
       recorder.record();
       onRecordingChange?.(true);
     } catch {
+      await restorePlayback();
       onError?.("messages.audio.recordError");
     }
   };
@@ -66,14 +82,13 @@ export function CmvAudioRecorder({
     const durationSeconds = Math.round(state.durationMillis / 1000);
     try {
       await recorder.stop();
-      // Rebascule en mode LECTURE : le mode « record » posé au démarrage rendrait muette la
-      // lecture des notes vocales qui suit (piège classique expo-audio).
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      await setAudioModeAsync(PLAYBACK_MODE);
       onRecordingChange?.(false);
       if (keep && recorder.uri != null && durationSeconds > 0) {
         onRecorded({ uri: recorder.uri, durationSeconds });
       }
     } catch {
+      await restorePlayback();
       onRecordingChange?.(false);
       onError?.("messages.audio.recordError");
     } finally {
