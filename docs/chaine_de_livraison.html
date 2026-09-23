@@ -1,0 +1,812 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Chaîne de livraison cimavia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #f3f5f4;
+    --surface: #ffffff;
+    --sunk: #e8ecea;
+    --ink: #17201d;
+    --ink-2: #4a5752;
+    --ink-3: #74807b;
+    --line: #d3dad7;
+    --accent: #0d6b5f;
+    --accent-soft: #d8ece8;
+    /* couleurs de couloir : chaque zone du schéma garde la sienne partout sur la page */
+    --lane-local: #9a6b12;
+    --lane-local-bg: #f6ecd6;
+    --lane-gh: #2f5fa8;
+    --lane-gh-bg: #e1eaf7;
+    --lane-reg: #7148a3;
+    --lane-reg-bg: #ece3f6;
+    --lane-nas: #2c7a3f;
+    --lane-nas-bg: #dff0e2;
+    --lane-ext: #5d6763;
+    --lane-ext-bg: #e7ebe9;
+    --warn: #a4501a;
+    --warn-bg: #fbe9dc;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #121715;
+      --surface: #1a211e;
+      --sunk: #222b27;
+      --ink: #e5ebe8;
+      --ink-2: #aab6b1;
+      --ink-3: #7f8b86;
+      --line: #2f3a36;
+      --accent: #5cc4b3;
+      --accent-soft: #1d3a35;
+      --lane-local: #e0b25a;
+      --lane-local-bg: #3a2f18;
+      --lane-gh: #86aef0;
+      --lane-gh-bg: #1c2a42;
+      --lane-reg: #bf9bea;
+      --lane-reg-bg: #2e2340;
+      --lane-nas: #7fcf8f;
+      --lane-nas-bg: #1c3322;
+      --lane-ext: #a7b2ad;
+      --lane-ext-bg: #262e2b;
+      --warn: #f0a372;
+      --warn-bg: #3a2517;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #121715;
+    --surface: #1a211e;
+    --sunk: #222b27;
+    --ink: #e5ebe8;
+    --ink-2: #aab6b1;
+    --ink-3: #7f8b86;
+    --line: #2f3a36;
+    --accent: #5cc4b3;
+    --accent-soft: #1d3a35;
+    --lane-local: #e0b25a;
+    --lane-local-bg: #3a2f18;
+    --lane-gh: #86aef0;
+    --lane-gh-bg: #1c2a42;
+    --lane-reg: #bf9bea;
+    --lane-reg-bg: #2e2340;
+    --lane-nas: #7fcf8f;
+    --lane-nas-bg: #1c3322;
+    --lane-ext: #a7b2ad;
+    --lane-ext-bg: #262e2b;
+    --warn: #f0a372;
+    --warn-bg: #3a2517;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    padding-inline: 20px;
+    padding-block: 0 64px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+  code { background: var(--sunk); padding: 0.08em 0.36em; border-radius: 4px; overflow-wrap: anywhere; }
+  a { color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  h1, h2, h3 { font-family: var(--cond); text-wrap: balance; margin: 0; letter-spacing: -0.005em; }
+  h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; line-height: 1.08; }
+  h2 { font-size: 26px; font-weight: 600; line-height: 1.2; }
+  h3 { font-size: 18px; font-weight: 600; line-height: 1.3; }
+  p { margin: 0; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--ink-3);
+  }
+  .lede { color: var(--ink-2); max-width: 68ch; font-size: 16px; }
+
+  header.top { padding-block: 44px 28px; display: grid; gap: 14px; border-bottom: 1px solid var(--line); }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--ink-3); font-size: 13px; }
+  .meta span b { color: var(--ink-2); font-weight: 500; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 6px; padding-block: 18px; }
+  nav.toc a {
+    text-decoration: none; color: var(--ink-2); font-size: 13px; padding: 5px 11px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  }
+  nav.toc a:hover { color: var(--ink); border-color: var(--ink-3); }
+
+  section { padding-block: 40px 8px; display: grid; gap: 18px; }
+  .sec-head { display: grid; gap: 6px; }
+  .sec-head p { color: var(--ink-2); max-width: 72ch; }
+
+  /* légende des couloirs */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
+  .sw.local { border-color: var(--lane-local); background: var(--lane-local-bg); }
+  .sw.gh { border-color: var(--lane-gh); background: var(--lane-gh-bg); }
+  .sw.reg { border-color: var(--lane-reg); background: var(--lane-reg-bg); }
+  .sw.nas { border-color: var(--lane-nas); background: var(--lane-nas-bg); }
+  .sw.ext { border-color: var(--lane-ext); background: var(--lane-ext-bg); }
+
+  .diagram {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    overflow-x: auto; padding: 18px;
+  }
+  .diagram svg { display: block; width: 100%; min-width: 1060px; height: auto; font-family: var(--sans); }
+  .lane { stroke: none; }
+  .lane-local { fill: var(--lane-local-bg); } .lane-gh { fill: var(--lane-gh-bg); } .lane-reg { fill: var(--lane-reg-bg); }
+  .lane-nas { fill: var(--lane-nas-bg); } .lane-ext { fill: var(--lane-ext-bg); }
+  .lane { opacity: 0.55; }
+  .lane-lbl { font-family: var(--cond); font-size: 14px; font-weight: 600; }
+  .lbl-local { fill: var(--lane-local); } .lbl-gh { fill: var(--lane-gh); } .lbl-reg { fill: var(--lane-reg); }
+  .lbl-nas { fill: var(--lane-nas); } .lbl-ext { fill: var(--lane-ext); }
+  .node { fill: var(--surface); stroke-width: 1.5; }
+  .node-local { stroke: var(--lane-local); } .node-gh { stroke: var(--lane-gh); } .node-reg { stroke: var(--lane-reg); }
+  .node-nas { stroke: var(--lane-nas); } .node-ext { stroke: var(--lane-ext); }
+  .node-t { fill: var(--ink); font-size: 13px; font-weight: 600; }
+  .node-s { fill: var(--ink-2); font-size: 10.5px; }
+  .edge { fill: none; stroke: var(--ink-3); stroke-width: 1.4; }
+  .edge.dash { stroke-dasharray: 4 3; }
+  .arrow-head { fill: var(--ink-3); }
+  .edge-lbl { fill: var(--ink-2); font-size: 10.5px; font-family: var(--mono); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .hint { font-size: 12.5px; color: var(--ink-3); }
+
+  /* parcours d'un changement */
+  .path { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; counter-reset: step;
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .step { padding: 16px 16px 18px; display: grid; gap: 8px; align-content: start; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); position: relative; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  }
+  .step h3 { font-size: 16px; }
+  .step p { font-size: 13.5px; color: var(--ink-2); }
+  .step .gate {
+    font-size: 12.5px; border-left: 3px solid var(--lane-color, var(--accent)); padding: 4px 0 4px 9px;
+    color: var(--ink); background: var(--lane-bg, var(--accent-soft)); border-radius: 0 4px 4px 0;
+  }
+  .step.local { --lane-color: var(--lane-local); --lane-bg: var(--lane-local-bg); }
+  .step.gh { --lane-color: var(--lane-gh); --lane-bg: var(--lane-gh-bg); }
+  .step.reg { --lane-color: var(--lane-reg); --lane-bg: var(--lane-reg-bg); }
+  .step.nas { --lane-color: var(--lane-nas); --lane-bg: var(--lane-nas-bg); }
+  .step .who { font-family: var(--mono); font-size: 11px; color: var(--lane-color); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* workflows */
+  .wf-list { display: grid; gap: 14px; }
+  details.wf { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  details.wf > summary {
+    list-style: none; cursor: pointer; padding: 14px 16px; display: grid;
+    grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: center;
+  }
+  details.wf > summary::-webkit-details-marker { display: none; }
+  details.wf > summary .name { font-family: var(--mono); font-size: 14px; font-weight: 500; }
+  details.wf > summary .role { grid-column: 1 / -1; color: var(--ink-2); font-size: 14px; }
+  details.wf > summary .chev { font-family: var(--mono); color: var(--ink-3); font-size: 13px; transition: transform .15s; }
+  details.wf[open] > summary .chev { transform: rotate(90deg); }
+  .triggers { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
+  .chip {
+    font-family: var(--mono); font-size: 11.5px; padding: 2px 8px; border-radius: 4px;
+    background: var(--lane-gh-bg); color: var(--lane-gh); white-space: nowrap;
+  }
+  .chip.cron { background: var(--lane-nas-bg); color: var(--lane-nas); }
+  .chip.manual { background: var(--lane-local-bg); color: var(--lane-local); }
+  .chip.out { background: var(--lane-reg-bg); color: var(--lane-reg); }
+  .wf-body { padding: 4px 16px 18px; display: grid; gap: 14px; border-top: 1px solid var(--line); }
+  .jobs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); padding-top: 12px; }
+  .job { background: var(--sunk); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; }
+  .job h4 { margin: 0; font-family: var(--cond); font-size: 15px; font-weight: 600; }
+  .job .needs { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+  .job ol, .job ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); display: grid; gap: 3px; }
+  .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--ink-3); font-size: 12.5px; padding-top: 2px; }
+  .kv dd { margin: 0; }
+
+  /* scripts */
+  .pkgs { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .pkg { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
+  .pkg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .pkg-head .path-lbl { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  table.scripts, table.scripts tbody { display: block; width: 100%; font-size: 13px; }
+  table.scripts tr { display: grid; gap: 2px; padding-block: 7px; border-top: 1px solid var(--line); }
+  table.scripts td { display: block; padding: 0; }
+  table.scripts td:first-child { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
+  table.scripts td:last-child { color: var(--ink-2); overflow-wrap: anywhere; }
+  table.scripts td:last-child code { background: none; padding: 0; font-size: 12px; color: var(--ink); }
+
+  .turbo { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .task { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 3px; }
+  .task .t { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+  .task .d { font-size: 12.5px; color: var(--ink-2); }
+  .task.nocache { border-color: var(--warn); }
+  .task.nocache .t::after { content: " · cache off"; color: var(--warn); font-weight: 400; font-size: 11px; }
+
+  /* horloge des tâches planifiées */
+  .clock { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .tick-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; padding: 12px 16px; border-top: 1px solid var(--line); align-items: baseline; }
+  .tick-row:first-child { border-top: 0; }
+  .tick-row .freq { font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tick-row .where { font-size: 12px; font-family: var(--mono); }
+  .tick-row .what { font-size: 13.5px; color: var(--ink-2); }
+  .where.gh { color: var(--lane-gh); }
+  .where.nas { color: var(--lane-nas); }
+
+  /* secrets */
+  .tbl-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  table.sec { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13px; }
+  table.sec th, table.sec td { text-align: left; padding: 9px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+  table.sec th { border-top: 0; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); font-weight: 500; background: var(--sunk); }
+  table.sec td:first-child { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  .kind { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+  .kind.s { background: var(--warn-bg); color: var(--warn); }
+  .kind.v { background: var(--lane-gh-bg); color: var(--lane-gh); }
+
+  /* observations */
+  .notes { display: grid; gap: 10px; }
+  .note { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 14px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .note .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; padding-top: 3px; }
+  .note .tag.design { color: var(--accent); }
+  .note .tag.watch { color: var(--warn); }
+  .note p { font-size: 14px; color: var(--ink-2); }
+  .note p b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12.5px; }
+
+  @media (max-width: 640px) {
+    body { padding-inline: 16px; }
+    .tick-row { grid-template-columns: 1fr; gap: 4px; }
+    .note { grid-template-columns: 1fr; gap: 4px; }
+    .kv { grid-template-columns: 1fr; gap: 2px; }
+    .kv dd { margin-bottom: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">Cimavia · outillage & livraison</span>
+    <h1>Chaîne de livraison cimavia</h1>
+    <p class="lede">Du poste de dev jusqu'au NAS de preview : ce qui tourne en local, ce que la CI vérifie, comment une version est taguée, construite, promue puis tirée par le NAS, et les tâches qui tournent seules.</p>
+    <div class="meta">
+      <span><b>Version</b> 1.5.1</span>
+      <span><b>Relevé</b> 23/09/2026, branche <code>tech/271</code></span>
+      <span><b>Sources</b> <code>.github/</code>, <code>package.json</code> ×6, <code>turbo.json</code>, <code>deploy/preview/</code>, <code>.husky/</code></span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Sommaire">
+    <a href="#schema">Schéma global</a>
+    <a href="#parcours">Parcours d'un changement</a>
+    <a href="#workflows">Workflows</a>
+    <a href="#scripts">Scripts</a>
+    <a href="#planifie">Tâches planifiées</a>
+    <a href="#secrets">Secrets & variables</a>
+    <a href="#notes">Points à noter</a>
+  </nav>
+
+  <!-- ─────────────────────────── SCHÉMA ─────────────────────────── -->
+  <section id="schema">
+    <div class="sec-head">
+      <h2>Schéma global</h2>
+      <p>Cinq zones. Les flèches pleines produisent quelque chose (image, tag, branche) ; les pointillées vérifient ou lisent sans rien produire.</p>
+    </div>
+    <div class="legend">
+      <span><i class="sw local"></i>Poste de dev</span>
+      <span><i class="sw gh"></i>GitHub : dépôt + Actions</span>
+      <span><i class="sw reg"></i>GHCR : registre d'images</span>
+      <span><i class="sw nas"></i>NAS Synology (preview)</span>
+      <span><i class="sw ext"></i>Services tiers</span>
+    </div>
+    <div class="diagram">
+<svg id="flow" viewBox="0 0 1200 640" role="img" aria-labelledby="flow-title">
+  <title id="flow-title">Schéma de la chaîne de livraison cimavia, du poste de dev au NAS de preview</title>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" class="arrow-head"/>
+    </marker>
+  </defs>
+</svg>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("flow");
+  const W = 150, H = 44;
+  const COL = [0, 130, 305, 480, 655, 830, 1005];
+  const lanes = [
+    { k: "local", y: 0, h: 85, t: ["Poste", "de dev"] },
+    { k: "gh", y: 92, h: 200, t: ["GitHub"] },
+    { k: "reg", y: 299, h: 126, t: ["GHCR"] },
+    { k: "nas", y: 432, h: 116, t: ["NAS", "preview"] },
+    { k: "ext", y: 555, h: 80, t: ["Services", "tiers"] },
+  ];
+  const nodes = [
+    ["local", 1, 20, "Commit", "Husky : biome · commitlint"],
+    ["local", 2, 20, "Porte qualité locale", "biome ci · turbo · i18n"],
+    ["local", 3, 20, "Compose local", "PG · SILO · Mailpit"],
+    ["local", 6, 20, "EAS Build", "manuel · profils EAS"],
+    ["gh", 1, 110, "PR → main", "branche de travail"],
+    ["gh", 1, 230, "Dependabot", "actions · hebdo"],
+    ["gh", 2, 110, "ci.yml", "quality ∥ e2e → sonar"],
+    ["gh", 3, 110, "main", "après merge"],
+    ["gh", 4, 110, "release.yml", "tient la PR de release"],
+    ["gh", 4, 170, "tag vX.Y.Z", "merge de la PR de release"],
+    ["gh", 4, 230, "api-image.yml", "build API à chaque push"],
+    ["gh", 5, 110, "promote-preview.yml", "manuel · saisie X.Y.Z"],
+    ["gh", 6, 110, "reminder-tick.yml", "toutes les heures"],
+    ["gh", 6, 170, "branche preview", "avancée au SHA du tag"],
+    ["gh", 6, 230, "mirror-images.yml", "lundi 06:00"],
+    ["reg", 3, 315, "api:sha-…", "chaque commit main"],
+    ["reg", 4, 315, "api:X.Y.Z", "commit de release"],
+    ["reg", 5, 315, "web:preview-X.Y.Z", "construit au tag"],
+    ["reg", 5, 373, "api + web :preview", "retag par digest"],
+    ["reg", 6, 340, "silo · mc", "RELEASE… épinglés"],
+    ["nas", 5, 450, "pull-preview.sh", "5 min · compose du tag"],
+    ["nas", 5, 498, "backup.sh", "03:00 · dump + médias"],
+    ["nas", 6, 450, "cimavia-preview", "migrate deploy · up -d"],
+    ["ext", 2, 573, "SonarCloud", "quality gate"],
+    ["ext", 4, 573, "Sentry", "sourcemaps web"],
+    ["ext", 6, 573, "Cloudflare Tunnel", "api- · app-preview"],
+  ];
+  // [chemin, pointillé ?, libellé, x, y]
+  const edges = [
+    ["M205 64 V110"],
+    ["M380 64 V110", 1, "mêmes commandes", 374, 90, "end"],
+    ["M480 42 H467.5 V121 H455", 1],
+    ["M170 230 V154"],
+    ["M280 132 H305"],
+    ["M480 142 H455"],
+    ["M240 154 V162 H555 V154", 0, "merge", 300, 165],
+    ["M380 154 V573", 1],
+    ["M420 110 V100 H905 V110", 1, "3 checks verts exigés", 700, 103],
+    ["M630 128 H655"],
+    ["M630 128 H642.5 V252 H655"],
+    ["M730 154 V170"],
+    ["M805 192 H812 V126 H830"],
+    ["M690 274 V291 H555 V315"],
+    ["M730 274 V315", 0, "si bump", 738, 300],
+    ["M805 330 H822 V144 H830", 1, "doit exister", 826, 298],
+    ["M905 154 V315", 0, "build web", 911, 240],
+    ["M905 359 V373"],
+    ["M730 359 V395 H830", 0, "retag", 760, 392],
+    ["M830 337 H817.5 V595 H805"],
+    ["M980 132 H992.5 V192 H1005"],
+    ["M1080 274 V340"],
+    ["M1080 384 V450", 1],
+    ["M905 450 V417", 1, "tire", 911, 436],
+    ["M980 472 H1005"],
+    ["M980 520 H1040 V494", 1],
+    ["M1110 494 V573"],
+    ["M1155 132 H1178 V595 H1155", 0, "POST tick", 1172, 422, "end"],
+  ];
+  const el = (tag, attrs, parent = svg) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    parent.appendChild(n);
+    return n;
+  };
+  for (const l of lanes) {
+    el("rect", { x: 0, y: l.y, width: 1200, height: l.h, rx: 8, class: `lane lane-${l.k}` });
+    l.t.forEach((line, i) => {
+      const t = el("text", { x: 14, y: l.y + 22 + i * 16, class: `lane-lbl lbl-${l.k}` });
+      t.textContent = line;
+    });
+  }
+  for (const [d, dash, label, lx, ly, anchor] of edges) {
+    el("path", { d, class: dash ? "edge dash" : "edge", "marker-end": "url(#arr)" });
+    if (label) {
+      const t = el("text", { x: lx, y: ly, class: "edge-lbl", "text-anchor": anchor || "start" });
+      t.textContent = label;
+    }
+  }
+  for (const [lane, c, y, title, sub] of nodes) {
+    const x = COL[c];
+    el("rect", { x, y, width: W, height: H, rx: 6, class: `node node-${lane}` });
+    const t = el("text", { x: x + 10, y: y + 18, class: "node-t" });
+    t.textContent = title;
+    const s = el("text", { x: x + 10, y: y + 34, class: "node-s" });
+    s.textContent = sub;
+  }
+})();
+</script>
+    </div>
+    <p class="hint">Le schéma est large : faites-le défiler horizontalement sur un petit écran.</p>
+  </section>
+
+  <!-- ─────────────────────────── PARCOURS ─────────────────────────── -->
+  <section id="parcours">
+    <div class="sec-head">
+      <h2>Parcours d'un changement</h2>
+      <p>Du commit à l'écran du Coach bêta. Chaque étape a une barrière, et c'est elle qui l'empêche d'avancer.</p>
+    </div>
+    <div class="path">
+      <div class="step local">
+        <span class="who">Poste</span>
+        <h3>Commit</h3>
+        <p><code>lint-staged</code> passe <code>biome check --write</code> sur les fichiers indexés, puis <code>commitlint</code> relit le message.</p>
+        <p class="gate">Conventional Commits, sujet en minuscule, types <code>feat fix chore docs refactor test perf ci revert</code>.</p>
+      </div>
+      <div class="step gh">
+        <span class="who">GitHub</span>
+        <h3>PR vers main</h3>
+        <p><code>ci.yml</code> : qualité et e2e en parallèle, puis SonarCloud une fois la couverture e2e récupérée.</p>
+        <p class="gate">3 checks requis : Lint + Typecheck + Test · E2E · SonarCloud (couverture &gt; 80 %, duplication &lt; 3 %).</p>
+      </div>
+      <div class="step gh">
+        <span class="who">GitHub</span>
+        <h3>Merge sur main</h3>
+        <p>La CI se relance sur main. En parallèle, <code>api-image.yml</code> pousse <code>cimavia-api:sha-…</code> et <code>release.yml</code> met à jour la PR de release.</p>
+        <p class="gate">Aucune : une image est publiée même si un test est rouge. Le blocage intervient à la promotion.</p>
+      </div>
+      <div class="step gh">
+        <span class="who">GitHub</span>
+        <h3>Release</h3>
+        <p>Merger la PR de release incrémente <code>package.json</code>, <code>CHANGELOG.md</code> et <code>app.json</code>, pose le tag <code>vX.Y.Z</code>, et ce commit produit <code>cimavia-api:X.Y.Z</code>.</p>
+        <p class="gate">Changement de version détecté en comparant <code>package.json</code> à celui de <code>HEAD~1</code>.</p>
+      </div>
+      <div class="step reg">
+        <span class="who">Actions → GHCR</span>
+        <h3>Promotion</h3>
+        <p>Lancée à la main avec <code>X.Y.Z</code>. Construit le web au tag avec l'URL de l'API figée, puis retague les deux images en <code>:preview</code> par digest et avance la branche <code>preview</code>.</p>
+        <p class="gate">Tag sur main, version plus récente que preview, 3 checks verts sur ce commit, image API présente.</p>
+      </div>
+      <div class="step nas">
+        <span class="who">NAS</span>
+        <h3>Tirage</h3>
+        <p><code>pull-preview.sh</code> voit un nouveau digest, télécharge le compose de ce commit, lance <code>up -d</code> ; l'API exécute <code>prisma migrate deploy</code> au démarrage.</p>
+        <p class="gate">API <code>healthy</code> en moins de 300 s côté NAS, et le job <code>confirm</code> attend jusqu'à 20 min.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── WORKFLOWS ─────────────────────────── -->
+  <section id="workflows">
+    <div class="sec-head">
+      <h2>Workflows GitHub Actions</h2>
+      <p>Six workflows et un Dependabot. Toutes les actions sont épinglées par SHA et chaque job déclare ses propres permissions (<code>permissions: {}</code> par défaut).</p>
+    </div>
+    <div class="wf-list">
+
+      <details class="wf" open>
+        <summary>
+          <span class="name">ci.yml · CI</span><span class="chev">›</span>
+          <span class="role">La porte de qualité : ses trois jobs sont les checks requis sur main et ceux que la promotion revérifie.</span>
+          <span class="triggers"><span class="chip">push main</span><span class="chip">pull_request → main</span><span class="chip">annule le run précédent de la même ref</span></span>
+        </summary>
+        <div class="wf-body">
+          <div class="jobs">
+            <div class="job">
+              <h4>Lint + Typecheck + Test</h4>
+              <span class="needs">quality · parallèle</span>
+              <ol>
+                <li><code>pnpm install --frozen-lockfile --ignore-scripts</code></li>
+                <li><code>prisma generate</code> (DATABASE_URL fictive)</li>
+                <li><code>pnpm biome ci .</code></li>
+                <li><code>pnpm turbo typecheck</code></li>
+                <li><code>pnpm turbo test</code></li>
+                <li><code>pnpm check:i18n</code> (sans <code>--strict</code>)</li>
+              </ol>
+            </div>
+            <div class="job">
+              <h4>E2E (isolation multi-tenant)</h4>
+              <span class="needs">e2e · parallèle</span>
+              <ol>
+                <li>copie <code>.env.test.example</code> → <code>.env.test</code></li>
+                <li><code>docker-compose.test.yml up -d --wait</code> (PG 5434)</li>
+                <li><code>docker-compose.yml run --rm silo-setup</code></li>
+                <li><code>pnpm turbo test:e2e --filter=@cmv/api</code></li>
+                <li>upload <code>coverage-e2e/lcov.info</code> (1 jour)</li>
+                <li>logs des services si échec</li>
+              </ol>
+            </div>
+            <div class="job">
+              <h4>SonarCloud Analysis</h4>
+              <span class="needs">needs: e2e</span>
+              <ol>
+                <li><code>pnpm turbo test</code> (lcov shared, api, web, mobile)</li>
+                <li>download de l'artefact <code>coverage-e2e</code></li>
+                <li>scan avec <code>qualitygate.wait=true</code>, timeout 300 s</li>
+                <li><code>projectVersion</code> = version de <code>package.json</code></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">release.yml · Release</span><span class="chev">›</span>
+          <span class="role">release-please ouvre ou met à jour la PR de release ; la merger crée le tag <code>vX.Y.Z</code> et la release GitHub.</span>
+          <span class="triggers"><span class="chip">push main</span><span class="chip manual">workflow_dispatch</span><span class="chip out">→ PR de release · tag</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Jeton</dt><dd>GitHub App (<code>RELEASE_APP_*</code>), pour que la PR de release déclenche la CI, ce que <code>GITHUB_TOKEN</code> ne permet pas.</dd>
+            <dt>Fichiers bumpés</dt><dd><code>package.json</code>, <code>CHANGELOG.md</code>, <code>apps/mobile/app.json</code> (<code>$.expo.version</code>), manifest.</dd>
+            <dt>Changelog</dt><dd>feat → Fonctionnalités · fix → Corrections · perf · revert · refactor/ci/chore → Technique · docs et test masqués.</dd>
+            <dt>Tag</dt><dd><code>vX.Y.Z</code> sans composant (<code>include-component-in-tag: false</code>).</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">api-image.yml · Images — API (GHCR)</span><span class="chev">›</span>
+          <span class="role">Construit et publie l'image de l'API, sans déployer. Le renommage du fichier est prévu dans #271.</span>
+          <span class="triggers"><span class="chip">push main · apps/ packages/ lockfile package.json CHANGELOG</span><span class="chip out">→ cimavia-api:sha-… (+ :X.Y.Z)</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Tags</dt><dd><code>sha-xxxxxxx</code> à chaque commit ; <code>X.Y.Z</code> en plus quand <code>package.json</code> change de version par rapport à <code>HEAD~1</code>.</dd>
+            <dt>Build</dt><dd><code>apps/api/Dockerfile</code> : <code>turbo prune @cmv/api</code> → build shared + api → <code>pnpm deploy --prod</code> → runtime avec <code>prisma generate</code>. Plateforme <code>linux/amd64</code>, cache GHA.</dd>
+            <dt>Build args</dt><dd><code>APP_VERSION</code>, <code>APP_BUILD</code> (SHA court).</dd>
+            <dt>Au démarrage</dt><dd><code>docker-entrypoint.sh</code> : <code>prisma migrate deploy</code> puis <code>node dist/main</code>.</dd>
+            <dt>Sans concurrency</dt><dd>Volontaire : annuler un build en cours pouvait perdre l'image <code>X.Y.Z</code>, la seule que la promotion sait retaguer.</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">promote-preview.yml · Promotion — preview</span><span class="chev">›</span>
+          <span class="role">Le seul chemin vers le Coach bêta : vérifie la version, construit le web, retague les images et attend que le NAS redémarre.</span>
+          <span class="triggers"><span class="chip manual">workflow_dispatch · version X.Y.Z</span><span class="chip">une promotion à la fois</span><span class="chip out">→ :preview · branche preview</span></span>
+        </summary>
+        <div class="wf-body">
+          <div class="jobs">
+            <div class="job">
+              <h4>Vérifier la version</h4>
+              <span class="needs">verify</span>
+              <ul>
+                <li>format <code>X.Y.Z</code> ; le tag <code>vX.Y.Z</code> existe et est sur main</li>
+                <li>fait avancer <code>preview</code> (plus récente, et <code>preview</code> est un ancêtre)</li>
+                <li>les 3 checks requis sont <code>success</code> sur ce SHA</li>
+                <li><code>cimavia-api:X.Y.Z</code> présente sur GHCR</li>
+                <li><code>PREVIEW_PUBLIC_API_URL</code> renseignée</li>
+              </ul>
+            </div>
+            <div class="job">
+              <h4>Construire le web</h4>
+              <span class="needs">needs: verify</span>
+              <ul>
+                <li>checkout du SHA du tag</li>
+                <li>cohérence Sentry (token ⇒ org + projet)</li>
+                <li>build <code>apps/web/Dockerfile</code> (nginx) avec <code>VITE_API_URL</code>, <code>VITE_APP_ENV=preview</code>, DSN, release Sentry <code>X.Y.Z+sha</code></li>
+                <li>push <code>cimavia-web:preview-X.Y.Z</code></li>
+              </ul>
+            </div>
+            <div class="job">
+              <h4>Publier sur preview</h4>
+              <span class="needs">needs: verify, build-web</span>
+              <ul>
+                <li><code>cimavia-api:preview</code> ← digest de <code>:X.Y.Z</code>, avec contrôle d'égalité</li>
+                <li><code>cimavia-web:preview</code> ← digest construit</li>
+                <li>push du SHA vers la branche <code>preview</code> (jeton App)</li>
+              </ul>
+            </div>
+            <div class="job">
+              <h4>Attendre le NAS</h4>
+              <span class="needs">needs: verify, publish · 25 min max</span>
+              <ul>
+                <li>interroge <code>/health</code> toutes les 20 s</li>
+                <li>succès si <code>uptime</code> est inférieur au temps écoulé depuis la promotion (l'API a redémarré) et si <code>/health/ready</code> répond</li>
+                <li>rouge après 20 min, avec les endroits à regarder sur le NAS</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">mirror-images.yml · Images tierces — miroir GHCR</span><span class="chev">›</span>
+          <span class="role">Copie SILO et son client <code>mc</code> de Docker Hub vers <code>ghcr.io/cimavia</code>, et signale les versions épinglées en retard.</span>
+          <span class="triggers"><span class="chip cron">lundi 06:00 UTC</span><span class="chip manual">workflow_dispatch · tag optionnel</span><span class="chip">push main sur ce fichier</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Copie</dt><dd>Dernière version <code>RELEASE.…</code> de <code>pgsty/silo</code> et <code>pgsty/mc</code>, plus le tag demandé et les tags épinglés dans les deux composes ; les images déjà présentes sont sautées.</dd>
+            <dt>Surveillance</dt><dd>Si un compose (<code>apps/api</code> ou <code>deploy/preview</code>) épingle une version plus ancienne, ouvre ou réécrit l'issue <code>[silo-version]</code> (area: infra, prio: high).</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">reminder-tick.yml · Rappels — tick</span><span class="chev">›</span>
+          <span class="role">Tient lieu de cron métier : déclenche l'envoi des rappels dus sur l'API de preview.</span>
+          <span class="triggers"><span class="chip cron">toutes les heures, à :00</span><span class="chip manual">workflow_dispatch</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Appel</dt><dd><code>POST {PREVIEW_PUBLIC_API_URL}/internal/reminders/tick</code> avec l'en-tête <code>x-cimavia-tick-secret</code>, 60 s max.</dd>
+            <dt>Préalables</dt><dd>Échoue explicitement si la variable ou le secret manque, plutôt que de laisser l'API répondre 401.</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">dependabot.yml</span><span class="chev">›</span>
+          <span class="role">Maintient les SHA épinglés des actions à jour : une PR groupée par semaine, préfixe <code>ci</code>, label <code>type: chore</code>.</span>
+          <span class="triggers"><span class="chip cron">hebdomadaire</span><span class="chip out">→ PR</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Périmètre</dt><dd><code>github-actions</code> uniquement ; les dépendances npm ne sont pas suivies par Dependabot.</dd>
+          </dl>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── SCRIPTS ─────────────────────────── -->
+  <section id="scripts">
+    <div class="sec-head">
+      <h2>Scripts</h2>
+      <p>Les scripts racine délèguent à Turborepo ; chaque paquet porte les siens. Les tâches Turbo ci-dessous fixent l'ordre : <code>^build</code> signifie « construire d'abord les dépendances », en pratique <code>@cmv/shared</code>.</p>
+    </div>
+
+    <div class="turbo">
+      <div class="task"><span class="t">build</span><span class="d">dépend de ^build · sort <code>dist/</code></span></div>
+      <div class="task"><span class="t">typecheck</span><span class="d">dépend de ^build</span></div>
+      <div class="task"><span class="t">test</span><span class="d">dépend de ^build · sort <code>coverage/</code></span></div>
+      <div class="task nocache"><span class="t">test:e2e</span><span class="d">dépend de ^build · un cache rejouerait un vert sans base</span></div>
+      <div class="task"><span class="t">dev</span><span class="d">dépend de ^build · persistant, sans cache</span></div>
+      <div class="task"><span class="t">lint</span><span class="d">sans dépendance · ne voit pas la racine</span></div>
+    </div>
+
+    <div class="pkgs">
+      <div class="pkg">
+        <div class="pkg-head"><h3>Racine</h3><span class="path-lbl">cimavia</span></div>
+        <table class="scripts">
+          <tr><td>dev</td><td><code>turbo dev</code>, tous les apps</td></tr>
+          <tr><td>dev:api · :web · :mobile</td><td>une app à la fois</td></tr>
+          <tr><td>build · build:shared</td><td><code>turbo build</code> · shared seul</td></tr>
+          <tr><td>lint · typecheck · test</td><td><code>turbo …</code></td></tr>
+          <tr><td>format · check</td><td><code>biome format|check --write .</code></td></tr>
+          <tr><td>check:i18n</td><td><code>scripts/check-i18n-keys.mjs</code> (+ <code>--strict</code> : clés mortes)</td></tr>
+          <tr><td>prepare</td><td>installe les hooks Husky</td></tr>
+        </table>
+      </div>
+
+      <div class="pkg">
+        <div class="pkg-head"><h3>@cmv/api</h3><span class="path-lbl">apps/api</span></div>
+        <table class="scripts">
+          <tr><td>postinstall</td><td><code>prisma generate</code> (sauté en CI par <code>--ignore-scripts</code>)</td></tr>
+          <tr><td>dev · build · start</td><td><code>nest start --watch</code> · <code>nest build</code> · <code>node dist/main</code></td></tr>
+          <tr><td>typecheck</td><td><code>tsc --noEmit</code> sur src et sur tests</td></tr>
+          <tr><td>test · test:watch</td><td>Vitest unitaires + couverture</td></tr>
+          <tr><td>test:e2e</td><td><code>vitest.config.e2e.ts</code> → <code>coverage-e2e/</code></td></tr>
+          <tr><td>prisma:migrate · :generate · :studio</td><td>Prisma</td></tr>
+        </table>
+      </div>
+
+      <div class="pkg">
+        <div class="pkg-head"><h3>@cmv/web</h3><span class="path-lbl">apps/web</span></div>
+        <table class="scripts">
+          <tr><td>dev · preview</td><td><code>vite</code> · <code>vite preview</code></td></tr>
+          <tr><td>build</td><td><code>tsc &amp;&amp; vite build</code></td></tr>
+          <tr><td>typecheck · lint · test</td><td><code>tsc --noEmit</code> · biome · Vitest + couverture</td></tr>
+        </table>
+      </div>
+
+      <div class="pkg">
+        <div class="pkg-head"><h3>@cmv/mobile</h3><span class="path-lbl">apps/mobile</span></div>
+        <table class="scripts">
+          <tr><td>dev · start</td><td><code>expo start</code></td></tr>
+          <tr><td>android · ios</td><td><code>expo run:*</code> (build natif local)</td></tr>
+          <tr><td>build:dev:*</td><td>EAS <code>development</code> (dev client, interne)</td></tr>
+          <tr><td>build:preview:*</td><td>EAS <code>preview</code>, pointe sur <code>api-preview.cimavia.fr</code></td></tr>
+          <tr><td>build:testflight:ios</td><td>EAS <code>testflight</code> + <code>--auto-submit</code></td></tr>
+          <tr><td>typecheck · lint · test</td><td>tsc ×2 · biome · Vitest + couverture</td></tr>
+        </table>
+      </div>
+
+      <div class="pkg">
+        <div class="pkg-head"><h3>@cmv/shared · @cmv/tokens</h3><span class="path-lbl">packages/</span></div>
+        <table class="scripts">
+          <tr><td>shared build · dev</td><td><code>tsc -p tsconfig.build.json</code> → dist CJS pour l'API (watch en dev)</td></tr>
+          <tr><td>shared typecheck · lint · test</td><td>tsc · biome · Vitest + couverture</td></tr>
+          <tr><td>tokens lint · typecheck</td><td>pas de test ni de build</td></tr>
+        </table>
+      </div>
+
+      <div class="pkg">
+        <div class="pkg-head"><h3>Hors package.json</h3><span class="path-lbl">scripts/ · deploy/ · docker</span></div>
+        <table class="scripts">
+          <tr><td>dev-portproxy.ps1</td><td>Windows admin : relaie les ports 3000 et 8081 de WSL vers le LAN pour un téléphone physique ; à relancer après chaque <code>wsl --shutdown</code></td></tr>
+          <tr><td>docker-compose.yml</td><td>postgres, silo, <code>silo-setup</code> (buckets dev + e2e, clé limitée), mailpit</td></tr>
+          <tr><td>docker-compose.test.yml</td><td><code>postgres-e2e</code> sur 5434</td></tr>
+          <tr><td>pull-preview.sh</td><td>NAS : déploie la version promue</td></tr>
+          <tr><td>backup.sh</td><td>NAS : sauvegarde nocturne</td></tr>
+          <tr><td>tools.docker-compose.yml</td><td>NAS : CloudBeaver sur 8978, lancé à la demande</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── PLANIFIÉ ─────────────────────────── -->
+  <section id="planifie">
+    <div class="sec-head">
+      <h2>Tâches planifiées</h2>
+      <p>Ce qui tourne sans qu'on appuie sur rien, de la plus fréquente à la plus rare.</p>
+    </div>
+    <div class="clock">
+      <div class="tick-row">
+        <span class="freq">toutes les 5 min</span>
+        <span class="where nas">NAS · DSM · pull-preview.sh</span>
+        <span class="what">Tire <code>:preview</code>, sort si les digests n'ont pas changé ; sinon compose du commit, <code>up -d</code>, attente de <code>healthy</code>. Verrou contre les exécutions concurrentes, log tronqué à 2000 lignes.</span>
+      </div>
+      <div class="tick-row">
+        <span class="freq">toutes les heures</span>
+        <span class="where gh">Actions · reminder-tick.yml</span>
+        <span class="what">POST du tick de rappels sur l'API de preview.</span>
+      </div>
+      <div class="tick-row">
+        <span class="freq">chaque nuit, 03:00</span>
+        <span class="where nas">NAS · DSM (root) · backup.sh</span>
+        <span class="what"><code>pg_dump -Fc</code> relu par <code>pg_restore -l</code>, <code>mc mirror</code> des médias, manifest avec sha256, 7 dumps conservés, 2 Go libres exigés.</span>
+      </div>
+      <div class="tick-row">
+        <span class="freq">lundi, 06:00 UTC</span>
+        <span class="where gh">Actions · mirror-images.yml</span>
+        <span class="what">Miroir SILO/mc vers GHCR et issue <code>[silo-version]</code> si un compose est en retard.</span>
+      </div>
+      <div class="tick-row">
+        <span class="freq">chaque semaine</span>
+        <span class="where gh">Dependabot</span>
+        <span class="what">PR groupée de mise à jour des actions.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── SECRETS ─────────────────────────── -->
+  <section id="secrets">
+    <div class="sec-head">
+      <h2>Secrets & variables du dépôt</h2>
+      <p>Ce que les workflows lisent dans les réglages GitHub. Les secrets du NAS vivent dans son <code>.env</code>, à côté du compose, et ne passent jamais par GitHub.</p>
+    </div>
+    <div class="tbl-wrap">
+      <table class="sec">
+        <thead><tr><th>Nom</th><th>Type</th><th>Utilisé par</th><th>Rôle</th></tr></thead>
+        <tbody>
+          <tr><td>SONAR_TOKEN</td><td><span class="kind s">secret</span></td><td>ci.yml</td><td>Scan SonarCloud et attente du quality gate</td></tr>
+          <tr><td>RELEASE_APP_CLIENT_ID · _PRIVATE_KEY</td><td><span class="kind s">secret</span></td><td>release.yml, promote-preview.yml</td><td>Jeton de GitHub App : PR de release, push de la branche <code>preview</code></td></tr>
+          <tr><td>SENTRY_AUTH_TOKEN</td><td><span class="kind s">secret</span></td><td>promote-preview.yml</td><td>Upload des sourcemaps web ; facultatif</td></tr>
+          <tr><td>REMINDER_TICK_SECRET</td><td><span class="kind s">secret</span></td><td>reminder-tick.yml</td><td>En-tête partagé avec l'API du NAS</td></tr>
+          <tr><td>GITHUB_TOKEN</td><td><span class="kind s">auto</span></td><td>tous</td><td>GHCR (lecture/écriture), check-runs, issues</td></tr>
+          <tr><td>PREVIEW_PUBLIC_API_URL</td><td><span class="kind v">var</span></td><td>promote-preview.yml, reminder-tick.yml</td><td>Figée dans le web au build, sondée par <code>confirm</code>, cible du tick</td></tr>
+          <tr><td>PREVIEW_SENTRY_DSN_WEB</td><td><span class="kind v">var</span></td><td>promote-preview.yml</td><td>DSN du web de preview</td></tr>
+          <tr><td>SENTRY_ORG · SENTRY_PROJECT_WEB</td><td><span class="kind v">var</span></td><td>promote-preview.yml</td><td>Cible des sourcemaps</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── NOTES ─────────────────────────── -->
+  <section id="notes">
+    <div class="sec-head">
+      <h2>Points à noter</h2>
+      <p>Ce que le schéma ne dit pas tout seul : des choix assumés, et des points à surveiller.</p>
+    </div>
+    <div class="notes">
+      <div class="note"><span class="tag design">choix</span><p><b>Le NAS tire, GitHub ne pousse pas.</b> Aucun workflow n'a d'accès au NAS : il suffit de poser le tag <code>:preview</code>, et le job <code>confirm</code> observe le résultat de l'extérieur par <code>/health</code>.</p></div>
+      <div class="note"><span class="tag design">choix</span><p><b>Publier n'est pas livrer.</b> <code>api-image.yml</code> publie même quand un test est rouge ; c'est la promotion qui exige les 3 checks verts sur le commit taggé.</p></div>
+      <div class="note"><span class="tag design">choix</span><p><b>Le web est construit une fois par tier</b>, au moment de la promotion et depuis le tag, parce que l'URL de l'API est figée dans le bundle. L'API, elle, est construite une seule fois et retaguée par digest.</p></div>
+      <div class="note"><span class="tag design">choix</span><p><b>Le compose voyage avec la version.</b> <code>pull-preview.sh</code> lit le commit dans le label <code>org.opencontainers.image.revision</code> de l'image et télécharge <code>deploy/preview/docker-compose.yml</code> à ce commit, ou <code>deploy/dev/…</code> pour les versions antérieures au déplacement. Il détecte aussi un renommage de projet compose et arrête l'ancien.</p></div>
+      <div class="note"><span class="tag watch">à voir</span><p><b>Les tests unitaires tournent deux fois par run</b> : dans <code>quality</code> et dans <code>sonarcloud</code>, qui a besoin des lcov. Un artefact de couverture depuis <code>quality</code>, comme pour les e2e, éviterait le doublon.</p></div>
+      <div class="note"><span class="tag watch">à voir</span><p><b>La production n'a pas de chaîne.</b> <code>deploy/prod/</code> ne contient qu'une règle de cycle de vie de bucket, en attendant la décision HDS (#259). Côté mobile, le profil EAS <code>production</code> existe mais aucun script ne l'appelle, et tous les builds EAS sont manuels.</p></div>
+      <div class="note"><span class="tag watch">à voir</span><p><b>Dependabot ne suit que les actions.</b> Les versions npm sont épinglées à la main (cf. CLAUDE.md), sans rappel automatique.</p></div>
+      <div class="note"><span class="tag watch">à voir</span><p><b>Le nom <code>api-image.yml</code></b> ne décrit plus son rôle : son renommage relève de #271, la branche en cours.</p></div>
+    </div>
+  </section>
+
+  <footer>Relevé depuis le code du dépôt au commit <code>3a1826e</code>. Pour les étapes manuelles (DSM, secrets, branch protection), voir <code>deploy/preview/README.md</code> et <code>CONTRIBUTING.md</code>.</footer>
+</div>
+
+</body></html>
