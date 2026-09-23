@@ -193,7 +193,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
                 └──────────┬───────────────┬──────────────┘
                 ┌──────────▼──────┐  ┌──────▼──────────────┐
                 │  PostgreSQL 18  │  │  Object Storage S3   │
-                │  (Neon → Clever)│  │  (Scaleway / Cellar) │
+                │ (NAS → à choisir)│ │   (SILO → à choisir) │
                 └─────────────────┘  └──────────────────────┘
 ```
 
@@ -213,7 +213,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | Notifications | **expo-server-sdk** (côté NestJS) + **expo-notifications** (clients) | Push natif déclenché par l'API sur événements métier. |
 | Observabilité | **Pino → Axiom** + **Sentry** (3 couches) | Logs JSON structurés ; erreurs centralisées. |
 | i18n | **i18next** + `expo-localization` | Chaînes externalisées, FR puis EN. |
-| Hébergement | **MVP gratuit** : API → Scaleway Serverless Containers · médias → Scaleway Object Storage · DB → **Neon free** (EU). **v1.0 FR** : Clever Cloud (app + PostgreSQL + Redis + Cellar S3, HDS). | Données en France/EU ; portabilité par variables d'env (voir §7.5). Redis **différé** en MVP. |
+| Hébergement | **Preview** : NAS auto-hébergé (PostgreSQL + SILO), exposé par Cloudflare Tunnel. **Production** : à trancher (Scaleway ou Clever Cloud), cf. §7.5 et #259. | Données en France ; portabilité par variables d'env (voir §7.5). Redis **différé**. |
 | Paiement (v1.0) | **Stripe** (Connect si reversement au coach) | Standard, bien documenté. |
 
 > Choix assumé d'une **API custom NestJS** plutôt qu'un BaaS : plus de travail initial, mais contrôle total du modèle multi-tenant, **portabilité d'hébergement** (rien de propriétaire) et typage partagé bout-en-bout. Redis (cache / WebSocket) est **différé** au-delà du MVP.
@@ -235,16 +235,17 @@ packages/
 L'affichage est conditionné par le **rôle** (`User.role`), pas par la plateforme : les deux rôles accèdent aux deux clients. Conventions détaillées par couche dans `architecture-choice.md`.
 
 ### 7.4 Environnements
-- **local** (Docker `postgres:18-alpine`), **preview**, **production** (GitLab Flow : `feature/*` → `main` → `preview` → `production`).
-- Schéma versionné via **migrations Prisma** (`prisma migrate`) ; jamais de modif manuelle non versionnée en prod. BDD MVP = Neon free (Prisma-natif).
+- **local** (Docker `postgres:18-alpine`), **preview** (NAS auto-hébergé, `deploy/preview/`), **production** (GitLab Flow : `feature/*` → `main` → `preview` → `production`).
+- Schéma versionné via **migrations Prisma** (`prisma migrate`) ; jamais de modif manuelle non versionnée en prod.
+- Preview ne reçoit que des versions **promues** à la main (#266) et n'accepte que les inscriptions invitées (#263) : c'est un environnement de bêta, pas un bac à sable.
 
 ### 7.5 Hébergement français : résidence vs souveraineté
 Deux niveaux à ne pas confondre :
 
-- **MVP (gratuit, résidence FR/EU) :** API → **Scaleway Serverless Containers** (scale-to-zero), médias → **Scaleway Object Storage** (FR), BDD → **Neon free** (EU, Prisma-natif), web → Cloudflare Pages/Scaleway. Démarrage immédiat, coût nul. *Limite :* Neon est une société US → résidence EU mais pas souveraineté stricte (exposition Cloud Act / Schrems II).
-- **Souveraineté (v1.0) :** bascule **Clever Cloud** — app + **PostgreSQL** + **Redis** + **Cellar** (S3-compatible), **HDS** intégré (hébergeur français). La bascule = **variables d'environnement** (`DATABASE_URL`, endpoint S3…), rien de propriétaire : migration mécaniquement propre.
+- **Preview (aujourd'hui) :** tout tourne sur un **NAS auto-hébergé** en France — PostgreSQL, SILO pour les médias, exposé par Cloudflare Tunnel. Coût nul, données chez soi. *Limite :* une seule machine, sans sauvegarde hors-site automatique (dette P7-7), et le trafic est déchiffré chez Cloudflare.
+- **Production (à trancher) :** deux cibles étudiées — **Scaleway** (Serverless Containers + Object Storage FR, résidence FR) et **Clever Cloud** (app + PostgreSQL + Redis + Cellar, **HDS** intégré). Le choix dépend du cadrage HDS ([#259](https://github.com/Cimavia/cimavia/issues/259)) : si les données d'entraînement sont qualifiées de santé, seul un hébergeur certifié convient.
 
-**Décision :** démarrer gratuit (Scaleway + Neon), **concevoir portable** (aucune dépendance à une fonctionnalité propriétaire) pour basculer vers Clever Cloud (souverain FR) sans réécriture.
+**Décision :** **concevoir portable** — aucune dépendance à une fonctionnalité propriétaire, la bascule se fait par **variables d'environnement** (`DATABASE_URL`, endpoint S3…). C'est ce qui permet de trancher l'hébergement de production plus tard sans réécriture, et c'est déjà éprouvé : le stockage a changé deux fois (MinIO → SILO, root → clé dédiée) sans toucher au code.
 
 **Caveat HDS :** si les données d'entraînement sont qualifiées de données de santé, l'hébergement devra être **HDS** (Clever Cloud, OVHcloud et Scaleway proposent des offres certifiées).
 
@@ -370,7 +371,7 @@ Gratuit au lancement. À structurer ensuite :
 ---
 
 ## 15. Questions ouvertes restantes
-- ~~Région d'hébergement~~ → **tranché : France/EU** (Scaleway + Neon EU en MVP gratuit, souveraineté FR via Clever Cloud en v1.0, voir §7.5).
+- ~~Région d'hébergement~~ → **tranché : France** (preview auto-hébergé sur NAS ; cible de production à choisir entre Scaleway et Clever Cloud selon le cadrage HDS #259, voir §7.5).
 - ~~Limites vidéo MVP~~ → **tranché** : 60 s / 720p. Les tailles ont été relevées depuis (1 Go vidéo, 100 Mo photo/audio) et les comptes aussi (#156 : 10 vidéos + 20 photos) — la durée, elle, n'a pas bougé.
 - ~~Débrief par exercice~~ → **tranché** : débrief séance suffit en MVP, par exercice à évaluer plus tard.
 - Les données d'entraînement sont-elles qualifiables de **données de santé** (→ obligation HDS) ? À clarifier juridiquement.

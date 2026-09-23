@@ -13,10 +13,10 @@ import { PrismaService } from "../infra/prisma/prisma.service";
 /**
  * Qui a le droit de créer un compte sur CET environnement (#263).
  *
- * Le tier dev (NAS) est joignable publiquement et son URL n'a rien de secret : elle est figée dans
- * l'APK installé sur les téléphones et dans chaque e-mail qu'il envoie. Sa règle dure — QUE des
- * données synthétiques, ce qui le tient hors du périmètre HDS — ne tient donc à rien tant que
- * n'importe qui peut s'y créer un compte et y déposer ce qu'il veut. Le refus est ce qui la tient.
+ * Preview (le NAS) est joignable publiquement et son URL n'a rien de secret : elle est figée dans
+ * l'APK installé sur les téléphones et dans chaque e-mail qu'il envoie. Or ce tier porte de vraies
+ * données depuis #260 — celles du Coach bêta et de ses Athletes. Tant que n'importe qui peut s'y
+ * créer un compte, elles cohabitent avec des inconnus. Le refus est ce qui les en sépare.
  *
  * Trois façons d'entrer en mode `invitation`, et pas une de plus :
  *   - être sur la liste `SIGNUP_ALLOWED_EMAILS` — c'est la porte des COACHS, que personne n'invite ;

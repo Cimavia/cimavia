@@ -79,7 +79,7 @@ pnpm turbo test:e2e --filter=@cmv/api
 > sûr de tester une réinitialisation de mot de passe sur une base de démonstration.
 
 > ⚠️ La suite **TRUNCATE toutes les tables** à l'ouverture. `.env.test` doit donc pointer sur la
-> base jetable du `docker-compose.test.yml` (5434), jamais sur celle de dev ni sur Neon — d'où le
+> base jetable du `docker-compose.test.yml` (5434), jamais sur celle de dev ni sur celle de preview — d'où le
 > modèle à copier tel quel, et le refus de démarrer si le nom de base ne finit pas par `_e2e`.
 
 ### Clés i18n assemblées
@@ -166,7 +166,7 @@ demande un Mac.
 | `testflight` | `store` | l'app TestFlight | **la bêta** |
 | `production` | `store` | l'App Store | la mise en vente, plus tard |
 
-`testflight` étend `preview` : même variante (`fr.cimavia.app.preview`), même API (`api-dev`). Seule
+`testflight` étend `preview` : même variante (`fr.cimavia.app.preview`), même API (`api-preview`). Seule
 la signature change, et avec elle le chemin jusqu'au téléphone.
 
 **Envoyer un build de bêta** — depuis `apps/mobile`, identifiant Apple demandé au premier envoi :

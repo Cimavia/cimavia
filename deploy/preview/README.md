@@ -1,22 +1,23 @@
-# Déploiement — environnement DÉVELOPPEMENT (NAS)
+# Déploiement — environnement PREVIEW (NAS)
 
-Tier **development** du modèle à 4 environnements du projet :
+Tier **preview** du modèle à 3 environnements du projet :
 
 ```
-local (ta machine)  →  développement (ce NAS)  →  staging (cloud)  →  prod (cloud)
-     sources                image Docker              image Docker        image Docker
-  NODE_ENV=development     NODE_ENV=production      NODE_ENV=production   NODE_ENV=production
-                          APP_ENV=development        APP_ENV=staging      APP_ENV=production
+local (ta machine)  →  preview (ce NAS)  →  production (à venir)
+     sources             image Docker          image Docker
+  NODE_ENV=development  NODE_ENV=production   NODE_ENV=production
+                          APP_ENV=preview      APP_ENV=production
 ```
 
 Pourquoi un environnement sur le NAS et pas seulement `localhost` : être **joignable depuis le
 téléphone** (via Cloudflare Tunnel, hors réseau maison) pour tester ce que l'émulateur ne couvre
 pas — médias signés, push, app réelle en HTTPS — sur une image identique à celle de la prod.
 
-> ⚠️ **Règle dure — données synthétiques uniquement.** Ce NAS ne reçoit JAMAIS de compte athlète
-> réel ni de média réel. C'est ce qui le maintient **hors du périmètre HDS** (l'hébergement de
-> vraies données de santé est réservé à la prod, Clever Cloud HDS). Aucun script de copie
-> prod → NAS ne doit exister.
+> ⚠️ **Ce tier porte de vraies données** : les comptes, les planifications et les médias du Coach
+> bêta et de ses Athletes (#260). La règle « données synthétiques uniquement » qui tenait ici
+> jusque-là ne tient plus, et c'est elle qui rendait acceptables les tolérances fermées depuis par
+> #257, #266, #267, #268 et #263. La question HDS est cadrée à part (#259) ; en attendant, aucun
+> script de copie production → NAS ne doit exister, dans ce sens comme dans l'autre.
 
 ## Prérequis matériels (DS720+)
 
@@ -36,29 +37,29 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 
 | Hostname public | Service (URL interne) | |
 |---|---|---|
-| `api-dev.<domaine>` | `http://api:3000` | |
-| `app-dev.<domaine>` | `http://web:80` | |
-| `s3-dev.<domaine>`  | `http://silo:9000` | |
+| `api-preview.<domaine>` | `http://api:3000` | |
+| `app-preview.<domaine>` | `http://web:80` | |
+| `s3-preview.<domaine>`  | `http://silo:9000` | |
 
-> **`app-dev` est derrière Cloudflare Access** (#263), les deux autres non : l'API est appelée par
-> le téléphone, qui ne sait pas résoudre un écran de connexion, et `s3-dev` sert les URLs signées
+> **`app-preview` est derrière Cloudflare Access** (#263), les deux autres non : l'API est appelée par
+> le téléphone, qui ne sait pas résoudre un écran de connexion, et `s3-preview` sert les URLs signées
 > que ce même téléphone appelle. Un quatrième hostname a existé jusqu'à #269, `mail-dev`, qui
 > exposait la boîte Mailpit du tier — il n'a plus de service derrière lui.
 
 > Sous-domaines **mono-niveau** (tiret, pas point) : le SSL gratuit de Cloudflare couvre
-> `*.<domaine>` mais **pas** `*.dev.<domaine>`. `api-dev` fonctionne ; `api.dev` donnerait une
+> `*.<domaine>` mais **pas** `*.dev.<domaine>`. `api-preview` fonctionne ; `api.dev` donnerait une
 > erreur de certificat (sauf Advanced Certificate Manager, payant).
 
 Récupérer le **token du connecteur** (bouton *Install connector*, la chaîne après `--token`) et le
 poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 
 > Les trois hostnames sont indispensables — pas seulement `api`. L'API **signe** les URLs de
-> médias, et c'est le **téléphone** qui les appelle : sans `s3-dev` public, les uploads/downloads
+> médias, et c'est le **téléphone** qui les appelle : sans `s3-preview` public, les uploads/downloads
 > échouent. C'est le même piège que `S3_ENDPOINT` en dev local (README racine §WSL2).
 
 ## Mise en route
 
-1. **Cloudflare** : tunnel créé, 3 hostnames mappés (dont `app-dev`, **derrière Access**), token
+1. **Cloudflare** : tunnel créé, 3 hostnames mappés (dont `app-preview`, **derrière Access**), token
    en main (ci-dessus).
 2. **Images** : rien à préparer. La CI publie l'image de l'API à chaque push sur `main`, et le NAS
    ne tire que la version **promue** (voir « Déploiement » ci-dessous).
@@ -73,9 +74,9 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
    applique les migrations Prisma seul (`migrate deploy` dans l'entrypoint) et crée le bucket
    privé SILO (`silo-setup`, idempotent).
 5. **Vérifier** (le test qui compte se fait depuis le **téléphone**, hors réseau maison) :
-   - `https://api-dev.<domaine>/health` → `{"status":"ok"}`
-   - `https://api-dev.<domaine>/health/ready` → `{"database":"up"}`
-   - `https://app-dev.<domaine>` → Cloudflare demande une adresse et un code, **puis** l'app web
+   - `https://api-preview.<domaine>/health` → `{"status":"ok"}`
+   - `https://api-preview.<domaine>/health/ready` → `{"database":"up"}`
+   - `https://app-preview.<domaine>` → Cloudflare demande une adresse et un code, **puis** l'app web
      se charge. Si elle se charge sans rien demander, la policy Access manque (#263).
 
 ## Déploiement : le NAS tire la version promue
@@ -102,7 +103,7 @@ Tokens (classic) → Generate new token (classic)* : scope **`read:packages` seu
 **2. Sur le NAS, en root, dans le dossier du `.env`** :
 
 ```bash
-cd /volume1/<…>/cimavia-dev                       # le dossier qui contient le .env
+cd /volume1/<…>/cimavia-preview                       # le dossier qui contient le .env
 mkdir -p .docker && chmod 700 .docker
 read -rs TOKEN                                     # Entrée, PUIS coller le jeton, Entrée
 echo "$TOKEN" | DOCKER_CONFIG="$PWD/.docker" docker login ghcr.io -u <compte GitHub> --password-stdin
@@ -120,15 +121,15 @@ planifiée → Script défini par l'utilisateur* :
 
 - *Général* : utilisateur **root** ;
 - *Programmer* : tous les jours, **toutes les 5 minutes**, de 00:00 à 23:55 ;
-- *Paramètres de tâche* : `bash /volume1/<…>/cimavia-dev/pull-preview.sh`, et « Envoyer les détails
+- *Paramètres de tâche* : `bash /volume1/<…>/cimavia-preview/pull-preview.sh`, et « Envoyer les détails
   d'exécution par e-mail » **uniquement en cas d'arrêt anormal** : le NAS signale lui-même un échec.
 
 **4. Variables de dépôt** (Actions → *Variables*, non sensibles) :
 
 | Variable | Valeur |
 |---|---|
-| `DEV_PUBLIC_API_URL` | `https://api-dev.<domaine>` — figée dans le build web de la promotion, qui la sonde ensuite |
-| `DEV_SENTRY_DSN_WEB` | le DSN du projet Sentry web |
+| `PREVIEW_PUBLIC_API_URL` | `https://api-preview.<domaine>` — figée dans le build web de la promotion, qui la sonde ensuite |
+| `PREVIEW_SENTRY_DSN_WEB` | le DSN du projet Sentry web |
 
 ### Le script ne se met pas à jour tout seul
 
@@ -152,16 +153,18 @@ Une fois la cause réglée, le prochain passage réessaie seul. Si seule la conf
 
 ## Données
 
-- Volumes nommés `postgres_data` et `silo_data` (persistés par Container Manager). Le second garde
-  son nom d'avant #257 sur le NAS, `cimavia-dev_minio_data` : le renommer démarrerait un stockage vide.
+- Volumes `postgres_data` et `silo_data` (persistés par Container Manager), **épinglés dans le
+  compose à leur nom réel sur le NAS** : `cimavia-dev_postgres_data` et `cimavia-dev_minio_data`.
+  Ils gardent le nom du projet d'avant #271, et le second celui du service d'avant #257. Les
+  renommer ferait démarrer une base et un stockage VIDES, les données restant dans les anciens.
 - Ce sont les **vraies données du Coach bêta** depuis #260 : leur sauvegarde est ci-dessous, pas
   optionnelle.
 
 ## Qui peut créer un compte (#263)
 
 Ce tier est joignable publiquement — son URL est figée dans l'APK et dans chaque e-mail qu'il
-envoie — et sa règle dure est « données synthétiques seulement ». Les deux ne tiennent ensemble que
-si un inconnu ne peut pas s'y inscrire : l'inscription y est donc **fermée**.
+envoie — et il porte les vraies données du Coach bêta. Les deux ne tiennent ensemble que si un
+inconnu ne peut pas s'y inscrire : l'inscription y est donc **fermée**.
 
 | Variable du `.env` | Effet |
 |---|---|
@@ -180,7 +183,7 @@ Ajouter un Coach se fait donc à la main, et le changement ne prend qu'au redém
 
 ```bash
 sudo -i
-cd /volume1/<…>/cimavia-dev           # le dossier du .env
+cd /volume1/<…>/cimavia-preview           # le dossier du .env
 vi .env                               # SIGNUP_ALLOWED_EMAILS=coach@exemple.fr,autre@exemple.fr
 rm -f pull-preview/deployed           # sans ça, le script voit « rien de nouveau » et ne fait rien
 bash pull-preview.sh
@@ -256,7 +259,7 @@ distincts, et certains n'en demandent qu'un.
 
 Personne ne l'invite : c'est le seul cas qui demande une intervention sur le NAS.
 
-1. **Cloudflare Access** → *Applications* → `app-dev` → politique `beta-web` → *Include → Emails* :
+1. **Cloudflare Access** → *Applications* → `app-preview` → politique `beta-web` → *Include → Emails* :
    ajouter son adresse.
 2. **`.env` du NAS** : ajouter l'adresse à `SIGNUP_ALLOWED_EMAILS` (séparateur : la virgule), puis
    recréer le conteneur (commande exacte au § *Qui peut créer un compte*) — la liste est lue au
@@ -332,7 +335,7 @@ doit pas se réveiller sans aucune sauvegarde.
 ### Installer (une fois)
 
 ```bash
-cd /volume1/<…>/cimavia-dev                  # le dossier qui contient le .env
+cd /volume1/<…>/cimavia-preview                  # le dossier qui contient le .env
 curl -fsSL https://raw.githubusercontent.com/Cimavia/cimavia/main/deploy/preview/backup.sh -o backup.sh
 chmod 700 backup.sh
 bash backup.sh; echo "code $?"               # 0, puis lire backup/manifest-*.txt
@@ -340,7 +343,7 @@ bash backup.sh; echo "code $?"               # 0, puis lire backup/manifest-*.tx
 
 Puis une **tâche planifiée DSM** (*Panneau de configuration → Planificateur de tâches → Créer →
 Tâche planifiée → Script défini par l'utilisateur*) : utilisateur **root**, tous les jours à **03:00**,
-commande `bash /volume1/<…>/cimavia-dev/backup.sh`, et « Envoyer les détails d'exécution par e-mail »
+commande `bash /volume1/<…>/cimavia-preview/backup.sh`, et « Envoyer les détails d'exécution par e-mail »
 **uniquement en cas d'arrêt anormal**.
 
 Comme `pull-preview.sh`, ce script est une **copie** : quand il change dans le dépôt, relancer le
@@ -352,7 +355,7 @@ Comme `pull-preview.sh`, ce script est une **copie** : quand il change dans le d
 migration). Une seule commande fabrique une archive chiffrée :
 
 ```bash
-cd /volume1/<…>/cimavia-dev/backup
+cd /volume1/<…>/cimavia-preview/backup
 tar -cf - base media manifest-*.txt | openssl enc -aes-256-cbc -pbkdf2 -salt -out "cimavia-$(date +%F).tar.enc"
 ```
 
@@ -433,7 +436,7 @@ docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE
 Le mobile est un **client**, pas un service déployé sur le NAS : il pointe simplement vers l'API
 publique du tier dev. Pour donner une app installable à un testeur (le coach), on produit un APK
 via EAS avec l'URL de l'API figée dans le build (profil `preview` de `apps/mobile/eas.json`, qui
-pose `EXPO_PUBLIC_API_URL=https://api-dev.cimavia.fr`) :
+pose `EXPO_PUBLIC_API_URL=https://api-preview.cimavia.fr`) :
 
 ```bash
 cd apps/mobile
@@ -448,7 +451,7 @@ port-proxy WSL2 (cf. README racine §WSL2, qui ne concerne plus que le dev local
 > `EXPO_PUBLIC_API_URL` et `S3_ENDPOINT` pointent une IP LAN (`192.168.x.x`) : couper le wifi met
 > le téléphone en 5G, donc hors du LAN, où plus rien n'est joignable. Un envoi qui « ne reprend pas
 > en 5G » n'y prouve donc rien — il n'y a simplement plus de serveur à atteindre. Le basculement
-> wifi ↔ cellulaire ne se teste qu'avec `api-dev` et `s3-dev` publics, c'est-à-dire ici.
+> wifi ↔ cellulaire ne se teste qu'avec `api-preview` et `s3-preview` publics, c'est-à-dire ici.
 
 ## Déploiement manuel (dépannage)
 

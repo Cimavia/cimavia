@@ -1,21 +1,21 @@
-# Environnement DÉVELOPPEMENT (NAS) — auto-hébergé sur NAS Synology (DS720+), exposé par
-# Cloudflare Tunnel pour être joignable depuis le téléphone (tests médias/push hors LAN).
+# Environnement PREVIEW (NAS) — auto-hébergé sur NAS Synology (DS720+), exposé par Cloudflare
+# Tunnel pour être joignable depuis le téléphone (tests médias/push hors LAN).
 #
-# Modèle d'environnements du projet (4 tiers) :
-#   local (ta machine, sources + hot reload) → développement (ce NAS) → staging (cloud) → prod (cloud)
+# Modèle d'environnements du projet (3 tiers) :
+#   local (ta machine, sources + hot reload) → preview (ce NAS) → production (à venir)
 # Deux axes distincts, à ne pas confondre :
 #   - NODE_ENV : MODE d'exécution du runtime. Toute image Docker buildée tourne en `production`
 #     (logs JSON, sampling réduit, et surtout pino-pretty — une devDependency — est ABSENTE de
 #     l'image ; `development` y ferait crasher le logger au boot). `development` est réservé au
 #     tier « local » qui tourne depuis les sources.
-#   - APP_ENV : LABEL du tier (development | staging | production). C'est lui qui distingue les
-#     déploiements dans Sentry/les logs. Ici `development` : ce NAS est le tier dev. Le jour où un
-#     staging cloud distinct apparaît, on clone ce déploiement avec APP_ENV=staging — zéro code.
+#   - APP_ENV : LABEL du tier (preview | production). C'est lui qui distingue les déploiements dans
+#     Sentry et dans les logs. Ici `preview`, et il n'a pas de valeur par défaut : voir le service
+#     `api`.
 #
-# ⚠️ RÈGLE DURE : cet environnement ne reçoit QUE des données synthétiques (seed). Jamais un
-# compte athlète réel, jamais un média réel. C'est ce qui le maintient HORS du périmètre HDS —
-# l'hébergement de vraies données de santé est réservé à la prod (Clever Cloud HDS). Aucun script
-# de copie prod → NAS ne doit exister.
+# ⚠️ Ce tier porte de VRAIES données — les comptes, les planifications et les médias du Coach bêta
+# (#260). La règle « données synthétiques uniquement » qui figurait ici ne tient plus depuis qu'il
+# accueille de vrais utilisateurs, et c'est elle qui rendait acceptables des tolérances que #257,
+# #266, #267, #268 et #263 ont dû fermer une à une. La question HDS est cadrée à part (#259).
 #
 # Les images api/web sont TIRÉES depuis GHCR : la version promue, que `pull-preview.sh` va chercher
 # toutes les 5 minutes et passe ici épinglée par digest (#266). Le NAS ne construit rien, et ce
@@ -45,7 +45,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Object storage S3-compatible, exposé sur `s3-dev` : c'est le téléphone qui appelle les URLs
+  # Object storage S3-compatible, exposé sur `s3-preview` : c'est le téléphone qui appelle les URLs
   # signées. SILO, le fork maintenu de MinIO (#257) — la dernière image MinIO figée acceptait des
   # écritures SANS authentification pour qui connaissait la clé d'accès, lisible dans chaque URL
   # signée. Même API, mêmes variables `MINIO_*`, même format sur disque : le volume se relit tel
@@ -116,10 +116,10 @@ services:
       # redirection 301 n'y change rien, la vérification porte sur la chaîne, pas sur la requête.
       BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
       # Qui peut créer un compte (#263). Défaut `invitation` posé ICI, et c'est le point : ce
-      # tier est joignable publiquement, et sa règle dure « données synthétiques seulement » ne
-      # tient que si un inconnu ne peut pas s'y inscrire. Un `.env` qui oublierait la ligne doit
-      # laisser la porte FERMÉE, pas l'ouvrir. `SIGNUP_ALLOWED_EMAILS` est la porte des coachs,
-      # que personne n'invite — les athlètes, eux, passent par l'invitation de leur coach.
+      # tier est joignable publiquement — son URL est figée dans l'APK et dans chaque e-mail — et
+      # il porte de vraies données. Un `.env` qui oublierait la ligne doit laisser la porte
+      # FERMÉE, pas l'ouvrir. `SIGNUP_ALLOWED_EMAILS` est la porte des coachs, que personne
+      # n'invite — les athlètes, eux, passent par l'invitation de leur coach.
       SIGNUP_MODE: ${SIGNUP_MODE:-invitation}
       SIGNUP_ALLOWED_EMAILS: ${SIGNUP_ALLOWED_EMAILS:-}
       # ⚠️ URL PUBLIQUE du storage, PAS http://silo:9000 : l'API SIGNE les URLs S3 avec cette

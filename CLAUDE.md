@@ -75,7 +75,7 @@ pnpm turbo dev                 # tous les apps
 pnpm --filter @cmv/api dev     # API seule
 pnpm --filter @cmv/mobile start
 pnpm --filter @cmv/web dev
-pnpm --filter @cmv/api exec prisma migrate dev   # migrations (Neon/local)
+pnpm --filter @cmv/api exec prisma migrate dev   # migrations (local ; preview les applique au démarrage du conteneur)
 ```
 
 ### Porte qualité
@@ -117,15 +117,15 @@ vers les 100%, la duplication vers 0% et le nombre d'issue vers 0.
 - **Plan d'abord** : pour toute feature/phase, proposer un plan et **attendre la validation** avant de coder.
 - **Commits atomiques relus 1 par 1** : livrer par petits incréments cohérents, donner le commit à faire, et attendre qu'il soit relu/commité avant de continuer. Ne jamais committer/pousser sans demande explicite.
 - **Kylian teste/vérifie lui-même** (migrations, e2e, uploads, app) : préparer de quoi tester ; il exécute et rapporte le résultat.
-- **Actions sur interfaces web** (Scaleway, Neon, SonarCloud, secrets, branch protection) = Kylian les fait — les **lister explicitement** plutôt que tenter.
+- **Actions sur interfaces web** (Cloudflare, Scaleway, SonarCloud, Synology, secrets, branch protection) = Kylian les fait — les **lister explicitement** plutôt que tenter.
 - Qualité : la **porte ci-dessus** verte avant de conclure une étape — `turbo lint` seul ne suffit pas.
 - Git flow, commits signés, secrets CI : voir `CONTRIBUTING.md`.
 
 ## Hébergement
 
 - **Dev local** : PostgreSQL + **SILO** (object storage S3-compatible, fork maintenu de MinIO, tiré du miroir `ghcr.io/cimavia`) via `apps/api/docker-compose.yml`. Bucket privé créé au 1er démarrage. Aucun compte cloud requis — bascule prod = variables `S3_*` (`S3_FORCE_PATH_STYLE=true` pour SILO, `false` pour Scaleway).
-- **MVP (gratuit)** : API → Scaleway Serverless Containers · médias → Scaleway Object Storage (FR) · **BDD → Neon free** (EU, Prisma-natif). Redis **différé**.
-- **v1.0 (souverain FR)** : bascule **Clever Cloud** (app + PostgreSQL + Redis + Cellar S3, HDS). Portabilité = variables d'env, rien de propriétaire.
+- **Preview** : le **NAS** (Synology DS720+), exposé par Cloudflare Tunnel — `deploy/preview/`. Il porte les vraies données du Coach bêta depuis #260, tire la version **promue** (#266) et n'accepte que les inscriptions invitées (#263). Clever Cloud a été écarté pour ce tier le 2026-09-14, pour son coût.
+- **Production** : **pas encore tranchée**. Les cibles étudiées restent Scaleway (Serverless Containers + Object Storage FR) et Clever Cloud (souverain, HDS) ; le choix dépend du cadrage HDS ([#259](https://github.com/Cimavia/cimavia/issues/259)). Ce qui est acquis : la portabilité tient aux variables d'environnement, rien de propriétaire.
 
 ## Hors périmètre (ne pas implémenter sans validation)
 
