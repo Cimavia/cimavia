@@ -128,12 +128,12 @@ prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récen
 
 **Variables** (onglet *Variables*), pas des secrets — elles partent dans le bundle ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
 
-- `DEV_PUBLIC_API_URL` — l'URL publique de l'API du NAS : figée dans le build web de la promotion, sondée par elle après coup, et appelée par `reminder-tick.yml`.
-- `DEV_SENTRY_DSN_WEB` — le DSN du projet web, lisible par tout visiteur du site.
+- `PREVIEW_PUBLIC_API_URL` — l'URL publique de l'API du NAS : figée dans le build web de la promotion, sondée par elle après coup, et appelée par `reminder-tick.yml`.
+- `PREVIEW_SENTRY_DSN_WEB` — le DSN du projet web, lisible par tout visiteur du site.
 - `SENTRY_ORG` — le slug de l'organisation Sentry.
 - `SENTRY_PROJECT_WEB` — `cimavia-web`.
 
-**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/dev/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/dev/README.md`). Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
+**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
 
 ## Identifiants de build mobile
 

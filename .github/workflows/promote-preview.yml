@@ -4,7 +4,7 @@ name: Promotion — preview
 # la décision humaine entre un merge sur `main` et les vraies données du NAS (#260).
 #
 # Le NAS ne reçoit plus rien de GitHub. Il tire lui-même le tag `preview` des images, toutes les
-# 5 minutes (`deploy/dev/pull-preview.sh`) : ce workflow se contente de DÉPLACER ce tag, puis attend
+# 5 minutes (`deploy/preview/pull-preview.sh`) : ce workflow se contente de DÉPLACER ce tag, puis attend
 # de voir le NAS redémarrer.
 #
 #   1. vérifier   — la version existe, avance, a passé ses checks, et son image est publiée ;
@@ -139,10 +139,10 @@ jobs:
           fi
 
       # Le web fige cette URL dans son bundle : vide, il pointerait sur localhost.
-      - name: Vérifier DEV_PUBLIC_API_URL
+      - name: Vérifier PREVIEW_PUBLIC_API_URL
         run: |
-          if [ -z "${{ vars.DEV_PUBLIC_API_URL }}" ]; then
-            echo "::error::Variable de dépôt DEV_PUBLIC_API_URL vide — le web ne saurait pas joindre l'API du NAS."
+          if [ -z "${{ vars.PREVIEW_PUBLIC_API_URL }}" ]; then
+            echo "::error::Variable de dépôt PREVIEW_PUBLIC_API_URL vide — le web ne saurait pas joindre l'API du NAS."
             exit 1
           fi
 
@@ -162,7 +162,7 @@ jobs:
         with:
           ref: ${{ needs.verify.outputs.sha }}
 
-      # Même garde-fou que `deploy-dev.yml` : un jeton sans organisation ni projet ferait échouer le
+      # Même garde-fou que `api-image.yml` : un jeton sans organisation ni projet ferait échouer le
       # build sur un message enfoui dans les logs de Docker.
       - name: Vérifier la cohérence Sentry
         env:
@@ -209,8 +209,8 @@ jobs:
             org.opencontainers.image.revision=${{ needs.verify.outputs.sha }}
             org.opencontainers.image.version=${{ inputs.version }}
           build-args: |
-            VITE_API_URL=${{ vars.DEV_PUBLIC_API_URL }}
-            VITE_SENTRY_DSN=${{ vars.DEV_SENTRY_DSN_WEB }}
+            VITE_API_URL=${{ vars.PREVIEW_PUBLIC_API_URL }}
+            VITE_SENTRY_DSN=${{ vars.PREVIEW_SENTRY_DSN_WEB }}
             VITE_APP_ENV=preview
             VITE_APP_VERSION=${{ inputs.version }}
             SENTRY_ORG=${{ vars.SENTRY_ORG }}
@@ -306,7 +306,7 @@ jobs:
       # `/health/ready` reste exigé derrière.
       - name: L'API du NAS a redémarré et répond
         env:
-          API_URL: ${{ vars.DEV_PUBLIC_API_URL }}
+          API_URL: ${{ vars.PREVIEW_PUBLIC_API_URL }}
           PROMOTED_AT: ${{ needs.publish.outputs.promoted_at }}
           VERSION: ${{ inputs.version }}
         run: |

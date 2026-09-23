@@ -230,7 +230,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~P7-4~~ | ~~**MinIO est figé, et vulnérable là où il est exposé**~~ : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | ✅ | résolue en **[#257](https://github.com/Cimavia/cimavia/issues/257)** — SILO, fork maintenu de MinIO qui corrige les deux failles (`RELEASE.2026-04-17`), tiré d'un miroir `ghcr.io/cimavia` ; les données du NAS restent dans leur volume |
 | P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) |
 | ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
-| P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/dev/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
+| P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/preview/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
 | ~~P7-8~~ | ~~**L'API signait ses URLs avec le compte ROOT du stockage**~~ : `deploy/dev/docker-compose.yml` passait la même paire à `MINIO_ROOT_USER` et à `S3_ACCESS_KEY_ID`. Or une clé d'accès est lisible **en clair dans chaque URL signée** (`X-Amz-Credential`), et c'est tout ce qu'exigeaient les deux écritures sans authentification que SILO corrige. Une fuite de l'environnement de l'API donnait l'administration complète du stockage, pas l'accès à ses médias. **Jamais inscrite ici** : le NAS n'a longtemps porté que des données synthétiques. | ✅ | résolue en **[#267](https://github.com/Cimavia/cimavia/issues/267)** — une clé dédiée, limitée aux objets du bucket, créée par `silo-setup` |
 | P7-9 | **Une adresse invitée s'inscrit sans être vérifiée** : depuis [#263](https://github.com/Cimavia/cimavia/issues/263), preview n'accepte que les adresses invitées ou listées — mais rien ne prouve que celui qui s'inscrit **possède** l'adresse. Qui connaît l'adresse d'un Athlete invité et pas encore inscrit peut créer le compte à sa place, lire le code d'invitation et accepter la liaison. Le mode `invitation` ferme la porte à qui ne connaît aucune adresse, pas à qui en connaît une. | 🟡 | [#270](https://github.com/Cimavia/cimavia/issues/270) |
 
@@ -3313,6 +3313,36 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > promue depuis quinze minutes tournant déjà en 1.4.1 : le seul symptôme était `/docs` encore
 > ouvert. D'où la consigne du README — **pour appliquer un changement du `.env`, effacer
 > `pull-preview/deployed` et relancer le script**, jamais `up -d` à la main.
+
+> **Tranché en #271** (un environnement porte un seul nom — mais ses volumes gardent l'ancien) : le
+> NAS s'appelait `dev` du tunnel Cloudflare jusqu'au nom de ses conteneurs, alors que #261 avait
+> déjà fait exister le mot `preview` dans le code. Cinq conséquences que le code ne justifie pas
+> seul.
+>
+> - **Les deux volumes sont épinglés à leur nom RÉEL** — `cimavia-dev_postgres_data` et
+>   `cimavia-dev_minio_data`. Renommer un projet compose renomme ses volumes : PostgreSQL et SILO
+>   auraient démarré VIDES, pendant que les données du Coach seraient restées à côté, intactes et
+>   invisibles. C'est le seul endroit où `dev` survit, et il doit y survivre.
+> - **`APP_ENV` perd son repli.** `development` par défaut rangeait les déploiements de preview,
+>   dans Sentry et dans les logs, avec ceux qu'on jette. Un tier qui ne se déclare pas empêche
+>   désormais le démarrage.
+> - **Une origine de confiance supplémentaire passe par le compose**, vide en régime normal. Elle
+>   existe pour la transition : un APK déjà installé demande sa réinitialisation de mot de passe
+>   avec un `redirectTo` vers l'ANCIENNE origine web, que Better Auth compare à cette liste. Une
+>   redirection 301 n'y changerait rien — la vérification porte sur la chaîne, pas sur la requête.
+> - **L'alias réseau `minio` disparaît.** Il n'existait que pour ne pas couper le tunnel pendant
+>   #257. L'ordre compte, et c'est le seul de cette issue qui casse quelque chose s'il est inversé :
+>   le tunnel doit viser `silo:9000` AVANT la promotion, sinon plus aucun média ne se charge.
+> - **CloudBeaver passe en `restart: "no"`.** Une interface d'administration de base de données qui
+>   se rallume à chaque redémarrage du NAS, sur de vraies données, n'est pas un outil de dev : c'est
+>   une porte laissée ouverte.
+
+> **Appris en #271** (une règle périmée se recopie plus vite qu'elle ne se corrige) : l'en-tête de
+> `deploy/dev/docker-compose.yml` affirmait encore « données synthétiques uniquement », alors que
+> #260 l'avait renversée et que ce journal le disait depuis #268. En #263, je m'y suis fié pour
+> justifier la fermeture des inscriptions, et la phrase a essaimé dans **cinq fichiers** : deux
+> commentaires de code, le compose, le `.env.example` et le runbook. Toutes corrigées ici. Le
+> journal avait raison, c'est le fichier qui mentait — et c'est le fichier qu'on lit en codant.
 
 ---
 

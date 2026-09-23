@@ -1,21 +1,21 @@
-# Environnement DÉVELOPPEMENT (NAS) — auto-hébergé sur NAS Synology (DS720+), exposé par
-# Cloudflare Tunnel pour être joignable depuis le téléphone (tests médias/push hors LAN).
+# Environnement PREVIEW (NAS) — auto-hébergé sur NAS Synology (DS720+), exposé par Cloudflare
+# Tunnel pour être joignable depuis le téléphone (tests médias/push hors LAN).
 #
-# Modèle d'environnements du projet (4 tiers) :
-#   local (ta machine, sources + hot reload) → développement (ce NAS) → staging (cloud) → prod (cloud)
+# Modèle d'environnements du projet (3 tiers) :
+#   local (ta machine, sources + hot reload) → preview (ce NAS) → production (à venir)
 # Deux axes distincts, à ne pas confondre :
 #   - NODE_ENV : MODE d'exécution du runtime. Toute image Docker buildée tourne en `production`
 #     (logs JSON, sampling réduit, et surtout pino-pretty — une devDependency — est ABSENTE de
 #     l'image ; `development` y ferait crasher le logger au boot). `development` est réservé au
 #     tier « local » qui tourne depuis les sources.
-#   - APP_ENV : LABEL du tier (development | staging | production). C'est lui qui distingue les
-#     déploiements dans Sentry/les logs. Ici `development` : ce NAS est le tier dev. Le jour où un
-#     staging cloud distinct apparaît, on clone ce déploiement avec APP_ENV=staging — zéro code.
+#   - APP_ENV : LABEL du tier (preview | production). C'est lui qui distingue les déploiements dans
+#     Sentry et dans les logs. Ici `preview`, et il n'a pas de valeur par défaut : voir le service
+#     `api`.
 #
-# ⚠️ RÈGLE DURE : cet environnement ne reçoit QUE des données synthétiques (seed). Jamais un
-# compte athlète réel, jamais un média réel. C'est ce qui le maintient HORS du périmètre HDS —
-# l'hébergement de vraies données de santé est réservé à la prod (Clever Cloud HDS). Aucun script
-# de copie prod → NAS ne doit exister.
+# ⚠️ Ce tier porte de VRAIES données — les comptes, les planifications et les médias du Coach bêta
+# (#260). La règle « données synthétiques uniquement » qui figurait ici ne tient plus depuis qu'il
+# accueille de vrais utilisateurs, et c'est elle qui rendait acceptables des tolérances que #257,
+# #266, #267, #268 et #263 ont dû fermer une à une. La question HDS est cadrée à part (#259).
 #
 # Les images api/web sont TIRÉES depuis GHCR : la version promue, que `pull-preview.sh` va chercher
 # toutes les 5 minutes et passe ici épinglée par digest (#266). Le NAS ne construit rien, et ce
@@ -26,12 +26,12 @@
 # api/web/silo par nom de service sur le réseau interne. Les trois hostnames publics
 # (api-/app-/s3-) sont mappés vers ces services dans le dashboard Cloudflare Zero Trust.
 
-name: cimavia-dev
+name: cimavia-preview
 
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: cimavia_dev_postgres
+    container_name: cimavia_preview_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -45,14 +45,14 @@ services:
       timeout: 5s
       retries: 5
 
-  # Object storage S3-compatible, exposé sur `s3-dev` : c'est le téléphone qui appelle les URLs
+  # Object storage S3-compatible, exposé sur `s3-preview` : c'est le téléphone qui appelle les URLs
   # signées. SILO, le fork maintenu de MinIO (#257) — la dernière image MinIO figée acceptait des
   # écritures SANS authentification pour qui connaissait la clé d'accès, lisible dans chaque URL
   # signée. Même API, mêmes variables `MINIO_*`, même format sur disque : le volume se relit tel
   # quel. Tirée du miroir GHCR, épinglée (voir le compose local).
   silo:
     image: ghcr.io/cimavia/silo:RELEASE.2026-09-16T00-00-00Z
-    container_name: cimavia_dev_silo
+    container_name: cimavia_preview_silo
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -63,13 +63,6 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:?mot de passe root du stockage}
     volumes:
       - silo_data:/data
-    # Le tunnel Cloudflare vise encore `http://minio:9000` : l'alias garde ce nom joignable, pour
-    # que la promotion qui renomme le service ne coupe pas les médias du Coach. Il disparaît avec
-    # #271, quand le tunnel visera `silo:9000`.
-    networks:
-      default:
-        aliases:
-          - minio
 
   # Crée le bucket privé et la clé de l'API au premier démarrage, puis s'arrête (idempotent). Même
   # pattern que le compose de dev local : la boucle `until` tient lieu d'attente, l'image SILO n'ayant
@@ -77,7 +70,7 @@ services:
   silo-setup:
     # Même miroir et même version que `silo` ci-dessus.
     image: ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z
-    container_name: cimavia_dev_silo_setup
+    container_name: cimavia_preview_silo_setup
     depends_on:
       - silo
     entrypoint: >
@@ -94,7 +87,7 @@ services:
 
   api:
     image: ${API_IMAGE:?posée par pull-preview.sh}
-    container_name: cimavia_dev_api
+    container_name: cimavia_preview_api
     restart: unless-stopped
     depends_on:
       postgres:
@@ -103,8 +96,10 @@ services:
       # MODE runtime : toujours production pour une image buildée (cf. en-tête). Ne PAS confondre
       # avec le tier ci-dessous.
       NODE_ENV: production
-      # LABEL du tier de déploiement (Sentry, logs). Ici : le NAS = tier « development ».
-      APP_ENV: ${APP_ENV:-development}
+      # LABEL du tier de déploiement (Sentry, logs). SANS REPLI : ce tier porte de vraies données,
+      # et un `.env` muet doit empêcher le démarrage plutôt que de les étiqueter « development »
+      # dans Sentry — c'est-à-dire de les ranger avec celles qu'on jette.
+      APP_ENV: ${APP_ENV:?tier de deploiement attendu dans le .env, ex. preview}
       PORT: "3000"
       # Postgres joint par nom de service sur le réseau interne (jamais exposé à l'extérieur).
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
@@ -114,11 +109,17 @@ services:
       # Origine web publique : entre dans CORS + trustedOrigins (cf. browserOrigins). Le scheme
       # mobile cimavia:// est ajouté côté code, pas ici.
       CORS_ORIGINS: ${PUBLIC_WEB_URL}
+      # Origines de confiance SUPPLÉMENTAIRES, vide en régime normal. Elle existe pour la
+      # transition des hostnames (#271) : un APK déjà installé demande sa réinitialisation de mot
+      # de passe avec `redirectTo` vers l'ANCIENNE origine web, que Better Auth compare à cette
+      # liste. Sans elle, le lien est refusé et l'écran n'affiche qu'une erreur générique — une
+      # redirection 301 n'y change rien, la vérification porte sur la chaîne, pas sur la requête.
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
       # Qui peut créer un compte (#263). Défaut `invitation` posé ICI, et c'est le point : ce
-      # tier est joignable publiquement, et sa règle dure « données synthétiques seulement » ne
-      # tient que si un inconnu ne peut pas s'y inscrire. Un `.env` qui oublierait la ligne doit
-      # laisser la porte FERMÉE, pas l'ouvrir. `SIGNUP_ALLOWED_EMAILS` est la porte des coachs,
-      # que personne n'invite — les athlètes, eux, passent par l'invitation de leur coach.
+      # tier est joignable publiquement — son URL est figée dans l'APK et dans chaque e-mail — et
+      # il porte de vraies données. Un `.env` qui oublierait la ligne doit laisser la porte
+      # FERMÉE, pas l'ouvrir. `SIGNUP_ALLOWED_EMAILS` est la porte des coachs, que personne
+      # n'invite — les athlètes, eux, passent par l'invitation de leur coach.
       SIGNUP_MODE: ${SIGNUP_MODE:-invitation}
       SIGNUP_ALLOWED_EMAILS: ${SIGNUP_ALLOWED_EMAILS:-}
       # ⚠️ URL PUBLIQUE du storage, PAS http://silo:9000 : l'API SIGNE les URLs S3 avec cette
@@ -161,7 +162,7 @@ services:
 
   web:
     image: ${WEB_IMAGE:?posée par pull-preview.sh}
-    container_name: cimavia_dev_web
+    container_name: cimavia_preview_web
     restart: unless-stopped
 
   # Sortie vers Cloudflare : établit le tunnel et route les hostnames publics vers les services.
@@ -169,7 +170,7 @@ services:
   # avec un tunnel par token, cloudflared n'a besoin QUE du token.
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: cimavia_dev_tunnel
+    container_name: cimavia_preview_tunnel
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
@@ -180,10 +181,14 @@ services:
       - silo
 
 volumes:
+  # ⚠️ Les deux volumes portent leur nom RÉEL, relevé par `docker volume ls` sur le NAS, et non
+  # celui que le projet leur donnerait. Renommer le projet en `cimavia-preview` (#271) les aurait
+  # renommés avec lui : PostgreSQL et SILO auraient démarré VIDES, pendant que les données du
+  # Coach seraient restées dans les anciens volumes, intactes et invisibles.
   postgres_data:
-  # Le service s'appelait `minio` jusqu'en #257 : le volume garde son NOM RÉEL sur le NAS, relevé par
-  # `docker volume ls`. Le renommer ferait démarrer un stockage VIDE, les médias du Coach restant dans
-  # l'ancien. `pull-preview.sh` passe par `up -d --remove-orphans`, qui supprime l'ancien conteneur
-  # AVANT de créer le nouveau (mesuré) : deux serveurs n'écrivent jamais dans ce volume ensemble.
+    name: cimavia-dev_postgres_data
+  # Celui-ci porte deux noms d'avant : le projet `cimavia-dev` et le service `minio`, renommé en
+  # `silo` en #257. `pull-preview.sh` passe par `up -d --remove-orphans`, qui supprime l'ancien
+  # conteneur AVANT de créer le nouveau (mesuré) : deux serveurs n'écrivent jamais ensemble dedans.
   silo_data:
     name: cimavia-dev_minio_data

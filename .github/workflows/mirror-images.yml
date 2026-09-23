@@ -88,7 +88,7 @@ jobs:
             fi
             echo "${name}_latest=${latest}" >> "$GITHUB_OUTPUT"
 
-            mapfile -t pinned < <(grep -hoE "ghcr\.io/${owner}/${name}:RELEASE\.[0-9TZ-]+" apps/api/docker-compose.yml deploy/dev/docker-compose.yml | sed 's/.*://' || true)
+            mapfile -t pinned < <(grep -hoE "ghcr\.io/${owner}/${name}:RELEASE\.[0-9TZ-]+" apps/api/docker-compose.yml deploy/preview/docker-compose.yml | sed 's/.*://' || true)
             for tag in $(printf '%s\n' "$latest" "$REQUESTED" "${pinned[@]}" | grep -E "$pattern" | sort -u); do
               dst="ghcr.io/${owner}/${name}:${tag}"
               if docker buildx imagetools inspect "$dst" >/dev/null 2>&1; then
@@ -115,7 +115,7 @@ jobs:
           for name in silo mc; do
             latest_var="${name^^}_LATEST"
             latest="${!latest_var}"
-            for tag in $(grep -hoE "ghcr\.io/${owner}/${name}:RELEASE\.[0-9TZ-]+" apps/api/docker-compose.yml deploy/dev/docker-compose.yml | sed 's/.*://' | sort -u || true); do
+            for tag in $(grep -hoE "ghcr\.io/${owner}/${name}:RELEASE\.[0-9TZ-]+" apps/api/docker-compose.yml deploy/preview/docker-compose.yml | sed 's/.*://' | sort -u || true); do
               if [[ "$tag" < "$latest" ]]; then
                 behind+="- \`${name}\` : épinglée en \`${tag}\`, dernière publiée \`${latest}\`"$'\n'
               fi
@@ -137,7 +137,7 @@ jobs:
           ## À faire
 
           - Lire ce qui a changé, **sécurité d'abord** : [registre de sécurité de SILO](https://silo.pgsty.com/blog/security/) · [versions de SILO](https://github.com/pgsty/silo/releases).
-          - Monter les tags dans \`apps/api/docker-compose.yml\` et \`deploy/dev/docker-compose.yml\`.
+          - Monter les tags dans \`apps/api/docker-compose.yml\` et \`deploy/preview/docker-compose.yml\`.
           - La CI rejoue les e2e contre la nouvelle version ; le NAS la reçoit à la promotion suivante.
 
           Issue tenue à jour par \`mirror-images.yml\` : elle se réécrit chaque semaine tant que les composes n'ont pas rattrapé la dernière version.

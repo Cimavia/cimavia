@@ -40,8 +40,8 @@ jobs:
       # Sans elles, on échoue ICI avec un message qui dit quoi faire, plutôt que sur un 401 opaque.
       - name: Vérifier la configuration
         run: |
-          if [ -z "${{ vars.DEV_PUBLIC_API_URL }}" ]; then
-            echo "::error::Variable de dépôt DEV_PUBLIC_API_URL vide — le tick n'a aucune API à appeler."
+          if [ -z "${{ vars.PREVIEW_PUBLIC_API_URL }}" ]; then
+            echo "::error::Variable de dépôt PREVIEW_PUBLIC_API_URL vide — le tick n'a aucune API à appeler."
             exit 1
           fi
           if [ -z "${{ secrets.REMINDER_TICK_SECRET }}" ]; then
@@ -54,7 +54,7 @@ jobs:
       # in-process se serait tu. Le secret voyage en en-tête et n'apparaît dans aucun log.
       - name: POST /internal/reminders/tick
         env:
-          API_URL: ${{ vars.DEV_PUBLIC_API_URL }}
+          API_URL: ${{ vars.PREVIEW_PUBLIC_API_URL }}
           TICK_SECRET: ${{ secrets.REMINDER_TICK_SECRET }}
         run: |
           curl --silent --show-error --fail-with-body \
