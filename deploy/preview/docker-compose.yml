@@ -63,13 +63,6 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_ROOT_PASSWORD:?mot de passe root du stockage}
     volumes:
       - silo_data:/data
-    # Le tunnel Cloudflare vise encore `http://minio:9000` : l'alias garde ce nom joignable, pour
-    # que la promotion qui renomme le service ne coupe pas les médias du Coach. Il disparaît avec
-    # #271, quand le tunnel visera `silo:9000`.
-    networks:
-      default:
-        aliases:
-          - minio
 
   # Crée le bucket privé et la clé de l'API au premier démarrage, puis s'arrête (idempotent). Même
   # pattern que le compose de dev local : la boucle `until` tient lieu d'attente, l'image SILO n'ayant

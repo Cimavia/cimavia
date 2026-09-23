@@ -38,7 +38,7 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 |---|---|---|
 | `api-dev.<domaine>` | `http://api:3000` | |
 | `app-dev.<domaine>` | `http://web:80` | |
-| `s3-dev.<domaine>`  | `http://silo:9000` | `minio:9000` marche encore : alias gardé jusqu'à #271 |
+| `s3-dev.<domaine>`  | `http://silo:9000` | |
 
 > **`app-dev` est derrière Cloudflare Access** (#263), les deux autres non : l'API est appelée par
 > le téléphone, qui ne sait pas résoudre un écran de connexion, et `s3-dev` sert les URLs signées
