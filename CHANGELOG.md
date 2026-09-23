@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.3](https://github.com/Cimavia/cimavia/compare/v1.5.2...v1.5.3) (2026-09-23)
+
+
+### Technique
+
+* **deploy:** deplacer le nas dans preview et renommer son projet compose ([df6147d](https://github.com/Cimavia/cimavia/commit/df6147d3099427e45575894fb856d8e29e2271c3))
+* **deploy:** nommer preview le nas des hostnames aux variables et a la doc ([3a1826e](https://github.com/Cimavia/cimavia/commit/3a1826e37839335cd1435e279eb892719b2ffd39))
+* **deploy:** retirer l alias reseau minio du stockage de preview ([e0faac2](https://github.com/Cimavia/cimavia/commit/e0faac2ee8e2b4210d20fc39e26b2de800743909))
+
 ## [1.5.2](https://github.com/Cimavia/cimavia/compare/v1.5.1...v1.5.2) (2026-09-22)
 
 
