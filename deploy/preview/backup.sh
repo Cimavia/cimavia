@@ -12,7 +12,7 @@
 #
 # Ce qu'il ne fait pas, et c'est voulu : sortir du NAS. Cette copie protège du `down -v`, du bug qui
 # efface, de la migration fautive et de la suppression par erreur — pas de la panne de disque ni du
-# rançongiciel. Le hors-site reste manuel (`deploy/dev/README.md`), le temps que preview vive sur le
+# rançongiciel. Le hors-site reste manuel (`deploy/preview/README.md`), le temps que preview vive sur le
 # NAS.
 #
 # Copier les fichiers du volume PostgreSQL à chaud ne vaut RIEN : une copie prise pendant une
@@ -26,8 +26,8 @@ set -euo pipefail
 STACK_DIR="${STACK_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 ENV_FILE="${ENV_FILE:-$STACK_DIR/.env}"
 BACKUP_DIR="${BACKUP_DIR:-$STACK_DIR/backup}"
-PG_CONTAINER="${PG_CONTAINER:-cimavia_dev_postgres}"
-DOCKER_NETWORK="${DOCKER_NETWORK:-cimavia-dev_default}"
+PG_CONTAINER="${PG_CONTAINER:-cimavia_preview_postgres}"
+DOCKER_NETWORK="${DOCKER_NETWORK:-cimavia-preview_default}"
 # L'endpoint du stockage, en pièces détachées pour être surchargeable d'un bloc. Par défaut, le
 # service `silo` du réseau interne du compose, en clair : ce saut ne quitte jamais le NAS, et le
 # chiffrer coûterait un aller-retour par le tunnel Cloudflare pour rien. Un stockage distant se

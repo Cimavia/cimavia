@@ -3,7 +3,7 @@
  *
  * Preview est joignable publiquement et son URL n'a rien de secret : elle est figée dans l'APK
  * installé sur les téléphones et dans chaque e-mail qu'il envoie. Or ce tier n'accepte QUE des
- * données synthétiques (règle dure de `deploy/dev/docker-compose.yml`, ce qui le tient hors du
+ * données synthétiques (règle dure de `deploy/preview/docker-compose.yml`, ce qui le tient hors du
  * périmètre HDS) — et une inscription ouverte est précisément ce qui y ferait entrer de vrais
  * comptes et de vraies données. La fermer demande donc que l'API refuse, pas qu'on taise l'URL.
  *

@@ -31,7 +31,8 @@ export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 API_REF="ghcr.io/cimavia/cimavia-api:preview"
 WEB_REF="ghcr.io/cimavia/cimavia-web:preview"
 RAW="https://raw.githubusercontent.com/Cimavia/cimavia"
-# Le dossier du compose change avec #271 : le nouveau d'abord, l'ancien ensuite.
+# Le dossier du compose a changé en #271, et les deux chemins restent lus : ce script tire le
+# compose du commit PROMU, qui peut être antérieur au déplacement. Le nouveau d'abord.
 COMPOSE_PATHS="deploy/preview/docker-compose.yml deploy/dev/docker-compose.yml"
 HEALTH_TIMEOUT_S=300
 

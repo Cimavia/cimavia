@@ -107,7 +107,7 @@ mkdir -p .docker && chmod 700 .docker
 read -rs TOKEN                                     # Entrée, PUIS coller le jeton, Entrée
 echo "$TOKEN" | DOCKER_CONFIG="$PWD/.docker" docker login ghcr.io -u <compte GitHub> --password-stdin
 unset TOKEN
-curl -fsSL https://raw.githubusercontent.com/Cimavia/cimavia/main/deploy/dev/pull-preview.sh -o pull-preview.sh
+curl -fsSL https://raw.githubusercontent.com/Cimavia/cimavia/main/deploy/preview/pull-preview.sh -o pull-preview.sh
 chmod 700 pull-preview.sh
 bash pull-preview.sh; echo "code $?"               # 0 : rien n'est encore promu
 ```
@@ -333,7 +333,7 @@ doit pas se réveiller sans aucune sauvegarde.
 
 ```bash
 cd /volume1/<…>/cimavia-dev                  # le dossier qui contient le .env
-curl -fsSL https://raw.githubusercontent.com/Cimavia/cimavia/main/deploy/dev/backup.sh -o backup.sh
+curl -fsSL https://raw.githubusercontent.com/Cimavia/cimavia/main/deploy/preview/backup.sh -o backup.sh
 chmod 700 backup.sh
 bash backup.sh; echo "code $?"               # 0, puis lire backup/manifest-*.txt
 ```

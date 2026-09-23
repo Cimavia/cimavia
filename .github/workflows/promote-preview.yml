@@ -4,7 +4,7 @@ name: Promotion — preview
 # la décision humaine entre un merge sur `main` et les vraies données du NAS (#260).
 #
 # Le NAS ne reçoit plus rien de GitHub. Il tire lui-même le tag `preview` des images, toutes les
-# 5 minutes (`deploy/dev/pull-preview.sh`) : ce workflow se contente de DÉPLACER ce tag, puis attend
+# 5 minutes (`deploy/preview/pull-preview.sh`) : ce workflow se contente de DÉPLACER ce tag, puis attend
 # de voir le NAS redémarrer.
 #
 #   1. vérifier   — la version existe, avance, a passé ses checks, et son image est publiée ;
