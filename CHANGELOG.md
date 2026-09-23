@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.2](https://github.com/Cimavia/cimavia/compare/v1.5.1...v1.5.2) (2026-09-22)
+
+
+### Corrections
+
+* **mobile:** passer le mode audio entier, ios refuse l'enregistrement sans lecture en silencieux ([7a921b4](https://github.com/Cimavia/cimavia/commit/7a921b4aed3b0d2a576ab6bf00d9e4c6b8f3d9cd))
+* **mobile:** remonter a sentry la cause d'un echec d'enregistrement ([5a9dd73](https://github.com/Cimavia/cimavia/commit/5a9dd739f17e176593d4100689ef289fe2e102b0))
+* **mobile:** retablir le mode lecture quand l'enregistrement echoue ([cf3ff6c](https://github.com/Cimavia/cimavia/commit/cf3ff6ca95cd74568f69d99b5b0d69d1e2d96021))
+
 ## [1.5.1](https://github.com/Cimavia/cimavia/compare/v1.5.0...v1.5.1) (2026-09-21)
 
 
