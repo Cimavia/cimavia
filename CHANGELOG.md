@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.4](https://github.com/Cimavia/cimavia/compare/v1.5.3...v1.5.4) (2026-09-24)
+
+
+### Corrections
+
+* **mobile:** refuser une variante hors développement sans url d'api ni url web ([0f620cb](https://github.com/Cimavia/cimavia/commit/0f620cb838deb30a9c9959e4a4b1785f2f0b3c6a))
+* **mobile:** relancer l'app depuis l'écran de panne pour appliquer un correctif déjà téléchargé ([5d794ba](https://github.com/Cimavia/cimavia/commit/5d794ba396def9f75ddd556836d32ef6f2c29465))
+
+
+### Technique
+
+* **mobile:** installer expo-updates avec une runtime version par empreinte native ([14e764a](https://github.com/Cimavia/cimavia/commit/14e764aa1f76ffe17da9e60a4b3c80bda6297e0e))
+* **mobile:** lire les variables depuis les environnements eas et graver un canal par profil ([11d1aaf](https://github.com/Cimavia/cimavia/commit/11d1aafeb2258bed9f42ee5747c28f9b6cc70d0d))
+* **mobile:** publier un update preview uniquement depuis un tag propre ([87be560](https://github.com/Cimavia/cimavia/commit/87be560933aed9b04d393124619ac7c0b3c8032a))
+
 ## [1.5.3](https://github.com/Cimavia/cimavia/compare/v1.5.2...v1.5.3) (2026-09-23)
 
 
