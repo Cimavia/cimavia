@@ -5,6 +5,12 @@
     "version": "1.5.3",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/412cffac-62a8-432c-9f18-04107c70e2cb"
+    },
     "ios": {
       "supportsTablet": false,
       "entitlements": {
