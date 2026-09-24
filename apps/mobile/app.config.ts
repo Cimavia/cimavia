@@ -29,6 +29,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     throw new Error("app.json doit définir `name` et `slug`");
   }
 
+  // Metro inline les URL au bundling, et le code se replie sur `localhost` sans rien dire quand
+  // elles manquent (#255). Hors `development`, où ce repli est ce qui laisse un émulateur démarrer
+  // sans `.env`, ce binaire s'installerait et ne joindrait jamais l'API. Ce fichier est aussi
+  // évalué par `eas update` : la garde vaut pour un update comme pour un build (#287).
+  if (variant !== "development") {
+    const missing = ["EXPO_PUBLIC_API_URL", "EXPO_PUBLIC_WEB_URL"].filter(
+      (key) => !process.env[key],
+    );
+    if (missing.length > 0) {
+      throw new Error(`La variante ${variant} exige ${missing.join(" et ")}`);
+    }
+  }
+
   const appId = `fr.cimavia.app${idSuffix}`;
 
   return {
