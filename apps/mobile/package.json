@@ -15,7 +15,8 @@
     "build:dev:ios": "eas build --profile development --platform ios",
     "build:preview:android": "eas build --profile preview --platform android",
     "build:preview:ios": "eas build --profile preview --platform ios",
-    "build:testflight:ios": "eas build --profile testflight --platform ios --auto-submit"
+    "build:testflight:ios": "eas build --profile testflight --platform ios --auto-submit",
+    "ota:preview": "node scripts/publish-update.mjs"
   },
   "dependencies": {
     "@better-auth/expo": "1.6.23",
