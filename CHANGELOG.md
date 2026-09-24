@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.5](https://github.com/Cimavia/cimavia/compare/v1.5.4...v1.5.5) (2026-09-24)
+
+
+### Corrections
+
+* **mobile:** déclarer les plugins babel de nativewind, introuvables au build natif sous pnpm ([fe61bc1](https://github.com/Cimavia/cimavia/commit/fe61bc14c1dd8e6fcafc2aeb7a2acd7eaab37c86))
+
 ## [1.5.4](https://github.com/Cimavia/cimavia/compare/v1.5.3...v1.5.4) (2026-09-24)
 
 
