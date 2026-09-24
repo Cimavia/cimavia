@@ -73,7 +73,7 @@ Le numéro est **une sémantique produit, pas de bibliothèque** :
 
 | | Ce que ça veut dire | Types de commit |
 |---|---|---|
-| **Majeur** | Rupture de compatibilité entre l'API et un mobile déjà installé — le cas réel, faute d'OTA — ou refonte. | `feat!:` · `BREAKING CHANGE` |
+| **Majeur** | Rupture de compatibilité entre l'API et un mobile déjà installé — le cas réel : un update EAS ne corrige que le JS, et n'atteint pas un binaire d'avant #287 — ou refonte. | `feat!:` · `BREAKING CHANGE` |
 | **Mineur** | Fonctionnalité visible par un Coach ou un Athlete. | `feat:` |
 | **Patch** | **Tout le reste**, sans exception : correctif, travail technique, documentation, tests. | `fix:` · `perf:` · `ci:` · `chore:` · `refactor:` · `docs:` · `test:` |
 
