@@ -15,7 +15,8 @@
     "build:dev:ios": "eas build --profile development --platform ios",
     "build:preview:android": "eas build --profile preview --platform android",
     "build:preview:ios": "eas build --profile preview --platform ios",
-    "build:testflight:ios": "eas build --profile testflight --platform ios --auto-submit"
+    "build:testflight:ios": "eas build --profile testflight --platform ios --auto-submit",
+    "ota:preview": "node scripts/publish-update.mjs"
   },
   "dependencies": {
     "@better-auth/expo": "1.6.23",
@@ -47,6 +48,7 @@
     "expo-secure-store": "~56.0.4",
     "expo-sharing": "~56.0.26",
     "expo-status-bar": "56.0.4",
+    "expo-updates": "~56.0.27",
     "i18next": "^26.3.4",
     "nativewind": "4.2.6",
     "react": "19.2.3",

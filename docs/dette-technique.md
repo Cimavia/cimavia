@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-sept dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
-**IOS-2**, **IOS-3** et **P7-7**,
+**IOS-2**, **IOS-3**, **P7-7**, **OTA-1** et **OTA-2**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, ne l'est plus : elle est suivie par
@@ -228,7 +228,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
 | ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
 | ~~P7-4~~ | ~~**MinIO est figé, et vulnérable là où il est exposé**~~ : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | ✅ | résolue en **[#257](https://github.com/Cimavia/cimavia/issues/257)** — SILO, fork maintenu de MinIO qui corrige les deux failles (`RELEASE.2026-04-17`), tiré d'un miroir `ghcr.io/cimavia` ; les données du NAS restent dans leur volume |
-| P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) |
+| P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. **Périmètre réduit en #287** : `app.config.ts` refuse désormais toute variante hors `development` sans les deux URL — le build `production` échoue au lieu de produire un binaire muet, et un update aussi. Les variables vivent dans les environnements EAS, plus dans `eas.json`. Reste l'URL elle-même. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) — garde posée en [#287](https://github.com/Cimavia/cimavia/issues/287) |
 | ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
 | P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/preview/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
 | ~~P7-8~~ | ~~**L'API signait ses URLs avec le compte ROOT du stockage**~~ : `deploy/dev/docker-compose.yml` passait la même paire à `MINIO_ROOT_USER` et à `S3_ACCESS_KEY_ID`. Or une clé d'accès est lisible **en clair dans chaque URL signée** (`X-Amz-Credential`), et c'est tout ce qu'exigeaient les deux écritures sans authentification que SILO corrige. Une fuite de l'environnement de l'API donnait l'administration complète du stockage, pas l'accès à ses médias. **Jamais inscrite ici** : le NAS n'a longtemps porté que des données synthétiques. | ✅ | résolue en **[#267](https://github.com/Cimavia/cimavia/issues/267)** — une clé dédiée, limitée aux objets du bucket, créée par `silo-setup` |
@@ -1315,6 +1315,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > atteindre le coach beta), c'est le blocage de l'itération locale, avec le piège
 > `Cannot find native module` documenté en [#92](https://github.com/Cimavia/cimavia/issues/92).
 > Le manque résiduel est **V-1**, et la voie B reste ouverte derrière son déclencheur.
+>
+> **Précisé en #287** : `expo-updates` est désormais une dépendance. La parenthèse ci-dessus dit ce
+> qu'on savait alors ; l'argument, lui, tient toujours — `expo-video` est un module natif, il change
+> l'empreinte et exige un build quoi qu'il arrive.
 >
 > **Un composant partagé, pas une copie** : le rendu vidéo vit dans `CmvVideoLink`
 > (`shared/component/`), servi par la messagerie **et** les deux surfaces du débrief. Copier la
@@ -3060,6 +3064,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > DTO. Ce sur-bust est assumé — une première ouverture qui recharge coûte infiniment moins qu'un
 > écran mort pendant sept jours, et surtout l'oubli devient impossible au lieu d'improbable. Sans
 > OTA, une montée de version est de toute façon un build de store.
+>
+> **Précisé en #287** : il y a désormais des updates, et la dernière phrase ne tient plus — une
+> montée de version peut arriver par le réseau. Le buster reste juste : après un update,
+> `Constants.expoConfig` vient du manifeste de l'update, donc `currentAppVersion()` rend le numéro
+> du tag publié, et le cache est jeté comme après un build. C'est même le cas où il sert le plus :
+> un update peut changer un DTO sans toucher au binaire.
 
 > **Tranché en #186** (l'identité d'un artefact est `1.2.0+3f2a1c`, jamais le numéro nu) : entre
 > deux releases, le tier dev republie une image à CHAQUE push sur `main` alors que le numéro
@@ -3343,6 +3353,95 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > justifier la fermeture des inscriptions, et la phrase a essaimé dans **cinq fichiers** : deux
 > commentaires de code, le compose, le `.env.example` et le runbook. Toutes corrigées ici. Le
 > journal avait raison, c'est le fichier qui mentait — et c'est le fichier qu'on lit en codant.
+
+---
+
+## Post-MVP — Correctifs poussés sans rebuild ([#287](https://github.com/Cimavia/cimavia/issues/287))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| OTA-1 | **Les updates partent du poste de développement**, pas de la CI : `pnpm ota:preview` depuis `apps/mobile`, tag extrait à la main. Le script refuse un arbre hors tag ou modifié, mais rien ne garantit que le tag extrait est celui que le NAS a promu. | 🟢 | — *(déclencheur : une publication depuis la CI — elle sauterait en plus la vérification `--environment`, que `eas-cli` désactive en CI)* |
+| OTA-2 | **« Pas de `feat` mobile dans un update » est une procédure, pas une vérification** : le script ne connaît pas le tag du binaire installé, il ne peut donc pas lister ce qui les sépare. La commande `git log` du README le fait, à condition d'être lancée. | 🟡 | — *(déclencheur : un update qui porte une fonctionnalité, ou le premier binaire en production — la règle protège la revue Apple)* |
+
+> **Tranché en #287** (`runtimeVersion` par empreinte native, version retirée de l'empreinte) : une
+> update n'est servie qu'aux binaires de même `runtimeVersion`. La politique `appVersion` la tire du
+> numéro de version, que release-please réécrit dans `app.json` à chaque release : un correctif
+> publié depuis le tag 1.5.4 n'atteindrait jamais un binaire 1.5.3, c'est-à-dire personne. Une
+> chaîne fixe montée à la main coupe ce lien, mais un oubli après l'ajout d'un module natif envoie
+> un JS qui plante au démarrage. `fingerprint` hache ce qui est natif — modules et versions,
+> plugins, config Expo évaluée — et change tout seul quand il le faut.
+>
+> **L'issue se trompait sur un point** : elle présentait `fingerprint` comme l'option qui ne coupe
+> pas à chaque release. Par défaut, `@expo/fingerprint` hache aussi `version` — seuls les scripts du
+> `package.json` sont exclus. `apps/mobile/fingerprint.config.js` ajoute `ExpoConfigVersions`, et
+> répète l'exclusion par défaut, que `sourceSkips` remplace au lieu de compléter. Vérifié en #287 :
+> sans ce fichier, passer la version de 1.5.3 à 1.5.4 change l'empreinte ; avec, non. Modifier un
+> fichier JS ne la change pas non plus.
+>
+> **Ce qui la change, et coûte donc un build** : un module natif ajouté ou monté de version, un
+> plugin, un identifiant, `APP_VARIANT` — et **`eas.json` et `.gitignore`**, que l'empreinte lit
+> aussi. Ajouter un profil EAS coupe la diffusion vers tous les binaires déjà installés. `eas update`
+> affiche l'empreinte qu'il publie ; `eas fingerprint:compare` la confronte à celle d'un build.
+>
+> Corollaire utile : un update publié sans `APP_VARIANT` porte une autre empreinte, et n'atteint
+> personne. Sans elle, il serait arrivé chez le Coach tagué `development` — dans Sentry comme sur la
+> ligne de version.
+
+> **Tranché en #287** (une seule source pour les variables : les environnements EAS) : `eas update`
+> ne lit pas les blocs `env` d'`eas.json`, réservés au build. Les garder et recopier les valeurs dans
+> les environnements EAS aurait fait deux sources, qui divergent un jour — et une divergence sur
+> `APP_VARIANT` change l'empreinte, donc coupe la diffusion sans rien dire. `eas.json` ne porte plus
+> de valeurs : chaque profil nomme son `environment`, `testflight` hérite de celui de `preview`.
+> Le prix : les valeurs ne sont plus lisibles dans le dépôt. Elles sont toutes publiques (inlinées
+> dans le bundle), la liste vit dans le README.
+>
+> Effet de bord corrigé au passage : sans `environment` explicite, EAS range un build `store` dans
+> l'environnement `production`. `testflight` y lisait donc son `SENTRY_AUTH_TOKEN` depuis #134.
+
+> **Tranché en #287** (trois canaux gravés, un seul publié) : le canal est écrit dans le binaire au
+> build. Le déclarer plus tard coûterait un build de plus, le déclarer maintenant ne coûte rien.
+> `development`, `preview` et `production` en ont un ; seul `preview` reçoit des updates, par
+> `pnpm ota:preview`. Il n'existe aucun script pour `production`, et c'est voulu.
+
+> **Tranché en #287** (on ne publie que depuis le tag promu sur le NAS) : `eas update` emballe
+> l'arbre de travail, alors que l'API de preview tourne la version PROMUE (#266). Un JS pris en tête
+> de `main` peut appeler une route que le NAS n'a pas encore. Le JS et l'API voyagent donc sous le
+> même tag — le principe de #186 appliqué au mobile. Le script le vérifie à moitié (voir **OTA-1**).
+
+> **Tranché en #287** (un update ne porte que des correctifs) : la consigne 2.5.2 d'Apple interdit
+> de télécharger du code « which introduces or changes features or functionality of the app ». La
+> borne tient dans nos types de commit : aucun `feat` touchant `apps/mobile`, `packages/shared` ou
+> `packages/tokens` entre le tag du binaire installé et celui qu'on publie. Tout le reste — `fix`,
+> `perf`, `refactor`, texte — peut partir. Une fonctionnalité passe par un build. Tenue par la
+> procédure seulement (**OTA-2**).
+
+> **Tranché en #287** (l'update s'applique au lancement suivant, sans invite) : c'est le
+> comportement par défaut d'`expo-updates` — téléchargé en arrière-plan au démarrage, appliqué au
+> démarrage à froid suivant. Il faut donc DEUX lancements pour voir un correctif, ce que le Coach doit
+> savoir. Une invite « Redémarrer », en miroir de #290 côté web, reste possible et n'a pas été
+> demandée. Seule exception : l'écran de panne relance le JS (`Updates.reloadAsync`) au lieu de
+> re-monter l'arbre, ce qui applique tout de suite un correctif déjà téléchargé — le crash est
+> souvent ce qu'il corrige. On y perd l'écran en cours, pas la session.
+
+> **Tranché en #287** (retour arrière et quota) : c'est le développeur qui décide d'annuler un
+> update. `eas update:republish` republie un groupe antérieur ; `eas update:roll-back-to-embedded`
+> renvoie les téléphones au JS embarqué dans leur binaire. Le plan EAS gratuit sert les updates à
+> **1 000 utilisateurs actifs par mois**, 100 Gio de bande passante, sans dépassement facturé : au
+> plafond, les updates cessent (expo.dev/pricing, lu le 2026-09-23). Sans effet pour la bêta, c'est
+> le plafond de la production.
+
+> **Tranché en #287** (la garde de #255 entre ici, pas l'URL de production) : `app.config.ts` est
+> évalué par `eas update` comme par `eas build`. La garde qui refuse une variante hors
+> `development` sans URL d'API ni URL web vaut donc pour les deux. Son déclencheur dans #255, « le
+> premier build production », arrivait trop tard pour les updates. **P7-5** reste ouverte pour
+> l'URL elle-même, qui n'existe pas.
+
+> **Découvert en #287** (Sentry voit le binaire, pas l'update) : la release Sentry est celle du
+> binaire natif (`fr.cimavia.app.preview@1.5.3+N`), même quand le JS qui tourne vient d'un update
+> 1.5.4. Ce qui les distingue est le contexte `ota_updates` (identifiant d'update, canal,
+> `runtimeVersion`), qu'ajoute `@sentry/react-native` 7.11 sans configuration. La ligne de version
+> de l'app, elle, lit le manifeste de l'update : elle affiche 1.5.4. Les sourcemaps sont retrouvées
+> par `debugId`, pas par release — c'est ce qui rend `sentry-expo-upload-sourcemaps` suffisant.
 
 ---
 

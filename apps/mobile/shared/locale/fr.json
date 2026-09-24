@@ -12,8 +12,8 @@
     "cancel": "Annuler",
     "crash": {
       "title": "L'app a rencontré un problème",
-      "description": "L'incident nous a été signalé. Réessaie pour reprendre où tu en étais.",
-      "retry": "Réessayer"
+      "description": "L'incident nous a été signalé. Relance l'app pour repartir.",
+      "relaunch": "Relancer"
     },
     "relativeTime": {
       "now": "à l'instant",

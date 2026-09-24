@@ -82,9 +82,13 @@ for d in apps/api/src/*/ apps/web/src/feature/*/ apps/web/src/shared/ \
 done | sort -rn
 ```
 
-**Un lot = un sous-agent `general-purpose`**, lancé en parallèle par 4 à 6 maximum — au-delà, les
-rendus arrivent plus vite qu'ils ne sont relus. Chaque agent reçoit : le chemin du lot, la grille
-§3, le format §5, la règle d'or n°2, et l'ordre de rendre **au plus 10 constats classés**.
+**Un lot = un sous-agent `review-lot`** (`.claude/agents/review-lot.md` : Sonnet, lecture seule),
+lancé en parallèle par 4 à 6 maximum — au-delà, les rendus arrivent plus vite qu'ils ne sont relus.
+Sonnet plutôt qu'Opus : un lot, c'est de la lecture en largeur, qui coûte ainsi moitié moins. En
+contrepartie, **un constat d'agent est une piste, pas un constat** : je le revérifie moi-même
+(règle d'or n°2) et le trie (§4) avant qu'il entre au rapport. Chaque agent reçoit : le chemin du
+lot, la grille §3, le format §5, la règle d'or n°2, et l'ordre de rendre **au plus 10 constats
+classés**.
 
 Gabarit de prompt d'agent :
 

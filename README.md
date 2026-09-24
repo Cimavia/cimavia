@@ -140,7 +140,8 @@ Chaque profil de build a son **identifiant natif** et son **scheme** propres —
 seule et même app : l'installation de l'une écrase l'autre, et le lien du QR code de Metro est
 capté par la mauvaise (symptôme : scanner le QR ouvre le build interne sur son bundle embarqué au
 lieu du serveur local). `apps/mobile/app.config.ts` dérive les trois champs de `APP_VARIANT`,
-posé par profil dans `eas.json` ; sans la variable (`expo start`, `expo run:*`) on est en `development` :
+posé par l'environnement EAS du profil (voir *Correctifs sans rebuild*) ; sans la variable
+(`expo start`, `expo run:*`) on est en `development` :
 
 | `APP_VARIANT` | Nom | Identifiant natif | Scheme |
 |---|---|---|---|
@@ -206,6 +207,62 @@ Un appareil ajouté **après** ne peut pas installer un binaire déjà signé : 
 Laisse `eas build` créer les identifiants — les trois app ids (`fr.cimavia.app`, `.dev`,
 `.preview`), le certificat de distribution, les profils de provisionnement et la clé APNs. Les
 fabriquer à la main dans le portail Apple est le piège symétrique du keystore Android.
+
+### Correctifs sans rebuild (updates EAS)
+
+Un correctif **JS** atteint les téléphones par le réseau, sans build ni traitement Apple (#287).
+Tout ce qui est natif — module, plugin, permission, identifiant, **`eas.json`** — exige toujours un
+build : `expo-updates` compare une empreinte native (`runtimeVersion`) et ne sert un update qu'aux
+binaires qui ont la même. Seuls les binaires construits **après** #287 savent en recevoir.
+
+**Les variables vivent dans les environnements EAS**, pas dans `eas.json` : `eas update` ne lit pas
+les blocs `env` des profils. Chaque profil nomme son `environment` ; `testflight` hérite de
+`preview`. Toutes sont publiques (inlinées dans le bundle), sauf le jeton Sentry :
+
+| Variable | `development` | `preview` | `production` |
+|---|---|---|---|
+| `APP_VARIANT` | `development` | `preview` | `production` |
+| `EXPO_PUBLIC_API_URL` | — | `https://api-preview.cimavia.fr` | — *(#255)* |
+| `EXPO_PUBLIC_WEB_URL` | — | `https://app-preview.cimavia.fr` | — *(#255)* |
+| `EXPO_PUBLIC_SENTRY_DSN` | ✓ | ✓ | ✓ |
+| `SENTRY_AUTH_TOKEN` | secret | secret | secret |
+
+`eas env:list --environment preview` pour les relire, `eas env:set` pour les changer. Sans les deux
+URL, `app.config.ts` refuse `preview` et `production` — build comme update.
+
+**Ce qu'on a le droit de publier** : des correctifs seulement (consigne Apple 2.5.2). Aucun `feat`
+mobile entre le tag du binaire installé et celui qu'on publie — la sortie doit être vide :
+
+```bash
+eas build:list --channel preview --limit 1        # version du dernier binaire preview
+git log --format=%s v<binaire>..v<publié> -- apps/mobile packages/shared packages/tokens | grep '^feat'
+```
+
+**Publier** — depuis le tag **promu sur le NAS**, jamais depuis `main` : l'API de preview tourne
+cette version-là, le JS doit parler la même.
+
+```bash
+git checkout v1.6.1                              # le tag promu
+pnpm install --frozen-lockfile
+cd apps/mobile
+SENTRY_AUTH_TOKEN=… pnpm ota:preview             # canal preview, puis sourcemaps Sentry
+```
+
+Le script refuse un `HEAD` hors tag, un arbre modifié ou un jeton absent. Le téléphone télécharge
+l'update au lancement suivant et l'applique **au lancement d'après** : il faut fermer l'app deux
+fois. L'écran de panne, lui, l'applique tout de suite (bouton « Relancer »).
+
+**Annuler** — c'est le développeur qui décide :
+
+```bash
+eas update:list --branch preview                            # retrouver le groupe précédent
+eas update:republish --group <id> --destination-channel preview   # le republier
+eas update:roll-back-to-embedded --channel preview              # ou revenir au JS du binaire
+```
+
+Le plan gratuit sert 1 000 utilisateurs actifs par mois, sans dépassement : au-delà, les updates
+cessent. Dans Sentry, la release reste celle du binaire ; c'est le contexte `ota_updates` d'un
+événement qui dit quel update tournait.
 
 ### Notifications push (Android et iOS)
 
