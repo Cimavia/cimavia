@@ -11,11 +11,25 @@ import { CmvCrashScreen } from "./CmvCrashScreen";
 const translate = vi.fn<(key: string) => string>();
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: translate }) }));
 
+/**
+ * `isEnabled` est une constante du module : un getter sur un état hissé est ce qui laisse chaque
+ * test choisir entre le binaire de production et le dev client, sans recharger le module.
+ */
+const updates = vi.hoisted(() => ({
+  enabled: false,
+  reloadAsync: vi.fn<() => Promise<void>>(),
+}));
+vi.mock("expo-updates", () => ({
+  get isEnabled() {
+    return updates.enabled;
+  },
+  reloadAsync: updates.reloadAsync,
+}));
+
 const CATALOGUE: Record<string, string> = {
   "common.crash.title": "L'app a rencontré un problème",
-  "common.crash.description":
-    "L'incident nous a été signalé. Réessaie pour reprendre où tu en étais.",
-  "common.crash.retry": "Réessayer",
+  "common.crash.description": "L'incident nous a été signalé. Relance l'app pour repartir.",
+  "common.crash.relaunch": "Relancer",
 };
 
 function setup(error = new Error("le rendu est tombé")) {
@@ -26,6 +40,8 @@ function setup(error = new Error("le rendu est tombé")) {
 
 beforeEach(() => {
   translate.mockImplementation((key) => CATALOGUE[key] ?? key);
+  updates.enabled = false;
+  updates.reloadAsync.mockReset().mockResolvedValue(undefined);
 });
 
 describe("CmvCrashScreen (mobile)", () => {
@@ -41,7 +57,7 @@ describe("CmvCrashScreen (mobile)", () => {
     setup();
 
     expect(screen.getByText("L'app a rencontré un problème")).toBeTruthy();
-    expect(screen.getByText("Réessayer")).toBeTruthy();
+    expect(screen.getByText("Relancer")).toBeTruthy();
   });
 
   it("retombe sur du français en dur quand i18next rend la clé brute", () => {
@@ -55,17 +71,44 @@ describe("CmvCrashScreen (mobile)", () => {
     expect(screen.queryByText("common.crash.title")).toBeNull();
   });
 
-  it("remonte l'arbre quand on réessaie, et pas avant", () => {
-    // `retry` est la SEULE réparation disponible ici : pas d'équivalent mobile du rechargement de
-    // page, sauf à embarquer expo-updates.
+  it("relance le JS en production, et pas avant l'appui", async () => {
+    // La relance est ce qui applique un update téléchargé en arrière-plan : le correctif du crash
+    // est souvent déjà sur le téléphone, en attente du lancement suivant.
+    updates.enabled = true;
     const { retry } = setup();
 
-    // Sans cette première assertion, un `retry` appelé au rendu — donc une boucle de re-montage
-    // sur un arbre qui retombe — passerait pour un appui réussi.
+    // Sans cette première assertion, une relance au rendu — donc une boucle sur un JS qui retombe
+    // — passerait pour un appui réussi.
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("Relancer"));
+
+    await vi.waitFor(() => expect(updates.reloadAsync).toHaveBeenCalledOnce());
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it("re-monte l'arbre quand expo-updates est désactivé", async () => {
+    // Le dev client : `reloadAsync` y rejetterait. Re-monter est la seule réparation disponible.
+    const { retry } = setup();
     expect(retry).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText("Réessayer"));
+    fireEvent.click(screen.getByText("Relancer"));
 
-    expect(retry).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(retry).toHaveBeenCalledOnce());
+    expect(updates.reloadAsync).not.toHaveBeenCalled();
+  });
+
+  it("re-monte l'arbre et signale l'échec quand la relance rejette", async () => {
+    // Ne devrait pas arriver sur un binaire bien installé : si ça arrive, on veut le savoir, et
+    // l'utilisateur garde une réparation.
+    updates.enabled = true;
+    const reloadError = new Error("pas de runtime JS");
+    updates.reloadAsync.mockRejectedValue(reloadError);
+    const { retry } = setup();
+
+    fireEvent.click(screen.getByText("Relancer"));
+
+    await vi.waitFor(() => expect(retry).toHaveBeenCalledOnce());
+    expect(Sentry.captureException).toHaveBeenCalledWith(reloadError);
   });
 });

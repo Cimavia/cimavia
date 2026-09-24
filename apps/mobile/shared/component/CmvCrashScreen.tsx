@@ -1,6 +1,7 @@
 import { translatedOr } from "@cmv/shared";
 import * as Sentry from "@sentry/react-native";
 import type { ErrorBoundaryProps } from "expo-router";
+import * as Updates from "expo-updates";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
@@ -21,10 +22,27 @@ import { CmvText } from "./CmvText";
  * Corollaire : quand il rend, AUCUN de ces providers n'est monté. Il ne s'appuie donc que sur des
  * primitives React Native et sur l'instance i18next globale, initialisée à l'import du module.
  *
- * `retry` est ici la seule réparation disponible, contrairement au web qui recharge sa page : il
- * n'y a pas d'équivalent d'un F5 sans `expo-updates`. Il re-monte l'arbre — ce qui suffit quand la
- * cause était une donnée transitoire, et pas sinon.
+ * Le bouton RELANCE le JS, l'équivalent mobile du F5 du web (#287). C'est plus qu'un re-montage :
+ * un update téléchargé en arrière-plan ne s'applique qu'au lancement suivant, et le crash est
+ * souvent ce qu'il corrige. La relance le prend tout de suite. Le prix : on repart de l'accueil,
+ * pas de l'écran en cours — la session, elle, survit (stockage sécurisé).
+ *
+ * `retry` (re-monter l'arbre) reste le repli là où la relance est impossible : dev client et
+ * Expo Go, où `expo-updates` est désactivé, et un `reloadAsync` qui échoue. Ce dernier cas ne
+ * devrait pas exister en production — il part donc à Sentry plutôt que de se taire.
  */
+async function relaunch(retry: ErrorBoundaryProps["retry"]) {
+  if (Updates.isEnabled) {
+    try {
+      await Updates.reloadAsync();
+      return;
+    } catch (reloadError) {
+      Sentry.captureException(reloadError);
+    }
+  }
+  await retry();
+}
+
 export function CmvCrashScreen({ error, retry }: Readonly<ErrorBoundaryProps>) {
   const { t } = useTranslation();
 
@@ -45,13 +63,13 @@ export function CmvCrashScreen({ error, retry }: Readonly<ErrorBoundaryProps>) {
         {translatedOr(
           t("common.crash.description"),
           "common.crash.description",
-          "L'incident nous a été signalé. Réessaie pour reprendre où tu en étais.",
+          "L'incident nous a été signalé. Relance l'app pour repartir.",
         )}
       </CmvText>
       <CmvButton
-        label={translatedOr(t("common.crash.retry"), "common.crash.retry", "Réessayer")}
+        label={translatedOr(t("common.crash.relaunch"), "common.crash.relaunch", "Relancer")}
         onPress={() => {
-          void retry();
+          void relaunch(retry);
         }}
       />
     </View>

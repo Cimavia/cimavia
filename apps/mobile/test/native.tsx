@@ -159,6 +159,13 @@ vi.mock("expo-network", () => ({
   addNetworkStateListener: vi.fn(() => ({ remove: vi.fn() })),
 }));
 
+// Désactivé par défaut, comme dans le dev client : la relance retombe sur `retry`. Un test qui
+// veut le binaire de production le demande.
+vi.mock("expo-updates", () => ({
+  isEnabled: false,
+  reloadAsync: vi.fn(async () => undefined),
+}));
+
 vi.mock("expo-constants", () => ({
   default: { expoConfig: { scheme: "cimavia", extra: {} } },
 }));
