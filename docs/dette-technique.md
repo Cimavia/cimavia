@@ -3436,6 +3436,27 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > premier build production », arrivait trop tard pour les updates. **P7-5** reste ouverte pour
 > l'URL elle-même, qui n'existe pas.
 
+> **Découvert en #287** (le premier build avec `expo-updates` a échoué sur les deux plateformes) :
+> `expo-updates` ajoute au build natif une étape qui relance Metro pour lister les assets
+> (`createUpdatesResources.js`), et Babel y échouait sur `Cannot find module
+> '@babel/plugin-transform-react-jsx'`, puis sur `react-native-worklets/plugin`. Les deux sont
+> appelés PAR LEUR NOM dans le preset de NativeWind (`react-native-css-interop/babel`), qui ne les
+> déclare pas : il compte sur le hoisting. Babel les résout depuis `apps/mobile`, où pnpm ne les
+> installe pas.
+>
+> Pourquoi le bundle passait jusque-là : il est produit par `expo`, lancé par son raccourci pnpm
+> (`node_modules/.bin/expo`), et ce raccourci ajoute `node_modules/.pnpm/node_modules` à
+> `NODE_PATH`. L'étape d'`expo-updates` lance `node` directement, sans ce raccourci. Rien ne
+> distinguait les deux chemins en local, où `expo export` réussit.
+>
+> Correctif : les deux paquets sont déclarés par `@cmv/mobile` — `@babel/plugin-transform-react-jsx`
+> en devDependency, `react-native-worklets` en dependency, **à la version déjà liée en natif**
+> (0.10.0, qu'exige `react-native-reanimated` 4.5.0). L'étape se reproduit hors EAS :
+> `node node_modules/expo-updates/utils/build/createUpdatesResources.js android "$PWD/android" <dossier> all`.
+> Effet de bord bienvenu : `react-native-worklets`, installé comme pair implicite, tirait
+> l'outillage de React Native **0.86** (`metro-config`, `babel-preset`, `codegen`) sous une app en
+> 0.85.3 ; tout est réaligné sur 0.85.3.
+
 > **Découvert en #287** (Sentry voit le binaire, pas l'update) : la release Sentry est celle du
 > binaire natif (`fr.cimavia.app.preview@1.5.3+N`), même quand le JS qui tourne vient d'un update
 > 1.5.4. Ce qui les distingue est le contexte `ota_updates` (identifiant d'update, canal,
