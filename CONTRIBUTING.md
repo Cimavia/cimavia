@@ -34,9 +34,13 @@ CI (`.github/workflows/`) :
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 
-Les trois tournent sur push/PR vers `main`, et seulement là : une branche de promotion ne reçoit
-que des commits déjà passés par `main`, et `promote-preview.yml` vérifie que ces trois checks y sont
-verts avant d'envoyer quoi que ce soit.
+Les trois tournent sur chaque **PR vers `main`**, et sur `main` au seul **commit de release** (#318) :
+le merge d'une feature n'est pas rejoué, sa PR à jour de `main` a déjà testé l'arbre exact qui
+atterrit. Rien sur les branches de promotion : elles ne reçoivent que des commits déjà passés par
+`main`, et `promote-preview.yml` vérifie que ces trois checks sont verts **sur le commit de
+release** avant d'envoyer quoi que ce soit. Conséquence : entre deux releases, `main` n'a pas de
+statut Sonar propre, et c'est l'analyse de la release qui juge l'ensemble des PR mergées depuis la
+précédente — elle peut rougir sur leur union alors que chacune était verte.
 
 > Ces libellés sont ceux des **jobs**, et c'est sous ce nom exact que les rulesets les exigent —
 > pas sous le nom du workflow. Renommer un job décroche donc la porte qui le référence : le check
