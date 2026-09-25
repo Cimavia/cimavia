@@ -3466,6 +3466,27 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Protections du dépôt public ([#397](https://github.com/Cimavia/cimavia/issues/397))
+
+> **Découvert en #397** (la clé Firebase n'était pas restreinte) : l'activation de *Secret
+> Protection* a remonté la clé d'API de `apps/mobile/google-services.json`, versionnée depuis
+> juillet. `CONTRIBUTING.md` la disait « restreinte au package et à l'empreinte de signature » ;
+> Google Cloud Console montrait **aucune** restriction d'application, et une restriction d'API
+> ouverte aux 25 API Firebase du projet (Firestore, Identity Toolkit, Remote Config…). Une doc qui
+> affirme une protection sans que rien ne la vérifie est pire que pas de doc : c'est elle qui avait
+> justifié de versionner le fichier.
+>
+> **Tranché en #397** (restriction d'API, pas d'application) : la clé n'ouvre plus que Firebase
+> Installations API et FCM Registration API — l'app n'utilise Firebase que pour le token push
+> (`getExpoPushTokenAsync`, `usePushToken.ts`), l'envoi passant par le compte de service FCM V1
+> chez Expo, pas par cette clé. La restriction par application Android est écartée : le package et
+> l'empreinte SHA-1 voyagent en en-têtes que n'importe qui peut recopier depuis un APK, et une
+> empreinte manquante sur l'une des trois variantes couperait son push sans aucune erreur visible.
+> Contrepartie : une future fonctionnalité Firebase côté app échouera tant que son API n'est pas
+> ajoutée à la liste (`CONTRIBUTING.md`, « Identifiants de build mobile »).
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

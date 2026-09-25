@@ -3,6 +3,9 @@
 Workflow de développement et conventions opérationnelles. Pour les règles
 d'architecture, voir `docs/architecture-choice.md`.
 
+**Une faille de sécurité ne s'ouvre pas en issue** : le dépôt est public. Elle se
+signale en privé, selon `SECURITY.md`.
+
 ## Git flow (GitLab Flow)
 
 Merge unidirectionnel `feature/* → main → preview → production` (jamais en sens inverse).
@@ -154,9 +157,16 @@ workflow. Ils vivent donc chez Apple, chez Google ou chez Expo — et un seul fi
 | UDID des iPhones du dev client | expo.dev → Credentials → iOS | `eas device:create` |
 
 `google-services.json` est la seule exception à « rien dans le dépôt », et c'est assumé : il ne
-porte que des identifiants **clients** (sender id, clé d'API restreinte au package et à l'empreinte
-de signature), que chaque APK distribué embarque de toute façon. La clé de compte de service, elle,
-est un vrai secret et ne descend jamais ici.
+porte que des identifiants **clients** (sender id, clé d'API), que chaque APK distribué embarque de
+toute façon. La clé de compte de service, elle, est un vrai secret et ne descend jamais ici.
+
+Ce qui rend la clé d'API inoffensive, c'est sa **restriction d'API**, posée dans Google Cloud
+Console (projet `cimavia-35298` → *API et services → Identifiants* → « Android key (auto created by
+Firebase) ») : elle n'ouvre que **Firebase Installations API** et **FCM Registration API**, les deux
+dont l'obtention d'un token push a besoin. Pas de restriction par application Android : elle se
+contourne en recopiant deux en-têtes publics, et une empreinte oubliée couperait le push d'une
+variante sans un message. Toute nouvelle fonctionnalité Firebase côté app doit ajouter son API à
+cette liste — sinon elle échoue en silence.
 
 **Rien de symétrique côté iOS** : la clé APNs remplace à elle seule le couple fichier + clé de
 service, et elle vaut pour les trois app ids d'un même compte Apple. Là où Firebase exige un client
