@@ -65,6 +65,25 @@ jobs:
       - name: Test
         run: pnpm turbo test
 
+      # Ces lcov sont ceux que le job Sonar analyse : il ne rejoue plus `turbo test` (#318). Deux
+      # exécutions de la même suite, sur deux runners, pouvaient diverger sur un flake — et c'était
+      # la seconde, invisible dans les logs de ce job, qui décidait de la porte.
+      # `if-no-files-found: error` : un lcov manquant ne se lit pas « 0 % » chez Sonar, il ne se
+      # lit pas du tout, et la Quality Gate échouerait sur `new_coverage` sans dire pourquoi.
+      # Le plus proche ancêtre commun des quatre chemins étant la racine, l'artefact garde leur
+      # arborescence : le job Sonar les retrouve là où `sonar-project.properties` les attend.
+      - name: Upload de la couverture unitaire
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-unit
+          path: |
+            packages/shared/coverage/lcov.info
+            apps/api/coverage/lcov.info
+            apps/web/coverage/lcov.info
+            apps/mobile/coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 1
+
       # Les clés i18n assemblées (`t(`a.b.${x}`)`) échappent au typecheck : sans cette étape, une
       # clé renommée s'affiche en clair dans l'UI sans qu'aucune porte de qualité ne bronche.
       # Sans `--strict` : une clé morte est un signal, pas un blocage de PR.
@@ -151,17 +170,20 @@ jobs:
           docker compose -f apps/api/docker-compose.test.yml logs --tail=50
           docker compose -f apps/api/docker-compose.yml logs --tail=50
 
-  # Rapatrié depuis `sonar.yml` en #57 : SonarCloud veut TOUS les lcov dans UN scan, or la
-  # couverture de l'API naît dans le job `e2e` ci-dessus. Un artefact ne traverse pas deux
-  # workflows sans une course entre deux runs déclenchés par le même événement — les mettre dans
-  # le même run rend l'ordre déterministe.
+  # Rapatrié depuis `sonar.yml` en #57 : SonarCloud veut TOUS les lcov dans UN scan, or ils naissent
+  # dans les deux jobs ci-dessus — l'unitaire dans `quality`, celui de l'API dans `e2e`. Un artefact
+  # ne traverse pas deux workflows sans une course entre deux runs déclenchés par le même événement
+  # — les mettre dans le même run rend l'ordre déterministe.
+  #
+  # Il n'exécute aucun test (#318) : il analyse ce que les deux autres ont mesuré. Il démarre donc
+  # après le plus long des deux, `quality`, mais n'a plus ~2 min de tests à rejouer.
   #
   # Le nom du job est inchangé à dessein : les rulesets exigent le contexte « SonarCloud Analysis »,
   # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 », docs/dette-technique.md).
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    needs: [e2e]
+    needs: [quality, e2e]
     env:
       # Même DSN factice que `quality`, sans identifiants : `prisma generate` a besoin de la
       # variable, pas d'une base.
@@ -191,14 +213,23 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @cmv/api exec prisma generate
 
-      # La couverture doit exister AVANT le scan : sans lcov, Sonar ne lit pas « 0 % », il ne lit
-      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Ce `turbo test`
-      # produit celle de @cmv/shared et les tests unitaires de l'API…
-      - name: Test with coverage
-        run: pnpm turbo test
+      # Le `dist` de @cmv/shared, que `turbo test` construisait jusqu'ici en dépendance (`^build`) :
+      # l'API le résout par son `package.json`. Sans lui, l'analyse de types de Sonar ne tournerait
+      # plus dans le même environnement que le typecheck, et ses résultats pourraient changer.
+      # @cmv/tokens n'a pas d'étape de build : rien à construire de ce côté.
+      - name: Build @cmv/shared
+        run: pnpm turbo build --filter=@cmv/shared
 
-      # …et celle-ci, produite par le job e2e, apporte les ~86 % de l'API. Sonar unit les deux
-      # rapports par fichier, il n'y a donc pas de fusion à faire à la main.
+      # La couverture doit exister AVANT le scan : sans lcov, Sonar ne lit pas « 0 % », il ne lit
+      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Celle-ci, produite
+      # par `quality`, couvre @cmv/shared, le web, le mobile et les tests unitaires de l'API…
+      - name: Récupère la couverture unitaire
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: coverage-unit
+
+      # …et celle-ci, produite par le job e2e, apporte les ~86 % de l'API. Sonar unit les rapports
+      # par fichier, il n'y a donc pas de fusion à faire à la main.
       - name: Récupère la couverture e2e
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:

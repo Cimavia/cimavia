@@ -27,8 +27,10 @@ CI (`.github/workflows/`) :
   API (~89 %) : ses douze tests unitaires n'en couvrent que 3,5 %. Bloquant.
 - `ci.yml`, job **`SonarCloud Analysis`** — qualité, sécurité et **couverture des quatre paquets**
   (`@cmv/shared`, API, web, mobile). Rapatrié depuis `sonar.yml` en #57 : Sonar veut tous les lcov
-  dans UN scan, or celui des e2e naît dans le job ci-dessus — les mettre dans le même run rend
-  l'ordre déterministe, là où un artefact ne traverse pas deux workflows sans course.
+  dans UN scan, or ils naissent dans les deux jobs ci-dessus — les mettre dans le même run rend
+  l'ordre déterministe, là où un artefact ne traverse pas deux workflows sans course. Il n'exécute
+  **aucun test** (#318) : il attend `quality` et `e2e`, et analyse les lcov qu'ils lui passent en
+  artefact. La mesure vient donc de l'exécution qui a gardé la porte, pas d'une seconde.
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 
