@@ -3,6 +3,9 @@
 Workflow de développement et conventions opérationnelles. Pour les règles
 d'architecture, voir `docs/architecture-choice.md`.
 
+**Une faille de sécurité ne s'ouvre pas en issue** : le dépôt est public. Elle se
+signale en privé, selon `SECURITY.md`.
+
 ## Git flow (GitLab Flow)
 
 Merge unidirectionnel `feature/* → main → preview → production` (jamais en sens inverse).

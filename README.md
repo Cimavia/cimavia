@@ -362,4 +362,5 @@ le PC étant un faux négatif en mode *mirrored* :
 
 Voir `docs/architecture-choice.md` pour les règles d'archi détaillées, et
 `CONTRIBUTING.md` pour le workflow de contribution (git flow, commits signés,
-secrets CI, observabilité).
+secrets CI, observabilité). Une faille de sécurité se signale en privé, jamais
+par une issue : voir `SECURITY.md`.
