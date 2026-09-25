@@ -11,6 +11,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ImageMessage } from "@/feature/message/component/ImageMessage";
+import { CmvMediaPlayer } from "@/shared/component";
 import { useActingCapability } from "@/shared/hook/useCapabilities";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
@@ -25,23 +26,36 @@ type MessageBubbleProps = {
    * à chaque bulle l'adresse de la page où l'on se trouve déjà.
    */
   hideAttachment?: boolean;
+  /**
+   * Re-signe le média d'un message quand son URL a lâché en cours de lecture (#304). Fourni par la
+   * surface : elle seule sait quelle requête porte le message — le fil, ou le débrief qu'il
+   * commente.
+   */
+  resolveMediaUrl: ResolveMediaUrl;
 };
 
-// Rendu d'un média reçu (URL GET signée). Le web lit tout nativement — pas de lib : <audio> pour
-// une note vocale, <img> pour une photo, <video> pour une vidéo.
-function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
+export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
+
+// Rendu d'un média reçu (URL GET signée). Le web lit tout nativement — pas de lib : le lecteur du
+// navigateur pour une note vocale ou une vidéo, <img> pour une photo.
+function MediaContent({
+  message,
+  resolveMediaUrl,
+}: Readonly<{ message: MessageDto; resolveMediaUrl: ResolveMediaUrl }>) {
   const media = message.media;
   if (media == null) return null;
 
-  if (message.type === MessageType.AUDIO) {
-    // biome-ignore lint/a11y/useMediaCaption: note vocale d'un athlète — pas de piste de sous-titres.
-    return <audio controls src={media.url} className="max-w-full" />;
-  }
   if (message.type === MessageType.IMAGE) {
     return <ImageMessage url={media.url} alt={media.fileName} />;
   }
-  // biome-ignore lint/a11y/useMediaCaption: vidéo d'entraînement d'un athlète — pas de sous-titres.
-  return <video controls src={media.url} className="max-h-80 rounded-cmv-md" />;
+  return (
+    <CmvMediaPlayer
+      kind={message.type === MessageType.AUDIO ? "audio" : "video"}
+      url={media.url}
+      resolveUrl={() => resolveMediaUrl(message.id)}
+      className={message.type === MessageType.AUDIO ? "max-w-full" : "max-h-80 rounded-cmv-md"}
+    />
+  );
 }
 
 /**
@@ -140,6 +154,7 @@ export function MessageBubble({
   message,
   mine,
   hideAttachment = false,
+  resolveMediaUrl,
 }: Readonly<MessageBubbleProps>) {
   if (isFeedbackEventMessage(message.type)) {
     return <FeedbackEventNotice message={message} />;
@@ -165,7 +180,7 @@ export function MessageBubble({
       {message.content != null ? (
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
       ) : (
-        <MediaContent message={message} />
+        <MediaContent message={message} resolveMediaUrl={resolveMediaUrl} />
       )}
     </div>
   );

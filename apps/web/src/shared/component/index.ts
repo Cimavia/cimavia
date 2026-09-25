@@ -12,6 +12,7 @@ export { CmvDragHandle } from "./CmvDragHandle";
 export { CmvDurationField } from "./CmvDurationField";
 export { CmvEmptyState } from "./CmvEmptyState";
 export { CmvErrorState } from "./CmvErrorState";
+export { CmvMediaPlayer } from "./CmvMediaPlayer";
 export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";
 export type { ResolveImage } from "./CmvRichDocument";

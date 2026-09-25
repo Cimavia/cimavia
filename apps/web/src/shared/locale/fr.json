@@ -14,6 +14,7 @@
     },
     "confirmDelete": "Confirmer la suppression",
     "close": "Fermer",
+    "mediaUnavailable": "Lecture impossible pour l'instant. Vérifie ta connexion et relance.",
     "logout": "Se déconnecter",
     "errorTitle": "Chargement impossible",
     "errorDescription": "Les données n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",

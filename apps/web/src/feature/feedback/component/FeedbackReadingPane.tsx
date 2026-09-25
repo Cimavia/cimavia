@@ -5,8 +5,9 @@ import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyT
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
 import { useConversationWith } from "@/feature/message/hook/useMessages";
-import { CmvAvatar, CmvButton } from "@/shared/component";
+import { CmvAvatar, CmvButton, CmvMediaPlayer } from "@/shared/component";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { formatDate } from "@/shared/util/date.util";
 
 type FeedbackReadingPaneProps = {
@@ -37,6 +38,7 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { data: detail, isPending } = useSessionFeedback(feedback.scheduledSessionId);
+  const freshMediaUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(feedback.scheduledSessionId));
   const isSelf = useIsSelfAthlete()(feedback.athleteId);
   // Get-or-create, idempotent et stable : ouvrir un débrief ne crée pas un fil de plus.
   // `null` sur son PROPRE débrief : le `enabled` du hook coupe la requête, qui prendrait un 409
@@ -112,26 +114,26 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
                 // Note vocale (débrief vocal, P5) : lecteur audio plein largeur, pas de « boîte
                 // noire » vidéo.
                 return (
-                  <audio
-                    key={media.id}
-                    src={media.url}
-                    controls
-                    className="w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-sm sm:col-span-2"
-                  >
-                    <track kind="captions" />
-                  </audio>
+                  <div key={media.id} className="sm:col-span-2">
+                    <CmvMediaPlayer
+                      kind="audio"
+                      url={media.url}
+                      resolveUrl={() => freshMediaUrl(media.id)}
+                      className="w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-sm"
+                    />
+                  </div>
                 );
               }
               // Vidéo : le navigateur streame depuis l'URL signée : rien ne transite par l'API.
               return (
-                <video
-                  key={media.id}
-                  src={media.url}
-                  controls
-                  className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1"
-                >
-                  <track kind="captions" />
-                </video>
+                <div key={media.id}>
+                  <CmvMediaPlayer
+                    kind="video"
+                    url={media.url}
+                    resolveUrl={() => freshMediaUrl(media.id)}
+                    className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1"
+                  />
+                </div>
               );
             })}
           </div>
@@ -146,6 +148,7 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
           isThreadError={conversation.isError}
           isSelf={isSelf}
           onSent={refreshFeedbacks}
+          resolveMediaUrl={freshMediaUrl}
         />
       </div>
     </div>

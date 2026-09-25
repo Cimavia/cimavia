@@ -41,6 +41,7 @@ import {
   CmvProgressBar,
   CmvTextArea,
 } from "@/shared/component";
+import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { useWebAudioRecorder } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { attachableMediaKind, MediaRejectedError } from "@/shared/util/media.util";
@@ -320,6 +321,7 @@ function FeedbackMediaSection({
   const { t } = useTranslation();
   const add = useAddFeedbackMedia(sessionId);
   const remove = useDeleteFeedbackMedia(sessionId);
+  const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(sessionId));
   const fileInput = useRef<HTMLInputElement>(null);
 
   // Refus de l'enregistreur (micro, format) : il précède l'upload et ne passe par aucune mutation.
@@ -398,6 +400,7 @@ function FeedbackMediaSection({
         media={feedback?.media ?? []}
         onRemove={(mediaId) => remove.mutate(mediaId)}
         isRemoving={remove.isPending}
+        resolveMediaUrl={freshMediaUrl}
       />
 
       <div className="flex flex-wrap items-center gap-cmv-sm">
@@ -522,6 +525,7 @@ function FeedbackReplyDiscussion({
   const { data: coach } = useMyCoach();
   // Un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait.
   const conversation = useMyConversation(coach != null);
+  const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(sessionId));
 
   return (
     <FeedbackReplyThread
@@ -531,6 +535,7 @@ function FeedbackReplyDiscussion({
       isThreadError={conversation.isError}
       // Son PROPRE débrief, pas la boîte du coach : c'est là que la réponse doit réapparaître.
       onSent={() => queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) })}
+      resolveMediaUrl={freshMediaUrl}
     />
   );
 }
