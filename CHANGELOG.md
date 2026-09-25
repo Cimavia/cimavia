@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.6](https://github.com/Cimavia/cimavia/compare/v1.5.5...v1.5.6) (2026-09-25)
+
+
+### Technique
+
+* faire analyser par sonar la couverture des jobs de test ([17906e6](https://github.com/Cimavia/cimavia/commit/17906e6f21067755e7fff46de379e058fbbcacc1))
+* ne rejouer la ci sur main qu'au commit de release, sans jamais annuler un run de main ([461f265](https://github.com/Cimavia/cimavia/commit/461f2658ef90d681b9fc5a8321eb0a4b7c93f781))
+
 ## [1.5.5](https://github.com/Cimavia/cimavia/compare/v1.5.4...v1.5.5) (2026-09-24)
 
 
