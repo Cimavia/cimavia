@@ -1,17 +1,39 @@
 name: CI
 
-# Sur `main` seulement : `preview` et `production` n'avancent plus par PR mais par promotion d'une
-# version (#266), qui vérifie que CE commit a déjà passé les checks ici. Les relancer sur la branche
-# de promotion rejouerait les mêmes tests sur le même commit.
+# Sur les PR vers `main`, et sur `main` au seul commit de release. Jamais sur `preview` ni
+# `production` : elles n'avancent plus par PR mais par promotion d'une version (#266), qui vérifie
+# que CE commit a déjà passé les checks ici. Les relancer sur la branche de promotion rejouerait les
+# mêmes tests sur le même commit.
 on:
+  # Le push sur `main` ne tourne QUE pour le commit de release (#318). Le merge d'une feature n'a
+  # rien à prouver : le ruleset `Main` exige une PR à jour de `main`, donc l'arbre testé par son run
+  # `pull_request` est exactement celui qui atterrit. Le rejouer coûtait deux choses :
+  #   - le gardien Sonar : la période de code neuf est `previous_version`, dont la référence est la
+  #     dernière analyse sous le numéro précédent. Analysé sous l'ancien numéro, chaque merge de
+  #     feature devenait cette référence, et l'analyse de la release ne comparait plus que les
+  #     quatre fichiers du bump ;
+  #   - la promotion : un merge arrivant juste après la release annulait le run de son commit, qui
+  #     n'avait alors plus de checks verts — la version devenait impossible à promouvoir.
+  # Le run de release reste indispensable : `promote-preview.yml` lit les checks sur le sha du
+  # commit de `main`, pas sur celui de la PR. Le couper ferait échouer toute promotion sur
+  # « absent ».
+  #
+  # Le manifest et non `package.json` : seul `release-please` l'écrit, et rien n'arrive sur `main`
+  # sans PR (ruleset sans contournement). Une feature qui touche le `package.json` racine (un
+  # script, une devDep) redeviendrait sinon la référence Sonar de la release suivante.
   push:
     branches: [main]
+    paths: [.release-please-manifest.json]
   pull_request:
     branches: [main]
 
+# Une PR relancée annule son run précédent : seul son dernier état compte. Un run de `main`, lui,
+# n'est JAMAIS annulé — c'est le seul que la promotion sait lire. Le filtre ci-dessus devrait
+# suffire à ce que deux runs de `main` ne se chevauchent plus ; cette ligne le garantit même si le
+# filtre change un jour.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PNPM_VERSION: "10.34.4"
@@ -64,6 +86,25 @@ jobs:
 
       - name: Test
         run: pnpm turbo test
+
+      # Ces lcov sont ceux que le job Sonar analyse : il ne rejoue plus `turbo test` (#318). Deux
+      # exécutions de la même suite, sur deux runners, pouvaient diverger sur un flake — et c'était
+      # la seconde, invisible dans les logs de ce job, qui décidait de la porte.
+      # `if-no-files-found: error` : un lcov manquant ne se lit pas « 0 % » chez Sonar, il ne se
+      # lit pas du tout, et la Quality Gate échouerait sur `new_coverage` sans dire pourquoi.
+      # Le plus proche ancêtre commun des quatre chemins étant la racine, l'artefact garde leur
+      # arborescence : le job Sonar les retrouve là où `sonar-project.properties` les attend.
+      - name: Upload de la couverture unitaire
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-unit
+          path: |
+            packages/shared/coverage/lcov.info
+            apps/api/coverage/lcov.info
+            apps/web/coverage/lcov.info
+            apps/mobile/coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 1
 
       # Les clés i18n assemblées (`t(`a.b.${x}`)`) échappent au typecheck : sans cette étape, une
       # clé renommée s'affiche en clair dans l'UI sans qu'aucune porte de qualité ne bronche.
@@ -151,17 +192,20 @@ jobs:
           docker compose -f apps/api/docker-compose.test.yml logs --tail=50
           docker compose -f apps/api/docker-compose.yml logs --tail=50
 
-  # Rapatrié depuis `sonar.yml` en #57 : SonarCloud veut TOUS les lcov dans UN scan, or la
-  # couverture de l'API naît dans le job `e2e` ci-dessus. Un artefact ne traverse pas deux
-  # workflows sans une course entre deux runs déclenchés par le même événement — les mettre dans
-  # le même run rend l'ordre déterministe.
+  # Rapatrié depuis `sonar.yml` en #57 : SonarCloud veut TOUS les lcov dans UN scan, or ils naissent
+  # dans les deux jobs ci-dessus — l'unitaire dans `quality`, celui de l'API dans `e2e`. Un artefact
+  # ne traverse pas deux workflows sans une course entre deux runs déclenchés par le même événement
+  # — les mettre dans le même run rend l'ordre déterministe.
+  #
+  # Il n'exécute aucun test (#318) : il analyse ce que les deux autres ont mesuré. Il démarre donc
+  # après le plus long des deux, `quality`, mais n'a plus ~2 min de tests à rejouer.
   #
   # Le nom du job est inchangé à dessein : les rulesets exigent le contexte « SonarCloud Analysis »,
   # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 », docs/dette-technique.md).
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    needs: [e2e]
+    needs: [quality, e2e]
     env:
       # Même DSN factice que `quality`, sans identifiants : `prisma generate` a besoin de la
       # variable, pas d'une base.
@@ -191,14 +235,23 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @cmv/api exec prisma generate
 
-      # La couverture doit exister AVANT le scan : sans lcov, Sonar ne lit pas « 0 % », il ne lit
-      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Ce `turbo test`
-      # produit celle de @cmv/shared et les tests unitaires de l'API…
-      - name: Test with coverage
-        run: pnpm turbo test
+      # Le `dist` de @cmv/shared, que `turbo test` construisait jusqu'ici en dépendance (`^build`) :
+      # l'API le résout par son `package.json`. Sans lui, l'analyse de types de Sonar ne tournerait
+      # plus dans le même environnement que le typecheck, et ses résultats pourraient changer.
+      # @cmv/tokens n'a pas d'étape de build : rien à construire de ce côté.
+      - name: Build @cmv/shared
+        run: pnpm turbo build --filter=@cmv/shared
 
-      # …et celle-ci, produite par le job e2e, apporte les ~86 % de l'API. Sonar unit les deux
-      # rapports par fichier, il n'y a donc pas de fusion à faire à la main.
+      # La couverture doit exister AVANT le scan : sans lcov, Sonar ne lit pas « 0 % », il ne lit
+      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Celle-ci, produite
+      # par `quality`, couvre @cmv/shared, le web, le mobile et les tests unitaires de l'API…
+      - name: Récupère la couverture unitaire
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: coverage-unit
+
+      # …et celle-ci, produite par le job e2e, apporte les ~86 % de l'API. Sonar unit les rapports
+      # par fichier, il n'y a donc pas de fusion à faire à la main.
       - name: Récupère la couverture e2e
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
