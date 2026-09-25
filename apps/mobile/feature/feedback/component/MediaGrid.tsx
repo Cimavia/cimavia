@@ -3,8 +3,8 @@ import { MediaType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { myFeedbackKeys } from "@/feature/feedback/api";
-import { useFreshFeedbackMediaUrl } from "@/feature/feedback/hook/useFreshFeedbackMediaUrl";
 import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoLink } from "@/shared/component";
+import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 
 type MediaGridProps = {
   media: FeedbackMediaDto[];
@@ -23,7 +23,7 @@ type MediaGridProps = {
  */
 export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<MediaGridProps>) {
   const { t } = useTranslation();
-  const freshUrl = useFreshFeedbackMediaUrl(myFeedbackKeys.detail(sessionId));
+  const freshUrl = useFreshMediaUrl(myFeedbackKeys.detail(sessionId));
 
   if (media.length === 0) return null;
 
@@ -46,9 +46,8 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
                 // module natif de plus. La tuile est en revanche actionnable — elle ouvre la vidéo
                 // dans le lecteur système.
                 <CmvVideoLink
-                  url={item.url}
                   durationSeconds={item.durationSeconds}
-                  resolveUrl={() => freshUrl(item.id, item.url)}
+                  resolveUrl={() => freshUrl(item.id)}
                   containerClassName="h-24 w-24 items-center justify-center gap-1 rounded-lg border border-cmv-border bg-cmv-surface"
                 />
               )}
