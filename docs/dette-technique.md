@@ -21,10 +21,10 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Trente dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **R-2**,
+déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **V-3**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
 **IOS-2**, **IOS-3**, **P7-7**, **OTA-1** et **OTA-2**,
 dont le déclencheur est nommé mais
@@ -1306,7 +1306,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | V-1 | **Pas de lecture vidéo EN LIGNE sur mobile** : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | 🟢 | — *(déclencheur : le coach beta juge la sortie de l'app gênante → voie `expo-video`)* |
-| V-2 | **URL signée périmée non vérifiée hors du débrief** : le justificatif de facture (mobile **et** web) et les documents de séance **côté web** ouvrent l'URL du cache telle quelle. Le débrief la vérifie depuis #151 (`isSignedUrlUsable`), pas eux — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
+| V-2 | **URL signée périmée non vérifiée à l'ouverture d'un lien** : le justificatif de facture (mobile **et** web), les documents de séance **côté web** et la photo agrandie du débrief **web** (`<a href>` du panneau coach et de la galerie athlète) ouvrent l'URL du cache telle quelle — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. Le débrief MOBILE la vérifie depuis #151 (`isSignedUrlUsable`), la messagerie mobile depuis #304 ; les lecteurs audio et vidéo des deux plateformes la re-signent quand elle casse (#304). **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. **Rectifié en #304** : cette ligne disait « le débrief la vérifie », sans préciser que c'était le mobile seul. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
+| V-3 | **Vidéo mobile : un saut tardif peut échouer dans le lecteur système** : `CmvVideoLink` re-signe l'URL AVANT de l'ouvrir, mais le lecteur système la garde ensuite. Une vidéo mise en pause plus de 5 min puis relancée ou déplacée redemande des octets avec une URL expirée, et le storage répond 403 — hors de l'app, donc sans reprise possible, là où le web re-signe et reprend à la même position (#304). Rare : la vidéo est plafonnée à 3 min. | 🟢 | — *(déclencheur : un retour beta sur une vidéo coupée après une longue pause ; se résout avec **V-1**, par `expo-video`)* |
 
 > **Tranché** (le lecteur système plutôt qu'`expo-video`) : lire la vidéo **dans** l'app demande
 > `expo-video`, donc un module natif, donc un nouveau **client de dev** en plus de l'APK preview —
@@ -1356,6 +1357,48 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > déclarée (`durationSeconds ?? 0`) — la règle nullable prise à revers. `formatMediaDuration` rend
 > désormais `null` sur une durée inconnue, et le rendu n'affiche rien. La messagerie et le débrief
 > parlent en outre le même format (`m:ss`), au lieu de secondes brutes d'un côté.
+
+---
+
+## Post-MVP — URLs signées stables sous le lecteur ([#304](https://github.com/Cimavia/cimavia/issues/304))
+
+> **Tranché en #304** (d'où venait la coupure) : l'API signe les médias à CHAQUE lecture — une URL
+> neuve par réponse, qui ne diffère de la précédente que par `X-Amz-Date`. Le fil de messages est
+> sondé toutes les 10 s, et le débrief se recharge sur les déclencheurs de TanStack (montage,
+> retour au premier plan, mutation). Chaque rechargement donnait
+> donc une nouvelle source au lecteur : le `<audio>` web rechargeait, `useAudioPlayer` recréait son
+> lecteur, et la note repartait de zéro ; les photos, elles, clignotaient. Le **TTL ne bouge pas** :
+> sa brièveté est ce qui rend le bucket privé sûr (P3-3). C'est le client qui GARDE une URL tant
+> qu'elle est ouvrable.
+>
+> **Tranché en #304** (une mémoire par app, pas par écran) : `createSignedUrlSharing`
+> (`@cmv/shared`) tient une table `média → { url, reçue à }`, une seule par app. Le même média
+> arrive par plusieurs requêtes (le fil, le débrief), et toutes doivent voir la même URL. Une URL
+> gardée conserve SA date de réception : elle est remplacée dès qu'elle entre dans la marge de
+> sécurité d'`isSignedUrlUsable`, et ne vit donc jamais au-delà de son TTL. Un média inconnu de
+> la table vaut « périmé » : on re-signe, on ne devine pas.
+>
+> **Tranché en #304** (le point d'entrée est `structuralSharing`) : c'est par là que passe TOUTE
+> donnée qui entre dans le cache TanStack — réponse réseau comme `setQueryData`. Stabiliser à cet
+> endroit le fait une fois, avant tout rendu, et `replaceEqualDeep` rend alors l'ancienne
+> référence : rien ne se redessine. Seule exception, et elle compte sur mobile : la **restauration
+> du cache persisté** n'y passe pas. La table vivant en mémoire, elle est vide au démarrage ; les
+> requêtes qui portent des médias (`SIGNED_MEDIA_QUERY_ROOTS`) sont donc invalidées sitôt le cache
+> restauré, plutôt que de laisser des URLs vieilles de plusieurs jours à l'écran.
+>
+> **Tranché en #304** (le résolveur est fourni par l'ÉCRAN) : un composant de message ne sait pas
+> de quelle requête il vient — la même bulle sert le fil et les réponses au débrief. C'est l'écran
+> qui passe `useFreshMediaUrl(queryKey)`, qui re-signe en rechargeant CETTE requête. Le hook mobile
+> du débrief (`useFreshFeedbackMediaUrl`) est devenu ce hook partagé.
+>
+> **Tranché en #304** (un lecteur en service garde son URL) : garder l'URL dans le cache ne suffit
+> pas — une note écoutée plus longtemps que la marge verrait quand même arriver une URL neuve. Les
+> lecteurs (`CmvMediaPlayer` web, `CmvAudioPlayer` mobile) n'adoptent donc une nouvelle URL qu'au
+> **repos** (ni en lecture, ni en pause à mi-chemin). Si la leur expire en route, ils re-signent
+> et reprennent à la même position, en lecture seulement si elle jouait. Quand la re-signature rend
+> la MÊME URL, ce n'est pas l'expiration qui a cassé la lecture : ils affichent l'erreur au lieu
+> de recharger d'office, ce qui bouclerait sur le même échec. Reste hors d'atteinte : la vidéo
+> mobile, jouée hors de l'app (**V-3**).
 
 ---
 
