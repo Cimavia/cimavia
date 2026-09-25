@@ -2,12 +2,15 @@ import type { SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared
 import { coachFeedbackKeys, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
+import { keepFeedbackUrls } from "@/shared/lib/signed-url";
 
 // `null` tant que la séance n'a pas été débriefée : l'absence est un état normal, pas une erreur.
 export function useMyFeedback(sessionId: string) {
   return useQuery<SessionFeedbackDto | null>({
     queryKey: myFeedbackKeys.detail(sessionId),
     queryFn: () => athleteFeedbackApi.get(sessionId),
+    // Même raison que côté coach : un rechargement ne doit pas relancer les lecteurs.
+    structuralSharing: keepFeedbackUrls,
   });
 }
 

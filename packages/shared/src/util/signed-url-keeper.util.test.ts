@@ -4,6 +4,7 @@ import type { MessageDto } from "../dto/message.schema";
 import { SIGNED_URL_TTL_SECONDS } from "./signed-url.util";
 import {
   createSignedUrlKeeper,
+  createSignedUrlSharing,
   resolveUsableSignedUrl,
   stabilizeFeedbackUrls,
   stabilizeMessageUrls,
@@ -209,5 +210,39 @@ describe("resolveUsableSignedUrl", () => {
     await expect(
       resolveUsableSignedUrl(createSignedUrlKeeper(), "m1", refetch, () => at(0)),
     ).resolves.toBeNull();
+  });
+});
+
+describe("createSignedUrlSharing", () => {
+  // Un partage structurel minimal : rend l'ancienne valeur quand elle est égale à la nouvelle.
+  const replaceEqualDeep = (previous: unknown, next: unknown) =>
+    JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+
+  /**
+   * Le vrai gain : quand la réponse ne diffère que par ses signatures, le cache garde l'objet
+   * précédent — aucun écran ne se redessine, aucun lecteur ne recharge.
+   */
+  it("rend la réponse précédente quand seules les URLs ont changé", () => {
+    let now = at(0);
+    const sharing = createSignedUrlSharing(replaceEqualDeep, () => now);
+    const first = sharing.keepThreadUrls(undefined, [audioMessage("m1", signed("a", 0))]);
+
+    now = at(10);
+    expect(sharing.keepThreadUrls(first, [audioMessage("m1", signed("a", 10))])).toBe(first);
+  });
+
+  it("stabilise un débrief et remplit la table partagée", () => {
+    let now = at(0);
+    const sharing = createSignedUrlSharing(replaceEqualDeep, () => now);
+    const first = sharing.keepFeedbackUrls(
+      undefined,
+      feedback([feedbackMedia("fm1", signed("p", 0))], []),
+    );
+
+    now = at(30);
+    expect(
+      sharing.keepFeedbackUrls(first, feedback([feedbackMedia("fm1", signed("p", 30))], [])),
+    ).toBe(first);
+    expect(sharing.keeper.usableUrl("fm1", now)).toBe(signed("p", 0));
   });
 });

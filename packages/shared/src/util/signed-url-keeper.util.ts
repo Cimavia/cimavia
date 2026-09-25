@@ -114,3 +114,34 @@ export async function resolveUsableSignedUrl(
   }
   return keeper.usableUrl(mediaId, now());
 }
+
+/** Le partage structurel du cache client, injecté : `@cmv/shared` ne dépend pas de TanStack. */
+type ReplaceEqualDeep = (previous: unknown, next: unknown) => unknown;
+
+/**
+ * La table d'une app, et les deux fonctions à brancher sur l'option `structuralSharing` des
+ * requêtes qui portent des médias signés.
+ *
+ * `structuralSharing` est appelé à CHAQUE réponse, avant qu'elle soit rangée : c'est le seul point
+ * par où passent à la fois le sondage, le retour au premier plan, les invalidations et
+ * `setQueryData`. Une URL encore ouvrable y reprend la place de sa re-signature.
+ *
+ * `replaceEqualDeep` ensuite — c'est ce que TanStack fait par défaut : quand seules les URLs avaient
+ * changé, il rend l'ANCIENNE réponse, intacte, et rien ne se redessine.
+ *
+ * Construit ici et non dans chaque app : le web et le mobile le tiendraient à l'identique.
+ */
+export function createSignedUrlSharing(replaceEqualDeep: ReplaceEqualDeep, now: () => number) {
+  const keeper = createSignedUrlKeeper();
+
+  return {
+    keeper,
+    keepThreadUrls: (previous: unknown, next: unknown) =>
+      replaceEqualDeep(previous, stabilizeMessageUrls(keeper, next as MessageDto[], now())),
+    keepFeedbackUrls: (previous: unknown, next: unknown) =>
+      replaceEqualDeep(
+        previous,
+        stabilizeFeedbackUrls(keeper, next as SessionFeedbackDto | null, now()),
+      ),
+  };
+}

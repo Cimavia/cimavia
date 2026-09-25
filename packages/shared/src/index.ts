@@ -811,6 +811,7 @@ export {
 export type { SignedUrlKeeper } from "./util/signed-url-keeper.util";
 export {
   createSignedUrlKeeper,
+  createSignedUrlSharing,
   resolveUsableSignedUrl,
   stabilizeFeedbackUrls,
   stabilizeMessageUrls,
