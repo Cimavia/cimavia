@@ -210,7 +210,12 @@ function FeedbackMedia({
       {media.map((item) => {
         if (item.type === MediaType.AUDIO) {
           return (
-            <CmvAudioPlayer key={item.id} url={item.url} durationSeconds={item.durationSeconds} />
+            <CmvAudioPlayer
+              key={item.id}
+              url={item.url}
+              durationSeconds={item.durationSeconds}
+              resolveUrl={() => freshUrl(item.id)}
+            />
           );
         }
         if (item.type === MediaType.VIDEO) {

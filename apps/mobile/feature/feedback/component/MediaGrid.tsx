@@ -68,7 +68,11 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
           className="flex-row items-center gap-3 rounded-lg border border-cmv-border bg-cmv-surface px-3 py-2"
         >
           <View className="flex-1">
-            <CmvAudioPlayer url={item.url} durationSeconds={item.durationSeconds} />
+            <CmvAudioPlayer
+              url={item.url}
+              durationSeconds={item.durationSeconds}
+              resolveUrl={() => freshUrl(item.id)}
+            />
           </View>
           <Pressable onPress={() => onRemove(item.id)} disabled={isRemoving}>
             <CmvText className="text-cmv-error text-xs">{t("feedback.media.remove")}</CmvText>

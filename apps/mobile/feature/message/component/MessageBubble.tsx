@@ -45,7 +45,13 @@ function MediaContent({
   if (media == null) return null;
 
   if (message.type === MessageType.AUDIO) {
-    return <CmvAudioPlayer url={media.url} durationSeconds={media.durationSeconds} />;
+    return (
+      <CmvAudioPlayer
+        url={media.url}
+        durationSeconds={media.durationSeconds}
+        resolveUrl={() => resolveMediaUrl(message.id)}
+      />
+    );
   }
   if (message.type === MessageType.IMAGE) {
     return <CmvImageViewer url={media.url} />;

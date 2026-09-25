@@ -245,6 +245,9 @@
     }
   },
   "media": {
+    "audio": {
+      "unavailable": "Impossible de lire la note vocale. Vérifie ta connexion, puis appuie sur lecture."
+    },
     "video": {
       "label": "Vidéo",
       "openError": "Aucune application de ton téléphone ne peut lire cette vidéo.",

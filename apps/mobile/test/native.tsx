@@ -92,12 +92,26 @@ vi.mock("expo-router", () => {
  * `playsInSilentMode` y lève. Un faux qui résolvait toujours a laissé passer #393 jusqu'à l'iPhone
  * de la bêta.
  *
- * Les deux hooks d'enregistrement sont des `vi.fn` pour qu'un test puisse fixer l'enregistreur et
- * son état ; leur comportement par défaut reste celui d'un enregistreur au repos.
+ * Les hooks de lecture et d'enregistrement sont des `vi.fn` pour qu'un test puisse fixer le lecteur,
+ * l'enregistreur et leur état ; leur comportement par défaut reste celui d'un appareil au repos.
  */
 vi.mock("expo-audio", () => ({
-  useAudioPlayer: () => ({ play: vi.fn(), pause: vi.fn(), seekTo: vi.fn(), remove: vi.fn() }),
-  useAudioPlayerStatus: () => ({ playing: false, currentTime: 0, duration: 0, isLoaded: true }),
+  useAudioPlayer: vi.fn(() => ({
+    play: vi.fn(),
+    pause: vi.fn(),
+    seekTo: vi.fn(async () => undefined),
+    replace: vi.fn(),
+    remove: vi.fn(),
+    playing: false,
+    currentTime: 0,
+  })),
+  useAudioPlayerStatus: vi.fn(() => ({
+    playing: false,
+    currentTime: 0,
+    duration: 0,
+    isLoaded: true,
+    error: null,
+  })),
   useAudioRecorder: vi.fn(() => ({
     record: vi.fn(),
     stop: vi.fn(),
