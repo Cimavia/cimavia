@@ -70,6 +70,14 @@
       "invalidToken": "Lien invalide ou expiré.",
       "toLogin": "Aller à la connexion"
     },
+    "reauth": {
+      "title": "Ta session a pris fin",
+      "body": "Reconnecte-toi pour reprendre là où tu en étais : ce que tu as saisi est toujours là.",
+      "account": "Compte :",
+      "submit": "Me reconnecter",
+      "switchAccount": "Changer de compte",
+      "restored": "Te revoilà : tu peux reprendre là où tu en étais."
+    },
     "errors": {
       "generic": "Une erreur est survenue. Réessaie.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",

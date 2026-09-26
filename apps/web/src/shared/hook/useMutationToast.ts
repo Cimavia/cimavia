@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
+import { apiErrorMessage, isUnauthorizedError } from "@/shared/lib/api";
 
 /**
  * Colle entre TanStack Query et les toasts : chaque mutation confirme son effet, et toute erreur
@@ -19,6 +19,17 @@ export function useMutationToast() {
     onInfo: (key: string, values?: Record<string, string>) => toast.info(t(key, values ?? {})),
     // Le message de l'API est déjà actionnable (« La date ne tombe pas dans la semaine 2 ») ;
     // on ne retombe sur le message générique que s'il n'y en a pas (panne réseau, 500 muet).
-    onError: (error: unknown) => toast.error(apiErrorMessage(error) ?? t("common.error")),
+    // Un 401 ne dit rien ici : la fenêtre de reconnexion l'explique déjà, et le « Unauthorized »
+    // brut de l'API n'aurait fait que la doubler d'un message illisible (#336).
+    onError: (error: unknown) => {
+      if (isUnauthorizedError(error)) return;
+      toast.error(apiErrorMessage(error) ?? t("common.error"));
+    },
+    // Pour un geste qui compose plusieurs appels (l'enregistrement d'un constructeur) : son échec
+    // se dit par un message à lui, pas par celui du dernier appel tombé. Même silence sur un 401.
+    onFailure: (key: string, error: unknown) => {
+      if (isUnauthorizedError(error)) return;
+      toast.error(t(key));
+    },
   };
 }
