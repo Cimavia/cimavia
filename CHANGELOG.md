@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.1](https://github.com/Cimavia/cimavia/compare/v1.6.0...v1.6.1) (2026-09-26)
+
+
+### Technique
+
+* l'image de l'api démarre sur une base jetable avant de recevoir son numéro de version ([ab8aff1](https://github.com/Cimavia/cimavia/commit/ab8aff1096a71484f0f6d85c32f3c4270dd7ad7b))
+* le smoke lit les identifiants de sa base jetable dans le compose, sans les recopier ([d0506e9](https://github.com/Cimavia/cimavia/commit/d0506e90620c12378ca2b775b7abb5a9ecab034d))
+* les builds de production des trois apps tournent sur chaque pr, filtrés par app ([71e9f9c](https://github.com/Cimavia/cimavia/commit/71e9f9c0b7ab29b96bde52ac5bf65f3647fbe60b))
+* un scope de cache par image, l'api et le web n'effacent plus l'index l'un de l'autre ([6772531](https://github.com/Cimavia/cimavia/commit/67725317ad17aa8a545709091274f3ea9c2dcc98))
+
 ## [1.6.0](https://github.com/Cimavia/cimavia/compare/v1.5.9...v1.6.0) (2026-09-26)
 
 
