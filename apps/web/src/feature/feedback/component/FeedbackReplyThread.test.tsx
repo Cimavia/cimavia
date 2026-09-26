@@ -14,6 +14,7 @@ const PROPS = {
   conversationId: "c-1",
   isThreadError: false,
   onSent: () => undefined,
+  resolveMediaUrl: async () => null,
 };
 
 function message(overrides: Partial<MessageDto>): MessageDto {

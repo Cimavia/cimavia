@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { keepThreadUrls } from "@/shared/lib/signed-url";
 
 // Messagerie asynchrone (CDC §5.8) : les nouveaux messages remontent par polling. Sur le web,
 // `refetchOnWindowFocus` (défaut TanStack) complète l'intervalle.
@@ -59,6 +60,8 @@ export function useThreadMessages(conversationId: string | undefined) {
     queryFn: () => messageApi.getMessages(conversationId as string, as),
     enabled: conversationId != null,
     refetchInterval: conversationId != null ? THREAD_POLL_MS : false,
+    // Chaque sondage re-signe les médias : sans ça, une note vocale repart de zéro toutes les 10 s.
+    structuralSharing: keepThreadUrls,
   });
 }
 

@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { messageKeys } from "@/feature/message/api";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageBubble } from "@/feature/message/component/MessageBubble";
 import { useMarkRead, useSendMessage, useThreadMessages } from "@/feature/message/hook/useMessages";
 import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia";
 import { CmvErrorState } from "@/shared/component";
+import { useExercisedCapability } from "@/shared/hook/useCapabilities";
+import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { authClient } from "@/shared/lib/auth";
 
 type MessageThreadProps = {
@@ -33,6 +36,9 @@ export function MessageThread({
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
   const messages = useThreadMessages(conversationId);
+  const freshMediaUrl = useFreshMediaUrl(
+    messageKeys.thread(conversationId ?? "", useExercisedCapability()),
+  );
   const send = useSendMessage(conversationId ?? "");
   // On ne garde que `mutate`, garanti stable par TanStack Query : la stabilité devient vérifiable
   // par le linter au lieu de reposer sur un commentaire.
@@ -85,6 +91,7 @@ export function MessageThread({
               key={message.id}
               message={message}
               mine={message.senderId === currentUserId}
+              resolveMediaUrl={freshMediaUrl}
             />
           ))}
           <div ref={bottomRef} />

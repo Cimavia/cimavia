@@ -1,4 +1,5 @@
-import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import { coachFeedbackKeys, messageKeys, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { storedItems } from "@/test/setup";
@@ -9,7 +10,9 @@ vi.mock("expo-network", () => ({
   addNetworkStateListener: () => ({ remove: vi.fn() }),
 }));
 
-const { QueryProvider, resetQueryCache } = await import("@/shared/lib/query");
+const { QueryProvider, invalidateSignedMediaQueries, resetQueryCache } = await import(
+  "@/shared/lib/query"
+);
 
 const PERSIST_KEY = "cimavia-query-cache";
 
@@ -66,5 +69,39 @@ describe("resetQueryCache", () => {
 
   it("ne se plaint pas quand il n'y a rien à effacer", async () => {
     await expect(resetQueryCache()).resolves.toBeUndefined();
+  });
+});
+
+describe("invalidateSignedMediaQueries", () => {
+  /**
+   * #304 : restaurées du disque, ces requêtes mentent sur l'âge de leurs URLs — une URL gardée peut
+   * avoir 4 min 30 de plus que la réponse qui la porte, et la table qui le savait est repartie
+   * vide. Elles doivent se recharger à l'ouverture de leur écran, même « fraîches ».
+   */
+  it("périme le fil et les deux lectures du débrief", async () => {
+    const client = new QueryClient();
+    const signed = [
+      messageKeys.thread("c1", null),
+      myFeedbackKeys.detail("s1"),
+      coachFeedbackKeys.bySession("s1"),
+    ];
+    for (const key of signed) client.setQueryData(key, []);
+
+    await invalidateSignedMediaQueries(client);
+
+    for (const key of signed) {
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+  });
+
+  // Les autres disent vrai sur leur fraîcheur : les recharger toutes à chaque démarrage à froid
+  // ferait payer à l'athlète en salle ce qu'aucune URL ne justifie.
+  it("ne touche pas aux requêtes sans média signé", async () => {
+    const client = new QueryClient();
+    client.setQueryData(myPlanKeys.visible(), []);
+
+    await invalidateSignedMediaQueries(client);
+
+    expect(client.getQueryState(myPlanKeys.visible())?.isInvalidated).toBe(false);
   });
 });

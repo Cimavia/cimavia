@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import type { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { Composer } from "@/feature/message/component/Composer";
-import { MessageBubble } from "@/feature/message/component/MessageBubble";
+import { MessageBubble, type ResolveMediaUrl } from "@/feature/message/component/MessageBubble";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { CmvText } from "@/shared/component";
 import { mediaErrorMessage } from "@/shared/util/media.util";
@@ -26,7 +26,13 @@ type Reply = ReturnType<typeof useFeedbackReply>;
 export function FeedbackReplyMessages({
   messages,
   currentUserId,
-}: Readonly<{ messages: readonly MessageDto[]; currentUserId: string }>) {
+  resolveMediaUrl,
+}: Readonly<{
+  messages: readonly MessageDto[];
+  currentUserId: string;
+  /** Re-signe le média d'une réponse : c'est le DÉBRIEF qui la porte ici, pas le fil. */
+  resolveMediaUrl: ResolveMediaUrl;
+}>) {
   const { t } = useTranslation();
 
   return (
@@ -41,6 +47,7 @@ export function FeedbackReplyMessages({
           key={message.id}
           message={message}
           mine={message.senderId === currentUserId}
+          resolveMediaUrl={resolveMediaUrl}
           hideAttachment
         />
       ))}

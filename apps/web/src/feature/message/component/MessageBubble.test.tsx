@@ -44,9 +44,17 @@ const feedbackAttachment = {
   id: "f1",
 };
 
+// Aucune URL ne lâche dans ces tests : la re-signature a les siens (`CmvMediaPlayer.test`).
+const noResolve = async () => null;
+
 function renderBubble(attachment: MessageDto["attachment"], hideAttachment = false) {
   return renderInRoute(
-    <MessageBubble message={message(attachment)} mine={false} hideAttachment={hideAttachment} />,
+    <MessageBubble
+      message={message(attachment)}
+      mine={false}
+      hideAttachment={hideAttachment}
+      resolveMediaUrl={noResolve}
+    />,
     { path: "/messages", links: LINKS },
   );
 }
@@ -115,7 +123,7 @@ describe("MessageBubble — les médias", () => {
   function renderMedia(type: MessageDto["type"]) {
     vi.mocked(useActingCapability).mockReturnValue("athlete");
     const dto = { ...message(null), type, content: null, media } as MessageDto;
-    return renderInRoute(<MessageBubble message={dto} mine={false} />, {
+    return renderInRoute(<MessageBubble message={dto} mine={false} resolveMediaUrl={noResolve} />, {
       path: "/messages",
       links: LINKS,
     });
@@ -152,7 +160,7 @@ describe("MessageBubble — les avis de débrief", () => {
       content: null,
       media: null,
     } as MessageDto;
-    return renderInRoute(<MessageBubble message={dto} mine={mine} />, {
+    return renderInRoute(<MessageBubble message={dto} mine={mine} resolveMediaUrl={noResolve} />, {
       path: "/messages",
       links: LINKS,
     });

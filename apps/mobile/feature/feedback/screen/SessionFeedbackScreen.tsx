@@ -20,6 +20,7 @@ import { useMyConversation } from "@/feature/message/hook/useConversation";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -44,6 +45,7 @@ export function SessionFeedbackScreen() {
   // inconditionnellement : c'est `enabled` et `feedbackId: null` qui disent l'attente.
   const { data: coach } = useMyCoach();
   const conversation = useMyConversation(coach != null);
+  const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(id));
   const reply = useFeedbackReply({
     feedbackId: feedback?.id ?? null,
     conversationId: conversation.data?.id,
@@ -95,6 +97,7 @@ export function SessionFeedbackScreen() {
                 <FeedbackReplyMessages
                   messages={feedback.messages}
                   currentUserId={user?.user.id ?? ""}
+                  resolveMediaUrl={freshMediaUrl}
                 />
               )}
             </>

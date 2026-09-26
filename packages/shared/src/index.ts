@@ -802,7 +802,20 @@ export {
   setRounds,
   toggleUnit,
 } from "./util/session-tracking.util";
-export { isSignedUrlUsable, SIGNED_URL_TTL_SECONDS } from "./util/signed-url.util";
+export type { SignedUrlReceipt } from "./util/signed-url.util";
+export {
+  isSignedUrlUsable,
+  keepSignedUrl,
+  SIGNED_URL_TTL_SECONDS,
+} from "./util/signed-url.util";
+export type { SignedUrlKeeper } from "./util/signed-url-keeper.util";
+export {
+  createSignedUrlKeeper,
+  createSignedUrlSharing,
+  resolveUsableSignedUrl,
+  stabilizeFeedbackUrls,
+  stabilizeMessageUrls,
+} from "./util/signed-url-keeper.util";
 export type { SignupMode } from "./util/signup.util";
 export {
   isEmailAllowed,

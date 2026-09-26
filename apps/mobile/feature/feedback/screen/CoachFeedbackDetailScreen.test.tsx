@@ -23,8 +23,8 @@ vi.mock("@/feature/feedback/hook/useCoachFeedbacks", () => ({
   useMarkFeedbackRead: vi.fn(),
 }));
 vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({ useFeedbackReply: vi.fn() }));
-vi.mock("@/feature/feedback/hook/useFreshFeedbackMediaUrl", () => ({
-  useFreshFeedbackMediaUrl: () => (_id: string, url: string) => Promise.resolve(url),
+vi.mock("@/shared/hook/useFreshMediaUrl", () => ({
+  useFreshMediaUrl: () => () => Promise.resolve(null),
 }));
 vi.mock("@/feature/message/hook/useConversation", () => ({
   useConversationWith: () => ({ data: { id: "c-1" }, isError: false }),

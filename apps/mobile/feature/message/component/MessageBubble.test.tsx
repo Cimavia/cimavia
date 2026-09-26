@@ -45,10 +45,15 @@ beforeEach(() => {
   vi.mocked(router.push).mockClear();
 });
 
+// Aucune URL n'expire dans ces tests : la re-signature a les siens (`useFreshMediaUrl`).
+const noResolve = async () => null;
+
 describe("MessageBubble — la puce « à propos de… »", () => {
   it("ne rend aucune puce sur un message qui ne porte sur rien", () => {
     vi.mocked(useActingCapability).mockReturnValue("athlete");
-    const { queryByText } = renderRn(<MessageBubble message={message(null)} mine={false} />);
+    const { queryByText } = renderRn(
+      <MessageBubble message={message(null)} mine={false} resolveMediaUrl={noResolve} />,
+    );
 
     expect(queryByText(SESSION_LABEL)).toBeNull();
     expect(queryByText(FEEDBACK_LABEL)).toBeNull();
@@ -57,7 +62,11 @@ describe("MessageBubble — la puce « à propos de… »", () => {
   it("mène l'athlète à la séance citée", () => {
     vi.mocked(useActingCapability).mockReturnValue("athlete");
     const { getByText } = renderRn(
-      <MessageBubble message={message(sessionAttachment)} mine={false} />,
+      <MessageBubble
+        message={message(sessionAttachment)}
+        mine={false}
+        resolveMediaUrl={noResolve}
+      />,
     );
 
     press(getByText(SESSION_LABEL));
@@ -67,7 +76,11 @@ describe("MessageBubble — la puce « à propos de… »", () => {
   it("mène l'athlète à son débrief quand c'est lui qui est cité", () => {
     vi.mocked(useActingCapability).mockReturnValue("athlete");
     const { getByText } = renderRn(
-      <MessageBubble message={message(feedbackAttachment)} mine={false} />,
+      <MessageBubble
+        message={message(feedbackAttachment)}
+        mine={false}
+        resolveMediaUrl={noResolve}
+      />,
     );
 
     press(getByText(FEEDBACK_LABEL));
@@ -82,7 +95,11 @@ describe("MessageBubble — la puce « à propos de… »", () => {
   it("mène le coach au débrief, même quand c'est une séance qui est citée", () => {
     vi.mocked(useActingCapability).mockReturnValue("coach");
     const { getByText } = renderRn(
-      <MessageBubble message={message(sessionAttachment)} mine={false} />,
+      <MessageBubble
+        message={message(sessionAttachment)}
+        mine={false}
+        resolveMediaUrl={noResolve}
+      />,
     );
 
     press(getByText(SESSION_LABEL));
@@ -107,7 +124,7 @@ describe("MessageBubble — les médias", () => {
   function renderMedia(type: MessageDto["type"]) {
     vi.mocked(useActingCapability).mockReturnValue("athlete");
     const dto = { ...message(null), type, content: null, media } as MessageDto;
-    return renderRn(<MessageBubble message={dto} mine={false} />);
+    return renderRn(<MessageBubble message={dto} mine={false} resolveMediaUrl={noResolve} />);
   }
 
   it("ne rend pas le texte d'un média", () => {
@@ -130,7 +147,7 @@ describe("MessageBubble — les avis de débrief", () => {
   function renderNotice(type: MessageDto["type"], mine: boolean) {
     vi.mocked(useActingCapability).mockReturnValue("coach");
     const dto = { ...message(feedbackAttachment), type, content: null } as MessageDto;
-    return renderRn(<MessageBubble message={dto} mine={mine} />);
+    return renderRn(<MessageBubble message={dto} mine={mine} resolveMediaUrl={noResolve} />);
   }
 
   it("dit ce qui s'est passé, et garde la puce qui mène au débrief", () => {

@@ -5,12 +5,15 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { messageKeys } from "@/feature/message/api";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageList } from "@/feature/message/component/MessageList";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook/useConversation";
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
+import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { authClient } from "@/shared/lib/auth";
 import { mediaErrorMessage } from "@/shared/util/media.util";
 
@@ -49,6 +52,9 @@ export function ConversationThread({
   const { data: session } = authClient.useSession();
 
   const messages = useMessages(conversationId);
+  const freshMediaUrl = useFreshMediaUrl(
+    messageKeys.thread(conversationId ?? "", useExercisedCapability()),
+  );
   const send = useSendMessage(conversationId ?? "");
   // On ne garde que `mutate`, garanti stable par TanStack Query : la stabilité devient vérifiable
   // par le linter au lieu de reposer sur un commentaire.
@@ -123,7 +129,11 @@ export function ConversationThread({
           </View>
         ) : (
           <View className="flex-1">
-            <MessageList messages={items} currentUserId={currentUserId} />
+            <MessageList
+              messages={items}
+              currentUserId={currentUserId}
+              resolveMediaUrl={freshMediaUrl}
+            />
           </View>
         )}
 

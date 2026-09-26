@@ -1,24 +1,28 @@
 import type { FeedbackMediaDto } from "@cmv/shared";
 import { MediaType } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { CmvButton, CmvCard } from "@/shared/component";
+import type { ResolveMediaUrl } from "@/feature/message/component/MessageBubble";
+import { CmvButton, CmvCard, CmvMediaPlayer } from "@/shared/component";
 
 type FeedbackMediaGalleryProps = {
   media: readonly FeedbackMediaDto[];
   onRemove: (mediaId: string) => void;
   isRemoving: boolean;
+  resolveMediaUrl: ResolveMediaUrl;
 };
 
 /**
  * Les médias déjà joints au débrief. Photos en vignette, vidéos et notes vocales par leur lecteur
  * natif — le navigateur sait faire, et un lecteur maison n'apporterait rien ici.
  *
- * Les URLs sont signées à TTL court et régénérées à chaque lecture : elles ne se conservent pas.
+ * Les URLs sont signées à TTL court : le lecteur re-signe celle qui lâche en cours de route, sans
+ * repartir de zéro (#304).
  */
 export function FeedbackMediaGallery({
   media,
   onRemove,
   isRemoving,
+  resolveMediaUrl,
 }: Readonly<FeedbackMediaGalleryProps>) {
   const { t } = useTranslation();
 
@@ -47,16 +51,16 @@ export function FeedbackMediaGallery({
               </a>
             ) : null}
 
-            {item.type === MediaType.VIDEO ? (
-              // `preload="metadata"` : on ne télécharge pas 50 Mo de vidéo pour afficher une carte.
-              // biome-ignore lint/a11y/useMediaCaption: vidéo d'entraînement d'un athlète — pas de sous-titres.
-              <video src={item.url} controls preload="metadata" className="w-full rounded-cmv-md" />
-            ) : null}
-
-            {item.type === MediaType.AUDIO ? (
-              // biome-ignore lint/a11y/useMediaCaption: note vocale d'un athlète — pas de piste de sous-titres.
-              <audio src={item.url} controls preload="metadata" className="w-full" />
-            ) : null}
+            {/* `preload="metadata"` : on ne télécharge pas 50 Mo de vidéo pour afficher une carte. */}
+            {item.type === MediaType.IMAGE ? null : (
+              <CmvMediaPlayer
+                kind={item.type === MediaType.AUDIO ? "audio" : "video"}
+                url={item.url}
+                resolveUrl={() => resolveMediaUrl(item.id)}
+                preload="metadata"
+                className={item.type === MediaType.AUDIO ? "w-full" : "w-full rounded-cmv-md"}
+              />
+            )}
 
             <div className="flex items-center gap-cmv-sm">
               <span className="flex-1 truncate text-cmv-caption text-cmv-text-lo">

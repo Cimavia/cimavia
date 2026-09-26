@@ -2,7 +2,7 @@ import type { MessageDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { Composer } from "@/feature/message/component/Composer";
-import { MessageBubble } from "@/feature/message/component/MessageBubble";
+import { MessageBubble, type ResolveMediaUrl } from "@/feature/message/component/MessageBubble";
 import { authClient } from "@/shared/lib/auth";
 
 type FeedbackReplyThreadProps = {
@@ -18,6 +18,8 @@ type FeedbackReplyThreadProps = {
   isSelf?: boolean;
   /** Ce qu'il faut recharger après un envoi — la boîte du coach, ou le débrief de l'athlète. */
   onSent: () => void;
+  /** Re-signe le média d'une réponse : c'est le DÉBRIEF qui la porte ici, pas le fil. */
+  resolveMediaUrl: ResolveMediaUrl;
 };
 
 /**
@@ -41,6 +43,7 @@ export function FeedbackReplyThread({
   isThreadError,
   isSelf = false,
   onSent,
+  resolveMediaUrl,
 }: Readonly<FeedbackReplyThreadProps>) {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
@@ -79,6 +82,7 @@ export function FeedbackReplyThread({
               key={message.id}
               message={message}
               mine={message.senderId === currentUserId}
+              resolveMediaUrl={resolveMediaUrl}
               hideAttachment
             />
           ))}

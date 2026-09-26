@@ -23,7 +23,6 @@ import {
   useMarkFeedbackRead,
 } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
-import { useFreshFeedbackMediaUrl } from "@/feature/feedback/hook/useFreshFeedbackMediaUrl";
 import { useConversationWith } from "@/feature/message/hook/useConversation";
 import {
   CmvAudioPlayer,
@@ -35,6 +34,7 @@ import {
 } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -114,6 +114,7 @@ function FeedbackBody({
   // « réessaie dans un instant » — une panne passagère qui n'en est pas une.
   const conversation = useConversationWith(isSelf ? null : (summary?.athleteId ?? null));
   const queryClient = useQueryClient();
+  const freshMediaUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
   const reply = useFeedbackReply({
     feedbackId: feedback?.id ?? null,
     conversationId: conversation.data?.id,
@@ -169,6 +170,7 @@ function FeedbackBody({
           <FeedbackReplyMessages
             messages={feedback?.messages ?? []}
             currentUserId={session?.user.id ?? ""}
+            resolveMediaUrl={freshMediaUrl}
           />
         )}
       </ScrollView>
@@ -198,7 +200,7 @@ function FeedbackMedia({
   sessionId,
 }: Readonly<{ media: readonly FeedbackMediaDto[]; sessionId: string }>) {
   const { t } = useTranslation();
-  const freshUrl = useFreshFeedbackMediaUrl(coachFeedbackKeys.bySession(sessionId));
+  const freshUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
 
   if (media.length === 0) return null;
 
@@ -208,16 +210,20 @@ function FeedbackMedia({
       {media.map((item) => {
         if (item.type === MediaType.AUDIO) {
           return (
-            <CmvAudioPlayer key={item.id} url={item.url} durationSeconds={item.durationSeconds} />
+            <CmvAudioPlayer
+              key={item.id}
+              url={item.url}
+              durationSeconds={item.durationSeconds}
+              resolveUrl={() => freshUrl(item.id)}
+            />
           );
         }
         if (item.type === MediaType.VIDEO) {
           return (
             <CmvVideoLink
               key={item.id}
-              url={item.url}
               durationSeconds={item.durationSeconds}
-              resolveUrl={() => freshUrl(item.id, item.url)}
+              resolveUrl={() => freshUrl(item.id)}
               containerClassName="h-48 w-full items-center justify-center gap-2 rounded-lg border border-cmv-border bg-cmv-surface"
             />
           );
