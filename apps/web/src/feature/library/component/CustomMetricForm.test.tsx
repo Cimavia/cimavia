@@ -145,6 +145,31 @@ describe("CustomMetricForm", () => {
       // seule chose que le coach peut corriger.
       expect(await findByText("Cotation déjà nommée ainsi")).toBeInTheDocument();
     });
+
+    it("retombe sur un message générique quand l'API n'a rien dit", async () => {
+      createMock.mockRejectedValue(new TypeError("Failed to fetch"));
+      const { user, getByRole, findByText } = setup();
+
+      await user.type(getByRole("textbox", { name: LABEL }), "Fatigue");
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      // Réseau coupé : pas de message d'API, mais l'échec se dit quand même.
+      expect(await findByText("common.error")).toBeInTheDocument();
+    });
+
+    it("se tait sur une session perdue", async () => {
+      createMock.mockRejectedValue(new ApiError(401, "Unauthorized", null));
+      const { user, getByRole, queryByText } = setup();
+
+      await user.type(getByRole("textbox", { name: LABEL }), "Fatigue");
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      // La fenêtre de reconnexion en dit la cause ; un « Unauthorized » brut ici resterait
+      // affiché après la reconnexion (#336).
+      await waitFor(() => expect(createMock).toHaveBeenCalled());
+      expect(queryByText("Unauthorized")).not.toBeInTheDocument();
+      expect(queryByText("common.error")).not.toBeInTheDocument();
+    });
   });
 
   describe("en modification", () => {

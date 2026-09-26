@@ -11,6 +11,7 @@ import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
+import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { AuthLayout } from "../component/AuthLayout";
 
@@ -53,7 +54,7 @@ export function RegisterScreen() {
         return;
       }
       // Même raison qu'à la connexion : rien du compte précédent ne doit survivre au changement.
-      queryClient.clear();
+      resetAccountData(queryClient);
       navigate({ to: "/", search: { q: undefined, filter: undefined, athlete: undefined } });
     } catch {
       setError(t("auth.errors.generic"));

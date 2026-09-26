@@ -32,6 +32,11 @@ quoi lire, quelles questions poser, et dans quel ordre livrer.
 - Remonter la famille : épic parente, issues sœurs **déjà fermées**, jalon, labels. Les corps des
   sœurs livrées portent les décisions structurantes qui contraignent encore le travail.
 - Sans numéro d'issue : demander s'il faut en créer une d'abord (→ skill `issue`).
+- **Donner le nom de la branche** dès ce premier retour, avec la commande à lancer — le
+  développeur la crée avant que je touche au code :
+  `git switch -c <préfixe>/<numéro> main`. Le préfixe suit l'étiquette de l'issue : `bug` →
+  `fix/`, `type: feat` → `feat/`, `type: dette` ou `type: chore` → `tech/` (ex. `fix/335`,
+  `tech/336`). Si la branche courante n'est pas `main` ou porte déjà des modifs, le signaler.
 
 ## 2. Enquêter
 

@@ -1028,6 +1028,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > (déclencheur : aucun — un coach ne construit pas un cycle dans deux onglets), et **coller ne vide
 > pas** le presse-papier, parce que reproduire une même semaine sur plusieurs semaines d'affilée est
 > le geste courant.
+>
+> Complété en [#341](https://github.com/Cimavia/cimavia/issues/341) : « mourir avec l'onglet » ne
+> couvrait pas le **changement de compte** dans le même onglet — il est désormais vidé par la purge
+> commune, et quand sa semaine ou son cycle disparaît.
 
 > **Écart de maquette assumé** : `coach_builder_planification.dc.html` ne prévoit **aucun** geste de
 > copie — l'en-tête de semaine n'y porte que le type, le compteur de séances et « Déplier ». Les deux
@@ -3707,6 +3711,53 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   en minuscules. Remède : fermer la PR et faire le bump à la main (`CONTRIBUTING.md`, « Commits »).
 >   Ignorer les commits de `dependabot[bot]` reste écarté : une exception par robot, à rallonger
 >   au suivant.
+
+---
+
+## Post-MVP — Session perdue et changement de compte côté web ([#336](https://github.com/Cimavia/cimavia/issues/336) · [#337](https://github.com/Cimavia/cimavia/issues/337) · [#341](https://github.com/Cimavia/cimavia/issues/341))
+
+> **Tranché en [#336](https://github.com/Cimavia/cimavia/issues/336)** (reconnexion SUR PLACE, pas
+> de redirection) : l'issue demandait qu'un 401 rejoue la déconnexion — purge, toast, renvoi vers
+> `/login`. Or ce qu'elle reprochait était un constructeur **perdu**, et un renvoi démonte l'écran :
+> la saisie serait partie tout de suite au lieu de partir au retour sur l'onglet. D'où :
+>
+> - **Un 401 ne redirige pas**, il fait relire la session (`createQueryClient`, `recheckSession`),
+>   posé sur les *caches* TanStack et non dans `defaultOptions` — un `onError` d'écran remplacerait
+>   celui-ci. La garde décide seule, que la perte vienne de l'API ou du retour sur l'onglet.
+> - **`CmvRoleGate` distingue un écran jamais monté d'un écran perdu.** Le premier renvoie vers
+>   `/login` ; le second reste monté (`inert`) sous `ReauthOverlay`, au même endroit de l'arbre —
+>   le déplacer le remonterait et son état partirait. `isPending` n'est plus consulté une fois
+>   l'écran perdu : la relecture au retour sur l'onglet le repasse à vrai et démontait l'écran.
+> - **L'e-mail de la fenêtre n'est pas saisissable** : on ne reprend l'écran que sous le compte qui
+>   l'a monté. Un autre identifiant, y compris une session d'un autre compte ouverte dans un autre
+>   onglet, ne reprend pas l'écran — « Changer de compte » purge tout avant de partir.
+> - **Voile opaque** : sur un poste partagé, celui qui trouve l'onglet ne doit pas lire l'écran du
+>   compte parti. Le titre ne dit pas « expirée » : expiration, révocation et déconnexion depuis un
+>   autre onglet arrivent toutes ici.
+> - **Aucun toast sur un 401** (`useMutationToast`) : la fenêtre nomme déjà la cause.
+>
+> Conséquence pour [#327](https://github.com/Cimavia/cimavia/issues/327) (garde « modifications
+> non enregistrées ») : aucune navigation ne part sur un 401, le futur `useBlocker` n'a donc pas
+> d'exception à prévoir pour ce cas. Le mobile a le même trou, suivi à part.
+>
+> Découvert en chemin : lire l'adresse par `useLocation()` dans la garde la faisait boucler
+> (« Maximum update depth ») — l'abonnement la re-rend pendant sa propre redirection, et
+> `<Navigate>` renavigue à chaque rendu dont les props sont neuves. Elle lit l'état du routeur, une
+> fois, au moment de rediriger.
+
+> **Tranché en [#337](https://github.com/Cimavia/cimavia/issues/337)** (la cible voyage par l'URL) :
+> la garde renvoie vers `/login?redirect=<page>`, en `replace`, et la connexion y ramène. La cible
+> vient de l'URL, donc de n'importe qui : `safeRedirect` n'accepte qu'un chemin interne (ni URL
+> absolue, ni `//` ni `/\`, lus comme une autre origine) et refuse les écrans d'authentification.
+> Elle est validée là où elle est **suivie** (`LoginScreen`), pas seulement à l'entrée de la route.
+
+> **Tranché en [#341](https://github.com/Cimavia/cimavia/issues/341)** (un seul point de purge) :
+> `resetAccountData` (`shared/lib/account-reset.ts`) vide le cache et le presse-papier de semaine,
+> appelé par la déconnexion, la connexion, l'inscription et « Changer de compte ». Pendant web de
+> celui du mobile. Le suivi local des séances n'y est pas : sa clé est l'identifiant d'une séance
+> que le compte suivant ne peut pas ouvrir. Le presse-papier s'oublie aussi quand sa semaine ou son
+> cycle est supprimé. L'ordre « purge PUIS navigation » est désormais testé sur la connexion et
+> l'inscription ([#373](https://github.com/Cimavia/cimavia/issues/373)).
 
 ---
 
