@@ -40,7 +40,9 @@ jobs:
       # POURQUOI pas un PAT classique, qui lèverait la même limite : jeton longue durée, de la
       # portée du COMPTE entier, réutilisable partout s'il fuit. Le jeton d'installation d'une App
       # est éphémère (1 h), limité à ce dépôt, restreint à `contents` + `pull-requests`, et se
-      # révoque seul.
+      # révoque seul. La restriction est demandée ici par `permission-*`, pas seulement portée par
+      # les réglages de l'App : un droit ajouté plus tard à l'App pour un autre usage ne s'étendrait
+      # pas en silence à ce jeton.
       #
       # `required_signatures` ne s'y oppose pas : les commits créés via l'API GitHub sont signés
       # par GitHub et apparaissent « verified ».
@@ -54,6 +56,8 @@ jobs:
         with:
           client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
 
       # Pas de `actions/checkout` : l'action travaille entièrement par l'API GitHub. Un checkout ne
       # lui servirait à rien et donnerait au runner une copie du dépôt sans raison.

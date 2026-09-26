@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: read
-      packages: read
+      checks: read # les trois checks requis du commit promu, relus avant de promouvoir
+      packages: read # l'image de l'API, cherchée sur GHCR avant d'être retaguée
     outputs:
       sha: ${{ steps.version.outputs.sha }}
       short: ${{ steps.version.outputs.short }}
@@ -62,6 +62,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Le jeton n'est pas laissé dans `.git/config` : ce job ne pousse rien (seul `publish` le
+          # fait, avec le jeton de l'App), et une action tierce qui lirait le dépôt n'y trouverait rien.
+          persist-credentials: false
           fetch-depth: 0
 
       - name: La version, sa place dans l'historique
@@ -140,8 +143,10 @@ jobs:
 
       # Le web fige cette URL dans son bundle : vide, il pointerait sur localhost.
       - name: Vérifier PREVIEW_PUBLIC_API_URL
+        env:
+          API_URL: ${{ vars.PREVIEW_PUBLIC_API_URL }}
         run: |
-          if [ -z "${{ vars.PREVIEW_PUBLIC_API_URL }}" ]; then
+          if [ -z "$API_URL" ]; then
             echo "::error::Variable de dépôt PREVIEW_PUBLIC_API_URL vide — le web ne saurait pas joindre l'API du NAS."
             exit 1
           fi
@@ -152,7 +157,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write # pousse l'image web de la version sur GHCR
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -160,6 +165,7 @@ jobs:
       - name: Checkout de v${{ inputs.version }}
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           ref: ${{ needs.verify.outputs.sha }}
 
       # Même garde-fou que `api-image.yml` : un jeton sans organisation ni projet ferait échouer le
@@ -167,12 +173,14 @@ jobs:
       - name: Vérifier la cohérence Sentry
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT_WEB: ${{ vars.SENTRY_PROJECT_WEB }}
         run: |
           if [ -z "$SENTRY_AUTH_TOKEN" ]; then
             echo "::notice::Aucun SENTRY_AUTH_TOKEN — les sourcemaps ne seront pas publiées."
             exit 0
           fi
-          if [ -z "${{ vars.SENTRY_ORG }}" ] || [ -z "${{ vars.SENTRY_PROJECT_WEB }}" ]; then
+          if [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT_WEB" ]; then
             echo "::error::SENTRY_AUTH_TOKEN est défini mais SENTRY_ORG ou SENTRY_PROJECT_WEB manque."
             exit 1
           fi
@@ -228,7 +236,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write # retague les deux images en `preview` ; la branche passe par le jeton de l'App
     outputs:
       promoted_at: ${{ steps.branch.outputs.promoted_at }}
     steps:
@@ -268,14 +276,21 @@ jobs:
 
       # Le jeton de l'App de release, seule exception au ruleset qui protège `preview` : un
       # `GITHUB_TOKEN` ne peut pas passer outre une règle « Restrict updates ».
+      #
+      # Restreint à `contents` : sans `permission-*`, le jeton hériterait de TOUS les droits de
+      # l'installation, dont l'écriture des PR dont ce job n'a que faire.
       - name: Jeton d'installation de l'App
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
 
-      - name: Checkout
+      # Le SEUL checkout qui garde ses identifiants : l'étape suivante pousse `preview` avec eux.
+      # Le jeton de l'App reste donc dans `.git/config` jusqu'à la fin du job, qui n'exécute plus
+      # rien d'autre et ne publie aucun artefact — d'où l'exception à `artipacked`.
+      - name: Checkout # zizmor: ignore[artipacked]
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.verify.outputs.sha }}
