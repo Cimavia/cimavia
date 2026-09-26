@@ -3591,6 +3591,25 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `/docs` (fermé dans toute image, mais indispensable en local), et `mysql2` vient du CLI `prisma`,
 > pas de better-auth.
 
+> **Tranché en [#401](https://github.com/Cimavia/cimavia/issues/401)** (audit des workflows,
+> ferme [#385](https://github.com/Cimavia/cimavia/issues/385)) : zizmor ne relève plus rien, même
+> en mode `pedantic`, hors deux exceptions posées à la ligne. Ce que le code ne dit pas seul :
+>
+> - **Pas un check requis.** Une nouvelle version de zizmor ajoute des audits ; en faire une porte
+>   bloquerait une PR sans rapport le jour de sa sortie. Les constats vivent dans Code scanning,
+>   annotés sur la PR — même raisonnement que `pnpm audit` en #398.
+> - **Les deux exceptions** : le checkout de `publish` (`promote-preview.yml`) garde son jeton parce
+>   que l'étape suivante pousse `preview` avec lui ; `api-image.yml` n'a pas de `concurrency`
+>   parce qu'annuler un build pouvait perdre l'image `X.Y.Z` de la release.
+> - **Le jeton de l'App est restreint dans le workflow**, pas seulement par les réglages de l'App :
+>   un droit ajouté plus tard à l'App ne s'étendrait pas en silence aux jobs existants.
+> - **Cooldown Dependabot de 7 jours** sur les actions : une action compromise est en général
+>   retirée dans ce délai. Les mises à jour de sécurité ne l'attendent pas.
+>
+> Découvert en chemin : `pnpm/action-setup` était épinglé sur le SHA de l'**objet tag annoté**
+> `v4`, pas sur un commit. Même code exécuté, mais aucun outil ne pouvait vérifier la version
+> annoncée en commentaire.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
