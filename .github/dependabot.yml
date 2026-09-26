@@ -1,8 +1,20 @@
 version: 2
 
-# Les actions sont épinglées par SHA (sécurité : un tag est mutable, un commit non). Contrepartie :
-# plus rien ne les met à jour tout seul — d'où Dependabot, qui rouvre le sujet chaque semaine et
-# réécrit le SHA *avec* son commentaire de version. Sans lui, l'épinglage devient de l'obsolescence.
+# Tout ce qui est épinglé l'est par SHA ou par digest (sécurité : un tag est mutable, un commit ou un
+# digest non). Contrepartie : plus rien ne se met à jour tout seul — d'où Dependabot, qui rouvre le
+# sujet chaque semaine et réécrit l'empreinte *avec* son commentaire de version. Sans lui,
+# l'épinglage devient de l'obsolescence.
+#
+# Règles communes aux quatre écosystèmes (#379) :
+#   - `cooldown` de 7 jours : une version n'est proposée qu'une semaine après sa publication. Un
+#     paquet ou une image compromis est en général repéré et retiré dans ce délai : on laisse les
+#     autres essuyer les plâtres. Les mises à jour de SÉCURITÉ n'attendent pas, le délai ne
+#     s'applique pas à elles ;
+#   - `minor` + `patch` groupés, `major` à part, une PR par dépendance : un groupe unique mêlait
+#     correctifs et majeures, et la PR ne se mergeait qu'une fois TOUTES les majeures relues (#135,
+#     ouverte six semaines) ;
+#   - `ignore` ne vaut que pour les mises à jour de VERSION. Les correctifs de sécurité et les
+#     alertes Dependabot continuent d'arriver pour tout ce qui est ignoré ici.
 updates:
   - package-ecosystem: github-actions
     # `/` seul ne couvre que `.github/workflows` et un `action.yml` à la racine : les actions
@@ -13,10 +25,6 @@ updates:
       - "/.github/actions/*"
     schedule:
       interval: weekly
-    # Une version n'est proposée qu'après 7 jours de publication. Une action compromise est en
-    # général repérée et retirée dans ce délai : on laisse les autres essuyer les plâtres plutôt que
-    # d'exécuter en CI, avec nos secrets, un code sorti la veille. Les mises à jour de SÉCURITÉ,
-    # elles, n'attendent pas : le délai ne s'applique pas à elles.
     cooldown:
       default-days: 7
     commit-message:
@@ -24,7 +32,94 @@ updates:
     labels:
       - "type: chore"
     groups:
-      # Un seul PR pour toute la CI plutôt qu'un par action : ces mises à jour se relisent ensemble.
       actions:
+        update-types: [minor, patch]
         patterns:
           - "*"
+
+  # Tout le workspace pnpm depuis la racine : c'est là que vit le lockfile.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    # `chore(deps)` / `chore(deps-dev)`, le préfixe que les mises à jour de sécurité portent déjà.
+    commit-message:
+      prefix: "chore"
+      include: scope
+    labels:
+      - "type: chore"
+    groups:
+      npm:
+        update-types: [minor, patch]
+        patterns:
+          - "*"
+    # Les versions du mobile sont fixées par l'Expo SDK, pas par leur dernière publication : elles
+    # avancent ENSEMBLE, par `npx expo install expo@^<SDK>` puis `npx expo install --fix`. Un bump
+    # isolé les désaligne — et pour `react`, dont le moteur de rendu de React Native exige la
+    # version exacte, le mobile plante au lancement. `react` et `react-dom` ne peuvent pas être
+    # ignorés pour le seul mobile (Dependabot n'ignore pas par dossier dans un workspace) : ceux du
+    # web suivent donc aussi à la main.
+    ignore:
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "babel-preset-expo"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@react-native-async-storage/*"
+      - dependency-name: "@sentry/react-native"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+
+  # Les images de base des deux Dockerfiles, épinglées par digest : Dependabot réécrit le digest
+  # quand le tag est reconstruit, et propose le tag suivant quand il en paraît un.
+  - package-ecosystem: docker
+    directories:
+      - "/apps/api"
+      - "/apps/web"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore"
+      include: scope
+    labels:
+      - "type: chore"
+    groups:
+      docker:
+        update-types: [minor, patch]
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker-compose
+    directories:
+      - "/apps/api"
+      - "/deploy/preview"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore"
+      include: scope
+    labels:
+      - "type: chore"
+    groups:
+      docker-compose:
+        update-types: [minor, patch]
+        patterns:
+          - "*"
+    ignore:
+      # Les tags `RELEASE.…` de SILO et de `mc` ne sont pas des versions pour Dependabot
+      # (dependabot-core#11680) : il proposerait des PR absurdes. `mirror-images.yml` les suit.
+      - dependency-name: "ghcr.io/cimavia/silo"
+      - dependency-name: "ghcr.io/cimavia/mc"
+      # Une majeure de PostgreSQL ne se déploie pas par un bump d'image : le volume du NAS porte les
+      # données du Coach dans le format de la majeure en cours, et la nouvelle refuserait de le
+      # lire. Elle passera par `pg_upgrade` ou une sauvegarde restaurée (#268), pas par une PR.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
