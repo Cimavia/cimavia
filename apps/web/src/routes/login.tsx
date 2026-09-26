@@ -10,8 +10,11 @@ type LoginSearch = {
   redirect?: string;
 };
 
+export function parseLoginSearch(search: Record<string, unknown>): LoginSearch {
+  return typeof search.redirect === "string" ? { redirect: search.redirect } : {};
+}
+
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>): LoginSearch =>
-    typeof search.redirect === "string" ? { redirect: search.redirect } : {},
+  validateSearch: parseLoginSearch,
   component: LoginScreen,
 });
