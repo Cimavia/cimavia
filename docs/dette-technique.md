@@ -3690,6 +3690,24 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > ni l'étiquette `ubuntu-26.04` : ses erreurs sur ces deux points sont à ignorer tant qu'il n'a
 > pas rattrapé GitHub.
 
+> **Tranché en [#416](https://github.com/Cimavia/cimavia/issues/416)** (commitlint en CI) : une
+> étape du job `quality`, sur `pull_request`, de la base de la PR à sa tête. `.commitlintrc.json`
+> n'est **pas** touché :
+>
+> - **Les bornes de ligne du corps restent.** L'issue prévoyait de couper `body-max-line-length`
+>   et `footer-max-line-length`, sur la foi de lignes de 113 à 151 caractères dans le corps des
+>   commits Dependabot. Mesurées à la règle, pas en lançant commitlint : celui-ci exempte toute
+>   ligne qui contient une URL (`@commitlint/ensure`), et ce sont toutes des liens. Passés à la
+>   config actuelle, #436, #135, les PR de sécurité #419 à #425 et la release #432 sortent sans un
+>   seul problème. **Déclencheur** : le premier corps de robot refusé en CI — on coupe alors ces
+>   deux règles, nos commits n'ayant pas de corps.
+> - **Écart accepté : `subject-case` sur une mise à jour de sécurité d'action.** Elles ne sont pas
+>   groupées, et leur sujet reprend le nom du paquet : `ci: bump SonarSource/sonarqube-scan-action …`
+>   est refusé (vérifié). C'est la seule action du dépôt à majuscule ; les noms npm et docker sont
+>   en minuscules. Remède : fermer la PR et faire le bump à la main (`CONTRIBUTING.md`, « Commits »).
+>   Ignorer les commits de `dependabot[bot]` reste écarté : une exception par robot, à rallonger
+>   au suivant.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)

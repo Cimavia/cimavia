@@ -91,6 +91,25 @@ docker run --rm -v "$PWD:/repo:ro" -w /repo -e GH_TOKEN="$(gh auth token)" \
 
 Convention **Conventional Commits**, sujet en minuscule (vérifié par commitlint).
 
+Vérifié deux fois : sur le poste par le hook `commit-msg`, et en CI par une étape du job
+`quality` (*Lint + Typecheck + Test*), qui relit chaque commit de la PR depuis sa base. Un commit
+fait dans l'interface GitHub, par une suggestion de revue ou avec `--no-verify` n'y échappe donc
+plus — c'est ce qui compte : `release-please` ignore **en silence** un message qu'il ne sait pas
+lire, un correctif mal formé ne produirait ni bump ni ligne de CHANGELOG.
+
+Un message refusé sur une PR se corrige en local, puis en poussant **la branche de PR** — jamais
+`main` :
+
+```bash
+git rebase -i origin/main          # « reword » sur le commit refusé
+git push --force-with-lease
+```
+
+Seule exception connue : une mise à jour de **sécurité** Dependabot n'est pas groupée, et son sujet
+reprend le nom du paquet tel quel. Sur `SonarSource/sonarqube-scan-action`, il porterait une
+majuscule que `subject-case` refuse. Ne pas réécrire le commit du robot : fermer sa PR et faire le
+bump à la main.
+
 ### Commits signés (SSH)
 
 `main` (et la promotion) exige des signatures vérifiées. Config locale, une fois :
@@ -180,7 +199,7 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
 
 **Secrets** — ce que seule la CI doit connaître :
 
-- `SONAR_TOKEN` — SonarCloud.
+- `SONAR_TOKEN` — SonarCloud. Posé **aussi** en secret Dependabot (Settings → Secrets and variables → *Dependabot*) : une PR ouverte par Dependabot ne lit que ceux-là, et sans lui le job Sonar de chaque PR Dependabot échoue.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
 - `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
 - `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web de la promotion. C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
