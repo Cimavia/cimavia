@@ -98,7 +98,7 @@ describe("CmvRoleGate", () => {
       await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
       // Une seule entrée : la page refusée n'y est plus. Sinon Retour y ramenait, elle renvoyait
       // aussitôt vers la connexion, et l'utilisateur tournait en rond (#337).
-      expect(router.history.length).toBe(1);
+      expect(router.history).toHaveLength(1);
     });
   });
 
@@ -111,7 +111,7 @@ describe("CmvRoleGate", () => {
       const { router, queryByText } = await setup();
 
       await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-      expect(router.history.length).toBe(1);
+      expect(router.history).toHaveLength(1);
       expect(queryByText(SCREEN)).not.toBeInTheDocument();
     });
 

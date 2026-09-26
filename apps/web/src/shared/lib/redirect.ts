@@ -1,5 +1,5 @@
 /** Les écrans d'où revenir après connexion n'aurait aucun sens : on y retournerait se connecter. */
-const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const AUTH_PATHS = new Set(["/login", "/register", "/forgot-password", "/reset-password"]);
 
 /**
  * La cible où ramener l'utilisateur après connexion, ou `null` si `value` n'en est pas une sûre
@@ -17,7 +17,6 @@ const AUTH_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"
 export function safeRedirect(value: unknown): string | null {
   if (typeof value !== "string" || !value.startsWith("/")) return null;
   if (value.startsWith("//") || value.startsWith("/\\")) return null;
-  const pathname = value.split(/[?#]/, 1)[0];
-  if (AUTH_PATHS.includes(pathname ?? "")) return null;
+  if (AUTH_PATHS.has(value.replace(/[?#].*/s, ""))) return null;
   return value;
 }

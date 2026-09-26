@@ -113,7 +113,7 @@ describe("LoginScreen", () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/feedbacks"));
     // Sinon Retour ramène à la connexion, qui renvoie aussitôt plus loin : le bouton est mort.
-    expect(view.router.history.length).toBe(1);
+    expect(view.router.history).toHaveLength(1);
   });
 
   it("refuse une cible hors de l'application", async () => {

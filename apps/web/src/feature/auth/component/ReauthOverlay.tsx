@@ -72,11 +72,14 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
   }
 
   return (
-    <div
-      role="dialog"
+    // `open` et non `showModal()` : l'écran dessous est déjà mis hors d'atteinte par `inert`
+    // (`CmvRoleGate`), et `showModal` laisserait Échap fermer la fenêtre sans reconnexion.
+    // Les marges, bordure et tailles par défaut d'un `<dialog>` sont remises à zéro pour le voile.
+    <dialog
+      open
       aria-modal="true"
       aria-labelledby={titleId}
-      className="fixed inset-0 z-[55] flex items-center justify-center bg-cmv-bg-0 p-4"
+      className="fixed inset-0 z-[55] m-0 flex h-full max-h-none w-full max-w-none items-center justify-center border-0 bg-cmv-bg-0 p-4"
     >
       <div className="w-full max-w-sm rounded-xl border border-cmv-border bg-cmv-surface p-6">
         <h1 id={titleId} className="mb-2 font-cmv-display text-2xl text-cmv-text-hi">
@@ -108,6 +111,6 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
           </CmvButton>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
