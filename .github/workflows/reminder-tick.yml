@@ -38,7 +38,7 @@ permissions: {}
 jobs:
   tick:
     name: Déclenche les rappels dus
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Le `curl` est borné à 60 s ; le job, lui, ne l'était pas. Un runner bloqué ailleurs tiendrait
     # sinon jusqu'à la limite de GitHub (6 h), et le tick de l'heure suivante attendrait derrière lui
     # (`concurrency` ci-dessus).

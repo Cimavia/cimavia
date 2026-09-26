@@ -41,7 +41,8 @@ permissions: {}
 jobs:
   mirror:
     name: Copier et surveiller SILO et mc
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10 # 42 s observé ; une nouvelle version à copier prend plus
     permissions:
       contents: read
       packages: write # copie SILO et mc dans ghcr.io/cimavia

@@ -39,7 +39,8 @@ permissions: {}
 jobs:
   build-and-push:
     name: Build & push cimavia-api → GHCR
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20 # 6 min 09 au plus observé
     permissions:
       contents: read
       packages: write # pousse l'image de l'API sur GHCR

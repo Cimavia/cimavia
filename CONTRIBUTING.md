@@ -54,6 +54,19 @@ l'E2E (#257). Il tourne au merge de son fichier, chaque lundi, et à la main pou
 Chaque lundi, il ouvre aussi l'issue `[silo-version]` si un compose épingle une version plus ancienne
 que la dernière publiée : Dependabot ne comprend pas les tags `RELEASE.…` et ne le ferait pas.
 
+**Mise en place et bornes des jobs** (#413) :
+
+- les trois jobs de `ci.yml` appellent `$/.github/actions/setup` après leur checkout : pnpm, Node,
+  `pnpm install --frozen-lockfile --ignore-scripts`, `prisma generate`. Un changement
+  d'installation se fait là, une fois ;
+- les versions n'y sont pas écrites : pnpm vient de `packageManager` (`package.json` racine), Node
+  de `.nvmrc`. Monter l'un ou l'autre, c'est changer ce fichier-là — et les `Dockerfile`, qui
+  épinglent encore `node:22`, `pnpm@10.34.4` et `turbo@2.10.0` à part ;
+- chaque job porte un `timeout-minutes`, autour de trois fois sa durée observée, mesure en
+  commentaire : sans lui, un job bloqué occupe un runner six heures ;
+- tous les jobs tournent sur `ubuntu-26.04`, épinglé : passer à une autre version d'Ubuntu est
+  une PR, pas une bascule décidée par GitHub.
+
 **Sécurité des workflows** — `zizmor.yml` audite `.github/` à chaque PR qui y touche, au merge, et
 chaque lundi (#401). Les constats vont dans *Security → Code scanning* et s'annotent sur la PR ;
 ce n'est **pas** un check requis. Ce qu'il vérifie, et qu'un nouveau workflow respecte d'emblée :
