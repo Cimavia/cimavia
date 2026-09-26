@@ -3,6 +3,9 @@
 Workflow de développement et conventions opérationnelles. Pour les règles
 d'architecture, voir `docs/architecture-choice.md`.
 
+**Une faille de sécurité ne s'ouvre pas en issue** : le dépôt est public. Elle se
+signale en privé, selon `SECURITY.md`.
+
 ## Git flow (GitLab Flow)
 
 Merge unidirectionnel `feature/* → main → preview → production` (jamais en sens inverse).
@@ -24,14 +27,20 @@ CI (`.github/workflows/`) :
   API (~89 %) : ses douze tests unitaires n'en couvrent que 3,5 %. Bloquant.
 - `ci.yml`, job **`SonarCloud Analysis`** — qualité, sécurité et **couverture des quatre paquets**
   (`@cmv/shared`, API, web, mobile). Rapatrié depuis `sonar.yml` en #57 : Sonar veut tous les lcov
-  dans UN scan, or celui des e2e naît dans le job ci-dessus — les mettre dans le même run rend
-  l'ordre déterministe, là où un artefact ne traverse pas deux workflows sans course.
+  dans UN scan, or ils naissent dans les deux jobs ci-dessus — les mettre dans le même run rend
+  l'ordre déterministe, là où un artefact ne traverse pas deux workflows sans course. Il n'exécute
+  **aucun test** (#318) : il attend `quality` et `e2e`, et analyse les lcov qu'ils lui passent en
+  artefact. La mesure vient donc de l'exécution qui a gardé la porte, pas d'une seconde.
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 
-Les trois tournent sur push/PR vers `main`, et seulement là : une branche de promotion ne reçoit
-que des commits déjà passés par `main`, et `promote-preview.yml` vérifie que ces trois checks y sont
-verts avant d'envoyer quoi que ce soit.
+Les trois tournent sur chaque **PR vers `main`**, et sur `main` au seul **commit de release** (#318) :
+le merge d'une feature n'est pas rejoué, sa PR à jour de `main` a déjà testé l'arbre exact qui
+atterrit. Rien sur les branches de promotion : elles ne reçoivent que des commits déjà passés par
+`main`, et `promote-preview.yml` vérifie que ces trois checks sont verts **sur le commit de
+release** avant d'envoyer quoi que ce soit. Conséquence : entre deux releases, `main` n'a pas de
+statut Sonar propre, et c'est l'analyse de la release qui juge l'ensemble des PR mergées depuis la
+précédente — elle peut rougir sur leur union alors que chacune était verte.
 
 > Ces libellés sont ceux des **jobs**, et c'est sous ce nom exact que les rulesets les exigent —
 > pas sous le nom du workflow. Renommer un job décroche donc la porte qui le référence : le check
@@ -117,6 +126,23 @@ promotion — une version plus ancienne tournerait sur un schéma déjà migré 
 Un retour se fait par restauration ou par un correctif. Promouvoir un commit sans release n'est pas
 prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récent.
 
+## Alertes de sécurité des dépendances
+
+Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance pas `pnpm audit`
+(#398). Une alerte se traite de l'une de trois façons, dans cet ordre :
+
+1. **Dépendance directe** : monter sa version dans le `package.json` concerné. Modifier le fichier
+   puis `pnpm install`, plutôt que `pnpm add` : ce dernier re-résout des peers sans rapport et
+   remue le lockfile bien au-delà du paquet.
+2. **Dépendance transitive, correctif publié dans la même majeure** : un override borné à cette
+   majeure dans `pnpm-workspace.yaml`, rangé dans son bloc, qui dit d'où vient le paquet.
+   `pnpm up --depth Infinity` ne la remonterait pas.
+3. **Correctif seulement dans une autre majeure, ou version épinglée à l'exact par l'amont** :
+   l'alerte se rejette avec sa raison (code jamais chargé, condition absente de l'API), et la
+   montée attend l'amont.
+
+`pnpm audit --prod` le dit ensuite : il ne doit rester que des alertes du troisième cas.
+
 ## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 
 **Secrets** — ce que seule la CI doit connaître :
@@ -154,9 +180,16 @@ workflow. Ils vivent donc chez Apple, chez Google ou chez Expo — et un seul fi
 | UDID des iPhones du dev client | expo.dev → Credentials → iOS | `eas device:create` |
 
 `google-services.json` est la seule exception à « rien dans le dépôt », et c'est assumé : il ne
-porte que des identifiants **clients** (sender id, clé d'API restreinte au package et à l'empreinte
-de signature), que chaque APK distribué embarque de toute façon. La clé de compte de service, elle,
-est un vrai secret et ne descend jamais ici.
+porte que des identifiants **clients** (sender id, clé d'API), que chaque APK distribué embarque de
+toute façon. La clé de compte de service, elle, est un vrai secret et ne descend jamais ici.
+
+Ce qui rend la clé d'API inoffensive, c'est sa **restriction d'API**, posée dans Google Cloud
+Console (projet `cimavia-35298` → *API et services → Identifiants* → « Android key (auto created by
+Firebase) ») : elle n'ouvre que **Firebase Installations API** et **FCM Registration API**, les deux
+dont l'obtention d'un token push a besoin. Pas de restriction par application Android : elle se
+contourne en recopiant deux en-têtes publics, et une empreinte oubliée couperait le push d'une
+variante sans un message. Toute nouvelle fonctionnalité Firebase côté app doit ajouter son API à
+cette liste — sinon elle échoue en silence.
 
 **Rien de symétrique côté iOS** : la clé APNs remplace à elle seule le couple fichier + clé de
 service, et elle vaut pour les trois app ids d'un même compte Apple. Là où Firebase exige un client

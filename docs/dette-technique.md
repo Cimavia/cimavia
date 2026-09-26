@@ -29,9 +29,9 @@ déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **
 **IOS-2**, **IOS-3**, **P7-7**, **OTA-1** et **OTA-2**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
-ici comme la seule involontaire, ne l'est plus : elle est suivie par
-[#186](https://github.com/Cimavia/cimavia/issues/186) depuis que la version envoyée au scan rend le
-mode « previous version » atteignable.
+ici comme la seule involontaire, est résolue : période `previous_version` rendue possible par
+[#186](https://github.com/Cimavia/cimavia/issues/186), et sa référence rendue juste par
+[#318](https://github.com/Cimavia/cimavia/issues/318).
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) ci-dessous sont
 résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en attente.
 
@@ -224,7 +224,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
+| P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. Ce code mort porte aussi les alertes de sécurité rejetées en #398 (`image-size`, `uuid`, `decode-uri-component`). **Le plan de #86 est caduc** : `@better-auth/expo` 1.6.23 déclare déjà ses peers Expo optionnelles, et pnpm les résout quand même depuis le mobile. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
 | ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
 | ~~P7-4~~ | ~~**MinIO est figé, et vulnérable là où il est exposé**~~ : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | ✅ | résolue en **[#257](https://github.com/Cimavia/cimavia/issues/257)** — SILO, fork maintenu de MinIO qui corrige les deux failles (`RELEASE.2026-04-17`), tiré d'un miroir `ghcr.io/cimavia` ; les données du NAS restent dans leur volume |
@@ -283,8 +283,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   travers : la règle « historique linéaire » du ruleset ne contraint plus rien, `main` contient
 >   des commits de merge et l'App passe outre ; elle ne s'appliquerait qu'à qui ne peut de toute
 >   façon rien pousser.
-> - **Les checks sont vérifiés, pas rejoués.** `ci.yml` ne tourne plus que sur `main` : le commit
->   promu y a déjà passé les trois checks, et le workflow le vérifie par l'API avant de publier.
+> - **Les checks sont vérifiés, pas rejoués.** `ci.yml` ne tourne plus sur `preview` ni sur
+>   `production` — il tourne sur les PR vers `main` et sur `main` : le commit promu y a déjà passé
+>   les trois checks, et le workflow le vérifie par l'API avant de publier. *(Précisé en #318 :)*
+>   cette vérification lit les check-runs **sur le sha du commit de release de `main`**, pas sur
+>   celui de sa PR. Elle dépend donc du run `push: main` de ce commit — celui que #318 restreint au
+>   commit de release, et qu'il ne faut jamais couper.
 
 > **Tranché en #266** (le NAS tire, et c'est le compose DU COMMIT PROMU qu'il déploie) : sans
 > runner, plus rien n'apporte au NAS une copie à jour de `deploy/dev/docker-compose.yml`. Une copie
@@ -447,7 +451,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 | Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
-| Q-5 | **La Quality Gate bloque la CI alors que `main` est rouge** : `sonar.qualitygate.wait` est branché, mais la période de code neuf du projet est `days: 30`, héritée de l'instance et jamais choisie (`parentOrigin: INSTANCE`). Tout ce qui a moins d'un mois pèse donc dans `new_coverage`, seule condition rouge — **66,5 % contre un seuil de 80** au 9 septembre 2026 (c'était 31,4 % à la rédaction, quand `new_lines` dépassait encore `ncloc`). Les PR passent, Sonar y diffant contre la base ; c'est le job sur `push: main` qui échoue à chaque merge. Se règle dans l'interface SonarCloud, pas dans le dépôt — mais **le mode « previous version » n'était pas disponible** tant qu'aucune version n'était envoyée au scan. | 🔴 | [#186](https://github.com/Cimavia/cimavia/issues/186) *(qui pose `sonar.projectVersion` et rend l'arbitrage possible ; le réglage reste une action d'interface)* |
+| ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
 
@@ -594,6 +598,44 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `production` serait restée bloquée sur « Waiting for status to be reported ». Latent — aucune PR
 > n'avait encore visé ces branches. Corollaire : **renommer un job décroche silencieusement la
 > porte** qui le référence, dans un sens (elle n'arrive jamais) comme dans l'autre.
+
+> **Tranché en #318** (la CI ne rejoue pas `main`, et Sonar ne rejoue pas les tests) : une PR de
+> feature déclenchait quatre exécutions complètes de `ci.yml`, dont trois mesuraient un arbre déjà
+> prouvé vert — le ruleset `Main` exige une PR à jour de `main`, donc le run `pull_request` teste
+> exactement ce qui atterrit.
+>
+> - **A — le push sur `main` ne tourne qu'au commit de release** (`on.push.paths:
+>   [.release-please-manifest.json]`). Il ne fait **pas** gagner de temps : le merge d'une feature
+>   et la PR de release tournent en parallèle, sur deux refs. Il répare deux pannes. Le **gardien
+>   Sonar** : en `previous_version`, la référence est la dernière analyse sous le numéro précédent ;
+>   les merges de feature étant analysés sous ce numéro, l'analyse de la release ne jugeait que les
+>   quatre fichiers du bump (constaté le 2026-09-25 : la période de l'analyse 1.5.5 datait du merge
+>   de #408, pas de la release 1.5.4). Et la **promotion** : `cancel-in-progress` annulait le run
+>   du commit de release quand un merge le suivait de près — plus de checks verts, version
+>   impossible à promouvoir (déjà arrivé sur `6615b3f` et `aa73cdf`). Le manifest et non
+>   `package.json` : une feature qui touche le `package.json` racine redeviendrait la référence
+>   Sonar. En plus, `cancel-in-progress` ne vaut plus que pour les PR : un run de `main` n'est
+>   jamais annulé, même si le filtre change. **Contrepartie** : entre deux releases `main` n'a pas
+>   de statut Sonar propre, et l'analyse de la release juge l'union des PR — elle peut rougir alors
+>   que chacune était verte. C'est le but, mais ça bloque une promotion.
+> - **B — `sonarcloud` ne rejoue plus `turbo test`** : il attend `quality` et `e2e` et reçoit leurs
+>   lcov en artefact. Deux exécutions de la même suite pouvaient diverger sur un flake, et c'était
+>   la seconde, invisible des logs de `quality`, qui décidait de la porte. Environ une minute de
+>   gagnée par run : Sonar part plus tard (après `quality`), mais sans ~2 min de tests.
+> - **C — cache Turbo partagé entre runs : rejeté.** Un changement de version ne modifie aucun hash
+>   Turbo, mais la PR de release touche `apps/mobile/app.json` et fait rater le cache mobile ; et
+>   le cache GitHub est cloisonné par branche, `main` ne l'écrivant plus qu'à chaque release. Gain
+>   au mieux ~20 s.
+> - **D — ne pas rejouer l'e2e sur la PR de release : reste ouverte.** Les trois contextes sont
+>   exigés par le ruleset, et les discriminants évidents se contournent : une PR de fork peut
+>   nommer sa branche `release-please--…`, et « seul `package.json` a changé » laisse passer une
+>   devDep. Écrit ici pour ne pas la redécouvrir.
+> - **E — afficher la commande de promotion au tag : écartée.** Au moment du tag, la CI du commit
+>   de release n'a pas fini : la commande échouerait sur « absent », et l'échec actuel d'une
+>   promotion prématurée est déjà rapide et explicite.
+>
+> Si #289 retient sa promotion par `sha-xxxxxxx`, la promotion n'exige plus de commit de release
+> sur `main`, et A est à relire.
 
 ---
 
@@ -3506,6 +3548,48 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `runtimeVersion`), qu'ajoute `@sentry/react-native` 7.11 sans configuration. La ligne de version
 > de l'app, elle, lit le manifeste de l'update : elle affiche 1.5.4. Les sourcemaps sont retrouvées
 > par `debugId`, pas par release — c'est ce qui rend `sentry-expo-upload-sourcemaps` suffisant.
+
+---
+
+## Post-MVP — Protections du dépôt public ([#397](https://github.com/Cimavia/cimavia/issues/397) · [#398](https://github.com/Cimavia/cimavia/issues/398))
+
+> **Découvert en #397** (la clé Firebase n'était pas restreinte) : l'activation de *Secret
+> Protection* a remonté la clé d'API de `apps/mobile/google-services.json`, versionnée depuis
+> juillet. `CONTRIBUTING.md` la disait « restreinte au package et à l'empreinte de signature » ;
+> Google Cloud Console montrait **aucune** restriction d'application, et une restriction d'API
+> ouverte aux 25 API Firebase du projet (Firestore, Identity Toolkit, Remote Config…). Une doc qui
+> affirme une protection sans que rien ne la vérifie est pire que pas de doc : c'est elle qui avait
+> justifié de versionner le fichier.
+>
+> **Tranché en #397** (restriction d'API, pas d'application) : la clé n'ouvre plus que Firebase
+> Installations API et FCM Registration API — l'app n'utilise Firebase que pour le token push
+> (`getExpoPushTokenAsync`, `usePushToken.ts`), l'envoi passant par le compte de service FCM V1
+> chez Expo, pas par cette clé. La restriction par application Android est écartée : le package et
+> l'empreinte SHA-1 voyagent en en-têtes que n'importe qui peut recopier depuis un APK, et une
+> empreinte manquante sur l'une des trois variantes couperait son push sans aucune erreur visible.
+> Contrepartie : une future fonctionnalité Firebase côté app échouera tant que son API n'est pas
+> ajoutée à la liste (`CONTRIBUTING.md`, « Identifiants de build mobile »).
+
+> **Tranché en [#398](https://github.com/Cimavia/cimavia/issues/398)** (vulnérabilités des
+> dépendances) : `pnpm audit --prod` remontait 49 high, il en reste 3 et 4 moderate. Trois
+> décisions que le code ne dit pas seul :
+>
+> - **Le critère n'est pas « zéro alerte »** mais « aucune alerte atteignable depuis le code
+>   exécuté ». Ce qui reste est rejeté dans Dependabot avec sa raison : `deepmerge-ts`
+>   (`@prisma/config`), `image-size`, `uuid` et `decode-uri-component` (chaîne Expo de l'API, P7-1)
+>   ne se corrigent qu'en changeant de majeure ; les deux moderate de `fastify` supposent
+>   `trustProxy`, que l'API ne règle pas, ou une validation par schéma Fastify, qu'elle ne fait pas
+>   (Zod) — et c'est Nest qui l'épingle.
+> - **Les dépendances transitives se corrigent par `overrides`** dans `pnpm-workspace.yaml`, bornés
+>   à la majeure vulnérable : `pnpm up --depth Infinity` ne les remonte pas (essayé : `undici`
+>   restait en 7.28.0, et metro bougeait). `fastify` en est exclu : c'est le serveur HTTP, il suit
+>   Nest. `turbo prune` recopie le bloc, l'image API s'installe en `--frozen-lockfile`.
+> - **La CI n'échoue pas sur `pnpm audit`.** Avec les alertes Dependabot actives depuis #397, un
+>   tel check doublerait le filet et bloquerait une PR sans rapport le jour où une CVE sort.
+>
+> Découvert en chemin : `@fastify/static`, que l'issue disait inutilisé, sert le Swagger UI de
+> `/docs` (fermé dans toute image, mais indispensable en local), et `mysql2` vient du CLI `prisma`,
+> pas de better-auth.
 
 ---
 
