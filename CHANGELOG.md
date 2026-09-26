@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.9](https://github.com/Cimavia/cimavia/compare/v1.5.8...v1.5.9) (2026-09-26)
+
+
+### Corrections
+
+* **api:** fermer les capacites a /update-user, qui contournait le ver… ([9933d2f](https://github.com/Cimavia/cimavia/commit/9933d2f85d5df3f6cafebccd36ee40582b4de1c3))
+* **api:** fermer les capacites a /update-user, qui contournait le verrou des athletes actifs ([539b4f4](https://github.com/Cimavia/cimavia/commit/539b4f4be8b2fd64a1f9b79c737f830b8da13d9b))
+
 ## [1.5.8](https://github.com/Cimavia/cimavia/compare/v1.5.7...v1.5.8) (2026-09-26)
 
 
