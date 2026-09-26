@@ -131,14 +131,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Le tag versionné n'est posé que sur le commit de bump, et seulement si sa construction a
-      # abouti (#186). Absent, il n'y a rien à retaguer : on ne reconstruit pas pour autant.
+      # Le tag versionné n'est posé que sur le commit de bump, et seulement si l'image s'est
+      # construite (#186) PUIS a démarré sur une base jetable (#415). Absent, il n'y a rien à
+      # retaguer : on ne reconstruit pas pour autant.
       - name: Image de l'API publiée
         env:
           REF: ${{ steps.version.outputs.registry }}/cimavia-api:${{ inputs.version }}
         run: |
           if ! docker buildx imagetools inspect "$REF" >/dev/null 2>&1; then
-            echo "::error::${REF} introuvable : la construction du commit de release a-t-elle abouti ?"
+            echo "::error::${REF} introuvable : la construction ou le smoke test du commit de release a-t-il échoué ?"
             exit 1
           fi
 
