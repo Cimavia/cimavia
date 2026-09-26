@@ -1624,7 +1624,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Les deux chemins d'écriture les tiennent alignés — le `databaseHook` à la création, `CapabilityService` à la modification — mais rien en base ne l'impose. C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit, et le second peut légitimement survivre au premier. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
+| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Les deux chemins d'écriture les tiennent alignés — le `databaseHook` à la création, `CapabilityService` à la modification ; `/update-user` est fermé depuis #310 — mais rien en base ne l'impose. C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit, et le second peut légitimement survivre au premier. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
 | ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
 | ~~C-3~~ | ~~**Les clients n'envoient pas `?as=`**~~ : les routes servant les deux capacités répondaient 400 à un compte cumulant. | ✅ | résolue en **#12** (le paramètre) et **#129** (le choix explicite) |
 
@@ -1806,6 +1806,18 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > chemins de création, deux résultats. #12 inverse le sens (les cases à cocher deviennent l'entrée,
 > `role` la déduction) ; d'ici là, aucun compte ne peut cumuler, et c'est ce qui rend #9 sans effet
 > observable.
+
+> **Tranché en [#310](https://github.com/Cimavia/cimavia/issues/310)** (`input: true` ouvre aussi
+> l'update, un hook le referme) : Better Auth applique la même déclaration à l'inscription et à
+> `POST /api/auth/update-user`. Les cases à cocher de #12 exigeant `input: true`, n'importe quel
+> compte pouvait réécrire ses capacités par cette route — sans `assertRemovable` (un coach quittait
+> ses athlètes actifs), sans la règle « au moins une », sans recalcul de `role`. Ce troisième chemin
+> d'écriture, qui échappait à C-1, est fermé par `databaseHooks.user.update.before`, qui refuse
+> `isCoach`, `isAthlete` et `role` en **400 `FIELD_NOT_ALLOWED`** — le code que Better Auth rend
+> déjà pour un champ `input: false`, pas un 403 : le compte a le droit de changer ses capacités,
+> seulement pas là. Le hook **ne voit pas** `CapabilityService`, et ce n'est pas un trou : le
+> service écrit par Prisma, hors de l'adapter Better Auth. Le « corriger » en y faisant passer
+> `PATCH /me/capabilities` le ferait refuser par son propre verrou.
 
 ---
 
@@ -3613,6 +3625,48 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Découvert en chemin : `@fastify/static`, que l'issue disait inutilisé, sert le Swagger UI de
 > `/docs` (fermé dans toute image, mais indispensable en local), et `mysql2` vient du CLI `prisma`,
 > pas de better-auth.
+
+> **Tranché en [#401](https://github.com/Cimavia/cimavia/issues/401)** (audit des workflows,
+> ferme [#385](https://github.com/Cimavia/cimavia/issues/385)) : zizmor ne relève plus rien, même
+> en mode `pedantic`, hors deux exceptions posées à la ligne. Ce que le code ne dit pas seul :
+>
+> - **Pas un check requis.** Une nouvelle version de zizmor ajoute des audits ; en faire une porte
+>   bloquerait une PR sans rapport le jour de sa sortie. Les constats vivent dans Code scanning,
+>   annotés sur la PR — même raisonnement que `pnpm audit` en #398.
+> - **Les deux exceptions** : le checkout de `publish` (`promote-preview.yml`) garde son jeton parce
+>   que l'étape suivante pousse `preview` avec lui ; `api-image.yml` n'a pas de `concurrency`
+>   parce qu'annuler un build pouvait perdre l'image `X.Y.Z` de la release.
+> - **Le jeton de l'App est restreint dans le workflow**, pas seulement par les réglages de l'App :
+>   un droit ajouté plus tard à l'App ne s'étendrait pas en silence aux jobs existants.
+> - **Cooldown Dependabot de 7 jours** sur les actions : une action compromise est en général
+>   retirée dans ce délai. Les mises à jour de sécurité ne l'attendent pas.
+>
+> Découvert en chemin : `pnpm/action-setup` était épinglé sur le SHA de l'**objet tag annoté**
+> `v4`, pas sur un commit. Même code exécuté, mais aucun outil ne pouvait vérifier la version
+> annoncée en commentaire.
+
+> **Tranché en [#413](https://github.com/Cimavia/cimavia/issues/413)** (setup commun, délais,
+> runner) :
+>
+> - **Runner épinglé sur `ubuntu-26.04`**, pas `ubuntu-latest`. GitHub bascule `ubuntu-latest`
+>   vers 26.04 entre le 19 octobre et le 19 novembre 2026
+>   ([runner-images#14748](https://github.com/actions/runner-images/issues/14748)) : la bascule
+>   se fait ici, dans une PR que la CI teste, plutôt qu'un jour non choisi. Contrepartie : plus
+>   rien ne fera avancer la version seul. **Déclencheur** de la prochaine montée : l'annonce de
+>   fin de support de 26.04 dans `actions/runner-images`.
+> - **`timeout-minutes` à ~3× la durée observée**, la mesure en commentaire : c'est un plafond
+>   contre le job bloqué (six heures par défaut), pas une cible. Plus serré, un cache froid ou un
+>   runner lent ferait échouer un check requis sans raison.
+> - **Plus de `DATABASE_URL` factice en CI.** Le commentaire de `ci.yml` affirmait que
+>   `prisma generate` exigeait la variable ; c'était faux depuis `61d7a38` (2026-07-17), qui a
+>   fait retomber `prisma.config.ts` sur une URL vide. Le piège des e2e — un DSN de job masquant
+>   celui de `.env.test` — disparaît avec lui.
+>
+> Découvert en chemin : l'issue supposait que Dependabot suivait `.github/actions/**` depuis
+> `directory: "/"`. Faux — `/` ne couvre que `.github/workflows` et un `action.yml` racine ; il a
+> fallu `directories`. Et `actionlint` (1.7.12, dernière version) ne connaît ni la syntaxe `$/`
+> ni l'étiquette `ubuntu-26.04` : ses erreurs sur ces deux points sont à ignorer tant qu'il n'a
+> pas rattrapé GitHub.
 
 ---
 

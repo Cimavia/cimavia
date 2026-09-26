@@ -1,0 +1,55 @@
+name: Sécurité — workflows (zizmor)
+
+# Analyse statique des workflows et de `dependabot.yml` (#401) : injections de template, jetons trop
+# larges, identifiants laissés sur le runner, épinglages douteux. Le dépôt est public : un workflow
+# qui fuit un secret le fuit pour tout le monde.
+#
+# Ce n'est PAS un check requis, et c'est voulu : un audit ajouté par une nouvelle version de zizmor
+# bloquerait une PR sans rapport. Les constats partent dans l'onglet Security (Code scanning), où
+# ils s'annotent sur la PR qui les introduit et restent ouverts jusqu'à leur correction.
+#
+# Une exception se pose à la ligne, `# zizmor: ignore[<audit>]`, avec sa raison juste au-dessus —
+# jamais dans une configuration globale qui la rendrait invisible à la relecture.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/**"
+  # Chaque lundi, sans que rien n'ait bougé ici : les audits en ligne (tag déplacé, action
+  # compromise, version signalée) dépendent de l'amont, pas de nos commits.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# Un push de plus sur la même PR rend l'analyse en cours caduque.
+concurrency:
+  group: zizmor-${{ github.ref }}
+  cancel-in-progress: true
+
+# Aucun droit par défaut : le job déclare les siens.
+permissions: {}
+
+jobs:
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: write # téléverse le SARIF dans Code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Le jeton n'est pas laissé dans `.git/config` : ce job ne fait que lire le dépôt.
+          persist-credentials: false
+
+      # Version de zizmor non épinglée (`latest`) : c'est précisément pour recevoir les nouveaux
+      # audits que ce workflow tourne chaque lundi. L'action, elle, est épinglée par SHA.
+      - name: Analyse
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4

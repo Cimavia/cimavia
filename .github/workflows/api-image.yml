@@ -13,7 +13,8 @@ name: Images — API (GHCR)
 #
 # Le nom du fichier suit encore l'ancien rôle : son renommage appartient à #271.
 
-on:
+# `concurrency-limits` écarté : l'absence de `concurrency` est voulue, voir plus bas.
+on: # zizmor: ignore[concurrency-limits]
   push:
     branches: [main]
     paths:
@@ -38,10 +39,11 @@ permissions: {}
 jobs:
   build-and-push:
     name: Build & push cimavia-api → GHCR
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20 # 6 min 09 au plus observé
     permissions:
       contents: read
-      packages: write
+      packages: write # pousse l'image de l'API sur GHCR
 
     steps:
       # `fetch-depth: 2` : l'étape « Version du produit » compare le `package.json` de HEAD à celui
@@ -50,6 +52,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Le jeton n'est pas laissé dans `.git/config` : aucune étape ne pousse, et un artefact
+          # ou une action tierce qui lirait le dépôt n'y trouverait rien.
+          persist-credentials: false
           fetch-depth: 2
 
       # GHCR exige un namespace en minuscules ; le propriétaire du dépôt peut contenir des

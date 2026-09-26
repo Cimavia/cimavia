@@ -35,48 +35,30 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  PNPM_VERSION: "10.34.4"
-  NODE_VERSION: "22"
-
 permissions:
   contents: read
 
 jobs:
   quality:
     name: Lint + Typecheck + Test
-    runs-on: ubuntu-latest
-    env:
-      # DSN factice : `prisma generate` lit prisma.config.ts, dont le env() exige la variable — il
-      # ne se connecte à aucune base. Volontairement SANS identifiants : un mot de passe ici, même
-      # inventé, est un secret en clair pour tout scanner (et pour quiconque le recopie).
-      DATABASE_URL: postgresql://localhost:5432/placeholder
+    # Ubuntu épinglé, pas `ubuntu-latest` (#413) : le passage à une nouvelle version se fait
+    # dans une PR que la CI teste, pas un jour choisi par GitHub. Même runner pour tous les jobs
+    # du dépôt.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 3 min 24 au plus observé
 
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Le jeton n'est pas laissé dans `.git/config` : aucune étape ne pousse, et un artefact
+          # ou une action tierce qui lirait le dépôt n'y trouverait rien.
+          persist-credentials: false
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      # `--ignore-scripts` : aucune dépendance ne doit pouvoir exécuter de code à l'installation.
-      # Le seul script dont on a besoin est le nôtre (`postinstall: prisma generate`), qu'on relance
-      # donc explicitement — le comportement est identique, l'exécution arbitraire ne l'est plus.
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Generate Prisma client
-        run: pnpm --filter @cmv/api exec prisma generate
+      # pnpm, Node, dépendances et client Prisma : la même mise en place pour les trois jobs.
+      - name: Setup
+        uses: $/.github/actions/setup
 
       - name: Biome CI
         run: pnpm biome ci .
@@ -121,34 +103,17 @@ jobs:
   # d'entre eux sont restés cassés plusieurs jours derrière une CI verte (#36).
   e2e:
     name: E2E (isolation multi-tenant)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10 # 1 min 43 au plus observé, images comprises
 
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
-          version: ${{ env.PNPM_VERSION }}
+          persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      # DATABASE_URL est posé sur CETTE étape et pas sur le job : `loadEnvFile` ne surcharge pas une
-      # variable déjà présente, donc un DATABASE_URL de job masquerait celui de `.env.test` et la
-      # suite viserait la mauvaise base. Le garde-fou de `global-setup.e2e.ts` l'arrêterait, mais on
-      # préfère que le cas ne puisse pas se produire. Placeholder sans identifiants (cf. `quality`).
-      - name: Generate Prisma client
-        run: pnpm --filter @cmv/api exec prisma generate
-        env:
-          DATABASE_URL: postgresql://localhost:5432/placeholder
+      - name: Setup
+        uses: $/.github/actions/setup
 
       # Le modèle est copié tel quel : la CI ne redéfinit aucune valeur, donc l'env des e2e ne peut
       # pas diverger entre une machine et le runner — et aucun identifiant n'entre dans ce workflow.
@@ -204,36 +169,20 @@ jobs:
   # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 », docs/dette-technique.md).
   sonarcloud:
     name: SonarCloud Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 2 min 24 observé, plus jusqu'à 5 min d'attente de la Quality Gate
     needs: [quality, e2e]
-    env:
-      # Même DSN factice que `quality`, sans identifiants : `prisma generate` a besoin de la
-      # variable, pas d'une base.
-      DATABASE_URL: postgresql://localhost:5432/placeholder
 
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           # Historique complet : Sonar attribue le code neuf par `git blame`.
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Generate Prisma client
-        run: pnpm --filter @cmv/api exec prisma generate
+      - name: Setup
+        uses: $/.github/actions/setup
 
       # Le `dist` de @cmv/shared, que `turbo test` construisait jusqu'ici en dépendance (`^build`) :
       # l'API le résout par son `package.json`. Sans lui, l'analyse de types de Sonar ne tournerait
