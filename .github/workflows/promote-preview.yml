@@ -230,8 +230,11 @@ jobs:
           # Le jeton passe par un secret BuildKit, jamais un build-arg qui finirait dans `docker history`.
           secrets: |
             sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Un scope par image (#414) : sans lui, l'API et le web écrivaient le MÊME index de cache
+          # (`buildkit`, le défaut), chacun effaçant celui de l'autre. Les builds de PR de `ci.yml`
+          # relisent ce scope sans l'écrire.
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
 
   publish:
     name: Publier sur preview
