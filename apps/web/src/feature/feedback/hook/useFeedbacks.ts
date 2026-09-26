@@ -2,6 +2,7 @@ import type { CoachFeedbackSummaryDto, SessionFeedbackDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { coachFeedbackApi, coachFeedbackKeys } from "@/feature/feedback/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { keepFeedbackUrls } from "@/shared/lib/signed-url";
 
 const FEEDBACKS_POLL_MS = 30_000;
 
@@ -26,6 +27,8 @@ export function useSessionFeedback(sessionId: string) {
   return useQuery<SessionFeedbackDto | null>({
     queryKey: coachFeedbackKeys.bySession(sessionId),
     queryFn: () => coachFeedbackApi.getBySession(sessionId),
+    // Le débrief se recharge au retour sur l'onglet et au marquage lu : garder les URLs ouvrables.
+    structuralSharing: keepFeedbackUrls,
   });
 }
 

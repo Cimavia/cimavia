@@ -1,3 +1,4 @@
+import { coachFeedbackKeys, messageKeys, myFeedbackKeys } from "@cmv/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { focusManager, onlineManager, QueryClient } from "@tanstack/react-query";
@@ -114,6 +115,27 @@ onlineManager.setEventListener((setOnline) => {
 });
 
 /**
+ * Les requêtes qui portent des URLs signées gardées d'une réponse à l'autre (#304) : le fil et les
+ * deux lectures du débrief.
+ *
+ * Restaurées du disque, elles MENTENT sur l'âge de leurs URLs. Une URL gardée peut avoir 4 min 30
+ * de plus que la réponse qui la contient, or c'est l'âge de la réponse qui décide du rechargement
+ * (`staleTime`, 5 min) : une requête « fraîche » rendrait des URLs mortes — photos grises, lecteur
+ * sur un 403. La table qui connaît l'âge de chaque URL, elle, vit en mémoire et repart vide.
+ *
+ * On les déclare donc périmées dès la restauration : elles se rechargent à l'ouverture de leur
+ * écran, et leur contenu reste affiché d'ici là — hors réseau compris. Les autres requêtes ne sont
+ * pas touchées : leur fraîcheur dit vrai.
+ */
+const SIGNED_MEDIA_QUERY_ROOTS = [messageKeys.all, myFeedbackKeys.all, coachFeedbackKeys.all];
+
+export async function invalidateSignedMediaQueries(client: QueryClient): Promise<void> {
+  await Promise.all(
+    SIGNED_MEDIA_QUERY_ROOTS.map((queryKey) => client.invalidateQueries({ queryKey })),
+  );
+}
+
+/**
  * Cache de requêtes PERSISTÉ (p3-5). Sans persistance, un cache purement mémoire disparaîtrait à
  * la fermeture de l'app : l'athlète hors réseau ouvrirait un écran vide.
  * Les mutations ne sont pas persistées (aucune écriture différée en MVP — cf. CDC §12).
@@ -123,6 +145,7 @@ export function QueryProvider({ children }: Readonly<{ children: ReactNode }>) {
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={{ persister, maxAge: CACHE_MAX_AGE_MS, buster: CACHE_SCHEMA_VERSION }}
+      onSuccess={() => invalidateSignedMediaQueries(queryClient)}
     >
       {children}
     </PersistQueryClientProvider>

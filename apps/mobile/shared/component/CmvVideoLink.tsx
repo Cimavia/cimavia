@@ -10,16 +10,15 @@ import { CmvText } from "./CmvText";
 type OpenFailure = "refresh" | "player";
 
 type CmvVideoLinkProps = {
-  // URL GET signée (bucket privé). Peut sortir d'un cache et être périmée — cf. `resolveUrl`.
-  url: string;
   // Durée déclarée à l'envoi, `null` quand l'envoyeur ne l'a pas mesurée.
   durationSeconds: number | null;
   /**
-   * Rend une URL ouvrable — la même si elle est encore valide, une re-signée sinon, `null` si le
-   * rafraîchissement a échoué. Optionnel : la messagerie sonde son fil toutes les 10 s, ses URLs
-   * n'ont jamais le temps d'expirer sous la main de l'utilisateur et `url` suffit.
+   * Rend une URL GET signée ouvrable — celle du cache si elle est encore valide, une re-signée
+   * sinon, `null` si le rafraîchissement a échoué. Il n'y a PAS de prop `url` : celle du cache peut
+   * être périmée, et l'ouvrir sans la vérifier mène au 403 du storage. Obligatoire depuis #304 : la messagerie s'en passait parce que son
+   * fil sondé toutes les 10 s renouvelait l'URL ; il la GARDE désormais jusqu'au bord du TTL.
    */
-  resolveUrl?: () => Promise<string | null>;
+  resolveUrl: () => Promise<string | null>;
   // Mise en page de la pastille (pastille en ligne, tuile carrée, bloc pleine largeur).
   containerClassName?: string;
 };
@@ -33,7 +32,6 @@ type CmvVideoLinkProps = {
  * et non copié : c'est ce qui empêche cette famille de rendu de diverger, comme `CmvAudioPlayer`.
  */
 export function CmvVideoLink({
-  url,
   durationSeconds,
   resolveUrl,
   containerClassName = "flex-row items-center gap-2",
@@ -50,7 +48,7 @@ export function CmvVideoLink({
     try {
       // Une URL périmée s'ouvre SANS erreur : `openURL` réussit (le navigateur s'est bien lancé) et
       // c'est le storage qui répond 403 en XML brut. D'où le refus d'ouvrir plutôt que la tentative.
-      const target = resolveUrl == null ? url : await resolveUrl();
+      const target = await resolveUrl();
       if (target == null) {
         setFailure("refresh");
         return;

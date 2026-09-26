@@ -1,6 +1,7 @@
 import type { CoachFeedbackSummaryDto, SessionFeedbackDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { coachFeedbackApi, coachFeedbackKeys } from "@/feature/feedback/api";
+import { keepFeedbackUrls } from "@/shared/lib/signed-url";
 
 /**
  * Les débriefs reçus par le coach. Le tableau de bord n'en tire qu'un COMPTEUR — d'où l'absence de
@@ -22,6 +23,8 @@ export function useCoachFeedbackDetail(sessionId: string) {
   return useQuery<SessionFeedbackDto | null>({
     queryKey: coachFeedbackKeys.bySession(sessionId),
     queryFn: () => coachFeedbackApi.getBySession(sessionId),
+    // Le débrief se recharge au premier plan et à chaque réponse : garder les URLs ouvrables.
+    structuralSharing: keepFeedbackUrls,
   });
 }
 

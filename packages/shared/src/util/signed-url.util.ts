@@ -35,3 +35,26 @@ export function isSignedUrlUsable(receivedAtMs: number, nowMs: number): boolean 
   const ageSeconds = (nowMs - receivedAtMs) / 1000;
   return ageSeconds < SIGNED_URL_TTL_SECONDS - SIGNED_URL_SAFETY_MARGIN_SECONDS;
 }
+
+/** Une URL signée, et l'instant où le client l'a reçue — la seule date qu'il connaisse. */
+export type SignedUrlReceipt = { url: string; receivedAtMs: number };
+
+/**
+ * Faut-il garder l'URL déjà en main, ou prendre celle qui arrive ? (#304)
+ *
+ * L'API re-signe chaque média à CHAQUE lecture, et l'URL porte l'heure de signature à la seconde :
+ * deux réponses successives désignent le même fichier par deux URLs différentes. Les remettre au
+ * lecteur relance son chargement — une note vocale repart de zéro, une photo repasse au gris. On
+ * garde donc la précédente tant qu'elle est ouvrable, et on ne la remplace que périmée.
+ *
+ * Le reçu gardé conserve SA date, pas celle de la réponse qui vient d'arriver : sans ça, une URL
+ * de 4 min 50 passerait pour fraîche à chaque rechargement, et vivrait au-delà de son TTL.
+ */
+export function keepSignedUrl(
+  previous: SignedUrlReceipt | null,
+  incoming: SignedUrlReceipt,
+  nowMs: number,
+): SignedUrlReceipt {
+  if (previous != null && isSignedUrlUsable(previous.receivedAtMs, nowMs)) return previous;
+  return incoming;
+}

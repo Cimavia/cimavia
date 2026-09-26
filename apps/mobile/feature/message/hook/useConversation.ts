@@ -4,6 +4,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
+import { keepThreadUrls } from "@/shared/lib/signed-url";
 
 // Le fil se rafraîchit toutes les 10 s en messagerie asynchrone (CDC §5.8) — mais seulement quand
 // l'écran est au premier plan : polling en continu viderait la batterie.
@@ -65,6 +66,8 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: () => messageApi.getMessages(conversationId as string, as),
     enabled: conversationId != null,
     refetchInterval: focused && conversationId != null ? POLL_INTERVAL_MS : false,
+    // Chaque sondage re-signe les médias : sans ça, une note vocale repart de zéro toutes les 10 s.
+    structuralSharing: keepThreadUrls,
   });
 
   /**

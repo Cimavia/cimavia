@@ -27,22 +27,42 @@ type MessageBubbleProps = {
    * à chaque bulle l'adresse de l'écran où l'on se trouve déjà.
    */
   hideAttachment?: boolean;
+  /**
+   * Re-signe le média d'un message quand son URL a expiré (#304). Fourni par la surface : elle
+   * seule sait quelle requête porte le message — le fil, ou le débrief qu'il commente.
+   */
+  resolveMediaUrl: ResolveMediaUrl;
 };
 
-// Rendu du contenu média. L'URL est signée (bucket privé), régénérée à chaque lecture.
-function MediaContent({ message }: Readonly<{ message: MessageDto }>) {
+export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
+
+// Rendu du contenu média. L'URL est signée (bucket privé) et gardée tant qu'elle est ouvrable.
+function MediaContent({
+  message,
+  resolveMediaUrl,
+}: Readonly<{ message: MessageDto; resolveMediaUrl: ResolveMediaUrl }>) {
   const media = message.media;
   if (media == null) return null;
 
   if (message.type === MessageType.AUDIO) {
-    return <CmvAudioPlayer url={media.url} durationSeconds={media.durationSeconds} />;
+    return (
+      <CmvAudioPlayer
+        url={media.url}
+        durationSeconds={media.durationSeconds}
+        resolveUrl={() => resolveMediaUrl(message.id)}
+      />
+    );
   }
   if (message.type === MessageType.IMAGE) {
     return <CmvImageViewer url={media.url} />;
   }
-  // Vidéo : ouverte dans le lecteur système. Pas de `resolveUrl` — le fil sonde toutes les 10 s,
-  // ses URLs signées n'ont pas le temps d'expirer sous la main de l'utilisateur.
-  return <CmvVideoLink url={media.url} durationSeconds={media.durationSeconds} />;
+  // Vidéo : ouverte dans le lecteur système, sur une URL vérifiée juste avant.
+  return (
+    <CmvVideoLink
+      durationSeconds={media.durationSeconds}
+      resolveUrl={() => resolveMediaUrl(message.id)}
+    />
+  );
 }
 
 /**
@@ -124,6 +144,7 @@ export function MessageBubble({
   message,
   mine,
   hideAttachment = false,
+  resolveMediaUrl,
 }: Readonly<MessageBubbleProps>) {
   if (isFeedbackEventMessage(message.type)) {
     return <FeedbackEventNotice message={message} />;
@@ -146,7 +167,7 @@ export function MessageBubble({
       {message.content != null ? (
         <CmvText className="text-cmv-text-hi">{message.content}</CmvText>
       ) : (
-        <MediaContent message={message} />
+        <MediaContent message={message} resolveMediaUrl={resolveMediaUrl} />
       )}
     </View>
   );

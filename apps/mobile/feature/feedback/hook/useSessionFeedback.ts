@@ -2,11 +2,14 @@ import type { SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
 import { myPlanKeys } from "@/feature/plan/api";
+import { keepFeedbackUrls } from "@/shared/lib/signed-url";
 
 export function useSessionFeedback(sessionId: string) {
   return useQuery<SessionFeedbackDto | null>({
     queryKey: myFeedbackKeys.detail(sessionId),
     queryFn: () => athleteFeedbackApi.get(sessionId),
+    // Même raison que côté coach : un rechargement ne doit pas relancer les lecteurs.
+    structuralSharing: keepFeedbackUrls,
   });
 }
 
