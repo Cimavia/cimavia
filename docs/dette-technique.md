@@ -448,7 +448,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
-| Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
+| ~~Q-2~~ | ~~**nginx tourne en root dans l'image web**~~ (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). Passée à `nginxinc/nginx-unprivileged` (uid 101, port 8080). | ✅ | ~~[#83](https://github.com/Cimavia/cimavia/issues/83)~~ résolu en [#379](https://github.com/Cimavia/cimavia/issues/379) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 | Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
@@ -3747,6 +3747,32 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > `promote-preview.yml` n'exige pas ce check : il lit le commit de `main`, où ce job ne tourne pas.
 > Ce qui protège la promotion côté API reste #415.
+
+> **Tranché en [#379](https://github.com/Cimavia/cimavia/issues/379)** (images figées) : nginx
+> passe sur `nginx-unprivileged` (ferme #83), toute image tirée est épinglée par digest, et
+> Dependabot couvre les quatre écosystèmes du dépôt.
+>
+> - **Port 8080, sans relais par le port 80.** Écouter sous 1024 sans root demanderait une
+>   capacité ou un sysctl sur le NAS, soit ce que l'image sans root veut éviter. Le prix : une
+>   action NON versionnée, le service du hostname `app-preview` passé à `http://web:8080` dans
+>   Cloudflare, au moment où le NAS tire la première version qui la contient (runbook du tier).
+> - **Branche `stable` de nginx, pas `mainline`.** C'est parce que la mainline 1.27 s'est close
+>   sans bruit que le tag ne bougeait plus : `stable` vit un an, et Dependabot propose la suivante.
+> - **Digest ET tag**, jamais le digest seul : le tag dit à la relecture ce qui tourne, le digest
+>   garantit que c'est encore vrai. Dependabot réécrit les deux ensemble.
+> - **Les paquets du mobile sont ignorés par Dependabot `npm`** (Expo, React Native, `react`,
+>   `react-dom` — celui du web compris, faute d'ignore par dossier). Ils avancent ensemble par
+>   `expo install --fix` : un bump isolé désaligne le SDK. L'ignore ne coupe que les mises à jour
+>   de version, les alertes de sécurité continuent d'arriver.
+> - **Majeures de `postgres` ignorées** : le volume du NAS est dans le format de la majeure en
+>   cours. Une montée passe par `pg_upgrade` ou une restauration (#268), pas par une PR.
+> - **`minor` + `patch` groupés, `major` une par une**, avec 7 jours de `cooldown` : #135 est
+>   restée ouverte six semaines parce qu'un groupe unique mêlait correctifs et majeures.
+> - **Les derniers restes du nom `dev` du tier partent** (commentaires, repli `deploy/dev/` de
+>   `pull-preview.sh` — toute version depuis v1.5.3 a `deploy/preview/`, et une promotion ne
+>   revient jamais en arrière). Restent, à dessein : les volumes `cimavia-dev_*` (« Tranché en
+>   #271 »), et tout ce qui désigne le développement LOCAL (identifiants `cimavia_dev_*`, variante
+>   mobile `development`).
 
 ---
 
