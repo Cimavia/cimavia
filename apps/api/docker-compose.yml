@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:18-alpine
+    # Épinglée par digest (#379) : Dependabot le réécrit quand `18-alpine` est reconstruite.
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: cimavia_postgres
     restart: unless-stopped
     environment:
@@ -72,7 +73,7 @@ services:
   # jamais. Aucun compte cloud, et surtout aucun risque d'écrire à une vraie adresse depuis une
   # base de test — même portabilité que SILO, seules les variables SMTP_* changent en prod.
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.2@sha256:74d609a42ec279aa63c6b4622a6fa9b5408d1ad5b1d76a1c4be40a265ce0863d
     container_name: cimavia_mailpit
     restart: unless-stopped
     ports:

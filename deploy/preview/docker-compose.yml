@@ -30,7 +30,8 @@ name: cimavia-preview
 
 services:
   postgres:
-    image: postgres:18-alpine
+    # Épinglée par digest (#379) : Dependabot le réécrit quand `18-alpine` est reconstruite.
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: cimavia_preview_postgres
     restart: unless-stopped
     environment:
@@ -169,7 +170,10 @@ services:
   # Le routage hostname → service est configuré côté dashboard Cloudflare (Zero Trust), pas ici :
   # avec un tunnel par token, cloudflared n'a besoin QUE du token.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Une version et son digest, plus `latest` (#379) : le NAS retirait la dernière publiée à
+    # chaque déploiement, et un `cloudflared` cassé rend le tier injoignable. Dependabot propose
+    # les suivantes, sept jours après leur sortie.
+    image: cloudflare/cloudflared:2026.9.1@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4
     container_name: cimavia_preview_tunnel
     restart: unless-stopped
     command: tunnel --no-autoupdate run
