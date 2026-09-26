@@ -37,7 +37,8 @@ permissions: {}
 jobs:
   verify:
     name: Vérifier la version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5 # 16 s au plus observé
     permissions:
       contents: read
       checks: read # les trois checks requis du commit promu, relus avant de promouvoir
@@ -154,7 +155,8 @@ jobs:
   build-web:
     name: Construire le web de v${{ inputs.version }}
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 2 min 13 au plus observé
     permissions:
       contents: read
       packages: write # pousse l'image web de la version sur GHCR
@@ -233,7 +235,8 @@ jobs:
   publish:
     name: Publier sur preview
     needs: [verify, build-web]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5 # 31 s au plus observé
     permissions:
       contents: read
       packages: write # retague les deux images en `preview` ; la branche passe par le jeton de l'App
@@ -311,7 +314,7 @@ jobs:
   confirm:
     name: Attendre le NAS
     needs: [verify, publish]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     steps:
       # Le NAS tire toutes les 5 minutes, puis télécharge, migre et attend sa propre sonde : compter

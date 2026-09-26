@@ -41,7 +41,11 @@ permissions:
 jobs:
   quality:
     name: Lint + Typecheck + Test
-    runs-on: ubuntu-latest
+    # Ubuntu épinglé, pas `ubuntu-latest` (#413) : le passage à une nouvelle version se fait
+    # dans une PR que la CI teste, pas un jour choisi par GitHub. Même runner pour tous les jobs
+    # du dépôt.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 3 min 24 au plus observé
 
     steps:
       - name: Checkout
@@ -99,7 +103,8 @@ jobs:
   # d'entre eux sont restés cassés plusieurs jours derrière une CI verte (#36).
   e2e:
     name: E2E (isolation multi-tenant)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10 # 1 min 43 au plus observé, images comprises
 
     steps:
       - name: Checkout
@@ -164,7 +169,8 @@ jobs:
   # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 », docs/dette-technique.md).
   sonarcloud:
     name: SonarCloud Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 2 min 24 observé, plus jusqu'à 5 min d'attente de la Quality Gate
     needs: [quality, e2e]
 
     steps:
