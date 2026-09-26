@@ -224,7 +224,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
+| P7-1 | **Image API à ~1 Go**, dont ~150 Mo de React Native tirés par les peerDependencies de `@better-auth/expo` — dans une image de **serveur**. Ce code mort porte aussi les alertes de sécurité rejetées en #398 (`image-size`, `uuid`, `decode-uri-component`). **Le plan de #86 est caduc** : `@better-auth/expo` 1.6.23 déclare déjà ses peers Expo optionnelles, et pnpm les résout quand même depuis le mobile. | 🟢 | [#86](https://github.com/Cimavia/cimavia/issues/86) |
 | P7-2 | **Migrations jouées au démarrage du conteneur** (`prisma migrate deploy` dans l'entrypoint) plutôt qu'en étape de déploiement distincte. | 🟡 | [#84](https://github.com/Cimavia/cimavia/issues/84) |
 | ~~P7-3~~ | ~~**Aucun e-mail de réinitialisation n'était envoyé**~~ : `sendResetPassword` journalisait le lien en `// MOCKED`, dernier du dépôt. Personne n'aurait pu récupérer son mot de passe en production. **Jamais inscrite ici au moment où elle a été prise** — c'est la règle de capture qui a été manquée, pas le raccourci qui était illégitime. | ✅ | résolue en **#63** — `MailService` + catalogue serveur FR/EN ([#62](https://github.com/Cimavia/cimavia/issues/62) · [#63](https://github.com/Cimavia/cimavia/issues/63)) |
 | ~~P7-4~~ | ~~**MinIO est figé, et vulnérable là où il est exposé**~~ : MinIO a retiré ses images de Docker Hub (2026-09-13, E2E et déploiement NAS cassés) et ne publie plus d'édition communautaire. Les deux composes tirent désormais `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` et `quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z` — même digest que l'ancien `latest`, donc aucun changement, et aucun correctif à venir. Or cette version est visée par des écritures d'objets **sans authentification** (`CVE-2026-41145`, `CVE-2026-40344`) corrigées dans aucune image, et le NAS l'expose sur `s3-dev`, qu'aucune policy Access ne peut protéger puisque le téléphone appelle les URLs signées. Le dev local et l'E2E ne sont pas exposés, mais dépendent d'un registre que MinIO peut retirer à son tour. | ✅ | résolue en **[#257](https://github.com/Cimavia/cimavia/issues/257)** — SILO, fork maintenu de MinIO qui corrige les deux failles (`RELEASE.2026-04-17`), tiré d'un miroir `ghcr.io/cimavia` ; les données du NAS restent dans leur volume |
@@ -3508,7 +3508,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
-## Post-MVP — Protections du dépôt public ([#397](https://github.com/Cimavia/cimavia/issues/397))
+## Post-MVP — Protections du dépôt public ([#397](https://github.com/Cimavia/cimavia/issues/397) · [#398](https://github.com/Cimavia/cimavia/issues/398))
 
 > **Découvert en #397** (la clé Firebase n'était pas restreinte) : l'activation de *Secret
 > Protection* a remonté la clé d'API de `apps/mobile/google-services.json`, versionnée depuis
@@ -3526,6 +3526,27 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > empreinte manquante sur l'une des trois variantes couperait son push sans aucune erreur visible.
 > Contrepartie : une future fonctionnalité Firebase côté app échouera tant que son API n'est pas
 > ajoutée à la liste (`CONTRIBUTING.md`, « Identifiants de build mobile »).
+
+> **Tranché en [#398](https://github.com/Cimavia/cimavia/issues/398)** (vulnérabilités des
+> dépendances) : `pnpm audit --prod` remontait 49 high, il en reste 3 et 4 moderate. Trois
+> décisions que le code ne dit pas seul :
+>
+> - **Le critère n'est pas « zéro alerte »** mais « aucune alerte atteignable depuis le code
+>   exécuté ». Ce qui reste est rejeté dans Dependabot avec sa raison : `deepmerge-ts`
+>   (`@prisma/config`), `image-size`, `uuid` et `decode-uri-component` (chaîne Expo de l'API, P7-1)
+>   ne se corrigent qu'en changeant de majeure ; les deux moderate de `fastify` supposent
+>   `trustProxy`, que l'API ne règle pas, ou une validation par schéma Fastify, qu'elle ne fait pas
+>   (Zod) — et c'est Nest qui l'épingle.
+> - **Les dépendances transitives se corrigent par `overrides`** dans `pnpm-workspace.yaml`, bornés
+>   à la majeure vulnérable : `pnpm up --depth Infinity` ne les remonte pas (essayé : `undici`
+>   restait en 7.28.0, et metro bougeait). `fastify` en est exclu : c'est le serveur HTTP, il suit
+>   Nest. `turbo prune` recopie le bloc, l'image API s'installe en `--frozen-lockfile`.
+> - **La CI n'échoue pas sur `pnpm audit`.** Avec les alertes Dependabot actives depuis #397, un
+>   tel check doublerait le filet et bloquerait une PR sans rapport le jour où une CVE sort.
+>
+> Découvert en chemin : `@fastify/static`, que l'issue disait inutilisé, sert le Swagger UI de
+> `/docs` (fermé dans toute image, mais indispensable en local), et `mysql2` vient du CLI `prisma`,
+> pas de better-auth.
 
 ---
 

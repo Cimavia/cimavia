@@ -126,6 +126,23 @@ promotion — une version plus ancienne tournerait sur un schéma déjà migré 
 Un retour se fait par restauration ou par un correctif. Promouvoir un commit sans release n'est pas
 prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récent.
 
+## Alertes de sécurité des dépendances
+
+Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance pas `pnpm audit`
+(#398). Une alerte se traite de l'une de trois façons, dans cet ordre :
+
+1. **Dépendance directe** : monter sa version dans le `package.json` concerné. Modifier le fichier
+   puis `pnpm install`, plutôt que `pnpm add` : ce dernier re-résout des peers sans rapport et
+   remue le lockfile bien au-delà du paquet.
+2. **Dépendance transitive, correctif publié dans la même majeure** : un override borné à cette
+   majeure dans `pnpm-workspace.yaml`, rangé dans son bloc, qui dit d'où vient le paquet.
+   `pnpm up --depth Infinity` ne la remonterait pas.
+3. **Correctif seulement dans une autre majeure, ou version épinglée à l'exact par l'amont** :
+   l'alerte se rejette avec sa raison (code jamais chargé, condition absente de l'API), et la
+   montée attend l'amont.
+
+`pnpm audit --prod` le dit ensuite : il ne doit rester que des alertes du troisième cas.
+
 ## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 
 **Secrets** — ce que seule la CI doit connaître :
