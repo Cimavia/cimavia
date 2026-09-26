@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react";
+import { scrubEvent } from "./shared/lib/sentry-scrub";
 
 // Ce fichier DOIT être importé en PREMIER dans main.tsx — même rôle et même raison que son
 // homologue `apps/api/src/instrument.ts`.
@@ -24,10 +25,15 @@ Sentry.init({
   // de l'API et que le schéma de @cmv/shared (`env.schema.ts`).
   environment: (import.meta.env.VITE_APP_ENV as string | undefined) || "development",
 
-  // `false` là où l'API est à `true` (#183) : le front n'a aucune raison d'envoyer l'IP ni les
-  // en-têtes du navigateur. L'identité tient dans le seul `id` posé par `Sentry.setUser` — un
-  // pseudonyme, qui ne redevient une personne qu'en base, chez nous.
+  // `false` là où l'API est à `true` (#183) : le front n'a aucune raison d'envoyer l'IP.
+  // L'identité tient dans le seul `id` posé par `Sentry.setUser` — un pseudonyme, qui ne redevient
+  // une personne qu'en base, chez nous. Ce réglage ne couvre QUE l'IP : l'URL de la page, le
+  // `Referer` et le `User-Agent` partent quand même (`httpContextIntegration`, par défaut).
   sendDefaultPii: false,
+
+  // D'où `beforeSend` : l'URL et les fils d'Ariane peuvent porter un jeton de réinitialisation ou
+  // une signature S3 (#335).
+  beforeSend: scrubEvent,
 
   // Erreurs seulement. Le quota de performance se vide bien plus vite depuis un navigateur que
   // depuis l'API, et aucune question de perf front n'est ouverte — à monter à 0.1 le jour où il y

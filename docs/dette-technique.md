@@ -1860,6 +1860,29 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > pas, et ferait passer une fuite du DSN pour un incident. Le seul vrai secret du chantier est le
 > `SENTRY_AUTH_TOKEN` d'upload des sourcemaps, qui n'est jamais embarqué.
 
+> **Tranché en #335** (`sendDefaultPii: false` ne couvre QUE l'IP) : l'encadré ci-dessus sur
+> `sendDefaultPii` a été lu, dans le code, comme « ni IP ni en-têtes ». Faux :
+> `httpContextIntegration`, intégration par défaut du SDK navigateur, écrit `location.href`, le
+> `Referer` et le `User-Agent` sur TOUT événement, quel que soit ce réglage. Sur
+> `/reset-password?token=…`, le jeton partait donc chez Sentry. Trois décisions :
+> - **Blanchir plutôt que couper l'intégration** : un `beforeSend` (`shared/lib/sentry-scrub.ts`)
+>   remplace la valeur de `token`, `code` et `X-Amz-Signature` par `[Filtered]` dans l'URL, le
+>   `Referer` et les fils d'Ariane. Le nom du paramètre reste : savoir sur quelle page est survenue
+>   l'erreur, et qu'un jeton y était, sert au diagnostic. `code` est défensif, aucune route ne le
+>   porte aujourd'hui.
+> - **Le jeton quitte l'URL dès sa lecture** (`navigate` en `replace`), et le `beforeSend` n'est
+>   pas optionnel pour autant : le fil d'Ariane de ce `replace` porte encore l'ancienne URL dans son
+>   `from`. Prix assumé : recharger la page perd le jeton ; recliquer le lien du mail marche tant
+>   qu'il n'a pas servi.
+> - **Le test lit l'événement émis, pas l'option** : le vrai SDK tourne, seul le transport est
+>   remplacé. Lire `sendDefaultPii: false` est précisément ce qui avait laissé passer la fuite.
+>
+> Hors de ce périmètre : la même famille côté API — Pino qui journalise cookies et jetons de
+> chemin, Sentry qui capture le corps des requêtes d'authentification — est en
+> [#433](https://github.com/Cimavia/cimavia/issues/433). Le mobile n'a pas d'écran de
+> réinitialisation et envoie ses médias par `File.upload` (natif, sans fil d'Ariane) ; ses fils
+> d'Ariane par défaut n'ont pas été relus.
+
 ---
 
 ## Post-MVP — Messagerie sans interlocuteur ([#198](https://github.com/Cimavia/cimavia/issues/198))

@@ -1,6 +1,6 @@
 import { PASSWORD_MIN_LENGTH } from "@cmv/shared";
-import { Link } from "@tanstack/react-router";
-import { type SubmitEvent, useState } from "react";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { type SubmitEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
@@ -8,17 +8,28 @@ import { authClient } from "@/shared/lib/auth";
 import { AuthLayout } from "../component/AuthLayout";
 
 // Le token vient du lien de reset (?token=…) généré par Better Auth.
-function readToken(): string | null {
-  return new URLSearchParams(window.location.search).get("token");
-}
+const route = getRouteApi("/reset-password");
 
 export function ResetPasswordScreen() {
   const { t } = useTranslation();
-  const [token] = useState(readToken);
+  const navigate = useNavigate();
+  const { token: tokenInUrl } = route.useSearch();
+  // Lu UNE fois : le jeton quitte l'URL juste après, et c'est cette copie qui part à l'envoi.
+  const [token] = useState(tokenInUrl ?? null);
   const [password, setPassword] = useState("");
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Le jeton suffit à prendre le compte : il ne doit rester ni dans la barre d'adresse, ni dans
+  // l'historique, ni dans l'URL qu'emporterait un événement Sentry (#335). `replace` et non `push` :
+  // Retour ne doit pas le ramener. Le prix, assumé : recharger la page le perd, et il faut
+  // recliquer le lien du mail — qui reste valable tant que le jeton n'a pas servi.
+  useEffect(() => {
+    if (tokenInUrl !== undefined) {
+      navigate({ to: "/reset-password", search: {}, replace: true });
+    }
+  }, [tokenInUrl, navigate]);
 
   async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
