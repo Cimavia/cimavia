@@ -5820,6 +5820,58 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
    * CHECK `coach_athlete_not_self` : 409, comme le refus d'auto-relation de #11. N'avoir aucun
    * coach est une relation absente, pas impossible : 400, inchangé.
    */
+  /**
+   * La ligne « (moi) » de `GET /athletes` ouvre une fiche comme les autres. Sans relation à
+   * trouver, elle répondait 404 — invisible tant que le panneau web rendait l'échec comme une
+   * fiche vierge (#301).
+   */
+  it("tient sa propre fiche, du premier enregistrement à la relecture", async () => {
+    expect((await solo.get(`/athletes/${soloId}/sheet`)).body).toBeNull();
+
+    const write = await solo.put(`/athletes/${soloId}/sheet`).send({ content: "Objectif 8a" });
+    expect(write.status).toBe(200);
+
+    const read = await solo.get(`/athletes/${soloId}/sheet`);
+    expect(read.status).toBe(200);
+    expect(read.body).toMatchObject({ athleteId: soloId, coachId: soloId, content: "Objectif 8a" });
+  });
+
+  // Même règle que les cycles : un coach pur n'est pas son propre athlète.
+  it("refuse sa propre fiche à un coach sans capacité athlète", async () => {
+    const coachOnly = await signUpWith("solo-coach-sheet@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const session = await coachOnly.get("/api/auth/get-session");
+    const selfId = session.body.user.id;
+
+    expect((await coachOnly.get(`/athletes/${selfId}/sheet`)).status).toBe(404);
+    expect(
+      (await coachOnly.put(`/athletes/${selfId}/sheet`).send({ content: "pour moi" })).status,
+    ).toBe(404);
+  });
+
+  /**
+   * Un compte qui se coache ET a un coach porte deux fiches : la sienne, et celle que son coach
+   * tient sur lui. Une fiche UNIQUE par athlète les faisait se heurter — le second `PUT` tombait en
+   * 500 sur la contrainte, dans un sens comme dans l'autre.
+   */
+  it("garde sa fiche perso distincte de celle que son coach tient sur lui", async () => {
+    const coach = await signUp("solo-sheet-coach@cmv.test", Role.COACH);
+    const dual = await signUpWith("solo-sheet-dual@cmv.test", { isCoach: true, isAthlete: true });
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await dual.post("/invitations/accept").send({ code: invitation.body.code });
+    const dualId = accepted.body.athleteId;
+
+    const own = await dual.put(`/athletes/${dualId}/sheet`).send({ content: "mes notes" });
+    expect(own.status).toBe(200);
+    const coachs = await coach.put(`/athletes/${dualId}/sheet`).send({ content: "vu du coach" });
+    expect(coachs.status).toBe(200);
+
+    expect((await dual.get(`/athletes/${dualId}/sheet`)).body.content).toBe("mes notes");
+    expect((await coach.get(`/athletes/${dualId}/sheet`)).body.content).toBe("vu du coach");
+  });
+
   it("n'ouvre pas de fil de messagerie avec soi-même", async () => {
     expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
       409,
