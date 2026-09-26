@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.6.0](https://github.com/Cimavia/cimavia/compare/v1.5.9...v1.6.0) (2026-09-26)
+
+
+### Fonctionnalités
+
+* **shared:** un helper qui reconnaît le 401 d'une session perdue, commun au web et au mobile ([607874e](https://github.com/Cimavia/cimavia/commit/607874e6a941f5858a730c1f57a56d33632884b7))
+* **web:** reconnexion sur place quand la session tombe, sans démonter l'écran ni perdre la saisie ([c60db5b](https://github.com/Cimavia/cimavia/commit/c60db5b5105852d2879cdb54438ac45499e529ab))
+
+
+### Corrections
+
+* **api:** ouvrir sa propre fiche en auto-coaching, qui répondait 404 faute de relation ([e951396](https://github.com/Cimavia/cimavia/commit/e951396dca862cb1a81f8c0d736eb4bcbce288a7))
+* **api:** une fiche par couple coach-athlète, la fiche perso heurtait celle du coach ([73fcda3](https://github.com/Cimavia/cimavia/commit/73fcda37bf03d51d93348565d6c59eec61ee4993))
+* **web:** fiche athlète éditable une fois reçue, un échec de lecture ne l'écrase plus ([fe89eba](https://github.com/Cimavia/cimavia/commit/fe89eba57c8b17a640e74d4c88d887c9297e3b08))
+* **web:** la garde emporte la page demandée jusqu'à la connexion et ne piège plus le bouton retour ([7c9ecc9](https://github.com/Cimavia/cimavia/commit/7c9ecc915a8853839e701afdc6d4499b118818f9))
+* **web:** la reconnexion devient un vrai dialog, et les remarques sonar sont levées ([0c305dc](https://github.com/Cimavia/cimavia/commit/0c305dc9220360d5eebeb34e05b0ddb94b6889b7))
+* **web:** les constructeurs se taisent sur un 401, la reconnexion en dit la cause ([5c3203d](https://github.com/Cimavia/cimavia/commit/5c3203d50a6e346438dac8152db026d1f6c5f36f))
+* **web:** retirer jetons et signatures s3 des événements sentry, qui emportent l'url de la page ([0616700](https://github.com/Cimavia/cimavia/commit/0616700175585104d35f08eae937169ea964323b))
+* **web:** retirer le jeton de réinitialisation de l'url dès sa lecture, sans entrée d'historique ([c77154c](https://github.com/Cimavia/cimavia/commit/c77154c56da04e8a82fdf495242bf1606e07ba2c))
+* **web:** un 401 fait relire la session au lieu d'afficher un toast unauthorized brut ([56e3698](https://github.com/Cimavia/cimavia/commit/56e36981764defea894a45f9b59c6e440777788c))
+* **web:** un seul point de purge au changement de compte, presse-papier de semaine compris ([62f433f](https://github.com/Cimavia/cimavia/commit/62f433f454d49a3a52a6444979353de3fcac9678))
+
+
+### Technique
+
+* chaque job épinglé sur ubuntu 26.04 et borné dans le temps, mesure en commentaire ([6c3771e](https://github.com/Cimavia/cimavia/commit/6c3771ead41ce5b706aaadcf2ac4a772c3a7879d))
+* commitlint relit chaque commit de la pr en ci, plus seulement sur le poste ([a44ef0f](https://github.com/Cimavia/cimavia/commit/a44ef0f5e5ab77df66d918b41c5e6fb7ffa82c1b))
+* dependabot suit aussi les actions appelées par les actions composites du dépôt ([7164174](https://github.com/Cimavia/cimavia/commit/7164174405f599c51ba75aed851ba3653add86fe))
+* setup commun aux trois jobs de ci.yml, versions lues à la source, dsn factice retiré ([6933dc3](https://github.com/Cimavia/cimavia/commit/6933dc3c9f72c6e2922c5026595f08ad4714b30b))
+* **web:** l'échec d'un formulaire passe par un composant testé, pas trois copies ([c2104cb](https://github.com/Cimavia/cimavia/commit/c2104cbade3ff899a31bb6c13c0237c4c9a7246c))
+
 ## [1.5.9](https://github.com/Cimavia/cimavia/compare/v1.5.8...v1.5.9) (2026-09-26)
 
 
