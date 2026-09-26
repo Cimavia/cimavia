@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton n'est pas laissé dans `.git/config` : aucune étape ne pousse, et un artefact
           # ou une action tierce qui lirait le dépôt n'y trouverait rien.
@@ -92,7 +92,7 @@ jobs:
       # Le plus proche ancêtre commun des quatre chemins étant la racine, l'artefact garde leur
       # arborescence : le job Sonar les retrouve là où `sonar-project.properties` les attend.
       - name: Upload de la couverture unitaire
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-unit
           path: |
@@ -123,7 +123,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -160,7 +160,7 @@ jobs:
       # Sonar : la relancer donnerait deux brassages de base par PR, deux occasions de flaker, et
       # une couverture mesurée sur une autre exécution que celle qui garde la porte.
       - name: Upload de la couverture e2e
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-e2e
           path: apps/api/coverage-e2e/lcov.info
@@ -190,7 +190,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # Historique complet : Sonar attribue le code neuf par `git blame`.
@@ -210,14 +210,14 @@ jobs:
       # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Celle-ci, produite
       # par `quality`, couvre @cmv/shared, le web, le mobile et les tests unitaires de l'API…
       - name: Récupère la couverture unitaire
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-unit
 
       # …et celle-ci, produite par le job e2e, apporte les ~86 % de l'API. Sonar unit les rapports
       # par fichier, il n'y a donc pas de fusion à faire à la main.
       - name: Récupère la couverture e2e
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-e2e
           path: apps/api/coverage-e2e
@@ -237,7 +237,7 @@ jobs:
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
         with:
           # 300 s par défaut. La gate se calcule en quelques secondes ; ce délai n'existe que pour
           # qu'une lenteur de SonarCloud ne bloque pas le runner indéfiniment.
