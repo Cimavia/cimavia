@@ -152,7 +152,8 @@ jobs:
       # numéro désignera, pas une copie restée dans le cache du builder.
       #
       # L'environnement de production minimal, sans aucun identifiant réel : la base est celle du
-      # compose ci-dessus, le secret est factice, et l'URL publique ne se résout pas — l'API ne
+      # compose ci-dessus, dont les identifiants sont LUS plutôt que recopiés — le compose reste leur
+      # seule source, et le smoke suit s'il change. Le secret est factice, et l'URL publique ne se résout pas — l'API ne
       # l'appelle jamais au démarrage. Valeurs déjà conformes au durcissement prévu par #357
       # (secret de 32 caractères au moins, URL en https). `SIGNUP_MODE` n'a pas de défaut (#263) :
       # absente, l'API refuserait de démarrer, et le smoke rougirait pour une raison qui n'est pas
@@ -167,11 +168,16 @@ jobs:
           IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-api@${{ steps.build.outputs.digest }}
           NODE_ENV: production
           APP_ENV: preview
-          DATABASE_URL: postgresql://cimavia_e2e:cimavia_dev_e2e@localhost:5434/cimavia_db_e2e?schema=public
           BETTER_AUTH_SECRET: smoke-test-secret-not-for-production-0123456789
           BETTER_AUTH_URL: https://api.example.invalid
           SIGNUP_MODE: invitation
         run: |
+          pg="$(docker compose -f apps/api/docker-compose.test.yml config --format json \
+            | jq -c '.services["postgres-e2e"].environment')"
+          user="$(jq -r .POSTGRES_USER <<<"$pg")"
+          password="$(jq -r .POSTGRES_PASSWORD <<<"$pg")"
+          db="$(jq -r .POSTGRES_DB <<<"$pg")"
+          export DATABASE_URL="postgresql://${user}:${password}@localhost:5434/${db}?schema=public"
           docker run -d --name cimavia-smoke --network host --health-interval 3s \
             -e NODE_ENV -e APP_ENV -e DATABASE_URL -e BETTER_AUTH_SECRET -e BETTER_AUTH_URL \
             -e SIGNUP_MODE \
