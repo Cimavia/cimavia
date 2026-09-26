@@ -53,6 +53,9 @@ function localeOf(user: unknown): string | null {
   return typeof user.locale === "string" ? user.locale : null;
 }
 
+/** Écrits par `PATCH /me/capabilities` seul — `role` en découle, il ne se pose jamais. */
+const CAPABILITY_FIELDS = ["isCoach", "isAthlete", "role"] as const;
+
 /**
  * Instance Better Auth branchée sur le PrismaClient **unique** de l'app (adapter Prisma).
  * Le profil (capacités, role, locale) vit sur `user` via additionalFields — validés côté app :
@@ -152,6 +155,22 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
             // lui-même. Le choix explicite viendra avec les deux sections de nav (#129).
             const role = isCoach ? Role.COACH : Role.ATHLETE;
             return { data: { ...user, isCoach, isAthlete, role } };
+          },
+        },
+        update: {
+          before: async (user) => {
+            // `input: true` ouvre les capacités à l'inscription ET à `/update-user`, qui les
+            // écrirait sans `assertRemovable` ni recalcul de `role` (#310). Ce hook ne voit pas
+            // `CapabilityService` : il écrit par Prisma, hors de l'adapter Better Auth.
+            const locked = CAPABILITY_FIELDS.filter((field) => field in user);
+            if (locked.length > 0) {
+              throw APIError.from("BAD_REQUEST", {
+                // Le code que Better Auth rend déjà pour un champ `input: false` : même refus,
+                // même réponse, que le champ soit fermé par la déclaration ou par ce hook.
+                code: "FIELD_NOT_ALLOWED",
+                message: `non modifiable par /update-user : ${locked.join(", ")} — passer par PATCH /me/capabilities`,
+              });
+            }
           },
         },
       },

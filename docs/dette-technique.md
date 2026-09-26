@@ -1624,7 +1624,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Les deux chemins d'écriture les tiennent alignés — le `databaseHook` à la création, `CapabilityService` à la modification — mais rien en base ne l'impose. C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit, et le second peut légitimement survivre au premier. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
+| C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Les deux chemins d'écriture les tiennent alignés — le `databaseHook` à la création, `CapabilityService` à la modification ; `/update-user` est fermé depuis #310 — mais rien en base ne l'impose. C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit, et le second peut légitimement survivre au premier. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
 | ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
 | ~~C-3~~ | ~~**Les clients n'envoient pas `?as=`**~~ : les routes servant les deux capacités répondaient 400 à un compte cumulant. | ✅ | résolue en **#12** (le paramètre) et **#129** (le choix explicite) |
 
@@ -1806,6 +1806,18 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > chemins de création, deux résultats. #12 inverse le sens (les cases à cocher deviennent l'entrée,
 > `role` la déduction) ; d'ici là, aucun compte ne peut cumuler, et c'est ce qui rend #9 sans effet
 > observable.
+
+> **Tranché en [#310](https://github.com/Cimavia/cimavia/issues/310)** (`input: true` ouvre aussi
+> l'update, un hook le referme) : Better Auth applique la même déclaration à l'inscription et à
+> `POST /api/auth/update-user`. Les cases à cocher de #12 exigeant `input: true`, n'importe quel
+> compte pouvait réécrire ses capacités par cette route — sans `assertRemovable` (un coach quittait
+> ses athlètes actifs), sans la règle « au moins une », sans recalcul de `role`. Ce troisième chemin
+> d'écriture, qui échappait à C-1, est fermé par `databaseHooks.user.update.before`, qui refuse
+> `isCoach`, `isAthlete` et `role` en **400 `FIELD_NOT_ALLOWED`** — le code que Better Auth rend
+> déjà pour un champ `input: false`, pas un 403 : le compte a le droit de changer ses capacités,
+> seulement pas là. Le hook **ne voit pas** `CapabilityService`, et ce n'est pas un trou : le
+> service écrit par Prisma, hors de l'adapter Better Auth. Le « corriger » en y faisant passer
+> `PATCH /me/capabilities` le ferait refuser par son propre verrou.
 
 ---
 
