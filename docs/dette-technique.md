@@ -3712,6 +3712,25 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   Ignorer les commits de `dependabot[bot]` reste écarté : une exception par robot, à rallonger
 >   au suivant.
 
+> **Tranché en [#415](https://github.com/Cimavia/cimavia/issues/415)** (l'image de l'API démarre
+> avant de recevoir son numéro) : `api-image.yml` pousse `sha-*`, démarre ce digest sur la base
+> jetable des e2e, attend `healthy` puis `/health/ready`, et ne pose `X.Y.Z` qu'ensuite. La
+> promotion n'a pas changé : elle refusait déjà une version sans ce tag.
+>
+> - **L'image tirée de GHCR par son digest**, pas celle du cache du builder : c'est l'artefact que
+>   le numéro désignera, donc celui qui doit avoir démarré.
+> - **Sur chaque build, pas seulement le bump.** Une image `sha-*` qui échoue reste publiée : le
+>   run rouge sur `main` est le signal, et sans numéro elle ne peut pas être promue.
+> - **La sonde de l'image est surchargée en intervalle (3 s), pas en commande** : c'est bien sa
+>   `HEALTHCHECK` qui est jugée, sans attendre 30 s son premier passage.
+> - **Un seul job**, dans le workflow existant : le smoke n'est pas un check lu par la promotion,
+>   c'est la condition du tag. Toujours pas de `concurrency` (« Tranché en #266 »).
+>
+> Limite assumée : la base part de zéro. Le smoke attrape l'image qui ne démarre pas, pas la
+> migration qui échoue sur le schéma et les données du NAS — ça reste la restauration de #268 et
+> une vraie recette. Si #84 sort les migrations de l'entrypoint, le smoke devra jouer l'étape de
+> migration avant de démarrer l'API.
+
 ---
 
 ## Post-MVP — Session perdue et changement de compte côté web ([#336](https://github.com/Cimavia/cimavia/issues/336) · [#337](https://github.com/Cimavia/cimavia/issues/337) · [#341](https://github.com/Cimavia/cimavia/issues/341))
