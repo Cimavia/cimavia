@@ -949,6 +949,14 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   une fiche non vide, ne couvrait même pas son scénario : le coach y écrit deux lignes, le `PUT`
 >   n'est pas vide. La garde utile porte sur la version lue (concurrence optimiste), touche les
 >   quatre paquets, et part en [#440](https://github.com/Cimavia/cimavia/issues/440) → **D-3**.
+> - **La fiche « (moi) » fonctionne, et la fiche devient unique par COUPLE.** Rendre l'échec
+>   visible a révélé que la ligne d'auto-coaching (#14) répondait 404 depuis toujours :
+>   `assertOwnedAthlete` cherchait une ligne `CoachAthlete` que le CHECK `coach_athlete_not_self`
+>   interdit. Même garde que les cycles désormais — soi-même passe, capacité athlète exigée. Mais
+>   l'unicité sur `athleteId` datait d'un athlète à un seul coach : un compte qui se coache ET a un
+>   coach porte deux fiches, et le second `PUT` tombait en 500 sur la contrainte. Migration
+>   `20260926120000_fiche_athlete_par_coach` : `@@unique([coachId, athleteId])`, sans risque sur
+>   l'existant. Le tenancy scopant sur `coachId`, aucune des deux fiches ne voit l'autre.
 
 ---
 
