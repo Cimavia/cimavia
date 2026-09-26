@@ -3,6 +3,7 @@ import { myPlanKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceKeys } from "@/feature/invoice/api";
 import { createPlan, deletePlan, listPlans, planKeys, publishPlan } from "@/feature/plan/api";
+import { forgetPlanClipboardSource } from "@/feature/plan/hook/usePlanClipboard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 export function usePlans() {
@@ -30,7 +31,9 @@ export function useDeletePlan() {
   const toast = useMutationToast();
   return useMutation({
     mutationFn: (planId: string) => deletePlan(planId),
-    onSuccess: () => {
+    onSuccess: (_result, planId) => {
+      // Une semaine copiée dans ce cycle ne peut plus se coller nulle part (#341).
+      forgetPlanClipboardSource({ planId });
       queryClient.invalidateQueries({ queryKey: planKeys.all });
       // La facture du cycle part en cascade (FK ON DELETE CASCADE) : rafraîchir la liste des
       // factures, sinon /invoices afficherait une facture qui n'existe plus en base.

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "../../../../test/query";
 import { planKeys, scheduledSessionKeys } from "../api";
 import { usePlan, usePlanMutations } from "./usePlan";
+import { clearPlanClipboard, usePlanClipboard } from "./usePlanClipboard";
 
 const {
   getPlanMock,
@@ -53,6 +54,7 @@ const planWith = (weeks: { id: string; sessionCount: number }[]) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPlanClipboard();
 });
 
 describe("usePlan", () => {
@@ -203,6 +205,36 @@ describe("usePlanMutations", () => {
 
     expect(deletePlanWeekMock).toHaveBeenCalledWith("w-1");
     expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekDeleted");
+  });
+
+  it.each([
+    ["w-1", null],
+    ["w-2", "w-1"],
+  ])("en supprimant %s, garde dans le presse-papier : %s", async (removed, kept) => {
+    deletePlanWeekMock.mockResolvedValue(planWith([]));
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(
+      () => ({ plan: usePlanMutations("plan-1"), clip: usePlanClipboard() }),
+      {
+        wrapper,
+      },
+    );
+    act(() =>
+      result.current.clip.copyWeek({
+        planWeekId: "w-1",
+        planId: "plan-1",
+        planTitle: "Bloc",
+        weekNumber: 1,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.plan.removeWeek.mutateAsync(removed);
+    });
+
+    // La semaine copiée qui disparaît ne se colle plus nulle part : le bandeau ne doit plus la
+    // proposer (#341). Une AUTRE semaine supprimée ne touche pas au presse-papier.
+    expect(result.current.clip.clipboard?.planWeekId ?? null).toBe(kept);
   });
 
   it("remonte l'échec au toast d'erreur au lieu de le laisser dans la mutation", async () => {

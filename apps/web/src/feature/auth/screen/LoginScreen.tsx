@@ -4,6 +4,7 @@ import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
+import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { safeRedirect } from "@/shared/lib/redirect";
 import { AuthLayout } from "../component/AuthLayout";
@@ -55,7 +56,8 @@ export function LoginScreen() {
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
       // ici sans qu'aucune déconnexion soit passée, et le cache du précédent serait resservi.
-      queryClient.clear();
+      // AVANT la navigation : l'écran d'arrivée lirait sinon ce qui restait du compte précédent.
+      resetAccountData(queryClient);
       navigate(destination);
     } catch {
       // Échec réseau / CORS : la promesse rejette → on affiche une erreur générique.

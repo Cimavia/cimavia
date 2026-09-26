@@ -1,5 +1,10 @@
-import { waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clearPlanClipboard,
+  type PlanWeekClipboard,
+  usePlanClipboard,
+} from "@/feature/plan/hook/usePlanClipboard";
 import { renderInRoute } from "../../../../test/render";
 import { LoginScreen } from "./LoginScreen";
 
@@ -37,8 +42,16 @@ async function signIn(view: View) {
   await view.user.click(view.getByRole("button", { name: SUBMIT }));
 }
 
+/** Arme le presse-papier comme le ferait un coach du compte précédent, dans le même onglet. */
+function copyWeekOutsideComponent(entry: PlanWeekClipboard) {
+  const { result, unmount } = renderHook(() => usePlanClipboard());
+  act(() => result.current.copyWeek(entry));
+  unmount();
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPlanClipboard();
   useSessionMock.mockReturnValue({ data: null, isPending: false });
   signInMock.mockResolvedValue({ error: null });
 });
@@ -50,6 +63,36 @@ describe("LoginScreen", () => {
     await signIn(view);
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/"));
+  });
+
+  it("efface tout ce qui reste du compte précédent AVANT de naviguer", async () => {
+    const view = await setup();
+    // `gcTime` infini pour CETTE clé : le harnais collecte à 0 ms ce que rien n'observe, et une
+    // donnée évanouie d'elle-même ferait passer l'assertion de purge sans rien prouver.
+    view.queryClient.setQueryDefaults(["athletes"], { gcTime: Number.POSITIVE_INFINITY });
+    view.queryClient.setQueryData(["athletes"], [{ id: "a-du-compte-precedent" }]);
+    copyWeekOutsideComponent({
+      planWeekId: "w-1",
+      planId: "plan-1",
+      planTitle: "Bloc force — Léa",
+      weekNumber: 2,
+    });
+    // Ce que l'écran d'arrivée trouverait en montant : relevé à l'instant où la navigation part.
+    const seenAtNavigation: { cache: unknown; clipboard: string | null }[] = [];
+    view.router.subscribe("onBeforeNavigate", () => {
+      seenAtNavigation.push({
+        cache: view.queryClient.getQueryData(["athletes"]),
+        clipboard: sessionStorage.getItem("cmv.planClipboard"),
+      });
+    });
+
+    await signIn(view);
+
+    // Le seul passage OBLIGÉ d'un changement de compte : une session perdue ramène ici sans
+    // qu'aucune déconnexion soit passée. Purger APRÈS la navigation servirait à l'écran d'arrivée
+    // les Athletes, débriefs et factures du précédent (#373), et son presse-papier (#341).
+    await waitFor(() => expect(seenAtNavigation).not.toHaveLength(0));
+    expect(seenAtNavigation[0]).toEqual({ cache: undefined, clipboard: null });
   });
 
   it("ramène à la page que la garde a dû quitter", async () => {
