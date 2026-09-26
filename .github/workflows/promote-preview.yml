@@ -62,6 +62,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Le jeton n'est pas laissé dans `.git/config` : ce job ne pousse rien (seul `publish` le
+          # fait, avec le jeton de l'App), et une action tierce qui lirait le dépôt n'y trouverait rien.
+          persist-credentials: false
           fetch-depth: 0
 
       - name: La version, sa place dans l'historique
@@ -162,6 +165,7 @@ jobs:
       - name: Checkout de v${{ inputs.version }}
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           ref: ${{ needs.verify.outputs.sha }}
 
       # Même garde-fou que `api-image.yml` : un jeton sans organisation ni projet ferait échouer le
@@ -279,8 +283,11 @@ jobs:
           client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
+      # Le SEUL checkout qui garde ses identifiants : l'étape suivante pousse `preview` avec eux.
+      # Le jeton de l'App reste donc dans `.git/config` jusqu'à la fin du job, qui n'exécute plus
+      # rien d'autre et ne publie aucun artefact — d'où l'exception à `artipacked`.
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 # zizmor: ignore[artipacked]
         with:
           ref: ${{ needs.verify.outputs.sha }}
           fetch-depth: 0
