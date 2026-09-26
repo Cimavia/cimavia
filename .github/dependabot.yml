@@ -8,6 +8,12 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # Une version n'est proposée qu'après 7 jours de publication. Une action compromise est en
+    # général repérée et retirée dans ce délai : on laisse les autres essuyer les plâtres plutôt que
+    # d'exécuter en CI, avec nos secrets, un code sorti la veille. Les mises à jour de SÉCURITÉ,
+    # elles, n'attendent pas : le délai ne s'applique pas à elles.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci"
     labels:
