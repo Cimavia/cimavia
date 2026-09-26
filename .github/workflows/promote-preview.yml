@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: read
-      packages: read
+      checks: read # les trois checks requis du commit promu, relus avant de promouvoir
+      packages: read # l'image de l'API, cherchée sur GHCR avant d'être retaguée
     outputs:
       sha: ${{ steps.version.outputs.sha }}
       short: ${{ steps.version.outputs.short }}
@@ -157,7 +157,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write # pousse l'image web de la version sur GHCR
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -236,7 +236,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write # retague les deux images en `preview` ; la branche passe par le jeton de l'App
     outputs:
       promoted_at: ${{ steps.branch.outputs.promoted_at }}
     steps:
@@ -276,12 +276,16 @@ jobs:
 
       # Le jeton de l'App de release, seule exception au ruleset qui protège `preview` : un
       # `GITHUB_TOKEN` ne peut pas passer outre une règle « Restrict updates ».
+      #
+      # Restreint à `contents` : sans `permission-*`, le jeton hériterait de TOUS les droits de
+      # l'installation, dont l'écriture des PR dont ce job n'a que faire.
       - name: Jeton d'installation de l'App
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
 
       # Le SEUL checkout qui garde ses identifiants : l'étape suivante pousse `preview` avec eux.
       # Le jeton de l'App reste donc dans `.git/config` jusqu'à la fin du job, qui n'exécute plus

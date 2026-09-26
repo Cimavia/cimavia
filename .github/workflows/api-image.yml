@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write # pousse l'image de l'API sur GHCR
 
     steps:
       # `fetch-depth: 2` : l'étape « Version du produit » compare le `package.json` de HEAD à celui

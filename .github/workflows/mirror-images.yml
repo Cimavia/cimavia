@@ -44,8 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
-      issues: write
+      packages: write # copie SILO et mc dans ghcr.io/cimavia
+      issues: write # ouvre ou met à jour l'issue « version épinglée en retard »
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
