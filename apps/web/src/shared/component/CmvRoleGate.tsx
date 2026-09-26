@@ -1,5 +1,5 @@
 import { type CapabilityName, hasCapability } from "@cmv/shared";
-import { Navigate } from "@tanstack/react-router";
+import { Navigate, useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
@@ -48,6 +48,14 @@ type CmvRoleGateProps = {
 export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRoleGateProps>) {
   const { t } = useTranslation();
   const { isPending, isAuthenticated, ...capabilities } = useCapabilities();
+  /**
+   * Le routeur, et non `useLocation()` : ce dernier ABONNE la garde à chaque changement d'adresse,
+   * y compris à celui qu'elle déclenche elle-même. Or `<Navigate>` renavigue à chaque rendu dont
+   * les props sont neuves — la garde se relançait donc à chaque étape de sa propre redirection,
+   * jusqu'au « Maximum update depth ». L'adresse n'est lue qu'au moment de rediriger : une lecture
+   * ponctuelle suffit.
+   */
+  const router = useRouter();
 
   // Session non résolue : on n'accorde ni ne refuse. Décider ici afficherait l'écran de refus le
   // temps d'un aller-retour, sur chaque chargement de page.
@@ -61,8 +69,12 @@ export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRole
 
   // Pas connecté : directement la connexion. Les gardes recopiées renvoyaient vers `/`, qui
   // renvoyait à son tour vers `/login` — deux sauts pour la même destination.
+  // La page demandée part avec (#337) : le coach qui ouvrait un débrief depuis une notification y
+  // revient une fois connecté, au lieu d'atterrir sur l'accueil.
+  // `replace` sur les DEUX renvois : la page refusée ne reste pas dans l'historique, sinon Retour y
+  // ramène, elle renvoie aussitôt plus loin, et l'utilisateur tourne en rond.
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" search={{ redirect: router.state.location.href }} replace />;
   }
 
   // `typeof` plutôt que `Array.isArray`, qui élargit un tableau readonly en `any[]`.
@@ -70,7 +82,7 @@ export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRole
   if (!accepted.some((name) => hasCapability(capabilities, name))) {
     return (
       fallback ?? (
-        <Navigate to="/" search={{ q: undefined, filter: undefined, athlete: undefined }} />
+        <Navigate to="/" search={{ q: undefined, filter: undefined, athlete: undefined }} replace />
       )
     );
   }
