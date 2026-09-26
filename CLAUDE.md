@@ -114,6 +114,7 @@ vers les 100%, la duplication vers 0% et le nombre d'issue vers 0.
 
 ## Façon de travailler (collaboration)
 
+- **Toujours répondre en français** — y compris après un compactage de contexte, dont le résumé peut être en anglais : sa langue ne change pas celle de la réponse.
 - **Plan d'abord** : pour toute feature/phase, proposer un plan et **attendre la validation** avant de coder.
 - **Commits atomiques relus 1 par 1** : livrer par petits incréments cohérents, donner le commit à faire, et attendre qu'il soit relu/commité avant de continuer. Ne jamais committer/pousser sans demande explicite.
 - **Kylian teste/vérifie lui-même** (migrations, e2e, uploads, app) : préparer de quoi tester ; il exécute et rapporte le résultat.
