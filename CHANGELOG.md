@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.8](https://github.com/Cimavia/cimavia/compare/v1.5.7...v1.5.8) (2026-09-26)
+
+
+### Technique
+
+* audit zizmor des workflows à chaque pr et chaque lundi, constats dans code scanning ([9863239](https://github.com/Cimavia/cimavia/commit/9863239d8edba05e93559f14685bd791416e9853))
+* build de l'api sans concurrency par choix, exception zizmor posée et motivée ([74d3be3](https://github.com/Cimavia/cimavia/commit/74d3be3479a771f6ac324dd4b5bbf6d56187d053))
+* dependabot attend 7 jours avant de proposer une nouvelle version d'action ([821fc35](https://github.com/Cimavia/cimavia/commit/821fc359b5df61ffe176c4b4c62cec602aff240d))
+* épinglages dont la version se vérifie, action-setup sur le commit de v4.3.0 ([2f4c71d](https://github.com/Cimavia/cimavia/commit/2f4c71d04d25b916a585992fb33005d577a15db4))
+* jetons de l'app bornés aux droits utiles, chaque permission de job justifiée ([6f3ead5](https://github.com/Cimavia/cimavia/commit/6f3ead5702bfc3f14f9453e979bf8af1bc8fc34f))
+* plus aucun checkout ne garde son jeton, sauf celui qui pousse preview ([97f8137](https://github.com/Cimavia/cimavia/commit/97f8137f15c4092349bebf6757876de0fb085a2b))
+* promotion en preview, variables passées par env et plus interpolées dans le script ([2932f86](https://github.com/Cimavia/cimavia/commit/2932f8636f6a12479f0293d5c61dcd28fe658cc4))
+* tick de rappels sans droit de jeton, borné à 5 min, variable et secret passés par env ([d90f01e](https://github.com/Cimavia/cimavia/commit/d90f01e85de58d74c2be1b0001350cdd12460522))
+
 ## [1.5.7](https://github.com/Cimavia/cimavia/compare/v1.5.6...v1.5.7) (2026-09-26)
 
 
