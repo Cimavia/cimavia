@@ -290,8 +290,8 @@ jobs:
       # Le SEUL checkout qui garde ses identifiants : l'étape suivante pousse `preview` avec eux.
       # Le jeton de l'App reste donc dans `.git/config` jusqu'à la fin du job, qui n'exécute plus
       # rien d'autre et ne publie aucun artefact — d'où l'exception à `artipacked`.
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 # zizmor: ignore[artipacked]
+      - name: Checkout # zizmor: ignore[artipacked]
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.verify.outputs.sha }}
           fetch-depth: 0
