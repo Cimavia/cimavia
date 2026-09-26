@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, type ApiFetch, createApiClient, isUnauthorizedError } from "./client";
+import {
+  ApiError,
+  type ApiFetch,
+  apiErrorMessage,
+  createApiClient,
+  isUnauthorizedError,
+} from "./client";
 
 /** Un `fetch` qui répond toujours `status`, avec le corps d'erreur que NestJS renverrait. */
 function answering(status: number): ApiFetch {
@@ -41,5 +47,24 @@ describe("isUnauthorizedError", () => {
     // Le message est celui de l'API, donc traduisible et changeant ; le statut est le contrat.
     expect(isUnauthorizedError(new ApiError(401, "Session expirée", null))).toBe(true);
     expect(isUnauthorizedError(new ApiError(400, "Unauthorized", null))).toBe(false);
+  });
+});
+
+describe("apiErrorMessage", () => {
+  it("rend le message de l'API, qui dit déjà quoi corriger", () => {
+    expect(apiErrorMessage(new ApiError(400, "La date ne tombe pas dans la semaine 2", null))).toBe(
+      "La date ne tombe pas dans la semaine 2",
+    );
+  });
+
+  it("n'a rien à dire d'une erreur qui ne vient pas de l'API", () => {
+    // Panne réseau : l'appelant retombe sur son message générique.
+    expect(apiErrorMessage(new TypeError("Failed to fetch"))).toBeNull();
+  });
+
+  it("tait le « Unauthorized » brut d'une session perdue", async () => {
+    // Construit par le vrai client : c'est ce corps NestJS que l'écran afficherait tel quel, en
+    // anglais, alors que l'app explique déjà la perte de session ailleurs (#336).
+    expect(apiErrorMessage(await errorOf(401))).toBeNull();
   });
 });

@@ -22,7 +22,7 @@ import {
   CmvTextField,
   useToast,
 } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
+import { apiErrorMessage, isUnauthorizedError } from "@/shared/lib/api";
 
 /**
  * Chargé à la demande : TipTap et ProseMirror pèsent ~120 kB gzip, pour un éditeur que seul le
@@ -120,8 +120,9 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
   async function onSubmit() {
     try {
       await draft.submit();
-    } catch {
-      toast.error(t("library.builder.saveFailed"));
+    } catch (error) {
+      // Rien sur un 401 : la fenêtre de reconnexion couvre déjà l'écran et en dit la cause (#336).
+      if (!isUnauthorizedError(error)) toast.error(t("library.builder.saveFailed"));
       return;
     }
     toast.success(t("library.builder.saved"));
@@ -214,8 +215,12 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
               onPendingLinks={draft.setPendingLinks}
             />
 
-            {draft.error == null ? null : (
-              <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(draft.error)}</p>
+            {/* Rien sur un 401 : il resterait affiché après la reconnexion, alors que le coach n'a plus
+                qu'à réenregistrer (#336). */}
+            {draft.error == null || isUnauthorizedError(draft.error) ? null : (
+              <p className="text-cmv-caption text-cmv-error">
+                {apiErrorMessage(draft.error) ?? t("common.error")}
+              </p>
             )}
           </div>
 
@@ -280,9 +285,9 @@ function BuilderActions({
       <CmvButton onClick={onSubmit} disabled={isBusy || !canSubmit}>
         {isSaving ? t("library.builder.saving") : t(submitKey)}
       </CmvButton>
-      {removeExercise.error == null ? null : (
+      {removeExercise.error == null || isUnauthorizedError(removeExercise.error) ? null : (
         <span className="text-cmv-caption text-cmv-error">
-          {apiErrorMessage(removeExercise.error)}
+          {apiErrorMessage(removeExercise.error) ?? t("common.error")}
         </span>
       )}
     </>

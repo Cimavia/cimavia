@@ -24,8 +24,18 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Le message à MONTRER pour une erreur d'API, ou `null` quand elle n'en a pas d'utile — l'appelant
+ * retombe alors sur son propre message traduit.
+ *
+ * `null` sur un 401 : son message est le « Unauthorized » brut du garde de session, en anglais, qui
+ * ne dit rien de ce qu'il faut faire. La session perdue est expliquée ailleurs, une fois, par l'app
+ * (la fenêtre de reconnexion du web depuis #336) ; l'écran, lui, n'a qu'à dire que SON geste a
+ * échoué.
+ */
 export function apiErrorMessage(error: unknown): string | null {
-  return error instanceof ApiError ? error.message : null;
+  if (!(error instanceof ApiError) || error.status === 401) return null;
+  return error.message;
 }
 
 /**
