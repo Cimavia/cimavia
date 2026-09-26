@@ -1,5 +1,6 @@
 import {
   EMAILABLE_NOTIFICATION_TYPES,
+  Locale,
   MAX_FEEDBACK_AUDIOS,
   MAX_FEEDBACK_PHOTOS,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
@@ -5589,6 +5590,75 @@ describe("Capacités modifiables après coup (#13)", () => {
       (await agent.patch("/me/capabilities").send({ isCoach: true, isAthlete: true })).status,
     ).toBe(200);
     expect((await agent.get("/exercises")).body).toHaveLength(1);
+  });
+
+  /**
+   * Le contournement de #310 : `isCoach`/`isAthlete` sont `input: true` pour l'inscription, et
+   * Better Auth accepte alors tout champ déclaré sur `/update-user` — sans `assertRemovable`.
+   */
+  it("refuse de cesser de coacher par /update-user, relation intacte (400)", async () => {
+    const coach = await signUpWith("cap-bypass-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: false,
+    });
+    const athlete = await signUp("cap-bypass-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    const res = await coach.post("/api/auth/update-user").send({ isCoach: false });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("FIELD_NOT_ALLOWED");
+    expect(await capabilitiesOfSession(coach)).toEqual({
+      isCoach: true,
+      isAthlete: false,
+      role: Role.COACH,
+    });
+    const athletes = await coach.get("/athletes");
+    expect(athletes.status).toBe(200);
+    expect(athletes.body).toHaveLength(1);
+  });
+
+  // Le compte sans capacité que le hook de création refuse : l'update ne doit pas y mener non plus.
+  it("refuse de retirer les deux capacités par /update-user (400)", async () => {
+    const agent = await signUpWith("cap-bypass-none@cmv.test", { isCoach: true, isAthlete: true });
+    const res = await agent
+      .post("/api/auth/update-user")
+      .send({ isCoach: false, isAthlete: false });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("FIELD_NOT_ALLOWED");
+    expect(await capabilitiesOfSession(agent)).toEqual({
+      isCoach: true,
+      isAthlete: true,
+      role: Role.COACH,
+    });
+  });
+
+  // Ajouter une capacité n'est pas plus permis : c'est là que s'accrochera l'abonnement.
+  it("refuse d'ajouter une capacité par /update-user (400)", async () => {
+    const agent = await signUp("cap-bypass-add@cmv.test", Role.ATHLETE);
+    const res = await agent.post("/api/auth/update-user").send({ isCoach: true });
+    expect(res.status).toBe(400);
+    expect((await capabilitiesOfSession(agent)).isCoach).toBe(false);
+  });
+
+  // `role` est fermé par `input: false` avant même le hook — même code, même réponse.
+  it("refuse de poser le persona par /update-user (400)", async () => {
+    const agent = await signUp("cap-bypass-role@cmv.test", Role.ATHLETE);
+    const res = await agent.post("/api/auth/update-user").send({ role: Role.COACH });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("FIELD_NOT_ALLOWED");
+    expect((await capabilitiesOfSession(agent)).role).toBe(Role.ATHLETE);
+  });
+
+  // Le reste du profil passe toujours : le hook ferme trois champs, pas la route.
+  it("laisse modifier le nom et la langue par /update-user", async () => {
+    const agent = await signUp("cap-profile@cmv.test", Role.ATHLETE);
+    const res = await agent.post("/api/auth/update-user").send({ name: "Léa", locale: Locale.EN });
+    expect(res.status).toBe(200);
+    const session = await agent.get("/api/auth/get-session");
+    expect(session.body.user).toMatchObject({ name: "Léa", locale: Locale.EN });
   });
 });
 
