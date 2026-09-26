@@ -140,8 +140,10 @@ jobs:
 
       # Le web fige cette URL dans son bundle : vide, il pointerait sur localhost.
       - name: Vérifier PREVIEW_PUBLIC_API_URL
+        env:
+          API_URL: ${{ vars.PREVIEW_PUBLIC_API_URL }}
         run: |
-          if [ -z "${{ vars.PREVIEW_PUBLIC_API_URL }}" ]; then
+          if [ -z "$API_URL" ]; then
             echo "::error::Variable de dépôt PREVIEW_PUBLIC_API_URL vide — le web ne saurait pas joindre l'API du NAS."
             exit 1
           fi
@@ -167,12 +169,14 @@ jobs:
       - name: Vérifier la cohérence Sentry
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT_WEB: ${{ vars.SENTRY_PROJECT_WEB }}
         run: |
           if [ -z "$SENTRY_AUTH_TOKEN" ]; then
             echo "::notice::Aucun SENTRY_AUTH_TOKEN — les sourcemaps ne seront pas publiées."
             exit 0
           fi
-          if [ -z "${{ vars.SENTRY_ORG }}" ] || [ -z "${{ vars.SENTRY_PROJECT_WEB }}" ]; then
+          if [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT_WEB" ]; then
             echo "::error::SENTRY_AUTH_TOKEN est défini mais SENTRY_ORG ou SENTRY_PROJECT_WEB manque."
             exit 1
           fi
