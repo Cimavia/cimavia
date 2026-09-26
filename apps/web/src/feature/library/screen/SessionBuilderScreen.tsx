@@ -16,12 +16,13 @@ import {
   CmvDragHandle,
   CmvEmptyState,
   CmvErrorState,
+  CmvFormError,
   CmvTextArea,
   CmvTextField,
   useToast,
 } from "@/shared/component";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
-import { apiErrorMessage, isUnauthorizedError } from "@/shared/lib/api";
 import { cn } from "@/shared/util/cn.util";
 
 type SessionBuilderScreenProps = {
@@ -79,6 +80,7 @@ function SessionBuilder({
 }: Readonly<{ session: SessionDto | null; onLeave: () => void }>) {
   const { t } = useTranslation();
   const toast = useToast();
+  const { onFailure } = useMutationToast();
   const navigate = useNavigate();
   const { data: customMetrics } = useCustomMetrics();
   const draft = useSessionDraft(session);
@@ -95,8 +97,7 @@ function SessionBuilder({
     try {
       await draft.submit();
     } catch (error) {
-      // Rien sur un 401 : la fenêtre de reconnexion couvre déjà l'écran et en dit la cause (#336).
-      if (!isUnauthorizedError(error)) toast.error(t("library.session.saveFailed"));
+      onFailure("library.session.saveFailed", error);
       return;
     }
     toast.success(t("library.session.saved"));
@@ -117,8 +118,7 @@ function SessionBuilder({
     try {
       await draft.submit();
     } catch (error) {
-      // Même silence qu'à l'enregistrement sur un 401 (#336).
-      if (!isUnauthorizedError(error)) toast.error(t("library.session.saveFailed"));
+      onFailure("library.session.saveFailed", error);
       return;
     }
     toast.success(t("library.session.savedBeforeVariant"));
@@ -266,13 +266,7 @@ function SessionBuilder({
             )}
           </div>
 
-          {/* Rien sur un 401 : il resterait affiché après la reconnexion, alors que le coach n'a plus
-              qu'à réenregistrer (#336). */}
-          {draft.error == null || isUnauthorizedError(draft.error) ? null : (
-            <p className="text-cmv-caption text-cmv-error">
-              {apiErrorMessage(draft.error) ?? t("common.error")}
-            </p>
-          )}
+          <CmvFormError error={draft.error} />
         </div>
 
         {/* `sticky` : l'aperçu suit le défilement de la composition, bien plus longue que lui. */}

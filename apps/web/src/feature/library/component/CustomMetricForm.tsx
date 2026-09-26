@@ -12,8 +12,7 @@ import {
   useCreateCustomMetric,
   useUpdateCustomMetric,
 } from "@/feature/library/hook/useCustomMetrics";
-import { CmvButton, CmvSegmented, CmvTextField } from "@/shared/component";
-import { apiErrorMessage, isUnauthorizedError } from "@/shared/lib/api";
+import { CmvButton, CmvFormError, CmvSegmented, CmvTextField } from "@/shared/component";
 
 // i18n-values library.builder.valueType: MetricValueType
 
@@ -51,7 +50,6 @@ export function CustomMetricForm({
   const { t } = useTranslation();
   const create = useCreateCustomMetric();
   const update = useUpdateCustomMetric();
-  const failure = create.error ?? update.error;
 
   const [label, setLabel] = useState("");
   const [unit, setUnit] = useState("");
@@ -153,12 +151,7 @@ export function CustomMetricForm({
 
       {isScale ? <ScaleEditor scale={scale} onChange={setScale} /> : null}
 
-      {/* Rien sur un 401 : la fenêtre de reconnexion en dit la cause (#336). */}
-      {failure == null || isUnauthorizedError(failure) ? null : (
-        <p className="text-cmv-caption text-cmv-error">
-          {apiErrorMessage(failure) ?? t("common.error")}
-        </p>
-      )}
+      <CmvFormError error={create.error ?? update.error} />
 
       <div className="flex items-center gap-cmv-sm">
         <CmvButton

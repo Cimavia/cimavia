@@ -47,3 +47,33 @@ describe("useMutationToast — onError", () => {
     expect(screen.queryByText("common.error")).not.toBeInTheDocument();
   });
 });
+
+describe("useMutationToast — onFailure", () => {
+  it("dit l'échec du geste par son propre message", () => {
+    const toast = setup();
+
+    act(() =>
+      toast.current.onFailure(
+        "library.builder.saveFailed",
+        new ApiError(400, "Le bloc 2 est vide", null),
+      ),
+    );
+
+    // L'enregistrement enchaîne plusieurs appels : le message du dernier tombé ne dirait pas
+    // lequel a échoué, celui du geste si. Le détail, lui, reste écrit sous le formulaire.
+    expect(screen.getByText("library.builder.saveFailed")).toBeInTheDocument();
+  });
+
+  it("se tait sur un 401", () => {
+    const toast = setup();
+
+    act(() =>
+      toast.current.onFailure(
+        "library.builder.saveFailed",
+        new ApiError(401, "Unauthorized", null),
+      ),
+    );
+
+    expect(screen.queryByText("library.builder.saveFailed")).not.toBeInTheDocument();
+  });
+});

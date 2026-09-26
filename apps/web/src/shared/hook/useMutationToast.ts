@@ -25,5 +25,11 @@ export function useMutationToast() {
       if (isUnauthorizedError(error)) return;
       toast.error(apiErrorMessage(error) ?? t("common.error"));
     },
+    // Pour un geste qui compose plusieurs appels (l'enregistrement d'un constructeur) : son échec
+    // se dit par un message à lui, pas par celui du dernier appel tombé. Même silence sur un 401.
+    onFailure: (key: string, error: unknown) => {
+      if (isUnauthorizedError(error)) return;
+      toast.error(t(key));
+    },
   };
 }
