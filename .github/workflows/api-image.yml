@@ -41,7 +41,7 @@ jobs:
   build-and-push:
     name: Build & push cimavia-api → GHCR
     runs-on: ubuntu-26.04
-    timeout-minutes: 25 # 6 min 09 au plus observé avant le smoke test (#415), à remesurer
+    timeout-minutes: 25 # 4 min 56 observé smoke test compris (#415), 6 min 09 au plus sans lui
     permissions:
       contents: read
       packages: write # pousse l'image de l'API sur GHCR
@@ -130,8 +130,11 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
             APP_BUILD=${{ steps.version.outputs.build }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Un scope par image (#414) : sans lui, l'API et le web écrivaient le MÊME index de cache
+          # (`buildkit`, le défaut), chacun effaçant celui de l'autre. Les builds de PR de `ci.yml`
+          # relisent ce scope sans l'écrire.
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
 
       # ── Smoke test (#415) ─────────────────────────────────────────────────────────────────────
       # Un build vert ne dit pas que l'image démarre : un client Prisma non généré, une variable

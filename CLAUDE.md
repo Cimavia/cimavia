@@ -93,7 +93,9 @@ pnpm check:i18n                # doit sortir en 0
 pnpm check:i18n --strict       # + les clés mortes — plus strict que la CI
 ```
 
-E2E et builds de production, selon ce qui est touché. **Les e2e sont un check requis sur `main`** :
+E2E et builds de production, selon ce qui est touché. **Les e2e sont un check requis sur `main`**.
+Les builds de production tournent aussi sur chaque PR (job *Builds de production*, filtré par app,
+images API et web comprises — #414) ; les lancer en local sert à ne pas attendre la CI :
 
 ```bash
 docker compose -f apps/api/docker-compose.test.yml up -d

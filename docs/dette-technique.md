@@ -3731,6 +3731,23 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > une vraie recette. Si #84 sort les migrations de l'entrypoint, le smoke devra jouer l'étape de
 > migration avant de démarrer l'API.
 
+> **Tranché en [#414](https://github.com/Cimavia/cimavia/issues/414)** (builds de production sur
+> les PR) : un job *Builds de production* dans `ci.yml` construit l'image API, l'image web et
+> l'export Expo android, chacun seulement si la PR touche l'app ou ce qu'elle consomme.
+>
+> - **Check requis, filtré par étape.** Le job tourne toujours ; ce sont ses étapes qui se sautent.
+>   Un filtre `on.pull_request.paths` laisserait un check requis en attente pour toujours sur une
+>   PR de documentation, et un `if:` de job obligerait à un second job de détection.
+> - **Le cache de `main` lu, jamais écrit** par une PR : elle ne doit pas pouvoir empoisonner les
+>   couches que `api-image.yml` et la promotion réutilisent.
+> - **Un scope de cache par image** (`api`, `web`). Découvert en chemin : les deux écrivaient le
+>   même index `buildkit` (le défaut), et le dernier à écrire effaçait l'autre — la promotion
+>   reconstruisait le web à froid, et une PR aurait lu l'index de l'API pour construire le web.
+> - **Pas de smoke test ici** : il porte sur l'image publiée (#415), une PR ne publie rien.
+>
+> `promote-preview.yml` n'exige pas ce check : il lit le commit de `main`, où ce job ne tourne pas.
+> Ce qui protège la promotion côté API reste #415.
+
 ---
 
 ## Post-MVP — Session perdue et changement de compte côté web ([#336](https://github.com/Cimavia/cimavia/issues/336) · [#337](https://github.com/Cimavia/cimavia/issues/337) · [#341](https://github.com/Cimavia/cimavia/issues/341))
