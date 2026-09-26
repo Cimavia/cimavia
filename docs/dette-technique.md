@@ -858,6 +858,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | D-1 | **Sept requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, conversations, résumé des rappels, non-lues) : la jointure du tableau est faite côté client, sans endpoint d'agrégat. Le **polling** de deux d'entre elles a été coupé sur cet écran (#113) — il ne reste que celui du badge, qui est sa raison d'être. Le tableau rend par ailleurs **toutes** ses lignes, `GET /athletes` n'étant pas borné : même déclencheur, même épic. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) *(épic : [#139](https://github.com/Cimavia/cimavia/issues/139) agrégat · [#140](https://github.com/Cimavia/cimavia/issues/140) pagination)* |
 | ~~D-2~~ | ~~**Pas de recherche, de tri ni de filtre** sur le tableau de suivi, là où la maquette en prévoit.~~ | ✅ | résolue en **#123** — recherche par nom, filtres *Cycle terminé* / *Sans plan*, ordre alphabétique. Le **tri par activité** est resté dehors (cf. encadré ci-dessous) |
+| D-3 | **La fiche athlète n'a pas de garde serveur contre l'écrasement** : `PUT /athletes/:id/sheet` remplace `content` sans vérifier la version lue, et le produit n'a pas d'historique. Depuis #301, seuls les clients empêchent d'éditer une fiche non reçue ; deux onglets (ou le web et le mobile) ouverts sur la même fiche s'écrasent toujours sans que personne ne le voie. | 🟡 | [#440](https://github.com/Cimavia/cimavia/issues/440) |
 
 > **Tranché en #52** (aucune information lue deux fois) : c'est la contrainte qui a façonné l'écran,
 > parce que sept tuiles offrent sept occasions de recompter la même chose. Trois conséquences.
@@ -935,6 +936,27 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > à sept, une strip unique redevient une grille indifférenciée où rien ne ressort ; et les tuiles
 > « à traiter » sont **cliquables**, alors que la strip de la maquette est décorative — une tuile qui
 > annonce du travail sans y mener est un cul-de-sac.
+
+> **Tranché en #301** (la fiche s'édite une fois REÇUE, pas « tant qu'il n'y a pas d'erreur ») :
+> le panneau web rendait un échec de lecture comme une fiche vierge, et `PUT` remplace — le coach
+> effaçait des mois de notes en croyant commencer la fiche. Deux décisions :
+> - **Le critère est `data !== undefined`, pas `isError`**, contrairement au mobile en apparence.
+>   Sur le web, `refetchOnWindowFocus` relance la lecture au retour d'onglet ; si elle échoue,
+>   `isError` passe à vrai alors que la fiche est en cache, et un rendu branché dessus masquerait le
+>   formulaire avec le brouillon. Le mobile n'a pas ce piège : son mode édition ne dépend pas de
+>   `isError`. Un test (`AthleteSheetPanel.test.tsx`) tient ce cas.
+> - **Pas de garde serveur dans cette PR** — celle qu'envisageait #301, refuser un `PUT` qui vide
+>   une fiche non vide, ne couvrait même pas son scénario : le coach y écrit deux lignes, le `PUT`
+>   n'est pas vide. La garde utile porte sur la version lue (concurrence optimiste), touche les
+>   quatre paquets, et part en [#440](https://github.com/Cimavia/cimavia/issues/440) → **D-3**.
+> - **La fiche « (moi) » fonctionne, et la fiche devient unique par COUPLE.** Rendre l'échec
+>   visible a révélé que la ligne d'auto-coaching (#14) répondait 404 depuis toujours :
+>   `assertOwnedAthlete` cherchait une ligne `CoachAthlete` que le CHECK `coach_athlete_not_self`
+>   interdit. Même garde que les cycles désormais — soi-même passe, capacité athlète exigée. Mais
+>   l'unicité sur `athleteId` datait d'un athlète à un seul coach : un compte qui se coache ET a un
+>   coach porte deux fiches, et le second `PUT` tombait en 500 sur la contrainte. Migration
+>   `20260926120000_fiche_athlete_par_coach` : `@@unique([coachId, athleteId])`, sans risque sur
+>   l'existant. Le tenancy scopant sur `coachId`, aucune des deux fiches ne voit l'autre.
 
 ---
 
