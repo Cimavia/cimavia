@@ -31,20 +31,35 @@ concurrency:
   group: reminder-tick
   cancel-in-progress: false
 
+# Aucun droit pour le GITHUB_TOKEN : le job ne lit pas le dépôt et n'appelle pas l'API GitHub. Il
+# n'a besoin que de sa variable et de son secret, qui ne passent pas par le jeton.
+permissions: {}
+
 jobs:
   tick:
     name: Déclenche les rappels dus
     runs-on: ubuntu-latest
+    # Le `curl` est borné à 60 s ; le job, lui, ne l'était pas. Un runner bloqué ailleurs tiendrait
+    # sinon jusqu'à la limite de GitHub (6 h), et le tick de l'heure suivante attendrait derrière lui
+    # (`concurrency` ci-dessus).
+    timeout-minutes: 5
     steps:
       # Les deux valeurs sont posées à la main dans l'interface GitHub (variable de dépôt + secret).
       # Sans elles, on échoue ICI avec un message qui dit quoi faire, plutôt que sur un 401 opaque.
+      #
+      # Elles passent par l'environnement, jamais interpolées dans le script : `${{ … }}` est
+      # substitué AVANT que le shell ne lise la ligne, et le secret finirait en clair dans le script
+      # écrit sur le runner.
       - name: Vérifier la configuration
+        env:
+          API_URL: ${{ vars.PREVIEW_PUBLIC_API_URL }}
+          TICK_SECRET: ${{ secrets.REMINDER_TICK_SECRET }}
         run: |
-          if [ -z "${{ vars.PREVIEW_PUBLIC_API_URL }}" ]; then
+          if [ -z "$API_URL" ]; then
             echo "::error::Variable de dépôt PREVIEW_PUBLIC_API_URL vide — le tick n'a aucune API à appeler."
             exit 1
           fi
-          if [ -z "${{ secrets.REMINDER_TICK_SECRET }}" ]; then
+          if [ -z "$TICK_SECRET" ]; then
             echo "::error::Secret REMINDER_TICK_SECRET absent — la route répondrait 401."
             exit 1
           fi
