@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.7](https://github.com/Cimavia/cimavia/compare/v1.5.6...v1.5.7) (2026-09-26)
+
+
+### Corrections
+
+* **api:** nest 11.2.6 et @fastify/static 10, find-my-way et le garde de /docs corrigés ([e104f6a](https://github.com/Cimavia/cimavia/commit/e104f6ae37f08bdec314f1ebf296e92f9044d71f))
+* **api:** nodemailer 9.1.1, l'option raw ne contourne plus le bac à sable des fichiers ([26de8db](https://github.com/Cimavia/cimavia/commit/26de8dbdc441c1cde360644999ab50041de30072))
+* forcer les correctifs de même majeure des dépendances transitives par overrides pnpm ([344127f](https://github.com/Cimavia/cimavia/commit/344127fef7a07c6029d145b0259cd28ee8d7afa5))
+* **web:** tiptap 3.31.3, ferme le redos markdown et la fuite __proto__ de mergeattributes ([45cf650](https://github.com/Cimavia/cimavia/commit/45cf65060277038b16862540284b32345518565b))
+
+
+### Technique
+
+* vitest 4.1.11 et postcss 8.5.28, traversée de chemin du mocker et des source maps ([811dfc4](https://github.com/Cimavia/cimavia/commit/811dfc4e9613b5b6a6327166fd85fdaaef65eac8))
+
 ## [1.5.6](https://github.com/Cimavia/cimavia/compare/v1.5.5...v1.5.6) (2026-09-25)
 
 
