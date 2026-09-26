@@ -60,6 +60,21 @@ jobs:
       - name: Setup
         uses: $/.github/actions/setup
 
+      # Le hook `commit-msg` ne voit que le poste : un commit fait dans l'interface GitHub, par une
+      # suggestion de revue ou avec `--no-verify` arrivait sur `main` sans contrôle — et
+      # `release-please` ignore en silence ce qu'il ne sait pas lire, sans bump ni CHANGELOG (#416).
+      # Une étape et non un job : elle hérite du statut requis de `quality`, là où un nouveau nom de
+      # job serait un check de plus à déclarer dans le ruleset.
+      # La base de la PR et non `origin/main` : une PR en retard relirait sinon des commits qui ne
+      # sont pas les siens. Les commits de merge sont ignorés par commitlint. Les deux sha passent
+      # par `env:`, jamais interpolés dans le script (#401). `fetch-depth: 0` les rend présents.
+      - name: Commitlint
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+
       - name: Biome CI
         run: pnpm biome ci .
 
