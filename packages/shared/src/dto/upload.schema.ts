@@ -5,7 +5,7 @@ import type { TypesValuesOf } from "../type/generics.type";
  * Transport des médias vers l'object storage — indépendant de CE qu'on envoie (débrief ou
  * message), qui reste décrit par `feedback.schema.ts` et `message.schema.ts`.
  *
- * Pourquoi deux modes plutôt qu'un seul chemin multipart : le tier dev est exposé par un tunnel
+ * Pourquoi deux modes plutôt qu'un seul chemin multipart : le tier preview est exposé par un tunnel
  * Cloudflare, dont le bord REFUSE tout corps de requête au-delà de 100 Mo (mesuré : 100 Mo
  * atteignent le storage, 101 Mo reviennent en 413 sans jamais l'atteindre). Un fichier lourd doit
  * donc partir en tranches — mais imposer ce détour aux photos et aux notes vocales, qui pèsent

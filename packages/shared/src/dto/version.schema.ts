@@ -8,8 +8,8 @@ import { z } from "zod";
  * « unknown » ferait passer une absence pour un fait (règle dure n°5). Le client rend `—`.
  *
  * `build` est le sha court du commit. Il distingue deux images portant le MÊME numéro, ce qui est
- * l'état normal entre deux releases : le tier dev republie à chaque push sur `main` alors que le
- * numéro, lui, n'avance qu'au merge de la PR de release.
+ * l'état normal entre deux releases : `api-image.yml` publie une image à chaque push sur `main`
+ * alors que le numéro, lui, n'avance qu'au merge de la PR de release.
  *
  * `env` est le TIER de déploiement, jamais déduit du numéro : une même version tourne
  * successivement sur les trois, et les confondre rendrait la phrase impossible à dire.
