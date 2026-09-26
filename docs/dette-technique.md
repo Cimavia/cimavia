@@ -3622,6 +3622,29 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `v4`, pas sur un commit. Même code exécuté, mais aucun outil ne pouvait vérifier la version
 > annoncée en commentaire.
 
+> **Tranché en [#413](https://github.com/Cimavia/cimavia/issues/413)** (setup commun, délais,
+> runner) :
+>
+> - **Runner épinglé sur `ubuntu-26.04`**, pas `ubuntu-latest`. GitHub bascule `ubuntu-latest`
+>   vers 26.04 entre le 19 octobre et le 19 novembre 2026
+>   ([runner-images#14748](https://github.com/actions/runner-images/issues/14748)) : la bascule
+>   se fait ici, dans une PR que la CI teste, plutôt qu'un jour non choisi. Contrepartie : plus
+>   rien ne fera avancer la version seul. **Déclencheur** de la prochaine montée : l'annonce de
+>   fin de support de 26.04 dans `actions/runner-images`.
+> - **`timeout-minutes` à ~3× la durée observée**, la mesure en commentaire : c'est un plafond
+>   contre le job bloqué (six heures par défaut), pas une cible. Plus serré, un cache froid ou un
+>   runner lent ferait échouer un check requis sans raison.
+> - **Plus de `DATABASE_URL` factice en CI.** Le commentaire de `ci.yml` affirmait que
+>   `prisma generate` exigeait la variable ; c'était faux depuis `61d7a38` (2026-07-17), qui a
+>   fait retomber `prisma.config.ts` sur une URL vide. Le piège des e2e — un DSN de job masquant
+>   celui de `.env.test` — disparaît avec lui.
+>
+> Découvert en chemin : l'issue supposait que Dependabot suivait `.github/actions/**` depuis
+> `directory: "/"`. Faux — `/` ne couvre que `.github/workflows` et un `action.yml` racine ; il a
+> fallu `directories`. Et `actionlint` (1.7.12, dernière version) ne connaît ni la syntaxe `$/`
+> ni l'étiquette `ubuntu-26.04` : ses erreurs sur ces deux points sont à ignorer tant qu'il n'a
+> pas rattrapé GitHub.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
