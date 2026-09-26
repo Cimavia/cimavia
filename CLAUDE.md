@@ -42,7 +42,7 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.4`). Lint/format **Biome** (`2.5.1`, 
 | Lint/format | Biome | `2.5.1` |
 | Tests | Vitest | `4.1.9` |
 | Hooks | Husky / lint-staged / commitlint | `9.1.7` / `17.0.8` / `21.1.0` |
-| API | NestJS | `11.1.27` |
+| API | NestJS | `11.2.6` |
 | ORM / DB | Prisma + adapter-pg / PostgreSQL | `7.8.0` / PG **18** |
 | Auth | Better Auth (`@thallesp/nestjs-better-auth`, `@better-auth/expo`) | `^1.5` *(P1)* |
 | Validation + env | Zod | `4.4.3` |
