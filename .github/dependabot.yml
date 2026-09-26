@@ -5,7 +5,12 @@ version: 2
 # réécrit le SHA *avec* son commentaire de version. Sans lui, l'épinglage devient de l'obsolescence.
 updates:
   - package-ecosystem: github-actions
-    directory: "/"
+    # `/` seul ne couvre que `.github/workflows` et un `action.yml` à la racine : les actions
+    # composites de `.github/actions/` doivent être nommées, sinon ce qu'elles appellent n'est plus
+    # jamais mis à jour (#413).
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: weekly
     # Une version n'est proposée qu'après 7 jours de publication. Une action compromise est en

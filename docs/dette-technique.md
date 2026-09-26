@@ -1864,6 +1864,29 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > pas, et ferait passer une fuite du DSN pour un incident. Le seul vrai secret du chantier est le
 > `SENTRY_AUTH_TOKEN` d'upload des sourcemaps, qui n'est jamais embarqué.
 
+> **Tranché en #335** (`sendDefaultPii: false` ne couvre QUE l'IP) : l'encadré ci-dessus sur
+> `sendDefaultPii` a été lu, dans le code, comme « ni IP ni en-têtes ». Faux :
+> `httpContextIntegration`, intégration par défaut du SDK navigateur, écrit `location.href`, le
+> `Referer` et le `User-Agent` sur TOUT événement, quel que soit ce réglage. Sur
+> `/reset-password?token=…`, le jeton partait donc chez Sentry. Trois décisions :
+> - **Blanchir plutôt que couper l'intégration** : un `beforeSend` (`shared/lib/sentry-scrub.ts`)
+>   remplace la valeur de `token`, `code` et `X-Amz-Signature` par `[Filtered]` dans l'URL, le
+>   `Referer` et les fils d'Ariane. Le nom du paramètre reste : savoir sur quelle page est survenue
+>   l'erreur, et qu'un jeton y était, sert au diagnostic. `code` est défensif, aucune route ne le
+>   porte aujourd'hui.
+> - **Le jeton quitte l'URL dès sa lecture** (`navigate` en `replace`), et le `beforeSend` n'est
+>   pas optionnel pour autant : le fil d'Ariane de ce `replace` porte encore l'ancienne URL dans son
+>   `from`. Prix assumé : recharger la page perd le jeton ; recliquer le lien du mail marche tant
+>   qu'il n'a pas servi.
+> - **Le test lit l'événement émis, pas l'option** : le vrai SDK tourne, seul le transport est
+>   remplacé. Lire `sendDefaultPii: false` est précisément ce qui avait laissé passer la fuite.
+>
+> Hors de ce périmètre : la même famille côté API — Pino qui journalise cookies et jetons de
+> chemin, Sentry qui capture le corps des requêtes d'authentification — est en
+> [#433](https://github.com/Cimavia/cimavia/issues/433). Le mobile n'a pas d'écran de
+> réinitialisation et envoie ses médias par `File.upload` (natif, sans fil d'Ariane) ; ses fils
+> d'Ariane par défaut n'ont pas été relus.
+
 ---
 
 ## Post-MVP — Messagerie sans interlocuteur ([#198](https://github.com/Cimavia/cimavia/issues/198))
@@ -3625,6 +3648,47 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Découvert en chemin : `pnpm/action-setup` était épinglé sur le SHA de l'**objet tag annoté**
 > `v4`, pas sur un commit. Même code exécuté, mais aucun outil ne pouvait vérifier la version
 > annoncée en commentaire.
+
+> **Tranché en [#413](https://github.com/Cimavia/cimavia/issues/413)** (setup commun, délais,
+> runner) :
+>
+> - **Runner épinglé sur `ubuntu-26.04`**, pas `ubuntu-latest`. GitHub bascule `ubuntu-latest`
+>   vers 26.04 entre le 19 octobre et le 19 novembre 2026
+>   ([runner-images#14748](https://github.com/actions/runner-images/issues/14748)) : la bascule
+>   se fait ici, dans une PR que la CI teste, plutôt qu'un jour non choisi. Contrepartie : plus
+>   rien ne fera avancer la version seul. **Déclencheur** de la prochaine montée : l'annonce de
+>   fin de support de 26.04 dans `actions/runner-images`.
+> - **`timeout-minutes` à ~3× la durée observée**, la mesure en commentaire : c'est un plafond
+>   contre le job bloqué (six heures par défaut), pas une cible. Plus serré, un cache froid ou un
+>   runner lent ferait échouer un check requis sans raison.
+> - **Plus de `DATABASE_URL` factice en CI.** Le commentaire de `ci.yml` affirmait que
+>   `prisma generate` exigeait la variable ; c'était faux depuis `61d7a38` (2026-07-17), qui a
+>   fait retomber `prisma.config.ts` sur une URL vide. Le piège des e2e — un DSN de job masquant
+>   celui de `.env.test` — disparaît avec lui.
+>
+> Découvert en chemin : l'issue supposait que Dependabot suivait `.github/actions/**` depuis
+> `directory: "/"`. Faux — `/` ne couvre que `.github/workflows` et un `action.yml` racine ; il a
+> fallu `directories`. Et `actionlint` (1.7.12, dernière version) ne connaît ni la syntaxe `$/`
+> ni l'étiquette `ubuntu-26.04` : ses erreurs sur ces deux points sont à ignorer tant qu'il n'a
+> pas rattrapé GitHub.
+
+> **Tranché en [#416](https://github.com/Cimavia/cimavia/issues/416)** (commitlint en CI) : une
+> étape du job `quality`, sur `pull_request`, de la base de la PR à sa tête. `.commitlintrc.json`
+> n'est **pas** touché :
+>
+> - **Les bornes de ligne du corps restent.** L'issue prévoyait de couper `body-max-line-length`
+>   et `footer-max-line-length`, sur la foi de lignes de 113 à 151 caractères dans le corps des
+>   commits Dependabot. Mesurées à la règle, pas en lançant commitlint : celui-ci exempte toute
+>   ligne qui contient une URL (`@commitlint/ensure`), et ce sont toutes des liens. Passés à la
+>   config actuelle, #436, #135, les PR de sécurité #419 à #425 et la release #432 sortent sans un
+>   seul problème. **Déclencheur** : le premier corps de robot refusé en CI — on coupe alors ces
+>   deux règles, nos commits n'ayant pas de corps.
+> - **Écart accepté : `subject-case` sur une mise à jour de sécurité d'action.** Elles ne sont pas
+>   groupées, et leur sujet reprend le nom du paquet : `ci: bump SonarSource/sonarqube-scan-action …`
+>   est refusé (vérifié). C'est la seule action du dépôt à majuscule ; les noms npm et docker sont
+>   en minuscules. Remède : fermer la PR et faire le bump à la main (`CONTRIBUTING.md`, « Commits »).
+>   Ignorer les commits de `dependabot[bot]` reste écarté : une exception par robot, à rallonger
+>   au suivant.
 
 ---
 

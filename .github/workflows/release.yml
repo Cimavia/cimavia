@@ -29,7 +29,8 @@ permissions: {}
 jobs:
   release-please:
     name: PR de release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5 # 22 s au plus observé
 
     steps:
       # POURQUOI une App GitHub, et pas le GITHUB_TOKEN par défaut : une PR ouverte par ce dernier

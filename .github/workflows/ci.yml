@@ -35,22 +35,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  PNPM_VERSION: "10.34.4"
-  NODE_VERSION: "22"
-
 permissions:
   contents: read
 
 jobs:
   quality:
     name: Lint + Typecheck + Test
-    runs-on: ubuntu-latest
-    env:
-      # DSN factice : `prisma generate` lit prisma.config.ts, dont le env() exige la variable — il
-      # ne se connecte à aucune base. Volontairement SANS identifiants : un mot de passe ici, même
-      # inventé, est un secret en clair pour tout scanner (et pour quiconque le recopie).
-      DATABASE_URL: postgresql://localhost:5432/placeholder
+    # Ubuntu épinglé, pas `ubuntu-latest` (#413) : le passage à une nouvelle version se fait
+    # dans une PR que la CI teste, pas un jour choisi par GitHub. Même runner pour tous les jobs
+    # du dépôt.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 3 min 24 au plus observé
 
     steps:
       - name: Checkout
@@ -61,25 +56,24 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      # pnpm, Node, dépendances et client Prisma : la même mise en place pour les trois jobs.
+      - name: Setup
+        uses: $/.github/actions/setup
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      # `--ignore-scripts` : aucune dépendance ne doit pouvoir exécuter de code à l'installation.
-      # Le seul script dont on a besoin est le nôtre (`postinstall: prisma generate`), qu'on relance
-      # donc explicitement — le comportement est identique, l'exécution arbitraire ne l'est plus.
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Generate Prisma client
-        run: pnpm --filter @cmv/api exec prisma generate
+      # Le hook `commit-msg` ne voit que le poste : un commit fait dans l'interface GitHub, par une
+      # suggestion de revue ou avec `--no-verify` arrivait sur `main` sans contrôle — et
+      # `release-please` ignore en silence ce qu'il ne sait pas lire, sans bump ni CHANGELOG (#416).
+      # Une étape et non un job : elle hérite du statut requis de `quality`, là où un nouveau nom de
+      # job serait un check de plus à déclarer dans le ruleset.
+      # La base de la PR et non `origin/main` : une PR en retard relirait sinon des commits qui ne
+      # sont pas les siens. Les commits de merge sont ignorés par commitlint. Les deux sha passent
+      # par `env:`, jamais interpolés dans le script (#401). `fetch-depth: 0` les rend présents.
+      - name: Commitlint
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
 
       - name: Biome CI
         run: pnpm biome ci .
@@ -124,7 +118,8 @@ jobs:
   # d'entre eux sont restés cassés plusieurs jours derrière une CI verte (#36).
   e2e:
     name: E2E (isolation multi-tenant)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10 # 1 min 43 au plus observé, images comprises
 
     steps:
       - name: Checkout
@@ -132,28 +127,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      # DATABASE_URL est posé sur CETTE étape et pas sur le job : `loadEnvFile` ne surcharge pas une
-      # variable déjà présente, donc un DATABASE_URL de job masquerait celui de `.env.test` et la
-      # suite viserait la mauvaise base. Le garde-fou de `global-setup.e2e.ts` l'arrêterait, mais on
-      # préfère que le cas ne puisse pas se produire. Placeholder sans identifiants (cf. `quality`).
-      - name: Generate Prisma client
-        run: pnpm --filter @cmv/api exec prisma generate
-        env:
-          DATABASE_URL: postgresql://localhost:5432/placeholder
+      - name: Setup
+        uses: $/.github/actions/setup
 
       # Le modèle est copié tel quel : la CI ne redéfinit aucune valeur, donc l'env des e2e ne peut
       # pas diverger entre une machine et le runner — et aucun identifiant n'entre dans ce workflow.
@@ -209,12 +184,9 @@ jobs:
   # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 », docs/dette-technique.md).
   sonarcloud:
     name: SonarCloud Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 2 min 24 observé, plus jusqu'à 5 min d'attente de la Quality Gate
     needs: [quality, e2e]
-    env:
-      # Même DSN factice que `quality`, sans identifiants : `prisma generate` a besoin de la
-      # variable, pas d'une base.
-      DATABASE_URL: postgresql://localhost:5432/placeholder
 
     steps:
       - name: Checkout
@@ -224,22 +196,8 @@ jobs:
           # Historique complet : Sonar attribue le code neuf par `git blame`.
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Generate Prisma client
-        run: pnpm --filter @cmv/api exec prisma generate
+      - name: Setup
+        uses: $/.github/actions/setup
 
       # Le `dist` de @cmv/shared, que `turbo test` construisait jusqu'ici en dépendance (`^build`) :
       # l'API le résout par son `package.json`. Sans lui, l'analyse de types de Sonar ne tournerait

@@ -54,6 +54,19 @@ l'E2E (#257). Il tourne au merge de son fichier, chaque lundi, et à la main pou
 Chaque lundi, il ouvre aussi l'issue `[silo-version]` si un compose épingle une version plus ancienne
 que la dernière publiée : Dependabot ne comprend pas les tags `RELEASE.…` et ne le ferait pas.
 
+**Mise en place et bornes des jobs** (#413) :
+
+- les trois jobs de `ci.yml` appellent `$/.github/actions/setup` après leur checkout : pnpm, Node,
+  `pnpm install --frozen-lockfile --ignore-scripts`, `prisma generate`. Un changement
+  d'installation se fait là, une fois ;
+- les versions n'y sont pas écrites : pnpm vient de `packageManager` (`package.json` racine), Node
+  de `.nvmrc`. Monter l'un ou l'autre, c'est changer ce fichier-là — et les `Dockerfile`, qui
+  épinglent encore `node:22`, `pnpm@10.34.4` et `turbo@2.10.0` à part ;
+- chaque job porte un `timeout-minutes`, autour de trois fois sa durée observée, mesure en
+  commentaire : sans lui, un job bloqué occupe un runner six heures ;
+- tous les jobs tournent sur `ubuntu-26.04`, épinglé : passer à une autre version d'Ubuntu est
+  une PR, pas une bascule décidée par GitHub.
+
 **Sécurité des workflows** — `zizmor.yml` audite `.github/` à chaque PR qui y touche, au merge, et
 chaque lundi (#401). Les constats vont dans *Security → Code scanning* et s'annotent sur la PR ;
 ce n'est **pas** un check requis. Ce qu'il vérifie, et qu'un nouveau workflow respecte d'emblée :
@@ -77,6 +90,25 @@ docker run --rm -v "$PWD:/repo:ro" -w /repo -e GH_TOKEN="$(gh auth token)" \
 ## Commits
 
 Convention **Conventional Commits**, sujet en minuscule (vérifié par commitlint).
+
+Vérifié deux fois : sur le poste par le hook `commit-msg`, et en CI par une étape du job
+`quality` (*Lint + Typecheck + Test*), qui relit chaque commit de la PR depuis sa base. Un commit
+fait dans l'interface GitHub, par une suggestion de revue ou avec `--no-verify` n'y échappe donc
+plus — c'est ce qui compte : `release-please` ignore **en silence** un message qu'il ne sait pas
+lire, un correctif mal formé ne produirait ni bump ni ligne de CHANGELOG.
+
+Un message refusé sur une PR se corrige en local, puis en poussant **la branche de PR** — jamais
+`main` :
+
+```bash
+git rebase -i origin/main          # « reword » sur le commit refusé
+git push --force-with-lease
+```
+
+Seule exception connue : une mise à jour de **sécurité** Dependabot n'est pas groupée, et son sujet
+reprend le nom du paquet tel quel. Sur `SonarSource/sonarqube-scan-action`, il porterait une
+majuscule que `subject-case` refuse. Ne pas réécrire le commit du robot : fermer sa PR et faire le
+bump à la main.
 
 ### Commits signés (SSH)
 
@@ -167,7 +199,7 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
 
 **Secrets** — ce que seule la CI doit connaître :
 
-- `SONAR_TOKEN` — SonarCloud.
+- `SONAR_TOKEN` — SonarCloud. Posé **aussi** en secret Dependabot (Settings → Secrets and variables → *Dependabot*) : une PR ouverte par Dependabot ne lit que ceux-là, et sans lui le job Sonar de chaque PR Dependabot échoue.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
 - `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
 - `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web de la promotion. C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.

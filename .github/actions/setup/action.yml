@@ -1,0 +1,38 @@
+name: Setup du monorepo
+description: pnpm, Node.js, dépendances installées et client Prisma généré — la mise en place commune aux jobs de `ci.yml`.
+
+# Appelée par `$/.github/actions/setup` : GitHub la charge depuis le commit en cours d'exécution,
+# jamais depuis le disque du runner, qu'une étape précédente aurait pu modifier. Le checkout reste
+# pourtant dans chaque job, avant l'appel : l'installation a besoin du dépôt, et chaque job garde
+# son propre `fetch-depth`.
+#
+# Les versions ne sont déclarées nulle part ici (#413) : pnpm vient de `packageManager` dans le
+# `package.json` racine, Node de `.nvmrc`. Une seule source chacune, celle qu'on utilise aussi en
+# local.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+    # Après pnpm : `cache: pnpm` a besoin du binaire pour trouver le store.
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version-file: .nvmrc
+        cache: "pnpm"
+
+    # `--ignore-scripts` : aucune dépendance ne doit pouvoir exécuter de code à l'installation.
+    # Le seul script dont on a besoin est le nôtre (`postinstall: prisma generate`), qu'on relance
+    # donc explicitement — le comportement est identique, l'exécution arbitraire ne l'est plus.
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile --ignore-scripts
+
+    # Sans `DATABASE_URL` : `prisma generate` ne lit que le schéma, et `prisma.config.ts` retombe sur
+    # une URL vide quand la variable manque. Surtout, n'en poser aucune ici : les e2e lisent la
+    # leur dans `.env.test`, et `loadEnvFile` ne surcharge pas une variable déjà définie.
+    - name: Generate Prisma client
+      shell: bash
+      run: pnpm --filter @cmv/api exec prisma generate
