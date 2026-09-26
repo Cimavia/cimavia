@@ -28,6 +28,19 @@ export function apiErrorMessage(error: unknown): string | null {
   return error instanceof ApiError ? error.message : null;
 }
 
+/**
+ * La session a été refusée par l'API. Sur les routes que les apps appellent, un 401 ne veut rien
+ * dire d'autre : seul le garde de session de Better Auth le produit (la seule autre source, le
+ * garde du tick de rappels, n'est appelée que par la CI). C'est ce qui permet d'en faire un signal
+ * global — « la session est perdue » — plutôt qu'une erreur à traiter écran par écran (#336).
+ *
+ * Une panne réseau n'est PAS un 401 : elle ne dit rien de la session, et la confondre ferait
+ * demander un mot de passe à qui a juste perdu le Wi-Fi.
+ */
+export function isUnauthorizedError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
 // Corps d'erreur NestJS : `message` vaut soit une string, soit la liste des erreurs Zod.
 type NestErrorBody = { message?: string | ApiFieldError[]; error?: string };
 
