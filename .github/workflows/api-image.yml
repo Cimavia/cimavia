@@ -13,7 +13,8 @@ name: Images — API (GHCR)
 #
 # Le nom du fichier suit encore l'ancien rôle : son renommage appartient à #271.
 
-on:
+# `concurrency-limits` écarté : l'absence de `concurrency` est voulue, voir plus bas.
+on: # zizmor: ignore[concurrency-limits]
   push:
     branches: [main]
     paths:
