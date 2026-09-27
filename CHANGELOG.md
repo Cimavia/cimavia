@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.8.1](https://github.com/Cimavia/cimavia/compare/v1.8.0...v1.8.1) (2026-09-27)
+
+
+### Corrections
+
+* **api:** une séance débriefée refuse la suppression, la cascade effaçait le débrief ([e9381a1](https://github.com/Cimavia/cimavia/commit/e9381a1fbc0dc328087d99178dda34e016ef6307))
+* **web:** l'étage de build installe les certificats racine, sentry-cli joint enfin sentry ([6ba7344](https://github.com/Cimavia/cimavia/commit/6ba73448697f48f8a302800866e57363151a04f5))
+* **web:** la raison d'une suppression fermée s'affiche, le bouton désactivé la masquait ([7917d28](https://github.com/Cimavia/cimavia/commit/7917d28fa708ced67e392de27cc6dc852c6e249b))
+* **web:** la raison d'une suppression fermée s'affiche, le bouton désactivé la masquait ([b4407b4](https://github.com/Cimavia/cimavia/commit/b4407b4be092bb52cd301b618cc0f13c502b2a86))
+* **web:** un cycle diffusé dit au survol pourquoi sa suppression est fermée ([e65f8d0](https://github.com/Cimavia/cimavia/commit/e65f8d0d285019ac7703bbfa236d81ad44ba702f))
+* **web:** un téléversement sentry qui échoue fait échouer le build au lieu de passer vert ([545ffce](https://github.com/Cimavia/cimavia/commit/545ffce5e8d97c084a8feec989c59bd296e246e8))
+* **web:** une séance débriefée grise sa suppression, et un retrait diffusé s'annonce ([8666c7c](https://github.com/Cimavia/cimavia/commit/8666c7cd15ce144c6a19bf3a9cd730c181475a56))
+
+
+### Technique
+
+* le miroir pagine sa recherche d'issue, au-delà de 100 ouvertes il en créait un doublon ([749a130](https://github.com/Cimavia/cimavia/commit/749a130812d3163956824649d0f1c25f1b275794))
+* pnpm-version.yml signale chaque lundi un pnpm plus récent dans la même majeure ([73872ce](https://github.com/Cimavia/cimavia/commit/73872cecd29a3c7f23b561c8c141e3255dbbf64b))
+
 ## [1.8.0](https://github.com/Cimavia/cimavia/compare/v1.7.1...v1.8.0) (2026-09-27)
 
 
