@@ -1927,7 +1927,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > **Tranché en #433** (ce que l'API écrit dans ses journaux et envoie à Sentry — ferme aussi
 > [#294](https://github.com/Cimavia/cimavia/issues/294)) : Pino recopiait tous les en-têtes, à
 > chaque requête — cookie de session Better Auth rejouable sept jours, `authorization`, secret du
-> tick, `set-cookie`, et le `location` de la redirection de réinitialisation, jeton compris. Sentry
+> tick — et le jeton d'appareil dans l'URL de révocation. Sentry
 > y ajoutait le corps des requêtes, mot de passe de connexion compris, **sans qu'aucune erreur ne
 > soit levée** : une transaction échantillonnée emporte la même requête qu'une erreur. Relevé en
 > faisant tourner le vrai SDK, pas en lisant ses options. Quatre décisions :
@@ -1935,11 +1935,18 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   réduit à `id`, `method` et l'URL blanchie, `res` à `statusCode`. Un `redact` aurait laissé
 >   passer le prochain en-tête sensible, et ne sait pas réécrire une partie de l'URL — or deux
 >   jetons sont DANS le chemin. L'IP, `query` et `params` partent avec.
+>   *Corrigé en #357* : cet encadré ajoutait à la liste le `set-cookie` de la connexion et le
+>   `location` de la redirection de réinitialisation. Faux — Pino n'a JAMAIS vu les routes
+>   `/api/auth/*` : Better Auth est branché directement sur Fastify (`httpAdapter.use`), avant les
+>   middlewares de Nest, et répond sans passer la main. Constaté au test de la PR : une demande de
+>   réinitialisation envoie son e-mail sans laisser de ligne `request completed`. Sentry, qui
+>   écoute sous Fastify, les voit bien : le blanchiment de `/reset-password/<jeton>` y sert.
 > - **Une seule liste de secrets d'URL** (`redactUrlSecrets`, `@cmv/shared`), pour le web, les
 >   journaux et Sentry : les paramètres `token`, `code`, `X-Amz-Signature`, et les segments
 >   `/reset-password/<jeton>` (le lien de l'e-mail, qui arrive sur l'API) et
->   `/push-tokens/<jeton>`. Ce dernier est un secret tant que la sécurité renforcée des push n'est
->   pas activée sur le compte Expo — elle ne l'est pas : le jeton suffit à pousser vers l'appareil.
+>   `/push-tokens/<jeton>`. Ce dernier était un secret : sans la sécurité renforcée des push, il
+>   suffisait à pousser vers l'appareil. Elle est activée depuis #357 ; il reste blanchi, parce
+>   qu'il identifie l'appareil et redeviendrait suffisant si l'option était coupée.
 > - **Le corps n'est jamais lu, sur aucune route** (`maxIncomingRequestBodySize: "none"`), plutôt
 >   qu'une exception pour `/api/auth/*` : hors authentification, il porte aussi le code d'une
 >   invitation et le texte d'un débrief, et une liste d'exceptions s'oublie à la prochaine route
@@ -3955,6 +3962,32 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > et demi n'existe pas. Un pas refusé ferme le bouton au lieu d'être arrondi en silence.
 > `fillStep` arrondit au nombre de décimales du départ ou du pas, le plus grand des deux : sans
 > ça, un pas de 0,1 écrivait `0.30000000000000004` dans la quatrième ligne.
+
+---
+
+## Post-MVP — Garde de démarrage des tiers déployés ([#357](https://github.com/Cimavia/cimavia/issues/357))
+
+> **Tranché en #357** (ce qu'un tier déployé exige pour démarrer) : le `ConfigModule` valide
+> l'environnement au boot pour que l'API refuse de démarrer mal configurée, mais un secret d'un
+> caractère et une URL d'auth en http passaient. Le `superRefine` d'`env.schema.ts` durcit :
+> - **Partout** : `BETTER_AUTH_SECRET` de 32 caractères au moins, et `REMINDER_TICK_SECRET` aussi
+>   quand il est posé — absent, la route de tick reste fermée (503), comme avant. Better Auth ne
+>   fait qu'avertir en dessous de 32.
+> - **En `preview` ET en `production`** — l'issue ne visait que la production : `BETTER_AUTH_URL`
+>   en https (en http, Better Auth retire `Secure` des cookies de session) et `EXPO_ACCESS_TOKEN`
+>   obligatoire. Le NAS est inclus parce qu'il porte les vraies données du Coach bêta et qu'il est
+>   joignable publiquement. Le développement local reste permissif : http sur une IP de LAN, et pas
+>   de jeton Expo.
+> - **La sécurité renforcée des push est activée** sur le compte Expo : sans jeton d'accès, Expo
+>   refuse tous les envois, et l'échec ne se lit que dans les tickets. D'où l'obligation au boot
+>   plutôt qu'une panne silencieuse. Le jeton appartient à un **robot** (`cimavia-push`, rôle
+>   Viewer, suffisant pour envoyer), pas à un compte personnel : un jeton par environnement,
+>   révocables séparément.
+>
+> Conséquence d'exploitation : une version qui durcit ces règles se **vérifie sur le NAS AVANT sa
+> promotion** (README du preview) — sinon `pull-preview.sh` remplace l'API par une qui refuse de
+> démarrer, et le preview tombe. Le smoke de `api-image.yml` démarre l'image en `preview` : ses
+> valeurs factices suivent les mêmes règles.
 
 ---
 
