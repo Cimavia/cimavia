@@ -1,5 +1,5 @@
 import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
-import { planWeekDays } from "@cmv/shared";
+import { planWeekDays, ScheduledSessionStatus } from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompositionEditor } from "@/feature/library/component/CompositionEditor";
@@ -65,6 +65,8 @@ function toSaveInput(
 
 type ScheduledSessionPanelProps = {
   planId: string;
+  // Cycle diffusé : retirer une séance prévient l'athlète, le panneau l'annonce avant confirmation.
+  isPublished: boolean;
   week: PlanWeekDto;
   // Jour cliqué (création) ou jour de la séance (édition).
   date: string;
@@ -82,6 +84,7 @@ type ScheduledSessionPanelProps = {
  */
 export function ScheduledSessionPanel({
   planId,
+  isPublished,
   week,
   date,
   session,
@@ -140,6 +143,8 @@ export function ScheduledSessionPanel({
       footer={
         <SessionPanelFooter
           isEditing={isEditing}
+          isDebriefed={session?.status === ScheduledSessionStatus.DONE}
+          isPublished={isPublished}
           isBusy={isBusy}
           canSubmit={canSubmit}
           onDelete={onDelete}

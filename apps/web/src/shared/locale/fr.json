@@ -513,6 +513,8 @@
       "moveExercise": "Déplacer l'exercice",
       "remove": "Retirer",
       "delete": "Supprimer la séance",
+      "deleteDisabledDebriefed": "Séance débriefée par l'athlète : il n'est plus possible de la supprimer. Elle reste modifiable.",
+      "deleteHintPublished": "L'athlète sera prévenu du retrait.",
       "submit": "Enregistrer",
       "submitting": "Enregistrement…",
       "noteLabel": "Note",
@@ -528,7 +530,7 @@
       "emptyWeeksHint": "Ajoute une semaine pour commencer à poser des séances.",
       "athleteRequired": "Choisis le destinataire de ce cycle pour pouvoir le diffuser.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
-      "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé (facture émise, athlète en cours).",
+      "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé.",
       "titleWithAthlete": "{{title}} — {{name}}",
       "audience": {
         "VISIBLE_UPCOMING": "Ton athlète voit ce cycle. Il démarre le {{date}}.",

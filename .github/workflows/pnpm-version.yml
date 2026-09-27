@@ -1,0 +1,124 @@
+name: Version de pnpm
+
+# pnpm n'est suivi par aucun outil (#461) : Dependabot ne lit pas le champ `packageManager`
+# (dependabot-core#4830), et pnpm n'étant dans aucun lockfile, aucune alerte de sécurité ne le
+# couvre non plus. La 10.34.4 est ainsi restée deux mois et demi avec trois failles HIGH corrigées
+# (#452). Chaque lundi, ce workflow compare `packageManager` à la dernière version publiée de la
+# MÊME majeure, et ouvre une issue si le dépôt est en retard. Monter reste une PR relue.
+#
+# La majeure en cours seulement : une majeure change le format du lockfile, c'est une décision et
+# non un retard. Pas de délai avant de signaler, contrairement au `cooldown` de Dependabot : c'est
+# une issue, pas une PR, et elle donne la date de publication pour appliquer la règle à la main.
+#
+# Un workflow à part, et non un job de `mirror-images.yml` : celui-là porte `packages: write`, dont
+# un contrôle de version n'a aucun besoin.
+
+on:
+  schedule:
+    # Le lundi, entre la copie de SILO (`mirror-images.yml`, 6 h) et le scan Trivy (6 h 30).
+    - cron: "15 6 * * 1"
+  workflow_dispatch:
+  # Au merge de ce fichier : le premier contrôle n'attend pas le lundi suivant.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/pnpm-version.yml"
+
+concurrency:
+  group: pnpm-version
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check:
+    name: Comparer pnpm à la dernière version publiée
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # lit `packageManager` dans le `package.json` racine
+      issues: write # ouvre ou met à jour l'issue « version de pnpm en retard »
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Le jeton n'est pas laissé dans `.git/config` : ce job ne fait que lire le dépôt.
+          persist-credentials: false
+
+      # Une seule issue ouverte à la fois, avec le titre pour clé : mise à jour si elle existe, créée
+      # sinon, et rien si le dépôt est à jour. Le REST, parce que `gh issue` passe par une API
+      # GraphQL cassée sur ce dépôt. `--paginate` : le dépôt a plus de 100 issues ouvertes, et une
+      # recherche limitée à la première page ouvrirait un doublon.
+      #
+      # Un dist-tag introuvable fait échouer le job : conclure « à jour » faute de réponse
+      # rouvrirait en silence l'angle mort que ce workflow ferme.
+      - name: Signaler une version de pnpm en retard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pinned="$(jq -r '.packageManager // empty' package.json)"
+          if [[ ! "$pinned" =~ ^pnpm@[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::packageManager ne désigne pas une version de pnpm : « ${pinned} »."
+            exit 1
+          fi
+          current="${pinned#pnpm@}"
+          current="${current%%+*}"
+          major="${current%%.*}"
+
+          latest="$(curl -fsS --max-time 30 https://registry.npmjs.org/-/package/pnpm/dist-tags \
+            | jq -r --arg tag "latest-${major}" '.[$tag] // empty')"
+          if [[ -z "$latest" ]]; then
+            echo "::error::Le registre npm ne donne aucun dist-tag latest-${major} pour pnpm."
+            exit 1
+          fi
+
+          if [[ "$(printf '%s\n' "$current" "$latest" | sort -V | tail -n1)" == "$current" ]]; then
+            echo "pnpm ${current} est la dernière ${major}.x publiée."
+            exit 0
+          fi
+
+          # La date n'est que dans le document complet du paquet (quelques Mo, une fois par semaine).
+          published="$(curl -fsS --max-time 60 https://registry.npmjs.org/pnpm \
+            | jq -r --arg v "$latest" '.time[$v] // empty')"
+          published="${published%%T*}"
+          if [[ -n "$published" ]]; then
+            when="publiée le ${published}"
+          else
+            when="date de publication absente du registre"
+          fi
+          echo "::notice::pnpm ${latest} (${when}) ; le dépôt épingle ${current}."
+
+          title="[pnpm-version] - Une version plus récente de pnpm ${major} est disponible"
+          existing="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" \
+            --jq ".[] | select(.pull_request == null and .title == \"${title}\") | .number" | head -n1)"
+
+          body="$(cat <<EOF
+          \`packageManager\` épingle **pnpm ${current}**, et la dernière ${major}.x publiée est **${latest}**, ${when}.
+
+          Rien d'autre ne le signale : Dependabot ne lit pas \`packageManager\`, et pnpm n'étant dans aucun lockfile, aucune alerte de sécurité ne le couvre (#461).
+
+          ## À faire
+
+          - Lire ce qui a changé, **sécurité d'abord** : [versions de pnpm](https://github.com/pnpm/pnpm/releases) · [avis de sécurité](https://github.com/pnpm/pnpm/security/advisories).
+          - Un correctif de sécurité se monte tout de suite ; sinon, la règle de Dependabot vaut aussi ici : 7 jours après la publication.
+          - Monter **tous** les endroits qui épinglent la version, que cette commande liste :
+
+            \`\`\`bash
+            git grep -n '${current}' -- ':!pnpm-lock.yaml' ':!CHANGELOG.md'
+            \`\`\`
+
+          - \`pnpm install\` doit laisser le lockfile inchangé.
+          - Rester sur la majeure ${major} : une majeure change le format du lockfile, c'est une décision à part (#452).
+
+          Issue tenue à jour par \`pnpm-version.yml\` : elle se réécrit chaque lundi tant que \`packageManager\` n'a pas rattrapé la dernière version.
+          EOF
+          )"
+
+          if [[ -n "$existing" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/${existing}" -f body="$body" --jq '"issue #\(.number) mise à jour"'
+          else
+            jq -n --arg title "$title" --arg body "$body" \
+              '{title: $title, body: $body, labels: ["area: infra", "type: chore", "prio: high"]}' \
+              | gh api "repos/${GITHUB_REPOSITORY}/issues" --input - --jq '"issue #\(.number) ouverte"'
+          fi

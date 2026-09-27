@@ -7,8 +7,19 @@ import type {
   ScheduledSessionExerciseInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
-import { customMetricIdsIn, isDateInPlanWeek, PlanStatus } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  customMetricIdsIn,
+  isDateInPlanWeek,
+  PlanStatus,
+  ScheduledSessionStatus,
+} from "@cmv/shared";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   CustomMetric as CustomMetricRow,
   ExerciseDocument,
@@ -290,9 +301,27 @@ export class ScheduledSessionService {
     const plan = await this.plans.getOwnedOrThrow(session.planId);
 
     await this.db.$transaction(async (tx) => {
-      // Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
-      // copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
-      await tx.scheduledSession.delete({ where: { id } });
+      /**
+       * Une séance débriefée ne se supprime pas (#313) : la cascade emporterait le débrief de
+       * l'athlète, son suivi d'exécution et le lien des messages qui y répondent — et laisserait
+       * ses médias orphelins dans le bucket. Le coach garde l'édition, qui préserve tout ça.
+       *
+       * La garde est DANS la suppression, pas dans une lecture préalable : un débrief créé au même
+       * instant passe la séance en DONE dans sa transaction, et Postgres revérifie la condition sur
+       * la ligne mise à jour avant de la supprimer. `DONE` n'est posé que par le débrief, qui ne
+       * se supprime jamais : le statut dit exactement « un débrief existe ».
+       *
+       * Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
+       * copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
+       */
+      const { count } = await tx.scheduledSession.deleteMany({
+        where: { id, status: { not: ScheduledSessionStatus.DONE } },
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          "Cette séance a été débriefée par l'athlète : elle ne peut plus être supprimée, mais reste modifiable",
+        );
+      }
       // La journée se recolle DANS la même transaction : un trou laissé derrière ferait échouer
       // la prochaine séance ajoutée ce jour-là, sur une contrainte d'unicité que le coach n'a
       // aucun moyen de relier à la suppression qu'il vient de faire.

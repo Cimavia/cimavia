@@ -192,7 +192,10 @@
   .triggers { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
   .chip {
     font-family: var(--mono); font-size: 11.5px; padding: 2px 8px; border-radius: 4px;
-    background: var(--lane-gh-bg); color: var(--lane-gh); white-space: nowrap;
+    background: var(--lane-gh-bg); color: var(--lane-gh);
+    /* un chip court reste d'un bloc (flex-wrap le renvoie à la ligne) ; un long se replie au lieu
+       d'élargir la page sur mobile */
+    max-width: 100%; overflow-wrap: anywhere;
   }
   .chip.cron { background: var(--lane-nas-bg); color: var(--lane-nas); }
   .chip.manual { background: var(--lane-local-bg); color: var(--lane-local); }
@@ -273,9 +276,9 @@
     <h1>Chaîne de livraison cimavia</h1>
     <p class="lede">Du poste de dev jusqu'au NAS de preview : ce qui tourne en local, ce que la CI vérifie, comment une version est taguée, construite, promue puis tirée par le NAS, et les tâches qui tournent seules.</p>
     <div class="meta">
-      <span><b>Version</b> 1.5.1</span>
-      <span><b>Relevé</b> 23/09/2026, branche <code>tech/271</code></span>
-      <span><b>Sources</b> <code>.github/</code>, <code>package.json</code> ×6, <code>turbo.json</code>, <code>deploy/preview/</code>, <code>.husky/</code></span>
+      <span><b>Version</b> 1.8.1</span>
+      <span><b>Relevé</b> 27/09/2026, <code>main</code> au commit <code>921175d</code></span>
+      <span><b>Sources</b> <code>.github/</code>, <code>package.json</code> ×6, <code>turbo.json</code>, <code>deploy/preview/</code>, <code>.husky/</code>, rulesets et CodeQL lus par l'API GitHub</span>
     </div>
   </header>
 
@@ -328,29 +331,30 @@
     ["local", 1, 20, "Commit", "Husky : biome · commitlint"],
     ["local", 2, 20, "Porte qualité locale", "biome ci · turbo · i18n"],
     ["local", 3, 20, "Compose local", "PG · SILO · Mailpit"],
-    ["local", 6, 20, "EAS Build", "manuel · profils EAS"],
+    ["local", 6, 20, "EAS Build · Update", "manuel · ota:preview au tag"],
     ["gh", 1, 110, "PR → main", "branche de travail"],
-    ["gh", 1, 230, "Dependabot", "actions · hebdo"],
-    ["gh", 2, 110, "ci.yml", "quality ∥ e2e → sonar"],
+    ["gh", 1, 170, "Dependabot", "4 écosystèmes · hebdo"],
+    ["gh", 1, 230, "zizmor · CodeQL", "alertes · non requis"],
+    ["gh", 2, 110, "ci.yml", "4 checks requis sur PR"],
     ["gh", 3, 110, "main", "après merge"],
     ["gh", 4, 110, "release.yml", "tient la PR de release"],
     ["gh", 4, 170, "tag vX.Y.Z", "merge de la PR de release"],
-    ["gh", 4, 230, "api-image.yml", "build API à chaque push"],
+    ["gh", 3, 230, "api-image.yml · web-image.yml", "build, démarrage, puis push, à chaque push de main", 325],
     ["gh", 5, 110, "promote-preview.yml", "manuel · saisie X.Y.Z"],
+    ["gh", 5, 170, "pnpm-version.yml", "lundi 06:15 · issue"],
+    ["gh", 5, 230, "trivy.yml", "lundi 06:30 · images NAS"],
     ["gh", 6, 110, "reminder-tick.yml", "toutes les heures"],
     ["gh", 6, 170, "branche preview", "avancée au SHA du tag"],
-    ["gh", 5, 230, "trivy.yml", "lundi 06:30 · Dockerfiles"],
     ["gh", 6, 230, "mirror-images.yml", "lundi 06:00"],
-    ["reg", 3, 315, "api:sha-…", "chaque commit main"],
-    ["reg", 4, 315, "api:X.Y.Z", "commit de release"],
-    ["reg", 5, 315, "web:preview-X.Y.Z", "construit au tag"],
+    ["reg", 3, 315, "api · web :sha", "chaque push de main"],
+    ["reg", 4, 315, "api · web :X.Y.Z", "bump, image démarrée"],
     ["reg", 5, 373, "api + web :preview", "retag par digest"],
     ["reg", 6, 340, "silo · mc", "RELEASE… épinglés"],
     ["nas", 5, 450, "pull-preview.sh", "5 min · compose du tag"],
     ["nas", 5, 498, "backup.sh", "03:00 · dump + médias"],
     ["nas", 6, 450, "cimavia-preview", "migrate deploy · up -d"],
     ["ext", 2, 573, "SonarCloud", "quality gate"],
-    ["ext", 4, 573, "Sentry", "sourcemaps web"],
+    ["ext", 5, 573, "Sentry", "sourcemaps web au bump"],
     ["ext", 6, 573, "Cloudflare Tunnel", "api- · app-preview"],
   ];
   // [chemin, pointillé ?, libellé, x, y]
@@ -358,24 +362,23 @@
     ["M205 64 V110"],
     ["M380 64 V110", 1, "mêmes commandes", 374, 90, "end"],
     ["M480 42 H467.5 V121 H455", 1],
-    ["M170 230 V154"],
+    ["M205 170 V154"],
     ["M280 132 H305"],
     ["M480 142 H455"],
     ["M240 154 V162 H555 V154", 0, "merge", 300, 165],
     ["M380 154 V573", 1],
     ["M420 110 V100 H905 V110", 1, "3 checks verts exigés", 700, 103],
     ["M630 128 H655"],
-    ["M630 128 H642.5 V252 H655"],
+    ["M600 154 V230"],
     ["M730 154 V170"],
     ["M805 192 H812 V126 H830"],
-    ["M690 274 V291 H555 V315"],
+    ["M555 274 V315"],
     ["M730 274 V315", 0, "si bump", 738, 300],
     ["M805 330 H822 V144 H830", 1, "doit exister", 826, 298],
-    ["M905 154 V315", 0, "build web", 911, 240],
-    ["M905 359 V373"],
     ["M730 359 V395 H830", 0, "retag", 760, 392],
-    ["M830 337 H817.5 V595 H805"],
+    ["M805 262 H814 V595 H830"],
     ["M980 132 H992.5 V192 H1005"],
+    ["M992.5 192 V395 H980"],
     ["M1080 274 V340"],
     ["M1080 384 V450", 1],
     ["M905 450 V417", 1, "tire", 911, 436],
@@ -404,9 +407,9 @@
       t.textContent = label;
     }
   }
-  for (const [lane, c, y, title, sub] of nodes) {
+  for (const [lane, c, y, title, sub, w = W] of nodes) {
     const x = COL[c];
-    el("rect", { x, y, width: W, height: H, rx: 6, class: `node node-${lane}` });
+    el("rect", { x, y, width: w, height: H, rx: 6, class: `node node-${lane}` });
     const t = el("text", { x: x + 10, y: y + 18, class: "node-t" });
     t.textContent = title;
     const s = el("text", { x: x + 10, y: y + 34, class: "node-s" });
@@ -434,26 +437,26 @@
       <div class="step gh">
         <span class="who">GitHub</span>
         <h3>PR vers main</h3>
-        <p><code>ci.yml</code> : qualité et e2e en parallèle, puis SonarCloud une fois la couverture e2e récupérée.</p>
-        <p class="gate">3 checks requis : Lint + Typecheck + Test · E2E · SonarCloud (couverture &gt; 80 %, duplication &lt; 3 %).</p>
+        <p><code>ci.yml</code> : qualité (commitlint compris) et e2e en parallèle, puis SonarCloud sur leurs couvertures ; les builds de production des apps touchées à côté. <code>zizmor.yml</code> et <code>trivy.yml</code> relisent les workflows et les Dockerfiles si la PR y touche, CodeQL analyse le code.</p>
+        <p class="gate">4 checks requis : Lint + Typecheck + Test · E2E · SonarCloud (couverture &gt; 80 %, duplication &lt; 3 %) · Builds de production. zizmor, Trivy et CodeQL alertent sans être requis.</p>
       </div>
       <div class="step gh">
         <span class="who">GitHub</span>
         <h3>Merge sur main</h3>
-        <p>La CI se relance sur main. En parallèle, <code>api-image.yml</code> pousse <code>cimavia-api:sha-…</code> et <code>release.yml</code> met à jour la PR de release.</p>
-        <p class="gate">Aucune : une image est publiée même si un test est rouge. Le blocage intervient à la promotion.</p>
+        <p>La CI n'est pas rejouée : la PR à jour de <code>main</code> a déjà testé l'arbre exact. <code>api-image.yml</code> et <code>web-image.yml</code> construisent chacun leur image, la <b>démarrent</b>, puis la publient en <code>sha-…</code> ; <code>release.yml</code> met à jour la PR de release.</p>
+        <p class="gate">Une image qui ne démarre pas fait échouer son workflow. Une image publiée n'est pas livrée : le blocage sur les checks intervient à la promotion.</p>
       </div>
       <div class="step gh">
         <span class="who">GitHub</span>
         <h3>Release</h3>
-        <p>Merger la PR de release incrémente <code>package.json</code>, <code>CHANGELOG.md</code> et <code>app.json</code>, pose le tag <code>vX.Y.Z</code>, et ce commit produit <code>cimavia-api:X.Y.Z</code>.</p>
-        <p class="gate">Changement de version détecté en comparant <code>package.json</code> à celui de <code>HEAD~1</code>.</p>
+        <p>Merger la PR de release incrémente <code>package.json</code>, <code>CHANGELOG.md</code> et <code>app.json</code>, pose le tag <code>vX.Y.Z</code>. Ce commit rejoue la CI, et ses deux images reçoivent le tag <code>X.Y.Z</code> une fois démarrées ; le web téléverse ses sourcemaps chez Sentry.</p>
+        <p class="gate">Changement de version détecté en comparant <code>package.json</code> à celui de <code>HEAD~1</code> (action <code>product-version</code>). Un téléversement Sentry raté fait échouer le build (#474).</p>
       </div>
       <div class="step reg">
         <span class="who">Actions → GHCR</span>
         <h3>Promotion</h3>
-        <p>Lancée à la main avec <code>X.Y.Z</code>. Construit le web au tag avec l'URL de l'API figée, puis retague les deux images en <code>:preview</code> par digest et avance la branche <code>preview</code>.</p>
-        <p class="gate">Tag sur main, version plus récente que preview, 3 checks verts sur ce commit, image API présente.</p>
+        <p>Lancée à la main avec <code>X.Y.Z</code>. Ne construit rien : retague les images API et web <code>X.Y.Z</code> en <code>:preview</code> par digest et avance la branche <code>preview</code>. Le web lit son URL d'API, son tier et son DSN au démarrage, dans <code>/config.js</code> (#417).</p>
+        <p class="gate">Tag sur main, version plus récente que preview, 3 checks verts sur ce commit (Builds de production ne tourne pas sur main), les deux images <code>X.Y.Z</code> présentes.</p>
       </div>
       <div class="step nas">
         <span class="who">NAS</span>
@@ -468,15 +471,15 @@
   <section id="workflows">
     <div class="sec-head">
       <h2>Workflows GitHub Actions</h2>
-      <p>Six workflows et un Dependabot. Toutes les actions sont épinglées par SHA et chaque job déclare ses propres permissions (<code>permissions: {}</code> par défaut).</p>
+      <p>Dix workflows, Dependabot et CodeQL. Toutes les actions sont épinglées par SHA, chaque workflow part de <code>permissions: {}</code> ou du seul <code>contents: read</code> et chaque job déclare le reste, et tous tournent sur <code>ubuntu-26.04</code> épinglé (#413).</p>
     </div>
     <div class="wf-list">
 
       <details class="wf" open>
         <summary>
           <span class="name">ci.yml · CI</span><span class="chev">›</span>
-          <span class="role">La porte de qualité : ses trois jobs sont les checks requis sur main et ceux que la promotion revérifie.</span>
-          <span class="triggers"><span class="chip">push main</span><span class="chip">pull_request → main</span><span class="chip">annule le run précédent de la même ref</span></span>
+          <span class="role">La porte de qualité : ses quatre jobs sont les checks requis sur main ; la promotion en revérifie trois sur le commit de release.</span>
+          <span class="triggers"><span class="chip">pull_request → main</span><span class="chip">push main · commit de release seulement</span><span class="chip">une PR relancée annule son run précédent</span></span>
         </summary>
         <div class="wf-body">
           <div class="jobs">
@@ -484,11 +487,11 @@
               <h4>Lint + Typecheck + Test</h4>
               <span class="needs">quality · parallèle</span>
               <ol>
-                <li><code>pnpm install --frozen-lockfile --ignore-scripts</code></li>
-                <li><code>prisma generate</code> (DATABASE_URL fictive)</li>
+                <li>action <code>setup</code> : pnpm, Node, <code>pnpm install --frozen-lockfile --ignore-scripts</code>, <code>prisma generate</code></li>
+                <li><code>commitlint</code> de la base à la tête de la PR (#416)</li>
                 <li><code>pnpm biome ci .</code></li>
-                <li><code>pnpm turbo typecheck</code></li>
-                <li><code>pnpm turbo test</code></li>
+                <li><code>pnpm turbo typecheck</code> puis <code>pnpm turbo test</code></li>
+                <li>upload des 4 lcov unitaires, artefact <code>coverage-unit</code> (1 jour)</li>
                 <li><code>pnpm check:i18n</code> (sans <code>--strict</code>)</li>
               </ol>
             </div>
@@ -500,16 +503,25 @@
                 <li><code>docker-compose.test.yml up -d --wait</code> (PG 5434)</li>
                 <li><code>docker-compose.yml run --rm silo-setup</code></li>
                 <li><code>pnpm turbo test:e2e --filter=@cmv/api</code></li>
-                <li>upload <code>coverage-e2e/lcov.info</code> (1 jour)</li>
+                <li>upload de l'artefact <code>coverage-e2e</code> (1 jour)</li>
                 <li>logs des services si échec</li>
               </ol>
             </div>
             <div class="job">
-              <h4>SonarCloud Analysis</h4>
-              <span class="needs">needs: e2e</span>
+              <h4>Builds de production</h4>
+              <span class="needs">builds · parallèle · PR seulement</span>
               <ol>
-                <li><code>pnpm turbo test</code> (lcov shared, api, web, mobile)</li>
-                <li>download de l'artefact <code>coverage-e2e</code></li>
+                <li>ce que la PR touche, depuis l'ancêtre commun : api, web, mobile</li>
+                <li>image API et image web construites sans être poussées (<code>cacheonly</code>), cache de <code>main</code> lu sans être écrit</li>
+                <li><code>expo export --platform android</code> depuis <code>apps/mobile</code></li>
+                <li>une app non touchée est sautée, et le job reste vert</li>
+              </ol>
+            </div>
+            <div class="job">
+              <h4>SonarCloud Analysis</h4>
+              <span class="needs">needs: quality, e2e</span>
+              <ol>
+                <li>aucun test rejoué (#318) : build de <code>@cmv/shared</code>, puis les artefacts <code>coverage-unit</code> et <code>coverage-e2e</code></li>
                 <li>scan avec <code>qualitygate.wait=true</code>, timeout 300 s</li>
                 <li><code>projectVersion</code> = version de <code>package.json</code></li>
               </ol>
@@ -537,17 +549,36 @@
       <details class="wf">
         <summary>
           <span class="name">api-image.yml · Images — API (GHCR)</span><span class="chev">›</span>
-          <span class="role">Construit et publie l'image de l'API, sans déployer. Le renommage du fichier est prévu dans #271.</span>
+          <span class="role">Construit l'image de l'API, la démarre sur une base jetable, et ne lui donne son numéro qu'ensuite. Ne déploie rien.</span>
           <span class="triggers"><span class="chip">push main · apps/ packages/ lockfile package.json CHANGELOG</span><span class="chip out">→ cimavia-api:sha-… (+ :X.Y.Z)</span></span>
         </summary>
         <div class="wf-body">
           <dl class="kv">
-            <dt>Tags</dt><dd><code>sha-xxxxxxx</code> à chaque commit ; <code>X.Y.Z</code> en plus quand <code>package.json</code> change de version par rapport à <code>HEAD~1</code>.</dd>
-            <dt>Build</dt><dd><code>apps/api/Dockerfile</code> : <code>turbo prune @cmv/api</code> → build shared + api → <code>pnpm deploy --prod</code> → runtime avec <code>prisma generate</code>. Plateforme <code>linux/amd64</code>, cache GHA.</dd>
-            <dt>Build args</dt><dd><code>APP_VERSION</code>, <code>APP_BUILD</code> (SHA court).</dd>
+            <dt>Tags</dt><dd><code>sha-xxxxxxx</code> au build ; <code>X.Y.Z</code> par retag du digest, sur le commit de bump seulement et une fois le smoke test passé (#415).</dd>
+            <dt>Build</dt><dd><code>apps/api/Dockerfile</code> : <code>turbo prune @cmv/api</code> → build shared + api → <code>pnpm deploy --prod</code> → runtime avec <code>prisma generate</code>. Plateforme <code>linux/amd64</code>, cache GHA de scope <code>api</code>.</dd>
+            <dt>Build args</dt><dd><code>APP_VERSION</code>, <code>APP_BUILD</code> (SHA court), lus par l'action <code>product-version</code>.</dd>
+            <dt>Smoke test</dt><dd>L'image publiée, tirée par son digest, démarre contre le Postgres de <code>docker-compose.test.yml</code> (5434) avec une configuration factice : sonde <code>healthy</code> en moins de 180 s, puis <code>/health/ready</code>, qui prouve que Prisma parle à la base.</dd>
             <dt>Au démarrage</dt><dd><code>docker-entrypoint.sh</code> : <code>prisma migrate deploy</code> puis <code>node dist/main</code>.</dd>
             <dt>Sans concurrency</dt><dd>Volontaire : annuler un build en cours pouvait perdre l'image <code>X.Y.Z</code>, la seule que la promotion sait retaguer.</dd>
-            <dt>Trivy</dt><dd>Job <code>scan</code> à part, en lecture seule : l'image poussée est scannée par son digest (failles CRITICAL/HIGH corrigeables, secrets), hors <code>app/node_modules</code> que suit Dependabot. Alerte dans Code scanning, ne bloque rien (#399).</dd>
+            <dt>Trivy</dt><dd>Job <code>scan</code> à part, en lecture seule : l'image poussée est scannée par son digest (failles CRITICAL/HIGH corrigeables, secrets), hors <code>app/node_modules</code> que suit Dependabot. Catégorie <code>trivy-api</code>, alerte dans Code scanning, ne bloque rien (#399).</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">web-image.yml · Images — web (GHCR)</span><span class="chev">›</span>
+          <span class="role">Le pendant d'<code>api-image.yml</code> pour le web : une seule image par version, pour tous les tiers (#417).</span>
+          <span class="triggers"><span class="chip">push main · apps/web packages/ lockfile package.json CHANGELOG</span><span class="chip out">→ cimavia-web:sha-… (+ :X.Y.Z)</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Tags</dt><dd>Même règle que l'API : <code>sha-xxxxxxx</code> au build, <code>X.Y.Z</code> par retag du digest au bump, après le smoke test.</dd>
+            <dt>Build</dt><dd><code>apps/web/Dockerfile</code> (nginx). Seul ce qui dépend de la version est figé : <code>VITE_APP_VERSION</code>, release Sentry <code>X.Y.Z+sha</code>. Cache GHA de scope <code>web</code>.</dd>
+            <dt>Config du tier</dt><dd>URL de l'API, DSN Sentry et nom du tier sont lus au démarrage du conteneur (<code>CMV_API_URL</code>, <code>CMV_SENTRY_DSN</code>, <code>CMV_APP_ENV</code>) et servis en <code>/config.js</code>.</dd>
+            <dt>Sourcemaps</dt><dd>Au bump seulement : <code>SENTRY_AUTH_TOKEN</code> passe par un secret BuildKit, jamais un build-arg. Un jeton sans <code>SENTRY_ORG</code> ou <code>SENTRY_PROJECT_WEB</code> fait échouer le job, et un téléversement raté fait échouer le build (#474).</dd>
+            <dt>Smoke test</dt><dd>Sonde <code>healthy</code> en moins de 60 s ; <code>/config.js</code> exact, en <code>no-cache</code> et en JavaScript ; une route profonde rend un <code>index.html</code> qui le charge ; sans <code>CMV_SENTRY_DSN</code>, le conteneur refuse de démarrer.</dd>
+            <dt>Trivy</dt><dd>Job <code>scan</code> à part, en lecture seule, catégorie <code>trivy-web</code>. Il remplace celui que faisait la promotion.</dd>
           </dl>
         </div>
       </details>
@@ -555,7 +586,7 @@
       <details class="wf">
         <summary>
           <span class="name">promote-preview.yml · Promotion — preview</span><span class="chev">›</span>
-          <span class="role">Le seul chemin vers le Coach bêta : vérifie la version, construit le web, retague les images et attend que le NAS redémarre.</span>
+          <span class="role">Le seul chemin vers le Coach bêta : vérifie la version, retague les deux images sans rien construire et attend que le NAS redémarre.</span>
           <span class="triggers"><span class="chip manual">workflow_dispatch · version X.Y.Z</span><span class="chip">une promotion à la fois</span><span class="chip out">→ :preview · branche preview</span></span>
         </summary>
         <div class="wf-body">
@@ -566,35 +597,16 @@
               <ul>
                 <li>format <code>X.Y.Z</code> ; le tag <code>vX.Y.Z</code> existe et est sur main</li>
                 <li>fait avancer <code>preview</code> (plus récente, et <code>preview</code> est un ancêtre)</li>
-                <li>les 3 checks requis sont <code>success</code> sur ce SHA</li>
-                <li><code>cimavia-api:X.Y.Z</code> présente sur GHCR</li>
-                <li><code>PREVIEW_PUBLIC_API_URL</code> renseignée</li>
-              </ul>
-            </div>
-            <div class="job">
-              <h4>Construire le web</h4>
-              <span class="needs">needs: verify</span>
-              <ul>
-                <li>checkout du SHA du tag</li>
-                <li>cohérence Sentry (token ⇒ org + projet)</li>
-                <li>build <code>apps/web/Dockerfile</code> (nginx) avec <code>VITE_API_URL</code>, <code>VITE_APP_ENV=preview</code>, DSN, release Sentry <code>X.Y.Z+sha</code></li>
-                <li>push <code>cimavia-web:preview-X.Y.Z</code></li>
-              </ul>
-            </div>
-            <div class="job">
-              <h4>Trivy — image web</h4>
-              <span class="needs">needs: verify, build-web · n'est pas attendu</span>
-              <ul>
-                <li>scan de l'image web construite, par son digest, en lecture seule</li>
-                <li>alerte dans Code scanning (<code>trivy-web</code>) sans retenir la promotion</li>
+                <li>3 checks <code>success</code> sur ce SHA : Lint + Typecheck + Test, E2E, SonarCloud ; Builds de production ne tourne que sur PR</li>
+                <li><code>cimavia-api:X.Y.Z</code> et <code>cimavia-web:X.Y.Z</code> présentes sur GHCR</li>
+                <li><code>PREVIEW_PUBLIC_API_URL</code> renseignée, pour la sonde de <code>confirm</code></li>
               </ul>
             </div>
             <div class="job">
               <h4>Publier sur preview</h4>
-              <span class="needs">needs: verify, build-web</span>
+              <span class="needs">needs: verify</span>
               <ul>
-                <li><code>cimavia-api:preview</code> ← digest de <code>:X.Y.Z</code>, avec contrôle d'égalité</li>
-                <li><code>cimavia-web:preview</code> ← digest construit</li>
+                <li><code>cimavia-api:preview</code> et <code>cimavia-web:preview</code> ← digest de <code>:X.Y.Z</code>, avec contrôle d'égalité</li>
                 <li>push du SHA vers la branche <code>preview</code> (jeton App)</li>
               </ul>
             </div>
@@ -633,10 +645,40 @@
         </summary>
         <div class="wf-body">
           <dl class="kv">
-            <dt>Config</dt><dd><code>trivy config</code> sur les Dockerfiles du dépôt. Les composes ne sont pas lus : Trivy ne les analyse pas.</dd>
-            <dt>Images</dt><dd>Chaque semaine : <code>cimavia-api:preview</code>, <code>cimavia-web:preview</code>, et SILO et <code>mc</code> tels qu'épinglés dans le compose du NAS. PostgreSQL et cloudflared n'y sont pas : Dependabot en propose déjà les montées.</dd>
+            <dt>Config</dt><dd><code>trivy config</code> sur les Dockerfiles du dépôt, catégorie <code>trivy-config</code>. Les composes ne sont pas lus : Trivy ne les analyse pas.</dd>
+            <dt>Images</dt><dd>Chaque semaine ou à la main, jamais sur PR : <code>cimavia-api:preview</code>, <code>cimavia-web:preview</code>, et SILO et <code>mc</code> tels qu'épinglés dans le compose du NAS. Une catégorie par cible (<code>trivy-api-preview</code>, <code>trivy-web-preview</code>, <code>trivy-silo</code>, <code>trivy-mc</code>) : un scan ne ferme pas les alertes d'un autre. PostgreSQL et cloudflared n'y sont pas : Dependabot en propose déjà les montées.</dd>
             <dt>Isolation</dt><dd>Action composite <code>.github/actions/trivy-scan</code> : l'image est tirée puis exportée, le jeton retiré, et Trivy (image officielle épinglée par digest) tourne sans jeton, sans socket Docker, sans capacité.</dd>
             <dt>Exceptions</dt><dd><code>.trivyignore.yaml</code> : chaque entrée porte sa raison et une date d'expiration.</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">zizmor.yml · Sécurité — workflows (zizmor)</span><span class="chev">›</span>
+          <span class="role">Analyse statique des workflows et de <code>dependabot.yml</code> : injections de template, jetons trop larges, identifiants laissés sur le runner, épinglages douteux (#401).</span>
+          <span class="triggers"><span class="chip cron">lundi 06:00 UTC</span><span class="chip manual">workflow_dispatch</span><span class="chip">PR et push main sur .github/</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Pas requis</dt><dd>Volontaire : un audit ajouté par une nouvelle version de zizmor bloquerait une PR sans rapport. Les constats vont dans Code scanning, annotés sur la PR qui les introduit.</dd>
+            <dt>Version</dt><dd>zizmor en <code>latest</code>, pour recevoir les nouveaux audits chaque lundi ; l'action, elle, est épinglée par SHA.</dd>
+            <dt>Exceptions</dt><dd>À la ligne, <code># zizmor: ignore[&lt;audit&gt;]</code>, avec leur raison juste au-dessus ; aucune configuration globale.</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">pnpm-version.yml · Version de pnpm</span><span class="chev">›</span>
+          <span class="role">Ni Dependabot ni les alertes de sécurité ne suivent pnpm : ce workflow compare <code>packageManager</code> à la dernière version publiée de la même majeure (#461).</span>
+          <span class="triggers"><span class="chip cron">lundi 06:15 UTC</span><span class="chip manual">workflow_dispatch</span><span class="chip">push main sur ce fichier</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Source</dt><dd>Dist-tag <code>latest-&lt;majeure&gt;</code> du registre npm, et date de publication dans le document complet du paquet. Un dist-tag introuvable fait échouer le job plutôt que de conclure « à jour ».</dd>
+            <dt>Signal</dt><dd>En retard : ouvre ou réécrit l'issue <code>[pnpm-version]</code> (area: infra, prio: high), avec la date de publication pour appliquer le délai de 7 jours à la main. Aucune PR : monter reste une PR relue.</dd>
+            <dt>Majeure</dt><dd>Jamais proposée : elle change le format du lockfile, c'est une décision à part.</dd>
           </dl>
         </div>
       </details>
@@ -658,12 +700,45 @@
       <details class="wf">
         <summary>
           <span class="name">dependabot.yml</span><span class="chev">›</span>
-          <span class="role">Maintient les SHA épinglés des actions à jour : une PR groupée par semaine, préfixe <code>ci</code>, label <code>type: chore</code>.</span>
+          <span class="role">Quatre écosystèmes, une PR groupée par écosystème et par semaine pour les mineures et correctifs, label <code>type: chore</code>, et 7 jours d'attente après chaque publication (<code>cooldown</code>).</span>
           <span class="triggers"><span class="chip cron">hebdomadaire</span><span class="chip out">→ PR</span></span>
         </summary>
         <div class="wf-body">
           <dl class="kv">
-            <dt>Périmètre</dt><dd><code>github-actions</code> uniquement ; les dépendances npm ne sont pas suivies par Dependabot.</dd>
+            <dt>github-actions</dt><dd>Les workflows et les actions composites (<code>/.github/actions/*</code>), préfixe <code>ci</code>.</dd>
+            <dt>npm</dt><dd>Tout le monorepo, sauf ce qu'Expo SDK épingle : <code>expo</code>, <code>react-native</code>, <code>@sentry/react-native</code>, <code>react</code>, <code>react-dom</code> et leurs familles. Ils montent avec le SDK.</dd>
+            <dt>docker</dt><dd>Les Dockerfiles de l'API, du web et de <code>trivy-scan</code>, sans majeure de <code>node</code> (décidée à la main, cf. CONTRIBUTING).</dd>
+            <dt>docker-compose</dt><dd>Les composes de <code>apps/api</code> et du NAS, sans SILO ni <code>mc</code> (suivis par <code>mirror-images.yml</code>) et sans majeure de <code>postgres</code>.</dd>
+            <dt>Hors champ</dt><dd>pnpm (<code>pnpm-version.yml</code>), SILO et <code>mc</code> (<code>mirror-images.yml</code>). turbo et pnpm recopiés dans les Dockerfiles ne sont pas suivis non plus (#479).</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">CodeQL · configuration par défaut</span><span class="chev">›</span>
+          <span class="role">Réglé dans l'interface GitHub, sans fichier dans le dépôt : analyse du code et des workflows, alertes dans Code scanning.</span>
+          <span class="triggers"><span class="chip">PR et push main</span><span class="chip cron">hebdomadaire</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Langages</dt><dd><code>actions</code> et <code>javascript-typescript</code>, suite <code>default</code>, modèle de menace <code>remote</code>.</dd>
+            <dt>Pas requis</dt><dd>Comme zizmor et Trivy : il alerte, il ne bloque pas.</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">.github/actions · actions composites</span><span class="chev">›</span>
+          <span class="role">Ce que plusieurs workflows font à l'identique, écrit une seule fois.</span>
+          <span class="triggers"><span class="chip">appelées par les workflows</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>setup</dt><dd>pnpm (depuis <code>packageManager</code>), Node (depuis <code>.nvmrc</code>), <code>pnpm install --frozen-lockfile --ignore-scripts</code>, puis <code>prisma generate</code>. Appelée par les jobs de <code>ci.yml</code>.</dd>
+            <dt>product-version</dt><dd>Le numéro, le SHA court, et « ce commit est-il le bump ? » en comparant <code>package.json</code> à <code>HEAD~1</code>. Appelée par <code>api-image.yml</code> et <code>web-image.yml</code>.</dd>
+            <dt>trivy-scan</dt><dd>Trivy isolé : image tirée puis exportée, jeton retiré, scan sans jeton, sans socket Docker ni capacité, SARIF envoyé à Code scanning. Appelée par <code>trivy.yml</code> et les deux workflows d'images.</dd>
           </dl>
         </div>
       </details>
@@ -729,6 +804,7 @@
           <tr><td>build:dev:*</td><td>EAS <code>development</code> (dev client, interne)</td></tr>
           <tr><td>build:preview:*</td><td>EAS <code>preview</code>, pointe sur <code>api-preview.cimavia.fr</code></td></tr>
           <tr><td>build:testflight:ios</td><td>EAS <code>testflight</code> + <code>--auto-submit</code></td></tr>
+          <tr><td>ota:preview</td><td><code>scripts/publish-update.mjs</code> : update EAS sur le canal <code>preview</code>, depuis un tag et un arbre propre seulement, puis ses sourcemaps chez Sentry (#287)</td></tr>
           <tr><td>typecheck · lint · test</td><td>tsc ×2 · biome · Vitest + couverture</td></tr>
         </table>
       </div>
@@ -784,6 +860,16 @@
         <span class="what">Miroir SILO/mc vers GHCR et issue <code>[silo-version]</code> si un compose est en retard.</span>
       </div>
       <div class="tick-row">
+        <span class="freq">lundi, 06:00 UTC</span>
+        <span class="where gh">Actions · zizmor.yml</span>
+        <span class="what">Audit des workflows, même sans commit : les audits en ligne (tag déplacé, action compromise) dépendent de l'amont.</span>
+      </div>
+      <div class="tick-row">
+        <span class="freq">lundi, 06:15 UTC</span>
+        <span class="where gh">Actions · pnpm-version.yml</span>
+        <span class="what"><code>packageManager</code> comparé au dernier pnpm de la même majeure, et issue <code>[pnpm-version]</code> s'il est en retard.</span>
+      </div>
+      <div class="tick-row">
         <span class="freq">lundi, 06:30 UTC</span>
         <span class="where gh">Actions · trivy.yml</span>
         <span class="what">Scan Trivy des images du NAS (API, web, SILO, mc) et des Dockerfiles.</span>
@@ -791,7 +877,12 @@
       <div class="tick-row">
         <span class="freq">chaque semaine</span>
         <span class="where gh">Dependabot</span>
-        <span class="what">PR groupée de mise à jour des actions.</span>
+        <span class="what">Une PR groupée par écosystème : actions, npm, Dockerfiles, composes. Chaque version attend 7 jours avant d'être proposée.</span>
+      </div>
+      <div class="tick-row">
+        <span class="freq">chaque semaine</span>
+        <span class="where gh">CodeQL</span>
+        <span class="what">Analyse du code et des workflows, en plus de chaque PR et push sur main.</span>
       </div>
     </div>
   </section>
@@ -808,12 +899,11 @@
         <tbody>
           <tr><td>SONAR_TOKEN</td><td><span class="kind s">secret</span></td><td>ci.yml</td><td>Scan SonarCloud et attente du quality gate</td></tr>
           <tr><td>RELEASE_APP_CLIENT_ID · _PRIVATE_KEY</td><td><span class="kind s">secret</span></td><td>release.yml, promote-preview.yml</td><td>Jeton de GitHub App : PR de release, push de la branche <code>preview</code></td></tr>
-          <tr><td>SENTRY_AUTH_TOKEN</td><td><span class="kind s">secret</span></td><td>promote-preview.yml</td><td>Upload des sourcemaps web ; facultatif</td></tr>
+          <tr><td>SENTRY_AUTH_TOKEN</td><td><span class="kind s">secret</span></td><td>web-image.yml</td><td>Upload des sourcemaps web, au bump seulement ; facultatif</td></tr>
           <tr><td>REMINDER_TICK_SECRET</td><td><span class="kind s">secret</span></td><td>reminder-tick.yml</td><td>En-tête partagé avec l'API du NAS</td></tr>
-          <tr><td>GITHUB_TOKEN</td><td><span class="kind s">auto</span></td><td>tous</td><td>GHCR (lecture/écriture), check-runs, issues</td></tr>
-          <tr><td>PREVIEW_PUBLIC_API_URL</td><td><span class="kind v">var</span></td><td>promote-preview.yml, reminder-tick.yml</td><td>Figée dans le web au build, sondée par <code>confirm</code>, cible du tick</td></tr>
-          <tr><td>PREVIEW_SENTRY_DSN_WEB</td><td><span class="kind v">var</span></td><td>promote-preview.yml</td><td>DSN du web de preview</td></tr>
-          <tr><td>SENTRY_ORG · SENTRY_PROJECT_WEB</td><td><span class="kind v">var</span></td><td>promote-preview.yml</td><td>Cible des sourcemaps</td></tr>
+          <tr><td>GITHUB_TOKEN</td><td><span class="kind s">auto</span></td><td>tous</td><td>GHCR (lecture/écriture), check-runs, issues, Code scanning</td></tr>
+          <tr><td>PREVIEW_PUBLIC_API_URL</td><td><span class="kind v">var</span></td><td>promote-preview.yml, reminder-tick.yml</td><td>Sondée par <code>confirm</code>, cible du tick. Le web ne la lit plus : son URL d'API vient du <code>.env</code> du NAS (#417)</td></tr>
+          <tr><td>SENTRY_ORG · SENTRY_PROJECT_WEB</td><td><span class="kind v">var</span></td><td>web-image.yml</td><td>Cible des sourcemaps</td></tr>
         </tbody>
       </table>
     </div>
@@ -827,17 +917,17 @@
     </div>
     <div class="notes">
       <div class="note"><span class="tag design">choix</span><p><b>Le NAS tire, GitHub ne pousse pas.</b> Aucun workflow n'a d'accès au NAS : il suffit de poser le tag <code>:preview</code>, et le job <code>confirm</code> observe le résultat de l'extérieur par <code>/health</code>.</p></div>
-      <div class="note"><span class="tag design">choix</span><p><b>Publier n'est pas livrer.</b> <code>api-image.yml</code> publie même quand un test est rouge ; c'est la promotion qui exige les 3 checks verts sur le commit taggé.</p></div>
-      <div class="note"><span class="tag design">choix</span><p><b>Le web est construit une fois par tier</b>, au moment de la promotion et depuis le tag, parce que l'URL de l'API est figée dans le bundle. L'API, elle, est construite une seule fois et retaguée par digest.</p></div>
+      <div class="note"><span class="tag design">choix</span><p><b>Publier n'est pas livrer.</b> Les deux workflows d'images publient sans attendre la CI ; c'est la promotion qui exige les 3 checks verts sur le commit taggé. Une image publiée a tout de même démarré : un smoke test raté lui refuse son numéro.</p></div>
+      <div class="note"><span class="tag design">choix</span><p><b>Une image par version, pour tous les tiers.</b> Le web lit son URL d'API, son DSN et son tier au démarrage, en <code>/config.js</code> (#417) : l'image promue est celle qui a démarré sur <code>main</code>, à l'octet près, comme l'API. Seul ce qui dépend de la version (numéro, sourcemaps) est figé au build.</p></div>
+      <div class="note"><span class="tag design">choix</span><p><b>La CI ne rejoue pas le merge</b> (#318). Le ruleset exige une PR à jour de <code>main</code> : l'arbre testé par la PR est celui qui atterrit. Seul le commit de release la rejoue, parce que la promotion lit les checks sur ce SHA. <b>Builds de production</b> n'y tourne pas : ce sont les workflows d'images qui construisent sur <code>main</code>, d'où 4 checks requis sur PR mais 3 relus à la promotion.</p></div>
       <div class="note"><span class="tag design">choix</span><p><b>Le compose voyage avec la version.</b> <code>pull-preview.sh</code> lit le commit dans le label <code>org.opencontainers.image.revision</code> de l'image et télécharge <code>deploy/preview/docker-compose.yml</code> à ce commit. Il détecte aussi un renommage de projet compose et arrête l'ancien.</p></div>
-      <div class="note"><span class="tag watch">à voir</span><p><b>Les tests unitaires tournent deux fois par run</b> : dans <code>quality</code> et dans <code>sonarcloud</code>, qui a besoin des lcov. Un artefact de couverture depuis <code>quality</code>, comme pour les e2e, éviterait le doublon.</p></div>
+      <div class="note"><span class="tag design">choix</span><p><b>Images de base épinglées par tag et digest</b> (#379). Docker ne lit que le digest : le tag dit laquelle c'est, et permet à Dependabot de proposer la suivante en réécrivant les deux. Un tag changé à la main sans son digest ne change donc rien, sans le moindre avertissement.</p></div>
       <div class="note"><span class="tag watch">à voir</span><p><b>La production n'a pas de chaîne.</b> <code>deploy/prod/</code> ne contient qu'une règle de cycle de vie de bucket, en attendant la décision HDS (#259). Côté mobile, le profil EAS <code>production</code> existe mais aucun script ne l'appelle, et tous les builds EAS sont manuels.</p></div>
-      <div class="note"><span class="tag watch">à voir</span><p><b>Dependabot ne suit que les actions.</b> Les versions npm sont épinglées à la main (cf. CLAUDE.md), sans rappel automatique.</p></div>
-      <div class="note"><span class="tag watch">à voir</span><p><b>Le nom <code>api-image.yml</code></b> ne décrit plus son rôle : son renommage relève de #271, la branche en cours.</p></div>
+      <div class="note"><span class="tag watch">à voir</span><p><b>Les Dockerfiles recopient pnpm et turbo.</b> <code>corepack prepare pnpm@…</code> et <code>pnpm dlx turbo@…</code> y sont écrits en dur : ni Dependabot ni <code>pnpm-version.yml</code> ne les montent avec <code>package.json</code> (#479).</p></div>
     </div>
   </section>
 
-  <footer>Relevé depuis le code du dépôt au commit <code>3a1826e</code>. Pour les étapes manuelles (DSM, secrets, branch protection), voir <code>deploy/preview/README.md</code> et <code>CONTRIBUTING.md</code>.</footer>
+  <footer>Relevé depuis le code du dépôt au commit <code>921175d</code>. Une PR qui touche un workflow, une action composite ou une étape de la chaîne met cette page à jour. Pour les étapes manuelles (DSM, secrets, rulesets), voir <code>deploy/preview/README.md</code> et <code>CONTRIBUTING.md</code>.</footer>
 </div>
 
 </body></html>

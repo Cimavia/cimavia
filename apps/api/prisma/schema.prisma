@@ -581,8 +581,9 @@ model ScheduledSessionExerciseTag {
 // appartienne à un plan PUBLISHED (un brouillon n'est pas débriefable) — voir FeedbackService.
 //
 // Contrairement aux documents de la bibliothèque, un média de débrief n'est JAMAIS copié ni
-// partagé : sa clé objet n'appartient qu'à lui. Sa suppression purge donc l'objet directement,
-// sans garde de comptage (pas de nouveau cas d'orphelin — cf. dettes P2-1/P3-2).
+// partagé : sa clé objet n'appartient qu'à lui. Son RETRAIT purge donc l'objet directement, sans
+// garde de comptage. La cascade depuis la séance, elle, ne purge rien : une séance débriefée
+// refuse la suppression (#313) ; semaine et cycle diffusés l'emportent encore (#312, #85).
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum MediaType {

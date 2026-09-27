@@ -71,6 +71,7 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
   const view = renderWithProviders(
     <ScheduledSessionPanel
       planId="plan-1"
+      isPublished={false}
       week={week}
       date={DATE}
       session={null}
@@ -212,6 +213,37 @@ describe("ScheduledSessionPanel", () => {
       await user.click(getByRole("button", { name: "common.confirmDelete" }));
 
       await waitFor(() => expect(deleteMock).toHaveBeenCalledWith("ss-1"));
+    });
+
+    // #313 : la suppression emporterait le débrief de l'athlète, l'API la refuse. Le bouton reste
+    // à sa place, grisé, et dit pourquoi — un bouton qui disparaît ne s'explique pas.
+    it("grise la suppression d'une séance débriefée, et dit pourquoi", () => {
+      const { getByRole, getByTitle } = setup({ session: session({ status: "DONE" }) });
+
+      expect(getByRole("button", { name: "plan.session.delete" })).toBeDisabled();
+      expect(getByTitle("plan.session.deleteDisabledDebriefed")).toBeInTheDocument();
+    });
+
+    it("annonce la notification de l'athlète avant de retirer une séance d'un cycle diffusé", async () => {
+      const { user, getByRole, getByText } = setup({
+        session: session({ status: "PLANNED" }),
+        isPublished: true,
+      });
+
+      await user.click(getByRole("button", { name: "plan.session.delete" }));
+
+      expect(getByText("plan.session.deleteHintPublished")).toBeInTheDocument();
+    });
+
+    it("n'annonce rien sur un brouillon : l'athlète ne voit pas encore le cycle", async () => {
+      const { user, getByRole, queryByText, queryByTitle } = setup({
+        session: session({ status: "PLANNED" }),
+      });
+
+      await user.click(getByRole("button", { name: "plan.session.delete" }));
+
+      expect(queryByText("plan.session.deleteHintPublished")).not.toBeInTheDocument();
+      expect(queryByTitle("plan.session.deleteDisabledDebriefed")).not.toBeInTheDocument();
     });
   });
 });
