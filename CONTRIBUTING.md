@@ -209,6 +209,9 @@ les alertes de sécurité arrivent toujours) :
   `eas update`.
 - **Les majeures de `postgres`** : le volume du NAS est dans le format de la majeure en cours. Une
   montée passe par `pg_upgrade` ou une sauvegarde restaurée (#268).
+- **Les majeures de `node`** : `.nvmrc`, `engines` et les deux `Dockerfile` avancent ensemble, et
+  seulement vers une version paire (LTS). Node 22 est maintenu jusqu'au 2027-04-30 : la montée
+  vers 24 se fait avant, à la main.
 - **SILO et `mc`** : suivis par `mirror-images.yml` (voir *Images tierces*).
 
 Un sujet de commit Dependabot peut porter une majuscule que `subject-case` refuse : voir
