@@ -637,6 +637,7 @@ export {
   RELATIVE_TIME_KEY,
   relativeTimeFrom,
 } from "./util/date-format.util";
+export { decimalPlaces, formatDecimal, parseDecimal } from "./util/decimal.util";
 export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
 export { countUnreadFeedbacks, remainingMediaSlots } from "./util/feedback.util";
 export type {
