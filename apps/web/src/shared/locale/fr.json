@@ -513,6 +513,8 @@
       "moveExercise": "Déplacer l'exercice",
       "remove": "Retirer",
       "delete": "Supprimer la séance",
+      "deleteDisabledDebriefed": "Séance débriefée par l'athlète : la supprimer effacerait son débrief. Elle reste modifiable.",
+      "deleteHintPublished": "L'athlète sera prévenu du retrait.",
       "submit": "Enregistrer",
       "submitting": "Enregistrement…",
       "noteLabel": "Note",
