@@ -40,7 +40,7 @@ ENV PATH=$PNPM_HOME:$PATH
 # pnpm est épinglé explicitement : l'arbre produit par `pnpm deploy` n'a pas de champ
 # `packageManager`, et corepack y retomberait sinon sur le dernier pnpm publié (11.x observé).
 RUN corepack enable \
- && corepack prepare pnpm@10.34.4 --activate
+ && corepack prepare pnpm@10.34.5 --activate
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 1 — pruning du monorepo

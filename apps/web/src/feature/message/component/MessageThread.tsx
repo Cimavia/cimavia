@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { createReadMarker, lastUnreadIncomingId } from "@cmv/shared";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { messageKeys } from "@/feature/message/api";
 import { Composer } from "@/feature/message/component/Composer";
@@ -48,16 +49,16 @@ export function MessageThread({
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
 
-  // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la liste de
-  // fils (pas les messages) : pas de boucle.
-  const hasIncomingUnread = items.some(
-    (message) => message.senderId !== currentUserId && message.readAt == null,
-  );
+  // Marque lu à CHAQUE nouvel entrant, repéré par son id (#305) : la règle et son pourquoi vivent
+  // dans `message-read.util`. `markRead` n'invalide que la liste de fils (pas les messages) : pas
+  // de boucle.
+  const unreadTarget = lastUnreadIncomingId(items, session?.user.id ?? null);
+  const [readMarker] = useState(createReadMarker);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `messages.dataUpdatedAt` est un déclencheur, pas une donnée lue — chaque sondage redonne sa chance à un marquage en échec.
   useEffect(() => {
-    if (conversationId != null && hasIncomingUnread) {
-      markRead();
-    }
-  }, [conversationId, hasIncomingUnread, markRead]);
+    if (conversationId == null || unreadTarget == null || !readMarker.claim(unreadTarget)) return;
+    markRead(undefined, { onError: () => readMarker.release(unreadTarget) });
+  }, [conversationId, unreadTarget, readMarker, markRead, messages.dataUpdatedAt]);
 
   // Colle le fil au dernier message à chaque arrivée.
   const bottomRef = useRef<HTMLDivElement>(null);

@@ -1,11 +1,11 @@
-import { randomUUID } from "node:crypto";
 import type {
   AbortMultipartUploadInput,
   CompleteMultipartUploadInput,
   MediaUploadTicketDto,
   RequestMessageUploadUrlInput,
 } from "@cmv/shared";
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { ConversationService } from "./conversation.service";
 
@@ -61,28 +61,25 @@ export class MessageMediaService {
   }
 
   /**
-   * Le `storagePath` de la clôture vient du CLIENT — seule entrée de ce module qui désigne un objet
-   * du bucket sans être construite par nous. Le tenancy guard protège la base, pas le storage :
-   * sans cette garde, un participant pourrait clore un upload visant n'importe quelle clé.
+   * Le `storagePath` de la clôture vient du CLIENT. Le tenancy guard protège la base, pas le
+   * storage : sans cette garde, un participant pourrait clore un upload visant n'importe quelle
+   * clé. L'envoi du message la vérifie aussi (`MessageService.send`, #293).
    */
   private async assertOwnedKey(conversationId: string, storagePath: string): Promise<void> {
     await this.conversations.getOwnedOrThrow(conversationId);
-    if (!storagePath.startsWith(messageMediaKeyPrefix(conversationId))) {
-      throw new ForbiddenException("Ce chemin de storage n'appartient pas à cette conversation");
-    }
+    assertKeyUnder(messageMediaKeyPrefix(conversationId), storagePath);
   }
 }
 
-// Segment commun à tous les médias d'un fil. Extrait pour que la construction de la clé et sa
-// VÉRIFICATION (assertOwnedKey) ne puissent pas diverger — deux littéraux se seraient
-// désynchronisés au premier changement de segmentation, rendant la garde passante en silence.
-function messageMediaKeyPrefix(conversationId: string): string {
+// Segment commun à tous les médias d'un fil. Exporté pour que la construction de la clé et ses
+// deux VÉRIFICATIONS (clôture ici, envoi dans MessageService) ne puissent pas diverger — deux
+// littéraux se seraient désynchronisés au premier changement de segmentation, rendant la garde
+// passante en silence.
+export function messageMediaKeyPrefix(conversationId: string): string {
   return `conversation/${conversationId}/`;
 }
 
-// Clé objet : segmentée par conversation, préfixe UUID contre les collisions de noms. Le nom de
-// fichier est assaini (caractères sûrs uniquement), comme pour les documents et les médias.
+// Clé objet : segmentée par conversation (forme commune : `buildObjectKey`).
 function buildMessageMediaKey(conversationId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^\w.-]+/g, "_");
-  return `${messageMediaKeyPrefix(conversationId)}${randomUUID()}-${safeName}`;
+  return buildObjectKey(messageMediaKeyPrefix(conversationId), fileName);
 }

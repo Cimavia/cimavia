@@ -19,9 +19,8 @@ vi.mock("@/feature/message/hook/useConversation", () => ({
   useMarkRead: vi.fn(),
 }));
 vi.mock("@/feature/message/hook/useMessageMedia", () => ({ useSendMessageMedia: vi.fn() }));
-vi.mock("@/shared/lib/auth", () => ({
-  authClient: { useSession: () => ({ data: { user: { id: "me" } } }) },
-}));
+const { sessionMock } = vi.hoisted(() => ({ sessionMock: vi.fn() }));
+vi.mock("@/shared/lib/auth", () => ({ authClient: { useSession: () => sessionMock() } }));
 
 /**
  * Seul `CmvAudioRecorder` est remplacé, par un bouton qui rend un audio tout fait. Le vrai a
@@ -66,6 +65,7 @@ function mockMessages(state: Record<string, unknown>): void {
 }
 
 beforeEach(() => {
+  sessionMock.mockReturnValue({ data: { user: { id: "me" } } });
   mockMessages({});
   vi.mocked(useSendMessage).mockReturnValue({
     mutate: vi.fn(),
@@ -135,6 +135,63 @@ describe("ConversationThread", () => {
     await waitFor(() => {
       expect(markRead).toHaveBeenCalledOnce();
     });
+  });
+
+  // #305 : m1 marqué, m2 arrivé avant que le cache ne le sache. Le fil doit repartir pour m2.
+  it("marque aussi un second entrant arrivé après le premier marquage", async () => {
+    mockMessages({ data: [message({ id: "m-1" })], dataUpdatedAt: 1 });
+    const { rerender } = renderRn(<ConversationThread {...base} />);
+    await waitFor(() => {
+      expect(markRead).toHaveBeenCalledOnce();
+    });
+
+    mockMessages({
+      data: [message({ id: "m-1", readAt: new Date().toISOString() }), message({ id: "m-2" })],
+      dataUpdatedAt: 2,
+    });
+    rerender(<ConversationThread {...base} />);
+    await waitFor(() => {
+      expect(markRead).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("ne remarque pas le même entrant à chaque sondage", async () => {
+    mockMessages({ data: [message({ id: "m-1" })], dataUpdatedAt: 1 });
+    const { rerender } = renderRn(<ConversationThread {...base} />);
+    await waitFor(() => {
+      expect(markRead).toHaveBeenCalledOnce();
+    });
+
+    mockMessages({ data: [message({ id: "m-1" })], dataUpdatedAt: 2 });
+    rerender(<ConversationThread {...base} />);
+    expect(markRead).toHaveBeenCalledOnce();
+  });
+
+  it("retente au sondage suivant un marquage en échec", async () => {
+    markRead.mockImplementationOnce((_: unknown, options: { onError: () => void }) =>
+      options.onError(),
+    );
+    mockMessages({ data: [message({ id: "m-1" })], dataUpdatedAt: 1 });
+    const { rerender } = renderRn(<ConversationThread {...base} />);
+    await waitFor(() => {
+      expect(markRead).toHaveBeenCalledOnce();
+    });
+
+    mockMessages({ data: [message({ id: "m-1" })], dataUpdatedAt: 2 });
+    rerender(<ConversationThread {...base} />);
+    await waitFor(() => {
+      expect(markRead).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("ne marque rien tant que la session n'est pas connue", async () => {
+    sessionMock.mockReturnValue({ data: null });
+    mockMessages({ data: [message({ readAt: null })] });
+    renderRn(<ConversationThread {...base} />);
+    await waitFor(() => {
+      expect(vi.mocked(useMessages)).toHaveBeenCalled();
+    });
+    expect(markRead).not.toHaveBeenCalled();
   });
 
   it("ne marque pas lu ses PROPRES messages non lus", async () => {

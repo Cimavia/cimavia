@@ -1,0 +1,240 @@
+name: Images — web (GHCR)
+
+# Un push sur `main` publie l'image du web sur GHCR, la démarre avant de lui donner son numéro de
+# version, et la fait scanner par Trivy : le pendant d'`api-image.yml`. Rien n'est déployé d'ici.
+# La promotion (`promote-preview.yml`) retague l'image `X.Y.Z`, et le NAS la tire.
+#
+# UNE image par version, et non plus une par tier (#417, qui renverse l'exception posée en #186).
+# Ce qui dépend du tier (l'URL de l'API, le DSN Sentry, le nom du tier) est lu au démarrage du
+# conteneur, en `/config.js`. Seul ce qui dépend de la version est figé au build. Le web promu est
+# donc l'artefact construit et démarré ici, à l'octet près, et non une reconstruction du même tag.
+
+# `concurrency-limits` écarté : pas de `concurrency`, pour la raison d'`api-image.yml` — annuler
+# la construction du commit de bump perdrait l'image `X.Y.Z`, la seule que la promotion retague.
+on: # zizmor: ignore[concurrency-limits]
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/web-image.yml"
+      - ".github/actions/product-version/**"
+      # Le commit de bump ne touche QUE ces deux fichiers : sans eux, l'image web `X.Y.Z`
+      # n'existerait pas, et la version serait impossible à promouvoir.
+      - "package.json"
+      - "CHANGELOG.md"
+
+# Aucun droit par défaut : chaque job déclare les siens (moindre privilège).
+permissions: {}
+
+jobs:
+  build-and-push:
+    name: Build & push cimavia-web → GHCR
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 2 min 13 au plus observé pour le build de promotion, qu'il remplace
+    permissions:
+      contents: read
+      packages: write # pousse l'image du web sur GHCR
+    outputs:
+      image: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web@${{ steps.build.outputs.digest }}
+      pushed: ${{ steps.build.outcome == 'success' }}
+
+    steps:
+      # `fetch-depth: 2` : l'action « Version du produit » compare le `package.json` de HEAD à celui
+      # de HEAD~1 pour savoir si CE commit est le bump.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Namespace GHCR (minuscules)
+        id: ns
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Version du produit
+        id: version
+        uses: $/.github/actions/product-version
+
+      # Même garde-fou que l'ancien build de promotion : un jeton sans organisation ni projet ferait
+      # échouer le build sur un message enfoui dans les logs de Docker. Seulement au bump, le seul
+      # build qui reçoit le jeton.
+      - name: Vérifier la cohérence Sentry
+        if: steps.version.outputs.is_release == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT_WEB: ${{ vars.SENTRY_PROJECT_WEB }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::notice::Aucun SENTRY_AUTH_TOKEN — les sourcemaps ne seront pas publiées."
+            exit 0
+          fi
+          if [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT_WEB" ]; then
+            echo "::error::SENTRY_AUTH_TOKEN est défini mais SENTRY_ORG ou SENTRY_PROJECT_WEB manque."
+            exit 1
+          fi
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Login GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Seul le tag immuable par SHA est posé au build ; le NUMÉRO attend que l'image ait démarré.
+      # Les étiquettes OCI portent `org.opencontainers.image.revision` : l'image dit d'où elle vient.
+      - name: Métadonnées (tags)
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web
+          tags: type=sha
+
+      # Les sourcemaps ne partent qu'au BUMP (« Tranché en #417 ») : le jeton n'est passé qu'à ce
+      # build, et sans lui le plugin Sentry ne fait rien. Une release Sentry par version, nommée
+      # comme celle de l'API (`1.2.2+3f2a1c`, #186) — et non une par push, pour des images qui ne
+      # seront jamais promues. Les debug IDs rattachent de toute façon chaque sourcemap à son
+      # bundle : aucun téléversement n'en écrase un autre.
+      #
+      # Le jeton passe par un secret BuildKit, jamais un build-arg qui finirait dans `docker history`.
+      - name: Build & push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_APP_VERSION=${{ steps.version.outputs.version }}
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT_WEB }}
+            SENTRY_RELEASE=${{ steps.version.outputs.version }}+${{ steps.version.outputs.build }}
+          secrets: |
+            sentry_auth_token=${{ steps.version.outputs.is_release == 'true' && secrets.SENTRY_AUTH_TOKEN || '' }}
+          # Un scope par image (#414). Les builds de PR de `ci.yml` relisent ce scope sans l'écrire.
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      # ── Smoke test ────────────────────────────────────────────────────────────────────────────
+      # Depuis #417, le web lit sa config au démarrage : une image qui construit peut ne pas
+      # démarrer, ou démarrer sans servir `/config.js`. Même principe que l'API (#415) : l'image
+      # publiée, par son DIGEST, démarre avant de recevoir son numéro. Sur chaque build — une image
+      # `sha-*` qui ne démarre pas est aussi un signal.
+      #
+      # Les valeurs sont factices : aucune n'est appelée, seule compte la façon dont elles sont
+      # servies. `--health-interval` raccourcit l'intervalle de la sonde de l'image sans en changer
+      # la commande.
+      - name: Démarre l'image publiée
+        id: smoke
+        env:
+          IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web@${{ steps.build.outputs.digest }}
+        run: |
+          docker run -d --name cimavia-web-smoke -p 8080:8080 --health-interval 3s \
+            -e CMV_API_URL=https://api.example.invalid -e CMV_APP_ENV=preview -e CMV_SENTRY_DSN= \
+            "$IMAGE"
+
+      - name: Attend que le web soit sain
+        run: |
+          deadline=$((SECONDS + 60))
+          while :; do
+            state="$(docker inspect -f '{{.State.Status}}/{{.State.Health.Status}}' cimavia-web-smoke)"
+            case "$state" in
+              running/healthy) break ;;
+              running/starting) ;;
+              *)
+                echo "::error::L'image ne démarre pas (${state})."
+                exit 1
+                ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Le web n'est pas sain après 60 s (${state})."
+              exit 1
+            fi
+            sleep 3
+          done
+
+      # Ce que le navigateur reçoit : la config du conteneur, sans cache, en JavaScript — et une
+      # route profonde qui rend un index.html chargeant bien `config.js` avant le bundle.
+      - name: config.js servi depuis l'environnement
+        run: |
+          expected='window.__CMV_CONFIG__ = {"apiUrl":"https://api.example.invalid","sentryDsn":"","tier":"preview"};'
+          config="$(curl -fsS --max-time 10 -D "$RUNNER_TEMP/headers" http://127.0.0.1:8080/config.js)"
+          if [ "$config" != "$expected" ]; then
+            echo "::error::/config.js inattendu : ${config}"
+            exit 1
+          fi
+          for header in 'cache-control: no-cache' 'content-type: application/javascript'; do
+            if ! grep -qi "^${header}" "$RUNNER_TEMP/headers"; then
+              echo "::error::/config.js sans l'en-tête « ${header} »."
+              exit 1
+            fi
+          done
+          if ! curl -fsS --max-time 10 http://127.0.0.1:8080/athletes | grep -q '<script src="/config.js"'; then
+            echo "::error::Une route profonde ne rend pas un index.html qui charge /config.js."
+            exit 1
+          fi
+
+      # L'autre moitié du contrat : une variable ABSENTE fait refuser le démarrage, plutôt que de
+      # servir `${CMV_SENTRY_DSN}` tel quel. C'est ce qui rend l'oubli visible sur le NAS.
+      - name: Refuse de démarrer sans sa config
+        env:
+          IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web@${{ steps.build.outputs.digest }}
+        run: |
+          if timeout 30 docker run --rm -e CMV_API_URL=https://api.example.invalid -e CMV_APP_ENV=preview \
+            "$IMAGE" >"$RUNNER_TEMP/refus" 2>&1; then
+            echo "::error::Le web a démarré sans CMV_SENTRY_DSN."
+            exit 1
+          fi
+          if ! grep -q 'unknown "cmv_sentry_dsn" variable' "$RUNNER_TEMP/refus"; then
+            cat "$RUNNER_TEMP/refus"
+            echo "::error::Le web n'a pas refusé de démarrer pour la raison attendue."
+            exit 1
+          fi
+
+      # SEULEMENT maintenant, et sur le commit de bump seulement : le numéro sur le digest qui vient
+      # de démarrer. Un retag, jamais un rebuild (#186).
+      - name: Tag de version
+        if: steps.version.outputs.is_release == 'true'
+        env:
+          REPO: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: docker buildx imagetools create --tag "${REPO}:${VERSION}" "${REPO}@${DIGEST}"
+
+      - name: Logs du web (si échec)
+        if: failure() && steps.smoke.outcome == 'success'
+        run: docker logs cimavia-web-smoke 2>&1 | tail -n 100
+
+  # ── Trivy (#399) ──────────────────────────────────────────────────────────────────────────────
+  # Un job à part, qui ne peut que LIRE les images : même raisonnement qu'`api-image.yml`. Il
+  # remplace le scan que faisait la promotion, puisque l'image ne se construit plus là.
+  scan:
+    name: Trivy — image du web
+    needs: build-and-push
+    if: ${{ !cancelled() && needs.build-and-push.outputs.pushed == 'true' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read # l'image du web est privée
+      security-events: write # envoie le SARIF à Code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Analyse
+        uses: $/.github/actions/trivy-scan
+        with:
+          image: ${{ needs.build-and-push.outputs.image }}
+          registry-login: "true"
+          category: trivy-web

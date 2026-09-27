@@ -2455,8 +2455,9 @@ describe("Médias de débrief (P4)", () => {
     });
 
     /**
-     * Le `storagePath` de la clôture est la SEULE entrée de ce module qui désigne un objet du
-     * bucket sans être construite par l'API. Le tenancy guard protège la base, pas le storage.
+     * Le `storagePath` de la clôture désigne un objet du bucket sans être construit par l'API —
+     * comme celui du rattachement (#293, bloc dédié en fin de fichier). Le tenancy guard protège
+     * la base, pas le storage.
      */
     it("refuse un chemin de storage hors du périmètre de la séance (403)", async () => {
       const ticket = await ticketFor(bigVideo("evasion.mp4"));
@@ -3961,6 +3962,21 @@ describe("Centre de notifications (#48)", () => {
     }
     const after = (await inbox(athleteA1)).filter((n) => n.type === "MESSAGE_RECEIVED").length;
     expect(after).toBe(before);
+  });
+
+  // Le revers du throttle (#305) : un fil LU le réarme. Sans ça, un seul non-lu resté en base
+  // éteindrait push et e-mail de ce fil pour de bon.
+  it("lire le fil rouvre la notification du message suivant", async () => {
+    const count = async () =>
+      (await inbox(athleteA1)).filter((n) => n.type === "MESSAGE_RECEIVED").length;
+    const before = await count();
+
+    expect((await athleteA1.post(`/conversations/${conversationId}/read`)).status).toBe(204);
+    await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "finalement dimanche" });
+
+    expect(await count()).toBe(before + 1);
   });
 
   it("le compteur ne compte que les non lues", async () => {
@@ -7353,5 +7369,158 @@ describe("Les cycles diffusés s'accumulent chez l'athlète (#172)", () => {
   it("reste fermée au coach, comme le reste de /me (@Roles ATHLETE)", async () => {
     expect((await coachA.get("/me/plans")).status).toBe(403);
     expect((await coachB.get("/me/plans")).status).toBe(403);
+  });
+});
+
+/**
+ * Les quatre rattachements reçoivent une clé objet du CLIENT. Le tenancy guard protège la base, pas
+ * le storage : sans garde, la clé d'un autre tenant s'enregistrait telle quelle, et la suppression
+ * du rattachement purgeait ensuite l'objet chez son propriétaire (#293). Chaque cas vise donc un
+ * objet RÉEL, et vérifie après le refus qu'on le lit toujours.
+ */
+describe("Rattacher la clé objet d'un autre tenant (#293)", () => {
+  let coachA: Agent;
+  let athleteA1: Agent;
+  let coachB: Agent;
+  let targetSessionId: string;
+  let mediaSessionId: string;
+  let draftPlanId: string;
+  let conversationId: string;
+  let exerciseAId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const pdf = { fileName: "fiche.pdf", mimeType: "application/pdf", size: 2_000 };
+  // Le rattachement d'un document d'exercice ne porte pas de taille (#317) : schéma strict.
+  const pdfDocument = { type: "FILE", fileName: pdf.fileName, mimeType: pdf.mimeType };
+  const photo = { type: "IMAGE", fileName: "voie.jpg", mimeType: "image/jpeg", size: 2_000 };
+
+  async function link(coach: Agent, athlete: Agent): Promise<string> {
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return accepted.body.athleteId;
+  }
+
+  async function put(uploadUrl: string, mimeType: string, size: number): Promise<void> {
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(size, 1),
+      headers: { "content-type": mimeType },
+    });
+    expect(res.status).toBe(200);
+  }
+
+  // Un document RÉEL de la bibliothèque du coach : sa clé, et le statut d'une relecture de l'objet.
+  async function coachDocument(
+    coach: Agent,
+  ): Promise<{ storagePath: string; exists: () => Promise<number> }> {
+    const exercise = await coach.post("/exercises").send({ title: "Fiche convoitée" });
+    const url = `/exercises/${exercise.body.id}/documents`;
+    const signed = await coach.post(`${url}/upload-url`).send(pdf);
+    await put(signed.body.uploadUrl, pdf.mimeType, pdf.size);
+    const attached = await coach
+      .post(url)
+      .send({ ...pdfDocument, storagePath: signed.body.storagePath });
+    expect(attached.status).toBe(201);
+
+    return {
+      storagePath: signed.body.storagePath,
+      exists: async () => {
+        const detail = await coach.get(`/exercises/${exercise.body.id}`);
+        return (await fetch(required(detail.body.documents[0], "document").url)).status;
+      },
+    };
+  }
+
+  beforeAll(async () => {
+    coachA = await signUp("key-coach-a@cmv.test", Role.COACH);
+    athleteA1 = await signUp("key-athlete-a1@cmv.test", Role.ATHLETE);
+    coachB = await signUp("key-coach-b@cmv.test", Role.COACH);
+    const a1Id = await link(coachA, athleteA1);
+
+    // Un cycle diffusé à deux séances : l'une porte la vidéo de l'athlète, l'autre sert de cible.
+    const plan = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle diffusé",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const sessionsUrl = `/plan-weeks/${plan.body.weeks[0].id}/sessions`;
+    const session = (title: string) =>
+      coachA.post(sessionsUrl).send({ title, scheduledDate: monday });
+    mediaSessionId = (await session("Séance filmée")).body.id;
+    targetSessionId = (await session("Séance cible")).body.id;
+    await billAndPublish(coachA, plan.body.id);
+
+    // Un brouillon facturé, pour le justificatif.
+    const draft = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle brouillon",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    draftPlanId = draft.body.id;
+    await coachA.put(`/plans/${draftPlanId}/billing`).send({ amountCents: 5000, dueDate: monday });
+
+    conversationId = (await coachA.post("/conversations").send({ athleteId: a1Id })).body.id;
+    exerciseAId = (await coachA.post("/exercises").send({ title: "Exercice cible" })).body.id;
+  });
+
+  it("un athlète ne rattache pas à son débrief le document de son coach", async () => {
+    const victim = await coachDocument(coachA);
+    const url = `/me/scheduled-sessions/${targetSessionId}/feedback`;
+
+    const res = await athleteA1
+      .post(`${url}/media`)
+      .send({ ...photo, storagePath: victim.storagePath });
+    expect(res.status).toBe(403);
+
+    // Refusé AVANT de créer le débrief : la séance n'est pas passée DONE pour autant.
+    expect((await athleteA1.get(url)).body).toBeNull();
+    expect(await victim.exists()).toBe(200);
+  });
+
+  it("un coach ne rattache pas à son exercice la vidéo de son athlète", async () => {
+    const url = `/me/scheduled-sessions/${mediaSessionId}/feedback`;
+    const signed = await athleteA1.post(`${url}/media/upload-url`).send(photo);
+    await put(signed.body.uploadUrl, photo.mimeType, photo.size);
+    const media = await athleteA1
+      .post(`${url}/media`)
+      .send({ ...photo, storagePath: signed.body.storagePath });
+    expect(media.status).toBe(201);
+
+    const res = await coachA
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ ...pdfDocument, storagePath: signed.body.storagePath });
+    expect(res.status).toBe(403);
+
+    const feedback = await athleteA1.get(url);
+    const stored = required(feedback.body.media[0], "média du débrief");
+    expect((await fetch(stored.url)).status).toBe(200);
+  });
+
+  it("un message ne porte pas la clé d'un document d'un autre coach", async () => {
+    const victim = await coachDocument(coachB);
+    const url = `/conversations/${conversationId}/messages`;
+    // Compté avant : le fil porte déjà l'annonce du média de débrief joint plus haut (#96).
+    const before = (await athleteA1.get(url)).body.length;
+
+    const res = await athleteA1.post(url).send({ ...photo, storagePath: victim.storagePath });
+    expect(res.status).toBe(403);
+
+    expect((await athleteA1.get(url)).body).toHaveLength(before);
+    expect(await victim.exists()).toBe(200);
+  });
+
+  it("un justificatif de facture ne pointe pas le document d'un autre coach", async () => {
+    const victim = await coachDocument(coachB);
+
+    const res = await coachA
+      .put(`/plans/${draftPlanId}/billing/document`)
+      .send({ ...pdf, storagePath: victim.storagePath });
+    expect(res.status).toBe(403);
+
+    expect((await coachA.get(`/plans/${draftPlanId}/billing`)).body.documentFileName).toBeNull();
+    expect(await victim.exists()).toBe(200);
   });
 });

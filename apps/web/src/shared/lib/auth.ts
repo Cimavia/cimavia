@@ -1,11 +1,10 @@
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import { requireApiUrl } from "./runtime-config";
 
 // baseURL = origine de l'API ; Better Auth y ajoute /api/auth. Cookies cross-origin → CORS credentials côté API.
-const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:3000";
-
 export const authClient = createAuthClient({
-  baseURL,
+  baseURL: requireApiUrl(),
   plugins: [
     /**
      * Ces déclarations sont ce qui fait exister les champs dans `useSession().data.user` : Better

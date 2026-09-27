@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.8.0](https://github.com/Cimavia/cimavia/compare/v1.7.1...v1.8.0) (2026-09-27)
+
+
+### Fonctionnalités
+
+* **web:** url de l'api et tier lus dans config.js au démarrage, sans repli sur localhost ([98981b4](https://github.com/Cimavia/cimavia/commit/98981b40f8d8e1cdc0acacd80fc91f5eeecb74d1))
+
+
+### Corrections
+
+* **mobile:** marquer lu chaque nouvel entrant, un second restait non lu et coupait le push ([cfd407d](https://github.com/Cimavia/cimavia/commit/cfd407d5755b04521e512a682f603387ca6e18c7))
+* **shared:** marquer lu par id du dernier entrant non lu, et retenter après un échec ([42fb1b6](https://github.com/Cimavia/cimavia/commit/42fb1b6e58bf2e56eab4654a10d721bacea3a560))
+* **web:** marquer lu chaque nouvel entrant, un second restait non lu et coupait le push ([e481bf2](https://github.com/Cimavia/cimavia/commit/e481bf2f9413fc8664d5b8e245154bc2cf2b6def))
+
+
+### Technique
+
+* **deploy:** le nas passe sa config au web et attend qu'il soit sain, comme l'api ([d4ad7b1](https://github.com/Cimavia/cimavia/commit/d4ad7b11c30364ea9c4ca41b7d03f6f72c4798cd))
+* détection du commit de bump extraite en action, pour que l'api et le web la partagent ([bb2b260](https://github.com/Cimavia/cimavia/commit/bb2b26063904ac975c8f928238dd9b5368481d7a))
+* l'image web se construit une fois par commit de main, et démarre avant son tag ([a2013df](https://github.com/Cimavia/cimavia/commit/a2013df8071db28320913f5bdb1c24239f647af7))
+* la promotion retague l'image web de la version au lieu de la reconstruire pour preview ([325d36f](https://github.com/Cimavia/cimavia/commit/325d36fe2953ba78e1deb5cc5887b7b143102f32))
+* **web:** nginx sert config.js depuis l'environnement, l'image ne fige plus le tier ([6c56b26](https://github.com/Cimavia/cimavia/commit/6c56b26ee974cff9c925bfe314c7cbe6e70232fe))
+
+## [1.7.1](https://github.com/Cimavia/cimavia/compare/v1.7.0...v1.7.1) (2026-09-27)
+
+
+### Corrections
+
+* **shared:** refuser au démarrage les secrets courts, l'auth en http et le push sans jeton ([a565db0](https://github.com/Cimavia/cimavia/commit/a565db00ae6fed1c59553bd74e2a6c0855a26a2f))
+
+
+### Technique
+
+* donner un jeton expo factice au smoke de l'image, exigé désormais en preview ([0164d80](https://github.com/Cimavia/cimavia/commit/0164d8019caec53e64bd94f9ca5b780440fe7900))
+* sonar ignore la règle tag ou digest des dockerfiles, qui contredit l'épinglage de [#379](https://github.com/Cimavia/cimavia/issues/379) ([78a8cd6](https://github.com/Cimavia/cimavia/commit/78a8cd64654ddbf8cba7545b3d945903e6cd8ebb))
+
 ## [1.7.0](https://github.com/Cimavia/cimavia/compare/v1.6.2...v1.7.0) (2026-09-27)
 
 

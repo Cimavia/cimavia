@@ -104,14 +104,15 @@ jobs:
               ;;
           esac
 
-      # Une catégorie par cible, sinon chaque scan fermerait les alertes des autres. Le web partage
-      # la sienne avec son scan de promotion : c'est la même image. L'API non — `main` a pu publier
-      # plus récent que `preview` —, d'où `trivy-api-preview`, distincte de `trivy-api`
-      # (`api-image.yml`).
+      # Une catégorie par cible, sinon chaque scan fermerait les alertes des autres. L'API et le web
+      # sont scannés aussi à chaque build de `main` (`trivy-api`, `trivy-web`), qui a pu publier plus
+      # récent que `preview` : leur passage hebdomadaire a donc sa propre catégorie, `-preview`. Le
+      # web partageait la sienne avec son scan de promotion tant qu'il se construisait là ; il se
+      # construit sur `main` depuis #417.
       - name: Analyse
         uses: $/.github/actions/trivy-scan
         with:
           image: ${{ steps.target.outputs.image }}
           registry-login: ${{ matrix.target == 'api' || matrix.target == 'web' }}
           skip-dirs: ${{ matrix.target == 'api' && 'app/node_modules' || '' }}
-          category: trivy-${{ matrix.target == 'api' && 'api-preview' || matrix.target }}
+          category: trivy-${{ (matrix.target == 'api' || matrix.target == 'web') && format('{0}-preview', matrix.target) || matrix.target }}
