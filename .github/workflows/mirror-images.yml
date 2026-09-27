@@ -107,7 +107,8 @@ jobs:
 
       # Une seule issue ouverte à la fois : mise à jour si elle existe, créée sinon, et rien si les
       # composes sont à jour. Le titre sert de clé — le REST, parce que `gh issue` passe par une API
-      # GraphQL cassée sur ce dépôt (dépréciation des Projects classic).
+      # GraphQL cassée sur ce dépôt (dépréciation des Projects classic). `--paginate` : le dépôt a
+      # plus de 100 issues ouvertes, et la première page seule ouvrirait un doublon (#461).
       - name: Signaler une version épinglée en retard
         env:
           GH_TOKEN: ${{ github.token }}
@@ -128,7 +129,7 @@ jobs:
           done
 
           title="[silo-version] - Une version plus récente de SILO est disponible"
-          existing="$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" --jq ".[] | select(.pull_request == null and .title == \"${title}\") | .number" | head -n1)"
+          existing="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" --jq ".[] | select(.pull_request == null and .title == \"${title}\") | .number" | head -n1)"
 
           if [[ -z "$behind" ]]; then
             echo "Les composes épinglent la dernière version."

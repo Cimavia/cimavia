@@ -54,6 +54,14 @@ l'E2E (#257). Il tourne au merge de son fichier, chaque lundi, et à la main pou
 Chaque lundi, il ouvre aussi l'issue `[silo-version]` si un compose épingle une version plus ancienne
 que la dernière publiée : Dependabot ne comprend pas les tags `RELEASE.…` et ne le ferait pas.
 
+**Version de pnpm** — `pnpm-version.yml` compare chaque lundi `packageManager` à la dernière version
+publiée de la **même majeure**, et ouvre l'issue `[pnpm-version]` si le dépôt est en retard (#461) :
+aucun autre outil ne suit pnpm (voir *Mises à jour des dépendances*). L'issue donne la date de
+publication, pour appliquer à la main les 7 jours de Dependabot, sauf correctif de sécurité, et la
+commande qui liste les endroits à monter ; `pnpm install` doit laisser le lockfile inchangé. Une
+majeure n'est jamais signalée : elle change le format du lockfile, c'est une décision à part. Il
+tourne aussi au merge de son fichier, et à la main.
+
 **Mise en place et bornes des jobs** (#413) :
 
 - les trois jobs de `ci.yml` appellent `$/.github/actions/setup` après leur checkout : pnpm, Node,
@@ -217,14 +225,7 @@ les alertes de sécurité arrivent toujours) :
 - **pnpm lui-même** — pas par `ignore` : Dependabot ne lit pas le champ `packageManager`
   (dependabot-core#4830). Et pnpm n'étant dans aucun lockfile, **aucune alerte de sécurité** ne
   le couvre non plus : la 10.34.5, qui corrigeait trois failles HIGH, est restée deux mois et demi
-  sans que rien ne la signale (#452). À vérifier à la main, en restant sur la majeure en cours :
-
-  ```bash
-  npm view pnpm dist-tags.latest-10     # dernière 10.x publiée, à comparer à packageManager
-  ```
-
-  Une montée touche `packageManager` et `engines.pnpm` (`package.json` racine), les deux
-  `Dockerfile`, puis `CLAUDE.md` et le README ; `pnpm install` doit laisser le lockfile inchangé.
+  sans que rien ne la signale (#452). Suivi par `pnpm-version.yml` (voir *Version de pnpm*).
 
 Un sujet de commit Dependabot peut porter une majuscule que `subject-case` refuse : voir
 [Commits](#commits).
