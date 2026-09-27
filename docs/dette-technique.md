@@ -3336,6 +3336,14 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > n'existe de toute façon plus côté web : `@sentry/vite-plugin` 5.x rattache chaque sourcemap à son
 > bundle par *debug ID*, pas par nom de release. Le nom sert désormais aux pages *Releases* et aux
 > régressions, et `environment` y distingue preview de production.
+>
+> *Appris en #474* : aucune de ces sourcemaps n'était jamais partie, et ce depuis la première
+> promotion (2026-09-16). L'étage de build n'avait pas de certificats racine, et `sentry-cli`
+> échouait sur le TLS. Le build restait vert parce que `@sentry/vite-plugin` 5.4.0 traite l'échec de
+> la release et du téléversement comme *récupérable* : il journalise et continue, là où sa doc
+> promet l'inverse. D'où l'`errorHandler` qui lève dans `vite.config.ts`, et la règle qui en
+> découle : un build qui reçoit le jeton et ne téléverse pas **échoue**. Au commit de bump, il échoue
+> donc avant le tag `X.Y.Z` : la version n'est pas promouvable, plutôt que promue sans sourcemaps.
 
 > **Tranché en #417** (la config du web échoue deux fois, et jamais en silence) : une variable
 > `CMV_*` ABSENTE du conteneur n'est pas substituée par `envsubst`, nginx lit `${CMV_…}` comme une

@@ -46,6 +46,13 @@ const sentryOptions: Parameters<typeof sentryVitePlugin>[0] =
         org: SENTRY_ORG,
         project: SENTRY_PROJECT,
         release: { name: SENTRY_RELEASE },
+        // Même principe, APRÈS le build (#474) : un téléversement qui échoue fait échouer le build.
+        // Sans ce gestionnaire, le plugin journalise l'échec de la release et du téléversement puis
+        // continue — contrairement à ce que dit sa doc. C'est ainsi que les sourcemaps ne sont
+        // jamais parties, derrière des builds tous verts.
+        errorHandler: (err) => {
+          throw err;
+        },
       }
     : { disable: true };
 

@@ -46,6 +46,15 @@ RUN pnpm dlx turbo@2.10.0 prune @cmv/web --docker
 # ─────────────────────────────────────────────────────────────────────────────
 FROM base AS builder
 
+# Les certificats racine du système, pour `sentry-cli` (#474) : l'image `-slim` n'en a aucun. Node
+# embarque les siens, d'où un pnpm qui s'en passe ; `sentry-cli`, binaire Rust, lit ceux du système,
+# et sans eux chaque téléversement de sourcemaps échouait sur « unable to get local issuer
+# certificate » — depuis la première promotion. Dans cet étage seulement : l'image servie est
+# nginx, qui ne les voit jamais.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY --from=pruner /app/out/json/ .
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
