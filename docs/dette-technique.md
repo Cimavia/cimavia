@@ -1867,6 +1867,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | ~~O-1~~ | ~~**Sentry ne couvre que l'API**~~, malgré trois documents qui annonçaient « les 3 couches ». Le web et le mobile n'avaient ni SDK ni Error Boundary : un crash de rendu donnait un écran blanc côté web, fermait l'app côté mobile, sans aucune trace. | ✅ | résolu en **[#181](https://github.com/Cimavia/cimavia/issues/181)** (web) et **[#182](https://github.com/Cimavia/cimavia/issues/182)** (mobile) — les trois documents redeviennent vrais par le code, pas par réécriture |
 | O-2 | **`@sentry/cli` déclaré en dépendance du mobile sans être importé** : il n'y sert qu'à exister au chemin `apps/mobile/node_modules/@sentry/cli`, que `sentry.gradle` construit en dur pour téléverser les sourcemaps. Son repli pnpm est inatteignable — il vit dans un `catch` que `execute()` ne déclenche jamais, `node --print require.resolve(…)` rendant une sortie vide plutôt qu'une exception quand la résolution échoue. Sans cette déclaration, le build EAS **release** échoue sur « a problem occurred starting process ». La version est épinglée sur celle qu'exige `@sentry/react-native` (2.58.4) : la laisser flotter installerait deux copies du binaire. | 🟢 | — *(bug amont ; déclencheur : une version de `@sentry/react-native` dont le `sentry.gradle` résout enfin pnpm — la dépendance pourra alors sauter)* |
+| O-3 | **Les routes `/api/auth/*` ne laissent aucune ligne dans les journaux Pino** : Better Auth est branché sur Fastify avant les middlewares de Nest, et le logger HTTP de `nestjs-pino` en est un. Connexion, inscription, réinitialisation : ni statut ni durée dans Axiom — Sentry, lui, les voit. Découvert au test de #433. | 🟡 | [#466](https://github.com/Cimavia/cimavia/issues/466) |
 
 > **Tranché en #183** (trois projets Sentry, pas un) : `cimavia-api`, `cimavia-web`,
 > `cimavia-mobile`. Releases et sourcemaps s'attachent **par projet** — mêler un bundle Vite et un
@@ -1938,7 +1939,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   *Corrigé en #357* : cet encadré ajoutait à la liste le `set-cookie` de la connexion et le
 >   `location` de la redirection de réinitialisation. Faux — Pino n'a JAMAIS vu les routes
 >   `/api/auth/*` : Better Auth est branché directement sur Fastify (`httpAdapter.use`), avant les
->   middlewares de Nest, et répond sans passer la main. Constaté au test de la PR : une demande de
+>   middlewares de Nest, et répond sans passer la main (dette **O-3**, [#466](https://github.com/Cimavia/cimavia/issues/466)). Constaté au test de la PR : une demande de
 >   réinitialisation envoie son e-mail sans laisser de ligne `request completed`. Sentry, qui
 >   écoute sous Fastify, les voit bien : le blanchiment de `/reset-password/<jeton>` y sert.
 > - **Une seule liste de secrets d'URL** (`redactUrlSecrets`, `@cmv/shared`), pour le web, les
@@ -3875,8 +3876,14 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   n'a rien à retirer, et un workflow de plus serait à épingler et à relire par zizmor pour rien.
 >   **Déclencheur** : des alertes sur `dist/` ou du code généré, ou le besoin de requêtes maison.
 >   Avant d'en arriver là, essayer la suite `security-extended`, qui se règle dans l'interface.
-> - **Il alerte, il ne bloque pas** : pas de règle *code scanning* dans le ruleset `Main`, comme
->   Trivy et zizmor.
+> - **Aucun check requis, mais une alerte bloque quand même le merge** : pas de règle *code
+>   scanning* dans le ruleset `Main`, et le check `CodeQL`, rouge sur une nouvelle alerte, n'est pas
+>   requis. Seulement, l'alerte arrive aussi en commentaire de revue sur la ligne fautive, et le
+>   ruleset exige que les conversations soient résolues (`required_review_thread_resolution`).
+>   Elle se **traite** donc avant le merge : corrigée, ou rejetée avec son motif dans l'onglet
+>   *Security* (« Used in tests », « False positive »…) — pas en résolvant la conversation seule,
+>   qui laisserait l'alerte ouverte. *Corrigé le 2026-09-27* : cet encadré disait « il alerte, il ne
+>   bloque pas », démenti par #459, bloquée par une alerte sur `sentry.config.test.ts`.
 >
 > Écarts assumés : les règles de sécurité de SonarCloud font en partie doublon, et c'est accepté,
 > car les deux moteurs ne trouvent pas les mêmes failles (aucune de #293, #324 ou #352 n'avait été
