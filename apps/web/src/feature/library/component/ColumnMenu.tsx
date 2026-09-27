@@ -13,6 +13,7 @@ import {
   MetricValueType,
   metricLabel,
   metricValueTypeOf,
+  parseDecimal,
   scaleFor,
 } from "@cmv/shared";
 import { useRef, useState } from "react";
@@ -175,6 +176,22 @@ function UnitChoice({
   );
 }
 
+/** Le pas proposé à l'ouverture du menu : « 8 · 10 · 12 · 14 » est la progression la plus courante. */
+const DEFAULT_FILL_STEP = "2";
+
+/**
+ * Le pas tapé, ou `null` s'il ne peut servir. Décimal sur une colonne de nombres — « +2,5 kg » est
+ * un pas courant (#332) — mais ENTIER sur une échelle : on avance d'un palier ou de deux, pas d'un
+ * palier et demi. Un pas nul ne remplirait rien d'autre qu'une colonne identique, ce que fait déjà
+ * « Même valeur partout ».
+ */
+function usableStep(text: string, valueType: MetricValueType | null): number | null {
+  const step = parseDecimal(text);
+  if (step == null || step === 0) return null;
+  if (valueType === MetricValueType.SCALE && !Number.isInteger(step)) return null;
+  return step;
+}
+
 type FillActionsProps = {
   block: ExerciseBlock;
   metric: BlockMetric;
@@ -189,15 +206,14 @@ type FillActionsProps = {
  */
 function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActionsProps>) {
   const { t } = useTranslation();
-  const [step, setStep] = useState("2");
+  const [step, setStep] = useState(DEFAULT_FILL_STEP);
 
   const values = columnValues(block, metric.id);
   const first = values[0] ?? null;
   const valueType = metricValueTypeOf(metric, customMetrics);
   const scale = scaleFor(metric, customMetrics);
 
-  const parsedStep = Number.parseInt(step, 10);
-  const stepIsUsable = Number.isFinite(parsedStep) && parsedStep !== 0;
+  const parsedStep = usableStep(step, valueType);
 
   // Sans ligne, aucun remplissage n'a de sens — mais un menu à moitié vide se lit comme un bug.
   // On dit ce qui manque plutôt que de ne rien montrer.
@@ -234,7 +250,7 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
         <div className="flex items-center gap-cmv-xs">
           <input
             value={step}
-            inputMode="numeric"
+            inputMode={valueType === MetricValueType.SCALE ? "numeric" : "decimal"}
             aria-label={t("library.builder.column.stepLabel")}
             onChange={(event) => setStep(event.target.value)}
             className="w-14 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
@@ -242,9 +258,9 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
           {valueType === MetricValueType.SCALE ? (
             <CmvButton
               variant="ghost"
-              disabled={!stepIsUsable || scale == null || typeof first !== "string"}
+              disabled={parsedStep == null || scale == null || typeof first !== "string"}
               onClick={() => {
-                if (scale == null || typeof first !== "string") return;
+                if (parsedStep == null || scale == null || typeof first !== "string") return;
                 onFill(
                   fillColumn(block, metric.id, {
                     mode: ColumnFillMode.SCALE_STEP,
@@ -260,9 +276,9 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
           ) : (
             <CmvButton
               variant="ghost"
-              disabled={!stepIsUsable || typeof first !== "number"}
+              disabled={parsedStep == null || typeof first !== "number"}
               onClick={() => {
-                if (typeof first !== "number") return;
+                if (parsedStep == null || typeof first !== "number") return;
                 onFill(
                   fillColumn(block, metric.id, {
                     mode: ColumnFillMode.STEP,
