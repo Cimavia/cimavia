@@ -1220,6 +1220,20 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > pratiques : toute PR qui ajoute une route se teste **en cliquant**, et les types de routes Expo
 > (`.expo/types/router.d.ts`) ne sont régénérés que par le **serveur de dev** — pas par `expo export`.
 
+> **Tranché en #338** (la garde d'une route se déduit de son chemin) : le troisième constat d'#20,
+> une route sans garde, a désormais sa porte. Deux tables, lues dans l'arbre réel. **Web** —
+> `routes/guards.test.tsx` exige de chaque route qu'elle accepte **exactement** l'espace que
+> `spaceOfPath` donne à son chemin, ou les deux capacités s'il n'appartient à aucun. La nav seule
+> ne suffisait pas : `/library/*`, `/plans/$planId` ou `/account` n'y figurent pas. Et c'est
+> `spaceOfPath` qui choisit la barre latérale, donc une garde qui le contredit affiche le menu d'un
+> rôle au-dessus de l'écran de l'autre. Corollaire : une future route coach **hors des préfixes de
+> la nav** rougit, et c'est voulu — elle doit d'abord dire à quel espace elle appartient.
+> **Mobile** — `test/route-guards.test.tsx` n'a pas d'équivalent de `spaceOfPath` : la capacité de
+> chaque route hors onglets y est **écrite**, tirée du `@Roles` qu'elle appelle, et tout écran de
+> `(app)/` doit figurer dans `TABS`, faute de quoi `redirectForPath` ne le garde pas. Des deux côtés,
+> les exemptions sont nommées une à une, avec leur raison. Le rendu des gardes elles-mêmes est
+> couvert à part : `CmvRoleGate.test.tsx` (livré avec #336/#337) et `CmvCapabilityGate.test.tsx`.
+
 ---
 
 ## Post-MVP — Envoi découpé des médias (branche `fix/increase-size-video`)
