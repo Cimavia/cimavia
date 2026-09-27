@@ -24,7 +24,7 @@
 #
 # `os` porte ce que le runtime ET le build partagent ; `base` y ajoute l'outillage de build, que le
 # runtime ne reçoit pas (#399).
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS os
+FROM node:25-bookworm-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS os
 # OpenSSL pour le *schema engine* de Prisma (celui de `migrate deploy`, seul binaire natif que
 # Prisma 7 conserve — le moteur de requêtes, lui, est en WASM). Sans lui, il n'arrive pas à
 # détecter la version de libssl, retombe sur « openssl-1.1.x » et journalise un avertissement à
