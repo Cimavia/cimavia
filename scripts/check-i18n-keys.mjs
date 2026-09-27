@@ -32,9 +32,8 @@
  * Usage : `pnpm check:i18n` — ajouter `--strict` pour que les clés mortes fassent échouer aussi.
  */
 
-import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -60,16 +59,19 @@ const TEMPLATE = /`([^`]*)`/g;
 
 // ── Extraction ───────────────────────────────────────────────────────────────
 
+// En Node plutôt que par `find` : pas de shell, donc pas de commande assemblée à relire (#400).
+// Trié, pour que le rapport ne dépende pas de l'ordre du disque.
+function listFiles(dir, keep) {
+  return readdirSync(resolve(ROOT, dir), { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && keep(entry.name))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .sort();
+}
+
 function sourceFiles(dirs) {
-  return dirs
-    .flatMap((dir) => {
-      const out = execSync(
-        String.raw`find ${resolve(ROOT, dir)} -type f \( -name '*.ts' -o -name '*.tsx' \)`,
-        { encoding: "utf8" },
-      );
-      return out.trim().split("\n").filter(Boolean);
-    })
-    .filter((file) => !/\.test\.tsx?$/.test(file));
+  return dirs.flatMap((dir) =>
+    listFiles(dir, (name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)),
+  );
 }
 
 // Toute chaîne en forme de clé, où qu'elle soit. Sert UNIQUEMENT au contrôle E.
@@ -336,11 +338,11 @@ function checkRegistre(catalog) {
 
 function checkApiRegistre() {
   const errors = [];
-  const out = execSync(
-    `find ${resolve(ROOT, "apps/api/src")} -type f -name '*.ts' ! -name '*.spec.ts'`,
-    { encoding: "utf8" },
+  const files = listFiles(
+    "apps/api/src",
+    (name) => name.endsWith(".ts") && !name.endsWith(".spec.ts"),
   );
-  for (const file of out.trim().split("\n").filter(Boolean)) {
+  for (const file of files) {
     const src = readFileSync(file, "utf8");
     for (const pattern of LITTERAUX) {
       for (const [, value] of src.matchAll(pattern)) {
