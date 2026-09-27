@@ -116,6 +116,11 @@ FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:4714e0b1b2577eaa1a6131d07c
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
+# L'image de base tourne déjà en uid 101 ; le redire ici n'est pas redondant : c'est ce qu'un
+# lecteur du fichier, et `trivy config` (DS-0002), voient. Sans cette ligne, un changement d'image
+# de base qui repasserait en root ne se lirait nulle part (#399).
+USER 101
+
 # 8080 et non 80 : c'est ce port que le tunnel Cloudflare doit viser (`http://web:8080`,
 # `deploy/preview/README.md`). Les hébergeurs de conteneurs l'attendent souvent par défaut.
 EXPOSE 8080
