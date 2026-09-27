@@ -8,7 +8,7 @@ import { MailService } from "../src/infra/mail/mail.service";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 /**
- * Inscription FERMÉE (#263) — le comportement du tier dev (NAS).
+ * Inscription FERMÉE (#263) — le comportement du tier preview (NAS).
  *
  * Une suite à part, et pas quelques cas ajoutés à `isolation.e2e-spec.ts` : la politique est lue
  * AU DÉMARRAGE de l'app (variable d'environnement), les deux modes ne peuvent donc pas cohabiter

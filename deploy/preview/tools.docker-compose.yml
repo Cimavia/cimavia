@@ -19,9 +19,8 @@ name: cimavia-preview-tools
 
 services:
   cloudbeaver:
-    # `latest` assumé pour un outil de dev ; épingle la version obtenue au 1er pull si tu veux
-    # figer (ex. dbeaver/cloudbeaver:25.0.0).
-    image: dbeaver/cloudbeaver:latest
+    # Une version et son digest, plus `latest` (#379) : c'est un accès à la base du Coach.
+    image: dbeaver/cloudbeaver:26.2.0@sha256:c06c1859700bd9202d9d49ebc10ee2512d745997d05e7ca6423267b227af1ca7
     container_name: cimavia_preview_cloudbeaver
     restart: "no"
     ports:

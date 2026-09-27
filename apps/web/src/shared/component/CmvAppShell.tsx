@@ -9,6 +9,7 @@ import { NotificationBell, useUnreadByCapability } from "@/feature/notification"
 import { CmvButton } from "@/shared/component/CmvButton";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
 import { useCounterparts } from "@/shared/hook/useCounterparts";
+import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
 
@@ -111,10 +112,10 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
 
   async function onLogout() {
     await authClient.signOut();
-    // Le cookie part, le cache RESTAIT : sans rechargement complet, le compte suivant se connectait
-    // sur les athlètes, débriefs et factures du précédent. Pas de persistance disque ici,
-    // contrairement au mobile — la fuite meurt au F5, mais elle existe jusque-là.
-    queryClient.clear();
+    // Le cookie part, le reste RESTAIT : sans rechargement complet, le compte suivant se connectait
+    // sur les athlètes, débriefs et factures du précédent — et sur son presse-papier de semaine,
+    // qui vit dans `sessionStorage` et survit donc même au F5 (#341).
+    resetAccountData(queryClient);
     navigate({ to: "/login" });
   }
 

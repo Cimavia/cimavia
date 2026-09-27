@@ -25,3 +25,12 @@ export const authClient = createAuthClient({
     }),
   ],
 });
+
+/**
+ * Fait relire la session à Better Auth, depuis n'importe où — y compris hors de React, là où
+ * `useSession().refetch` n'est pas joignable. Le signal est celui que la bibliothèque émet elle-même
+ * après une connexion : tous les `useSession()` montés se mettent à jour d'un coup.
+ */
+export function recheckSession(): void {
+  authClient.$store.notify("$sessionSignal");
+}

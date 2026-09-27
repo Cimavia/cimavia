@@ -1,3 +1,4 @@
+export { ReauthOverlay } from "./component/ReauthOverlay";
 export { ForgotPasswordScreen } from "./screen/ForgotPasswordScreen";
 export { LoginScreen } from "./screen/LoginScreen";
 export { RegisterScreen } from "./screen/RegisterScreen";

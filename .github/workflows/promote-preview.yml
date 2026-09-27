@@ -61,7 +61,7 @@ jobs:
 
       # Historique complet : il faut les tags, `main` et `preview` pour comparer.
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton n'est pas laissé dans `.git/config` : ce job ne pousse rien (seul `publish` le
           # fait, avec le jeton de l'App), et une action tierce qui lirait le dépôt n'y trouverait rien.
@@ -125,20 +125,21 @@ jobs:
           fi
 
       - name: Login GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Le tag versionné n'est posé que sur le commit de bump, et seulement si sa construction a
-      # abouti (#186). Absent, il n'y a rien à retaguer : on ne reconstruit pas pour autant.
+      # Le tag versionné n'est posé que sur le commit de bump, et seulement si l'image s'est
+      # construite (#186) PUIS a démarré sur une base jetable (#415). Absent, il n'y a rien à
+      # retaguer : on ne reconstruit pas pour autant.
       - name: Image de l'API publiée
         env:
           REF: ${{ steps.version.outputs.registry }}/cimavia-api:${{ inputs.version }}
         run: |
           if ! docker buildx imagetools inspect "$REF" >/dev/null 2>&1; then
-            echo "::error::${REF} introuvable : la construction du commit de release a-t-elle abouti ?"
+            echo "::error::${REF} introuvable : la construction ou le smoke test du commit de release a-t-il échoué ?"
             exit 1
           fi
 
@@ -165,7 +166,7 @@ jobs:
     steps:
       # Le TAG et non une branche : le bundle doit être exactement le code de la version promue.
       - name: Checkout de v${{ inputs.version }}
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ needs.verify.outputs.sha }}
@@ -188,10 +189,10 @@ jobs:
           fi
 
       - name: Setup Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Login GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -207,7 +208,7 @@ jobs:
       # d'où elle vient, comme celle de l'API, dont le NAS lit la même étiquette.
       - name: Build & push
         id: build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: apps/web/Dockerfile
@@ -229,8 +230,11 @@ jobs:
           # Le jeton passe par un secret BuildKit, jamais un build-arg qui finirait dans `docker history`.
           secrets: |
             sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Un scope par image (#414) : sans lui, l'API et le web écrivaient le MÊME index de cache
+          # (`buildkit`, le défaut), chacun effaçant celui de l'autre. Les builds de PR de `ci.yml`
+          # relisent ce scope sans l'écrire.
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
 
   publish:
     name: Publier sur preview
@@ -244,10 +248,10 @@ jobs:
       promoted_at: ${{ steps.branch.outputs.promoted_at }}
     steps:
       - name: Setup Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Login GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -294,7 +298,7 @@ jobs:
       # Le jeton de l'App reste donc dans `.git/config` jusqu'à la fin du job, qui n'exécute plus
       # rien d'autre et ne publie aucun artefact — d'où l'exception à `artipacked`.
       - name: Checkout # zizmor: ignore[artipacked]
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.verify.outputs.sha }}
           fetch-depth: 0

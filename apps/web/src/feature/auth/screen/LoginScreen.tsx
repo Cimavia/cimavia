@@ -1,10 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useNavigate } from "@tanstack/react-router";
+import { Link, Navigate, useNavigate, useSearch } from "@tanstack/react-router";
 import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
+import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
+import { safeRedirect } from "@/shared/lib/redirect";
 import { AuthLayout } from "../component/AuthLayout";
 
 export function LoginScreen() {
@@ -16,10 +18,30 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * La page que la garde a dû quitter (#337) : le coach qui ouvrait un débrief depuis une
+   * notification doit y arriver, pas sur l'accueil. `strict: false` pour que l'écran se monte sous
+   * n'importe quel id de route, ses tests compris ; la valeur n'est de toute façon suivie qu'après
+   * `safeRedirect`, puisqu'elle vient de l'URL.
+   */
+  const { redirect } = useSearch({ strict: false }) as { redirect?: unknown };
+  const target = safeRedirect(redirect);
+  /**
+   * Où aller une fois connecté : l'accueil, ou la cible quand elle est sûre — `href`, posé, prend
+   * la place de `to` dans le routeur. `replace` : l'écran de connexion ne doit pas rester dans
+   * l'historique, sinon Retour y ramène et il renvoie aussitôt plus loin — le bouton ne sert plus
+   * à rien.
+   */
+  const destination = {
+    to: "/",
+    search: { q: undefined, filter: undefined, athlete: undefined },
+    ...(target == null ? {} : { href: target }),
+    replace: true,
+  } as const;
 
   // Déjà connecté → on ne montre pas l'écran de connexion.
   if (!isPending && session) {
-    return <Navigate to="/" search={{ q: undefined, filter: undefined, athlete: undefined }} />;
+    return <Navigate {...destination} />;
   }
 
   async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -34,8 +56,9 @@ export function LoginScreen() {
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
       // ici sans qu'aucune déconnexion soit passée, et le cache du précédent serait resservi.
-      queryClient.clear();
-      navigate({ to: "/", search: { q: undefined, filter: undefined, athlete: undefined } });
+      // AVANT la navigation : l'écran d'arrivée lirait sinon ce qui restait du compte précédent.
+      resetAccountData(queryClient);
+      navigate(destination);
     } catch {
       // Échec réseau / CORS : la promesse rejette → on affiche une erreur générique.
       setError(t("auth.errors.generic"));

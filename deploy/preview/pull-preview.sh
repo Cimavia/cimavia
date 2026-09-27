@@ -31,9 +31,9 @@ export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 API_REF="ghcr.io/cimavia/cimavia-api:preview"
 WEB_REF="ghcr.io/cimavia/cimavia-web:preview"
 RAW="https://raw.githubusercontent.com/Cimavia/cimavia"
-# Le dossier du compose a changé en #271, et les deux chemins restent lus : ce script tire le
-# compose du commit PROMU, qui peut être antérieur au déplacement. Le nouveau d'abord.
-COMPOSE_PATHS="deploy/preview/docker-compose.yml deploy/dev/docker-compose.yml"
+# Le compose du commit PROMU. L'ancien chemin `deploy/dev/`, lu en repli depuis #271, est retiré :
+# toute version depuis v1.5.3 a `deploy/preview/`, et la promotion ne revient jamais en arrière.
+COMPOSE_PATH="deploy/preview/docker-compose.yml"
 HEALTH_TIMEOUT_S=300
 
 mkdir -p "$STATE_DIR"
@@ -96,15 +96,10 @@ fi
 # ── 3. Le compose du commit promu ────────────────────────────────────────────
 REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$API_REF")"
 [[ "$REVISION" =~ ^[0-9a-f]{40}$ ]] || fail "commit absent des étiquettes de l'image de l'API : « $REVISION »"
-COMPOSE_FILE=""
+COMPOSE_FILE="$tmp/docker-compose.yml"
 # HTTPS exigé jusque dans les redirections : ce fichier décide de ce qui tourne sur le NAS, en root.
-for path in $COMPOSE_PATHS; do
-  if curl --proto '=https' --proto-redir '=https' -fsSL --max-time 30 "$RAW/$REVISION/$path" -o "$tmp/docker-compose.yml" 2>/dev/null; then
-    COMPOSE_FILE="$tmp/docker-compose.yml"
-    break
-  fi
-done
-[[ -n "$COMPOSE_FILE" ]] || fail "aucun compose au commit $REVISION"
+curl --proto '=https' --proto-redir '=https' -fsSL --max-time 30 "$RAW/$REVISION/$COMPOSE_PATH" -o "$COMPOSE_FILE" 2>/dev/null ||
+  fail "aucun compose au commit $REVISION"
 
 # ── 4. Valider, puis déployer ────────────────────────────────────────────────
 # Épinglées par digest, et non par tag : une promotion peut déplacer `preview` pendant ce passage.

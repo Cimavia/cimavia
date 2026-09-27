@@ -6,22 +6,18 @@ import "./instrument";
 import "./index.css";
 import "./shared/lib/i18n";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { routeTree } from "./routeTree.gen";
 import { CmvCrashScreen } from "./shared/component/CmvCrashScreen";
 import { ToastProvider } from "./shared/component/CmvToast";
+import { recheckSession } from "./shared/lib/auth";
+import { createQueryClient } from "./shared/lib/query-client";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      retry: 1,
-    },
-  },
-});
+// Un 401 fait relire la session ; la garde de route décide de la suite (#336).
+const queryClient = createQueryClient(recheckSession);
 
 const router = createRouter({
   routeTree,

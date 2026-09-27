@@ -12,8 +12,7 @@ import {
   useCreateCustomMetric,
   useUpdateCustomMetric,
 } from "@/feature/library/hook/useCustomMetrics";
-import { CmvButton, CmvSegmented, CmvTextField } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
+import { CmvButton, CmvFormError, CmvSegmented, CmvTextField } from "@/shared/component";
 
 // i18n-values library.builder.valueType: MetricValueType
 
@@ -152,11 +151,7 @@ export function CustomMetricForm({
 
       {isScale ? <ScaleEditor scale={scale} onChange={setScale} /> : null}
 
-      {create.error == null && update.error == null ? null : (
-        <p className="text-cmv-caption text-cmv-error">
-          {apiErrorMessage(create.error ?? update.error)}
-        </p>
-      )}
+      <CmvFormError error={create.error ?? update.error} />
 
       <div className="flex items-center gap-cmv-sm">
         <CmvButton

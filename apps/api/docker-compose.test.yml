@@ -1,6 +1,7 @@
 services:
   postgres-e2e:
-    image: postgres:18-alpine
+    # Épinglée par digest (#379) : Dependabot le réécrit quand `18-alpine` est reconstruite.
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     container_name: cimavia_postgres_e2e
     restart: unless-stopped
     environment:

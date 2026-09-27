@@ -18,11 +18,12 @@ import {
   CmvButton,
   CmvConfirmButton,
   CmvErrorState,
+  CmvFormError,
   CmvTagInput,
   CmvTextField,
   useToast,
 } from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 /**
  * Chargé à la demande : TipTap et ProseMirror pèsent ~120 kB gzip, pour un éditeur que seul le
@@ -104,6 +105,7 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
   // cotation du coach se saisirait comme du texte libre.
   const { data: customMetrics } = useCustomMetrics();
   const toast = useToast();
+  const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
 
   const isEditing = exercise != null;
@@ -120,8 +122,8 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
   async function onSubmit() {
     try {
       await draft.submit();
-    } catch {
-      toast.error(t("library.builder.saveFailed"));
+    } catch (error) {
+      onFailure("library.builder.saveFailed", error);
       return;
     }
     toast.success(t("library.builder.saved"));
@@ -214,9 +216,7 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
               onPendingLinks={draft.setPendingLinks}
             />
 
-            {draft.error == null ? null : (
-              <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(draft.error)}</p>
-            )}
+            <CmvFormError error={draft.error} />
           </div>
 
           {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
@@ -280,11 +280,7 @@ function BuilderActions({
       <CmvButton onClick={onSubmit} disabled={isBusy || !canSubmit}>
         {isSaving ? t("library.builder.saving") : t(submitKey)}
       </CmvButton>
-      {removeExercise.error == null ? null : (
-        <span className="text-cmv-caption text-cmv-error">
-          {apiErrorMessage(removeExercise.error)}
-        </span>
-      )}
+      <CmvFormError error={removeExercise.error} />
     </>
   );
 }

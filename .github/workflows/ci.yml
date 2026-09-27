@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton n'est pas laissé dans `.git/config` : aucune étape ne pousse, et un artefact
           # ou une action tierce qui lirait le dépôt n'y trouverait rien.
@@ -59,6 +59,21 @@ jobs:
       # pnpm, Node, dépendances et client Prisma : la même mise en place pour les trois jobs.
       - name: Setup
         uses: $/.github/actions/setup
+
+      # Le hook `commit-msg` ne voit que le poste : un commit fait dans l'interface GitHub, par une
+      # suggestion de revue ou avec `--no-verify` arrivait sur `main` sans contrôle — et
+      # `release-please` ignore en silence ce qu'il ne sait pas lire, sans bump ni CHANGELOG (#416).
+      # Une étape et non un job : elle hérite du statut requis de `quality`, là où un nouveau nom de
+      # job serait un check de plus à déclarer dans le ruleset.
+      # La base de la PR et non `origin/main` : une PR en retard relirait sinon des commits qui ne
+      # sont pas les siens. Les commits de merge sont ignorés par commitlint. Les deux sha passent
+      # par `env:`, jamais interpolés dans le script (#401). `fetch-depth: 0` les rend présents.
+      - name: Commitlint
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
 
       - name: Biome CI
         run: pnpm biome ci .
@@ -77,7 +92,7 @@ jobs:
       # Le plus proche ancêtre commun des quatre chemins étant la racine, l'artefact garde leur
       # arborescence : le job Sonar les retrouve là où `sonar-project.properties` les attend.
       - name: Upload de la couverture unitaire
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-unit
           path: |
@@ -108,7 +123,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -145,7 +160,7 @@ jobs:
       # Sonar : la relancer donnerait deux brassages de base par PR, deux occasions de flaker, et
       # une couverture mesurée sur une autre exécution que celle qui garde la porte.
       - name: Upload de la couverture e2e
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-e2e
           path: apps/api/coverage-e2e/lcov.info
@@ -156,6 +171,101 @@ jobs:
         run: |
           docker compose -f apps/api/docker-compose.test.yml logs --tail=50
           docker compose -f apps/api/docker-compose.yml logs --tail=50
+
+  # Le build de PRODUCTION des trois apps, avant le merge (#414). Le typecheck ne voit pas ce qu'un
+  # build voit : un fichier exclu par `.dockerignore`, une dépendance que `pnpm deploy --prod`
+  # retire, un `turbo prune` qui ne suit plus le graphe, un import que Rollup ou Metro ne résout
+  # pas. Sans ce job, la casse se découvrait après le merge pour l'API, à la promotion pour le web,
+  # et jamais pour le mobile avant un build EAS.
+  #
+  # Sur les PR seulement : le run de release de `main` n'a rien à reconstruire, `api-image.yml`
+  # construit déjà ce commit. Aucun secret, et aucun n'est nécessaire — une PR de fork n'en reçoit
+  # pas.
+  #
+  # Le filtre par chemins est porté par les ÉTAPES, pas par `on.pull_request.paths` ni par un `if:`
+  # de job : le job tourne toujours et conclut toujours, ce qui permet d'en faire un check requis
+  # sans qu'une PR de documentation reste bloquée sur « Waiting for status to be reported ».
+  builds:
+    name: Builds de production
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15 # 3 min 54 observé, les trois apps à froid
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Historique complet : la détection compare la PR à sa base commune avec `main`.
+          fetch-depth: 0
+
+      # Trois points (`BASE...HEAD`) : depuis l'ancêtre commun, donc seulement ce que la PR
+      # apporte, même si `main` a avancé depuis. Chaque app suit ses propres sources et les paquets
+      # qu'elle consomme ; ce qui touche les trois (lockfile, workspace, Node, contexte Docker, ce
+      # job lui-même) les reconstruit toutes.
+      - name: Ce que la PR touche
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"
+          common='^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json|\.nvmrc|\.dockerignore|\.github/workflows/ci\.yml|\.github/actions/)'
+          flag() {
+            if grep -qE -e "$common" -e "$2" <<<"$files"; then
+              echo "$1=true"
+            else
+              echo "$1=false"
+            fi
+          }
+          {
+            flag api '^(apps/api/|packages/(shared|tsconfig)/)'
+            flag web '^(apps/web/|packages/(shared|tokens|tsconfig)/)'
+            flag mobile '^(apps/mobile/|packages/(shared|tokens|tsconfig)/)'
+          } | tee -a "$GITHUB_OUTPUT"
+
+      - name: Setup Buildx
+        if: steps.changes.outputs.api == 'true' || steps.changes.outputs.web == 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Le cache de `main` est LU, jamais écrit (`cache-to` absent) : une PR ne doit pas pouvoir
+      # empoisonner les couches que `api-image.yml` et la promotion réutilisent. Chaque image lit
+      # son scope. `cacheonly` : rien n'est chargé ni poussé, seul le succès du build compte.
+      - name: Build de l'image API
+        if: steps.changes.outputs.api == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/amd64
+          push: false
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=api
+
+      # Sans build-args : les défauts du Dockerfile suffisent à prouver que le bundle se construit.
+      # Sans jeton Sentry, les sourcemaps ne partent simplement pas.
+      - name: Build de l'image web
+        if: steps.changes.outputs.web == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/amd64
+          push: false
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=web
+
+      - name: Setup
+        if: steps.changes.outputs.mobile == 'true'
+        uses: $/.github/actions/setup
+
+      # Depuis `apps/mobile` : lancée à la racine, la commande échoue sans raison lisible (la config
+      # Expo n'y est pas). Sans `APP_VARIANT`, `app.config.ts` retombe sur `development` et n'exige
+      # aucune URL : le bundle Hermes se construit sans secret.
+      - name: Export Expo (android)
+        if: steps.changes.outputs.mobile == 'true'
+        working-directory: apps/mobile
+        run: pnpm exec expo export --platform android
 
   # Rapatrié depuis `sonar.yml` en #57 : SonarCloud veut TOUS les lcov dans UN scan, or ils naissent
   # dans les deux jobs ci-dessus — l'unitaire dans `quality`, celui de l'API dans `e2e`. Un artefact
@@ -175,7 +285,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # Historique complet : Sonar attribue le code neuf par `git blame`.
@@ -195,14 +305,14 @@ jobs:
       # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Celle-ci, produite
       # par `quality`, couvre @cmv/shared, le web, le mobile et les tests unitaires de l'API…
       - name: Récupère la couverture unitaire
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-unit
 
       # …et celle-ci, produite par le job e2e, apporte les ~86 % de l'API. Sonar unit les rapports
       # par fichier, il n'y a donc pas de fusion à faire à la main.
       - name: Récupère la couverture e2e
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage-e2e
           path: apps/api/coverage-e2e
@@ -222,7 +332,7 @@ jobs:
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
         with:
           # 300 s par défaut. La gate se calcule en quelques secondes ; ce délai n'existe que pour
           # qu'une lenteur de SonarCloud ne bloque pas le runner indéfiniment.

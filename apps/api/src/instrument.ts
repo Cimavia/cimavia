@@ -23,7 +23,7 @@ try {
  * Nom de release Sentry : ce qui rattache une erreur à un état du produit. Sans lui, aucune issue
  * n'est attribuable à une version — impossible de dire si un bug est déjà corrigé.
  *
- * `1.2.0+3f2a1c` et NON `1.2.0` nu. Le tier dev republie une image à CHAQUE push sur `main`, alors
+ * `1.2.0+3f2a1c` et NON `1.2.0` nu. `api-image.yml` publie une image à CHAQUE push sur `main`, alors
  * que le numéro, lui, ne bouge qu'au merge de la PR de release : plusieurs builds différents
  * porteraient donc la même release. Sur le web, où des sourcemaps sont téléversées sous ce nom, le
  * dernier envoi gagne et l'unminification désigne le mauvais code — en silence. Ici l'API n'en

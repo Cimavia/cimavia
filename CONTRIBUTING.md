@@ -91,6 +91,25 @@ docker run --rm -v "$PWD:/repo:ro" -w /repo -e GH_TOKEN="$(gh auth token)" \
 
 Convention **Conventional Commits**, sujet en minuscule (vérifié par commitlint).
 
+Vérifié deux fois : sur le poste par le hook `commit-msg`, et en CI par une étape du job
+`quality` (*Lint + Typecheck + Test*), qui relit chaque commit de la PR depuis sa base. Un commit
+fait dans l'interface GitHub, par une suggestion de revue ou avec `--no-verify` n'y échappe donc
+plus — c'est ce qui compte : `release-please` ignore **en silence** un message qu'il ne sait pas
+lire, un correctif mal formé ne produirait ni bump ni ligne de CHANGELOG.
+
+Un message refusé sur une PR se corrige en local, puis en poussant **la branche de PR** — jamais
+`main` :
+
+```bash
+git rebase -i origin/main          # « reword » sur le commit refusé
+git push --force-with-lease
+```
+
+Seule exception connue : une mise à jour de **sécurité** Dependabot n'est pas groupée, et son sujet
+reprend le nom du paquet tel quel. Sur `SonarSource/sonarqube-scan-action`, il porterait une
+majuscule que `subject-case` refuse. Ne pas réécrire le commit du robot : fermer sa PR et faire le
+bump à la main.
+
 ### Commits signés (SSH)
 
 `main` (et la promotion) exige des signatures vérifiées. Config locale, une fois :
@@ -159,6 +178,42 @@ promotion — une version plus ancienne tournerait sur un schéma déjà migré 
 Un retour se fait par restauration ou par un correctif. Promouvoir un commit sans release n'est pas
 prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récent.
 
+## Mises à jour des dépendances (Dependabot)
+
+`.github/dependabot.yml` couvre quatre écosystèmes, chaque semaine (#379) : les actions
+(`github-actions`), le workspace pnpm (`npm`), les images de base des Dockerfiles (`docker`) et
+celles des composes (`docker-compose`). Toutes les images sont épinglées par **tag + digest** : la
+PR réécrit les deux ensemble.
+
+- **Une PR groupée par écosystème pour `minor` + `patch`**, qui se merge dès que la CI est verte.
+  **Les majeures arrivent une par une** : chacune se relit (notes de version) avant d'être mergée.
+- Une version n'est proposée que **7 jours** après sa publication (`cooldown`). Les mises à jour
+  de sécurité n'attendent pas.
+- Une PR `docker` ou `docker-compose` n'atteint le NAS qu'à la **promotion** suivante : il ne
+  tire que des images promues, et le compose du commit promu.
+
+**Ce que Dependabot ne met PAS à jour** (`ignore`, qui ne coupe que les mises à jour de version :
+les alertes de sécurité arrivent toujours) :
+
+- **Le mobile** — Expo, React Native et leurs modules, `@sentry/react-native`, `react` et
+  `react-dom` (ceux du web compris). Leurs versions sont fixées par le SDK Expo et avancent
+  ensemble, à la main :
+
+  ```bash
+  pnpm --filter @cmv/mobile exec expo install --check     # écarts avec le SDK en cours
+  pnpm --filter @cmv/mobile exec expo install --fix       # les aligne
+  pnpm --filter @cmv/mobile exec expo install expo@^57    # changement de SDK, puis --fix
+  ```
+
+  Un changement de SDK change l'empreinte native : il demande un nouveau build EAS, pas un
+  `eas update`.
+- **Les majeures de `postgres`** : le volume du NAS est dans le format de la majeure en cours. Une
+  montée passe par `pg_upgrade` ou une sauvegarde restaurée (#268).
+- **SILO et `mc`** : suivis par `mirror-images.yml` (voir *Images tierces*).
+
+Un sujet de commit Dependabot peut porter une majuscule que `subject-case` refuse : voir
+[Commits](#commits).
+
 ## Alertes de sécurité des dépendances
 
 Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance pas `pnpm audit`
@@ -180,7 +235,7 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
 
 **Secrets** — ce que seule la CI doit connaître :
 
-- `SONAR_TOKEN` — SonarCloud.
+- `SONAR_TOKEN` — SonarCloud. Posé **aussi** en secret Dependabot (Settings → Secrets and variables → *Dependabot*) : une PR ouverte par Dependabot ne lit que ceux-là, et sans lui le job Sonar de chaque PR Dependabot échoue.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
 - `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
 - `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web de la promotion. C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.

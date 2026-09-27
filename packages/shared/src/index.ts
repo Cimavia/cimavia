@@ -14,7 +14,7 @@ export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
 export type { CapabilityApi } from "./api/capability.api";
 export { capabilityKeys, createCapabilityApi } from "./api/capability.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
-export { ApiError, apiErrorMessage, createApiClient } from "./api/client";
+export { ApiError, apiErrorMessage, createApiClient, isUnauthorizedError } from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";
 export { coachFeedbackKeys, createCoachFeedbackApi } from "./api/coach-feedback.api";
 export type { InvoiceApi } from "./api/invoice.api";

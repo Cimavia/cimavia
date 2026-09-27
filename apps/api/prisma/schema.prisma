@@ -43,7 +43,7 @@ model User {
   coachRelations      CoachAthlete[] @relation("CoachRelations") // coach → N athlètes
   coachInvitations    Invitation[]   @relation("CoachInvitations")
   acceptedInvitations Invitation[]   @relation("AthleteAcceptedInvitations")
-  athleteSheet        AthleteSheet?  @relation("AthleteSheetAthlete") // fiche de l'athlète
+  athleteSheets       AthleteSheet[] @relation("AthleteSheetAthlete") // fiches tenues sur lui (son coach, lui-même)
   coachSheets         AthleteSheet[] @relation("AthleteSheetCoach") // fiches rédigées par le coach
 
   // Métier — bibliothèque du coach (P2)
@@ -189,7 +189,7 @@ model Invitation {
 
 model AthleteSheet {
   id        String   @id @default(cuid())
-  athleteId String   @unique // une fiche par athlète
+  athleteId String
   athlete   User     @relation("AthleteSheetAthlete", fields: [athleteId], references: [id], onDelete: Cascade)
   coachId   String
   coach     User     @relation("AthleteSheetCoach", fields: [coachId], references: [id], onDelete: Cascade)
@@ -197,7 +197,9 @@ model AthleteSheet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([coachId])
+  // Une fiche par COUPLE, pas par athlète : un compte qui se coache et a un coach en porte deux —
+  // la sienne, et celle que son coach tient sur lui (#301). Préfixe coachId : couvre l'index seul.
+  @@unique([coachId, athleteId])
   @@map("athlete_sheet")
 }
 

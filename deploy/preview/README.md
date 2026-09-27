@@ -38,7 +38,7 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 | Hostname public | Service (URL interne) | |
 |---|---|---|
 | `api-preview.<domaine>` | `http://api:3000` | |
-| `app-preview.<domaine>` | `http://web:80` | |
+| `app-preview.<domaine>` | `http://web:8080` | |
 | `s3-preview.<domaine>`  | `http://silo:9000` | |
 
 > **`app-preview` est derrière Cloudflare Access** (#263), les deux autres non : l'API est appelée par
@@ -46,8 +46,15 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 > que ce même téléphone appelle. Un quatrième hostname a existé jusqu'à #269, `mail-dev`, qui
 > exposait la boîte Mailpit du tier — il n'a plus de service derrière lui.
 
+> **`web:8080`, et non `web:80`**, depuis #379 : l'image web tourne sur `nginx-unprivileged`, dont
+> nginx n'a pas les droits root et ne peut donc pas écouter sous 1024. Le port se change dans le
+> dashboard **après** que le NAS a tiré la première version promue qui contient ce changement :
+> avant, `web:8080` ne répond pas ; après, c'est `web:80` qui ne répond plus. Entre les deux,
+> `app-preview` renvoie une 502 — quelques minutes, le temps du prochain passage de
+> `pull-preview.sh`.
+
 > Sous-domaines **mono-niveau** (tiret, pas point) : le SSL gratuit de Cloudflare couvre
-> `*.<domaine>` mais **pas** `*.dev.<domaine>`. `api-preview` fonctionne ; `api.dev` donnerait une
+> `*.<domaine>` mais **pas** `*.preview.<domaine>`. `api-preview` fonctionne ; `api.preview` donnerait une
 > erreur de certificat (sauf Advanced Certificate Manager, payant).
 
 Récupérer le **token du connecteur** (bouton *Install connector*, la chaîne après `--token`) et le
@@ -434,7 +441,7 @@ docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE
 ## App mobile de test (beta)
 
 Le mobile est un **client**, pas un service déployé sur le NAS : il pointe simplement vers l'API
-publique du tier dev. Pour donner une app installable à un testeur (le coach), on produit un APK
+publique du tier preview. Pour donner une app installable à un testeur (le coach), on produit un APK
 via EAS avec l'URL de l'API figée dans le build (profil `preview` de `apps/mobile/eas.json`, qui
 pose `EXPO_PUBLIC_API_URL=https://api-preview.cimavia.fr`) :
 

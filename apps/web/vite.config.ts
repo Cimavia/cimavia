@@ -17,9 +17,9 @@ import { defineConfig } from "vite";
  * variable.
  *
  * Depuis #186, le workflow y met `1.2.0+3f2a1c` — et surtout PAS la version seule, contrairement à
- * ce que cette ligne annonçait. Le tier dev republie une image à CHAQUE push sur `main` alors que
- * le numéro n'avance qu'au merge de la PR de release : plusieurs bundles porteraient alors le même
- * nom de release, et le dernier téléversement de sourcemaps écraserait les précédents.
+ * ce que cette ligne annonçait. Le code change à CHAQUE push sur `main` alors que le numéro n'avance
+ * qu'au merge de la PR de release : deux bundles d'états différents porteraient alors le même nom
+ * de release, et le dernier téléversement de sourcemaps écraserait les précédents.
  * L'unminification désignerait le mauvais code sans rien dire — exactement la panne contre laquelle
  * le garde-fou ci-dessous a été écrit.
  */

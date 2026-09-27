@@ -22,6 +22,7 @@ import {
   updatePlanWeek,
   updateScheduledSession,
 } from "@/feature/plan/api";
+import { forgetPlanClipboardSource } from "@/feature/plan/hook/usePlanClipboard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 // La semaine QUI REÇOIT et celle qu'on recopie — nommées, parce que deux `string` côte à côte
@@ -92,7 +93,11 @@ export function usePlanMutations(planId: string) {
   // Renumérote les semaines suivantes et fait remonter leurs séances d'une semaine (côté API).
   const removeWeek = useMutation({
     mutationFn: (weekId: string) => deletePlanWeek(weekId),
-    onSuccess: done("plan.toast.weekDeleted"),
+    onSuccess: async (_plan, weekId) => {
+      // Si c'était la semaine copiée, le bandeau ne doit plus proposer de la coller (#341).
+      forgetPlanClipboardSource({ planWeekId: weekId });
+      await done("plan.toast.weekDeleted")();
+    },
     onError: toast.onError,
   });
 

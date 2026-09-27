@@ -50,13 +50,30 @@ function setup(resolveUrl = vi.fn(async (): Promise<string | null> => FRESH)) {
   const element = (url: string) => (
     <CmvAudioPlayer url={url} durationSeconds={90} resolveUrl={resolveUrl} />
   );
-  const view = renderRn(element(FIRST));
+  let current = FIRST;
+  const view = renderRn(element(current));
+  const rerenderWith = (url: string) => {
+    current = url;
+    view.rerender(element(url));
+  };
   // Le statut natif évolue hors de React : on le pousse, puis on redessine.
   const push = (next: Partial<Status>, url = FIRST) => {
     setStatus(next);
-    view.rerender(element(url));
+    rerenderWith(url);
   };
-  return { ...view, resolveUrl, push, rerenderWith: (url: string) => view.rerender(element(url)) };
+  /**
+   * Attend « indisponible » ET que le bouton le sache. Voir le texte ne suffit pas : le `Pressable`
+   * de `react-native-web` ne reçoit son nouveau `onPress` que dans un effet PASSIF, que React
+   * planifie par `setImmediate`, alors que `waitFor` rend la main après un `setTimeout(0)`. Sous
+   * Node, l'ordre des deux n'est pas garanti : sur une CI chargée, le clic partait vers l'ancien
+   * `toggle`, qui ne réessayait pas (#301). Redessiner force React à vider ses effets en attente
+   * avant de rendre — c'est ce qui rend le clic suivant déterministe.
+   */
+  const untilUnavailable = async () => {
+    await waitFor(() => view.getByText("media.audio.unavailable"));
+    rerenderWith(current);
+  };
+  return { ...view, resolveUrl, push, rerenderWith, untilUnavailable };
 }
 
 beforeEach(() => {
@@ -164,10 +181,10 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
 
   it("le dit quand la re-signature échoue, et réessaie à la lecture", async () => {
     const resolveUrl = vi.fn(async (): Promise<string | null> => null);
-    const { container, getByText, queryByText, push } = setup(resolveUrl);
+    const { container, queryByText, push, untilUnavailable } = setup(resolveUrl);
 
     push({ isLoaded: false, error: "403" });
-    await waitFor(() => getByText("media.audio.unavailable"));
+    await untilUnavailable();
     expect(player.replace).not.toHaveBeenCalled();
 
     resolveUrl.mockResolvedValueOnce(FRESH);
@@ -181,14 +198,15 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
 
   it("reste indisponible si la nouvelle tentative échoue aussi", async () => {
     const resolveUrl = vi.fn(async (): Promise<string | null> => null);
-    const { container, getByText, push } = setup(resolveUrl);
+    const { container, getByText, push, untilUnavailable } = setup(resolveUrl);
     push({ isLoaded: false, error: "403" });
-    await waitFor(() => getByText("media.audio.unavailable"));
+    await untilUnavailable();
 
     press(playButton(container));
 
     await waitFor(() => expect(resolveUrl).toHaveBeenCalledTimes(2));
-    getByText("media.audio.unavailable");
+    // Le réessai efface le message au clic, et ne le remet qu'une fois la promesse résolue.
+    await waitFor(() => getByText("media.audio.unavailable"));
     expect(player.replace).not.toHaveBeenCalled();
   });
 
@@ -199,10 +217,10 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
    */
   it("ne recharge pas d'office une URL encore valide, mais la relance au geste", async () => {
     const resolveUrl = vi.fn(async (): Promise<string | null> => FIRST);
-    const { container, getByText, push } = setup(resolveUrl);
+    const { container, push, untilUnavailable } = setup(resolveUrl);
 
     push({ isLoaded: false, error: "network" });
-    await waitFor(() => getByText("media.audio.unavailable"));
+    await untilUnavailable();
     expect(player.replace).not.toHaveBeenCalled();
 
     press(playButton(container));

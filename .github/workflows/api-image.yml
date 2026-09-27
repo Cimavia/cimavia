@@ -1,7 +1,8 @@
 name: Images — API (GHCR)
 
-# Un push sur `main` publie l'image de l'API sur GHCR, et rien d'autre : plus aucun déploiement ne
-# part d'ici (#266). Le NAS tire lui-même la version PROMUE (`promote-preview.yml` pose le tag
+# Un push sur `main` publie l'image de l'API sur GHCR, la démarre sur une base jetable avant de lui
+# donner son numéro de version (#415), et rien d'autre : plus aucun déploiement ne part d'ici
+# (#266). Le NAS tire lui-même la version PROMUE (`promote-preview.yml` pose le tag
 # `preview`, `deploy/preview/pull-preview.sh` le tire), et c'est cette promotion qui exige des checks
 # verts. Un test rouge ne bloque donc pas la publication d'une image : il bloque son envoi chez le
 # Coach.
@@ -40,7 +41,7 @@ jobs:
   build-and-push:
     name: Build & push cimavia-api → GHCR
     runs-on: ubuntu-26.04
-    timeout-minutes: 20 # 6 min 09 au plus observé
+    timeout-minutes: 25 # 4 min 56 observé smoke test compris (#415), 6 min 09 au plus sans lui
     permissions:
       contents: read
       packages: write # pousse l'image de l'API sur GHCR
@@ -50,7 +51,7 @@ jobs:
       # de HEAD~1 pour savoir si CE commit est le bump. Un clone superficiel d'un seul commit ne
       # permettrait pas la comparaison.
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Le jeton n'est pas laissé dans `.git/config` : aucune étape ne pousse, et un artefact
           # ou une action tierce qui lirait le dépôt n'y trouverait rien.
@@ -91,39 +92,33 @@ jobs:
           fi
 
       - name: Setup Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Login GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Tag immuable par SHA (traçabilité) + le NUMÉRO, mais uniquement sur le commit qui le fait
-      # avancer : c'est lui que la promotion retague. Plus de tag mobile `dev` : plus personne ne le
-      # tire depuis que le NAS suit `preview`.
-      #
-      # `enable` sur le numéro est le cœur du sujet : entre deux releases, dix pushes produisent dix
-      # images différentes sous le MÊME numéro. Les taguer toutes `1.2.0` rendrait cette étiquette
-      # mouvante — et un tag de version qui change de contenu ne vaut pas mieux que pas de tag du
-      # tout. Elle n'est posée qu'une fois, sur l'image qui est vraiment cette version.
+      # Seul le tag immuable par SHA (traçabilité) est posé au build. Le NUMÉRO, lui, attend que
+      # l'image ait démarré : c'est le tag que la promotion retague, il dit « promouvable » (#415).
+      # Plus de tag mobile `dev` : plus personne ne le tire depuis que le NAS suit `preview`.
       #
       # Les étiquettes OCI qu'ajoute cette action portent `org.opencontainers.image.revision` : c'est
       # par elle que le NAS retrouve le commit d'une image, donc le compose qui va avec.
       - name: Métadonnées (tags)
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-api
-          tags: |
-            type=sha
-            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.is_release == 'true' }}
+          tags: type=sha
 
       # Les deux moitiés de l'identité voyagent SÉPARÉMENT : Swagger et `GET /version` veulent le
       # numéro nu, seul `instrument.ts` recolle `1.2.0+3f2a1c` pour Sentry (#186).
       - name: Build & push
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: apps/api/Dockerfile
@@ -135,5 +130,107 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
             APP_BUILD=${{ steps.version.outputs.build }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Un scope par image (#414) : sans lui, l'API et le web écrivaient le MÊME index de cache
+          # (`buildkit`, le défaut), chacun effaçant celui de l'autre. Les builds de PR de `ci.yml`
+          # relisent ce scope sans l'écrire.
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      # ── Smoke test (#415) ─────────────────────────────────────────────────────────────────────
+      # Un build vert ne dit pas que l'image démarre : un client Prisma non généré, une variable
+      # d'env refusée, une migration qui ne passe pas ne se voient qu'au lancement. Sans ce smoke,
+      # ce lancement avait lieu sur le NAS, APRÈS que `pull-preview.sh` a remplacé les conteneurs
+      # qui marchaient — et sans retour arrière (« Tranché en #266 »).
+      #
+      # Sur CHAQUE build, pas seulement le bump : une image `sha-*` qui ne démarre pas est aussi un
+      # signal. Elle reste publiée, mais ne recevra jamais de numéro.
+
+      # Le même compose que les e2e : une base vide, que l'entrypoint migre depuis zéro — donc
+      # toutes les migrations du dépôt. Ça ne prouve PAS la migration du NAS, qui part du schéma de
+      # la version précédente et de vraies données : ça, c'est la restauration de #268.
+      - name: Démarre la base jetable (5434)
+        run: docker compose -f apps/api/docker-compose.test.yml up -d --wait
+
+      # L'image par son DIGEST, tirée de GHCR : c'est l'artefact publié qui démarre, celui que le
+      # numéro désignera, pas une copie restée dans le cache du builder.
+      #
+      # L'environnement de production minimal, sans aucun identifiant réel : la base est celle du
+      # compose ci-dessus, dont les identifiants sont LUS plutôt que recopiés — le compose reste leur
+      # seule source, et le smoke suit s'il change. Le secret est factice, et l'URL publique ne se résout pas — l'API ne
+      # l'appelle jamais au démarrage. Valeurs déjà conformes au durcissement prévu par #357
+      # (secret de 32 caractères au moins, URL en https). `SIGNUP_MODE` n'a pas de défaut (#263) :
+      # absente, l'API refuserait de démarrer, et le smoke rougirait pour une raison qui n'est pas
+      # l'image.
+      #
+      # `--health-interval` raccourcit l'intervalle de la sonde (30 s dans l'image) sans en changer
+      # la commande : c'est bien la `HEALTHCHECK` de l'image qui est jugée, sans attendre 30 s son
+      # premier passage.
+      - name: Démarre l'image publiée
+        id: smoke
+        env:
+          IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-api@${{ steps.build.outputs.digest }}
+          NODE_ENV: production
+          APP_ENV: preview
+          BETTER_AUTH_SECRET: smoke-test-secret-not-for-production-0123456789
+          BETTER_AUTH_URL: https://api.example.invalid
+          SIGNUP_MODE: invitation
+        run: |
+          pg="$(docker compose -f apps/api/docker-compose.test.yml config --format json \
+            | jq -c '.services["postgres-e2e"].environment')"
+          user="$(jq -r .POSTGRES_USER <<<"$pg")"
+          password="$(jq -r .POSTGRES_PASSWORD <<<"$pg")"
+          db="$(jq -r .POSTGRES_DB <<<"$pg")"
+          export DATABASE_URL="postgresql://${user}:${password}@localhost:5434/${db}?schema=public"
+          docker run -d --name cimavia-smoke --network host --health-interval 3s \
+            -e NODE_ENV -e APP_ENV -e DATABASE_URL -e BETTER_AUTH_SECRET -e BETTER_AUTH_URL \
+            -e SIGNUP_MODE \
+            "$IMAGE"
+
+      # `healthy` est la sonde de l'image (liveness, `/health`). Un conteneur arrêté ou `unhealthy`
+      # fait échouer tout de suite, sans attendre la borne : l'entrypoint est en `set -e`, une
+      # migration ou une env refusée arrête le conteneur. La borne ne sert qu'à l'API qui ne répond
+      # jamais sans mourir.
+      - name: Attend que l'API soit saine
+        run: |
+          deadline=$((SECONDS + 180))
+          while :; do
+            state="$(docker inspect -f '{{.State.Status}}/{{.State.Health.Status}}' cimavia-smoke)"
+            case "$state" in
+              running/healthy) break ;;
+              running/starting) ;;
+              *)
+                echo "::error::L'image ne démarre pas (${state})."
+                exit 1
+                ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::L'API n'est pas saine après 180 s (${state})."
+              exit 1
+            fi
+            sleep 3
+          done
+
+      # `/health` ne touche pas la base ; `/health/ready` si. C'est elle qui prouve que le client
+      # Prisma de l'image parle à Postgres — la panne que le `Dockerfile` décrit (« l'API démarre
+      # puis échoue à la première requête »).
+      - name: Readiness
+        run: curl -fsS --max-time 10 http://127.0.0.1:3000/health/ready
+
+      # SEULEMENT maintenant, et sur le commit de bump seulement : le numéro sur le digest qui vient
+      # de démarrer. Même mécanisme que la promotion — un retag, jamais un rebuild (#186).
+      #
+      # Entre deux releases, dix pushes produisent dix images sous le MÊME numéro dans
+      # `package.json`. Le poser à chaque fois ferait de `1.2.0` une étiquette qui change de contenu,
+      # c'est-à-dire qui ment : il n'est posé qu'une fois, sur l'image qui est vraiment cette version.
+      - name: Tag de version
+        if: steps.version.outputs.is_release == 'true'
+        env:
+          REPO: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-api
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: docker buildx imagetools create --tag "${REPO}:${VERSION}" "${REPO}@${DIGEST}"
+
+      # Seulement si le conteneur existe : un échec du build ou de la base se lit dans son étape.
+      - name: Logs de l'API (si échec)
+        if: failure() && steps.smoke.outcome == 'success'
+        run: docker logs cimavia-smoke 2>&1 | tail -n 200

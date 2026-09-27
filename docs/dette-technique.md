@@ -448,7 +448,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
-| Q-2 | **nginx tourne en root dans l'image web** (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). | 🟡 | [#83](https://github.com/Cimavia/cimavia/issues/83) |
+| ~~Q-2~~ | ~~**nginx tourne en root dans l'image web**~~ (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). Passée à `nginxinc/nginx-unprivileged` (uid 101, port 8080). | ✅ | ~~[#83](https://github.com/Cimavia/cimavia/issues/83)~~ résolu en [#379](https://github.com/Cimavia/cimavia/issues/379) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 | Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
@@ -858,6 +858,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | D-1 | **Sept requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, conversations, résumé des rappels, non-lues) : la jointure du tableau est faite côté client, sans endpoint d'agrégat. Le **polling** de deux d'entre elles a été coupé sur cet écran (#113) — il ne reste que celui du badge, qui est sa raison d'être. Le tableau rend par ailleurs **toutes** ses lignes, `GET /athletes` n'étant pas borné : même déclencheur, même épic. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) *(épic : [#139](https://github.com/Cimavia/cimavia/issues/139) agrégat · [#140](https://github.com/Cimavia/cimavia/issues/140) pagination)* |
 | ~~D-2~~ | ~~**Pas de recherche, de tri ni de filtre** sur le tableau de suivi, là où la maquette en prévoit.~~ | ✅ | résolue en **#123** — recherche par nom, filtres *Cycle terminé* / *Sans plan*, ordre alphabétique. Le **tri par activité** est resté dehors (cf. encadré ci-dessous) |
+| D-3 | **La fiche athlète n'a pas de garde serveur contre l'écrasement** : `PUT /athletes/:id/sheet` remplace `content` sans vérifier la version lue, et le produit n'a pas d'historique. Depuis #301, seuls les clients empêchent d'éditer une fiche non reçue ; deux onglets (ou le web et le mobile) ouverts sur la même fiche s'écrasent toujours sans que personne ne le voie. | 🟡 | [#440](https://github.com/Cimavia/cimavia/issues/440) |
 
 > **Tranché en #52** (aucune information lue deux fois) : c'est la contrainte qui a façonné l'écran,
 > parce que sept tuiles offrent sept occasions de recompter la même chose. Trois conséquences.
@@ -936,6 +937,27 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > « à traiter » sont **cliquables**, alors que la strip de la maquette est décorative — une tuile qui
 > annonce du travail sans y mener est un cul-de-sac.
 
+> **Tranché en #301** (la fiche s'édite une fois REÇUE, pas « tant qu'il n'y a pas d'erreur ») :
+> le panneau web rendait un échec de lecture comme une fiche vierge, et `PUT` remplace — le coach
+> effaçait des mois de notes en croyant commencer la fiche. Deux décisions :
+> - **Le critère est `data !== undefined`, pas `isError`**, contrairement au mobile en apparence.
+>   Sur le web, `refetchOnWindowFocus` relance la lecture au retour d'onglet ; si elle échoue,
+>   `isError` passe à vrai alors que la fiche est en cache, et un rendu branché dessus masquerait le
+>   formulaire avec le brouillon. Le mobile n'a pas ce piège : son mode édition ne dépend pas de
+>   `isError`. Un test (`AthleteSheetPanel.test.tsx`) tient ce cas.
+> - **Pas de garde serveur dans cette PR** — celle qu'envisageait #301, refuser un `PUT` qui vide
+>   une fiche non vide, ne couvrait même pas son scénario : le coach y écrit deux lignes, le `PUT`
+>   n'est pas vide. La garde utile porte sur la version lue (concurrence optimiste), touche les
+>   quatre paquets, et part en [#440](https://github.com/Cimavia/cimavia/issues/440) → **D-3**.
+> - **La fiche « (moi) » fonctionne, et la fiche devient unique par COUPLE.** Rendre l'échec
+>   visible a révélé que la ligne d'auto-coaching (#14) répondait 404 depuis toujours :
+>   `assertOwnedAthlete` cherchait une ligne `CoachAthlete` que le CHECK `coach_athlete_not_self`
+>   interdit. Même garde que les cycles désormais — soi-même passe, capacité athlète exigée. Mais
+>   l'unicité sur `athleteId` datait d'un athlète à un seul coach : un compte qui se coache ET a un
+>   coach porte deux fiches, et le second `PUT` tombait en 500 sur la contrainte. Migration
+>   `20260926120000_fiche_athlete_par_coach` : `@@unique([coachId, athleteId])`, sans risque sur
+>   l'existant. Le tenancy scopant sur `coachId`, aucune des deux fiches ne voit l'autre.
+
 ---
 
 ## Post-MVP — Copie d'une semaine ([#4](https://github.com/Cimavia/cimavia/issues/4))
@@ -1006,6 +1028,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > (déclencheur : aucun — un coach ne construit pas un cycle dans deux onglets), et **coller ne vide
 > pas** le presse-papier, parce que reproduire une même semaine sur plusieurs semaines d'affilée est
 > le geste courant.
+>
+> Complété en [#341](https://github.com/Cimavia/cimavia/issues/341) : « mourir avec l'onglet » ne
+> couvrait pas le **changement de compte** dans le même onglet — il est désormais vidé par la purge
+> commune, et quand sa semaine ou son cycle disparaît.
 
 > **Écart de maquette assumé** : `coach_builder_planification.dc.html` ne prévoit **aucun** geste de
 > copie — l'en-tête de semaine n'y porte que le type, le compteur de séances et « Déplier ». Les deux
@@ -3681,6 +3707,133 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > fallu `directories`. Et `actionlint` (1.7.12, dernière version) ne connaît ni la syntaxe `$/`
 > ni l'étiquette `ubuntu-26.04` : ses erreurs sur ces deux points sont à ignorer tant qu'il n'a
 > pas rattrapé GitHub.
+
+> **Tranché en [#416](https://github.com/Cimavia/cimavia/issues/416)** (commitlint en CI) : une
+> étape du job `quality`, sur `pull_request`, de la base de la PR à sa tête. `.commitlintrc.json`
+> n'est **pas** touché :
+>
+> - **Les bornes de ligne du corps restent.** L'issue prévoyait de couper `body-max-line-length`
+>   et `footer-max-line-length`, sur la foi de lignes de 113 à 151 caractères dans le corps des
+>   commits Dependabot. Mesurées à la règle, pas en lançant commitlint : celui-ci exempte toute
+>   ligne qui contient une URL (`@commitlint/ensure`), et ce sont toutes des liens. Passés à la
+>   config actuelle, #436, #135, les PR de sécurité #419 à #425 et la release #432 sortent sans un
+>   seul problème. **Déclencheur** : le premier corps de robot refusé en CI — on coupe alors ces
+>   deux règles, nos commits n'ayant pas de corps.
+> - **Écart accepté : `subject-case` sur une mise à jour de sécurité d'action.** Elles ne sont pas
+>   groupées, et leur sujet reprend le nom du paquet : `ci: bump SonarSource/sonarqube-scan-action …`
+>   est refusé (vérifié). C'est la seule action du dépôt à majuscule ; les noms npm et docker sont
+>   en minuscules. Remède : fermer la PR et faire le bump à la main (`CONTRIBUTING.md`, « Commits »).
+>   Ignorer les commits de `dependabot[bot]` reste écarté : une exception par robot, à rallonger
+>   au suivant.
+
+> **Tranché en [#415](https://github.com/Cimavia/cimavia/issues/415)** (l'image de l'API démarre
+> avant de recevoir son numéro) : `api-image.yml` pousse `sha-*`, démarre ce digest sur la base
+> jetable des e2e, attend `healthy` puis `/health/ready`, et ne pose `X.Y.Z` qu'ensuite. La
+> promotion n'a pas changé : elle refusait déjà une version sans ce tag.
+>
+> - **L'image tirée de GHCR par son digest**, pas celle du cache du builder : c'est l'artefact que
+>   le numéro désignera, donc celui qui doit avoir démarré.
+> - **Sur chaque build, pas seulement le bump.** Une image `sha-*` qui échoue reste publiée : le
+>   run rouge sur `main` est le signal, et sans numéro elle ne peut pas être promue.
+> - **La sonde de l'image est surchargée en intervalle (3 s), pas en commande** : c'est bien sa
+>   `HEALTHCHECK` qui est jugée, sans attendre 30 s son premier passage.
+> - **Un seul job**, dans le workflow existant : le smoke n'est pas un check lu par la promotion,
+>   c'est la condition du tag. Toujours pas de `concurrency` (« Tranché en #266 »).
+>
+> Limite assumée : la base part de zéro. Le smoke attrape l'image qui ne démarre pas, pas la
+> migration qui échoue sur le schéma et les données du NAS — ça reste la restauration de #268 et
+> une vraie recette. Si #84 sort les migrations de l'entrypoint, le smoke devra jouer l'étape de
+> migration avant de démarrer l'API.
+
+> **Tranché en [#414](https://github.com/Cimavia/cimavia/issues/414)** (builds de production sur
+> les PR) : un job *Builds de production* dans `ci.yml` construit l'image API, l'image web et
+> l'export Expo android, chacun seulement si la PR touche l'app ou ce qu'elle consomme.
+>
+> - **Check requis, filtré par étape.** Le job tourne toujours ; ce sont ses étapes qui se sautent.
+>   Un filtre `on.pull_request.paths` laisserait un check requis en attente pour toujours sur une
+>   PR de documentation, et un `if:` de job obligerait à un second job de détection.
+> - **Le cache de `main` lu, jamais écrit** par une PR : elle ne doit pas pouvoir empoisonner les
+>   couches que `api-image.yml` et la promotion réutilisent.
+> - **Un scope de cache par image** (`api`, `web`). Découvert en chemin : les deux écrivaient le
+>   même index `buildkit` (le défaut), et le dernier à écrire effaçait l'autre — la promotion
+>   reconstruisait le web à froid, et une PR aurait lu l'index de l'API pour construire le web.
+> - **Pas de smoke test ici** : il porte sur l'image publiée (#415), une PR ne publie rien.
+>
+> `promote-preview.yml` n'exige pas ce check : il lit le commit de `main`, où ce job ne tourne pas.
+> Ce qui protège la promotion côté API reste #415.
+
+> **Tranché en [#379](https://github.com/Cimavia/cimavia/issues/379)** (images figées) : nginx
+> passe sur `nginx-unprivileged` (ferme #83), toute image tirée est épinglée par digest, et
+> Dependabot couvre les quatre écosystèmes du dépôt.
+>
+> - **Port 8080, sans relais par le port 80.** Écouter sous 1024 sans root demanderait une
+>   capacité ou un sysctl sur le NAS, soit ce que l'image sans root veut éviter. Le prix : une
+>   action NON versionnée, le service du hostname `app-preview` passé à `http://web:8080` dans
+>   Cloudflare, au moment où le NAS tire la première version qui la contient (runbook du tier).
+> - **Branche `stable` de nginx, pas `mainline`.** C'est parce que la mainline 1.27 s'est close
+>   sans bruit que le tag ne bougeait plus : `stable` vit un an, et Dependabot propose la suivante.
+> - **Digest ET tag**, jamais le digest seul : le tag dit à la relecture ce qui tourne, le digest
+>   garantit que c'est encore vrai. Dependabot réécrit les deux ensemble.
+> - **Les paquets du mobile sont ignorés par Dependabot `npm`** (Expo, React Native, `react`,
+>   `react-dom` — celui du web compris, faute d'ignore par dossier). Ils avancent ensemble par
+>   `expo install --fix` : un bump isolé désaligne le SDK. L'ignore ne coupe que les mises à jour
+>   de version, les alertes de sécurité continuent d'arriver.
+> - **Majeures de `postgres` ignorées** : le volume du NAS est dans le format de la majeure en
+>   cours. Une montée passe par `pg_upgrade` ou une restauration (#268), pas par une PR.
+> - **`minor` + `patch` groupés, `major` une par une**, avec 7 jours de `cooldown` : #135 est
+>   restée ouverte six semaines parce qu'un groupe unique mêlait correctifs et majeures.
+> - **Les derniers restes du nom `dev` du tier partent** (commentaires, repli `deploy/dev/` de
+>   `pull-preview.sh` — toute version depuis v1.5.3 a `deploy/preview/`, et une promotion ne
+>   revient jamais en arrière). Restent, à dessein : les volumes `cimavia-dev_*` (« Tranché en
+>   #271 »), et tout ce qui désigne le développement LOCAL (identifiants `cimavia_dev_*`, variante
+>   mobile `development`).
+
+---
+
+## Post-MVP — Session perdue et changement de compte côté web ([#336](https://github.com/Cimavia/cimavia/issues/336) · [#337](https://github.com/Cimavia/cimavia/issues/337) · [#341](https://github.com/Cimavia/cimavia/issues/341))
+
+> **Tranché en [#336](https://github.com/Cimavia/cimavia/issues/336)** (reconnexion SUR PLACE, pas
+> de redirection) : l'issue demandait qu'un 401 rejoue la déconnexion — purge, toast, renvoi vers
+> `/login`. Or ce qu'elle reprochait était un constructeur **perdu**, et un renvoi démonte l'écran :
+> la saisie serait partie tout de suite au lieu de partir au retour sur l'onglet. D'où :
+>
+> - **Un 401 ne redirige pas**, il fait relire la session (`createQueryClient`, `recheckSession`),
+>   posé sur les *caches* TanStack et non dans `defaultOptions` — un `onError` d'écran remplacerait
+>   celui-ci. La garde décide seule, que la perte vienne de l'API ou du retour sur l'onglet.
+> - **`CmvRoleGate` distingue un écran jamais monté d'un écran perdu.** Le premier renvoie vers
+>   `/login` ; le second reste monté (`inert`) sous `ReauthOverlay`, au même endroit de l'arbre —
+>   le déplacer le remonterait et son état partirait. `isPending` n'est plus consulté une fois
+>   l'écran perdu : la relecture au retour sur l'onglet le repasse à vrai et démontait l'écran.
+> - **L'e-mail de la fenêtre n'est pas saisissable** : on ne reprend l'écran que sous le compte qui
+>   l'a monté. Un autre identifiant, y compris une session d'un autre compte ouverte dans un autre
+>   onglet, ne reprend pas l'écran — « Changer de compte » purge tout avant de partir.
+> - **Voile opaque** : sur un poste partagé, celui qui trouve l'onglet ne doit pas lire l'écran du
+>   compte parti. Le titre ne dit pas « expirée » : expiration, révocation et déconnexion depuis un
+>   autre onglet arrivent toutes ici.
+> - **Aucun toast sur un 401** (`useMutationToast`) : la fenêtre nomme déjà la cause.
+>
+> Conséquence pour [#327](https://github.com/Cimavia/cimavia/issues/327) (garde « modifications
+> non enregistrées ») : aucune navigation ne part sur un 401, le futur `useBlocker` n'a donc pas
+> d'exception à prévoir pour ce cas. Le mobile a le même trou, suivi à part.
+>
+> Découvert en chemin : lire l'adresse par `useLocation()` dans la garde la faisait boucler
+> (« Maximum update depth ») — l'abonnement la re-rend pendant sa propre redirection, et
+> `<Navigate>` renavigue à chaque rendu dont les props sont neuves. Elle lit l'état du routeur, une
+> fois, au moment de rediriger.
+
+> **Tranché en [#337](https://github.com/Cimavia/cimavia/issues/337)** (la cible voyage par l'URL) :
+> la garde renvoie vers `/login?redirect=<page>`, en `replace`, et la connexion y ramène. La cible
+> vient de l'URL, donc de n'importe qui : `safeRedirect` n'accepte qu'un chemin interne (ni URL
+> absolue, ni `//` ni `/\`, lus comme une autre origine) et refuse les écrans d'authentification.
+> Elle est validée là où elle est **suivie** (`LoginScreen`), pas seulement à l'entrée de la route.
+
+> **Tranché en [#341](https://github.com/Cimavia/cimavia/issues/341)** (un seul point de purge) :
+> `resetAccountData` (`shared/lib/account-reset.ts`) vide le cache et le presse-papier de semaine,
+> appelé par la déconnexion, la connexion, l'inscription et « Changer de compte ». Pendant web de
+> celui du mobile. Le suivi local des séances n'y est pas : sa clé est l'identifiant d'une séance
+> que le compte suivant ne peut pas ouvrir. Le presse-papier s'oublie aussi quand sa semaine ou son
+> cycle est supprimé. L'ordre « purge PUIS navigation » est désormais testé sur la connexion et
+> l'inscription ([#373](https://github.com/Cimavia/cimavia/issues/373)).
 
 ---
 

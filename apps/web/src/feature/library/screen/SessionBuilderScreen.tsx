@@ -16,12 +16,13 @@ import {
   CmvDragHandle,
   CmvEmptyState,
   CmvErrorState,
+  CmvFormError,
   CmvTextArea,
   CmvTextField,
   useToast,
 } from "@/shared/component";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
-import { apiErrorMessage } from "@/shared/lib/api";
 import { cn } from "@/shared/util/cn.util";
 
 type SessionBuilderScreenProps = {
@@ -79,6 +80,7 @@ function SessionBuilder({
 }: Readonly<{ session: SessionDto | null; onLeave: () => void }>) {
   const { t } = useTranslation();
   const toast = useToast();
+  const { onFailure } = useMutationToast();
   const navigate = useNavigate();
   const { data: customMetrics } = useCustomMetrics();
   const draft = useSessionDraft(session);
@@ -94,8 +96,8 @@ function SessionBuilder({
   async function onSubmit() {
     try {
       await draft.submit();
-    } catch {
-      toast.error(t("library.session.saveFailed"));
+    } catch (error) {
+      onFailure("library.session.saveFailed", error);
       return;
     }
     toast.success(t("library.session.saved"));
@@ -115,8 +117,8 @@ function SessionBuilder({
   async function onDuplicate(exerciseId: string, blocks: ExerciseBlocks) {
     try {
       await draft.submit();
-    } catch {
-      toast.error(t("library.session.saveFailed"));
+    } catch (error) {
+      onFailure("library.session.saveFailed", error);
       return;
     }
     toast.success(t("library.session.savedBeforeVariant"));
@@ -264,9 +266,7 @@ function SessionBuilder({
             )}
           </div>
 
-          {draft.error == null ? null : (
-            <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(draft.error)}</p>
-          )}
+          <CmvFormError error={draft.error} />
         </div>
 
         {/* `sticky` : l'aperçu suit le défilement de la composition, bien plus longue que lui. */}

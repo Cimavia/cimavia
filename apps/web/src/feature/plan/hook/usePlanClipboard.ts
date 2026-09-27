@@ -63,6 +63,33 @@ function getSnapshot(): PlanWeekClipboard | null {
   return snapshot;
 }
 
+/**
+ * Vide le presse-papier, hors de tout composant — au changement de compte (#341).
+ *
+ * « Mourir avec l'onglet » (#4) ne suffisait pas : un poste partagé change de compte SANS changer
+ * d'onglet, et le coach suivant voyait « Semaine 2 de "Bloc force — Léa" copiée » — le titre d'un
+ * cycle d'un autre tenant — avec un « Coller ici » armé qui finissait en 400.
+ */
+export function clearPlanClipboard(): void {
+  write(null);
+}
+
+/**
+ * Oublie la semaine copiée si sa source vient de disparaître — la semaine elle-même, ou le cycle
+ * qui la portait. Sans ça, le bandeau continuait d'annoncer une semaine supprimée, et chaque
+ * « Coller ici » finissait en erreur.
+ */
+export function forgetPlanClipboardSource(
+  source: Readonly<{ planWeekId: string } | { planId: string }>,
+): void {
+  if (snapshot == null) return;
+  const gone =
+    "planWeekId" in source
+      ? snapshot.planWeekId === source.planWeekId
+      : snapshot.planId === source.planId;
+  if (gone) write(null);
+}
+
 export function usePlanClipboard() {
   const clipboard = useSyncExternalStore(subscribe, getSnapshot);
 
@@ -71,6 +98,6 @@ export function usePlanClipboard() {
     copyWeek: (entry: PlanWeekClipboard) => write(entry),
     // Coller ne vide PAS le presse-papier : reproduire une même semaine sur plusieurs semaines du
     // cycle est le geste courant. Le coach le désarme lui-même, depuis le bandeau.
-    clearClipboard: () => write(null),
+    clearClipboard: clearPlanClipboard,
   };
 }
