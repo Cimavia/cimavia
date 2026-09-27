@@ -112,8 +112,8 @@ export function useSendMessage(conversationId: string, attachment?: { sessionFee
 
 /**
  * Marque le fil comme lu. N'invalide QUE la conversation (unreadCount), jamais la liste de
- * messages : sinon le refetch relancerait le marquage en boucle. Le prochain poll ramène les
- * messages avec `readAt` posé — l'écran cesse alors de re-déclencher.
+ * messages : sinon le refetch relancerait le marquage en boucle. C'est l'écran qui décide quand
+ * repartir — à chaque nouvel entrant, par son id (#305).
  */
 export function useMarkRead(conversationId: string | undefined) {
   const queryClient = useQueryClient();

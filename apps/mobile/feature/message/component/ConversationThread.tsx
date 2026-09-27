@@ -1,5 +1,5 @@
 import type { MediaRecapLine } from "@cmv/shared";
-import { mediaRecapText } from "@cmv/shared";
+import { createReadMarker, lastUnreadIncomingId, mediaRecapText } from "@cmv/shared";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -77,17 +77,16 @@ export function ConversationThread({
     MESSAGE_MEDIA_PROFILE,
   );
 
-  // Marque lu dès qu'un message entrant non lu apparaît. `markRead` n'invalide que la conversation
-  // (pas les messages) : le prochain poll ramène `readAt` posé et la condition retombe — pas de
-  // boucle.
-  const hasIncomingUnread = items.some(
-    (message) => message.senderId !== currentUserId && message.readAt == null,
-  );
+  // Marque lu à CHAQUE nouvel entrant, repéré par son id (#305) : la règle et son pourquoi vivent
+  // dans `message-read.util`. `markRead` n'invalide que la conversation (pas les messages) : pas
+  // de boucle.
+  const unreadTarget = lastUnreadIncomingId(items, session?.user.id ?? null);
+  const [readMarker] = useState(createReadMarker);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `messages.dataUpdatedAt` est un déclencheur, pas une donnée lue — chaque sondage redonne sa chance à un marquage en échec.
   useEffect(() => {
-    if (conversationId != null && hasIncomingUnread) {
-      markRead();
-    }
-  }, [conversationId, hasIncomingUnread, markRead]);
+    if (conversationId == null || unreadTarget == null || !readMarker.claim(unreadTarget)) return;
+    markRead(undefined, { onError: () => readMarker.release(unreadTarget) });
+  }, [conversationId, unreadTarget, readMarker, markRead, messages.dataUpdatedAt]);
 
   if (isResolving || messages.isPending) {
     return (
