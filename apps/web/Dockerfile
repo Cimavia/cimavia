@@ -23,7 +23,7 @@
 # Base épinglée par DIGEST (#379) : un tag se reconstruit en silence, et l'image changerait de
 # base sans qu'aucune PR ne le dise — ce que #186 refuse pour l'artefact promu. Dependabot
 # réécrit le digest, commentaire de version compris, dans une PR que la CI construit.
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS base
+FROM node:25-bookworm-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # pnpm épinglé : cohérence avec le lockfile (le monorepo est en pnpm@10.34.4).
