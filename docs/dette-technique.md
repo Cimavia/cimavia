@@ -3944,6 +3944,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > vue par Sonar). CodeQL ne remplace pas les e2e d'isolation (règle dure n°1, #325) : il ne sait
 > pas ce qu'est un tenant.
 
+> **Tranché en [#461](https://github.com/Cimavia/cimavia/issues/461)** (qui suit pnpm) :
+> `pnpm-version.yml` compare chaque lundi `packageManager` au dist-tag `latest-<majeure>` du
+> registre npm, et ouvre `[pnpm-version]` en cas de retard. Il comble l'angle mort découvert en
+> #452 : ni Dependabot, ni ses alertes, ni Trivy ne voient pnpm.
+>
+> - **Un workflow à part**, et non un job de `mirror-images.yml` : celui-là porte
+>   `packages: write`, alors que ce contrôle n'a besoin que de `contents: read` et `issues: write`.
+> - **La majeure en cours seulement** : une majeure change le format du lockfile, c'est une
+>   décision, pas un retard.
+> - **Pas de délai avant de signaler**, contrairement au `cooldown` de 7 jours de Dependabot : c'est
+>   une issue, pas une PR. Elle donne la date de publication pour appliquer la même règle à la
+>   main, sauf correctif de sécurité, qui n'attend pas.
+> - **Échec plutôt que silence** : un dist-tag introuvable fait rougir le job au lieu de conclure
+>   « à jour ».
+> - **La liste des endroits à monter n'est pas écrite dans l'issue** : l'issue donne un `git grep`
+>   de la version en place. Une liste recopiée vieillirait, et #479 va la réduire.
+>
+> Écarts assumés : les **avis de sécurité** de pnpm ne sont pas lus, seul le retard de version
+> l'est. Un correctif passe toujours par une nouvelle version, et un avis sans version corrigée ne
+> donne rien à monter. L'issue ouverte automatiquement **n'arrive pas sur le board**, comme
+> `[silo-version]`, parce que le `GITHUB_TOKEN` ne peut pas écrire dans un Project v2 : à y poser à
+> la main.
+>
+> Appris en chemin : `mirror-images.yml` cherchait l'issue `[silo-version]` déjà ouverte sur la
+> première page seulement (100 issues). Le dépôt en a 161 d'ouvertes : sorti de cette page, le
+> lundi suivant aurait ouvert un doublon. Les deux workflows paginent désormais.
+
 ---
 
 ## Post-MVP — Session perdue et changement de compte côté web ([#336](https://github.com/Cimavia/cimavia/issues/336) · [#337](https://github.com/Cimavia/cimavia/issues/337) · [#341](https://github.com/Cimavia/cimavia/issues/341))
