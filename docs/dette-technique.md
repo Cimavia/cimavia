@@ -3958,6 +3958,24 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Clé objet venue du client ([#293](https://github.com/Cimavia/cimavia/issues/293))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| S-1 | **Le rattachement croit le `type`, le mime et la taille déclarés**, pas ceux de l'objet envoyé : une vidéo d'1 Go rattachée en `IMAGE` échappe au plafond de 10 vidéos par débrief. La clé, elle, est vérifiée depuis #293. Pas besoin de mémoriser le ticket comme #293 l'annonçait : le storage garde le type et la taille signés, un `HeadObject` au rattachement suffit. | 🟢 | [#468](https://github.com/Cimavia/cimavia/issues/468) |
+
+> **Tranché en [#293](https://github.com/Cimavia/cimavia/issues/293)** (la forme exacte, et 403) :
+> `assertKeyUnder` (`infra/storage/object-key.ts`) exige `<préfixe><uuid>-<nom assaini>`, la forme
+> que produit `buildObjectKey` — pas seulement le préfixe. Un `startsWith` laissait passer
+> `<préfixe>../../ailleurs`, qui vise un autre tenant dès qu'un maillon normalise le chemin. Le
+> préfixe est toujours recalculé côté serveur. Le refus est un **403**, pas le 400 du piège n°3
+> (`architecture-choice.md` §6) : c'est ce que rendait déjà la garde de clôture d'un envoi
+> découpé, testée en e2e, et la ressource visée existe bien — c'est la clé qui n'est pas à
+> l'appelant. Dans `FeedbackMediaService.attach`, la garde passe AVANT `getOrCreateWritable` : un
+> refus ne crée pas de débrief et ne passe pas la séance en DONE.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
