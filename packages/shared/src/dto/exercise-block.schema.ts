@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { decimalPlaces } from "../util/decimal.util";
 import {
   formatTrainingDuration,
   TRAINING_DURATION_MAX_SECONDS,
@@ -638,8 +639,20 @@ function fillSame(count: number, value: MetricValue): MetricValue[] {
   return Array.from({ length: count }, () => value);
 }
 
+/**
+ * Arrondie au nombre de décimales du départ ou du pas, le plus grand des deux : en virgule
+ * flottante, 0 + 3 × 0,1 vaut 0,30000000000000004, et c'est ce que la cellule afficherait. Une
+ * progression ne peut pas avoir plus de décimales que ce que le coach a tapé.
+ */
 function fillStep(count: number, start: number, step: number): MetricValue[] {
-  return Array.from({ length: count }, (_, index) => start + index * step);
+  const startPlaces = decimalPlaces(start);
+  const stepPlaces = decimalPlaces(step);
+  const places =
+    startPlaces == null || stepPlaces == null ? null : Math.max(startPlaces, stepPlaces);
+  return Array.from({ length: count }, (_, index) => {
+    const value = start + index * step;
+    return places == null ? value : Number(value.toFixed(places));
+  });
 }
 
 /**
@@ -696,6 +709,33 @@ export function fillColumn(
     ...row,
     values: { ...row.values, [metricId]: next[index] ?? null },
   }));
+}
+
+/** Les lignes, UNE cellule réécrite — les autres lignes et les autres colonnes ne bougent pas. */
+export function withCellValue(
+  rows: ExerciseBlock["rows"],
+  rowId: string,
+  metricId: string,
+  value: MetricValue,
+): ExerciseBlock["rows"] {
+  return rows.map((row) =>
+    row.id === rowId ? { ...row, values: { ...row.values, [metricId]: value } } : row,
+  );
+}
+
+/**
+ * Les lignes, plus une qui DUPLIQUE la dernière : deux séries se ressemblent presque toujours, et
+ * le coach n'a qu'à corriger ce qui change.
+ *
+ * Au plafond de `BLOCK_MAX_ROWS`, les lignes reviennent telles quelles : Entrée sur la dernière
+ * ligne d'un bloc plein valide la cellule sans rien ajouter, plutôt que de perdre la valeur tapée.
+ */
+export function withDuplicatedLastRow(
+  rows: ExerciseBlock["rows"],
+  id: string,
+): ExerciseBlock["rows"] {
+  if (rows.length >= BLOCK_MAX_ROWS) return rows;
+  return [...rows, { id, values: { ...rows.at(-1)?.values } }];
 }
 
 // ── Valeurs de départ ───────────────────────────────────────────────────────────────────────

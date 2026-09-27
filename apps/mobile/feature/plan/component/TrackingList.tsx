@@ -37,7 +37,7 @@ export function TrackingList({
   onToggle,
   onRounds,
 }: Readonly<TrackingListProps>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const units = trackingUnits(block);
   if (units == null) return null;
 
@@ -54,7 +54,7 @@ export function TrackingList({
         <UnitRow
           key={index}
           label={t(`plan.tracking.unit.${units.unit}`, { index: index + 1 })}
-          detail={unitDetail(block, index, customMetrics, t)}
+          detail={unitDetail(block, index, customMetrics, t, i18n.language)}
           checked={checked.includes(index)}
           onPress={() => onToggle(index)}
         />
@@ -68,9 +68,10 @@ function unitDetail(
   index: number,
   customMetrics: readonly CustomMetric[],
   t: TFunction,
+  locale: string,
 ): string {
   return unitValues(block, index)
-    .map(({ metric, value }) => metricCellText(value, metric, customMetrics, t))
+    .map(({ metric, value }) => metricCellText(value, metric, customMetrics, t, locale))
     .join(" · ");
 }
 

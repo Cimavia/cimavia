@@ -3,13 +3,17 @@ import {
   type Adjustments,
   adjustmentLevelAt,
   BLOCK_MAX_ROWS,
+  type BlockMetric,
   type CustomMetric,
   cellPath,
   type ExerciseBlock,
   type ExerciseBlocks,
+  formatMetricValue,
   type MetricValue,
   metricLabel,
   metricUnitLabel,
+  withCellValue,
+  withDuplicatedLastRow,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
@@ -63,9 +67,18 @@ export function SessionBlockGrid({
   const drag = useReorderDrag(moveRow);
 
   function addRow() {
-    if (isFull) return;
-    const last = block.rows.at(-1);
-    onRowsChange([...block.rows, { id: crypto.randomUUID(), values: { ...last?.values } }]);
+    onRowsChange(withDuplicatedLastRow(block.rows, crypto.randomUUID()));
+  }
+
+  /**
+   * Entrée sur la DERNIÈRE ligne. La cellule a déjà écrit sa valeur par `onCellChange` — c'est ce
+   * qui pose son marqueur —, mais l'ajout part dans le même rendu : calculé sur les lignes d'avant,
+   * il remplaçait la valeur par l'ancienne (#299). Les lignes remontées la contiennent donc aussi.
+   */
+  function commitLastLine(rowId: string, metricId: string, value: MetricValue) {
+    onRowsChange(
+      withDuplicatedLastRow(withCellValue(block.rows, rowId, metricId, value), crypto.randomUUID()),
+    );
   }
 
   return (
@@ -126,11 +139,15 @@ export function SessionBlockGrid({
                       customMetrics={customMetrics}
                       value={row.values[metric.id] ?? null}
                       onChange={(value) => onCellChange(row.id, metric.id, value)}
-                      onCommitLine={() => {
-                        if (index === block.rows.length - 1) addRow();
+                      onCommitLine={(value) => {
+                        if (index === block.rows.length - 1) {
+                          commitLastLine(row.id, metric.id, value);
+                        }
                       }}
                     />
                     <AdjustedHint
+                      metric={metric}
+                      customMetrics={customMetrics}
                       level={adjustmentLevelAt(adjustments, cellPath(block.id, row.id, metric.id))}
                       base={baselineValue(baseline, block.id, row.id, metric.id)}
                       onRevert={() => onRevertCell(row.id, metric.id)}
@@ -168,11 +185,19 @@ export function SessionBlockGrid({
  * illisible pour un daltonien.
  */
 function AdjustedHint({
+  metric,
+  customMetrics,
   level,
   base,
   onRevert,
-}: Readonly<{ level: AdjustmentLevel | null; base: MetricValue; onRevert: () => void }>) {
-  const { t } = useTranslation();
+}: Readonly<{
+  metric: BlockMetric;
+  customMetrics: readonly CustomMetric[];
+  level: AdjustmentLevel | null;
+  base: MetricValue;
+  onRevert: () => void;
+}>) {
+  const { t, i18n } = useTranslation();
   if (level == null) return null;
 
   return (
@@ -187,7 +212,9 @@ function AdjustedHint({
         )}
       />
       <span className="text-cmv-caption text-cmv-text-lo">
-        {t("library.session.defaultValue", { value: base == null ? "—" : String(base) })}
+        {t("library.session.defaultValue", {
+          value: formatMetricValue(base, metric, customMetrics, i18n.language),
+        })}
       </span>
       <button
         type="button"

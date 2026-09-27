@@ -26,8 +26,11 @@ export function dosageSummary(
   blocks: ExerciseBlocks,
   customMetrics: readonly CustomMetric[],
   t: TFunction,
+  locale: string,
 ): string | null {
-  const parts = blocks.map((block) => blockSummary(block, customMetrics, t)).filter(Boolean);
+  const parts = blocks
+    .map((block) => blockSummary(block, customMetrics, t, locale))
+    .filter(Boolean);
   return parts.length === 0 ? null : parts.join(" · ");
 }
 
@@ -35,12 +38,13 @@ function blockSummary(
   block: ExerciseBlock,
   customMetrics: readonly CustomMetric[],
   t: TFunction,
+  locale: string,
 ): string {
   const structure = structurePhrase(block.structure);
   const rest = restPhrase(block.structure);
 
   const head = structure == null ? "" : t(structure.key, structure.params);
-  const values = firstRowValues(block, customMetrics, t);
+  const values = firstRowValues(block, customMetrics, t, locale);
   const tail = rest == null ? "" : t(rest.key, rest.params);
 
   // Assemblé sans clé à trous : chaque morceau peut manquer, et une phrase pré-découpée aurait
@@ -56,6 +60,7 @@ function firstRowValues(
   block: ExerciseBlock,
   customMetrics: readonly CustomMetric[],
   t: TFunction,
+  locale: string,
 ): string {
   const row = block.rows.at(0);
   if (row == null) return "";
@@ -66,7 +71,9 @@ function firstRowValues(
       // d'aligner des tirets. `metricCellText` rend TOUJOURS quelque chose — c'est à l'appelant de
       // déclarer ce qu'il omet, pas au formateur de rendre du vide en silence.
       .filter((metric) => (row.values[metric.id] ?? null) != null)
-      .map((metric) => metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t))
+      .map((metric) =>
+        metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t, locale),
+      )
       .join(" · ")
   );
 }

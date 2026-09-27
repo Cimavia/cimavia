@@ -3925,6 +3925,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Saisie décimale dans la grille de dosage ([#298](https://github.com/Cimavia/cimavia/issues/298) · [#299](https://github.com/Cimavia/cimavia/issues/299) · [#332](https://github.com/Cimavia/cimavia/issues/332))
+
+> **Tranché en [#298](https://github.com/Cimavia/cimavia/issues/298)** (un nombre s'écrit dans la
+> langue du lecteur, PARTOUT) : l'issue ne visait que la saisie, mais une cellule qui affiche
+> « 12,5 » au coach pendant que l'aperçu et le mobile écrivent « 12.5 » à l'athlète ferait douter
+> de ce qui a été enregistré. `formatMetricValue` et `metricCellText` prennent donc la `locale` en
+> dernier paramètre, comme les autres formateurs du paquet. La saisie (`parseDecimal`) accepte la
+> virgule ET le point, donc aucun séparateur de milliers : « 1.500 » vaut 1,5, et l'affichage
+> n'en met pas non plus (« 1500 »), pour qu'une valeur relue se ressaisisse telle quelle.
+
+> **Tranché en [#299](https://github.com/Cimavia/cimavia/issues/299)** (Entrée transmet la valeur
+> validée, pas de mise à jour fonctionnelle) : l'issue proposait aussi de faire dériver l'ajout de
+> ligne de l'état courant. Côté exercice, la chaîne `BlockGrid` → `StructureSection` →
+> `draft.setBlocks` passe des tableaux COMPLETS à chaque étage : il aurait fallu la réécrire en
+> entier. Retenu : `onCommitLine(value)` reçoit la valeur validée, et la grille écrit la cellule ET
+> la nouvelle ligne en une seule fois (`withCellValue` puis `withDuplicatedLastRow`). Deux règles
+> vont avec :
+>
+> - **Une saisie refusée ne crée pas de ligne** : l'erreur reste dans la cellule, sous les yeux du
+>   coach, au lieu de glisser sous la ligne suivante.
+> - **Retaper la valeur déjà enregistrée n'écrit rien** : côté séance, l'écriture aurait posé un
+>   marqueur d'ajustement sur une cellule qui n'a pas bougé. La règle « le marqueur vient de la
+>   donnée, jamais d'une comparaison avec la référence » (`SessionBlockGrid`) n'est pas touchée :
+>   on compare à la valeur EN PLACE, pas à la référence.
+
+> **Tranché en [#332](https://github.com/Cimavia/cimavia/issues/332)** (le pas suit le type de
+> colonne) : décimal sur une colonne de nombres (« +2,5 kg »), entier sur une échelle, où un palier
+> et demi n'existe pas. Un pas refusé ferme le bouton au lieu d'être arrondi en silence.
+> `fillStep` arrondit au nombre de décimales du départ ou du pas, le plus grand des deux : sans
+> ça, un pas de 0,1 écrivait `0.30000000000000004` dans la quatrième ligne.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

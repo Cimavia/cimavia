@@ -7,6 +7,7 @@ import {
   type MetricValue,
   MetricValueType,
 } from "../dto/exercise-metric.schema";
+import { formatDecimal } from "./decimal.util";
 import { formatTrainingDuration } from "./training-duration.util";
 
 /**
@@ -18,6 +19,7 @@ import { formatTrainingDuration } from "./training-duration.util";
  *
  * `translate` est INJECTÉ et typé structurellement : `@cmv/shared` ne connaît pas i18next, et
  * chaque app a son instance. Même dispositif que `notificationSubject` et `formatRelativeOrDateTime`.
+ * La `locale` vient en dernier, comme pour tous les formateurs du paquet.
  */
 
 /** L'absence, écrite. Un seul caractère, mais c'est le contrat de tout ce module. */
@@ -56,17 +58,23 @@ export function metricUnitLabel(
   return metric.unit === MetricUnit.NONE ? null : translate(METRIC_UNIT_LABEL_KEY[metric.unit]);
 }
 
-/** `—` et jamais `0` : une valeur absente est une absence, pas un zéro (règle dure n°5). */
+/**
+ * `—` et jamais `0` : une valeur absente est une absence, pas un zéro (règle dure n°5).
+ *
+ * Un nombre s'écrit dans la langue du lecteur — « 12,5 kg » et non « 12.5 kg » (#298) : c'est ce
+ * que le coach a tapé dans la grille, et l'athlète doit lire la même chose.
+ */
 export function formatMetricValue(
   value: MetricValue,
   metric: BlockMetric,
   customMetrics: readonly CustomMetric[],
+  locale: string,
 ): string {
   if (value == null) return ABSENT;
   if (metricValueTypeOf(metric, customMetrics) === MetricValueType.DURATION) {
     return typeof value === "number" ? (formatTrainingDuration(value) ?? ABSENT) : String(value);
   }
-  return String(value);
+  return typeof value === "number" ? formatDecimal(value, locale) : value;
 }
 
 /**
@@ -86,8 +94,9 @@ export function metricCellText(
   metric: BlockMetric,
   customMetrics: readonly CustomMetric[],
   translate: (key: string) => string,
+  locale: string,
 ): string {
-  const shown = formatMetricValue(value, metric, customMetrics);
+  const shown = formatMetricValue(value, metric, customMetrics, locale);
   const unit = value == null ? null : metricUnitLabel(metric, customMetrics, translate);
   return unit == null ? shown : `${shown} ${unit}`;
 }

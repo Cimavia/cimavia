@@ -31,7 +31,8 @@ type DosageBlockProps = {
  * de défilement horizontal** : inutilisable une main sur la barre.
  */
 export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
 
   const structure = structurePhrase(block.structure);
   const rest = restPhrase(block.structure);
@@ -42,7 +43,7 @@ export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>
   const heading = [
     block.label,
     structure == null ? null : t(structure.key, structure.params),
-    ...collapsed.map((metric) => commonValue(block, metric, customMetrics, t)),
+    ...collapsed.map((metric) => commonValue(block, metric, customMetrics, t, locale)),
     rest == null ? null : t(rest.key, rest.params),
   ]
     .filter((part): part is string => part != null && part !== "")
@@ -53,13 +54,31 @@ export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>
       {heading === "" ? null : <CmvText className="text-cmv-text-hi">{heading}</CmvText>}
 
       {layout === DosageLayout.PHRASE ? (
-        <PhraseRows block={block} metrics={shown} customMetrics={customMetrics} t={t} />
+        <PhraseRows
+          block={block}
+          metrics={shown}
+          customMetrics={customMetrics}
+          t={t}
+          locale={locale}
+        />
       ) : null}
       {layout === DosageLayout.TABLE ? (
-        <TableRows block={block} metrics={shown} customMetrics={customMetrics} t={t} />
+        <TableRows
+          block={block}
+          metrics={shown}
+          customMetrics={customMetrics}
+          t={t}
+          locale={locale}
+        />
       ) : null}
       {layout === DosageLayout.CARDS ? (
-        <CardRows block={block} metrics={shown} customMetrics={customMetrics} t={t} />
+        <CardRows
+          block={block}
+          metrics={shown}
+          customMetrics={customMetrics}
+          t={t}
+          locale={locale}
+        />
       ) : null}
     </View>
   );
@@ -70,17 +89,20 @@ type RowsProps = {
   metrics: ExerciseBlock["metrics"];
   customMetrics: readonly CustomMetric[];
   t: TFunction;
+  locale: string;
 };
 
 /** Une seule ligne : elle se DIT. Un tableau à une ligne met un en-tête sur une seule valeur. */
-function PhraseRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
+function PhraseRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
   const row = block.rows.at(0);
   if (row == null) return null;
 
   // Sans filtre : une colonne vide se DIT « — », comme dans l'aperçu du web. La phrase montre les
   // colonnes du bloc, et taire l'une d'elles ferait croire qu'elle n'existe pas.
   const phrase = metrics
-    .map((metric) => metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t))
+    .map((metric) =>
+      metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t, locale),
+    )
     .join(" · ");
 
   return phrase === "" ? null : <CmvText className="text-cmv-text-mid">{phrase}</CmvText>;
@@ -93,7 +115,7 @@ function PhraseRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
  * pastille d'index. Les deux surfaces montrent la même donnée : les faire se ressembler évite au
  * coach de douter de ce que son athlète voit.
  */
-function TableRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
+function TableRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
   return (
     <View className="overflow-hidden rounded-lg border border-cmv-border">
       <View className="flex-row gap-2 border-cmv-border border-b bg-cmv-bg-1 px-2 py-2">
@@ -116,7 +138,7 @@ function TableRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
           </View>
           {metrics.map((metric) => (
             <CmvText key={metric.id} className="flex-1 font-cmv-mono text-cmv-text-hi text-sm">
-              {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics)}
+              {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics, locale)}
             </CmvText>
           ))}
         </View>
@@ -129,7 +151,7 @@ function TableRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
  * Quatre colonnes et plus : une carte par ligne. C'est la seule forme qui ne demande jamais de
  * défiler latéralement, et elle nomme chaque valeur au lieu de compter sur un en-tête lointain.
  */
-function CardRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
+function CardRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
   return (
     <View className="gap-2">
       {block.rows.map((row, index) => (
@@ -141,7 +163,7 @@ function CardRows({ block, metrics, customMetrics, t }: Readonly<RowsProps>) {
                 {metricLabel(metric, customMetrics, t)}
               </CmvText>
               <CmvText className="font-cmv-mono text-cmv-text-hi text-sm">
-                {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics)}
+                {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics, locale)}
               </CmvText>
             </View>
           ))}
@@ -157,8 +179,9 @@ function commonValue(
   metric: ExerciseBlock["metrics"][number],
   customMetrics: readonly CustomMetric[],
   t: TFunction,
+  locale: string,
 ): string | null {
   const value = block.rows.at(0)?.values[metric.id] ?? null;
   if (value == null) return null;
-  return `${metricLabel(metric, customMetrics, t)} ${metricCellText(value, metric, customMetrics, t)}`;
+  return `${metricLabel(metric, customMetrics, t)} ${metricCellText(value, metric, customMetrics, t, locale)}`;
 }
