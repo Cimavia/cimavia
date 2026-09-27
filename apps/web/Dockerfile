@@ -20,7 +20,10 @@
 #
 # Sans le secret, le build aboutit quand même : les sourcemaps ne sont simplement pas publiées.
 
-FROM node:22-bookworm-slim AS base
+# Base épinglée par DIGEST (#379) : un tag se reconstruit en silence, et l'image changerait de
+# base sans qu'aucune PR ne le dise — ce que #186 refuse pour l'artefact promu. Dependabot
+# réécrit le digest, commentaire de version compris, dans une PR que la CI construit.
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # pnpm épinglé : cohérence avec le lockfile (le monorepo est en pnpm@10.34.4).
@@ -99,15 +102,25 @@ RUN find /app/apps/web/dist -name "*.map" -delete
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 3 — runtime (nginx)
 # ─────────────────────────────────────────────────────────────────────────────
-FROM nginx:1.27-alpine AS runtime
+# `nginx-unprivileged` et non l'image officielle `nginx` (#379, #83) : le maître nginx y tourne en
+# utilisateur `nginx` (uid 101), jamais en root, et le port d'écoute passe donc à 8080. Le conteneur
+# ne fait que servir des fichiers déjà construits ; le lancer en root n'apportait rien qu'une
+# surface d'évasion.
+#
+# Branche `stable` épinglée par DIGEST : `1.27-alpine`, la mainline d'avant, était close depuis
+# avril 2025 et plus jamais reconstruite — nginx et Alpine y étaient figés sans qu'aucune PR ne le
+# dise. Dependabot réécrit désormais ce digest à chaque reconstruction de `stable`.
+FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:4714e0b1b2577eaa1a6131d07c958b67f0eb68e6d0521e90c6e5287db8cf0bc5 AS runtime
 
 # Server block avec fallback SPA + politique de cache (cf. nginx.conf).
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
-EXPOSE 80
+# 8080 et non 80 : c'est ce port que le tunnel Cloudflare doit viser (`http://web:8080`,
+# `deploy/preview/README.md`). Les hébergeurs de conteneurs l'attendent souvent par défaut.
+EXPOSE 8080
 
 # La sonde vérifie que nginx sert bien index.html (le SPA est en ligne). wget est présent dans
 # l'image alpine de nginx — pas besoin d'installer curl.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -q --spider http://127.0.0.1/ || exit 1
+  CMD wget -q --spider http://127.0.0.1:8080/ || exit 1

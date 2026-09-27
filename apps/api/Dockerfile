@@ -18,7 +18,10 @@
 # Build depuis la RACINE du monorepo (le contexte doit voir pnpm-lock.yaml et packages/) :
 #   docker build -f apps/api/Dockerfile -t cimavia-api .
 
-FROM node:22-bookworm-slim AS base
+# Base épinglée par DIGEST (#379) : un tag se reconstruit en silence, et l'image changerait de
+# base sans qu'aucune PR ne le dise — ce que #186 refuse pour l'artefact promu. Dependabot
+# réécrit le digest, commentaire de version compris, dans une PR que la CI construit.
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # OpenSSL pour le *schema engine* de Prisma (celui de `migrate deploy`, seul binaire natif que

@@ -189,7 +189,7 @@ jobs:
     name: Builds de production
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-26.04
-    timeout-minutes: 20 # à mesurer
+    timeout-minutes: 15 # 3 min 54 observé, les trois apps à froid
 
     steps:
       - name: Checkout

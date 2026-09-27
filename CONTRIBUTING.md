@@ -178,6 +178,42 @@ promotion — une version plus ancienne tournerait sur un schéma déjà migré 
 Un retour se fait par restauration ou par un correctif. Promouvoir un commit sans release n'est pas
 prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récent.
 
+## Mises à jour des dépendances (Dependabot)
+
+`.github/dependabot.yml` couvre quatre écosystèmes, chaque semaine (#379) : les actions
+(`github-actions`), le workspace pnpm (`npm`), les images de base des Dockerfiles (`docker`) et
+celles des composes (`docker-compose`). Toutes les images sont épinglées par **tag + digest** : la
+PR réécrit les deux ensemble.
+
+- **Une PR groupée par écosystème pour `minor` + `patch`**, qui se merge dès que la CI est verte.
+  **Les majeures arrivent une par une** : chacune se relit (notes de version) avant d'être mergée.
+- Une version n'est proposée que **7 jours** après sa publication (`cooldown`). Les mises à jour
+  de sécurité n'attendent pas.
+- Une PR `docker` ou `docker-compose` n'atteint le NAS qu'à la **promotion** suivante : il ne
+  tire que des images promues, et le compose du commit promu.
+
+**Ce que Dependabot ne met PAS à jour** (`ignore`, qui ne coupe que les mises à jour de version :
+les alertes de sécurité arrivent toujours) :
+
+- **Le mobile** — Expo, React Native et leurs modules, `@sentry/react-native`, `react` et
+  `react-dom` (ceux du web compris). Leurs versions sont fixées par le SDK Expo et avancent
+  ensemble, à la main :
+
+  ```bash
+  pnpm --filter @cmv/mobile exec expo install --check     # écarts avec le SDK en cours
+  pnpm --filter @cmv/mobile exec expo install --fix       # les aligne
+  pnpm --filter @cmv/mobile exec expo install expo@^57    # changement de SDK, puis --fix
+  ```
+
+  Un changement de SDK change l'empreinte native : il demande un nouveau build EAS, pas un
+  `eas update`.
+- **Les majeures de `postgres`** : le volume du NAS est dans le format de la majeure en cours. Une
+  montée passe par `pg_upgrade` ou une sauvegarde restaurée (#268).
+- **SILO et `mc`** : suivis par `mirror-images.yml` (voir *Images tierces*).
+
+Un sujet de commit Dependabot peut porter une majuscule que `subject-case` refuse : voir
+[Commits](#commits).
+
 ## Alertes de sécurité des dépendances
 
 Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance pas `pnpm audit`
