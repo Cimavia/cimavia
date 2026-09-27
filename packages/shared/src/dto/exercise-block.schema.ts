@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { decimalPlaces } from "../util/decimal.util";
 import {
   formatTrainingDuration,
   TRAINING_DURATION_MAX_SECONDS,
@@ -638,8 +639,20 @@ function fillSame(count: number, value: MetricValue): MetricValue[] {
   return Array.from({ length: count }, () => value);
 }
 
+/**
+ * Arrondie au nombre de décimales du départ ou du pas, le plus grand des deux : en virgule
+ * flottante, 0 + 3 × 0,1 vaut 0,30000000000000004, et c'est ce que la cellule afficherait. Une
+ * progression ne peut pas avoir plus de décimales que ce que le coach a tapé.
+ */
 function fillStep(count: number, start: number, step: number): MetricValue[] {
-  return Array.from({ length: count }, (_, index) => start + index * step);
+  const startPlaces = decimalPlaces(start);
+  const stepPlaces = decimalPlaces(step);
+  const places =
+    startPlaces == null || stepPlaces == null ? null : Math.max(startPlaces, stepPlaces);
+  return Array.from({ length: count }, (_, index) => {
+    const value = start + index * step;
+    return places == null ? value : Number(value.toFixed(places));
+  });
 }
 
 /**

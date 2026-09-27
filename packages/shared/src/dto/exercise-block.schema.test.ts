@@ -404,6 +404,47 @@ describe("fillColumn", () => {
     expect(read({ ...block, rows: filled })).toEqual([12, 10, 8]);
   });
 
+  it("progresse d'un pas décimal", () => {
+    const block = seriesBlock(rows(null, null, null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", {
+      mode: ColumnFillMode.STEP,
+      start: 10,
+      step: 2.5,
+    });
+    expect(read({ ...block, rows: filled })).toEqual([10, 12.5, 15, 17.5]);
+  });
+
+  it("n'affiche pas l'erreur d'arrondi de la virgule flottante", () => {
+    // 0 + 3 × 0,1 vaut 0,30000000000000004 en virgule flottante.
+    const block = seriesBlock(rows(null, null, null, null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", {
+      mode: ColumnFillMode.STEP,
+      start: 1.1,
+      step: 0.1,
+    });
+    expect(read({ ...block, rows: filled })).toEqual([1.1, 1.2, 1.3, 1.4, 1.5]);
+  });
+
+  it("garde les décimales du départ quand le pas est entier", () => {
+    const block = seriesBlock(rows(null, null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", {
+      mode: ColumnFillMode.STEP,
+      start: 0.25,
+      step: 1,
+    });
+    expect(read({ ...block, rows: filled })).toEqual([0.25, 1.25, 2.25]);
+  });
+
+  it("n'arrondit pas un nombre qu'il ne sait pas compter", () => {
+    const block = seriesBlock(rows(null, null), [reps]);
+    const filled = fillColumn(block, "col_reps", {
+      mode: ColumnFillMode.STEP,
+      start: 1e-7,
+      step: 1e-7,
+    });
+    expect(read({ ...block, rows: filled })).toEqual([1e-7, 2e-7]);
+  });
+
   it("progresse sur l'échelle et BUTE sur le dernier palier", () => {
     // Reboucler à « 5a » après le sommet produirait une consigne absurde que rien ne signalerait.
     const block = seriesBlock(rows(null, null, null, null), [reps]);
