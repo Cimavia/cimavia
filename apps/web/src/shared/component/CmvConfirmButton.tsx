@@ -17,6 +17,12 @@ type CmvConfirmButtonProps = {
    * avertir ; armé, c'est le dernier moment où le dire. Omis, le bouton se comporte comme avant.
    */
   confirmHint?: string;
+  /**
+   * Pourquoi le geste est fermé. Fourni, il désactive le bouton ET l'explique au survol. Un
+   * `title` sur un bouton désactivé ne s'affiche pas de façon fiable (le navigateur ne lui passe
+   * pas le survol) : la raison vit sur une enveloppe, et le bouton laisse passer le pointeur.
+   */
+  disabledReason?: string;
 };
 
 /**
@@ -32,8 +38,20 @@ export function CmvConfirmButton({
   disabled,
   icon,
   confirmHint,
+  disabledReason,
 }: Readonly<CmvConfirmButtonProps>) {
   const [armed, setArmed] = useState(false);
+
+  if (disabledReason != null) {
+    return (
+      <span title={disabledReason} className="inline-flex [&>button]:pointer-events-none">
+        {/* `title` gardé : c'est l'intitulé accessible d'un bouton-icône, pas une info-bulle. */}
+        <CmvButton variant={icon == null ? "danger" : "ghost"} title={label} disabled>
+          {icon ?? label}
+        </CmvButton>
+      </span>
+    );
+  }
 
   if (!armed) {
     return (

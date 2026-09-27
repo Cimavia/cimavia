@@ -33,22 +33,22 @@ export function SessionPanelFooter({
   const { t } = useTranslation();
   // Omis plutôt qu'`undefined` (`exactOptionalPropertyTypes`) : un brouillon n'a rien à annoncer.
   const deleteHint = isPublished ? { confirmHint: t("plan.session.deleteHintPublished") } : {};
-  const deleteBlockedTitle = isDebriefed ? t("plan.session.deleteDisabledDebriefed") : undefined;
+  const deleteBlocked = isDebriefed
+    ? { disabledReason: t("plan.session.deleteDisabledDebriefed") }
+    : {};
 
   return (
     <>
-      {/* Info-bulle sur un span : le `title` d'un bouton désactivé ne s'affiche pas partout. */}
       {isEditing ? (
-        <span title={deleteBlockedTitle}>
-          <CmvConfirmButton
-            label={t("plan.session.delete")}
-            confirmLabel={t("common.confirmDelete")}
-            cancelLabel={t("common.cancel")}
-            disabled={isBusy || isDebriefed}
-            {...deleteHint}
-            onConfirm={onDelete}
-          />
-        </span>
+        <CmvConfirmButton
+          label={t("plan.session.delete")}
+          confirmLabel={t("common.confirmDelete")}
+          cancelLabel={t("common.cancel")}
+          disabled={isBusy}
+          {...deleteHint}
+          {...deleteBlocked}
+          onConfirm={onDelete}
+        />
       ) : null}
       <div className="flex-1" />
       <CmvButton variant="ghost" onClick={onClose} disabled={isBusy}>
