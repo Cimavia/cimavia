@@ -22,7 +22,8 @@ import {
  *
  * Chaque entrée porte la capacité qui la rend visible — la MÊME que celle exigée par la route
  * correspondante (`CmvRoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà
- * l'expérience : une nav qui propose ce que la route refuse.
+ * l'expérience : une nav qui propose ce que la route refuse. `routes/guards.test.tsx` le vérifie
+ * sur l'arbre de routes réel, et `spaceOfPath` avec lui (#338).
  *
  * **La capacité ne suffit plus depuis #198** : la messagerie dépend AUSSI d'une relation. Un compte
  * qui se coache seul porte les deux capacités et n'a pourtant personne à qui écrire — l'entrée
