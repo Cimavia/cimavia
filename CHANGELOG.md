@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.7.0](https://github.com/Cimavia/cimavia/compare/v1.6.2...v1.7.0) (2026-09-27)
+
+
+### Fonctionnalités
+
+* **shared:** lire un décimal à la virgule ou au point, l'écrire dans la langue du lecteur ([34c0fe6](https://github.com/Cimavia/cimavia/commit/34c0fe6c48fbf01ac3a6e8002a04d0f3b2c9acb3))
+* **shared:** une seule liste des secrets d'url, pour le web et bientôt pour l'api ([0618c5e](https://github.com/Cimavia/cimavia/commit/0618c5e9aff0144b95ce5daf265f589b34d1cdad))
+
+
+### Corrections
+
+* **api:** les journaux ne gardent que id, méthode, url blanchie et statut, aucun en-tête ([70e2014](https://github.com/Cimavia/cimavia/commit/70e201443cc4785a9fb90db3df6986f637e7dfc6))
+* **api:** sentry ne lit plus le corps et retire cookies, en-têtes secrets et jetons d'url ([bbb9f1b](https://github.com/Cimavia/cimavia/commit/bbb9f1b3fb98f7e172908dedcc5c7e1d9465ad49))
+* écrire les valeurs de dosage dans la langue du lecteur, 12,5 kg et non 12.5 kg ([440a383](https://github.com/Cimavia/cimavia/commit/440a38375b4427112d04e4c26244ce37e2146672))
+* saisie décimale dans la grille de dosage ([#298](https://github.com/Cimavia/cimavia/issues/298) · [#299](https://github.com/Cimavia/cimavia/issues/299) · [#332](https://github.com/Cimavia/cimavia/issues/332)) ([1cdbf72](https://github.com/Cimavia/cimavia/commit/1cdbf723aab79a53c023d3832fc59fcd6096c700))
+* **shared:** arrondir la progression régulière, un pas de 0,1 donnait 0,30000000000000004 ([743620a](https://github.com/Cimavia/cimavia/commit/743620ac3acb44fdd314bb13eccf037fd9064fd5))
+* **web:** accepter un pas décimal dans la progression régulière au lieu de le tronquer ([314bc36](https://github.com/Cimavia/cimavia/commit/314bc36416dd50d19b8fc266013917b8881bce0e))
+* **web:** garder la virgule à la frappe, et la valeur tapée quand entrée ajoute une ligne ([8e25a57](https://github.com/Cimavia/cimavia/commit/8e25a5711bb0ade6acda1acd18ba9de8a896f772))
+
+
+### Technique
+
+* codeql trié, l'alerte du contrôle i18n corrigée et le default setup retenu ([c2880dc](https://github.com/Cimavia/cimavia/commit/c2880dcf3e33ad4d9845757b83256c001a31e49d))
+* dependabot ne propose plus les majeures de node, qui avancent à l… ([01557de](https://github.com/Cimavia/cimavia/commit/01557ded82e5e234ec20369301568dd093296997))
+* dependabot ne propose plus les majeures de node, qui avancent à la main vers une lts ([cea6488](https://github.com/Cimavia/cimavia/commit/cea64889c522bfc74c1ab2f700cd16fe0d3f0b3d))
+* le contrôle i18n liste ses fichiers en node, plus de find lancé par un shell ([7312811](https://github.com/Cimavia/cimavia/commit/7312811ac3a94f738330159ed0ad5142f802ff9e))
+
 ## [1.6.2](https://github.com/Cimavia/cimavia/compare/v1.6.1...v1.6.2) (2026-09-27)
 
 
