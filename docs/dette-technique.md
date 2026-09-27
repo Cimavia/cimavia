@@ -3823,7 +3823,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > montant l'image, ce que Dependabot propose déjà.
 >
 > Découvert en chemin : **pnpm 10.34.4**, épinglé partout, a des failles HIGH corrigées en
-> 10.34.5 depuis le 2026-07-10 — suivi en [#452](https://github.com/Cimavia/cimavia/issues/452).
+> 10.34.5 depuis le 2026-07-10 — montée faite en [#452](https://github.com/Cimavia/cimavia/issues/452).
 
 > **Tranché en [#400](https://github.com/Cimavia/cimavia/issues/400)** (CodeQL) : le *default
 > setup* reste, sans workflow dans le dépôt. Aucun fichier ne le montre, d'où cet encadré :
