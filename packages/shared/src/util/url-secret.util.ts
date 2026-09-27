@@ -14,8 +14,9 @@
  *
  * En segment de chemin, là où `redact` de Pino ne sait pas réécrire une partie de chaîne :
  * - `/reset-password/<jeton>` — le lien que Better Auth met dans l'e-mail, qui arrive sur l'API ;
- * - `/push-tokens/<jeton>` — la révocation d'un appareil. Sans la sécurité renforcée du compte
- *   Expo, ce jeton suffit à pousser une notification vers l'appareil.
+ * - `/push-tokens/<jeton>` — la révocation d'un appareil. La sécurité renforcée du compte Expo
+ *   (#357) exige désormais aussi le jeton d'accès de l'API pour pousser ; celui-ci reste blanchi
+ *   parce qu'il identifie l'appareil, et redeviendrait suffisant si l'option était coupée.
  *
  * Le NOM reste, seule la valeur part : un événement qui dit « il y avait un jeton ici » se
  * diagnostique mieux qu'une URL tronquée.

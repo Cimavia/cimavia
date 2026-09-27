@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react";
+import { runtimeConfig } from "./shared/lib/runtime-config";
 import { scrubEvent } from "./shared/lib/sentry-scrub";
 
 // Ce fichier DOIT être importé en PREMIER dans main.tsx — même rôle et même raison que son
@@ -11,19 +12,24 @@ import { scrubEvent } from "./shared/lib/sentry-scrub";
 // il annonce que « Sentry le capturera » — serait partie sans SDK pour l'entendre. Un module à
 // part, importé en tête, est ce qui rend cette phrase vraie.
 //
+// Le DSN et le tier viennent de `config.js`, servi par le conteneur au démarrage et chargé par
+// `index.html` avant ce module (#417) : le même bundle part sur preview puis en production.
+//
 // Un DSN absent laisse le SDK INERTE plutôt que de faire échouer le démarrage : en dev on ne
-// configure rien et l'app doit marcher pareil. C'est aussi ce qui distingue cette variable de
-// VITE_API_URL, dont l'absence livrerait un SPA cassé.
-const dsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
+// configure rien et l'app doit marcher pareil. Un tier absent aussi, mais pour une autre raison :
+// il n'y a plus de défaut `development` (règle dure n°5), et un événement sans `environment` serait
+// pire qu'aucun — il ne se filtrerait nulle part. L'app, elle, refusera de démarrer sans tier
+// (`main.tsx`) : c'est l'écran de crash qui le dira, pas Sentry.
+const { sentryDsn, tier } = runtimeConfig();
+const dsn = tier === null ? null : sentryDsn;
 
 Sentry.init({
-  dsn: dsn || undefined,
-  enabled: !!dsn,
+  dsn: dsn ?? undefined,
+  enabled: dsn !== null,
 
   // Le TIER de déploiement, pas le mode de build : `import.meta.env.MODE` vaut `production` sur le
-  // NAS ET en prod, et taguerait les deux pareil. Même sémantique et même défaut que l'`APP_ENV`
-  // de l'API et que le schéma de @cmv/shared (`env.schema.ts`).
-  environment: (import.meta.env.VITE_APP_ENV as string | undefined) || "development",
+  // NAS ET en prod, et taguerait les deux pareil. Même vocabulaire que l'`APP_ENV` de l'API.
+  environment: tier ?? undefined,
 
   // `false` là où l'API est à `true` (#183) : le front n'a aucune raison d'envoyer l'IP.
   // L'identité tient dans le seul `id` posé par `Sentry.setUser` — un pseudonyme, qui ne redevient

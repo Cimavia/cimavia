@@ -3941,6 +3941,21 @@ describe("Centre de notifications (#48)", () => {
     expect(after).toBe(before);
   });
 
+  // Le revers du throttle (#305) : un fil LU le réarme. Sans ça, un seul non-lu resté en base
+  // éteindrait push et e-mail de ce fil pour de bon.
+  it("lire le fil rouvre la notification du message suivant", async () => {
+    const count = async () =>
+      (await inbox(athleteA1)).filter((n) => n.type === "MESSAGE_RECEIVED").length;
+    const before = await count();
+
+    expect((await athleteA1.post(`/conversations/${conversationId}/read`)).status).toBe(204);
+    await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "finalement dimanche" });
+
+    expect(await count()).toBe(before + 1);
+  });
+
   it("le compteur ne compte que les non lues", async () => {
     const list = await inbox(athleteA1);
     expect(await unread(athleteA1)).toBe(list.length);

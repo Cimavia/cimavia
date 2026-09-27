@@ -2,21 +2,22 @@
 #
 # Image du frontend web cimavia : build Vite statique servi par nginx.
 #
-# Différence ASSUMÉE avec l'image API : le web est construit PAR ENVIRONNEMENT, pas une fois pour
-# tous. Les variables `VITE_*` sont lues via `import.meta.env` et figées dans le bundle au moment
-# du `vite build` (c'est la nature d'un SPA statique — aucune variable n'existe plus à
-# l'exécution). Il faut donc un build par cible : un `VITE_API_URL` pour le NAS, un
-# autre pour la prod. L'API, elle, reste une image unique pilotée par
-# ses variables d'environnement au démarrage.
+# UNE image par version, comme l'API (#417, qui renverse l'exception posée en #186) : construite
+# sur `main` (`web-image.yml`), puis RETAGUÉE d'un tier à l'autre, jamais reconstruite. Ce qui
+# dépend du tier — l'URL de l'API, le DSN Sentry, le nom du tier — n'est plus figé dans le bundle :
+# nginx le sert en `/config.js` depuis les variables `CMV_*` du conteneur, au démarrage (cf.
+# nginx.conf). Seul ce qui dépend de la VERSION reste un argument de build.
 #
 # Build depuis la RACINE du monorepo (le contexte doit voir pnpm-lock.yaml et packages/) :
 #   docker build -f apps/web/Dockerfile \
-#     --build-arg VITE_API_URL=https://api-preview.example \
-#     --build-arg VITE_SENTRY_DSN=https://…@…ingest.sentry.io/… \
-#     --build-arg VITE_APP_ENV=preview --build-arg VITE_APP_VERSION=1.2.0 \
+#     --build-arg VITE_APP_VERSION=1.2.0 \
 #     --build-arg SENTRY_ORG=… --build-arg SENTRY_PROJECT=cimavia-web \
 #     --build-arg SENTRY_RELEASE=1.2.0+3f2a1c \
 #     --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN .
+#
+# Et au démarrage, les trois variables, TOUTES définies (même vides, cf. nginx.conf) :
+#   docker run -e CMV_API_URL=https://api-preview.example -e CMV_APP_ENV=preview \
+#     -e CMV_SENTRY_DSN= …
 #
 # Sans le secret, le build aboutit quand même : les sourcemaps ne sont simplement pas publiées.
 
@@ -26,8 +27,8 @@
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-# pnpm épinglé : cohérence avec le lockfile (le monorepo est en pnpm@10.34.4).
-RUN corepack enable && corepack prepare pnpm@10.34.4 --activate
+# pnpm épinglé : la même version que `packageManager` (`package.json` racine), à monter ensemble.
+RUN corepack enable && corepack prepare pnpm@10.34.5 --activate
 WORKDIR /app
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -53,25 +54,13 @@ COPY --from=pruner /app/out/full/ .
 
 # @cmv/shared et @cmv/tokens sont consommés en SOURCE par Vite (alias vers packages/*/src), donc
 # rien à compiler en amont — contrairement à l'API qui, elle, consomme le dist de @cmv/shared.
-# VITE_API_URL est déclaré ARG puis exposé en ENV le temps du build, pour que `import.meta.env`
-# le voie. Le défaut localhost n'a de sens qu'à titre de garde-fou : un build d'image réel doit
-# toujours passer --build-arg (sinon le SPA appellerait localhost:3000 depuis le navigateur).
-ARG VITE_API_URL=http://localhost:3000
-ENV VITE_API_URL=$VITE_API_URL
+# Plus de `VITE_API_URL`, de `VITE_SENTRY_DSN` ni de `VITE_APP_ENV` (#417) : ils sont lus au
+# démarrage, et leur ancien défaut `localhost` faisait appeler le poste du Coach par son navigateur.
 
-# Sentry. Le DSN suit exactement le même chemin que VITE_API_URL — figé dans le bundle, donc un
-# build par tier. Ce n'est PAS un secret : il part chez tous les visiteurs, n'importe qui peut le
-# lire. Vide, le SDK reste inerte et l'app démarre pareil.
-# VITE_APP_ENV est le TIER de déploiement, pas le mode de build : `import.meta.env.MODE` vaut
-# `production` sur le NAS comme en prod et taguerait les deux pareil.
-ARG VITE_SENTRY_DSN=
-ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
-ARG VITE_APP_ENV=development
-ENV VITE_APP_ENV=$VITE_APP_ENV
-
-# La version du produit, figée dans le bundle comme tout le reste (#186). Sans valeur, l'écran de
-# compte affiche `—` : un build local n'a pas de version, et en inventer une la rendrait
-# indiscernable d'une vraie (règle dure n°5).
+# La version du produit, elle, reste figée dans le bundle (#186) : elle ne change pas d'un tier à
+# l'autre, c'est le même bundle retagué. Sans valeur, l'écran de compte affiche `—` : un build
+# local n'a pas de version, et en inventer une la rendrait indiscernable d'une vraie (règle dure
+# n°5).
 #
 # Pas de `VITE_APP_BUILD` en face : personne ne l'afficherait. Ce qui distingue deux bundles
 # portant le MÊME numéro, c'est le nom de release Sentry ci-dessous, et lui seul en a besoin.
@@ -112,8 +101,16 @@ RUN find /app/apps/web/dist -name "*.map" -delete
 # dise. Dependabot réécrit désormais ce digest à chaque reconstruction de `stable`.
 FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:4714e0b1b2577eaa1a6131d07c958b67f0eb68e6d0521e90c6e5287db8cf0bc5 AS runtime
 
-# Server block avec fallback SPA + politique de cache (cf. nginx.conf).
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# Server block avec fallback SPA, politique de cache et `/config.js` (cf. nginx.conf). Un TEMPLATE,
+# réécrit au démarrage par l'entrypoint de l'image (`20-envsubst-on-templates.sh`) dans
+# /etc/nginx/conf.d, que l'uid 101 peut écrire — contrairement au dossier html, qui appartient à
+# root : c'est pourquoi `config.js` est une réponse d'nginx et non un fichier.
+#
+# Le filtre borne la substitution aux variables `CMV_*` : sans lui, toute variable du conteneur
+# nommée comme une variable d'nginx la remplacerait, et n'importe laquelle pourrait finir chez le
+# visiteur.
+COPY apps/web/nginx.conf /etc/nginx/templates/default.conf.template
+ENV NGINX_ENVSUBST_FILTER=^CMV_
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
 # L'image de base tourne déjà en uid 101 ; le redire ici n'est pas redondant : c'est ce qu'un

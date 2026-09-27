@@ -70,8 +70,10 @@ Le reste (ce qui ne dépend pas de ces réponses) peut avancer en parallèle.
 
 Plan d'abord, **attendre la validation** (`CLAUDE.md`). Le plan tranche explicitement :
 
-- le **découpage en commits**, et ce qui va dans `@cmv/shared` (mesuré en couverture) plutôt que
-  dans un composant web ou mobile (qui ne l'est pas — §11) ;
+- le **découpage en commits**, et ce qui va dans une **fonction pure** de `@cmv/shared` plutôt que
+  dans un composant web ou mobile : les quatre paquets sont mesurés en couverture, écrans compris
+  (`architecture-choice.md` §11) — mais seule la fonction pure permet d'affirmer ce qu'une règle
+  DÉCIDE, et une règle écrite des deux côtés compte en duplication ;
 - **le mobile suit, reste en l'état, ou reçoit sa propre issue** — vérifier l'état réel de l'écran
   avant de trancher, pas le supposer ;
 - les **issues à créer**, les corrections de journal, le comportement à vide et en panne ;

@@ -16,7 +16,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 ## Prérequis
 
 - Node.js ≥ 22
-- pnpm 10.34.4 (`corepack enable && corepack use pnpm@10.34.4`)
+- pnpm 10.34.5 (`corepack enable && corepack use pnpm@10.34.5`)
 - Docker (pour PostgreSQL, SILO — object storage S3-compatible, fork maintenu de MinIO — et Mailpit — serveur SMTP local)
 - Pour le mobile sur **appareil physique** uniquement (débrief, médias, push) : compte
   [Expo](https://expo.dev) + `eas-cli`, un projet Firebase pour les notifications Android, et une
@@ -29,7 +29,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 pnpm install
 # Variables d'env : copier les modèles et renseigner les secrets
 cp apps/api/.env.example apps/api/.env       # DATABASE_URL, BETTER_AUTH_SECRET (openssl rand -base64 32), CORS_ORIGINS, SIGNUP_MODE (open en local, sans défaut), S3_* (clé dédiée créée par silo-setup), SMTP_* (Mailpit local)
-cp apps/web/.env.example apps/web/.env        # VITE_API_URL
+cp apps/web/.env.example apps/web/.env        # CMV_API_URL, CMV_APP_ENV : servis en /config.js au démarrage, pas figés au build (#417)
 cp apps/mobile/.env.example apps/mobile/.env  # EXPO_PUBLIC_API_URL (IP LAN sur appareil/émulateur, pas localhost)
 # Démarrer PostgreSQL + SILO + Mailpit (apps/api) — SILO crée le bucket privé au 1er démarrage
 docker compose -f apps/api/docker-compose.yml up -d   # S3 :9000, console SILO :9001, SMTP :1025, boîte Mailpit :8025

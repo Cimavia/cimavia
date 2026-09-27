@@ -2,7 +2,7 @@ import path from "node:path";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { TanStackRouterVite } from "@tanstack/router-vite-plugin";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { type Connect, defineConfig, loadEnv, type Plugin } from "vite";
 
 /**
  * Téléversement des sourcemaps à Sentry. Le JETON est le seul déclencheur : présent, on publie ;
@@ -49,9 +49,45 @@ const sentryOptions: Parameters<typeof sentryVitePlugin>[0] =
       }
     : { disable: true };
 
+/**
+ * `/config.js` en dev et en `vite preview` : ce que le conteneur nginx sert en déploiement, depuis
+ * son environnement (#417). Les mêmes noms `CMV_*`, lus dans `apps/web/.env` — un seul vocabulaire
+ * du poste au NAS. Relu à CHAQUE requête : modifier `.env` puis recharger la page suffit.
+ *
+ * Une variable absente part VIDE, pas remplacée : `runtime-config.ts` la lit comme absente et l'app
+ * affiche l'écran de crash, exactement comme un conteneur mal configuré. Pas de `public/config.js` :
+ * il partirait dans `dist`, donc dans l'image.
+ */
+function runtimeConfigPlugin(): Plugin {
+  const serve =
+    (mode: string, envDir: string): Connect.NextHandleFunction =>
+    (_req, res) => {
+      const env = loadEnv(mode, envDir, "CMV_");
+      const config = {
+        apiUrl: env.CMV_API_URL ?? "",
+        sentryDsn: env.CMV_SENTRY_DSN ?? "",
+        tier: env.CMV_APP_ENV ?? "",
+      };
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Cache-Control", "no-cache");
+      res.end(`window.__CMV_CONFIG__ = ${JSON.stringify(config)};\n`);
+    };
+
+  return {
+    name: "cmv-runtime-config",
+    configureServer(server) {
+      server.middlewares.use("/config.js", serve(server.config.mode, server.config.envDir || "."));
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use("/config.js", serve(server.config.mode, server.config.envDir || "."));
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
+    runtimeConfigPlugin(),
     TanStackRouterVite({
       routesDirectory: "./src/routes",
       generatedRouteTree: "./src/routeTree.gen.ts",

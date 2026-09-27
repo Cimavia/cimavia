@@ -7,16 +7,15 @@ name: Promotion — preview
 # 5 minutes (`deploy/preview/pull-preview.sh`) : ce workflow se contente de DÉPLACER ce tag, puis attend
 # de voir le NAS redémarrer.
 #
-#   1. vérifier   — la version existe, avance, a passé ses checks, et son image est publiée ;
-#   2. construire — l'image web, depuis le tag git de la version (#186 : le bundle fige l'URL de
-#                   l'API, il se reconstruit par tier, mais jamais depuis une branche) ;
-#   3. publier    — `preview` sur l'image de l'API sans la reconstruire, puis sur le web, puis la
+#   1. vérifier   — la version existe, avance, a passé ses checks, et ses DEUX images sont publiées ;
+#   2. publier    — `preview` sur l'image de l'API et sur celle du web, sans les reconstruire (#186,
+#                   et pour le web depuis #417 : il lit sa config de tier au démarrage), puis la
 #                   branche `preview` avancée jusqu'au tag ;
-#   4. confirmer  — l'API du NAS a redémarré et répond.
+#   3. confirmer  — l'API du NAS a redémarré et répond.
 #
-# Rien n'est déplacé tant que la construction du web n'a pas réussi. Si seule la confirmation
-# échoue (NAS éteint, jeton GHCR expiré…), « Re-run failed jobs » la relance sans rien republier :
-# relancer tout le workflow serait refusé, la version étant déjà celle de `preview`.
+# Si seule la confirmation échoue (NAS éteint, jeton GHCR expiré…), « Re-run failed jobs » la
+# relance sans rien republier : relancer tout le workflow serait refusé, la version étant déjà celle
+# de `preview`.
 
 on:
   workflow_dispatch:
@@ -42,10 +41,9 @@ jobs:
     permissions:
       contents: read
       checks: read # les trois checks requis du commit promu, relus avant de promouvoir
-      packages: read # l'image de l'API, cherchée sur GHCR avant d'être retaguée
+      packages: read # les deux images, cherchées sur GHCR avant d'être retaguées
     outputs:
       sha: ${{ steps.version.outputs.sha }}
-      short: ${{ steps.version.outputs.short }}
       registry: ${{ steps.version.outputs.registry }}
     steps:
       # L'entrée passe par l'environnement, jamais interpolée dans le script : une valeur tapée à la
@@ -99,7 +97,6 @@ jobs:
 
           {
             echo "sha=$sha"
-            echo "short=${sha::7}"
             echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
           } >> "$GITHUB_OUTPUT"
           echo "::notice::preview ${current} → ${VERSION} (${sha::7})"
@@ -132,137 +129,39 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Le tag versionné n'est posé que sur le commit de bump, et seulement si l'image s'est
-      # construite (#186) PUIS a démarré sur une base jetable (#415). Absent, il n'y a rien à
-      # retaguer : on ne reconstruit pas pour autant.
-      - name: Image de l'API publiée
+      # construite (#186) PUIS a démarré (#415 pour l'API, #417 pour le web). Absent, il n'y a rien
+      # à retaguer : on ne reconstruit pas pour autant.
+      #
+      # Une version publiée AVANT #417 n'a pas d'image web `X.Y.Z` : elle ne se promeut plus, ce qui
+      # ne coûte rien, la promotion ne revenant jamais en arrière.
+      - name: Images publiées
         env:
-          REF: ${{ steps.version.outputs.registry }}/cimavia-api:${{ inputs.version }}
+          REGISTRY: ${{ steps.version.outputs.registry }}
+          VERSION: ${{ inputs.version }}
         run: |
-          if ! docker buildx imagetools inspect "$REF" >/dev/null 2>&1; then
-            echo "::error::${REF} introuvable : la construction ou le smoke test du commit de release a-t-il échoué ?"
-            exit 1
-          fi
+          failed=0
+          for image in cimavia-api cimavia-web; do
+            if ! docker buildx imagetools inspect "${REGISTRY}/${image}:${VERSION}" >/dev/null 2>&1; then
+              echo "::error::${image}:${VERSION} introuvable : la construction ou le smoke test du commit de release a-t-il échoué ?"
+              failed=1
+            fi
+          done
+          exit "$failed"
 
-      # Le web fige cette URL dans son bundle : vide, il pointerait sur localhost.
+      # La sonde de `confirm` : vide, la promotion déplacerait les tags puis attendrait 20 minutes une
+      # réponse qu'elle ne peut pas recevoir. Le web, lui, ne la lit plus (#417).
       - name: Vérifier PREVIEW_PUBLIC_API_URL
         env:
           API_URL: ${{ vars.PREVIEW_PUBLIC_API_URL }}
         run: |
           if [ -z "$API_URL" ]; then
-            echo "::error::Variable de dépôt PREVIEW_PUBLIC_API_URL vide — le web ne saurait pas joindre l'API du NAS."
+            echo "::error::Variable de dépôt PREVIEW_PUBLIC_API_URL vide — impossible de confirmer le redémarrage du NAS."
             exit 1
           fi
-
-  build-web:
-    name: Construire le web de v${{ inputs.version }}
-    needs: verify
-    runs-on: ubuntu-26.04
-    timeout-minutes: 15 # 2 min 13 au plus observé
-    permissions:
-      contents: read
-      packages: write # pousse l'image web de la version sur GHCR
-    outputs:
-      digest: ${{ steps.build.outputs.digest }}
-    steps:
-      # Le TAG et non une branche : le bundle doit être exactement le code de la version promue.
-      - name: Checkout de v${{ inputs.version }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ needs.verify.outputs.sha }}
-
-      # Même garde-fou que `api-image.yml` : un jeton sans organisation ni projet ferait échouer le
-      # build sur un message enfoui dans les logs de Docker.
-      - name: Vérifier la cohérence Sentry
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT_WEB: ${{ vars.SENTRY_PROJECT_WEB }}
-        run: |
-          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
-            echo "::notice::Aucun SENTRY_AUTH_TOKEN — les sourcemaps ne seront pas publiées."
-            exit 0
-          fi
-          if [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT_WEB" ]; then
-            echo "::error::SENTRY_AUTH_TOKEN est défini mais SENTRY_ORG ou SENTRY_PROJECT_WEB manque."
-            exit 1
-          fi
-
-      - name: Setup Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Login GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Poussée sous `preview-X.Y.Z` et pas encore sous `preview` : le tag que le NAS tire ne bouge
-      # qu'une fois l'API retaguée, au job suivant.
-      #
-      # `SENTRY_RELEASE` porte le même nom que la release de l'API (`1.2.2+3f2a1c`, #186). Plus aucun
-      # build web ne part de `main`, donc aucun autre bundle ne téléverse de sourcemaps sous ce nom.
-      #
-      # L'étiquette `revision` n'est lue par personne côté web ; elle y est pour qu'une image se dise
-      # d'où elle vient, comme celle de l'API, dont le NAS lit la même étiquette.
-      - name: Build & push
-        id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: apps/web/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ needs.verify.outputs.registry }}/cimavia-web:preview-${{ inputs.version }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ needs.verify.outputs.sha }}
-            org.opencontainers.image.version=${{ inputs.version }}
-          build-args: |
-            VITE_API_URL=${{ vars.PREVIEW_PUBLIC_API_URL }}
-            VITE_SENTRY_DSN=${{ vars.PREVIEW_SENTRY_DSN_WEB }}
-            VITE_APP_ENV=preview
-            VITE_APP_VERSION=${{ inputs.version }}
-            SENTRY_ORG=${{ vars.SENTRY_ORG }}
-            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT_WEB }}
-            SENTRY_RELEASE=${{ inputs.version }}+${{ needs.verify.outputs.short }}
-          # Le jeton passe par un secret BuildKit, jamais un build-arg qui finirait dans `docker history`.
-          secrets: |
-            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
-          # Un scope par image (#414) : sans lui, l'API et le web écrivaient le MÊME index de cache
-          # (`buildkit`, le défaut), chacun effaçant celui de l'autre. Les builds de PR de `ci.yml`
-          # relisent ce scope sans l'écrire.
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,scope=web,mode=max
-
-  # L'image web ne se construit qu'ici : c'est donc ici qu'elle se scanne (#399), dans un job qui
-  # ne peut que lire les images. Il alerte sans retenir la promotion : `publish` ne l'attend pas.
-  scan-web:
-    name: Trivy — image web de v${{ inputs.version }}
-    needs: [verify, build-web]
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      packages: read # l'image web est privée
-      security-events: write # envoie le SARIF à Code scanning
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Analyse
-        uses: $/.github/actions/trivy-scan
-        with:
-          image: ${{ needs.verify.outputs.registry }}/cimavia-web@${{ needs.build-web.outputs.digest }}
-          registry-login: "true"
-          category: trivy-web
 
   publish:
     name: Publier sur preview
-    needs: [verify, build-web]
+    needs: verify
     runs-on: ubuntu-26.04
     timeout-minutes: 5 # 31 s au plus observé
     permissions:
@@ -282,28 +181,23 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # La promotion RETAGUE, elle ne reconstruit pas (#186) : `preview` désigne l'image validée sur
-      # `main`, à l'octet près. On le vérifie par le digest plutôt que de le supposer.
-      - name: preview sur l'image de l'API
+      # `main`, à l'octet près — le web aussi depuis #417. On le vérifie par le digest plutôt que de
+      # le supposer.
+      - name: preview sur les images de la version
         env:
           REGISTRY: ${{ needs.verify.outputs.registry }}
           VERSION: ${{ inputs.version }}
         run: |
-          src="$(docker buildx imagetools inspect "${REGISTRY}/cimavia-api:${VERSION}" --format '{{json .Manifest}}' | jq -r .digest)"
-          docker buildx imagetools create --tag "${REGISTRY}/cimavia-api:preview" "${REGISTRY}/cimavia-api@${src}"
-          dst="$(docker buildx imagetools inspect "${REGISTRY}/cimavia-api:preview" --format '{{json .Manifest}}' | jq -r .digest)"
-          if [ "$src" != "$dst" ]; then
-            echo "::error::cimavia-api:preview (${dst}) n'est pas l'image de ${VERSION} (${src})."
-            exit 1
-          fi
-          echo "cimavia-api:preview → ${src}"
-
-      - name: preview sur l'image du web
-        env:
-          REGISTRY: ${{ needs.verify.outputs.registry }}
-          DIGEST: ${{ needs.build-web.outputs.digest }}
-        run: |
-          docker buildx imagetools create --tag "${REGISTRY}/cimavia-web:preview" "${REGISTRY}/cimavia-web@${DIGEST}"
-          echo "cimavia-web:preview → ${DIGEST}"
+          for image in cimavia-api cimavia-web; do
+            src="$(docker buildx imagetools inspect "${REGISTRY}/${image}:${VERSION}" --format '{{json .Manifest}}' | jq -r .digest)"
+            docker buildx imagetools create --tag "${REGISTRY}/${image}:preview" "${REGISTRY}/${image}@${src}"
+            dst="$(docker buildx imagetools inspect "${REGISTRY}/${image}:preview" --format '{{json .Manifest}}' | jq -r .digest)"
+            if [ "$src" != "$dst" ]; then
+              echo "::error::${image}:preview (${dst}) n'est pas l'image de ${VERSION} (${src})."
+              exit 1
+            fi
+            echo "${image}:preview → ${src}"
+          done
 
       # Le jeton de l'App de release, seule exception au ruleset qui protège `preview` : un
       # `GITHUB_TOKEN` ne peut pas passer outre une règle « Restrict updates ».

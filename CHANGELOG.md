@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.1](https://github.com/Cimavia/cimavia/compare/v1.7.0...v1.7.1) (2026-09-27)
+
+
+### Corrections
+
+* **shared:** refuser au démarrage les secrets courts, l'auth en http et le push sans jeton ([a565db0](https://github.com/Cimavia/cimavia/commit/a565db00ae6fed1c59553bd74e2a6c0855a26a2f))
+
+
+### Technique
+
+* donner un jeton expo factice au smoke de l'image, exigé désormais en preview ([0164d80](https://github.com/Cimavia/cimavia/commit/0164d8019caec53e64bd94f9ca5b780440fe7900))
+* sonar ignore la règle tag ou digest des dockerfiles, qui contredit l'épinglage de [#379](https://github.com/Cimavia/cimavia/issues/379) ([78a8cd6](https://github.com/Cimavia/cimavia/commit/78a8cd64654ddbf8cba7545b3d945903e6cd8ebb))
+
 ## [1.7.0](https://github.com/Cimavia/cimavia/compare/v1.6.2...v1.7.0) (2026-09-27)
 
 

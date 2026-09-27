@@ -578,7 +578,7 @@ export { Locale } from "./locale";
 export type { Role as RoleType } from "./role";
 export { Role } from "./role";
 export type { AppTier } from "./util/app-version.util";
-export { formatAppVersion } from "./util/app-version.util";
+export { formatAppVersion, isAppTier } from "./util/app-version.util";
 export type {
   AthleteConversationSource,
   AthleteFeedbackSource,
@@ -700,6 +700,8 @@ export {
   attachmentTarget,
   MESSAGE_ATTACHMENT_LABEL_KEY,
 } from "./util/message-attachment.util";
+export type { ReadMarker } from "./util/message-read.util";
+export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
 export {
   formatMetricValue,
   metricCellText,
