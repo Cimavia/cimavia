@@ -192,7 +192,10 @@
   .triggers { display: flex; flex-wrap: wrap; gap: 6px; grid-column: 1 / -1; }
   .chip {
     font-family: var(--mono); font-size: 11.5px; padding: 2px 8px; border-radius: 4px;
-    background: var(--lane-gh-bg); color: var(--lane-gh); white-space: nowrap;
+    background: var(--lane-gh-bg); color: var(--lane-gh);
+    /* un chip court reste d'un bloc (flex-wrap le renvoie à la ligne) ; un long se replie au lieu
+       d'élargir la page sur mobile */
+    max-width: 100%; overflow-wrap: anywhere;
   }
   .chip.cron { background: var(--lane-nas-bg); color: var(--lane-nas); }
   .chip.manual { background: var(--lane-local-bg); color: var(--lane-local); }
@@ -328,29 +331,30 @@
     ["local", 1, 20, "Commit", "Husky : biome · commitlint"],
     ["local", 2, 20, "Porte qualité locale", "biome ci · turbo · i18n"],
     ["local", 3, 20, "Compose local", "PG · SILO · Mailpit"],
-    ["local", 6, 20, "EAS Build", "manuel · profils EAS"],
+    ["local", 6, 20, "EAS Build · Update", "manuel · ota:preview au tag"],
     ["gh", 1, 110, "PR → main", "branche de travail"],
-    ["gh", 1, 230, "Dependabot", "actions · hebdo"],
-    ["gh", 2, 110, "ci.yml", "quality ∥ e2e → sonar"],
+    ["gh", 1, 170, "Dependabot", "4 écosystèmes · hebdo"],
+    ["gh", 1, 230, "zizmor · CodeQL", "alertes · non requis"],
+    ["gh", 2, 110, "ci.yml", "4 checks requis sur PR"],
     ["gh", 3, 110, "main", "après merge"],
     ["gh", 4, 110, "release.yml", "tient la PR de release"],
     ["gh", 4, 170, "tag vX.Y.Z", "merge de la PR de release"],
-    ["gh", 4, 230, "api-image.yml", "build API à chaque push"],
+    ["gh", 3, 230, "api-image.yml · web-image.yml", "build, démarrage, puis push, à chaque push de main", 325],
     ["gh", 5, 110, "promote-preview.yml", "manuel · saisie X.Y.Z"],
+    ["gh", 5, 170, "pnpm-version.yml", "lundi 06:15 · issue"],
+    ["gh", 5, 230, "trivy.yml", "lundi 06:30 · images NAS"],
     ["gh", 6, 110, "reminder-tick.yml", "toutes les heures"],
     ["gh", 6, 170, "branche preview", "avancée au SHA du tag"],
-    ["gh", 5, 230, "trivy.yml", "lundi 06:30 · Dockerfiles"],
     ["gh", 6, 230, "mirror-images.yml", "lundi 06:00"],
-    ["reg", 3, 315, "api:sha-…", "chaque commit main"],
-    ["reg", 4, 315, "api:X.Y.Z", "commit de release"],
-    ["reg", 5, 315, "web:preview-X.Y.Z", "construit au tag"],
+    ["reg", 3, 315, "api · web :sha", "chaque push de main"],
+    ["reg", 4, 315, "api · web :X.Y.Z", "bump, image démarrée"],
     ["reg", 5, 373, "api + web :preview", "retag par digest"],
     ["reg", 6, 340, "silo · mc", "RELEASE… épinglés"],
     ["nas", 5, 450, "pull-preview.sh", "5 min · compose du tag"],
     ["nas", 5, 498, "backup.sh", "03:00 · dump + médias"],
     ["nas", 6, 450, "cimavia-preview", "migrate deploy · up -d"],
     ["ext", 2, 573, "SonarCloud", "quality gate"],
-    ["ext", 4, 573, "Sentry", "sourcemaps web"],
+    ["ext", 5, 573, "Sentry", "sourcemaps web au bump"],
     ["ext", 6, 573, "Cloudflare Tunnel", "api- · app-preview"],
   ];
   // [chemin, pointillé ?, libellé, x, y]
@@ -358,24 +362,23 @@
     ["M205 64 V110"],
     ["M380 64 V110", 1, "mêmes commandes", 374, 90, "end"],
     ["M480 42 H467.5 V121 H455", 1],
-    ["M170 230 V154"],
+    ["M205 170 V154"],
     ["M280 132 H305"],
     ["M480 142 H455"],
     ["M240 154 V162 H555 V154", 0, "merge", 300, 165],
     ["M380 154 V573", 1],
     ["M420 110 V100 H905 V110", 1, "3 checks verts exigés", 700, 103],
     ["M630 128 H655"],
-    ["M630 128 H642.5 V252 H655"],
+    ["M600 154 V230"],
     ["M730 154 V170"],
     ["M805 192 H812 V126 H830"],
-    ["M690 274 V291 H555 V315"],
+    ["M555 274 V315"],
     ["M730 274 V315", 0, "si bump", 738, 300],
     ["M805 330 H822 V144 H830", 1, "doit exister", 826, 298],
-    ["M905 154 V315", 0, "build web", 911, 240],
-    ["M905 359 V373"],
     ["M730 359 V395 H830", 0, "retag", 760, 392],
-    ["M830 337 H817.5 V595 H805"],
+    ["M805 262 H814 V595 H830"],
     ["M980 132 H992.5 V192 H1005"],
+    ["M992.5 192 V395 H980"],
     ["M1080 274 V340"],
     ["M1080 384 V450", 1],
     ["M905 450 V417", 1, "tire", 911, 436],
@@ -404,9 +407,9 @@
       t.textContent = label;
     }
   }
-  for (const [lane, c, y, title, sub] of nodes) {
+  for (const [lane, c, y, title, sub, w = W] of nodes) {
     const x = COL[c];
-    el("rect", { x, y, width: W, height: H, rx: 6, class: `node node-${lane}` });
+    el("rect", { x, y, width: w, height: H, rx: 6, class: `node node-${lane}` });
     const t = el("text", { x: x + 10, y: y + 18, class: "node-t" });
     t.textContent = title;
     const s = el("text", { x: x + 10, y: y + 34, class: "node-s" });
