@@ -1880,6 +1880,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > une personne. L'**API reste en `sendDefaultPii: true`** et envoie IP et en-têtes : l'asymétrie est
 > assumée plutôt que corrigée en passant, changer ce réglage modifierait ce qu'on capture sur une
 > couche qui marche, sans qu'aucun incident ne le demande.
+> *Amendé en #433* : l'API garde `sendDefaultPii: true`, mais ni cookies, ni en-têtes secrets, ni
+> corps de requête — voir plus bas.
 
 > **Tranché en #183** (pas de Session Replay, `tracesSampleRate: 0`) : le Replay filmerait l'écran
 > d'un coach, donc des données d'athlètes, pour un gain que l'écran de repli et la stack couvrent
@@ -1917,11 +1919,49 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Le test lit l'événement émis, pas l'option** : le vrai SDK tourne, seul le transport est
 >   remplacé. Lire `sendDefaultPii: false` est précisément ce qui avait laissé passer la fuite.
 >
-> Hors de ce périmètre : la même famille côté API — Pino qui journalise cookies et jetons de
-> chemin, Sentry qui capture le corps des requêtes d'authentification — est en
-> [#433](https://github.com/Cimavia/cimavia/issues/433). Le mobile n'a pas d'écran de
-> réinitialisation et envoie ses médias par `File.upload` (natif, sans fil d'Ariane) ; ses fils
+> Hors de ce périmètre : la même famille côté API, traitée en
+> [#433](https://github.com/Cimavia/cimavia/issues/433) (encadré suivant). Le mobile n'a pas d'écran
+> de réinitialisation et envoie ses médias par `File.upload` (natif, sans fil d'Ariane) ; ses fils
 > d'Ariane par défaut n'ont pas été relus.
+
+> **Tranché en #433** (ce que l'API écrit dans ses journaux et envoie à Sentry — ferme aussi
+> [#294](https://github.com/Cimavia/cimavia/issues/294)) : Pino recopiait tous les en-têtes, à
+> chaque requête — cookie de session Better Auth rejouable sept jours, `authorization`, secret du
+> tick — et le jeton d'appareil dans l'URL de révocation. Sentry
+> y ajoutait le corps des requêtes, mot de passe de connexion compris, **sans qu'aucune erreur ne
+> soit levée** : une transaction échantillonnée emporte la même requête qu'une erreur. Relevé en
+> faisant tourner le vrai SDK, pas en lisant ses options. Quatre décisions :
+> - **Une liste blanche pour Pino, pas un `redact`** (`observability/logger.config.ts`) : `req` se
+>   réduit à `id`, `method` et l'URL blanchie, `res` à `statusCode`. Un `redact` aurait laissé
+>   passer le prochain en-tête sensible, et ne sait pas réécrire une partie de l'URL — or deux
+>   jetons sont DANS le chemin. L'IP, `query` et `params` partent avec.
+>   *Corrigé en #357* : cet encadré ajoutait à la liste le `set-cookie` de la connexion et le
+>   `location` de la redirection de réinitialisation. Faux — Pino n'a JAMAIS vu les routes
+>   `/api/auth/*` : Better Auth est branché directement sur Fastify (`httpAdapter.use`), avant les
+>   middlewares de Nest, et répond sans passer la main. Constaté au test de la PR : une demande de
+>   réinitialisation envoie son e-mail sans laisser de ligne `request completed`. Sentry, qui
+>   écoute sous Fastify, les voit bien : le blanchiment de `/reset-password/<jeton>` y sert.
+> - **Une seule liste de secrets d'URL** (`redactUrlSecrets`, `@cmv/shared`), pour le web, les
+>   journaux et Sentry : les paramètres `token`, `code`, `X-Amz-Signature`, et les segments
+>   `/reset-password/<jeton>` (le lien de l'e-mail, qui arrive sur l'API) et
+>   `/push-tokens/<jeton>`. Ce dernier était un secret : sans la sécurité renforcée des push, il
+>   suffisait à pousser vers l'appareil. Elle est activée depuis #357 ; il reste blanchi, parce
+>   qu'il identifie l'appareil et redeviendrait suffisant si l'option était coupée.
+> - **Le corps n'est jamais lu, sur aucune route** (`maxIncomingRequestBodySize: "none"`), plutôt
+>   qu'une exception pour `/api/auth/*` : hors authentification, il porte aussi le code d'une
+>   invitation et le texte d'un débrief, et une liste d'exceptions s'oublie à la prochaine route
+>   sensible. Une 500 se rejoue avec sa stack, sans son corps.
+> - **`beforeSend` ET `beforeSendTransaction`** (`observability/sentry-scrub.ts`) retirent cookies,
+>   `authorization`, secret du tick et `set-cookie` — en-têtes de l'événement comme attributs de
+>   span — et blanchissent tout ce qui porte une URL : nom de transaction, `http.target`,
+>   `url.full`, `referer`, fils d'Ariane. `sendDefaultPii: true` reste (#183) : IP et autres
+>   en-têtes partent toujours.
+>
+> Ce qui avait déjà fui n'a pas été purgé : Axiom n'a jamais reçu de journaux (`AXIOM_TOKEN` vide
+> sur le NAS), et les journaux Docker du NAS, que seul son administrateur lit, disparaissent avec le
+> conteneur au déploiement suivant. Les sessions en cours n'ont donc pas été invalidées. Côté
+> Sentry, le nettoyage serveur par défaut du projet (« Data Scrubber ») masque les clés comme
+> `password` ou `cookie` : les événements antérieurs se vérifient et se suppriment à la main.
 
 ---
 
@@ -3889,6 +3929,65 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > que le compte suivant ne peut pas ouvrir. Le presse-papier s'oublie aussi quand sa semaine ou son
 > cycle est supprimé. L'ordre « purge PUIS navigation » est désormais testé sur la connexion et
 > l'inscription ([#373](https://github.com/Cimavia/cimavia/issues/373)).
+
+---
+
+## Post-MVP — Saisie décimale dans la grille de dosage ([#298](https://github.com/Cimavia/cimavia/issues/298) · [#299](https://github.com/Cimavia/cimavia/issues/299) · [#332](https://github.com/Cimavia/cimavia/issues/332))
+
+> **Tranché en [#298](https://github.com/Cimavia/cimavia/issues/298)** (un nombre s'écrit dans la
+> langue du lecteur, PARTOUT) : l'issue ne visait que la saisie, mais une cellule qui affiche
+> « 12,5 » au coach pendant que l'aperçu et le mobile écrivent « 12.5 » à l'athlète ferait douter
+> de ce qui a été enregistré. `formatMetricValue` et `metricCellText` prennent donc la `locale` en
+> dernier paramètre, comme les autres formateurs du paquet. La saisie (`parseDecimal`) accepte la
+> virgule ET le point, donc aucun séparateur de milliers : « 1.500 » vaut 1,5, et l'affichage
+> n'en met pas non plus (« 1500 »), pour qu'une valeur relue se ressaisisse telle quelle.
+
+> **Tranché en [#299](https://github.com/Cimavia/cimavia/issues/299)** (Entrée transmet la valeur
+> validée, pas de mise à jour fonctionnelle) : l'issue proposait aussi de faire dériver l'ajout de
+> ligne de l'état courant. Côté exercice, la chaîne `BlockGrid` → `StructureSection` →
+> `draft.setBlocks` passe des tableaux COMPLETS à chaque étage : il aurait fallu la réécrire en
+> entier. Retenu : `onCommitLine(value)` reçoit la valeur validée, et la grille écrit la cellule ET
+> la nouvelle ligne en une seule fois (`withCellValue` puis `withDuplicatedLastRow`). Deux règles
+> vont avec :
+>
+> - **Une saisie refusée ne crée pas de ligne** : l'erreur reste dans la cellule, sous les yeux du
+>   coach, au lieu de glisser sous la ligne suivante.
+> - **Retaper la valeur déjà enregistrée n'écrit rien** : côté séance, l'écriture aurait posé un
+>   marqueur d'ajustement sur une cellule qui n'a pas bougé. La règle « le marqueur vient de la
+>   donnée, jamais d'une comparaison avec la référence » (`SessionBlockGrid`) n'est pas touchée :
+>   on compare à la valeur EN PLACE, pas à la référence.
+
+> **Tranché en [#332](https://github.com/Cimavia/cimavia/issues/332)** (le pas suit le type de
+> colonne) : décimal sur une colonne de nombres (« +2,5 kg »), entier sur une échelle, où un palier
+> et demi n'existe pas. Un pas refusé ferme le bouton au lieu d'être arrondi en silence.
+> `fillStep` arrondit au nombre de décimales du départ ou du pas, le plus grand des deux : sans
+> ça, un pas de 0,1 écrivait `0.30000000000000004` dans la quatrième ligne.
+
+---
+
+## Post-MVP — Garde de démarrage des tiers déployés ([#357](https://github.com/Cimavia/cimavia/issues/357))
+
+> **Tranché en #357** (ce qu'un tier déployé exige pour démarrer) : le `ConfigModule` valide
+> l'environnement au boot pour que l'API refuse de démarrer mal configurée, mais un secret d'un
+> caractère et une URL d'auth en http passaient. Le `superRefine` d'`env.schema.ts` durcit :
+> - **Partout** : `BETTER_AUTH_SECRET` de 32 caractères au moins, et `REMINDER_TICK_SECRET` aussi
+>   quand il est posé — absent, la route de tick reste fermée (503), comme avant. Better Auth ne
+>   fait qu'avertir en dessous de 32.
+> - **En `preview` ET en `production`** — l'issue ne visait que la production : `BETTER_AUTH_URL`
+>   en https (en http, Better Auth retire `Secure` des cookies de session) et `EXPO_ACCESS_TOKEN`
+>   obligatoire. Le NAS est inclus parce qu'il porte les vraies données du Coach bêta et qu'il est
+>   joignable publiquement. Le développement local reste permissif : http sur une IP de LAN, et pas
+>   de jeton Expo.
+> - **La sécurité renforcée des push est activée** sur le compte Expo : sans jeton d'accès, Expo
+>   refuse tous les envois, et l'échec ne se lit que dans les tickets. D'où l'obligation au boot
+>   plutôt qu'une panne silencieuse. Le jeton appartient à un **robot** (`cimavia-push`, rôle
+>   Viewer, suffisant pour envoyer), pas à un compte personnel : un jeton par environnement,
+>   révocables séparément.
+>
+> Conséquence d'exploitation : une version qui durcit ces règles se **vérifie sur le NAS AVANT sa
+> promotion** (README du preview) — sinon `pull-preview.sh` remplace l'API par une qui refuse de
+> démarrer, et le preview tombe. Le smoke de `api-image.yml` démarre l'image en `preview` : ses
+> valeurs factices suivent les mêmes règles.
 
 ---
 

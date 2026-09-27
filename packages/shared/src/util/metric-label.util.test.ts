@@ -88,27 +88,36 @@ describe("metricUnitLabel", () => {
 describe("formatMetricValue", () => {
   // Règle dure n°5 : une valeur absente est une absence, jamais un zéro.
   it("rend le tiret sur une absence, et non 0", () => {
-    expect(formatMetricValue(null, catalogMetric(), [])).toBe("—");
+    expect(formatMetricValue(null, catalogMetric(), [], "fr")).toBe("—");
   });
 
   it("distingue le zéro SAISI de l'absence", () => {
-    expect(formatMetricValue(0, catalogMetric(), [])).toBe("0");
+    expect(formatMetricValue(0, catalogMetric(), [], "fr")).toBe("0");
   });
 
   it("met une durée en forme au lieu d'afficher des secondes brutes", () => {
     const metric = catalogMetric({ key: MetricKey.REST_BETWEEN_SETS, unit: MetricUnit.NONE });
-    expect(formatMetricValue(150, metric, [])).toBe("2'30");
+    expect(formatMetricValue(150, metric, [], "fr")).toBe("2'30");
+  });
+
+  it("écrit un nombre dans la langue du lecteur", () => {
+    expect(formatMetricValue(12.5, catalogMetric(), [], "fr")).toBe("12,5");
+    expect(formatMetricValue(12.5, catalogMetric(), [], "en")).toBe("12.5");
+  });
+
+  it("rend un palier ou un texte tel quel", () => {
+    expect(formatMetricValue("6b+", customMetric(), [voie], "fr")).toBe("6b+");
   });
 
   it("rend le texte d'une durée MAISON tel quel : elle n'est pas comptée en secondes", () => {
     const duree: CustomMetric = { ...voie, valueType: MetricValueType.DURATION };
-    expect(formatMetricValue("2 min", customMetric(), [duree])).toBe("2 min");
+    expect(formatMetricValue("2 min", customMetric(), [duree], "fr")).toBe("2 min");
   });
 });
 
 describe("metricCellText", () => {
   it("colle l'unité derrière la valeur", () => {
-    expect(metricCellText(6, catalogMetric(), [], fakeT)).toBe(
+    expect(metricCellText(6, catalogMetric(), [], fakeT, "fr")).toBe(
       `6 ${METRIC_UNIT_LABEL_KEY[MetricUnit.REPS]}`,
     );
   });
@@ -118,7 +127,7 @@ describe("metricCellText", () => {
    * seul, sinon une absence se lit comme un zéro.
    */
   it("ne met AUCUNE unité derrière une absence", () => {
-    expect(metricCellText(null, catalogMetric(), [], fakeT)).toBe("—");
+    expect(metricCellText(null, catalogMetric(), [], fakeT, "fr")).toBe("—");
   });
 
   /**
@@ -126,11 +135,19 @@ describe("metricCellText", () => {
    * `join(" · ")` et y laisse un séparateur orphelin. Une absence se DIT.
    */
   it("ne rend jamais la chaîne vide, quelle que soit la colonne", () => {
-    expect(metricCellText(null, catalogMetric({ unit: MetricUnit.NONE }), [], fakeT)).toBe("—");
-    expect(metricCellText(null, customMetric(), [], fakeT)).toBe("—");
+    expect(metricCellText(null, catalogMetric({ unit: MetricUnit.NONE }), [], fakeT, "fr")).toBe(
+      "—",
+    );
+    expect(metricCellText(null, customMetric(), [], fakeT, "fr")).toBe("—");
+  });
+
+  it("écrit la valeur dans la langue du lecteur, unité comprise", () => {
+    expect(metricCellText(2.5, catalogMetric(), [], fakeT, "fr")).toBe(
+      `2,5 ${METRIC_UNIT_LABEL_KEY[MetricUnit.REPS]}`,
+    );
   });
 
   it("laisse une valeur sans unité se dire seule", () => {
-    expect(metricCellText(6, catalogMetric({ unit: MetricUnit.NONE }), [], fakeT)).toBe("6");
+    expect(metricCellText(6, catalogMetric({ unit: MetricUnit.NONE }), [], fakeT, "fr")).toBe("6");
   });
 });

@@ -34,7 +34,7 @@ export function TrackingList({
   onToggle,
   onRounds,
 }: Readonly<TrackingListProps>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const units = trackingUnits(block);
   if (units == null) return null;
 
@@ -63,7 +63,9 @@ export function TrackingList({
       {Array.from({ length: units.count }, (_, index) => {
         const isChecked = checked.includes(index);
         const detail = unitValues(block, index)
-          .map(({ metric, value }) => metricCellText(value, metric, customMetrics, t))
+          .map(({ metric, value }) =>
+            metricCellText(value, metric, customMetrics, t, i18n.language),
+          )
           .join(" · ");
 
         return (

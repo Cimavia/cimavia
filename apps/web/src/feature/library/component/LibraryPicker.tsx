@@ -29,7 +29,7 @@ type LibraryPickerProps = {
  * que l'ouverture se fait dans un nouvel onglet.
  */
 export function LibraryPicker({ customMetrics, onPick }: Readonly<LibraryPickerProps>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState(NO_TAG);
@@ -90,7 +90,7 @@ export function LibraryPicker({ customMetrics, onPick }: Readonly<LibraryPickerP
           qu'il a quitté le rail de droite, et une seule colonne y laisserait un vide énorme. */}
       <div className="grid max-h-[28rem] gap-cmv-sm overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
         {visible.map((exercise) => {
-          const summary = dosageSummary(exercise.blocks, customMetrics, t);
+          const summary = dosageSummary(exercise.blocks, customMetrics, t, i18n.language);
           return (
             <button
               key={exercise.id}

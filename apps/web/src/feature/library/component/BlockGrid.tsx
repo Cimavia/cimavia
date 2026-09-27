@@ -4,6 +4,8 @@ import {
   type ExerciseBlock,
   type MetricValue,
   metricUnitLabel,
+  withCellValue,
+  withDuplicatedLastRow,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
@@ -56,17 +58,19 @@ export function BlockGrid({
 
   /** « Ajouter une ligne » DUPLIQUE la dernière : deux séries se ressemblent presque toujours. */
   function addRow() {
-    if (isFull) return;
-    const last = block.rows.at(-1);
-    setRows([...block.rows, { id: newRowId(), values: { ...last?.values } }]);
+    setRows(withDuplicatedLastRow(block.rows, newRowId()));
   }
 
   function setValue(rowId: string, metricId: string, value: MetricValue) {
-    setRows(
-      block.rows.map((row) =>
-        row.id === rowId ? { ...row, values: { ...row.values, [metricId]: value } } : row,
-      ),
-    );
+    setRows(withCellValue(block.rows, rowId, metricId, value));
+  }
+
+  /**
+   * Entrée sur la DERNIÈRE ligne : la valeur validée et la nouvelle ligne partent en UNE écriture.
+   * En deux, l'ajout — calculé sur les lignes d'avant la frappe — effaçait la valeur (#299).
+   */
+  function commitLastLine(rowId: string, metricId: string, value: MetricValue) {
+    setRows(withDuplicatedLastRow(withCellValue(block.rows, rowId, metricId, value), newRowId()));
   }
 
   function removeRow(rowId: string) {
@@ -152,8 +156,10 @@ export function BlockGrid({
                       onChange={(value) => setValue(row.id, metric.id, value)}
                       // Entrée sur la DERNIÈRE ligne en crée une nouvelle ; ailleurs elle ne fait
                       // que valider, sinon on insérerait des lignes au milieu par accident.
-                      onCommitLine={() => {
-                        if (index === block.rows.length - 1) addRow();
+                      onCommitLine={(value) => {
+                        if (index === block.rows.length - 1) {
+                          commitLastLine(row.id, metric.id, value);
+                        }
                       }}
                     />
                   </td>
