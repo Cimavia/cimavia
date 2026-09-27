@@ -711,6 +711,33 @@ export function fillColumn(
   }));
 }
 
+/** Les lignes, UNE cellule réécrite — les autres lignes et les autres colonnes ne bougent pas. */
+export function withCellValue(
+  rows: ExerciseBlock["rows"],
+  rowId: string,
+  metricId: string,
+  value: MetricValue,
+): ExerciseBlock["rows"] {
+  return rows.map((row) =>
+    row.id === rowId ? { ...row, values: { ...row.values, [metricId]: value } } : row,
+  );
+}
+
+/**
+ * Les lignes, plus une qui DUPLIQUE la dernière : deux séries se ressemblent presque toujours, et
+ * le coach n'a qu'à corriger ce qui change.
+ *
+ * Au plafond de `BLOCK_MAX_ROWS`, les lignes reviennent telles quelles : Entrée sur la dernière
+ * ligne d'un bloc plein valide la cellule sans rien ajouter, plutôt que de perdre la valeur tapée.
+ */
+export function withDuplicatedLastRow(
+  rows: ExerciseBlock["rows"],
+  id: string,
+): ExerciseBlock["rows"] {
+  if (rows.length >= BLOCK_MAX_ROWS) return rows;
+  return [...rows, { id, values: { ...rows.at(-1)?.values } }];
+}
+
 // ── Valeurs de départ ───────────────────────────────────────────────────────────────────────
 
 /**

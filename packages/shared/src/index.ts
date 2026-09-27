@@ -199,6 +199,8 @@ export {
   trackingUnits,
   unitValues,
   validateBlockValues,
+  withCellValue,
+  withDuplicatedLastRow,
 } from "./dto/exercise-block.schema";
 export type {
   CreateCustomMetricInput,

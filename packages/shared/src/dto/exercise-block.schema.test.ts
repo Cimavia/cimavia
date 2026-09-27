@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BLOCK_MAX_ROWS,
   BlockType,
   blockSegments,
   ColumnFillMode,
@@ -27,6 +28,8 @@ import {
   trackingSummary,
   trackingUnits,
   validateBlockValues,
+  withCellValue,
+  withDuplicatedLastRow,
 } from "./exercise-block.schema";
 import {
   type CustomMetric,
@@ -974,5 +977,45 @@ describe("scaleFor", () => {
 
     expect(scaleFor(customColumn, [custom])).toEqual(["V0", "V1"]);
     expect(scaleFor(reps, [])).toBeNull();
+  });
+});
+
+describe("withCellValue", () => {
+  const rows = [
+    { id: "r1", values: { reps: 6, load: 10 } },
+    { id: "r2", values: { reps: 6, load: 10 } },
+  ];
+
+  it("réécrit une seule cellule, sans toucher aux autres colonnes ni aux autres lignes", () => {
+    expect(withCellValue(rows, "r2", "load", 12.5)).toEqual([
+      { id: "r1", values: { reps: 6, load: 10 } },
+      { id: "r2", values: { reps: 6, load: 12.5 } },
+    ]);
+  });
+
+  it("vide une cellule en y posant null, jamais zéro", () => {
+    expect(withCellValue(rows, "r1", "load", null)[0]?.values.load).toBeNull();
+  });
+});
+
+describe("withDuplicatedLastRow", () => {
+  it("ajoute une ligne qui recopie la dernière", () => {
+    const rows = [{ id: "r1", values: { reps: 6, rest: 150 } }];
+    expect(withDuplicatedLastRow(rows, "r2")).toEqual([
+      { id: "r1", values: { reps: 6, rest: 150 } },
+      { id: "r2", values: { reps: 6, rest: 150 } },
+    ]);
+  });
+
+  it("ajoute une ligne vide à un bloc qui n'en a pas", () => {
+    expect(withDuplicatedLastRow([], "r1")).toEqual([{ id: "r1", values: {} }]);
+  });
+
+  it("n'ajoute rien au plafond, et rend les lignes intactes", () => {
+    const full = Array.from({ length: BLOCK_MAX_ROWS }, (_, index) => ({
+      id: `r${index}`,
+      values: {},
+    }));
+    expect(withDuplicatedLastRow(full, "extra")).toBe(full);
   });
 });
