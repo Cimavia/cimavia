@@ -24,6 +24,7 @@ on: # zizmor: ignore[concurrency-limits]
       - "packages/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/api-image.yml"
+      - ".github/actions/product-version/**"
       # Le commit de bump de `release-please` ne touche QUE ces deux fichiers. Sans eux ici, il ne
       # construirait rien : l'image `X.Y.Z` n'existerait pas, et la version serait impossible à
       # promouvoir.
@@ -51,7 +52,7 @@ jobs:
       pushed: ${{ steps.build.outcome == 'success' }}
 
     steps:
-      # `fetch-depth: 2` : l'étape « Version du produit » compare le `package.json` de HEAD à celui
+      # `fetch-depth: 2` : l'action « Version du produit » compare le `package.json` de HEAD à celui
       # de HEAD~1 pour savoir si CE commit est le bump. Un clone superficiel d'un seul commit ne
       # permettrait pas la comparaison.
       - name: Checkout
@@ -68,32 +69,11 @@ jobs:
         id: ns
         run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
-      # La version du produit et l'identité du build, lues À LA SOURCE (`package.json` racine) et
-      # jamais recopiées ailleurs.
-      #
-      # `is_release` répond à « ce commit EST-il le bump ? » en comparant la version à celle du
-      # commit précédent. On ne s'appuie PAS sur le tag `vX.Y.Z` : `release.yml` le pose en réaction
-      # au MÊME push, et l'ordre des deux workflows n'est pas garanti — le tag pourrait ne pas
-      # exister encore ici. Le contenu du fichier, lui, est déjà là.
-      #
-      # C'est ce qui rend le tag Docker versionné IMMUABLE : entre deux releases le numéro ne bouge
-      # pas alors que le code, lui, est republié à chaque push. Poser `1.2.0` à chaque fois en
-      # ferait une étiquette qui change de contenu, c'est-à-dire qui ment.
+      # Le numéro, le sha court, et « ce commit est-il le bump ? » : la même réponse que
+      # `web-image.yml`, d'où l'action partagée (#417).
       - name: Version du produit
         id: version
-        run: |
-          version="$(jq -r .version package.json)"
-          previous="$(git show HEAD~1:package.json 2>/dev/null | jq -r .version || echo "")"
-          {
-            echo "version=$version"
-            echo "build=${GITHUB_SHA::7}"
-          } >> "$GITHUB_OUTPUT"
-          if [ "$version" != "$previous" ]; then
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Commit de release : l'image sera aussi taguée $version."
-          else
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
-          fi
+        uses: $/.github/actions/product-version
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1

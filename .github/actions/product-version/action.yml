@@ -1,0 +1,52 @@
+name: Version du produit
+description: Le numéro de `package.json`, le sha court du build, et si ce commit est celui du bump — ce que les images de `main` lisent pour se nommer.
+
+# Partagée par `api-image.yml` et `web-image.yml` (#417) : les deux images reçoivent leur numéro
+# sur le MÊME commit, et deux copies de ce test finiraient par diverger — une image taguée
+# `X.Y.Z` sans l'autre rendrait la version impossible à promouvoir.
+#
+# Le job appelant fournit un checkout en `fetch-depth: 2` : la comparaison lit le `package.json`
+# de HEAD~1, qu'un clone d'un seul commit n'a pas.
+#
+# La version du produit et l'identité du build sont lues À LA SOURCE (`package.json` racine) et
+# jamais recopiées ailleurs.
+#
+# `is_release` répond à « ce commit EST-il le bump ? » en comparant la version à celle du commit
+# précédent. On ne s'appuie PAS sur le tag `vX.Y.Z` : `release.yml` le pose en réaction au MÊME
+# push, et l'ordre des workflows n'est pas garanti — le tag pourrait ne pas exister encore ici. Le
+# contenu du fichier, lui, est déjà là.
+#
+# C'est ce qui rend le tag Docker versionné IMMUABLE : entre deux releases le numéro ne bouge pas
+# alors que le code, lui, est republié à chaque push. Poser `1.2.0` à chaque fois en ferait une
+# étiquette qui change de contenu, c'est-à-dire qui ment.
+
+outputs:
+  version:
+    description: Le numéro nu, `1.2.0`.
+    value: ${{ steps.version.outputs.version }}
+  build:
+    description: Le sha court du commit, `3f2a1c7`.
+    value: ${{ steps.version.outputs.build }}
+  is_release:
+    description: "`true` sur le commit de bump seulement."
+    value: ${{ steps.version.outputs.is_release }}
+
+runs:
+  using: composite
+  steps:
+    - name: Version du produit
+      id: version
+      shell: bash
+      run: |
+        version="$(jq -r .version package.json)"
+        previous="$(git show HEAD~1:package.json 2>/dev/null | jq -r .version || echo "")"
+        {
+          echo "version=$version"
+          echo "build=${GITHUB_SHA::7}"
+        } >> "$GITHUB_OUTPUT"
+        if [ "$version" != "$previous" ]; then
+          echo "is_release=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Commit de release : l'image sera aussi taguée $version."
+        else
+          echo "is_release=false" >> "$GITHUB_OUTPUT"
+        fi
