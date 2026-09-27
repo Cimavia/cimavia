@@ -62,7 +62,9 @@ jobs:
           category: trivy-config
 
   images:
-    name: Trivy — ${{ matrix.target }} sur le NAS
+    # Pas de `matrix.target` dans le nom : GitHub ajoute « (api) », « (web) »… de lui-même, et un
+    # job sauté (sur une PR) afficherait l'expression brute au lieu de sa valeur.
+    name: Trivy — images du NAS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-26.04
     timeout-minutes: 10
