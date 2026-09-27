@@ -1,0 +1,14 @@
+# Failles que Trivy ne doit plus remonter (#399). Lu par `.github/actions/trivy-scan`.
+#
+# Chaque entrée porte sa RAISON (`statement`) et une DATE DE REVUE (`expired_at`), au plus six mois
+# plus tard : passée cette date, Trivy l'ignore et l'alerte revient d'elle-même. Une exception
+# qu'on ne relit jamais finit par cacher la faille qu'elle ne visait pas.
+#
+# Avant d'ajouter une entrée : la faille est-elle corrigeable chez nous (monter l'image de base,
+# retirer l'outil de l'image) ? Voir `CONTRIBUTING.md`, « Alertes Trivy ».
+#
+#   - id: CVE-AAAA-NNNNN
+#     paths: ["usr/local/bin/outil"]   # facultatif : limite l'exception à ce fichier
+#     statement: pourquoi elle ne nous atteint pas, et ce qui la fera disparaître
+#     expired_at: AAAA-MM-JJ
+vulnerabilities: []

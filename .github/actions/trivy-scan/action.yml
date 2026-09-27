@@ -1,0 +1,95 @@
+name: Analyse Trivy
+description: Scanne une image (failles et secrets) ou la config Docker du dépôt avec Trivy, et envoie le résultat à Code scanning.
+
+# Trivy couvre ce que ni Dependabot ni SonarCloud ne lisent (#399) : les paquets système et les
+# outils embarqués des images, et les Dockerfiles. Il ALERTE, il ne bloque rien : ses constats vont
+# dans l'onglet Security, et aucun check n'est requis — même raisonnement que `pnpm audit` (#398)
+# et zizmor (#401). Bloquer la publication empêcherait aussi de publier le correctif d'une faille.
+#
+# Le jeton ne croise jamais Trivy. Une image privée est tirée avec lui, exportée en archive, et le
+# jeton est retiré AVANT que Trivy ne démarre ; Trivy tourne dans un conteneur qui ne reçoit que
+# l'archive et le dépôt en lecture seule — ni jeton, ni socket Docker, ni capacité. C'est la parade
+# à la compromission de mars 2026, qui volait les secrets depuis le processus de l'action.
+#
+# Le job appelant fournit : un checkout (le `.trivyignore.yaml` y est lu), `contents: read`,
+# `security-events: write`, et `packages: read` pour une image privée de GHCR.
+
+inputs:
+  image:
+    description: Image à scanner, par digest de préférence. Vide = la config Docker du dépôt.
+    required: false
+    default: ""
+  category:
+    description: Catégorie Code scanning. Une par cible, sinon un scan fermerait les alertes d'un autre.
+    required: true
+  registry-login:
+    description: "`true` pour une image privée de ghcr.io (jeton du job, `packages: read`)."
+    required: false
+    default: "false"
+  skip-dirs:
+    description: Dossier de l'image à ne pas analyser (ex. les dépendances que Dependabot suit déjà).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Image de Trivy
+      id: trivy
+      shell: bash
+      run: |
+        ref="$(sed -n 's/^FROM //p' "$GITHUB_ACTION_PATH/Dockerfile")"
+        if [[ "$ref" != *@sha256:* ]]; then
+          echo "::error::L'image de Trivy doit être épinglée par digest ($GITHUB_ACTION_PATH/Dockerfile)."
+          exit 1
+        fi
+        docker pull -q "$ref"
+        mkdir -p "$RUNNER_TEMP/trivy"
+        echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+    - name: Image exportée
+      if: inputs.image != ''
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        LOGIN: ${{ inputs.registry-login }}
+        ACTOR: ${{ github.actor }}
+        TOKEN: ${{ github.token }}
+      run: |
+        if [[ "$LOGIN" == "true" ]]; then
+          printf '%s' "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+        fi
+        docker pull -q "$IMAGE"
+        if [[ "$LOGIN" == "true" ]]; then
+          docker logout ghcr.io
+        fi
+        docker save "$IMAGE" -o "$RUNNER_TEMP/trivy/image.tar"
+
+    # CRITICAL et HIGH, corrigeables seulement : une faille sans correctif publié n'appelle aucune
+    # action de notre part, et noierait celles qui en appellent une.
+    - name: Analyse
+      shell: bash
+      env:
+        TRIVY: ${{ steps.trivy.outputs.ref }}
+        IMAGE: ${{ inputs.image }}
+        SKIP_DIRS: ${{ inputs.skip-dirs }}
+      run: |
+        args=(--quiet --cache-dir /work/cache --severity "CRITICAL,HIGH"
+          --ignorefile /src/.trivyignore.yaml --format sarif --output /work/trivy.sarif)
+        if [[ -n "$IMAGE" ]]; then
+          args=(image "${args[@]}" --input /work/image.tar --scanners "vuln,secret" --ignore-unfixed)
+          if [[ -n "$SKIP_DIRS" ]]; then
+            args+=(--skip-dirs "$SKIP_DIRS")
+          fi
+        else
+          args=(config "${args[@]}" /src)
+        fi
+        docker run --rm --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
+          -v "$RUNNER_TEMP/trivy:/work" -v "$GITHUB_WORKSPACE:/src:ro" \
+          "$TRIVY" "${args[@]}"
+
+    - name: Envoi à Code scanning
+      uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+      with:
+        sarif_file: ${{ runner.temp }}/trivy/trivy.sarif
+        category: ${{ inputs.category }}

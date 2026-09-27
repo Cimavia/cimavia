@@ -181,9 +181,9 @@ prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récen
 ## Mises à jour des dépendances (Dependabot)
 
 `.github/dependabot.yml` couvre quatre écosystèmes, chaque semaine (#379) : les actions
-(`github-actions`), le workspace pnpm (`npm`), les images de base des Dockerfiles (`docker`) et
-celles des composes (`docker-compose`). Toutes les images sont épinglées par **tag + digest** : la
-PR réécrit les deux ensemble.
+(`github-actions`), le workspace pnpm (`npm`), les images de base des Dockerfiles (`docker`, image
+de Trivy comprise : voir *Alertes Trivy*) et celles des composes (`docker-compose`). Toutes les
+images sont épinglées par **tag + digest** : la PR réécrit les deux ensemble.
 
 - **Une PR groupée par écosystème pour `minor` + `patch`**, qui se merge dès que la CI est verte.
   **Les majeures arrivent une par une** : chacune se relit (notes de version) avant d'être mergée.
@@ -231,6 +231,35 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
 
 `pnpm audit --prod` le dit ensuite : il ne doit rester que des alertes du troisième cas.
 
+## Alertes Trivy
+
+Trivy (#399) scanne ce que Dependabot ne voit pas : les paquets système et les outils embarqués
+des images, et les Dockerfiles. Ses alertes arrivent dans Security → Code scanning (outil
+*Trivy*), une catégorie par cible : `trivy-api` (dernier build de `main`), `trivy-api-preview` et
+`trivy-web` (ce qui tourne sur le NAS), `trivy-silo`, `trivy-mc`, `trivy-config`. Il ne remonte que
+les CRITICAL et HIGH qui ont un correctif, et **ne bloque rien**.
+
+Une alerte se traite dans cet ordre :
+
+1. **L'outil n'a rien à faire dans l'image** : le retirer de l'étage runtime (c'est ainsi que npm,
+   corepack et yarn sont sortis de l'image de l'API).
+2. **Le correctif est dans une image de base plus récente** : la PR Dependabot `docker` qui
+   réécrit le digest le livre ; la déclencher plus tôt si l'alerte presse. Pour SILO et `mc`,
+   c'est l'issue `[silo-version]`.
+3. **Aucun des deux** : une entrée dans `.trivyignore.yaml`, avec sa raison (`statement`) et une
+   date de revue (`expired_at`, six mois au plus). Passé cette date, l'alerte revient.
+
+Avant de monter la version de **Trivy lui-même** (PR Dependabot sur
+`.github/actions/trivy-scan/Dockerfile`) : relire les avis d'Aqua
+([GHSA-69fq-xp46-6x23](https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23)
+et suivants), puis vérifier la signature du nouveau digest :
+
+```bash
+docker run --rm ghcr.io/sigstore/cosign/cosign:v3.0.2 verify ghcr.io/aquasecurity/trivy@sha256:<digest> \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/aquasecurity/trivy/'
+```
+
 ## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 
 **Secrets** — ce que seule la CI doit connaître :
@@ -247,7 +276,7 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
 - `SENTRY_ORG` — le slug de l'organisation Sentry.
 - `SENTRY_PROJECT_WEB` — `cimavia-web`.
 
-**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
+**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il vit dans les environnements EAS (#287), les builds EAS partant du poste de développement et non d'un workflow.
 
 ## Identifiants de build mobile
 
@@ -283,8 +312,8 @@ cette liste — sinon elle échoue en silence.
 service, et elle vaut pour les trois app ids d'un même compte Apple. Là où Firebase exige un client
 déclaré par variante, Apple n'exige rien de tel.
 
-`EXPO_ACCESS_TOKEN` reste optionnel des deux côtés. `SENTRY_AUTH_TOKEN`, lui, est posé en secret
-EAS (`eas secret:create --scope project`) et non dans `eas.json`, qui est versionné.
+`EXPO_ACCESS_TOKEN` reste optionnel des deux côtés. `SENTRY_AUTH_TOKEN`, lui, est une variable de
+visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json`, qui est versionné.
 
 ## Observabilité
 
@@ -309,7 +338,7 @@ EAS (`eas secret:create --scope project`) et non dans `eas.json`, qui est versio
 - Init dans `apps/mobile/shared/lib/sentry.ts`, importé en side-effect en tête de `app/_layout.tsx` — même forme que `notification.ts` et `audio.ts`.
 - Écran de repli : export nommé `ErrorBoundary` depuis `app/_layout.tsx` (mécanisme natif d'expo-router, pas un boundary maison) → `CmvCrashScreen`. Il enveloppe le layout ENTIER, providers compris — un boundary posé autour du seul `<Stack>` serait resté à l'intérieur des quatre providers du layout.
 - Identité : `useSentryUser()` appelé dans `RootLayout`, l'`id` du compte seul, effacé à la déconnexion — l'effacement compte plus qu'au web, la session mobile survivant à la fermeture de l'app (`expo-secure-store`).
-- Variables : `EXPO_PUBLIC_SENTRY_DSN`, inlinée dans le bundle par Metro — pas un secret, déclarée par profil dans `eas.json` comme `EXPO_PUBLIC_API_URL`. L'environnement, lui, ne se déclare PAS en variable : il vient d'`APP_VARIANT` via `extra.appVariant` (`app.config.ts`), relu par `expo-constants` — `process.env.APP_VARIANT` est invisible à l'exécution, Metro n'inlinant que les variables `EXPO_PUBLIC_`.
-- Sourcemaps Hermes : téléversées automatiquement par le plugin `@sentry/react-native/expo` (organisation et projet déclarés dans `app.json` → `expo.plugins`, pas des secrets) au build EAS. Le jeton n'y figure JAMAIS — `eas.json` est versionné — il vient de `SENTRY_AUTH_TOKEN` posé en **secret EAS** (`eas secret:create --name SENTRY_AUTH_TOKEN --scope project`), lu automatiquement en son absence de la config du plugin.
+- Variables : `EXPO_PUBLIC_SENTRY_DSN`, inlinée dans le bundle par Metro — pas un secret, déclarée dans chaque environnement EAS comme `EXPO_PUBLIC_API_URL` (#287). L'environnement, lui, ne se déclare PAS en variable : il vient d'`APP_VARIANT` via `extra.appVariant` (`app.config.ts`), relu par `expo-constants` — `process.env.APP_VARIANT` est invisible à l'exécution, Metro n'inlinant que les variables `EXPO_PUBLIC_`.
+- Sourcemaps Hermes : téléversées automatiquement par le plugin `@sentry/react-native/expo` (organisation et projet déclarés dans `app.json` → `expo.plugins`, pas des secrets) au build EAS. Le jeton n'y figure JAMAIS — `eas.json` est versionné — il vient de `SENTRY_AUTH_TOKEN`, variable de visibilité **secret** des environnements EAS, lue automatiquement en son absence de la config du plugin.
 - Vitest : `@sentry/react-native` importe des modules natifs, mocké dans `test/setup.ts` pour tous les tests — même garantie que l'`AsyncStorage` qui y est déjà mocké.
 - `@sentry/cli` est une **dépendance directe du mobile qu'aucun code n'importe** : `sentry.gradle` l'invoque par le chemin en dur `apps/mobile/node_modules/@sentry/cli/bin/sentry-cli`, que pnpm ne crée que pour une dépendance déclarée. Sa version suit celle qu'exige `@sentry/react-native`, jamais autre chose (dette O-2).

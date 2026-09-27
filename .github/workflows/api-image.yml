@@ -1,9 +1,10 @@
 name: Images — API (GHCR)
 
 # Un push sur `main` publie l'image de l'API sur GHCR, la démarre sur une base jetable avant de lui
-# donner son numéro de version (#415), et rien d'autre : plus aucun déploiement ne part d'ici
-# (#266). Le NAS tire lui-même la version PROMUE (`promote-preview.yml` pose le tag
-# `preview`, `deploy/preview/pull-preview.sh` le tire), et c'est cette promotion qui exige des checks
+# donner son numéro de version (#415), la fait scanner par Trivy (#399), et rien d'autre : plus
+# aucun déploiement ne part d'ici (#266). Le NAS tire lui-même la version PROMUE
+# (`promote-preview.yml` pose le tag `preview`, `deploy/preview/pull-preview.sh` le tire), et c'est
+# cette promotion qui exige des checks
 # verts. Un test rouge ne bloque donc pas la publication d'une image : il bloque son envoi chez le
 # Coach.
 #
@@ -45,6 +46,9 @@ jobs:
     permissions:
       contents: read
       packages: write # pousse l'image de l'API sur GHCR
+    outputs:
+      image: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-api@${{ steps.build.outputs.digest }}
+      pushed: ${{ steps.build.outcome == 'success' }}
 
     steps:
       # `fetch-depth: 2` : l'étape « Version du produit » compare le `package.json` de HEAD à celui
@@ -234,3 +238,35 @@ jobs:
       - name: Logs de l'API (si échec)
         if: failure() && steps.smoke.outcome == 'success'
         run: docker logs cimavia-smoke 2>&1 | tail -n 200
+
+  # ── Trivy (#399) ──────────────────────────────────────────────────────────────────────────────
+  # Un job À PART, pas une étape de plus : celui-ci ne peut que LIRE les images, et Trivy n'y croise
+  # jamais le jeton (`.github/actions/trivy-scan`). Le job qui pousse garde son droit d'écriture
+  # pour lui seul.
+  #
+  # Dès que l'image est poussée, même si le smoke échoue : elle reste publiée sous `sha-*`.
+  # Les dépendances npm de l'app (`app/node_modules`) ne sont pas relues ici : Dependabot les suit
+  # déjà, et ses rejets motivés (#398) devraient sinon être recopiés dans `.trivyignore.yaml`.
+  scan:
+    name: Trivy — image de l'API
+    needs: build-and-push
+    if: ${{ !cancelled() && needs.build-and-push.outputs.pushed == 'true' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read # l'image de l'API est privée
+      security-events: write # envoie le SARIF à Code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Analyse
+        uses: $/.github/actions/trivy-scan
+        with:
+          image: ${{ needs.build-and-push.outputs.image }}
+          registry-login: "true"
+          skip-dirs: app/node_modules
+          category: trivy-api

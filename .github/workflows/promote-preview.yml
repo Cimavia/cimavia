@@ -236,6 +236,30 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
+  # L'image web ne se construit qu'ici : c'est donc ici qu'elle se scanne (#399), dans un job qui
+  # ne peut que lire les images. Il alerte sans retenir la promotion : `publish` ne l'attend pas.
+  scan-web:
+    name: Trivy — image web de v${{ inputs.version }}
+    needs: [verify, build-web]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read # l'image web est privée
+      security-events: write # envoie le SARIF à Code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Analyse
+        uses: $/.github/actions/trivy-scan
+        with:
+          image: ${{ needs.verify.outputs.registry }}/cimavia-web@${{ needs.build-web.outputs.digest }}
+          registry-login: "true"
+          category: trivy-web
+
   publish:
     name: Publier sur preview
     needs: [verify, build-web]

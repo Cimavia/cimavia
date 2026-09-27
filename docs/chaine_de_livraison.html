@@ -339,6 +339,7 @@
     ["gh", 5, 110, "promote-preview.yml", "manuel · saisie X.Y.Z"],
     ["gh", 6, 110, "reminder-tick.yml", "toutes les heures"],
     ["gh", 6, 170, "branche preview", "avancée au SHA du tag"],
+    ["gh", 5, 230, "trivy.yml", "lundi 06:30 · Dockerfiles"],
     ["gh", 6, 230, "mirror-images.yml", "lundi 06:00"],
     ["reg", 3, 315, "api:sha-…", "chaque commit main"],
     ["reg", 4, 315, "api:X.Y.Z", "commit de release"],
@@ -546,6 +547,7 @@
             <dt>Build args</dt><dd><code>APP_VERSION</code>, <code>APP_BUILD</code> (SHA court).</dd>
             <dt>Au démarrage</dt><dd><code>docker-entrypoint.sh</code> : <code>prisma migrate deploy</code> puis <code>node dist/main</code>.</dd>
             <dt>Sans concurrency</dt><dd>Volontaire : annuler un build en cours pouvait perdre l'image <code>X.Y.Z</code>, la seule que la promotion sait retaguer.</dd>
+            <dt>Trivy</dt><dd>Job <code>scan</code> à part, en lecture seule : l'image poussée est scannée par son digest (failles CRITICAL/HIGH corrigeables, secrets), hors <code>app/node_modules</code> que suit Dependabot. Alerte dans Code scanning, ne bloque rien (#399).</dd>
           </dl>
         </div>
       </details>
@@ -580,6 +582,14 @@
               </ul>
             </div>
             <div class="job">
+              <h4>Trivy — image web</h4>
+              <span class="needs">needs: verify, build-web · n'est pas attendu</span>
+              <ul>
+                <li>scan de l'image web construite, par son digest, en lecture seule</li>
+                <li>alerte dans Code scanning (<code>trivy-web</code>) sans retenir la promotion</li>
+              </ul>
+            </div>
+            <div class="job">
               <h4>Publier sur preview</h4>
               <span class="needs">needs: verify, build-web</span>
               <ul>
@@ -611,6 +621,22 @@
           <dl class="kv">
             <dt>Copie</dt><dd>Dernière version <code>RELEASE.…</code> de <code>pgsty/silo</code> et <code>pgsty/mc</code>, plus le tag demandé et les tags épinglés dans les deux composes ; les images déjà présentes sont sautées.</dd>
             <dt>Surveillance</dt><dd>Si un compose (<code>apps/api</code> ou <code>deploy/preview</code>) épingle une version plus ancienne, ouvre ou réécrit l'issue <code>[silo-version]</code> (area: infra, prio: high).</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="wf">
+        <summary>
+          <span class="name">trivy.yml · Sécurité — images et Dockerfiles (Trivy)</span><span class="chev">›</span>
+          <span class="role">Scanne les Dockerfiles et, chaque semaine, les images qui tournent sur le NAS. Alerte dans Code scanning, ne bloque rien.</span>
+          <span class="triggers"><span class="chip cron">lundi 06:30 UTC</span><span class="chip manual">workflow_dispatch</span><span class="chip">PR et push main sur un Dockerfile</span></span>
+        </summary>
+        <div class="wf-body">
+          <dl class="kv">
+            <dt>Config</dt><dd><code>trivy config</code> sur les Dockerfiles du dépôt. Les composes ne sont pas lus : Trivy ne les analyse pas.</dd>
+            <dt>Images</dt><dd>Chaque semaine : <code>cimavia-api:preview</code>, <code>cimavia-web:preview</code>, et SILO et <code>mc</code> tels qu'épinglés dans le compose du NAS. PostgreSQL et cloudflared n'y sont pas : Dependabot en propose déjà les montées.</dd>
+            <dt>Isolation</dt><dd>Action composite <code>.github/actions/trivy-scan</code> : l'image est tirée puis exportée, le jeton retiré, et Trivy (image officielle épinglée par digest) tourne sans jeton, sans socket Docker, sans capacité.</dd>
+            <dt>Exceptions</dt><dd><code>.trivyignore.yaml</code> : chaque entrée porte sa raison et une date d'expiration.</dd>
           </dl>
         </div>
       </details>
@@ -756,6 +782,11 @@
         <span class="freq">lundi, 06:00 UTC</span>
         <span class="where gh">Actions · mirror-images.yml</span>
         <span class="what">Miroir SILO/mc vers GHCR et issue <code>[silo-version]</code> si un compose est en retard.</span>
+      </div>
+      <div class="tick-row">
+        <span class="freq">lundi, 06:30 UTC</span>
+        <span class="where gh">Actions · trivy.yml</span>
+        <span class="what">Scan Trivy des images du NAS (API, web, SILO, mc) et des Dockerfiles.</span>
       </div>
       <div class="tick-row">
         <span class="freq">chaque semaine</span>

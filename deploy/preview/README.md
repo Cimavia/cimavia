@@ -442,8 +442,9 @@ docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE
 
 Le mobile est un **client**, pas un service déployé sur le NAS : il pointe simplement vers l'API
 publique du tier preview. Pour donner une app installable à un testeur (le coach), on produit un APK
-via EAS avec l'URL de l'API figée dans le build (profil `preview` de `apps/mobile/eas.json`, qui
-pose `EXPO_PUBLIC_API_URL=https://api-preview.cimavia.fr`) :
+via EAS avec l'URL de l'API figée dans le build. Le profil `preview` de `apps/mobile/eas.json` ne
+porte aucune valeur : il lit l'environnement EAS `preview`, qui pose
+`EXPO_PUBLIC_API_URL=https://api-preview.cimavia.fr` (liste complète : README racine, #287) :
 
 ```bash
 cd apps/mobile

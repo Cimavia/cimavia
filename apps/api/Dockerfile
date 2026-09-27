@@ -21,22 +21,26 @@
 # Base épinglée par DIGEST (#379) : un tag se reconstruit en silence, et l'image changerait de
 # base sans qu'aucune PR ne le dise — ce que #186 refuse pour l'artefact promu. Dependabot
 # réécrit le digest, commentaire de version compris, dans une PR que la CI construit.
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS base
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
+#
+# `os` porte ce que le runtime ET le build partagent ; `base` y ajoute l'outillage de build, que le
+# runtime ne reçoit pas (#399).
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS os
 # OpenSSL pour le *schema engine* de Prisma (celui de `migrate deploy`, seul binaire natif que
 # Prisma 7 conserve — le moteur de requêtes, lui, est en WASM). Sans lui, il n'arrive pas à
 # détecter la version de libssl, retombe sur « openssl-1.1.x » et journalise un avertissement à
 # chaque démarrage du conteneur.
-#
-# pnpm est épinglé explicitement : l'arbre produit par `pnpm deploy` n'a pas de champ
-# `packageManager`, et corepack y retomberait sinon sur le dernier pnpm publié (11.x observé).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssl \
- && rm -rf /var/lib/apt/lists/* \
- && corepack enable \
- && corepack prepare pnpm@10.34.4 --activate
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+
+FROM os AS base
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+# pnpm est épinglé explicitement : l'arbre produit par `pnpm deploy` n'a pas de champ
+# `packageManager`, et corepack y retomberait sinon sur le dernier pnpm publié (11.x observé).
+RUN corepack enable \
+ && corepack prepare pnpm@10.34.4 --activate
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 1 — pruning du monorepo
@@ -91,8 +95,18 @@ RUN pnpm --filter @cmv/api --prod deploy --legacy /out \
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 3 — runtime
 # ─────────────────────────────────────────────────────────────────────────────
-FROM base AS runtime
+FROM os AS runtime
 ENV NODE_ENV=production
+
+# Ni npm, ni corepack, ni yarn : l'image de node les livre, l'API n'en lance aucun (l'entrypoint
+# appelle `prisma` et `node` directement), et c'est là que Trivy trouvait 18 des 21 failles
+# corrigeables de l'image (#399) — celles que Dependabot ne voit pas et que la PR suivante ne
+# corrigerait pas, npm suivant la version de node. Le runtime part de `os` et non de `base` pour
+# la même raison : pnpm et son cache corepack restent dans l'étage de build.
+#
+# Retirés dans une couche : l'image ne maigrit pas, mais les fichiers n'y sont plus.
+RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx \
+      /usr/local/bin/corepack /opt/yarn-v* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 # L'arbre déployé devient la racine de l'app : `dist`, `prisma/` et `prisma.config.ts` y sont
 # déjà (deploy copie les fichiers du paquet), d'où un WORKDIR à plat plutôt qu'un chemin
@@ -113,7 +127,7 @@ COPY --chmod=755 apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.
 # Volontairement PAS de `chown -R node:node /app` : la récursion réécrit chaque fichier de
 # node_modules dans une nouvelle couche (~6 min de build et autant de disque, mesuré). C'est
 # inutile ici — l'application ne fait que LIRE /app, et les fichiers sont world-readable. Les
-# rares écritures (logs pnpm, temp Prisma) vont dans /home/node et /tmp, déjà accessibles.
+# rares écritures (temp Prisma) vont dans /home/node et /tmp, déjà accessibles.
 USER node
 
 # Version du produit et identité du build, injectées PAR LE WORKFLOW au moment du build (#186).
