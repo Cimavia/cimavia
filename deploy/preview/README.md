@@ -143,6 +143,25 @@ planifiée → Script défini par l'utilisateur* :
 Le **compose** suit la version promue ; le **script**, lui, est la copie posée à l'installation. Quand
 `pull-preview.sh` change dans le dépôt, relancer la commande `curl` ci-dessus après le merge.
 
+### Avant de promouvoir : le `.env` passe-t-il le schéma ?
+
+L'API refuse de démarrer sur un `.env` qu'elle juge mal configuré. Une version qui **durcit** ces
+règles, promue sur un `.env` qui ne les suit pas, remplace une API saine par une API qui ne démarre
+pas. Depuis #357, sur ce tier :
+
+- `BETTER_AUTH_SECRET` fait **32 caractères au moins**, et `REMINDER_TICK_SECRET` aussi s'il est posé ;
+- `PUBLIC_API_URL` est en **https** ;
+- `EXPO_ACCESS_TOKEN` est posé.
+
+Dans le dossier du `.env`, ce contrôle n'affiche que des **longueurs**, jamais les valeurs :
+
+```bash
+for v in BETTER_AUTH_SECRET REMINDER_TICK_SECRET EXPO_ACCESS_TOKEN; do awk -F= -v k=$v '$1==k{print k" : "length(substr($0,index($0,"=")+1))" caractères"}' .env; done
+grep -o '^PUBLIC_API_URL=https\?' .env                 # doit afficher PUBLIC_API_URL=https
+```
+
+Attendu : 32 ou plus pour les deux secrets, une longueur non nulle pour le jeton Expo.
+
 ### Quand ça échoue
 
 Trois endroits le disent : le run de promotion devient rouge au bout de 20 minutes, la tâche DSM
@@ -153,7 +172,7 @@ pourquoi.
 |---|---|
 | `tirage de …cimavia-api:preview : … unauthorized` | jeton GHCR expiré ou révoqué : en créer un, refaire le `docker login` |
 | `compose de … invalide avec ce .env` | une ligne cassée dans le `.env` (une commande collée dedans, une variable renommée par la version promue) |
-| `API non saine après 300s` | l'API ne démarre pas, souvent une migration : `docker logs` du conteneur `api` |
+| `API non saine après 300s` | l'API ne démarre pas, souvent une migration ou une variable refusée au démarrage (voir « Avant de promouvoir ») : `docker logs` du conteneur `api` |
 
 Une fois la cause réglée, le prochain passage réessaie seul. Si seule la confirmation du workflow a
 échoué, *Re-run failed jobs* la relance sans republier.
