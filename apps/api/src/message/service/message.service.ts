@@ -3,6 +3,7 @@ import { MessageType } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import { assertKeyUnder } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
@@ -16,6 +17,7 @@ import {
 import { toMessageDto } from "../message.mapper";
 import { ConversationService } from "./conversation.service";
 import { MessageAttachmentResolver } from "./message-attachment.resolver";
+import { messageMediaKeyPrefix } from "./message-media.service";
 
 // Rattachement résolu et validé, prêt à persister (ids possédés, ou null).
 type ResolvedAttachment = { scheduledSessionId: string | null; sessionFeedbackId: string | null };
@@ -60,6 +62,10 @@ export class MessageService {
   async send(conversationId: string, input: SendMessageInput): Promise<MessageDto> {
     const conversation = await this.conversations.getOwnedOrThrow(conversationId);
     const actor = currentActor(this.cls);
+    // La clé du média vient du client : elle doit désigner un objet de CE fil (#293).
+    if (input.type !== MessageType.TEXT) {
+      assertKeyUnder(messageMediaKeyPrefix(conversation.id), input.storagePath);
+    }
 
     // Throttle push (éviter une rafale de notifications) : on ne notifie que si le destinataire
     // n'a AUCUN message non lu de ma part dans ce fil — donc au passage « tout lu » → « non lu ».
