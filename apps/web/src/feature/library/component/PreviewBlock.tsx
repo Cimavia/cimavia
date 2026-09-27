@@ -28,7 +28,7 @@ type PreviewBlockProps = {
  * tableau sur une ligne mettrait un en-tête au-dessus d'une seule valeur.
  */
 export function PreviewBlock({ block, customMetrics }: Readonly<PreviewBlockProps>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const structure = structurePhrase(block.structure);
   const rest = restPhrase(block.structure);
@@ -47,7 +47,12 @@ export function PreviewBlock({ block, customMetrics }: Readonly<PreviewBlockProp
           <span key={metric.id} className="text-cmv-text-mid">
             {" · "}
             {metricLabel(metric, customMetrics, t)}{" "}
-            {formatMetricValue(columnValues(block, metric.id)[0] ?? null, metric, customMetrics)}
+            {formatMetricValue(
+              columnValues(block, metric.id)[0] ?? null,
+              metric,
+              customMetrics,
+              i18n.language,
+            )}
           </span>
         ))}
         {rest == null ? null : (
@@ -74,12 +79,12 @@ function RowValues({
   metrics: ExerciseBlock["metrics"];
   customMetrics: readonly CustomMetric[];
 }>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const cells = (row: ExerciseBlock["rows"][number]) =>
     metrics.map((metric) => {
       const value = row.values[metric.id] ?? null;
-      return metricCellText(value, metric, customMetrics, t);
+      return metricCellText(value, metric, customMetrics, t, i18n.language);
     });
 
   // Une seule ligne : une phrase, pas un tableau à en-tête pour une valeur.

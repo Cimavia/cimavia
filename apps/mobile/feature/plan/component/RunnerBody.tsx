@@ -9,7 +9,6 @@ import {
   rowForUnit,
   SegmentKind,
 } from "@cmv/shared";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
@@ -53,7 +52,7 @@ export function RunnerBody({
     return (
       <>
         <CmvText className="px-4 text-center text-cmv-text-mid">{t("plan.timer.awaiting")}</CmvText>
-        <Dosage block={block} customMetrics={customMetrics} segment={current} t={t} />
+        <Dosage block={block} customMetrics={customMetrics} segment={current} />
       </>
     );
   }
@@ -95,7 +94,7 @@ export function RunnerBody({
           duration: formatTrainingDuration(totalRemaining) ?? "—",
         })}
       </CmvText>
-      <Dosage block={block} customMetrics={customMetrics} segment={current} t={t} />
+      <Dosage block={block} customMetrics={customMetrics} segment={current} />
     </>
   );
 }
@@ -128,7 +127,7 @@ function EmomBody({
           duration: formatTrainingDuration(totalRemaining) ?? "—",
         })}
       </CmvText>
-      <Dosage block={block} customMetrics={customMetrics} segment={current} t={t} />
+      <Dosage block={block} customMetrics={customMetrics} segment={current} />
 
       {/* La frise des tops : ce qui est fait, et ce qui reste. Elle remplace un compteur nu —
           l'athlète voit d'un coup d'œil s'il a sauté un top. */}
@@ -170,7 +169,7 @@ function AmrapBody({
     <>
       <CmvText className="text-cmv-text-mid text-sm">{t("plan.timer.timeLeft")}</CmvText>
       <Chrono seconds={remaining} />
-      <Dosage block={block} customMetrics={customMetrics} segment={current} t={t} />
+      <Dosage block={block} customMetrics={customMetrics} segment={current} />
 
       <View className="items-center gap-1">
         <CmvText className="font-cmv-display text-4xl text-cmv-text-hi">{String(rounds)}</CmvText>
@@ -192,13 +191,12 @@ function Dosage({
   block,
   customMetrics,
   segment,
-  t,
 }: Readonly<{
   block: ExerciseBlock;
   customMetrics: readonly CustomMetric[];
   segment: BlockSegment;
-  t: TFunction;
 }>) {
+  const { t, i18n } = useTranslation();
   const row =
     segment.rowId == null
       ? rowForUnit(block, segment.unitIndex ?? 0)
@@ -210,7 +208,9 @@ function Dosage({
   // quelque chose — c'est à l'appelant de déclarer ce qu'il omet.
   const detail = block.metrics
     .filter((metric) => row.values[metric.id] != null)
-    .map((metric) => metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t))
+    .map((metric) =>
+      metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t, i18n.language),
+    )
     .join(" · ");
   if (detail === "") return null;
 

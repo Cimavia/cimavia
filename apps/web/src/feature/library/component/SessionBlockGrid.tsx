@@ -3,10 +3,12 @@ import {
   type Adjustments,
   adjustmentLevelAt,
   BLOCK_MAX_ROWS,
+  type BlockMetric,
   type CustomMetric,
   cellPath,
   type ExerciseBlock,
   type ExerciseBlocks,
+  formatMetricValue,
   type MetricValue,
   metricLabel,
   metricUnitLabel,
@@ -131,6 +133,8 @@ export function SessionBlockGrid({
                       }}
                     />
                     <AdjustedHint
+                      metric={metric}
+                      customMetrics={customMetrics}
                       level={adjustmentLevelAt(adjustments, cellPath(block.id, row.id, metric.id))}
                       base={baselineValue(baseline, block.id, row.id, metric.id)}
                       onRevert={() => onRevertCell(row.id, metric.id)}
@@ -168,11 +172,19 @@ export function SessionBlockGrid({
  * illisible pour un daltonien.
  */
 function AdjustedHint({
+  metric,
+  customMetrics,
   level,
   base,
   onRevert,
-}: Readonly<{ level: AdjustmentLevel | null; base: MetricValue; onRevert: () => void }>) {
-  const { t } = useTranslation();
+}: Readonly<{
+  metric: BlockMetric;
+  customMetrics: readonly CustomMetric[];
+  level: AdjustmentLevel | null;
+  base: MetricValue;
+  onRevert: () => void;
+}>) {
+  const { t, i18n } = useTranslation();
   if (level == null) return null;
 
   return (
@@ -187,7 +199,9 @@ function AdjustedHint({
         )}
       />
       <span className="text-cmv-caption text-cmv-text-lo">
-        {t("library.session.defaultValue", { value: base == null ? "—" : String(base) })}
+        {t("library.session.defaultValue", {
+          value: formatMetricValue(base, metric, customMetrics, i18n.language),
+        })}
       </span>
       <button
         type="button"

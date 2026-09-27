@@ -61,12 +61,12 @@ export function CompositionCard({
   isFirst,
   isLast,
 }: Readonly<CompositionCardProps>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
 
-  const summary = dosageSummary(item.blocks, customMetrics, t);
+  const summary = dosageSummary(item.blocks, customMetrics, t, i18n.language);
   const adjustedCount = item.adjustments.length;
 
   return (

@@ -60,10 +60,16 @@ describe("dosageSummary", () => {
     const block = seriesBlock({
       structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: 150 },
     });
-    const parts = dosageSummary([block], [], fakeT)?.split(", ");
+    const parts = dosageSummary([block], [], fakeT, "fr")?.split(", ");
     expect(parts?.at(0)).toContain("exercise.dosage.series");
     expect(parts?.at(1)).toContain("6");
     expect(parts?.at(2)).toContain("exercise.dosage.restBetweenSets");
+  });
+
+  it("écrit une valeur décimale dans la langue du lecteur", () => {
+    const block = seriesBlock({ rows: [{ id: "r-1", values: { "m-reps": 12.5 } }] });
+    expect(dosageSummary([block], [], fakeT, "fr")).toContain("12,5");
+    expect(dosageSummary([block], [], fakeT, "en")).toContain("12.5");
   });
 
   /**
@@ -71,11 +77,11 @@ describe("dosageSummary", () => {
    * mettrait du bruit sur un choix du coach (règle dure n°5).
    */
   it("rend null quand il n'y a aucun bloc à résumer", () => {
-    expect(dosageSummary([], [], fakeT)).toBeNull();
+    expect(dosageSummary([], [], fakeT, "fr")).toBeNull();
   });
 
   it("sépare deux blocs par un point médian", () => {
-    const summary = dosageSummary([seriesBlock(), seriesBlock({ id: "b-2" })], [], fakeT);
+    const summary = dosageSummary([seriesBlock(), seriesBlock({ id: "b-2" })], [], fakeT, "fr");
     expect(summary?.split(" · ")).toHaveLength(2);
   });
 
@@ -86,7 +92,7 @@ describe("dosageSummary", () => {
         { id: "r-2", values: { "m-reps": 99 } },
       ],
     });
-    expect(dosageSummary([block], [], fakeT)).not.toContain("99");
+    expect(dosageSummary([block], [], fakeT, "fr")).not.toContain("99");
   });
 
   it("saute une colonne sans valeur au lieu d'écrire un tiret dans la phrase", () => {
@@ -94,7 +100,7 @@ describe("dosageSummary", () => {
       metrics: [reps, customColumn],
       rows: [{ id: "r-1", values: { "m-reps": 6 } }],
     });
-    expect(dosageSummary([block], [cotation], fakeT)).not.toContain("—");
+    expect(dosageSummary([block], [cotation], fakeT, "fr")).not.toContain("—");
   });
 
   it("met en forme une durée plutôt que d'écrire des secondes brutes", () => {
@@ -102,11 +108,11 @@ describe("dosageSummary", () => {
       metrics: [effortDuration],
       rows: [{ id: "r-1", values: { "m-duration": 150 } }],
     });
-    expect(dosageSummary([block], [], fakeT)).toContain("2'30");
+    expect(dosageSummary([block], [], fakeT, "fr")).toContain("2'30");
   });
 
   it("tient un bloc sans aucune ligne, qui est un état enregistrable", () => {
-    expect(dosageSummary([seriesBlock({ rows: [] })], [], fakeT)).toContain(
+    expect(dosageSummary([seriesBlock({ rows: [] })], [], fakeT, "fr")).toContain(
       "exercise.dosage.series",
     );
   });
