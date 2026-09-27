@@ -10,7 +10,7 @@ signale en privé, selon `SECURITY.md`.
 
 Merge unidirectionnel `feature/* → main → preview → production` (jamais en sens inverse).
 
-- `main` : branche de dev, **protégée** (ruleset « Main ») — PR obligatoire, les trois checks
+- `main` : branche de dev, **protégée** (ruleset « Main ») — PR obligatoire, les quatre checks
   ci-dessous verts requis, commits signés, ni force-push ni suppression. Le push direct, autorisé
   jusqu'en #130, ne l'est plus : une porte qu'on peut contourner ne garde rien.
 - `preview` / `production` : cibles de promotion **fermées** (ruleset « Production ») — ni PR, ni
@@ -21,7 +21,8 @@ Merge unidirectionnel `feature/* → main → preview → production` (jamais en
 
 CI (`.github/workflows/`) :
 
-- `ci.yml`, job **`Lint + Typecheck + Test`** — Biome, `turbo typecheck test`, `check:i18n`.
+- `ci.yml`, job **`Lint + Typecheck + Test`** — commitlint sur les commits de la PR (#416), Biome,
+  `turbo typecheck test`, `check:i18n`.
 - `ci.yml`, job **`E2E (isolation multi-tenant)`** — les e2e de l'API (359 en #257), contre un Postgres
   et un SILO jetables montés par les composes du dépôt. Ils portent la couverture réelle de la couche
   API (~89 %) : ses douze tests unitaires n'en couvrent que 3,5 %. Bloquant.
@@ -33,12 +34,17 @@ CI (`.github/workflows/`) :
   artefact. La mesure vient donc de l'exécution qui a gardé la porte, pas d'une seconde.
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
+- `ci.yml`, job **`Builds de production`** — sur PR seulement : construit l'image API et l'image web
+  sans les pousser, et l'export Expo android, pour les seules apps que la PR touche (#414). Une app
+  non touchée est sautée et le job reste vert : il peut donc être requis sans bloquer une PR de doc.
 
-Les trois tournent sur chaque **PR vers `main`**, et sur `main` au seul **commit de release** (#318) :
-le merge d'une feature n'est pas rejoué, sa PR à jour de `main` a déjà testé l'arbre exact qui
-atterrit. Rien sur les branches de promotion : elles ne reçoivent que des commits déjà passés par
-`main`, et `promote-preview.yml` vérifie que ces trois checks sont verts **sur le commit de
-release** avant d'envoyer quoi que ce soit. Conséquence : entre deux releases, `main` n'a pas de
+Les trois premiers tournent sur chaque **PR vers `main`**, et sur `main` au seul **commit de
+release** (#318) : le merge d'une feature n'est pas rejoué, sa PR à jour de `main` a déjà testé
+l'arbre exact qui atterrit. Rien sur les branches de promotion : elles ne reçoivent que des commits
+déjà passés par `main`, et `promote-preview.yml` vérifie que ces trois checks sont verts **sur le
+commit de release** avant d'envoyer quoi que ce soit. `Builds de production` n'en fait pas partie :
+il ne tourne pas sur `main`, où `api-image.yml` et `web-image.yml` construisent les images et les
+démarrent. Conséquence : entre deux releases, `main` n'a pas de
 statut Sonar propre, et c'est l'analyse de la release qui juge l'ensemble des PR mergées depuis la
 précédente — elle peut rougir sur leur union alors que chacune était verte.
 
@@ -47,6 +53,12 @@ précédente — elle peut rougir sur leur union alors que chacune était verte.
 > requis n'arrive jamais et la PR reste bloquée sur « Waiting for status to be reported ». Tout
 > renommage se répercute dans le ruleset « Main » (Settings → Rules) **et** dans la liste des
 > checks de `promote-preview.yml`, qui refuserait sinon toute promotion.
+
+**La carte de la chaîne** — [`docs/chaine_de_livraison.html`](docs/chaine_de_livraison.html) décrit
+la chaîne entière, du poste au NAS : workflows, checks, tâches planifiées, secrets. Une PR qui
+touche un workflow, une action de `.github/actions/`, un check requis ou une étape de la livraison
+la met à jour **dans la même PR** : relevée après coup, elle avait dérivé sur une dizaine de points
+entre la 1.5.1 et la 1.8.1 (#462).
 
 **Images tierces** — `mirror-images.yml` copie SILO et son client `mc` dans `ghcr.io/cimavia` (paquets
 **publics**), pour que les composes les tirent de là : une panne de quay.io ou de Docker Hub ne bloque plus
@@ -64,7 +76,7 @@ tourne aussi au merge de son fichier, et à la main.
 
 **Mise en place et bornes des jobs** (#413) :
 
-- les trois jobs de `ci.yml` appellent `$/.github/actions/setup` après leur checkout : pnpm, Node,
+- les jobs de `ci.yml` appellent `$/.github/actions/setup` après leur checkout : pnpm, Node,
   `pnpm install --frozen-lockfile --ignore-scripts`, `prisma generate`. Un changement
   d'installation se fait là, une fois ;
 - les versions n'y sont pas écrites : pnpm vient de `packageManager` (`package.json` racine), Node
@@ -220,7 +232,10 @@ les alertes de sécurité arrivent toujours) :
   montée passe par `pg_upgrade` ou une sauvegarde restaurée (#268).
 - **Les majeures de `node`** : `.nvmrc`, `engines` et les deux `Dockerfile` avancent ensemble, et
   seulement vers une version paire (LTS). Node 22 est maintenu jusqu'au 2027-04-30 : la montée
-  vers 24 se fait avant, à la main.
+  vers 24 se fait avant, à la main. Dans les `Dockerfile`, le **tag et le digest** changent
+  ensemble : Docker ne lit que le digest, et un tag monté seul laisserait l'image sur l'ancienne
+  version sans rien signaler. Le digest du nouveau tag se lit avec
+  `docker buildx imagetools inspect node:<tag>` (ligne `Digest:`).
 - **SILO et `mc`** : suivis par `mirror-images.yml` (voir *Images tierces*).
 - **pnpm lui-même** — pas par `ignore` : Dependabot ne lit pas le champ `packageManager`
   (dependabot-core#4830). Et pnpm n'étant dans aucun lockfile, **aucune alerte de sécurité** ne
@@ -283,7 +298,7 @@ docker run --rm ghcr.io/sigstore/cosign/cosign:v3.0.2 verify ghcr.io/aquasecurit
 
 - `SONAR_TOKEN` — SonarCloud. Posé **aussi** en secret Dependabot (Settings → Secrets and variables → *Dependabot*) : une PR ouverte par Dependabot ne lit que ceux-là, et sans lui le job Sonar de chaque PR Dependabot échoue.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
-- `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
+- `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
 - `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web du **commit de bump** seulement (`web-image.yml`, #417). C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
 
 **Variables** (onglet *Variables*), pas des secrets — elles sont publiques ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
