@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type AppTier, formatAppVersion } from "./app-version.util";
+import { type AppTier, formatAppVersion, isAppTier } from "./app-version.util";
 
 describe("formatAppVersion", () => {
   /**
@@ -34,5 +34,20 @@ describe("formatAppVersion", () => {
    */
   it("traite une version vide comme une absence", () => {
     expect(formatAppVersion("", "production")).toBeNull();
+  });
+});
+
+describe("isAppTier", () => {
+  it.each(["development", "preview", "production"])("reconnaît %s", (tier) => {
+    expect(isAppTier(tier)).toBe(true);
+  });
+
+  /**
+   * Ce qu'un `config.js` mal rempli peut apporter : le vide d'une variable définie sans valeur, un
+   * ancien nom de tier (`staging`, retiré en #261), ou rien du tout. Aucun n'est ramené à
+   * `development` — c'est à l'appelant de dire l'absence.
+   */
+  it.each(["", "staging", "Preview", undefined, null, 1])("refuse %s", (value) => {
+    expect(isAppTier(value)).toBe(false);
   });
 });

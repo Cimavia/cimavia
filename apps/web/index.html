@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>cimavia</title>
+    <!--
+      La config du tier (#417), servie par le conteneur nginx depuis son environnement, et par
+      `vite.config.ts` en dev. Un script CLASSIQUE, donc exécuté à la lecture, avant le bundle, qui
+      est un module et donc différé. `vite-ignore` : Vite n'a rien à en faire, le fichier n'existe
+      qu'au démarrage du conteneur. Voir `src/shared/lib/runtime-config.ts`.
+    -->
+    <script src="/config.js" vite-ignore></script>
   </head>
   <body>
     <div id="root"></div>

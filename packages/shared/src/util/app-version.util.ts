@@ -1,14 +1,24 @@
 /**
  * Le tier, le même mot sur les trois couches (#261).
  *
- * Le web le lit dans `VITE_APP_ENV`, l'API dans `APP_ENV`, le mobile dans
- * `Constants.expoConfig.extra.appVariant` (posé par `app.config.ts`) : trois lectures, un seul
- * vocabulaire. #187 en avait assumé deux — `staging` pour un déploiement de serveur, `preview` pour
- * un build EAS interne qui pointait sur le NAS — parce que c'étaient deux chaînes de livraison.
- * Le NAS retiré, le build `preview` pointe sur l'environnement preview : il ne reste qu'une chaîne,
- * et un environnement qui porte deux noms selon qui le lit finit par en porter trois.
+ * Le web le lit dans `config.js`, servi au démarrage de son conteneur (#417), l'API dans
+ * `APP_ENV`, le mobile dans `Constants.expoConfig.extra.appVariant` (posé par `app.config.ts`) :
+ * trois lectures, un seul vocabulaire. #187 en avait assumé deux — `staging` pour un déploiement
+ * de serveur, `preview` pour un build EAS interne qui pointait sur le NAS — parce que c'étaient
+ * deux chaînes de livraison. Le NAS retiré, le build `preview` pointe sur l'environnement preview :
+ * il ne reste qu'une chaîne, et un environnement qui porte deux noms selon qui le lit finit par en
+ * porter trois.
  */
-export type AppTier = "development" | "preview" | "production";
+const APP_TIERS = ["development", "preview", "production"] as const;
+export type AppTier = (typeof APP_TIERS)[number];
+
+/**
+ * Le garde de ce qui arrive de l'extérieur sans type — le `config.js` du web (#417). Il ne répare
+ * rien : une valeur hors de la liste est refusée, pas ramenée à `development` (règle dure n°5).
+ */
+export function isAppTier(value: unknown): value is AppTier {
+  return APP_TIERS.includes(value as AppTier);
+}
 
 // i18n-exempt : ce ne sont pas des libellés traduisibles mais des noms de tiers, les mêmes dans
 // toutes les langues — « dev » ne se traduit pas plus que « preview ».

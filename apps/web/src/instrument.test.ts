@@ -44,19 +44,32 @@ async function loadInstrument() {
   return options;
 }
 
+const initial = window.__CMV_CONFIG__;
+const DSN = "https://clef@o0.ingest.sentry.io/1";
+
+/** Ce que `/config.js` aurait posé — le DSN et le tier y sont lus depuis #417. */
+function config(fields: { sentryDsn?: string; tier?: string }) {
+  window.__CMV_CONFIG__ = {
+    apiUrl: "http://localhost:3000",
+    tier: "development",
+    sentryDsn: "",
+    ...fields,
+  };
+}
+
 beforeEach(() => {
-  vi.unstubAllEnvs();
   sent.length = 0;
 });
 
 afterEach(async () => {
   await Sentry.close();
   window.history.replaceState(null, "", "/");
+  window.__CMV_CONFIG__ = initial;
 });
 
 describe("instrument", () => {
   it("laisse le SDK inerte quand aucun DSN n'est configuré", async () => {
-    vi.stubEnv("VITE_SENTRY_DSN", "");
+    config({ sentryDsn: "" });
 
     const options = await loadInstrument();
 
@@ -66,33 +79,32 @@ describe("instrument", () => {
   });
 
   it("arme le SDK quand un DSN est configuré", async () => {
-    vi.stubEnv("VITE_SENTRY_DSN", "https://clef@o0.ingest.sentry.io/1");
+    config({ sentryDsn: DSN });
 
     const options = await loadInstrument();
 
-    expect(options).toMatchObject({
-      enabled: true,
-      dsn: "https://clef@o0.ingest.sentry.io/1",
-    });
+    expect(options).toMatchObject({ enabled: true, dsn: DSN });
   });
 
   it("tague le tier de déploiement, pas le mode de build", async () => {
-    vi.stubEnv("VITE_SENTRY_DSN", "https://clef@o0.ingest.sentry.io/1");
-    vi.stubEnv("VITE_APP_ENV", "preview");
+    config({ sentryDsn: DSN, tier: "preview" });
 
     expect(await loadInstrument()).toMatchObject({ environment: "preview" });
   });
 
-  it("retombe sur `development` quand le tier n'est pas renseigné", async () => {
-    vi.stubEnv("VITE_APP_ENV", "");
+  /**
+   * Avant #417, un tier absent retombait sur `development`. Il n'a plus de défaut : un événement
+   * sans `environment` ne se filtrerait nulle part, et un `development` inventé mentirait. Le SDK
+   * reste donc inerte, et c'est l'écran de crash de `main.tsx` qui dit l'erreur de configuration.
+   */
+  it("reste inerte quand le tier manque, même avec un DSN", async () => {
+    config({ sentryDsn: DSN, tier: "" });
 
-    // Le même défaut que le schéma de @cmv/shared : un événement non tagué serait pire qu'un
-    // événement tagué dev, puisqu'il ne se filtrerait nulle part.
-    expect(await loadInstrument()).toMatchObject({ environment: "development" });
+    expect(await loadInstrument()).toMatchObject({ enabled: false, dsn: undefined });
   });
 
   it("désactive les traces de performance", async () => {
-    vi.stubEnv("VITE_SENTRY_DSN", "https://clef@o0.ingest.sentry.io/1");
+    config({ sentryDsn: DSN });
 
     // La décision de #183 que rien d'autre ne retient : le quota de performance ne se vide pas
     // depuis un navigateur.
@@ -100,7 +112,7 @@ describe("instrument", () => {
   });
 
   it("n'envoie ni l'IP, ni le jeton de réinitialisation que porte l'URL", async () => {
-    vi.stubEnv("VITE_SENTRY_DSN", "https://clef@o0.ingest.sentry.io/1");
+    config({ sentryDsn: DSN });
     await loadInstrument();
 
     // Après `init` : l'arrivée sur la page laisse alors un fil d'Ariane de navigation, jeton compris.
