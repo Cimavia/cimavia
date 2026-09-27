@@ -1,4 +1,4 @@
-import { MAX_MESSAGE_MEDIA_BATCH, MessageType, UploadMode } from "@cmv/shared";
+import { MAX_MESSAGE_MEDIA_BATCH, MessageType, messageKeys, UploadMode } from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ImagePickerAsset } from "expo-image-picker";
@@ -333,6 +333,24 @@ describe("useSendMessageMedia", () => {
 
     await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
     expect(launchLibraryMock).not.toHaveBeenCalled();
+  });
+
+  /** #309 : un média envoyé change l'aperçu du fil dans la liste du coach, comme un texte. */
+  it("invalide la liste des fils après l'envoi, pas le fil de l'athlète", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(messageKeys.conversations(null), []);
+    queryClient.setQueryData(messageKeys.myConversation(), { id: CONVERSATION_ID });
+    launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("bloc.jpg")] });
+    const { result } = renderHook(() => useSendMessageMedia(CONVERSATION_ID), {
+      wrapper: ({ children }: Readonly<{ children: ReactNode }>) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await act(() => result.current.pickAndSend(onPickError));
+
+    expect(queryClient.getQueryState(messageKeys.conversations(null))?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(messageKeys.myConversation())?.isInvalidated).toBe(false);
   });
 
   it("porte l'échec d'une note vocale à part, là où le lot a son récapitulatif", async () => {
