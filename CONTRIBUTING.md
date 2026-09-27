@@ -325,7 +325,9 @@ visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json
 ### API
 
 - Logs structurés **pino → Axiom** : transport actif dès que `AXIOM_TOKEN` + `AXIOM_DATASET` sont définis. `AXIOM_URL` selon la région du dataset (EU par défaut).
-- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import) + `SentryExceptionFilter` global, qui ne remonte que les erreurs *inattendues* — une `HttpException` (4xx, 503 de santé) est ignorée.
+- Une ligne de journal ne dit d'une requête que son `id`, sa méthode et son URL blanchie, et de la réponse que son statut (`apps/api/src/observability/logger.config.ts`) : ni en-têtes, ni IP, ni paramètres (#433).
+- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import), options dans `apps/api/src/observability/sentry.config.ts`, + `SentryExceptionFilter` global, qui ne remonte que les erreurs *inattendues* — une `HttpException` (4xx, 503 de santé) est ignorée. Le corps des requêtes n'est jamais capturé ; cookies, `authorization` et secret du tick sont retirés des erreurs comme des transactions (`sentry-scrub.ts`).
+- **Un nouveau secret dans une URL** (paramètre ou segment de chemin) s'ajoute à `redactUrlSecrets` (`packages/shared/src/util/url-secret.util.ts`) : c'est la liste que lisent les journaux, Sentry API et Sentry web. **Un nouvel en-tête secret** s'ajoute à `SECRET_HEADERS` (`sentry-scrub.ts`) — les journaux, eux, n'écrivent aucun en-tête.
 - Variables d'environnement : voir `apps/api/.env.example`.
 
 ### Web

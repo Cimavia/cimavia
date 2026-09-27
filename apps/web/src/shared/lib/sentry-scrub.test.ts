@@ -1,35 +1,7 @@
+import { FILTERED } from "@cmv/shared";
 import type { ErrorEvent } from "@sentry/react";
 import { describe, expect, it } from "vitest";
-import { FILTERED, redactUrlSecrets, scrubEvent } from "./sentry-scrub";
-
-describe("redactUrlSecrets", () => {
-  it("garde le nom du jeton de réinitialisation et en retire la valeur", () => {
-    expect(redactUrlSecrets("https://app.test/reset-password?token=abc123")).toBe(
-      `https://app.test/reset-password?token=${FILTERED}`,
-    );
-  });
-
-  it("ne touche qu'au paramètre secret, pas à ses voisins ni au fragment", () => {
-    expect(redactUrlSecrets("/x?a=1&code=zz&b=2#top")).toBe(`/x?a=1&code=${FILTERED}&b=2#top`);
-  });
-
-  it("retire la signature d'une URL S3, quelle que soit sa casse", () => {
-    const signed =
-      "https://s3.test/k.jpg?X-Amz-Date=1&X-Amz-Signature=deadbeef&x-amz-signature=cafe";
-
-    expect(redactUrlSecrets(signed)).toBe(
-      `https://s3.test/k.jpg?X-Amz-Date=1&X-Amz-Signature=${FILTERED}&x-amz-signature=${FILTERED}`,
-    );
-  });
-
-  it("ne prend pas un paramètre dont le nom FINIT par un nom secret", () => {
-    expect(redactUrlSecrets("/x?postcode=75001&pushtoken=t")).toBe("/x?postcode=75001&pushtoken=t");
-  });
-
-  it("laisse intacte une URL sans secret", () => {
-    expect(redactUrlSecrets("/planning?from=2026-09-21")).toBe("/planning?from=2026-09-21");
-  });
-});
+import { scrubEvent } from "./sentry-scrub";
 
 describe("scrubEvent", () => {
   it("blanchit l'URL et le Referer posés par httpContextIntegration", () => {
