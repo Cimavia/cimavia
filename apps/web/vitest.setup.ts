@@ -3,6 +3,17 @@ import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 /**
+ * Ce que `/config.js` pose dans le navigateur (#417). Sans lui, importer `api.ts` ou `auth.ts`
+ * lèverait — et presque tous les tests d'écran les importent. Un test qui éprouve une autre
+ * configuration la remplace, puis la restaure.
+ */
+window.__CMV_CONFIG__ = {
+  apiUrl: "http://localhost:3000",
+  tier: "development",
+  sentryDsn: "",
+};
+
+/**
  * Les trois « managers » globaux de better-auth, neutralisés AVANT qu'ils ne s'installent.
  *
  * Tous trois ont la même garde asymétrique : leur `setup()` vérifie bien `typeof window` ou
