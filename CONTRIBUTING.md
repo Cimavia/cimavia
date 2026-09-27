@@ -181,9 +181,9 @@ prévu : l'écran de compte afficherait l'ancien numéro sur du code plus récen
 ## Mises à jour des dépendances (Dependabot)
 
 `.github/dependabot.yml` couvre quatre écosystèmes, chaque semaine (#379) : les actions
-(`github-actions`), le workspace pnpm (`npm`), les images de base des Dockerfiles (`docker`) et
-celles des composes (`docker-compose`). Toutes les images sont épinglées par **tag + digest** : la
-PR réécrit les deux ensemble.
+(`github-actions`), le workspace pnpm (`npm`), les images de base des Dockerfiles (`docker`, image
+de Trivy comprise : voir *Alertes Trivy*) et celles des composes (`docker-compose`). Toutes les
+images sont épinglées par **tag + digest** : la PR réécrit les deux ensemble.
 
 - **Une PR groupée par écosystème pour `minor` + `patch`**, qui se merge dès que la CI est verte.
   **Les majeures arrivent une par une** : chacune se relit (notes de version) avant d'être mergée.
@@ -230,6 +230,35 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
    montée attend l'amont.
 
 `pnpm audit --prod` le dit ensuite : il ne doit rester que des alertes du troisième cas.
+
+## Alertes Trivy
+
+Trivy (#399) scanne ce que Dependabot ne voit pas : les paquets système et les outils embarqués
+des images, et les Dockerfiles. Ses alertes arrivent dans Security → Code scanning (outil
+*Trivy*), une catégorie par cible : `trivy-api` (dernier build de `main`), `trivy-api-preview` et
+`trivy-web` (ce qui tourne sur le NAS), `trivy-silo`, `trivy-mc`, `trivy-config`. Il ne remonte que
+les CRITICAL et HIGH qui ont un correctif, et **ne bloque rien**.
+
+Une alerte se traite dans cet ordre :
+
+1. **L'outil n'a rien à faire dans l'image** : le retirer de l'étage runtime (c'est ainsi que npm,
+   corepack et yarn sont sortis de l'image de l'API).
+2. **Le correctif est dans une image de base plus récente** : la PR Dependabot `docker` qui
+   réécrit le digest le livre ; la déclencher plus tôt si l'alerte presse. Pour SILO et `mc`,
+   c'est l'issue `[silo-version]`.
+3. **Aucun des deux** : une entrée dans `.trivyignore.yaml`, avec sa raison (`statement`) et une
+   date de revue (`expired_at`, six mois au plus). Passé cette date, l'alerte revient.
+
+Avant de monter la version de **Trivy lui-même** (PR Dependabot sur
+`.github/actions/trivy-scan/Dockerfile`) : relire les avis d'Aqua
+([GHSA-69fq-xp46-6x23](https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23)
+et suivants), puis vérifier la signature du nouveau digest :
+
+```bash
+docker run --rm ghcr.io/sigstore/cosign/cosign:v3.0.2 verify ghcr.io/aquasecurity/trivy@sha256:<digest> \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/aquasecurity/trivy/'
+```
 
 ## Secrets et variables GitHub Actions (Settings → Secrets and variables → Actions)
 

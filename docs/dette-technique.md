@@ -3774,6 +3774,43 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   #271 »), et tout ce qui désigne le développement LOCAL (identifiants `cimavia_dev_*`, variante
 >   mobile `development`).
 
+> **Tranché en [#399](https://github.com/Cimavia/cimavia/issues/399)** (Trivy) : l'image de l'API
+> est scannée à chaque build, l'image web à chaque promotion, et chaque semaine les images qui
+> tournent sur le NAS et les Dockerfiles. Ce que le code ne dit pas seul :
+>
+> - **Il alerte, il ne bloque pas.** Les constats vont dans Code scanning, aucun check n'est
+>   requis. Bloquer `api-image.yml` sur une faille empêcherait aussi de publier le correctif d'une
+>   autre ; même raisonnement que `pnpm audit` (#398) et zizmor (#401).
+> - **Ni `trivy-action` ni `setup-trivy`.** Leurs tags ont été réécrits en mars 2026 pour voler
+>   les secrets des CI (GHSA-69fq-xp46-6x23), depuis le processus de l'action. L'image officielle,
+>   épinglée par digest et signée (cosign vérifié), tourne par `docker run` sans jeton, sans socket
+>   Docker ni capacité : une version compromise n'aurait rien à voler. Les images de l'API et du
+>   web étant **privées** (l'issue les supposait publiques), le jeton `packages: read` sert à les
+>   tirer, puis est retiré avant que Trivy ne démarre. Le digest vit dans
+>   `.github/actions/trivy-scan/Dockerfile`, jamais construit, pour que Dependabot le suive avec
+>   son `cooldown`.
+> - **`app/node_modules` n'est pas relu dans l'image de l'API** : Dependabot suit ces dépendances,
+>   et ses rejets motivés (#398 : `deepmerge-ts`, `image-size`) devraient sinon être recopiés dans
+>   `.trivyignore.yaml`, deux listes qui divergeraient. Trivy garde ce que Dependabot ne voit pas.
+> - **Le runtime de l'API n'embarque plus npm, corepack ni yarn** (ni le pnpm de l'étage de
+>   build) : c'était 18 des 21 failles corrigeables du premier scan, dans des outils que l'API ne
+>   lance jamais et que npm, livré avec node, ne laissait pas corriger par une PR.
+> - **Pas de SBOM ni d'attestation de provenance** : personne ne les vérifie au tirage
+>   (`pull-preview.sh` ne les lit pas). **Déclencheur** : le premier tirage qui les vérifie, le
+>   workflow de production le plus probablement.
+> - **Snyk écarté** (2026-09-23) : dépendances, code et conteneurs font doublon avec Dependabot,
+>   SonarCloud, CodeQL et Trivy ; palier gratuit plafonné ; un compte SaaS américain qui reçoit le
+>   code (Snyk Code), à rebours de la trajectoire de #259. Son vrai plus, la priorisation par
+>   atteignabilité, est payant et superflu à cette échelle.
+>
+> Écarts assumés : `trivy config` ne lit pas les **composes** — leur durcissement (utilisateur,
+> capacités) n'est vérifié par aucun outil. **PostgreSQL et cloudflared** ne sont pas scannés :
+> leurs constats (le Go embarqué de `gosu`, les modules de cloudflared) ne se corrigent qu'en
+> montant l'image, ce que Dependabot propose déjà.
+>
+> Découvert en chemin : **pnpm 10.34.4**, épinglé partout, a des failles HIGH corrigées en
+> 10.34.5 depuis le 2026-07-10 — suivi en [#452](https://github.com/Cimavia/cimavia/issues/452).
+
 ---
 
 ## Post-MVP — Session perdue et changement de compte côté web ([#336](https://github.com/Cimavia/cimavia/issues/336) · [#337](https://github.com/Cimavia/cimavia/issues/337) · [#341](https://github.com/Cimavia/cimavia/issues/341))
