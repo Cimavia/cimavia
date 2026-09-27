@@ -3825,6 +3825,24 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Découvert en chemin : **pnpm 10.34.4**, épinglé partout, a des failles HIGH corrigées en
 > 10.34.5 depuis le 2026-07-10 — suivi en [#452](https://github.com/Cimavia/cimavia/issues/452).
 
+> **Tranché en [#400](https://github.com/Cimavia/cimavia/issues/400)** (CodeQL) : le *default
+> setup* reste, sans workflow dans le dépôt. Aucun fichier ne le montre, d'où cet encadré :
+>
+> - **Réglages** : suite `default`, modèle de menace `remote`, langages `actions` et
+>   `javascript-typescript`, sur chaque PR, sur `main` et chaque semaine.
+> - **Pas d'*advanced setup*** : la première vague, 2 alertes sur 104 règles, était entièrement
+>   réelle (#385 pour la n°1, `check-i18n-keys.mjs` pour la n°2). Sans bruit, un `paths-ignore`
+>   n'a rien à retirer, et un workflow de plus serait à épingler et à relire par zizmor pour rien.
+>   **Déclencheur** : des alertes sur `dist/` ou du code généré, ou le besoin de requêtes maison.
+>   Avant d'en arriver là, essayer la suite `security-extended`, qui se règle dans l'interface.
+> - **Il alerte, il ne bloque pas** : pas de règle *code scanning* dans le ruleset `Main`, comme
+>   Trivy et zizmor.
+>
+> Écarts assumés : les règles de sécurité de SonarCloud font en partie doublon, et c'est accepté,
+> car les deux moteurs ne trouvent pas les mêmes failles (aucune de #293, #324 ou #352 n'avait été
+> vue par Sonar). CodeQL ne remplace pas les e2e d'isolation (règle dure n°1, #325) : il ne sait
+> pas ce qu'est un tenant.
+
 ---
 
 ## Post-MVP — Session perdue et changement de compte côté web ([#336](https://github.com/Cimavia/cimavia/issues/336) · [#337](https://github.com/Cimavia/cimavia/issues/337) · [#341](https://github.com/Cimavia/cimavia/issues/341))
