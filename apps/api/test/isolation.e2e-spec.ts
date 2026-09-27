@@ -2128,6 +2128,29 @@ describe("Médias de débrief (P4)", () => {
     expect(session.body.status).toBe("DONE");
   });
 
+  /**
+   * #313 : la suppression partait en cascade — débrief, médias en base, suivi — et laissait les
+   * objets dans le bucket, sans que l'athlète en sache rien. Elle est refusée, et ce test vérifie
+   * que RIEN n'a bougé : la séance, le débrief, la ligne du média ET l'objet lui-même.
+   */
+  it("refuse de supprimer une séance débriefée (409) : séance, débrief et objet restent", async () => {
+    const notificationsBefore = (await athleteA1.get("/me/notifications")).body.length;
+
+    const refused = await coachA.delete(`/scheduled-sessions/${sessionId}`);
+    expect(refused.status).toBe(409);
+    expect(refused.body.message).toContain("débriefée");
+
+    expect((await coachA.get(`/scheduled-sessions/${sessionId}`)).body.status).toBe("DONE");
+    const feedback = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    expect(feedback.status).toBe(200);
+    expect(feedback.body.media).toHaveLength(1);
+    // L'objet est toujours servi : l'URL signée ne prouve rien seule, le GET si.
+    expect((await fetch(feedback.body.media[0].url)).status).toBe(200);
+
+    // Rien n'a été retiré : aucune annonce de retrait ne doit partir vers l'athlète.
+    expect((await athleteA1.get("/me/notifications")).body).toHaveLength(notificationsBefore);
+  });
+
   // Débrief vocal (P5, CDC §4) : même flux que photo/vidéo, MediaType étendu à AUDIO.
   it("rattache une note vocale au débrief (durée conservée)", async () => {
     const storagePath = await upload(athleteA1, audio());
