@@ -26,8 +26,8 @@
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-# pnpm épinglé : cohérence avec le lockfile (le monorepo est en pnpm@10.34.4).
-RUN corepack enable && corepack prepare pnpm@10.34.4 --activate
+# pnpm épinglé : la même version que `packageManager` (`package.json` racine), à monter ensemble.
+RUN corepack enable && corepack prepare pnpm@10.34.5 --activate
 WORKDIR /app
 
 # ─────────────────────────────────────────────────────────────────────────────

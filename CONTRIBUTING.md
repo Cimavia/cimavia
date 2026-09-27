@@ -61,7 +61,7 @@ que la dernière publiée : Dependabot ne comprend pas les tags `RELEASE.…` et
   d'installation se fait là, une fois ;
 - les versions n'y sont pas écrites : pnpm vient de `packageManager` (`package.json` racine), Node
   de `.nvmrc`. Monter l'un ou l'autre, c'est changer ce fichier-là — et les `Dockerfile`, qui
-  épinglent encore `node:22`, `pnpm@10.34.4` et `turbo@2.10.0` à part ;
+  épinglent encore `node:22`, `pnpm@10.34.5` et `turbo@2.10.0` à part ;
 - chaque job porte un `timeout-minutes`, autour de trois fois sa durée observée, mesure en
   commentaire : sans lui, un job bloqué occupe un runner six heures ;
 - tous les jobs tournent sur `ubuntu-26.04`, épinglé : passer à une autre version d'Ubuntu est
@@ -213,6 +213,17 @@ les alertes de sécurité arrivent toujours) :
   seulement vers une version paire (LTS). Node 22 est maintenu jusqu'au 2027-04-30 : la montée
   vers 24 se fait avant, à la main.
 - **SILO et `mc`** : suivis par `mirror-images.yml` (voir *Images tierces*).
+- **pnpm lui-même** — pas par `ignore` : Dependabot ne lit pas le champ `packageManager`
+  (dependabot-core#4830). Et pnpm n'étant dans aucun lockfile, **aucune alerte de sécurité** ne
+  le couvre non plus : la 10.34.5, qui corrigeait trois failles HIGH, est restée deux mois et demi
+  sans que rien ne la signale (#452). À vérifier à la main, en restant sur la majeure en cours :
+
+  ```bash
+  npm view pnpm dist-tags.latest-10     # dernière 10.x publiée, à comparer à packageManager
+  ```
+
+  Une montée touche `packageManager` et `engines.pnpm` (`package.json` racine), les deux
+  `Dockerfile`, puis `CLAUDE.md` et le README ; `pnpm install` doit laisser le lockfile inchangé.
 
 Un sujet de commit Dependabot peut porter une majuscule que `subject-case` refuse : voir
 [Commits](#commits).
