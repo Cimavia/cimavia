@@ -1,0 +1,115 @@
+name: Sécurité — images et Dockerfiles (Trivy)
+
+# Deux passages de Trivy (#399), qui ALERTENT sans rien bloquer (`.github/actions/trivy-scan`) :
+#
+#   - la config : les Dockerfiles du dépôt, à chaque PR qui en touche un, et sur `main` ;
+#   - les images qui tournent sur le NAS, chaque semaine. Une faille paraît APRÈS le build, et
+#     l'image promue ne se reconstruit pas (#266) : sans ce passage, la faille publiée lundi
+#     resterait invisible jusqu'à la promotion suivante.
+#
+# Les images scannées sont celles qu'on construit ou qu'on recopie : l'API et le web tels que
+# promus, SILO et `mc` tels qu'épinglés. PostgreSQL et cloudflared n'y sont pas : leurs constats
+# (le Go embarqué de `gosu`, les modules de cloudflared) ne se corrigent qu'en montant l'image,
+# ce que Dependabot propose déjà — leur scan ne produirait que des alertes sans action possible.
+#
+# `trivy config` ne lit pas les composes : leur durcissement (utilisateur, capacités) n'est
+# vérifié par aucun outil.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/Dockerfile"
+      - ".trivyignore.yaml"
+      - ".github/actions/trivy-scan/**"
+      - ".github/workflows/trivy.yml"
+  # Sur `main` aussi : c'est là que Code scanning ferme les alertes qu'une PR a corrigées.
+  push:
+    branches: [main]
+    paths:
+      - "**/Dockerfile"
+      - ".trivyignore.yaml"
+      - ".github/actions/trivy-scan/**"
+      - ".github/workflows/trivy.yml"
+  schedule:
+    # Le lundi, après la copie hebdomadaire de SILO (`mirror-images.yml`, 6 h).
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: trivy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  config:
+    name: Trivy — Dockerfiles
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write # envoie le SARIF à Code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Analyse
+        uses: $/.github/actions/trivy-scan
+        with:
+          category: trivy-config
+
+  images:
+    name: Trivy — ${{ matrix.target }} sur le NAS
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read # l'API et le web sont privés
+      security-events: write # envoie le SARIF à Code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [api, web, silo, mc]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # L'API et le web : le tag `preview`, ce que le NAS tire. SILO et `mc` : la version qu'épingle
+      # le compose du NAS — celle de `main`, qui partira à la promotion suivante.
+      - name: Image à scanner
+        id: target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          case "$TARGET" in
+            api | web)
+              echo "image=ghcr.io/${owner}/cimavia-${TARGET}:preview" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              image="$(grep -oE "ghcr\.io/${owner}/${TARGET}:RELEASE\.[0-9TZ-]+" deploy/preview/docker-compose.yml | head -n1)"
+              if [[ -z "$image" ]]; then
+                echo "::error::Aucune image ${TARGET} épinglée dans deploy/preview/docker-compose.yml."
+                exit 1
+              fi
+              echo "image=${image}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      # Une catégorie par cible, sinon chaque scan fermerait les alertes des autres. Le web partage
+      # la sienne avec son scan de promotion : c'est la même image. L'API non — `main` a pu publier
+      # plus récent que `preview` —, d'où `trivy-api-preview`, distincte de `trivy-api`
+      # (`api-image.yml`).
+      - name: Analyse
+        uses: $/.github/actions/trivy-scan
+        with:
+          image: ${{ steps.target.outputs.image }}
+          registry-login: ${{ matrix.target == 'api' || matrix.target == 'web' }}
+          skip-dirs: ${{ matrix.target == 'api' && 'app/node_modules' || '' }}
+          category: trivy-${{ matrix.target == 'api' && 'api-preview' || matrix.target }}

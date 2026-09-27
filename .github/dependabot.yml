@@ -75,11 +75,14 @@ updates:
       - dependency-name: "react-dom"
 
   # Les images de base des deux Dockerfiles, épinglées par digest : Dependabot réécrit le digest
-  # quand le tag est reconstruit, et propose le tag suivant quand il en paraît un.
+  # quand le tag est reconstruit, et propose le tag suivant quand il en paraît un. Plus l'image de
+  # Trivy, que ce Dockerfile jamais construit n'existe que pour épingler (#399) : le `cooldown` y
+  # compte double, la version malveillante de mars 2026 a été retirée en quelques heures.
   - package-ecosystem: docker
     directories:
       - "/apps/api"
       - "/apps/web"
+      - "/.github/actions/trivy-scan"
     schedule:
       interval: weekly
     cooldown:
