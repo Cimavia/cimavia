@@ -6,7 +6,23 @@ import { SIGNUP_MODES } from "./util/signup.util";
 // pour les services pas encore configurés (Sentry, Axiom…).
 const emptyAsUndefined = (v: unknown) => (v === "" ? undefined : v);
 
-export const envSchema = z.object({
+/**
+ * Longueur minimale d'un secret de signature ou d'un secret partagé (#357). Better Auth se
+ * contente d'AVERTIR en dessous de 32 caractères : un secret d'un caractère démarrait, et signait
+ * les sessions avec une clé HMAC triviale. `openssl rand -base64 32`, la commande des `.env.example`,
+ * en produit 44.
+ */
+export const SECRET_MIN_LENGTH = 32;
+const SECRET_TOO_SHORT = `au moins ${SECRET_MIN_LENGTH} caractères — générer : openssl rand -base64 32`;
+
+/**
+ * Les tiers qui portent de vraies données et sont joignables publiquement : le NAS (`preview`,
+ * depuis #260) et la production. C'est là que l'API refuse de démarrer mal configurée — le
+ * développement local, lui, reste permissif (#357).
+ */
+const DEPLOYED_TIERS = ["preview", "production"] as const;
+
+const envShape = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_ENV: z.enum(["development", "preview", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -25,8 +41,9 @@ export const envSchema = z.object({
   APP_BUILD: z.preprocess(emptyAsUndefined, z.string().optional()),
   DATABASE_URL: z.url(),
   DIRECT_URL: z.preprocess(emptyAsUndefined, z.url().optional()),
-  // Better Auth : secret de signature (obligatoire) + URL publique de l'API (base des liens).
-  BETTER_AUTH_SECRET: z.string().min(1),
+  // Better Auth : secret de signature (obligatoire, 32 caractères au moins partout — #357) + URL
+  // publique de l'API (base des liens), en https sur un tier déployé : voir le `superRefine`.
+  BETTER_AUTH_SECRET: z.string().min(SECRET_MIN_LENGTH, SECRET_TOO_SHORT),
   BETTER_AUTH_URL: z.url(),
   // Origines supplémentaires de confiance pour Better Auth (IP LAN, tunnel ngrok/Expo…)
   // Format : "http://192.168.1.10:3000,https://abcd.ngrok.io"
@@ -74,9 +91,13 @@ export const envSchema = z.object({
   // Path-style (http://endpoint/bucket/…) requis par SILO, en local comme sur le NAS ;
   // virtual-hosted (défaut) pour Scaleway. "true" pour SILO, vide/"false" en prod.
   S3_FORCE_PATH_STYLE: z.preprocess(emptyAsUndefined, z.enum(["true", "false"]).optional()),
-  // Notifications push Expo. Aucun secret n'est requis pour envoyer : le token d'accès ne
-  // devient nécessaire que si l'on active « Enhanced Security » sur le compte Expo. Absent,
-  // les push partent quand même — d'où l'optionnalité (et non un fail-fast au boot).
+  /**
+   * Jeton d'accès Expo (robot `cimavia-push`), exigé à chaque envoi de push depuis que la sécurité
+   * renforcée est activée sur le compte (#357). Sans lui, Expo refuse TOUS les push, et l'échec ne
+   * se voit que dans les tickets — personne ne le remarquerait. D'où l'obligation au démarrage sur
+   * un tier déployé (`superRefine`) ; en développement il reste optionnel, un push local qui
+   * échoue ne gêne personne.
+   */
   EXPO_ACCESS_TOKEN: z.preprocess(emptyAsUndefined, z.string().optional()),
   /**
    * Secret partagé du déclencheur de rappels (#47). Le tick est appelé de l'EXTÉRIEUR — un cron
@@ -86,8 +107,14 @@ export const envSchema = z.object({
    * absence **ferme la route** (503), elle ne l'ouvre pas — jamais « pas de secret, pas de
    * contrôle ». La même valeur doit exister aux trois endroits : secrets GitHub Actions, `.env` du
    * NAS, env Scaleway.
+   *
+   * Posé, il fait 32 caractères au moins (#357) : un secret court se devine, et la garde a beau
+   * comparer en temps constant, elle ne protège pas une valeur qu'on peut énumérer.
    */
-  REMINDER_TICK_SECRET: z.preprocess(emptyAsUndefined, z.string().optional()),
+  REMINDER_TICK_SECRET: z.preprocess(
+    emptyAsUndefined,
+    z.string().min(SECRET_MIN_LENGTH, SECRET_TOO_SHORT).optional(),
+  ),
   /**
    * Envoi d'e-mails transactionnels (#62). Optionnel au boot comme les `S3_*` : l'API démarre
    * sans, tout le reste fonctionne, et rien ne part — l'absence est journalisée, jamais silencieuse.
@@ -118,6 +145,32 @@ export const envSchema = z.object({
    * classé indésirable.
    */
   WEB_URL: z.preprocess(emptyAsUndefined, z.url().optional()),
+});
+
+/**
+ * Ce qu'un tier DÉPLOYÉ exige en plus (#357). Le texte de l'issue ne visait que la production ; le
+ * NAS y est inclus parce qu'il porte les vraies données du Coach bêta et qu'il est joignable
+ * publiquement — ce qui y démarrerait mal configuré n'attendrait pas la production pour fuir.
+ */
+export const envSchema = envShape.superRefine((env, ctx) => {
+  if (!(DEPLOYED_TIERS as readonly string[]).includes(env.APP_ENV)) return;
+
+  // Better Auth retire `Secure` de ses cookies quand l'URL est en http : la session partirait
+  // en clair sur tout réseau intermédiaire.
+  if (!env.BETTER_AUTH_URL.startsWith("https://")) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["BETTER_AUTH_URL"],
+      message: `https exigé en ${env.APP_ENV} — en http, les cookies de session perdent Secure`,
+    });
+  }
+  if (env.EXPO_ACCESS_TOKEN === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["EXPO_ACCESS_TOKEN"],
+      message: `obligatoire en ${env.APP_ENV} — sans lui, Expo refuse tous les push`,
+    });
+  }
 });
 
 export type EnvSchema = z.infer<typeof envSchema>;
