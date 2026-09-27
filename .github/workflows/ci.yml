@@ -229,7 +229,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Le cache de `main` est LU, jamais écrit (`cache-to` absent) : une PR ne doit pas pouvoir
-      # empoisonner les couches que `api-image.yml` et la promotion réutilisent. Chaque image lit
+      # empoisonner les couches que `api-image.yml` et `web-image.yml` réutilisent. Chaque image lit
       # son scope. `cacheonly` : rien n'est chargé ni poussé, seul le succès du build compte.
       - name: Build de l'image API
         if: steps.changes.outputs.api == 'true'
@@ -243,7 +243,9 @@ jobs:
           cache-from: type=gha,scope=api
 
       # Sans build-args : les défauts du Dockerfile suffisent à prouver que le bundle se construit.
-      # Sans jeton Sentry, les sourcemaps ne partent simplement pas.
+      # Sans jeton Sentry, les sourcemaps ne partent simplement pas. La config du tier n'est plus un
+      # argument de build (#417) : elle est lue au démarrage, ce que ce job ne fait pas —
+      # `web-image.yml` la démarre après le merge, sur `main`.
       - name: Build de l'image web
         if: steps.changes.outputs.web == 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0

@@ -8,12 +8,9 @@ name: Images — API (GHCR)
 # verts. Un test rouge ne bloque donc pas la publication d'une image : il bloque son envoi chez le
 # Coach.
 #
-# L'image WEB ne se construit plus ici. Elle fige l'URL de l'API au build et se reconstruit par tier,
-# depuis le tag de la version, au moment de la promotion (#186). La construire aussi sur `main` ne
-# servait plus personne, et aurait téléversé ses sourcemaps sous le même nom de release Sentry que
-# le build de promotion.
-#
-# Le nom du fichier suit encore l'ancien rôle : son renommage appartient à #271.
+# L'image WEB a son propre workflow, `web-image.yml`, sur le même modèle (#417) : les deux images
+# reçoivent leur numéro sur le même commit de bump (`.github/actions/product-version`), et la
+# promotion retague les deux.
 
 # `concurrency-limits` écarté : l'absence de `concurrency` est voulue, voir plus bas.
 on: # zizmor: ignore[concurrency-limits]
