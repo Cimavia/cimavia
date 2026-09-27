@@ -247,7 +247,7 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
 - `SENTRY_ORG` — le slug de l'organisation Sentry.
 - `SENTRY_PROJECT_WEB` — `cimavia-web`.
 
-**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il est dans `apps/mobile/eas.json`, les builds EAS partant du poste de développement et non d'un workflow.
+**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il vit dans les environnements EAS (#287), les builds EAS partant du poste de développement et non d'un workflow.
 
 ## Identifiants de build mobile
 
@@ -283,8 +283,8 @@ cette liste — sinon elle échoue en silence.
 service, et elle vaut pour les trois app ids d'un même compte Apple. Là où Firebase exige un client
 déclaré par variante, Apple n'exige rien de tel.
 
-`EXPO_ACCESS_TOKEN` reste optionnel des deux côtés. `SENTRY_AUTH_TOKEN`, lui, est posé en secret
-EAS (`eas secret:create --scope project`) et non dans `eas.json`, qui est versionné.
+`EXPO_ACCESS_TOKEN` reste optionnel des deux côtés. `SENTRY_AUTH_TOKEN`, lui, est une variable de
+visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json`, qui est versionné.
 
 ## Observabilité
 
@@ -309,7 +309,7 @@ EAS (`eas secret:create --scope project`) et non dans `eas.json`, qui est versio
 - Init dans `apps/mobile/shared/lib/sentry.ts`, importé en side-effect en tête de `app/_layout.tsx` — même forme que `notification.ts` et `audio.ts`.
 - Écran de repli : export nommé `ErrorBoundary` depuis `app/_layout.tsx` (mécanisme natif d'expo-router, pas un boundary maison) → `CmvCrashScreen`. Il enveloppe le layout ENTIER, providers compris — un boundary posé autour du seul `<Stack>` serait resté à l'intérieur des quatre providers du layout.
 - Identité : `useSentryUser()` appelé dans `RootLayout`, l'`id` du compte seul, effacé à la déconnexion — l'effacement compte plus qu'au web, la session mobile survivant à la fermeture de l'app (`expo-secure-store`).
-- Variables : `EXPO_PUBLIC_SENTRY_DSN`, inlinée dans le bundle par Metro — pas un secret, déclarée par profil dans `eas.json` comme `EXPO_PUBLIC_API_URL`. L'environnement, lui, ne se déclare PAS en variable : il vient d'`APP_VARIANT` via `extra.appVariant` (`app.config.ts`), relu par `expo-constants` — `process.env.APP_VARIANT` est invisible à l'exécution, Metro n'inlinant que les variables `EXPO_PUBLIC_`.
-- Sourcemaps Hermes : téléversées automatiquement par le plugin `@sentry/react-native/expo` (organisation et projet déclarés dans `app.json` → `expo.plugins`, pas des secrets) au build EAS. Le jeton n'y figure JAMAIS — `eas.json` est versionné — il vient de `SENTRY_AUTH_TOKEN` posé en **secret EAS** (`eas secret:create --name SENTRY_AUTH_TOKEN --scope project`), lu automatiquement en son absence de la config du plugin.
+- Variables : `EXPO_PUBLIC_SENTRY_DSN`, inlinée dans le bundle par Metro — pas un secret, déclarée dans chaque environnement EAS comme `EXPO_PUBLIC_API_URL` (#287). L'environnement, lui, ne se déclare PAS en variable : il vient d'`APP_VARIANT` via `extra.appVariant` (`app.config.ts`), relu par `expo-constants` — `process.env.APP_VARIANT` est invisible à l'exécution, Metro n'inlinant que les variables `EXPO_PUBLIC_`.
+- Sourcemaps Hermes : téléversées automatiquement par le plugin `@sentry/react-native/expo` (organisation et projet déclarés dans `app.json` → `expo.plugins`, pas des secrets) au build EAS. Le jeton n'y figure JAMAIS — `eas.json` est versionné — il vient de `SENTRY_AUTH_TOKEN`, variable de visibilité **secret** des environnements EAS, lue automatiquement en son absence de la config du plugin.
 - Vitest : `@sentry/react-native` importe des modules natifs, mocké dans `test/setup.ts` pour tous les tests — même garantie que l'`AsyncStorage` qui y est déjà mocké.
 - `@sentry/cli` est une **dépendance directe du mobile qu'aucun code n'importe** : `sentry.gradle` l'invoque par le chemin en dur `apps/mobile/node_modules/@sentry/cli/bin/sentry-cli`, que pnpm ne crée que pour une dépendance déclarée. Sa version suit celle qu'exige `@sentry/react-native`, jamais autre chose (dette O-2).
