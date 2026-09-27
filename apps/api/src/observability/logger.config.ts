@@ -33,10 +33,13 @@ export function buildLogTargets(): TransportTargetOptions[] {
  *
  * Les sérialiseurs par défaut recopiaient tous les en-têtes : le cookie de session Better Auth,
  * rejouable sept jours, à chaque requête authentifiée ; `authorization` ; le secret du tick de
- * rappels ; et, en réponse, le `set-cookie` de la connexion et le `location` de la redirection de
- * réinitialisation, qui porte le jeton en clair. Un `redact` sur ces chemins aurait laissé passer
- * le prochain en-tête sensible, et il ne sait pas réécrire une partie de l'URL — or le jeton du
- * lien de réinitialisation et celui d'un appareil sont DANS le chemin.
+ * rappels. Un `redact` sur ces chemins aurait laissé passer le prochain en-tête sensible, et il ne
+ * sait pas réécrire une partie de l'URL — or le jeton d'un appareil est DANS le chemin.
+ *
+ * Les routes `/api/auth/*` n'arrivent JAMAIS ici : Better Auth est branché directement sur
+ * Fastify (`httpAdapter.use`), avant les middlewares de Nest, et répond sans passer la main. Ni la
+ * connexion, ni le lien de réinitialisation, ni leurs `set-cookie` et `location` n'ont donc été
+ * journalisés. La liste blanche les couvrirait le jour où ils le seraient.
  *
  * Partent aussi : l'adresse et le port distants, donnée personnelle qu'aucun diagnostic n'a
  * demandée ; `query` et `params`, qui répètent l'URL AVANT blanchiment — `params.token` sur la
