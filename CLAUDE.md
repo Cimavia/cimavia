@@ -30,13 +30,13 @@ packages/
   tsconfig/   # @cmv/tsconfig — configs TS de base
 ```
 
-Outils : **Turborepo + pnpm** (`pnpm@10.34.4`). Lint/format **Biome** (`2.5.1`, pas ESLint/Prettier). Tests **Vitest** (`4.1.11`). Hooks **Husky + commitlint** — Conventional Commits, **sujet en minuscule**. CI : GitHub Actions + **SonarCloud** (les 3 couches analysées, web et mobile inclus). Observabilité : **Pino → Axiom** + **Sentry** sur les 3 couches.
+Outils : **Turborepo + pnpm** (`pnpm@10.34.5`). Lint/format **Biome** (`2.5.1`, pas ESLint/Prettier). Tests **Vitest** (`4.1.11`). Hooks **Husky + commitlint** — Conventional Commits, **sujet en minuscule**. CI : GitHub Actions + **SonarCloud** (les 3 couches analysées, web et mobile inclus). Observabilité : **Pino → Axiom** + **Sentry** sur les 3 couches.
 
 ## Stack & versions (épinglées P0)
 
 | Couche | Choix | Version épinglée |
 |---|---|---|
-| Runtime / Package manager | Node.js / pnpm | `≥22` / `10.34.4` |
+| Runtime / Package manager | Node.js / pnpm | `≥22` / `10.34.5` |
 | Monorepo | Turborepo | `2.10.0` |
 | TypeScript | strict partout | `6.0.3` (^6.0) |
 | Lint/format | Biome | `2.5.1` |

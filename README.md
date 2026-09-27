@@ -16,7 +16,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 ## Prérequis
 
 - Node.js ≥ 22
-- pnpm 10.34.4 (`corepack enable && corepack use pnpm@10.34.4`)
+- pnpm 10.34.5 (`corepack enable && corepack use pnpm@10.34.5`)
 - Docker (pour PostgreSQL, SILO — object storage S3-compatible, fork maintenu de MinIO — et Mailpit — serveur SMTP local)
 - Pour le mobile sur **appareil physique** uniquement (débrief, médias, push) : compte
   [Expo](https://expo.dev) + `eas-cli`, un projet Firebase pour les notifications Android, et une

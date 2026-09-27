@@ -4,9 +4,9 @@
   "version": "1.6.2",
   "engines": {
     "node": ">=22.0.0",
-    "pnpm": ">=10.34.4"
+    "pnpm": ">=10.34.5"
   },
-  "packageManager": "pnpm@10.34.4",
+  "packageManager": "pnpm@10.34.5",
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json}": [
       "biome check --write --no-errors-on-unmatched"
