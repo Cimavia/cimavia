@@ -161,8 +161,9 @@ jobs:
       # L'environnement de production minimal, sans aucun identifiant réel : la base est celle du
       # compose ci-dessus, dont les identifiants sont LUS plutôt que recopiés — le compose reste leur
       # seule source, et le smoke suit s'il change. Le secret est factice, et l'URL publique ne se résout pas — l'API ne
-      # l'appelle jamais au démarrage. Valeurs déjà conformes au durcissement prévu par #357
-      # (secret de 32 caractères au moins, URL en https). `SIGNUP_MODE` n'a pas de défaut (#263) :
+      # l'appelle jamais au démarrage. Valeurs conformes à ce que #357 exige d'un tier déployé :
+      # secret de 32 caractères au moins, URL en https, et un jeton Expo — factice lui aussi, Expo
+      # n'étant appelé qu'à l'envoi d'un push. `SIGNUP_MODE` n'a pas de défaut (#263) :
       # absente, l'API refuserait de démarrer, et le smoke rougirait pour une raison qui n'est pas
       # l'image.
       #
@@ -177,6 +178,7 @@ jobs:
           APP_ENV: preview
           BETTER_AUTH_SECRET: smoke-test-secret-not-for-production-0123456789
           BETTER_AUTH_URL: https://api.example.invalid
+          EXPO_ACCESS_TOKEN: smoke-test-expo-token-not-for-production
           SIGNUP_MODE: invitation
         run: |
           pg="$(docker compose -f apps/api/docker-compose.test.yml config --format json \
@@ -187,7 +189,7 @@ jobs:
           export DATABASE_URL="postgresql://${user}:${password}@localhost:5434/${db}?schema=public"
           docker run -d --name cimavia-smoke --network host --health-interval 3s \
             -e NODE_ENV -e APP_ENV -e DATABASE_URL -e BETTER_AUTH_SECRET -e BETTER_AUTH_URL \
-            -e SIGNUP_MODE \
+            -e EXPO_ACCESS_TOKEN -e SIGNUP_MODE \
             "$IMAGE"
 
       # `healthy` est la sonde de l'image (liveness, `/health`). Un conteneur arrêté ou `unhealthy`
