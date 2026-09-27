@@ -75,7 +75,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~P4-3~~ | ~~**Vol de token push possible**~~ : `POST /me/push-tokens` réaffectait au compte courant un token déjà enregistré. | ✅ | résolue en [#90](https://github.com/Cimavia/cimavia/issues/90) — un **secret d'installation**, émis par l'API et gardé en `expo-secure-store`, conditionne la réaffectation |
 | P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo dans le lecteur système depuis **#151**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
 | P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
-| ~~P2-1~~ / ~~P3-2~~ | *(inchangées)* P4 n'ajoute **aucun** nouveau cas : un média de débrief n'est jamais copié ni partagé, sa suppression purge l'objet directement. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : un média de débrief n'est jamais copié ni partagé, et son **retrait** par l'athlète purge l'objet — mais la **disparition de sa séance** cascade débrief et médias en base sans toucher au bucket. Fermé pour la séance seule en [#313](https://github.com/Cimavia/cimavia/issues/313) (409) ; la suppression d'une semaine ou d'un cycle **diffusé** l'emporte encore. **Rectifié en #313** : cette ligne disait « P4 n'ajoute aucun nouveau cas ». | 🟡 | [#312](https://github.com/Cimavia/cimavia/issues/312) · [#85](https://github.com/Cimavia/cimavia/issues/85) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 > **Résolu en P4** : ~~P3-1~~ (push non envoyé) — `expo-server-sdk` est branché dans
 > `NotificationService`, sans que les appelants aient bougé. ~~P3-6~~ côté débriefs — la tuile
@@ -175,7 +175,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | ~~P6-1~~ | ~~**Astérisques d'obligation partiels**~~ : la ligne datait, et disait « seul le formulaire de facturation » alors que quatre autres surfaces avaient reçu `requiredMark` entre-temps. | ✅ | résolue en [#97](https://github.com/Cimavia/cimavia/issues/97) — le repère suit désormais une règle écrite, et non l'ordre d'arrivée des écrans |
 | P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
-| P6-3 | **Suppression d'un cycle diffusé bloquée côté UI seulement** : `DELETE /plans/:id` accepterait encore un `PUBLISHED`, et effacerait sa facture émise. | 🟡 | [#85](https://github.com/Cimavia/cimavia/issues/85) |
+| P6-3 | **Suppression d'un cycle diffusé bloquée côté UI seulement** : `DELETE /plans/:id` accepterait encore un `PUBLISHED`, et effacerait sa facture émise — ainsi que les débriefs de ses séances et leurs médias, laissés orphelins dans le bucket (#313). | 🟡 | [#85](https://github.com/Cimavia/cimavia/issues/85) |
 
 ---
 
@@ -4067,6 +4067,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > découpé, testée en e2e, et la ressource visée existe bien — c'est la clé qui n'est pas à
 > l'appelant. Dans `FeedbackMediaService.attach`, la garde passe AVANT `getOrCreateWritable` : un
 > refus ne crée pas de débrief et ne passe pas la séance en DONE.
+
+---
+
+## Post-MVP — Séance débriefée ([#313](https://github.com/Cimavia/cimavia/issues/313))
+
+> **Tranché en [#313](https://github.com/Cimavia/cimavia/issues/313)** (une séance débriefée se
+> refuse à la suppression, on ne purge pas) : `DELETE /scheduled-sessions/:id` cascadait le débrief
+> de l'athlète, ses médias en base et son suivi d'exécution, sans rien purger du bucket et sans
+> qu'il en sache rien. Deux voies : refuser, ou supprimer en purgeant. **Refuser**, parce que :
+>
+> - **la purge ne tient pas dans la transaction** — le storage n'en fait pas partie, elle ne
+>   pourrait venir qu'après le commit, au mieux, et un échec redonnerait l'orphelin de #72 ;
+> - **le débrief n'est pas au coach** : il emporterait aussi le suivi d'exécution (#168) et le
+>   contexte des messages qui y répondent (`sessionFeedbackId` en `SetNull`) ;
+> - **corriger un cycle n'en a pas besoin** : l'édition garde le suivi et le débrief.
+>
+> La garde porte sur `status = DONE`, pas sur l'existence d'une ligne `SessionFeedback`, et elle
+> vit DANS le `deleteMany` plutôt que dans une lecture préalable. `DONE` n'est posé que dans la
+> transaction qui crée le débrief, qui ne se supprime jamais : les deux disent la même chose. Mais
+> un débrief créé au même instant met à jour la ligne de séance, et Postgres revérifie la condition
+> sur cette ligne avant de la supprimer ; une lecture séparée laisserait passer ce cas.
+>
+> Le web grise le bouton avec la raison, et annonce « l'athlète sera prévenu » avant de retirer
+> une séance d'un cycle diffusé — c'est le seul effet de bord qu'une suppression permise garde.
+> Semaine et cycle diffusés restent à [#312](https://github.com/Cimavia/cimavia/issues/312) et
+> [#85](https://github.com/Cimavia/cimavia/issues/85) : leur règle est plus large (plus aucune
+> suppression sur un cycle diffusé, débriefé ou non).
 
 ---
 

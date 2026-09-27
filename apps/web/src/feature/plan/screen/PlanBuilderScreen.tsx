@@ -275,6 +275,7 @@ export function PlanBuilderScreen() {
       {isPanelReady && edit != null ? (
         <ScheduledSessionPanel
           planId={planId}
+          isPublished={isPublished}
           week={edit.week}
           date={edit.date}
           session={panelSession}
