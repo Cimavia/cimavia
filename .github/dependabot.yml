@@ -97,6 +97,13 @@ updates:
         update-types: [minor, patch]
         patterns:
           - "*"
+    ignore:
+      # Une majeure de node ne se fait pas par un bump d'image : `.nvmrc` (la CI et les postes),
+      # `engines` et les deux Dockerfiles avancent ensemble, vers une version PAIRE — les
+      # impaires n'ont pas de support long (#450 et #451 proposaient node 25). Les digests de la
+      # majeure en cours, eux, continuent d'arriver.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker-compose
     directories:
