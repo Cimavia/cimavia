@@ -58,28 +58,30 @@ export function PlanBuilderActions({
   // facturation manque d'abord de quelqu'un à qui parler, pas d'un montant.
   const billingBlocks = requiresBilling && !isBillingFilled;
   const publishBlockedTitle = publishBlockedKey(isPublished, hasAthlete, billingBlocks);
+  const deleteBlocked = isPublished
+    ? { disabledReason: t("plan.builder.deleteDisabledPublished") }
+    : {};
 
   return (
     <>
       {/* Un cycle diffusé ne se supprime pas : sa facture est émise et l'athlète s'entraîne dessus.
-          Info-bulle sur un span (le `title` d'un bouton désactivé ne s'affiche pas partout). */}
-      <span title={isPublished ? t("plan.builder.deleteDisabledPublished") : undefined}>
-        <CmvConfirmButton
-          label={t("plan.builder.delete")}
-          confirmLabel={t("common.confirmDelete")}
-          cancelLabel={t("common.cancel")}
-          disabled={isBusy || isPublished}
-          onConfirm={() =>
-            removePlan.mutate(planId, {
-              onSuccess: () =>
-                navigate({
-                  to: "/plans",
-                  search: { q: undefined, state: undefined, athlete: undefined },
-                }),
-            })
-          }
-        />
-      </span>
+          Le span qui portait la raison restait muet : le bouton y posait son propre `title`. */}
+      <CmvConfirmButton
+        label={t("plan.builder.delete")}
+        confirmLabel={t("common.confirmDelete")}
+        cancelLabel={t("common.cancel")}
+        disabled={isBusy}
+        {...deleteBlocked}
+        onConfirm={() =>
+          removePlan.mutate(planId, {
+            onSuccess: () =>
+              navigate({
+                to: "/plans",
+                search: { q: undefined, state: undefined, athlete: undefined },
+              }),
+          })
+        }
+      />
 
       {/* La diffusion est irréversible et exige au moins une semaine ET une facturation saisie
           (l'API refuse sinon). Info-bulle sur un span : un bouton désactivé ne déclenche pas

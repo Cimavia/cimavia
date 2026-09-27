@@ -99,6 +99,15 @@ describe("PlanBuilderActions — diffuser", () => {
     expect(remove.mock.calls[0]?.[0]).toBe("pln_1");
   });
 
+  // La raison était posée, mais muette : le bouton la masquait sous son propre `title` (#313).
+  it("ferme la suppression d'un cycle diffusé, et dit pourquoi", async () => {
+    const { getByText, getByTitle } = await mount({ isPublished: true });
+
+    const button = getByText("plan.builder.delete").closest("button");
+    expect(button).toBeDisabled();
+    expect(getByTitle("plan.builder.deleteDisabledPublished")).toContainElement(button);
+  });
+
   // Un cycle auto-coaché ne se facture pas (#14) : le verrou de facturation n'a pas à s'y appliquer.
   it("ne réclame pas de facturation sur un cycle écrit pour soi", async () => {
     const { getByText } = await mount({ isBillingFilled: false, requiresBilling: false });
