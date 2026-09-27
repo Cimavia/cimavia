@@ -1,24 +1,11 @@
+import { redactUrlSecrets } from "@cmv/shared";
 import type { Breadcrumb, ErrorEvent } from "@sentry/react";
 
-/**
- * Ce qu'un événement Sentry ne doit JAMAIS emporter d'une URL (#335).
- *
- * `httpContextIntegration`, intégration PAR DÉFAUT du SDK navigateur, écrit `location.href` dans
- * `event.request.url` sur tout événement — `sendDefaultPii` n'y change rien, il ne joue que sur
- * l'IP. Or `/reset-password?token=…` porte de quoi prendre le contrôle d'un compte, et une URL
- * signée (`X-Amz-Signature`) de quoi lire ou écrire un média sans être connecté. `code` est
- * défensif : aucune route ne le porte aujourd'hui, c'est le nom qu'un futur lien magique prendrait.
- *
- * Le NOM du paramètre reste, seule sa valeur part : un événement qui dit « il y avait un jeton »
- * se diagnostique mieux qu'une URL tronquée.
- */
-const SECRET_PARAM = /([?&](?:token|code|x-amz-signature)=)[^&#\s]*/gi;
-
-export const FILTERED = "[Filtered]";
-
-export function redactUrlSecrets(text: string): string {
-  return text.replace(SECRET_PARAM, `$1${FILTERED}`);
-}
+// Ce qu'une URL ne doit pas emporter — jeton de réinitialisation, signature S3 — vit dans
+// `@cmv/shared` depuis #433 : l'API blanchit ses journaux et ses événements avec la même liste.
+// Ici, le seul problème propre au navigateur : `httpContextIntegration`, intégration PAR DÉFAUT,
+// écrit `location.href` dans `event.request.url` sur tout événement, et `sendDefaultPii` n'y
+// change rien — il ne joue que sur l'IP (#335).
 
 /**
  * Les champs d'un fil d'Ariane qui portent une URL : `url` pour fetch/XHR (les PUT signés de
