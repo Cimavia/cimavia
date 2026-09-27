@@ -1880,6 +1880,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > une personne. L'**API reste en `sendDefaultPii: true`** et envoie IP et en-têtes : l'asymétrie est
 > assumée plutôt que corrigée en passant, changer ce réglage modifierait ce qu'on capture sur une
 > couche qui marche, sans qu'aucun incident ne le demande.
+> *Amendé en #433* : l'API garde `sendDefaultPii: true`, mais ni cookies, ni en-têtes secrets, ni
+> corps de requête — voir plus bas.
 
 > **Tranché en #183** (pas de Session Replay, `tracesSampleRate: 0`) : le Replay filmerait l'écran
 > d'un coach, donc des données d'athlètes, pour un gain que l'écran de repli et la stack couvrent
@@ -1917,11 +1919,42 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Le test lit l'événement émis, pas l'option** : le vrai SDK tourne, seul le transport est
 >   remplacé. Lire `sendDefaultPii: false` est précisément ce qui avait laissé passer la fuite.
 >
-> Hors de ce périmètre : la même famille côté API — Pino qui journalise cookies et jetons de
-> chemin, Sentry qui capture le corps des requêtes d'authentification — est en
-> [#433](https://github.com/Cimavia/cimavia/issues/433). Le mobile n'a pas d'écran de
-> réinitialisation et envoie ses médias par `File.upload` (natif, sans fil d'Ariane) ; ses fils
+> Hors de ce périmètre : la même famille côté API, traitée en
+> [#433](https://github.com/Cimavia/cimavia/issues/433) (encadré suivant). Le mobile n'a pas d'écran
+> de réinitialisation et envoie ses médias par `File.upload` (natif, sans fil d'Ariane) ; ses fils
 > d'Ariane par défaut n'ont pas été relus.
+
+> **Tranché en #433** (ce que l'API écrit dans ses journaux et envoie à Sentry — ferme aussi
+> [#294](https://github.com/Cimavia/cimavia/issues/294)) : Pino recopiait tous les en-têtes, à
+> chaque requête — cookie de session Better Auth rejouable sept jours, `authorization`, secret du
+> tick, `set-cookie`, et le `location` de la redirection de réinitialisation, jeton compris. Sentry
+> y ajoutait le corps des requêtes, mot de passe de connexion compris, **sans qu'aucune erreur ne
+> soit levée** : une transaction échantillonnée emporte la même requête qu'une erreur. Relevé en
+> faisant tourner le vrai SDK, pas en lisant ses options. Quatre décisions :
+> - **Une liste blanche pour Pino, pas un `redact`** (`observability/logger.config.ts`) : `req` se
+>   réduit à `id`, `method` et l'URL blanchie, `res` à `statusCode`. Un `redact` aurait laissé
+>   passer le prochain en-tête sensible, et ne sait pas réécrire une partie de l'URL — or deux
+>   jetons sont DANS le chemin. L'IP, `query` et `params` partent avec.
+> - **Une seule liste de secrets d'URL** (`redactUrlSecrets`, `@cmv/shared`), pour le web, les
+>   journaux et Sentry : les paramètres `token`, `code`, `X-Amz-Signature`, et les segments
+>   `/reset-password/<jeton>` (le lien de l'e-mail, qui arrive sur l'API) et
+>   `/push-tokens/<jeton>`. Ce dernier est un secret tant que la sécurité renforcée des push n'est
+>   pas activée sur le compte Expo — elle ne l'est pas : le jeton suffit à pousser vers l'appareil.
+> - **Le corps n'est jamais lu, sur aucune route** (`maxIncomingRequestBodySize: "none"`), plutôt
+>   qu'une exception pour `/api/auth/*` : hors authentification, il porte aussi le code d'une
+>   invitation et le texte d'un débrief, et une liste d'exceptions s'oublie à la prochaine route
+>   sensible. Une 500 se rejoue avec sa stack, sans son corps.
+> - **`beforeSend` ET `beforeSendTransaction`** (`observability/sentry-scrub.ts`) retirent cookies,
+>   `authorization`, secret du tick et `set-cookie` — en-têtes de l'événement comme attributs de
+>   span — et blanchissent tout ce qui porte une URL : nom de transaction, `http.target`,
+>   `url.full`, `referer`, fils d'Ariane. `sendDefaultPii: true` reste (#183) : IP et autres
+>   en-têtes partent toujours.
+>
+> Ce qui avait déjà fui n'a pas été purgé : Axiom n'a jamais reçu de journaux (`AXIOM_TOKEN` vide
+> sur le NAS), et les journaux Docker du NAS, que seul son administrateur lit, disparaissent avec le
+> conteneur au déploiement suivant. Les sessions en cours n'ont donc pas été invalidées. Côté
+> Sentry, le nettoyage serveur par défaut du projet (« Data Scrubber ») masque les clés comme
+> `password` ou `cookie` : les événements antérieurs se vérifient et se suppriment à la main.
 
 ---
 

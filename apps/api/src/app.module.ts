@@ -6,7 +6,6 @@ import { SentryModule } from "@sentry/nestjs/setup";
 import { AuthModule as BetterAuthModule } from "@thallesp/nestjs-better-auth";
 import { ClsModule } from "nestjs-cls";
 import { LoggerModule } from "nestjs-pino";
-import type { TransportTargetOptions } from "pino";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
 import { CapabilityModule } from "./auth/capability.module";
@@ -25,38 +24,13 @@ import { PrismaService } from "./infra/prisma/prisma.service";
 import { InvoiceModule } from "./invoice/invoice.module";
 import { MessageModule } from "./message/message.module";
 import { NotificationModule } from "./notification/notification.module";
+import { loggerOptions } from "./observability/logger.config";
 import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
 import { PlanModule } from "./plan/plan.module";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
 import { TenancyModule } from "./tenancy/tenancy.module";
 import { VersionModule } from "./version/version.module";
-
-/**
- * Cibles de transport pino :
- * - console : JSON brut en prod (capté par l'hébergeur), pino-pretty en dev ;
- * - Axiom : activé dès que AXIOM_TOKEN + AXIOM_DATASET sont fournis (logs structurés distants).
- */
-function buildLogTargets(): TransportTargetOptions[] {
-  const isProd = process.env.NODE_ENV === "production";
-  const targets: TransportTargetOptions[] = [
-    isProd
-      ? { target: "pino/file", options: { destination: 1 } }
-      : { target: "pino-pretty", options: { colorize: true } },
-  ];
-
-  if (process.env.AXIOM_TOKEN && process.env.AXIOM_DATASET) {
-    targets.push({
-      target: "@axiomhq/pino",
-      options: {
-        dataset: process.env.AXIOM_DATASET,
-        token: process.env.AXIOM_TOKEN,
-      },
-    });
-  }
-
-  return targets;
-}
 
 @Module({
   imports: [
@@ -67,13 +41,7 @@ function buildLogTargets(): TransportTargetOptions[] {
       validate: validateEnv,
     }),
     ClsModule.forRoot({ global: true, middleware: { mount: true } }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        level: process.env.NODE_ENV === "production" ? "info" : "debug",
-        transport: { targets: buildLogTargets() },
-        autoLogging: true,
-      },
-    }),
+    LoggerModule.forRoot({ pinoHttp: loggerOptions() }),
     PrismaModule,
     BetterAuthModule.forRootAsync({
       // `imports` et non un MailModule global : `PrismaService` arrive ici parce que PrismaModule

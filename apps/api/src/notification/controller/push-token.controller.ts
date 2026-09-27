@@ -16,8 +16,10 @@ export class PushTokenController {
     return this.tokens.register(dto);
   }
 
-  // Révocation à la déconnexion. Le token vit dans l'URL : il n'est pas secret (c'est une
-  // adresse de livraison), et le scope tenant garantit qu'on ne révoque que les siens.
+  // Révocation à la déconnexion. Le token vit dans l'URL, et il EST un secret : la sécurité
+  // renforcée des push n'est pas activée sur le compte Expo, si bien que le connaître suffit à
+  // pousser une notification vers l'appareil. D'où son blanchiment dans les journaux et dans Sentry
+  // (`redactUrlSecrets`, #433). Le scope tenant garantit qu'on ne révoque que les siens.
   @Delete(":token")
   @HttpCode(204)
   revoke(@Param("token") token: string) {
