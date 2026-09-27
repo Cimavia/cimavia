@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type {
   AbortMultipartUploadInput,
   AttachFeedbackMediaInput,
@@ -9,14 +8,9 @@ import type {
   RequestFeedbackUploadUrlInput,
 } from "@cmv/shared";
 import { MediaType, maxFeedbackMediaCount } from "@cmv/shared";
-import {
-  ConflictException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { FeedbackAnnouncerService } from "../../message/service/feedback-announcer.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
@@ -32,7 +26,8 @@ import { FeedbackService } from "./feedback.service";
  *
  * Différence avec un document : un média n'est JAMAIS copié ni partagé (une planif copie les
  * documents du coach en partageant leur clé objet ; un débrief appartient à l'athlète seul). Sa
- * clé n'appartient donc qu'à lui, et sa suppression purge l'objet sans garde de comptage.
+ * clé n'appartient donc qu'à lui, et sa suppression purge l'objet sans garde de comptage — ce qui
+ * n'est vrai que parce que le rattachement refuse toute clé hors de la séance (`assertOwnedKey`).
  */
 @Injectable()
 export class FeedbackMediaService {
@@ -87,19 +82,16 @@ export class FeedbackMediaService {
   }
 
   /**
-   * Le `storagePath` de la clôture vient du CLIENT — c'est la seule entrée de ce module qui
-   * désigne un objet du bucket sans être construite par nous. Sans cette garde, un athlète
-   * pourrait clore (ou abandonner) un upload visant n'importe quelle clé, y compris hors de son
-   * périmètre : le tenancy guard protège la base, pas le storage.
+   * Le `storagePath` vient du CLIENT, à la clôture comme au rattachement : sans cette garde, un
+   * athlète pourrait viser n'importe quelle clé du bucket, y compris hors de son périmètre — le
+   * tenancy guard protège la base, pas le storage (#293).
    *
    * On le confronte donc au préfixe que `buildMediaKey` aurait produit pour CETTE séance, dont
    * l'athlète est résolu côté serveur — jamais lu dans la requête.
    */
   private async assertOwnedKey(scheduledSessionId: string, storagePath: string): Promise<void> {
     const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
-    if (!storagePath.startsWith(mediaKeyPrefix(session.athleteId, scheduledSessionId))) {
-      throw new ForbiddenException("Ce chemin de storage n'appartient pas à cette séance");
-    }
+    assertKeyUnder(mediaKeyPrefix(session.athleteId, scheduledSessionId), storagePath);
   }
 
   /**
@@ -110,6 +102,8 @@ export class FeedbackMediaService {
     scheduledSessionId: string,
     input: AttachFeedbackMediaInput,
   ): Promise<FeedbackMediaDto> {
+    // AVANT de créer le débrief : un rattachement refusé ne doit pas passer la séance en DONE.
+    await this.assertOwnedKey(scheduledSessionId, input.storagePath);
     const feedback = await this.feedback.getOrCreateWritable(scheduledSessionId);
     // Revérifié après l'upload : entre la demande d'URL et le rattachement, l'athlète a pu en
     // attacher d'autres depuis un second appareil.
@@ -182,9 +176,7 @@ function mediaKeyPrefix(athleteId: string, scheduledSessionId: string): string {
   return `athlete/${athleteId}/feedback/${scheduledSessionId}/`;
 }
 
-// Clé objet : segmentée par athlète puis séance, préfixe UUID contre les collisions de noms.
-// Le nom de fichier est assaini (caractères sûrs uniquement), comme pour les documents.
+// Clé objet : segmentée par athlète puis séance (forme commune : `buildObjectKey`).
 function buildMediaKey(athleteId: string, scheduledSessionId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^\w.-]+/g, "_");
-  return `${mediaKeyPrefix(athleteId, scheduledSessionId)}${randomUUID()}-${safeName}`;
+  return buildObjectKey(mediaKeyPrefix(athleteId, scheduledSessionId), fileName);
 }

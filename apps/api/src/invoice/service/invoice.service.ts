@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type {
   AttachInvoiceDocumentInput,
   InvoiceDto,
@@ -22,6 +21,7 @@ import {
 } from "@nestjs/common";
 import type { Invoice, Plan, Prisma } from "@prisma/client";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
+import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -228,7 +228,10 @@ export class InvoiceService {
    * déjà saisis (la facture DRAFT doit exister). Remplacer un PDF déjà attaché purge l'ancien objet.
    */
   async attachDocument(planId: string, input: AttachInvoiceDocumentInput): Promise<InvoiceDto> {
-    await this.getDraftablePlanOrThrow(planId);
+    const plan = await this.getDraftablePlanOrThrow(planId);
+    // La clé vient du client : elle doit désigner un PDF de CE cycle (#293), sans quoi remplacer
+    // puis retirer le justificatif purgerait l'objet d'un autre tenant.
+    assertKeyUnder(invoiceDocumentKeyPrefix(plan.athleteId, planId), input.storagePath);
     const draft = await this.getDraftInvoiceOrThrow(planId);
 
     const previousPath = draft.documentPath;
@@ -406,9 +409,14 @@ function periodOf(plan: Plan): string {
   return toIsoDate(plan.startDate).slice(0, 7);
 }
 
-// Clé objet du justificatif : segmentée par athlète puis cycle (comme les médias de débrief). Le
-// nom d'origine est assaini ; l'UUID évite toute collision.
+// Segment commun aux justificatifs d'un cycle, partagé par la construction de la clé et sa
+// vérification au rattachement : deux littéraux divergeraient au premier changement.
+function invoiceDocumentKeyPrefix(athleteId: string, planId: string): string {
+  return `athlete/${athleteId}/invoice/${planId}/`;
+}
+
+// Clé objet du justificatif : segmentée par athlète puis cycle, comme les médias de débrief
+// (forme commune : `buildObjectKey`).
 function buildInvoiceDocumentKey(athleteId: string, planId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^\w.-]+/g, "_");
-  return `athlete/${athleteId}/invoice/${planId}/${randomUUID()}-${safeName}`;
+  return buildObjectKey(invoiceDocumentKeyPrefix(athleteId, planId), fileName);
 }

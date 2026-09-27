@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   type AttachDocumentInput,
   DocumentType,
@@ -11,6 +10,7 @@ import {
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { toDocumentDto } from "../../infra/storage/document.mapper";
+import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -39,7 +39,13 @@ export class ExerciseDocumentService {
 
   // Étape 2 : rattacher le document (après upload pour un FILE, ou lien externe pour un LINK).
   async attach(exerciseId: string, input: AttachDocumentInput): Promise<ExerciseDocumentDto> {
-    await this.exercises.getOwnedOrThrow(exerciseId);
+    const exercise = await this.exercises.getOwnedOrThrow(exerciseId);
+    // La clé vient du client : elle doit désigner un objet de CET exercice (#293). Sans quoi la
+    // suppression du document — qui ne compte les copies que dans le scope du coach — purgerait
+    // l'objet d'un autre tenant.
+    if (input.type === DocumentType.FILE) {
+      assertKeyUnder(documentKeyPrefix(exercise.coachId, exerciseId), input.storagePath);
+    }
     // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast final.
     const data: Omit<Prisma.ExerciseDocumentUncheckedCreateInput, "coachId"> =
       input.type === DocumentType.FILE
@@ -76,9 +82,13 @@ export class ExerciseDocumentService {
   }
 }
 
-// Clé objet : segmentée par coach puis exercice, préfixe UUID pour éviter les collisions
-// de noms. Le nom de fichier est assaini (caractères sûrs uniquement).
+// Segment commun à tous les documents d'un exercice, partagé par la construction de la clé et sa
+// vérification au rattachement : deux littéraux divergeraient au premier changement.
+function documentKeyPrefix(coachId: string, exerciseId: string): string {
+  return `coach/${coachId}/exercises/${exerciseId}/`;
+}
+
+// Clé objet : segmentée par coach puis exercice (forme commune : `buildObjectKey`).
 function buildDocumentKey(coachId: string, exerciseId: string, fileName: string): string {
-  const safeName = fileName.replace(/[^\w.-]+/g, "_");
-  return `coach/${coachId}/exercises/${exerciseId}/${randomUUID()}-${safeName}`;
+  return buildObjectKey(documentKeyPrefix(coachId, exerciseId), fileName);
 }
