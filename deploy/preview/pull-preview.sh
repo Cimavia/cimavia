@@ -12,7 +12,8 @@
 #   3. lit dans l'image de l'API le commit dont elle est issue, et télécharge le compose DE CE
 #      COMMIT (le dépôt est public) : le compose suit la version promue, jamais une copie locale ;
 #   4. le valide contre le `.env`, puis `up -d` avec les deux images épinglées par digest ;
-#   5. attend que l'API soit saine, et ne note la version comme déployée qu'à ce moment-là.
+#   5. attend que l'API et le web soient sains, et ne note la version comme déployée qu'à ce
+#      moment-là.
 #
 # Code de sortie non nul = échec : la tâche DSM peut l'envoyer par e-mail. Journal :
 # `pull-preview/pull-preview.log` à côté du script.
@@ -122,20 +123,27 @@ log "déploiement de $REVISION (api $API_DIGEST, web $WEB_DIGEST)"
 compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull --quiet >>"$LOG" 2>&1 || fail "tirage des images du compose"
 compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans >>"$LOG" 2>&1 || fail "up -d"
 
-# ── 5. L'API est-elle saine ? ────────────────────────────────────────────────
-# La sonde de l'image interroge /health ; les migrations se jouent avant que l'API n'écoute.
-api_id="$(compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -q api)"
-[[ -n "$api_id" ]] || fail "conteneur api introuvable après up"
-waited=0
-until [[ "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$api_id")" == "healthy" ]]; do
-  if [[ "$waited" -ge "$HEALTH_TIMEOUT_S" ]]; then
-    fail "API non saine après ${HEALTH_TIMEOUT_S}s : $(docker logs --tail 20 "$api_id" 2>&1 | tr '\n' ' ')"
-  fi
-  sleep 10
-  waited=$((waited + 10))
-done
+# ── 5. L'API et le web sont-ils sains ? ──────────────────────────────────────
+# La sonde de l'image de l'API interroge /health ; les migrations se jouent avant qu'elle n'écoute.
+# Celle du web interroge nginx. Il n'était pas attendu tant que le web n'était que des fichiers
+# figés ; il lit désormais sa config de tier au démarrage (#417), et une image web qui ne démarre
+# pas laissait preview sans app, avec une version pourtant notée déployée.
+wait_healthy() {
+  local service="$1" id waited=0
+  id="$(compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -q "$service")"
+  [[ -n "$id" ]] || fail "conteneur $service introuvable après up"
+  until [[ "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$id")" == "healthy" ]]; do
+    if [[ "$waited" -ge "$HEALTH_TIMEOUT_S" ]]; then
+      fail "$service non sain après ${HEALTH_TIMEOUT_S}s : $(docker logs --tail 20 "$id" 2>&1 | tr '\n' ' ')"
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+}
+wait_healthy api
+wait_healthy web
 
 cp "$COMPOSE_FILE" "$STATE_DIR/docker-compose.yml"
 printf '%s\n' "$NEW_PROJECT" >"$STATE_DIR/project"
 printf '%s\n' "$CURRENT" >"$STATE_DIR/deployed"
-log "OK : $REVISION déployée, API saine"
+log "OK : $REVISION déployée, API et web sains"

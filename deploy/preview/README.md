@@ -91,13 +91,13 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
 GitHub ne pousse plus rien vers le NAS (#266) : le runner auto-hébergé qui le faisait était inscrit
 sur un dépôt public, donc exécutable par un workflow venu d'une PR. Désormais :
 
-1. un push sur `main` publie l'image de l'API, et rien d'autre ;
+1. un push sur `main` publie l'image de l'API et celle du web, et rien d'autre ;
 2. une version n'arrive chez le Coach que si on la **promeut** (`promote-preview.yml`, voir
-   `CONTRIBUTING.md` § *Versions et releases*) : le workflow construit son web et pose le tag
-   `preview` sur les deux images ;
+   `CONTRIBUTING.md` § *Versions et releases*) : le workflow pose le tag `preview` sur les deux
+   images de la version, sans rien reconstruire (#417) ;
 3. toutes les 5 minutes, `pull-preview.sh` tire le tag `preview`. S'il a changé, il télécharge le
-   compose **du commit promu**, le valide contre le `.env`, lance `up -d` et attend que l'API soit
-   saine.
+   compose **du commit promu**, le valide contre le `.env`, lance `up -d` et attend que l'API et
+   le web soient sains.
 
 Aucun port entrant ni aucun accès de GitHub au NAS : c'est le NAS qui sort, vers GHCR et GitHub.
 
@@ -135,8 +135,10 @@ planifiée → Script défini par l'utilisateur* :
 
 | Variable | Valeur |
 |---|---|
-| `PREVIEW_PUBLIC_API_URL` | `https://api-preview.<domaine>` — figée dans le build web de la promotion, qui la sonde ensuite |
-| `PREVIEW_SENTRY_DSN_WEB` | le DSN du projet Sentry web |
+| `PREVIEW_PUBLIC_API_URL` | `https://api-preview.<domaine>` — sondée par la promotion, appelée par `reminder-tick.yml` |
+
+Le web, lui, ne prend plus rien dans GitHub : son URL d'API, son tier et son DSN Sentry lui
+viennent du `.env` au démarrage (`PUBLIC_API_URL`, `APP_ENV`, `SENTRY_DSN_WEB`, #417).
 
 ### Le script ne se met pas à jour tout seul
 
@@ -151,13 +153,15 @@ pas. Depuis #357, sur ce tier :
 
 - `BETTER_AUTH_SECRET` fait **32 caractères au moins**, et `REMINDER_TICK_SECRET` aussi s'il est posé ;
 - `PUBLIC_API_URL` est en **https** ;
-- `EXPO_ACCESS_TOKEN` est posé.
+- `EXPO_ACCESS_TOKEN` est posé ;
+- la ligne `SENTRY_DSN_WEB=` existe, même vide (#417) : absente, le compose est refusé.
 
 Dans le dossier du `.env`, ce contrôle n'affiche que des **longueurs**, jamais les valeurs :
 
 ```bash
 for v in BETTER_AUTH_SECRET REMINDER_TICK_SECRET EXPO_ACCESS_TOKEN; do awk -F= -v k=$v '$1==k{print k" : "length(substr($0,index($0,"=")+1))" caractères"}' .env; done
 grep -o '^PUBLIC_API_URL=https\?' .env                 # doit afficher PUBLIC_API_URL=https
+grep -c '^SENTRY_DSN_WEB=' .env                        # doit afficher 1
 ```
 
 Attendu : 32 ou plus pour les deux secrets, une longueur non nulle pour le jeton Expo.
@@ -172,7 +176,8 @@ pourquoi.
 |---|---|
 | `tirage de …cimavia-api:preview : … unauthorized` | jeton GHCR expiré ou révoqué : en créer un, refaire le `docker login` |
 | `compose de … invalide avec ce .env` | une ligne cassée dans le `.env` (une commande collée dedans, une variable renommée par la version promue) |
-| `API non saine après 300s` | l'API ne démarre pas, souvent une migration ou une variable refusée au démarrage (voir « Avant de promouvoir ») : `docker logs` du conteneur `api` |
+| `api non sain après 300s` | l'API ne démarre pas, souvent une migration ou une variable refusée au démarrage (voir « Avant de promouvoir ») : `docker logs` du conteneur `api` |
+| `web non sain après 300s` | nginx ne démarre pas : `unknown "cmv_…" variable` dans `docker logs` du conteneur `web` veut dire une variable de config du web qui ne lui arrive pas (#417) |
 
 Une fois la cause réglée, le prochain passage réessaie seul. Si seule la confirmation du workflow a
 échoué, *Re-run failed jobs* la relance sans republier.
