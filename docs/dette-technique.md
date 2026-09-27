@@ -320,6 +320,11 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > éviter. Quant au groupe `cancel-in-progress` par branche, il annulait la construction en cours au
 > push suivant et remplaçait de toute façon une exécution en attente : un merge suivant de près la
 > PR de release suffisait à perdre l'image `X.Y.Z`, la seule que la promotion sait retaguer.
+>
+> *Renversé en #417* pour sa première moitié : l'image web est revenue sur `main`
+> (`web-image.yml`), parce qu'elle y est désormais l'artefact que la promotion retague — voir
+> « Renversé en #417 » sous « Tranché en #186 ». Ses sourcemaps n'y partent qu'au commit de bump.
+> La seconde moitié tient, et vaut pour les deux images : toujours pas de `concurrency`.
 
 > **Appris en #266** (un `.env` cassé ne se voyait que dans l'onglet Actions) : le 2026-09-14, la
 > commande de sauvegarde de #264 s'est retrouvée collée dans le `.env` du NAS. `docker compose` a
@@ -1902,6 +1907,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > comme `DEV_PUBLIC_API_URL`. Le réflexe inverse donnerait l'illusion d'une protection qui n'existe
 > pas, et ferait passer une fuite du DSN pour un incident. Le seul vrai secret du chantier est le
 > `SENTRY_AUTH_TOKEN` d'upload des sourcemaps, qui n'est jamais embarqué.
+>
+> *Précisé en #417* : le raisonnement tient, l'endroit a changé. Le DSN web n'est plus figé dans le
+> bundle mais servi au démarrage dans `/config.js` : il vit dans le `.env` du NAS
+> (`SENTRY_DSN_WEB`), plus dans GitHub.
 
 > **Tranché en #335** (`sendDefaultPii: false` ne couvre QUE l'IP) : l'encadré ci-dessus sur
 > `sendDefaultPii` a été lu, dans le code, comme « ni IP ni en-têtes ». Faux :
@@ -3308,6 +3317,43 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > **L'image web est l'exception, et elle est structurelle** : un SPA fige `VITE_API_URL` dans son
 > bundle au build, elle ne peut donc pas être promue par retag. Elle est reconstruite par tier —
 > mais depuis le MÊME tag git, jamais depuis la branche de promotion.
+
+> **Renversé en #417** (le web aussi est une image par version, promue par retag) : l'exception
+> ci-dessus n'était structurelle que parce que le tier était figé dans le bundle. Elle coûtait ce
+> que #186 refuse pour l'API — le web promu n'était pas l'artefact validé, ses dépendances et son
+> image de base pouvant dériver entre deux builds du même tag —, et un workflow de production
+> aurait dû reconstruire lui aussi. La prémisse est levée plutôt que l'exception supportée : ce qui
+> dépend du TIER (l'URL de l'API, le DSN Sentry, le nom du tier) est servi par nginx en `/config.js`
+> au démarrage du conteneur, depuis ses variables `CMV_*` ; seul ce qui dépend de la VERSION
+> (`VITE_APP_VERSION`, la release Sentry) reste figé au build. `web-image.yml` construit donc le web
+> sur `main`, le démarre, lui pose `X.Y.Z` au bump, et la promotion le retague comme l'API. Le
+> principe de cet encadré sort renforcé : il vaut désormais pour les deux images.
+
+> **Tranché en #417** (les sourcemaps web ne partent qu'au commit de bump) : une release Sentry par
+> version, nommée `X.Y.Z+sha` comme celle de l'API — et non une par push sur `main`, pour des images
+> `sha-*` qui ne seront jamais promues. Le jeton n'est passé à BuildKit que sur ce build ; sans lui,
+> le plugin ne fait rien. L'écrasement que redoutait l'encadré sur l'identité `1.2.0+3f2a1c`
+> n'existe de toute façon plus côté web : `@sentry/vite-plugin` 5.x rattache chaque sourcemap à son
+> bundle par *debug ID*, pas par nom de release. Le nom sert désormais aux pages *Releases* et aux
+> régressions, et `environment` y distingue preview de production.
+
+> **Tranché en #417** (la config du web échoue deux fois, et jamais en silence) : une variable
+> `CMV_*` ABSENTE du conteneur n'est pas substituée par `envsubst`, nginx lit `${CMV_…}` comme une
+> de ses variables et **refuse de démarrer** — d'où les trois variables toujours définies dans le
+> compose, le DSN par `${SENTRY_DSN_WEB?}` (vide permis, absent refusé avant tout remplacement de
+> conteneur), et `pull-preview.sh` qui attend désormais le web sain comme l'API. Une variable
+> définie mais VIDE ou invalide arrive jusqu'au navigateur : `runtime-config.ts` la rend `null`, et
+> `main.tsx` affiche `CmvCrashScreen` au lieu de monter l'app (règle dure n°5). Les deux replis
+> d'avant disparaissent : `http://localhost:3000` — dans le Dockerfile, mais aussi dans `api.ts` et
+> `auth.ts`, qui faisaient appeler le poste du Coach par son propre navigateur — et le tier
+> `development` par défaut. Seul le DSN garde un vide légitime : il veut dire « pas de Sentry ».
+
+> **Tranché en #417** (rien de secret dans `config.js`, et le filtre le garantit) : `config.js` part
+> chez chaque visiteur, comme le bundle avant lui. L'image pose `NGINX_ENVSUBST_FILTER=^CMV_` : seules
+> ces variables peuvent être substituées, si bien qu'une variable du conteneur ajoutée demain — un
+> secret compris — ne peut pas finir dans ce que le navigateur reçoit par une faute de frappe dans
+> le template. Le jeton Sentry reste un secret BuildKit, jamais un argument ni une variable
+> d'exécution.
 
 > **Appris en #185** (deux réglages qui paraissent anodins et cassent la pose du tag) — la première
 > PR de release s'est ouverte, s'est mergée, et n'a produit **ni tag ni GitHub Release** :

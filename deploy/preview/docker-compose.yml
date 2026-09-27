@@ -165,6 +165,17 @@ services:
     image: ${WEB_IMAGE:?posée par pull-preview.sh}
     container_name: cimavia_preview_web
     restart: unless-stopped
+    # La config du tier, que nginx sert en `/config.js` au démarrage (#417) : l'image est la même sur
+    # chaque tier, retaguée et jamais reconstruite. Tout ceci part chez chaque visiteur — aucun
+    # secret, et l'image ne laisse de toute façon passer que les `CMV_*`.
+    #
+    # Les trois DOIVENT être définies : absente du conteneur, nginx refuserait de démarrer. `?` et
+    # non `:?` pour le DSN, parce que vide est permis (pas de Sentry web) ; absent du `.env`, il est
+    # refusé par `compose config`, avant qu'aucun conteneur ne soit remplacé.
+    environment:
+      CMV_API_URL: ${PUBLIC_API_URL:?URL publique de l'API attendue dans le .env}
+      CMV_APP_ENV: ${APP_ENV:?tier de deploiement attendu dans le .env, ex. preview}
+      CMV_SENTRY_DSN: ${SENTRY_DSN_WEB?DSN Sentry du web attendu dans le .env, vide permis}
 
   # Sortie vers Cloudflare : établit le tunnel et route les hostnames publics vers les services.
   # Le routage hostname → service est configuré côté dashboard Cloudflare (Zero Trust), pas ici :

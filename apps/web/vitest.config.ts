@@ -43,7 +43,10 @@ export default mergeConfig(
           // Réécrit par TanStackRouterVite à chaque build : personne ne le relit, rien à couvrir.
           "src/routeTree.gen.ts",
           // Bootstrap, jamais traversé par le harnais — l'équivalent web du `main.ts` de l'API.
+          // `app.tsx` en est la seconde moitié, importée par `main.tsx` une fois `config.js`
+          // vérifié (#417) : le routeur complet, que chaque test d'écran monte déjà à sa façon.
           "src/main.tsx",
+          "src/app.tsx",
           // Barils de réexport : aucune branche à couvrir (même exclusion qu'@cmv/shared).
           "src/**/index.ts",
         ],

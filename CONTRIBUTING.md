@@ -167,10 +167,11 @@ jamais par le numéro.
 
 **Envoyer une version chez le Coach** (#266) — rien ne part sur le NAS au merge d'une PR :
 
-1. merger la PR de release : le tag `vX.Y.Z` et l'image `cimavia-api:X.Y.Z` se posent seuls ;
+1. merger la PR de release : le tag `vX.Y.Z` et les images `cimavia-api:X.Y.Z` et
+   `cimavia-web:X.Y.Z` se posent seuls, chacune une fois démarrée ;
 2. *Actions → Promotion — preview → Run workflow*, avec `X.Y.Z` ;
-3. le workflow construit le web de cette version, pose le tag `preview` sur les deux images, avance
-   la branche `preview`, puis attend que le NAS ait redémarré (jusqu'à 20 minutes).
+3. le workflow pose le tag `preview` sur les deux images, sans rien reconstruire (#417), avance la
+   branche `preview`, puis attend que le NAS ait redémarré (jusqu'à 20 minutes).
 
 On peut **sauter des versions** : 1.3.0 et 1.4.0 publiées, seule 1.5.0 promue, les migrations
 manquantes s'appliquent dans l'ordre au démarrage. On ne revient **jamais en arrière** par
@@ -249,8 +250,9 @@ Les alertes Dependabot (Security → Dependabot) sont le filet : la CI ne lance 
 
 Trivy (#399) scanne ce que Dependabot ne voit pas : les paquets système et les outils embarqués
 des images, et les Dockerfiles. Ses alertes arrivent dans Security → Code scanning (outil
-*Trivy*), une catégorie par cible : `trivy-api` (dernier build de `main`), `trivy-api-preview` et
-`trivy-web` (ce qui tourne sur le NAS), `trivy-silo`, `trivy-mc`, `trivy-config`. Il ne remonte que
+*Trivy*), une catégorie par cible : `trivy-api` et `trivy-web` (dernier build de `main`),
+`trivy-api-preview` et `trivy-web-preview` (ce qui tourne sur le NAS, #417), `trivy-silo`,
+`trivy-mc`, `trivy-config`. Il ne remonte que
 les CRITICAL et HIGH qui ont un correctif, et **ne bloque rien**.
 
 Une alerte se traite dans cet ordre :
@@ -281,16 +283,15 @@ docker run --rm ghcr.io/sigstore/cosign/cosign:v3.0.2 verify ghcr.io/aquasecurit
 - `SONAR_TOKEN` — SonarCloud. Posé **aussi** en secret Dependabot (Settings → Secrets and variables → *Dependabot*) : une PR ouverte par Dependabot ne lit que ceux-là, et sans lui le job Sonar de chaque PR Dependabot échoue.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
 - `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les trois checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
-- `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web de la promotion. C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
+- `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web du **commit de bump** seulement (`web-image.yml`, #417). C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
 
-**Variables** (onglet *Variables*), pas des secrets — elles partent dans le bundle ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
+**Variables** (onglet *Variables*), pas des secrets — elles sont publiques ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
 
-- `PREVIEW_PUBLIC_API_URL` — l'URL publique de l'API du NAS : figée dans le build web de la promotion, sondée par elle après coup, et appelée par `reminder-tick.yml`.
-- `PREVIEW_SENTRY_DSN_WEB` — le DSN du projet web, lisible par tout visiteur du site.
+- `PREVIEW_PUBLIC_API_URL` — l'URL publique de l'API du NAS : sondée par la promotion après coup, et appelée par `reminder-tick.yml`.
 - `SENTRY_ORG` — le slug de l'organisation Sentry.
 - `SENTRY_PROJECT_WEB` — `cimavia-web`.
 
-**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET`. Ce sont des variables d'**exécution** de l'API, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il vit dans les environnements EAS (#287), les builds EAS partant du poste de développement et non d'un workflow.
+**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET` — ni, depuis #417, la config du web (`PUBLIC_API_URL`, `APP_ENV`, `SENTRY_DSN_WEB`), qu'il lit au démarrage. Ce sont des variables d'**exécution** de l'API et du web, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il vit dans les environnements EAS (#287), les builds EAS partant du poste de développement et non d'un workflow.
 
 ## Identifiants de build mobile
 
@@ -346,8 +347,8 @@ visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json
 - Init dans `apps/web/src/instrument.ts`, **premier import** de `main.tsx` : les imports statiques sont hoistés, donc une init placée dans le corps de `main.tsx` arriverait après l'évaluation de tout le graphe de modules et n'entendrait pas ce qui y casse.
 - Écran de repli : `defaultErrorComponent` du routeur → `CmvCrashScreen`. Sa portée s'arrête au routeur — ce qui casse au-dessus (les providers, l'import d'i18n) tombe à l'écran blanc, mais part quand même chez Sentry.
 - Identité : `useSentryUser()` dans `routes/__root.tsx`, l'`id` du compte seul, effacé à la déconnexion. `sendDefaultPii: false` côté front, contrairement à l'API.
-- Variables, **figées au `vite build`** (voir `apps/web/.env.example` et le `Dockerfile`) : `VITE_SENTRY_DSN` — pas un secret, il part dans le bundle — et `VITE_APP_ENV`, le *tier* de déploiement et non le mode de build.
-- Sourcemaps : téléversées par `@sentry/vite-plugin` quand `SENTRY_AUTH_TOKEN` est fourni, puis effacées de `dist/` avant l'étape nginx. Le jeton passe par un **secret BuildKit** et jamais un `ARG`, qui le graverait dans `docker history` de l'image publiée. `SENTRY_RELEASE` est passé explicitement : `.git` est hors du contexte de build, la détection automatique n'aurait rien à lire.
+- Variables, **lues au démarrage** et non figées au build (#417) : `CMV_SENTRY_DSN` — pas un secret, il part chez chaque visiteur dans `/config.js` — et `CMV_APP_ENV`, le *tier* de déploiement et non le mode de build. Servies par nginx depuis l'environnement du conteneur, par `vite.config.ts` en dev (voir `apps/web/.env.example`). Un tier absent laisse le SDK inerte, et l'app sur son écran de crash.
+- Sourcemaps : téléversées par `@sentry/vite-plugin` quand `SENTRY_AUTH_TOKEN` est fourni — au commit de bump seulement, sous `X.Y.Z+sha` (#417) —, puis effacées de `dist/` avant l'étape nginx. Le jeton passe par un **secret BuildKit** et jamais un `ARG`, qui le graverait dans `docker history` de l'image publiée. `SENTRY_RELEASE` est passé explicitement : `.git` est hors du contexte de build, la détection automatique n'aurait rien à lire.
 
 ### Mobile
 
