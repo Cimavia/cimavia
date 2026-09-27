@@ -1867,6 +1867,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | ~~O-1~~ | ~~**Sentry ne couvre que l'API**~~, malgré trois documents qui annonçaient « les 3 couches ». Le web et le mobile n'avaient ni SDK ni Error Boundary : un crash de rendu donnait un écran blanc côté web, fermait l'app côté mobile, sans aucune trace. | ✅ | résolu en **[#181](https://github.com/Cimavia/cimavia/issues/181)** (web) et **[#182](https://github.com/Cimavia/cimavia/issues/182)** (mobile) — les trois documents redeviennent vrais par le code, pas par réécriture |
 | O-2 | **`@sentry/cli` déclaré en dépendance du mobile sans être importé** : il n'y sert qu'à exister au chemin `apps/mobile/node_modules/@sentry/cli`, que `sentry.gradle` construit en dur pour téléverser les sourcemaps. Son repli pnpm est inatteignable — il vit dans un `catch` que `execute()` ne déclenche jamais, `node --print require.resolve(…)` rendant une sortie vide plutôt qu'une exception quand la résolution échoue. Sans cette déclaration, le build EAS **release** échoue sur « a problem occurred starting process ». La version est épinglée sur celle qu'exige `@sentry/react-native` (2.58.4) : la laisser flotter installerait deux copies du binaire. | 🟢 | — *(bug amont ; déclencheur : une version de `@sentry/react-native` dont le `sentry.gradle` résout enfin pnpm — la dépendance pourra alors sauter)* |
+| O-3 | **Les routes `/api/auth/*` ne laissent aucune ligne dans les journaux Pino** : Better Auth est branché sur Fastify avant les middlewares de Nest, et le logger HTTP de `nestjs-pino` en est un. Connexion, inscription, réinitialisation : ni statut ni durée dans Axiom — Sentry, lui, les voit. Découvert au test de #433. | 🟡 | [#466](https://github.com/Cimavia/cimavia/issues/466) |
 
 > **Tranché en #183** (trois projets Sentry, pas un) : `cimavia-api`, `cimavia-web`,
 > `cimavia-mobile`. Releases et sourcemaps s'attachent **par projet** — mêler un bundle Vite et un
@@ -1927,7 +1928,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > **Tranché en #433** (ce que l'API écrit dans ses journaux et envoie à Sentry — ferme aussi
 > [#294](https://github.com/Cimavia/cimavia/issues/294)) : Pino recopiait tous les en-têtes, à
 > chaque requête — cookie de session Better Auth rejouable sept jours, `authorization`, secret du
-> tick, `set-cookie`, et le `location` de la redirection de réinitialisation, jeton compris. Sentry
+> tick — et le jeton d'appareil dans l'URL de révocation. Sentry
 > y ajoutait le corps des requêtes, mot de passe de connexion compris, **sans qu'aucune erreur ne
 > soit levée** : une transaction échantillonnée emporte la même requête qu'une erreur. Relevé en
 > faisant tourner le vrai SDK, pas en lisant ses options. Quatre décisions :
@@ -1935,11 +1936,18 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   réduit à `id`, `method` et l'URL blanchie, `res` à `statusCode`. Un `redact` aurait laissé
 >   passer le prochain en-tête sensible, et ne sait pas réécrire une partie de l'URL — or deux
 >   jetons sont DANS le chemin. L'IP, `query` et `params` partent avec.
+>   *Corrigé en #357* : cet encadré ajoutait à la liste le `set-cookie` de la connexion et le
+>   `location` de la redirection de réinitialisation. Faux — Pino n'a JAMAIS vu les routes
+>   `/api/auth/*` : Better Auth est branché directement sur Fastify (`httpAdapter.use`), avant les
+>   middlewares de Nest, et répond sans passer la main (dette **O-3**, [#466](https://github.com/Cimavia/cimavia/issues/466)). Constaté au test de la PR : une demande de
+>   réinitialisation envoie son e-mail sans laisser de ligne `request completed`. Sentry, qui
+>   écoute sous Fastify, les voit bien : le blanchiment de `/reset-password/<jeton>` y sert.
 > - **Une seule liste de secrets d'URL** (`redactUrlSecrets`, `@cmv/shared`), pour le web, les
 >   journaux et Sentry : les paramètres `token`, `code`, `X-Amz-Signature`, et les segments
 >   `/reset-password/<jeton>` (le lien de l'e-mail, qui arrive sur l'API) et
->   `/push-tokens/<jeton>`. Ce dernier est un secret tant que la sécurité renforcée des push n'est
->   pas activée sur le compte Expo — elle ne l'est pas : le jeton suffit à pousser vers l'appareil.
+>   `/push-tokens/<jeton>`. Ce dernier était un secret : sans la sécurité renforcée des push, il
+>   suffisait à pousser vers l'appareil. Elle est activée depuis #357 ; il reste blanchi, parce
+>   qu'il identifie l'appareil et redeviendrait suffisant si l'option était coupée.
 > - **Le corps n'est jamais lu, sur aucune route** (`maxIncomingRequestBodySize: "none"`), plutôt
 >   qu'une exception pour `/api/auth/*` : hors authentification, il porte aussi le code d'une
 >   invitation et le texte d'un débrief, et une liste d'exceptions s'oublie à la prochaine route
@@ -3856,7 +3864,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > montant l'image, ce que Dependabot propose déjà.
 >
 > Découvert en chemin : **pnpm 10.34.4**, épinglé partout, a des failles HIGH corrigées en
-> 10.34.5 depuis le 2026-07-10 — suivi en [#452](https://github.com/Cimavia/cimavia/issues/452).
+> 10.34.5 depuis le 2026-07-10 — montée faite en [#452](https://github.com/Cimavia/cimavia/issues/452).
 
 > **Tranché en [#400](https://github.com/Cimavia/cimavia/issues/400)** (CodeQL) : le *default
 > setup* reste, sans workflow dans le dépôt. Aucun fichier ne le montre, d'où cet encadré :
@@ -3868,8 +3876,14 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   n'a rien à retirer, et un workflow de plus serait à épingler et à relire par zizmor pour rien.
 >   **Déclencheur** : des alertes sur `dist/` ou du code généré, ou le besoin de requêtes maison.
 >   Avant d'en arriver là, essayer la suite `security-extended`, qui se règle dans l'interface.
-> - **Il alerte, il ne bloque pas** : pas de règle *code scanning* dans le ruleset `Main`, comme
->   Trivy et zizmor.
+> - **Aucun check requis, mais une alerte bloque quand même le merge** : pas de règle *code
+>   scanning* dans le ruleset `Main`, et le check `CodeQL`, rouge sur une nouvelle alerte, n'est pas
+>   requis. Seulement, l'alerte arrive aussi en commentaire de revue sur la ligne fautive, et le
+>   ruleset exige que les conversations soient résolues (`required_review_thread_resolution`).
+>   Elle se **traite** donc avant le merge : corrigée, ou rejetée avec son motif dans l'onglet
+>   *Security* (« Used in tests », « False positive »…) — pas en résolvant la conversation seule,
+>   qui laisserait l'alerte ouverte. *Corrigé le 2026-09-27* : cet encadré disait « il alerte, il ne
+>   bloque pas », démenti par #459, bloquée par une alerte sur `sentry.config.test.ts`.
 >
 > Écarts assumés : les règles de sécurité de SonarCloud font en partie doublon, et c'est accepté,
 > car les deux moteurs ne trouvent pas les mêmes failles (aucune de #293, #324 ou #352 n'avait été
@@ -3955,6 +3969,32 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > et demi n'existe pas. Un pas refusé ferme le bouton au lieu d'être arrondi en silence.
 > `fillStep` arrondit au nombre de décimales du départ ou du pas, le plus grand des deux : sans
 > ça, un pas de 0,1 écrivait `0.30000000000000004` dans la quatrième ligne.
+
+---
+
+## Post-MVP — Garde de démarrage des tiers déployés ([#357](https://github.com/Cimavia/cimavia/issues/357))
+
+> **Tranché en #357** (ce qu'un tier déployé exige pour démarrer) : le `ConfigModule` valide
+> l'environnement au boot pour que l'API refuse de démarrer mal configurée, mais un secret d'un
+> caractère et une URL d'auth en http passaient. Le `superRefine` d'`env.schema.ts` durcit :
+> - **Partout** : `BETTER_AUTH_SECRET` de 32 caractères au moins, et `REMINDER_TICK_SECRET` aussi
+>   quand il est posé — absent, la route de tick reste fermée (503), comme avant. Better Auth ne
+>   fait qu'avertir en dessous de 32.
+> - **En `preview` ET en `production`** — l'issue ne visait que la production : `BETTER_AUTH_URL`
+>   en https (en http, Better Auth retire `Secure` des cookies de session) et `EXPO_ACCESS_TOKEN`
+>   obligatoire. Le NAS est inclus parce qu'il porte les vraies données du Coach bêta et qu'il est
+>   joignable publiquement. Le développement local reste permissif : http sur une IP de LAN, et pas
+>   de jeton Expo.
+> - **La sécurité renforcée des push est activée** sur le compte Expo : sans jeton d'accès, Expo
+>   refuse tous les envois, et l'échec ne se lit que dans les tickets. D'où l'obligation au boot
+>   plutôt qu'une panne silencieuse. Le jeton appartient à un **robot** (`cimavia-push`, rôle
+>   Viewer, suffisant pour envoyer), pas à un compte personnel : un jeton par environnement,
+>   révocables séparément.
+>
+> Conséquence d'exploitation : une version qui durcit ces règles se **vérifie sur le NAS AVANT sa
+> promotion** (README du preview) — sinon `pull-preview.sh` remplace l'API par une qui refuse de
+> démarrer, et le preview tombe. Le smoke de `api-image.yml` démarre l'image en `preview` : ses
+> valeurs factices suivent les mêmes règles.
 
 ---
 
