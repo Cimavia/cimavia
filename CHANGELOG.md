@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.6.2](https://github.com/Cimavia/cimavia/compare/v1.6.1...v1.6.2) (2026-09-27)
+
+
+### Corrections
+
+* **api:** l'image de l'api n'embarque plus npm, corepack ni yarn, 18 failles de moins ([1f166d9](https://github.com/Cimavia/cimavia/commit/1f166d909b585617b04bfbf547d62cea2158177c))
+* **web:** nginx tourne sans root sur le port 8080, image web passée sur nginx-unprivileged ([7f70802](https://github.com/Cimavia/cimavia/commit/7f708027e3c77f605f50854148e39eafe5efe2c7))
+* **web:** utilisateur 101 explicite dans le dockerfile, trivy config n'y voit plus de root ([e839f67](https://github.com/Cimavia/cimavia/commit/e839f6720b4d8a2d2d55768ea80eedcd58a21a0c))
+
+
+### Technique
+
+* bump the actions group across 2 directories with 10 updates ([3e7c4cb](https://github.com/Cimavia/cimavia/commit/3e7c4cbe18a260f9992ee89c2961c00580d2f5c1))
+* dependabot suit npm, docker et les composes, majeures à part ; builds bornés à 15 min ([c2bc8ea](https://github.com/Cimavia/cimavia/commit/c2bc8ea62bf2b0ed39d4f29c610427ef6371c889))
+* images tirées épinglées par digest, un tag reconstruit ne change plus rien en douce ([8a055c5](https://github.com/Cimavia/cimavia/commit/8a055c59166d3f53bff19e0526436dcb270f9010))
+* les derniers restes du nom dev du tier preview partent, repli deploy/dev compris ([c97fe00](https://github.com/Cimavia/cimavia/commit/c97fe00fd9158e4e13316853138b65b798daa894))
+* nom fixe pour le job matriciel de trivy, un job sauté affichait l'expression brute ([71d7810](https://github.com/Cimavia/cimavia/commit/71d78107a8932d52af75aea1ef10dda1a781cd83))
+* trivy scanne images et dockerfiles sans jamais croiser de jeton, en alerte seulement ([c332b8d](https://github.com/Cimavia/cimavia/commit/c332b8df41eef53f4450b343906ae8b5457c37b5))
+
 ## [1.6.1](https://github.com/Cimavia/cimavia/compare/v1.6.0...v1.6.1) (2026-09-26)
 
 
