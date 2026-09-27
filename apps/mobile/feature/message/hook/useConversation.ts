@@ -105,15 +105,20 @@ export function useSendMessage(conversationId: string, attachment?: { sessionFee
       messageApi.sendMessage(conversationId, { ...input, ...attachment }, as),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
-      queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
+      // La liste des fils porte l'aperçu du dernier message : sans ça, le coach revient sur une
+      // liste qui date d'avant son propre envoi (#309).
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
   });
 }
 
 /**
- * Marque le fil comme lu. N'invalide QUE la conversation (unreadCount), jamais la liste de
+ * Marque le fil comme lu. N'invalide QUE la liste des fils (unreadCount, la pastille), jamais les
  * messages : sinon le refetch relancerait le marquage en boucle. C'est l'écran qui décide quand
  * repartir — à chaque nouvel entrant, par son id (#305).
+ *
+ * Pas `myConversation()` : on n'en lit que l'id, et l'invalider rejouerait le get-or-create à
+ * chaque lecture (#309).
  */
 export function useMarkRead(conversationId: string | undefined) {
   const queryClient = useQueryClient();
@@ -121,7 +126,7 @@ export function useMarkRead(conversationId: string | undefined) {
   return useMutation({
     mutationFn: () => messageApi.markRead(conversationId as string, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.myConversation() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
   });
 }

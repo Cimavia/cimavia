@@ -17,7 +17,6 @@ vi.mock("@/feature/notification/hook/useNotifications", () => ({
 }));
 // Le sélecteur d'espace lit la session et navigue : hors sujet ici, et il tirerait tout `expo-router`.
 vi.mock("@/shared/component/CmvCapabilitySwitch", () => ({ CmvCapabilitySwitch: () => null }));
-vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
 
 function relation(overrides: Partial<CoachAthleteDto>): CoachAthleteDto {
   return {
@@ -68,6 +67,28 @@ beforeEach(() => {
 });
 
 describe("CoachConversationsScreen", () => {
+  /**
+   * #309 : le cache persisté est frais 5 min. Sans relecture à l'affichage, un message arrivé
+   * pendant que le coach était sur un autre onglet n'allume sa pastille qu'au tirer-pour-rafraîchir.
+   */
+  it("relit les fils à l'affichage, sans relire les athlètes", () => {
+    const refetchConversations = vi.fn();
+    const refetchAthletes = vi.fn();
+    mockAthletes({ refetch: refetchAthletes });
+    vi.mocked(useConversations).mockReturnValue({
+      data: [],
+      isPending: false,
+      isError: false,
+      isRefetching: false,
+      refetch: refetchConversations,
+    } as unknown as ReturnType<typeof useConversations>);
+
+    renderRn(<CoachConversationsScreen />);
+
+    expect(refetchConversations).toHaveBeenCalledOnce();
+    expect(refetchAthletes).not.toHaveBeenCalled();
+  });
+
   it("liste un fil par athlète", async () => {
     mockAthletes({ data: [LEA] });
     const { queryByText } = renderRn(<CoachConversationsScreen />);

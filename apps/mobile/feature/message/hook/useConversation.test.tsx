@@ -1,18 +1,29 @@
-import { type MessageDto, messageKeys } from "@cmv/shared";
+import { type CapabilityName, type MessageDto, messageKeys } from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { useMessages } from "./useConversation";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { useMarkRead, useMessages, useSendMessage } from "./useConversation";
 
-const { getMessagesMock } = vi.hoisted(() => ({ getMessagesMock: vi.fn() }));
+const { getMessagesMock, markReadMock, sendMessageMock, exercised } = vi.hoisted(() => ({
+  getMessagesMock: vi.fn(),
+  markReadMock: vi.fn(),
+  sendMessageMock: vi.fn(),
+  exercised: { as: null as CapabilityName | null },
+}));
 
 vi.mock("@/feature/message/api", async () => ({
-  messageApi: { getMessages: getMessagesMock },
+  messageApi: {
+    getMessages: getMessagesMock,
+    markRead: markReadMock,
+    sendMessage: sendMessageMock,
+  },
   messageKeys: (await import("@cmv/shared")).messageKeys,
 }));
 
-vi.mock("@/shared/hook/useExercisedCapability", () => ({ useExercisedCapability: () => null }));
+vi.mock("@/shared/hook/useExercisedCapability", () => ({
+  useExercisedCapability: () => exercised.as,
+}));
 
 // Le sondage au premier plan n'est pas le sujet : on rend l'écran « au premier plan » une fois.
 vi.mock("expo-router", () => ({ useFocusEffect: vi.fn() }));
@@ -59,5 +70,56 @@ describe("useMessages", () => {
     expect(getMessagesMock).toHaveBeenCalledTimes(2);
     expect(cached?.[0]?.media?.url).toBe("https://s3.test/note.m4a?X-Amz-Date=0");
     expect(cached).toBe(first);
+  });
+});
+
+/**
+ * #309 : lire ou écrire dans un fil change sa ligne dans la liste du coach — la pastille, l'aperçu.
+ * Le mobile n'invalidait que `myConversation()`, dont aucun écran ne lit autre chose que l'id : la
+ * liste restait sur l'état d'avant jusqu'au tirer-pour-rafraîchir.
+ */
+describe("invalidation de la liste des fils", () => {
+  afterEach(() => {
+    exercised.as = null;
+  });
+
+  /** Un cache où la liste du coach et le fil de l'athlète sont déjà chargés, et frais. */
+  function seededClient() {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(messageKeys.conversations("coach"), []);
+    queryClient.setQueryData(messageKeys.myConversation(), { id: "c1" });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const isInvalidated = (queryKey: readonly unknown[]) =>
+      queryClient.getQueryState(queryKey)?.isInvalidated;
+    return { wrapper, isInvalidated };
+  }
+
+  type Mutations = {
+    markRead: ReturnType<typeof useMarkRead>;
+    send: ReturnType<typeof useSendMessage>;
+  };
+
+  it.each<[string, (mutations: Mutations) => Promise<unknown>]>([
+    ["le marquage lu", ({ markRead }) => markRead.mutateAsync()],
+    ["l'envoi d'un message", ({ send }) => send.mutateAsync({ type: "TEXT", content: "Ok" })],
+  ])("%s invalide la liste des fils à ce titre, pas le fil de l'athlète", async (_, run) => {
+    exercised.as = "coach";
+    markReadMock.mockResolvedValue(undefined);
+    sendMessageMock.mockResolvedValue({ id: "m1" });
+    const { wrapper, isInvalidated } = seededClient();
+    const { result } = renderHook(
+      () => ({ markRead: useMarkRead("c1"), send: useSendMessage("c1") }),
+      { wrapper },
+    );
+
+    expect(isInvalidated(messageKeys.conversations("coach"))).toBe(false);
+    await run(result.current);
+
+    expect(isInvalidated(messageKeys.conversations("coach"))).toBe(true);
+    // Invalider le fil résolu rejouerait le get-or-create à chaque lecture, pour un id qui ne
+    // change pas.
+    expect(isInvalidated(messageKeys.myConversation())).toBe(false);
   });
 });
