@@ -1,4 +1,5 @@
 import {
+  attachDocumentSchema,
   DocumentType,
   DocumentUsage,
   type ExerciseDto,
@@ -42,6 +43,7 @@ export function AttachmentsSection({
   const removeDocument = useDeleteDocument();
   const [linkDraft, setLinkDraft] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const attachments = (exercise?.documents ?? []).filter(
     (document) => document.usage === DocumentUsage.ATTACHMENT,
@@ -70,9 +72,18 @@ export function AttachmentsSection({
     onPendingFiles([...pendingFiles, ...accepted]);
   }
 
+  /**
+   * Le lien est validé ICI, par le schéma que l'API applique au rattachement : l'attribut
+   * `type="url"` du champ ne valide rien hors d'un `<form>`. Refusé à l'enregistrement, le lien
+   * faisait échouer l'enregistrement après la création de l'exercice (#302).
+   */
   function addLink() {
     const url = linkDraft.trim();
     if (url === "") return;
+    if (!attachDocumentSchema.safeParse({ type: DocumentType.LINK, url }).success) {
+      setLinkError(t("library.builder.attachment.errorLink"));
+      return;
+    }
     onPendingLinks([...pendingLinks, url]);
     setLinkDraft("");
   }
@@ -179,7 +190,10 @@ export function AttachmentsSection({
             name="attachmentLink"
             type="url"
             value={linkDraft}
-            onChange={(event) => setLinkDraft(event.target.value)}
+            onChange={(event) => {
+              setLinkDraft(event.target.value);
+              setLinkError(null);
+            }}
             placeholder={t("library.builder.attachment.linkPlaceholder")}
           />
         </div>
@@ -188,6 +202,7 @@ export function AttachmentsSection({
         </CmvButton>
       </div>
 
+      {linkError == null ? null : <p className="text-cmv-caption text-cmv-error">{linkError}</p>}
       {fileError == null ? null : <p className="text-cmv-caption text-cmv-error">{fileError}</p>}
     </section>
   );
