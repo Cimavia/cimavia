@@ -1,6 +1,6 @@
-import { DocumentType, type ExerciseDto } from "@cmv/shared";
+import { DocumentType, type ExerciseDto, type RichBlock, RichBlockType } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useExerciseDraft } from "./useExerciseDraft";
 import type { PendingFile } from "./useSaveExercise";
@@ -58,6 +58,15 @@ async function submitFails(result: { current: ReturnType<typeof useExerciseDraft
     await expect(result.current.submit()).rejects.toThrow("réseau");
   });
 }
+
+const image = (mediaId: string): RichBlock => ({ type: RichBlockType.IMAGE, mediaId });
+const png = (name: string) => new File(["x"], name, { type: "image/png" });
+
+beforeAll(() => {
+  // jsdom n'a pas d'URL d'objet : le magasin en crée une par image posée.
+  URL.createObjectURL = vi.fn(() => "blob:fake");
+  URL.revokeObjectURL = vi.fn();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -126,5 +135,42 @@ describe("useExerciseDraft — un enregistrement interrompu (#302)", () => {
 
     // L'exercice existe déjà : sans ça, il resterait invisible le temps du `staleTime`.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["exercises"] });
+  });
+});
+
+describe("useExerciseDraft — les images de consigne d'un enregistrement interrompu", () => {
+  it("ne renvoie pas l'image déjà passée, et la consigne finale porte les deux ids définitifs", async () => {
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(null, "Gainage"), { wrapper });
+    let first = "";
+    let second = "";
+    act(() => {
+      first = result.current.media.register(png("a.png"), "image/png");
+      second = result.current.media.register(png("b.png"), "image/png");
+    });
+    act(() => result.current.setInstructions([image(first), image(second)]));
+    api.attachDocument
+      .mockReset()
+      .mockResolvedValueOnce({ id: "doc-a" })
+      .mockRejectedValueOnce(new Error("réseau"))
+      .mockResolvedValueOnce({ id: "doc-b" });
+
+    await submitFails(result);
+    await act(() => result.current.submit());
+
+    const uploaded = api.requestUploadUrl.mock.calls.map(([, input]) => input.fileName);
+    expect(uploaded).toEqual(["a.png", "b.png", "b.png"]);
+    // L'éditeur porte toujours l'id provisoire de A : le réessai l'écrit d'emblée sous son id
+    // définitif, au lieu de la retirer de la consigne comme une image jamais envoyée…
+    expect(api.updateExercise).toHaveBeenNthCalledWith(
+      1,
+      "ex-1",
+      expect.objectContaining({ instructions: [image("doc-a")] }),
+    );
+    // … puis réécrit la consigne complète une fois B passée.
+    expect(api.updateExercise).toHaveBeenLastCalledWith("ex-1", {
+      instructions: [image("doc-a"), image("doc-b")],
+    });
+    expect(api.createExercise).toHaveBeenCalledTimes(1);
   });
 });

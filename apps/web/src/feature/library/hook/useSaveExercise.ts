@@ -18,7 +18,6 @@ import {
 import type { PendingImage } from "@/feature/library/hook/useInstructionMedia";
 import {
   hasPendingImages,
-  withoutPendingImages,
   withResolvedImages,
 } from "@/feature/library/util/instruction-media.util";
 import { uploadToSignedUrl } from "@/shared/lib/upload";
@@ -37,6 +36,8 @@ type SaveExerciseArgs = {
   pendingLinks: string[];
   /** Images posées dans la consigne et pas encore envoyées. */
   pendingImages?: readonly PendingImage[];
+  /** Id définitif des images envoyées par un essai précédent, par id provisoire. */
+  sentImages?: ReadonlyMap<string, string>;
   /** Remonte la progression d'envoi d'une image au magasin, qui l'affiche dans l'éditeur. */
   onImageProgress?: (mediaId: string, percent: number) => void;
   /**
@@ -47,6 +48,7 @@ type SaveExerciseArgs = {
   onExerciseSaved?: (saved: ExerciseDto) => void;
   onFileAttached?: (pendingId: string) => void;
   onLinkAttached?: (url: string) => void;
+  onImageAttached?: (mediaId: string, documentId: string) => void;
 };
 
 export function useSaveExercise() {
@@ -61,17 +63,20 @@ export function useSaveExercise() {
       pendingFiles,
       pendingLinks,
       pendingImages = [],
+      sentImages = new Map(),
       onImageProgress,
       onExerciseSaved,
       onFileAttached,
       onLinkAttached,
+      onImageAttached,
     }: SaveExerciseArgs) => {
       /**
        * Trois temps, et l'ordre n'est pas négociable : un document ne se rattache qu'à un exercice
        * qui EXISTE, or le coach pose ses images avant d'enregistrer.
        *
        *  1. écrire l'exercice SANS les images en attente — leurs ids provisoires ne désignent
-       *     encore rien, et les écrire produirait des références mortes si l'envoi échouait ;
+       *     encore rien, et les écrire produirait des références mortes si l'envoi échouait.
+       *     Celles qu'un essai précédent a envoyées y sont, elles, sous leur id définitif ;
        *  2. envoyer chaque image et la rattacher, ce qui lui donne son id définitif ;
        *  3. réécrire la consigne avec les vrais ids.
        *
@@ -83,7 +88,7 @@ export function useSaveExercise() {
       const firstPass =
         instructions == null
           ? input
-          : { ...input, instructions: nullIfEmpty(withoutPendingImages(instructions)) };
+          : { ...input, instructions: nullIfEmpty(withResolvedImages(instructions, sentImages)) };
 
       const saved =
         exercise == null
@@ -115,9 +120,12 @@ export function useSaveExercise() {
         onLinkAttached?.(url);
       }
 
-      if (instructions == null || !hasPendingImages(instructions)) return saved;
+      // Rien à envoyer : les images déjà envoyées ont été écrites résolues au temps 1.
+      if (instructions == null || pendingImages.length === 0 || !hasPendingImages(instructions)) {
+        return saved;
+      }
 
-      const idByPendingId = new Map<string, string>();
+      const idByPendingId = new Map(sentImages);
       for (const image of pendingImages) {
         const { uploadUrl, storagePath } = await requestUploadUrl(saved.id, {
           fileName: image.file.name,
@@ -136,6 +144,7 @@ export function useSaveExercise() {
           usage: DocumentUsage.INSTRUCTION,
         });
         idByPendingId.set(image.mediaId, attached.id);
+        onImageAttached?.(image.mediaId, attached.id);
       }
 
       return updateExercise(saved.id, {
@@ -159,7 +168,7 @@ export function useSaveExercise() {
 }
 
 // Un document vide vaut `null`, jamais `[]` (règle nullable n°5).
-function nullIfEmpty(blocks: ReturnType<typeof withoutPendingImages>) {
+function nullIfEmpty(blocks: ReturnType<typeof withResolvedImages>) {
   return blocks.length === 0 ? null : blocks;
 }
 

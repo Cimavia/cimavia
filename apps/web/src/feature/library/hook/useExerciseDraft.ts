@@ -53,6 +53,7 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
       pendingFiles,
       pendingLinks,
       pendingImages: media.pending,
+      sentImages: media.sent,
       onImageProgress: media.setProgress,
       onExerciseSaved: (saved) => {
         if (exercise == null) setCreated(saved);
@@ -60,6 +61,7 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
       onFileAttached: (pendingId) =>
         setPendingFiles((files) => files.filter((file) => file.id !== pendingId)),
       onLinkAttached: (url) => setPendingLinks((links) => withoutFirst(links, url)),
+      onImageAttached: media.markSent,
     });
   }
 

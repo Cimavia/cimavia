@@ -1,19 +1,6 @@
 import { RichBlockType, type RichDocument } from "@cmv/shared";
 import { isPendingMediaId } from "@/feature/library/hook/useInstructionMedia";
 
-/**
- * Le document débarrassé de ses images pas encore envoyées.
- *
- * Sert au PREMIER enregistrement d'un exercice, avant que les fichiers n'aient d'`ExerciseDocument`
- * à référencer. Écrire les ids provisoires produirait des références mortes si l'envoi échouait
- * ensuite : la consigne afficherait des trous que rien ne saurait réparer.
- */
-export function withoutPendingImages(blocks: RichDocument): RichDocument {
-  return blocks.filter(
-    (block) => block.type !== RichBlockType.IMAGE || !isPendingMediaId(block.mediaId),
-  );
-}
-
 /** Vrai si au moins une image attend encore son envoi — évite un second PATCH pour rien. */
 export function hasPendingImages(blocks: RichDocument): boolean {
   return blocks.some(
@@ -22,8 +9,12 @@ export function hasPendingImages(blocks: RichDocument): boolean {
 }
 
 /**
- * Réécrit les ids provisoires en ids définitifs. Une image dont l'envoi a échoué n'a pas
- * d'entrée dans la table : elle est retirée plutôt que laissée en référence morte.
+ * Réécrit les ids provisoires en ids définitifs. Une image pas encore envoyée — ou dont l'envoi a
+ * échoué — n'a pas d'entrée dans la table : elle est retirée plutôt que laissée en référence morte.
+ *
+ * Sert aussi au PREMIER enregistrement, avec les seules images déjà envoyées : écrire un id
+ * provisoire produirait une référence morte si l'envoi échouait ensuite, et la consigne
+ * afficherait un trou que rien ne saurait réparer.
  */
 export function withResolvedImages(
   blocks: RichDocument,
