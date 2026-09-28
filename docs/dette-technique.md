@@ -1615,10 +1615,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > Le débrief qui cite un exercice absent de la séance répond maintenant **400**, avant toute
 > écriture, texte compris (#311). Ce refus a un coût côté clients : une coche restée en local sur
-> un exercice que le coach a retiré ferait refuser tout le débrief. Le web filtre donc le suivi
-> avant l'envoi (`trackingOfExercises`, `@cmv/shared`). **Le mobile ne le fait pas encore**
-> ([#490](https://github.com/Cimavia/cimavia/issues/490)) : la PR ne doit pas être **promue en
-> preview** avant #490.
+> un exercice que le coach a retiré ferait refuser tout le débrief. Les deux clients filtrent donc
+> le suivi avant l'envoi (`trackingOfExercises`, `@cmv/shared`) — le web en #311, le mobile en
+> [#490](https://github.com/Cimavia/cimavia/issues/490). Le filtre lit la séance **en cache** :
+> sur mobile, persistée et tenue pour fraîche cinq minutes, elle peut ignorer un retrait tout
+> juste fait. Un 400 au débrief y invalide donc la séance, et l'envoi suivant passe ; le suivi
+> local, lui, n'est vidé qu'au succès. #296/#311 et #490 se **promeuvent ensemble** en preview.
 
 > **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
 > à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
