@@ -1,6 +1,7 @@
 import { type ConversationDto, initialsOf, MessageType } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useAthletes } from "@/feature/athlete";
@@ -31,6 +32,19 @@ export function CoachConversationsScreen() {
   // Même clé de cache pour tous les appelants : une seule requête, quel que soit le nombre
   // d'écrans qui affichent le sélecteur.
   const { data: unread } = useUnreadByCapability();
+
+  /**
+   * Relue à chaque passage au premier plan, comme les notifications et les factures : le cache est
+   * persisté et frais 5 min, donc un message arrivé pendant qu'on regardait ailleurs n'y apparaîtrait
+   * qu'au tirer-pour-rafraîchir (#309). Les fils seulement : ce sont eux qui bougent, pas la liste
+   * des athlètes. Pas de sondage — on ne regarde pas cette liste changer.
+   */
+  const { refetch: refetchConversations } = conversations;
+  useFocusEffect(
+    useCallback(() => {
+      void refetchConversations();
+    }, [refetchConversations]),
+  );
 
   const byAthlete = new Map(
     (conversations.data ?? []).map((conversation) => [conversation.counterpartId, conversation]),
