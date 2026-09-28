@@ -1676,6 +1676,37 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   });
 
   /**
+   * L'état qu'ont laissé les réaffectations d'avant la garde : cycle et facture chez A2, PDF
+   * rédigé pour A1. L'API ne sait plus le produire — on le rejoue donc en ôtant le PDF le temps
+   * de la réaffectation, en base, puis en le remettant. La diffusion refuse de l'émettre, et rien
+   * ne part : ni statut, ni facture.
+   */
+  it("refuse de diffuser un justificatif hérité, préparé pour l'ancien destinataire", async () => {
+    const prisma = app.get(PrismaService);
+    const planId = await billedDraftForA1("Justificatif hérité");
+    expect((await attachPdf(planId, await uploadPdf(planId))).status).toBe(200);
+
+    const [draft] = await prisma.$queryRaw<{ documentPath: string }[]>`
+      SELECT "documentPath" FROM invoice WHERE "planId" = ${planId}`;
+    const keyForA1 = required(draft, "justificatif joint").documentPath;
+    await prisma.$executeRaw`UPDATE invoice SET "documentPath" = NULL WHERE "planId" = ${planId}`;
+    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
+    await prisma.$executeRaw`
+      UPDATE invoice SET "documentPath" = ${keyForA1} WHERE "planId" = ${planId}`;
+
+    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(409);
+    expect((await coachA.get(`/plans/${planId}`)).body.status).toBe("DRAFT");
+    const issued = (await coachA.get("/invoices")).body.map(
+      (invoice: { planId: string }) => invoice.planId,
+    );
+    expect(issued).not.toContain(planId);
+
+    // Le PDF retiré, le cycle part — à A2, sans le document de A1.
+    expect((await coachA.delete(`/plans/${planId}/billing/document`)).status).toBe(200);
+    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+  });
+
+  /**
    * Détacher est permis — c'est la brique que #5 attend — SAUF sur un cycle déjà chiffré :
    * `Invoice.athleteId` est NOT NULL, et un montant qu'on n'adresse à personne n'a pas de sens.
    * Le coach n'est bloqué sur rien : affecter quelqu'un d'autre reste ouvert.
