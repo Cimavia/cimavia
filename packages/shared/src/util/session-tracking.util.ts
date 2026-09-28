@@ -75,6 +75,25 @@ export function setRounds(
 }
 
 /**
+ * Le suivi restreint aux exercices que la séance porte ENCORE — ce qui part avec le débrief.
+ *
+ * Le suivi local survit à la séance qu'il décrit : le coach peut retirer un exercice que l'athlète
+ * a déjà coché, et la clé reste sur l'appareil. Le serveur refuse un débrief qui cite un exercice
+ * inconnu de la séance (#311) — l'envoyer tel quel bloquerait donc l'athlète à chaque tentative,
+ * pour une coche qui ne désigne plus rien.
+ *
+ * Rend le suivi LUI-MÊME quand rien n'est à retirer : le cas courant n'alloue rien.
+ */
+export function trackingOfExercises(
+  tracking: SessionTracking,
+  exercises: readonly { id: string }[],
+): SessionTracking {
+  const present = new Set(exercises.map((exercise) => exercise.id));
+  if (Object.keys(tracking).every((id) => present.has(id))) return tracking;
+  return Object.fromEntries(Object.entries(tracking).filter(([id]) => present.has(id)));
+}
+
+/**
  * Deux suivis disent-ils la même chose ?
  *
  * Comparé sur une forme CANONIQUE (clés triées) : deux objets identiques écrits dans un ordre
