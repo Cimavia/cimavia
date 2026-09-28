@@ -366,7 +366,8 @@
         "addLinkAction": "Ajouter",
         "linkPlaceholder": "https://…",
         "errorType": "Format non accepté : PDF, PNG, JPEG ou WebP.",
-        "errorSize": "Fichier trop lourd : 20 Mo maximum."
+        "errorSize": "Fichier trop lourd : 20 Mo maximum.",
+        "errorLink": "Lien non reconnu : colle l'adresse complète, avec https://."
       },
       "saved": "Exercice enregistré.",
       "saveFailed": "L'enregistrement a échoué.",

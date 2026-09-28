@@ -18,7 +18,6 @@ import {
 import type { PendingImage } from "@/feature/library/hook/useInstructionMedia";
 import {
   hasPendingImages,
-  withoutPendingImages,
   withResolvedImages,
 } from "@/feature/library/util/instruction-media.util";
 import { uploadToSignedUrl } from "@/shared/lib/upload";
@@ -37,8 +36,19 @@ type SaveExerciseArgs = {
   pendingLinks: string[];
   /** Images posées dans la consigne et pas encore envoyées. */
   pendingImages?: readonly PendingImage[];
+  /** Id définitif des images envoyées par un essai précédent, par id provisoire. */
+  sentImages?: ReadonlyMap<string, string>;
   /** Remonte la progression d'envoi d'une image au magasin, qui l'affiche dans l'éditeur. */
   onImageProgress?: (mediaId: string, percent: number) => void;
+  /**
+   * Chaque temps réussi remonte au brouillon AU MOMENT où il réussit, pas à la fin : si la suite
+   * échoue, le réessai doit mettre à jour l'exercice créé et ne renvoyer que ce qui manque. Sans
+   * ça, il recréait l'exercice et rattachait une seconde fois chaque pièce jointe (#302).
+   */
+  onExerciseSaved?: (saved: ExerciseDto) => void;
+  onFileAttached?: (pendingId: string) => void;
+  onLinkAttached?: (url: string) => void;
+  onImageAttached?: (mediaId: string, documentId: string) => void;
 };
 
 export function useSaveExercise() {
@@ -53,30 +63,38 @@ export function useSaveExercise() {
       pendingFiles,
       pendingLinks,
       pendingImages = [],
+      sentImages = new Map(),
       onImageProgress,
+      onExerciseSaved,
+      onFileAttached,
+      onLinkAttached,
+      onImageAttached,
     }: SaveExerciseArgs) => {
       /**
        * Trois temps, et l'ordre n'est pas négociable : un document ne se rattache qu'à un exercice
        * qui EXISTE, or le coach pose ses images avant d'enregistrer.
        *
        *  1. écrire l'exercice SANS les images en attente — leurs ids provisoires ne désignent
-       *     encore rien, et les écrire produirait des références mortes si l'envoi échouait ;
+       *     encore rien, et les écrire produirait des références mortes si l'envoi échouait.
+       *     Celles qu'un essai précédent a envoyées y sont, elles, sous leur id définitif ;
        *  2. envoyer chaque image et la rattacher, ce qui lui donne son id définitif ;
        *  3. réécrire la consigne avec les vrais ids.
        *
        * Si le temps 2 échoue, l'exercice existe avec son texte et sans ses images : dégradé, mais
-       * cohérent — et le formulaire tient encore tout ce qu'il faut pour réessayer.
+       * cohérent — et le formulaire, qui a appris à chaque temps réussi ce qui est déjà passé, ne
+       * réessaie que le reste.
        */
       const instructions = input.instructions ?? null;
       const firstPass =
         instructions == null
           ? input
-          : { ...input, instructions: nullIfEmpty(withoutPendingImages(instructions)) };
+          : { ...input, instructions: nullIfEmpty(withResolvedImages(instructions, sentImages)) };
 
       const saved =
         exercise == null
           ? await createExercise(firstPass)
           : await updateExercise(exercise.id, firstPass);
+      onExerciseSaved?.(saved);
 
       // Envois séquentiels : progression lisible et pas de rafale vers l'object storage.
       for (const pending of pendingFiles) {
@@ -94,15 +112,20 @@ export function useSaveExercise() {
           fileName: pending.file.name,
           mimeType: pending.mimeType,
         });
+        onFileAttached?.(pending.id);
       }
 
       for (const url of pendingLinks) {
         await attachDocument(saved.id, { type: DocumentType.LINK, url });
+        onLinkAttached?.(url);
       }
 
-      if (instructions == null || !hasPendingImages(instructions)) return saved;
+      // Rien à envoyer : les images déjà envoyées ont été écrites résolues au temps 1.
+      if (instructions == null || pendingImages.length === 0 || !hasPendingImages(instructions)) {
+        return saved;
+      }
 
-      const idByPendingId = new Map<string, string>();
+      const idByPendingId = new Map(sentImages);
       for (const image of pendingImages) {
         const { uploadUrl, storagePath } = await requestUploadUrl(saved.id, {
           fileName: image.file.name,
@@ -121,14 +144,19 @@ export function useSaveExercise() {
           usage: DocumentUsage.INSTRUCTION,
         });
         idByPendingId.set(image.mediaId, attached.id);
+        onImageAttached?.(image.mediaId, attached.id);
       }
 
       return updateExercise(saved.id, {
         instructions: nullIfEmpty(withResolvedImages(instructions, idByPendingId)),
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
-    onSettled: () => setProgress({}),
+    // `onSettled` et non `onSuccess` : un échec partiel a pu créer l'exercice ou rattacher des
+    // documents, et la bibliothèque doit le montrer sans attendre la fin du `staleTime`.
+    onSettled: () => {
+      setProgress({});
+      return queryClient.invalidateQueries({ queryKey: exerciseKeys.all });
+    },
   });
 
   return {
@@ -140,7 +168,7 @@ export function useSaveExercise() {
 }
 
 // Un document vide vaut `null`, jamais `[]` (règle nullable n°5).
-function nullIfEmpty(blocks: ReturnType<typeof withoutPendingImages>) {
+function nullIfEmpty(blocks: ReturnType<typeof withResolvedImages>) {
   return blocks.length === 0 ? null : blocks;
 }
 
