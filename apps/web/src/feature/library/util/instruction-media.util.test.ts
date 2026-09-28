@@ -1,10 +1,6 @@
 import { type RichBlock, RichBlockType, type RichDocument } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
-import {
-  hasPendingImages,
-  withoutPendingImages,
-  withResolvedImages,
-} from "./instruction-media.util";
+import { hasPendingImages, withResolvedImages } from "./instruction-media.util";
 
 const paragraph: RichBlock = {
   type: RichBlockType.PARAGRAPH,
@@ -18,12 +14,6 @@ const savedImage: RichBlock = {
 };
 
 const document: RichDocument = [paragraph, pendingImage, savedImage];
-
-describe("withoutPendingImages", () => {
-  it("retire les images en attente, garde le reste", () => {
-    expect(withoutPendingImages(document)).toEqual([paragraph, savedImage]);
-  });
-});
 
 describe("hasPendingImages", () => {
   it("distingue un document qui attend un envoi d'un document déjà complet", () => {
