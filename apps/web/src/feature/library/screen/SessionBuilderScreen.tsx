@@ -238,7 +238,10 @@ function SessionBuilder({
                   onResetAll={() => draft.resetItem(item.key)}
                   onReload={() => {
                     if (item.id == null) return;
-                    reload.mutate(item.id, { onSuccess: draft.applyReloaded });
+                    reload.mutate(item.id, {
+                      onSuccess: (reloaded, sessionExerciseId) =>
+                        draft.applyReloaded(sessionExerciseId, reloaded),
+                    });
                   }}
                   onDuplicate={() => onDuplicate(item.exerciseId, item.blocks)}
                   onRemove={() => draft.removeItem(item.key)}
