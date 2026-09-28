@@ -4999,6 +4999,130 @@ describe("Génération automatique des rappels (#47)", () => {
 });
 
 /**
+ * Payer ou annuler une facture clôt son rappel « en retard » (#349).
+ *
+ * Sans cela, le « relancer » généré par le tick restait à traiter — dans le centre, le badge et la
+ * tuile du tableau de bord — pour une facture qui n'avait plus rien à relancer. La clôture vit dans
+ * la transaction qui change le statut : ce bloc la regarde depuis les trois surfaces du coach.
+ */
+describe("Payer ou annuler une facture clôt son rappel « en retard » (#349)", () => {
+  const SECRET = "e2e-tick-secret-not-for-production";
+
+  let coachP: Agent;
+  let paidInvoiceId: string;
+  let cancelledInvoiceId: string;
+  let manualId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  type Rmd = { id: string; entityId: string; reason: string | null; status: string };
+
+  const tick = () =>
+    request(baseURL).post("/internal/reminders/tick").set("x-cimavia-tick-secret", SECRET);
+  const overdueReminderOf = async (invoiceId: string): Promise<Rmd> =>
+    required(
+      ((await coachP.get("/reminders")).body as Rmd[]).find(
+        (r) => r.entityId === invoiceId && r.reason === "INVOICE_OVERDUE",
+      ),
+      "rappel de facture en retard",
+    );
+  const dueCount = async (): Promise<number> =>
+    (await coachP.get("/reminders/summary")).body.dueCount;
+  const inCenter = async (reminderId: string): Promise<boolean> =>
+    ((await coachP.get("/me/notifications")).body as { id: string }[]).some(
+      (e) => e.id === `reminder:${reminderId}`,
+    );
+
+  // Deux cycles facturés, donc deux factures ÉMISES à échéance dépassée (`billAndPublish`).
+  const billedPlan = async (athleteId: string, title: string): Promise<string> => {
+    const plan = await coachP.post("/plans").send({
+      athleteId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect((await billAndPublish(coachP, plan.body.id)).status).toBe(200);
+    const invoices = (await coachP.get("/invoices")).body as { id: string; planId: string }[];
+    return required(
+      invoices.find((i) => i.planId === plan.body.id),
+      "facture émise",
+    ).id;
+  };
+
+  beforeAll(async () => {
+    coachP = await signUp("paid-coach-p@cmv.test", Role.COACH);
+    const athleteP1 = await signUp("paid-athlete-p1@cmv.test", Role.ATHLETE);
+    const invitation = await coachP.post("/invitations").send({});
+    const accepted = await athleteP1
+      .post("/invitations/accept")
+      .send({ code: invitation.body.code });
+
+    paidInvoiceId = await billedPlan(accepted.body.athleteId, "Cycle payé en retard");
+    cancelledInvoiceId = await billedPlan(accepted.body.athleteId, "Cycle annulé en retard");
+
+    expect((await tick()).status).toBe(200);
+
+    // Un rappel MANUEL, dû, sur la facture qui sera payée : il n'est pas à clore à la place du coach.
+    const manual = await coachP.post("/reminders").send({
+      entityType: "INVOICE",
+      entityId: paidInvoiceId,
+      dueAt: new Date(Date.now() - 3_600_000).toISOString(),
+      note: "Appeler pour le virement",
+    });
+    manualId = manual.body.id;
+  });
+
+  it("le tick a bien généré un rappel à traiter par facture en retard", async () => {
+    expect(await overdueReminderOf(paidInvoiceId)).toMatchObject({ status: "PENDING" });
+    expect(await overdueReminderOf(cancelledInvoiceId)).toMatchObject({ status: "PENDING" });
+  });
+
+  it("payer la facture clôt son rappel, qui quitte le centre et le décompte", async () => {
+    const reminder = await overdueReminderOf(paidInvoiceId);
+    expect(await inCenter(reminder.id)).toBe(true);
+    const before = await dueCount();
+
+    const paid = await coachP.patch(`/invoices/${paidInvoiceId}/status`).send({ status: "PAID" });
+    expect(paid.status).toBe(200);
+
+    expect(await overdueReminderOf(paidInvoiceId)).toMatchObject({ status: "DONE" });
+    expect(await inCenter(reminder.id)).toBe(false);
+    expect(await dueCount()).toBe(before - 1);
+    // Seul le rappel de CETTE facture : l'autre reste à relancer.
+    expect(await overdueReminderOf(cancelledInvoiceId)).toMatchObject({ status: "PENDING" });
+  });
+
+  it("le rappel manuel posé sur la même facture reste au coach", async () => {
+    const manual = ((await coachP.get("/reminders")).body as Rmd[]).find((r) => r.id === manualId);
+    expect(manual).toMatchObject({ reason: null, status: "PENDING" });
+  });
+
+  /**
+   * Tranché en #349 : remettre la facture à régler ne rouvre pas son rappel, et le tick ne le
+   * régénère pas — un rappel traité ne l'est jamais (#47). La facture, elle, redevient en retard.
+   */
+  it("remettre la facture à régler ne rouvre ni ne régénère le rappel", async () => {
+    const back = await coachP
+      .patch(`/invoices/${paidInvoiceId}/status`)
+      .send({ status: "PENDING" });
+    expect(back.status).toBe(200);
+
+    const res = await tick();
+    expect(res.body.createdReminders).toBe(0);
+    expect(await overdueReminderOf(paidInvoiceId)).toMatchObject({ status: "DONE" });
+  });
+
+  it("annuler la facture clôt son rappel", async () => {
+    const reminder = await overdueReminderOf(cancelledInvoiceId);
+
+    expect((await coachP.post(`/invoices/${cancelledInvoiceId}/cancel`)).status).toBe(200);
+
+    expect(await overdueReminderOf(cancelledInvoiceId)).toMatchObject({ status: "DONE" });
+    expect(await inCenter(reminder.id)).toBe(false);
+  });
+});
+
+/**
  * Copier/coller une semaine (#4).
  *
  * Ce que la copie emporte est ce que le COACH a composé ; ce qu'elle laisse appartient à l'athlète
