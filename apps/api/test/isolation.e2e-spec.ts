@@ -2299,16 +2299,26 @@ describe("Suivi d'exécution (#168)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("un identifiant d'exercice étranger n'écrit RIEN", async () => {
-    // L'écriture est pilotée par l'entrée : sans `where` scopé sur la séance, un id forgé
-    // atteindrait la ligne d'un autre.
+  it("un exercice inconnu de la séance fait refuser le débrief (400), sans RIEN en écrire", async () => {
+    // Répondre 200 en ignorant la coche, c'était laisser le client vider son suivi local pour des
+    // coches qui n'avaient atterri nulle part (#311). Le refus les garde sur l'appareil.
     const before = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    const feedbackBefore = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
+
     const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { cmv_inconnu: { blk_1: { checked: [0, 1, 2, 3] } } },
+      content: "Ne doit pas s'écrire",
+      tracking: {
+        [exerciseCopyId]: { blk_1: { checked: [0] } },
+        cmv_inconnu: { blk_1: { checked: [0, 1, 2, 3] } },
+      },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+
+    // Ni le texte, ni la coche de l'exercice CONNU : un refus n'enregistre pas à moitié.
     const after = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
     expect(after.tracking).toEqual(before.tracking);
+    const feedbackAfter = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
+    expect(feedbackAfter.content).toBe(feedbackBefore.content);
   });
 });
 
