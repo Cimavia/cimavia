@@ -155,7 +155,9 @@ export function CompositionCard({
       </header>
 
       {/* Le rechargement ÉCRASE et perd les ajustements : il se confirme, et la confirmation dit
-          combien on en perd — « es-tu sûr » sans chiffre ne se décide pas. */}
+          combien on en perd — « es-tu sûr » sans chiffre ne se décide pas. À zéro, rien à perdre :
+          `reloadWarning_zero` le dit, sans quoi le français, qui range 0 au singulier, annoncerait
+          « Ton ajustement sera perdu ». Les AUTRES exercices ne sont pas touchés (#300). */}
       {confirmReload ? (
         <div className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-sm border border-cmv-warning-line bg-cmv-warning-soft px-cmv-md py-cmv-sm">
           <span className="flex-1 text-cmv-caption text-cmv-warning-on">
