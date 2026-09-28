@@ -1592,6 +1592,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > renvoie l'intégralité du snapshot, et le serveur reporte par `id` ce qui ne transite JAMAIS par
 > lui — le **suivi d'exécution**, qui appartient à l'athlète. Verrouillé par deux e2e vérifiés
 > rouges avant correctif.
+>
+> **Incomplet, corrigé en #296/#311** : ce report ne sauvait que le suivi **déjà en base**. Les
+> lignes étaient recréées sous un **nouvel** `id`, alors que l'athlète coche en local contre
+> l'ancien : ses coches non encore débriefées retombaient sur une ligne disparue, et le débrief
+> répondait 200 sans rien écrire. Les documents étaient recréés eux aussi, depuis la bibliothèque,
+> et les images de la consigne ne désignaient plus rien. Voir l'encadré suivant.
+
+> **Tranché en #296** (l'édition d'une séance planifiée garde l'identité de ses lignes) : une ligne
+> citée par son `id` est **mise à jour en place**, jamais détruite puis recréée
+> (`rewriteScheduledSessionExercises`). La reprise de l'`id` sur une ligne recréée a été écartée :
+> ce qui est rattaché à la ligne (documents, tags, et demain tout nouvel enfant) serait resté
+> détruit en cascade à chaque enregistrement du coach. Quatre conséquences : **(1)** une ligne
+> reprise garde ses documents **sans copie**, la bibliothèque ne sert qu'aux exercices
+> **ajoutés**, et un `sourceExerciseId` passé à `null` ne coûte plus aucun document ni objet ;
+> **(2)** `baseline`, `tracking` et `sourceExerciseId` d'une ligne reprise ne se réécrivent pas
+> depuis le panneau du coach ; **(3)** un `id` inconnu de la séance est une ligne **nouvelle**, et
+> un `id` cité deux fois vaut **400** ; **(4)** les rangs passent par un garage, comme `writeDay`,
+> car `@@unique([scheduledSessionId, position])` mord pendant l'écriture. La copie de semaine (#4)
+> recrée ses lignes, et c'est voulu : ce sont des séances neuves, et ses documents viennent de
+> l'instance source. Un e2e le verrouille désormais pour les images de consigne.
+>
+> Le débrief qui cite un exercice absent de la séance répond maintenant **400**, avant toute
+> écriture, texte compris (#311). Ce refus a un coût côté clients : une coche restée en local sur
+> un exercice que le coach a retiré ferait refuser tout le débrief. Le web filtre donc le suivi
+> avant l'envoi (`trackingOfExercises`, `@cmv/shared`). **Le mobile ne le fait pas encore**
+> ([#490](https://github.com/Cimavia/cimavia/issues/490)) : la PR ne doit pas être **promue en
+> preview** avant #490.
 
 > **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
 > à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
