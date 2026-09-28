@@ -39,6 +39,14 @@ type SaveExerciseArgs = {
   pendingImages?: readonly PendingImage[];
   /** Remonte la progression d'envoi d'une image au magasin, qui l'affiche dans l'éditeur. */
   onImageProgress?: (mediaId: string, percent: number) => void;
+  /**
+   * Chaque temps réussi remonte au brouillon AU MOMENT où il réussit, pas à la fin : si la suite
+   * échoue, le réessai doit mettre à jour l'exercice créé et ne renvoyer que ce qui manque. Sans
+   * ça, il recréait l'exercice et rattachait une seconde fois chaque pièce jointe (#302).
+   */
+  onExerciseSaved?: (saved: ExerciseDto) => void;
+  onFileAttached?: (pendingId: string) => void;
+  onLinkAttached?: (url: string) => void;
 };
 
 export function useSaveExercise() {
@@ -54,6 +62,9 @@ export function useSaveExercise() {
       pendingLinks,
       pendingImages = [],
       onImageProgress,
+      onExerciseSaved,
+      onFileAttached,
+      onLinkAttached,
     }: SaveExerciseArgs) => {
       /**
        * Trois temps, et l'ordre n'est pas négociable : un document ne se rattache qu'à un exercice
@@ -65,7 +76,8 @@ export function useSaveExercise() {
        *  3. réécrire la consigne avec les vrais ids.
        *
        * Si le temps 2 échoue, l'exercice existe avec son texte et sans ses images : dégradé, mais
-       * cohérent — et le formulaire tient encore tout ce qu'il faut pour réessayer.
+       * cohérent — et le formulaire, qui a appris à chaque temps réussi ce qui est déjà passé, ne
+       * réessaie que le reste.
        */
       const instructions = input.instructions ?? null;
       const firstPass =
@@ -77,6 +89,7 @@ export function useSaveExercise() {
         exercise == null
           ? await createExercise(firstPass)
           : await updateExercise(exercise.id, firstPass);
+      onExerciseSaved?.(saved);
 
       // Envois séquentiels : progression lisible et pas de rafale vers l'object storage.
       for (const pending of pendingFiles) {
@@ -94,10 +107,12 @@ export function useSaveExercise() {
           fileName: pending.file.name,
           mimeType: pending.mimeType,
         });
+        onFileAttached?.(pending.id);
       }
 
       for (const url of pendingLinks) {
         await attachDocument(saved.id, { type: DocumentType.LINK, url });
+        onLinkAttached?.(url);
       }
 
       if (instructions == null || !hasPendingImages(instructions)) return saved;
@@ -127,8 +142,12 @@ export function useSaveExercise() {
         instructions: nullIfEmpty(withResolvedImages(instructions, idByPendingId)),
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
-    onSettled: () => setProgress({}),
+    // `onSettled` et non `onSuccess` : un échec partiel a pu créer l'exercice ou rattacher des
+    // documents, et la bibliothèque doit le montrer sans attendre la fin du `staleTime`.
+    onSettled: () => {
+      setProgress({});
+      return queryClient.invalidateQueries({ queryKey: exerciseKeys.all });
+    },
   });
 
   return {
