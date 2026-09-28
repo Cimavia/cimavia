@@ -131,6 +131,10 @@ export class InvoiceService {
    *
    * Appelé DANS la transaction d'affectation : un cycle dont l'athlète a changé mais pas la
    * facture est exactement ce que cette méthode existe pour empêcher.
+   *
+   * Seuls les TERMES suivent — montant, note, échéance, que le coach relit dans le formulaire.
+   * Un justificatif PDF ne suit jamais : `assertDocumentDetached` refuse la réaffectation avant
+   * d'arriver ici (#472).
    */
   async followPlanAthlete(tx: TenantTx, planId: string, athleteId: string): Promise<void> {
     await tx.invoice.updateMany({
@@ -155,6 +159,25 @@ export class InvoiceService {
     if (draft != null) {
       throw new ConflictException(
         "Ce cycle a une facturation saisie : affecte-le à un autre athlète plutôt que de le laisser sans destinataire",
+      );
+    }
+  }
+
+  /**
+   * Changer le destinataire d'un cycle est refusé tant qu'un justificatif est joint à son
+   * brouillon (#472). Le PDF est un document fermé, rédigé pour UN athlète — son nom, son adresse,
+   * son montant : le faire suivre l'émettrait tel quel au suivant.
+   *
+   * Refuser plutôt que retirer le PDF à sa place : la réaffectation détruirait sinon un fichier
+   * que le coach a fourni, sans qu'il l'ait demandé. Le retirer reste un geste à lui, d'un clic.
+   */
+  async assertDocumentDetached(planId: string): Promise<void> {
+    const draft = await this.db.invoice.findFirst({
+      where: { planId, status: InvoiceStatus.DRAFT, documentPath: { not: null } },
+    });
+    if (draft != null) {
+      throw new ConflictException(
+        "Un justificatif est joint à la facturation de ce cycle : retire-le avant de changer d'athlète",
       );
     }
   }

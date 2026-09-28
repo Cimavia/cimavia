@@ -1423,6 +1423,36 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     return { planId: plan.body.id as string, sessionId: session.body.id as string };
   }
 
+  // Un brouillon affecté à A1 et chiffré : l'état où un justificatif peut se joindre.
+  async function billedDraftForA1(title: string): Promise<string> {
+    const { planId } = await draftWithoutAthlete(title);
+    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await coachA.put(`/plans/${planId}/billing`).send({ amountCents: 7000, dueDate: monday });
+    return planId;
+  }
+
+  // URL signée puis PUT réel vers le storage : la clé rendue est segmentée sous le destinataire
+  // du moment de la demande.
+  async function uploadPdf(planId: string): Promise<string> {
+    const signed = await coachA
+      .post(`/plans/${planId}/billing/document/upload-url`)
+      .send({ fileName: "facture-a1.pdf", mimeType: "application/pdf", size: 2_000 });
+    expect(signed.status).toBe(201);
+    const put = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(2_000, 1),
+      headers: { "content-type": "application/pdf" },
+    });
+    expect(put.status).toBe(200);
+    return signed.body.storagePath;
+  }
+
+  function attachPdf(planId: string, storagePath: string) {
+    return coachA
+      .put(`/plans/${planId}/billing/document`)
+      .send({ storagePath, fileName: "facture-a1.pdf", mimeType: "application/pdf", size: 2_000 });
+  }
+
   beforeAll(async () => {
     coachA = await signUp("unassigned-coach-a@cmv.test", Role.COACH);
     coachB = await signUp("unassigned-coach-b@cmv.test", Role.COACH);
@@ -1591,6 +1621,58 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
       (invoice: { planId: string }) => invoice.planId === planId,
     );
     expect(issued.athleteId).toBe(a2Id);
+  });
+
+  /**
+   * Les termes suivent, le justificatif non (#472) : le PDF est rédigé pour A1 — son nom, son
+   * adresse, son montant — et partirait tel quel chez A2. Le refus ne touche à rien : ni au
+   * destinataire, ni au PDF, ni à l'objet dans le storage.
+   */
+  it("refuse de réaffecter un brouillon dont la facture porte un justificatif", async () => {
+    const planId = await billedDraftForA1("Justificatif rédigé pour A1");
+    expect((await attachPdf(planId, await uploadPdf(planId))).status).toBe(200);
+
+    const refused = await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id });
+    expect(refused.status).toBe(409);
+
+    expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBe(a1Id);
+    const billing = await coachA.get(`/plans/${planId}/billing`);
+    expect(billing.body.athleteId).toBe(a1Id);
+    expect(billing.body.documentFileName).toBe("facture-a1.pdf");
+    expect((await fetch(billing.body.documentUrl)).status).toBe(200);
+
+    // Renvoyer le MÊME destinataire ne change rien : il n'y a rien à refuser.
+    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id })).status).toBe(200);
+  });
+
+  it("réaffecte une fois le justificatif retiré, et la facture suit sans lui", async () => {
+    const planId = await billedDraftForA1("Justificatif retiré");
+    expect((await attachPdf(planId, await uploadPdf(planId))).status).toBe(200);
+    expect((await coachA.delete(`/plans/${planId}/billing/document`)).status).toBe(200);
+
+    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
+    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+
+    const issued = (await coachA.get("/invoices")).body.find(
+      (invoice: { planId: string }) => invoice.planId === planId,
+    );
+    expect(issued.athleteId).toBe(a2Id);
+    expect(issued.documentFileName).toBeNull();
+  });
+
+  /**
+   * Le chemin de traverse : la clé est SIGNÉE pour A1, le cycle part chez A2 avant le
+   * rattachement — aucun PDF n'était joint, la réaffectation passe. Le rattachement, lui,
+   * recalcule le préfixe sur le destinataire COURANT (#293) : la clé de A1 n'y entre plus.
+   */
+  it("ne rattache pas au nouveau destinataire une clé signée pour l'ancien", async () => {
+    const planId = await billedDraftForA1("Clé signée avant la réaffectation");
+    const keyForA1 = await uploadPdf(planId);
+
+    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
+    expect((await attachPdf(planId, keyForA1)).status).toBe(403);
+
+    expect((await coachA.get(`/plans/${planId}/billing`)).body.documentFileName).toBeNull();
   });
 
   /**
