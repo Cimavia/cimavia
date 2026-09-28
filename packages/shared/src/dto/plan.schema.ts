@@ -135,10 +135,10 @@ export const scheduledSessionExerciseInputSchema = z
     /**
      * L'exercice diffusé qu'on renvoie, quand il existe déjà.
      *
-     * L'édition d'une séance planifiée est un REPLACE-ALL : tout est supprimé puis réécrit. Sans
-     * cette trace, le serveur ne peut rattacher aucune ligne à sa précédente, et ce qui ne
-     * transite pas par le client — le SUIVI de l'athlète — disparaît à chaque enregistrement du
-     * coach. Absent = exercice nouveau.
+     * L'édition d'une séance planifiée remplace sa composition, mais la ligne citée par cet `id`
+     * est mise à jour EN PLACE (#296, #311) : elle garde son identifiant, contre lequel l'athlète
+     * coche son suivi en local, et ses documents, que la consigne cite par leur identifiant.
+     * Absent, ou inconnu de la séance = exercice nouveau.
      */
     id: z.string().min(1).optional(),
     sourceExerciseId: z.string().min(1).nullable().optional(),

@@ -1,11 +1,10 @@
 import {
   type ExerciseBlocks,
-  type ExerciseTracking,
   imageMediaIds,
   remapImageMediaIds,
   type ScheduledSessionExerciseInput,
 } from "@cmv/shared";
-import { Prisma, type ScheduledSessionExerciseDocument } from "@prisma/client";
+import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import {
   toAdjustmentsInput,
@@ -13,21 +12,24 @@ import {
   toCustomMetricsInput,
   toInstructionsInput,
 } from "../util/exercise-json.util";
+import type { ExerciseRows } from "./scheduled-session.rows";
 
 /**
  * Écriture de la composition d'une séance planifiée — le pendant du `scheduled-session.mapper`,
  * qui fait le trajet inverse (lignes → DTO).
  *
- * Les documents arrivent **déjà résolus** par l'appelant, et c'est tout l'intérêt de ce module :
- * il y a DEUX sources possibles, et confondre les deux perdrait des données.
- *  - créer une séance depuis un modèle → les documents viennent de la **bibliothèque**
- *    (`ExerciseDocument`, retrouvés par `sourceExerciseId`) ;
+ * Les documents d'une ligne CRÉÉE arrivent **déjà résolus** par l'appelant, et c'est tout
+ * l'intérêt de ce module : il y a DEUX sources possibles, et confondre les deux perdrait des
+ * données.
+ *  - créer une séance depuis un modèle, ou y ajouter un exercice → les documents viennent de la
+ *    **bibliothèque** (`ExerciseDocument`, retrouvés par `sourceExerciseId`) ;
  *  - copier une semaine (#4) → ils viennent de l'**instance source**
  *    (`ScheduledSessionExerciseDocument`), car `sourceExerciseId` peut être passé à `null`
  *    (`SetNull`) si le coach a supprimé l'exercice de sa bibliothèque entre-temps. Repasser par
  *    la bibliothèque perdrait alors des documents que l'instance porte pourtant encore.
  *
- * L'écriture, elle, est identique dans les deux cas — d'où ce point unique.
+ * Une ligne REPRISE à l'édition, elle, garde les siens sans les recopier (#296) : c'est ce qui
+ * garde valides les images que sa consigne cite (cf. `rewriteScheduledSessionExercises`).
  */
 
 /**
@@ -47,16 +49,11 @@ export type ScheduledSessionDocumentDraft = Pick<
   "id" | "type" | "usage" | "storagePath" | "url" | "fileName" | "mimeType"
 >;
 
-// Un exercice à écrire, avec les documents que l'appelant lui a rattachés.
+// Un exercice à créer, avec les documents que l'appelant lui a rattachés.
 export type ScheduledSessionExerciseDraft = {
   exercise: ScheduledSessionExerciseInput;
   /** Absente = la référence est le dosage diffusé lui-même (cas d'un exercice ajouté ad hoc). */
   baseline?: ExerciseBlocks;
-  /**
-   * Le suivi d'exécution REPRIS de la ligne précédente. Il appartient à l'athlète : une
-   * réécriture de la séance par le coach ne doit jamais l'effacer.
-   */
-  tracking?: ExerciseTracking | null;
   documents: readonly ScheduledSessionDocumentDraft[];
 };
 
@@ -80,49 +77,139 @@ export async function insertScheduledSessionExercises(
   drafts: readonly ScheduledSessionExerciseDraft[],
 ): Promise<void> {
   for (const [position, draft] of drafts.entries()) {
-    const created = await tx.scheduledSessionExercise.create({
-      data: {
-        athleteId,
-        scheduledSessionId,
-        sourceExerciseId: draft.exercise.sourceExerciseId ?? null,
-        title: draft.exercise.title,
-        description: draft.exercise.description ?? null,
-        // Le snapshot porte la consigne et la structure, sinon une planif diffusée se dégrade :
-        // l'athlète garderait le titre et perdrait ce qu'il doit faire.
-        instructions: toInstructionsInput(draft.exercise.instructions ?? null),
-        blocks: toBlocksInput(draft.exercise.blocks ?? []),
-        // La référence du niveau 3 est ce que la SÉANCE a diffusé, pas le contenu actuel de la
-        // bibliothèque : « Tout réinitialiser » chez l'athlète doit revenir à ce qu'il a reçu.
-        baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
-        adjustments: toAdjustmentsInput(draft.exercise.adjustments ?? []),
-        // `DbNull` et non `undefined` : « non suivi » est un état, et il doit s'écrire.
-        tracking:
-          draft.tracking == null ? Prisma.DbNull : (draft.tracking as Prisma.InputJsonValue),
-        customMetrics: toCustomMetricsInput(draft.exercise.customMetrics ?? []),
-        note: draft.exercise.note ?? null,
-        position,
-      } satisfies Omit<
-        Prisma.ScheduledSessionExerciseUncheckedCreateInput,
-        "coachId"
-      > as Prisma.ScheduledSessionExerciseUncheckedCreateInput,
-    });
-
-    const tags = draft.exercise.tags ?? [];
-    if (tags.length > 0) {
-      await tx.scheduledSessionExerciseTag.createMany({
-        data: tags.map((name) => ({
-          athleteId,
-          scheduledSessionExerciseId: created.id,
-          name,
-        })) satisfies Omit<
-          Prisma.ScheduledSessionExerciseTagUncheckedCreateInput,
-          "coachId"
-        >[] as Prisma.ScheduledSessionExerciseTagUncheckedCreateInput[],
-      });
-    }
-
-    await copyDocumentsAndRemapImages(tx, created.id, athleteId, draft);
+    await insertScheduledSessionExercise(tx, scheduledSessionId, athleteId, draft, position);
   }
+}
+
+/**
+ * Réécrit la composition d'une séance EXISTANTE en gardant l'identité de ses lignes (#296, #311).
+ *
+ * Une ligne reprise est mise à jour en place, jamais détruite puis recréée : ce qui lui est
+ * rattaché et que le client n'émet pas reste où il est. C'est le cas du SUIVI d'exécution, qui
+ * appartient à l'athlète et qu'il coche en local contre l'identifiant de la ligne, et des
+ * DOCUMENTS, dont la consigne cite les images par leur identifiant. Les recréer cassait les deux
+ * sans un signal — et recopier depuis la bibliothèque perdait tout quand l'exercice d'origine en
+ * avait été supprimé, laissant ses objets orphelins dans le bucket.
+ *
+ * `@@unique([scheduledSessionId, position])` mord PENDANT l'écriture : deux lignes qui échangent
+ * leurs rangs se heurtent à la première mise à jour. D'où le garage, comme `writeDay` le fait pour
+ * les séances d'une journée : les lignes reprises montent d'abord au-dessus de tout rang final,
+ * puis chacune redescend au sien.
+ */
+export async function rewriteScheduledSessionExercises(
+  tx: TenantTx,
+  scheduledSessionId: string,
+  athleteId: string | null,
+  rows: ExerciseRows<ScheduledSessionExerciseInput>,
+  documentsOf: (
+    exercise: ScheduledSessionExerciseInput,
+  ) => readonly ScheduledSessionDocumentDraft[],
+): Promise<void> {
+  if (rows.removedIds.length > 0) {
+    // Les copies de documents partent en cascade ; les objets en storage appartiennent à la
+    // bibliothèque et ne sont jamais touchés d'ici.
+    await tx.scheduledSessionExercise.deleteMany({
+      where: { scheduledSessionId, id: { in: rows.removedIds } },
+    });
+  }
+
+  for (const [index, row] of rows.kept.entries()) {
+    await tx.scheduledSessionExercise.update({
+      where: { id: row.id },
+      data: { position: rows.parking + index },
+    });
+  }
+
+  for (const row of rows.kept) {
+    await tx.scheduledSessionExercise.update({
+      where: { id: row.id },
+      // Ni `baseline`, ni `tracking`, ni `sourceExerciseId` : la référence est ce que la séance a
+      // diffusé, le suivi appartient à l'athlète, et l'origine est une trace — rien de tout ça ne
+      // se réécrit depuis le panneau du coach.
+      data: { ...snapshotOf(row.item), position: row.position },
+    });
+    // Remplacés et non fusionnés : la liste reçue EST la liste des tags de la ligne.
+    await tx.scheduledSessionExerciseTag.deleteMany({
+      where: { scheduledSessionExerciseId: row.id },
+    });
+    await insertTags(tx, row.id, athleteId, row.item.tags ?? []);
+  }
+
+  for (const row of rows.added) {
+    await insertScheduledSessionExercise(
+      tx,
+      scheduledSessionId,
+      athleteId,
+      { exercise: row.item, documents: documentsOf(row.item) },
+      row.position,
+    );
+  }
+}
+
+/**
+ * Ce qu'une ligne tient du panneau du coach — commun à la création et à la mise à jour, qui ne
+ * doivent pas pouvoir diverger sur ce qu'elles écrivent.
+ */
+function snapshotOf(exercise: ScheduledSessionExerciseInput) {
+  return {
+    title: exercise.title,
+    description: exercise.description ?? null,
+    // Le snapshot porte la consigne et la structure, sinon une planif diffusée se dégrade :
+    // l'athlète garderait le titre et perdrait ce qu'il doit faire.
+    instructions: toInstructionsInput(exercise.instructions ?? null),
+    blocks: toBlocksInput(exercise.blocks ?? []),
+    adjustments: toAdjustmentsInput(exercise.adjustments ?? []),
+    customMetrics: toCustomMetricsInput(exercise.customMetrics ?? []),
+    note: exercise.note ?? null,
+  };
+}
+
+async function insertScheduledSessionExercise(
+  tx: TenantTx,
+  scheduledSessionId: string,
+  athleteId: string | null,
+  draft: ScheduledSessionExerciseDraft,
+  position: number,
+): Promise<void> {
+  // `tracking` n'est pas écrit : une ligne qui naît est NON SUIVIE, et c'est le défaut de la
+  // colonne. Le suivi d'une ligne existante ne passe jamais par ici (cf. `rewrite…`).
+  const created = await tx.scheduledSessionExercise.create({
+    data: {
+      ...snapshotOf(draft.exercise),
+      athleteId,
+      scheduledSessionId,
+      sourceExerciseId: draft.exercise.sourceExerciseId ?? null,
+      // La référence du niveau 3 est ce que la SÉANCE a diffusé, pas le contenu actuel de la
+      // bibliothèque : « Tout réinitialiser » chez l'athlète doit revenir à ce qu'il a reçu.
+      baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
+      position,
+    } satisfies Omit<
+      Prisma.ScheduledSessionExerciseUncheckedCreateInput,
+      "coachId"
+    > as Prisma.ScheduledSessionExerciseUncheckedCreateInput,
+  });
+
+  await insertTags(tx, created.id, athleteId, draft.exercise.tags ?? []);
+  await copyDocumentsAndRemapImages(tx, created.id, athleteId, draft);
+}
+
+async function insertTags(
+  tx: TenantTx,
+  scheduledSessionExerciseId: string,
+  athleteId: string | null,
+  tags: readonly string[],
+): Promise<void> {
+  if (tags.length === 0) return;
+  await tx.scheduledSessionExerciseTag.createMany({
+    data: tags.map((name) => ({
+      athleteId,
+      scheduledSessionExerciseId,
+      name,
+    })) satisfies Omit<
+      Prisma.ScheduledSessionExerciseTagUncheckedCreateInput,
+      "coachId"
+    >[] as Prisma.ScheduledSessionExerciseTagUncheckedCreateInput[],
+  });
 }
 
 /**
