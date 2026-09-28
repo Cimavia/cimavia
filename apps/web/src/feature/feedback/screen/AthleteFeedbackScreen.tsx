@@ -14,6 +14,7 @@ import {
   mediaRecapText,
   myFeedbackKeys,
   remainingMediaSlots,
+  trackingOfExercises,
 } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
@@ -205,7 +206,11 @@ function FeedbackBody({
           onSubmit={() =>
             upsert.mutate({
               content: content.length === 0 ? null : content,
-              ...(session == null ? {} : { tracking: local.tracking }),
+              // Seuls les exercices que la séance porte encore : une coche restée en local sur un
+              // exercice retiré par le coach ferait refuser tout le débrief (#311).
+              ...(session == null
+                ? {}
+                : { tracking: trackingOfExercises(local.tracking, session.exercises) }),
             })
           }
         />
