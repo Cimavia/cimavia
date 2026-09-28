@@ -3737,6 +3737,30 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > l'outillage de React Native **0.86** (`metro-config`, `babel-preset`, `codegen`) sous une app en
 > 0.85.3 ; tout est réaligné sur 0.85.3.
 
+> **Corrigé en #409** (le 0.10.0 ci-dessus n'est plus vrai) : `react-native-reanimated` est déclaré
+> par `@cmv/mobile`, et le couple suit enfin le SDK 56 — **4.3.1 / 0.8.3** au lieu de 4.5.0 / 0.10.0,
+> que `auto-install-peers` avait pris faute de déclaration. Les pairs de `react-native-css-interop`
+> (`>=3.6.2`) et de `keyboard-controller` (`>=3.0.0`) l'acceptent. Les onze autres modules en retard
+> sont montés par `expo install --fix`, qui garde les épinglages exacts là où ils l'étaient.
+>
+> **L'issue n'en voyait que douze.** `@expo/dom-webview` et `@expo/metro-runtime` étaient eux aussi
+> sous le plancher qu'exigent `expo` et `expo-router` (56.0.5 et 56.0.15 contre `^56.0.6` et
+> `^56.0.21`) : pairs implicites, le lockfile les gardait à leur première résolution, et `expo
+> install --check` ne regarde que ce que le paquet déclare. Ils sont déclarés à leur tour. La règle
+> qui en sort : **un paquet que le SDK versionne (`bundledNativeModules.json`) et que l'app installe
+> se déclare**, sinon rien ne le surveille.
+>
+> **Ce que le lockfile garde** : une seconde copie de `reanimated` en 4.5.0, avec un avertissement
+> de pair (elle veut `worklets` 0.10.x). Elle vit dans l'arbre Expo que `apps/api` tire par les pairs
+> de `@better-auth/expo` — **P7-1**, [#86](https://github.com/Cimavia/cimavia/issues/86). Ni le
+> bundle ni l'autolinking ne la voient : l'empreinte liste 4.3.1 et 0.8.3. La forcer demanderait un
+> override, que `pnpm-workspace.yaml` réserve aux correctifs de sécurité.
+>
+> **L'empreinte native change, et le build attend** : #409 est fusionnée sans binaire, le build
+> Android et iOS part après #407, #92/#155 et #254, qui la changent aussi. Entre les deux, un update
+> publié depuis un tag qui contient #409 **n'atteint personne**, sans erreur. Un correctif urgent
+> pour le binaire installé se publie depuis un tag antérieur.
+
 > **Découvert en #287** (Sentry voit le binaire, pas l'update) : la release Sentry est celle du
 > binaire natif (`fr.cimavia.app.preview@1.5.3+N`), même quand le JS qui tourne vient d'un update
 > 1.5.4. Ce qui les distingue est le contexte `ota_updates` (identifiant d'update, canal,
