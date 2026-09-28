@@ -5,7 +5,12 @@ import type {
   UpdateReminderInput,
   UpdateReminderStatusInput,
 } from "@cmv/shared";
-import { REMINDER_PAGE_SIZE, ReminderEntityType, ReminderStatus } from "@cmv/shared";
+import {
+  REMINDER_PAGE_SIZE,
+  ReminderEntityType,
+  ReminderReason,
+  ReminderStatus,
+} from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, Reminder } from "@prisma/client";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
@@ -187,6 +192,29 @@ export class ReminderService {
       targets.push({ entityType: ReminderEntityType.INVOICE, entityId: invoice.id });
     }
     await tx.reminder.deleteMany({ where: { OR: targets } });
+  }
+
+  /**
+   * Clôt le rappel « facture en retard » d'une facture réglée ou annulée (#349), DANS la
+   * transaction qui change son statut (appelé par `InvoiceService`).
+   *
+   * Clore et non purger, à l'inverse de `purgeForPlan` : la facture existe toujours, seule la
+   * raison de relancer a disparu — le rappel rejoint l'historique comme si le coach l'avait traité.
+   *
+   * Seul le rappel GÉNÉRÉ est visé, et l'index unique `(coachId, entityType, entityId, reason)`
+   * le désigne exactement. Un rappel manuel posé sur la même facture est du texte du coach : il le
+   * traite lui-même. `PENDING` seul, enfin : un rappel déjà écarté garde le statut qu'il a choisi.
+   */
+  async closeInvoiceOverdue(tx: TenantTx, invoiceId: string): Promise<void> {
+    await tx.reminder.updateMany({
+      where: {
+        entityType: ReminderEntityType.INVOICE,
+        entityId: invoiceId,
+        reason: ReminderReason.INVOICE_OVERDUE,
+        status: ReminderStatus.PENDING,
+      },
+      data: { status: ReminderStatus.DONE },
+    });
   }
 
   // ── Rappels DUS, pour le centre de notifications (#51) ───────────────────────
