@@ -1592,6 +1592,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > renvoie l'intégralité du snapshot, et le serveur reporte par `id` ce qui ne transite JAMAIS par
 > lui — le **suivi d'exécution**, qui appartient à l'athlète. Verrouillé par deux e2e vérifiés
 > rouges avant correctif.
+>
+> **Incomplet, corrigé en #296/#311** : ce report ne sauvait que le suivi **déjà en base**. Les
+> lignes étaient recréées sous un **nouvel** `id`, alors que l'athlète coche en local contre
+> l'ancien : ses coches non encore débriefées retombaient sur une ligne disparue, et le débrief
+> répondait 200 sans rien écrire. Les documents étaient recréés eux aussi, depuis la bibliothèque,
+> et les images de la consigne ne désignaient plus rien. Voir l'encadré suivant.
+
+> **Tranché en #296** (l'édition d'une séance planifiée garde l'identité de ses lignes) : une ligne
+> citée par son `id` est **mise à jour en place**, jamais détruite puis recréée
+> (`rewriteScheduledSessionExercises`). La reprise de l'`id` sur une ligne recréée a été écartée :
+> ce qui est rattaché à la ligne (documents, tags, et demain tout nouvel enfant) serait resté
+> détruit en cascade à chaque enregistrement du coach. Quatre conséquences : **(1)** une ligne
+> reprise garde ses documents **sans copie**, la bibliothèque ne sert qu'aux exercices
+> **ajoutés**, et un `sourceExerciseId` passé à `null` ne coûte plus aucun document ni objet ;
+> **(2)** `baseline`, `tracking` et `sourceExerciseId` d'une ligne reprise ne se réécrivent pas
+> depuis le panneau du coach ; **(3)** un `id` inconnu de la séance est une ligne **nouvelle**, et
+> un `id` cité deux fois vaut **400** ; **(4)** les rangs passent par un garage, comme `writeDay`,
+> car `@@unique([scheduledSessionId, position])` mord pendant l'écriture. La copie de semaine (#4)
+> recrée ses lignes, et c'est voulu : ce sont des séances neuves, et ses documents viennent de
+> l'instance source. Un e2e le verrouille désormais pour les images de consigne.
+>
+> Le débrief qui cite un exercice absent de la séance répond maintenant **400**, avant toute
+> écriture, texte compris (#311). Ce refus a un coût côté clients : une coche restée en local sur
+> un exercice que le coach a retiré ferait refuser tout le débrief. Le web filtre donc le suivi
+> avant l'envoi (`trackingOfExercises`, `@cmv/shared`). **Le mobile ne le fait pas encore**
+> ([#490](https://github.com/Cimavia/cimavia/issues/490)) : la PR ne doit pas être **promue en
+> preview** avant #490.
 
 > **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
 > à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
@@ -3751,6 +3778,30 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Effet de bord bienvenu : `react-native-worklets`, installé comme pair implicite, tirait
 > l'outillage de React Native **0.86** (`metro-config`, `babel-preset`, `codegen`) sous une app en
 > 0.85.3 ; tout est réaligné sur 0.85.3.
+
+> **Corrigé en #409** (le 0.10.0 ci-dessus n'est plus vrai) : `react-native-reanimated` est déclaré
+> par `@cmv/mobile`, et le couple suit enfin le SDK 56 — **4.3.1 / 0.8.3** au lieu de 4.5.0 / 0.10.0,
+> que `auto-install-peers` avait pris faute de déclaration. Les pairs de `react-native-css-interop`
+> (`>=3.6.2`) et de `keyboard-controller` (`>=3.0.0`) l'acceptent. Les onze autres modules en retard
+> sont montés par `expo install --fix`, qui garde les épinglages exacts là où ils l'étaient.
+>
+> **L'issue n'en voyait que douze.** `@expo/dom-webview` et `@expo/metro-runtime` étaient eux aussi
+> sous le plancher qu'exigent `expo` et `expo-router` (56.0.5 et 56.0.15 contre `^56.0.6` et
+> `^56.0.21`) : pairs implicites, le lockfile les gardait à leur première résolution, et `expo
+> install --check` ne regarde que ce que le paquet déclare. Ils sont déclarés à leur tour. La règle
+> qui en sort : **un paquet que le SDK versionne (`bundledNativeModules.json`) et que l'app installe
+> se déclare**, sinon rien ne le surveille.
+>
+> **Ce que le lockfile garde** : une seconde copie de `reanimated` en 4.5.0, avec un avertissement
+> de pair (elle veut `worklets` 0.10.x). Elle vit dans l'arbre Expo que `apps/api` tire par les pairs
+> de `@better-auth/expo` — **P7-1**, [#86](https://github.com/Cimavia/cimavia/issues/86). Ni le
+> bundle ni l'autolinking ne la voient : l'empreinte liste 4.3.1 et 0.8.3. La forcer demanderait un
+> override, que `pnpm-workspace.yaml` réserve aux correctifs de sécurité.
+>
+> **L'empreinte native change, et le build attend** : #409 est fusionnée sans binaire, le build
+> Android et iOS part après #407, #92/#155 et #254, qui la changent aussi. Entre les deux, un update
+> publié depuis un tag qui contient #409 **n'atteint personne**, sans erreur. Un correctif urgent
+> pour le binaire installé se publie depuis un tag antérieur.
 
 > **Découvert en #287** (Sentry voit le binaire, pas l'update) : la release Sentry est celle du
 > binaire natif (`fr.cimavia.app.preview@1.5.3+N`), même quand le JS qui tourne vient d'un update
