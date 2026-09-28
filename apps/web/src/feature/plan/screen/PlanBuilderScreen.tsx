@@ -225,6 +225,7 @@ export function PlanBuilderScreen() {
             (#207). C'est aussi l'emplacement que la maquette réservait à sa bande « plan meta ». */}
         <PlanHeaderForm
           plan={plan}
+          hasInvoiceDocument={billing?.documentFileName != null}
           isSaving={saveHeader.isPending}
           onSave={(input) => saveHeader.mutate(input)}
         />

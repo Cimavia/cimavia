@@ -1094,6 +1094,31 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > est masquée. Elle ne part chez personne, elle dort. Déclencheur pour la traiter : la route de
 > suppression d'un brouillon de facture, qui manque par ailleurs.
 
+> **Tranché en [#472](https://github.com/Cimavia/cimavia/issues/472)** (les termes suivent, le
+> justificatif non) : `followPlanAthlete` ne réécrivait que `athleteId`, et le PDF joint suivait tel
+> quel — diffusé, le cycle émettait au second athlète un document rédigé pour le premier : son nom,
+> son adresse, son montant. Constaté sur la base de dev en testant #293. Le montant, la note et
+> l'échéance se relisent dans le formulaire ; un PDF est un document fermé qui nomme quelqu'un.
+>
+> - **Changer de destinataire est refusé (409) tant qu'un justificatif est joint**
+>   (`assertDocumentDetached`, appelée par `assertReassignable`), et le sélecteur du builder se
+>   ferme en disant quoi faire. Renvoyer le même athlète passe. On n'a **pas** choisi de retirer le
+>   PDF à sa place : la réaffectation détruirait un fichier fourni par le coach sans qu'il l'ait
+>   demandé — même raisonnement que le brouillon qu'on ne supprime pas, plus haut.
+> - **La diffusion refuse (409) un justificatif segmenté sous un autre athlète que la facture**
+>   (`issueForPlan`). C'est la garde des brouillons réaffectés AVANT ce correctif, que la première
+>   ne rattrape pas ; un e2e rejoue cet état en base. Pas de reprise de données : la garde bloque
+>   leur émission, et le coach retire ou remplace le PDF.
+> - La clé signée pour l'ancien destinataire, puis rattachée après la réaffectation, ne passait
+>   déjà plus : le rattachement recalcule le préfixe sur le destinataire courant (#293). Figé par
+>   un e2e, sans code.
+>
+> **Conséquence pour [#285](https://github.com/Cimavia/cimavia/issues/285)** : « la clé du
+> justificatif est segmentée sous l'athlète de SA facture » tient désormais par construction pour
+> tout nouveau document — mais **pas pour les factures déjà émises** avant ce correctif (la base de
+> dev en porte une). Une purge qui travaillerait par préfixe d'athlète supprimerait leur PDF chez
+> le mauvais titulaire : les clés se collectent depuis les lignes en base, jamais par préfixe.
+
 > **Précision sur l'invariant P6** : « un DRAFT existe ⇒ la facturation est remplie » gagne une
 > seconde implication — « un DRAFT existe ⇒ le cycle a un destinataire », puisque la saisie est
 > fermée sans athlète. Le verrou de `publish` sur `athleteId` n'en devient pas redondant pour

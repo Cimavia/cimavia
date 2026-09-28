@@ -131,6 +131,10 @@ export class InvoiceService {
    *
    * Appelé DANS la transaction d'affectation : un cycle dont l'athlète a changé mais pas la
    * facture est exactement ce que cette méthode existe pour empêcher.
+   *
+   * Seuls les TERMES suivent — montant, note, échéance, que le coach relit dans le formulaire.
+   * Un justificatif PDF ne suit jamais : `assertDocumentDetached` refuse la réaffectation avant
+   * d'arriver ici (#472).
    */
   async followPlanAthlete(tx: TenantTx, planId: string, athleteId: string): Promise<void> {
     await tx.invoice.updateMany({
@@ -160,10 +164,34 @@ export class InvoiceService {
   }
 
   /**
+   * Changer le destinataire d'un cycle est refusé tant qu'un justificatif est joint à son
+   * brouillon (#472). Le PDF est un document fermé, rédigé pour UN athlète — son nom, son adresse,
+   * son montant : le faire suivre l'émettrait tel quel au suivant.
+   *
+   * Refuser plutôt que retirer le PDF à sa place : la réaffectation détruirait sinon un fichier
+   * que le coach a fourni, sans qu'il l'ait demandé. Le retirer reste un geste à lui, d'un clic.
+   */
+  async assertDocumentDetached(planId: string): Promise<void> {
+    const draft = await this.db.invoice.findFirst({
+      where: { planId, status: InvoiceStatus.DRAFT, documentPath: { not: null } },
+    });
+    if (draft != null) {
+      throw new ConflictException(
+        "Un justificatif est joint à la facturation de ce cycle : retire-le avant de changer d'athlète",
+      );
+    }
+  }
+
+  /**
    * Émission au `publish` du cycle : DRAFT → PENDING, `issuedAt` posé. Appelé par PlanService DANS
    * sa transaction (le plan passe PUBLISHED et la facture est émise atomiquement). Lève si aucun
    * terme de facturation n'a été saisi — c'est le gating de la diffusion (« remplis la facturation
    * avant de diffuser »). Retourne la facture émise pour que l'appelant notifie l'athlète.
+   *
+   * Refuse aussi d'émettre un justificatif dont la clé est segmentée sous un AUTRE athlète que la
+   * facture (#472) : c'est la trace d'un PDF rédigé pour lui, qui a suivi une réaffectation
+   * d'avant la garde de `assertDocumentDetached`. Depuis, cet état ne se crée plus — la garde
+   * reste pour les brouillons qui le portent déjà.
    */
   async issueForPlan(tx: TenantTx, plan: Plan): Promise<Invoice> {
     const draft = await tx.invoice.findFirst({
@@ -171,6 +199,12 @@ export class InvoiceService {
     });
     if (draft == null) {
       throw new BadRequestException("Renseigne la facturation avant de diffuser le cycle");
+    }
+    const documentPrefix = invoiceDocumentKeyPrefix(draft.athleteId, plan.id);
+    if (draft.documentPath != null && !draft.documentPath.startsWith(documentPrefix)) {
+      throw new ConflictException(
+        "Le justificatif joint a été préparé pour un autre athlète : retire-le ou remplace-le avant de diffuser",
+      );
     }
     return tx.invoice.update({
       where: { id: draft.id },

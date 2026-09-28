@@ -48,8 +48,15 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-const mount = (over: Partial<PlanDto> = {}) =>
-  renderWithProviders(<PlanHeaderForm plan={plan(over)} isSaving={false} onSave={onSave} />);
+const mount = (over: Partial<PlanDto> = {}, hasInvoiceDocument = false) =>
+  renderWithProviders(
+    <PlanHeaderForm
+      plan={plan(over)}
+      hasInvoiceDocument={hasInvoiceDocument}
+      isSaving={false}
+      onSave={onSave}
+    />,
+  );
 
 /**
  * Le cœur de l'issue : ces quatre champs ne se saisissaient qu'une fois, dans un panneau qui ne
@@ -201,5 +208,20 @@ describe("PlanHeaderForm — un cycle diffusé", () => {
     const { queryByText } = mount({ status: PlanStatus.PUBLISHED });
 
     expect(queryByText("plan.header.submit")).toBeNull();
+  });
+});
+
+/**
+ * Le justificatif fige le destinataire (#472), et lui SEUL : titre, début et description restent
+ * ouverts — le PDF nomme un athlète, pas un titre de cycle.
+ */
+describe("PlanHeaderForm — un justificatif joint", () => {
+  it("ferme le sélecteur de destinataire et laisse les trois autres champs ouverts", () => {
+    const { container, getByRole, getByText } = mount({}, true);
+
+    expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+    expect(getByText("plan.header.athleteLockedDocument")).toBeTruthy();
+    expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(false);
+    expect((container.querySelector("#startDate") as HTMLInputElement).disabled).toBe(false);
   });
 });

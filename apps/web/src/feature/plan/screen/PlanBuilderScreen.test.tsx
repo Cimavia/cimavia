@@ -192,6 +192,19 @@ describe("PlanBuilderScreen — le destinataire", () => {
 
     expect(usePlanBilling).toHaveBeenCalledWith("pln_1", true);
   });
+
+  // Le câblage de #472 : c'est la facturation LUE ici qui dit au sélecteur qu'un PDF est joint.
+  it("fige le destinataire quand la facturation porte un justificatif", async () => {
+    const { getByRole } = await mount({}, { documentFileName: "facture.pdf" });
+
+    expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("laisse le destinataire ouvert quand la facturation n'a pas de justificatif", async () => {
+    const { getByRole } = await mount({}, { documentFileName: null });
+
+    expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(false);
+  });
 });
 
 /**

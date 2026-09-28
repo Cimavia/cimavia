@@ -18,7 +18,13 @@ vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach_1" } } }) },
 }));
 
-const props = { athleteId: null, isPublished: false, isBusy: false, onChange: vi.fn() };
+const props = {
+  athleteId: null,
+  isPublished: false,
+  hasInvoiceDocument: false,
+  isBusy: false,
+  onChange: vi.fn(),
+};
 
 describe("PlanAthletePicker", () => {
   it("montre le cycle comme non affecté quand il n'a pas de destinataire", () => {
@@ -67,11 +73,35 @@ describe("PlanAthletePicker", () => {
   });
 
   it("se ferme pendant une écriture en cours, sans rien expliquer", () => {
-    const { getByRole, queryByTitle } = renderWithProviders(
+    const { getByRole, queryByTitle, queryByText } = renderWithProviders(
       <PlanAthletePicker {...props} isBusy />,
     );
 
     expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
     expect(queryByTitle("plan.header.athleteLockedPublished")).toBeNull();
+    expect(queryByText("plan.header.athleteLockedDocument")).toBeNull();
+  });
+
+  /**
+   * Le justificatif est rédigé pour CE destinataire, et l'API refuse de le faire suivre (#472).
+   * La raison s'écrit sous le champ : c'est un geste à faire ailleurs — retirer le PDF — et une
+   * info-bulle sur un contrôle désactivé ne s'affiche pas partout.
+   */
+  it("se ferme tant qu'un justificatif est joint, et dit quoi faire", () => {
+    const { getByRole, getByText } = renderWithProviders(
+      <PlanAthletePicker {...props} athleteId="ath_lea" hasInvoiceDocument />,
+    );
+
+    expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+    expect(getByText("plan.header.athleteLockedDocument")).toBeTruthy();
+  });
+
+  // Diffusé, le formulaire dit déjà pourquoi tout est figé : la consigne du PDF serait fausse.
+  it("ne parle pas du justificatif sur un cycle diffusé", () => {
+    const { queryByText } = renderWithProviders(
+      <PlanAthletePicker {...props} athleteId="ath_lea" isPublished hasInvoiceDocument />,
+    );
+
+    expect(queryByText("plan.header.athleteLockedDocument")).toBeNull();
   });
 });

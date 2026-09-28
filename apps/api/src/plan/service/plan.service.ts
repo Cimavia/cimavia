@@ -150,6 +150,9 @@ export class PlanService {
    * Un cycle diffusé n'en change plus : son athlète a été notifié, s'entraîne dessus, et sa
    * facture est émise à son nom. Le refus est un 409 et non un 400 — ce n'est pas la demande qui
    * est mal formée, c'est l'état du cycle qui ne s'y prête plus.
+   *
+   * Même logique pour un brouillon dont la facture porte un justificatif (#472) : le PDF nomme
+   * son destinataire. Renvoyer le MÊME athlète, en revanche, ne change rien et passe.
    */
   private async assertReassignable(plan: Plan, athleteId: string | null): Promise<void> {
     if (plan.status === PlanStatus.PUBLISHED) {
@@ -159,6 +162,9 @@ export class PlanService {
     }
     if (athleteId != null) {
       await this.assertAthleteOwned(athleteId);
+      if (athleteId !== plan.athleteId) {
+        await this.invoices.assertDocumentDetached(plan.id);
+      }
       return;
     }
     await this.invoices.assertPlanDetachable(plan.id);

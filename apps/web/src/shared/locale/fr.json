@@ -466,6 +466,7 @@
       "athlete": "Destinataire",
       "athletePlaceholder": "À définir plus tard",
       "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
+      "athleteLockedDocument": "Un justificatif est joint à la facturation : retire-le avant de changer de destinataire.",
       "descriptionLabel": "Description du cycle",
       "descriptionPlaceholder": "Montée en charge progressive, puis décharge en dernière semaine.",
       "startDate": "Début du cycle",
