@@ -15,6 +15,8 @@ import { formatDate } from "@/shared/util/date.util";
 
 type PlanHeaderFormProps = {
   plan: PlanDto;
+  /** Un justificatif est joint à la facturation : le destinataire est figé (#472). */
+  hasInvoiceDocument: boolean;
   isSaving: boolean;
   onSave: (input: UpdatePlanInput) => void;
 };
@@ -28,7 +30,12 @@ type PlanHeaderFormProps = {
  * définit le cycle l'emporte sur l'accès sans défilement, l'affectation se faisant une fois par
  * cycle et non en cours de construction.
  */
-export function PlanHeaderForm({ plan, isSaving, onSave }: Readonly<PlanHeaderFormProps>) {
+export function PlanHeaderForm({
+  plan,
+  hasInvoiceDocument,
+  isSaving,
+  onSave,
+}: Readonly<PlanHeaderFormProps>) {
   const { t } = useTranslation();
   const toast = useMutationToast();
 
@@ -130,6 +137,7 @@ export function PlanHeaderForm({ plan, isSaving, onSave }: Readonly<PlanHeaderFo
           <PlanAthletePicker
             athleteId={athleteId}
             isPublished={isPublished}
+            hasInvoiceDocument={hasInvoiceDocument}
             isBusy={isSaving}
             onChange={setAthleteId}
           />
