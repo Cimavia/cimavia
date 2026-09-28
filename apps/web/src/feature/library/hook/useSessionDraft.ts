@@ -253,20 +253,25 @@ export function useSessionDraft(session: SessionDto | null) {
    * Reprend une ligne après un rechargement serveur. Sans ça la réponse arrive et le cache est
    * invalidé, mais l'écran continue d'afficher son état local : le coach voit la confirmation
    * disparaître et rien changer.
+   *
+   * La réponse porte la séance ENTIÈRE, telle qu'enregistrée : seule la ligne rechargée en est
+   * reprise. Les autres y figurent dans leur dernier état sauvegardé, et les reprendre effacerait
+   * en silence tout ce que le coach y a modifié sans encore enregistrer (#300).
    */
-  function applyReloaded(reloaded: SessionDto) {
+  function applyReloaded(sessionExerciseId: string, reloaded: SessionDto) {
+    const fresh = reloaded.exercises.find((composed) => composed.id === sessionExerciseId);
+    if (fresh == null) return;
     setItems((current) =>
-      current.map((item) => {
-        const fresh = reloaded.exercises.find((composed) => composed.id === item.id);
-        return fresh == null
-          ? item
-          : {
+      current.map((item) =>
+        item.id === sessionExerciseId
+          ? {
               ...item,
               blocks: fresh.blocks,
               baseline: fresh.baseline,
               adjustments: fresh.adjustments,
-            };
-      }),
+            }
+          : item,
+      ),
     );
   }
 

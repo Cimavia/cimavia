@@ -182,6 +182,7 @@
       "reload": "Recharger depuis la bibliothèque",
       "reloadConfirm": "Recharger",
       "reloadWarning": "Les valeurs de la bibliothèque remplaceront celles-ci. Ton ajustement sera perdu.",
+      "reloadWarning_zero": "Les valeurs de la bibliothèque remplaceront celles-ci.",
       "reloadWarning_other": "Les valeurs de la bibliothèque remplaceront celles-ci. Tes {{count}} ajustements seront perdus.",
       "duplicate": "Dupliquer en variante",
       "cardMenu": "Actions de l'exercice",

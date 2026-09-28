@@ -817,6 +817,21 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > par cette route (`.strict()` refuse `status`) : il garde la sienne, pour qu'il n'existe qu'un seul
 > chemin vers une transition.
 
+> **Tranché en #349** (ce que devient le rappel d'une facture réglée ou annulée) : il est **clos**
+> (`DONE`) dans la transaction qui change le statut de la facture — pas purgé. La cible existe
+> toujours, seule la raison de relancer a disparu : ce n'est pas le cas de **R-4**, qui reste
+> limité aux cibles supprimées. Trois bornes : **(1)** seul le rappel **généré**
+> `(INVOICE, id, INVOICE_OVERDUE)` encore `PENDING` est visé — un rappel manuel posé sur la même
+> facture est du texte du coach, il le traite lui-même, et un rappel déjà écarté garde son statut ;
+> **(2)** remettre une facture payée **à régler ne rouvre pas** son rappel, et le tick ne le
+> régénère pas : c'est le corollaire de #47 (« traité n'est jamais régénéré ») appliqué tel quel.
+> La facture s'affiche de nouveau en retard, et le coach peut rouvrir le rappel depuis
+> l'historique ; **(3)** une course est acceptée — un tick qui lit la facture juste avant que le
+> paiement soit validé peut encore insérer un rappel `PENDING`. La fenêtre dure quelques
+> millisecondes pour un tick horaire, et le rappel se ferme d'un clic. Côté clients, payer
+> n'invalide encore que les caches facture : badge et tuile se mettent à jour au polling suivant
+> ([#485](https://github.com/Cimavia/cimavia/issues/485)).
+
 > **Appris en construisant #44/#51** (le coût réel d'un scope à un seul rôle) : un modèle absent de
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
 > Lire la table `reminder` depuis le centre de notifications — écran servi aux **deux** rôles —

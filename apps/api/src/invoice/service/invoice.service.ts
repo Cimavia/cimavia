@@ -23,6 +23,7 @@ import type { Invoice, Plan, Prisma } from "@prisma/client";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
+import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
@@ -53,6 +54,7 @@ export class InvoiceService {
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly users: UserDirectoryService,
     private readonly storage: StorageService,
+    private readonly reminders: ReminderService,
   ) {}
 
   // ── Builder : facture DRAFT du cycle ─────────────────────────────────────────
@@ -309,6 +311,11 @@ export class InvoiceService {
    * Marquage manuel du statut, réversible (toggle). PENDING → PAID pose `paidAt` ; le retour
    * PAID → PENDING l'efface. Idempotent : remarquer le même statut ne redate rien. DRAFT est exclu
    * (une facture non émise ne se marque pas payée).
+   *
+   * Payée, elle n'a plus rien à relancer : son rappel « en retard » est clos dans la MÊME
+   * transaction (#349), sans quoi il resterait à traiter dans le centre et le badge. Le retour à
+   * PENDING ne le rouvre pas — un rappel traité n'est jamais régénéré (#47) ; la facture, elle,
+   * s'affiche de nouveau en retard.
    */
   async updateStatus(id: string, input: UpdateInvoiceStatusInput): Promise<InvoiceDto> {
     const invoice = await this.getIssuedOrThrow(id);
@@ -318,8 +325,14 @@ export class InvoiceService {
     }
 
     if (invoice.status !== input.status) {
-      const paidAt = input.status === InvoiceStatus.PAID ? new Date() : null;
-      await this.db.invoice.update({ where: { id }, data: { status: input.status, paidAt } });
+      const paid = input.status === InvoiceStatus.PAID;
+      await this.db.$transaction(async (tx) => {
+        await tx.invoice.update({
+          where: { id },
+          data: { status: input.status, paidAt: paid ? new Date() : null },
+        });
+        if (paid) await this.reminders.closeInvoiceOverdue(tx, id);
+      });
     }
 
     return this.get(id);
@@ -329,7 +342,7 @@ export class InvoiceService {
    * Annulation manuelle par le coach — depuis PENDING seulement : une facture réglée ne s'annule
    * pas (elle se rembourse, hors périmètre), et une annulation ne se rejoue pas. Le cycle facturé
    * n'est PAS touché : il reste diffusé, l'athlète garde ses séances. État terminal, d'où l'absence
-   * de route inverse.
+   * de route inverse. Son rappel « en retard » est clos dans la même transaction (#349).
    */
   async cancel(id: string): Promise<InvoiceDto> {
     const invoice = await this.getIssuedOrThrow(id);
@@ -337,7 +350,10 @@ export class InvoiceService {
       throw new ConflictException("Seule une facture en attente de règlement peut être annulée");
     }
 
-    await this.db.invoice.update({ where: { id }, data: { status: InvoiceStatus.CANCELLED } });
+    await this.db.$transaction(async (tx) => {
+      await tx.invoice.update({ where: { id }, data: { status: InvoiceStatus.CANCELLED } });
+      await this.reminders.closeInvoiceOverdue(tx, id);
+    });
     return this.get(id);
   }
 
