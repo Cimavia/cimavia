@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2](https://github.com/Cimavia/cimavia/compare/v1.8.1...v1.8.2) (2026-09-27)
+
+
+### Technique
+
+* sonar dit pourquoi le tag et le digest d'une image de base changent toujours ensemble ([31f4bf9](https://github.com/Cimavia/cimavia/commit/31f4bf9e02a8aaedaeed40242521674afbc338f3))
+
 ## [1.8.1](https://github.com/Cimavia/cimavia/compare/v1.8.0...v1.8.1) (2026-09-27)
 
 
