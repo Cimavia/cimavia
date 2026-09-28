@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.3](https://github.com/Cimavia/cimavia/compare/v1.8.2...v1.8.3) (2026-09-28)
+
+
+### Corrections
+
+* **api:** la diffusion refuse un justificatif préparé pour un autre athlète que la facture ([e277a78](https://github.com/Cimavia/cimavia/commit/e277a784323ff552236610bb56a8e0280d709564))
+* **api:** un justificatif joint bloque la réaffectation du brouillon, il nomme son athlète ([d366289](https://github.com/Cimavia/cimavia/commit/d3662899792f321038291610d68b2fcf639d70d8))
+* **web:** un justificatif joint ferme le sélecteur d'athlète, et la raison s'écrit dessous ([14246d1](https://github.com/Cimavia/cimavia/commit/14246d190f8c41b31892225173f307319296968a))
+
 ## [1.8.2](https://github.com/Cimavia/cimavia/compare/v1.8.1...v1.8.2) (2026-09-27)
 
 
