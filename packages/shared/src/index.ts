@@ -9,6 +9,8 @@ export {
 export { AS_CAPABILITY_PARAM, asKey, asQuery } from "./api/as-capability";
 export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
+export type { FeedbackCache } from "./api/athlete-feedback.cache";
+export { feedbackSaveMutation } from "./api/athlete-feedback.cache";
 export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
 export type { CapabilityApi } from "./api/capability.api";

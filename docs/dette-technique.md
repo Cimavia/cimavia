@@ -4325,7 +4325,9 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > copies : séance et débrief y sont deux routes sœurs, l'une démonte l'autre. Il avait en revanche
 > la même fenêtre de cache, fermée de la même façon en
 > [#499](https://github.com/Cimavia/cimavia/issues/499) : `withSentTracking` vit depuis dans
-> `@cmv/shared`, et les deux clients l'appellent.
+> `@cmv/shared`. Tout l'enregistrement du débrief l'a suivi (`feedbackSaveMutation`) : écrit dans
+> chaque client, il avait déjà divergé — le mobile n'invalidait pas la liste coach, le web ne
+> relisait pas la séance sur un refus — et SonarCloud le comptait en duplication.
 
 > **Tranché en [#499](https://github.com/Cimavia/cimavia/issues/499)** (le local ne s'efface que
 > s'il dit encore ce qui est parti) : les cases restent actives pendant l'envoi du débrief, et la
