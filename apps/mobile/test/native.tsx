@@ -161,6 +161,12 @@ vi.mock("expo-video", async () => {
       return player;
     }),
     VideoView: () => <span data-video-view="" />,
+    // Le lecteur SANS vue qui sert aux vignettes (#92) : par défaut il n'en tire aucune, et
+    // l'appelant retombe sur sa pastille — l'état d'un appareil sans réseau.
+    createVideoPlayer: vi.fn(() => ({
+      generateThumbnailsAsync: vi.fn(async () => []),
+      release: vi.fn(),
+    })),
   };
 });
 

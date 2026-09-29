@@ -42,12 +42,13 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
                   containerClassName="h-24 w-24 overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface"
                 />
               ) : (
-                // Toujours pas de MINIATURE vidéo (dette P4-4, [#92]) : l'afficher demanderait
-                // `expo-image`, un module natif de plus. La tuile ouvre la vidéo en plein écran.
+                // Vignette tirée sur l'appareil (#92) ; la pastille tient la tuile en attendant.
                 <CmvVideoPlayer
+                  mediaId={item.id}
                   durationSeconds={item.durationSeconds}
                   resolveUrl={() => freshUrl(item.id)}
                   containerClassName="h-24 w-24 items-center justify-center gap-1 rounded-lg border border-cmv-border bg-cmv-surface"
+                  thumbnailClassName="h-24 w-24 overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface"
                 />
               )}
 
