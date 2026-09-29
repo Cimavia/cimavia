@@ -9,6 +9,8 @@ export {
 export { AS_CAPABILITY_PARAM, asKey, asQuery } from "./api/as-capability";
 export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
+export type { FeedbackCache } from "./api/athlete-feedback.cache";
+export { feedbackSaveMutation } from "./api/athlete-feedback.cache";
 export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
 export type { CapabilityApi } from "./api/capability.api";
@@ -803,10 +805,12 @@ export { comparableText } from "./util/search.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
   checkUnit,
+  isTrackingSent,
   sameTracking,
   setRounds,
   toggleUnit,
   trackingOfExercises,
+  withSentTracking,
 } from "./util/session-tracking.util";
 export type { SignedUrlReceipt } from "./util/signed-url.util";
 export {

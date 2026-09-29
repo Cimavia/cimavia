@@ -1,10 +1,11 @@
 import {
+  isTrackingSent,
   type SessionTracking,
   sameTracking,
   setRounds as setRoundsIn,
   toggleUnit as toggleUnitIn,
 } from "@cmv/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 export type { SessionTracking };
 
@@ -36,9 +37,15 @@ function read(sessionId: string): SessionTracking | null {
 export function useLocalTracking(sessionId: string, remote: SessionTracking) {
   const [cached, setCached] = useState<SessionTracking | null>(() => read(sessionId));
   const tracking = cached ?? remote;
+  /**
+   * Le local tel qu'il est MAINTENANT, pour `clearIfSent` : la réponse de l'envoi peut arriver
+   * avant le rendu qui suit une coche, et `cached` ne serait alors pas encore à jour.
+   */
+  const latest = useRef(cached);
 
   const persist = useCallback(
     (next: SessionTracking) => {
+      latest.current = next;
       setCached(next);
       try {
         window.localStorage.setItem(key(sessionId), JSON.stringify(next));
@@ -65,18 +72,28 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
   /**
    * Efface le suivi local une fois qu'il est parti avec le débrief : l'écran redevient un miroir
    * du serveur, qui en est désormais le porteur.
+   *
+   * Seulement s'il dit ENCORE ce qui est parti (#499) : une coche posée pendant l'envoi n'est pas
+   * au serveur, et l'effacer la perdait sans bruit. Elle reste alors en local, à envoyer. Sans
+   * suivi envoyé — la séance n'avait pas pu être chargée —, rien n'a quitté le navigateur.
    */
-  const clear = useCallback(() => {
-    setCached(null);
-    try {
-      window.localStorage.removeItem(key(sessionId));
-    } catch {
-      // Rien à réparer : la donnée est partie au serveur, c'est ce qui compte.
-    }
-  }, [sessionId]);
+  const clearIfSent = useCallback(
+    (sent: SessionTracking | undefined, exercises: readonly { id: string }[]) => {
+      const current = latest.current;
+      if (sent == null || current == null || !isTrackingSent(current, sent, exercises)) return;
+      latest.current = null;
+      setCached(null);
+      try {
+        window.localStorage.removeItem(key(sessionId));
+      } catch {
+        // Rien à réparer : la donnée est partie au serveur, c'est ce qui compte.
+      }
+    },
+    [sessionId],
+  );
 
   /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
   const dirty = cached != null && !sameTracking(cached, remote);
 
-  return { tracking, toggleUnit, setRounds, clear, dirty };
+  return { tracking, toggleUnit, setRounds, clearIfSent, dirty };
 }

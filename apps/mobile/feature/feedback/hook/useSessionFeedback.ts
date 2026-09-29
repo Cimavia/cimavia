@@ -1,13 +1,6 @@
-import type {
-  FeedbackTracking,
-  ScheduledSessionDto,
-  SessionFeedbackDto,
-  UpsertSessionFeedbackInput,
-} from "@cmv/shared";
+import { type FeedbackTracking, feedbackSaveMutation, type SessionFeedbackDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
-import { myPlanKeys } from "@/feature/plan/api";
-import { ApiError } from "@/shared/lib/api";
 import { keepFeedbackUrls } from "@/shared/lib/signed-url";
 
 export function useSessionFeedback(sessionId: string) {
@@ -20,62 +13,15 @@ export function useSessionFeedback(sessionId: string) {
 }
 
 /**
- * Écrit le débrief. Débriefer change AUSSI le statut de la séance (DONE) : on invalide donc le
- * détail de la séance et le cycle, sinon le planning continuerait d'afficher « À faire » sur une
- * séance qu'on vient de débriefer.
- *
- * Un REFUS (400) invalide la séance aussi, et c'est la seule panne qui le fait. Le serveur refuse
- * un suivi qui cite un exercice absent de la séance (#311) ; l'écran filtre bien ces coches avant
- * l'envoi, mais d'après la séance EN CACHE — persistée, et tenue pour fraîche cinq minutes. Si le
- * coach vient d'en retirer un exercice, le filtre ne le sait pas encore : relire la séance est ce
- * qui laisse passer l'envoi suivant (#490). Le suivi local, lui, n'est pas touché — `onSaved`
- * n'est appelé qu'au succès.
+ * Écrit le débrief. Ce que l'écriture fait au cache — séance, cycle, liste coach, refus — est
+ * commun aux deux clients : voir `feedbackSaveMutation`. Le refus y pèse plus qu'au web : la séance
+ * en cache est persistée ici, et tenue pour fraîche cinq minutes.
  */
-export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: UpsertSessionFeedbackInput) => athleteFeedbackApi.upsert(sessionId, input),
-    onSuccess: (feedback, input) => {
-      // Le cache de la séance d'abord : sitôt le local effacé, c'est lui que les écrans affichent.
-      if (input.tracking != null) {
-        const sent = input.tracking;
-        queryClient.setQueryData<ScheduledSessionDto>(myPlanKeys.session(sessionId), (session) =>
-          session == null ? session : withSentTracking(session, sent),
-        );
-      }
-      // Le suivi local a fait son travail : le garder ferait diverger les deux copies au
-      // prochain chargement de la séance.
-      onSaved?.();
-      queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
-    },
-    onError: (error) => {
-      if (error instanceof ApiError && error.status === 400) {
-        queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
-      }
-    },
-  });
-}
-
-/**
- * La séance en cache, avec le suivi qui vient de partir — en attendant que sa relecture réponde.
- *
- * POURQUOI (#346). Effacer le local rend les écrans au distant EN CACHE, qui porte encore le
- * décompte d'avant la séance. Une coche posée avant la réponse de la relecture repartait de lui :
- * l'ancien décompte revenait en local, et l'emportait au débrief suivant.
- *
- * Même règle que le serveur : un exercice absent de l'envoi garde son suivi, `null` l'efface.
- */
-export function withSentTracking(
-  session: ScheduledSessionDto,
-  sent: FeedbackTracking,
-): ScheduledSessionDto {
-  return {
-    ...session,
-    exercises: session.exercises.map((exercise) =>
-      exercise.id in sent ? { ...exercise, tracking: sent[exercise.id] ?? null } : exercise,
-    ),
-  };
+export function useUpsertFeedback(
+  sessionId: string,
+  onSaved?: (sent: FeedbackTracking | undefined) => void,
+) {
+  return useMutation(
+    feedbackSaveMutation(useQueryClient(), athleteFeedbackApi, sessionId, onSaved),
+  );
 }

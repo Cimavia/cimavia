@@ -123,8 +123,11 @@ function FeedbackBody({
   );
   const local = useLocalTracking(sessionId, remote);
   // Le local est effacé une fois le décompte accepté par le serveur : il a fait son travail, et
-  // le garder ferait diverger les deux copies au prochain chargement.
-  const upsert = useUpsertMyFeedback(sessionId, local.clear);
+  // le garder ferait diverger les deux copies au prochain chargement. Sauf s'il a bougé pendant
+  // l'envoi (#499) : ce qui a changé entre-temps reste à envoyer.
+  const upsert = useUpsertMyFeedback(sessionId, (sent) =>
+    local.clearIfSent(sent, session?.exercises ?? []),
+  );
   const [content, setContent] = useState("");
 
   /**

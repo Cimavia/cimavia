@@ -272,6 +272,33 @@ describe("AthleteFeedbackScreen", () => {
     });
   });
 
+  describe("le suivi local, une fois le débrief enregistré", () => {
+    const KEY = `cimavia-tracking:${SESSION_ID}`;
+
+    it("est effacé quand il est parti tel quel", async () => {
+      window.localStorage.setItem(KEY, JSON.stringify({ "sx-1": { "b-1": { checked: [0] } } }));
+      const { user, findByRole } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      await waitFor(() => expect(window.localStorage.getItem(KEY)).toBeNull());
+    });
+
+    // Aucun décompte n'est parti : effacer le local perdrait des coches que le serveur n'a pas.
+    it("reste en place quand la séance n'a pas pu être lue", async () => {
+      getSessionMock.mockRejectedValue(new Error("réseau"));
+      window.localStorage.setItem(KEY, JSON.stringify({ "sx-1": { "b-1": { checked: [0] } } }));
+      const { user, findByRole, getByRole } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      await waitFor(() => expect(upsertMock).toHaveBeenCalled());
+      // Le bouton se rouvre : l'envoi est terminé, et le décompte reste à envoyer.
+      await waitFor(() => expect(getByRole("button", { name: SUBMIT })).toBeEnabled());
+      expect(window.localStorage.getItem(KEY)).not.toBeNull();
+    });
+  });
+
   describe("ce que le rail annonce", () => {
     it("dit que le débrief est vide quand il l'est", async () => {
       const { findByText } = await setup();

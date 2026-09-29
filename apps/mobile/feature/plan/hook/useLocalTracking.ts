@@ -1,5 +1,6 @@
 import {
   checkUnit as checkUnitIn,
+  isTrackingSent,
   type SessionTracking,
   sameTracking,
   setRounds as setRoundsIn,
@@ -84,11 +85,24 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
    * Efface le suivi local une fois qu'il est parti avec le débrief : l'écran redevient un miroir
    * du serveur, qui en est désormais le porteur. Pour TOUS les écrans de la séance, y compris
    * celui resté monté sous le débrief.
+   *
+   * Seulement s'il dit ENCORE ce qui est parti (#499) : une coche posée pendant l'envoi n'est pas
+   * au serveur, et l'effacer la perdait sans bruit. Elle reste alors en local, à envoyer. Sans
+   * suivi envoyé — la séance n'avait pas pu être chargée —, rien n'a quitté l'appareil.
+   *
+   * Lu dans le MAGASIN, pas dans `cached` : la coche peut précéder la réponse du même tic.
    */
-  const clear = useCallback(() => writeLocalTracking(sessionId, null), [sessionId]);
+  const clearIfSent = useCallback(
+    (sent: SessionTracking | undefined, exercises: readonly { id: string }[]) => {
+      const current = readLocalTracking(sessionId);
+      if (sent == null || current == null) return;
+      if (isTrackingSent(current, sent, exercises)) writeLocalTracking(sessionId, null);
+    },
+    [sessionId],
+  );
 
   /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
   const dirty = cached != null && !sameTracking(cached, remote);
 
-  return { tracking, dirty, toggleUnit, checkUnit, setRounds, clear };
+  return { tracking, dirty, toggleUnit, checkUnit, setRounds, clearIfSent };
 }

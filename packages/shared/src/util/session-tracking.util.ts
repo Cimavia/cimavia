@@ -1,4 +1,6 @@
 import type { BlockTrackingState, ExerciseTracking } from "../dto/exercise-block.schema";
+import type { FeedbackTracking } from "../dto/feedback.schema";
+import type { ScheduledSessionDto } from "../dto/plan.schema";
 
 /** Le suivi de TOUTE une séance, indexé par identifiant d'exercice diffusé. */
 export type SessionTracking = Record<string, ExerciseTracking | null>;
@@ -26,7 +28,8 @@ function withBlock(
 ): SessionTracking {
   return {
     ...tracking,
-    [exerciseId]: { ...(tracking[exerciseId] ?? {}), [blockId]: state },
+    // Étaler `null` ou `undefined` ne produit rien : l'exercice encore sans suivi le reçoit ici.
+    [exerciseId]: { ...tracking[exerciseId], [blockId]: state },
   };
 }
 
@@ -94,6 +97,47 @@ export function trackingOfExercises(
 }
 
 /**
+ * Le suivi local dit-il encore ce qui vient de partir avec le débrief ?
+ *
+ * POURQUOI (#499). L'envoi prend le temps d'une requête, et les cases restent actives pendant ce
+ * temps. Effacer le local à la réponse, sans regarder, perdait sans bruit une coche posée entre
+ * l'envoi et la réponse. Vrai seulement si rien n'a bougé : le local a fait son travail, on peut
+ * l'effacer. Faux : il porte une correction que le serveur n'a pas, et reste à envoyer.
+ *
+ * Comparé après le MÊME filtre que l'envoi : une coche restée sur un exercice retiré n'est jamais
+ * partie, et ne doit pas retenir le local indéfiniment.
+ */
+export function isTrackingSent(
+  current: SessionTracking,
+  sent: SessionTracking,
+  exercises: readonly { id: string }[],
+): boolean {
+  return sameTracking(trackingOfExercises(current, exercises), sent);
+}
+
+/**
+ * La séance en cache, avec le suivi qui vient de partir — en attendant que sa relecture réponde.
+ *
+ * POURQUOI (#346, #499). Effacer le local rend les écrans au distant EN CACHE, qui porte encore le
+ * décompte d'avant la séance. Une coche posée avant la réponse de la relecture repartait de lui :
+ * l'ancien décompte revenait en local, et l'emportait au débrief suivant. Les deux clients
+ * écrivent donc l'envoi dans leur cache avant d'effacer le local.
+ *
+ * Même règle que le serveur : un exercice absent de l'envoi garde son suivi, `null` l'efface.
+ */
+export function withSentTracking(
+  session: ScheduledSessionDto,
+  sent: FeedbackTracking,
+): ScheduledSessionDto {
+  return {
+    ...session,
+    exercises: session.exercises.map((exercise) =>
+      exercise.id in sent ? { ...exercise, tracking: sent[exercise.id] ?? null } : exercise,
+    ),
+  };
+}
+
+/**
  * Deux suivis disent-ils la même chose ?
  *
  * Comparé sur une forme CANONIQUE (clés triées) : deux objets identiques écrits dans un ordre
@@ -110,7 +154,8 @@ function canonical(value: unknown): string {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, item]) => item !== undefined)
       .sort(([a], [b]) => a.localeCompare(b));
-    return `{${entries.map(([k, item]) => `${k}:${canonical(item)}`).join(",")}}`;
+    const fields = entries.map(([key, item]) => `${key}:${canonical(item)}`);
+    return `{${fields.join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
 }

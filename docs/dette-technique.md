@@ -1668,10 +1668,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > écriture, texte compris (#311). Ce refus a un coût côté clients : une coche restée en local sur
 > un exercice que le coach a retiré ferait refuser tout le débrief. Les deux clients filtrent donc
 > le suivi avant l'envoi (`trackingOfExercises`, `@cmv/shared`) — le web en #311, le mobile en
-> [#490](https://github.com/Cimavia/cimavia/issues/490). Le filtre lit la séance **en cache** :
-> sur mobile, persistée et tenue pour fraîche cinq minutes, elle peut ignorer un retrait tout
-> juste fait. Un 400 au débrief y invalide donc la séance, et l'envoi suivant passe ; le suivi
-> local, lui, n'est vidé qu'au succès. #296/#311 et #490 se **promeuvent ensemble** en preview.
+> [#490](https://github.com/Cimavia/cimavia/issues/490). Le filtre lit la séance **en cache**,
+> qui peut ignorer un retrait tout juste fait : cinq minutes sur mobile, où elle est persistée,
+> une minute sur le web. Un 400 au débrief invalide donc la séance sur les deux clients — le
+> mobile en #490, le web en [#499](https://github.com/Cimavia/cimavia/issues/499) — et l'envoi
+> suivant passe ; le suivi local, lui, n'est vidé qu'au succès. #296/#311 et #490 se
+> **promeuvent ensemble** en preview.
 
 > **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
 > à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
@@ -4320,7 +4322,22 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > la séance le temps que sa relecture réponde. Une coche posée dans cette fenêtre le ressuscitait.
 > L'enregistrement du débrief écrit donc le suivi envoyé dans la séance en cache **avant** de vider
 > le local (`withSentTracking`), et la relecture reste lancée. Le web n'a pas le problème des deux
-> copies : séance et débrief y sont deux routes sœurs, l'une démonte l'autre.
+> copies : séance et débrief y sont deux routes sœurs, l'une démonte l'autre. Il avait en revanche
+> la même fenêtre de cache, fermée de la même façon en
+> [#499](https://github.com/Cimavia/cimavia/issues/499) : `withSentTracking` vit depuis dans
+> `@cmv/shared`. Tout l'enregistrement du débrief l'a suivi (`feedbackSaveMutation`) : écrit dans
+> chaque client, il avait déjà divergé — le mobile n'invalidait pas la liste coach, le web ne
+> relisait pas la séance sur un refus — et SonarCloud le comptait en duplication.
+
+> **Tranché en [#499](https://github.com/Cimavia/cimavia/issues/499)** (le local ne s'efface que
+> s'il dit encore ce qui est parti) : les cases restent actives pendant l'envoi du débrief, et la
+> réponse effaçait le local sans le regarder — une case décochée pendant l'enregistrement revenait
+> cochée, sans un mot. `onSaved` reçoit désormais le suivi PARTI, et `clearIfSent` le compare au
+> local passé par le même filtre que l'envoi (`isTrackingSent`, `@cmv/shared`) : identique, on
+> efface ; différent, le local reste, « Enregistrer » se rouvre sur ce qui a changé. **Griser les
+> cases pendant l'envoi** a été écarté : en salle, sur un réseau lent, l'écran resterait figé le
+> temps de la requête. Même règle, en passant, quand l'envoi ne portait **aucun** suivi (séance
+> non chargée) : rien n'a quitté l'appareil, le local n'est plus effacé — il l'était avant.
 
 ---
 
