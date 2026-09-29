@@ -1,4 +1,9 @@
-import type { SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared";
+import type {
+  FeedbackTracking,
+  ScheduledSessionDto,
+  SessionFeedbackDto,
+  UpsertSessionFeedbackInput,
+} from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
 import { myPlanKeys } from "@/feature/plan/api";
@@ -31,7 +36,14 @@ export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
 
   return useMutation({
     mutationFn: (input: UpsertSessionFeedbackInput) => athleteFeedbackApi.upsert(sessionId, input),
-    onSuccess: (feedback) => {
+    onSuccess: (feedback, input) => {
+      // Le cache de la séance d'abord : sitôt le local effacé, c'est lui que les écrans affichent.
+      if (input.tracking != null) {
+        const sent = input.tracking;
+        queryClient.setQueryData<ScheduledSessionDto>(myPlanKeys.session(sessionId), (session) =>
+          session == null ? session : withSentTracking(session, sent),
+        );
+      }
       // Le suivi local a fait son travail : le garder ferait diverger les deux copies au
       // prochain chargement de la séance.
       onSaved?.();
@@ -45,4 +57,25 @@ export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
       }
     },
   });
+}
+
+/**
+ * La séance en cache, avec le suivi qui vient de partir — en attendant que sa relecture réponde.
+ *
+ * POURQUOI (#346). Effacer le local rend les écrans au distant EN CACHE, qui porte encore le
+ * décompte d'avant la séance. Une coche posée avant la réponse de la relecture repartait de lui :
+ * l'ancien décompte revenait en local, et l'emportait au débrief suivant.
+ *
+ * Même règle que le serveur : un exercice absent de l'envoi garde son suivi, `null` l'efface.
+ */
+export function withSentTracking(
+  session: ScheduledSessionDto,
+  sent: FeedbackTracking,
+): ScheduledSessionDto {
+  return {
+    ...session,
+    exercises: session.exercises.map((exercise) =>
+      exercise.id in sent ? { ...exercise, tracking: sent[exercise.id] ?? null } : exercise,
+    ),
+  };
 }
