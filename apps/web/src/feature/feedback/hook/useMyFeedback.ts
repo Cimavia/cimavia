@@ -1,5 +1,9 @@
-import type { SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared";
-import { coachFeedbackKeys, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
+import type {
+  ScheduledSessionDto,
+  SessionFeedbackDto,
+  UpsertSessionFeedbackInput,
+} from "@cmv/shared";
+import { coachFeedbackKeys, myFeedbackKeys, myPlanKeys, withSentTracking } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
 import { keepFeedbackUrls } from "@/shared/lib/signed-url";
@@ -24,7 +28,15 @@ export function useUpsertMyFeedback(sessionId: string, onSaved?: () => void) {
 
   return useMutation({
     mutationFn: (input: UpsertSessionFeedbackInput) => athleteFeedbackApi.upsert(sessionId, input),
-    onSuccess: (feedback) => {
+    onSuccess: (feedback, input) => {
+      // Le cache de la séance d'abord : sitôt le local effacé, c'est lui que l'écran affiche, et il
+      // porterait sinon le décompte d'avant l'envoi jusqu'à la fin de la relecture (#499).
+      if (input.tracking != null) {
+        const sent = input.tracking;
+        queryClient.setQueryData<ScheduledSessionDto>(myPlanKeys.session(sessionId), (session) =>
+          session == null ? session : withSentTracking(session, sent),
+        );
+      }
       onSaved?.();
       queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
       queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
