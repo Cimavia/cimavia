@@ -3459,10 +3459,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| IOS-1 | **Les chaînes de permission iOS ne passent pas par i18next** (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. Français seulement. Les localiser ne demande pourtant rien d'exotique : la clé `expo.locales` d'`app.json` génère un `InfoPlist.strings` par langue au prebuild (`@expo/config-plugins`, `ios/Locales.js`). #134 affirmait le contraire, et cette ligne l'a d'abord recopié. | 🟡 | [#254](https://github.com/Cimavia/cimavia/issues/254) |
+| ~~IOS-1~~ | ~~**Les chaînes de permission iOS ne passent pas par i18next**~~ (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. #134 affirmait que les localiser sortait de ce que la config Expo expose, et cette ligne l'a d'abord recopié. | ✅ | résolue en [#254](https://github.com/Cimavia/cimavia/issues/254) — `expo.locales`, construit par `app.config.ts` depuis le bloc `permission.ios` des catalogues i18next ; repli sur le français (encadré ci-dessous) |
 | IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
 | IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet tant qu'aucune revue n'a lieu — la bêta passe par des testeurs TestFlight internes —, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi à des testeurs TestFlight EXTERNES, ou à l'App Store — les testeurs internes ne passent aucune revue)* |
-| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins, sans que rien ne le signale. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
+| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près — et une troisième dans `fr.json` depuis #254. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins. Depuis #254, `ios-permission-locales.test.ts` échoue si l'une des valeurs de base d'`app.json` s'écarte du catalogue français. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
 | IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
 | IOS-6 | **La chaîne de notification du minuteur n'a aucun test** (0 % mesuré) : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — seul ce dernier est remonté à 100 %. | 🟡 | [#253](https://github.com/Cimavia/cimavia/issues/253) |
 
@@ -3523,6 +3523,34 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `granted`, seul champ que lisent `usePushToken` et `timer-alert`. Il valait donc `undefined`, tout
 > appelant concluait au refus, et n'importe quel test écrit sur ce mock serait passé au vert sans
 > rien éprouver. Un mock incomplet ne rate pas un test : il en fabrique un faux.
+
+> **Tranché en #254** (les permissions iOS parlent la langue du téléphone, et se replient sur le
+> français) : trois décisions, dont aucune ne se lit dans le code.
+>
+> - **Un seul catalogue.** Les traductions vivent sous `permission.ios` dans `fr.json` et `en.json`,
+>   pas dans des fichiers `locales` au format Expo. Ceux-là auraient été un second endroit où vivent
+>   des textes, invisible de `check:i18n` : ni tutoiement, ni clé morte. `expo.locales` accepte un
+>   objet à la place d'un chemin, donc aucun script : `app.config.ts` appelle
+>   `buildIosPermissionLocales` (`shared/lib/`), dont la table `IOS_PERMISSION_KEY` est lue par le
+>   contrôle A. `en.json` est né avec ce seul bloc ; #87 le complète. L'import porte son extension
+>   `.ts` : sans elle, le chargeur de config d'Expo ne le résout pas.
+> - **La langue de repli est `CFBundleDevelopmentRegion`, pas la « valeur de base ».** #254 disait
+>   que le texte des plugins s'afficherait pour toute langue absente de `locales`. C'est faux dès
+>   qu'un `.lproj` existe : iOS choisit alors celui de la langue de développement, que le gabarit
+>   Expo fixe à `en`. Un téléphone en allemand aurait lu ses permissions en anglais, et l'app en
+>   français. `app.config.ts` la force à `fr`, le `fallbackLng` d'i18next
+>   ([#88](https://github.com/Cimavia/cimavia/issues/88)) : les deux changent ensemble, et un
+>   changement exige un nouveau binaire.
+> - **`NSFaceIDUsageDescription` retirée** (`faceIDPermission: false` sur `expo-secure-store`) :
+>   le plugin la posait avec son texte anglais par défaut, et rien n'appelle `requireAuthentication`.
+>   Même famille qu'IOS-3. Contrairement au piège de #134, ce `false` ne touche aucune permission
+>   Android — vérifié dans le plugin, qui n'écrit que cette clé.
+>
+> Le générateur d'Expo écrit `clé = "valeur";` sans échapper : `buildIosPermissionLocales` refuse
+> un guillemet droit ou une barre oblique inverse plutôt que de produire un `InfoPlist.strings`
+> invalide sans erreur de build. Vérifié par un prebuild iOS : `fr.lproj` et `en.lproj` portent les
+> deux clés, l'`Info.plist` porte `CFBundleDevelopmentRegion = fr` et plus de clé Face ID. Rien de
+> tout cela n'a encore été vu sur un iPhone (IOS-5).
 
 ---
 
