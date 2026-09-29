@@ -4,7 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Modal, Pressable, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, View } from "react-native";
+import { useVideoThumbnail } from "@/shared/hook/useVideoThumbnail";
 import { CmvText } from "./CmvText";
 
 // Ce que l'ouverture peut rater, et que l'utilisateur doit voir plutôt que subir.
@@ -13,6 +14,8 @@ type OpenFailure = "refresh" | "player";
 type ResolveUrl = () => Promise<string | null>;
 
 type CmvVideoPlayerProps = {
+  // Clé de la vignette sur l'appareil : l'id du message, ou du média de débrief.
+  mediaId: string;
   // Durée déclarée à l'envoi, `null` quand l'envoyeur ne l'a pas mesurée.
   durationSeconds: number | null;
   /**
@@ -25,11 +28,14 @@ type CmvVideoPlayerProps = {
   resolveUrl: ResolveUrl;
   // Mise en page de la pastille (pastille en ligne, tuile carrée, bloc pleine largeur).
   containerClassName?: string;
+  // Cadre de la vignette, quand elle existe. Par défaut celui de la bulle de la maquette : 16/10.
+  thumbnailClassName?: string;
 };
 
 /**
- * Une vidéo : pastille au repos, lecteur plein écran au tap (Modal in-app, #407). Le lecteur système
- * de #151 faisait sortir de l'app — sur le média que le coach regarde le plus longtemps.
+ * Une vidéo : vignette au repos (#92, #155) — la pastille tant qu'elle n'existe pas, ou si elle n'a
+ * pas pu être tirée —, lecteur plein écran au tap (Modal in-app, #407). Le lecteur système de #151
+ * faisait sortir de l'app — sur le média que le coach regarde le plus longtemps.
  *
  * Le lecteur natif ne vit QUE dans le Modal ouvert : au repos, la pastille n'en instancie aucun. Un
  * fil de vingt vidéos ne coûte donc aucun lecteur, et une vidéo ouverte en coûte un.
@@ -38,11 +44,14 @@ type CmvVideoPlayerProps = {
  * rendu de diverger, comme `CmvAudioPlayer`.
  */
 export function CmvVideoPlayer({
+  mediaId,
   durationSeconds,
   resolveUrl,
   containerClassName = "flex-row items-center gap-2",
+  thumbnailClassName = "h-[120px] w-48 overflow-hidden rounded-lg",
 }: Readonly<CmvVideoPlayerProps>) {
   const { t } = useTranslation();
+  const thumbnail = useVideoThumbnail(mediaId, resolveUrl, durationSeconds);
   // L'URL avec laquelle le lecteur démarre ; `null` = fermé.
   const [source, setSource] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
@@ -77,17 +86,46 @@ export function CmvVideoPlayer({
 
   return (
     <View className="gap-1">
-      <Pressable onPress={open} disabled={opening} className={containerClassName}>
-        {opening ? (
-          <ActivityIndicator color={cmvColors.text.hi} />
-        ) : (
-          <Ionicons name="play-circle" size={22} color={cmvColors.text.hi} />
-        )}
-        <CmvText className="text-cmv-text-hi">{t("media.video.label")}</CmvText>
-        {duration == null ? null : (
-          <CmvText className="text-cmv-text-mid text-xs">{duration}</CmvText>
-        )}
-      </Pressable>
+      {thumbnail == null ? (
+        <Pressable onPress={open} disabled={opening} className={containerClassName}>
+          {opening ? (
+            <ActivityIndicator color={cmvColors.text.hi} />
+          ) : (
+            <Ionicons name="play-circle" size={22} color={cmvColors.text.hi} />
+          )}
+          <CmvText className="text-cmv-text-hi">{t("media.video.label")}</CmvText>
+          {duration == null ? null : (
+            <CmvText className="text-cmv-text-mid text-xs">{duration}</CmvText>
+          )}
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={open}
+          disabled={opening}
+          accessibilityRole="button"
+          accessibilityLabel={t("media.video.label")}
+          className={thumbnailClassName}
+        >
+          {/* `cover` : une vignette sert à RECONNAÎTRE la vidéo, pas à la voir entière — le plein
+              écran, lui, est en `contain`. */}
+          <Image source={{ uri: thumbnail }} className="h-full w-full" resizeMode="cover" />
+          <View className="absolute inset-0 items-center justify-center">
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-cmv-bg-0/70">
+              {opening ? (
+                <ActivityIndicator color={cmvColors.text.hi} />
+              ) : (
+                <Ionicons name="play" size={18} color={cmvColors.text.hi} />
+              )}
+            </View>
+          </View>
+          {/* La durée reste, par-dessus : elle dit ce qu'on s'apprête à regarder. */}
+          {duration == null ? null : (
+            <View className="absolute right-2 bottom-2 rounded bg-cmv-bg-0/70 px-1.5 py-0.5">
+              <CmvText className="text-cmv-text-hi text-xs">{duration}</CmvText>
+            </View>
+          )}
+        </Pressable>
+      )}
 
       {failure == null ? null : (
         <CmvText className="text-cmv-error text-xs">

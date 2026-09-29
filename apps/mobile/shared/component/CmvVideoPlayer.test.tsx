@@ -1,8 +1,16 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import { useVideoPlayer } from "expo-video";
-import { describe, expect, it, type Mock, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { useVideoThumbnail } from "@/shared/hook/useVideoThumbnail";
 import { press, renderRn } from "@/test/render";
 import { CmvVideoPlayer } from "./CmvVideoPlayer";
+
+// Le tirage est éprouvé dans `video-thumbnail.test.ts` : ici, seul compte ce qu'on en affiche.
+vi.mock("@/shared/hook/useVideoThumbnail", () => ({
+  useVideoThumbnail: vi.fn((): string | null => null),
+}));
+
+const THUMB = "file:///cache/video-thumbnails/msg-1.jpg";
 
 const FIRST = "https://s3.test/voie.mp4?X-Amz-Date=120000";
 const POLLED = "https://s3.test/voie.mp4?X-Amz-Date=120010";
@@ -20,7 +28,7 @@ type Resolve = () => Promise<string | null>;
 
 function setup(resolveUrl: Resolve = vi.fn(async () => FIRST)) {
   const element = (resolver: Resolve) => (
-    <CmvVideoPlayer durationSeconds={90} resolveUrl={resolver} />
+    <CmvVideoPlayer mediaId="msg-1" durationSeconds={90} resolveUrl={resolver} />
   );
   const view = renderRn(element(resolveUrl));
   const pill = () => {
@@ -67,6 +75,10 @@ function emit(status: "error" | "readyToPlay") {
   act(() => listener({ status }));
 }
 
+beforeEach(() => {
+  vi.mocked(useVideoThumbnail).mockReturnValue(null);
+});
+
 describe("CmvVideoPlayer", () => {
   // Un fil de vingt vidéos ne coûte AUCUN lecteur : seul un Modal ouvert en instancie un.
   it("n'instancie aucun lecteur au repos", () => {
@@ -81,7 +93,11 @@ describe("CmvVideoPlayer", () => {
   // Durée non mesurée à l'envoi : rien plutôt qu'un « 0:00 » qui mentirait.
   it("n'affiche aucune durée quand elle est inconnue", () => {
     const { container, getByText } = renderRn(
-      <CmvVideoPlayer durationSeconds={null} resolveUrl={vi.fn(async () => FIRST)} />,
+      <CmvVideoPlayer
+        mediaId="msg-1"
+        durationSeconds={null}
+        resolveUrl={vi.fn(async () => FIRST)}
+      />,
     );
 
     expect(getByText("media.video.label")).toBeTruthy();
@@ -261,5 +277,65 @@ describe("CmvVideoPlayer", () => {
 
     await waitFor(() => expect(videoView()).not.toBeNull());
     expect(queryByText("media.video.refreshError")).toBeNull();
+  });
+});
+
+describe("CmvVideoPlayer — vignette", () => {
+  beforeEach(() => {
+    vi.mocked(useVideoThumbnail).mockReturnValue(THUMB);
+  });
+
+  it("montre la vignette, son bouton de lecture et la durée, à la place de la pastille", () => {
+    const { container, getByLabelText, getByText } = setup();
+
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(THUMB);
+    expect(container.querySelector('[data-icon="play"]')).not.toBeNull();
+    expect(container.querySelector('[data-icon="play-circle"]')).toBeNull();
+    expect(getByLabelText("media.video.label")).toBeTruthy();
+    expect(getByText("1:30")).toBeTruthy();
+    expect(useVideoThumbnail).toHaveBeenCalledWith("msg-1", expect.any(Function), 90);
+  });
+
+  // Même règle que la pastille : pas de badge « 0:00 » pour une durée inconnue.
+  it("n'affiche aucun badge de durée quand elle est inconnue", () => {
+    const { container } = renderRn(
+      <CmvVideoPlayer
+        mediaId="msg-1"
+        durationSeconds={null}
+        resolveUrl={vi.fn(async () => FIRST)}
+      />,
+    );
+
+    expect(container.querySelector("img")).not.toBeNull();
+    expect(container.textContent).toBe("");
+  });
+
+  it("ouvre le plein écran au tap sur la vignette", async () => {
+    const { getByLabelText, resolveUrl } = setup();
+
+    press(getByLabelText("media.video.label"));
+
+    await waitFor(() => expect(videoView()).not.toBeNull());
+    expect(resolveUrl).toHaveBeenCalledTimes(1);
+  });
+
+  // Le temps de la re-signature, le bouton de lecture devient un indicateur.
+  it("remplace le bouton de lecture par un indicateur pendant l'ouverture", async () => {
+    const { container, getByLabelText } = setup(
+      vi.fn(() => new Promise<string | null>(() => undefined)),
+    );
+
+    press(getByLabelText("media.video.label"));
+
+    await waitFor(() => expect(container.querySelector('[data-icon="play"]')).toBeNull());
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+  });
+
+  it("dit l'échec sous la vignette comme sous la pastille", async () => {
+    const { getByLabelText, findByText } = setup(vi.fn(async () => null));
+
+    press(getByLabelText("media.video.label"));
+
+    expect(await findByText("media.video.refreshError")).toBeTruthy();
   });
 });
