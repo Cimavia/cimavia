@@ -250,7 +250,8 @@
     },
     "video": {
       "label": "Vidéo",
-      "openError": "Aucune application de ton téléphone ne peut lire cette vidéo.",
+      "close": "Fermer la vidéo",
+      "openError": "La lecture de la vidéo a échoué. Vérifie ta connexion, puis rouvre-la.",
       "refreshError": "Impossible d'ouvrir la vidéo. Vérifie ta connexion et réessaie."
     }
   },

@@ -30,7 +30,7 @@ import {
   CmvImageViewer,
   CmvScreen,
   CmvText,
-  CmvVideoLink,
+  CmvVideoPlayer,
 } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
@@ -220,7 +220,7 @@ function FeedbackMedia({
         }
         if (item.type === MediaType.VIDEO) {
           return (
-            <CmvVideoLink
+            <CmvVideoPlayer
               key={item.id}
               durationSeconds={item.durationSeconds}
               resolveUrl={() => freshUrl(item.id)}
