@@ -174,3 +174,79 @@ describe("useLocalTracking — dirty et effacement", () => {
     expect(storedItems.has(keyOf("s-1"))).toBe(false);
   });
 });
+
+/**
+ * L'écran de séance reste monté sous le débrief, et les deux lisent le suivi de la même séance
+ * (#346). Deux copies divergeaient : le débrief corrigeait, l'écran du dessous gardait l'ancien
+ * décompte et le réécrivait à la coche suivante.
+ */
+describe("useLocalTracking — une seule valeur par séance", () => {
+  // Les deux écrans, montés ensemble, sur la même séance.
+  async function twoScreens(remote: SessionTracking = EMPTY) {
+    const session = renderHook(() => useLocalTracking("s-1", remote));
+    const feedback = renderHook(() => useLocalTracking("s-1", remote));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+    return { session: session.result, feedback: feedback.result };
+  }
+
+  it("une coche d'un écran se voit aussitôt dans l'autre", async () => {
+    const { session, feedback } = await twoScreens();
+
+    act(() => session.current.toggleUnit("ex-1", "b-1", 0));
+    act(() => feedback.current.toggleUnit("ex-1", "b-1", 1));
+
+    const expected = { "ex-1": { "b-1": { checked: [0, 1] } } };
+    expect(session.current.tracking).toEqual(expected);
+    expect(feedback.current.tracking).toEqual(expected);
+  });
+
+  it("l'effacement par le débrief se voit sur l'écran resté dessous", async () => {
+    const remote = withUnit(0);
+    const { session, feedback } = await twoScreens(remote);
+    act(() => session.current.toggleUnit("ex-1", "b-1", 3));
+
+    act(() => feedback.current.clear());
+
+    expect(session.current.tracking).toBe(remote);
+    expect(session.current.dirty).toBe(false);
+  });
+
+  // Le second écran trouve la valeur en mémoire : relire le disque n'apprendrait rien.
+  it("ne lit le disque qu'une fois pour deux écrans", async () => {
+    await twoScreens();
+    expect(asyncStorageMock.getItem).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Une coche posée avant que le disque réponde l'a déjà écrasé : la réponse, arrivée après, est
+   * plus ancienne qu'elle et ne doit pas la défaire.
+   */
+  it("garde une coche posée avant la réponse du disque", async () => {
+    storedItems.set(keyOf("s-1"), JSON.stringify(withUnit(2)));
+    let answer: (raw: string | null) => void = () => undefined;
+    asyncStorageMock.getItem.mockImplementationOnce(
+      () => new Promise<string | null>((resolve) => (answer = resolve)),
+    );
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+
+    act(() => result.current.toggleUnit("ex-1", "b-1", 0));
+    await act(async () => answer(JSON.stringify(withUnit(2))));
+
+    expect(result.current.tracking).toEqual(withUnit(0));
+    expect(read("s-1")).toEqual(withUnit(0));
+  });
+
+  // Plus aucun écran : la mémoire est oubliée, le prochain montage repart du disque.
+  it("relit le disque quand la séance est rouverte", async () => {
+    const first = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalledTimes(1));
+    first.unmount();
+    storedItems.set(keyOf("s-1"), JSON.stringify(withUnit(2)));
+
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+
+    await waitFor(() => expect(result.current.tracking).toEqual(withUnit(2)));
+    expect(asyncStorageMock.getItem).toHaveBeenCalledTimes(2);
+  });
+});
