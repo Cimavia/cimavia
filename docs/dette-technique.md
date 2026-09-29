@@ -21,10 +21,10 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Trente dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **V-3**, **R-2**,
+déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
 **IOS-2**, **IOS-3**, **P7-7**, **OTA-1** et **OTA-2**,
 dont le déclencheur est nommé mais
@@ -73,7 +73,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | ~~P4-3~~ | ~~**Vol de token push possible**~~ : `POST /me/push-tokens` réaffectait au compte courant un token déjà enregistré. | ✅ | résolue en [#90](https://github.com/Cimavia/cimavia/issues/90) — un **secret d'installation**, émis par l'API et gardé en `expo-secure-store`, conditionne la réaffectation |
-| P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo dans le lecteur système depuis **#151**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
+| P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo en plein écran dans l'app depuis **#407**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. **Précisé en #407** : `expo-video` sait générer la vignette (`generateThumbnailsAsync`, présente en 56.1.x), donc `expo-video-thumbnails` n'est plus nécessaire — mais elle rend une image NATIVE que seul l'`Image` d'**`expo-image`** affiche, et elle la tire d'un lecteur, à créer puis relâcher par vidéo. Le module natif restant à payer est donc `expo-image`. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
 | P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : un média de débrief n'est jamais copié ni partagé, et son **retrait** par l'athlète purge l'objet — mais la **disparition de sa séance** cascade débrief et médias en base sans toucher au bucket. Fermé pour la séance seule en [#313](https://github.com/Cimavia/cimavia/issues/313) (409) ; la suppression d'une semaine ou d'un cycle **diffusé** l'emporte encore. **Rectifié en #313** : cette ligne disait « P4 n'ajoute aucun nouveau cas ». | 🟡 | [#312](https://github.com/Cimavia/cimavia/issues/312) · [#85](https://github.com/Cimavia/cimavia/issues/85) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
@@ -1432,9 +1432,9 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| V-1 | **Pas de lecture vidéo EN LIGNE sur mobile** : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | 🟢 | — *(déclencheur : le coach beta juge la sortie de l'app gênante → voie `expo-video`)* |
-| V-2 | **URL signée périmée non vérifiée à l'ouverture d'un lien** : le justificatif de facture (mobile **et** web), les documents de séance **côté web** et la photo agrandie du débrief **web** (`<a href>` du panneau coach et de la galerie athlète) ouvrent l'URL du cache telle quelle — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. Le débrief MOBILE la vérifie depuis #151 (`isSignedUrlUsable`), la messagerie mobile depuis #304 ; les lecteurs audio et vidéo des deux plateformes la re-signent quand elle casse (#304). **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. **Rectifié en #304** : cette ligne disait « le débrief la vérifie », sans préciser que c'était le mobile seul. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
-| V-3 | **Vidéo mobile : un saut tardif peut échouer dans le lecteur système** : `CmvVideoLink` re-signe l'URL AVANT de l'ouvrir, mais le lecteur système la garde ensuite. Une vidéo mise en pause plus de 5 min puis relancée ou déplacée redemande des octets avec une URL expirée, et le storage répond 403 — hors de l'app, donc sans reprise possible, là où le web re-signe et reprend à la même position (#304). Rare : la vidéo est plafonnée à 3 min. | 🟢 | — *(déclencheur : un retour beta sur une vidéo coupée après une longue pause ; se résout avec **V-1**, par `expo-video`)* |
+| ~~V-1~~ | ~~**Pas de lecture vidéo EN LIGNE sur mobile**~~ : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | ✅ | résolue en [#407](https://github.com/Cimavia/cimavia/issues/407) — le déclencheur est survenu (retour du coach beta) : `CmvVideoPlayer` lit en plein écran dans l'app, avec `expo-video` |
+| V-2 | **URL signée périmée non vérifiée à l'ouverture d'un lien** : le justificatif de facture (mobile **et** web), les documents de séance **côté web** et la photo agrandie du débrief **web** (`<a href>` du panneau coach et de la galerie athlète) ouvrent l'URL du cache telle quelle — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. Le débrief MOBILE la vérifie depuis #151 (`isSignedUrlUsable`), la messagerie mobile depuis #304 ; les lecteurs audio et vidéo des deux plateformes la re-signent quand elle casse (#304). **Rectifié en #407** : c'était faux de la vidéo mobile, jouée hors de l'app jusque-là (**V-3**) — vrai depuis. **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. **Rectifié en #304** : cette ligne disait « le débrief la vérifie », sans préciser que c'était le mobile seul. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
+| ~~V-3~~ | ~~**Vidéo mobile : un saut tardif peut échouer dans le lecteur système**~~ : `CmvVideoLink` re-signe l'URL AVANT de l'ouvrir, mais le lecteur système la garde ensuite. Une vidéo mise en pause plus de 5 min puis relancée ou déplacée redemande des octets avec une URL expirée, et le storage répond 403 — hors de l'app, donc sans reprise possible, là où le web re-signe et reprend à la même position (#304). Rare : la vidéo est plafonnée à 3 min. | ✅ | résolue en [#407](https://github.com/Cimavia/cimavia/issues/407), avec **V-1** — l'erreur de lecture remonte enfin à l'app : `CmvVideoPlayer` re-signe et reprend à la même position |
 
 > **Tranché** (le lecteur système plutôt qu'`expo-video`) : lire la vidéo **dans** l'app demande
 > `expo-video`, donc un module natif, donc un nouveau **client de dev** en plus de l'APK preview —
@@ -1443,6 +1443,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > atteindre le coach beta), c'est le blocage de l'itération locale, avec le piège
 > `Cannot find native module` documenté en [#92](https://github.com/Cimavia/cimavia/issues/92).
 > Le manque résiduel est **V-1**, et la voie B reste ouverte derrière son déclencheur.
+>
+> **Levé en #407** (la voie B, prise) : le déclencheur est survenu — le coach beta quittait l'app à
+> chaque vidéo, sur le média qu'il regarde le plus longtemps. `CmvVideoLink` devient
+> `CmvVideoPlayer` : même pastille, même re-signature AVANT ouverture (`resolveUrl`), mais le tap
+> ouvre un `Modal` plein écran avec `VideoView` et contrôles natifs, sur le modèle de
+> `CmvImageViewer`. Trois choix que le code ne justifie pas seul :
+> - **Le lecteur ne vit que dans le Modal ouvert.** La pastille n'en instancie aucun : un fil de
+>   vingt vidéos ne coûte aucun lecteur natif, une vidéo ouverte en coûte un, relâché à la
+>   fermeture.
+> - **Pas de prop `url`, donc une source figée.** Le lecteur démarre sur l'URL rendue par
+>   `resolveUrl` au tap, gardée en état local. Le fil sondé toutes les 10 s (#304) n'a aucune prop
+>   à lui réécrire : la vidéo ne repart pas de zéro, contrairement à ce qu'aurait donné un lecteur
+>   branché sur `media.url`.
+> - **La reprise relance TOUJOURS la lecture** (V-3), là où `CmvAudioPlayer` et `CmvMediaPlayer`
+>   ne relancent que si ça jouait. Les contrôles sont natifs : l'app ne voit pas le geste de
+>   l'utilisateur, et `playing` retombe à faux sur l'erreur. Or après 5 min de pause, seul un geste
+>   (lecture, saut) redemande des octets — et ce geste demandait la lecture.
+> - **Le bouton plein écran natif reste.** L'app est verrouillée en portrait (`app.json`) : c'est
+>   lui qui laisse voir en grand une vidéo tournée en paysage.
+>
+> **Appris** (l'émulateur ne sait pas vérifier cette feature) : sur l'émulateur Android de Kylian
+> (WSL2), la vidéo rend une image grise zébrée, fige l'affichage, puis fait planter l'émulateur
+> lui-même — alors que le lecteur, lui, joue (`BUFFERING` → `PLAYING`, aucune erreur). En cause, le
+> décodeur `c2.goldfish.h264.decoder`, qui délègue au GPU de l'hôte (`rendring output error -32`).
+> Le symptôme est identique en `textureView` et avec la surface par défaut : essayer l'une puis
+> l'autre n'a rien départagé, et le composant garde le défaut d'expo-video. **La vérification de
+> la lecture vidéo se fait sur un téléphone.**
+>
+> Échec toujours visible, jamais un écran noir : URL non re-signable → `media.video.refreshError`
+> sous la pastille, sans ouvrir ; lecture perdue (re-signature impossible, ou qui rend l'URL qui
+> vient d'échouer) → le Modal se ferme sur `media.video.openError`. Le coût natif est payé : dev
+> build obligatoire, et nouvel APK preview — `runtimeVersion` en `fingerprint`, aucun update OTA
+> n'atteint cette livraison.
 >
 > **Précisé en #287** : `expo-updates` est désormais une dépendance. La parenthèse ci-dessus dit ce
 > qu'on savait alors ; l'argument, lui, tient toujours — `expo-video` est un module natif, il change
@@ -1525,7 +1558,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > et reprennent à la même position, en lecture seulement si elle jouait. Quand la re-signature rend
 > la MÊME URL, ce n'est pas l'expiration qui a cassé la lecture : ils affichent l'erreur au lieu
 > de recharger d'office, ce qui bouclerait sur le même échec. Reste hors d'atteinte : la vidéo
-> mobile, jouée hors de l'app (**V-3**).
+> mobile, jouée hors de l'app (**V-3**). **Levé en #407** : `CmvVideoPlayer` applique la même
+> règle, à ceci près qu'il relance toujours la lecture.
 
 ---
 
