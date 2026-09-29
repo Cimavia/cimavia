@@ -1,4 +1,5 @@
 import {
+  type FeedbackTracking,
   type ScheduledSessionDto,
   type SessionFeedbackDto,
   type UpsertSessionFeedbackInput,
@@ -31,7 +32,10 @@ export function useSessionFeedback(sessionId: string) {
  * qui laisse passer l'envoi suivant (#490). Le suivi local, lui, n'est pas touché — `onSaved`
  * n'est appelé qu'au succès.
  */
-export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
+export function useUpsertFeedback(
+  sessionId: string,
+  onSaved?: (sent: FeedbackTracking | undefined) => void,
+) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -45,8 +49,9 @@ export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
         );
       }
       // Le suivi local a fait son travail : le garder ferait diverger les deux copies au
-      // prochain chargement de la séance.
-      onSaved?.();
+      // prochain chargement de la séance. Ce qui est PARTI accompagne l'appel, pour qu'une coche
+      // posée pendant l'envoi ne soit pas effacée avec lui (#499).
+      onSaved?.(input.tracking);
       queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
       queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
       queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });

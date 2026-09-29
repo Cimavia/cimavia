@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ScheduledSessionDto } from "../dto/plan.schema";
 import {
   checkUnit,
+  isTrackingSent,
   type SessionTracking,
   sameTracking,
   setRounds,
@@ -76,6 +77,29 @@ describe("trackingOfExercises", () => {
   it("rend le suivi lui-même quand tout est encore dans la séance", () => {
     const tracking = { sse_a: {}, sse_b: null };
     expect(trackingOfExercises(tracking, exercises)).toBe(tracking);
+  });
+});
+
+describe("isTrackingSent", () => {
+  const exercises = [{ id: "sse_a" }, { id: "sse_b" }];
+  const sent = { sse_a: { b: { checked: [0, 1, 2, 3] } } };
+
+  it("vrai quand rien n'a bougé depuis l'envoi", () => {
+    expect(isTrackingSent({ sse_a: { b: { checked: [0, 1, 2, 3] } } }, sent, exercises)).toBe(true);
+  });
+
+  it("faux quand une case a été décochée pendant l'envoi", () => {
+    expect(isTrackingSent({ sse_a: { b: { checked: [0, 1, 2] } } }, sent, exercises)).toBe(false);
+  });
+
+  it("faux quand un autre exercice a été coché pendant l'envoi", () => {
+    const current = { ...sent, sse_b: { b: { checked: [0] } } };
+    expect(isTrackingSent(current, sent, exercises)).toBe(false);
+  });
+
+  it("ignore une coche sur un exercice retiré : elle n'est jamais partie", () => {
+    const current = { ...sent, sse_retire: { b: { checked: [0] } } };
+    expect(isTrackingSent(current, sent, exercises)).toBe(true);
   });
 });
 

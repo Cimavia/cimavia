@@ -803,6 +803,7 @@ export { comparableText } from "./util/search.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
   checkUnit,
+  isTrackingSent,
   sameTracking,
   setRounds,
   toggleUnit,

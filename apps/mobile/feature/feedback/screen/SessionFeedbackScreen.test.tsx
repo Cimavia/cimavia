@@ -192,12 +192,29 @@ describe("SessionFeedbackScreen — le décompte accompagne le texte", () => {
     renderRn(<SessionFeedbackScreen />);
     await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
 
-    act(() => textSectionProps().onSaved?.());
+    act(() => textSectionProps().onSaved?.(textSectionProps().tracking));
 
     // Le local a fait son travail : le garder ferait diverger les deux copies au prochain
     // chargement. L'écran redevient le miroir du serveur.
     expect(storedItems.has(TRACKING_KEY)).toBe(false);
     await waitFor(() => expect(textSectionProps().trackingDirty).toBe(false));
+  });
+  // Les cases restent actives pendant l'envoi : ce qui est coché entre-temps n'est pas parti (#499).
+  it("une coche posée pendant l'envoi reste en local, à envoyer", async () => {
+    storedItems.set(TRACKING_KEY, JSON.stringify({ "sx-1": { "b-1": { checked: [0, 1] } } }));
+    mockSession(SESSION);
+    renderRn(<SessionFeedbackScreen />);
+    await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
+    const sent = textSectionProps().tracking;
+
+    const props = vi.mocked(FeedbackTrackingSection).mock.lastCall?.[0];
+    act(() => props?.onToggleUnit("sx-1", "b-1", 2));
+    act(() => textSectionProps().onSaved?.(sent));
+
+    expect(JSON.parse(storedItems.get(TRACKING_KEY) ?? "null")).toEqual({
+      "sx-1": { "b-1": { checked: [0, 1, 2] } },
+    });
+    expect(textSectionProps().trackingDirty).toBe(true);
   });
 });
 
@@ -251,7 +268,7 @@ describe("SessionFeedbackScreen — l'écran de séance resté dessous", () => {
     const session = await sessionUnderneath();
     correctInFeedback();
 
-    act(() => textSectionProps().onSaved?.());
+    act(() => textSectionProps().onSaved?.(textSectionProps().tracking));
     expect(session.current.tracking).toBe(REMOTE);
 
     // La coche suivante part du serveur : l'ancien 3/4 local ne ressuscite pas.

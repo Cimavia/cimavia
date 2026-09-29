@@ -157,7 +157,7 @@ function TrackedSections({
         // exercice retiré par le coach ferait refuser tout le débrief (#311, #490).
         tracking={trackingOfExercises(local.tracking, session.exercises)}
         trackingDirty={local.dirty}
-        onSaved={local.clear}
+        onSaved={(sent) => local.clearIfSent(sent, session.exercises)}
       />
     </>
   );

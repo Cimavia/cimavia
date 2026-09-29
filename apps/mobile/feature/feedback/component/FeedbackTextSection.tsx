@@ -13,7 +13,8 @@ type FeedbackTextSectionProps = {
   /** Absent quand la séance n'a pas pu être chargée : on n'envoie alors AUCUN décompte. */
   tracking?: FeedbackTracking;
   trackingDirty?: boolean;
-  onSaved?: () => void;
+  /** Reçoit le suivi PARTI — `undefined` si l'envoi n'en portait pas. */
+  onSaved?: (sent: FeedbackTracking | undefined) => void;
 };
 
 // Le texte libre du débrief : saisie, enregistrement, et ce que l'enregistrement a donné.

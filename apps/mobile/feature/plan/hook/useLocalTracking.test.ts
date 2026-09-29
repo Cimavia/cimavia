@@ -11,6 +11,9 @@ const withUnit = (index: number): SessionTracking => ({
   "ex-1": { "b-1": { checked: [index] } },
 });
 
+// La séance ne porte qu'un exercice : c'est lui que l'envoi du débrief peut citer.
+const EXERCISES = [{ id: "ex-1" }];
+
 const read = (sessionId: string) =>
   JSON.parse(storedItems.get(keyOf(sessionId)) ?? "null") as SessionTracking | null;
 
@@ -167,11 +170,40 @@ describe("useLocalTracking — dirty et effacement", () => {
     await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
 
     act(() => result.current.toggleUnit("ex-1", "b-1", 3));
-    act(() => result.current.clear());
+    act(() => result.current.clearIfSent(result.current.tracking, EXERCISES));
 
     expect(result.current.tracking).toBe(remote);
     expect(result.current.dirty).toBe(false);
     expect(storedItems.has(keyOf("s-1"))).toBe(false);
+  });
+
+  /**
+   * Les cases restent actives pendant l'envoi : une coche posée entre l'envoi et la réponse n'est
+   * pas au serveur. L'effacer la perdait sans bruit (#499).
+   */
+  it("garde le local quand il a bougé pendant l'envoi", async () => {
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+    act(() => result.current.toggleUnit("ex-1", "b-1", 3));
+    const sent = result.current.tracking;
+
+    act(() => result.current.toggleUnit("ex-1", "b-1", 2));
+    act(() => result.current.clearIfSent(sent, EXERCISES));
+
+    const pending = { "ex-1": { "b-1": { checked: [2, 3] } } };
+    expect(result.current.tracking).toEqual(pending);
+    expect(read("s-1")).toEqual(pending);
+  });
+
+  // La séance n'avait pas pu être chargée : aucun décompte n'est parti, il n'y a rien à effacer.
+  it("sans suivi envoyé, garde le local", async () => {
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+    act(() => result.current.toggleUnit("ex-1", "b-1", 3));
+
+    act(() => result.current.clearIfSent(undefined, EXERCISES));
+
+    expect(read("s-1")).toEqual({ "ex-1": { "b-1": { checked: [3] } } });
   });
 });
 
@@ -205,7 +237,7 @@ describe("useLocalTracking — une seule valeur par séance", () => {
     const { session, feedback } = await twoScreens(remote);
     act(() => session.current.toggleUnit("ex-1", "b-1", 3));
 
-    act(() => feedback.current.clear());
+    act(() => feedback.current.clearIfSent(feedback.current.tracking, EXERCISES));
 
     expect(session.current.tracking).toBe(remote);
     expect(session.current.dirty).toBe(false);

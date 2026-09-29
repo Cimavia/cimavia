@@ -96,6 +96,25 @@ export function trackingOfExercises(
 }
 
 /**
+ * Le suivi local dit-il encore ce qui vient de partir avec le débrief ?
+ *
+ * POURQUOI (#499). L'envoi prend le temps d'une requête, et les cases restent actives pendant ce
+ * temps. Effacer le local à la réponse, sans regarder, perdait sans bruit une coche posée entre
+ * l'envoi et la réponse. Vrai seulement si rien n'a bougé : le local a fait son travail, on peut
+ * l'effacer. Faux : il porte une correction que le serveur n'a pas, et reste à envoyer.
+ *
+ * Comparé après le MÊME filtre que l'envoi : une coche restée sur un exercice retiré n'est jamais
+ * partie, et ne doit pas retenir le local indéfiniment.
+ */
+export function isTrackingSent(
+  current: SessionTracking,
+  sent: SessionTracking,
+  exercises: readonly { id: string }[],
+): boolean {
+  return sameTracking(trackingOfExercises(current, exercises), sent);
+}
+
+/**
  * La séance en cache, avec le suivi qui vient de partir — en attendant que sa relecture réponde.
  *
  * POURQUOI (#346, #499). Effacer le local rend les écrans au distant EN CACHE, qui porte encore le
