@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ScheduledSessionDto } from "../dto/plan.schema";
 import {
   checkUnit,
   type SessionTracking,
@@ -6,6 +7,7 @@ import {
   setRounds,
   toggleUnit,
   trackingOfExercises,
+  withSentTracking,
 } from "./session-tracking.util";
 
 describe("toggleUnit", () => {
@@ -74,5 +76,32 @@ describe("trackingOfExercises", () => {
   it("rend le suivi lui-même quand tout est encore dans la séance", () => {
     const tracking = { sse_a: {}, sse_b: null };
     expect(trackingOfExercises(tracking, exercises)).toBe(tracking);
+  });
+});
+
+describe("withSentTracking", () => {
+  // Trois exercices : un suivi, un non suivi, un que l'envoi ne cite pas.
+  const session = {
+    id: "s-1",
+    exercises: [
+      { id: "sx-1", tracking: { "b-1": { checked: [0, 1, 2] } } },
+      { id: "sx-2", tracking: { "b-1": { checked: [0] } } },
+      { id: "sx-3", tracking: { "b-1": { rounds: 4 } } },
+    ],
+  } as unknown as ScheduledSessionDto;
+
+  it("remplace ce que l'envoi cite, efface sur null, garde le reste", () => {
+    const next = withSentTracking(session, {
+      "sx-1": { "b-1": { checked: [0, 1, 2, 3] } },
+      "sx-2": null,
+    });
+
+    expect(next.exercises.map((exercise) => exercise.tracking)).toEqual([
+      { "b-1": { checked: [0, 1, 2, 3] } },
+      null,
+      { "b-1": { rounds: 4 } },
+    ]);
+    // L'exercice non cité est rendu tel quel, pas recopié.
+    expect(next.exercises[2]).toBe(session.exercises[2]);
   });
 });

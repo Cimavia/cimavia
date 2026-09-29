@@ -1,4 +1,6 @@
 import type { BlockTrackingState, ExerciseTracking } from "../dto/exercise-block.schema";
+import type { FeedbackTracking } from "../dto/feedback.schema";
+import type { ScheduledSessionDto } from "../dto/plan.schema";
 
 /** Le suivi de TOUTE une séance, indexé par identifiant d'exercice diffusé. */
 export type SessionTracking = Record<string, ExerciseTracking | null>;
@@ -91,6 +93,28 @@ export function trackingOfExercises(
   const present = new Set(exercises.map((exercise) => exercise.id));
   if (Object.keys(tracking).every((id) => present.has(id))) return tracking;
   return Object.fromEntries(Object.entries(tracking).filter(([id]) => present.has(id)));
+}
+
+/**
+ * La séance en cache, avec le suivi qui vient de partir — en attendant que sa relecture réponde.
+ *
+ * POURQUOI (#346, #499). Effacer le local rend les écrans au distant EN CACHE, qui porte encore le
+ * décompte d'avant la séance. Une coche posée avant la réponse de la relecture repartait de lui :
+ * l'ancien décompte revenait en local, et l'emportait au débrief suivant. Les deux clients
+ * écrivent donc l'envoi dans leur cache avant d'effacer le local.
+ *
+ * Même règle que le serveur : un exercice absent de l'envoi garde son suivi, `null` l'efface.
+ */
+export function withSentTracking(
+  session: ScheduledSessionDto,
+  sent: FeedbackTracking,
+): ScheduledSessionDto {
+  return {
+    ...session,
+    exercises: session.exercises.map((exercise) =>
+      exercise.id in sent ? { ...exercise, tracking: sent[exercise.id] ?? null } : exercise,
+    ),
+  };
 }
 
 /**

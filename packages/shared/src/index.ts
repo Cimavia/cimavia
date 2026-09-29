@@ -807,6 +807,7 @@ export {
   setRounds,
   toggleUnit,
   trackingOfExercises,
+  withSentTracking,
 } from "./util/session-tracking.util";
 export type { SignedUrlReceipt } from "./util/signed-url.util";
 export {

@@ -1,8 +1,8 @@
-import type {
-  FeedbackTracking,
-  ScheduledSessionDto,
-  SessionFeedbackDto,
-  UpsertSessionFeedbackInput,
+import {
+  type ScheduledSessionDto,
+  type SessionFeedbackDto,
+  type UpsertSessionFeedbackInput,
+  withSentTracking,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
@@ -57,25 +57,4 @@ export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
       }
     },
   });
-}
-
-/**
- * La séance en cache, avec le suivi qui vient de partir — en attendant que sa relecture réponde.
- *
- * POURQUOI (#346). Effacer le local rend les écrans au distant EN CACHE, qui porte encore le
- * décompte d'avant la séance. Une coche posée avant la réponse de la relecture repartait de lui :
- * l'ancien décompte revenait en local, et l'emportait au débrief suivant.
- *
- * Même règle que le serveur : un exercice absent de l'envoi garde son suivi, `null` l'efface.
- */
-export function withSentTracking(
-  session: ScheduledSessionDto,
-  sent: FeedbackTracking,
-): ScheduledSessionDto {
-  return {
-    ...session,
-    exercises: session.exercises.map((exercise) =>
-      exercise.id in sent ? { ...exercise, tracking: sent[exercise.id] ?? null } : exercise,
-    ),
-  };
 }

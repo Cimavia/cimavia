@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
-import { useUpsertFeedback, withSentTracking } from "./useSessionFeedback";
+import { useUpsertFeedback } from "./useSessionFeedback";
 
 const { upsertMock } = vi.hoisted(() => ({ upsertMock: vi.fn() }));
 
@@ -126,22 +126,5 @@ describe("useUpsertFeedback — la séance en cache suit l'envoi", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(queryClient.getQueryData(myPlanKeys.session("s-1"))).toBe(SESSION);
-  });
-});
-
-describe("withSentTracking", () => {
-  it("remplace ce que l'envoi cite, efface sur null, garde le reste", () => {
-    const next = withSentTracking(SESSION, {
-      "sx-1": { "b-1": { checked: [0, 1, 2, 3] } },
-      "sx-2": null,
-    });
-
-    expect(next.exercises.map((exercise) => exercise.tracking)).toEqual([
-      { "b-1": { checked: [0, 1, 2, 3] } },
-      null,
-      { "b-1": { rounds: 4 } },
-    ]);
-    // L'exercice non cité est rendu tel quel, pas recopié.
-    expect(next.exercises[2]).toBe(SESSION.exercises[2]);
   });
 });
