@@ -4245,6 +4245,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Un seul suivi local par séance ([#346](https://github.com/Cimavia/cimavia/issues/346))
+
+> **Tranché en [#346](https://github.com/Cimavia/cimavia/issues/346)** (le suivi local vit dans
+> un magasin au niveau du module, lu par `useSyncExternalStore`) : l'écran de séance reste monté
+> sous le débrief, et chacun tenait sa propre copie, lue sur le disque au montage. Le débrief
+> corrigeait 3/4 en 4/4 et vidait le disque à l'enregistrement ; l'écran du dessous gardait 3/4,
+> qui l'emportait sur le serveur et revenait sur le disque à la coche suivante. Une **relecture au
+> focus** a été écartée : elle laisse deux copies, d'accord au seul moment du retour, et chaque
+> nouvel écran d'une séance devrait penser à la faire. Même montage que le presse-papier de semaine (#4), avec trois règles
+> propres au suivi (`feature/plan/lib/local-tracking-store.ts`) :
+>
+> - **une entrée n'existe que tant qu'un écran la lit** : le dernier parti, elle est oubliée, et le
+>   prochain montage relit le disque. La mémoire ne survit jamais aux écrans qu'elle sert ;
+> - **le disque n'est lu qu'au premier lecteur**, et sa réponse est ignorée si une coche l'a
+>   précédée — cette coche l'a déjà écrasé. Avant, la mémoire reprenait l'ancienne valeur pendant
+>   que le disque gardait la coche ;
+> - **chaque coche part de la valeur du magasin**, lue sans attendre de rendu : le rattrapage du
+>   déroulé (#306) tient sans le `useRef` qui le portait.
+>
+> Effacer le local rend les écrans au distant **en cache**, qui portait encore le décompte d'avant
+> la séance le temps que sa relecture réponde. Une coche posée dans cette fenêtre le ressuscitait.
+> L'enregistrement du débrief écrit donc le suivi envoyé dans la séance en cache **avant** de vider
+> le local (`withSentTracking`), et la relecture reste lancée. Le web n'a pas le problème des deux
+> copies : séance et débrief y sont deux routes sœurs, l'une démonte l'autre.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
