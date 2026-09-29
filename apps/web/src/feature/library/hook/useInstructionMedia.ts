@@ -24,9 +24,18 @@ export function isPendingMediaId(mediaId: string): boolean {
 export type InstructionMedia = {
   /** Enregistre le fichier et rend le `mediaId` provisoire à poser dans le document. */
   register: (file: File, mimeType: InstructionImageMimeType) => string;
-  /** URL affichable — blob local pour une image en attente, URL signée pour une image enregistrée. */
+  /** URL affichable — blob local pour une image posée, URL signée pour une image enregistrée. */
   resolve: (mediaId: string) => string | null;
+  /** Les images pas encore envoyées. */
   pending: readonly PendingImage[];
+  /** Id définitif (celui de l'`ExerciseDocument`) de chaque image déjà envoyée, par `mediaId`. */
+  sent: ReadonlyMap<string, string>;
+  /**
+   * Retient qu'une image est envoyée et rattachée. Elle ne quitte pas le magasin pour autant :
+   * l'éditeur porte toujours son id provisoire, que seule cette table sait encore traduire si
+   * l'enregistrement échoue après elle — et qu'un réessai ne doit pas renvoyer (#302).
+   */
+  markSent: (mediaId: string, documentId: string) => void;
   /** Progression d'envoi par `mediaId` (0–100), alimentée pendant l'enregistrement. */
   progress: Readonly<Record<string, number>>;
   setProgress: (mediaId: string, percent: number) => void;
@@ -40,19 +49,22 @@ export type InstructionMedia = {
  * l'onglet vit, et le constructeur est un écran qu'on ouvre et ferme des dizaines de fois.
  */
 export function useInstructionMedia(documents: readonly ExerciseDocumentDto[]): InstructionMedia {
-  const [pending, setPending] = useState<PendingImage[]>([]);
+  const [images, setImages] = useState<PendingImage[]>([]);
+  const [sent, setSent] = useState<ReadonlyMap<string, string>>(new Map());
   const [progressByMedia, setProgressByMedia] = useState<Record<string, number>>({});
 
   // Une ref en plus de l'état : le nettoyage au démontage doit voir la DERNIÈRE liste, pas celle
   // capturée au premier rendu.
-  const pendingRef = useRef<PendingImage[]>([]);
-  pendingRef.current = pending;
+  const imagesRef = useRef<PendingImage[]>([]);
+  imagesRef.current = images;
 
   useEffect(() => {
     return () => {
-      for (const image of pendingRef.current) URL.revokeObjectURL(image.objectUrl);
+      for (const image of imagesRef.current) URL.revokeObjectURL(image.objectUrl);
     };
   }, []);
+
+  const pending = useMemo(() => images.filter((image) => !sent.has(image.mediaId)), [images, sent]);
 
   const savedUrlById = useMemo(() => {
     return new Map(documents.map((document) => [document.id, document.url]));
@@ -60,7 +72,7 @@ export function useInstructionMedia(documents: readonly ExerciseDocumentDto[]): 
 
   const register = useCallback((file: File, mimeType: InstructionImageMimeType) => {
     const mediaId = `${PENDING_PREFIX}${crypto.randomUUID()}`;
-    setPending((current) => [
+    setImages((current) => [
       ...current,
       { mediaId, file, mimeType, objectUrl: URL.createObjectURL(file) },
     ]);
@@ -69,7 +81,7 @@ export function useInstructionMedia(documents: readonly ExerciseDocumentDto[]): 
 
   const resolve = useCallback(
     (mediaId: string) => {
-      const waiting = pendingRef.current.find((image) => image.mediaId === mediaId);
+      const waiting = imagesRef.current.find((image) => image.mediaId === mediaId);
       if (waiting != null) return waiting.objectUrl;
       return savedUrlById.get(mediaId) ?? null;
     },
@@ -80,5 +92,9 @@ export function useInstructionMedia(documents: readonly ExerciseDocumentDto[]): 
     setProgressByMedia((current) => ({ ...current, [mediaId]: percent }));
   }, []);
 
-  return { register, resolve, pending, progress: progressByMedia, setProgress };
+  const markSent = useCallback((mediaId: string, documentId: string) => {
+    setSent((current) => new Map(current).set(mediaId, documentId));
+  }, []);
+
+  return { register, resolve, pending, sent, markSent, progress: progressByMedia, setProgress };
 }

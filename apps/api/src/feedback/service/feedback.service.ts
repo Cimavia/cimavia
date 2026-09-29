@@ -5,7 +5,7 @@ import type {
   UpsertSessionFeedbackInput,
 } from "@cmv/shared";
 import { FEEDBACK_EVENT_MESSAGE_TYPES, ScheduledSessionStatus } from "@cmv/shared";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import { toMessageDto } from "../../message/message.mapper";
@@ -53,6 +53,9 @@ export class FeedbackService {
     scheduledSessionId: string,
     input: UpsertSessionFeedbackInput,
   ): Promise<SessionFeedbackDto> {
+    if (input.tracking !== undefined) {
+      await this.assertTrackedExercisesKnown(scheduledSessionId, input.tracking);
+    }
     const feedback = await this.getOrCreateWritable(scheduledSessionId);
     // Un débrief complété redevient « à relire » : sinon un ajout tardif de l'athlète resterait
     // invisible dans la tuile du coach, qui l'a peut-être déjà ouvert.
@@ -65,6 +68,39 @@ export class FeedbackService {
     }
     await this.announcer.announce(feedback);
     return this.getOrThrow(scheduledSessionId);
+  }
+
+  /**
+   * Refuse un suivi qui cite un exercice que la séance ne porte pas (#311).
+   *
+   * L'ignorer, c'était répondre 200 à un débrief dont les coches n'avaient atterri nulle part :
+   * le client vidait alors son suivi local, et la perte était définitive. Un refus laisse les
+   * coches sur l'appareil — l'athlète n'a rien perdu, et le client sait qu'il doit se reprendre.
+   *
+   * Contrôlé AVANT toute écriture, texte compris : le débrief n'est pas écrit dans une seule
+   * transaction, et un refus après coup laisserait un débrief à moitié enregistré — voire en
+   * créerait un, séance passée en DONE, pour une requête refusée. La garde de séance passe en
+   * premier : la séance d'un autre reste un 404, pas un 400 qui dirait qu'elle existe.
+   */
+  private async assertTrackedExercisesKnown(
+    scheduledSessionId: string,
+    tracking: FeedbackTracking,
+  ): Promise<void> {
+    const cited = Object.keys(tracking);
+    if (cited.length === 0) return;
+
+    await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    const known = await this.db.scheduledSessionExercise.findMany({
+      where: { scheduledSessionId, id: { in: cited } },
+      select: { id: true },
+    });
+    if (known.length === cited.length) return;
+
+    const knownIds = new Set(known.map((exercise) => exercise.id));
+    const unknown = cited.filter((id) => !knownIds.has(id));
+    throw new BadRequestException(
+      `Le suivi cite un exercice absent de cette séance : ${unknown.join(", ")}`,
+    );
   }
 
   /**

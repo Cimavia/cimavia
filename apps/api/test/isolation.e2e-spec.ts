@@ -1247,6 +1247,102 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     await coachA.delete(`/exercises/${exerciseAId}/documents/${image.body.id}`);
   });
 
+  it("les images de consigne survivent à l'enregistrement du coach, même sans bibliothèque (#296)", async () => {
+    // Le panneau du coach renvoie la consigne de l'INSTANCE : ses images citent les documents de
+    // la copie, pas ceux de la bibliothèque. Recréer ces documents à chaque enregistrement laissait
+    // la consigne pointer dans le vide chez l'athlète — et l'échec était silencieux.
+    const exercise = await coachA.post("/exercises").send({ title: "Planche" });
+    const documentsUrl = `/exercises/${exercise.body.id}/documents`;
+    const image = { fileName: "planche.jpg", mimeType: "image/jpeg", size: 2048 };
+    const signed = await coachA.post(`${documentsUrl}/upload-url`).send(image);
+    const uploaded = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(image.size, 1),
+      headers: { "content-type": image.mimeType },
+    });
+    expect(uploaded.status).toBe(200);
+    const document = await coachA.post(documentsUrl).send({
+      type: "FILE",
+      storagePath: signed.body.storagePath,
+      fileName: image.fileName,
+      mimeType: image.mimeType,
+      usage: "INSTRUCTION",
+    });
+    expect(document.status).toBe(201);
+
+    // Piocché dans la bibliothèque : la consigne arrive avec l'id du document de BIBLIOTHÈQUE.
+    const created = await coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
+      title: "Gainage",
+      scheduledDate: mondayOfWeek2Iso,
+      exercises: [
+        {
+          sourceExerciseId: exercise.body.id,
+          title: "Planche",
+          instructions: [{ type: "IMAGE", mediaId: document.body.id }],
+        },
+      ],
+    });
+    expect(created.status).toBe(201);
+    const initial = created.body.exercises[0];
+    const initialDocumentIds = initial.documents.map((d: { id: string }) => d.id);
+
+    // Ce que le panneau renvoie : la ligne telle qu'il l'a lue, avec une note en plus.
+    const resave = async () => {
+      const read = await coachA.get(`/scheduled-sessions/${created.body.id}`);
+      const line = required(read.body.exercises[0], "exercice de la séance");
+      const saved = await coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+        title: "Gainage",
+        notes: null,
+        scheduledDate: mondayOfWeek2Iso,
+        exercises: [
+          {
+            id: line.id,
+            sourceExerciseId: line.sourceExerciseId,
+            title: line.title,
+            description: line.description,
+            tags: line.tags,
+            note: "Tenir 30 s",
+            instructions: line.instructions,
+            blocks: line.blocks,
+            customMetrics: line.customMetrics,
+            adjustments: line.adjustments,
+          },
+        ],
+      });
+      expect(saved.status).toBe(200);
+      return required(saved.body.exercises[0], "exercice enregistré");
+    };
+
+    const assertIntact = (line: {
+      id: string;
+      instructions: { type: string; mediaId?: string }[];
+      documents: { id: string; url: string }[];
+    }) => {
+      // La ligne et ses documents gardent leur identité : rien n'a été recréé.
+      expect(line.id).toBe(initial.id);
+      const documentIds = line.documents.map((d) => d.id);
+      expect(documentIds).toEqual(initialDocumentIds);
+      for (const block of line.instructions.filter((b) => b.type === "IMAGE")) {
+        expect(documentIds).toContain(block.mediaId);
+      }
+    };
+
+    assertIntact(await resave());
+
+    // L'exercice quitte la bibliothèque : `sourceExerciseId` passe à null, et l'objet reste —
+    // la copie le référence encore. Repasser par la bibliothèque perdait alors TOUS les documents.
+    expect((await coachA.delete(`/exercises/${exercise.body.id}`)).status).toBe(204);
+    const orphaned = await resave();
+    expect(orphaned.sourceExerciseId).toBeNull();
+    assertIntact(orphaned);
+
+    // Et l'objet n'a pas bougé : l'athlète le lit toujours.
+    const copy = required(orphaned.documents[0], "document de la copie");
+    expect((await fetch(copy.url)).status).toBe(200);
+
+    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+  });
+
   it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {
     const outOfWeek = await coachA
       .post(`/plan-weeks/${week1Id}/sessions`)
@@ -2119,6 +2215,83 @@ describe("Suivi d'exécution (#168)", () => {
     expect(saved.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 1] } });
   });
 
+  it("une coche LOCALE survit à l'enregistrement du coach, et le débrief la remonte (#311)", async () => {
+    // L'athlète coche en salle, hors réseau : son suivi vit sur son téléphone, indexé par
+    // l'identifiant de la ligne, et ne monte qu'au débrief. Si l'enregistrement du coach renouvelle
+    // cet identifiant entre-temps, le débrief écrit sur une ligne qui n'existe plus.
+    const seen = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
+    const [tractions, gainage] = seen.body.exercises;
+    const line = (exercise: typeof tractions, note: string | null) => ({
+      id: exercise.id,
+      sourceExerciseId: exercise.sourceExerciseId,
+      title: exercise.title,
+      tags: exercise.tags,
+      note,
+      instructions: exercise.instructions,
+      blocks: exercise.blocks,
+      customMetrics: exercise.customMetrics,
+      adjustments: exercise.adjustments,
+    });
+
+    // Le coach réordonne et annote : les lignes changent de rang, pas d'identité.
+    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Force — ajustée",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [line(gainage, "En fin de séance"), line(tractions, "Lent en descente")],
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body.exercises.map((e: { id: string }) => e.id)).toEqual([
+      gainage.id,
+      tractions.id,
+    ]);
+
+    // Le débrief part avec les identifiants que l'athlète avait AVANT l'enregistrement.
+    const sent = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [tractions.id]: { blk_1: { checked: [0, 1, 2, 3] } } },
+    });
+    expect(sent.status).toBe(200);
+
+    const read = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
+    expect(read.body.trackedExercises).toContainEqual(
+      expect.objectContaining({ exerciseId: tractions.id, state: "DONE", done: 4, total: 4 }),
+    );
+
+    // Retirer une ligne l'emporte avec son suivi ; la ligne restante reprend le premier rang.
+    const trimmed = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Force — ajustée",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [line(tractions, "Lent en descente")],
+    });
+    expect(trimmed.status).toBe(200);
+    expect(trimmed.body.exercises).toHaveLength(1);
+    expect(trimmed.body.exercises[0]).toMatchObject({
+      id: tractions.id,
+      position: 0,
+      tracking: { blk_1: { checked: [0, 1, 2, 3] } },
+    });
+  });
+
+  it("refuse le même exercice cité deux fois dans la séance (400)", async () => {
+    const before = (await coach.get(`/scheduled-sessions/${sessionId}`)).body;
+    const exercise = before.exercises[0];
+    const res = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: before.title,
+      notes: null,
+      scheduledDate: monday,
+      exercises: [
+        { id: exercise.id, title: exercise.title },
+        { id: exercise.id, title: exercise.title },
+      ],
+    });
+    expect(res.status).toBe(400);
+    // Rien n'a été écrit : la séance est celle d'avant.
+    expect((await coach.get(`/scheduled-sessions/${sessionId}`)).body.exercises).toEqual(
+      before.exercises,
+    );
+  });
+
   it("un athlète ne suit PAS la séance d'un autre", async () => {
     const res = await other.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
       tracking: { [exerciseCopyId]: { blk_1: { checked: [0] } } },
@@ -2126,16 +2299,26 @@ describe("Suivi d'exécution (#168)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("un identifiant d'exercice étranger n'écrit RIEN", async () => {
-    // L'écriture est pilotée par l'entrée : sans `where` scopé sur la séance, un id forgé
-    // atteindrait la ligne d'un autre.
+  it("un exercice inconnu de la séance fait refuser le débrief (400), sans RIEN en écrire", async () => {
+    // Répondre 200 en ignorant la coche, c'était laisser le client vider son suivi local pour des
+    // coches qui n'avaient atterri nulle part (#311). Le refus les garde sur l'appareil.
     const before = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    const feedbackBefore = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
+
     const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { cmv_inconnu: { blk_1: { checked: [0, 1, 2, 3] } } },
+      content: "Ne doit pas s'écrire",
+      tracking: {
+        [exerciseCopyId]: { blk_1: { checked: [0] } },
+        cmv_inconnu: { blk_1: { checked: [0, 1, 2, 3] } },
+      },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+
+    // Ni le texte, ni la coche de l'exercice CONNU : un refus n'enregistre pas à moitié.
     const after = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
     expect(after.tracking).toEqual(before.tracking);
+    const feedbackAfter = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
+    expect(feedbackAfter.content).toBe(feedbackBefore.content);
   });
 });
 
@@ -5315,6 +5498,56 @@ describe("Copie d'une semaine de planification (#4)", () => {
     expect(copyId).not.toBe(sourceId);
     const sourceDetail = await coachA.get(`/scheduled-sessions/${sourceId}`);
     expect(sourceDetail.body.exercises[0].id).not.toBe(detail.body.exercises[0].id);
+  });
+
+  it("les images de consigne suivent la copie : elles citent les documents de la semaine cible", async () => {
+    // La copie recrée les documents depuis l'INSTANCE source, dont la consigne cite les copies —
+    // pas la bibliothèque. Sans remappage sur les nouvelles lignes, l'image ne désignerait plus rien.
+    const exercise = await coachA.post("/exercises").send({ title: "Planche" });
+    const documentsUrl = `/exercises/${exercise.body.id}/documents`;
+    const signed = await coachA
+      .post(`${documentsUrl}/upload-url`)
+      .send({ fileName: "planche.jpg", mimeType: "image/jpeg", size: 2048 });
+    const image = await coachA.post(documentsUrl).send({
+      type: "FILE",
+      storagePath: signed.body.storagePath,
+      fileName: "planche.jpg",
+      mimeType: "image/jpeg",
+      usage: "INSTRUCTION",
+    });
+    expect(image.status).toBe(201);
+
+    const plan = await coachA.post("/plans").send({
+      athleteId: a1Id,
+      title: "Cycle images",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "TRAINING" }],
+    });
+    const [sourceWeekId, targetWeekId] = plan.body.weeks.map((w: { id: string }) => w.id);
+    const source = await coachA.post(`/plan-weeks/${sourceWeekId}/sessions`).send({
+      title: "Gainage",
+      scheduledDate: day(0),
+      exercises: [
+        {
+          sourceExerciseId: exercise.body.id,
+          title: "Planche",
+          instructions: [{ type: "IMAGE", mediaId: image.body.id }],
+        },
+      ],
+    });
+    expect(source.status).toBe(201);
+    const sourceMediaId = source.body.exercises[0].instructions[0].mediaId;
+
+    expect((await paste(coachA, targetWeekId, sourceWeekId)).status).toBe(201);
+
+    const target = await weekOf(coachA, plan.body.id, targetWeekId);
+    const copied = await coachA.get(`/scheduled-sessions/${target.sessions[0].id}`);
+    const line = copied.body.exercises[0];
+    const mediaId = line.instructions[0].mediaId;
+    expect(mediaId).not.toBe(sourceMediaId);
+    expect(line.documents.map((d: { id: string }) => d.id)).toContain(mediaId);
+
+    await coachA.delete(`/plans/${plan.body.id}`);
   });
 
   it("emporte le type et la note de la semaine, pas seulement ses séances", async () => {

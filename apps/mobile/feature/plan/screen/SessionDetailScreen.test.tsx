@@ -1,12 +1,25 @@
-import type { BlockSegment, ScheduledSessionDto, ScheduledSessionExerciseDto } from "@cmv/shared";
-import { ScheduledSessionStatus } from "@cmv/shared";
+import type {
+  BlockSegment,
+  ExerciseBlock,
+  ScheduledSessionDto,
+  ScheduledSessionExerciseDto,
+} from "@cmv/shared";
+import {
+  BlockType,
+  MetricKey,
+  MetricSource,
+  MetricUnit,
+  ScheduledSessionStatus,
+} from "@cmv/shared";
 import type { UseQueryResult } from "@tanstack/react-query";
+import { act } from "@testing-library/react";
 import { router, useLocalSearchParams } from "expo-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import type { RunnerContext } from "@/feature/plan/hook/useSegmentRunner";
 import { SessionDetailScreen } from "@/feature/plan/screen/SessionDetailScreen";
 import { press, pressButton, renderRn } from "@/test/render";
+import { storedItems } from "@/test/setup";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useScheduledSession: vi.fn() }));
 // Le bandeau hors-ligne écoute l'état réseau : hors sujet ici, et il n'a rien à dire d'un test.
@@ -20,8 +33,14 @@ vi.mock("@/shared/component/OfflineBanner", () => ({ OfflineBanner: () => null }
  * Les segments sont bâtis DANS la fabrique : `vi.mock` est hissé au-dessus des imports, et y citer
  * `SegmentKind` lèverait au chargement. Les littéraux valent l'énumération, les types font le
  * reste — ils s'effacent à la compilation.
+ *
+ * Un exercice qui porte des blocs a en plus un déclencheur par bloc, câblé comme la vraie carte :
+ * les segments sortent du VRAI `blockSegments`. C'est ce qui laisse éprouver le déroulé et le
+ * suivi ensemble, sur la forme exacte que la carte leur donne.
  */
-vi.mock("@/feature/plan/component/ExerciseCard", () => {
+vi.mock("@/feature/plan/component/ExerciseCard", async () => {
+  const { blockSegments } = await vi.importActual<typeof import("@cmv/shared")>("@cmv/shared");
+
   const segment = (kind: string, seconds: number, unitIndex: number | null): BlockSegment =>
     ({ kind, seconds, unitIndex, rowId: null }) as unknown as BlockSegment;
 
@@ -51,6 +70,22 @@ vi.mock("@/feature/plan/component/ExerciseCard", () => {
         <button type="button" onClick={() => onRun([segment("REST", 60, null)], context)}>
           {`lancer un repos seul ${exercise.id}`}
         </button>
+        {exercise.blocks.map((block) => (
+          <button
+            key={block.id}
+            type="button"
+            onClick={() =>
+              onRun(blockSegments(block), {
+                exerciseId: exercise.id,
+                block,
+                customMetrics: exercise.customMetrics,
+                title: exercise.title,
+              })
+            }
+          >
+            {`dérouler ${block.id}`}
+          </button>
+        ))}
       </>
     ),
   };
@@ -261,5 +296,76 @@ describe("SessionDetailScreen — le chrono", () => {
     press(await findByText("lancer un repos seul ex-1"));
 
     expect(queryByText("plan.tracking.hint")).toBeNull();
+  });
+});
+
+/**
+ * Le déroulé et le suivi, les VRAIS, ensemble (#306).
+ *
+ * Écran éteint, le JS est gelé : aucun tic ne tombe. Au réveil, le premier tic voit d'un coup
+ * plusieurs segments écoulés et les coche tous dans la même boucle, sans rendu entre deux. C'est
+ * ce saut qui est rejoué ici — l'horloge avance d'un bloc, puis UN tic tombe. Avancer tic par tic
+ * rendrait entre chaque segment, et ne rejouerait pas la veille.
+ *
+ * On lit ce qui est PERSISTÉ : c'est le disque que le débrief relit et envoie au coach.
+ */
+describe("SessionDetailScreen — rattrapage d'un déroulé passé écran éteint", () => {
+  const effort = {
+    id: "col_effort",
+    source: MetricSource.CATALOG,
+    key: MetricKey.EFFORT_DURATION,
+    unit: MetricUnit.NONE,
+    label: null,
+    collapsed: false,
+  } as const;
+
+  /** Gainage 3 × 30 s, repos 30 s : effort, repos, effort, repos, effort — 2 min 30 en tout. */
+  const gainage: ExerciseBlock = {
+    id: "b-gainage",
+    label: null,
+    structure: { type: BlockType.SERIES, setCount: 3, restBetweenSetsSeconds: 30 },
+    metrics: [effort],
+    rows: [{ id: "r-1", values: { [effort.id]: 30 } }],
+  };
+
+  const stored = () => JSON.parse(storedItems.get(`cimavia-tracking:${SESSION_ID}`) ?? "null");
+
+  /** L'app dort `ms`, puis se réveille : un seul tic du déroulé tombe. */
+  const sleep = (ms: number) =>
+    act(() => {
+      vi.setSystemTime(Date.now() + ms);
+      vi.advanceTimersByTime(250);
+    });
+
+  beforeEach(() => {
+    loaded({ exercises: [{ ...exercise("ex-1", "Gainage"), blocks: [gainage] }] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * L'écran est rendu en temps RÉEL, et le faux n'est posé qu'au lancement : les `findBy*`
+   * attendent sur de vrais minuteurs, qu'un temps faux figerait.
+   */
+  const launch = async () => {
+    const { findByText } = renderRn(<SessionDetailScreen />);
+    const trigger = await findByText("dérouler b-gainage");
+    vi.useFakeTimers();
+    press(trigger);
+  };
+
+  it("coche les trois séries quand l'écran s'est rallumé après la fin", async () => {
+    await launch();
+    sleep(160_000);
+    expect(stored()).toEqual({ "ex-1": { "b-gainage": { checked: [0, 1, 2] } } });
+  });
+
+  it("coche les séries finies, pas celle qui reste, sur un réveil en cours de route", async () => {
+    await launch();
+    // 1 min 40 : deux efforts et un repos passés, on est dans le second repos.
+    sleep(100_000);
+    expect(stored()).toEqual({ "ex-1": { "b-gainage": { checked: [0, 1] } } });
   });
 });

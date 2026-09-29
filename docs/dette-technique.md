@@ -1626,6 +1626,35 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > renvoie l'intégralité du snapshot, et le serveur reporte par `id` ce qui ne transite JAMAIS par
 > lui — le **suivi d'exécution**, qui appartient à l'athlète. Verrouillé par deux e2e vérifiés
 > rouges avant correctif.
+>
+> **Incomplet, corrigé en #296/#311** : ce report ne sauvait que le suivi **déjà en base**. Les
+> lignes étaient recréées sous un **nouvel** `id`, alors que l'athlète coche en local contre
+> l'ancien : ses coches non encore débriefées retombaient sur une ligne disparue, et le débrief
+> répondait 200 sans rien écrire. Les documents étaient recréés eux aussi, depuis la bibliothèque,
+> et les images de la consigne ne désignaient plus rien. Voir l'encadré suivant.
+
+> **Tranché en #296** (l'édition d'une séance planifiée garde l'identité de ses lignes) : une ligne
+> citée par son `id` est **mise à jour en place**, jamais détruite puis recréée
+> (`rewriteScheduledSessionExercises`). La reprise de l'`id` sur une ligne recréée a été écartée :
+> ce qui est rattaché à la ligne (documents, tags, et demain tout nouvel enfant) serait resté
+> détruit en cascade à chaque enregistrement du coach. Quatre conséquences : **(1)** une ligne
+> reprise garde ses documents **sans copie**, la bibliothèque ne sert qu'aux exercices
+> **ajoutés**, et un `sourceExerciseId` passé à `null` ne coûte plus aucun document ni objet ;
+> **(2)** `baseline`, `tracking` et `sourceExerciseId` d'une ligne reprise ne se réécrivent pas
+> depuis le panneau du coach ; **(3)** un `id` inconnu de la séance est une ligne **nouvelle**, et
+> un `id` cité deux fois vaut **400** ; **(4)** les rangs passent par un garage, comme `writeDay`,
+> car `@@unique([scheduledSessionId, position])` mord pendant l'écriture. La copie de semaine (#4)
+> recrée ses lignes, et c'est voulu : ce sont des séances neuves, et ses documents viennent de
+> l'instance source. Un e2e le verrouille désormais pour les images de consigne.
+>
+> Le débrief qui cite un exercice absent de la séance répond maintenant **400**, avant toute
+> écriture, texte compris (#311). Ce refus a un coût côté clients : une coche restée en local sur
+> un exercice que le coach a retiré ferait refuser tout le débrief. Les deux clients filtrent donc
+> le suivi avant l'envoi (`trackingOfExercises`, `@cmv/shared`) — le web en #311, le mobile en
+> [#490](https://github.com/Cimavia/cimavia/issues/490). Le filtre lit la séance **en cache** :
+> sur mobile, persistée et tenue pour fraîche cinq minutes, elle peut ignorer un retrait tout
+> juste fait. Un 400 au débrief y invalide donc la séance, et l'envoi suivant passe ; le suivi
+> local, lui, n'est vidé qu'au succès. #296/#311 et #490 se **promeuvent ensemble** en preview.
 
 > **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
 > à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
@@ -3464,10 +3493,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| IOS-1 | **Les chaînes de permission iOS ne passent pas par i18next** (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. Français seulement. Les localiser ne demande pourtant rien d'exotique : la clé `expo.locales` d'`app.json` génère un `InfoPlist.strings` par langue au prebuild (`@expo/config-plugins`, `ios/Locales.js`). #134 affirmait le contraire, et cette ligne l'a d'abord recopié. | 🟡 | [#254](https://github.com/Cimavia/cimavia/issues/254) |
+| ~~IOS-1~~ | ~~**Les chaînes de permission iOS ne passent pas par i18next**~~ (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. #134 affirmait que les localiser sortait de ce que la config Expo expose, et cette ligne l'a d'abord recopié. | ✅ | résolue en [#254](https://github.com/Cimavia/cimavia/issues/254) — `expo.locales`, construit par `app.config.ts` depuis le bloc `permission.ios` des catalogues i18next ; repli sur le français (encadré ci-dessous) |
 | IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
 | IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet tant qu'aucune revue n'a lieu — la bêta passe par des testeurs TestFlight internes —, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi à des testeurs TestFlight EXTERNES, ou à l'App Store — les testeurs internes ne passent aucune revue)* |
-| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins, sans que rien ne le signale. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
+| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près — et une troisième dans `fr.json` depuis #254. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins. Depuis #254, `ios-permission-locales.test.ts` échoue si l'une des valeurs de base d'`app.json` s'écarte du catalogue français. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
 | IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
 | IOS-6 | **La chaîne de notification du minuteur n'a aucun test** (0 % mesuré) : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — seul ce dernier est remonté à 100 %. | 🟡 | [#253](https://github.com/Cimavia/cimavia/issues/253) |
 
@@ -3528,6 +3557,34 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `granted`, seul champ que lisent `usePushToken` et `timer-alert`. Il valait donc `undefined`, tout
 > appelant concluait au refus, et n'importe quel test écrit sur ce mock serait passé au vert sans
 > rien éprouver. Un mock incomplet ne rate pas un test : il en fabrique un faux.
+
+> **Tranché en #254** (les permissions iOS parlent la langue du téléphone, et se replient sur le
+> français) : trois décisions, dont aucune ne se lit dans le code.
+>
+> - **Un seul catalogue.** Les traductions vivent sous `permission.ios` dans `fr.json` et `en.json`,
+>   pas dans des fichiers `locales` au format Expo. Ceux-là auraient été un second endroit où vivent
+>   des textes, invisible de `check:i18n` : ni tutoiement, ni clé morte. `expo.locales` accepte un
+>   objet à la place d'un chemin, donc aucun script : `app.config.ts` appelle
+>   `buildIosPermissionLocales` (`shared/lib/`), dont la table `IOS_PERMISSION_KEY` est lue par le
+>   contrôle A. `en.json` est né avec ce seul bloc ; #87 le complète. L'import porte son extension
+>   `.ts` : sans elle, le chargeur de config d'Expo ne le résout pas.
+> - **La langue de repli est `CFBundleDevelopmentRegion`, pas la « valeur de base ».** #254 disait
+>   que le texte des plugins s'afficherait pour toute langue absente de `locales`. C'est faux dès
+>   qu'un `.lproj` existe : iOS choisit alors celui de la langue de développement, que le gabarit
+>   Expo fixe à `en`. Un téléphone en allemand aurait lu ses permissions en anglais, et l'app en
+>   français. `app.config.ts` la force à `fr`, le `fallbackLng` d'i18next
+>   ([#88](https://github.com/Cimavia/cimavia/issues/88)) : les deux changent ensemble, et un
+>   changement exige un nouveau binaire.
+> - **`NSFaceIDUsageDescription` retirée** (`faceIDPermission: false` sur `expo-secure-store`) :
+>   le plugin la posait avec son texte anglais par défaut, et rien n'appelle `requireAuthentication`.
+>   Même famille qu'IOS-3. Contrairement au piège de #134, ce `false` ne touche aucune permission
+>   Android — vérifié dans le plugin, qui n'écrit que cette clé.
+>
+> Le générateur d'Expo écrit `clé = "valeur";` sans échapper : `buildIosPermissionLocales` refuse
+> un guillemet droit ou une barre oblique inverse plutôt que de produire un `InfoPlist.strings`
+> invalide sans erreur de build. Vérifié par un prebuild iOS : `fr.lproj` et `en.lproj` portent les
+> deux clés, l'`Info.plist` porte `CFBundleDevelopmentRegion = fr` et plus de clé Face ID. Rien de
+> tout cela n'a encore été vu sur un iPhone (IOS-5).
 
 ---
 
@@ -4219,6 +4276,33 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Semaine et cycle diffusés restent à [#312](https://github.com/Cimavia/cimavia/issues/312) et
 > [#85](https://github.com/Cimavia/cimavia/issues/85) : leur règle est plus large (plus aucune
 > suppression sur un cycle diffusé, débriefé ou non).
+
+---
+
+## Post-MVP — Un seul suivi local par séance ([#346](https://github.com/Cimavia/cimavia/issues/346))
+
+> **Tranché en [#346](https://github.com/Cimavia/cimavia/issues/346)** (le suivi local vit dans
+> un magasin au niveau du module, lu par `useSyncExternalStore`) : l'écran de séance reste monté
+> sous le débrief, et chacun tenait sa propre copie, lue sur le disque au montage. Le débrief
+> corrigeait 3/4 en 4/4 et vidait le disque à l'enregistrement ; l'écran du dessous gardait 3/4,
+> qui l'emportait sur le serveur et revenait sur le disque à la coche suivante. Une **relecture au
+> focus** a été écartée : elle laisse deux copies, d'accord au seul moment du retour, et chaque
+> nouvel écran d'une séance devrait penser à la faire. Même montage que le presse-papier de semaine (#4), avec trois règles
+> propres au suivi (`feature/plan/lib/local-tracking-store.ts`) :
+>
+> - **une entrée n'existe que tant qu'un écran la lit** : le dernier parti, elle est oubliée, et le
+>   prochain montage relit le disque. La mémoire ne survit jamais aux écrans qu'elle sert ;
+> - **le disque n'est lu qu'au premier lecteur**, et sa réponse est ignorée si une coche l'a
+>   précédée — cette coche l'a déjà écrasé. Avant, la mémoire reprenait l'ancienne valeur pendant
+>   que le disque gardait la coche ;
+> - **chaque coche part de la valeur du magasin**, lue sans attendre de rendu : le rattrapage du
+>   déroulé (#306) tient sans le `useRef` qui le portait.
+>
+> Effacer le local rend les écrans au distant **en cache**, qui portait encore le décompte d'avant
+> la séance le temps que sa relecture réponde. Une coche posée dans cette fenêtre le ressuscitait.
+> L'enregistrement du débrief écrit donc le suivi envoyé dans la séance en cache **avant** de vider
+> le local (`withSentTracking`), et la relecture reste lancée. Le web n'a pas le problème des deux
+> copies : séance et débrief y sont deux routes sœurs, l'une démonte l'autre.
 
 ---
 

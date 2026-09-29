@@ -19,6 +19,7 @@ vi.mock("@/feature/library/api", async (importOriginal) => ({
 const ADD_LINK = "library.builder.attachment.addLink";
 const ADD_LINK_ACTION = "library.builder.attachment.addLinkAction";
 const REMOVE = "library.builder.attachment.remove";
+const LINK_ERROR = "library.builder.attachment.errorLink";
 
 /** Un fichier dont on force la TAILLE : produire 20 Mo d'octets pour un test serait absurde. */
 function fileOfSize(name: string, type: string, size: number): File {
@@ -154,6 +155,29 @@ describe("AttachmentsSection", () => {
         "https://example.test/b",
       ]);
       expect(getByLabelText(ADD_LINK)).toHaveValue("");
+    });
+
+    it("refuse dès l'ajout un lien que l'api refuserait, et le laisse dans le champ", async () => {
+      const { user, getByRole, getByLabelText, findByText, onPendingLinks } = setup();
+
+      // Sans schéma : l'adresse telle qu'on la recopie de la barre du navigateur. Acceptée ici,
+      // elle faisait échouer l'enregistrement APRÈS la création de l'exercice (#302).
+      await user.type(getByLabelText(ADD_LINK), "youtube.com/watch?v=1");
+      await user.click(getByRole("button", { name: ADD_LINK_ACTION }));
+
+      expect(await findByText(LINK_ERROR)).toBeInTheDocument();
+      expect(onPendingLinks).not.toHaveBeenCalled();
+      expect(getByLabelText(ADD_LINK)).toHaveValue("youtube.com/watch?v=1");
+    });
+
+    it("efface le message dès que le coach corrige", async () => {
+      const { user, getByRole, getByLabelText, queryByText } = setup();
+
+      await user.type(getByLabelText(ADD_LINK), "www.youtube.com");
+      await user.click(getByRole("button", { name: ADD_LINK_ACTION }));
+      await user.type(getByLabelText(ADD_LINK), "/");
+
+      expect(queryByText(LINK_ERROR)).not.toBeInTheDocument();
     });
   });
 
