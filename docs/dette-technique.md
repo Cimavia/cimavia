@@ -73,9 +73,26 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | ~~P4-3~~ | ~~**Vol de token push possible**~~ : `POST /me/push-tokens` réaffectait au compte courant un token déjà enregistré. | ✅ | résolue en [#90](https://github.com/Cimavia/cimavia/issues/90) — un **secret d'installation**, émis par l'API et gardé en `expo-secure-store`, conditionne la réaffectation |
-| P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo en plein écran dans l'app depuis **#407**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. **Précisé en #407** : `expo-video` sait générer la vignette (`generateThumbnailsAsync`, présente en 56.1.x), donc `expo-video-thumbnails` n'est plus nécessaire — mais elle rend une image NATIVE que seul l'`Image` d'**`expo-image`** affiche, et elle la tire d'un lecteur, à créer puis relâcher par vidéo. Le module natif restant à payer est donc `expo-image`. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
+| ~~P4-4~~ | ~~**Pas de miniature vidéo sur mobile**~~ : ni dans la galerie de débrief, ni dans la bulle de messagerie — une pastille, un libellé, aucun aperçu de l'image. **Rectifié en #92** : la ligne annonçait, depuis #407, `expo-image` comme module natif restant à payer ; `expo-image-manipulator`, déjà là pour les photos, a suffi. | ✅ | résolue en [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) — vignette tirée sur l'appareil à l'affichage, sans module natif de plus (cf. « Tranché en #92 ») |
 | P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : un média de débrief n'est jamais copié ni partagé, et son **retrait** par l'athlète purge l'objet — mais la **disparition de sa séance** cascade débrief et médias en base sans toucher au bucket. Fermé pour la séance seule en [#313](https://github.com/Cimavia/cimavia/issues/313) (409) ; la suppression d'une semaine ou d'un cycle **diffusé** l'emporte encore. **Rectifié en #313** : cette ligne disait « P4 n'ajoute aucun nouveau cas ». | 🟡 | [#312](https://github.com/Cimavia/cimavia/issues/312) · [#85](https://github.com/Cimavia/cimavia/issues/85) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+
+> **Tranché en #92** (la vignette tirée à l'AFFICHAGE, pas à l'envoi) : la stocker à l'envoi
+> demandait une migration, un champ de DTO et un second envoi signé — et laissait sans image toutes
+> les vidéos déjà envoyées, comme celles déposées depuis le web. Tirée sur l'appareil
+> (`shared/lib/video-thumbnail.ts`), elle ne touche ni l'API ni la base, vaut pour l'existant, et ne
+> coûte le réseau qu'à la première vue : la suivante lit le JPEG gardé dans le cache.
+>
+> **Sans module natif de plus** : `generateThumbnailsAsync` (expo-video, #407) rend une image
+> NATIVE, que seul l'`Image` d'`expo-image` affiche — d'où la ligne de P4-4 écrite en #407. Mais
+> `expo-image-manipulator` accepte cette même référence et l'écrit en fichier, que l'`Image` de
+> React Native affiche. L'empreinte native ne bouge pas.
+>
+> **Ce qui la tient** : une génération à la fois (chacune ouvre un lecteur natif, relâché aussitôt),
+> une seule par vidéo affichée deux fois, et une **époque** sur le modèle de `document-cache` :
+> `resetAccountData` efface les vignettes au changement de compte, et une demande faite avant la
+> déconnexion — en cours ou encore dans la file — n'écrit rien dans le magasin vidé. Tout échec rend
+> `null`, et la pastille de #407 reste : une vignette est un confort, jamais une case vide.
 
 > **Résolu en P4** : ~~P3-1~~ (push non envoyé) — `expo-server-sdk` est branché dans
 > `NotificationService`, sans que les appelants aient bougé. ~~P3-6~~ côté débriefs — la tuile
@@ -3806,7 +3823,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > override, que `pnpm-workspace.yaml` réserve aux correctifs de sécurité.
 >
 > **L'empreinte native change, et le build attend** : #409 est fusionnée sans binaire, le build
-> Android et iOS part après #407, #92/#155 et #254, qui la changent aussi. Entre les deux, un update
+> Android et iOS part après #407 et #254, qui la changent aussi. **Rectifié en #92** : #92/#155
+> étaient comptées ici, mais n'ajoutent aucun module natif. Entre les deux, un update
 > publié depuis un tag qui contient #409 **n'atteint personne**, sans erreur. Un correctif urgent
 > pour le binaire installé se publie depuis un tag antérieur.
 
