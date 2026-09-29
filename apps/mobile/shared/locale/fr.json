@@ -634,5 +634,11 @@
       "version": "cimavia · v{{version}}",
       "unknown": "cimavia · —"
     }
+  },
+  "permission": {
+    "ios": {
+      "photoLibrary": "cimavia a besoin d'accéder à ta photothèque pour joindre photos et vidéos à un débrief ou à un message.",
+      "microphone": "cimavia utilise le micro pour enregistrer tes messages vocaux."
+    }
   }
 }
