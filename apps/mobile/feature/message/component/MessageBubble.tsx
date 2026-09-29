@@ -13,7 +13,7 @@ import {
 import { type Href, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
-import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoLink } from "@/shared/component";
+import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoPlayer } from "@/shared/component";
 import { useActingCapability } from "@/shared/hook/useExercisedCapability";
 import { formatDate } from "@/shared/util/date.util";
 
@@ -56,9 +56,9 @@ function MediaContent({
   if (message.type === MessageType.IMAGE) {
     return <CmvImageViewer url={media.url} />;
   }
-  // Vidéo : ouverte dans le lecteur système, sur une URL vérifiée juste avant.
+  // Vidéo : lue en plein écran dans l'app, sur une URL vérifiée juste avant.
   return (
-    <CmvVideoLink
+    <CmvVideoPlayer
       durationSeconds={media.durationSeconds}
       resolveUrl={() => resolveMediaUrl(message.id)}
     />
