@@ -56,9 +56,10 @@ function MediaContent({
   if (message.type === MessageType.IMAGE) {
     return <CmvImageViewer url={media.url} />;
   }
-  // Vidéo : lue en plein écran dans l'app, sur une URL vérifiée juste avant.
+  // Vidéo : sa vignette (#155), lue en plein écran dans l'app sur une URL vérifiée juste avant.
   return (
     <CmvVideoPlayer
+      mediaId={message.id}
       durationSeconds={media.durationSeconds}
       resolveUrl={() => resolveMediaUrl(message.id)}
     />

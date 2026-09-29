@@ -222,9 +222,11 @@ function FeedbackMedia({
           return (
             <CmvVideoPlayer
               key={item.id}
+              mediaId={item.id}
               durationSeconds={item.durationSeconds}
               resolveUrl={() => freshUrl(item.id)}
               containerClassName="h-48 w-full items-center justify-center gap-2 rounded-lg border border-cmv-border bg-cmv-surface"
+              thumbnailClassName="h-48 w-full overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface"
             />
           );
         }
