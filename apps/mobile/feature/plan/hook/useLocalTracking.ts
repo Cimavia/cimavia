@@ -6,7 +6,7 @@ import {
   toggleUnit as toggleUnitIn,
 } from "@cmv/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type { SessionTracking };
 
@@ -37,6 +37,28 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
   const tracking = cached ?? remote;
 
   /**
+   * La valeur COURANTE, à jour dès l'écriture — `cached`, lui, ne l'est qu'au rendu suivant.
+   *
+   * Le rattrapage du déroulé coche plusieurs unités dans le même tic, sans rendu entre deux : parti
+   * de `cached`, chaque appel repartait de la même base et effaçait le précédent — 3 × 30 s de
+   * gainage passés écran éteint remontaient 1/3 (#306). `setCached(prev => …)` ne suffit pas : dès
+   * le deuxième appel, React ne calcule la valeur qu'au rendu, et l'écriture disque s'y ferait.
+   */
+  const latest = useRef<SessionTracking | null>(null);
+
+  /** Mémoire, écran et disque changent ENSEMBLE : `null` efface le local. */
+  const write = useCallback(
+    (next: SessionTracking | null) => {
+      latest.current = next;
+      setCached(next);
+      // Écriture non attendue : cocher doit répondre à l'instant, pas au retour du disque.
+      if (next == null) void AsyncStorage.removeItem(key(sessionId));
+      else void AsyncStorage.setItem(key(sessionId), JSON.stringify(next));
+    },
+    [sessionId],
+  );
+
+  /**
    * Le LOCAL l'emporte au chargement : il est plus récent par construction — il n'est monté au
    * serveur qu'au débrief. Écraser avec le distant ferait perdre une séance entière de coches à
    * qui rouvre l'app avant d'avoir débriefé.
@@ -46,7 +68,9 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
     AsyncStorage.getItem(key(sessionId))
       .then((raw) => {
         if (cancelled || raw == null) return;
-        setCached(JSON.parse(raw) as SessionTracking);
+        const stored = JSON.parse(raw) as SessionTracking;
+        latest.current = stored;
+        setCached(stored);
       })
       // Un cache illisible n'est pas une raison de bloquer la séance : on reste sur le distant.
       .catch(() => undefined);
@@ -55,44 +79,39 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
     };
   }, [sessionId]);
 
-  const persist = useCallback(
-    (next: SessionTracking) => {
-      setCached(next);
-      // Écriture non attendue : cocher doit répondre à l'instant, pas au retour du disque.
-      void AsyncStorage.setItem(key(sessionId), JSON.stringify(next));
+  const update = useCallback(
+    (change: (current: SessionTracking) => SessionTracking) => {
+      const current = latest.current ?? remote;
+      const next = change(current);
+      // Rien n'a bougé (unité déjà cochée) : une écriture disque de plus n'apporterait rien.
+      if (next !== current) write(next);
     },
-    [sessionId],
+    [remote, write],
   );
 
   const toggleUnit = useCallback(
     (exerciseId: string, blockId: string, index: number) =>
-      persist(toggleUnitIn(tracking, exerciseId, blockId, index)),
-    [tracking, persist],
+      update((current) => toggleUnitIn(current, exerciseId, blockId, index)),
+    [update],
   );
 
   const checkUnit = useCallback(
-    (exerciseId: string, blockId: string, index: number) => {
-      const next = checkUnitIn(tracking, exerciseId, blockId, index);
-      // Déjà cochée : la référence ne bouge pas, et une écriture disque de plus n'apporte rien.
-      if (next !== tracking) persist(next);
-    },
-    [tracking, persist],
+    (exerciseId: string, blockId: string, index: number) =>
+      update((current) => checkUnitIn(current, exerciseId, blockId, index)),
+    [update],
   );
 
   const setRounds = useCallback(
     (exerciseId: string, blockId: string, rounds: number) =>
-      persist(setRoundsIn(tracking, exerciseId, blockId, rounds)),
-    [tracking, persist],
+      update((current) => setRoundsIn(current, exerciseId, blockId, rounds)),
+    [update],
   );
 
   /**
    * Efface le suivi local une fois qu'il est parti avec le débrief : l'écran redevient un miroir
    * du serveur, qui en est désormais le porteur.
    */
-  const clear = useCallback(() => {
-    setCached(null);
-    void AsyncStorage.removeItem(key(sessionId));
-  }, [sessionId]);
+  const clear = useCallback(() => write(null), [write]);
 
   /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
   const dirty = cached != null && !sameTracking(cached, remote);

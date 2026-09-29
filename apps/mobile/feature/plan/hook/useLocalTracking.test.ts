@@ -99,6 +99,40 @@ describe("useLocalTracking — écriture", () => {
     expect(asyncStorageMock.setItem).toHaveBeenCalledTimes(writes);
   });
 
+  /**
+   * Le rattrapage du déroulé coche plusieurs unités dans le même tic, sans rendu entre deux (#306).
+   * Chaque écriture doit partir de la précédente : sinon seule la dernière survit, et 3 × 30 s de
+   * gainage passés écran éteint remontent 1/3 au coach.
+   */
+  it("additionne des écritures faites sans rendu entre elles", async () => {
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+
+    act(() => {
+      const { checkUnit, toggleUnit, setRounds } = result.current;
+      checkUnit("ex-1", "b-1", 0);
+      checkUnit("ex-1", "b-1", 0);
+      checkUnit("ex-1", "b-1", 1);
+      toggleUnit("ex-1", "b-1", 2);
+      setRounds("ex-1", "b-2", 4);
+    });
+
+    const expected = { "ex-1": { "b-1": { checked: [0, 1, 2] }, "b-2": { rounds: 4 } } };
+    expect(result.current.tracking).toEqual(expected);
+    expect(read("s-1")).toEqual(expected);
+  });
+
+  // Une coche après le chargement s'ajoute à ce que le disque portait, pas au distant qu'il masque.
+  it("écrit par-dessus le local relu au chargement", async () => {
+    storedItems.set(keyOf("s-1"), JSON.stringify(withUnit(2)));
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(result.current.dirty).toBe(true));
+
+    act(() => result.current.checkUnit("ex-1", "b-1", 0));
+
+    expect(read("s-1")).toEqual({ "ex-1": { "b-1": { checked: [0, 2] } } });
+  });
+
   it("persiste le compteur d'un AMRAP", async () => {
     const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
     await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
