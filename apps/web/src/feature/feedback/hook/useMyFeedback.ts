@@ -1,4 +1,5 @@
 import type {
+  FeedbackTracking,
   ScheduledSessionDto,
   SessionFeedbackDto,
   UpsertSessionFeedbackInput,
@@ -31,7 +32,10 @@ export function useMyFeedback(sessionId: string) {
  * l'envoi suivant, sans attendre ni changer d'onglet (#499, comme le mobile en #490). Le suivi
  * local, lui, n'est pas touché — `onSaved` n'est appelé qu'au succès.
  */
-export function useUpsertMyFeedback(sessionId: string, onSaved?: () => void) {
+export function useUpsertMyFeedback(
+  sessionId: string,
+  onSaved?: (sent: FeedbackTracking | undefined) => void,
+) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -45,7 +49,9 @@ export function useUpsertMyFeedback(sessionId: string, onSaved?: () => void) {
           session == null ? session : withSentTracking(session, sent),
         );
       }
-      onSaved?.();
+      // Ce qui est PARTI accompagne l'appel, pour qu'une coche posée pendant l'envoi ne soit pas
+      // effacée avec lui (#499).
+      onSaved?.(input.tracking);
       queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
       queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
       queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });

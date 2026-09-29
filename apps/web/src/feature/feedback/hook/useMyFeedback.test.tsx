@@ -86,6 +86,8 @@ describe("useUpsertMyFeedback — la séance en cache suit l'envoi", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(seenAtClear).toEqual([sent["sx-1"], { "b-1": { rounds: 4 } }]);
+    // Ce qui est parti accompagne l'appel : l'écran n'efface que si le local n'a pas bougé.
+    expect(onSaved).toHaveBeenCalledWith(sent);
   });
 
   it("sans séance en cache, n'en invente pas une", async () => {
