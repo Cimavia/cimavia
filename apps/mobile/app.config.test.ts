@@ -1,13 +1,15 @@
-import type { ConfigContext } from "expo/config";
+import type { ConfigContext, ExpoConfig } from "expo/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import appConfig from "./app.config";
 
 const API_URL = "https://api-preview.cimavia.fr";
 const WEB_URL = "https://app-preview.cimavia.fr";
 
-function evaluate(env: Record<string, string | undefined>) {
+function evaluate(env: Record<string, string | undefined>, fromAppJson: Partial<ExpoConfig> = {}) {
   for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
-  return appConfig({ config: { name: "cimavia", slug: "cimavia" } } as ConfigContext);
+  return appConfig({
+    config: { name: "cimavia", slug: "cimavia", ...fromAppJson },
+  } as ConfigContext);
 }
 
 afterEach(() => {
@@ -64,5 +66,25 @@ describe("app.config — garde des URL publiques", () => {
     });
 
     expect(config.ios?.bundleIdentifier).toBe("fr.cimavia.app.preview");
+  });
+});
+
+describe("app.config — demandes de permission iOS", () => {
+  it("traduit les permissions en français et en anglais", () => {
+    const config = evaluate({ APP_VARIANT: undefined });
+
+    expect(Object.keys(config.locales ?? {})).toEqual(["fr", "en"]);
+  });
+
+  it("replie une langue sans traduction sur le français, sans perdre l'Info.plist d'app.json", () => {
+    const config = evaluate(
+      { APP_VARIANT: undefined },
+      { ios: { infoPlist: { UIFileSharingEnabled: true } } },
+    );
+
+    expect(config.ios?.infoPlist).toEqual({
+      UIFileSharingEnabled: true,
+      CFBundleDevelopmentRegion: "fr",
+    });
   });
 });
