@@ -1,11 +1,12 @@
 import type { MessageDto, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { act, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
 import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
 import { SessionFeedbackScreen } from "@/feature/feedback/screen/SessionFeedbackScreen";
+import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { renderRn } from "@/test/render";
 import { storedItems } from "../../../test/setup";
@@ -197,5 +198,66 @@ describe("SessionFeedbackScreen — le décompte accompagne le texte", () => {
     // chargement. L'écran redevient le miroir du serveur.
     expect(storedItems.has(TRACKING_KEY)).toBe(false);
     await waitFor(() => expect(textSectionProps().trackingDirty).toBe(false));
+  });
+});
+
+/**
+ * L'écran de séance reste monté SOUS le débrief, sur la même pile (#346). Il est figuré ici par
+ * sa lecture du suivi : le même hook, sur la même séance, avec le même distant.
+ */
+describe("SessionFeedbackScreen — l'écran de séance resté dessous", () => {
+  const REMOTE = { "sx-1": { "b-1": { checked: [0] } } };
+
+  async function sessionUnderneath() {
+    const { result } = renderHook(() => useLocalTracking("s-1", REMOTE));
+    // 3/4 cochés sur la séance, avant d'ouvrir le débrief.
+    act(() => {
+      result.current.toggleUnit("sx-1", "b-1", 1);
+      result.current.toggleUnit("sx-1", "b-1", 2);
+    });
+    mockSession(SESSION);
+    renderRn(<SessionFeedbackScreen />);
+    await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
+    return result;
+  }
+
+  // Le débrief corrige à 4/4 : sa section de décompte coche la dernière série.
+  function correctInFeedback() {
+    const props = vi.mocked(FeedbackTrackingSection).mock.lastCall?.[0];
+    act(() => props?.onToggleUnit("sx-1", "b-1", 3));
+  }
+
+  it("de retour sur la séance, la correction du débrief s'y voit", async () => {
+    const session = await sessionUnderneath();
+
+    correctInFeedback();
+
+    expect(session.current.tracking).toEqual({ "sx-1": { "b-1": { checked: [0, 1, 2, 3] } } });
+  });
+
+  it("une coche sur la séance part de la correction, pas de l'ancien décompte", async () => {
+    const session = await sessionUnderneath();
+    correctInFeedback();
+
+    act(() => session.current.toggleUnit("sx-2", "b-1", 0));
+
+    expect(JSON.parse(storedItems.get(TRACKING_KEY) ?? "null")).toEqual({
+      "sx-1": { "b-1": { checked: [0, 1, 2, 3] } },
+      "sx-2": { "b-1": { checked: [0] } },
+    });
+  });
+
+  it("une fois le débrief enregistré, la séance redevient le miroir du serveur", async () => {
+    const session = await sessionUnderneath();
+    correctInFeedback();
+
+    act(() => textSectionProps().onSaved?.());
+    expect(session.current.tracking).toBe(REMOTE);
+
+    // La coche suivante part du serveur : l'ancien 3/4 local ne ressuscite pas.
+    act(() => session.current.toggleUnit("sx-1", "b-1", 1));
+    expect(JSON.parse(storedItems.get(TRACKING_KEY) ?? "null")).toEqual({
+      "sx-1": { "b-1": { checked: [0, 1] } },
+    });
   });
 });
