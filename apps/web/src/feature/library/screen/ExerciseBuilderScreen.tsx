@@ -107,8 +107,11 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
+  // Le brouillon et non la prop : un enregistrement interrompu a pu créer l'exercice, et l'écran
+  // doit alors se présenter en édition — c'en est une.
+  const edited = draft.exercise;
 
-  const isEditing = exercise != null;
+  const isEditing = edited != null;
   // Le message n'apparaît qu'APRÈS que le champ a été touché : l'afficher au premier rendu
   // accueillerait le coach par une erreur qu'il n'a pas encore eu l'occasion de commettre.
   const [titleTouched, setTitleTouched] = useState(false);
@@ -136,8 +139,8 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
    * singulier, qui se lit mal.
    */
   const subtitle =
-    isEditing && exercise.usedInSessionCount > 0
-      ? t("library.builder.usedInSessions", { count: exercise.usedInSessionCount })
+    isEditing && edited.usedInSessionCount > 0
+      ? t("library.builder.usedInSessions", { count: edited.usedInSessionCount })
       : t("library.builder.subtitle");
 
   return (
@@ -146,7 +149,7 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
       subtitle={subtitle}
       actions={
         <BuilderActions
-          exercise={exercise}
+          exercise={edited}
           isSaving={draft.isSaving}
           canSubmit={draft.trimmedTitle !== ""}
           onCancel={onLeave}
@@ -207,7 +210,7 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
             />
 
             <AttachmentsSection
-              exercise={exercise}
+              exercise={edited}
               pendingFiles={draft.pendingFiles}
               pendingLinks={draft.pendingLinks}
               progress={draft.progress}
@@ -227,7 +230,7 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
               instructions={draft.instructions}
               blocks={draft.blocks}
               customMetrics={customMetrics ?? []}
-              documents={exercise?.documents ?? []}
+              documents={edited?.documents ?? []}
               resolveImage={draft.media.resolve}
             />
           </aside>

@@ -37,12 +37,7 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
-import {
-  parseAdjustments,
-  parseBlocks,
-  parseInstructions,
-  parseTracking,
-} from "../../util/exercise-json.util";
+import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
 import {
   type ScheduledSessionWithExercises,
@@ -50,7 +45,11 @@ import {
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
 import { compactDay, type PositionedSession, writeDay } from "../scheduled-session.position";
-import { insertScheduledSessionExercises } from "../scheduled-session.writer";
+import { planExerciseRows } from "../scheduled-session.rows";
+import {
+  insertScheduledSessionExercises,
+  rewriteScheduledSessionExercises,
+} from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
 // La séance telle qu'elle sera écrite : un instantané, plus aucune référence à résoudre.
@@ -130,7 +129,11 @@ export class ScheduledSessionService {
 
   /**
    * Édition d'une instance — y compris en cours de cycle diffusé (CDC §5.7, sans historique).
-   * Replace-all : l'ordre du tableau définit les positions, comme pour la séance modèle.
+   *
+   * La composition reçue REMPLACE celle de la séance, dans l'ordre du tableau — mais ses lignes
+   * gardent leur identité (#296, #311) : une ligne citée par son `id` est mise à jour en place,
+   * avec son suivi et ses documents. Seules les lignes nouvelles naissent, et seules celles que le
+   * tableau ne cite plus partent.
    */
   async update(id: string, input: UpdateScheduledSessionInput): Promise<ScheduledSessionDto> {
     const session = await this.getOwnedOrThrow(id);
@@ -138,29 +141,20 @@ export class ScheduledSessionService {
     const plan = await this.plans.getOwnedOrThrow(session.planId);
     this.assertDateInWeek(plan, week, input.scheduledDate);
 
-    const documents = await this.loadSourceDocuments(input.exercises);
     const dateChanged = toIsoDate(session.scheduledDate) !== input.scheduledDate;
     // Le client n'a pas les DÉFINITIONS maison d'un exercice piocché dans la bibliothèque : sans
     // elles, l'athlète ne verrait qu'un identifiant de colonne. Le serveur les résout, comme à la
     // diffusion. Une définition déjà envoyée n'est pas retouchée : elle est figée depuis P3.
     const coachMetrics = await this.db.customMetric.findMany();
-
-    /**
-     * Lu AVANT la suppression : le replace-all réécrit tout, et ce qui ne transite pas par le
-     * client serait perdu. Le SUIVI d'exécution est dans ce cas — il appartient à l'athlète, et
-     * une réécriture de la séance par le coach ne doit jamais l'effacer.
-     */
-    const previous = await this.db.scheduledSessionExercise.findMany({
-      where: { scheduledSessionId: id },
-      select: { id: true, tracking: true, baseline: true },
-    });
-    const carried = new Map(previous.map((row) => [row.id, row]));
+    const rows = planExerciseRows(
+      session.exercises,
+      input.exercises.map((exercise) => resolveCustomMetrics(exercise, coachMetrics)),
+    );
+    // La bibliothèque ne sert qu'aux exercices AJOUTÉS : une ligne reprise garde ses documents, et
+    // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`).
+    const documents = await this.loadSourceDocuments(rows.added.map((row) => row.item));
 
     await this.db.$transaction(async (tx) => {
-      // Les copies de documents partent en cascade avec leurs exercices (schéma) ; les objets en
-      // storage, eux, appartiennent à la bibliothèque et ne sont jamais touchés d'ici.
-      await tx.scheduledSessionExercise.deleteMany({ where: { scheduledSessionId: id } });
-
       await tx.scheduledSession.update({
         where: { id },
         data: {
@@ -174,13 +168,8 @@ export class ScheduledSessionService {
         },
       });
 
-      await this.insertExercises(
-        tx,
-        id,
-        session.athleteId,
-        input.exercises.map((exercise) => resolveCustomMetrics(exercise, coachMetrics)),
-        documents,
-        carried,
+      await rewriteScheduledSessionExercises(tx, id, session.athleteId, rows, (exercise) =>
+        libraryDocumentsOf(exercise, documents),
       );
 
       // Changer de jour, c'est aussi QUITTER un jour : sans ce recollage, l'ancien garde le trou.
@@ -494,28 +483,22 @@ export class ScheduledSessionService {
     athleteId: string | null,
     exercises: ScheduledSessionExerciseInput[],
     documentsBySource: DocumentsBySource,
-    carried: CarriedRows = new Map(),
   ): Promise<void> {
-    const drafts = exercises.map((exercise) => {
-      // `id` absent, ou inconnu de cette séance : c'est un exercice NOUVEAU. Rien à reprendre, et
-      // surtout pas le suivi d'une ligne qu'on n'a pas écrite.
-      const previous = exercise.id == null ? undefined : carried.get(exercise.id);
-      return {
-        exercise,
-        ...(previous == null
-          ? {}
-          : {
-              tracking: parseTracking(previous.tracking),
-              baseline: parseBlocks(previous.baseline),
-            }),
-        documents:
-          exercise.sourceExerciseId == null
-            ? []
-            : (documentsBySource.get(exercise.sourceExerciseId) ?? []),
-      };
-    });
+    const drafts = exercises.map((exercise) => ({
+      exercise,
+      documents: libraryDocumentsOf(exercise, documentsBySource),
+    }));
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
   }
+}
+
+/** Les documents de bibliothèque à recopier sur un exercice qui naît dans la séance. */
+function libraryDocumentsOf(
+  exercise: ScheduledSessionExerciseInput,
+  documentsBySource: DocumentsBySource,
+): ExerciseDocument[] {
+  if (exercise.sourceExerciseId == null) return [];
+  return documentsBySource.get(exercise.sourceExerciseId) ?? [];
 }
 
 /**
@@ -533,9 +516,6 @@ function customMetricsFor(
   const wanted = new Set(customMetricIdsIn(blocks));
   return coachMetrics.filter((metric) => wanted.has(metric.id)).map(toCustomMetricDto);
 }
-
-/** Ce qu'une ligne précédente lègue à celle qui la remplace, indexé par son identifiant. */
-type CarriedRows = Map<string, { tracking: Prisma.JsonValue; baseline: Prisma.JsonValue }>;
 
 /** Complète les métriques maison quand le client ne les a pas — un exercice tout juste ajouté. */
 function resolveCustomMetrics(

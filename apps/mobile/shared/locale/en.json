@@ -1,0 +1,8 @@
+{
+  "permission": {
+    "ios": {
+      "photoLibrary": "cimavia needs access to your photo library to attach photos and videos to a session feedback or a message.",
+      "microphone": "cimavia uses the microphone to record your voice messages."
+    }
+  }
+}
