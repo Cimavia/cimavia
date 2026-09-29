@@ -28,7 +28,8 @@ function withBlock(
 ): SessionTracking {
   return {
     ...tracking,
-    [exerciseId]: { ...(tracking[exerciseId] ?? {}), [blockId]: state },
+    // Étaler `null` ou `undefined` ne produit rien : l'exercice encore sans suivi le reçoit ici.
+    [exerciseId]: { ...tracking[exerciseId], [blockId]: state },
   };
 }
 
@@ -153,7 +154,8 @@ function canonical(value: unknown): string {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, item]) => item !== undefined)
       .sort(([a], [b]) => a.localeCompare(b));
-    return `{${entries.map(([k, item]) => `${k}:${canonical(item)}`).join(",")}}`;
+    const fields = entries.map(([key, item]) => `${key}:${canonical(item)}`);
+    return `{${fields.join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
 }
