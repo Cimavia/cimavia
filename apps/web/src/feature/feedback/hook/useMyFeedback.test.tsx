@@ -1,6 +1,7 @@
 import { myPlanKeys, type ScheduledSessionDto } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/shared/lib/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useUpsertMyFeedback } from "./useMyFeedback";
 
@@ -23,6 +24,36 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("useUpsertMyFeedback — un refus", () => {
+  /**
+   * Le filtre de l'écran lit la séance EN CACHE : si le coach vient d'en retirer un exercice, il
+   * ne le sait pas, et le serveur refuse. Relire la séance est ce qui débloque l'envoi suivant.
+   */
+  it("un refus (400) relit la séance, et laisse le suivi local en place", async () => {
+    upsertMock.mockRejectedValue(new ApiError(400, "exercice absent", null));
+    const { result, onSaved, queryClient } = setup();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => result.current.mutate({ content: null, tracking: { "sx-retire": null } }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: myPlanKeys.session("s-1") });
+    // Le suivi local n'est vidé qu'au succès : un refus ne coûte aucune coche.
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("une autre panne ne relit rien : la séance n'y est pour rien", async () => {
+    upsertMock.mockRejectedValue(new ApiError(503, "indisponible", null));
+    const { result, queryClient } = setup();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => result.current.mutate({ content: null }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidate).not.toHaveBeenCalled();
+  });
 });
 
 // Deux exercices suivis : l'envoi corrige le premier, ne cite pas le second.

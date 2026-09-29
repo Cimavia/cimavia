@@ -6,6 +6,7 @@ import type {
 import { coachFeedbackKeys, myFeedbackKeys, myPlanKeys, withSentTracking } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
+import { ApiError } from "@/shared/lib/api";
 import { keepFeedbackUrls } from "@/shared/lib/signed-url";
 
 // `null` tant que la séance n'a pas été débriefée : l'absence est un état normal, pas une erreur.
@@ -22,6 +23,13 @@ export function useMyFeedback(sessionId: string) {
  * Écrit le débrief. Débriefer change AUSSI le statut de la séance (`DONE`) : on invalide donc le
  * détail de la séance et le cycle, sinon le planning continuerait d'afficher « À faire » sur une
  * séance qu'on vient de débriefer.
+ *
+ * Un REFUS (400) relit la séance aussi, et c'est la seule panne qui le fait. Le serveur refuse un
+ * suivi qui cite un exercice absent de la séance (#311) ; l'écran filtre bien ces coches avant
+ * l'envoi, mais d'après la séance EN CACHE, tenue pour fraîche une minute. Si le coach vient d'en
+ * retirer un exercice, le filtre ne le sait pas encore : relire la séance est ce qui laisse passer
+ * l'envoi suivant, sans attendre ni changer d'onglet (#499, comme le mobile en #490). Le suivi
+ * local, lui, n'est pas touché — `onSaved` n'est appelé qu'au succès.
  */
 export function useUpsertMyFeedback(sessionId: string, onSaved?: () => void) {
   const queryClient = useQueryClient();
@@ -46,6 +54,11 @@ export function useUpsertMyFeedback(sessionId: string, onSaved?: () => void) {
       // côté coach avant l'expiration du `staleTime` (une minute). Sans effet pour un athlète
       // pur, dont le cache ne contient pas cette clé.
       queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 400) {
+        queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
+      }
     },
   });
 }
