@@ -738,6 +738,34 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > #365, #366, #367, #371, #437, #485) : les tests les contournent sans figer le comportement
 > fautif. Le Composer, par exemple, n'affirme pas l'état de son champ après un envoi (#339).
 
+> **Tranché en [#504](https://github.com/Cimavia/cimavia/issues/504)** (lever les issues Sonar
+> de `main`) : l'issue en comptait 40 ; l'analyse du 30/09/2026 en affichait **83**. Les deux de
+> `session-tracking.util.ts` étaient déjà levées par #499, et 45 venaient d'une mise à jour du
+> profil intégré « Sonar way comprehensive », faite par SonarSource et non par nous : S9382 (35),
+> S7503 (5), S9383 (4), S7786 (1). Toutes sont traitées ici, sauf une.
+>
+> - **Une S9383 est un vrai bug, sorti dans sa propre issue.** `video-thumbnail.ts` appelle
+>   `saved.move(target)` sans l'attendre, or `File.move()` rend une promesse en SDK 56 (`moveSync`
+>   est la variante synchrone) : l'URI part avant que le fichier existe, et un échec échappe au
+>   `catch`. Le corriger change le comportement, ce que #504 s'interdit. Les trois autres S9383
+>   (`i18n.init` web et mobile, `player.seekTo(0)`) ne changent rien une fois marquées `void`.
+> - **Trois écarts vont dans `sonar-project.properties`, justifiés sur place** : S9382 partout (le
+>   séquentiel est ici la règle, le parallélisme se décide au cas par cas), S6479 sur les deux
+>   `CmvRichDocument` (l'ordre est la seule identité d'un nœud), S9379 sur l'éditeur de consigne
+>   (même arbitrage que son `biome-ignore`). Aucun « Accepter » dans l'interface : il serait
+>   invisible du dépôt.
+> - **`trimTrailingSlashes` entre dans `@cmv/shared`** : la regex `/\/+$/` (S8786) était recopiée
+>   dans les deux mailers et l'écran « mot de passe oublié ». Une boucle, testée une fois. Les deux
+>   copies des tests mobiles (`document-cache`, `video-thumbnail`) restent : Sonar ne les analyse
+>   pas, et elles nettoient des chemins de fichier bouchonnés, pas une origine.
+> - **`CmvProgressBar` passe à `<progress>`** (S6819), dessiné par pseudo-éléments sur les tokens.
+>   Un seul test est retouché, contre la règle « aucun test ne bouge » de l'issue :
+>   `AttachmentsSection` lisait `aria-valuenow`, c'est-à-dire l'attribut porteur et non la valeur
+>   annoncée. Il lit désormais `value`.
+> - **Le hook `update.before` de Better Auth perd son `async`** (S7503) mais rend toujours une
+>   promesse, que son type exige. Le refus part par `throw`, que le `await` de l'appelant reçoit
+>   comme un rejet : les e2e de #310 le couvrent.
+
 ---
 
 ## Post-MVP — Centre de notifications ([#39](https://github.com/Cimavia/cimavia/issues/39))
