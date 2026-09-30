@@ -1,4 +1,5 @@
 import { type InvoiceDto, InvoiceStatus, shiftIsoDate, todayIsoDate } from "@cmv/shared";
+import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   useCancelInvoice,
@@ -237,6 +238,43 @@ describe("InvoicesScreen — coach", () => {
     expect(queryByRole("button", { name: /Léa Bonnet/ })).toBeNull();
   });
 
+  // Un champ vidé ne laisse pas `?q=` traîner dans l'url : c'est l'absence de recherche.
+  it("retire la recherche de l'url quand on vide le champ", async () => {
+    const { user, getByRole, router } = await setup({ data: ALL }, "coach", { q: "theo" });
+
+    await user.clear(getByRole("searchbox", { name: "invoice.searchLabel" }));
+
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("q"));
+    expect(getByRole("button", { name: /Adrien Roux/ })).toBeTruthy();
+  });
+
+  // « Tous » est la valeur par défaut : l'écrire dans l'url serait du bruit.
+  it("retire la situation de l'url quand on revient à « Tous »", async () => {
+    const { user, getByRole, router } = await setup({ data: ALL }, "coach", {
+      situation: "OVERDUE",
+    });
+
+    await user.click(getByRole("button", { name: /invoice.situationFilter.ALL/ }));
+
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("situation"));
+    expect(getByRole("button", { name: /Adrien Roux/ })).toBeTruthy();
+  });
+
+  // Aucun règlement à citer : on n'écrit rien plutôt qu'une phrase creuse.
+  it("ne sous-titre pas un athlète dont rien n'a jamais été réglé", async () => {
+    const cancelled = invoice({
+      id: "inv_nina",
+      athleteId: "usr_nina",
+      athleteName: "Nina Perret",
+      status: InvoiceStatus.CANCELLED,
+    });
+    const { getByRole } = await setup({ data: [cancelled] });
+
+    expect(getByRole("button", { name: /Nina Perret/ }).textContent).not.toContain(
+      "invoice.rowSubtitle",
+    );
+  });
+
   it("arrive filtré et déplié depuis l'url, comme un signet ou un rechargement", async () => {
     const { getByRole, queryByRole } = await setup({ data: ALL }, "coach", {
       situation: "OVERDUE",
@@ -313,6 +351,14 @@ describe("InvoicesScreen — états", () => {
     const loading = await setup({ isPending: true });
     expect(loading.getByText("common.loading")).toBeTruthy();
     expect(loading.queryByText("invoice.empty.title")).toBeNull();
+  });
+
+  // Le vide ne dit pas la même chose à l'athlète : on ne lui demande rien, il n'a rien à émettre.
+  it("dit à l'athlète qu'on ne lui demande rien", async () => {
+    const { getByText, queryByText } = await setup({ data: [] }, "athlete");
+
+    expect(getByText("invoice.athlete.empty.title")).toBeTruthy();
+    expect(queryByText("invoice.empty.title")).toBeNull();
   });
 
   it("relance la requête depuis l'état d'erreur", async () => {

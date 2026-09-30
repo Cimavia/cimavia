@@ -94,6 +94,15 @@ describe("InvoiceDetailPanel", () => {
     expect(getByText("facture-aout-2026.pdf")).toBeTruthy();
   });
 
+  // Hors cycle (nullable au DTO) ou nom d'origine perdu : la ligne se tait, sans trou.
+  it("tait le cycle absent, et garde le bouton quand le nom du justificatif manque", () => {
+    const { queryByText, getByRole } = setup({ ...PAID, planTitle: null, documentFileName: null });
+
+    expect(queryByText("invoice.panel.plan")).toBeNull();
+    expect(getByRole("button", { name: "invoice.viewDocument" })).toBeTruthy();
+    expect(queryByText("facture-aout-2026.pdf")).toBeNull();
+  });
+
   it("ouvre le justificatif dans un onglet, sur l'url signée servie avec la facture", async () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     const { user, getByRole } = setup(PAID);
