@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 import { InvoicesScreen } from "@/feature/invoice/screen/InvoicesScreen";
 import { useActingCapability } from "@/shared/hook/useExercisedCapability";
-import { pressButton, renderRn } from "@/test/render";
+import { press, pressButton, renderRn } from "@/test/render";
 
 /**
  * Ce qui s'éprouve ici est ce que l'ÉCRAN décide : à quel titre on lit, laquelle des deux vues est
@@ -151,5 +151,96 @@ describe("InvoicesScreen", () => {
 
     pressButton(container, "Prépa bloc hiver");
     expect(screen.getByText("invoice.panel.dueDate")).toBeTruthy();
+  });
+
+  /** Écran testé en panne 500, jamais en 401 : la session expirée a son propre chemin (#439). */
+  it("offre de réessayer après une panne", () => {
+    const refetch = vi.fn();
+    mockInvoices({ isError: true, refetch });
+    const { container } = renderRn(<InvoicesScreen />);
+    // Le premier plan a déjà relu une fois : seul compte ce que le geste ajoute.
+    refetch.mockClear();
+
+    pressButton(container, "common.retry");
+
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it("relit les factures quand on tire l'écran", () => {
+    const refetch = vi.fn();
+    mockInvoices({ data: [invoice({ id: "i-1" })], refetch });
+    const { container } = renderRn(<InvoicesScreen />);
+    // Le premier plan a déjà relu une fois : seul compte ce que le geste ajoute.
+    refetch.mockClear();
+
+    press(container.querySelector("[data-refresh]") as HTMLElement);
+
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  /** Une liste déjà lue reste à l'écran quand un rafraîchissement échoue : pas de bandeau par-dessus. */
+  it("garde les factures déjà lues quand le rafraîchissement échoue", () => {
+    mockInvoices({ data: [invoice({ id: "i-1" })], isError: true });
+    renderRn(<InvoicesScreen />);
+
+    expect(screen.queryByText("common.errorTitle")).toBeNull();
+    expect(screen.getByText("Léa Bonnet")).toBeTruthy();
+  });
+
+  // « 0 en retard de paiement » est une bonne nouvelle écrite comme un reproche : la clause disparaît.
+  it("n'ajoute la clause de retard au résumé que s'il y en a", () => {
+    mockInvoices({ data: [invoice({ id: "i-1", dueDate: "2099-01-01" })] });
+    const { unmount } = renderRn(<InvoicesScreen />);
+    expect(screen.queryByText(/invoice\.coach\.summary\.overdue/)).toBeNull();
+    unmount();
+
+    mockInvoices({ data: [invoice({ id: "i-1", dueDate: "2020-01-01" })] });
+    renderRn(<InvoicesScreen />);
+    expect(screen.getByText(/invoice\.coach\.summary\.overdue/)).toBeTruthy();
+  });
+});
+
+describe("InvoicesScreen — la carte de l'athlète", () => {
+  beforeEach(() => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+  });
+
+  // Nullable au DTO pour rester ouvert à une facture hors-cycle : « — » plutôt qu'un titre inventé.
+  it("rend « — » à la place du cycle d'une facture hors-cycle", () => {
+    mockInvoices({ data: [invoice({ id: "i-1", planTitle: null })] });
+    renderRn(<InvoicesScreen />);
+
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("date le règlement d'une facture payée, et seulement si elle l'est", () => {
+    mockInvoices({
+      data: [
+        invoice({ id: "i-1", status: InvoiceStatus.PAID, paidAt: "2026-08-02T08:00:00.000Z" }),
+        invoice({ id: "i-2", planTitle: "Prépa bloc été" }),
+      ],
+    });
+    renderRn(<InvoicesScreen />);
+
+    expect(screen.getAllByText(/invoice\.paidAtLabel/)).toHaveLength(1);
+  });
+
+  /** Aucun état lisible — un brouillon : « — », jamais un statut inventé. */
+  it("ne prête aucun état à une facture sans état lisible", () => {
+    mockInvoices({ data: [invoice({ id: "i-1", status: InvoiceStatus.DRAFT })] });
+    const { container } = renderRn(<InvoicesScreen />);
+
+    expect(container.textContent).not.toMatch(/invoice\.status\./);
+    expect(screen.getByText("—")).toBeTruthy();
+  });
+
+  it.each([
+    ["annulée", InvoiceStatus.CANCELLED, "invoice.status.cancelled"],
+    ["en retard", InvoiceStatus.PENDING, "invoice.status.overdue"],
+  ])("marque une facture %s de son état", (_, status, label) => {
+    mockInvoices({ data: [invoice({ id: "i-1", status, dueDate: "2020-01-01" })] });
+    renderRn(<InvoicesScreen />);
+
+    expect(screen.getByText(label)).toBeTruthy();
   });
 });
