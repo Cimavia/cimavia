@@ -221,4 +221,124 @@ describe("AttachmentsSection", () => {
       expect(queryByRole("progressbar")).not.toBeInTheDocument();
     });
   });
+
+  describe("les documents enregistrés", () => {
+    it("nomme un lien sans nom de fichier par son adresse, et dit sa nature", () => {
+      const { getByRole, getAllByText } = setup({
+        exercise: exerciseWith([
+          document({ id: "doc-1" }),
+          document({
+            id: "doc-2",
+            type: DocumentType.LINK,
+            fileName: null,
+            url: "https://video.example/tuto",
+          }),
+        ]),
+      });
+
+      expect(getByRole("link", { name: "notice.pdf" })).toHaveAttribute(
+        "href",
+        "https://example.test/notice.pdf",
+      );
+      expect(getByRole("link", { name: "https://video.example/tuto" })).toHaveAttribute(
+        "target",
+        "_blank",
+      );
+      expect(
+        getAllByText(/^library\.builder\.attachment\.(file|link)$/).map(
+          (badge) => badge.textContent,
+        ),
+      ).toEqual(["library.builder.attachment.file", "library.builder.attachment.link"]);
+    });
+
+    // Un second clic pendant la suppression enverrait une seconde requête sur un document déjà parti.
+    it("ferme la suppression pendant qu'elle part", async () => {
+      deleteDocumentMock.mockReturnValue(new Promise(() => undefined));
+      const { user, getByRole } = setup({ exercise: exerciseWith([document({ id: "doc-1" })]) });
+
+      await user.click(getByRole("button", { name: REMOVE }));
+
+      await waitFor(() => expect(getByRole("button", { name: REMOVE })).toBeDisabled());
+    });
+  });
+
+  describe("les fichiers et liens en attente", () => {
+    const pendingFile = (id: string, name: string) =>
+      ({
+        id,
+        file: fileOfSize(name, "application/pdf", 1024),
+        mimeType: "application/pdf",
+      }) as const;
+    const files = [pendingFile("pf-1", "a.pdf"), pendingFile("pf-2", "b.pdf")];
+    const links = ["https://example.test/a", "https://example.test/b"];
+
+    it("ajoute les fichiers choisis à la suite de ceux déjà en attente", async () => {
+      const { user, fileInput, onPendingFiles } = setup({ pendingFiles: files.slice(0, 1) });
+
+      await user.upload(fileInput, [
+        fileOfSize("c.pdf", "application/pdf", 1024),
+        fileOfSize("d.pdf", "application/pdf", 1024),
+      ]);
+
+      const written = onPendingFiles.mock.lastCall?.[0] as { file: File }[];
+      expect(written.map((pending) => pending.file.name)).toEqual(["a.pdf", "c.pdf", "d.pdf"]);
+    });
+
+    // Un lot à moitié accepté laisserait le coach deviner lequel est passé.
+    it("refuse tout le lot quand un seul fichier est refusé", () => {
+      const { fileInput, onPendingFiles, getByText } = setup();
+
+      fireEvent.change(fileInput, {
+        target: {
+          files: [
+            fileOfSize("bon.pdf", "application/pdf", 1024),
+            fileOfSize("notes.txt", "text/plain", 1024),
+          ],
+        },
+      });
+
+      expect(getByText("library.builder.attachment.errorType")).toBeInTheDocument();
+      expect(onPendingFiles).not.toHaveBeenCalled();
+    });
+
+    it("efface le refus au choix suivant", async () => {
+      const { user, fileInput, queryByText } = setup();
+
+      await user.upload(
+        fileInput,
+        fileOfSize("gros.pdf", "application/pdf", MAX_DOCUMENT_SIZE_BYTES + 1),
+      );
+      await user.upload(fileInput, fileOfSize("bon.pdf", "application/pdf", 1024));
+
+      expect(queryByText("library.builder.attachment.errorSize")).not.toBeInTheDocument();
+    });
+
+    it("retire le fichier désigné, et lui seul", async () => {
+      const { user, getAllByRole, onPendingFiles } = setup({ pendingFiles: files });
+
+      await user.click(getAllByRole("button", { name: REMOVE })[0] as HTMLElement);
+
+      expect(onPendingFiles).toHaveBeenCalledExactlyOnceWith([files[1]]);
+    });
+
+    it("retire le lien désigné, et lui seul", async () => {
+      const { user, getAllByRole, getByText, onPendingLinks } = setup({ pendingLinks: links });
+
+      expect(getByText("https://example.test/b")).toBeInTheDocument();
+      await user.click(getAllByRole("button", { name: REMOVE })[1] as HTMLElement);
+
+      expect(onPendingLinks).toHaveBeenCalledExactlyOnceWith(["https://example.test/a"]);
+    });
+
+    // Retirer ce qui est en train de partir laisserait un document rattaché que l'écran ne montre plus.
+    it("ne laisse rien retirer pendant l'enregistrement", () => {
+      const { getAllByRole } = setup({ pendingFiles: files, pendingLinks: links, isSaving: true });
+
+      expect(
+        getAllByRole("button", { name: REMOVE }).every(
+          (button) => (button as HTMLButtonElement).disabled,
+        ),
+      ).toBe(true);
+    });
+  });
 });
