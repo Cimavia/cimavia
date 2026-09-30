@@ -10,6 +10,8 @@ const DOCUMENTS = "file:///documents";
 
 const files = new Set<string>();
 const directories = new Set<string>();
+/** Un stockage qui refuse de répondre — carte retirée, droits perdus : `exists` lève. */
+let unreadable = false;
 
 function join(parts: readonly (string | { uri: string })[]): string {
   return parts
@@ -56,6 +58,7 @@ class FakeFile {
     this.uri = join(parts);
   }
   get exists() {
+    if (unreadable) throw new Error("EACCES");
     return files.has(this.uri);
   }
   static downloadFileAsync = vi.fn(async (_url: string, destination: FakeFile) => {
@@ -89,6 +92,7 @@ function fileDocument(overrides: Partial<ExerciseDocumentDto> = {}): ExerciseDoc
 }
 
 beforeEach(() => {
+  unreadable = false;
   files.clear();
   directories.clear();
   FakeFile.downloadFileAsync.mockClear();
@@ -113,6 +117,17 @@ describe("localDocumentUri", () => {
     await cacheDocument("plan-1", fileDocument());
 
     expect(localDocumentUri("plan-2", fileDocument())).toBeNull();
+  });
+
+  /**
+   * Un stockage qui lève ne doit pas casser l'écran qui lit la consigne : `null` le renvoie à l'URL
+   * signée, comme un fichier jamais descendu.
+   */
+  it("rend null quand le stockage refuse de répondre", async () => {
+    await cacheDocument("plan-1", fileDocument());
+    unreadable = true;
+
+    expect(localDocumentUri("plan-1", fileDocument())).toBeNull();
   });
 
   it("rend null pour un lien externe, qui n'a pas d'octets à garder", () => {

@@ -267,3 +267,41 @@ describe("CmvAudioPlayer — lecture", () => {
     expect(player.play).toHaveBeenCalled();
   });
 });
+
+/**
+ * La durée d'une note vient d'abord du serveur, qui l'a mesurée à l'envoi ; à défaut, du lecteur,
+ * qui ne la connaît qu'une fois la source chargée (0 avant). Au repos, c'est elle que le compteur
+ * affiche.
+ */
+describe("CmvAudioPlayer — durée affichée au repos", () => {
+  function renderWithoutServerDuration() {
+    return renderRn(<CmvAudioPlayer url={FIRST} durationSeconds={null} resolveUrl={vi.fn()} />);
+  }
+
+  it("prend celle du lecteur quand le serveur n'en a pas", () => {
+    setStatus({ duration: 75 });
+
+    const { getByText } = renderWithoutServerDuration();
+
+    expect(getByText("1:15")).toBeTruthy();
+  });
+
+  /** Sans durée connue, 0:00 et non une barre qui déborde ou un NaN : rien n'est encore joué. */
+  it("affiche 0:00 quand personne ne la connaît encore", () => {
+    setStatus({ duration: 0, isLoaded: false });
+
+    const { getByText } = renderWithoutServerDuration();
+
+    expect(getByText("0:00")).toBeTruthy();
+  });
+
+  it("ne relance pas depuis le début une note inconnue qu'on met en lecture", () => {
+    setStatus({ duration: 0, currentTime: 0 });
+
+    const { container } = renderWithoutServerDuration();
+    press(playButton(container));
+
+    expect(player.seekTo).not.toHaveBeenCalled();
+    expect(player.play).toHaveBeenCalled();
+  });
+});
