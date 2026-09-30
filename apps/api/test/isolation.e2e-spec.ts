@@ -11,11 +11,13 @@ import {
   mondayOfIsoWeek,
   multipartPartCount,
   multipartPartSizes,
+  PLAN_MAX_WEEKS,
   Role,
   shiftIsoDate,
 } from "@cmv/shared";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
+import { ClsService } from "nestjs-cls";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
@@ -23,6 +25,9 @@ import { configureApp } from "../src/app.setup";
 import type { MailMessage } from "../src/infra/mail/mail.service";
 import { MailService } from "../src/infra/mail/mail.service";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
+import type { TenantPrisma } from "../src/tenancy/tenancy.extension";
+import { TENANT_PRISMA } from "../src/tenancy/tenancy.module";
+import { TENANT_CLS_KEY, type TenantContext } from "../src/tenancy/tenant-context.type";
 
 const TABLES = [
   "notification_email_preference",
@@ -224,6 +229,16 @@ describe("Isolation multi-tenant (P1)", () => {
     expect(readOther.status).toBe(404);
   });
 
+  // Une fiche par athlète : la réécrire la remplace, elle n'en crée pas une seconde.
+  it("réécrire la fiche la remplace, sans en créer une autre", async () => {
+    const first = await coachA.put(`/athletes/${a1Id}/sheet`).send({ content: "objectif 8a" });
+    const second = await coachA.put(`/athletes/${a1Id}/sheet`).send({ content: "objectif 8b" });
+
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ id: first.body.id, content: "objectif 8b" });
+    expect((await coachA.get(`/athletes/${a1Id}/sheet`)).body.content).toBe("objectif 8b");
+  });
+
   it("le rôle gouverne l'accès : athlète ≠ coach", async () => {
     // Un athlète ne peut pas émettre d'invitation (route coach).
     expect((await athleteA1.post("/invitations").send({})).status).toBe(403);
@@ -290,6 +305,208 @@ describe("Version du produit (#186)", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ version: null, build: null, env: "development" });
+  });
+});
+
+/**
+ * Les sondes de l'hébergeur : elles passent SANS session, sinon l'instance serait déclarée morte
+ * et retirée du trafic. La panne de base, elle, est dans `health.service.test.ts` — la couper ici
+ * ferait tomber toute la suite.
+ */
+describe("Sondes de santé", () => {
+  it("liveness : répond sans session et sans toucher la base", async () => {
+    const res = await request(baseURL).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      status: "ok",
+      uptime: expect.any(Number),
+      timestamp: expect.any(String),
+    });
+    expect(Number.isNaN(Date.parse(res.body.timestamp))).toBe(false);
+  });
+
+  it("readiness : répond sans session, base joignable", async () => {
+    const res = await request(baseURL).get("/health/ready");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: "ok", database: "up", timestamp: expect.any(String) });
+  });
+});
+
+/**
+ * L'extension tenant ATTAQUÉE DIRECTEMENT, sur la vraie base, hors de toute route. Les routes ne
+ * montrent que ses cas nominaux : aucun service n'appelle `findUnique` ni `upsert` sur ce client,
+ * et une route bien câblée n'arrive jamais sans acteur ni capacité. Ce sont pourtant ces refus
+ * qui font de l'isolation une règle et pas une discipline — le jour où un service les atteint, il
+ * doit casser, pas servir la donnée d'un autre coach.
+ */
+describe("Extension tenant : les refus et les lectures par clé unique", () => {
+  let db: TenantPrisma;
+  let cls: ClsService;
+  let coachAId: string;
+  let coachBId: string;
+  let exerciseAId: string;
+
+  /**
+   * Exécute `fn` comme le ferait une requête après le TenancyInterceptor. Le `await` compte : une
+   * `PrismaPromise` ne part qu'à son `.then`, donc HORS du contexte si on la rendait telle quelle
+   * — et tous les cas ci-dessous échoueraient sur « acteur absent », le premier passant pour rien.
+   */
+  function as<T>(actor: TenantContext | undefined, fn: () => Promise<T>): Promise<T> {
+    return cls.run(async () => {
+      if (actor != null) cls.set(TENANT_CLS_KEY, actor);
+      return await fn();
+    });
+  }
+
+  const coach = (userId: string): TenantContext => ({
+    userId,
+    capabilities: { isCoach: true, isAthlete: false },
+    exercised: "coach",
+  });
+
+  beforeAll(async () => {
+    db = app.get<TenantPrisma>(TENANT_PRISMA);
+    cls = app.get(ClsService);
+
+    const coachA = await signUp("ext-coach-a@cmv.test", Role.COACH);
+    const coachB = await signUp("ext-coach-b@cmv.test", Role.COACH);
+    const created = await coachA.post("/exercises").send({ title: "Suspension" });
+    expect(created.status).toBe(201);
+    exerciseAId = created.body.id;
+    coachAId = created.body.coachId;
+    const decoy = await coachB.post("/exercises").send({ title: "Campus" });
+    coachBId = decoy.body.coachId;
+  });
+
+  it("refuse une requête sans acteur courant", async () => {
+    await expect(as(undefined, () => db.exercise.findMany())).rejects.toThrow(
+      "[tenancy] acteur courant absent — Exercise.findMany exécuté hors contexte tenant",
+    );
+  });
+
+  // Un modèle oublié dans le registre ne doit pas devenir lisible par tous.
+  it("refuse un modèle qui n'est pas rattaché au tenant", async () => {
+    await expect(as(coach(coachAId), () => db.user.findMany())).rejects.toThrow(
+      "[tenancy] modèle non scopé : User — rattacher au tenant avant usage",
+    );
+  });
+
+  it("refuse une capacité qui n'a aucun accès au modèle", async () => {
+    const athlete: TenantContext = {
+      userId: coachAId,
+      capabilities: { isCoach: true, isAthlete: true },
+      exercised: "athlete",
+    };
+
+    // La bibliothèque est au coach seul : à titre d'athlète, même son propriétaire n'y lit rien.
+    await expect(as(athlete, () => db.exercise.findMany())).rejects.toThrow(
+      "[tenancy] capacité athlete non autorisée sur Exercise",
+    );
+  });
+
+  /**
+   * Sans capacité déclarée, seuls les modèles au scope IDENTIQUE pour les deux passent : un
+   * décorateur oublié sur une route de cycles doit casser, pas choisir un côté au hasard.
+   */
+  it("sans capacité déclarée : Notification passe, Plan est refusé", async () => {
+    const undeclared: TenantContext = { ...coach(coachAId), exercised: null };
+
+    await expect(as(undeclared, () => db.notification.findMany())).resolves.toEqual([]);
+    await expect(as(undeclared, () => db.plan.findMany())).rejects.toThrow(
+      "[tenancy] capacité (aucune déclarée) non autorisée sur Plan",
+    );
+  });
+
+  // Son `where` unique et son `create` créeraient un angle mort : l'opération est interdite.
+  it("refuse upsert, même sur ses propres données", async () => {
+    await expect(
+      as(coach(coachAId), () =>
+        db.exercise.upsert({
+          where: { id: exerciseAId },
+          create: { title: "X" } as never,
+          update: { title: "Écrasé" },
+        }),
+      ),
+    ).rejects.toThrow("[tenancy] opération non gérée : upsert sur Exercise");
+
+    const untouched = await app
+      .get(PrismaService)
+      .exercise.findUnique({ where: { id: exerciseAId } });
+    expect(untouched?.title).toBe("Suspension");
+  });
+
+  it("findUnique rend sa propre ligne, et null pour celle d'un autre coach", async () => {
+    await expect(
+      as(coach(coachAId), () => db.exercise.findUnique({ where: { id: exerciseAId } })),
+    ).resolves.toMatchObject({ id: exerciseAId, title: "Suspension" });
+
+    // L'id exact, connu : la clé unique ne court-circuite pas le filtre tenant.
+    await expect(
+      as(coach(coachBId), () => db.exercise.findUnique({ where: { id: exerciseAId } })),
+    ).resolves.toBeNull();
+  });
+
+  it("findUniqueOrThrow lève sur la ligne d'un autre coach, comme sur une absente", async () => {
+    await expect(
+      as(coach(coachAId), () => db.exercise.findUniqueOrThrow({ where: { id: exerciseAId } })),
+    ).resolves.toMatchObject({ id: exerciseAId });
+
+    await expect(
+      as(coach(coachBId), () => db.exercise.findUniqueOrThrow({ where: { id: exerciseAId } })),
+    ).rejects.toMatchObject({ code: "P2025" });
+  });
+});
+
+/**
+ * Mot de passe oublié, de bout en bout : la demande, l'e-mail dans la langue du compte, le lien,
+ * le nouveau mot de passe. Le seul parcours où l'on entre SANS session — et où une régression
+ * enferme l'utilisateur dehors sans qu'aucun écran ne le signale.
+ */
+describe("Réinitialisation du mot de passe", () => {
+  const EMAIL = "reset@cmv.test";
+  const NEW_PASSWORD = "nouveau-mot-de-passe";
+
+  beforeAll(async () => {
+    const agent = await signUp(EMAIL, Role.ATHLETE);
+    // Le compte lit en anglais : l'e-mail doit suivre, pas la langue par défaut.
+    await agent.post("/api/auth/update-user").send({ locale: Locale.EN });
+  });
+
+  it("envoie le lien dans la langue du compte, puis accepte le nouveau mot de passe", async () => {
+    sentMails.length = 0;
+
+    const requested = await request(baseURL)
+      .post("/api/auth/request-password-reset")
+      .send({ email: EMAIL, redirectTo: "http://localhost:5173/reset-password" });
+    expect(requested.status).toBe(200);
+
+    const mail = required(sentMails[0], "e-mail de réinitialisation");
+    expect(mail).toMatchObject({ to: EMAIL, subject: "Reset your Cimavia password" });
+    const token = required(/reset-password\/([^?"\s]+)/.exec(mail.text)?.[1], "jeton du lien");
+
+    const reset = await request(baseURL)
+      .post("/api/auth/reset-password")
+      .send({ token, newPassword: NEW_PASSWORD });
+    expect(reset.status).toBe(200);
+
+    const signIn = (password: string) =>
+      request(baseURL).post("/api/auth/sign-in/email").send({ email: EMAIL, password });
+    expect((await signIn(NEW_PASSWORD)).status).toBe(200);
+    expect((await signIn(PASSWORD)).status).toBe(401);
+  });
+
+  // Répondre différemment dirait qui a un compte : la demande réussit, et rien ne part.
+  it("ne révèle pas qu'une adresse est inconnue, et n'envoie rien", async () => {
+    sentMails.length = 0;
+
+    const res = await request(baseURL)
+      .post("/api/auth/request-password-reset")
+      .send({ email: "personne@cmv.test", redirectTo: "http://localhost:5173/reset-password" });
+
+    expect(res.status).toBe(200);
+    expect(sentMails).toEqual([]);
   });
 });
 
@@ -384,6 +601,37 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     // La forme comparable a suivi : l'ancien mot ne ramène plus rien, le nouveau ramène la ligne.
     expect(await idsFound(coachA, "echauffement")).toHaveLength(0);
     expect(await idsFound(coachA, "POSTURAL")).toContain(id);
+  });
+
+  /**
+   * Les tags d'un exercice se REMPLACENT (replace-all) : les envoyer redéfinit la liste, les omettre
+   * n'y touche pas, `[]` la vide. Un vidage qui laisserait l'ancienne liste en place ferait mentir
+   * le filtre par tag — l'exercice resterait trouvé par un mot que le coach a retiré.
+   */
+  it("remplace, garde ou vide les tags selon ce que la modification envoie", async () => {
+    const created = await coachA
+      .post("/exercises")
+      .send({ title: "Poutre à doigts", tags: ["doigts", "force"] });
+    const id: string = created.body.id;
+
+    const retagged = await coachA
+      .patch(`/exercises/${id}`)
+      .send({ description: "Réglette 15 mm", tags: ["Poutre"] });
+    expect(retagged.status).toBe(200);
+    expect(retagged.body).toMatchObject({ description: "Réglette 15 mm", tags: ["poutre"] });
+
+    // Sans `tags`, la liste reste celle d'avant — un renommage ne doit pas détagguer l'exercice.
+    const renamed = await coachA.patch(`/exercises/${id}`).send({ description: null });
+    expect(renamed.body).toMatchObject({ description: null, tags: ["poutre"] });
+
+    const cleared = await coachA.patch(`/exercises/${id}`).send({ tags: [] });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.tags).toEqual([]);
+    // Le tag ne vit plus nulle part : ni dans la liste du coach, ni dans le filtre.
+    expect((await coachA.get("/exercises/tags")).body).not.toContain("poutre");
+    expect((await coachA.get("/exercises").query({ tag: "poutre" })).body).toEqual([]);
+
+    await coachA.delete(`/exercises/${id}`);
   });
 
   it("compte les séances MODÈLES qui référencent l'exercice, pas les copies diffusées", async () => {
@@ -556,6 +804,32 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       .post(`/exercises/${exerciseAId}/documents/upload-url`)
       .send({ fileName: "a.pdf", mimeType: "application/pdf", size: 1000 });
     expect(uploadUrl.status).toBe(404);
+
+    /**
+     * La suppression ne relit PAS l'exercice avant le document : seul le scope tenant sur
+     * `ExerciseDocument` la garde. D'où les deux angles — le document d'un autre coach, et celui
+     * d'un AUTRE exercice du même coach cité sous le mauvais parent.
+     */
+    const doc = await coachA
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ type: "LINK", url: "https://a.test/video" });
+    const sibling = await coachA.post("/exercises").send({ title: "Voisin" });
+    const docsOfA = async () =>
+      ((await coachA.get(`/exercises/${exerciseAId}`)).body.documents as { id: string }[]).map(
+        (d) => d.id,
+      );
+
+    const foreign = await coachB.delete(`/exercises/${exerciseAId}/documents/${doc.body.id}`);
+    const wrongParent = await coachA.delete(
+      `/exercises/${sibling.body.id}/documents/${doc.body.id}`,
+    );
+    expect([foreign.status, wrongParent.status]).toEqual([404, 404]);
+    expect(wrongParent.body.message).toBe("Document introuvable");
+    expect(await docsOfA()).toContain(doc.body.id);
+
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${doc.body.id}`);
+    await coachA.delete(`/exercises/${sibling.body.id}`);
+    expect(await docsOfA()).not.toContain(doc.body.id);
   });
 
   // Le fail-closed « storage non configuré → 503 » est couvert par le test unitaire de
@@ -1085,6 +1359,49 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(res.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
   });
 
+  /**
+   * Trois intentions sur `notes`, trois résultats : absent = reprendre celles du modèle, un texte =
+   * les remplacer, `null` = n'en poser aucune. Confondre `null` et « absent » ferait réapparaître
+   * les consignes du modèle que le coach venait d'effacer pour cette séance-là.
+   */
+  it("reprend les notes du modèle, sauf si la séance en fournit ou les efface", async () => {
+    const pose = (notes?: string | null) =>
+      coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
+        sourceSessionId: templateId,
+        scheduledDate: mondayOfWeek2Iso,
+        ...(notes === undefined ? {} : { notes }),
+      });
+
+    const inherited = await pose();
+    const replaced = await pose("Repos 4 min aujourd'hui.");
+    const cleared = await pose(null);
+    // Semaine 2 : nettoyée aussitôt, la semaine 1 est le décor d'autres assertions.
+    for (const res of [inherited, replaced, cleared]) {
+      await coachA.delete(`/scheduled-sessions/${res.body.id}`);
+    }
+
+    expect([inherited.status, replaced.status, cleared.status]).toEqual([201, 201, 201]);
+    expect(inherited.body.notes).toBe("Repos 3 min.");
+    expect(replaced.body.notes).toBe("Repos 4 min aujourd'hui.");
+    expect(cleared.body.notes).toBeNull();
+  });
+
+  // Le modèle est lu par le client TENANT : celui d'un autre coach n'existe pas pour A — refusé
+  // comme un identifiant inventé, sans rien en copier ni dire qu'il existe ailleurs.
+  it("refuse d'instancier la séance modèle d'un autre coach", async () => {
+    const foreign = await coachB.post("/sessions").send({ title: "Modèle de B" });
+    expect(foreign.status).toBe(201);
+
+    const res = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: foreign.body.id, scheduledDate: mondayOfWeek2Iso });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Séance modèle inconnue");
+    const week2 = (await coachA.get(`/plans/${planId}`)).body.weeks[1];
+    expect(week2.sessions).toEqual([]);
+  });
+
   it("la copie est FIGÉE : retravailler l'exercice source ne la touche pas", async () => {
     const patched = await coachA.patch(`/exercises/${exerciseAId}`).send({
       instructions: [{ type: "PARAGRAPH", content: [{ text: "Réécrit après diffusion." }] }],
@@ -1343,6 +1660,35 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     await coachA.delete(`/scheduled-sessions/${created.body.id}`);
   });
 
+  /**
+   * Les tags d'une ligne REPRISE (même `id`) suivent la règle replace-all du reste de la ligne :
+   * la liste envoyée remplace, une ligne envoyée sans liste n'en a plus. Fusionner laisserait sur
+   * la séance de l'athlète un tag que le coach a retiré du panneau.
+   */
+  it("remplace les tags d'un exercice repris, et les retire quand la ligne n'en porte plus", async () => {
+    const created = await coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
+      title: "Tags",
+      scheduledDate: mondayOfWeek2Iso,
+      exercises: [{ title: "Planche", tags: ["gainage"] }],
+    });
+    const lineId: string = created.body.exercises[0].id;
+    const save = (line: Record<string, unknown>) =>
+      coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+        title: "Tags",
+        scheduledDate: mondayOfWeek2Iso,
+        exercises: [{ id: lineId, title: "Planche", ...line }],
+      });
+
+    const retagged = await save({ tags: ["Abdos"] });
+    const untagged = await save({});
+    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+
+    expect(retagged.status).toBe(200);
+    expect(retagged.body.exercises[0]).toMatchObject({ id: lineId, tags: ["abdos"] });
+    expect(untagged.status).toBe(200);
+    expect(untagged.body.exercises[0]).toMatchObject({ id: lineId, tags: [] });
+  });
+
   it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {
     const outOfWeek = await coachA
       .post(`/plan-weeks/${week1Id}/sessions`)
@@ -1477,6 +1823,192 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(session.body.exercises[0].title).toBe("Tractions lestées");
     expect(session.body.exercises[0].sourceExerciseId).toBeNull(); // FK passée à null
     expect(session.body.exercises[0].documents).toHaveLength(1);
+  });
+});
+
+describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
+  let coach: Agent;
+  let other: Agent;
+  let athlete: Agent;
+  let athleteId: string;
+  let secondAthleteId: string;
+  let foreignAthleteId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const day = (offset: number) =>
+    required(shiftIsoDate(monday, offset) ?? undefined, `J+${offset}`);
+
+  async function link(owner: Agent, invited: Agent): Promise<string> {
+    const invitation = await owner.post("/invitations").send({});
+    const accepted = await invited.post("/invitations/accept").send({ code: invitation.body.code });
+    expect(accepted.status).toBe(201);
+    return accepted.body.athleteId;
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("weeks-coach@cmv.test", Role.COACH);
+    other = await signUp("weeks-other@cmv.test", Role.COACH);
+    athlete = await signUp("weeks-athlete@cmv.test", Role.ATHLETE);
+    athleteId = await link(coach, athlete);
+    secondAthleteId = await link(coach, await signUp("weeks-athlete-2@cmv.test", Role.ATHLETE));
+    foreignAthleteId = await link(other, await signUp("weeks-foreign@cmv.test", Role.ATHLETE));
+  });
+
+  // La semaine ajoutée va EN FIN de cycle : ses dates se calculent depuis le lundi de départ.
+  it("ajoute une semaine en fin de cycle, datée à la suite", async () => {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Ajout",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+
+    const res = await coach
+      .post(`/plans/${plan.body.id}/weeks`)
+      .send({ type: "DELOAD", note: "décharge" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.weekCount).toBe(2);
+    expect(res.body.weeks[1]).toMatchObject({
+      weekNumber: 2,
+      type: "DELOAD",
+      note: "décharge",
+      startDate: day(7),
+      endDate: day(13),
+      sessions: [],
+    });
+  });
+
+  it(`refuse une semaine au-delà de ${PLAN_MAX_WEEKS}, sans rien écrire`, async () => {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Saison pleine",
+      startDate: monday,
+      weeks: Array.from({ length: PLAN_MAX_WEEKS }, () => ({ type: "TRAINING" })),
+    });
+    expect(plan.status).toBe(201);
+
+    const res = await coach.post(`/plans/${plan.body.id}/weeks`).send({ type: "TRAINING" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe(`Un cycle ne peut pas dépasser ${PLAN_MAX_WEEKS} semaines`);
+    expect((await coach.get(`/plans/${plan.body.id}`)).body.weekCount).toBe(PLAN_MAX_WEEKS);
+  });
+
+  /**
+   * Retirer une semaine du MILIEU : les suivantes remontent d'un rang, et leurs séances d'une
+   * semaine avec elles. Sans ce décalage, la séance de l'ancienne S3 resterait datée de S3 dans
+   * une semaine devenue S2 — hors de sa plage, invisible au bon endroit du calendrier.
+   */
+  it("retire une semaine du milieu : les suivantes et leurs séances remontent", async () => {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Retrait",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "DELOAD" }, { type: "TRAINING", note: "reprise" }],
+    });
+    const [, week2, week3] = plan.body.weeks;
+    const doomed = await coach
+      .post(`/plan-weeks/${week2.id}/sessions`)
+      .send({ title: "Supprimée avec sa semaine", scheduledDate: day(7) });
+    const moved = await coach
+      .post(`/plan-weeks/${week3.id}/sessions`)
+      .send({ title: "Mardi de S3", scheduledDate: day(15) });
+    expect(moved.status).toBe(201);
+
+    const res = await coach.delete(`/plan-weeks/${week2.id}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.weekCount).toBe(2);
+    expect(res.body.weeks[1]).toMatchObject({
+      id: week3.id,
+      weekNumber: 2,
+      note: "reprise",
+      startDate: day(7),
+      sessions: [{ id: moved.body.id, scheduledDate: day(8) }],
+    });
+    // La séance de la semaine retirée part avec elle.
+    expect((await coach.get(`/scheduled-sessions/${doomed.body.id}`)).status).toBe(404);
+  });
+
+  // PATCH partiel : le champ absent ne change pas. Un `type` réécrit par défaut ferait basculer
+  // une décharge en entraînement le jour où le coach ne touche qu'à la note.
+  it("modifie la note seule, puis le type seul, sans écraser l'autre", async () => {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Retouches",
+      startDate: monday,
+      weeks: [{ type: "DELOAD", note: "volume -40 %" }],
+    });
+    const weekId = plan.body.weeks[0].id;
+
+    const noted = await coach.patch(`/plan-weeks/${weekId}`).send({ note: "volume -30 %" });
+    expect(noted.status).toBe(200);
+    expect(noted.body.weeks[0]).toMatchObject({ type: "DELOAD", note: "volume -30 %" });
+
+    const typed = await coach.patch(`/plan-weeks/${weekId}`).send({ type: "TRAINING" });
+    expect(typed.body.weeks[0]).toMatchObject({ type: "TRAINING", note: "volume -30 %" });
+  });
+
+  it("la dernière semaine se retire sans rien renuméroter", async () => {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Fin",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "DELOAD" }],
+    });
+
+    const res = await coach.delete(`/plan-weeks/${plan.body.weeks[1].id}`);
+
+    expect(res.body.weeks).toEqual([
+      expect.objectContaining({ id: plan.body.weeks[0].id, weekNumber: 1, startDate: monday }),
+    ]);
+  });
+
+  // Le filtre de la liste des cycles, côté coach : l'écran d'un athlète ne montre que les siens.
+  it("filtre les cycles par athlète, sans franchir la frontière du coach", async () => {
+    const mine = await coach
+      .post("/plans")
+      .send({ athleteId: secondAthleteId, title: "Pour le second", startDate: monday });
+
+    const filtered = await coach.get("/plans").query({ athleteId: secondAthleteId });
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.map((plan: { id: string }) => plan.id)).toEqual([mine.body.id]);
+
+    // L'athlète d'un autre coach : une liste vide, pas ses cycles.
+    await other
+      .post("/plans")
+      .send({ athleteId: foreignAthleteId, title: "Chez l'autre", startDate: monday });
+    expect((await coach.get("/plans").query({ athleteId: foreignAthleteId })).body).toEqual([]);
+  });
+
+  /**
+   * Affecter un brouillon propage l'athlète à toute la chaîne (semaines, séances, exercices). Un
+   * cycle encore VIDE, ou aux séances sans exercice, doit l'accepter aussi : c'est l'état d'un
+   * brouillon qu'on commence tout juste.
+   */
+  it("affecte un brouillon vide, puis aux séances sans exercice, que l'athlète lit une fois diffusé", async () => {
+    const empty = await coach
+      .post("/plans")
+      .send({ title: "Encore vide", startDate: monday, weeks: [{ type: "TRAINING" }] });
+    const assignedEmpty = await coach.patch(`/plans/${empty.body.id}`).send({ athleteId });
+    expect(assignedEmpty.status).toBe(200);
+    expect(assignedEmpty.body.athleteId).toBe(athleteId);
+
+    const bare = await coach
+      .post("/plans")
+      .send({ title: "Séance nue", startDate: monday, weeks: [{ type: "TRAINING" }] });
+    const session = await coach
+      .post(`/plan-weeks/${bare.body.weeks[0].id}/sessions`)
+      .send({ title: "Échauffement libre", scheduledDate: monday });
+    expect(session.body.exercises).toEqual([]);
+
+    expect((await coach.patch(`/plans/${bare.body.id}`).send({ athleteId })).status).toBe(200);
+    expect((await billAndPublish(coach, bare.body.id)).status).toBe(200);
+
+    const read = await athlete.get(`/me/scheduled-sessions/${session.body.id}`);
+    expect(read.status).toBe(200);
+    expect(read.body.title).toBe("Échauffement libre");
   });
 });
 
@@ -2096,6 +2628,23 @@ describe("Suivi d'exécution (#168)", () => {
     ).toBeNull();
   });
 
+  // Un suivi vide ne cite aucun exercice : il ne touche à rien de ce qui est déjà coché.
+  it("un suivi vide laisse intact ce qui est déjà coché", async () => {
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      tracking: { [exerciseCopyId]: { blk_1: { checked: [1] } } },
+    });
+
+    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
+      content: "Rien à cocher de plus",
+      tracking: {},
+    });
+
+    expect(res.status).toBe(200);
+    expect(
+      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
+    ).toEqual({ blk_1: { checked: [1] } });
+  });
+
   it("un débrief SANS texte, sans média et sans coche part quand même", async () => {
     // « J'ai fait la séance, rien à dire » est une réponse valable ; forcer du texte n'en produit
     // que de creux.
@@ -2618,6 +3167,19 @@ describe("Médias de débrief (P4)", () => {
     expect((await athleteB1.delete(`${url}/${mediaId}`)).status).toBe(404);
   });
 
+  // Sa propre séance, mais un média qui n'y est pas : 404, et le débrief ne perd rien.
+  it("supprimer un média absent de la séance répond 404 sans rien retirer", async () => {
+    const url = `/me/scheduled-sessions/${sessionId}/feedback/media`;
+    const before = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+
+    const res = await athleteA1.delete(`${url}/media-inconnu`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe("Média introuvable");
+    const after = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    expect(after.body.media).toHaveLength(before.body.media.length);
+  });
+
   it("le dépôt de médias reste interdit au coach", async () => {
     const url = `/me/scheduled-sessions/${sessionId}/feedback/media`;
     expect((await coachA.post(`${url}/upload-url`).send(photo())).status).toBe(403);
@@ -3118,6 +3680,13 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
     expect(res.body.counterpartName).toBe("msg-coach-a@cmv.test");
   });
 
+  // Un coach a N athlètes : sans cible, le fil est indéterminé — pas « le premier venu ».
+  it("un coach sans athlète visé ne peut pas ouvrir de fil (400)", async () => {
+    const res = await coachA.post("/conversations").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("athleteId requis pour ouvrir un fil");
+  });
+
   it("le coach ne peut pas ouvrir un fil avec l'athlète d'un autre coach (400)", async () => {
     const res = await coachA.post("/conversations").send({ athleteId: "unknown-athlete-id" });
     expect(res.status).toBe(400);
@@ -3433,6 +4002,28 @@ describe("Messagerie : médias (P5)", () => {
         ).status,
       ).toBe(404);
     });
+
+    // Même contrat que côté débrief : abandonner purge les parts, et rien ne se recolle ensuite.
+    it("l'abandon par une partie du fil purge les parts, et la clôture répond alors 404", async () => {
+      const input = bigVideo("renoncee.mp4");
+      const ticket = await ticketFor(input);
+      const sizes = multipartPartSizes(input.size) ?? [];
+      const firstPart = await fetch(ticket.partUrls[0], {
+        method: "PUT",
+        body: Buffer.alloc(sizes[0] ?? 0, 1),
+      });
+      expect(firstPart.status).toBe(200);
+
+      const aborted = await athleteA1
+        .post(`/conversations/${conversationId}/messages/upload/abort`)
+        .send({ storagePath: ticket.storagePath, uploadId: ticket.uploadId });
+      expect(aborted.status).toBe(204);
+
+      const completed = await athleteA1
+        .post(`/conversations/${conversationId}/messages/upload/complete`)
+        .send({ storagePath: ticket.storagePath, uploadId: ticket.uploadId, partCount: 1 });
+      expect(completed.status).toBe(404);
+    });
   });
 });
 
@@ -3712,6 +4303,14 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
     const afterCoach = await coachA.get("/feedbacks");
     // La date est celle du message du COACH, pas celle du premier message du fil.
     expect(byId(afterCoach.body, feedbackA1bisId).repliedAt).toBe(coachReply.body.createdAt);
+
+    // Et c'est la PREMIÈRE réponse du coach : une relance ne redate pas « répondu ».
+    const followUp = await coachA
+      .post(`/conversations/${conversationAId}/messages`)
+      .send({ type: "TEXT", content: "Tu me redis ?", sessionFeedbackId: feedbackA1bisId });
+    expect(followUp.status).toBe(201);
+    const afterFollowUp = await coachA.get("/feedbacks");
+    expect(byId(afterFollowUp.body, feedbackA1bisId).repliedAt).toBe(coachReply.body.createdAt);
   });
 
   /**
@@ -3991,6 +4590,17 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
     expect(reopened.body.paidAt).toBeNull();
   });
 
+  // Un double clic ne doit pas redater le paiement : `paidAt` dit QUAND l'athlète a payé.
+  it("remarquer payé une facture déjà payée ne redate rien", async () => {
+    const first = await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
+    const again = await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PAID" });
+
+    expect(again.status).toBe(200);
+    expect(again.body.paidAt).toBe(first.body.paidAt);
+
+    await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "PENDING" });
+  });
+
   it("refuse un statut invalide au toggle (ni DRAFT, ni CANCELLED, ni valeur inconnue)", async () => {
     expect(
       (await coachA.patch(`/invoices/${invoiceId}/status`).send({ status: "DRAFT" })).status,
@@ -4045,6 +4655,88 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
     const list = await athleteA1.get("/invoices");
     expect(list.body).toHaveLength(1);
     expect(list.body[0]).toMatchObject({ id: invoiceId, status: "CANCELLED" });
+  });
+});
+
+/**
+ * Le justificatif PDF d'une facture en brouillon, au-delà du premier rattachement : le remplacer,
+ * le retirer quand il n'y en a pas, le joindre trop tôt. Remplacer purge l'ancien objet — sa clé
+ * n'appartient qu'à cette facture, et sans purge il resterait facturé, invisible, pour toujours.
+ */
+describe("Justificatif de facture : remplacement et retrait", () => {
+  let coach: Agent;
+  let planId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  async function uploadPdf(fileName: string) {
+    const signed = await coach
+      .post(`/plans/${planId}/billing/document/upload-url`)
+      .send({ fileName, mimeType: "application/pdf", size: 1_000 });
+    expect(signed.status).toBe(201);
+    const put = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(1_000, 1),
+      headers: { "content-type": "application/pdf" },
+    });
+    expect(put.status).toBe(200);
+    return {
+      storagePath: signed.body.storagePath,
+      fileName,
+      mimeType: "application/pdf",
+      size: 1_000,
+    };
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("doc-coach@cmv.test", Role.COACH);
+    const athlete = await signUp("doc-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const plan = await coach
+      .post("/plans")
+      .send({ athleteId: accepted.body.athleteId, title: "Facturé", startDate: monday });
+    planId = plan.body.id;
+  });
+
+  // Le justificatif se rattache à LA facture brouillon : sans termes saisis, il n'y en a pas.
+  it("refuse un PDF tant que la facturation n'est pas saisie", async () => {
+    const document = await uploadPdf("trop-tot.pdf");
+
+    const res = await coach.put(`/plans/${planId}/billing/document`).send(document);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Enregistre d'abord la facturation avant de joindre un PDF");
+  });
+
+  it("retirer un justificatif absent ne change rien et ne lève pas", async () => {
+    await coach.put(`/plans/${planId}/billing`).send({ amountCents: 5000, dueDate: monday });
+
+    const res = await coach.delete(`/plans/${planId}/billing/document`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      amountCents: 5000,
+      documentFileName: null,
+      documentUrl: null,
+    });
+  });
+
+  it("remplacer le justificatif purge l'ancien objet ; rejoindre le même le garde", async () => {
+    const first = await coach
+      .put(`/plans/${planId}/billing/document`)
+      .send(await uploadPdf("v1.pdf"));
+    expect((await fetch(first.body.documentUrl)).status).toBe(200);
+
+    const secondDocument = await uploadPdf("v2.pdf");
+    const second = await coach.put(`/plans/${planId}/billing/document`).send(secondDocument);
+
+    expect(second.body.documentFileName).toBe("v2.pdf");
+    expect((await fetch(first.body.documentUrl)).status).toBe(404);
+
+    // Même clé renvoyée (un double envoi du formulaire) : ce n'est pas un remplacement.
+    const again = await coach.put(`/plans/${planId}/billing/document`).send(secondDocument);
+    expect((await fetch(again.body.documentUrl)).status).toBe(200);
   });
 });
 
@@ -4988,6 +5680,8 @@ describe("Génération automatique des rappels (#47)", () => {
   let coachH: Agent;
   let athleteG1: Agent;
   let planId: string;
+  let quietPlanId: string;
+  let quietInvoiceId: string;
 
   const monday = mondayOfCurrentWeek();
 
@@ -5037,6 +5731,27 @@ describe("Génération automatique des rappels (#47)", () => {
     });
     planId = plan.body.id;
     expect((await billAndPublish(coachG, planId)).status).toBe(200);
+
+    /**
+     * Le cycle qui ne doit RIEN produire : une facture à échéance lointaine (pas encore en retard),
+     * et plus aucune semaine (pas de fin calculable). La diffusion exige une semaine : c'est en
+     * retirant l'unique semaine d'un cycle DÉJÀ diffusé qu'on y arrive — et le tick ne regarde que
+     * les cycles diffusés.
+     */
+    const quiet = await coachG.post("/plans").send({
+      athleteId: accepted.body.athleteId,
+      title: "Cycle vidé de ses semaines",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    quietPlanId = quiet.body.id;
+    const billing = await coachG
+      .put(`/plans/${quietPlanId}/billing`)
+      .send({ amountCents: 5000, dueDate: "2099-01-05" });
+    quietInvoiceId = billing.body.id;
+    expect((await coachG.post(`/plans/${quietPlanId}/publish`)).status).toBe(200);
+    const emptied = await coachG.delete(`/plan-weeks/${quiet.body.weeks[0].id}`);
+    expect(emptied.body.weeks).toEqual([]);
   });
 
   /**
@@ -5085,6 +5800,19 @@ describe("Génération automatique des rappels (#47)", () => {
       note: null, // l'API ne fabrique JAMAIS de note
       status: "PENDING",
     });
+  });
+
+  /**
+   * Les deux motifs se DÉRIVENT de la donnée : sans semaine, pas de fin de cycle à annoncer ; avant
+   * l'échéance, pas de retard — la liste des rappels contredirait sinon l'écran des factures, qui
+   * dit encore « à payer ». Deviner une fin (semaine zéro) ou relancer trop tôt serait un rappel
+   * que rien ne justifie.
+   */
+  it("ne génère rien pour un cycle vidé de ses semaines ni pour une facture pas encore échue", async () => {
+    const entities = (await reminders(coachG)).map((r) => r.entityId);
+
+    expect(entities).not.toContain(quietPlanId);
+    expect(entities).not.toContain(quietInvoiceId);
   });
 
   /**
@@ -5991,6 +6719,42 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
   });
 
   /**
+   * La base contient DÉJÀ une boucle (écriture manuelle, futur chemin qui oublierait la garde). La
+   * remontée ne doit pas tourner indéfiniment : elle lève, et rien n'est créé. Ce n'est pas un 409
+   * — l'athlète n'y est pour rien, c'est une incohérence de données, qui doit se voir comme telle.
+   */
+  it("lève au lieu de boucler sur un cycle déjà présent en base, sans rien créer", async () => {
+    const { agents, ids } = await chain("cycle-corrupt", 3);
+    const [aId, , cId] = ids;
+    const b = required(agents[1], "maillon B");
+    const prisma = app.get(PrismaService);
+    // C coache A : la chaîne A → B → C se referme, ce qu'aucune route ne sait produire.
+    const corrupt = await prisma.coachAthlete.create({
+      data: {
+        coachId: required(cId, "maillon C"),
+        athleteId: required(aId, "maillon A"),
+        status: "ACTIVE",
+        joinedAt: new Date(),
+      },
+    });
+    const outsider = await signUpWith("cycle-corrupt-outsider@cmv.test", {
+      isCoach: false,
+      isAthlete: true,
+    });
+
+    try {
+      // La remontée depuis B : A, puis C, puis B de nouveau — sans jamais croiser l'invité.
+      const invitation = await b.post("/invitations").send({});
+      const res = await outsider.post("/invitations/accept").send({ code: invitation.body.code });
+
+      expect(res.status).toBe(500);
+      expect((await outsider.get("/me/coach")).body).toBeNull();
+    } finally {
+      await prisma.coachAthlete.delete({ where: { id: corrupt.id } });
+    }
+  });
+
+  /**
    * Deux chaînes distinctes ne se gênent pas : le refus porte sur la BOUCLE, pas sur le fait
    * d'être déjà coaché ailleurs — ça, c'est l'unicité `athleteId`, qui a son propre test.
    */
@@ -6079,6 +6843,20 @@ describe("Capacités modifiables après coup (#13)", () => {
     const res = await linked.patch("/me/capabilities").send({ isCoach: true, isAthlete: false });
     expect(res.status).toBe(409);
     expect((await capabilitiesOfSession(linked)).isAthlete).toBe(true);
+  });
+
+  // Le pendant des deux refus : sans coach, rien ne retient la capacité athlète.
+  it("laisse cesser d'être athlète quand aucun coach n'est rattaché", async () => {
+    const agent = await signUpWith("cap-drop-athlete@cmv.test", { isCoach: true, isAthlete: true });
+
+    const res = await agent.patch("/me/capabilities").send({ isCoach: true, isAthlete: false });
+
+    expect(res.status).toBe(200);
+    expect(await capabilitiesOfSession(agent)).toEqual({
+      isCoach: true,
+      isAthlete: false,
+      role: Role.COACH,
+    });
   });
 
   /**
@@ -6578,6 +7356,20 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     const unread = await athlete.get("/me/notifications/unread-count");
     expect(unread.body).toMatchObject({ coach: 0, athlete: 2, count: 2 });
+
+    // Et l'autre moitié : un message reçu par un coach SANS capacité athlète reste côté coach,
+    // sans qu'on ait à demander aux fils de quel côté il le tient.
+    const thread = await athlete.post("/conversations").send({});
+    expect(
+      (
+        await athlete
+          .post(`/conversations/${thread.body.id}/messages`)
+          .send({ type: "TEXT", content: "Reçu, merci" })
+      ).status,
+    ).toBe(201);
+    // L'athlète qui l'a rejoint (#146), puis son message.
+    const coachUnread = await coach.get("/me/notifications/unread-count");
+    expect(coachUnread.body).toMatchObject({ coach: 2, athlete: 0, count: 2 });
   });
 });
 
@@ -7063,6 +7855,49 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
         .status,
     ).toBe(204);
     expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+  });
+
+  // Un code déjà consommé ne se rejoue pas : ni pour rejoindre une seconde fois, ni pour le
+  // retourner en refus après coup — le coach lirait « refusée » une invitation acceptée.
+  it("refuse un code inconnu ou déjà consommé, à l'acceptation comme au refus (404)", async () => {
+    const coach = await signUpWith("fm-used-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("fm-used@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({ email: "fm-used@cmv.test" });
+    expect(
+      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
+    ).toBe(201);
+
+    for (const route of ["/invitations/accept", "/invitations/decline"]) {
+      const used = await athlete.post(route).send({ code: invitation.body.code });
+      expect(used.status).toBe(404);
+      expect(used.body.message).toBe("Invitation introuvable ou déjà utilisée");
+      expect((await athlete.post(route).send({ code: "inconnu" })).status).toBe(404);
+    }
+  });
+
+  /**
+   * Même recul d'échéance en base que plus haut. L'expiration se vérifie aux DEUX gestes : la
+   * liste la masque déjà, mais le code circule aussi par e-mail, et un lien ancien reste cliquable.
+   */
+  it("refuse une invitation expirée, à l'acceptation comme au refus, sans la consommer", async () => {
+    const coach = await signUpWith("fm-late-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("fm-late@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({ email: "fm-late@cmv.test" });
+    await app.get(PrismaService).invitation.update({
+      where: { id: invitation.body.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    for (const route of ["/invitations/accept", "/invitations/decline"]) {
+      const late = await athlete.post(route).send({ code: invitation.body.code });
+      expect(late.status).toBe(400);
+      expect(late.body.message).toBe("Invitation expirée");
+    }
+    expect((await athlete.get("/me/coach")).body).toBeNull();
+    const seenByCoach = (await coach.get("/invitations")).body.find(
+      (row: { id: string }) => row.id === invitation.body.id,
+    );
+    expect(seenByCoach.status).toBe("PENDING");
   });
 
   // Les deux routes sont celles de l'athlète : un coach n'a pas d'invitation qui l'attende.
