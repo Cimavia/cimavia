@@ -75,6 +75,30 @@ describe("createAthleteFeedbackApi", () => {
     ]);
   });
 
+  // Mode découpé (vidéo) : entre la signature et le rattachement, l'objet se recolle — ou
+  // s'abandonne, sans quoi ses parts resteraient facturées sans rien former de visible.
+  it("clôt ou abandonne un upload découpé sous le débrief de la séance", async () => {
+    const { api, calls } = spyClient();
+    const feedback = createAthleteFeedbackApi(api);
+    const upload = { storagePath: "feedback/abc.mp4", uploadId: "up_1" };
+
+    await feedback.completeMediaUpload("ss_1", { ...upload, partCount: 2 });
+    await feedback.abortMediaUpload("ss_1", upload);
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/me/scheduled-sessions/ss_1/feedback/media/upload/complete",
+        body: { ...upload, partCount: 2 },
+      },
+      {
+        method: "POST",
+        path: "/me/scheduled-sessions/ss_1/feedback/media/upload/abort",
+        body: upload,
+      },
+    ]);
+  });
+
   it("supprime un média par son id", async () => {
     const { api, calls } = spyClient();
     await createAthleteFeedbackApi(api).deleteMedia("ss_1", "med_9");
