@@ -363,4 +363,70 @@ describe("useSendMessageMedia", () => {
 
     await waitFor(() => expect(result.current.audioError).toBeInstanceOf(Error));
   });
+
+  it("signale une galerie en panne par l'échec générique", async () => {
+    launchLibraryMock.mockRejectedValue(new Error("galerie"));
+    const { result } = setup();
+
+    await act(() => result.current.pickAndSend(onPickError));
+
+    expect(onPickError).toHaveBeenCalledWith("messages.media.uploadError");
+  });
+});
+
+/**
+ * Ce que dit chaque échec d'un fichier du lot. Les deux pannes du stockage ne se confondent pas :
+ * « vérifie ta connexion » sur une signature refusée enverrait chercher la panne au mauvais endroit.
+ */
+describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
+  async function recapOf(failure: unknown, fileName: string | null = "a.jpg") {
+    launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset(fileName)] });
+    uploadFileMock.mockRejectedValue(failure);
+    const { result } = setup();
+    let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
+    await act(async () => {
+      recap = await result.current.pickAndSend(onPickError);
+    });
+    return recap;
+  }
+
+  it.each([
+    ["injoignable", "unreachable", { kind: "unreachable" }, "messages.media.storageUnreachable"],
+    [
+      "refusant l'envoi",
+      "rejected",
+      { kind: "status", status: 403 },
+      "messages.media.storageRejected",
+    ],
+  ] as const)("nomme un stockage %s", async (_, reason, failure, key) => {
+    const { StorageUploadError } = await import("@/shared/lib/upload");
+
+    const recap = await recapOf(new StorageUploadError(reason, failure));
+
+    expect(recap[0]?.reason).toEqual({ key, params: {} });
+  });
+
+  it("garde la clé d'un refus métier, paramètres compris", async () => {
+    const { MediaRejectedError } = await import("@/shared/util/media.util");
+    prepareMediaMock.mockRejectedValue(
+      new MediaRejectedError("messages.media.tooLarge", { max: 50 }),
+    );
+    launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("a.jpg")] });
+    const { result } = setup();
+
+    let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
+    await act(async () => {
+      recap = await result.current.pickAndSend(onPickError);
+    });
+
+    expect(recap[0]?.reason).toEqual({ key: "messages.media.tooLarge", params: { max: 50 } });
+  });
+
+  /** Sans nom d'origine, la ligne existe quand même : c'est l'écran qui la nommera. */
+  it("rend la ligne d'un fichier sans nom sans en inventer un", async () => {
+    const recap = await recapOf(new Error("réseau"), null);
+
+    expect(recap).toHaveLength(1);
+    expect(recap[0]?.fileName).toBeNull();
+  });
 });

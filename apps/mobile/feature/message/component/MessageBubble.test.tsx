@@ -7,6 +7,14 @@ import { press, renderRn } from "@/test/render";
 
 vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
 vi.mock("@/shared/hook/useExercisedCapability", () => ({ useActingCapability: vi.fn() }));
+// Le lecteur a ses propres tests, et le vrai ne demande sa re-signature que sur une lecture qui
+// casse — hors d'atteinte sans pont natif. Le double la demande au tap : ce qui s'éprouve ici est
+// QUEL média la bulle fait re-signer.
+vi.mock("@/shared/component/CmvAudioPlayer", () => ({
+  CmvAudioPlayer: ({ resolveUrl }: { resolveUrl: () => Promise<string | null> }) => (
+    <button type="button" data-audio onClick={() => void resolveUrl()} />
+  ),
+}));
 
 /**
  * En `cimode`, i18next rend la CLÉ : la puce s'affirme donc sur la clé choisie, pas sur le
@@ -137,6 +145,30 @@ describe("MessageBubble — les médias", () => {
     const { container } = renderMedia("IMAGE");
     expect(container.querySelector("img")).not.toBeNull();
   });
+
+  it("fait re-signer la note vocale par l'id de SON message", () => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const resolve = vi.fn(async () => null);
+    const dto = { ...message(null), type: "AUDIO", content: null, media } as MessageDto;
+    const { container } = renderRn(
+      <MessageBubble message={dto} mine={false} resolveMediaUrl={resolve} />,
+    );
+
+    press(container.querySelector("[data-audio]") as Element);
+
+    expect(resolve).toHaveBeenCalledWith("m-1");
+  });
+
+  /** Un message média sans média servi ne rend rien plutôt qu'un lecteur vide. */
+  it("ne rend aucun lecteur sur un média absent", () => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const dto = { ...message(null), type: "IMAGE", content: null, media: null } as MessageDto;
+    const { container } = renderRn(
+      <MessageBubble message={dto} mine={false} resolveMediaUrl={noResolve} />,
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+  });
 });
 
 /**
@@ -171,6 +203,16 @@ describe("MessageBubble — les avis de débrief", () => {
     press(getByText(FEEDBACK_LABEL));
 
     expect(vi.mocked(router.push)).toHaveBeenCalledWith("/feedbacks/s1");
+  });
+
+  it("dit l'avis sans puce quand il ne porte sur rien", () => {
+    vi.mocked(useActingCapability).mockReturnValue("coach");
+    const dto = { ...message(null), type: "FEEDBACK_CREATED", content: null } as MessageDto;
+    const { container } = renderRn(
+      <MessageBubble message={dto} mine={false} resolveMediaUrl={noResolve} />,
+    );
+
+    expect(container.textContent).toBe("messages.feedback.created");
   });
 
   // Le libellé se lit AVANT le lien : ce qui s'est passé, puis où aller le voir.

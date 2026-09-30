@@ -1,7 +1,8 @@
 import { type CapabilityName, type MessageDto, messageKeys } from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { useFocusEffect } from "expo-router";
+import { type EffectCallback, type ReactNode, useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useMarkRead, useMessages, useSendMessage } from "./useConversation";
 
@@ -70,6 +71,49 @@ describe("useMessages", () => {
     expect(getMessagesMock).toHaveBeenCalledTimes(2);
     expect(cached?.[0]?.media?.url).toBe("https://s3.test/note.m4a?X-Amz-Date=0");
     expect(cached).toBe(first);
+  });
+});
+
+describe("useMessages — quand le fil se relit", () => {
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      {children}
+    </QueryClientProvider>
+  );
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.mocked(useFocusEffect).mockReset();
+  });
+
+  it("ne demande rien tant qu'aucun fil n'est résolu", () => {
+    const { result } = renderHook(() => useMessages(undefined), { wrapper });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(getMessagesMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Au premier plan, le fil se relit à l'arrivée — le cache persisté montrerait l'état d'avant —,
+   * puis toutes les 10 s. C'est le rythme de la messagerie asynchrone (CDC §5.8).
+   */
+  it("se relit à l'arrivée au premier plan, puis toutes les dix secondes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // Le vrai hook déclenche à la prise de focus : l'écran monté EST l'écran au premier plan.
+    vi.mocked(useFocusEffect).mockImplementation((callback: EffectCallback) => {
+      // biome-ignore lint/correctness/useExhaustiveDependencies: fidèle au vrai hook, qui ne rejoue qu'au changement de focus
+      useEffect(callback, []);
+    });
+    getMessagesMock.mockResolvedValue([]);
+    renderHook(() => useMessages("c1"), { wrapper });
+    await waitFor(() => expect(getMessagesMock).toHaveBeenCalled());
+    const arrival = getMessagesMock.mock.calls.length;
+
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+
+    expect(getMessagesMock.mock.calls.length).toBeGreaterThan(arrival);
   });
 });
 
