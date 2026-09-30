@@ -1,5 +1,11 @@
-import { ApiError, type CustomMetric, MetricValueType } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import {
+  ApiError,
+  CUSTOM_METRIC_LABEL_MAX_LENGTH,
+  type CustomMetric,
+  FRENCH_CLIMBING_SCALE,
+  MetricValueType,
+} from "@cmv/shared";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { CustomMetricForm } from "./CustomMetricForm";
@@ -116,6 +122,53 @@ describe("CustomMetricForm", () => {
           expect.objectContaining({ unit: "kg", valueType: MetricValueType.NUMBER, scale: null }),
         ),
       );
+    });
+  });
+
+  describe("une échelle", () => {
+    it("envoie ses paliers, dans leur ordre", async () => {
+      createMock.mockResolvedValue(metric());
+      const { user, getByRole } = setup();
+
+      await user.type(getByRole("textbox", { name: LABEL }), "Cotation");
+      await user.click(getByRole("button", { name: "library.builder.valueType.SCALE" }));
+      await user.click(getByRole("button", { name: SCALE_FR }));
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      await waitFor(() =>
+        expect(createMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            valueType: MetricValueType.SCALE,
+            scale: [...FRENCH_CLIMBING_SCALE],
+          }),
+        ),
+      );
+    });
+  });
+
+  describe("un libellé trop long", () => {
+    // Le champ ne borne pas la saisie (un collage passe) : le bouton dit pourquoi l'API refusera.
+    it("le signale sur le bouton d'envoi au-delà du maximum", () => {
+      const { getByRole } = setup();
+
+      fireEvent.change(getByRole("textbox", { name: LABEL }), {
+        target: { value: "x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH + 1) },
+      });
+
+      expect(getByRole("button", { name: SUBMIT })).toHaveAttribute(
+        "title",
+        "library.builder.custom.labelTooLong",
+      );
+    });
+
+    it("ne dit rien au maximum exact", () => {
+      const { getByRole } = setup();
+
+      fireEvent.change(getByRole("textbox", { name: LABEL }), {
+        target: { value: "x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH) },
+      });
+
+      expect(getByRole("button", { name: SUBMIT })).not.toHaveAttribute("title");
     });
   });
 
