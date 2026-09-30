@@ -13,6 +13,14 @@ const directories = new Set<string>();
 // Un disque qui refuse toute lecture : carte retirée, permissions révoquées.
 let brokenDisk = false;
 
+/**
+ * Le vrai `move` est asynchrone (#531) : le fichier n'est à sa place qu'une fois la promesse tenue.
+ * Un mock synchrone l'y posait avant même que `generate` rende la main, et cachait l'`await` manquant.
+ */
+const moves = vi.fn();
+let moveGate: Promise<void> = Promise.resolve();
+let moveFails = false;
+
 function join(parts: readonly (string | { uri: string })[]): string {
   return parts
     .map((part) => (typeof part === "string" ? part : part.uri).replace(/\/+$/, ""))
@@ -48,7 +56,10 @@ class FakeFile {
     if (brokenDisk) throw new Error("disque illisible");
     return files.has(this.uri);
   }
-  move(target: FakeFile) {
+  async move(target: FakeFile) {
+    moves(target.uri);
+    await moveGate;
+    if (moveFails) throw new Error("disque plein");
     if (!files.has(this.uri)) throw new Error(`absent : ${this.uri}`);
     files.delete(this.uri);
     files.add(target.uri);
@@ -109,6 +120,8 @@ const resolveTo = (url: string | null) => vi.fn(async () => url);
 
 beforeEach(() => {
   brokenDisk = false;
+  moveGate = Promise.resolve();
+  moveFails = false;
   files.clear();
   directories.clear();
   givenPlayers();
@@ -208,6 +221,43 @@ describe("videoThumbnail", () => {
     expect(await videoThumbnail("msg-1", resolveTo(URL), 42)).toBe(`${ROOT}/msg-1.jpg`);
   });
 
+  // L'`Image` reçoit l'URI : elle doit pointer sur un fichier déjà là.
+  it("ne rend l'URI qu'une fois la vignette déplacée à sa place", async () => {
+    let finishMove: () => void = () => undefined;
+    moveGate = new Promise((resolve) => (finishMove = resolve));
+    let settled = false;
+
+    const pending = videoThumbnail("msg-1", resolveTo(URL), 42).finally(() => {
+      settled = true;
+    });
+    await vi.waitFor(() => expect(moves).toHaveBeenCalledWith(`${ROOT}/msg-1.jpg`));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toBe(false);
+
+    finishMove();
+
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+    expect(files.has(`${ROOT}/msg-1.jpg`)).toBe(true);
+  });
+
+  // Un déplacement qui échoue reste dans le `catch` : `null`, et pas de rejet orphelin.
+  it("rend null sans rejet non géré quand le déplacement échoue", async () => {
+    moveFails = true;
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    try {
+      expect(await videoThumbnail("msg-1", resolveTo(URL), 42)).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(files.has(`${ROOT}/msg-1.jpg`)).toBe(false);
+      expect(players()[0]?.release).toHaveBeenCalledTimes(1);
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
   it("refuse un identifiant qui sortirait du répertoire, sans rien tirer", async () => {
     expect(await videoThumbnail("../secret", resolveTo(URL), 42)).toBeNull();
     expect(createVideoPlayer).not.toHaveBeenCalled();
@@ -258,6 +308,20 @@ describe("videoThumbnail", () => {
     await vi.waitFor(() => expect(createVideoPlayer).toHaveBeenCalledTimes(1));
     purgeVideoThumbnails();
     finish([THUMBNAIL]);
+
+    expect(await pending).toBeNull();
+    expect(files.size).toBe(0);
+  });
+
+  // Le déplacement est asynchrone : une purge peut encore passer pendant qu'il se fait.
+  it("efface la vignette d'un déplacement rattrapé par une purge", async () => {
+    let finishMove: () => void = () => undefined;
+    moveGate = new Promise((resolve) => (finishMove = resolve));
+
+    const pending = videoThumbnail("msg-1", resolveTo(URL), 42);
+    await vi.waitFor(() => expect(moves).toHaveBeenCalledTimes(1));
+    purgeVideoThumbnails();
+    finishMove();
 
     expect(await pending).toBeNull();
     expect(files.size).toBe(0);
