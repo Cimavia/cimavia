@@ -3,13 +3,21 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { messageKeys } from "@/feature/message/api";
 import { renderWithQueryClient } from "../../../../test/query";
-import { useThreadMessages } from "./useMessages";
+import { useConversations, useConversationWith, useThreadMessages } from "./useMessages";
 
-const { getMessagesMock } = vi.hoisted(() => ({ getMessagesMock: vi.fn() }));
+const { getMessagesMock, listConversationsMock, openConversationMock } = vi.hoisted(() => ({
+  getMessagesMock: vi.fn(),
+  listConversationsMock: vi.fn(),
+  openConversationMock: vi.fn(),
+}));
 
 vi.mock("@/feature/message/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/message/api")>()),
-  messageApi: { getMessages: getMessagesMock },
+  messageApi: {
+    getMessages: getMessagesMock,
+    listConversations: listConversationsMock,
+    openConversation: openConversationMock,
+  },
 }));
 
 vi.mock("@/shared/hook/useCapabilities", () => ({ useExercisedCapability: () => null }));
@@ -37,6 +45,8 @@ const voiceNote = (signedAt: string): MessageDto => ({
 
 beforeEach(() => {
   getMessagesMock.mockReset();
+  listConversationsMock.mockReset().mockResolvedValue([]);
+  openConversationMock.mockReset();
 });
 
 describe("useThreadMessages", () => {
@@ -61,5 +71,30 @@ describe("useThreadMessages", () => {
     expect(cached?.[0]?.media?.url).toBe("https://s3.test/note.m4a?X-Amz-Date=120000");
     // Rien d'autre n'avait changé : le cache garde la même réponse, et rien ne se redessine.
     expect(cached).toBe(first);
+  });
+});
+
+describe("useConversations", () => {
+  // Le tableau de bord n'en tire qu'un compteur : il ne sonde pas toutes les 15 s pour autant.
+  it("ne sonde pas quand l'appelant n'en tire qu'un compteur", async () => {
+    const { wrapper, queryClient } = renderWithQueryClient();
+
+    const { result } = renderHook(() => useConversations({ poll: false }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const query = queryClient.getQueryCache().find({ queryKey: messageKeys.conversations(null) });
+    expect(query?.options).toMatchObject({ refetchInterval: false });
+  });
+});
+
+describe("useConversationWith", () => {
+  // Pas d'athlète désigné, pas de fil : le get-or-create ne part pas à vide.
+  it("ne résout aucun fil sans athlète désigné", () => {
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => useConversationWith(null), { wrapper });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(openConversationMock).not.toHaveBeenCalled();
   });
 });
