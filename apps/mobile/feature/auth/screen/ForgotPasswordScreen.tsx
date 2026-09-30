@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from "@cmv/shared";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,7 +22,7 @@ import { authClient } from "@/shared/lib/auth";
  * La barre oblique finale est retirée : la valeur vient d'une variable d'environnement copiée à la
  * main, et `https://app.cimavia.fr/` produirait un `//reset-password` que le routeur web ignore.
  */
-const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL ?? "http://localhost:5173").replace(/\/+$/, "");
+const WEB_URL = trimTrailingSlashes(process.env.EXPO_PUBLIC_WEB_URL ?? "http://localhost:5173");
 
 export function ForgotPasswordScreen() {
   const { t } = useTranslation();

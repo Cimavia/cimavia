@@ -1,4 +1,4 @@
-import type { EmailableNotificationType, EnvSchema } from "@cmv/shared";
+import { type EmailableNotificationType, type EnvSchema, trimTrailingSlashes } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { mailCatalog } from "./mail.catalog";
@@ -33,7 +33,7 @@ export class NotificationMailer {
     // les réglages de notification. Aucun test ne peut vérifier qu'elle existe — l'API ne connaît
     // pas le routeur du client —, donc renommer ce fichier casse ce lien EN SILENCE. Le nommer ici
     // est la seule parade : un `grep account.tsx` le trouve.
-    this.settingsUrl = webUrl == null ? null : `${webUrl.replace(/\/+$/, "")}/account`;
+    this.settingsUrl = webUrl == null ? null : `${trimTrailingSlashes(webUrl)}/account`;
   }
 
   async send(

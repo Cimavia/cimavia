@@ -839,4 +839,5 @@ export {
   parseTrainingDuration,
   TRAINING_DURATION_MAX_SECONDS,
 } from "./util/training-duration.util";
+export { trimTrailingSlashes } from "./util/url.util";
 export { FILTERED, redactUrlSecrets } from "./util/url-secret.util";
