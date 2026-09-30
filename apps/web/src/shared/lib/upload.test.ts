@@ -49,6 +49,11 @@ class FakeXhr {
     this.upload.onprogress?.({ lengthComputable: true, loaded } as ProgressEvent);
   }
 
+  // Un navigateur qui ne connaît pas la taille totale émet quand même des évènements.
+  progressWithoutTotal(loaded: number) {
+    this.upload.onprogress?.({ lengthComputable: false, loaded } as ProgressEvent);
+  }
+
   respond(status: number) {
     this.status = status;
     this.onloadend?.();
@@ -134,6 +139,20 @@ describe("sendWebPart", () => {
     // `onprogress` peut s'arrêter avant le dernier octet : sans ce calage, une barre resterait
     // bloquée à 98 % sur un envoi pourtant terminé.
     expect(sent).toEqual([4, 10]);
+  });
+
+  it("ignore une progression dont le total est inconnu, et ne lui accorde pas de sursis", async () => {
+    const sent: number[] = [];
+    const sending = sendWebPart(file(100), part, (bytes) => sent.push(bytes));
+    const rejected = expect(sending).rejects.toMatchObject({ failure: { kind: "unreachable" } });
+
+    await vi.advanceTimersByTimeAsync(MULTIPART_STALL_TIMEOUT_MS * 0.75);
+    xhr().progressWithoutTotal(4);
+    await vi.advanceTimersByTimeAsync(MULTIPART_STALL_TIMEOUT_MS * 0.25);
+
+    // Un octet qu'on ne sait pas situer ne prouve pas que l'envoi vit : le chien de garde tient.
+    await rejected;
+    expect(sent).toEqual([]);
   });
 
   /**
