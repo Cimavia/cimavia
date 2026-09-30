@@ -1,4 +1,5 @@
 import { MessageAttachmentType, type MessageDto } from "@cmv/shared";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MessageBubble } from "@/feature/message/component/MessageBubble";
 import { useActingCapability } from "@/shared/hook/useCapabilities";
@@ -144,6 +145,43 @@ describe("MessageBubble — les médias", () => {
     expect(container.querySelector("img")).not.toBeNull();
     expect(container.querySelector("video")).toBeNull();
   });
+
+  // Le lecteur redemande une url fraîche quand la signature a expiré : pour CE message.
+  it("re-signe le média du message dont la lecture échoue", async () => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const resolve = vi.fn(async () => null);
+    const dto = { ...message(null), type: "AUDIO", content: null, media } as MessageDto;
+    const { container } = await renderInRoute(
+      <MessageBubble message={dto} mine={false} resolveMediaUrl={resolve} />,
+      { path: "/messages", links: LINKS },
+    );
+
+    fireEvent.error(container.querySelector("audio") as HTMLAudioElement);
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith("m-1"));
+  });
+
+  // Un média sans fichier (retiré du stockage) ne se rend pas en lecteur vide.
+  it("ne rend aucun lecteur quand le média manque", async () => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const dto = { ...message(null), type: "IMAGE", content: null, media: null } as MessageDto;
+    const { container } = await renderInRoute(
+      <MessageBubble message={dto} mine={false} resolveMediaUrl={noResolve} />,
+      { path: "/messages", links: LINKS },
+    );
+
+    expect(container.querySelector("img, audio, video")).toBeNull();
+  });
+
+  it("ouvre la photo en plein écran, et la referme", async () => {
+    const { user, getByRole, queryByRole } = await renderMedia("IMAGE");
+
+    await user.click(getByRole("button", { name: media.fileName }));
+    expect(getByRole("button", { name: "common.close" })).toBeInTheDocument();
+
+    await user.click(getByRole("button", { name: "common.close" }));
+    expect(queryByRole("button", { name: "common.close" })).toBeNull();
+  });
 });
 
 /**
@@ -198,5 +236,30 @@ describe("MessageBubble — les avis de débrief", () => {
     const { container } = await renderNotice("FEEDBACK_CREATED", false);
 
     expect(container.textContent).toBe(`messages.feedback.created${FEEDBACK_LABEL}`);
+  });
+});
+
+describe("MessageBubble — le bord", () => {
+  it("range ses propres messages à droite, ceux de l'autre à gauche", async () => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const mine = await renderInRoute(
+      <MessageBubble message={message(null)} mine resolveMediaUrl={noResolve} />,
+      { path: "/messages", links: LINKS },
+    );
+
+    expect(mine.container.querySelector(".self-end")).not.toBeNull();
+    expect(mine.container.querySelector(".self-start")).toBeNull();
+  });
+
+  // Un avis dont la cible a disparu garde son libellé, sans lien mort.
+  it("garde le libellé d'un avis dont le débrief a disparu, sans puce", async () => {
+    vi.mocked(useActingCapability).mockReturnValue("coach");
+    const dto = { ...message(null), type: "FEEDBACK_CREATED", content: null } as MessageDto;
+    const { container } = await renderInRoute(
+      <MessageBubble message={dto} mine={false} resolveMediaUrl={noResolve} />,
+      { path: "/messages", links: LINKS },
+    );
+
+    expect(container.textContent).toBe("messages.feedback.created");
   });
 });

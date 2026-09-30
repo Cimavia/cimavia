@@ -1,5 +1,26 @@
+import type { PluginOption } from "vite";
 import { defineConfig, mergeConfig } from "vitest/config";
 import viteConfig from "./vite.config";
+
+/**
+ * Hors production, le plugin du routeur ajoute à CHAQUE fichier de `src/routes/` un bloc
+ * `if (import.meta.hot) { … }`, absent du source. v8 le rattache à la dernière ligne du fichier :
+ * le lcov y comptait une ligne et trois conditions jamais couvertes par route, que Sonar lit comme
+ * du code non testé (#508). Le rechargement à chaud n'a aucun sens sous Vitest : ce plugin-là, et
+ * lui seul, est retiré — le générateur de l'arbre de routes reste en place.
+ */
+const ROUTER_HMR_PLUGIN = "tanstack-router:hmr";
+
+// `false` et non un retrait : c'est la valeur que Vite ignore, à toute profondeur de tableau.
+function withoutRouterHmr(option: PluginOption): PluginOption {
+  if (Array.isArray(option)) return option.map(withoutRouterHmr);
+  const isRouterHmr =
+    option != null &&
+    typeof option === "object" &&
+    "name" in option &&
+    option.name === ROUTER_HMR_PLUGIN;
+  return isRouterHmr ? false : option;
+}
 
 /**
  * Harnais de test du web. Fusionné avec `vite.config.ts` plutôt que réécrit : les alias (`@/`,
@@ -12,7 +33,7 @@ import viteConfig from "./vite.config";
  * vaut zéro pour la Quality Gate, pas « non mesuré ».
  */
 export default mergeConfig(
-  viteConfig,
+  { ...viteConfig, plugins: [withoutRouterHmr(viteConfig.plugins ?? [])] },
   defineConfig({
     test: {
       /**

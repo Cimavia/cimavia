@@ -63,3 +63,26 @@ describe("useLocalTracking — effacement après l'envoi", () => {
     expect(window.localStorage.getItem(KEY)).toBeNull();
   });
 });
+
+describe("useLocalTracking — la lecture et le compteur", () => {
+  // Navigation privée, quota, JSON coupé : la séance s'affiche quand même, sur le serveur.
+  it("suit le serveur quand le local est illisible", () => {
+    window.localStorage.setItem(KEY, "{coupé");
+    const remote: SessionTracking = { "ex-1": { "b-1": { checked: [1] } } };
+
+    const { result } = renderHook(() => useLocalTracking("s-1", remote));
+
+    expect(result.current.tracking).toBe(remote);
+    expect(result.current.dirty).toBe(false);
+  });
+
+  it("compte les tours d'un AMRAP et les garde en local", () => {
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+
+    act(() => result.current.setRounds("ex-1", "b-1", 4));
+
+    expect(result.current.tracking).toEqual({ "ex-1": { "b-1": { rounds: 4 } } });
+    expect(result.current.dirty).toBe(true);
+    expect(stored()).toEqual({ "ex-1": { "b-1": { rounds: 4 } } });
+  });
+});

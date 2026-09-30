@@ -1,6 +1,8 @@
 import { MAX_MESSAGE_MEDIA_BATCH, MediaType, UploadMode } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/shared/lib/api";
+import { MediaRejectedError } from "@/shared/util/media.util";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useSendMessageMedia } from "./useSendMessageMedia";
 
@@ -238,5 +240,55 @@ describe("useSendMessageMedia", () => {
     act(() => result.current.sendAudio({ blob: new Blob(["x"]), durationSeconds: 8 }));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce());
+  });
+
+  // Un refus métier (trop lourd, format) parle par sa clé : c'est elle que l'utilisateur lit.
+  it("nomme le refus métier d'un fichier par sa raison", async () => {
+    prepareMock.mockRejectedValue(
+      new MediaRejectedError("messages.media.imageTooBig", { max: 10 }),
+    );
+    const { result } = setup();
+
+    act(() => result.current.sendFiles([file("lourde.jpg")]));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce());
+    expect(toastErrorMock.mock.calls[0]?.[0]).toContain("lourde.jpg");
+    expect(toastErrorMock.mock.calls[0]?.[0]).toContain("messages.media.imageTooBig");
+    expect(requestUrlMock).not.toHaveBeenCalled();
+  });
+
+  // Une panne que l'API explique garde SES mots, plutôt qu'un « erreur » générique.
+  it("garde le message de l'API quand elle en donne un", async () => {
+    requestUrlMock.mockRejectedValue(new ApiError(413, "Fichier trop volumineux", null));
+    const { result } = setup();
+
+    act(() => result.current.sendFiles([file("a.jpg")]));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce());
+    expect(toastErrorMock.mock.calls[0]?.[0]).toContain("Fichier trop volumineux");
+  });
+
+  // Une vidéo déclare sa durée dès la demande d'url : l'API la borne avant le moindre octet.
+  it("déclare la durée d'une vidéo en demandant son url", async () => {
+    prepareMock.mockResolvedValue({
+      type: MediaType.VIDEO,
+      file: file("voie.mp4", "video/mp4", 1_000),
+      fileName: "voie.mp4",
+      mimeType: "video/mp4",
+      size: 1_000,
+      durationSeconds: 12,
+    });
+    const { result } = setup();
+
+    act(() => result.current.sendFiles([file("voie.mp4", "video/mp4")]));
+
+    await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
+    expect(requestUrlMock.mock.calls[0]?.[1]).toEqual({
+      type: MediaType.VIDEO,
+      fileName: "voie.mp4",
+      mimeType: "video/mp4",
+      size: 1_000,
+      durationSeconds: 12,
+    });
   });
 });

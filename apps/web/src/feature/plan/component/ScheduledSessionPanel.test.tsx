@@ -197,6 +197,66 @@ describe("ScheduledSessionPanel", () => {
       expect(createMock).not.toHaveBeenCalled();
     });
 
+    /**
+     * L'exercice piocché est une COPIE : pas d'id — c'est le serveur qui en créera un —, sa
+     * bibliothèque en trace, et aucune métrique maison, qu'il résoudra lui-même.
+     */
+    it("ajoute un exercice de la bibliothèque comme une copie neuve", async () => {
+      updateMock.mockResolvedValue(session());
+      listExercisesMock.mockResolvedValue([
+        {
+          id: "lib-9",
+          title: "Gainage",
+          description: "Planche",
+          tags: ["core"],
+          instructions: null,
+          blocks: [],
+        },
+      ]);
+      const { user, getByRole, findByRole } = setup({ session: session() });
+
+      await user.click(await findByRole("button", { name: /Gainage/ }));
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      await waitFor(() => expect(updateMock).toHaveBeenCalled());
+      const [, input] = updateMock.mock.calls[0] as [string, { exercises: object[] }];
+      expect(input.exercises).toHaveLength(2);
+      expect(input.exercises[1]).toEqual({
+        sourceExerciseId: "lib-9",
+        title: "Gainage",
+        description: "Planche",
+        tags: ["core"],
+        note: null,
+        instructions: null,
+        blocks: [],
+        adjustments: [],
+      });
+    });
+
+    it("déplace la séance sur le jour choisi", async () => {
+      updateMock.mockResolvedValue(session());
+      const { user, getByLabelText, getByRole } = setup({ session: session() });
+
+      await user.selectOptions(getByLabelText("plan.session.day"), "2026-09-11");
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      await waitFor(() =>
+        expect(updateMock).toHaveBeenCalledWith(
+          "ss-1",
+          expect.objectContaining({ scheduledDate: "2026-09-11" }),
+        ),
+      );
+    });
+
+    it("dit que l'enregistrement part, et ne se relance pas pendant ce temps", async () => {
+      updateMock.mockReturnValue(new Promise(() => {}));
+      const { user, getByRole, findByRole } = setup({ session: session() });
+
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      expect(await findByRole("button", { name: "plan.session.submitting" })).toBeDisabled();
+    });
+
     it("ne propose pas de modèle sur une séance déjà posée", () => {
       const { queryByLabelText } = setup({ session: session() });
 

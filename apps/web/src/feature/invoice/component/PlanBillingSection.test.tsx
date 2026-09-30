@@ -1,4 +1,4 @@
-import type { InvoiceDto } from "@cmv/shared";
+import { type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanBillingSection } from "@/feature/invoice/component/PlanBillingSection";
@@ -16,21 +16,25 @@ vi.mock("@/feature/invoice/hook/useInvoices", () => ({
 }));
 
 const save = vi.fn();
-const idle = { mutate: vi.fn(), isPending: false };
-vi.mocked(useSavePlanBilling).mockReturnValue({
-  mutate: save,
-  isPending: false,
-} as unknown as ReturnType<typeof useSavePlanBilling>);
+// Des objets et non des valeurs figées : un test passe une mutation « en vol » en basculant
+// `isPending`, remis à plat avant chaque test.
+const saving = { mutate: save, isPending: false };
+const attach = { mutate: vi.fn(), isPending: false };
+const remove = { mutate: vi.fn(), isPending: false };
+vi.mocked(useSavePlanBilling).mockReturnValue(
+  saving as unknown as ReturnType<typeof useSavePlanBilling>,
+);
 vi.mocked(useAttachInvoiceDocument).mockReturnValue(
-  idle as unknown as ReturnType<typeof useAttachInvoiceDocument>,
+  attach as unknown as ReturnType<typeof useAttachInvoiceDocument>,
 );
 vi.mocked(useRemoveInvoiceDocument).mockReturnValue(
-  idle as unknown as ReturnType<typeof useRemoveInvoiceDocument>,
+  remove as unknown as ReturnType<typeof useRemoveInvoiceDocument>,
 );
 // Remis à chaque test : les compteurs d'appel doivent repartir de zéro — un test qui enregistre
 // ne doit pas décrire le suivant.
 beforeEach(() => {
   vi.clearAllMocks();
+  for (const mutation of [saving, attach, remove]) mutation.isPending = false;
 });
 
 // `billing` arrive en prop depuis le builder (#211) : la section ne lit plus rien elle-même. Par
@@ -99,6 +103,22 @@ describe("PlanBillingSection — le verrou de destinataire", () => {
     });
   });
 
+  // Une note faite d'espaces n'est pas une note : elle part nettoyée, ou pas du tout.
+  it("envoie la note nettoyée", async () => {
+    const { container, user } = await mount({});
+
+    await user.type(container.querySelector("#amount") as HTMLInputElement, "60");
+    await user.type(container.querySelector("#dueDate") as HTMLInputElement, "2026-10-31");
+    await user.type(container.querySelector("#note") as HTMLTextAreaElement, "  Cycle automne  ");
+    submit(container);
+
+    expect(save).toHaveBeenCalledWith({
+      amountCents: 6000,
+      dueDate: "2026-10-31",
+      note: "Cycle automne",
+    });
+  });
+
   /**
    * Un montant absent ou illisible n'est pas « zéro euro » : rien ne part. Le bouton est fermé, et
    * la garde de `onSubmit` tient quand même — un formulaire soumis au clavier ne passe pas par lui.
@@ -132,5 +152,132 @@ describe("PlanBillingSection — le verrou de destinataire", () => {
 
     expect(getByText("invoice.billing.trackLink")).toBeTruthy();
     expect(queryByText("invoice.billing.save")).toBeNull();
+  });
+});
+
+describe("PlanBillingSection — l'enregistrement", () => {
+  it("dit l'enregistrement en cours, bouton éteint", async () => {
+    saving.isPending = true;
+    const { getByRole } = await mount({});
+
+    expect(getByRole("button", { name: "invoice.billing.saving" })).toBeDisabled();
+  });
+});
+
+describe("PlanBillingSection — le justificatif", () => {
+  const DRAFT = { amountCents: 6000, dueDate: "2026-11-05", note: null } as InvoiceDto;
+  const WITH_DOCUMENT = {
+    ...DRAFT,
+    documentUrl: "https://s3/signé/facture.pdf",
+    documentFileName: "facture.pdf",
+  } as InvoiceDto;
+
+  function pick(container: HTMLElement, files: File[]): void {
+    fireEvent.change(container.querySelector("input[type=file]") as HTMLInputElement, {
+      target: { files },
+    });
+  }
+
+  const pdf = (size?: number) => {
+    const file = new File(["%PDF"], "facture.pdf", { type: "application/pdf" });
+    if (size != null) Object.defineProperty(file, "size", { value: size });
+    return file;
+  };
+
+  // L'API le rattache à la facture DRAFT : sans termes enregistrés, il n'y a rien où l'accrocher.
+  it("invite à enregistrer d'abord tant qu'aucun terme n'est saisi", async () => {
+    const { getByText, queryByRole } = await mount({});
+
+    expect(getByText("invoice.billing.documentAfterSave")).toBeInTheDocument();
+    expect(queryByRole("button", { name: "invoice.billing.documentAdd" })).toBeNull();
+  });
+
+  it("joint le PDF choisi", async () => {
+    const { container } = await mount({ billing: DRAFT });
+    const file = pdf();
+
+    pick(container, [file]);
+
+    expect(attach.mutate).toHaveBeenCalledWith(file);
+  });
+
+  it("ne fait rien quand le choix est abandonné", async () => {
+    const { container } = await mount({ billing: DRAFT });
+
+    pick(container, []);
+
+    expect(attach.mutate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "un fichier qui n'est pas un PDF",
+      new File(["x"], "photo.png", { type: "image/png" }),
+      "invoice.billing.documentPdfOnly",
+    ],
+    [
+      "un PDF trop lourd",
+      pdf(MAX_INVOICE_DOCUMENT_SIZE_BYTES + 1),
+      "invoice.billing.documentTooBig",
+    ],
+  ])("refuse %s avant tout envoi, en le disant", async (_what, file, message) => {
+    const { container, findByRole } = await mount({ billing: DRAFT });
+
+    pick(container, [file]);
+
+    expect(await findByRole("status")).toHaveTextContent(message);
+    expect(attach.mutate).not.toHaveBeenCalled();
+  });
+
+  it("dit l'envoi en cours, gestes éteints", async () => {
+    attach.isPending = true;
+    const { getByRole } = await mount({ billing: DRAFT });
+
+    expect(getByRole("button", { name: "invoice.billing.documentUploading" })).toBeDisabled();
+  });
+
+  // Une url sans nom de fichier n'a rien à afficher : on propose d'en joindre un, pas un lien muet.
+  it("propose d'en joindre un quand le nom du fichier manque", async () => {
+    const { getByRole, queryByRole } = await mount({
+      billing: { ...WITH_DOCUMENT, documentFileName: null } as InvoiceDto,
+    });
+
+    expect(getByRole("button", { name: "invoice.billing.documentAdd" })).toBeInTheDocument();
+    expect(queryByRole("link", { name: "facture.pdf" })).toBeNull();
+  });
+
+  it("ouvre le sélecteur depuis « ajouter » et depuis « remplacer »", async () => {
+    const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    const empty = await mount({ billing: DRAFT });
+    await empty.user.click(empty.getByRole("button", { name: "invoice.billing.documentAdd" }));
+    empty.unmount();
+
+    const joined = await mount({ billing: WITH_DOCUMENT });
+    await joined.user.click(
+      joined.getByRole("button", { name: "invoice.billing.documentReplace" }),
+    );
+
+    expect(click).toHaveBeenCalledTimes(2);
+    click.mockRestore();
+  });
+
+  it("montre le justificatif joint dans un nouvel onglet, et le retire", async () => {
+    const { user, getByRole } = await mount({ billing: WITH_DOCUMENT });
+
+    const link = getByRole("link", { name: "facture.pdf" });
+    expect(link).toHaveAttribute("href", WITH_DOCUMENT.documentUrl);
+    expect(link).toHaveAttribute("target", "_blank");
+
+    await user.click(getByRole("button", { name: "invoice.billing.documentRemove" }));
+
+    expect(remove.mutate).toHaveBeenCalled();
+  });
+
+  it("éteint les gestes pendant un retrait", async () => {
+    remove.isPending = true;
+    const { getByRole } = await mount({ billing: WITH_DOCUMENT });
+
+    expect(getByRole("button", { name: "invoice.billing.documentReplace" })).toBeDisabled();
+    expect(getByRole("button", { name: "invoice.billing.documentRemove" })).toBeDisabled();
   });
 });

@@ -472,7 +472,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | ~~Q-2~~ | ~~**nginx tourne en root dans l'image web**~~ (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). Passée à `nginxinc/nginx-unprivileged` (uid 101, port 8080). | ✅ | ~~[#83](https://github.com/Cimavia/cimavia/issues/83)~~ résolu en [#379](https://github.com/Cimavia/cimavia/issues/379) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
-| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, hors gardes mortes de #512. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
+| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, le reste du web en **#508** : 99,9 % des lignes, 97,9 % des conditions, hors gardes mortes de #512. Reste le volet mobile (#509). | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
@@ -712,6 +712,31 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   dépassait son délai sous couverture, la même panne que
 >   [#455](https://github.com/Cimavia/cimavia/issues/455). `getByText(...).closest("button")` garde
 >   l'affirmation (le bouton est fermé) pour 0,4 s.
+
+> **Tranché en [#508](https://github.com/Cimavia/cimavia/issues/508)** (couvrir le web hors
+> bibliothèque) : les règles de #506 et #507 valent telles quelles ; quatre choix de plus.
+>
+> - **Amendement de #188 : le rendu pur est visé aussi.** Q-4 laissait de côté les fichiers « qui
+>   n'ont rien à affirmer ». Ils sont couverts, chacun par une affirmation que l'utilisateur verrait
+>   casser (le « — » d'une donnée absente, la clé du bon statut, le lien de la bonne cible) : un
+>   `render()` sans `expect` resterait le décor que refuse « Tranché en #58 ».
+> - **#507 prime sur le « À faire » de #362.** L'issue demandait `PlanWeekCard` avec
+>   `usePlanMutations` et `usePlanClipboard` mockés ; le test monte les vrais hooks, et c'est dans
+>   la requête partie vers l'API qu'il lit le collage. Un `mutate` espionné ne verrait pas une
+>   semaine source prise pour la cible.
+> - **Les tests d'avant #507 qui mockent leurs hooks sont étendus, pas migrés.** `PlanBuilderScreen`,
+>   `PlansScreen`, `FeedbacksScreen`, `InvoicesScreen`, `PlanBillingSection`,
+>   `AthletePlanningScreen` et `AthleteSessionsScreen` gardent leur harnais : les réécrire aurait
+>   doublé la PR sans rien couvrir de plus. Seuls `MessagesScreen` et `AccountScreen`, repris en
+>   profondeur, passent aux vrais hooks. Les autres suivront quand on touchera à leur écran.
+> - **Sous Vitest, le plugin HMR du routeur est retiré** (`apps/web/vitest.config.ts`). Il ajoute à
+>   chaque fichier de `src/routes/` un bloc `import.meta.hot` absent du source, que v8 rattache à la
+>   dernière ligne : Sonar comptait une ligne et trois conditions non couvertes par route, sur du
+>   code qu'aucun test ne peut exécuter. Le générateur de l'arbre de routes, lui, reste en place.
+>
+> Quatorze bugs ouverts traversent ces écrans (#284, #326, #334, #339, #340, #342, #361, #364,
+> #365, #366, #367, #371, #437, #485) : les tests les contournent sans figer le comportement
+> fautif. Le Composer, par exemple, n'affirme pas l'état de son champ après un envoi (#339).
 
 ---
 

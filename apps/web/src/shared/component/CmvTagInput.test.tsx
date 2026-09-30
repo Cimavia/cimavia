@@ -78,6 +78,14 @@ describe("CmvTagInput", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("ne retire rien au retour arrière sur un champ vide sans aucun tag", async () => {
+    const { user, input, onChange } = setup({ value: [] });
+
+    await user.type(input, "{Backspace}");
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("ferme la saisie une fois le plafond atteint", () => {
     const { input } = setup({ value: ["renfo", "gainage"], max: 2 });
 

@@ -189,6 +189,21 @@ describe("PlansScreen — la liste ne se charge pas", () => {
     expect(queryByText("plan.empty.title")).toBeNull();
   });
 
+  // Tant que la liste n'a pas répondu, ni vide ni tableau : on attend, et on le dit.
+  it("attend la liste avant d'affirmer qu'elle est vide", async () => {
+    vi.mocked(usePlans).mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof usePlans>);
+
+    const { getByText, queryByText } = await renderInRoute(<PlansScreen />, { path: "/plans/" });
+
+    expect(getByText("common.loading")).toBeTruthy();
+    expect(queryByText("plan.empty.title")).toBeNull();
+  });
+
   it("relit la liste quand on réessaie", async () => {
     const { refetch, rendered } = mountFailed();
     const { getByText, user } = await rendered;

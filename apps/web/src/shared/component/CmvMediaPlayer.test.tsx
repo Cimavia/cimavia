@@ -128,6 +128,18 @@ describe("CmvMediaPlayer — l'URL qui lâche en cours de route", () => {
   });
 });
 
+describe("CmvMediaPlayer — le premier chargement", () => {
+  it("ne déplace ni ne lance un lecteur qui n'a rien à reprendre", () => {
+    const { element, play } = renderPlayer();
+    mediaState(element, { paused: true, currentTime: 0 });
+
+    fireEvent.loadedMetadata(element);
+
+    expect(element.currentTime).toBe(0);
+    expect(play).not.toHaveBeenCalled();
+  });
+});
+
 describe("CmvMediaPlayer — vidéo", () => {
   it("rend le lecteur vidéo du navigateur", () => {
     const { container } = render(

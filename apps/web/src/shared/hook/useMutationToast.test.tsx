@@ -77,3 +77,16 @@ describe("useMutationToast — onFailure", () => {
     expect(screen.queryByText("library.builder.saveFailed")).not.toBeInTheDocument();
   });
 });
+
+describe("useMutationToast — onSuccess et onInfo", () => {
+  it.each([
+    ["onSuccess", "invoice.toast.paid"],
+    ["onInfo", "plan.toast.dateAdjusted"],
+  ] as const)("%s affiche la clé, même sans paramètre d'interpolation", (method, key) => {
+    const toast = setup();
+
+    act(() => toast.current[method](key));
+
+    expect(screen.getByText(key)).toBeInTheDocument();
+  });
+});

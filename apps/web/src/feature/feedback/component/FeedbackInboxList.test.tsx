@@ -123,4 +123,36 @@ describe("FeedbackInboxList", () => {
       renderList([READ], InboxFilter.ALL, "zzz").queryByText("feedback.inbox.noMatch.title"),
     ).not.toBeNull();
   });
+
+  // « Répondu » est un badge sur la ligne, pas un segment de plus.
+  it("marque d'un badge le débrief déjà répondu", () => {
+    const { getByRole } = renderList(
+      [READ, feedback({ id: "f-replied", athleteName: "Inès", repliedAt: "2026-10-17T08:00:00Z" })],
+      InboxFilter.ALL,
+    );
+
+    expect(getByRole("button", { name: /Inès/ }).textContent).toContain("feedback.replied");
+    expect(getByRole("button", { name: /Thomas Rey/ }).textContent).not.toContain(
+      "feedback.replied",
+    );
+  });
+
+  // Un débrief fait de médias seulement est un état, pas une ligne vide : « — » et son compte.
+  it("aperçoit un débrief sans texte par « — » et son nombre de médias", () => {
+    const { getByRole } = renderList([feedback({ content: null, mediaCount: 2 })], InboxFilter.ALL);
+
+    const row = getByRole("button", { name: /Léa Moreau/ });
+    expect(row.textContent).toContain("—");
+    expect(row.textContent).toContain("feedback.mediaCount");
+  });
+
+  it("remonte chaque frappe de la recherche", () => {
+    const { getByRole, onSearch } = renderList([UNREAD], InboxFilter.ALL);
+
+    fireEvent.change(getByRole("searchbox", { name: "feedback.inbox.searchLabel" }), {
+      target: { value: "léa" },
+    });
+
+    expect(onSearch).toHaveBeenCalledWith("léa");
+  });
 });

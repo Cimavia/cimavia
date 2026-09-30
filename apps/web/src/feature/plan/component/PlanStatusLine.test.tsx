@@ -116,6 +116,15 @@ describe("PlanStatusLine — ce que l'athlète voit du cycle", () => {
    * L'invariant qui corrige #172 : tant qu'on ne SAIT pas, on ne dit rien. Une phrase par défaut
    * est exactement ce qui a laissé le constructeur affirmer le faux pendant des semaines.
    */
+  // Le brouillon parle par ce qui lui MANQUE, pas par « l'athlète ne le voit pas encore ».
+  it("ne dit rien de l'audience d'un cycle qui n'est pas diffusé", () => {
+    const { container } = renderWithProviders(
+      <PlanStatusLine {...published({ kind: "NOT_PUBLISHED" })} />,
+    );
+
+    expect(container.textContent).not.toContain("plan.builder.audience");
+  });
+
   it("se tait tant que l'audience n'est pas connue", () => {
     const { container } = renderWithProviders(<PlanStatusLine {...published(null)} />);
 

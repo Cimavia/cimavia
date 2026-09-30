@@ -125,6 +125,17 @@ describe("TrackingList — le compteur d'un AMRAP", () => {
     expect(onRounds).toHaveBeenCalledExactlyOnceWith(13);
   });
 
+  it("retire un tour compté en trop", async () => {
+    const onRounds = vi.fn();
+    const { getByRole, user } = renderWithProviders(
+      <TrackingList block={amrapBlock()} {...props} state={{ rounds: 3 }} onRounds={onRounds} />,
+    );
+
+    await user.click(getByRole("button", { name: "−" }));
+
+    expect(onRounds).toHaveBeenCalledExactlyOnceWith(2);
+  });
+
   /** Un tour négatif n'existe pas : le bouton se ferme plutôt que de rendre -1. */
   it("ferme le retrait à zéro", () => {
     const { getByRole } = renderWithProviders(
