@@ -472,7 +472,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | ~~Q-2~~ | ~~**nginx tourne en root dans l'image web**~~ (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). Passée à `nginxinc/nginx-unprivileged` (uid 101, port 8080). | ✅ | ~~[#83](https://github.com/Cimavia/cimavia/issues/83)~~ résolu en [#379](https://github.com/Cimavia/cimavia/issues/379) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
-| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
+| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, hors gardes mortes de #512. | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
@@ -682,6 +682,36 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   l'utilisateur verrait casser : un 404 qui fuirait l'existence d'une ressource, une liste qui
 >   garderait un tag retiré, un rappel qui annoncerait un retard que l'écran des factures ne montre
 >   pas.
+
+> **Tranché en [#507](https://github.com/Cimavia/cimavia/issues/507)** (couvrir la bibliothèque web,
+> `apps/web/src/feature/library`) : les règles de #506 valent telles quelles ; cinq choix de plus,
+> propres au rendu.
+>
+> - **#188 visait le rendu pur ; ici on monte le VRAI.** Les écrans passent par `renderInRoute`
+>   avec les vrais hooks et les vraies clés de cache — seuls les appels de `api.ts` sont bouchonnés —,
+>   et l'éditeur de consigne tourne sur le vrai TipTap. Ce que l'écran envoie au serveur est
+>   l'affirmation : un geste sur une carte de séance se lit dans le `PUT`, pas dans un rappel
+>   espionné. C'est ce qui attrape un branchement croisé (la note écrite sur la mauvaise ligne).
+> - **Une seule suite pour le déplacement : `describeReorder` (`apps/web/test/reorder.tsx`).** Sept
+>   éditeurs recopient le même déplacement ([#360](https://github.com/Cimavia/cimavia/issues/360)) ;
+>   ils passent tous la même suite de gestes — flèche, poignée au clavier, glisser —, qui dira à la
+>   fusion qu'aucun n'a changé de sens. Le montage peut être asynchrone, pour les écrans routés.
+> - **Les gardes mortes vont à [#512](https://github.com/Cimavia/cimavia/issues/512)**, comme en
+>   #506 : un bouton fermé que son `onClick` re-garde, un `moved == null` après un index borné, un
+>   repli sur un attribut qui a un `default`. Quelques-unes n'apparaissent pas au rapport — v8 compte
+>   couvert un opérande évalué, même jamais vrai : la liste de #512 suit le raisonnement, pas la
+>   mesure.
+> - **ProseMirror sous jsdom : trois bouchons de mise en page, rien de plus**
+>   (`apps/web/test/prosemirror.ts`). `Range.getClientRects`, `getBoundingClientRect` et
+>   `document.elementFromPoint` manquent à jsdom et ProseMirror les appelle pour faire défiler vers
+>   la sélection. Ils rendent des rectangles vides : la sélection se pose au clavier
+>   (`focus()` puis Ctrl+A), jamais par un clic sur la surface, qui chercherait une position à
+>   l'écran.
+> - **Au plafond de lignes, le bouton se cherche par son texte.** Sur une grille de 200 lignes,
+>   `getByRole` parcourt tout l'arbre d'accessibilité et coûtait plus d'une seconde : le test
+>   dépassait son délai sous couverture, la même panne que
+>   [#455](https://github.com/Cimavia/cimavia/issues/455). `getByText(...).closest("button")` garde
+>   l'affirmation (le bouton est fermé) pour 0,4 s.
 
 ---
 
