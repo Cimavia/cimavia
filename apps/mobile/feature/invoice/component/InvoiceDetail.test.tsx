@@ -1,5 +1,6 @@
 import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
 import { screen } from "@testing-library/react";
+import { Linking } from "react-native";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvoiceDetail } from "@/feature/invoice/component/InvoiceDetail";
 import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
@@ -100,6 +101,25 @@ describe("InvoiceDetail", () => {
 
     expect(screen.getByText("invoice.panel.note")).toBeTruthy();
     expect(screen.getByText("invoice.panel.document")).toBeTruthy();
+  });
+
+  /** URL signée ouverte par le lecteur du téléphone ; le nom d'origine n'accompagne que s'il existe. */
+  it("ouvre le justificatif dans le lecteur du téléphone", () => {
+    const open = vi.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const { baseElement } = setup(
+      invoice({ documentUrl: "https://s3/x.pdf", documentFileName: null }),
+    );
+
+    pressButton(baseElement, "invoice.viewDocument");
+
+    expect(open).toHaveBeenCalledWith("https://s3/x.pdf");
+  });
+
+  // Nullable au DTO pour rester ouvert à une facture hors-cycle : la ligne disparaît alors.
+  it("n'écrit pas de cycle sur une facture hors-cycle", () => {
+    setup(invoice({ planTitle: null }));
+
+    expect(screen.queryByText("invoice.panel.plan")).toBeNull();
   });
 
   // Impayée : le coach déclare le règlement, et peut se poser un rappel. Pas de retour arrière —

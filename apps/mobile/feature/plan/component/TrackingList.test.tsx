@@ -78,6 +78,15 @@ describe("TrackingList — les cases", () => {
     expect(container.textContent).not.toContain("·");
   });
 
+  /** Une ligne sans valeur n'a rien à rappeler : la case garde son libellé, seul. */
+  it("n'ajoute aucun rappel sous une case dont la ligne est vide", () => {
+    const { container } = renderRn(
+      <TrackingList block={seriesBlock([{ id: "r1", values: {} }], 1)} {...props} />,
+    );
+
+    expect(boxes(container).map((box) => box.textContent)).toEqual(["plan.tracking.unit.SET"]);
+  });
+
   it("remonte l'index coché, et lui seul", () => {
     const onToggle = vi.fn();
     const { container } = renderRn(
@@ -139,6 +148,18 @@ describe("TrackingList — le compteur d'un AMRAP", () => {
     press(getByLabelText("plan.tracking.roundsPlus"));
 
     expect(onRounds).toHaveBeenCalledExactlyOnceWith(13);
+  });
+
+  /** Un tour compté de trop se retire : l'athlète qui a tapé deux fois ne doit pas le garder. */
+  it("décrémente d'un tour", () => {
+    const onRounds = vi.fn();
+    const { getByLabelText } = renderRn(
+      <TrackingList block={amrapBlock()} {...props} state={{ rounds: 12 }} onRounds={onRounds} />,
+    );
+
+    press(getByLabelText("plan.tracking.roundsMinus"));
+
+    expect(onRounds).toHaveBeenCalledExactlyOnceWith(11);
   });
 
   /** Un tour négatif n'existe pas : le bouton se ferme plutôt que de rendre -1. */

@@ -5,8 +5,15 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ImagePickerAsset } from "expo-image-picker";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { athleteFeedbackApi } from "@/feature/feedback/api";
+import { StorageUploadError } from "@/shared/lib/upload";
 import { MediaRejectedError } from "@/shared/util/media.util";
-import { pickFeedbackAssets, useAddFeedbackAudio, useAddFeedbackMedia } from "./useFeedbackMedia";
+import {
+  pickFeedbackAssets,
+  useAddFeedbackAudio,
+  useAddFeedbackMedia,
+  useDeleteFeedbackMedia,
+} from "./useFeedbackMedia";
 
 const {
   requestUrlMock,
@@ -331,6 +338,48 @@ describe("useAddFeedbackAudio", () => {
 
     await waitFor(() => expect(attachMock).toHaveBeenCalledOnce());
     expect(launchLibraryMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Le transport est neutre ; ses deux échecs prennent ICI les libellés du débrief — le stockage
+ * injoignable (réseau) et le stockage qui refuse (url périmée, taille), que l'athlète ne traite pas
+ * de la même façon.
+ */
+describe("useAddFeedbackAudio — les échecs du stockage", () => {
+  it.each([
+    ["unreachable", { kind: "unreachable" }, "feedback.media.storageUnreachable"],
+    ["rejected", { kind: "status", status: 403 }, "feedback.media.storageRejected"],
+  ] as const)("traduit un stockage %s en %s", async (reason, failure, key) => {
+    prepareAudioMock.mockReturnValue({
+      type: MediaType.AUDIO,
+      uri: "file://note.m4a",
+      fileName: "note.m4a",
+      mimeType: "audio/m4a",
+      size: 500,
+      durationSeconds: 12,
+    });
+    uploadFileMock.mockRejectedValue(new StorageUploadError(reason, failure));
+    const { result } = renderHook(() => useAddFeedbackAudio(SESSION_ID), { wrapper });
+
+    act(() => result.current.mutate({ uri: "file://note.m4a", durationSeconds: 12 }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(MediaRejectedError);
+    expect((result.current.error as MediaRejectedError).reasonKey).toBe(key);
+    expect(attachMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDeleteFeedbackMedia", () => {
+  it("retire le média désigné du débrief de la séance", async () => {
+    vi.mocked(athleteFeedbackApi.deleteMedia).mockResolvedValue(undefined as never);
+    const { result } = renderHook(() => useDeleteFeedbackMedia(SESSION_ID), { wrapper });
+
+    act(() => result.current.mutate("md-1"));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(athleteFeedbackApi.deleteMedia).toHaveBeenCalledWith(SESSION_ID, "md-1");
   });
 });
 

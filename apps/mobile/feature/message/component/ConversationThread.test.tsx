@@ -337,3 +337,25 @@ function pressIcon(container: HTMLElement, name: string): void {
   if (button == null) throw new Error(`bouton « ${name} » introuvable`);
   press(button);
 }
+
+describe("ConversationThread — autour du fil", () => {
+  /** L'écran pose ce qu'il veut au-dessus du fil — le sélecteur d'espace de l'athlète (#129). */
+  it("rend l'en-tête fourni par l'écran au-dessus du fil", () => {
+    const { queryByText } = renderRn(
+      <ConversationThread {...base} header={<span>sélecteur</span>} />,
+    );
+
+    expect(queryByText("sélecteur")).not.toBeNull();
+  });
+
+  it("dit l'échec de l'envoi d'un texte", () => {
+    vi.mocked(useSendMessage).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+    } as unknown as ReturnType<typeof useSendMessage>);
+    const { queryByText } = renderRn(<ConversationThread {...base} />);
+
+    expect(queryByText("messages.sendError")).not.toBeNull();
+  });
+});

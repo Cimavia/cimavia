@@ -1,4 +1,5 @@
 import type { MessageDto, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
+import { myFeedbackKeys } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
@@ -8,7 +9,7 @@ import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
 import { SessionFeedbackScreen } from "@/feature/feedback/screen/SessionFeedbackScreen";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { renderRn } from "@/test/render";
+import { pressButton, renderRn } from "@/test/render";
 import { storedItems } from "../../../test/setup";
 
 /**
@@ -36,8 +37,11 @@ vi.mock("@/feature/coach", () => ({ useMyCoach: () => ({ data: { coachId: "coach
 vi.mock("@/feature/message/hook/useConversation", () => ({
   useMyConversation: () => ({ data: { id: "c-1" }, isError: false }),
 }));
+const { currentUser } = vi.hoisted(() => ({
+  currentUser: { value: { user: { id: "athlete-1" } } as { user: { id: string } } | null },
+}));
 vi.mock("@/shared/lib/auth", () => ({
-  authClient: { useSession: () => ({ data: { user: { id: "athlete-1" } } }) },
+  authClient: { useSession: () => ({ data: currentUser.value }) },
 }));
 
 function detail(overrides: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto {
@@ -96,6 +100,7 @@ function mockFeedback(state: Record<string, unknown>): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  currentUser.value = { user: { id: "athlete-1" } };
   mockFeedback({});
   mockSession(null);
   vi.mocked(useFeedbackReply).mockReturnValue({
@@ -134,6 +139,55 @@ describe("SessionFeedbackScreen", () => {
   it("propose de répondre dès que le débrief existe", () => {
     const { queryByPlaceholderText } = renderRn(<SessionFeedbackScreen />);
     expect(queryByPlaceholderText("messages.placeholder")).not.toBeNull();
+  });
+
+  it("n'affirme rien tant que le débrief charge", () => {
+    mockFeedback({ data: undefined, isPending: true });
+    const { container, queryByText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(queryByText("feedback.title")).toBeNull();
+  });
+
+  /** Écran testé en panne 500, jamais en 401 : la session expirée a son propre chemin (#439). */
+  it("offre de réessayer après une panne", () => {
+    const refetch = vi.fn();
+    mockFeedback({ data: undefined, isError: true, refetch });
+    const { container } = renderRn(<SessionFeedbackScreen />);
+
+    pressButton(container, "common.retry");
+
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["sans la séance", null],
+    ["séance chargée", SESSION],
+  ])("part d'un champ vide quand aucun débrief n'est servi, %s", (_, data) => {
+    mockSession(data);
+    mockFeedback({ data: undefined });
+    renderRn(<SessionFeedbackScreen />);
+
+    expect(textSectionProps().feedback).toBeNull();
+  });
+
+  /** Session pas encore résolue : la réponse du coach se lit quand même, rangée chez l'autre. */
+  it("rend la réponse du coach tant que la session se résout", () => {
+    currentUser.value = null;
+    mockFeedback({ data: detail({ messages: [COACH_REPLY] }) });
+    const { queryByText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(queryByText("Bien joué, on garde cette voie")).not.toBeNull();
+  });
+
+  /** SON débrief, pas la boîte du coach : c'est là que la réponse doit réapparaître. */
+  it("recharge son propre débrief après une réponse", () => {
+    const { queryClient } = renderRn(<SessionFeedbackScreen />);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    void vi.mocked(useFeedbackReply).mock.lastCall?.[0].onSent?.();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: myFeedbackKeys.detail("s-1") });
   });
 
   it("montre l'erreur de chargement plutôt que le formulaire", () => {

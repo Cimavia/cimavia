@@ -324,8 +324,11 @@ function SessionExercises({
  * Chacune annonce ce qui COMMENCE, pas ce qui finit : « Récupération 45 s » est ce que l'athlète
  * doit faire en sortant le téléphone de sa poche. La dernière annonce la fin de l'exercice.
  *
- * Plafonnées : iOS ne garde que 64 notifications programmées par app, et un EMOM de 30 min les
- * mangerait toutes au détriment des rappels du coach.
+ * Plafonnées : iOS ne garde que 64 notifications programmées par app, et un EMOM de 30 min en
+ * poserait 60 d'un coup. Ce minuteur est aujourd'hui le SEUL à en programmer — les rappels du coach
+ * arrivent par push, qui n'en consomme aucune (#253) : le plafond protège donc de la limite de
+ * l'OS, pas d'un voisin. Le lot est reposé à chaque segment franchi app ouverte ; téléphone rangé,
+ * l'athlète n'est prévenu que des douze prochaines échéances.
  */
 function useTimerAlerts(
   runner: ReturnType<typeof useSegmentRunner>,

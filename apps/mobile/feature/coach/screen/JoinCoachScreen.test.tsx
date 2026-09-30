@@ -1,20 +1,21 @@
 import type { PendingInvitationDto } from "@cmv/shared";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JoinCoachScreen } from "@/feature/coach/screen/JoinCoachScreen";
+import { ApiError } from "@/shared/lib/api";
 import { pressButton, renderRn } from "../../../test/render";
 
-vi.mock("@/feature/coach/api", async () => {
-  const shared = await import("@cmv/shared");
+vi.mock("@/feature/coach/api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/feature/coach/api")>();
   return {
+    ...original,
     accountApi: {
       myCoach: vi.fn(),
       myInvitations: vi.fn(),
       acceptInvitation: vi.fn(),
       declineInvitation: vi.fn(),
     },
-    coachKeys: shared.coachKeys,
-    invitationKeys: shared.invitationKeys,
   };
 });
 
@@ -129,5 +130,107 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
 
     expect(await screen.findByText("coach.join.codeLabel")).toBeTruthy();
     expect(screen.queryByText("coach.invitation.decline")).toBeNull();
+  });
+});
+
+describe("JoinCoachScreen — l'invitation, pendant et après", () => {
+  it("dit l'acceptation en cours", async () => {
+    acceptInvitation.mockReturnValue(new Promise(() => undefined));
+    myInvitations.mockResolvedValue([INVITATION]);
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.invitation.title");
+
+    pressButton(container, "coach.invitation.join");
+
+    expect(await screen.findByText("coach.invitation.joining")).toBeTruthy();
+  });
+
+  /** Le mobile n'a pas de toasts : l'échec du refus se dit sur la carte. */
+  it.each([
+    [
+      "tel que l'API l'a formulé",
+      new ApiError(409, "Invitation déjà traitée", null),
+      "Invitation déjà traitée",
+    ],
+    [
+      "par le message générique sans formulation",
+      new Error("réseau"),
+      "coach.invitation.declineError",
+    ],
+  ])("dit l'échec du refus %s", async (_, failure, message) => {
+    declineInvitation.mockRejectedValue(failure);
+    myInvitations.mockResolvedValue([INVITATION]);
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.invitation.title");
+
+    pressButton(container, "coach.invitation.decline");
+    pressButton(container, "coach.invitation.declineConfirm");
+
+    expect(await screen.findByText(message)).toBeTruthy();
+  });
+});
+
+describe("JoinCoachScreen — le code saisi", () => {
+  const codeField = (container: HTMLElement) => {
+    const input = container.querySelector("input");
+    if (input == null) throw new Error("champ introuvable");
+    return input;
+  };
+
+  it("rejoint avec le code nettoyé de ses blancs", async () => {
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.join.codeLabel");
+
+    fireEvent.change(codeField(container), { target: { value: "  7QK4M2XZ9 " } });
+    pressButton(container, "coach.join.submit");
+
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
+  });
+
+  it("n'envoie rien tant que le code est blanc", async () => {
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.join.codeLabel");
+
+    fireEvent.change(codeField(container), { target: { value: "   " } });
+    pressButton(container, "coach.join.submit");
+
+    expect(acceptInvitation).not.toHaveBeenCalled();
+  });
+
+  it("dit l'envoi en cours et fige la saisie", async () => {
+    acceptInvitation.mockReturnValue(new Promise(() => undefined));
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.join.codeLabel");
+    fireEvent.change(codeField(container), { target: { value: "7QK4M2XZ9" } });
+
+    pressButton(container, "coach.join.submit");
+
+    expect(await screen.findByText("coach.join.joining")).toBeTruthy();
+    expect(codeField(container).readOnly).toBe(true);
+  });
+
+  it.each([
+    ["tel que l'API l'a formulé", new ApiError(404, "Code inconnu", null), "Code inconnu"],
+    ["par le message générique sans formulation", new Error("réseau"), "coach.join.error"],
+  ])("dit un code refusé %s", async (_, failure, message) => {
+    acceptInvitation.mockRejectedValue(failure);
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.join.codeLabel");
+    fireEvent.change(codeField(container), { target: { value: "7QK4M2XZ9" } });
+
+    pressButton(container, "coach.join.submit");
+
+    expect(await screen.findByText(message)).toBeTruthy();
+  });
+
+  /** Lié, l'athlète n'a plus rien à saisir : l'écran l'envoie vers ses séances. */
+  it("mène un athlète lié à sa planification", async () => {
+    myCoach.mockResolvedValue(RELATION);
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.joined.title");
+
+    pressButton(container, "coach.joined.goToPlanning");
+
+    expect(router.replace).toHaveBeenCalledWith("/planning");
   });
 });

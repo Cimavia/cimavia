@@ -472,7 +472,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | ~~Q-2~~ | ~~**nginx tourne en root dans l'image web**~~ (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). Passée à `nginxinc/nginx-unprivileged` (uid 101, port 8080). | ✅ | ~~[#83](https://github.com/Cimavia/cimavia/issues/83)~~ résolu en [#379](https://github.com/Cimavia/cimavia/issues/379) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
-| Q-4 | **Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer. Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, le reste du web en **#508** : 99,9 % des lignes, 97,9 % des conditions, hors gardes mortes de #512. Reste le volet mobile (#509). | 🟡 | [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
+| ~~Q-4~~ | ~~**Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer.~~ Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, le reste du web en **#508** : 99,9 % des lignes, 97,9 % des conditions, hors gardes mortes de #512. Le mobile l'est en **#509** : 99,0 % des lignes, 97,2 % des conditions, hors gardes mortes de #512 et hors [#519](https://github.com/Cimavia/cimavia/issues/519). | ✅ | résolue en [#507](https://github.com/Cimavia/cimavia/issues/507), [#508](https://github.com/Cimavia/cimavia/issues/508) et [#509](https://github.com/Cimavia/cimavia/issues/509) — [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
@@ -3587,6 +3587,40 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+
+> **Tranché en [#509](https://github.com/Cimavia/cimavia/issues/509)** (couvrir le mobile) : les
+> règles de #506, #507 et #508 valent telles quelles ; six choix de plus, propres au harnais natif.
+>
+> - **Les nouveaux tests montent les vrais hooks, les anciens sont étendus.** Seul l'appel de
+>   `api.ts` est bouchonné (`importOriginal` puis écrasement de la seule fonction) : les clés de
+>   cache sont les vraies, et ce sont elles que le cache persiste sur le disque pour le hors-ligne.
+>   Les tests d'avant #507 qui mockent leurs hooks gardent leur harnais, comme en #508.
+> - **Le minuteur ne sort pas de `SessionDetailScreen`.** `useTimerAlerts` et son calcul des
+>   échéances restent dans l'écran ; le test les lit sur ce qui part vers `expo-notifications`
+>   (contenu, délai, plafond de programmation). Les extraire aurait été un refactor sans filet,
+>   que #506 interdit.
+> - **Le bouchon d'`expo-notifications` rendait le minuteur inerte.** Sans
+>   `SchedulableTriggerInputTypes` (et avec un `AndroidImportance` incomplet), la programmation
+>   levait un `TypeError` que le `catch` du minuteur avale par conception : `scheduleTimerEnd`
+>   rendait toujours `null`, et le rapport comptait couvert un chemin qui n'avait rien programmé.
+>   Les valeurs du module réel sont reprises dans `test/native.tsx`.
+> - **`RefreshControl` a son double**, un bouton `data-refresh="running|idle"` posé À CÔTÉ du
+>   contenu — `react-native` y est mocké partiellement, tout le reste est le vrai `react-native-web`.
+>   `react-native-web` jette `onRefresh` : sans lui, le tirer-pour-rafraîchir des huit écrans qui
+>   l'offrent était inatteignable.
+> - **Écart nommé : `BlockTimerChips` et `DurationChip`** (`ExerciseCard`) ne sont pas couverts ; ils
+>   suivent dans [#519](https://github.com/Cimavia/cimavia/issues/519).
+> - **Trois limites du harnais, contournées sans rien masquer.**
+>   - NativeWind ne pose pas de `className` dans le DOM : `CmvBadge` est doublé en
+>     `<span data-variant>` là où la variante est l'affirmation ; la couleur d'une tuile du tableau
+>     de bord, elle, ne s'affirme pas.
+>   - La `Modal` de react-native-web rend dans un portail (lire `baseElement`) et n'apparaît qu'au
+>     bout de son fondu : le test le termine (`webkitAnimationEnd`).
+>   - Le mode `cimode` d'i18next rend la clé sans ses paramètres. Là où l'interpolation EST
+>     l'affirmation (un compte, un nom), le test enveloppe le composant dans un `I18nextProvider`
+>     local aux traductions minimales. `MediaPicker:86` n'en a pas encore : sa branche reste
+>     non couverte, faute de harnais et non faute de garde.
+
 ## Post-MVP — Build et distribution iOS ([#134](https://github.com/Cimavia/cimavia/issues/134))
 
 | # | Dette | Statut | Suivi |
@@ -3596,7 +3630,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet tant qu'aucune revue n'a lieu — la bêta passe par des testeurs TestFlight internes —, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi à des testeurs TestFlight EXTERNES, ou à l'App Store — les testeurs internes ne passent aucune revue)* |
 | IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près — et une troisième dans `fr.json` depuis #254. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins. Depuis #254, `ios-permission-locales.test.ts` échoue si l'une des valeurs de base d'`app.json` s'écarte du catalogue français. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
 | IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
-| IOS-6 | **La chaîne de notification du minuteur n'a aucun test** (0 % mesuré) : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — seul ce dernier est remonté à 100 %. | 🟡 | [#253](https://github.com/Cimavia/cimavia/issues/253) |
+| ~~IOS-6~~ | ~~**La chaîne de notification du minuteur n'a aucun test**~~ : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Découvert en mesurant `usePushToken` pour #134. Couverte en #509 : les deux premiers par leurs tests unitaires, le calcul des échéances à travers l'écran, sur ce qui part vers `expo-notifications` (encadré « Tranché en #509 »). Le plafond iOS réel reste à IOS-5. | ✅ | résolue en [#253](https://github.com/Cimavia/cimavia/issues/253), livrée par [#509](https://github.com/Cimavia/cimavia/issues/509) |
 
 > **Tranché en #134** (TestFlight interne plutôt qu'ad hoc — arbitrage RENVERSÉ en cours de PR) :
 > la bêta passait d'abord par la distribution `internal`, qui signe le binaire pour une liste

@@ -244,6 +244,25 @@ describe("FeedbackMediaSection", () => {
     expect(queryByText("feedback.media.permission")).toBeNull();
   });
 
+  /**
+   * Un seul avancement à l'écran : celui de l'envoi en cours. Une note vocale au repos ne doit pas
+   * couvrir le lot de photos qui peine à partir.
+   */
+  it("suit l'envoi des photos plutôt que la note vocale au repos", () => {
+    vi.mocked(useAddFeedbackMedia).mockReturnValue({
+      addAssets,
+      isUploading: true,
+      step: null,
+      progress: 40,
+      retry: { attempt: 2, maxAttempts: 6 },
+    } as unknown as ReturnType<typeof useAddFeedbackMedia>);
+    const { queryByText } = renderRn(
+      <FeedbackMediaSection sessionId="ss-1" feedback={emptyFeedback} />,
+    );
+
+    expect(queryByText("feedback.media.retrying")).not.toBeNull();
+  });
+
   it("retire le média que l'athlète désigne, et lui seul", () => {
     const mutate = vi.fn();
     vi.mocked(useDeleteFeedbackMedia).mockReturnValue({

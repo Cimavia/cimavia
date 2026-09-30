@@ -1,9 +1,16 @@
-import { type CoachAthleteDto, CoachAthleteStatus, SELF_RELATION_ID } from "@cmv/shared";
+import {
+  type CoachAthleteDto,
+  CoachAthleteStatus,
+  type ConversationDto,
+  MessageType,
+  SELF_RELATION_ID,
+} from "@cmv/shared";
+import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAthletes } from "@/feature/athlete";
 import { useConversations } from "@/feature/message/hook/useConversation";
 import { CoachConversationsScreen } from "@/feature/message/screen/CoachConversationsScreen";
-import { renderRn } from "@/test/render";
+import { press, pressButton, renderRn } from "@/test/render";
 
 /**
  * Les hooks de données sont remplacés : leur transport a ses propres tests. Ce qui s'éprouve ICI
@@ -133,5 +140,138 @@ describe("CoachConversationsScreen", () => {
     const { queryByText } = renderRn(<CoachConversationsScreen />);
 
     expect(queryByText("messages.noAthletes.title")).toBeNull();
+  });
+});
+
+function conversation(overrides: Partial<ConversationDto>): ConversationDto {
+  return {
+    id: "conv-1",
+    counterpartId: "a-1",
+    counterpartName: "Léa Moreau",
+    lastMessageAt: "2026-09-29T08:00:00.000Z",
+    lastMessageType: MessageType.TEXT,
+    lastMessagePreview: "À demain",
+    unreadCount: 0,
+    ...overrides,
+  };
+}
+
+function mockConversations(state: Record<string, unknown>): void {
+  vi.mocked(useConversations).mockReturnValue({
+    data: [],
+    isPending: false,
+    isError: false,
+    isRefetching: false,
+    refetch: vi.fn(),
+    ...state,
+  } as unknown as ReturnType<typeof useConversations>);
+}
+
+const SARAH = relation({ id: "rel-2", athleteId: "a-2", athleteName: "Sarah Nguyen" });
+const TOM = relation({ id: "rel-3", athleteId: "a-3", athleteName: "Tom Petit" });
+
+describe("CoachConversationsScreen — une ligne", () => {
+  /** Le dernier échange en tête ; un athlète jamais contacté ferme la marche. */
+  it("range les fils du plus récent au plus ancien, les muets en dernier", () => {
+    // Le muet AU MILIEU de la liste servie : le tri le compare des deux côtés, jamais d'un seul.
+    mockAthletes({ data: [LEA, TOM, SARAH] });
+    mockConversations({
+      data: [
+        conversation({ counterpartId: "a-1", lastMessageAt: "2026-09-01T08:00:00.000Z" }),
+        conversation({
+          id: "conv-2",
+          counterpartId: "a-2",
+          lastMessageAt: "2026-09-29T08:00:00.000Z",
+        }),
+      ],
+    });
+    const { getAllByText } = renderRn(<CoachConversationsScreen />);
+
+    const names = getAllByText(/Léa Moreau|Sarah Nguyen|Tom Petit/).map((node) => node.textContent);
+    expect(names).toEqual(["Sarah Nguyen", "Léa Moreau", "Tom Petit"]);
+  });
+
+  it.each([
+    ["le texte du dernier message", conversation({}), "À demain"],
+    [
+      "le type du média quand il n'y a pas de texte",
+      conversation({ lastMessagePreview: null, lastMessageType: MessageType.IMAGE }),
+      "messages.preview.IMAGE",
+    ],
+    [
+      "« aucun message » sur un texte sans aperçu",
+      conversation({ lastMessagePreview: null }),
+      "messages.noMessageYet",
+    ],
+    [
+      "« aucun message » sur un fil ouvert mais vide",
+      conversation({ lastMessagePreview: null, lastMessageType: null, lastMessageAt: null }),
+      "messages.noMessageYet",
+    ],
+  ])("montre en aperçu %s", (_, served, preview) => {
+    mockAthletes({ data: [LEA] });
+    mockConversations({ data: [served] });
+    const { queryByText } = renderRn(<CoachConversationsScreen />);
+
+    expect(queryByText(preview)).not.toBeNull();
+  });
+
+  /** Aucun échange : ni date inventée, ni pastille. */
+  it("ne date rien et ne compte rien sur un athlète jamais contacté", () => {
+    mockAthletes({ data: [LEA] });
+    mockConversations({ data: undefined });
+    const { queryByText, container } = renderRn(<CoachConversationsScreen />);
+
+    expect(queryByText("messages.noMessageYet")).not.toBeNull();
+    expect(queryByText("—")).not.toBeNull();
+    expect(container.textContent).not.toMatch(/\d/);
+  });
+
+  it("compte les messages non lus du fil", () => {
+    mockAthletes({ data: [LEA] });
+    mockConversations({ data: [conversation({ unreadCount: 3 })] });
+    const { queryByText } = renderRn(<CoachConversationsScreen />);
+
+    expect(queryByText("3")).not.toBeNull();
+  });
+
+  it("ouvre le fil de l'athlète touché", () => {
+    mockAthletes({ data: [LEA] });
+    const { getByText } = renderRn(<CoachConversationsScreen />);
+
+    press(getByText("Léa Moreau"));
+
+    expect(router.push).toHaveBeenCalledWith("/messages/a-1");
+  });
+});
+
+describe("CoachConversationsScreen — chargement, panne, rafraîchissement", () => {
+  it("n'affirme rien tant qu'une des deux listes charge", () => {
+    mockConversations({ data: undefined, isPending: true });
+    const { container, queryByText } = renderRn(<CoachConversationsScreen />);
+
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(queryByText("messages.noAthletes.title")).toBeNull();
+  });
+
+  it.each([
+    ["réessaie", (container: HTMLElement) => pressButton(container, "common.retry")],
+    [
+      "tire l'écran",
+      (container: HTMLElement) => press(container.querySelector("[data-refresh]") as HTMLElement),
+    ],
+  ])("relit les athlètes ET les fils quand le coach %s", (_, gesture) => {
+    const athletes = vi.fn();
+    const conversations = vi.fn();
+    mockAthletes({ data: undefined, isError: true, refetch: athletes });
+    mockConversations({ refetch: conversations });
+    const { container } = renderRn(<CoachConversationsScreen />);
+    // Le premier plan a déjà relu les fils une fois : seul compte ce que le geste ajoute.
+    conversations.mockClear();
+
+    gesture(container);
+
+    expect(athletes).toHaveBeenCalledOnce();
+    expect(conversations).toHaveBeenCalledOnce();
   });
 });

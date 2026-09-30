@@ -117,3 +117,38 @@ describe("CoachInvoiceList", () => {
     expect(onOpenInvoice).toHaveBeenCalledWith("i-1");
   });
 });
+
+describe("CoachInvoiceList — ce que dit une ligne", () => {
+  const PAID = { status: InvoiceStatus.PAID, paidAt: "2026-08-02T08:00:00.000Z" } as const;
+
+  it.each([
+    ["un retard par son ancienneté", {}, "invoice.coach.rowSubtitle.OVERDUE_SINCE"],
+    [
+      "une échéance à venir par sa date",
+      { dueDate: "2026-09-25" },
+      "invoice.coach.rowSubtitle.NEXT_DUE",
+    ],
+    ["un compte soldé par son dernier règlement", PAID, "invoice.coach.rowSubtitle.LAST_PAID"],
+  ])("annonce %s", (_, overrides, subtitle) => {
+    setup(rowsOf([invoice(overrides)]));
+
+    expect(screen.queryByText(subtitle)).not.toBeNull();
+  });
+
+  /** Rien de dû se rend « — », jamais « 0 € » : un zéro se lit comme un montant. */
+  it.each([
+    ["« — » sur un athlète qui ne doit rien", PAID, true],
+    ["le montant sur un athlète qui doit", {}, false],
+  ])("rend %s", (_, overrides, dash) => {
+    setup(rowsOf([invoice(overrides)]));
+
+    expect(screen.queryByText("—") != null).toBe(dash);
+  });
+
+  /** Rien de vrai à dire — ici, un règlement sans date : pas de phrase creuse sous le nom. */
+  it("n'écrit aucun sous-titre quand il n'y a rien de vrai à dire", () => {
+    setup(rowsOf([invoice({ status: InvoiceStatus.PAID, paidAt: null })]));
+
+    expect(screen.queryByText(/invoice\.coach\.rowSubtitle/)).toBeNull();
+  });
+});

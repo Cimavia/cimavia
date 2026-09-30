@@ -92,6 +92,18 @@ describe("RunnerBody — l'effort minuté", () => {
     expect(container.textContent).not.toContain("·");
   });
 
+  /** Une durée nulle VIDE la barre : sans la garde, 10 / 0 la remplirait d'un coup. */
+  it("vide la barre d'un segment sans durée", () => {
+    const { container } = renderRn(
+      <RunnerBody block={seriesBlock()} {...base} remaining={10} total={0} current={segment()} />,
+    );
+
+    const widths = Array.from(container.querySelectorAll<HTMLElement>("[style]")).map(
+      (node) => node.style.width,
+    );
+    expect(widths).toContain("0%");
+  });
+
   it("n'affiche aucune bannière quand la ligne entière est vide", () => {
     const block = seriesBlock([{ id: "r1", values: {} }]);
     const { container } = renderRn(<RunnerBody block={block} {...base} current={segment()} />);
