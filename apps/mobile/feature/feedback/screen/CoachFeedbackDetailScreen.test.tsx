@@ -1,4 +1,5 @@
 import type { CoachFeedbackSummaryDto, MessageDto, SessionFeedbackDto } from "@cmv/shared";
+import { coachFeedbackKeys } from "@cmv/shared";
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -23,29 +24,47 @@ vi.mock("@/feature/feedback/hook/useCoachFeedbacks", () => ({
   useMarkFeedbackRead: vi.fn(),
 }));
 vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({ useFeedbackReply: vi.fn() }));
-vi.mock("@/shared/hook/useFreshMediaUrl", () => ({
-  useFreshMediaUrl: () => () => Promise.resolve(null),
+const { freshUrl, session } = vi.hoisted(() => ({
+  freshUrl: vi.fn(() => Promise.resolve(null)),
+  session: { current: { user: { id: "coach-1" } } as { user: { id: string } } | null },
 }));
+vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => freshUrl }));
 vi.mock("@/feature/message/hook/useConversation", () => ({
   useConversationWith: () => ({ data: { id: "c-1" }, isError: false }),
 }));
 vi.mock("@/shared/lib/auth", () => ({
-  authClient: { useSession: () => ({ data: { user: { id: "coach-1" } } }) },
+  authClient: { useSession: () => ({ data: session.current }) },
 }));
 
 /**
- * Seul `CmvAudioRecorder` est remplacé : le vrai a besoin d'un micro, et `onRecorded` serait hors
+ * `CmvAudioRecorder` est remplacé : le vrai a besoin d'un micro, et `onRecorded` serait hors
  * d'atteinte sous un runtime sans pont natif. Même raison que dans `ConversationThread.test`.
+ *
+ * Les trois lecteurs aussi : ils ont leurs tests, et ce que l'écran décide est LEQUEL il monte pour
+ * quel média (#151) — et à qui il demande une url fraîche. Chaque double dit son type et relaie la
+ * demande d'url d'un tap.
  */
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  CmvAudioRecorder: ({ onRecorded }: { onRecorded: (audio: RecordedAudio) => void }) => (
-    <CmvButton
-      label="enregistrer"
-      onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
-    />
-  ),
-}));
+vi.mock("@/shared/component", async (importOriginal) => {
+  const player =
+    (kind: string) =>
+    ({ url, resolveUrl }: Readonly<{ url?: string; resolveUrl?: () => void }>) => (
+      <button type="button" data-player={kind} onClick={() => resolveUrl?.()}>
+        {url}
+      </button>
+    );
+  return {
+    ...(await importOriginal<Record<string, unknown>>()),
+    CmvAudioPlayer: player("audio"),
+    CmvVideoPlayer: player("video"),
+    CmvImageViewer: player("photo"),
+    CmvAudioRecorder: ({ onRecorded }: { onRecorded: (audio: RecordedAudio) => void }) => (
+      <CmvButton
+        label="enregistrer"
+        onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
+      />
+    ),
+  };
+});
 
 const markRead = vi.fn();
 const sendText = vi.fn();
@@ -99,6 +118,7 @@ function mockDetail(state: Record<string, unknown>): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session.current = { user: { id: "coach-1" } };
   mockDetail({});
   vi.mocked(useCoachFeedbacks).mockReturnValue({ data: [SUMMARY] } as unknown as ReturnType<
     typeof useCoachFeedbacks
@@ -251,6 +271,32 @@ describe("CoachFeedbackDetailScreen", () => {
     expect(await findByText(/voie\.mp4/)).not.toBeNull();
   });
 
+  it("nomme quand même, dans le compte rendu, un fichier qui n'a pas de nom", async () => {
+    const pickAndSend = vi
+      .fn()
+      .mockResolvedValue([
+        { id: 1, fileName: null, reason: { key: "messages.media.tooMany", params: {} } },
+      ]);
+    vi.mocked(useFeedbackReply).mockReturnValue({
+      ready: true,
+      hasThreadError: false,
+      sendText,
+      sending: false,
+      pickAndSend,
+      recordAndSend: vi.fn(),
+      mediaBusy: false,
+      step: null,
+      audioError: null,
+    } as unknown as ReturnType<typeof useFeedbackReply>);
+
+    const { container, findByText } = renderRn(<CoachFeedbackDetailScreen />);
+    press(
+      container.querySelector('[data-icon="add-circle-outline"]')?.parentElement as HTMLElement,
+    );
+
+    expect(await findByText(/messages\.media\.unnamedFile/)).not.toBeNull();
+  });
+
   // Le coach répond EN VOCAL depuis le débrief : c'est le geste naturel sur un téléphone, et il a
   // été demandé en bêta.
   it("envoie la note vocale enregistrée", () => {
@@ -271,5 +317,179 @@ describe("CoachFeedbackDetailScreen", () => {
     pressButton(container, "enregistrer");
 
     expect(recordAndSend).toHaveBeenCalledWith({ uri: "file:///note.m4a", durationSeconds: 3 });
+  });
+});
+
+describe("CoachFeedbackDetailScreen — ce qui manque", () => {
+  it("n'affirme rien tant que le débrief charge", () => {
+    mockDetail({ data: undefined, isPending: true });
+    const { container, queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(queryByText("feedback.coach.mediaOnly")).toBeNull();
+  });
+
+  /** Écran testé en panne 500, jamais en 401 : la session expirée a son propre chemin (#439). */
+  it("offre de réessayer après une panne", () => {
+    const refetch = vi.fn();
+    mockDetail({ data: undefined, isError: true, refetch });
+    const { container } = renderRn(<CoachFeedbackDetailScreen />);
+
+    pressButton(container, "common.retry");
+
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  /** Arrivé par une notification, la liste n'est pas en cache : « — », et rien à marquer lu. */
+  it("marque l'absence de l'athlète et de la séance tant que le résumé manque", () => {
+    vi.mocked(useCoachFeedbacks).mockReturnValue({ data: undefined } as unknown as ReturnType<
+      typeof useCoachFeedbacks
+    >);
+    const { getAllByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(getAllByText("—")).toHaveLength(2);
+    expect(markRead).not.toHaveBeenCalled();
+  });
+
+  it("ne marque rien lu quand le résumé ne porte pas cette séance", () => {
+    vi.mocked(useCoachFeedbacks).mockReturnValue({
+      data: [{ ...SUMMARY, scheduledSessionId: "autre" }],
+    } as unknown as ReturnType<typeof useCoachFeedbacks>);
+
+    renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(markRead).not.toHaveBeenCalled();
+  });
+
+  it("dit qu'il n'y a que des médias quand le débrief n'est pas servi", () => {
+    mockDetail({ data: null });
+    const { queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("feedback.coach.mediaOnly")).not.toBeNull();
+    expect(queryByText("feedback.detail.tracking")).toBeNull();
+  });
+
+  /** Session pas encore résolue : rien n'est rangé « à soi » — au pire un aller-retour de plus. */
+  it("garde la barre de réponse tant que la session se résout", () => {
+    session.current = null;
+    const { container, queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("feedback.reply.self")).toBeNull();
+    expect(container.querySelector('[data-icon="add-circle-outline"]')).not.toBeNull();
+  });
+});
+
+/**
+ * Le coach qui s'entraîne lui-même lit son propre débrief (#198) : répondre serait s'écrire, et la
+ * requête du fil prendrait un 409 affiché en panne passagère.
+ */
+describe("CoachFeedbackDetailScreen — son propre débrief", () => {
+  beforeEach(() => {
+    vi.mocked(useCoachFeedbacks).mockReturnValue({
+      data: [{ ...SUMMARY, athleteId: "coach-1" }],
+    } as unknown as ReturnType<typeof useCoachFeedbacks>);
+  });
+
+  it("garde le titre de la réponse, dit pourquoi il n'y en a pas, et retire la barre", () => {
+    const { container, queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("feedback.reply.title")).not.toBeNull();
+    expect(queryByText("feedback.reply.self")).not.toBeNull();
+    expect(container.querySelector('[data-icon="add-circle-outline"]')).toBeNull();
+  });
+});
+
+describe("CoachFeedbackDetailScreen — le décompte", () => {
+  const tracked = (
+    exerciseId: string,
+    state: "DONE" | "PARTIAL" | "UNTRACKED",
+    unit: "SET" | null = "SET",
+  ) => ({ exerciseId, title: `Exercice ${exerciseId}`, state, done: 2, total: 4, unit });
+
+  it("rend chaque exercice suivi, et dit « pas de décompte » sur celui qui ne l'est pas", () => {
+    mockDetail({
+      data: detail({
+        trackedExercises: [
+          tracked("fini", "DONE"),
+          tracked("entamé", "PARTIAL"),
+          tracked("muet", "UNTRACKED"),
+        ],
+      } as never),
+    });
+    const { getAllByText, getByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(getByText("feedback.detail.tracking")).toBeTruthy();
+    expect(getAllByText("plan.tracking.count.SET")).toHaveLength(2);
+    expect(getByText("feedback.tracking.untracked")).toBeTruthy();
+  });
+
+  /** Rien de cochable : il n'y a rien à nommer, pas même « pas de décompte ». */
+  it("tait l'exercice sans unité, et la section avec lui s'il est seul", () => {
+    mockDetail({
+      data: detail({ trackedExercises: [tracked("libre", "UNTRACKED", null)] } as never),
+    });
+    const { queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("Exercice libre")).toBeNull();
+    expect(queryByText("feedback.detail.tracking")).toBeNull();
+  });
+});
+
+describe("CoachFeedbackDetailScreen — les médias", () => {
+  const media = (id: string, type: "AUDIO" | "VIDEO" | "PHOTO") => ({
+    id,
+    type,
+    url: `https://storage.test/${id}`,
+    durationSeconds: type === "PHOTO" ? null : 12,
+  });
+
+  /** Un rendu PAR TYPE : une vidéo rendue en image donnait un bloc vide, sans erreur (#151). */
+  it("monte le lecteur propre à chaque type", () => {
+    mockDetail({
+      data: detail({
+        media: [media("m-audio", "AUDIO"), media("m-video", "VIDEO"), media("m-photo", "PHOTO")],
+      } as never),
+    });
+    const { container, getByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(getByText("feedback.coach.media")).toBeTruthy();
+    const players = Array.from(container.querySelectorAll("[data-player]")).map((node) =>
+      node.getAttribute("data-player"),
+    );
+    expect(players).toEqual(["audio", "video", "photo"]);
+  });
+
+  it.each([
+    ["audio", "m-audio", "AUDIO"],
+    ["video", "m-video", "VIDEO"],
+  ] as const)("redemande l'url du média %s par son identifiant", (kind, id, type) => {
+    mockDetail({ data: detail({ media: [media(id, type)] } as never) });
+    const { container } = renderRn(<CoachFeedbackDetailScreen />);
+
+    press(container.querySelector(`[data-player="${kind}"]`) as HTMLElement);
+
+    expect(freshUrl).toHaveBeenCalledWith(id);
+  });
+
+  it("ne pose aucune section sur un débrief sans média", () => {
+    const { queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("feedback.coach.media")).toBeNull();
+  });
+});
+
+/**
+ * La liste ENTIÈRE est invalidée après une réponse, pas seulement ce débrief : `repliedAt` y vit, et
+ * c'est lui qui dira « répondu » sur la ligne qu'on vient de traiter.
+ */
+describe("CoachFeedbackDetailScreen — après une réponse", () => {
+  it("rafraîchit toute la liste des débriefs", () => {
+    const { queryClient } = renderRn(<CoachFeedbackDetailScreen />);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const options = vi.mocked(useFeedbackReply).mock.calls.at(-1)?.[0];
+
+    void options?.onSent?.();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: coachFeedbackKeys.all });
   });
 });
