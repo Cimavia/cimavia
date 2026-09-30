@@ -1,13 +1,18 @@
 import {
+  AdjustmentLevel,
+  BLOCK_MAX_ROWS,
   BlockType,
+  cellPath,
   type ExerciseBlocks,
   MetricKey,
   MetricSource,
   MetricUnit,
   type SessionDto,
 } from "@cmv/shared";
-import { describe, expect, it } from "vitest";
+import { fireEvent, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
+import { describeReorder, dragOnto } from "../../../../test/reorder";
 import { useSessionDraft } from "../hook/useSessionDraft";
 import { SessionBlockGrid } from "./SessionBlockGrid";
 
@@ -63,8 +68,8 @@ const session = {
  * l'écriture de la cellule, qui pose son marqueur, et l'ajout de ligne, qui remonte les lignes en
  * entier. Seul le brouillon réel les fait se croiser comme à l'écran.
  */
-function Harness() {
-  const draft = useSessionDraft(session);
+function Harness({ initial = session }: Readonly<{ initial?: SessionDto }>) {
+  const draft = useSessionDraft(initial);
   const item = draft.items[0];
   const block = item?.blocks[0];
   if (item == null || block == null) return null;
@@ -97,5 +102,152 @@ describe("SessionBlockGrid — Entrée sur la dernière ligne", () => {
     // La ligne créée n'existe pas dans la référence : elle ne s'écarte d'aucun défaut, donc un
     // seul marqueur — celui de la cellule tapée.
     expect(getAllByRole("button", { name: REVERT })).toHaveLength(1);
+  });
+});
+
+/** La même séance, réduite à une colonne de répétitions sur les lignes données. */
+function sessionWithRows(values: number[]): SessionDto {
+  const [first] = blocks;
+  const repsOnly = [
+    {
+      ...(first as ExerciseBlocks[number]),
+      metrics: [(first as ExerciseBlocks[number]).metrics[0]],
+      rows: values.map((value, index) => ({ id: `r${index + 1}`, values: { reps: value } })),
+    },
+  ] as ExerciseBlocks;
+  const [exercise] = session.exercises;
+  return {
+    ...session,
+    exercises: [{ ...exercise, blocks: repsOnly, baseline: repsOnly, adjustments: [] }],
+  } as SessionDto;
+}
+
+function mountRows(values: number[] = [1, 2, 3]) {
+  const view = renderWithProviders(<Harness initial={sessionWithRows(values)} />);
+  const handle = (rank: number) =>
+    view.getByRole("button", { name: `library.builder.grid.moveRow ${rank}` });
+  const readValues = () =>
+    view.getAllByRole("textbox").map((cell) => (cell as HTMLInputElement).value);
+  return { ...view, handle, values: readValues };
+}
+
+describe("SessionBlockGrid — les lignes", () => {
+  describeReorder(["1", "2", "3"], () => {
+    const { user, handle, values } = mountRows();
+    const press = async (rank: number, key: string) => {
+      handle(rank).focus();
+      await user.keyboard(key);
+    };
+    return {
+      order: values,
+      moveUp: (rank) => press(rank, "{ArrowUp}"),
+      moveDown: (rank) => press(rank, "{ArrowDown}"),
+      drag: (from, to) => dragOnto(handle(from), handle(to)),
+    };
+  });
+
+  it("ajoute une ligne qui recopie la dernière", async () => {
+    const { user, getByRole, values } = mountRows();
+
+    await user.click(getByRole("button", { name: "library.builder.grid.addRow" }));
+
+    expect(values()).toEqual(["1", "2", "3", "3"]);
+  });
+
+  it("ferme l'ajout quand la grille atteint le maximum de lignes", () => {
+    const { getByText } = mountRows(Array.from({ length: BLOCK_MAX_ROWS }, () => 1));
+
+    // Par le texte et non par le rôle : sur 200 lignes, calculer le nom accessible de chaque
+    // élément coûte plus d'une seconde, et le test tombait sous le délai en couverture (#455).
+    expect(getByText("library.builder.grid.addRow").closest("button")).toBeDisabled();
+  });
+
+  it("retire la ligne désignée, et elle seule", async () => {
+    const { user, getAllByRole, values } = mountRows();
+
+    await user.click(
+      getAllByRole("button", { name: "library.builder.grid.removeRow" })[0] as HTMLElement,
+    );
+
+    expect(values()).toEqual(["2", "3"]);
+  });
+
+  // Entrée ailleurs que sur la dernière ligne valide, sans insérer de ligne au milieu.
+  it("valide sans ajouter de ligne quand la cellule n'est pas sur la dernière", async () => {
+    const { user, getAllByRole, values } = mountRows();
+
+    const cell = getAllByRole("textbox")[0] as HTMLElement;
+    await user.clear(cell);
+    await user.type(cell, "8{Enter}");
+
+    expect(values()).toEqual(["8", "2", "3"]);
+  });
+
+  it("estompe la ligne saisie et éclaire la ligne survolée pendant le glisser", () => {
+    const { handle } = mountRows();
+    const row = (rank: number) => handle(rank).closest("tr") as HTMLElement;
+
+    fireEvent.dragStart(handle(3));
+    fireEvent.dragOver(handle(1));
+
+    expect(row(3)).toHaveClass("opacity-40");
+    expect(row(1)).toHaveClass("bg-cmv-accent-soft");
+    expect(row(2)).not.toHaveClass("opacity-40");
+    expect(row(2)).not.toHaveClass("bg-cmv-accent-soft");
+  });
+});
+
+describe("SessionBlockGrid — colonnes verrouillées", () => {
+  // Au niveau séance, le coach ajuste des VALEURS, pas la forme : l'en-tête n'offre aucun menu.
+  it("rend l'en-tête de colonne en libellé, sans aucun bouton", () => {
+    const { getAllByRole } = mountRows();
+
+    const [header] = getAllByRole("rowgroup");
+    expect(within(header as HTMLElement).queryAllByRole("button")).toHaveLength(0);
+  });
+});
+
+describe("SessionBlockGrid — marqueur d'ajustement", () => {
+  it("revient au défaut : la valeur d'origine revient, le marqueur disparaît", async () => {
+    const { user, getAllByRole, getByRole, queryByRole } = renderWithProviders(<Harness />);
+
+    const cell = getAllByRole("textbox")[0] as HTMLElement;
+    await user.clear(cell);
+    await user.type(cell, "8");
+    await user.tab();
+    expect(getAllByRole("textbox")[0]).toHaveValue("8");
+
+    await user.click(getByRole("button", { name: REVERT }));
+
+    expect(getAllByRole("textbox")[0]).toHaveValue("5");
+    expect(queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
+  });
+
+  /**
+   * La FORME distingue les niveaux, pas seulement la couleur : rond pour la séance, carré pour la
+   * planification. Les deux coexistent sur une grille, et une couleur seule serait illisible pour
+   * un daltonien.
+   */
+  it.each([
+    [AdjustmentLevel.SESSION, "rounded-cmv-pill"],
+    [AdjustmentLevel.SCHEDULED, "rounded-cmv-sm"],
+  ])("donne au niveau %s sa propre forme", (level, shape) => {
+    const [block] = blocks;
+    const { getByRole } = renderWithProviders(
+      <SessionBlockGrid
+        block={block as ExerciseBlocks[number]}
+        baseline={blocks}
+        adjustments={[{ path: cellPath("block-1", "r1", "reps"), level }]}
+        customMetrics={[]}
+        onCellChange={vi.fn()}
+        onRowsChange={vi.fn()}
+        onRevertCell={vi.fn()}
+      />,
+    );
+
+    const marker = getByRole("button", { name: REVERT }).parentElement?.querySelector(
+      "[aria-hidden='true']",
+    );
+    expect(marker).toHaveClass(shape);
   });
 });

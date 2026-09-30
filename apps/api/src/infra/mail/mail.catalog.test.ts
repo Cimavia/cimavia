@@ -214,11 +214,15 @@ describe("mailCatalog — gabarit d'invitation", () => {
    * vient ce message. Le nom du coach est donc dans l'objet, et c'est ce qui distingue cet e-mail
    * d'un courrier non sollicité.
    */
-  it("nomme l'inviteur dans l'objet, et se replie sans mentir quand le nom manque", () => {
-    expect(mailCatalog(Locale.FR).invitation({ ...PARAMS, registerUrl: null }).subject).toContain(
-      "Marc Keller",
-    );
-    const anonymous = mailCatalog(Locale.FR).invitation({
+  it.each([
+    Locale.FR,
+    Locale.EN,
+  ])("%s : nomme l'inviteur dans l'objet, et se replie sans mentir quand le nom manque", (locale) => {
+    const named = mailCatalog(locale).invitation({ ...PARAMS, registerUrl: null });
+    expect(named.subject).toContain("Marc Keller");
+    expect(named.text).toContain("Marc Keller");
+
+    const anonymous = mailCatalog(locale).invitation({
       ...PARAMS,
       coachName: null,
       registerUrl: null,

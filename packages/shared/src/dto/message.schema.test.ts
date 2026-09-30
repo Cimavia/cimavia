@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FEEDBACK_EVENT_LABEL_KEY,
   FEEDBACK_EVENT_MESSAGE_TYPES,
+  isAllowedMessageAudioMime,
   isFeedbackEventMessage,
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
@@ -221,5 +222,16 @@ describe("avis de débrief", () => {
     const keys = FEEDBACK_EVENT_MESSAGE_TYPES.map((type) => FEEDBACK_EVENT_LABEL_KEY[type]);
     expect(keys).toEqual(["messages.feedback.created", "messages.feedback.updated"]);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("isAllowedMessageAudioMime", () => {
+  // La messagerie s'ouvre aussi au web : l'enregistrement du navigateur produit du webm.
+  it.each(["audio/m4a", "audio/mp4", "audio/aac", "audio/webm"])("accepte %s", (mime) => {
+    expect(isAllowedMessageAudioMime(mime)).toBe(true);
+  });
+
+  it.each(["audio/mpeg", "video/webm", ""])("refuse %s", (mime) => {
+    expect(isAllowedMessageAudioMime(mime)).toBe(false);
   });
 });

@@ -132,6 +132,44 @@ describe("PreviewBlock — le bandeau", () => {
   });
 });
 
+describe("PreviewBlock — le bandeau sans phrase", () => {
+  const withStructure = (structure: ExerciseBlock["structure"]) =>
+    exerciseBlockSchema.parse({ ...block([{ id: "r1", values: { col_reps: 6 } }]), structure });
+
+  // Un bloc libre n'a ni séries ni tours : le bandeau ne parle que des valeurs.
+  it("ne dit ni structure ni repos d'un bloc libre", () => {
+    const { container } = renderWithProviders(
+      <PreviewBlock block={withStructure({ type: BlockType.FREE })} customMetrics={[]} />,
+    );
+
+    expect(container.textContent).not.toContain("exercise.dosage");
+    expect(container.textContent).toContain(`6 ${REPS_UNIT}`);
+  });
+
+  // Un repos que le coach n'a pas posé ne s'invente pas (règle dure n°5).
+  it("tait le repos quand le coach n'en a pas posé", () => {
+    const { container } = renderWithProviders(
+      <PreviewBlock
+        block={withStructure({ type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null })}
+        customMetrics={[]}
+      />,
+    );
+
+    expect(container.textContent).toContain("exercise.dosage.series");
+    expect(container.textContent).not.toContain("exercise.dosage.restBetweenSets");
+  });
+
+  // Les lignes retirées APRÈS le repli : la colonne garde sa place dans le bandeau, sans valeur.
+  it("dit « — » pour une colonne repliée dont la grille n'a plus de ligne", () => {
+    const collapsedLoad = column("col_load", MetricKey.LOAD, MetricUnit.KILOGRAMS_ADDED, true);
+    const { container } = renderWithProviders(
+      <PreviewBlock block={block([], [reps, collapsedLoad])} customMetrics={[]} />,
+    );
+
+    expect(container.textContent).toContain(`${LOAD} —`);
+  });
+});
+
 describe("PreviewBlock — les états vides", () => {
   /** Une grille sans ligne annonce ce qui viendra, plutôt que de montrer un tableau vide. */
   it("annonce l'absence de ligne au lieu de rendre un tableau vide", () => {

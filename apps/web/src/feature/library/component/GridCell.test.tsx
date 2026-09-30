@@ -1,5 +1,6 @@
 import {
   type BlockMetric,
+  FRENCH_CLIMBING_SCALE,
   formatDecimal,
   MetricKey,
   MetricSource,
@@ -23,6 +24,7 @@ const column = (key: MetricKey, unit: MetricUnit): BlockMetric => ({
 const load = column(MetricKey.LOAD, MetricUnit.KILOGRAMS);
 const rest = column(MetricKey.REST_BETWEEN_SETS, MetricUnit.NONE);
 const label = column(MetricKey.LABEL, MetricUnit.NONE);
+const grade = column(MetricKey.GRADE, MetricUnit.NONE);
 
 /**
  * Un parent qui GARDE la valeur, comme la grille : sans lui, le champ ne se réécrirait jamais et
@@ -65,13 +67,19 @@ function setup(metric: BlockMetric, initial: MetricValue = null) {
       onCommitLine={onCommitLine}
     />,
   );
-  return { ...view, onChange, onCommitLine, input: view.getByRole("textbox") };
+  return { ...view, onChange, onCommitLine };
+}
+
+/** Les cellules à saisie libre : un champ texte. */
+function setupInput(metric: BlockMetric, initial: MetricValue = null) {
+  const view = setup(metric, initial);
+  return { ...view, input: view.getByRole("textbox") };
 }
 
 describe("GridCell — nombre", () => {
   /** Le cas de #298 : « 12,5 » devenait 125, la virgule effacée avant le « 5 ». */
   it.each(["12,5", "12.5"])("enregistre « %s » comme 12,5 à la sortie du champ", async (typed) => {
-    const { user, input, onChange } = setup(load);
+    const { user, input, onChange } = setupInput(load);
 
     await user.type(input, typed);
     await user.tab();
@@ -81,7 +89,7 @@ describe("GridCell — nombre", () => {
   });
 
   it("garde le séparateur à l'écran pendant la frappe", async () => {
-    const { user, input } = setup(load);
+    const { user, input } = setupInput(load);
 
     await user.type(input, "12,");
 
@@ -89,7 +97,7 @@ describe("GridCell — nombre", () => {
   });
 
   it("remet la valeur en forme, dans la langue du lecteur, à la sortie du champ", async () => {
-    const { user, input } = setup(load);
+    const { user, input } = setupInput(load);
 
     await user.type(input, "12.5");
     await user.tab();
@@ -100,7 +108,7 @@ describe("GridCell — nombre", () => {
   });
 
   it("vaut null, jamais zéro, quand on vide le champ", async () => {
-    const { user, input, onChange } = setup(load, 10);
+    const { user, input, onChange } = setupInput(load, 10);
 
     await user.clear(input);
     await user.tab();
@@ -109,7 +117,7 @@ describe("GridCell — nombre", () => {
   });
 
   it("refuse une saisie qui n'est pas un nombre, sans toucher à la valeur", async () => {
-    const { user, input, onChange } = setup(load, 10);
+    const { user, input, onChange } = setupInput(load, 10);
 
     await user.clear(input);
     await user.type(input, "abc");
@@ -121,7 +129,7 @@ describe("GridCell — nombre", () => {
   });
 
   it("n'écrit rien quand on retape la valeur déjà enregistrée", async () => {
-    const { user, input, onChange } = setup(load, 10);
+    const { user, input, onChange } = setupInput(load, 10);
 
     await user.clear(input);
     await user.type(input, "10");
@@ -131,7 +139,7 @@ describe("GridCell — nombre", () => {
   });
 
   it("transmet la valeur validée avec Entrée", async () => {
-    const { user, input, onCommitLine } = setup(load);
+    const { user, input, onCommitLine } = setupInput(load);
 
     await user.type(input, "12,5{Enter}");
 
@@ -140,7 +148,7 @@ describe("GridCell — nombre", () => {
 
   /** Une ligne créée sur une saisie refusée ferait disparaître l'erreur sous la ligne suivante. */
   it("ne valide pas la ligne sur une saisie refusée", async () => {
-    const { user, input, onCommitLine } = setup(load);
+    const { user, input, onCommitLine } = setupInput(load);
 
     await user.type(input, "abc{Enter}");
 
@@ -151,7 +159,7 @@ describe("GridCell — nombre", () => {
 
 describe("GridCell — durée", () => {
   it("transmet les secondes validées avec Entrée", async () => {
-    const { user, input, onChange, onCommitLine } = setup(rest);
+    const { user, input, onChange, onCommitLine } = setupInput(rest);
 
     await user.type(input, "2:30{Enter}");
 
@@ -160,7 +168,7 @@ describe("GridCell — durée", () => {
   });
 
   it("transmet la valeur en place quand Entrée arrive sans rien avoir tapé", async () => {
-    const { user, input, onChange, onCommitLine } = setup(rest, 90);
+    const { user, input, onChange, onCommitLine } = setupInput(rest, 90);
 
     await user.click(input);
     await user.keyboard("{Enter}");
@@ -172,10 +180,57 @@ describe("GridCell — durée", () => {
 
 describe("GridCell — texte", () => {
   it("transmet le texte tapé avec Entrée", async () => {
-    const { user, input, onCommitLine } = setup(label);
+    const { user, input, onCommitLine } = setupInput(label);
 
     await user.type(input, "Voie 1{Enter}");
 
     expect(onCommitLine).toHaveBeenCalledWith("Voie 1");
+  });
+});
+
+describe("GridCell — texte vidé", () => {
+  // Règle dure n°5 : un champ vidé vaut null, jamais une chaîne vide enregistrée comme valeur.
+  it("vaut null quand on vide le champ", async () => {
+    const { user, input, onChange } = setupInput(label, "Voie 1");
+
+    await user.clear(input);
+
+    expect(onChange).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe("GridCell — échelle", () => {
+  it("propose l'option vide puis les paliers de l'échelle, dans l'ordre", () => {
+    const { getByRole } = setup(grade);
+
+    const options = Array.from((getByRole("combobox") as HTMLSelectElement).options);
+
+    expect(options[0]).toHaveTextContent("library.builder.grid.emptyValue");
+    expect(options[0]).toHaveValue("");
+    expect(options.slice(1).map((option) => option.value)).toEqual([...FRENCH_CLIMBING_SCALE]);
+  });
+
+  it("montre le palier posé", () => {
+    const { getByRole } = setup(grade, "6b");
+
+    expect(getByRole("combobox")).toHaveValue("6b");
+  });
+
+  it("écrit le palier choisi", async () => {
+    const { user, getByRole, onChange } = setup(grade);
+
+    await user.selectOptions(getByRole("combobox"), "7a");
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("7a");
+  });
+
+  // L'option vide n'est pas un défaut : c'est le moyen de RETIRER une valeur posée.
+  it("retire le palier posé par l'option vide, en null", async () => {
+    const { user, getByRole, onChange } = setup(grade, "6b");
+
+    await user.selectOptions(getByRole("combobox"), "");
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(null);
+    expect(getByRole("combobox")).toHaveValue("");
   });
 });

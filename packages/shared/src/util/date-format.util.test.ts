@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatIsoDateTime, formatRelativeOrDateTime, relativeTimeFrom } from "./date-format.util";
+import {
+  formatIsoDate,
+  formatIsoDateTime,
+  formatRelativeOrDateTime,
+  relativeTimeFrom,
+} from "./date-format.util";
 
 const NOW = new Date("2026-08-05T12:00:00Z");
 const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
@@ -65,5 +70,21 @@ describe("formatRelativeOrDateTime", () => {
   it("suit la locale pour la forme absolue", () => {
     const old = ago(WEEK + DAY);
     expect(formatRelativeOrDateTime(old, NOW, "en", translate)).toBe(formatIsoDateTime(old, "en"));
+  });
+});
+
+describe("formatIsoDate", () => {
+  it("formate une date civile sans la faire reculer d'un jour", () => {
+    expect(formatIsoDate("2026-10-12", "fr")).toBe("12 oct. 2026");
+  });
+
+  /**
+   * Une date illisible LÈVE : afficher « Invalid Date », ou une date de repli, ferait passer une
+   * donnée corrompue pour une vraie. L'appelant n'a pas à la recevoir — elle a été validée avant.
+   */
+  it("lève sur une date civile illisible plutôt que d'afficher n'importe quoi", () => {
+    expect(() => formatIsoDate("2026-13-40", "fr")).toThrow(
+      "[date] date civile illisible : 2026-13-40",
+    );
   });
 });

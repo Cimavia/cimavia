@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
+// Depuis l'index et non le fichier : #355 découpera ce module en utils, et ces tests doivent
+// survivre au déménagement sans retouche.
 import {
   BLOCK_MAX_ROWS,
   BlockType,
   blockSegments,
   ColumnFillMode,
+  type CustomMetric,
   canCollapseMetric,
   columnValues,
+  customMetricIdsIn,
   DEFAULT_BLOCK_METRIC_KEYS,
   DEFAULT_BLOCK_STRUCTURE,
   DosageLayout,
+  defaultUnitOf,
   dosageLayout,
   EXERCISE_MAX_BLOCKS,
   type ExerciseBlock,
@@ -18,26 +23,29 @@ import {
   exerciseBlocksSchema,
   fillColumn,
   fittingColumnCount,
+  MetricKey,
   MetricSource,
+  MetricUnit,
+  MetricValueType,
   metricValueTypeOf,
   restPhrase,
+  rowForUnit,
+  SegmentKind,
   scaleFor,
   segmentsDuration,
   structurePhrase,
+  TimerKind,
+  TrackingState,
+  TrackingUnit,
   timerFor,
+  trackableExercises,
   trackingSummary,
   trackingUnits,
+  unitValues,
   validateBlockValues,
   withCellValue,
   withDuplicatedLastRow,
-} from "./exercise-block.schema";
-import {
-  type CustomMetric,
-  defaultUnitOf,
-  MetricKey,
-  MetricUnit,
-  MetricValueType,
-} from "./exercise-metric.schema";
+} from "../index";
 
 const reps = {
   id: "col_reps",
@@ -1017,5 +1025,310 @@ describe("withDuplicatedLastRow", () => {
       values: {},
     }));
     expect(withDuplicatedLastRow(full, "extra")).toBe(full);
+  });
+});
+
+// ── Couverture #506 : les comportements qu'aucun test ne fixait ─────────────────────────────
+
+const effortColumn = {
+  id: "col_effort",
+  source: MetricSource.CATALOG,
+  key: MetricKey.EFFORT_DURATION,
+  unit: MetricUnit.NONE,
+  label: null,
+  collapsed: false,
+} as const;
+
+const roundRestColumn = {
+  id: "col_round_rest",
+  source: MetricSource.CATALOG,
+  key: MetricKey.REST_BETWEEN_ROUNDS,
+  unit: MetricUnit.NONE,
+  label: null,
+  collapsed: false,
+} as const;
+
+const customColumn = (id: string, customMetricId: string) =>
+  ({ id, source: MetricSource.CUSTOM, customMetricId, label: null, collapsed: false }) as const;
+
+const freeBlock = (rows: ExerciseBlock["rows"], metrics: ExerciseBlock["metrics"]) =>
+  exerciseBlockSchema.parse({
+    id: "blk_free",
+    label: null,
+    structure: { type: BlockType.FREE },
+    metrics,
+    rows,
+  });
+
+describe("customMetricIdsIn", () => {
+  /**
+   * Ce qui part dans le snapshot de diffusion : sans ces définitions, l'athlète ne lirait qu'un
+   * identifiant. Chacune UNE fois, même citée par plusieurs blocs, dans l'ordre d'apparition.
+   */
+  it("liste les métriques maison citées, sans doublon, dans l'ordre", () => {
+    const blocks = [
+      seriesBlock([], [reps, customColumn("c1", "cm_b"), customColumn("c2", "cm_a")]),
+      { ...seriesBlock([], [customColumn("c3", "cm_b")]), id: "blk_2" },
+    ];
+
+    expect(customMetricIdsIn(blocks)).toEqual(["cm_b", "cm_a"]);
+  });
+
+  it("ne rend rien quand seul le catalogue est cité", () => {
+    expect(customMetricIdsIn([seriesBlock([])])).toEqual([]);
+    expect(customMetricIdsIn([])).toEqual([]);
+  });
+});
+
+describe("rowForUnit", () => {
+  const block = seriesBlock([
+    { id: "r1", values: { col_reps: 6 } },
+    { id: "r2", values: { col_reps: 5 } },
+  ]);
+
+  it("rend la ligne de l'unité quand elle existe", () => {
+    expect(rowForUnit(block, 1)?.id).toBe("r2");
+  });
+
+  // Quatre séries, deux lignes : la troisième se replie sur la première plutôt qu'une case vide.
+  it("se replie sur la première ligne au-delà de la grille", () => {
+    expect(rowForUnit(block, 3)?.id).toBe("r1");
+  });
+
+  it("rend null sur un bloc sans ligne", () => {
+    expect(rowForUnit(seriesBlock([]), 0)).toBeNull();
+  });
+});
+
+describe("unitValues", () => {
+  it("rend les valeurs RENSEIGNÉES de la ligne, dans l'ordre des colonnes", () => {
+    const block = seriesBlock([{ id: "r1", values: { col_load: 12, col_reps: 6 } }]);
+
+    expect(unitValues(block, 0)).toEqual([
+      { metric: reps, value: 6 },
+      { metric: load, value: 12 },
+    ]);
+  });
+
+  // « — kg » ferait passer une charge manquante pour une charge nulle.
+  it("saute les colonnes vides, qu'elles soient absentes ou nulles", () => {
+    const block = seriesBlock([{ id: "r1", values: { col_reps: 6, col_load: null } }]);
+
+    expect(unitValues(block, 0)).toEqual([{ metric: reps, value: 6 }]);
+  });
+
+  it("lit la ligne de repli au-delà de la grille", () => {
+    const block = seriesBlock([{ id: "r1", values: { col_reps: 8 } }]);
+
+    expect(unitValues(block, 3)).toEqual([{ metric: reps, value: 8 }]);
+  });
+
+  it("n'a rien à rappeler sur un bloc sans ligne", () => {
+    expect(unitValues(seriesBlock([]), 0)).toEqual([]);
+  });
+});
+
+describe("trackableExercises", () => {
+  const free = (id: string, rows: ExerciseBlock["rows"]) => ({
+    ...freeBlock(rows, [reps]),
+    id,
+  });
+
+  it("garde les exercices qui ont au moins une unité à décompter, dans l'ordre", () => {
+    const exercises = [
+      { name: "étirements", blocks: [free("b1", [])] },
+      { name: "tractions", blocks: [seriesBlock([])] },
+      { name: "mixte", blocks: [free("b2", []), free("b3", [{ id: "r1", values: {} }])] },
+      { name: "vide", blocks: [] },
+    ];
+
+    expect(trackableExercises(exercises).map((exercise) => exercise.name)).toEqual([
+      "tractions",
+      "mixte",
+    ]);
+  });
+
+  // L'AMRAP se décompte en tours, pas en cases : il reste un exercice à suivre.
+  it("compte un AMRAP comme suivable", () => {
+    const amrap = {
+      ...seriesBlock([]),
+      structure: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
+    } as ExerciseBlock;
+
+    expect(trackableExercises([{ blocks: [amrap] }])).toHaveLength(1);
+  });
+});
+
+describe("structurePhrase / restPhrase — circuit", () => {
+  it("annonce le nombre de tours et le repos entre tours", () => {
+    const structure = {
+      type: BlockType.CIRCUIT,
+      roundCount: 5,
+      restBetweenRoundsSeconds: 180,
+    } as const;
+
+    expect(structurePhrase(structure)).toEqual({
+      key: "exercise.dosage.circuit",
+      params: { count: 5 },
+    });
+    expect(restPhrase(structure)).toEqual({
+      key: "exercise.dosage.restBetweenRounds",
+      params: { rest: "3'" },
+    });
+  });
+
+  it("n'invente pas de repos entre tours", () => {
+    expect(
+      restPhrase({ type: BlockType.CIRCUIT, roundCount: 5, restBetweenRoundsSeconds: null }),
+    ).toBeNull();
+  });
+
+  // Le repos d'un EMOM ou d'un AMRAP est dans le format lui-même : aucune phrase à part.
+  it("ne pose aucune phrase de repos sur un EMOM ni un AMRAP", () => {
+    expect(
+      restPhrase({ type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 }),
+    ).toBeNull();
+    expect(
+      restPhrase({ type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null }),
+    ).toBeNull();
+  });
+});
+
+describe("trackingSummary — cas limites", () => {
+  it("rend l'unité du premier bloc décomptable", () => {
+    const blocks = [freeBlock([], [reps]), seriesBlock([])];
+
+    expect(trackingSummary(blocks, null)).toEqual({
+      state: TrackingState.UNTRACKED,
+      done: 0,
+      total: 4,
+      unit: TrackingUnit.SET,
+    });
+  });
+
+  it("n'a pas d'unité quand rien ne se décompte", () => {
+    expect(trackingSummary([freeBlock([], [reps])], null)).toMatchObject({ total: 0, unit: null });
+  });
+
+  /**
+   * Le bandeau a changé APRÈS que l'athlète a coché : des cases subsistent sur un bloc devenu
+   * AMRAP. Elles ne comptent pour rien — pas de « 3 sur 0 ».
+   */
+  it("ignore des cases cochées sur un bloc devenu AMRAP", () => {
+    const amrap = {
+      ...seriesBlock([]),
+      structure: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
+    } as ExerciseBlock;
+
+    expect(trackingSummary([amrap], { blk_1: { checked: [0, 1, 2] } })).toMatchObject({
+      done: 0,
+      total: 0,
+    });
+  });
+});
+
+describe("timerFor — durée d'effort absente ou illisible", () => {
+  const series = (rows: ExerciseBlock["rows"]) =>
+    seriesBlock(rows, [effortColumn]) satisfies ExerciseBlock;
+
+  it("se contente du repos quand le bloc n'a encore aucune ligne", () => {
+    expect(timerFor(series([]))).toEqual({ kind: TimerKind.REST, restSeconds: 150 });
+  });
+
+  it("se contente du repos quand la durée d'effort n'est pas renseignée", () => {
+    expect(timerFor(series([{ id: "r1", values: {} }]))).toEqual({
+      kind: TimerKind.REST,
+      restSeconds: 150,
+    });
+  });
+
+  // Une durée ne se lit que comme un nombre : un texte dans la colonne n'est pas une durée.
+  it("ignore une durée d'effort qui n'est pas un nombre", () => {
+    expect(timerFor(series([{ id: "r1", values: { col_effort: "30" } }]))).toEqual({
+      kind: TimerKind.REST,
+      restSeconds: 150,
+    });
+  });
+});
+
+describe("blockSegments — bloc LIBRE et grilles incomplètes", () => {
+  const segments = (block: ExerciseBlock) =>
+    blockSegments(block).map(({ kind, seconds, unitIndex, rowId }) => ({
+      kind,
+      seconds,
+      unitIndex,
+      rowId,
+    }));
+
+  /**
+   * LIBRE : chaque ligne est une étape jouée UNE fois. Le repos vient de la ligne — il n'y a pas
+   * de bandeau pour en donner un —, sous l'un OU l'autre des deux libellés, et jamais après la
+   * dernière étape.
+   */
+  it("joue chaque étape une fois, avec le repos porté par la ligne", () => {
+    const block = freeBlock(
+      [
+        { id: "r1", values: { col_effort: 40, col_round_rest: 90 } },
+        { id: "r2", values: { col_effort: 20 } },
+        { id: "r3", values: { col_effort: 30, col_round_rest: 60 } },
+      ],
+      [effortColumn, roundRestColumn],
+    );
+
+    expect(segments(block)).toEqual([
+      { kind: SegmentKind.EFFORT, seconds: 40, unitIndex: 0, rowId: "r1" },
+      { kind: SegmentKind.REST, seconds: 90, unitIndex: 0, rowId: "r1" },
+      { kind: SegmentKind.EFFORT, seconds: 20, unitIndex: 1, rowId: "r2" },
+      { kind: SegmentKind.EFFORT, seconds: 30, unitIndex: 2, rowId: "r3" },
+    ]);
+  });
+
+  it("attend un geste sur une étape sans durée d'effort", () => {
+    const block = freeBlock([{ id: "r1", values: { col_reps: 8 } }], [reps]);
+
+    expect(segments(block)).toEqual([
+      { kind: SegmentKind.MANUAL, seconds: 0, unitIndex: 0, rowId: "r1" },
+    ]);
+  });
+
+  it("ne déroule rien d'un bloc libre sans ligne", () => {
+    expect(blockSegments(freeBlock([], [reps]))).toEqual([]);
+  });
+
+  /**
+   * Des séries sans grille (le coach n'a posé que le bandeau) restent déroulables : chaque série
+   * attend un geste, le repos du bandeau les sépare. Aucune ligne à citer.
+   */
+  it("déroule des séries sans ligne en gestes séparés par le repos du bandeau", () => {
+    const block = seriesBlock([], [effortColumn]);
+
+    expect(segments(block)).toEqual([
+      { kind: SegmentKind.MANUAL, seconds: 0, unitIndex: 0, rowId: null },
+      { kind: SegmentKind.REST, seconds: 150, unitIndex: 0, rowId: null },
+      { kind: SegmentKind.MANUAL, seconds: 0, unitIndex: 1, rowId: null },
+      { kind: SegmentKind.REST, seconds: 150, unitIndex: 1, rowId: null },
+      { kind: SegmentKind.MANUAL, seconds: 0, unitIndex: 2, rowId: null },
+      { kind: SegmentKind.REST, seconds: 150, unitIndex: 2, rowId: null },
+      { kind: SegmentKind.MANUAL, seconds: 0, unitIndex: 3, rowId: null },
+    ]);
+  });
+
+  it("n'associe aucune ligne aux tops d'un EMOM sans grille", () => {
+    const emom = {
+      ...seriesBlock([]),
+      structure: { type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 120 },
+    } as ExerciseBlock;
+
+    expect(segments(emom)).toEqual([
+      { kind: SegmentKind.INTERVAL, seconds: 60, unitIndex: 0, rowId: null },
+      { kind: SegmentKind.INTERVAL, seconds: 60, unitIndex: 1, rowId: null },
+    ]);
+  });
+});
+
+describe("segmentsDuration — rien à dérouler", () => {
+  // `null` et non 0 : « aucun déroulé » n'est pas « un déroulé de zéro seconde » (règle n°5).
+  it("rend null quand il n'y a aucun segment", () => {
+    expect(segmentsDuration([])).toBeNull();
   });
 });

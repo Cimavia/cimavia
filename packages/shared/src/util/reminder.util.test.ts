@@ -8,6 +8,7 @@ import {
   REMINDER_SNOOZE_OPTIONS,
   REMINDER_TARGET_ENTITY_TYPE,
   reminderBadgeState,
+  reminderLabel,
   reminderToNotificationDto,
   snoozedDueAt,
   toReminderFeedId,
@@ -255,5 +256,27 @@ describe("reminderToNotificationDto", () => {
   it("propage le « vu » du rappel", () => {
     const entry = reminderToNotificationDto({ ...DUE, readAt: "2026-08-07T10:00:00.000Z" });
     expect(entry.readAt).toBe("2026-08-07T10:00:00.000Z");
+  });
+});
+
+describe("reminderLabel", () => {
+  // La note du coach dit ce qu'il a écrit ; elle passe devant le motif, qui n'est qu'une catégorie.
+  it("préfère la note libre au motif", () => {
+    expect(reminderLabel({ note: "Appeler Léa", reason: ReminderReason.PLAN_ENDING })).toEqual({
+      kind: "text",
+      value: "Appeler Léa",
+    });
+  });
+
+  it("à défaut de note, rend la clé i18n du motif", () => {
+    expect(reminderLabel({ note: null, reason: ReminderReason.INVOICE_OVERDUE })).toEqual({
+      kind: "key",
+      value: "reminder.reason.invoiceOverdue",
+    });
+  });
+
+  // Ni l'un ni l'autre : `null` et non une chaîne vide — le client affiche « — » (règle n°5).
+  it("rend null quand il n'y a rien à dire", () => {
+    expect(reminderLabel({ note: null, reason: null })).toBeNull();
   });
 });
