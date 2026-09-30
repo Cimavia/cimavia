@@ -1,7 +1,7 @@
 import { InvoiceStatus } from "../dto/invoice.schema";
 import { daysBetweenIsoDates } from "./date.util";
 import { InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
-import { HISTORY_PAGE_SIZE, type Page, pageOf } from "./pagination.util";
+import type { Page } from "./pagination.util";
 import { comparableText } from "./search.util";
 
 /**
@@ -338,9 +338,11 @@ function compareWithinSituation(
  * découpe le sien exactement pareil, à la même taille, et deux copies auraient fini par diverger
  * sur une borne. Les noms d'ici restent, eux, pour leurs appelants — ils disent CE QU'ON pagine.
  */
-export const INVOICE_HISTORY_PAGE_SIZE = HISTORY_PAGE_SIZE;
+export {
+  HISTORY_PAGE_SIZE as INVOICE_HISTORY_PAGE_SIZE,
+  pageOf as pageOfInvoices,
+} from "./pagination.util";
 export type InvoicePage<T> = Page<T>;
-export const pageOfInvoices = pageOf;
 
 // Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
 function matches(row: InvoiceAthleteRow<InvoiceRowSource>, needle: string): boolean {

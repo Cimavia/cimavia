@@ -111,7 +111,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
   const doFetch: ApiFetch = resolved;
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const headers = { ...(config.headers?.() ?? {}) };
+    const headers = { ...config.headers?.() };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
     }
