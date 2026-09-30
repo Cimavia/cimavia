@@ -3,12 +3,19 @@ import {
   type PlanDto,
   PlanStatus,
   type PlanSummaryDto,
+  type PlanWeekDto,
+  PlanWeekType,
+  type ScheduledSessionDto,
+  ScheduledSessionStatus,
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
-import { describe, expect, it, vi } from "vitest";
+import { waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
+import { getScheduledSession } from "@/feature/plan/api";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
+import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { PlanBuilderScreen } from "@/feature/plan/screen/PlanBuilderScreen";
 import { renderInRoute } from "../../../../test/render";
@@ -57,6 +64,17 @@ vi.mock("@/shared/component", async (importOriginal) => ({
   ),
 }));
 vi.mock("@/feature/reminder", () => ({ ScheduleReminderButton: () => null }));
+// Le détail d'une séance se charge à l'ouverture du panneau : c'est l'écran qui le demande.
+vi.mock("@/feature/plan/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/plan/api")>()),
+  getScheduledSession: vi.fn(),
+}));
+// Le panneau pioche dans la bibliothèque : ses deux listes sont des entrées, vides ici.
+vi.mock("@/feature/library/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/library/api")>()),
+  listSessions: vi.fn(async () => []),
+  listExercises: vi.fn(async () => []),
+}));
 
 const plan = (over: Partial<PlanDto>): PlanDto =>
   ({
@@ -79,6 +97,10 @@ const plan = (over: Partial<PlanDto>): PlanDto =>
   }) as PlanDto;
 
 const saveHeader = vi.fn();
+const addWeek = vi.fn();
+const refetch = vi.fn();
+
+type PlanQuery = { data?: PlanDto | undefined; isPending?: boolean; isError?: boolean };
 
 const mount = async (
   over: Partial<PlanDto>,
@@ -86,6 +108,7 @@ const mount = async (
   // `null` = la liste n'a pas encore répondu, ce qui est un cas à part (#172). Pas `undefined` :
   // le passer explicitement déclencherait la valeur par défaut du paramètre.
   coachPlans: PlanSummaryDto[] | null = [],
+  query: PlanQuery = {},
 ) => {
   vi.mocked(usePlans).mockReturnValue({
     data: coachPlans ?? undefined,
@@ -94,10 +117,11 @@ const mount = async (
     data: plan(over),
     isPending: false,
     isError: false,
-    refetch: vi.fn(),
+    refetch,
+    ...query,
   } as unknown as ReturnType<typeof usePlan>);
   vi.mocked(usePlanMutations).mockReturnValue({
-    addWeek: { mutate: vi.fn() },
+    addWeek: { mutate: addWeek },
     saveHeader: { mutate: saveHeader, isPending: false },
     isBusy: false,
   } as unknown as ReturnType<typeof usePlanMutations>);
@@ -245,5 +269,106 @@ describe("PlanBuilderScreen — ce que l'athlète voit du cycle", () => {
     const { getByText } = await mount(ongoing, null, [other]);
 
     expect(getByText("plan.builder.audience.VISIBLE_WITH")).toBeTruthy();
+  });
+});
+
+describe("PlanBuilderScreen — le cycle ne se lit pas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("attend le cycle avant de rien affirmer", async () => {
+    const { getByText } = await mount({}, null, [], { isPending: true, data: undefined });
+
+    expect(getByText("common.loading")).toBeTruthy();
+  });
+
+  // Une panne n'est pas une disparition : rediriger vers la liste laisserait croire le cycle perdu.
+  it("dit la panne et relit le cycle quand on réessaie", async () => {
+    const { getByRole, user } = await mount({}, null, [], { isError: true, data: undefined });
+
+    await user.click(getByRole("button", { name: "common.retry" }));
+
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it("ramène à la liste un cycle qui n'existe pas, ou plus", async () => {
+    const { router } = await mount({}, null, [], { data: undefined });
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+  });
+});
+
+describe("PlanBuilderScreen — les semaines", () => {
+  const MONDAY = "2026-10-19";
+
+  const summary: ScheduledSessionDto = {
+    id: "ss_1",
+    planId: "pln_1",
+    planWeekId: "pw_1",
+    sourceSessionId: null,
+    title: "Force max",
+    notes: null,
+    scheduledDate: MONDAY,
+    position: 0,
+    status: ScheduledSessionStatus.PLANNED,
+    exerciseCount: 0,
+    exercises: [],
+  };
+
+  const week: PlanWeekDto = {
+    id: "pw_1",
+    weekNumber: 1,
+    type: PlanWeekType.TRAINING,
+    note: null,
+    startDate: MONDAY,
+    endDate: shiftIsoDate(MONDAY, 6) ?? MONDAY,
+    sessions: [summary],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearPlanClipboard();
+    vi.mocked(getScheduledSession).mockResolvedValue(summary);
+  });
+
+  it("ouvre une séance vierge sur le jour choisi, et la referme", async () => {
+    const { getAllByRole, getByRole, queryByText, user } = await mount({ weeks: [week] });
+
+    await user.click(getAllByRole("button", { name: "plan.week.addSession" })[0] as HTMLElement);
+    expect(queryByText("plan.session.createTitle")).toBeTruthy();
+
+    await user.click(getByRole("button", { name: "common.cancel" }));
+    expect(queryByText("plan.session.createTitle")).toBeNull();
+  });
+
+  // Le résumé de la semaine ne porte pas la composition : le panneau attend le détail chargé.
+  it("charge le détail de la séance ouverte avant de montrer le panneau", async () => {
+    const { findByText, getByRole, user } = await mount({ weeks: [week] });
+
+    await user.click(getByRole("button", { name: /Force max/ }));
+
+    expect(await findByText("plan.session.editTitle")).toBeTruthy();
+    expect(getScheduledSession).toHaveBeenCalledWith("ss_1");
+  });
+
+  it("ajoute une semaine d'entraînement en fin de cycle", async () => {
+    const { getByRole, user } = await mount({ weeks: [week] });
+
+    await user.click(getByRole("button", { name: "plan.builder.addWeek" }));
+
+    expect(addWeek).toHaveBeenCalledWith({ type: PlanWeekType.TRAINING });
+  });
+
+  // Sans ce bandeau, des « Coller ici » apparaîtraient sans que rien ne dise ce qui est armé.
+  it("annonce la semaine copiée, et la désarme", async () => {
+    const { getByRole, queryByText, user } = await mount({ weeks: [week] });
+    expect(queryByText("plan.clipboard.banner")).toBeNull();
+
+    await user.click(getByRole("button", { name: "plan.week.copy" }));
+    expect(queryByText("plan.clipboard.banner")).toBeTruthy();
+
+    await user.click(getByRole("button", { name: "plan.clipboard.clear" }));
+    expect(queryByText("plan.clipboard.banner")).toBeNull();
   });
 });

@@ -99,6 +99,19 @@ describe("PlanBuilderActions — diffuser", () => {
     expect(remove.mock.calls[0]?.[0]).toBe("pln_1");
   });
 
+  // Le cycle n'existe plus : rester sur son constructeur montrerait une page sans objet.
+  it("ramène à la liste des planifications une fois le cycle supprimé", async () => {
+    remove.mockImplementation((_id: string, options: { onSuccess: () => void }) =>
+      options.onSuccess(),
+    );
+    const { getByText, router, user } = await mount({});
+
+    await user.click(getByText("plan.builder.delete"));
+    await user.click(getByText("common.confirmDelete"));
+
+    expect(router.state.location.pathname).toBe("/plans");
+  });
+
   // La raison était posée, mais muette : le bouton la masquait sous son propre `title` (#313).
   it("ferme la suppression d'un cycle diffusé, et dit pourquoi", async () => {
     const { getByText, getByTitle } = await mount({ isPublished: true });

@@ -117,6 +117,14 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
     expect((getByText("plan.header.submit") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("dit que l'enregistrement part, et ne se relance pas pendant ce temps", () => {
+    const { getByRole } = renderWithProviders(
+      <PlanHeaderForm plan={plan()} hasInvoiceDocument={false} isSaving onSave={onSave} />,
+    );
+
+    expect(getByRole("button", { name: "plan.header.submitting" })).toBeDisabled();
+  });
+
   // Le titre reste la seule chose qu'un cycle ne peut pas découvrir plus tard.
   it("ferme l'enregistrement quand le titre est vidé", async () => {
     const { container, getByText, user } = mount();
@@ -142,6 +150,19 @@ describe("PlanHeaderForm — le début du cycle", () => {
     await user.tab();
 
     expect(start.value).toBe(NEXT_MONDAY);
+  });
+
+  // Rien n'a bougé tout seul : rien à expliquer.
+  it("laisse un lundi tel quel, sans rien annoncer", async () => {
+    const { container, queryByText, user } = mount();
+    const start = container.querySelector("#startDate") as HTMLInputElement;
+
+    await user.clear(start);
+    await user.type(start, NEXT_MONDAY);
+    await user.tab();
+
+    expect(start.value).toBe(NEXT_MONDAY);
+    expect(queryByText("plan.header.startDateSnapped")).toBeNull();
   });
 
   /**

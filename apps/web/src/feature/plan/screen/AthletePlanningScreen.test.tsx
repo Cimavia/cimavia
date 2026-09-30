@@ -111,12 +111,14 @@ const FALAISE = plan("p_falaise", "Prépa falaise", [
 
 type QueryState = { data?: PlanDto[] | undefined; isPending?: boolean; isError?: boolean };
 
+const refetch = vi.fn();
+
 const mount = async (state: QueryState, search: Record<string, string> = {}) => {
   vi.mocked(useMyPlans).mockReturnValue({
     data: state.data,
     isPending: state.isPending ?? false,
     isError: state.isError ?? false,
-    refetch: vi.fn(),
+    refetch,
   } as unknown as ReturnType<typeof useMyPlans>);
 
   return renderInRoute(<AthletePlanningScreen />, {
@@ -140,9 +142,13 @@ describe("AthletePlanningScreen", () => {
   });
 
   // Une panne réseau n'est pas « aucun cycle » : la seconde inviterait à attendre son coach.
-  it("distingue la panne de l'absence de cycle", async () => {
-    const { getByText } = await mount({ isError: true, data: undefined });
+  it("distingue la panne de l'absence de cycle, et offre de réessayer", async () => {
+    const { getByText, getByRole, user } = await mount({ isError: true, data: undefined });
     expect(getByText("common.errorTitle")).toBeInTheDocument();
+
+    await user.click(getByRole("button", { name: "common.retry" }));
+
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("dit à l'athlète sans coach que c'est un coach qui lui manque, pas un cycle", async () => {
@@ -215,6 +221,29 @@ describe("AthletePlanningScreen", () => {
   it("laisse avancer tant qu'il reste une semaine devant", async () => {
     const { getByText } = await mount({ data: [BLOC] });
     expect(getByText("plan.athlete.week.next")).toBeEnabled();
+  });
+
+  // Remplacer, pas empiler : « retour » du navigateur quitte le planning, pas la semaine d'avant.
+  it("recule d'une semaine en réécrivant l'URL", async () => {
+    const { getByText, router, user } = await mount(
+      { data: [BLOC] },
+      { from: nextMonday(1) as string },
+    );
+
+    await user.click(getByText("plan.athlete.week.previous"));
+
+    expect(router.state.location.search).toEqual({ from: THIS_MONDAY });
+    expect(getByText("Force max")).toBeInTheDocument();
+  });
+
+  // La couleur marque l'EXCEPTION du cycle, pas sa règle (arbitrage #37).
+  it("colore la semaine de décharge", async () => {
+    const deload = plan("p_deload", "Cycle Bloc", [
+      { ...week(1, THIS_MONDAY, []), type: PlanWeekType.DELOAD },
+    ]);
+    const { getByText } = await mount({ data: [deload] });
+
+    expect(getByText("plan.athlete.cycle.week")).toHaveClass("bg-cmv-info-soft");
   });
 
   /**

@@ -100,6 +100,22 @@ describe("PlanAthleteTable", () => {
     expect(getAllByText("—")).toHaveLength(2);
   });
 
+  // Un cycle à venir se date ; un cycle qui court dit sa semaine. Aujourd'hui est le mercredi 9.
+  it("date le cycle à venir plutôt que d'annoncer une semaine qu'il n'a pas", async () => {
+    const { getByText } = await mount([plan({ id: "pln_next", startDate: "2026-09-21" })]);
+
+    expect(getByText("plan.state.UPCOMING")).toBeTruthy();
+    expect(getByText("plan.deadline.STARTS_ON")).toBeTruthy();
+  });
+
+  it("dit d'un cycle qui s'achève dimanche qu'il finit cette semaine", async () => {
+    const { getByText } = await mount([
+      plan({ id: "pln_end", startDate: "2026-08-17", weekCount: 4 }),
+    ]);
+
+    expect(getByText("plan.deadline.ENDS_THIS_WEEK")).toBeTruthy();
+  });
+
   it("déplie l'athlète demandé, et lui seul", async () => {
     const { getByText, queryByText } = await mount([LEA_ONGOING, LEA_DRAFT], "ath_lea");
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
 import { renderWithProviders } from "../../../../test/render";
 
@@ -6,14 +6,16 @@ import { renderWithProviders } from "../../../../test/render";
  * La liste d'athlètes a son propre transport ; ce qui s'éprouve ici est ce que le sélecteur
  * DÉCIDE — ce qu'il transmet, et quand il se ferme.
  */
-vi.mock("@/feature/athlete/hook/useAthletes", () => ({
-  useAthletes: () => ({
-    data: [
-      { athleteId: "ath_lea", athleteName: "Léa Moreau", isSelf: false },
-      { athleteId: "ath_noah", athleteName: "Noah Fontaine", isSelf: false },
-    ],
-  }),
-}));
+const ATHLETES = [
+  { athleteId: "ath_lea", athleteName: "Léa Moreau", isSelf: false },
+  { athleteId: "ath_noah", athleteName: "Noah Fontaine", isSelf: false },
+];
+const athletes = vi.hoisted(() => ({ data: undefined as unknown }));
+vi.mock("@/feature/athlete/hook/useAthletes", () => ({ useAthletes: () => athletes }));
+
+beforeEach(() => {
+  athletes.data = ATHLETES;
+});
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach_1" } } }) },
 }));
@@ -31,6 +33,14 @@ describe("PlanAthletePicker", () => {
     const { getByRole } = renderWithProviders(<PlanAthletePicker {...props} />);
 
     expect((getByRole("combobox") as HTMLSelectElement).value).toBe("");
+  });
+
+  // Tant que la liste n'a pas répondu, seul le choix neutre s'offre — pas une liste inventée.
+  it("n'offre que le choix neutre tant que la liste des athlètes charge", () => {
+    athletes.data = undefined;
+    const { getAllByRole } = renderWithProviders(<PlanAthletePicker {...props} />);
+
+    expect(getAllByRole("option").map((option) => option.getAttribute("value"))).toEqual([""]);
   });
 
   it("transmet l'athlète choisi", async () => {

@@ -93,12 +93,14 @@ const FALAISE = plan("p_falaise", "Prépa falaise", [session("ss_voie", "Voie lo
 
 type QueryState = { data?: PlanDto[] | undefined; isPending?: boolean; isError?: boolean };
 
+const refetch = vi.fn();
+
 const mount = async (state: QueryState, segment = "upcoming") => {
   vi.mocked(useMyPlans).mockReturnValue({
     data: state.data,
     isPending: state.isPending ?? false,
     isError: state.isError ?? false,
-    refetch: vi.fn(),
+    refetch,
   } as unknown as ReturnType<typeof useMyPlans>);
 
   return renderInRoute(<AthleteSessionsScreen />, {
@@ -117,9 +119,13 @@ describe("AthleteSessionsScreen", () => {
   });
 
   // Une panne réseau n'est pas « aucune séance » : la seconde laisserait croire le cycle vide.
-  it("distingue la panne de l'absence de séance", async () => {
-    const { getByText } = await mount({ isError: true, data: undefined });
+  it("distingue la panne de l'absence de séance, et offre de réessayer", async () => {
+    const { getByText, getByRole, user } = await mount({ isError: true, data: undefined });
     expect(getByText("common.errorTitle")).toBeInTheDocument();
+
+    await user.click(getByRole("button", { name: "common.retry" }));
+
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("annonce l'absence de séance quand la période demandée est vide", async () => {
@@ -164,5 +170,47 @@ describe("AthleteSessionsScreen", () => {
   it("ouvre la séance sans semaine de planning à rendre", async () => {
     const { getByText } = await mount({ data: [BLOC] }, "upcoming");
     expect(getByText("Force max").closest("a")).toHaveAttribute("href", "/sessions/ss_demain");
+  });
+
+  // Le segment vit dans l'URL : un lien partagé rouvre le même, et « retour » quitte la liste.
+  it("bascule de segment en réécrivant l'URL", async () => {
+    const { getByRole, getByText, router, user } = await mount({ data: [BLOC] }, "upcoming");
+
+    await user.click(getByRole("button", { name: "plan.athlete.sessions.past" }));
+
+    expect(router.state.location.search).toEqual({ segment: "past" });
+    expect(getByText("Mobilité")).toBeInTheDocument();
+  });
+
+  // « Passées » se lit de la plus récente à la plus ancienne : la dernière séance faite en tête.
+  it("range les séances passées de la plus récente à la plus ancienne", async () => {
+    const { getAllByText } = await mount(
+      {
+        data: [
+          plan("p_1", "Cycle Bloc", [
+            session("ss_old", "Ancienne", shift(-5)),
+            session("ss_recent", "Récente", shift(-1)),
+          ]),
+        ],
+      },
+      "past",
+    );
+
+    const titles = getAllByText(/Ancienne|Récente/).map((node) => node.textContent);
+    expect(titles).toEqual(["Récente", "Ancienne"]);
+  });
+
+  // Deux cycles peuvent poser chacun une séance le même jour : un seul intitulé, puis le rang.
+  it("groupe les séances d'un même jour sous un intitulé, dans l'ordre de leur rang", async () => {
+    const day = shift(1);
+    const second = { ...session("ss_b", "Deuxième", day), position: 1 };
+    const first = { ...session("ss_a", "Première", day), position: 0 };
+    const { getAllByRole, getAllByText } = await mount({
+      data: [plan("p_1", "Cycle Bloc", [second]), plan("p_2", "Prépa falaise", [first])],
+    });
+
+    expect(getAllByRole("heading", { level: 2 })).toHaveLength(1);
+    const titles = getAllByText(/Première|Deuxième/).map((node) => node.textContent);
+    expect(titles).toEqual(["Première", "Deuxième"]);
   });
 });

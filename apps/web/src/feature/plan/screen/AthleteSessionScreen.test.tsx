@@ -1,5 +1,5 @@
 import type { ScheduledSessionDto } from "@cmv/shared";
-import { ScheduledSessionStatus } from "@cmv/shared";
+import { BlockType, ScheduledSessionStatus } from "@cmv/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteSessionScreen } from "./AthleteSessionScreen";
@@ -44,6 +44,33 @@ const session = (): ScheduledSessionDto =>
  */
 const emptySession = (): ScheduledSessionDto =>
   ({ ...session(), title: "Footing, repos actif", exercises: [] }) as ScheduledSessionDto;
+
+/** Une séance qui se SUIT : trois séries à cocher, et un AMRAP dont on compte les tours. */
+const trackedSession = (): ScheduledSessionDto =>
+  ({
+    ...session(),
+    exercises: [
+      {
+        ...session().exercises[0],
+        blocks: [
+          {
+            id: "b-series",
+            label: null,
+            structure: { type: BlockType.SERIES, setCount: 3, restBetweenSetsSeconds: null },
+            metrics: [],
+            rows: [],
+          },
+          {
+            id: "b-amrap",
+            label: null,
+            structure: { type: BlockType.AMRAP, totalDurationSeconds: 600, targetRounds: null },
+            metrics: [],
+            rows: [],
+          },
+        ],
+      },
+    ],
+  }) as ScheduledSessionDto;
 
 /**
  * L'écran est monté sous l'id EXACT que réclame son `getRouteApi` — la feuille `.index`, avec sa
@@ -155,6 +182,63 @@ describe("AthleteSessionScreen", () => {
       const { findByText } = await setup();
 
       expect(await findByText("plan.athlete.emptyTitle")).toBeInTheDocument();
+    });
+  });
+
+  it("offre de réessayer une séance qui n'a pas pu se charger", async () => {
+    getSessionMock.mockRejectedValueOnce(new Error("réseau"));
+    const { findByRole, findByText, user } = await setup();
+
+    await user.click(await findByRole("button", { name: "common.retry" }));
+
+    // Le rejeu relit la séance : elle s'affiche, l'erreur s'efface.
+    expect(await findByText("Traction")).toBeInTheDocument();
+    expect(getSessionMock).toHaveBeenCalledTimes(2);
+  });
+
+  // Le libellé suit le STATUT : « débriefer » sur une séance débriefée ferait craindre d'écraser.
+  it("dit que le débrief existe déjà, et montre les notes du coach", async () => {
+    getSessionMock.mockResolvedValue({
+      ...session(),
+      status: ScheduledSessionStatus.DONE,
+      notes: "Écoute tes doigts",
+    });
+    const { findByRole, getByText } = await setup();
+
+    expect(await findByRole("button", { name: "feedback.openDone" })).toBeInTheDocument();
+    expect(getByText("Écoute tes doigts")).toBeInTheDocument();
+  });
+
+  describe("le suivi d'exécution", () => {
+    const stored = () =>
+      JSON.parse(window.localStorage.getItem(`cimavia-tracking:${SESSION_ID}`) ?? "null");
+
+    beforeEach(() => {
+      getSessionMock.mockResolvedValue(trackedSession());
+    });
+
+    // L'en-tête ne compte rien : la progression vit dans le rail, et y apparaît à la 1re coche.
+    it("fait apparaître la progression du rail à la première case cochée", async () => {
+      const { findAllByRole, queryByText, getByText, user } = await setup();
+      const boxes = await findAllByRole("button", { pressed: false });
+      expect(queryByText("plan.athlete.progress")).toBeNull();
+
+      await user.click(boxes[0] as HTMLElement);
+
+      expect(getByText("plan.athlete.progress")).toBeInTheDocument();
+      expect(stored()).toEqual({
+        "sx-1": { "b-series": { checked: [0] } },
+      });
+    });
+
+    it("compte les tours de l'AMRAP, gardés en local jusqu'au débrief", async () => {
+      const { findByRole, user } = await setup();
+
+      await user.click(await findByRole("button", { name: "+" }));
+
+      expect(stored()).toEqual({
+        "sx-1": { "b-amrap": { rounds: 1 } },
+      });
     });
   });
 });

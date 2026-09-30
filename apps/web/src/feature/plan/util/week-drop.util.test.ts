@@ -88,6 +88,15 @@ describe("dayAfterDrop", () => {
       expect(result).toEqual({ date: TUESDAY, sessionIds: ["a"] });
     });
 
+    // Un rang hors de la journée d'arrivée : `splice` le ramènerait en silence à un bout de file.
+    it.each([
+      -1, 3,
+    ])("ne rend rien quand le rang visé (%i) sort de la journée d'arrivée", (index) => {
+      expect(
+        dayAfterDrop(day("a"), day("x", "y"), { date: MONDAY, index: 0 }, { date: TUESDAY, index }),
+      ).toBeNull();
+    });
+
     it("pose en fin de file quand le dépôt vise l'espace libre de la case", () => {
       const result = dayAfterDrop(
         day("a"),

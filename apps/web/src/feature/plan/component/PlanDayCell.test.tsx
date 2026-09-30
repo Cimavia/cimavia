@@ -146,6 +146,17 @@ describe("PlanDayCell", () => {
       expect(onDrop).toHaveBeenCalledWith({ date: MONDAY, index: 0 }, { date: TUESDAY, index: 0 });
     });
 
+    // Un fichier lâché depuis le bureau, un texte glissé d'ailleurs : rien n'a été saisi ici.
+    it("ignore un dépôt qui ne part d'aucune poignée", () => {
+      const { getByRole, onDrop } = setup();
+
+      const target = getByRole("button", { name: HANDLE(1) });
+      fireEvent.dragOver(target);
+      fireEvent.drop(target);
+
+      expect(onDrop).not.toHaveBeenCalled();
+    });
+
     // La poignée est le SEUL chemin clavier de cette case — il n'y a pas de flèches à côté.
     it("déplace au clavier depuis la poignée, dans la journée", async () => {
       const { user, getByRole, onDrop } = setup();

@@ -120,6 +120,15 @@ describe("CoachPlanSection", () => {
     expect(router.state.location.search).not.toHaveProperty("q");
   });
 
+  // Un seul historique ouvert : cliquer un autre athlète déplace le dépli sur lui.
+  it("déplie l'athlète cliqué à la place de celui qui l'était", async () => {
+    const { getByText, user, router } = await mount([LEA, YANIS], { athlete: "ath_lea" });
+
+    await user.click(getByText("Yanis Belkacem"));
+
+    expect(router.state.location.search).toMatchObject({ athlete: "ath_yanis" });
+  });
+
   it("recliquer l'athlète déplié le referme", async () => {
     const { getByText, user, router } = await mount([LEA, YANIS], { athlete: "ath_lea" });
 
