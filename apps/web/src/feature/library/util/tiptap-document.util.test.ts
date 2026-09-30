@@ -1,4 +1,4 @@
-import { richDocumentSchema } from "@cmv/shared";
+import { type RichDocument, richDocumentSchema } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import {
   CALLOUT_NODE,
@@ -83,6 +83,65 @@ describe("toRichDocument", () => {
   });
 });
 
+describe("toRichDocument — listes et nœuds incomplets", () => {
+  const item = (...content: unknown[]) => ({ type: "listItem", content });
+  const paragraph = (...content: unknown[]) => ({ type: "paragraph", content });
+
+  // Une puce vide est un curseur posé, pas une consigne : elle disparaît, les autres restent.
+  it("jette les puces vides, garde les autres", () => {
+    const [block] = toRichDocument(
+      doc({
+        type: "bulletList",
+        content: [item(paragraph(text("Épaules basses"))), item(paragraph()), { type: "listItem" }],
+      }),
+    );
+    expect(block).toEqual({ type: "LIST", ordered: false, items: [[{ text: "Épaules basses" }]] });
+  });
+
+  it("ne stocke pas une liste dont toutes les puces sont vides, ni une liste sans puce", () => {
+    expect(
+      toRichDocument(
+        doc({ type: "orderedList", content: [item(paragraph())] }, { type: "bulletList" }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("jette un nœud sans type", () => {
+    expect(toRichDocument(doc({ content: [text("orphelin")] }))).toEqual([]);
+  });
+});
+
+describe("toRichDocument — images", () => {
+  const image = (attrs?: Record<string, unknown>) =>
+    doc({ type: IMAGE_NODE, ...(attrs ? { attrs } : {}) });
+
+  // Fichier pas encore choisi, ou envoi échoué : le nœud n'a rien à stocker.
+  it.each([
+    ["sans attributs", undefined],
+    ["sans média", { caption: "Prise" }],
+    ["au média vide", { mediaId: "" }],
+    ["au média qui n'est pas un identifiant", { mediaId: 42 }],
+  ])("jette une image %s", (_case, attrs) => {
+    expect(toRichDocument(image(attrs))).toEqual([]);
+  });
+
+  it("garde la légende, sans ses espaces de bord", () => {
+    expect(toRichDocument(image({ mediaId: "doc_1", caption: "  Prise pince  " }))).toEqual([
+      { type: "IMAGE", mediaId: "doc_1", caption: "Prise pince" },
+    ]);
+  });
+
+  // Une légende blanche n'en est pas une : aucune clé plutôt qu'une chaîne vide.
+  it.each([
+    ["blanche", "   "],
+    ["qui n'est pas un texte", 7],
+  ])("ne stocke pas une légende %s", (_case, caption) => {
+    expect(toRichDocument(image({ mediaId: "doc_1", caption }))).toEqual([
+      { type: "IMAGE", mediaId: "doc_1" },
+    ]);
+  });
+});
+
 describe("toTipTapDocument", () => {
   it("fait l'aller-retour sans perte", () => {
     const source = toRichDocument(
@@ -106,6 +165,21 @@ describe("toTipTapDocument", () => {
       ),
     );
     expect(toRichDocument(toTipTapDocument(source))).toEqual(source);
+  });
+
+  it("fait l'aller-retour d'une liste à puces et d'une image légendée", () => {
+    const source: RichDocument = [
+      { type: "LIST", ordered: false, items: [[{ text: "Épaules basses" }], [{ text: "Gainé" }]] },
+      { type: "IMAGE", mediaId: "doc_1", caption: "Prise pince", width: "SMALL" },
+    ];
+    expect(toRichDocument(toTipTapDocument(source))).toEqual(source);
+  });
+
+  // Ce que le modèle omet, l'éditeur le reçoit à sa valeur de repos : pas d'attribut indéfini.
+  it("pose une légende vide et la pleine largeur sur une image qui n'en porte pas", () => {
+    expect(toTipTapDocument([{ type: "IMAGE", mediaId: "doc_1" }]).content).toEqual([
+      { type: IMAGE_NODE, attrs: { mediaId: "doc_1", caption: "", width: "FULL" } },
+    ]);
   });
 
   it("rend un paragraphe vide sur un document nul — TipTap refuse un document sans contenu", () => {
