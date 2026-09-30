@@ -21,10 +21,10 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Trente dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-1**, **V-2**, **V-3**, **R-2**,
+déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
 **IOS-2**, **IOS-3**, **P7-7**, **OTA-1** et **OTA-2**,
 dont le déclencheur est nommé mais
@@ -73,9 +73,26 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | ~~P4-3~~ | ~~**Vol de token push possible**~~ : `POST /me/push-tokens` réaffectait au compte courant un token déjà enregistré. | ✅ | résolue en [#90](https://github.com/Cimavia/cimavia/issues/90) — un **secret d'installation**, émis par l'API et gardé en `expo-secure-store`, conditionne la réaffectation |
-| P4-4 | **Pas de miniature vidéo sur mobile** : ni dans la galerie de débrief, ni dans la bulle de messagerie. La pastille ouvre la vidéo dans le lecteur système depuis **#151**, mais reste un libellé — aucun aperçu de l'image. Un seul module natif à payer pour les deux surfaces. | 🟢 | [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) |
+| ~~P4-4~~ | ~~**Pas de miniature vidéo sur mobile**~~ : ni dans la galerie de débrief, ni dans la bulle de messagerie — une pastille, un libellé, aucun aperçu de l'image. **Rectifié en #92** : la ligne annonçait, depuis #407, `expo-image` comme module natif restant à payer ; `expo-image-manipulator`, déjà là pour les photos, a suffi. | ✅ | résolue en [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) — vignette tirée sur l'appareil à l'affichage, sans module natif de plus (cf. « Tranché en #92 ») |
 | P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : un média de débrief n'est jamais copié ni partagé, et son **retrait** par l'athlète purge l'objet — mais la **disparition de sa séance** cascade débrief et médias en base sans toucher au bucket. Fermé pour la séance seule en [#313](https://github.com/Cimavia/cimavia/issues/313) (409) ; la suppression d'une semaine ou d'un cycle **diffusé** l'emporte encore. **Rectifié en #313** : cette ligne disait « P4 n'ajoute aucun nouveau cas ». | 🟡 | [#312](https://github.com/Cimavia/cimavia/issues/312) · [#85](https://github.com/Cimavia/cimavia/issues/85) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+
+> **Tranché en #92** (la vignette tirée à l'AFFICHAGE, pas à l'envoi) : la stocker à l'envoi
+> demandait une migration, un champ de DTO et un second envoi signé — et laissait sans image toutes
+> les vidéos déjà envoyées, comme celles déposées depuis le web. Tirée sur l'appareil
+> (`shared/lib/video-thumbnail.ts`), elle ne touche ni l'API ni la base, vaut pour l'existant, et ne
+> coûte le réseau qu'à la première vue : la suivante lit le JPEG gardé dans le cache.
+>
+> **Sans module natif de plus** : `generateThumbnailsAsync` (expo-video, #407) rend une image
+> NATIVE, que seul l'`Image` d'`expo-image` affiche — d'où la ligne de P4-4 écrite en #407. Mais
+> `expo-image-manipulator` accepte cette même référence et l'écrit en fichier, que l'`Image` de
+> React Native affiche. L'empreinte native ne bouge pas.
+>
+> **Ce qui la tient** : une génération à la fois (chacune ouvre un lecteur natif, relâché aussitôt),
+> une seule par vidéo affichée deux fois, et une **époque** sur le modèle de `document-cache` :
+> `resetAccountData` efface les vignettes au changement de compte, et une demande faite avant la
+> déconnexion — en cours ou encore dans la file — n'écrit rien dans le magasin vidé. Tout échec rend
+> `null`, et la pastille de #407 reste : une vignette est un confort, jamais une case vide.
 
 > **Résolu en P4** : ~~P3-1~~ (push non envoyé) — `expo-server-sdk` est branché dans
 > `NotificationService`, sans que les appelants aient bougé. ~~P3-6~~ côté débriefs — la tuile
@@ -1432,9 +1449,9 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| V-1 | **Pas de lecture vidéo EN LIGNE sur mobile** : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | 🟢 | — *(déclencheur : le coach beta juge la sortie de l'app gênante → voie `expo-video`)* |
-| V-2 | **URL signée périmée non vérifiée à l'ouverture d'un lien** : le justificatif de facture (mobile **et** web), les documents de séance **côté web** et la photo agrandie du débrief **web** (`<a href>` du panneau coach et de la galerie athlète) ouvrent l'URL du cache telle quelle — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. Le débrief MOBILE la vérifie depuis #151 (`isSignedUrlUsable`), la messagerie mobile depuis #304 ; les lecteurs audio et vidéo des deux plateformes la re-signent quand elle casse (#304). **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. **Rectifié en #304** : cette ligne disait « le débrief la vérifie », sans préciser que c'était le mobile seul. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
-| V-3 | **Vidéo mobile : un saut tardif peut échouer dans le lecteur système** : `CmvVideoLink` re-signe l'URL AVANT de l'ouvrir, mais le lecteur système la garde ensuite. Une vidéo mise en pause plus de 5 min puis relancée ou déplacée redemande des octets avec une URL expirée, et le storage répond 403 — hors de l'app, donc sans reprise possible, là où le web re-signe et reprend à la même position (#304). Rare : la vidéo est plafonnée à 3 min. | 🟢 | — *(déclencheur : un retour beta sur une vidéo coupée après une longue pause ; se résout avec **V-1**, par `expo-video`)* |
+| ~~V-1~~ | ~~**Pas de lecture vidéo EN LIGNE sur mobile**~~ : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | ✅ | résolue en [#407](https://github.com/Cimavia/cimavia/issues/407) — le déclencheur est survenu (retour du coach beta) : `CmvVideoPlayer` lit en plein écran dans l'app, avec `expo-video` |
+| V-2 | **URL signée périmée non vérifiée à l'ouverture d'un lien** : le justificatif de facture (mobile **et** web), les documents de séance **côté web** et la photo agrandie du débrief **web** (`<a href>` du panneau coach et de la galerie athlète) ouvrent l'URL du cache telle quelle — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. Le débrief MOBILE la vérifie depuis #151 (`isSignedUrlUsable`), la messagerie mobile depuis #304 ; les lecteurs audio et vidéo des deux plateformes la re-signent quand elle casse (#304). **Rectifié en #407** : c'était faux de la vidéo mobile, jouée hors de l'app jusque-là (**V-3**) — vrai depuis. **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. **Rectifié en #304** : cette ligne disait « le débrief la vérifie », sans préciser que c'était le mobile seul. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
+| ~~V-3~~ | ~~**Vidéo mobile : un saut tardif peut échouer dans le lecteur système**~~ : `CmvVideoLink` re-signe l'URL AVANT de l'ouvrir, mais le lecteur système la garde ensuite. Une vidéo mise en pause plus de 5 min puis relancée ou déplacée redemande des octets avec une URL expirée, et le storage répond 403 — hors de l'app, donc sans reprise possible, là où le web re-signe et reprend à la même position (#304). Rare : la vidéo est plafonnée à 3 min. | ✅ | résolue en [#407](https://github.com/Cimavia/cimavia/issues/407), avec **V-1** — l'erreur de lecture remonte enfin à l'app : `CmvVideoPlayer` re-signe et reprend à la même position |
 
 > **Tranché** (le lecteur système plutôt qu'`expo-video`) : lire la vidéo **dans** l'app demande
 > `expo-video`, donc un module natif, donc un nouveau **client de dev** en plus de l'APK preview —
@@ -1443,6 +1460,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > atteindre le coach beta), c'est le blocage de l'itération locale, avec le piège
 > `Cannot find native module` documenté en [#92](https://github.com/Cimavia/cimavia/issues/92).
 > Le manque résiduel est **V-1**, et la voie B reste ouverte derrière son déclencheur.
+>
+> **Levé en #407** (la voie B, prise) : le déclencheur est survenu — le coach beta quittait l'app à
+> chaque vidéo, sur le média qu'il regarde le plus longtemps. `CmvVideoLink` devient
+> `CmvVideoPlayer` : même pastille, même re-signature AVANT ouverture (`resolveUrl`), mais le tap
+> ouvre un `Modal` plein écran avec `VideoView` et contrôles natifs, sur le modèle de
+> `CmvImageViewer`. Trois choix que le code ne justifie pas seul :
+> - **Le lecteur ne vit que dans le Modal ouvert.** La pastille n'en instancie aucun : un fil de
+>   vingt vidéos ne coûte aucun lecteur natif, une vidéo ouverte en coûte un, relâché à la
+>   fermeture.
+> - **Pas de prop `url`, donc une source figée.** Le lecteur démarre sur l'URL rendue par
+>   `resolveUrl` au tap, gardée en état local. Le fil sondé toutes les 10 s (#304) n'a aucune prop
+>   à lui réécrire : la vidéo ne repart pas de zéro, contrairement à ce qu'aurait donné un lecteur
+>   branché sur `media.url`.
+> - **La reprise relance TOUJOURS la lecture** (V-3), là où `CmvAudioPlayer` et `CmvMediaPlayer`
+>   ne relancent que si ça jouait. Les contrôles sont natifs : l'app ne voit pas le geste de
+>   l'utilisateur, et `playing` retombe à faux sur l'erreur. Or après 5 min de pause, seul un geste
+>   (lecture, saut) redemande des octets — et ce geste demandait la lecture.
+> - **Le bouton plein écran natif reste.** L'app est verrouillée en portrait (`app.json`) : c'est
+>   lui qui laisse voir en grand une vidéo tournée en paysage.
+>
+> **Appris** (l'émulateur ne sait pas vérifier cette feature) : sur l'émulateur Android de Kylian
+> (WSL2), la vidéo rend une image grise zébrée, fige l'affichage, puis fait planter l'émulateur
+> lui-même — alors que le lecteur, lui, joue (`BUFFERING` → `PLAYING`, aucune erreur). En cause, le
+> décodeur `c2.goldfish.h264.decoder`, qui délègue au GPU de l'hôte (`rendring output error -32`).
+> Le symptôme est identique en `textureView` et avec la surface par défaut : essayer l'une puis
+> l'autre n'a rien départagé, et le composant garde le défaut d'expo-video. **La vérification de
+> la lecture vidéo se fait sur un téléphone.**
+>
+> Échec toujours visible, jamais un écran noir : URL non re-signable → `media.video.refreshError`
+> sous la pastille, sans ouvrir ; lecture perdue (re-signature impossible, ou qui rend l'URL qui
+> vient d'échouer) → le Modal se ferme sur `media.video.openError`. Le coût natif est payé : dev
+> build obligatoire, et nouvel APK preview — `runtimeVersion` en `fingerprint`, aucun update OTA
+> n'atteint cette livraison.
 >
 > **Précisé en #287** : `expo-updates` est désormais une dépendance. La parenthèse ci-dessus dit ce
 > qu'on savait alors ; l'argument, lui, tient toujours — `expo-video` est un module natif, il change
@@ -1525,7 +1575,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > et reprennent à la même position, en lecture seulement si elle jouait. Quand la re-signature rend
 > la MÊME URL, ce n'est pas l'expiration qui a cassé la lecture : ils affichent l'erreur au lieu
 > de recharger d'office, ce qui bouclerait sur le même échec. Reste hors d'atteinte : la vidéo
-> mobile, jouée hors de l'app (**V-3**).
+> mobile, jouée hors de l'app (**V-3**). **Levé en #407** : `CmvVideoPlayer` applique la même
+> règle, à ceci près qu'il relance toujours la lecture.
 
 ---
 
@@ -1592,6 +1643,37 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > renvoie l'intégralité du snapshot, et le serveur reporte par `id` ce qui ne transite JAMAIS par
 > lui — le **suivi d'exécution**, qui appartient à l'athlète. Verrouillé par deux e2e vérifiés
 > rouges avant correctif.
+>
+> **Incomplet, corrigé en #296/#311** : ce report ne sauvait que le suivi **déjà en base**. Les
+> lignes étaient recréées sous un **nouvel** `id`, alors que l'athlète coche en local contre
+> l'ancien : ses coches non encore débriefées retombaient sur une ligne disparue, et le débrief
+> répondait 200 sans rien écrire. Les documents étaient recréés eux aussi, depuis la bibliothèque,
+> et les images de la consigne ne désignaient plus rien. Voir l'encadré suivant.
+
+> **Tranché en #296** (l'édition d'une séance planifiée garde l'identité de ses lignes) : une ligne
+> citée par son `id` est **mise à jour en place**, jamais détruite puis recréée
+> (`rewriteScheduledSessionExercises`). La reprise de l'`id` sur une ligne recréée a été écartée :
+> ce qui est rattaché à la ligne (documents, tags, et demain tout nouvel enfant) serait resté
+> détruit en cascade à chaque enregistrement du coach. Quatre conséquences : **(1)** une ligne
+> reprise garde ses documents **sans copie**, la bibliothèque ne sert qu'aux exercices
+> **ajoutés**, et un `sourceExerciseId` passé à `null` ne coûte plus aucun document ni objet ;
+> **(2)** `baseline`, `tracking` et `sourceExerciseId` d'une ligne reprise ne se réécrivent pas
+> depuis le panneau du coach ; **(3)** un `id` inconnu de la séance est une ligne **nouvelle**, et
+> un `id` cité deux fois vaut **400** ; **(4)** les rangs passent par un garage, comme `writeDay`,
+> car `@@unique([scheduledSessionId, position])` mord pendant l'écriture. La copie de semaine (#4)
+> recrée ses lignes, et c'est voulu : ce sont des séances neuves, et ses documents viennent de
+> l'instance source. Un e2e le verrouille désormais pour les images de consigne.
+>
+> Le débrief qui cite un exercice absent de la séance répond maintenant **400**, avant toute
+> écriture, texte compris (#311). Ce refus a un coût côté clients : une coche restée en local sur
+> un exercice que le coach a retiré ferait refuser tout le débrief. Les deux clients filtrent donc
+> le suivi avant l'envoi (`trackingOfExercises`, `@cmv/shared`) — le web en #311, le mobile en
+> [#490](https://github.com/Cimavia/cimavia/issues/490). Le filtre lit la séance **en cache**,
+> qui peut ignorer un retrait tout juste fait : cinq minutes sur mobile, où elle est persistée,
+> une minute sur le web. Un 400 au débrief invalide donc la séance sur les deux clients — le
+> mobile en #490, le web en [#499](https://github.com/Cimavia/cimavia/issues/499) — et l'envoi
+> suivant passe ; le suivi local, lui, n'est vidé qu'au succès. #296/#311 et #490 se
+> **promeuvent ensemble** en preview.
 
 > **Tranché — le repos par ligne passe par une COLONNE, pas par un champ de modèle.** Un exercice
 > à deux repos — « 1 min entre les tractions, 8 min entre les séries » — demandait un repos par
@@ -3430,10 +3512,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| IOS-1 | **Les chaînes de permission iOS ne passent pas par i18next** (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. Français seulement. Les localiser ne demande pourtant rien d'exotique : la clé `expo.locales` d'`app.json` génère un `InfoPlist.strings` par langue au prebuild (`@expo/config-plugins`, `ios/Locales.js`). #134 affirmait le contraire, et cette ligne l'a d'abord recopié. | 🟡 | [#254](https://github.com/Cimavia/cimavia/issues/254) |
+| ~~IOS-1~~ | ~~**Les chaînes de permission iOS ne passent pas par i18next**~~ (règle dure n°6) : elles sont gravées dans l'`Info.plist` AU BUILD, avant que le moindre JS s'exécute. #134 affirmait que les localiser sortait de ce que la config Expo expose, et cette ligne l'a d'abord recopié. | ✅ | résolue en [#254](https://github.com/Cimavia/cimavia/issues/254) — `expo.locales`, construit par `app.config.ts` depuis le bloc `permission.ios` des catalogues i18next ; repli sur le français (encadré ci-dessous) |
 | IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
 | IOS-3 | **`UIBackgroundModes: ["audio"]` déclaré sans usage** : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), l'app ne joue rien app fermée. Sans effet tant qu'aucune revue n'a lieu — la bêta passe par des testeurs TestFlight internes —, mais déclarer un mode inutilisé est un motif de rejet à la revue Apple — même famille que la chaîne de permission par défaut. | 🟡 | — *(déclencheur : le premier envoi à des testeurs TestFlight EXTERNES, ou à l'App Store — les testeurs internes ne passent aucune revue)* |
-| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins, sans que rien ne le signale. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
+| IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près — et une troisième dans `fr.json` depuis #254. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins. Depuis #254, `ios-permission-locales.test.ts` échoue si l'une des valeurs de base d'`app.json` s'écarte du catalogue français. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
 | IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
 | IOS-6 | **La chaîne de notification du minuteur n'a aucun test** (0 % mesuré) : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Le minuteur de séance, ses options de permission iOS comprises, ne tient que par la recette manuelle. Découvert en mesurant `usePushToken` pour #134 — seul ce dernier est remonté à 100 %. | 🟡 | [#253](https://github.com/Cimavia/cimavia/issues/253) |
 
@@ -3494,6 +3576,34 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `granted`, seul champ que lisent `usePushToken` et `timer-alert`. Il valait donc `undefined`, tout
 > appelant concluait au refus, et n'importe quel test écrit sur ce mock serait passé au vert sans
 > rien éprouver. Un mock incomplet ne rate pas un test : il en fabrique un faux.
+
+> **Tranché en #254** (les permissions iOS parlent la langue du téléphone, et se replient sur le
+> français) : trois décisions, dont aucune ne se lit dans le code.
+>
+> - **Un seul catalogue.** Les traductions vivent sous `permission.ios` dans `fr.json` et `en.json`,
+>   pas dans des fichiers `locales` au format Expo. Ceux-là auraient été un second endroit où vivent
+>   des textes, invisible de `check:i18n` : ni tutoiement, ni clé morte. `expo.locales` accepte un
+>   objet à la place d'un chemin, donc aucun script : `app.config.ts` appelle
+>   `buildIosPermissionLocales` (`shared/lib/`), dont la table `IOS_PERMISSION_KEY` est lue par le
+>   contrôle A. `en.json` est né avec ce seul bloc ; #87 le complète. L'import porte son extension
+>   `.ts` : sans elle, le chargeur de config d'Expo ne le résout pas.
+> - **La langue de repli est `CFBundleDevelopmentRegion`, pas la « valeur de base ».** #254 disait
+>   que le texte des plugins s'afficherait pour toute langue absente de `locales`. C'est faux dès
+>   qu'un `.lproj` existe : iOS choisit alors celui de la langue de développement, que le gabarit
+>   Expo fixe à `en`. Un téléphone en allemand aurait lu ses permissions en anglais, et l'app en
+>   français. `app.config.ts` la force à `fr`, le `fallbackLng` d'i18next
+>   ([#88](https://github.com/Cimavia/cimavia/issues/88)) : les deux changent ensemble, et un
+>   changement exige un nouveau binaire.
+> - **`NSFaceIDUsageDescription` retirée** (`faceIDPermission: false` sur `expo-secure-store`) :
+>   le plugin la posait avec son texte anglais par défaut, et rien n'appelle `requireAuthentication`.
+>   Même famille qu'IOS-3. Contrairement au piège de #134, ce `false` ne touche aucune permission
+>   Android — vérifié dans le plugin, qui n'écrit que cette clé.
+>
+> Le générateur d'Expo écrit `clé = "valeur";` sans échapper : `buildIosPermissionLocales` refuse
+> un guillemet droit ou une barre oblique inverse plutôt que de produire un `InfoPlist.strings`
+> invalide sans erreur de build. Vérifié par un prebuild iOS : `fr.lproj` et `en.lproj` portent les
+> deux clés, l'`Info.plist` porte `CFBundleDevelopmentRegion = fr` et plus de clé Face ID. Rien de
+> tout cela n'a encore été vu sur un iPhone (IOS-5).
 
 ---
 
@@ -3772,7 +3882,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > override, que `pnpm-workspace.yaml` réserve aux correctifs de sécurité.
 >
 > **L'empreinte native change, et le build attend** : #409 est fusionnée sans binaire, le build
-> Android et iOS part après #407, #92/#155 et #254, qui la changent aussi. Entre les deux, un update
+> Android et iOS part après #407 et #254, qui la changent aussi. **Rectifié en #92** : #92/#155
+> étaient comptées ici, mais n'ajoutent aucun module natif. Entre les deux, un update
 > publié depuis un tag qui contient #409 **n'atteint personne**, sans erreur. Un correctif urgent
 > pour le binaire installé se publie depuis un tag antérieur.
 
@@ -4185,6 +4296,48 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Semaine et cycle diffusés restent à [#312](https://github.com/Cimavia/cimavia/issues/312) et
 > [#85](https://github.com/Cimavia/cimavia/issues/85) : leur règle est plus large (plus aucune
 > suppression sur un cycle diffusé, débriefé ou non).
+
+---
+
+## Post-MVP — Un seul suivi local par séance ([#346](https://github.com/Cimavia/cimavia/issues/346))
+
+> **Tranché en [#346](https://github.com/Cimavia/cimavia/issues/346)** (le suivi local vit dans
+> un magasin au niveau du module, lu par `useSyncExternalStore`) : l'écran de séance reste monté
+> sous le débrief, et chacun tenait sa propre copie, lue sur le disque au montage. Le débrief
+> corrigeait 3/4 en 4/4 et vidait le disque à l'enregistrement ; l'écran du dessous gardait 3/4,
+> qui l'emportait sur le serveur et revenait sur le disque à la coche suivante. Une **relecture au
+> focus** a été écartée : elle laisse deux copies, d'accord au seul moment du retour, et chaque
+> nouvel écran d'une séance devrait penser à la faire. Même montage que le presse-papier de semaine (#4), avec trois règles
+> propres au suivi (`feature/plan/lib/local-tracking-store.ts`) :
+>
+> - **une entrée n'existe que tant qu'un écran la lit** : le dernier parti, elle est oubliée, et le
+>   prochain montage relit le disque. La mémoire ne survit jamais aux écrans qu'elle sert ;
+> - **le disque n'est lu qu'au premier lecteur**, et sa réponse est ignorée si une coche l'a
+>   précédée — cette coche l'a déjà écrasé. Avant, la mémoire reprenait l'ancienne valeur pendant
+>   que le disque gardait la coche ;
+> - **chaque coche part de la valeur du magasin**, lue sans attendre de rendu : le rattrapage du
+>   déroulé (#306) tient sans le `useRef` qui le portait.
+>
+> Effacer le local rend les écrans au distant **en cache**, qui portait encore le décompte d'avant
+> la séance le temps que sa relecture réponde. Une coche posée dans cette fenêtre le ressuscitait.
+> L'enregistrement du débrief écrit donc le suivi envoyé dans la séance en cache **avant** de vider
+> le local (`withSentTracking`), et la relecture reste lancée. Le web n'a pas le problème des deux
+> copies : séance et débrief y sont deux routes sœurs, l'une démonte l'autre. Il avait en revanche
+> la même fenêtre de cache, fermée de la même façon en
+> [#499](https://github.com/Cimavia/cimavia/issues/499) : `withSentTracking` vit depuis dans
+> `@cmv/shared`. Tout l'enregistrement du débrief l'a suivi (`feedbackSaveMutation`) : écrit dans
+> chaque client, il avait déjà divergé — le mobile n'invalidait pas la liste coach, le web ne
+> relisait pas la séance sur un refus — et SonarCloud le comptait en duplication.
+
+> **Tranché en [#499](https://github.com/Cimavia/cimavia/issues/499)** (le local ne s'efface que
+> s'il dit encore ce qui est parti) : les cases restent actives pendant l'envoi du débrief, et la
+> réponse effaçait le local sans le regarder — une case décochée pendant l'enregistrement revenait
+> cochée, sans un mot. `onSaved` reçoit désormais le suivi PARTI, et `clearIfSent` le compare au
+> local passé par le même filtre que l'envoi (`isTrackingSent`, `@cmv/shared`) : identique, on
+> efface ; différent, le local reste, « Enregistrer » se rouvre sur ce qui a changé. **Griser les
+> cases pendant l'envoi** a été écarté : en salle, sur un réseau lent, l'écran resterait figé le
+> temps de la requête. Même règle, en passant, quand l'envoi ne portait **aucun** suivi (séance
+> non chargée) : rien n'a quitté l'appareil, le local n'est plus effacé — il l'était avant.
 
 ---
 

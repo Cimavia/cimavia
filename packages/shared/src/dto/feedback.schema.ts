@@ -82,8 +82,9 @@ export function maxFeedbackMediaSizeBytes(type: MediaType): number {
  * Le suivi d'exécution remonté AVEC le débrief, exercice par exercice.
  *
  * Il vit en local pendant la séance — l'athlète est souvent sans réseau en salle — et ne franchit
- * le réseau qu'à cet envoi. Une entrée absente laisse l'exercice **non suivi** ; une entrée à
- * `null` l'y remet explicitement.
+ * le réseau qu'à cet envoi. Une entrée absente laisse le suivi de l'exercice **tel quel** — non
+ * suivi s'il ne l'était pas, suivi sinon ; une entrée à `null` le remet explicitement à « non
+ * suivi ».
  */
 export const feedbackTrackingSchema = z.record(z.string(), exerciseTrackingSchema.nullable());
 export type FeedbackTracking = z.infer<typeof feedbackTrackingSchema>;

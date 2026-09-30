@@ -132,6 +132,44 @@ vi.mock("expo-audio", () => ({
   RecordingPresets: { HIGH_QUALITY: {} },
 }));
 
+/**
+ * Le lecteur naît UNE fois par montage, comme le vrai : `useVideoPlayer` ne le recrée que si sa
+ * source change, et ne rejoue son `setup` qu'à cette naissance. Un faux qui en rendait un neuf à
+ * chaque rendu aurait réabonné les écouteurs et relancé `play` à chaque état — un comportement que
+ * le natif n'a pas.
+ *
+ * Le hook est un `vi.fn` : un test retrouve le lecteur dans `mock.results`, sa source dans
+ * `mock.calls`, et joue un événement en appelant l'écouteur passé à `addListener`.
+ */
+vi.mock("expo-video", async () => {
+  const { useState } = await import("react");
+  const createPlayer = () => ({
+    play: vi.fn(),
+    pause: vi.fn(),
+    replaceAsync: vi.fn(async () => undefined),
+    addListener: vi.fn(() => ({ remove: vi.fn() })),
+    currentTime: 0,
+    playing: false,
+  });
+  return {
+    useVideoPlayer: vi.fn((_source: string | null, setup?: (player: unknown) => void) => {
+      const [player] = useState(() => {
+        const created = createPlayer();
+        setup?.(created);
+        return created;
+      });
+      return player;
+    }),
+    VideoView: () => <span data-video-view="" />,
+    // Le lecteur SANS vue qui sert aux vignettes (#92) : par défaut il n'en tire aucune, et
+    // l'appelant retombe sur sa pastille — l'état d'un appareil sans réseau.
+    createVideoPlayer: vi.fn(() => ({
+      generateThumbnailsAsync: vi.fn(async () => []),
+      release: vi.fn(),
+    })),
+  };
+});
+
 vi.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: vi.fn(async () => ({ canceled: true, assets: null })),
   launchCameraAsync: vi.fn(async () => ({ canceled: true, assets: null })),

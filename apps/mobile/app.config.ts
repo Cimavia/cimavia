@@ -1,4 +1,9 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+// L'extension est REQUISE : le chargeur de config d'Expo ne résout pas un import TypeScript sans
+// elle (« Cannot find module »), alors que Metro et Vitest s'en passent.
+import { buildIosPermissionLocales } from "./shared/lib/ios-permission-locales.ts";
+import en from "./shared/locale/en.json";
+import fr from "./shared/locale/fr.json";
 
 /**
  * Variantes d'app : chaque profil de build a son identifiant natif et son scheme propres, pour que
@@ -49,8 +54,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: `${name}${nameSuffix}`,
     slug,
     scheme,
-    ios: { ...config.ios, bundleIdentifier: appId },
+    ios: {
+      ...config.ios,
+      bundleIdentifier: appId,
+      /**
+       * La langue de repli des demandes de permission (#254). Quand la langue du téléphone n'a pas
+       * son `.lproj`, iOS prend celui de `CFBundleDevelopmentRegion` — pas le texte brut de
+       * l'`Info.plist`. Le gabarit Expo la fixe à `en` : un téléphone en allemand lirait ses
+       * permissions en anglais et l'app en français. Forcée au `fallbackLng` d'i18next (`fr`,
+       * `shared/lib/i18n.ts`, #88) : les deux changent ensemble, et le binaire avec.
+       */
+      infoPlist: { ...config.ios?.infoPlist, CFBundleDevelopmentRegion: "fr" },
+    },
     android: { ...config.android, package: appId },
+    locales: buildIosPermissionLocales({ fr, en }),
     /**
      * `extra` est ÉTENDU, jamais écrasé : il porte déjà `eas.projectId` et `router` (app.json), et
      * les perdre casse les builds EAS.

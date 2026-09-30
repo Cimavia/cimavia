@@ -11,6 +11,9 @@ const withUnit = (index: number): SessionTracking => ({
   "ex-1": { "b-1": { checked: [index] } },
 });
 
+// La séance ne porte qu'un exercice : c'est lui que l'envoi du débrief peut citer.
+const EXERCISES = [{ id: "ex-1" }];
+
 const read = (sessionId: string) =>
   JSON.parse(storedItems.get(keyOf(sessionId)) ?? "null") as SessionTracking | null;
 
@@ -99,6 +102,40 @@ describe("useLocalTracking — écriture", () => {
     expect(asyncStorageMock.setItem).toHaveBeenCalledTimes(writes);
   });
 
+  /**
+   * Le rattrapage du déroulé coche plusieurs unités dans le même tic, sans rendu entre deux (#306).
+   * Chaque écriture doit partir de la précédente : sinon seule la dernière survit, et 3 × 30 s de
+   * gainage passés écran éteint remontent 1/3 au coach.
+   */
+  it("additionne des écritures faites sans rendu entre elles", async () => {
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+
+    act(() => {
+      const { checkUnit, toggleUnit, setRounds } = result.current;
+      checkUnit("ex-1", "b-1", 0);
+      checkUnit("ex-1", "b-1", 0);
+      checkUnit("ex-1", "b-1", 1);
+      toggleUnit("ex-1", "b-1", 2);
+      setRounds("ex-1", "b-2", 4);
+    });
+
+    const expected = { "ex-1": { "b-1": { checked: [0, 1, 2] }, "b-2": { rounds: 4 } } };
+    expect(result.current.tracking).toEqual(expected);
+    expect(read("s-1")).toEqual(expected);
+  });
+
+  // Une coche après le chargement s'ajoute à ce que le disque portait, pas au distant qu'il masque.
+  it("écrit par-dessus le local relu au chargement", async () => {
+    storedItems.set(keyOf("s-1"), JSON.stringify(withUnit(2)));
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(result.current.dirty).toBe(true));
+
+    act(() => result.current.checkUnit("ex-1", "b-1", 0));
+
+    expect(read("s-1")).toEqual({ "ex-1": { "b-1": { checked: [0, 2] } } });
+  });
+
   it("persiste le compteur d'un AMRAP", async () => {
     const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
     await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
@@ -133,10 +170,115 @@ describe("useLocalTracking — dirty et effacement", () => {
     await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
 
     act(() => result.current.toggleUnit("ex-1", "b-1", 3));
-    act(() => result.current.clear());
+    act(() => result.current.clearIfSent(result.current.tracking, EXERCISES));
 
     expect(result.current.tracking).toBe(remote);
     expect(result.current.dirty).toBe(false);
     expect(storedItems.has(keyOf("s-1"))).toBe(false);
+  });
+
+  /**
+   * Les cases restent actives pendant l'envoi : une coche posée entre l'envoi et la réponse n'est
+   * pas au serveur. L'effacer la perdait sans bruit (#499).
+   */
+  it("garde le local quand il a bougé pendant l'envoi", async () => {
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+    act(() => result.current.toggleUnit("ex-1", "b-1", 3));
+    const sent = result.current.tracking;
+
+    act(() => result.current.toggleUnit("ex-1", "b-1", 2));
+    act(() => result.current.clearIfSent(sent, EXERCISES));
+
+    const pending = { "ex-1": { "b-1": { checked: [2, 3] } } };
+    expect(result.current.tracking).toEqual(pending);
+    expect(read("s-1")).toEqual(pending);
+  });
+
+  // La séance n'avait pas pu être chargée : aucun décompte n'est parti, il n'y a rien à effacer.
+  it("sans suivi envoyé, garde le local", async () => {
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+    act(() => result.current.toggleUnit("ex-1", "b-1", 3));
+
+    act(() => result.current.clearIfSent(undefined, EXERCISES));
+
+    expect(read("s-1")).toEqual({ "ex-1": { "b-1": { checked: [3] } } });
+  });
+});
+
+/**
+ * L'écran de séance reste monté sous le débrief, et les deux lisent le suivi de la même séance
+ * (#346). Deux copies divergeaient : le débrief corrigeait, l'écran du dessous gardait l'ancien
+ * décompte et le réécrivait à la coche suivante.
+ */
+describe("useLocalTracking — une seule valeur par séance", () => {
+  // Les deux écrans, montés ensemble, sur la même séance.
+  async function twoScreens(remote: SessionTracking = EMPTY) {
+    const session = renderHook(() => useLocalTracking("s-1", remote));
+    const feedback = renderHook(() => useLocalTracking("s-1", remote));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+    return { session: session.result, feedback: feedback.result };
+  }
+
+  it("une coche d'un écran se voit aussitôt dans l'autre", async () => {
+    const { session, feedback } = await twoScreens();
+
+    act(() => session.current.toggleUnit("ex-1", "b-1", 0));
+    act(() => feedback.current.toggleUnit("ex-1", "b-1", 1));
+
+    const expected = { "ex-1": { "b-1": { checked: [0, 1] } } };
+    expect(session.current.tracking).toEqual(expected);
+    expect(feedback.current.tracking).toEqual(expected);
+  });
+
+  it("l'effacement par le débrief se voit sur l'écran resté dessous", async () => {
+    const remote = withUnit(0);
+    const { session, feedback } = await twoScreens(remote);
+    act(() => session.current.toggleUnit("ex-1", "b-1", 3));
+
+    act(() => feedback.current.clearIfSent(feedback.current.tracking, EXERCISES));
+
+    expect(session.current.tracking).toBe(remote);
+    expect(session.current.dirty).toBe(false);
+  });
+
+  // Le second écran trouve la valeur en mémoire : relire le disque n'apprendrait rien.
+  it("ne lit le disque qu'une fois pour deux écrans", async () => {
+    await twoScreens();
+    expect(asyncStorageMock.getItem).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Une coche posée avant que le disque réponde l'a déjà écrasé : la réponse, arrivée après, est
+   * plus ancienne qu'elle et ne doit pas la défaire.
+   */
+  it("garde une coche posée avant la réponse du disque", async () => {
+    storedItems.set(keyOf("s-1"), JSON.stringify(withUnit(2)));
+    let answer: (raw: string | null) => void = () => undefined;
+    asyncStorageMock.getItem.mockImplementationOnce(
+      () => new Promise<string | null>((resolve) => (answer = resolve)),
+    );
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalled());
+
+    act(() => result.current.toggleUnit("ex-1", "b-1", 0));
+    await act(async () => answer(JSON.stringify(withUnit(2))));
+
+    expect(result.current.tracking).toEqual(withUnit(0));
+    expect(read("s-1")).toEqual(withUnit(0));
+  });
+
+  // Plus aucun écran : la mémoire est oubliée, le prochain montage repart du disque.
+  it("relit le disque quand la séance est rouverte", async () => {
+    const first = renderHook(() => useLocalTracking("s-1", EMPTY));
+    await waitFor(() => expect(asyncStorageMock.getItem).toHaveBeenCalledTimes(1));
+    first.unmount();
+    storedItems.set(keyOf("s-1"), JSON.stringify(withUnit(2)));
+
+    const { result } = renderHook(() => useLocalTracking("s-1", EMPTY));
+
+    await waitFor(() => expect(result.current.tracking).toEqual(withUnit(2)));
+    expect(asyncStorageMock.getItem).toHaveBeenCalledTimes(2);
   });
 });

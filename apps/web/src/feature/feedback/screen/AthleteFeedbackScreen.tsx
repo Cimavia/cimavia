@@ -14,6 +14,7 @@ import {
   mediaRecapText,
   myFeedbackKeys,
   remainingMediaSlots,
+  trackingOfExercises,
 } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
@@ -122,8 +123,11 @@ function FeedbackBody({
   );
   const local = useLocalTracking(sessionId, remote);
   // Le local est effacé une fois le décompte accepté par le serveur : il a fait son travail, et
-  // le garder ferait diverger les deux copies au prochain chargement.
-  const upsert = useUpsertMyFeedback(sessionId, local.clear);
+  // le garder ferait diverger les deux copies au prochain chargement. Sauf s'il a bougé pendant
+  // l'envoi (#499) : ce qui a changé entre-temps reste à envoyer.
+  const upsert = useUpsertMyFeedback(sessionId, (sent) =>
+    local.clearIfSent(sent, session?.exercises ?? []),
+  );
   const [content, setContent] = useState("");
 
   /**
@@ -205,7 +209,11 @@ function FeedbackBody({
           onSubmit={() =>
             upsert.mutate({
               content: content.length === 0 ? null : content,
-              ...(session == null ? {} : { tracking: local.tracking }),
+              // Seuls les exercices que la séance porte encore : une coche restée en local sur un
+              // exercice retiré par le coach ferait refuser tout le débrief (#311).
+              ...(session == null
+                ? {}
+                : { tracking: trackingOfExercises(local.tracking, session.exercises) }),
             })
           }
         />

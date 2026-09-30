@@ -1,7 +1,6 @@
-import type { SessionFeedbackDto, UpsertSessionFeedbackInput } from "@cmv/shared";
+import { type FeedbackTracking, feedbackSaveMutation, type SessionFeedbackDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
-import { myPlanKeys } from "@/feature/plan/api";
 import { keepFeedbackUrls } from "@/shared/lib/signed-url";
 
 export function useSessionFeedback(sessionId: string) {
@@ -14,22 +13,15 @@ export function useSessionFeedback(sessionId: string) {
 }
 
 /**
- * Écrit le débrief. Débriefer change AUSSI le statut de la séance (DONE) : on invalide donc le
- * détail de la séance et le cycle, sinon le planning continuerait d'afficher « À faire » sur une
- * séance qu'on vient de débriefer.
+ * Écrit le débrief. Ce que l'écriture fait au cache — séance, cycle, liste coach, refus — est
+ * commun aux deux clients : voir `feedbackSaveMutation`. Le refus y pèse plus qu'au web : la séance
+ * en cache est persistée ici, et tenue pour fraîche cinq minutes.
  */
-export function useUpsertFeedback(sessionId: string, onSaved?: () => void) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: UpsertSessionFeedbackInput) => athleteFeedbackApi.upsert(sessionId, input),
-    onSuccess: (feedback) => {
-      // Le suivi local a fait son travail : le garder ferait diverger les deux copies au
-      // prochain chargement de la séance.
-      onSaved?.();
-      queryClient.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
-    },
-  });
+export function useUpsertFeedback(
+  sessionId: string,
+  onSaved?: (sent: FeedbackTracking | undefined) => void,
+) {
+  return useMutation(
+    feedbackSaveMutation(useQueryClient(), athleteFeedbackApi, sessionId, onSaved),
+  );
 }

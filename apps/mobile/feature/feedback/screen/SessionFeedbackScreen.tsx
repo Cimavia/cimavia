@@ -1,5 +1,5 @@
 import type { MediaRecapLine, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { myFeedbackKeys } from "@cmv/shared";
+import { myFeedbackKeys, trackingOfExercises } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
@@ -153,9 +153,11 @@ function TrackedSections({
       <FeedbackTextSection
         sessionId={sessionId}
         feedback={feedback}
-        tracking={local.tracking}
+        // Seuls les exercices que la séance porte encore : une coche restée en local sur un
+        // exercice retiré par le coach ferait refuser tout le débrief (#311, #490).
+        tracking={trackingOfExercises(local.tracking, session.exercises)}
         trackingDirty={local.dirty}
-        onSaved={local.clear}
+        onSaved={(sent) => local.clearIfSent(sent, session.exercises)}
       />
     </>
   );
