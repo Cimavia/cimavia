@@ -207,7 +207,7 @@ describe("AttachmentsSection", () => {
       // commencé (règle dure n°5).
       expect(
         getByRole("progressbar", { name: "library.builder.attachment.uploading" }),
-      ).toHaveAttribute("aria-valuenow", "0");
+      ).toHaveAttribute("value", "0");
     });
 
     it("ne montre aucune barre tant que rien n'est parti", () => {
