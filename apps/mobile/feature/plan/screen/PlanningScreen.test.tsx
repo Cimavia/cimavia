@@ -8,18 +8,29 @@ import {
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
+import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMyCoach } from "@/feature/coach";
 import { CurrentWeekSection } from "@/feature/plan/component/CurrentWeekSection";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import { PlanningScreen, resolvePlanningState } from "@/feature/plan/screen/PlanningScreen";
-import { press, renderRn } from "@/test/render";
+import { press, pressButton, renderRn } from "@/test/render";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useMyPlans: vi.fn() }));
 vi.mock("@/feature/coach", () => ({ useMyCoach: vi.fn() }));
 // Le bandeau hors-ligne écoute l'état réseau : hors sujet ici.
 vi.mock("@/shared/component/OfflineBanner", () => ({ OfflineBanner: () => null }));
+/**
+ * La pastille expose sa VARIANTE : NativeWind ne transforme pas `className` sous le harnais, et la
+ * semaine de décharge ne se distingue qu'à sa couleur. Le libellé reste rendu, comme le vrai.
+ */
+vi.mock("@/shared/component", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared/component")>()),
+  CmvBadge: ({ label, variant }: Readonly<{ label: string; variant: string }>) => (
+    <span data-variant={variant}>{label}</span>
+  ),
+}));
 
 const MONDAY = mondayOfIsoWeek(todayIsoDate()) ?? "2026-10-12";
 const WEDNESDAY = shiftIsoDate(MONDAY, 2) ?? MONDAY;
@@ -176,6 +187,7 @@ describe("PlanWeekList", () => {
  * état atteigne le bloc qui lui correspond, et que la NAVIGATION mène bien où elle prétend (#236).
  */
 describe("PlanningScreen", () => {
+  const refetch = vi.fn();
   const mount = (
     data: PlanDto[] | undefined,
     over: { isPending?: boolean; isError?: boolean } = {},
@@ -185,7 +197,7 @@ describe("PlanningScreen", () => {
       isPending: over.isPending ?? false,
       isError: over.isError ?? false,
       isRefetching: false,
-      refetch: vi.fn(),
+      refetch,
     } as unknown as ReturnType<typeof useMyPlans>);
     return renderRn(<PlanningScreen />);
   };
@@ -202,6 +214,41 @@ describe("PlanningScreen", () => {
       typeof useMyCoach
     >);
     expect(mount([]).getByText("coach.missing.title")).toBeTruthy();
+  });
+
+  it("mène l'athlète sans coach vers le rattachement", () => {
+    vi.mocked(useMyCoach).mockReturnValue({ data: null } as unknown as ReturnType<
+      typeof useMyCoach
+    >);
+    const { container } = mount([]);
+
+    pressButton(container, "coach.missing.action");
+
+    expect(router.push).toHaveBeenCalledWith("/join");
+  });
+
+  it("n'annonce rien pendant le chargement", () => {
+    const { container, queryByText } = mount(undefined, { isPending: true });
+
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(queryByText("plan.empty.title")).toBeNull();
+  });
+
+  /** Écran testé en panne 500, jamais en 401 : la session expirée a son propre chemin (#439). */
+  it("offre de réessayer après une panne", () => {
+    const { container } = mount(undefined, { isError: true });
+
+    pressButton(container, "common.retry");
+
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it("se rafraîchit quand on tire la liste", () => {
+    const { container } = mount([BLOC]);
+
+    press(container.querySelector("[data-refresh]") as HTMLElement);
+
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("dit à l'athlète rattaché que son coach n'a rien diffusé", () => {
@@ -364,6 +411,21 @@ describe("CurrentWeekSection", () => {
     expect(getAllByText("Cycle Bloc")).toHaveLength(2);
     expect(getAllByText("Prépa falaise")).toHaveLength(2);
     expect(getByText("Montée en charge")).toBeTruthy();
+  });
+
+  /** La semaine de décharge est l'exception du cycle : la confondre fausse l'effort de l'athlète. */
+  it("distingue la semaine de décharge d'une semaine d'entraînement", () => {
+    const week = weekOf([BLOC]);
+    const deload = {
+      ...week,
+      cycles: week.cycles.map((cycle) => ({ ...cycle, type: PlanWeekType.DELOAD })),
+    };
+
+    const { container, rerender } = renderRn(<CurrentWeekSection week={week} today={MONDAY} />);
+    expect(container.querySelector("[data-variant]")?.getAttribute("data-variant")).toBe("neutral");
+
+    rerender(<CurrentWeekSection week={deload} today={MONDAY} />);
+    expect(container.querySelector("[data-variant]")?.getAttribute("data-variant")).toBe("info");
   });
 
   // Le bandeau des cycles ne s'écrit que s'il a quelque chose à annoncer : sur une semaine hors

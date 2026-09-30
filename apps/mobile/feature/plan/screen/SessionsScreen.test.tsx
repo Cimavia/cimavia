@@ -7,10 +7,11 @@ import {
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
+import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import { SessionsScreen } from "@/feature/plan/screen/SessionsScreen";
-import { press, renderRn } from "@/test/render";
+import { press, pressButton, renderRn } from "@/test/render";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useMyPlans: vi.fn() }));
 // Le bandeau hors-ligne écoute l'état réseau : hors sujet ici, et il n'a rien à dire d'un test.
@@ -67,6 +68,7 @@ const BLOC = plan("p_bloc", "Cycle Bloc", [
 ]);
 const FALAISE = plan("p_falaise", "Prépa falaise", [session("ss_voie", "Voie longue", shift(2))]);
 
+const refetch = vi.fn();
 const mount = (
   data: PlanDto[] | undefined,
   over: { isPending?: boolean; isError?: boolean } = {},
@@ -75,7 +77,7 @@ const mount = (
     data,
     isPending: over.isPending ?? false,
     isError: over.isError ?? false,
-    refetch: vi.fn(),
+    refetch,
   } as unknown as ReturnType<typeof useMyPlans>);
 
   return renderRn(<SessionsScreen />);
@@ -89,6 +91,21 @@ describe("SessionsScreen", () => {
   });
 
   // Hors-ligne, le cache sert encore les cycles : l'erreur n'a alors rien à dire.
+  it("offre de réessayer après une panne", () => {
+    const { container } = mount(undefined, { isError: true });
+
+    pressButton(container, "common.retry");
+
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it("n'annonce aucune absence pendant le chargement", () => {
+    const { container, queryByText } = mount(undefined, { isPending: true });
+
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(queryByText("plan.sessions.empty")).toBeNull();
+  });
+
   it("se tait sur une erreur dont le cache a quand même servi les cycles", () => {
     const { queryByText, getByText } = mount([BLOC], { isError: true });
 
@@ -120,6 +137,28 @@ describe("SessionsScreen", () => {
     expect(getByText("Voie longue")).toBeTruthy();
     expect(getByText("Cycle Bloc")).toBeTruthy();
     expect(getByText("Prépa falaise")).toBeTruthy();
+  });
+
+  /** Passées : la plus récente d'abord — c'est celle que l'athlète vient débriefer. */
+  it("range les séances passées de la plus récente à la plus ancienne", () => {
+    const passe = plan("p_passe", "Cycle Bloc", [
+      session("ss_avant", "Il y a trois jours", shift(-3)),
+      session("ss_hier", "Hier", shift(-1)),
+    ]);
+    const { getByText, container } = mount([passe]);
+
+    press(getByText("plan.sessions.past"));
+
+    const text = container.textContent ?? "";
+    expect(text.indexOf("Hier")).toBeLessThan(text.indexOf("Il y a trois jours"));
+  });
+
+  it("ouvre le détail de la séance tapée", () => {
+    const { getByText } = mount([BLOC]);
+
+    press(getByText("Force max"));
+
+    expect(router.push).toHaveBeenCalledWith("/session/ss_demain");
   });
 
   it("tait le nom du cycle quand l'athlète n'en suit qu'un", () => {

@@ -125,6 +125,15 @@ describe("DosageBlock — les cartes (quatre colonnes et plus)", () => {
     { id: "r2", values: { col_reps: 8, col_load: 10, col_rpe: 7, col_grade: "6a" } },
   ];
 
+  it("met « — » sur la carte d'une valeur absente", () => {
+    const holed = [{ id: "r1", values: { col_reps: 6, col_load: 12, col_rpe: 8 } }, rows[1]];
+    const { container } = renderRn(
+      <DosageBlock block={block(holed as ExerciseBlock["rows"], wide)} customMetrics={[]} />,
+    );
+
+    expect(container.textContent).toContain("—");
+  });
+
   it("nomme chaque valeur au lieu de compter sur un en-tête lointain", () => {
     const { container } = renderRn(<DosageBlock block={block(rows, wide)} customMetrics={[]} />);
 
@@ -148,6 +157,46 @@ describe("DosageBlock — le bandeau", () => {
     );
 
     expect(container.textContent).toContain("Travail");
+  });
+
+  it("annonce le repos entre les séries dans le bandeau", () => {
+    const rested = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: 90 },
+      metrics: [reps],
+      rows: [{ id: "r1", values: { col_reps: 6 } }],
+    });
+    const { container } = renderRn(<DosageBlock block={rested} customMetrics={[]} />);
+
+    expect(container.textContent).toContain("exercise.dosage.restBetweenSets");
+  });
+
+  /** Un bloc libre sans nom n'a ni structure ni repos à dire : pas de bandeau vide. */
+  it("ne pose aucun bandeau quand il n'a rien à dire", () => {
+    const free = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.FREE },
+      metrics: [reps],
+      rows: [{ id: "r1", values: { col_reps: 6 } }],
+    });
+    const { container } = renderRn(<DosageBlock block={free} customMetrics={[]} />);
+
+    expect(container.textContent).toBe(`6 ${REPS_UNIT}`);
+  });
+
+  /** Tout est replié : la valeur commune est dans le bandeau, la phrase n'aurait plus rien à dire. */
+  it("ne répète aucune phrase quand toutes les colonnes sont repliées", () => {
+    const collapsedReps = column("col_reps", MetricKey.REPETITIONS, MetricUnit.REPS, true);
+    const { container } = renderRn(
+      <DosageBlock
+        block={block([{ id: "r1", values: { col_reps: 6 } }], [collapsedReps])}
+        customMetrics={[]}
+      />,
+    );
+
+    expect(container.querySelectorAll("[dir]")).toHaveLength(1);
   });
 
   /** Une colonne repliée porte la MÊME valeur partout : elle se dit une fois, dans le bandeau. */

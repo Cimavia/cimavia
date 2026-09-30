@@ -261,6 +261,56 @@ describe("useSegmentRunner — pause, saut et rallonge", () => {
     expect(result.current.index).toBe(0);
   });
 
+  /** Le « + 30 s » d'un chrono en pause s'ajoute au temps FIGÉ : il compte à la reprise. */
+  it("rallonge aussi un segment en pause", () => {
+    const { result } = runner();
+    act(() => result.current.start(two, context));
+    advance(25_000);
+    act(() => result.current.pause());
+    act(() => result.current.add(30));
+    act(() => result.current.resume());
+
+    advance(30_000);
+
+    expect(result.current.index).toBe(0);
+    expect(result.current.remaining).toBe(5);
+  });
+
+  /** Un segment manuel n'a pas d'échéance : rien à mettre en pause, rien à rallonger. */
+  it("ignore la pause et l'ajout pendant un segment manuel", () => {
+    const { result } = runner();
+    act(() =>
+      result.current.start([seg(SegmentKind.MANUAL, 0, 0), seg(SegmentKind.REST, 60)], context),
+    );
+
+    act(() => result.current.pause());
+    act(() => result.current.add(30));
+
+    expect(result.current.isPaused).toBe(false);
+    expect(result.current.deadline).toBeNull();
+    expect(result.current.index).toBe(0);
+  });
+
+  it("ignore une reprise sans pause", () => {
+    const { result } = runner();
+    act(() => result.current.start(two, context));
+    const deadline = result.current.deadline;
+
+    act(() => result.current.resume());
+
+    expect(result.current.deadline).toBe(deadline);
+  });
+
+  /** Sans déroulé en cours, « C'est fait » n'a rien à clore — et surtout rien à cocher. */
+  it("ignore une confirmation hors déroulé", () => {
+    const { result, onUnitDone } = runner();
+
+    act(() => result.current.confirm());
+
+    expect(result.current.active).toBe(false);
+    expect(onUnitDone).not.toHaveBeenCalled();
+  });
+
   it("remet tout à zéro sur un arrêt", () => {
     const { result } = runner();
     act(() => result.current.start(two, context));

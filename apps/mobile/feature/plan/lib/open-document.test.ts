@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const localDocumentUri = vi.fn<() => string | null>(() => null);
 vi.mock("@/shared/lib/document-cache", () => ({ localDocumentUri: () => localDocumentUri() }));
 
-let contentUri = "content://fr.cimavia.app/doc-1.pdf";
+/** Une `Error` ici fait lever le fichier, comme le natif sur un chemin hors du sandbox. */
+let contentUri: string | Error = "content://fr.cimavia.app/doc-1.pdf";
 vi.mock("expo-file-system", () => ({
   File: class {
     get contentUri() {
+      if (contentUri instanceof Error) throw contentUri;
       return contentUri;
     }
   },
@@ -127,6 +129,16 @@ describe("openDocument — android", () => {
     expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
   });
 
+  it("retombe sur l'url signée quand le fichier refuse de fournir son content uri", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+    contentUri = new Error("hors du sandbox");
+
+    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+
+    expect(startActivityAsync).not.toHaveBeenCalled();
+    expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
+  });
+
   /** Un lecteur absent ET pas de réseau : on le DIT, plutôt que d'échouer en silence. */
   it("annonce le hors-réseau quand l'ouverture locale échoue sans réseau", async () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
@@ -149,6 +161,25 @@ describe("openDocument — ios", () => {
 
     expect(shareAsync).toHaveBeenCalledWith(LOCAL_URI, { mimeType: "application/pdf" });
     expect(startActivityAsync).not.toHaveBeenCalled();
+  });
+
+  it("laisse la feuille déduire le type quand le document n'en porte pas", async () => {
+    platform = "ios";
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+
+    await openDocument("plan-1", attachment({ mimeType: null }), false);
+
+    expect(shareAsync).toHaveBeenCalledWith(LOCAL_URI, {});
+  });
+
+  it("retombe sur l'url signée quand la feuille lève", async () => {
+    platform = "ios";
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+    shareAsync.mockRejectedValueOnce(new Error("feuille fermée par l'OS"));
+
+    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+
+    expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
   });
 
   it("retombe sur l'url signée quand la feuille est indisponible", async () => {
