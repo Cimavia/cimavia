@@ -235,6 +235,29 @@ describe("deux cycles diffusés menés de front (#172)", () => {
     });
   });
 
+  /**
+   * Au-delà de deux, la fenêtre se resserre encore : c'est la période où l'athlète mène TOUT de
+   * front. Le troisième cycle commence le plus tard et finit le plus tôt — l'ignorer laisserait
+   * la fenêtre des deux premiers, qui annoncerait trois cycles là où il n'y en a que deux.
+   */
+  it("resserre la fenêtre sur un troisième cycle mené en même temps", () => {
+    const ADRIEN_BOOST = plan({
+      ...ADRIEN,
+      id: "pln_adrien_boost",
+      title: "Rappel de force",
+      startDate: "2026-09-07",
+      weekCount: 3,
+    });
+
+    expect(
+      rowOf(ADRIEN.athleteId, [ADRIEN_VOLUME, ADRIEN_TRAIL, ADRIEN_BOOST]).concurrency,
+    ).toEqual({
+      planIds: [ADRIEN_VOLUME.id, ADRIEN_TRAIL.id, ADRIEN_BOOST.id],
+      from: "2026-09-07",
+      to: "2026-09-27",
+    });
+  });
+
   it("un brouillon qui recouvre un cycle en cours ne compte pas : personne ne le suit", () => {
     const overlappingDraft = plan({
       ...ADRIEN,
@@ -307,6 +330,20 @@ describe("visiblePlanAthleteRows", () => {
       "Anna Costa",
       "Zoé Ferrand",
     ]);
+  });
+
+  // Aucun cycle diffusé des deux côtés : aucune date à comparer, le nom tranche — l'ordre ne
+  // dépend pas de celui d'arrivée de l'API.
+  it("range par nom deux athlètes qui n'ont que des brouillons", () => {
+    const zoe = plan({
+      athleteId: "ath_z",
+      athleteName: "Zoé Ferrand",
+      id: "pln_zoe",
+      status: PlanStatus.DRAFT,
+    });
+    expect(
+      visiblePlanAthleteRows(rows([zoe, CAMILLE_DRAFT]), QUERY).map((row) => row.athleteName),
+    ).toEqual(["Camille Fabre", "Zoé Ferrand"]);
   });
 
   it("filtre par époque, et n'y range pas l'athlète sans cycle diffusé", () => {

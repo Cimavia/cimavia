@@ -159,6 +159,22 @@ describe("buildAthleteRows", () => {
     expect(lea?.invoiceState).toBe(InvoiceState.OVERDUE);
   });
 
+  /**
+   * Le « plus récent » se lit sur les DATES, pas sur l'ordre d'arrivée : l'API ne garantit aucun
+   * tri. Rendre la liste à l'envers ne doit changer ni le débrief ouvert par le lien, ni la
+   * pastille de facturation.
+   */
+  it("élit le débrief et la facture les plus récents quel que soit l'ordre reçu", () => {
+    const [lea] =
+      buildAthleteRows({
+        ...FULL,
+        feedbacks: FULL.feedbacks?.toReversed(),
+        invoices: FULL.invoices?.toReversed(),
+      }) ?? [];
+    expect(lea?.lastUnreadFeedbackId).toBe("fbk_2");
+    expect(lea?.invoiceState).toBe(InvoiceState.OVERDUE);
+  });
+
   // Un brouillon n'est pas dû à l'athlète : il ne décide pas de la pastille.
   it("ignore les factures non émises", () => {
     const rows = buildAthleteRows({
