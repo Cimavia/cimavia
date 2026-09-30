@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.9.0](https://github.com/Cimavia/cimavia/compare/v1.8.3...v1.9.0) (2026-09-30)
+
+
+### Fonctionnalités
+
+* **mobile:** lire la vidéo en plein écran dans l'app et la reprendre si son url expire ([2f0ce63](https://github.com/Cimavia/cimavia/commit/2f0ce636c4a39e1f29feccc19d4f283afd1011ad))
+* **mobile:** montrer la vignette de la vidéo dans la galerie du débrief et dans la bulle ([9346957](https://github.com/Cimavia/cimavia/commit/9346957f8f90d412f9b627c556d1890a9e888474))
+* **mobile:** tirer sur l'appareil la vignette d'une vidéo, purgée au changement de compte ([9bc8ea6](https://github.com/Cimavia/cimavia/commit/9bc8ea6f7b3370ff515dc87a85fe9135c2b068ff))
+* **mobile:** traduire les permissions ios depuis le catalogue i18next, repli en français ([27abbd4](https://github.com/Cimavia/cimavia/commit/27abbd4c4642933bf1fb09ebff01c0a2f46a7b72))
+* **shared:** restreindre le suivi d'un débrief aux exercices encore dans la séance ([39a872a](https://github.com/Cimavia/cimavia/commit/39a872ab90f0b28e20b9558895371b970df5fa23))
+
+
+### Corrections
+
+* **api:** l'édition d'une séance planifiée garde ses lignes au lieu de les recréer ([8be1653](https://github.com/Cimavia/cimavia/commit/8be16532dfebbb7a99910b450821f8994e4b4c2d))
+* **api:** le débrief refuse en 400 un exercice absent de la séance au lieu de l'ignorer ([ca69e54](https://github.com/Cimavia/cimavia/commit/ca69e542f24967787ca9256ca5368807dee209f7))
+* **api:** payer ou annuler une facture clôt son rappel en retard, dans la même transaction ([c4f5be5](https://github.com/Cimavia/cimavia/commit/c4f5be57da164210658bb507fea9f92c80e4aef7))
+* **mobile:** aligner reanimated et worklets sur le sdk 56, pairs impl… ([c25573e](https://github.com/Cimavia/cimavia/commit/c25573e142d1680e543efb0415b0eaa00e246d09))
+* **mobile:** aligner reanimated et worklets sur le sdk 56, pairs implicites non choisis ([570f703](https://github.com/Cimavia/cimavia/commit/570f703460ab18611e4744ddd0b3051c4719c586))
+* **mobile:** chaque coche part de la précédente, le rattrapage ne perd plus de séries ([cbf0ca2](https://github.com/Cimavia/cimavia/commit/cbf0ca203af028f16ffc8da2abad4954e9d2fdb6))
+* **mobile:** le cache de séance prend le suivi envoyé, l'ancien décompte ne revient plus ([64fb28a](https://github.com/Cimavia/cimavia/commit/64fb28a579adea6db4a720ee007e43e7f34ab7c2))
+* **mobile:** le débrief écarte le suivi d'un exercice retiré et relit la séance sur un 400 ([ceab943](https://github.com/Cimavia/cimavia/commit/ceab943f32fd8e4a096c1187bc520c8150c09708))
+* **mobile:** retirer la permission face id que l'app ne demande jamais ([de70b4e](https://github.com/Cimavia/cimavia/commit/de70b4ec4147419b80baf3b7dc9ac0516e92c3ef))
+* **mobile:** un seul suivi local par séance, partagé par la séance et son débrief ([af84a59](https://github.com/Cimavia/cimavia/commit/af84a593bc8ff1b18fb85516dad552b029fd4470))
+* **mobile:** une coche posée pendant l'envoi du débrief reste en local, plus effacée ([f652d27](https://github.com/Cimavia/cimavia/commit/f652d2792046a2f96cefc18dfc84976fa7743c69))
+* **web:** la confirmation de rechargement ne promet plus de perte quand rien n'est ajusté ([b7b3adb](https://github.com/Cimavia/cimavia/commit/b7b3adb1ad4170978039ca98aa1c6c46c68c0a77))
+* **web:** le cache de séance prend le suivi envoyé, l'ancien décompte ne revient plus ([6acbe03](https://github.com/Cimavia/cimavia/commit/6acbe03bce5d260af7c56e9b450f848aa045ff47))
+* **web:** le débrief n'envoie plus le suivi d'un exercice retiré par le coach ([bf24f07](https://github.com/Cimavia/cimavia/commit/bf24f0760406762e4efe101460c6897e0fcb956d))
+* **web:** recharger un exercice ne reprend plus que sa ligne, pas les modifs des autres ([2eaa89c](https://github.com/Cimavia/cimavia/commit/2eaa89c94294762fab63e2cdea3f1c88a260d1ac))
+* **web:** un échec après la création d'un exercice ne le recrée plus au réessai ([e652adc](https://github.com/Cimavia/cimavia/commit/e652adc157268aaf295d34e1cf079d7db3b3579f))
+* **web:** un lien de pièce jointe invalide est refusé dès l'ajout, pas à l'enregistrement ([7180ea4](https://github.com/Cimavia/cimavia/commit/7180ea469c75562b56fda8a79c7b35bb01859077))
+* **web:** un refus du débrief relit la séance, l'envoi suivant passe sans attendre ([e227376](https://github.com/Cimavia/cimavia/commit/e2273764e2f56b9a6d0a70c81d5af2c3b9fa59b3))
+* **web:** une coche posée pendant l'envoi du débrief reste en local, plus effacée ([51e9f4b](https://github.com/Cimavia/cimavia/commit/51e9f4b1e35674c3a10c11ca25a0077cf8f12010))
+* **web:** une image de consigne déjà envoyée n'est plus renvoyée au réessai ([9ed4c17](https://github.com/Cimavia/cimavia/commit/9ed4c177890cddc37d0a5cd10be0a53cb88e5533))
+
+
+### Technique
+
+* **deps:** bump dbeaver/cloudbeaver ([ac11e54](https://github.com/Cimavia/cimavia/commit/ac11e54fedbd051f44eab80b0a4cda07daf8c27a))
+* **deps:** bump dbeaver/cloudbeaver from 26.2.0 to 26.2.1 in /deploy/preview in the docker-compose group across 1 directory ([ace3fc6](https://github.com/Cimavia/cimavia/commit/ace3fc65df493da67787ff889b32a57d15f921c7))
+* **mobile:** ajouter expo-video à la version du sdk 56, mocké dans le harnais de test ([3b2811e](https://github.com/Cimavia/cimavia/commit/3b2811ef4bf5378baa0f5559480b92c24ac44ef8))
+* **mobile:** aligner expo sur le sdk 56, dom-webview et metro-runtime déclarés ([fbea317](https://github.com/Cimavia/cimavia/commit/fbea3172c7123e0dc770cb3da3459bdd5dca428b))
+* **shared:** deux alertes sonar levées dans le suivi de séance, même comportement ([e099115](https://github.com/Cimavia/cimavia/commit/e09911513a10c4844ac2676f402b475f596e9606))
+* **shared:** typecheck la config vitest, où all traînait morte, et mesurer type/ ([12aac85](https://github.com/Cimavia/cimavia/commit/12aac85bf248852a561a680b28a6869766723e4c))
+* **shared:** un seul enregistrement du débrief pour web et mobile, déjà divergents ([ea725c2](https://github.com/Cimavia/cimavia/commit/ea725c26fc0a6856797791c3e326b4397bb2baec))
+* **shared:** une seule fonction écrit le suivi envoyé dans la séance en cache ([719af5d](https://github.com/Cimavia/cimavia/commit/719af5d3ec0840ec693d27f6a833cb96c5a7b061))
+* **sonar:** poser la jumelle du baril de @cmv/shared, exclu du seul côté vitest ([6688139](https://github.com/Cimavia/cimavia/commit/66881393d30e6bc8636cf3dc684366c2b45ca3e7))
+
 ## [1.8.3](https://github.com/Cimavia/cimavia/compare/v1.8.2...v1.8.3) (2026-09-28)
 
 
