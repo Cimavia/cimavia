@@ -138,7 +138,8 @@ export function CmvAudioPlayer({
     }
     // Rejouer depuis le début quand la lecture est terminée (sinon `play` ne repart pas).
     if (status.didJustFinish || (total > 0 && current >= total)) {
-      player.seekTo(0);
+      // `void` : `play` part aussitôt, comme avant — le lecteur applique la position dans l'ordre.
+      void player.seekTo(0);
     }
     wantsPlayRef.current = true;
     player.play();

@@ -363,7 +363,7 @@ export class ScheduledSessionService {
    * `compactDay` tient à chaque départ de séance. Le jour où il tomberait, ce compte rendrait un
    * rang déjà occupé.
    */
-  private async nextPosition(tx: TenantTx, planWeekId: string, date: string): Promise<number> {
+  private nextPosition(tx: TenantTx, planWeekId: string, date: string): Promise<number> {
     return tx.scheduledSession.count({
       where: { planWeekId, scheduledDate: toDbDate(date) },
     });

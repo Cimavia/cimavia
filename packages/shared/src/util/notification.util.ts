@@ -8,7 +8,9 @@ import { type NotificationDto, NotificationType } from "../dto/notification.sche
  * déjà pour les libellés : une notification écrite aujourd'hui serait figée en français le jour où
  * `en.json` arrive. C'est donc ici, à l'affichage, que la date devient lisible.
  */
-const DATE_SUBJECT_TYPES: readonly NotificationType[] = [NotificationType.PLAN_SESSIONS_REORDERED];
+const DATE_SUBJECT_TYPES: ReadonlySet<NotificationType> = new Set([
+  NotificationType.PLAN_SESSIONS_REORDERED,
+]);
 
 /**
  * Le SUJET d'une entrée du centre, résolu — la valeur à interpoler dans
@@ -42,7 +44,7 @@ export function notificationSubject(
 ): string | null {
   if (notification.subjectKey != null) return translate(notification.subjectKey);
   if (notification.subjectLabel == null) return null;
-  if (!DATE_SUBJECT_TYPES.includes(notification.type)) return notification.subjectLabel;
+  if (!DATE_SUBJECT_TYPES.has(notification.type)) return notification.subjectLabel;
   return formatFullDay(notification.subjectLabel);
 }
 

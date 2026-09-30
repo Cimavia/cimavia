@@ -51,7 +51,7 @@ export function DashboardTile({ label, count, hint, tone, onPress }: Readonly<Da
       <CmvText
         className={`font-cmv-display text-2xl ${signal == null ? "text-cmv-text-hi" : TONE_TEXT[signal]}`}
       >
-        {count == null ? "—" : count}
+        {count ?? "—"}
       </CmvText>
       <CmvText className={`text-xs ${signal == null ? "text-cmv-text-lo" : TONE_TEXT[signal]}`}>
         {hint}

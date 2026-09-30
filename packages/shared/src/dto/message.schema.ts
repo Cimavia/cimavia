@@ -1,8 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import {
-  FEEDBACK_IMAGE_MIME_TYPES,
-  FEEDBACK_VIDEO_MIME_TYPES,
   feedbackImageMimeTypeSchema,
   feedbackVideoMimeTypeSchema,
   MAX_FEEDBACK_PHOTO_SIZE_BYTES,
@@ -93,8 +91,10 @@ export const MAX_MESSAGE_VIDEO_DURATION_SECONDS = MAX_FEEDBACK_VIDEO_DURATION_SE
  */
 export const MAX_MESSAGE_MEDIA_BATCH = 10;
 
-export const MESSAGE_IMAGE_MIME_TYPES = FEEDBACK_IMAGE_MIME_TYPES;
-export const MESSAGE_VIDEO_MIME_TYPES = FEEDBACK_VIDEO_MIME_TYPES;
+export {
+  FEEDBACK_IMAGE_MIME_TYPES as MESSAGE_IMAGE_MIME_TYPES,
+  FEEDBACK_VIDEO_MIME_TYPES as MESSAGE_VIDEO_MIME_TYPES,
+} from "./media.schema";
 
 // ── Entrées ──────────────────────────────────────────────────────────────────
 

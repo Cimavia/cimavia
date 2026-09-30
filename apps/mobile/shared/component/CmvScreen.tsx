@@ -8,7 +8,7 @@ type CmvScreenProps = {
 
 // Fond sombre PAR DÉFAUT : le thème du MVP est unique. Un `bg-white` en dur ici gagnait sur les
 // classes passées par les écrans (l'ordre des classes ne décide pas, c'est la règle CSS générée).
-export function CmvScreen({ children, className }: CmvScreenProps) {
+export function CmvScreen({ children, className }: Readonly<CmvScreenProps>) {
   return (
     <SafeAreaView className={`flex-1 bg-cmv-bg-0 ${className ?? ""}`}>{children}</SafeAreaView>
   );

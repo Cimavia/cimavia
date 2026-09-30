@@ -28,7 +28,10 @@ const missing = missingRuntimeConfig(runtimeConfig());
 if (missing.length > 0) {
   root.render(<CmvCrashScreen error={new Error(`config.js incomplet : ${missing.join(", ")}`)} />);
 } else {
-  import("./app")
-    .then(({ mountApp }) => mountApp(root))
-    .catch((error: unknown) => root.render(<CmvCrashScreen error={error} />));
+  try {
+    const { mountApp } = await import("./app");
+    mountApp(root);
+  } catch (error: unknown) {
+    root.render(<CmvCrashScreen error={error} />);
+  }
 }

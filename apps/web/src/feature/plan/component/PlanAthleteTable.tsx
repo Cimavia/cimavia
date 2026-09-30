@@ -1,4 +1,5 @@
 import type { PlanAthleteRow, PlanConcurrency, PlanDeadline, PlanSummaryDto } from "@cmv/shared";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { PlanHistoryTable } from "@/feature/plan/component/PlanHistoryTable";
 import { CMV_TABLE, CmvAvatar, CmvBadge } from "@/shared/component";
@@ -149,6 +150,17 @@ function CurrentPlanCell({ row }: Readonly<{ row: PlanAthleteRow<PlanSummaryDto>
   );
 }
 
+/** La phrase d'une échéance : chaque motif a sa donnée — une date, un nombre de semaines, ou rien. */
+function deadlineText(deadline: PlanDeadline, t: TFunction): string {
+  if (deadline.kind === "STARTS_ON") {
+    return t("plan.deadline.STARTS_ON", { date: formatDate(deadline.date) });
+  }
+  if (deadline.kind === "ENDS_IN" || deadline.kind === "ENDED_SINCE") {
+    return t(`plan.deadline.${deadline.kind}`, { count: deadline.weeks });
+  }
+  return t(`plan.deadline.${deadline.kind}`);
+}
+
 /**
  * L'échéance — et c'est elle qui rend l'ordre des lignes vérifiable à l'œil : lue de haut en bas,
  * la colonne raconte le tri. `@cmv/shared` rend un MOTIF et sa donnée ; c'est ici que le motif
@@ -163,12 +175,7 @@ function DeadlineCell({
   const { t } = useTranslation();
   if (deadline == null) return <span className="text-cmv-text-lo">—</span>;
 
-  const line =
-    deadline.kind === "STARTS_ON"
-      ? t("plan.deadline.STARTS_ON", { date: formatDate(deadline.date) })
-      : deadline.kind === "ENDS_IN" || deadline.kind === "ENDED_SINCE"
-        ? t(`plan.deadline.${deadline.kind}`, { count: deadline.weeks })
-        : t(`plan.deadline.${deadline.kind}`);
+  const line = deadlineText(deadline, t);
 
   /* La teinte suit l'ÉTAT et non le nombre de semaines : un cycle qui court est le moment dont le
      coach s'occupe, qu'il lui reste une semaine ou neuf. Même règle qu'en #120. */

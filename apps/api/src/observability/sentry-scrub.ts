@@ -32,9 +32,9 @@ function isSecretHeader(name: string): boolean {
  * et un cookie éclaté en `…header.cookie.<nom du cookie>`.
  */
 const SECRET_SPAN_ATTRIBUTE = new RegExp(
-  `^http\\.(?:request|response)\\.header\\.(?:${[...SECRET_HEADERS]
+  String.raw`^http\.(?:request|response)\.header\.(?:${[...SECRET_HEADERS]
     .map((name) => name.replaceAll("-", "_"))
-    .join("|")})(?:\\.|$)`,
+    .join("|")})(?:\.|$)`,
   "i",
 );
 

@@ -8,7 +8,7 @@ type CmvEmptyStateProps = {
 };
 
 // État vide d'une liste — évite les écrans blancs (design system : états vide/chargement/erreur).
-export function CmvEmptyState({ title, description, action }: CmvEmptyStateProps) {
+export function CmvEmptyState({ title, description, action }: Readonly<CmvEmptyStateProps>) {
   return (
     <div className="flex flex-col items-center gap-cmv-sm rounded-cmv-lg border border-cmv-border border-dashed bg-cmv-bg-1 p-cmv-2xl text-center">
       <p className="text-cmv-subtitle text-cmv-text-hi">{title}</p>

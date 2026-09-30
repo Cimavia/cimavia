@@ -28,7 +28,7 @@ import type { MultipartUploadTicket } from "../dto/upload.schema";
 export type PartFailure = { kind: "unreachable" } | { kind: "status"; status: number };
 
 // Deux refus qui disent « pas maintenant » plutôt que « pas comme ça » : réessayer les corrige.
-const RETRYABLE_STATUSES: readonly number[] = [408, 429];
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429]);
 
 /**
  * Réessayer a-t-il une chance de changer quelque chose ?
@@ -40,7 +40,7 @@ const RETRYABLE_STATUSES: readonly number[] = [408, 429];
  */
 export function isRetryablePartFailure(failure: PartFailure): boolean {
   if (failure.kind === "unreachable") return true;
-  return RETRYABLE_STATUSES.includes(failure.status) || failure.status >= 500;
+  return RETRYABLE_STATUSES.has(failure.status) || failure.status >= 500;
 }
 
 /**

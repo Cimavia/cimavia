@@ -190,7 +190,7 @@ export class InvitationService {
    */
   async decline(athlete: { id: string; email: string }, code: string): Promise<void> {
     const invitation = await this.prisma.invitation.findUnique({ where: { code } });
-    if (!invitation || invitation.status !== InvitationStatus.PENDING) {
+    if (invitation?.status !== InvitationStatus.PENDING) {
       throw new NotFoundException("Invitation introuvable ou déjà utilisée");
     }
     if (invitation.expiresAt.getTime() < Date.now()) {
@@ -218,7 +218,7 @@ export class InvitationService {
     const invitation = await this.prisma.invitation.findUnique({
       where: { code },
     });
-    if (!invitation || invitation.status !== InvitationStatus.PENDING) {
+    if (invitation?.status !== InvitationStatus.PENDING) {
       throw new NotFoundException("Invitation introuvable ou déjà utilisée");
     }
     if (invitation.expiresAt.getTime() < Date.now()) {

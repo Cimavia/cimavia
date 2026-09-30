@@ -1,4 +1,4 @@
-import type { EnvSchema } from "@cmv/shared";
+import { type EnvSchema, trimTrailingSlashes } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { mailCatalog } from "./mail.catalog";
@@ -41,7 +41,7 @@ export class InvitationMailer {
     // Aucun test ne peut le vérifier — l'API ne connaît pas le routeur du client —, donc la
     // renommer casse ce lien EN SILENCE. La nommer ici est la seule parade : un `grep register.tsx`
     // la trouve.
-    this.registerUrl = webUrl == null ? null : `${webUrl.replace(/\/+$/, "")}/register`;
+    this.registerUrl = webUrl == null ? null : `${trimTrailingSlashes(webUrl)}/register`;
   }
 
   async send(params: {

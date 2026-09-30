@@ -228,7 +228,7 @@ export class ReminderService {
    * borne est celle du CENTRE (une entrée de rappel y concourt avec les notifications), pas celle de
    * l'écran « mes rappels ».
    */
-  async listDue(now: Date, limit: number): Promise<Reminder[]> {
+  listDue(now: Date, limit: number): Promise<Reminder[]> {
     return this.db.reminder.findMany({
       where: dueWhere(now),
       orderBy: { dueAt: "desc" },
@@ -238,7 +238,7 @@ export class ReminderService {
 
   // Alimente le badge, aux côtés des notifications non lues. Le `readAt: null` est ce qui distingue
   // ce compteur de celui de `summary` : ici on compte ce qui n'a pas été VU, là ce qui reste à FAIRE.
-  async countDueUnread(now: Date): Promise<number> {
+  countDueUnread(now: Date): Promise<number> {
     return this.db.reminder.count({
       where: { ...dueWhere(now), readAt: null },
     });

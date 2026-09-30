@@ -158,7 +158,9 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
           },
         },
         update: {
-          before: async (user) => {
+          // Sans `async` : rien n'y est attendu. Better Auth exige une promesse en retour — le refus,
+          // lui, part par `throw`, que le `await` de l'appelant reçoit comme un rejet.
+          before: (user) => {
             // `input: true` ouvre les capacités à l'inscription ET à `/update-user`, qui les
             // écrirait sans `assertRemovable` ni recalcul de `role` (#310). Ce hook ne voit pas
             // `CapabilityService` : il écrit par Prisma, hors de l'adapter Better Auth.
@@ -171,6 +173,7 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
                 message: `non modifiable par /update-user : ${locked.join(", ")} — passer par PATCH /me/capabilities`,
               });
             }
+            return Promise.resolve();
           },
         },
       },

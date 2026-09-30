@@ -15,7 +15,7 @@ export function CmvSegmented<T extends string>({
   value,
   onChange,
   label,
-}: CmvSegmentedProps<T>) {
+}: Readonly<CmvSegmentedProps<T>>) {
   return (
     <div className="flex flex-col gap-cmv-xs">
       {label == null ? null : <span className="text-cmv-caption text-cmv-text-mid">{label}</span>}

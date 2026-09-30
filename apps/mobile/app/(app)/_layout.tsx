@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs, usePathname } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useCounterparts } from "@/feature/account/hook/useCounterparts";
 import { usePushToken, useUnreadNotificationCount } from "@/feature/notification";
+import { tabBarIconFor } from "@/shared/component/CmvTabBarIcon";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { redirectForPath, TABS, visibleTabs } from "@/shared/lib/tabs";
 import { tabBarTheme } from "@/shared/theme/navigation";
@@ -84,9 +84,7 @@ export default function AppTabsLayout() {
             name={tab.name}
             options={{
               title: t(tab.labelKey),
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name={tab.icon} color={color} size={size} />
-              ),
+              tabBarIcon: tabBarIconFor(tab.icon),
               // `href: null` retire l'onglet de la barre ET rend sa route inatteignable. Pour la
               // messagerie sans interlocuteur (#198), c'est plus strict que le web, qui la laisse
               // joignable par son URL — ici il n'y a pas d'URL à taper, et rien à y voir.

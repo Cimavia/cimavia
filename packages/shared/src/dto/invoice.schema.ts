@@ -4,7 +4,7 @@ import type { TypesValuesOf } from "../type/generics.type";
 export const INVOICE_NOTE_MAX_LENGTH = 2000;
 // Plafond de garde-fou (100 000 €) : borne le champ, pas une règle métier. amountCents est un
 // ENTIER de centimes — jamais un float (règle argent).
-export const INVOICE_AMOUNT_MAX_CENTS = 100_000_00;
+export const INVOICE_AMOUNT_MAX_CENTS = 10_000_000;
 
 // Devise unique en MVP : le champ existe en base pour l'avenir (facturation multi-devise v1.0),
 // mais l'UI n'offre pas de choix. Enum mono-valeur → toute autre valeur est rejetée en 400.

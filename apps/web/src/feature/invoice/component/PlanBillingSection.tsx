@@ -27,6 +27,14 @@ type PlanBillingSectionProps = {
   billing: InvoiceDto | null | undefined;
 };
 
+// Euros saisis → centimes entiers. `Math.round` absorbe l'imprécision du float de saisie
+// (49.90 * 100 = 4989.999…) : la seule multiplication par 100 du flux vit ici.
+function toAmountCents(euros: string): number | null {
+  const value = Number(euros);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value * 100);
+}
+
 /**
  * Section « Facturation » du builder, sous les semaines (p6-1). Édite la facture DRAFT du cycle ;
  * la diffusion l'exige (gating). Le coach saisit un montant en euros, converti en centimes (entier)
@@ -53,14 +61,6 @@ export function PlanBillingSection({
     setDueDate(billing.dueDate);
     setNote(billing.note ?? "");
   }, [billing]);
-
-  // Euros saisis → centimes entiers. `Math.round` absorbe l'imprécision du float de saisie
-  // (49.90 * 100 = 4989.999…) : la seule multiplication par 100 du flux vit ici.
-  function toAmountCents(euros: string): number | null {
-    const value = Number(euros);
-    if (!Number.isFinite(value) || value <= 0) return null;
-    return Math.round(value * 100);
-  }
 
   function onSubmit(event: SubmitEvent) {
     event.preventDefault();
