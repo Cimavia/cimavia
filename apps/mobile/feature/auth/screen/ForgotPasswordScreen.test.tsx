@@ -1,8 +1,9 @@
 import { fireEvent } from "@testing-library/react";
+import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgotPasswordScreen } from "@/feature/auth/screen/ForgotPasswordScreen";
 import { authClient } from "@/shared/lib/auth";
-import { pressButton, renderRn } from "@/test/render";
+import { press, pressButton, renderRn } from "@/test/render";
 
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { requestPasswordReset: vi.fn() },
@@ -76,5 +77,13 @@ describe("ForgotPasswordScreen (mobile)", () => {
 
     await vi.waitFor(() => expect(queryByText("auth.errors.generic")).not.toBeNull());
     expect(queryByText("auth.forgot.sent")).toBeNull();
+  });
+
+  it("ramène à la connexion", () => {
+    const { getByText } = renderRn(<ForgotPasswordScreen />);
+
+    press(getByText("auth.forgot.back"));
+
+    expect(router.push).toHaveBeenCalledWith("/login");
   });
 });

@@ -1,17 +1,10 @@
 import { fireEvent } from "@testing-library/react";
+import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegisterScreen } from "@/feature/auth/screen/RegisterScreen";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
-import { pressButton, renderRn } from "@/test/render";
-
-// Expo Router porte la navigation, que cet écran ne fait QUE déléguer : la redirection d'après
-// inscription est le fait de la garde de session, pas d'un `replace` d'ici (cf. le commentaire de
-// `onSubmit`). Le double sert donc à monter le composant, pas à affirmer quoi que ce soit.
-vi.mock("expo-router", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  Redirect: () => null,
-}));
+import { press, pressButton, renderRn } from "@/test/render";
 
 vi.mock("@/shared/lib/account-reset", () => ({ resetAccountData: vi.fn(async () => undefined) }));
 
@@ -123,5 +116,41 @@ describe("RegisterScreen (mobile)", () => {
 
       await vi.waitFor(() => expect(queryByText("auth.errors.generic")).not.toBeNull());
     });
+  });
+
+  /**
+   * La redirection d'après inscription est le fait de cette garde, pas d'un `replace` d'ici (cf.
+   * le commentaire de `onSubmit`) : elle part de la capacité, jamais d'une route en dur.
+   */
+  it("renvoie un compte déjà connecté vers son premier onglet", () => {
+    useSession.mockReturnValue({
+      data: { user: { id: "me", isCoach: true, isAthlete: false } },
+      isPending: false,
+    } as never);
+
+    const { container, queryByText } = renderRn(<RegisterScreen />);
+
+    expect(container.querySelector("[data-redirect]")?.getAttribute("data-redirect")).toBe(
+      "/dashboard",
+    );
+    expect(queryByText(SUBMIT)).toBeNull();
+  });
+
+  it("n'aiguille pas lui-même après l'inscription", async () => {
+    const { container } = renderRn(<RegisterScreen />);
+    fillIdentity(container);
+
+    pressButton(container, SUBMIT);
+
+    await vi.waitFor(() => expect(resetAccount).toHaveBeenCalled());
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("mène à la connexion", () => {
+    const { getByText } = renderRn(<RegisterScreen />);
+
+    press(getByText("auth.register.toLogin"));
+
+    expect(router.push).toHaveBeenCalledWith("/login");
   });
 });
