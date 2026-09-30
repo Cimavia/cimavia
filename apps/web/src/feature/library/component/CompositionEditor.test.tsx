@@ -58,6 +58,14 @@ describe("CompositionEditor", () => {
 
       expect(onMove).toHaveBeenCalledWith(1, 1);
     });
+
+    it("montent d'un cran depuis la ligne cliquée", async () => {
+      const { user, getAllByRole, onMove } = setup();
+
+      await user.click(getAllByRole("button", { name: MOVE_UP })[2] as HTMLElement);
+
+      expect(onMove).toHaveBeenCalledExactlyOnceWith(2, -1);
+    });
   });
 
   describe("le glisser-déposer", () => {
@@ -96,5 +104,23 @@ describe("CompositionEditor", () => {
 
       expect(onMove).toHaveBeenCalledWith(0, 1);
     });
+  });
+
+  it("retire la ligne cliquée, désignée par sa clé et non par son rang", async () => {
+    const { user, getAllByRole, onRemove } = setup();
+
+    await user.click(getAllByRole("button", { name: `${PREFIX}.remove` })[1] as HTMLElement);
+
+    expect(onRemove).toHaveBeenCalledExactlyOnceWith("b");
+  });
+
+  it("remonte la note saisie avec la clé de sa ligne", () => {
+    const { getAllByLabelText, onNoteChange } = setup();
+
+    fireEvent.change(getAllByLabelText(`${PREFIX}.noteLabel`)[2] as HTMLElement, {
+      target: { value: "Lestées 5 kg" },
+    });
+
+    expect(onNoteChange).toHaveBeenCalledExactlyOnceWith("c", "Lestées 5 kg");
   });
 });
