@@ -32,6 +32,7 @@ const SHEET: AthleteSheetDto = {
 };
 
 beforeEach(() => {
+  vi.clearAllMocks();
   getAthleteSheet.mockResolvedValue(SHEET);
   saveAthleteSheet.mockResolvedValue(SHEET);
 });
@@ -90,6 +91,16 @@ describe("AthleteSheetPanel — une fiche non reçue ne s'édite pas (#301)", ()
     await waitFor(() =>
       expect(saveAthleteSheet).toHaveBeenCalledWith("ath_1", { content: "Objectif : 7b" }),
     );
+  });
+
+  it("dit l'enregistrement en cours, bouton éteint", async () => {
+    saveAthleteSheet.mockReturnValue(new Promise(() => {}));
+    const { user } = render();
+
+    await user.type(await screen.findByRole("textbox"), " Et le genou.");
+    await user.click(submitButton() as HTMLElement);
+
+    expect(await screen.findByRole("button", { name: "athlete.sheet.submitting" })).toBeDisabled();
   });
 
   /**

@@ -1,4 +1,5 @@
 import type { PendingInvitationDto } from "@cmv/shared";
+import { ApiError } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MyCoachScreen } from "@/feature/coach/screen/MyCoachScreen";
@@ -93,6 +94,7 @@ async function clickAfterSettled(user: Awaited<ReturnType<typeof render>>["user"
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   myCoach.mockResolvedValue(null);
   myInvitations.mockResolvedValue([]);
   acceptInvitation.mockResolvedValue(RELATION);
@@ -139,6 +141,18 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
    * laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien — et refuser
    * est justement le geste utile ici, c'est lui qui vide la liste d'attente de l'inviteur.
    */
+  // Pendant la connexion, ni second envoi ni refus croisé : les deux gestes s'éteignent.
+  it("dit la connexion en cours depuis la carte, gestes éteints", async () => {
+    myInvitations.mockResolvedValue([INVITATION]);
+    acceptInvitation.mockReturnValue(new Promise(() => {}));
+    const { user } = await render();
+
+    await clickAfterSettled(user, "coach.invitation.join");
+
+    expect(await screen.findByRole("button", { name: "coach.invitation.joining" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "coach.invitation.decline" })).toBeDisabled();
+  });
+
   it("montre l'invitation à un athlète déjà lié, refusable mais pas acceptable", async () => {
     myCoach.mockResolvedValue(RELATION);
     myInvitations.mockResolvedValue([INVITATION]);
@@ -168,5 +182,101 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
     expect(
       screen.queryByRole("button", { name: "coach.invitation.decline" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("MyCoachScreen — les états", () => {
+  it("dit qu'il charge", async () => {
+    myCoach.mockReturnValue(new Promise(() => {}));
+    await render();
+
+    expect(screen.getByText("common.loading")).toBeInTheDocument();
+    expect(screen.queryByLabelText("coach.join.codeLabel")).toBeNull();
+  });
+
+  // Panne et « pas de coach » ne se confondent pas : le formulaire sur une API injoignable
+  // inviterait à rejoindre un coach qu'on a déjà.
+  it("dit la panne sans proposer de code, puis relit au réessai", async () => {
+    myCoach.mockRejectedValueOnce(new Error("réseau"));
+    const { user } = await render();
+
+    await user.click(await screen.findByRole("button", { name: "common.retry" }));
+
+    expect(await screen.findByLabelText("coach.join.codeLabel")).toBeInTheDocument();
+    expect(myCoach).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("MyCoachScreen — le coach lié", () => {
+  it("nomme le coach, depuis quand, et ouvre le fil à titre d'athlète", async () => {
+    myCoach.mockResolvedValue(RELATION);
+    await render();
+
+    expect(await screen.findByRole("heading", { name: "Julie Renaud" })).toBeInTheDocument();
+    expect(screen.getByText("coach.linked.since")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "coach.linked.message" })).toHaveAttribute(
+      "href",
+      "/messages?as=athlete",
+    );
+    expect(screen.queryByLabelText("coach.join.codeLabel")).toBeNull();
+  });
+
+  // Une relation posée sans acceptation n'a pas de date : on le dit, on n'en invente pas.
+  it("dit qu'on ignore depuis quand, sans date inventée", async () => {
+    myCoach.mockResolvedValue({ ...RELATION, joinedAt: null });
+    await render();
+
+    expect(await screen.findByText("coach.linked.sinceUnknown")).toBeInTheDocument();
+    expect(screen.queryByText("coach.linked.since")).toBeNull();
+  });
+});
+
+describe("MyCoachScreen — rejoindre par un code", () => {
+  const CODE = "coach.join.codeLabel";
+  const SUBMIT = "coach.join.submit";
+
+  it("n'envoie pas un code blanc", async () => {
+    const { user } = await render();
+
+    await user.type(await screen.findByLabelText(CODE), "   ");
+
+    expect(screen.getByRole("button", { name: SUBMIT })).toBeDisabled();
+  });
+
+  // Le code se colle souvent avec l'espace d'un message : il part nettoyé.
+  it("rejoint avec le code nettoyé, à la touche Entrée", async () => {
+    const { user } = await render();
+
+    await user.type(await screen.findByLabelText(CODE), "  7QK4M2XZ9 {Enter}");
+
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
+  });
+
+  it("dit la connexion en cours, et ne renvoie pas le code", async () => {
+    acceptInvitation.mockReturnValue(new Promise(() => {}));
+    const { user } = await render();
+
+    await user.type(await screen.findByLabelText(CODE), "7QK4M2XZ9{Enter}");
+    expect(await screen.findByRole("button", { name: "coach.join.joining" })).toBeDisabled();
+    await user.type(screen.getByLabelText(CODE), "{Enter}");
+
+    expect(acceptInvitation).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Le message du serveur d'abord (code inconnu, expiré, déjà consommé) ; un libellé seulement
+   * quand il n'en a pas. Le recours, lui, est toujours dit.
+   */
+  it.each([
+    ["le message de l'api", new ApiError(400, "Invitation expirée", null), "Invitation expirée"],
+    ["un libellé", new Error("réseau"), "coach.join.errorTitle"],
+  ])("dit l'échec par %s, et le recours", async (_how, failure, text) => {
+    acceptInvitation.mockRejectedValue(failure);
+    const { user } = await render();
+
+    await user.type(await screen.findByLabelText(CODE), "7QK4M2XZ9{Enter}");
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.getByText("coach.join.errorDescription")).toBeInTheDocument();
   });
 });
