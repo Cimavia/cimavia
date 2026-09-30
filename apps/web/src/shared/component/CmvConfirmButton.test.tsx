@@ -50,4 +50,16 @@ describe("CmvConfirmButton", () => {
     expect(wrapper).toContainElement(button);
     expect(wrapper).toHaveClass("[&>button]:pointer-events-none");
   });
+
+  it("garde l'icône d'un bouton-icône fermé, et son nom accessible", () => {
+    const { getByRole, queryByText } = setup({
+      disabledReason: "Séance débriefée",
+      icon: <span data-testid="icon" />,
+    });
+
+    // Le libellé ne s'écrit pas à la place de l'icône : c'est le `title` qui nomme le bouton.
+    const button = getByRole("button", { name: "Supprimer" });
+    expect(button).toBeDisabled();
+    expect(queryByText("Supprimer")).toBeNull();
+  });
 });
