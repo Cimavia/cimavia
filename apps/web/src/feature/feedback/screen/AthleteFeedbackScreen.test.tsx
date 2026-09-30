@@ -1,20 +1,29 @@
 import type { MediaBatch, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { MAX_FEEDBACK_PHOTOS, MAX_FEEDBACK_VIDEOS, MediaType } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { MAX_FEEDBACK_PHOTOS, MAX_FEEDBACK_VIDEOS, MediaType, myFeedbackKeys } from "@cmv/shared";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/shared/lib/api";
 import { MediaRejectedError } from "@/shared/util/media.util";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteFeedbackScreen } from "./AthleteFeedbackScreen";
 
-const { getFeedbackMock, upsertMock, getSessionMock, addFilesMock, addMediaMock, removeMock } =
-  vi.hoisted(() => ({
-    getFeedbackMock: vi.fn(),
-    upsertMock: vi.fn(),
-    getSessionMock: vi.fn(),
-    addFilesMock: vi.fn(),
-    addMediaMock: vi.fn(),
-    removeMock: vi.fn(),
-  }));
+const {
+  getFeedbackMock,
+  upsertMock,
+  getSessionMock,
+  addFilesMock,
+  addMediaMock,
+  removeMock,
+  reply,
+} = vi.hoisted(() => ({
+  reply: { onSent: (): unknown => undefined },
+  getFeedbackMock: vi.fn(),
+  upsertMock: vi.fn(),
+  getSessionMock: vi.fn(),
+  addFilesMock: vi.fn(),
+  addMediaMock: vi.fn(),
+  removeMock: vi.fn(),
+}));
 
 vi.mock("@/feature/feedback/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/feedback/api")>()),
@@ -34,6 +43,27 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
 vi.mock("@/feature/feedback/hook/useMyFeedbackMedia", () => ({
   useAddFeedbackMedia: () => addMediaMock(),
   useDeleteFeedbackMedia: () => ({ mutate: removeMock, isPending: false }),
+}));
+
+/**
+ * Le fil de réponse a ses propres tests : on n'en retient que `onSent`, par lequel il dit à l'écran
+ * qu'une réponse est partie.
+ */
+vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({
+  useFeedbackReply: (options: { onSent: () => unknown }) => {
+    reply.onSent = options.onSent;
+    return {
+      ready: true,
+      hasThreadError: false,
+      sendText: vi.fn(),
+      sending: false,
+      sendFiles: vi.fn(),
+      sendAudio: vi.fn(),
+      mediaBusy: false,
+      progress: 0,
+      step: null,
+    };
+  },
 }));
 
 /**
@@ -236,6 +266,28 @@ describe("AthleteFeedbackScreen", () => {
       );
     });
 
+    it("dit l'envoi en cours, bouton éteint", async () => {
+      upsertMock.mockReturnValue(new Promise(() => {}));
+      const { user, findByRole } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      expect(await findByRole("button", { name: "feedback.saving" })).toBeDisabled();
+    });
+
+    // Le refus de l'API a des mots à lui ; une panne muette retombe sur un libellé, jamais du vide.
+    it.each([
+      ["le message de l'api", new ApiError(400, "Séance close", null), "Séance close"],
+      ["un libellé", new Error("réseau"), "feedback.saveError"],
+    ])("dit l'échec de l'envoi par %s", async (_how, failure, text) => {
+      upsertMock.mockRejectedValue(failure);
+      const { user, findByRole, findByText } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      expect(await findByText(text)).toBeInTheDocument();
+    });
+
     it("n'envoie pas la coche d'un exercice que le coach a retiré depuis", async () => {
       // La coche est restée en local, la séance ne porte plus l'exercice : l'envoyer ferait
       // refuser tout le débrief par le serveur (#311), à chaque nouvelle tentative.
@@ -356,6 +408,18 @@ describe("AthleteFeedbackScreen", () => {
       return rendered;
     }
 
+    // Rien choisi, rien à préparer : le lot ne part pas à vide.
+    it("ne lance aucun lot sur une sélection annulée", async () => {
+      const { findByLabelText, container } = await setup();
+      await findByLabelText(CONTENT);
+
+      fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+        target: { files: [] },
+      });
+
+      expect(addFilesMock).not.toHaveBeenCalled();
+    });
+
     it("confie toute la sélection au lot, d'un seul geste", async () => {
       await pick([photo("a.jpg"), photo("b.jpg"), photo("c.jpg")]);
 
@@ -381,6 +445,30 @@ describe("AthleteFeedbackScreen", () => {
       // inutile de préparer ce qu'aucun quota ne peut accueillir.
       await waitFor(() => expect(batchOf(0).remaining.IMAGE).toBe(1));
       expect(batchOf(0).maxItems).toBe(1 + MAX_FEEDBACK_VIDEOS);
+    });
+
+    // L'ajout ne se ferme que quand AUCUNE place ne reste : photos pleines, une vidéo passe encore.
+    it.each([
+      ["reste ouvert tant qu'une vidéo peut encore passer", [], true],
+      [
+        "se ferme quand photos et vidéos sont pleines",
+        Array(MAX_FEEDBACK_VIDEOS).fill("VIDEO"),
+        false,
+      ],
+    ])("l'ajout %s", async (_how, videos: string[], enabled) => {
+      const types = [...Array(MAX_FEEDBACK_PHOTOS).fill("IMAGE"), ...videos];
+      getFeedbackMock.mockResolvedValue(
+        feedback({
+          media: types.map((type, index) => ({
+            id: `m-${index}`,
+            type,
+          })) as SessionFeedbackDto["media"],
+        }),
+      );
+      const { findByRole } = await setup();
+
+      const button = await findByRole("button", { name: "feedback.media.addFile" });
+      expect(button.hasAttribute("disabled")).toBe(!enabled);
     });
 
     it("refuse de joindre un fichier qui n'est ni photo ni vidéo", async () => {
@@ -446,6 +534,14 @@ describe("AthleteFeedbackScreen", () => {
 
       expect(await findByText(/feedback\.media\.retrying/)).toBeInTheDocument();
       expect(queryByText(/feedback\.media\.uploading/)).toBeNull();
+    });
+
+    // Un lot à la fois : la file de l'envoi en cours n'accueille pas une seconde sélection.
+    it("éteint l'ajout de fichiers pendant un envoi", async () => {
+      uploading({});
+      const { findByRole } = await setup();
+
+      expect(await findByRole("button", { name: "feedback.media.addFile" })).toBeDisabled();
     });
 
     // « Envoi 1 / 1 » serait du bruit : un lot d'un seul média n'a pas de rang.
@@ -523,6 +619,10 @@ describe("AthleteFeedbackScreen", () => {
       expect(
         failureReason(new MediaRejectedError("feedback.media.videoTooBig", { max: 1000 })),
       ).toEqual({ key: "feedback.media.videoTooBig", params: { max: 1000 } });
+      // Une panne de l'API garde ses propres mots : ce sont les plus précis.
+      expect(failureReason(new ApiError(413, "Trop lourd", null))).toEqual({
+        message: "Trop lourd",
+      });
       // Une panne sans message exploitable retombe sur un libellé, pas sur du vide.
       expect(failureReason(new Error("boom"))).toEqual({
         key: "feedback.media.uploadError",
@@ -586,6 +686,19 @@ describe("AthleteFeedbackScreen", () => {
 
       await waitFor(() => expect(addAudio).toHaveBeenCalled());
       expect(queryByRole("button", { name: "common.cancel" })).not.toBeInTheDocument();
+    });
+
+    // Le refus du micro précède tout envoi : il n'a ni lot ni hook où se dire, l'écran le dit.
+    it("dit le refus du micro", async () => {
+      vi.stubGlobal("navigator", {
+        ...window.navigator,
+        mediaDevices: { getUserMedia: () => Promise.reject(new Error("refusé")) },
+      });
+      const { user, findByRole, findByText } = await setup();
+
+      await user.click(await findByRole("button", { name: "feedback.media.addAudio" }));
+
+      expect(await findByText("feedback.media.permission")).toBeInTheDocument();
     });
 
     it("jette la capture sans rien envoyer", async () => {
@@ -653,6 +766,39 @@ describe("AthleteFeedbackScreen", () => {
     const { findByText } = await setup();
 
     expect(await findByText("feedback.submit.filled")).toBeInTheDocument();
+  });
+
+  // Un bloc en tours se compte en tours, pas en lignes cochées : deux tours, c'est du contenu.
+  it("dit qu'il y a quelque chose à envoyer quand seuls des tours sont comptés", async () => {
+    window.localStorage.setItem(
+      `cimavia-tracking:${SESSION_ID}`,
+      JSON.stringify({ "sx-1": { "b-1": { rounds: 2 } } }),
+    );
+    const { findByText } = await setup();
+
+    expect(await findByText("feedback.submit.filled")).toBeInTheDocument();
+  });
+
+  it("tient zéro tour pour rien", async () => {
+    window.localStorage.setItem(
+      `cimavia-tracking:${SESSION_ID}`,
+      JSON.stringify({ "sx-1": { "b-1": { rounds: 0 } } }),
+    );
+    const { findByText } = await setup();
+
+    expect(await findByText("feedback.submit.empty")).toBeInTheDocument();
+  });
+
+  // Son PROPRE débrief, pas la boîte du coach : c'est là que la réponse doit réapparaître.
+  it("relit son débrief quand une réponse est partie", async () => {
+    getFeedbackMock.mockResolvedValue(feedback());
+    const { findByLabelText, queryClient } = await setup();
+    await findByLabelText(CONTENT);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    reply.onSent();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: myFeedbackKeys.detail(SESSION_ID) });
   });
 
   it("ramène à LA séance, pas au planning", async () => {

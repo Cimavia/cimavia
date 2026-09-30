@@ -1,5 +1,6 @@
 import type { CoachFeedbackSummaryDto, SessionFeedbackDto } from "@cmv/shared";
-import { fireEvent } from "@testing-library/react";
+import { coachFeedbackKeys } from "@cmv/shared";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useFeedbacks,
@@ -19,21 +20,30 @@ vi.mock("@/feature/feedback/hook/useFeedbacks", () => ({
   useMarkFeedbackRead: vi.fn(),
   useSessionFeedback: vi.fn(),
 }));
-vi.mock("@/feature/message/hook/useMessages", () => ({
-  useConversationWith: () => ({ data: { id: "c-1" }, isError: false }),
+const { conversationWith, freshMediaUrl, reply } = vi.hoisted(() => ({
+  reply: { onSent: (): unknown => undefined },
+  conversationWith: vi.fn((_athleteId: string | null) => ({ data: { id: "c-1" }, isError: false })),
+  freshMediaUrl: vi.fn(async (_mediaId: string) => null),
 }));
+vi.mock("@/feature/message/hook/useMessages", () => ({ useConversationWith: conversationWith }));
+// La re-signature a ses propres tests : ici, on vérifie QUEL média le volet fait re-signer.
+vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => freshMediaUrl }));
+// `onSent` est retenu : c'est par lui que le volet dit à la boîte qu'une réponse est partie.
 vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({
-  useFeedbackReply: () => ({
-    ready: true,
-    hasThreadError: false,
-    sendText: vi.fn(),
-    sending: false,
-    sendFiles: vi.fn(),
-    sendAudio: vi.fn(),
-    mediaBusy: false,
-    progress: 0,
-    step: null,
-  }),
+  useFeedbackReply: (options: { onSent: () => unknown }) => {
+    reply.onSent = options.onSent;
+    return {
+      ready: true,
+      hasThreadError: false,
+      sendText: vi.fn(),
+      sending: false,
+      sendFiles: vi.fn(),
+      sendAudio: vi.fn(),
+      mediaBusy: false,
+      progress: 0,
+      step: null,
+    };
+  },
 }));
 vi.mock("@/shared/lib/auth", () => ({
   authClient: {
@@ -200,5 +210,106 @@ describe("FeedbacksScreen", () => {
     expect(container.querySelector("img")).not.toBeNull();
     expect(container.querySelector("audio")).not.toBeNull();
     expect(container.querySelector("video")).not.toBeNull();
+  });
+
+  it("fait re-signer le média dont la lecture échoue, et lui seul", async () => {
+    vi.mocked(useSessionFeedback).mockReturnValue({
+      data: {
+        media: [
+          { id: "md-2", type: "AUDIO", url: "https://x/2", fileName: "note.m4a" },
+          { id: "md-3", type: "VIDEO", url: "https://x/3", fileName: "essai.mp4" },
+        ],
+        trackedExercises: [],
+        messages: [],
+      } as unknown as SessionFeedbackDto,
+      isPending: false,
+    } as unknown as ReturnType<typeof useSessionFeedback>);
+    const { container } = await open("f-1");
+
+    fireEvent.error(container.querySelector("audio") as HTMLAudioElement);
+    fireEvent.error(container.querySelector("video") as HTMLVideoElement);
+
+    await waitFor(() => expect(freshMediaUrl.mock.calls).toEqual([["md-2"], ["md-3"]]));
+  });
+
+  it("dit qu'il charge le détail du débrief", async () => {
+    vi.mocked(useSessionFeedback).mockReturnValue({
+      data: undefined,
+      isPending: true,
+    } as unknown as ReturnType<typeof useSessionFeedback>);
+
+    const { getByText } = await open("f-1");
+
+    expect(getByText("common.loading")).toBeInTheDocument();
+  });
+
+  // Un débrief peut n'être que des médias : pas de texte inventé.
+  it("rend « — » pour un débrief sans texte", async () => {
+    mockList({ data: [summary({ content: null }), READ] });
+
+    const { getAllByText } = await open("f-1");
+
+    // La ligne de la liste ET le volet ouvert.
+    expect(getAllByText("—")).toHaveLength(2);
+  });
+
+  /**
+   * Son PROPRE débrief (auto-coaching) n'a pas de fil : le demander prendrait un 409 (#198),
+   * affiché comme une panne passagère qui n'en est pas une.
+   */
+  it("ne résout aucun fil sur son propre débrief", async () => {
+    mockList({ data: [summary({ athleteId: "coach-1", athleteName: "Cédric" })] });
+
+    await open("f-1");
+
+    expect(conversationWith).toHaveBeenCalledWith(null);
+    expect(conversationWith).not.toHaveBeenCalledWith("coach-1");
+  });
+
+  it("dit qu'il charge la liste", async () => {
+    mockList({ data: undefined, isPending: true });
+
+    const { getByText, queryByText } = await open();
+
+    expect(getByText("common.loading")).toBeInTheDocument();
+    expect(queryByText("feedback.empty.title")).toBeNull();
+  });
+
+  it("relit la liste au réessai", async () => {
+    const refetch = vi.fn();
+    mockList({ data: undefined, isError: true, refetch });
+    const { user, getByRole } = await open();
+
+    await user.click(getByRole("button", { name: "common.retry" }));
+
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  // Le clic passe par l'url, comme les liens venus d'ailleurs : un seul chemin d'ouverture.
+  it("ouvre au clic le débrief choisi, par l'url", async () => {
+    const { user, getByRole, router } = await open("f-1");
+
+    await user.click(getByRole("button", { name: /Thomas Rey/ }));
+
+    await waitFor(() => expect(router.state.location.search).toEqual({ feedback: "f-2" }));
+  });
+
+  it("referme la fiche de l'athlète", async () => {
+    const { user, getByText, queryByText } = await open("f-1");
+    fireEvent.click(getByText("feedback.detail.openSheet"));
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(queryByText("athlete.sheet.description")).toBeNull());
+  });
+
+  // `repliedAt` vit dans la liste : c'est lui qui pose le badge « répondu » sur la ligne traitée.
+  it("périme toute la boîte quand une réponse est partie", async () => {
+    const { queryClient } = await open("f-1");
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    reply.onSent();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: coachFeedbackKeys.all });
   });
 });

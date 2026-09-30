@@ -2,6 +2,7 @@ import type { MediaBatch } from "@cmv/shared";
 import { MAX_FEEDBACK_PHOTOS, MAX_FEEDBACK_VIDEOS, MediaType, UploadMode } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MediaRejectedError } from "@/shared/util/media.util";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useAddFeedbackMedia, useDeleteFeedbackMedia } from "./useMyFeedbackMedia";
 
@@ -201,6 +202,43 @@ describe("useAddFeedbackMedia", () => {
 
     expect(requestUrlMock).not.toHaveBeenCalled();
     expect(recap).toHaveLength(1);
+  });
+
+  // Le refus nomme la limite du TYPE préparé : « vidéo trop lourde » sur une photo égarerait.
+  it.each([
+    [MediaType.IMAGE, "feedback.media.imageTooBig"],
+    [MediaType.VIDEO, "feedback.media.videoTooBig"],
+    [MediaType.AUDIO, "feedback.media.audioTooBig"],
+  ])("refuse un %s trop lourd avec sa propre raison", async (type, reasonKey) => {
+    prepareMock.mockResolvedValue({ ...prepared(Number.MAX_SAFE_INTEGER), type });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useAddFeedbackMedia(SESSION_ID), { wrapper });
+
+    let recap: Awaited<ReturnType<typeof result.current.addFiles>> = [];
+    await act(async () => {
+      recap = await result.current.addFiles({
+        ...batch([file("enorme")]),
+        failureReason: (error) => ({ key: (error as MediaRejectedError).reasonKey, params: {} }),
+      });
+    });
+
+    expect(recap[0]?.reason).toEqual({ key: reasonKey, params: {} });
+  });
+
+  // La durée n'existe que pour la vidéo et le son : elle part avec eux, et seulement avec eux.
+  it("déclare la durée d'une vidéo, et pas celle d'une photo", async () => {
+    prepareMock
+      .mockResolvedValueOnce({ ...prepared(1_000), type: MediaType.VIDEO, durationSeconds: 42 })
+      .mockResolvedValueOnce(prepared(1_000));
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useAddFeedbackMedia(SESSION_ID), { wrapper });
+
+    await act(async () => {
+      await result.current.addFiles(batch([file("essai.mp4"), file("voie.jpg")]));
+    });
+
+    expect(requestUrlMock.mock.calls[0]?.[1]).toMatchObject({ durationSeconds: 42 });
+    expect(requestUrlMock.mock.calls[1]?.[1]).not.toHaveProperty("durationSeconds");
   });
 
   it("découpe l'envoi quand l'API le demande, puis clôt l'upload", async () => {
