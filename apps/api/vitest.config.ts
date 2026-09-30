@@ -1,12 +1,13 @@
 import { defineConfig } from "vitest/config";
 
 /**
- * Tests UNITAIRES de l'API. Le parcours HTTP est couvert par les 268 e2e, qui ont leur propre
- * config (`vitest.config.e2e.ts`) et remontent **aussi** leur couverture depuis #57 : ils lancent
- * un vrai Nest, mais dans le process du worker, que v8 mesure. Les deux lcov sont unis par Sonar.
+ * Tests UNITAIRES de l'API. Le parcours HTTP est couvert par les e2e, qui ont leur propre config
+ * (`vitest.config.e2e.ts`) et remontent **aussi** leur couverture depuis #57 : ils lancent un vrai
+ * Nest, mais dans le process du worker, que v8 mesure. Les deux lcov sont unis par Sonar.
  *
- * Le chiffre affiché ici (~3,5 %) ne décrit donc pas l'API, seulement ce que les unités pures
- * atteignent — ne pas en tirer de conclusion sans regarder `apps/api/coverage-e2e/`.
+ * Le chiffre affiché ici (~23 % des lignes) ne décrit donc pas l'API : les unités ne portent que
+ * ce que le HTTP n'atteint pas — pannes d'une dépendance, courses, configuration (#506). Ne pas en
+ * tirer de conclusion sans l'unir à `apps/api/coverage-e2e/`.
  */
 export default defineConfig({
   test: {
