@@ -9,7 +9,9 @@ import fr from "../locale/fr.json";
  * téléphone en anglais afficherait des libellés français ET des dates anglaises (les formateurs
  * Intl lisent `i18n.language`). La détection via expo-localization revient avec en.json.
  */
-i18n.use(initReactI18next).init({
+// `void` : les ressources sont en ligne, l'init est synchrone en pratique et sa promesse ne rejette
+// pas — rien à attendre avant le premier rendu.
+void i18n.use(initReactI18next).init({
   resources: { fr: { translation: fr } },
   lng: "fr",
   fallbackLng: "fr",

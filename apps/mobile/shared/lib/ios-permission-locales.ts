@@ -34,7 +34,7 @@ function translate(catalog: object, key: string, lang: string): string {
   // Une clé absente ne se replie sur rien : la demande s'afficherait dans la langue de repli sans
   // que personne ne le voie — c'est ce que #254 corrige.
   if (typeof value !== "string") {
-    throw new Error(`Le catalogue ${lang} n'a pas de clé ${key}`);
+    throw new TypeError(`Le catalogue ${lang} n'a pas de clé ${key}`);
   }
   if (UNESCAPED.test(value)) {
     throw new Error(`${lang}:${key} contient un caractère qu'InfoPlist.strings n'échappe pas`);

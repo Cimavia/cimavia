@@ -1,6 +1,7 @@
 import { type ConversationDto, initialsOf, MessageType } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { router, useFocusEffect } from "expo-router";
+import type { TFunction } from "i18next";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
@@ -114,6 +115,16 @@ export function CoachConversationsScreen() {
   );
 }
 
+/** Le texte du dernier message, ou le TYPE de son média quand il n'en a pas ; sans message, le dire. */
+function previewText(conversation: ConversationDto | null, t: TFunction): string {
+  if (conversation == null) return t("messages.noMessageYet");
+  if (conversation.lastMessagePreview != null) return conversation.lastMessagePreview;
+  if (conversation.lastMessageType == null || conversation.lastMessageType === MessageType.TEXT) {
+    return t("messages.noMessageYet");
+  }
+  return t(`messages.preview.${conversation.lastMessageType}`);
+}
+
 function ConversationRow({ row }: Readonly<{ row: Row }>) {
   const { t } = useTranslation();
   const conversation = row.conversation;
@@ -123,13 +134,7 @@ function ConversationRow({ row }: Readonly<{ row: Row }>) {
    * L'aperçu du dernier message : son texte, ou le TYPE du média quand il n'y a pas de texte.
    * `lastMessagePreview` est nullable par construction — un message peut n'être qu'une photo.
    */
-  const preview =
-    conversation == null
-      ? t("messages.noMessageYet")
-      : (conversation.lastMessagePreview ??
-        (conversation.lastMessageType == null || conversation.lastMessageType === MessageType.TEXT
-          ? t("messages.noMessageYet")
-          : t(`messages.preview.${conversation.lastMessageType}`)));
+  const preview = previewText(conversation, t);
 
   return (
     <Pressable
