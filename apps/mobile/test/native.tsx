@@ -18,7 +18,8 @@ import { vi } from "vitest";
  * Ce qui n'est PAS mocké, et volontairement : `react-native` lui-même. Il est aliasé vers
  * `react-native-web` (cf. `vitest.config.ts`), donc `View`, `Text` et `Pressable` sont les VRAIS
  * composants, avec leur vraie mécanique d'événements. Un mock les aurait remplacés par des coques
- * qui rendent tous les tests verts sans rien éprouver.
+ * qui rendent tous les tests verts sans rien éprouver. Seul `RefreshControl` y est remplacé, et
+ * pour la raison inverse — voir son double, plus bas (#509).
  */
 
 /**
@@ -41,6 +42,30 @@ vi.mock("expo-modules-core", () => ({
   UnavailabilityError: class extends Error {},
   Platform: { OS: "ios" },
 }));
+
+/**
+ * Le tirer-pour-rafraîchir. `react-native-web` rend `RefreshControl` en simple `View` et JETTE
+ * `onRefresh` : le seul contrôle direct de l'utilisateur sur la fraîcheur était inatteignable, sur
+ * les huit écrans qui l'offrent (#509). Le reste du module reste le VRAI.
+ *
+ * Le double pose un marqueur À CÔTÉ du contenu, pas autour : enveloppé, tout tap dans la liste
+ * remonterait jusqu'à lui et rafraîchirait. Un test le tape avec
+ * `press(container.querySelector("[data-refresh]"))` et lit l'état dans sa valeur.
+ */
+vi.mock("react-native", async (importOriginal) => {
+  const original = await importOriginal<typeof import("react-native")>();
+  const RefreshControl = ({
+    refreshing,
+    onRefresh,
+    children,
+  }: Readonly<{ refreshing: boolean; onRefresh?: () => void; children?: ReactNode }>) => (
+    <>
+      <button type="button" data-refresh={refreshing ? "running" : "idle"} onClick={onRefresh} />
+      {children}
+    </>
+  );
+  return { ...original, RefreshControl };
+});
 
 /**
  * L'icône rend un marqueur inerte plutôt qu'un glyphe. Elle reste ATTEIGNABLE par son nom —
@@ -249,6 +274,11 @@ vi.mock("expo-device", () => ({ isDevice: true, deviceName: "test" }));
  * `NotificationPermissionsStatus` expose, et c'est le booléen que lisent `usePushToken` et
  * `timer-alert`. Le mock ne rendait que `status` : `granted` y valait `undefined`, tout appelant
  * concluait au refus, et un test écrit dessus passait au vert en n'éprouvant rien.
+ *
+ * Même piège, une marche plus loin (#509) : les deux énumérations que lit `timer-alert` manquaient.
+ * `SchedulableTriggerInputTypes.TIME_INTERVAL` levait un `TypeError`, que le `catch` du minuteur
+ * avale par conception — `scheduleTimerEnd` rendait donc TOUJOURS `null`, et le rapport comptait
+ * couvert un chemin qui n'avait jamais rien programmé. Valeurs reprises du module réel.
  */
 vi.mock("expo-notifications", () => ({
   getExpoPushTokenAsync: vi.fn(async () => ({ data: "ExponentPushToken[test]" })),
@@ -263,7 +293,8 @@ vi.mock("expo-notifications", () => ({
   cancelScheduledNotificationAsync: vi.fn(async () => undefined),
   addNotificationResponseReceivedListener: vi.fn(() => ({ remove: vi.fn() })),
   setNotificationChannelAsync: vi.fn(async () => undefined),
-  AndroidImportance: { MAX: 5 },
+  AndroidImportance: { HIGH: 6, MAX: 7 },
+  SchedulableTriggerInputTypes: { TIME_INTERVAL: "timeInterval" },
 }));
 
 /**
