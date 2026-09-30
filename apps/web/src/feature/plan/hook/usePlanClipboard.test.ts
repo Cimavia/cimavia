@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearPlanClipboard,
   forgetPlanClipboardSource,
@@ -77,5 +77,31 @@ describe("usePlanClipboard", () => {
 
       expect(sessionStorage.getItem(STORAGE_KEY)).toBeNull();
     });
+  });
+});
+
+/**
+ * Le presse-papier est relu au CHARGEMENT du module : il faut un module neuf, importé après avoir
+ * posé le contenu du stockage.
+ */
+describe("usePlanClipboard — relu au chargement", () => {
+  async function load() {
+    vi.resetModules();
+    const fresh = await import("./usePlanClipboard");
+    return renderHook(() => fresh.usePlanClipboard()).result.current.clipboard;
+  }
+
+  it("reprend la semaine copiée avant un rechargement de la page", async () => {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(COPIED));
+
+    expect(await load()).toEqual(COPIED);
+  });
+
+  // Un presse-papier corrompu armerait un « Coller » destructeur sur n'importe quoi.
+  it("jette un contenu illisible plutôt que d'armer le collage", async () => {
+    sessionStorage.setItem(STORAGE_KEY, "{coupé");
+
+    expect(await load()).toBeNull();
+    expect(sessionStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 });
