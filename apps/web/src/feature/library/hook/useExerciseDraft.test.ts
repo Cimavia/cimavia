@@ -1,6 +1,7 @@
 import { DocumentType, type ExerciseDto, type RichBlock, RichBlockType } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { uploadToSignedUrl } from "@/shared/lib/upload";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useExerciseDraft } from "./useExerciseDraft";
 import type { PendingFile } from "./useSaveExercise";
@@ -172,5 +173,80 @@ describe("useExerciseDraft — les images de consigne d'un enregistrement interr
       instructions: [image("doc-a"), image("doc-b")],
     });
     expect(api.createExercise).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useExerciseDraft — le titre de départ", () => {
+  it.each([
+    [
+      "l'exercice chargé l'emporte sur le titre proposé",
+      exercise({ title: "Tractions" }),
+      "Planche",
+      "Tractions",
+    ],
+    ["une création reprend le titre cherché", null, "Planche", "Planche"],
+    ["une création sans recherche part vide", null, undefined, ""],
+  ])("%s", (_case, loaded, initialTitle, expected) => {
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => useExerciseDraft(loaded, initialTitle), { wrapper });
+
+    expect(result.current.title).toBe(expected);
+  });
+});
+
+describe("useExerciseDraft — la progression des envois", () => {
+  /**
+   * L'envoi signale 40 % puis reste EN VOL jusqu'à `finish` : la progression se lit pendant
+   * l'envoi — elle est remise à zéro une fois l'enregistrement terminé.
+   */
+  function uploadInFlight() {
+    let finish: () => void = () => undefined;
+    vi.mocked(uploadToSignedUrl).mockImplementationOnce(
+      (_url, _file, onProgress) =>
+        new Promise<void>((resolve) => {
+          onProgress?.(40);
+          finish = resolve;
+        }),
+    );
+    return { finish: () => finish() };
+  }
+
+  it("suit la pièce jointe en cours par son id d'attente, puis s'efface", async () => {
+    const upload = uploadInFlight();
+    api.attachDocument.mockReset().mockResolvedValue({ id: "doc-pdf" });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(null, "Gainage"), { wrapper });
+    act(() => result.current.setPendingFiles([pendingPdf]));
+
+    let saving: Promise<unknown> = Promise.resolve();
+    act(() => {
+      saving = result.current.submit();
+    });
+    await waitFor(() => expect(result.current.progress).toEqual({ "pf-1": 40 }));
+    upload.finish();
+    await act(() => saving);
+
+    expect(result.current.progress).toEqual({});
+  });
+
+  it("suit l'image de consigne en cours par son id provisoire", async () => {
+    const upload = uploadInFlight();
+    api.attachDocument.mockReset().mockResolvedValue({ id: "doc-a" });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(null, "Gainage"), { wrapper });
+    let mediaId = "";
+    act(() => {
+      mediaId = result.current.media.register(png("a.png"), "image/png");
+    });
+    act(() => result.current.setInstructions([image(mediaId)]));
+
+    let saving: Promise<unknown> = Promise.resolve();
+    act(() => {
+      saving = result.current.submit();
+    });
+    await waitFor(() => expect(result.current.media.progress).toEqual({ [mediaId]: 40 }));
+    upload.finish();
+    await act(() => saving);
   });
 });
