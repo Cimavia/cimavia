@@ -40,6 +40,13 @@ describe("checkUnit", () => {
     const once = checkUnit({}, "ex", "blk", 1);
     expect(checkUnit(once, "ex", "blk", 1)).toBe(once);
   });
+
+  // Le déroulé coche dans l'ordre du temps, mais une unité sautée puis rattrapée arrive après :
+  // la liste reste triée, sinon deux suivis identiques se liraient comme différents.
+  it("ajoute une unité en gardant les index triés", () => {
+    const start = checkUnit({}, "ex", "blk", 3);
+    expect(checkUnit(start, "ex", "blk", 1)).toEqual({ ex: { blk: { checked: [1, 3] } } });
+  });
 });
 
 describe("setRounds", () => {

@@ -79,6 +79,12 @@ describe("multipartPartRange", () => {
     expect(covered).toBe(total);
   });
 
+  // Sur un fichier sans taille exploitable, aucune part n'existe — pas même la première.
+  it("rend null sur une taille de fichier qui n'a pas de sens", () => {
+    expect(multipartPartRange(1, 0)).toBeNull();
+    expect(multipartPartRange(1, -1)).toBeNull();
+  });
+
   it("rend null hors plage plutôt qu'une tranche vide", () => {
     expect(multipartPartRange(0, total)).toBeNull();
     expect(multipartPartRange(4, total)).toBeNull();

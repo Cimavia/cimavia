@@ -6,6 +6,8 @@ import {
   DocumentUsage,
   EXERCISE_MAX_TAGS,
   exerciseTagsSchema,
+  isAllowedDocumentMime,
+  isInstructionImageMime,
   updateExerciseSchema,
 } from "./exercise.schema";
 
@@ -121,5 +123,23 @@ describe("attachDocumentSchema", () => {
 
     const asAttachment = { ...file, mimeType: "application/pdf", usage: DocumentUsage.ATTACHMENT };
     expect(attachDocumentSchema.safeParse(asAttachment).success).toBe(true);
+  });
+});
+
+describe("isAllowedDocumentMime", () => {
+  it.each(["application/pdf", "image/png", "image/jpeg", "image/webp"])("accepte %s", (mime) => {
+    expect(isAllowedDocumentMime(mime)).toBe(true);
+  });
+
+  // Un SVG porte du script : servi depuis le bucket, il s'exécuterait au clic.
+  it.each(["image/svg+xml", "text/html", "application/zip", ""])("refuse %s", (mime) => {
+    expect(isAllowedDocumentMime(mime)).toBe(false);
+  });
+});
+
+describe("isInstructionImageMime", () => {
+  it("accepte une image, pas un PDF — une consigne s'affiche en ligne", () => {
+    expect(isInstructionImageMime("image/webp")).toBe(true);
+    expect(isInstructionImageMime("application/pdf")).toBe(false);
   });
 });

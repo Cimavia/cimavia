@@ -121,6 +121,16 @@ describe("resetRow", () => {
     ]);
   });
 
+  it("ne touche pas aux autres blocs de l'exercice", () => {
+    const second = { ...firstBlock(blocks()), id: "blk_2" };
+    const edited = [...withRowValues(blocks(), "r1", { col_reps: 12 }), second];
+    const baseline = [...blocks(), second];
+
+    const next = resetRow(edited, baseline, [], "blk_1", "r1");
+    expect(next.blocks[0]?.rows[0]?.values).toEqual({ col_reps: 6 });
+    expect(next.blocks[1]).toBe(second);
+  });
+
   it("laisse en place une ligne ajoutée, absente de la référence", () => {
     // La retirer serait une suppression déguisée derrière un bouton qui dit « revenir ».
     const edited = withExtraRow(blocks(), { id: "r3", values: { col_reps: 9 } });
@@ -168,19 +178,37 @@ describe("lockedShapeIssues", () => {
   const mapFirst = (change: (block: ExerciseBlocks[number]) => ExerciseBlocks[number]) =>
     blocks().map(change);
 
+  /**
+   * Le code rendu est ce que le 400 de l'API CITE (« Structure verrouillée : … ») : sans lui le
+   * refus est indébogable. On affirme donc QUEL verrou a sauté, pas seulement qu'un verrou a sauté.
+   */
   it.each([
     [
       "le type de structure",
       () => mapFirst((b) => ({ ...b, structure: { type: BlockType.FREE } })),
+      ["structureType:blk_1"],
     ],
-    ["le libellé du bloc", () => mapFirst((b) => ({ ...b, label: "Échauffement" }))],
+    [
+      "le libellé du bloc",
+      () => mapFirst((b) => ({ ...b, label: "Échauffement" })),
+      ["blockLabel:blk_1"],
+    ],
+    ["l'identité du bloc", () => mapFirst((b) => ({ ...b, id: "blk_9" })), ["blockId:blk_9"]],
     [
       "le jeu de colonnes",
       () => mapFirst((b) => ({ ...b, metrics: [column("col_load", MetricKey.LOAD)] })),
+      ["metrics:blk_1"],
     ],
-    ["le nombre de blocs", () => [] as ExerciseBlocks],
-  ])("refuse un changement de %s", (_label, build) => {
-    expect(lockedShapeIssues(blocks(), build()).length).toBeGreaterThan(0);
+    ["le nombre de colonnes", () => mapFirst((b) => ({ ...b, metrics: [] })), ["metrics:blk_1"]],
+    ["le nombre de blocs", () => [] as ExerciseBlocks, ["blockCount"]],
+  ])("refuse un changement de %s", (_label, build, issues) => {
+    expect(lockedShapeIssues(blocks(), build())).toEqual(issues);
+  });
+
+  // Tout ce qui a bougé est nommé, pas seulement le premier verrou rencontré.
+  it("cumule les verrous d'un même bloc", () => {
+    const next = mapFirst((b) => ({ ...b, label: null, structure: { type: BlockType.FREE } }));
+    expect(lockedShapeIssues(blocks(), next)).toEqual(["structureType:blk_1", "blockLabel:blk_1"]);
   });
 
   it("refuse un simple réordonnancement de colonnes", () => {
@@ -188,7 +216,7 @@ describe("lockedShapeIssues", () => {
     const pair = [column("a", MetricKey.REPETITIONS), column("b", MetricKey.LOAD)];
     const baseline = blocks().map((block) => ({ ...block, metrics: pair }));
     const next = blocks().map((block) => ({ ...block, metrics: [...pair].reverse() }));
-    expect(lockedShapeIssues(baseline, next).length).toBeGreaterThan(0);
+    expect(lockedShapeIssues(baseline, next)).toEqual(["metrics:blk_1"]);
   });
 });
 
@@ -202,12 +230,33 @@ describe("le verrou couvre la DÉFINITION des colonnes", () => {
       ...column("col_reps", MetricKey.REPETITIONS),
       unit: MetricUnit.REPS_PER_SIDE,
     });
-    expect(lockedShapeIssues(blocks(), next).length).toBeGreaterThan(0);
+    expect(lockedShapeIssues(blocks(), next)).toEqual(["metrics:blk_1"]);
   });
 
   it("refuse un changement de libellé de colonne", () => {
     const next = withMetric({ ...column("col_reps", MetricKey.REPETITIONS), label: "Passages" });
-    expect(lockedShapeIssues(blocks(), next).length).toBeGreaterThan(0);
+    expect(lockedShapeIssues(blocks(), next)).toEqual(["metrics:blk_1"]);
+  });
+
+  const custom = (customMetricId: string) =>
+    ({
+      id: "col_reps",
+      source: MetricSource.CUSTOM,
+      customMetricId,
+      label: null,
+      collapsed: false,
+    }) as const;
+
+  // Même id de colonne, mais une métrique maison à la place du catalogue : ce n'est plus la même
+  // mesure, même si la grille garde la même forme.
+  it("refuse de remplacer une colonne du catalogue par une métrique maison", () => {
+    expect(lockedShapeIssues(blocks(), withMetric(custom("cm_1")))).toEqual(["metrics:blk_1"]);
+  });
+
+  it("compare une métrique maison par son identifiant de définition", () => {
+    const baseline = withMetric(custom("cm_1"));
+    expect(lockedShapeIssues(baseline, withMetric(custom("cm_1")))).toEqual([]);
+    expect(lockedShapeIssues(baseline, withMetric(custom("cm_2")))).toEqual(["metrics:blk_1"]);
   });
 
   it("AUTORISE le repli d'une colonne — c'est de l'affichage, pas de la donnée", () => {

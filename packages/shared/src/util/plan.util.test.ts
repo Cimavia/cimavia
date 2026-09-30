@@ -78,6 +78,14 @@ describe("isDateInPlanWeek", () => {
     expect(isDateInPlanWeek(MONDAY, 2, "2026-10-19")).toBe(true);
     expect(isDateInPlanWeek(MONDAY, 1, "2026-10-11")).toBe(false);
   });
+
+  // Hors de toute semaine connue, la réponse est NON — un jour désactivé plutôt qu'une séance
+  // posée à une date que l'API refuserait.
+  it("refuse une date illisible ou une semaine qui n'existe pas", () => {
+    expect(isDateInPlanWeek(MONDAY, 1, "2026-13-40")).toBe(false);
+    expect(isDateInPlanWeek(MONDAY, 0, "2026-10-12")).toBe(false);
+    expect(isDateInPlanWeek("pas-une-date", 1, "2026-10-12")).toBe(false);
+  });
 });
 
 describe("planWeekCopyShiftDays", () => {
@@ -164,6 +172,13 @@ describe("selectCurrentPlan", () => {
     expect(selectCurrentPlan([past, upcoming], "2026-10-20")?.id).toBe("upcoming");
   });
 
+  // Parmi les cycles à venir, le PROCHAIN est le plus proche — quel que soit l'ordre reçu.
+  it("parmi plusieurs cycles à venir, montre celui qui commence le plus tôt", () => {
+    const later = { id: "later", startDate: "2026-12-07", weekCount: 4 };
+    expect(selectCurrentPlan([later, upcoming], "2026-10-20")?.id).toBe("upcoming");
+    expect(selectCurrentPlan([upcoming, later], "2026-10-20")?.id).toBe("upcoming");
+  });
+
   it("à défaut, montre le dernier cycle terminé", () => {
     expect(selectCurrentPlan([past], "2026-10-20")?.id).toBe("past");
   });
@@ -176,6 +191,8 @@ describe("selectCurrentPlan", () => {
 
   it("retourne null sans plan exploitable (pas de valeur de repli)", () => {
     expect(selectCurrentPlan([], "2026-10-14")).toBeNull();
+    // « Aujourd'hui » illisible : rien ne peut être situé, on ne devine pas.
+    expect(selectCurrentPlan([ongoing], "pas-une-date")).toBeNull();
     // Plan sans semaine : aucune période → ignoré.
     expect(
       selectCurrentPlan([{ id: "empty", startDate: MONDAY, weekCount: 0 }], MONDAY),

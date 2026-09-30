@@ -105,6 +105,29 @@ describe("MessageAttachmentResolver", () => {
     expect(resolved.size).toBe(0);
   });
 
+  // Les débriefs cités sont tous hors de portée : il ne reste aucune séance à lire, donc aucune
+  // requête — pas un `findMany` sur une liste vide.
+  it("ne lit aucune séance quand les débriefs cités sont tous hors de portée", async () => {
+    const { db, findSessions } = fakeDb([], [SESSION]);
+    const resolved = await new MessageAttachmentResolver(db).resolve([
+      message({ id: "m1", sessionFeedbackId: "f-autre-relation" }),
+    ]);
+
+    expect(resolved.size).toBe(0);
+    expect(findSessions).not.toHaveBeenCalled();
+  });
+
+  // Le cas courant d'un fil : la plupart des messages ne citent rien, entre deux qui citent.
+  it("laisse sans entrée les messages nus d'un lot où d'autres sont rattachés", async () => {
+    const { db } = fakeDb([], [SESSION]);
+    const resolved = await new MessageAttachmentResolver(db).resolve([
+      message({ id: "m1" }),
+      message({ id: "m2", scheduledSessionId: "s1" }),
+    ]);
+
+    expect([...resolved.keys()]).toEqual(["m2"]);
+  });
+
   // Un fil peut compter des centaines de messages : une requête par message ferait du rendu d'un
   // fil un problème de base de données. Deux requêtes au total, quel que soit le nombre.
   it("charge les cibles en lot, sans doublon d'id", async () => {

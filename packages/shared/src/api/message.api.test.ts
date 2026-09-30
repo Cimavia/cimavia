@@ -70,6 +70,53 @@ describe("createMessageApi", () => {
   });
 });
 
+describe("createMessageApi — média découpé", () => {
+  /**
+   * Le cycle complet d'un upload découpé, sous le titre exercé : signer, puis clore OU abandonner.
+   * Les trois routes vivent sous le fil — c'est lui qui scope le média — et un abandon oublié
+   * laisserait des parts facturées sans objet visible.
+   */
+  it("signe, clôt et abandonne un upload sous le fil, avec le titre", async () => {
+    const { api, calls } = spyClient();
+    const messages = createMessageApi(api);
+    const upload = { storagePath: "messages/abc.mp4", uploadId: "up_1" };
+
+    await messages.requestUploadUrl(
+      "cnv_1",
+      {
+        type: "VIDEO",
+        fileName: "bloc.mp4",
+        mimeType: "video/mp4",
+        size: 1024,
+        durationSeconds: 30,
+      },
+      "athlete",
+    );
+    await messages.completeMediaUpload("cnv_1", { ...upload, partCount: 3 }, "athlete");
+    await messages.abortMediaUpload("cnv_1", upload, null);
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/conversations/cnv_1/messages/upload-url?as=athlete",
+        body: {
+          type: "VIDEO",
+          fileName: "bloc.mp4",
+          mimeType: "video/mp4",
+          size: 1024,
+          durationSeconds: 30,
+        },
+      },
+      {
+        method: "POST",
+        path: "/conversations/cnv_1/messages/upload/complete?as=athlete",
+        body: { ...upload, partCount: 3 },
+      },
+      { method: "POST", path: "/conversations/cnv_1/messages/upload/abort", body: upload },
+    ]);
+  });
+});
+
 describe("createMessageApi — titre exercé", () => {
   /**
    * Un compte à double capacité a des fils des DEUX côtés : coach avec ses athlètes, athlète avec

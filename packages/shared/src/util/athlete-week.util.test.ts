@@ -144,6 +144,18 @@ describe("athleteCalendarBounds", () => {
     });
   });
 
+  // Les bornes ne dépendent pas de l'ordre reçu : le plus ancien peut arriver en dernier, et un
+  // cycle plus court logé dans un plus long n'en repousse pas la fin.
+  it("prend les bornes extrêmes quel que soit l'ordre des cycles", () => {
+    const ancien = plan("ancien", "Plus tôt", "2026-09-28", [{}]);
+    const long = plan("long", "Long", MONDAY, [{}, {}, {}, {}]);
+    const court = plan("court", "Court", "2026-10-19", [{}]);
+    expect(athleteCalendarBounds([long, court, ancien])).toEqual({
+      firstMonday: "2026-09-28",
+      lastMonday: "2026-11-02",
+    });
+  });
+
   it("rend null sans cycle situable plutôt que d'ouvrir une navigation vide", () => {
     expect(athleteCalendarBounds([])).toBeNull();
     expect(athleteCalendarBounds([plan("vide", "Sans semaine", MONDAY, [])])).toBeNull();

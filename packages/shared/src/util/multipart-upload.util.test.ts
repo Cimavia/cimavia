@@ -268,6 +268,20 @@ describe("runMultipartUpload", () => {
     expect(runner.abort).toHaveBeenCalledTimes(1);
   });
 
+  // Même règle qu'en cours d'envoi : l'abandon raté ne remplace pas la vraie cause.
+  it("refuse le ticket incohérent même si l'abandon échoue à son tour", async () => {
+    const { runner } = fakeRunner({
+      abort: async () => {
+        throw new Error("le storage ne répond plus");
+      },
+    });
+
+    await expect(runMultipartUpload(ticketOf(3), 99, runner)).rejects.toThrow(
+      "Le ticket d'envoi découpé ne correspond pas au fichier",
+    );
+    expect(runner.abort).toHaveBeenCalledTimes(1);
+  });
+
   // Le minuteur par défaut, que tous les autres cas court-circuitent pour ne pas attendre.
   it("temporise avec son propre minuteur quand aucun ne lui est injecté", async () => {
     vi.useFakeTimers();

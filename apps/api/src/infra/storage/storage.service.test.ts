@@ -1,8 +1,14 @@
+import {
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  ListPartsCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import type { EnvSchema } from "@cmv/shared";
 import { MULTIPART_THRESHOLD_BYTES } from "@cmv/shared";
-import { ServiceUnavailableException } from "@nestjs/common";
+import { ConflictException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MULTIPART_SIGNED_URL_TTL_SECONDS, StorageService } from "./storage.service";
 
 // ConfigService réduit à ce que lit StorageService : un getteur sur les variables S3_*.
@@ -118,5 +124,120 @@ describe("StorageService — storage configuré", () => {
     const [url] = await storage.createPartUploadUrls("media.mp4", "upload-1", [1024]);
     // Sinon la dernière part d'un gros fichier expire pendant que les précédentes montent.
     expect(url).toContain(`X-Amz-Expires=${MULTIPART_SIGNED_URL_TTL_SECONDS}`);
+  });
+});
+
+/**
+ * Le dialogue avec le storage, réponse par réponse. SILO répond toujours en une page et avec un
+ * `UploadId` : ce que ces tests fabriquent — pagination, part sans ETag, upload disparu — est ce
+ * qu'un autre fournisseur S3 peut rendre, et que les e2e ne verront jamais.
+ */
+describe("StorageService — réponses du storage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** Remplace le transport S3 : chaque commande reçoit la réponse suivante de `replies`. */
+  function storageAnswering(...replies: (object | Error)[]) {
+    const sent: { name: string; input: Record<string, unknown> }[] = [];
+    vi.spyOn(S3Client.prototype, "send").mockImplementation((command: object) => {
+      sent.push({
+        name: command.constructor.name,
+        input: (command as { input: Record<string, unknown> }).input,
+      });
+      const reply = replies.shift();
+      return (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)) as never;
+    });
+    return { storage: new StorageService(configWith(FULL_CONFIG)), sent };
+  }
+
+  const noSuchUpload = () => Object.assign(new Error("gone"), { name: "NoSuchUpload" });
+
+  /**
+   * Une liste tronquée se suit jusqu'au bout, et les parts se recollent DANS L'ORDRE : une page
+   * oubliée donnerait un objet incomplet, un ordre faux un fichier illisible — sans erreur, dans
+   * les deux cas.
+   */
+  it("suit la pagination et recolle les parts triées par numéro", async () => {
+    const { storage, sent } = storageAnswering(
+      { Parts: [{ PartNumber: 2, ETag: "b" }], IsTruncated: true, NextPartNumberMarker: "2" },
+      { Parts: [{ PartNumber: 1, ETag: "a" }], IsTruncated: false },
+      {},
+    );
+
+    await storage.completeMultipartUpload("media.mp4", "upload-1", 2);
+
+    expect(sent.map((call) => call.name)).toEqual([
+      ListPartsCommand.name,
+      ListPartsCommand.name,
+      CompleteMultipartUploadCommand.name,
+    ]);
+    expect(sent[0]?.input).not.toHaveProperty("PartNumberMarker");
+    expect(sent[1]?.input).toMatchObject({ PartNumberMarker: "2" });
+    expect(sent[2]?.input).toEqual({
+      Bucket: "bucket-test",
+      Key: "media.mp4",
+      UploadId: "upload-1",
+      MultipartUpload: {
+        Parts: [
+          { PartNumber: 1, ETag: "a" },
+          { PartNumber: 2, ETag: "b" },
+        ],
+      },
+    });
+  });
+
+  // Une part sans ETag n'est pas montée : la compter clorait un upload auquel il manque un morceau.
+  it("ne compte pas une part sans ETag, et refuse alors de clore", async () => {
+    const { storage, sent } = storageAnswering({
+      Parts: [{ PartNumber: 1, ETag: "a" }, { PartNumber: 2 }],
+    });
+
+    await expect(storage.completeMultipartUpload("media.mp4", "upload-1", 2)).rejects.toEqual(
+      new ConflictException("Upload incomplet : 1 part(s) reçue(s) sur 2 attendue(s)"),
+    );
+    expect(sent.map((call) => call.name)).toEqual([ListPartsCommand.name]);
+  });
+
+  it("lit une page sans parts comme un upload vide", async () => {
+    const { storage } = storageAnswering({});
+
+    await expect(storage.completeMultipartUpload("media.mp4", "upload-1", 1)).rejects.toThrow(
+      "Upload incomplet : 0 part(s) reçue(s) sur 1 attendue(s)",
+    );
+  });
+
+  /**
+   * Upload abandonné, expiré ou déjà clos : une situation NORMALE pour le client, qui réessaie.
+   * Un 404 le dit ; l'erreur brute ferait un 500 et chercher une panne serveur.
+   */
+  it("répond 404 sur un upload que le storage ne connaît plus", async () => {
+    const { storage } = storageAnswering(noSuchUpload());
+
+    await expect(storage.completeMultipartUpload("media.mp4", "upload-1", 1)).rejects.toEqual(
+      new NotFoundException("Upload découpé introuvable (abandonné ou expiré)"),
+    );
+  });
+
+  // Toute autre panne reste ce qu'elle est : la maquiller en 404 cacherait un storage en panne.
+  it("laisse remonter une autre panne telle quelle", async () => {
+    const outage = new Error("connect ECONNREFUSED");
+    const { storage } = storageAnswering(outage);
+
+    await expect(storage.completeMultipartUpload("media.mp4", "upload-1", 1)).rejects.toBe(outage);
+  });
+
+  it("répond 503 quand le storage ouvre un upload sans identifiant", async () => {
+    const { storage, sent } = storageAnswering({});
+
+    await expect(storage.createMultipartUpload("media.mp4", "video/mp4")).rejects.toEqual(
+      new ServiceUnavailableException("Le storage n'a pas ouvert d'upload découpé"),
+    );
+    expect(sent).toEqual([
+      {
+        name: CreateMultipartUploadCommand.name,
+        input: { Bucket: "bucket-test", Key: "media.mp4", ContentType: "video/mp4" },
+      },
+    ]);
   });
 });

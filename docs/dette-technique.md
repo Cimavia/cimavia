@@ -659,6 +659,30 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Si #289 retient sa promotion par `sha-xxxxxxx`, la promotion n'exige plus de commit de release
 > sur `main`, et A est à relire.
 
+> **Tranché en [#506](https://github.com/Cimavia/cimavia/issues/506)** (couvrir l'API et
+> `@cmv/shared` à 100 %, sans tricher sur ce qui ne s'atteint pas) : quatre règles que la
+> prochaine montée en couverture (#507 à #509) reprend telles quelles.
+>
+> - **Aucun `v8 ignore`, aucun refactor en cours de route.** Une branche qu'aucune entrée ne peut
+>   atteindre (repli `?? ""`, garde d'une clé étrangère, métadonnées de décorateur) est recensée
+>   dans [#512](https://github.com/Cimavia/cimavia/issues/512), pas masquée. Elle ne sera supprimée
+>   qu'une fois TOUTE l'application couverte : c'est le filet qui dira si l'invariant supposé
+>   était vrai. La supprimer avant, c'est parier sans filet.
+> - **L'e2e d'abord, l'unitaire pour ce que le HTTP n'atteint pas.** Une règle métier s'affirme
+>   par la route qui l'expose, sur le contrat observable. L'unitaire ne sert qu'à ce qu'une base
+>   saine et des e2e séquentiels ne produisent jamais : la panne d'une dépendance (Expo, SMTP, S3,
+>   Postgres), une course (`P2002` entre deux ouvertures de fil), une variable d'environnement.
+> - **L'extension tenant se teste en intégration, jamais sur un mock.** Ses refus et ses lectures
+>   par clé unique (`findUnique`, `findUniqueOrThrow`, `upsert`) sont éprouvés dans les e2e contre
+>   le vrai client `TENANT_PRISMA`, sous un vrai contexte CLS. Aucun service ne les appelle
+>   aujourd'hui ; les couvrir quand même, c'est garder le fail-closed vivant pour le jour où l'un
+>   s'en servira. Piège : une `PrismaPromise` est **paresseuse**, elle s'exécute hors du `cls.run`
+>   si on la rend sans l'attendre — d'où le `await fn()` du helper de test.
+> - **Un test qui ne sert qu'à la couverture est un test raté.** Chaque cas ajouté affirme ce que
+>   l'utilisateur verrait casser : un 404 qui fuirait l'existence d'une ressource, une liste qui
+>   garderait un tag retiré, un rappel qui annoncerait un retard que l'écran des factures ne montre
+>   pas.
+
 ---
 
 ## Post-MVP — Centre de notifications ([#39](https://github.com/Cimavia/cimavia/issues/39))

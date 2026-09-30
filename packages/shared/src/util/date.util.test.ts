@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  dateToIsoDate,
   daysBetweenIsoDates,
   isIsoDate,
   isMondayIsoDate,
+  isoDateToDate,
   mondayOfIsoWeek,
+  shiftDate,
   shiftIsoDate,
+  todayIsoDate,
 } from "./date.util";
 
 // 2026-10-12 est un lundi (référence de tous les cas ci-dessous).
@@ -74,5 +78,45 @@ describe("mondayOfIsoWeek", () => {
 
   it("retourne null sur une date invalide", () => {
     expect(mondayOfIsoWeek("2026-02-31")).toBeNull();
+  });
+});
+
+describe("pont Date ↔ date civile", () => {
+  /**
+   * Une colonne `@db.Date` arrive en `Date` à minuit UTC. La lire en heure locale ferait reculer
+   * d'un jour tout utilisateur à l'ouest de Greenwich : le pont passe toujours par l'UTC.
+   */
+  it("fait l'aller-retour sans dériver d'un jour", () => {
+    const date = isoDateToDate(MONDAY);
+    expect(date?.toISOString()).toBe("2026-10-12T00:00:00.000Z");
+    expect(date == null ? null : dateToIsoDate(date)).toBe(MONDAY);
+  });
+
+  it("lit la date civile UTC d'un instant, quelle que soit son heure", () => {
+    expect(dateToIsoDate(new Date("2026-10-12T23:59:59Z"))).toBe(MONDAY);
+  });
+});
+
+describe("shiftDate", () => {
+  // Par la date civile : un passage à l'heure d'hiver (25 octobre) ne décale pas d'une heure.
+  it("décale d'un nombre de jours en traversant un changement d'heure", () => {
+    const monday = new Date("2026-10-19T00:00:00Z");
+    expect(shiftDate(monday, 7)?.toISOString()).toBe("2026-10-26T00:00:00.000Z");
+    expect(shiftDate(monday, -7)?.toISOString()).toBe("2026-10-12T00:00:00.000Z");
+  });
+
+  it("refuse un décalage qui n'est pas un nombre entier de jours", () => {
+    expect(shiftDate(new Date("2026-10-19T00:00:00Z"), 1.5)).toBeNull();
+  });
+});
+
+describe("todayIsoDate", () => {
+  it("rend la date civile UTC du moment", () => {
+    vi.useFakeTimers({ now: new Date("2026-10-12T23:30:00Z") });
+    try {
+      expect(todayIsoDate()).toBe(MONDAY);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
