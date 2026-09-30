@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   INVOICE_AMOUNT_MAX_CENTS,
+  isAllowedInvoiceDocumentMime,
   planBillingSchema,
   updateInvoiceStatusSchema,
 } from "./invoice.schema";
@@ -49,5 +50,13 @@ describe("updateInvoiceStatusSchema", () => {
 
   it("refuse CANCELLED : l'annulation passe par sa route gardée, pas par le toggle", () => {
     expect(updateInvoiceStatusSchema.safeParse({ status: "CANCELLED" }).success).toBe(false);
+  });
+});
+
+describe("isAllowedInvoiceDocumentMime", () => {
+  it("n'accepte que le PDF — une facture est un document figé", () => {
+    expect(isAllowedInvoiceDocumentMime("application/pdf")).toBe(true);
+    expect(isAllowedInvoiceDocumentMime("image/png")).toBe(false);
+    expect(isAllowedInvoiceDocumentMime("text/html")).toBe(false);
   });
 });
