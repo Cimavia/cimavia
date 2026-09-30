@@ -117,7 +117,15 @@ async function generate(
     const directory = thumbnailDirectory();
     if (!directory.exists) directory.create({ intermediates: true, idempotent: true });
     const target = thumbnailFile(mediaId);
-    saved.move(target);
+    // Asynchrone (#531) : rendre l'URI avant la fin du déplacement, c'était annoncer un fichier
+    // absent, et laisser un échec hors du `catch`.
+    await saved.move(target);
+
+    // Une purge a pu passer pendant le déplacement : même raisonnement qu'avant lui.
+    if (epoch !== generation) {
+      target.delete();
+      return null;
+    }
     return target.uri;
   } catch {
     // Pas de message : c'est la pastille, toujours là, qui tient lieu de repli.
