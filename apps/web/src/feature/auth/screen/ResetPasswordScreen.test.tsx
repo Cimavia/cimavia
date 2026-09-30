@@ -39,7 +39,7 @@ describe("ResetPasswordScreen", () => {
     // Tant qu'il y reste, toute erreur l'emporterait chez Sentry avec l'URL (#335).
     await waitFor(() => expect(router.state.location.href).toBe("/reset-password"));
     // `replace` : Retour ne ramène pas l'URL qui le portait.
-    expect(router.history.length).toBe(1);
+    expect(router.history).toHaveLength(1);
   });
 
   it("envoie le jeton lu avant qu'il ne quitte l'URL", async () => {
