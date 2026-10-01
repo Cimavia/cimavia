@@ -587,7 +587,12 @@ export type { Role as RoleType } from "./role";
 export { Role } from "./role";
 export type { AppTier } from "./util/app-version.util";
 export { formatAppVersion, isAppTier } from "./util/app-version.util";
-export { athleteLabel, isSelfAthlete } from "./util/athlete-label.util";
+export type { AthleteLabelHooks } from "./util/athlete-label.util";
+export {
+  athleteLabel,
+  createAthleteLabelHooks,
+  isSelfAthlete,
+} from "./util/athlete-label.util";
 export type {
   AthleteConversationSource,
   AthleteFeedbackSource,

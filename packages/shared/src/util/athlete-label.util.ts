@@ -34,3 +34,37 @@ export function athleteLabel(
     ? translate("athlete.self", { name: athleteName })
     : athleteName;
 }
+
+/** Les deux hooks qu'une app expose, une fois branchés sur sa session et sa traduction. */
+export type AthleteLabelHooks = {
+  useAthleteLabel: () => (athleteId: string, athleteName: string) => string;
+  useIsSelfAthlete: () => (athleteId: string) => boolean;
+};
+
+/**
+ * Compose les hooks de « (moi) » à partir de ce que chaque app lit à sa façon : l'id de session
+ * (`authClient` web ou Expo) et la traduction (son instance i18next). Écrits dans chaque app, ils
+ * restaient des copies au mot près une fois la règle sortie — et SonarCloud les comptait (#505).
+ *
+ * Aucune dépendance à React : ce ne sont que des fonctions qui appellent celles qu'on leur donne.
+ * Les noms en `use` disent aux règles des hooks ce qu'elles sont — `useSelfId` et `useTranslate`
+ * sont appelés à chaque rendu, dans le même ordre, comme n'importe quel hook.
+ */
+export function createAthleteLabelHooks(
+  useSelfId: () => string | null | undefined,
+  useTranslate: () => (key: string, values: { name: string }) => string,
+): AthleteLabelHooks {
+  function useAthleteLabel() {
+    const translate = useTranslate();
+    const selfId = useSelfId();
+    return (athleteId: string, athleteName: string) =>
+      athleteLabel(athleteId, athleteName, selfId, translate);
+  }
+
+  function useIsSelfAthlete() {
+    const selfId = useSelfId();
+    return (athleteId: string) => isSelfAthlete(selfId, athleteId);
+  }
+
+  return { useAthleteLabel, useIsSelfAthlete };
+}
