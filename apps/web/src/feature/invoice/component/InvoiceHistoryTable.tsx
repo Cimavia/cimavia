@@ -9,7 +9,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
-import { CMV_TABLE, CmvButton } from "@/shared/component";
+import { CMV_TABLE, CmvPager } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
@@ -88,29 +88,15 @@ export function InvoiceHistoryTable({
         </button>
       ))}
 
-      {/* Une seule page : ni compteur ni boutons. Une pagination qui ne pagine rien est du bruit. */}
-      {shown.pageCount <= 1 ? null : (
-        <div className="flex flex-wrap items-center justify-between gap-cmv-sm border-cmv-border border-t px-cmv-md py-cmv-sm">
-          <span className="text-cmv-caption text-cmv-text-lo">
-            {t("invoice.history.range", {
-              from: shown.from,
-              to: shown.to,
-              total: shown.total,
-            })}
-          </span>
-          <div className="flex items-center gap-cmv-xs">
-            {Array.from({ length: shown.pageCount }, (_, index) => index + 1).map((number) => (
-              <CmvButton
-                key={number}
-                variant={number === shown.page ? "secondary" : "ghost"}
-                onClick={() => setPage(number)}
-              >
-                {String(number)}
-              </CmvButton>
-            ))}
-          </div>
-        </div>
-      )}
+      <CmvPager
+        page={shown}
+        rangeLabel={t("invoice.history.range", {
+          from: shown.from,
+          to: shown.to,
+          total: shown.total,
+        })}
+        onPage={setPage}
+      />
     </div>
   );
 }

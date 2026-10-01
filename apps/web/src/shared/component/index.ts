@@ -14,6 +14,7 @@ export { CmvEmptyState } from "./CmvEmptyState";
 export { CmvErrorState } from "./CmvErrorState";
 export { CmvFormError } from "./CmvFormError";
 export { CmvMediaPlayer } from "./CmvMediaPlayer";
+export { CmvPager } from "./CmvPager";
 export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";
 export type { ResolveImage } from "./CmvRichDocument";
