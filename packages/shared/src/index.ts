@@ -665,7 +665,9 @@ export {
   countOverdueInvoices,
   countPendingInvoices,
   INVOICE_STATE_BADGE,
+  InvoiceFooter,
   InvoiceState,
+  invoiceFooter,
   resolveInvoiceState,
 } from "./util/invoice.util";
 export type {

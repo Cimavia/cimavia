@@ -1,4 +1,10 @@
-import { type InvoiceDto, InvoiceStatus, ReminderEntityType } from "@cmv/shared";
+import {
+  type InvoiceDto,
+  InvoiceFooter,
+  InvoiceStatus,
+  invoiceFooter,
+  ReminderEntityType,
+} from "@cmv/shared";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
@@ -153,15 +159,7 @@ type InvoiceActionsProps = {
   onCancel: () => void;
 };
 
-/**
- * Le pied de panneau. Rien pour l'athlète, rien non plus sur une facture annulée : un pied vide
- * vaut mieux qu'un bouton éteint, qui laisse chercher ce qui le rallumerait.
- *
- * Les gestes sont réservés au coach, et pas seulement par politesse : `PATCH /invoices/:id/status`
- * et `POST /invoices/:id/cancel` sont gardées `@Roles([COACH])`, et `ScheduleReminderButton`
- * touche `Reminder` — la seule entité scopée `coachId` SEUL. Un athlète qui l'atteindrait prendrait
- * une erreur, pas un 403.
- */
+/** Le pied de panneau. Ce qu'il propose — rien, rouvrir ou régler — se décide dans `invoiceFooter`. */
 function InvoiceActions({
   invoice,
   canManage,
@@ -171,11 +169,12 @@ function InvoiceActions({
   onCancel,
 }: Readonly<InvoiceActionsProps>) {
   const { t } = useTranslation();
-  if (!canManage || invoice.status === InvoiceStatus.CANCELLED) return null;
+  const footer = invoiceFooter(invoice.status, canManage);
+  if (footer === InvoiceFooter.NONE) return null;
 
   // Payée : un seul geste, le retour arrière. Poser un paiement à tort se corrige, mais pas à la
   // légère — d'où la confirmation en deux temps.
-  if (invoice.status === InvoiceStatus.PAID) {
+  if (footer === InvoiceFooter.REOPEN) {
     return (
       <CmvConfirmButton
         label={t("invoice.reopen")}

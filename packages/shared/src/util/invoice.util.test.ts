@@ -3,7 +3,9 @@ import { InvoiceStatus } from "../dto/invoice.schema";
 import {
   countOverdueInvoices,
   countPendingInvoices,
+  InvoiceFooter,
   InvoiceState,
+  invoiceFooter,
   resolveInvoiceState,
 } from "./invoice.util";
 
@@ -130,5 +132,29 @@ describe("countPendingInvoices / countOverdueInvoices", () => {
   it("ne déclare aucun retard si la date du jour est illisible", () => {
     expect(countOverdueInvoices(INVOICES, "hier")).toBe(0);
     expect(countPendingInvoices(INVOICES, "hier")).toBe(0);
+  });
+});
+
+describe("invoiceFooter", () => {
+  it("propose de régler une facture en attente", () => {
+    expect(invoiceFooter(InvoiceStatus.PENDING, true)).toBe(InvoiceFooter.SETTLE);
+  });
+
+  it("ne propose que le retour arrière sur une facture payée", () => {
+    expect(invoiceFooter(InvoiceStatus.PAID, true)).toBe(InvoiceFooter.REOPEN);
+  });
+
+  /** Annulée = terminal : l'API refuse tout retour en 409. */
+  it("ne propose rien sur une facture annulée", () => {
+    expect(invoiceFooter(InvoiceStatus.CANCELLED, true)).toBe(InvoiceFooter.NONE);
+  });
+
+  it("ne propose rien sur une facture pas encore émise", () => {
+    expect(invoiceFooter(InvoiceStatus.DRAFT, true)).toBe(InvoiceFooter.NONE);
+  });
+
+  /** Les gestes sont gardés `@Roles([COACH])` : l'athlète prendrait une erreur. */
+  it.each(Object.values(InvoiceStatus))("ne propose rien à l'athlète (%s)", (status) => {
+    expect(invoiceFooter(status, false)).toBe(InvoiceFooter.NONE);
   });
 });
