@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.9.1](https://github.com/Cimavia/cimavia/compare/v1.9.0...v1.9.1) (2026-10-01)
+
+
+### Corrections
+
+* **mobile:** attendre le déplacement de la vignette vidéo avant d'en … ([cd13687](https://github.com/Cimavia/cimavia/commit/cd13687ecdf1adca751d0e35dbed8d4c0492761e))
+* **mobile:** attendre le déplacement de la vignette vidéo avant d'en rendre l'uri ([deb7656](https://github.com/Cimavia/cimavia/commit/deb7656100b7c0bfe24194119d5e719158cc56d6))
+
+
+### Technique
+
+* **api:** chaînage optionnel, string raw et async inutiles, même comportement ([05cb8da](https://github.com/Cimavia/cimavia/commit/05cb8dacca5706d66f4abb4350ecbcb8b8a6042a))
+* **mobile:** icône d'onglet hors de app, props en lecture seule, promesses marquées ([04dc0d7](https://github.com/Cimavia/cimavia/commit/04dc0d75b249e7d53d32a0275d7afa0723ff3463))
+* **shared:** barre finale retirée sans regex, une copie pour les mailers et le mobile ([0310e29](https://github.com/Cimavia/cimavia/commit/0310e2945ffa66264b0b9fb522393c577fcc2d36))
+* **shared:** bascule optimiste des réglages e-mail commune, le toast reste au web ([35510de](https://github.com/Cimavia/cimavia/commit/35510deaa92f05ecfdfd6f19468a7706d10939a3))
+* **shared:** coches, tours et dosage d'une case lus une fois au lieu de quatre ([bf7664f](https://github.com/Cimavia/cimavia/commit/bf7664f943b7c1079afb633f8d7a3960c98bdb65))
+* **shared:** hooks (moi) composés dans shared, chaque app injecte sa session ([82062db](https://github.com/Cimavia/cimavia/commit/82062db452ab8f3c1e31e5ab41d7364137d3b677))
+* **shared:** la règle du libellé (moi) écrite une fois, chaque app lit sa session ([170059f](https://github.com/Cimavia/cimavia/commit/170059fb46fff41fd098f059a1f00ff4954a044d))
+* **shared:** les gestes du pied de facture décidés une fois pour le web et le mobile ([eea9e2c](https://github.com/Cimavia/cimavia/commit/eea9e2c49d9e71bc8451fb108abe71e490b160f8))
+* **shared:** set, réexport direct, séparateur et objet vide, alertes sonar levées ([5c2879f](https://github.com/Cimavia/cimavia/commit/5c2879fa2b1dbc068bd524a541ec1e3b60fe2320))
+* **sonar:** écarts justifiés pour l'await en boucle, la clé par index et l'autofocus ([cd74f0f](https://github.com/Cimavia/cimavia/commit/cd74f0ff879ebe15587c30b62cdb011b0be697c5))
+* **web:** barre de progression en progress natif, peinte sur les tokens partout ([3ffc463](https://github.com/Cimavia/cimavia/commit/3ffc463e3deb36619eb44eac7b411bfaa61e32d7))
+* **web:** props en lecture seule, imports fusionnés, ternaire et calcul sortis ([8bff35d](https://github.com/Cimavia/cimavia/commit/8bff35ddd3239d826790bc72e7b7678fcd9cddd9))
+* **web:** top-level await au démarrage, un chunk en échec reste sur l'écran de crash ([da65922](https://github.com/Cimavia/cimavia/commit/da65922f19fc32b944147339b4e0d6993fa3c7df))
+* **web:** un pied de pagination commun aux historiques, les colonnes restent à chacun ([a33381e](https://github.com/Cimavia/cimavia/commit/a33381eed490d600cb97bb98a8134b12b0e015fa))
+
 ## [1.9.0](https://github.com/Cimavia/cimavia/compare/v1.8.3...v1.9.0) (2026-09-30)
 
 
