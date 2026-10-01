@@ -13,6 +13,7 @@ export type { FeedbackCache } from "./api/athlete-feedback.cache";
 export { feedbackSaveMutation } from "./api/athlete-feedback.cache";
 export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
+export type { CacheClient } from "./api/cache-client";
 export type { CapabilityApi } from "./api/capability.api";
 export { capabilityKeys, createCapabilityApi } from "./api/capability.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
@@ -31,6 +32,11 @@ export {
   notificationPreferenceKeys,
   toggledPreferences,
 } from "./api/notification.api";
+export type { NotificationPreferenceToggle } from "./api/notification-preference.cache";
+export {
+  preferenceToggleMutation,
+  withToggledPreference,
+} from "./api/notification-preference.cache";
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export {
