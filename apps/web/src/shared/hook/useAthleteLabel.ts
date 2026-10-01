@@ -1,43 +1,34 @@
+import { athleteLabel, isSelfAthlete } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { authClient } from "@/shared/lib/auth";
 
 /**
  * Comment nommer un athlète dans une liste de coach — son nom, suivi de « (moi) » quand c'est le
- * compte courant (auto-coaching, #14).
- *
- * Comparaison à l'id de SESSION, et non à un drapeau porté par chaque DTO : le cas se présente
- * dans les débriefs, les cycles, la fiche athlète et le tableau de suivi, dont les charges utiles
- * n'ont en commun qu'un `athleteId`. Un marqueur à propager aurait demandé de toucher quatre
- * schémas — et d'y penser au cinquième.
- *
- * À n'utiliser que pour du TEXTE affiché. Les initiales d'un avatar se calculent sur le nom brut :
- * « Dual Curl (moi) » y produirait un « DC (m) » ou pire.
+ * compte courant (auto-coaching, #14). La règle vit dans `@cmv/shared` (`athleteLabel`) ; ce hook
+ * n'y apporte que la session et la traduction du web.
  */
 export function useAthleteLabel(): (athleteId: string, athleteName: string) => string {
   const { t } = useTranslation();
-  const isSelf = useIsSelfAthlete();
+  const selfId = useSelfId();
 
-  return (athleteId, athleteName) =>
-    isSelf(athleteId) ? t("athlete.self", { name: athleteName }) : athleteName;
+  return (athleteId, athleteName) => athleteLabel(athleteId, athleteName, selfId, t);
 }
 
 /**
- * Le même test, sans le texte : cet athlète, est-ce MOI ?
+ * Le même test, sans le texte : cet athlète, est-ce MOI ? (`isSelfAthlete`)
  *
  * Pour les surfaces qui doivent DÉCIDER et pas seulement nommer — le volet de débrief, qui ne peut
  * pas offrir de répondre à soi-même : le fil `(soi, soi)` n'existera jamais, le CHECK
  * `coach_athlete_not_self` (#11) l'interdit, et le demander rendait un 409 déguisé en panne
  * passagère (#198).
- *
- * Séparé de `useAthleteLabel` parce que c'en est l'inverse exact : ce label est réservé au TEXTE
- * affiché, et brancher un rendu sur la présence de « (moi) » dans une chaîne traduite serait un
- * test qui casse au premier reformulage du catalogue.
  */
 export function useIsSelfAthlete(): (athleteId: string) => boolean {
-  const { data } = authClient.useSession();
-  const selfId = data?.user.id;
+  const selfId = useSelfId();
 
-  // `selfId` absent = session non résolue : on ne prétend pas que c'est soi. Fail closed dans le
-  // sens qui ne cache rien — au pire un aller-retour de plus, jamais un volet amputé à tort.
-  return (athleteId) => selfId != null && athleteId === selfId;
+  return (athleteId) => isSelfAthlete(selfId, athleteId);
+}
+
+/** L'id du compte courant, `undefined` tant que la session n'est pas résolue. */
+function useSelfId(): string | undefined {
+  return authClient.useSession().data?.user.id;
 }
