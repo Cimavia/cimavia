@@ -7,17 +7,12 @@ import type { ScheduledSessionDto } from "../dto/plan.schema";
 import { withSentTracking } from "../util/session-tracking.util";
 import { type AthleteFeedbackApi, myFeedbackKeys } from "./athlete-feedback.api";
 import { myPlanKeys } from "./athlete-plan.api";
+import type { CacheClient } from "./cache-client";
 import { ApiError } from "./client";
 import { coachFeedbackKeys } from "./coach-feedback.api";
 
-/**
- * Ce que l'écriture du débrief demande au cache. Le `QueryClient` de TanStack Query le satisfait
- * tel quel : `@cmv/shared` n'a pas à dépendre de la bibliothèque pour décrire ce qu'elle en fait.
- */
-export type FeedbackCache = {
-  setQueryData(queryKey: readonly unknown[], updater: unknown): unknown;
-  invalidateQueries(filters: { queryKey: readonly unknown[] }): unknown;
-};
+/** Ce que l'écriture du débrief demande au cache : elle écrit et relit, elle ne lit jamais. */
+export type FeedbackCache = Pick<CacheClient, "setQueryData" | "invalidateQueries">;
 
 /**
  * L'enregistrement du débrief et ce qu'il fait au cache, communs aux deux clients — les options

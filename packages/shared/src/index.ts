@@ -13,6 +13,7 @@ export type { FeedbackCache } from "./api/athlete-feedback.cache";
 export { feedbackSaveMutation } from "./api/athlete-feedback.cache";
 export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
+export type { CacheClient } from "./api/cache-client";
 export type { CapabilityApi } from "./api/capability.api";
 export { capabilityKeys, createCapabilityApi } from "./api/capability.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
@@ -31,6 +32,11 @@ export {
   notificationPreferenceKeys,
   toggledPreferences,
 } from "./api/notification.api";
+export type { NotificationPreferenceToggle } from "./api/notification-preference.cache";
+export {
+  preferenceToggleMutation,
+  withToggledPreference,
+} from "./api/notification-preference.cache";
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export {
@@ -581,6 +587,12 @@ export type { Role as RoleType } from "./role";
 export { Role } from "./role";
 export type { AppTier } from "./util/app-version.util";
 export { formatAppVersion, isAppTier } from "./util/app-version.util";
+export type { AthleteLabelHooks } from "./util/athlete-label.util";
+export {
+  athleteLabel,
+  createAthleteLabelHooks,
+  isSelfAthlete,
+} from "./util/athlete-label.util";
 export type {
   AthleteConversationSource,
   AthleteFeedbackSource,
@@ -658,7 +670,9 @@ export {
   countOverdueInvoices,
   countPendingInvoices,
   INVOICE_STATE_BADGE,
+  InvoiceFooter,
   InvoiceState,
+  invoiceFooter,
   resolveInvoiceState,
 } from "./util/invoice.util";
 export type {
@@ -709,6 +723,7 @@ export {
   metricCellText,
   metricLabel,
   metricUnitLabel,
+  unitDetail,
 } from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export type {
@@ -804,7 +819,9 @@ export {
 export { comparableText } from "./util/search.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
+  checkedUnitsOf,
   checkUnit,
+  countedRoundsOf,
   isTrackingSent,
   sameTracking,
   setRounds,

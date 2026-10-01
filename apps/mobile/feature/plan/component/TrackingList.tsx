@@ -1,13 +1,13 @@
 import {
   type BlockTrackingState,
   type CustomMetric,
+  checkedUnitsOf,
+  countedRoundsOf,
   type ExerciseBlock,
-  metricCellText,
   TrackingMode,
   trackingUnits,
-  unitValues,
+  unitDetail,
 } from "@cmv/shared";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 
@@ -42,11 +42,10 @@ export function TrackingList({
   if (units == null) return null;
 
   if (units.mode === TrackingMode.COUNT) {
-    const rounds = state != null && "rounds" in state ? state.rounds : 0;
-    return <RoundCounter rounds={rounds} onRounds={onRounds} />;
+    return <RoundCounter rounds={countedRoundsOf(state)} onRounds={onRounds} />;
   }
 
-  const checked = state != null && "checked" in state ? state.checked : [];
+  const checked = checkedUnitsOf(state);
 
   return (
     <View className="gap-2">
@@ -61,18 +60,6 @@ export function TrackingList({
       ))}
     </View>
   );
-}
-
-function unitDetail(
-  block: ExerciseBlock,
-  index: number,
-  customMetrics: readonly CustomMetric[],
-  t: TFunction,
-  locale: string,
-): string {
-  return unitValues(block, index)
-    .map(({ metric, value }) => metricCellText(value, metric, customMetrics, t, locale))
-    .join(" · ");
 }
 
 function UnitRow({

@@ -33,6 +33,39 @@ export function resolveInvoiceState(invoice: InvoiceTiming, today: string): Invo
   return invoice.dueDate < today ? InvoiceState.OVERDUE : InvoiceState.PENDING;
 }
 
+// ── Pied du détail d'une facture ─────────────────────────────────────────────
+
+/** Les gestes offerts au pied du détail d'une facture. */
+export const InvoiceFooter = {
+  /** Rien : athlète, facture annulée ou pas encore émise. */
+  NONE: "NONE",
+  /** Payée : le seul geste est le retour arrière. */
+  REOPEN: "REOPEN",
+  /** À régler : marquer payée, programmer un rappel, annuler. */
+  SETTLE: "SETTLE",
+} as const;
+export type InvoiceFooter = TypesValuesOf<typeof InvoiceFooter>;
+
+/**
+ * Ce que le pied du détail d'une facture propose — commun au panneau web et au détail mobile, qui
+ * l'écrivaient chacun (#505).
+ *
+ * Rien pour l'athlète, et pas par politesse : `PATCH /invoices/:id/status` et
+ * `POST /invoices/:id/cancel` sont gardées `@Roles([COACH])`, et le rappel touche `Reminder`, la
+ * seule entité scopée `coachId` SEUL. Rien non plus sur une facture annulée (terminal, l'API refuse
+ * tout retour en 409) : un pied vide vaut mieux qu'un bouton éteint, qui laisse chercher ce qui le
+ * rallumerait.
+ *
+ * Une facture DRAFT n'atteint pas le détail (les lectures ne servent que des factures émises) ; si
+ * elle l'atteignait, elle n'aurait rien à proposer — le toggle ne pose que payée ↔ impayée.
+ */
+export function invoiceFooter(status: InvoiceStatus, canManage: boolean): InvoiceFooter {
+  if (!canManage) return InvoiceFooter.NONE;
+  if (status === InvoiceStatus.PAID) return InvoiceFooter.REOPEN;
+  if (status === InvoiceStatus.PENDING) return InvoiceFooter.SETTLE;
+  return InvoiceFooter.NONE;
+}
+
 // ── Compteurs de tuiles ──────────────────────────────────────────────────────
 
 /**

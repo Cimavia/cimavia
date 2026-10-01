@@ -1,11 +1,12 @@
 import {
   type BlockTrackingState,
   type CustomMetric,
+  checkedUnitsOf,
+  countedRoundsOf,
   type ExerciseBlock,
-  metricCellText,
   TrackingMode,
   trackingUnits,
-  unitValues,
+  unitDetail,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component";
@@ -39,7 +40,7 @@ export function TrackingList({
   if (units == null) return null;
 
   if (units.mode === TrackingMode.COUNT) {
-    const rounds = state != null && "rounds" in state ? state.rounds : 0;
+    const rounds = countedRoundsOf(state);
     return (
       <div className="flex items-center gap-cmv-md">
         <CmvButton variant="secondary" disabled={rounds === 0} onClick={() => onRounds(rounds - 1)}>
@@ -56,17 +57,13 @@ export function TrackingList({
     );
   }
 
-  const checked = state != null && "checked" in state ? state.checked : [];
+  const checked = checkedUnitsOf(state);
 
   return (
     <div className="flex flex-wrap gap-cmv-xs">
       {Array.from({ length: units.count }, (_, index) => {
         const isChecked = checked.includes(index);
-        const detail = unitValues(block, index)
-          .map(({ metric, value }) =>
-            metricCellText(value, metric, customMetrics, t, i18n.language),
-          )
-          .join(" · ");
+        const detail = unitDetail(block, index, customMetrics, t, i18n.language);
 
         return (
           <button
