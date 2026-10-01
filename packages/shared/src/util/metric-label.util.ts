@@ -1,4 +1,10 @@
-import { type BlockMetric, MetricSource, metricValueTypeOf } from "../dto/exercise-block.schema";
+import {
+  type BlockMetric,
+  type ExerciseBlock,
+  MetricSource,
+  metricValueTypeOf,
+  unitValues,
+} from "../dto/exercise-block.schema";
 import {
   type CustomMetric,
   METRIC_LABEL_KEY,
@@ -99,4 +105,23 @@ export function metricCellText(
   const shown = formatMetricValue(value, metric, customMetrics, locale);
   const unit = value == null ? null : metricUnitLabel(metric, customMetrics, translate);
   return unit == null ? shown : `${shown} ${unit}`;
+}
+
+/**
+ * Le dosage qu'une case de suivi rappelle — « 6a · 4 min », valeurs de SA ligne séparées d'un
+ * point médian. Sans lui, l'athlète devrait remonter à la grille pour savoir ce qu'il coche.
+ *
+ * Chaîne vide quand la ligne n'a aucune valeur : il n'y a rien à rappeler, et la case s'affiche
+ * sans détail plutôt qu'avec un tiret qui ferait croire à une colonne vide.
+ */
+export function unitDetail(
+  block: ExerciseBlock,
+  index: number,
+  customMetrics: readonly CustomMetric[],
+  translate: (key: string) => string,
+  locale: string,
+): string {
+  return unitValues(block, index)
+    .map(({ metric, value }) => metricCellText(value, metric, customMetrics, translate, locale))
+    .join(" · ");
 }

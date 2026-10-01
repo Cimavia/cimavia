@@ -14,10 +14,27 @@ export type SessionTracking = Record<string, ExerciseTracking | null>;
  * entrée — et les deux surfaces n'auraient plus décompté pareil.
  */
 
-/** Les index cochés d'un bloc, ou une liste vide — un compteur d'AMRAP n'en a pas. */
+/**
+ * Les index cochés d'un bloc. Liste vide pour un bloc que l'athlète n'a pas encore touché, comme
+ * pour un compteur d'AMRAP, qui n'a pas de cases : dans les deux cas, rien n'est coché.
+ *
+ * Lu ici plutôt que dans chaque écran (#505) : la liste des cases, le déroulé et le calcul des
+ * coches à venir doivent lire le même état de la même façon.
+ */
+export function checkedUnitsOf(state: BlockTrackingState | undefined): readonly number[] {
+  return state != null && "checked" in state ? state.checked : [];
+}
+
+/**
+ * Les tours comptés d'un AMRAP. Zéro tant que l'athlète n'a rien compté : c'est le point de
+ * départ du compteur, qu'il incrémente — pas une valeur inventée sur une donnée manquante.
+ */
+export function countedRoundsOf(state: BlockTrackingState | undefined): number {
+  return state != null && "rounds" in state ? state.rounds : 0;
+}
+
 function checkedIn(tracking: SessionTracking, exerciseId: string, blockId: string): number[] {
-  const state = tracking[exerciseId]?.[blockId];
-  return state != null && "checked" in state ? [...state.checked] : [];
+  return [...checkedUnitsOf(tracking[exerciseId]?.[blockId])];
 }
 
 function withBlock(

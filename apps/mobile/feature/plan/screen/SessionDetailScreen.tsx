@@ -1,6 +1,8 @@
 import {
   type BlockSegment,
   type BlockTrackingState,
+  checkedUnitsOf,
+  countedRoundsOf,
   formatTrainingDuration,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
@@ -190,8 +192,8 @@ function RunnerChrono({
   const { current, context } = runner;
   if (!runner.active || current == null || context == null) return null;
 
-  const checked = tracking != null && "checked" in tracking ? tracking.checked : [];
-  const rounds = tracking != null && "rounds" in tracking ? tracking.rounds : 0;
+  const checked = checkedUnitsOf(tracking);
+  const rounds = countedRoundsOf(tracking);
 
   const overlayProps = {
     title: context.title,

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ScheduledSessionDto } from "../dto/plan.schema";
 import {
+  checkedUnitsOf,
   checkUnit,
+  countedRoundsOf,
   isTrackingSent,
   type SessionTracking,
   sameTracking,
@@ -134,5 +136,31 @@ describe("withSentTracking", () => {
     ]);
     // L'exercice non cité est rendu tel quel, pas recopié.
     expect(next.exercises[2]).toBe(session.exercises[2]);
+  });
+});
+
+describe("checkedUnitsOf", () => {
+  it("rend les index cochés d'un bloc", () => {
+    expect(checkedUnitsOf({ checked: [0, 2] })).toEqual([0, 2]);
+  });
+
+  it.each([
+    ["un bloc pas encore touché", undefined],
+    ["un compteur d'AMRAP", { rounds: 3 }],
+  ])("ne coche rien sur %s", (_case, state) => {
+    expect(checkedUnitsOf(state)).toEqual([]);
+  });
+});
+
+describe("countedRoundsOf", () => {
+  it("rend les tours comptés d'un AMRAP", () => {
+    expect(countedRoundsOf({ rounds: 3 })).toBe(3);
+  });
+
+  it.each([
+    ["un bloc pas encore touché", undefined],
+    ["un bloc à cases", { checked: [0, 1] }],
+  ])("part de zéro sur %s", (_case, state) => {
+    expect(countedRoundsOf(state)).toBe(0);
   });
 });

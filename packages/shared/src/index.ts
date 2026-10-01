@@ -716,6 +716,7 @@ export {
   metricCellText,
   metricLabel,
   metricUnitLabel,
+  unitDetail,
 } from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export type {
@@ -811,7 +812,9 @@ export {
 export { comparableText } from "./util/search.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
+  checkedUnitsOf,
   checkUnit,
+  countedRoundsOf,
   isTrackingSent,
   sameTracking,
   setRounds,

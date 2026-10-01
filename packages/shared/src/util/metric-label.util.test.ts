@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type BlockMetric, MetricSource } from "../dto/exercise-block.schema";
+import {
+  type BlockMetric,
+  BlockType,
+  exerciseBlockSchema,
+  MetricSource,
+} from "../dto/exercise-block.schema";
 import {
   type CustomMetric,
   METRIC_LABEL_KEY,
@@ -13,6 +18,7 @@ import {
   metricCellText,
   metricLabel,
   metricUnitLabel,
+  unitDetail,
 } from "./metric-label.util";
 
 /**
@@ -149,5 +155,39 @@ describe("metricCellText", () => {
 
   it("laisse une valeur sans unité se dire seule", () => {
     expect(metricCellText(6, catalogMetric({ unit: MetricUnit.NONE }), [], fakeT, "fr")).toBe("6");
+  });
+});
+
+describe("unitDetail", () => {
+  const reps = catalogMetric({ id: "col_reps" });
+  const load = catalogMetric({
+    id: "col_load",
+    key: MetricKey.LOAD,
+    unit: MetricUnit.KILOGRAMS_ADDED,
+  });
+  const block = (values: Record<string, number | null>) =>
+    exerciseBlockSchema.parse({
+      id: "blk",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: 90 },
+      metrics: [reps, load],
+      rows: [{ id: "r1", values }],
+    });
+
+  it("rappelle les valeurs de la ligne, dans l'ordre des colonnes, séparées d'un point médian", () => {
+    expect(unitDetail(block({ col_load: 12, col_reps: 6 }), 0, [], fakeT, "fr")).toBe(
+      `${metricCellText(6, reps, [], fakeT, "fr")} · ${metricCellText(12, load, [], fakeT, "fr")}`,
+    );
+  });
+
+  it("saute une colonne vide plutôt que d'y écrire un tiret", () => {
+    expect(unitDetail(block({ col_reps: 6, col_load: null }), 0, [], fakeT, "fr")).toBe(
+      metricCellText(6, reps, [], fakeT, "fr"),
+    );
+  });
+
+  /** Rien à rappeler : la case s'affiche sans détail. */
+  it("rend une chaîne vide sur une ligne sans valeur", () => {
+    expect(unitDetail(block({}), 0, [], fakeT, "fr")).toBe("");
   });
 });
