@@ -4553,6 +4553,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ## Post-MVP — Lisibilité du constructeur ([#525](https://github.com/Cimavia/cimavia/issues/525))
 
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| L-1 | **L'écriture des durées est figée en français, hors i18next** : `formatTrainingDuration` (`@cmv/shared`) rend « 45 s · 3' · 2'30 », notation qui n'a pas de sens en anglais. Pris en #528, qui en fait la seule voie d'affichage d'une durée d'entraînement. | 🟢 | — *(déclencheur : un catalogue d'interface anglais — l'`en.json` mobile actuel ne porte que les permissions iOS)* |
+
 > **Tranché en [#520](https://github.com/Cimavia/cimavia/issues/520)** (une ligne par série, et les
 > lignes restent un tableau) : la grille d'une Séries montrait les lignes STOCKÉES, et le coach qui
 > saisissait « 4 séries » sur une ligne ne voyait pas que les trois autres la reprenaient. Elle
@@ -4591,6 +4595,18 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > (`w-20`) : « Ex. 2'30 » y tient, de justesse. Aucune garde automatique — `check:i18n` ne sait
 > pas distinguer un exemple d'une consigne ; la règle vit dans le commentaire de `index.css` et
 > dans les conventions du README.
+
+> **Tranché en [#528](https://github.com/Cimavia/cimavia/issues/528)** (une durée d'entraînement
+> ne s'écrit que par `formatTrainingDuration`) : un texte du catalogue ne contient jamais « min »
+> en dur pour une durée d'entraînement — il reçoit la durée déjà mise en forme. La saisie reste
+> tolérante (« 2 min » est compris) et l'affichage montre ce qui a été compris (« 2' ») ; c'est
+> pourquoi le message d'erreur du champ ne propose plus « 2 min » comme format, et dit enfin que
+> le nombre nu compte des secondes. Deux phrases suivent : l'EMOM d'une minute dit « Chaque minute
+> pendant 10' » plutôt que « Toutes les 1' » (seule la valeur 60 s a sa clé — « Toutes les 1'30 »
+> se lit bien), et le repos d'un Circuit prend la tournure de celui des Séries, « 3' de repos
+> entre les tours ». Hors de la règle, parce que ce ne sont pas des durées d'entraînement : « il y
+> a 2 min » (horodatage relatif) et les compteurs média (`formatMmSs`). L'indice « défaut 150 »
+> reste à [#369](https://github.com/Cimavia/cimavia/issues/369).
 
 ---
 
