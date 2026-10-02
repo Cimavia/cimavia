@@ -410,7 +410,8 @@ describe("SessionBuilderScreen — édition", () => {
     const view = await edit();
 
     await view.openCard("Gainage");
-    const cell = within(view.getByRole("table")).getByRole("textbox");
+    // La première série : les suivantes, fantômes, la reprennent (#520).
+    const cell = within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
     await view.user.clear(cell);
     await view.user.type(cell, "8");
     await view.user.tab();
@@ -482,11 +483,15 @@ describe("SessionBuilderScreen — édition", () => {
     expect(row.adjustments).toEqual([]);
   });
 
-  it("ajoute une ligne à la grille de SON exercice", async () => {
+  // Une Séries n'ajoute pas de ligne : la saisie dans une série fantôme lui en donne une (#520).
+  it("donne sa ligne à une série de SON exercice", async () => {
     const view = await edit();
 
     await view.openCard("Tractions");
-    await view.user.click(view.getByRole("button", { name: "library.builder.grid.addRow" }));
+    const series2 = within(view.getByRole("table")).getAllByRole("textbox")[1] as HTMLElement;
+    await view.user.clear(series2);
+    await view.user.type(series2, "8");
+    await view.user.tab();
     await view.save();
 
     expect(
@@ -536,7 +541,8 @@ describe("SessionBuilderScreen — édition", () => {
     await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
     // La valeur rechargée s'affiche : sans ça, le serveur répond et l'écran ne change pas.
     await view.openCard("Gainage");
-    expect(await view.findByDisplayValue("12")).toBeInTheDocument();
+    // La première série et ses fantômes affichent la même valeur rechargée.
+    expect((await view.findAllByDisplayValue("12"))[0]).toBeInTheDocument();
     await view.save();
 
     expect(api.reloadSessionExercise).toHaveBeenCalledExactlyOnceWith("s-1", "se-2");

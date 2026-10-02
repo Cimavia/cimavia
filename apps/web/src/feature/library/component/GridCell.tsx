@@ -28,10 +28,21 @@ type GridCellProps = {
    * ajout calculé sur l'ancien état effaçait ce qu'on venait de taper.
    */
   onCommitLine: (value: MetricValue) => void;
+  /**
+   * Une valeur REPRISE d'une autre ligne, pas saisie sur celle-ci — une série fantôme (#520).
+   * Estompée, mais modifiable : taper dedans donne sa ligne à la série.
+   */
+  ghost?: boolean | undefined;
+  /** Ce qu'affiche une cellule vide : « — » sur une série fantôme qui n'a rien à reprendre. */
+  placeholder?: string | undefined;
 };
 
-const CELL_CLASS =
-  "w-full rounded-cmv-sm border border-transparent bg-transparent px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none hover:border-cmv-border focus:border-cmv-accent focus:bg-cmv-surface";
+/** La couleur suit la nature de la valeur ; `cn` ne fusionne pas, d'où une seule des deux. */
+const cellClass = (ghost: boolean | undefined) =>
+  cn(
+    "w-full rounded-cmv-sm border border-transparent bg-transparent px-cmv-sm py-cmv-xs text-cmv-body outline-none hover:border-cmv-border focus:border-cmv-accent focus:bg-cmv-surface",
+    ghost ? "text-cmv-text-lo" : "text-cmv-text-hi",
+  );
 
 /**
  * Une cellule de la grille. Le type de valeur décide de la saisie — un nombre, une durée, du
@@ -76,13 +87,14 @@ function NumberCell(props: Readonly<GridCellProps>) {
   );
 }
 
-function TextCell({ value, onChange, onCommitLine }: Readonly<GridCellProps>) {
+function TextCell({ value, onChange, onCommitLine, ghost, placeholder }: Readonly<GridCellProps>) {
   return (
     <input
       value={value == null ? "" : String(value)}
+      placeholder={placeholder}
       onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
       onKeyDown={(event) => onEnter(event, () => onCommitLine(value))}
-      className={CELL_CLASS}
+      className={cellClass(ghost)}
     />
   );
 }
@@ -116,6 +128,8 @@ function DraftCell({
   parse,
   format,
   inputMode,
+  ghost,
+  placeholder,
 }: Readonly<DraftCellProps>) {
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
@@ -142,6 +156,7 @@ function DraftCell({
   return (
     <input
       value={shown}
+      placeholder={placeholder}
       inputMode={inputMode}
       aria-invalid={invalid}
       onChange={(event) => setDraft(event.target.value)}
@@ -153,12 +168,12 @@ function DraftCell({
           if (committed !== undefined) onCommitLine(committed);
         });
       }}
-      className={cn(CELL_CLASS, invalid && "border-cmv-error")}
+      className={cn(cellClass(ghost), invalid && "border-cmv-error")}
     />
   );
 }
 
-function ScaleCell({ metric, customMetrics, value, onChange }: Readonly<GridCellProps>) {
+function ScaleCell({ metric, customMetrics, value, onChange, ghost }: Readonly<GridCellProps>) {
   const { t } = useTranslation();
   // Rendue seulement pour une colonne à échelle : `scaleFor` en a toujours une à rendre ici.
   const scale = required(scaleFor(metric, customMetrics), "cellule d'échelle sans échelle");
@@ -167,7 +182,7 @@ function ScaleCell({ metric, customMetrics, value, onChange }: Readonly<GridCell
     <select
       value={value == null ? "" : String(value)}
       onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
-      className={CELL_CLASS}
+      className={cellClass(ghost)}
     >
       {/* L'option vide n'est pas un défaut : c'est le moyen de RETIRER une valeur posée. */}
       <option value="">{t("library.builder.grid.emptyValue")}</option>

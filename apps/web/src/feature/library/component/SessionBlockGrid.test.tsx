@@ -22,7 +22,8 @@ const blocks: ExerciseBlocks = [
   {
     id: "block-1",
     label: null,
-    structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
+    // LIBRE : ses lignes s'ajoutent et se déplacent librement. La Séries a ses tests plus bas.
+    structure: { type: BlockType.FREE },
     metrics: [
       {
         id: "reps",
@@ -249,5 +250,70 @@ describe("SessionBlockGrid — marqueur d'ajustement", () => {
       "[aria-hidden='true']",
     );
     expect(marker).toHaveClass(shape);
+  });
+});
+
+// ── Séries : une ligne par série (#520) ──────────────────────────────────────────────────────
+
+/** La séance, avec un bloc SÉRIES de `setCount` séries sur les lignes de répétitions données. */
+function seriesSession(values: number[], setCount: number): SessionDto {
+  const base = sessionWithRows(values);
+  const [exercise] = base.exercises;
+  const [block] = exercise?.blocks ?? [];
+  const series = [
+    {
+      ...(block as ExerciseBlocks[number]),
+      structure: { type: BlockType.SERIES, setCount, restBetweenSetsSeconds: null },
+    },
+  ] as ExerciseBlocks;
+  return {
+    ...base,
+    exercises: [{ ...exercise, blocks: series, baseline: series }],
+  } as SessionDto;
+}
+
+describe("SessionBlockGrid — Séries", () => {
+  // Une série matérialisée dans la séance est une ligne AJOUTÉE : absente de la référence, elle
+  // ne s'écarte d'aucun défaut, donc aucun marqueur — comme toute ligne ajoutée (`resetRow`).
+  it("donne sa ligne à une série fantôme, sans poser de marqueur", async () => {
+    const { user, getAllByRole, queryByRole, queryAllByText } = renderWithProviders(
+      <Harness initial={seriesSession([5], 2)} />,
+    );
+
+    const series2 = getAllByRole("textbox")[1] as HTMLElement;
+    await user.clear(series2);
+    await user.type(series2, "8");
+    await user.tab();
+
+    expect(getAllByRole("textbox").map((cell) => (cell as HTMLInputElement).value)).toEqual([
+      "5",
+      "8",
+    ]);
+    expect(queryAllByText("library.builder.grid.ghostOf")).toHaveLength(0);
+    expect(queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
+  });
+
+  // Pas de « Revenir au défaut » sur une ligne ajoutée : c'est la corbeille qui la rend fantôme.
+  it("rend fantôme une série matérialisée qu'on retire", async () => {
+    const { user, getAllByRole, getAllByText } = renderWithProviders(
+      <Harness initial={seriesSession([5], 2)} />,
+    );
+
+    const series2 = getAllByRole("textbox")[1] as HTMLElement;
+    await user.clear(series2);
+    await user.type(series2, "8");
+    await user.tab();
+    await user.click(
+      getAllByRole("button", { name: "library.builder.grid.removeRow" })[1] as HTMLElement,
+    );
+
+    expect(getAllByText("library.builder.grid.ghostOf")).toHaveLength(1);
+    expect(getAllByRole("textbox")[1]).toHaveValue("5");
+  });
+
+  it("n'offre pas d'ajouter une ligne", () => {
+    const { queryByRole } = renderWithProviders(<Harness initial={seriesSession([5], 2)} />);
+
+    expect(queryByRole("button", { name: "library.builder.grid.addRow" })).not.toBeInTheDocument();
   });
 });
