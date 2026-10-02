@@ -8,7 +8,7 @@ Pour l'état par phase et les décisions historiques, voir les éventuels `CONTE
 
 ## Intention du projet
 
-cimavia outille la relation **coach ↔ athlète** en escalade. Boucle principale :
+cimavia outille la relation **coach ↔ athlète**, quel que soit le sport. Boucle principale :
 
 1. Le **coach** compose des **exercices** et des **séances** réutilisables.
 2. Il les assemble en une **planification** (cycle de plusieurs semaines) qu'il **diffuse** à un **athlète**.

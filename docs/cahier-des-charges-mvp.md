@@ -1,4 +1,4 @@
-# Cahier des charges — Cimavia (suivi escalade coach ↔ athlète)
+# Cahier des charges — Cimavia (suivi coach ↔ athlète)
 
 > **Nom du projet :** Cimavia (diminutif `cmv`)
 > **Version du document :** v1 (brouillon de travail détaillé)
@@ -16,8 +16,7 @@ Le suivi coach ↔ athlète repose aujourd'hui sur des outils dispersés : Whats
 ### 1.2 Vision
 Centraliser dans une seule application l'ensemble du parcours : planification, exécution, débrief, communication, facturation et suivi de progression.
 
-- **Court terme :** application centrée **escalade**.
-- **Long terme :** ouverture multi-sport possible. Le modèle de données reste *raisonnablement générique* pour ne pas bloquer cette évolution, sans la sur-anticiper.
+- **Sans sport cible :** l'application outille la relation coach ↔ athlète, quel que soit le sport. Le MVP a été pensé pour l'escalade ; le modèle livré est générique — tags libres à la place d'une catégorie fixe (#162), métriques et échelles maison — et #543 en retire les dernières traces (#544).
 - **Athlète autonome (v1.0) :** un athlète peut aussi utiliser l'application **sans coach**, en mode auto-coaching — il crée et débriefe ses propres séances/planifications. Le MVP reste centré sur la relation coach↔athlète ; le modèle de données est conçu pour ne pas bloquer cet usage (voir §3 et §8).
 
 ---
@@ -89,7 +88,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | Versionnement des planifications (historique) | v1.x | non MVP |
 | Messagerie temps réel (présence, frappe) | v2 | MVP = asynchrone |
 | Bibliothèque d'exercices partagée / templates publics | v2 | |
-| **Multi-sport** | Vision LT | généralisation du modèle |
+| **Sans sport cible** | acquis | tags libres (#162), métriques et échelles maison ; dernières traces d'escalade : #543 |
 | Marketplace / mise en relation coach-athlète | Vision LT | |
 
 > Ce tableau est la **source de vérité du périmètre**. Toute nouvelle idée s'y ajoute avec une version cible avant d'être développée.
@@ -107,7 +106,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - **Auto-coaching (livré, épique #7) :** un compte portant les deux capacités crée ses propres exercices, séances et cycles, se les diffuse et les débriefe. Ni facturation ni notification vers soi-même ; la messagerie reste fermée (un fil suppose deux personnes). La liaison à un coach reste possible et **réversible** (voir §3).
 
 ### 5.2 Bibliothèque d'exercices (coach)
-- Exercice : titre, description, catégorie (ex. *renfo*, *grimpe*, *technique*).
+- Exercice : titre, description, tags libres (ex. *force*, *endurance*, *technique*) — ils remplacent la catégorie fixe depuis #162.
 - Documents joints (PDF, image, lien vidéo).
 - Réutilisable dans plusieurs séances.
 
@@ -168,7 +167,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | **Offline** | Lecture des séances de la semaine sans réseau (cache local). |
 | **Notifications** | Push mobile + web. |
 | **Performance** | Consultation fluide en réseau faible. |
-| **Évolutivité** | Modèle prêt multi-coach ; généricité raisonnable pour le multi-sport. |
+| **Évolutivité** | Modèle prêt multi-coach ; générique, sans sport cible. |
 
 ---
 
