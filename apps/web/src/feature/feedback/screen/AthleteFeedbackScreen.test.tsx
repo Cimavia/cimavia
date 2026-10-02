@@ -487,13 +487,13 @@ describe("AthleteFeedbackScreen", () => {
     it("nomme chaque fichier écarté et sa raison", async () => {
       addFilesMock.mockResolvedValue([
         { fileName: "trop.mov", reason: { key: "feedback.media.noSlotVideo", params: {} } },
-        { fileName: null, reason: { message: "Le serveur a refusé ce fichier." } },
+        { fileName: "rejet.jpg", reason: { message: "Le serveur a refusé ce fichier." } },
       ]);
       const { findByText } = await pick([photo("a.jpg")]);
 
-      // Un fichier sans nom garde sa ligne : le taire serait pire qu'un libellé de repli.
+      // Sur le web, un `File` est toujours nommé : chaque ligne porte le sien (#512).
       expect(await findByText("trop.mov")).toBeInTheDocument();
-      expect(await findByText("feedback.media.unnamedFile")).toBeInTheDocument();
+      expect(await findByText("rejet.jpg")).toBeInTheDocument();
       expect(await findByText(/Le serveur a refusé ce fichier./)).toBeInTheDocument();
     });
   });

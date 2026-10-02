@@ -1,4 +1,5 @@
 import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
+import { required } from "@cmv/shared";
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
@@ -17,7 +18,7 @@ type ComposerProps = {
   /** Le réessai en cours, `null` tant que l'envoi avance normalement. */
   retry: MultipartRetry | null;
   /** Le fichier en cours dans un lot, `null` hors envoi. */
-  step: MediaBatchStep | null;
+  step: MediaBatchStep<string> | null;
 };
 
 function formatSeconds(total: number): string {
@@ -70,7 +71,7 @@ export function Composer({
   };
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
+    const files = Array.from(required(event.target.files, "champ fichier sans FileList"));
     // Réinitialise pour permettre de re-choisir le même fichier ensuite.
     event.target.value = "";
     if (files.length > 0) onSendFiles(files);
@@ -161,7 +162,7 @@ export function Composer({
               {t("messages.media.batchProgress", {
                 index: step.index,
                 total: step.total,
-                fileName: step.fileName ?? t("messages.media.unnamedFile"),
+                fileName: step.fileName,
               })}
             </p>
           ) : null}

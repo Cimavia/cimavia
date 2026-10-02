@@ -57,7 +57,7 @@ export function useSendMessageMedia(
   const toast = useToast();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState(0);
-  const [step, setStep] = useState<MediaBatchStep | null>(null);
+  const [step, setStep] = useState<MediaBatchStep<string> | null>(null);
   // Ce que la barre dit quand elle n'avance plus : sans ça, trois minutes de silence.
   const [retry, setRetry] = useState<MultipartRetry | null>(null);
   const as = useExercisedCapability();
@@ -90,7 +90,7 @@ export function useSendMessageMedia(
    * Le fil est invalidé à CHAQUE fichier plutôt qu'à la fin : les messages apparaissent au fur et
    * à mesure, comme si on les avait envoyés un par un — ce que l'expéditeur a fait, du reste.
    */
-  const upload = async (file: File, current: MediaBatchStep) => {
+  const upload = async (file: File, current: MediaBatchStep<string>) => {
     setStep(current);
     setProgress(0);
     setRetry(null);
@@ -131,9 +131,7 @@ export function useSendMessageMedia(
     });
 
     for (const entry of recap) {
-      toast.error(
-        `${entry.fileName ?? t("messages.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`,
-      );
+      toast.error(`${entry.fileName} — ${mediaRecapText(entry.reason, t)}`);
     }
   };
 

@@ -44,18 +44,18 @@ export function splitByRemainingSlots<T extends SlottedMedia>(
   items: readonly T[],
   remaining: Readonly<Record<MediaType, number>>,
 ): SlotSplit<T> {
-  const left = new Map<MediaType, number>(
-    Object.entries(remaining).map(([kind, count]) => [kind as MediaType, Math.max(0, count)]),
-  );
+  // Une copie du `Record` et non une `Map` : le type garantit les trois familles, la lecture n'a
+  // donc aucune absence à rattraper.
+  const left: Record<MediaType, number> = { ...remaining };
   const split: SlotSplit<T> = { accepted: [], rejected: [] };
 
   for (const item of items) {
-    const available = left.get(item.kind) ?? 0;
+    const available = Math.max(0, left[item.kind]);
     if (available <= 0) {
       split.rejected.push(item);
       continue;
     }
-    left.set(item.kind, available - 1);
+    left[item.kind] = available - 1;
     split.accepted.push(item);
   }
 
@@ -117,13 +117,19 @@ export type MediaRecapReason =
 
 /**
  * Une ligne du récapitulatif. `fileName` est nullable : un picker n'en donne pas toujours un.
+ * Générique sur ce nom : le web, dont chaque `File` est nommé, le tient pour une `string` et
+ * n'écrit pas de « fichier sans nom » qu'aucune sélection n'atteint (#512).
  *
  * `id` est le RANG du fichier dans la sélection d'origine — celui que l'utilisateur pourrait
  * compter dans sa galerie. Deux lignes ne peuvent donc pas le partager, même à noms de fichiers
  * identiques, et il reste attaché à sa ligne si le rendu vient un jour à trier ou filtrer la
  * liste. C'est ce qu'un rang de `map()` ne garantit pas.
  */
-export type MediaRecapLine = { id: string; fileName: string | null; reason: MediaRecapReason };
+export type MediaRecapLine<N extends string | null = string | null> = {
+  id: string;
+  fileName: N;
+  reason: MediaRecapReason;
+};
 
 /**
  * La phrase d'une raison, quelle que soit sa forme.
@@ -150,17 +156,21 @@ export type MediaRejection =
   | { cause: "tooMany"; kind: MediaType | null };
 
 /** Où en est le lot, pour que l'écran puisse dire « Envoi 2 / 5 » en nommant le média en cours. */
-export type MediaBatchStep = { index: number; total: number; fileName: string | null };
+export type MediaBatchStep<N extends string | null = string | null> = {
+  index: number;
+  total: number;
+  fileName: N;
+};
 
-export type MediaBatch<T> = {
+export type MediaBatch<T, N extends string | null = string | null> = {
   items: readonly T[];
   /** Au-delà, on n'examine même pas : les quotas du débrief, ou le plafond d'un lot de messages. */
   maxItems: number;
   remaining: Readonly<Record<MediaType, number>>;
   /** La famille du média, `null` quand cette surface ne sait pas le joindre du tout. */
   kindOf: (item: T) => MediaType | null;
-  nameOf: (item: T) => string | null;
-  send: (item: T, step: MediaBatchStep) => Promise<void>;
+  nameOf: (item: T) => N;
+  send: (item: T, step: MediaBatchStep<N>) => Promise<void>;
   rejectedReason: (rejection: MediaRejection) => MediaRecapReason;
   failureReason: (error: unknown) => MediaRecapReason;
 };
@@ -179,12 +189,14 @@ type Ranked<T> = { item: T; rank: number };
  * galerie ou dans le fil, et le répéter en ferait un compte rendu d'exécution plutôt qu'une liste
  * de choses à corriger.
  */
-export async function sendMediaBatch<T>(batch: MediaBatch<T>): Promise<MediaRecapLine[]> {
+export async function sendMediaBatch<T, N extends string | null>(
+  batch: MediaBatch<T, N>,
+): Promise<MediaRecapLine<N>[]> {
   const limit = Math.max(0, batch.maxItems);
   // Le rang dans la SÉLECTION accompagne chaque élément jusqu'au récapitulatif : c'est lui qui
   // donne son identité à une ligne, et il ne dépend ni du tri ni de la cause du refus.
   const ranked = batch.items.map((item, index) => ({ item, rank: index }));
-  const line = (entry: Ranked<T>, reason: MediaRecapReason): MediaRecapLine => ({
+  const line = (entry: Ranked<T>, reason: MediaRecapReason): MediaRecapLine<N> => ({
     id: String(entry.rank),
     fileName: batch.nameOf(entry.item),
     reason,

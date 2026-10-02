@@ -58,7 +58,7 @@ function useInvalidateFeedback(sessionId: string) {
 export function useAddFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
-  const [step, setStep] = useState<MediaBatchStep | null>(null);
+  const [step, setStep] = useState<MediaBatchStep<string> | null>(null);
   // Ce que la barre dit quand elle n'avance plus : sans ça, trois minutes de silence.
   const [retry, setRetry] = useState<MultipartRetry | null>(null);
 
@@ -81,7 +81,7 @@ export function useAddFeedbackMedia(sessionId: string) {
    * mesure, ce qui vaut mieux qu'un écran figé pendant l'envoi de cinq vidéos — et si le lot casse
    * en route, ce qui est déjà passé reste visible.
    */
-  const upload = async (file: File, current: MediaBatchStep) => {
+  const upload = async (file: File, current: MediaBatchStep<string>) => {
     setStep(current);
     setProgress(0);
     setRetry(null);
@@ -91,7 +91,9 @@ export function useAddFeedbackMedia(sessionId: string) {
 
   // L'appelant décide de la POLITIQUE du lot (places restantes, plafond, libellés des refus) ;
   // le hook n'impose que l'envoi.
-  const addFiles = (batch: Omit<MediaBatch<File>, "send">): Promise<MediaRecapLine[]> =>
+  const addFiles = (
+    batch: Omit<MediaBatch<File, string>, "send">,
+  ): Promise<MediaRecapLine<string>[]> =>
     sendMediaBatch({ ...batch, send: upload }).finally(() => {
       setStep(null);
       setRetry(null);
