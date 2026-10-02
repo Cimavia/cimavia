@@ -4,6 +4,7 @@ import {
   mondayOfIsoWeek,
   type PlanDto,
   PlanStatus,
+  required,
   type UpdatePlanInput,
 } from "@cmv/shared";
 import { type SyntheticEvent, useEffect, useState } from "react";
@@ -65,8 +66,8 @@ export function PlanHeaderForm({
    */
   function snapToMonday() {
     if (startDate === "" || isMondayIsoDate(startDate)) return;
-    const monday = mondayOfIsoWeek(startDate);
-    if (monday == null) return;
+    // Un `input type="date"` ne rend que `""`, écarté plus haut, ou une date ISO valide.
+    const monday = required(mondayOfIsoWeek(startDate), "date saisie illisible");
     setStartDate(monday);
     toast.onInfo("plan.header.startDateSnapped", { date: formatDate(monday) });
   }
@@ -91,9 +92,8 @@ export function PlanHeaderForm({
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
-    const input = changedFields();
-    if (!canSubmit) return;
-    onSave(input);
+    // `canSubmit` faux ferme le bouton, donc aussi l'envoi à la touche Entrée.
+    onSave(changedFields());
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;

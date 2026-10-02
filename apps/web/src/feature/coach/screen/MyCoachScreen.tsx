@@ -133,7 +133,8 @@ function JoinCoachForm() {
 
   function onSubmit(event: SubmitEvent) {
     event.preventDefault();
-    if (trimmed.length === 0 || accept.isPending) return;
+    // Code blanc ou envoi en cours : le bouton est fermé, et un formulaire au bouton fermé ne se
+    // soumet pas non plus à la touche Entrée — aucune garde à refaire ici (#512).
     accept.mutate({ code: trimmed });
   }
 

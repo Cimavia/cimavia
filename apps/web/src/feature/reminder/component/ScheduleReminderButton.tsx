@@ -1,4 +1,4 @@
-import { REMINDER_NOTE_MAX_LENGTH, type ReminderEntityTypeType } from "@cmv/shared";
+import { REMINDER_NOTE_MAX_LENGTH, type ReminderEntityTypeType, required } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateReminder } from "@/feature/reminder/hook/useReminders";
@@ -62,8 +62,11 @@ export function ScheduleReminderButton({
   }
 
   function onSubmit() {
-    if (dueAt == null) return;
-    create.mutate({ entityType, entityId, dueAt, note: note.trim() }, () => setOpen(false));
+    // Le bouton est fermé tant que l'échéance est illisible (`canSubmit`).
+    create.mutate(
+      { entityType, entityId, dueAt: required(dueAt, "échéance illisible"), note: note.trim() },
+      () => setOpen(false),
+    );
   }
 
   return (

@@ -7,6 +7,7 @@ import {
   PlanWeekType,
   planAudience,
   ReminderEntityType,
+  required,
   type ScheduledSessionDto,
   type ScheduledSessionSummaryDto,
   todayIsoDate,
@@ -100,7 +101,8 @@ export function PlanBuilderScreen() {
   // Le résumé (vue semaine) ne porte pas la composition : on charge le détail à l'ouverture.
   const { data: editedSession } = useQuery<ScheduledSessionDto>({
     queryKey: scheduledSessionKeys.detail(edit?.sessionId ?? ""),
-    queryFn: () => getScheduledSession(edit?.sessionId ?? ""),
+    // `enabled` garantit l'id : la requête ne part jamais sans lui.
+    queryFn: () => getScheduledSession(required(edit?.sessionId, "requête sans séance")),
     enabled: edit?.sessionId != null,
   });
 

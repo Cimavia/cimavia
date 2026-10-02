@@ -1,5 +1,5 @@
 import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
-import { planWeekDays, ScheduledSessionStatus } from "@cmv/shared";
+import { planWeekDays, required, ScheduledSessionStatus } from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompositionEditor } from "@/feature/library/component/CompositionEditor";
@@ -121,15 +121,17 @@ export function ScheduledSessionPanel({
     );
   }
 
+  // « Supprimer » n'est offert qu'en édition, donc sur une séance existante.
   function onDelete() {
-    if (session == null) return;
-    removeSession.mutate(session.id, { onSuccess: onClose });
+    removeSession.mutate(required(session, "suppression hors édition").id, { onSuccess: onClose });
   }
 
-  const dayOptions = (planWeekDays(week.startDate) ?? []).map((day) => ({
-    value: day,
-    label: formatDayLabel(day),
-  }));
+  const dayOptions = required(planWeekDays(week.startDate), "lundi de semaine illisible").map(
+    (day) => ({
+      value: day,
+      label: formatDayLabel(day),
+    }),
+  );
 
   const canSubmit = isEditing || sourceSessionId !== "" || title.trim() !== "";
 

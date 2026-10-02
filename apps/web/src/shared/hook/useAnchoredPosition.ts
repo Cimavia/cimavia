@@ -1,3 +1,4 @@
+import { required } from "@cmv/shared";
 import { type RefObject, useEffect, useState } from "react";
 
 type Position = { top: number; left: number };
@@ -24,8 +25,9 @@ export function useAnchoredPosition(
     if (!open) return;
 
     const update = () => {
-      const rect = anchor.current?.getBoundingClientRect();
-      if (rect != null) setPosition({ top: rect.bottom + GAP, left: rect.left });
+      // L'ancre est le déclencheur, monté avant le panneau qu'il ouvre.
+      const rect = required(anchor.current, "panneau ouvert sans ancre").getBoundingClientRect();
+      setPosition({ top: rect.bottom + GAP, left: rect.left });
     };
 
     update();

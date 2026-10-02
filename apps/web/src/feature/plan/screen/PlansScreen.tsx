@@ -1,4 +1,10 @@
-import { mondayOfIsoWeek, PlanWeekType, todayIsoDate, unassignedDraftPlans } from "@cmv/shared";
+import {
+  mondayOfIsoWeek,
+  PlanWeekType,
+  required,
+  todayIsoDate,
+  unassignedDraftPlans,
+} from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CoachPlanSection } from "@/feature/plan/component/CoachPlanSection";
@@ -22,8 +28,9 @@ export function PlansScreen() {
    * (`todayIsoDate` rend toujours une date lisible) mais ne se replie PAS sur une valeur inventée :
    * le bouton se ferme plutôt que d'ouvrir un cycle daté au hasard (règle 5).
    */
-  const startDate = mondayOfIsoWeek(todayIsoDate());
-  const canCreate = startDate != null && !createPlan.isPending;
+  // La date du jour est toujours lisible : son lundi aussi.
+  const startDate = required(mondayOfIsoWeek(todayIsoDate()), "lundi de la date du jour");
+  const canCreate = !createPlan.isPending;
 
   /**
    * « Nouvelle planification » n'ouvre plus de panneau : elle crée le brouillon et ouvre le
@@ -36,7 +43,6 @@ export function PlansScreen() {
    * recours reste ouvert tant que le cycle est brouillon (« Supprimer le cycle »).
    */
   function onNewPlan() {
-    if (startDate == null) return;
     createPlan.mutate(
       {
         // Un cycle se construit avant de savoir pour qui (#144) — et le titre par défaut n'est pas

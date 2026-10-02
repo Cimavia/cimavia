@@ -35,6 +35,7 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
       {SPACES.map(({ space, icon: Icon }) => {
         const current = space === active;
         const landing = landingPath(space, counterparts);
+        const unreadCount = unread?.[space] ?? 0;
         return (
           <Link
             key={space}
@@ -53,14 +54,12 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
             {/* La pastille ne s'affiche QUE sur l'espace inactif : sur celui qu'on regarde, la
                 cloche dit déjà ce qui arrive. C'est elle qui rend le mode exclusif acceptable —
                 sans elle, on ne saurait pas qu'un débrief attend de l'autre côté (#176). */}
-            {!current && (unread?.[space] ?? 0) > 0 && (
+            {!current && unreadCount > 0 && (
               <>
                 {/* La pastille est DÉCORATIVE : le décompte se lit dans le texte masqué qui la
                     suit. Un `aria-label` sur un élément vide ne serait annoncé nulle part. */}
                 <span aria-hidden className="size-cmv-sm shrink-0 rounded-full bg-cmv-accent" />
-                <span className="sr-only">
-                  {t("nav.spaceUnread", { count: unread?.[space] ?? 0 })}
-                </span>
+                <span className="sr-only">{t("nav.spaceUnread", { count: unreadCount })}</span>
               </>
             )}
           </Link>

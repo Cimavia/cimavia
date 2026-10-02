@@ -196,7 +196,8 @@ export function prepareAudioBlob(
   durationSeconds: number,
   profile: MediaProfile,
 ): PreparedWebMedia {
-  const mimeType = blob.type.split(";")[0] ?? "";
+  // Le type sans ses paramètres (`audio/webm;codecs=opus` → `audio/webm`).
+  const mimeType = blob.type.replace(/;.*/s, "");
   if (!profile.audioMimeTypes.includes(mimeType)) {
     throw new MediaRejectedError(profile.keys.audioFormat);
   }

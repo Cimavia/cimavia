@@ -1,5 +1,5 @@
 import type { PlanWeekDto, ScheduledSessionSummaryDto } from "@cmv/shared";
-import { PlanWeekType, planWeekDays } from "@cmv/shared";
+import { PlanWeekType, planWeekDays, required } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { PlanDayCell } from "@/feature/plan/component/PlanDayCell";
 import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
@@ -78,7 +78,8 @@ export function PlanWeekCard({
     );
   }
 
-  const days = planWeekDays(week.startDate) ?? [];
+  // Le lundi d'une semaine servie par l'API est une date valide (#512).
+  const days = required(planWeekDays(week.startDate), "lundi de semaine illisible");
   const sessionsByDay = new Map<string, ScheduledSessionSummaryDto[]>();
   for (const session of week.sessions) {
     const existing = sessionsByDay.get(session.scheduledDate) ?? [];

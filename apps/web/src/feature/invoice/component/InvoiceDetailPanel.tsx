@@ -54,6 +54,8 @@ export function InvoiceDetailPanel({
 }: Readonly<InvoiceDetailPanelProps>) {
   const { t } = useTranslation();
   if (invoice == null) return null;
+  // Une constante : son test de nullité tient jusque dans le gestionnaire du bouton.
+  const { documentUrl } = invoice;
 
   const isPaid = invoice.status === InvoiceStatus.PAID;
   // Annulée = terminal (l'API refuse tout retour en 409) : aucune action, et le montant barré —
@@ -118,12 +120,12 @@ export function InvoiceDetailPanel({
 
         {/* URL GET signée, régénérée à chaque lecture, ouverte dans un onglet. Le nom d'origine
             accompagne le bouton : c'est lui que le coach reconnaît. */}
-        {invoice.documentUrl == null ? null : (
+        {documentUrl == null ? null : (
           <Field label={t("invoice.panel.document")}>
             <span className="flex flex-wrap items-center gap-cmv-sm">
               <CmvButton
                 variant="secondary"
-                onClick={() => window.open(invoice.documentUrl ?? "", "_blank", "noopener")}
+                onClick={() => window.open(documentUrl, "_blank", "noopener")}
               >
                 {t("invoice.viewDocument")}
               </CmvButton>
