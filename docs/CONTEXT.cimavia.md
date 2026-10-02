@@ -181,7 +181,7 @@ Porte `type` (`NotificationType`), la cible (`entityType` + `entityId`), `readAt
 Trois règles à connaître :
 - **Le libellé n'est PAS stocké.** Une ligne écrite aujourd'hui serait figée en français le jour où `en.json` arrive : on persiste les **paramètres** d'interpolation (`actorName`, `subjectLabel`, nullables) et le rendu se fait à l'affichage, via `NOTIFICATION_LABEL_KEY` (`@cmv/shared`) + i18next. Ces paramètres sont des **instantanés** : renommer un cycle ne réécrit pas les notifications déjà émises.
 - **`entityId` n'a pas de clé étrangère** : la cible est polymorphe (`entityType` décide du modèle visé). Contrepartie assumée — une cible supprimée laisse une entrée qui ne mène nulle part.
-- **Les déclencheurs sont ceux du push, throttles compris** : une rafale de messages ne produit qu'**une** entrée (passage « tout lu » → « non lu », cf. P5-4), et seule la **création** d'un débrief notifie (P4-5).
+- **Le centre ne suit PAS le rythme du push** (#537) : le push part à chaque message et à chaque envoi de l'athlète sur un débrief ; une entrée (et l'e-mail qui la double) ne part qu'à l'**ouverture d'une série** — une rafale de messages ne produit qu'**une** entrée (passage « tout lu » → « non lu », cf. N-3), et seule la **création** d'un débrief en laisse une. Les avis de débrief ne comptent pas dans la série.
 
 ---
 

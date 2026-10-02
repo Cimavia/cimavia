@@ -74,7 +74,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | ~~P4-3~~ | ~~**Vol de token push possible**~~ : `POST /me/push-tokens` réaffectait au compte courant un token déjà enregistré. | ✅ | résolue en [#90](https://github.com/Cimavia/cimavia/issues/90) — un **secret d'installation**, émis par l'API et gardé en `expo-secure-store`, conditionne la réaffectation |
 | ~~P4-4~~ | ~~**Pas de miniature vidéo sur mobile**~~ : ni dans la galerie de débrief, ni dans la bulle de messagerie — une pastille, un libellé, aucun aperçu de l'image. **Rectifié en #92** : la ligne annonçait, depuis #407, `expo-image` comme module natif restant à payer ; `expo-image-manipulator`, déjà là pour les photos, a suffi. | ✅ | résolue en [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) — vignette tirée sur l'appareil à l'affichage, sans module natif de plus (cf. « Tranché en #92 ») |
-| P4-5 | **Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
+| ~~P4-5~~ | ~~**Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments.~~ | ✅ | résolue en [#540](https://github.com/Cimavia/cimavia/issues/540) — un push par envoi de l'athlète, sans trace (cf. « Tranché en #537 ») |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : un média de débrief n'est jamais copié ni partagé, et son **retrait** par l'athlète purge l'objet — mais la **disparition de sa séance** cascade débrief et médias en base sans toucher au bucket. Fermé pour la séance seule en [#313](https://github.com/Cimavia/cimavia/issues/313) (409) ; la suppression d'une semaine ou d'un cycle **diffusé** l'emporte encore. **Rectifié en #313** : cette ligne disait « P4 n'ajoute aucun nouveau cas ». | 🟡 | [#312](https://github.com/Cimavia/cimavia/issues/312) · [#85](https://github.com/Cimavia/cimavia/issues/85) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 > **Tranché en #92** (la vignette tirée à l'AFFICHAGE, pas à l'envoi) : la stocker à l'envoi
@@ -156,7 +156,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | 🟢 | [#77](https://github.com/Cimavia/cimavia/issues/77) |
 | P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du webm/opus, qu'iOS peut ne pas lire. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
-| P5-4 | **Throttle push « first-unread » sans reprise temporelle** : une rafale de messages = 1 push, sans rappel. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) |
+| ~~P5-4~~ | ~~**Throttle push « first-unread » sans reprise temporelle** : une rafale de messages = 1 push, sans rappel.~~ | ✅ | résolue pour le push en [#539](https://github.com/Cimavia/cimavia/issues/539) — un push par message ; la trace garde le throttle (**N-3**, **N-8**) |
 | ~~P5-5~~ | ~~**Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile)~~. La moitié mobile↔web n'a jamais été une dette : elle s'est réglée en promotion **intra-app** côté web (#26), ce que la ligne d'origine annonçait à tort comme un partage à faire. | ✅ | résolue en [#96](https://github.com/Cimavia/cimavia/issues/96) — `shared/util/media.util.ts` paramétré par un `MediaProfile`, le déclencheur ayant fini par survenir : les deux copies contrôlaient les plafonds à deux endroits différents |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
@@ -811,13 +811,45 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
 | N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
-| N-3 | **Une entrée par rafale de messages**, pas une par message : hérite du throttle push de P5-4. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
+| N-3 | **Une entrée par rafale de messages**, pas une par message : la trace garde le throttle « first-unread » que le push a quitté en #537. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
 | N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
 | N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
-| N-8 | **L'e-mail hérite du throttle de la messagerie** (P5-4) : une rafale de messages produit UN e-mail, qui annonce « un message » là où il y en a cinq — et aucune relance si le fil reste non lu. | 🟢 | [#91](https://github.com/Cimavia/cimavia/issues/91) · [#98](https://github.com/Cimavia/cimavia/issues/98) |
+| N-8 | **L'e-mail suit le rythme de la trace** (N-3) : une rafale de messages produit UN e-mail, qui annonce « un message » là où il y en a cinq. La relance attendue de #91 n'a plus d'objet depuis #537 : le push prévient de chaque message. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-9 | **Aucun lien vers l'entité dans l'e-mail de notification** : seul le pied « gérer mes notifications » est cliquable. Ouvrir le cycle ou la conversation demande de retrouver l'application à la main. | 🟢 | — *(déclencheur : un retour beta disant que l'e-mail ne sert à rien sans lien — voir « Tranché en #65 »)* |
+
+> **Tranché en #537** (le push suit chaque envoi, la trace chaque série) : retour du Coach bêta,
+> sur iPhone — des messages et des compléments de débrief qui ne le prévenaient pas. Le throttle
+> « first-unread » (**P5-4**) et « seule la création notifie » (**P4-5**), posés pour ne pas
+> harceler, cèdent pour le **push** : il part à chaque message, et à chaque envoi de l'athlète sur
+> un débrief déjà déposé. Un coach qui rate des messages coûte plus cher qu'un téléphone qui
+> vibre, et le système regroupe déjà les notifications d'une même app. Quatre conséquences que le
+> code ne justifie pas seul :
+>
+> - **La trace garde son rythme.** L'entrée du centre et l'e-mail ne partent qu'à l'ouverture
+>   d'une série (**N-3**, **N-8**) : une boîte mail remplie d'un e-mail par message, elle, serait
+>   du harcèlement. `emit` reçoit donc ses **canaux** (`push`, `trace`) de l'appelant, seul à
+>   connaître le fil ; la garde anti-auto-notification (#14) passe avant les deux.
+> - **Les avis de débrief ne comptent pas dans la série.** Posés au nom de l'athlète, ils
+>   restaient non lus chez un coach qui travaille depuis la page Débriefs (`markRead` est par fil,
+>   #190) — et rendaient muet tout ce que l'athlète écrivait ensuite. C'était le vrai bug du retour.
+> - **Un lot de médias fait un push, celui du premier envoi abouti.** Le serveur reçoit les
+>   médias un par un ; les suivants portent `continuesBatch`, calculé par `sendMediaBatch` pour
+>   les quatre surfaces. Écartés : un signal en fin de geste, qui doublait le push du premier dépôt
+>   — l'appel qui crée le débrief ne sait pas qu'un autre suivra — et se perdait si le lot cassait ;
+>   une fenêtre de temps côté serveur, seuil arbitraire. Une app pas encore mise à jour n'envoie
+>   pas le drapeau : elle pousse à chaque média jusqu'à sa mise à jour.
+> - **Le complément d'un débrief pousse sans trace.** L'entrée « nouveau débrief » ouvre déjà
+>   l'état courant, et le débrief repasse « à relire » — un média joint seul compris, ce qu'il ne
+>   faisait pas. Même destination que `FEEDBACK_RECEIVED`, aucun nouveau type. Et l'annonce part
+>   **après** l'écriture (`FeedbackService.markSent`) : la création prévenait avant que le texte
+>   soit écrit.
+>
+> **[#538](https://github.com/Cimavia/cimavia/issues/538) n'avait pas de cause propre** : le push iOS est livré — le coach reçoit
+> « nouveau débrief ». Les messages muets étaient ceux de #539, et le lien avec la case e-mail une
+> coïncidence : le code ne relie les deux canaux nulle part. **[#91](https://github.com/Cimavia/cimavia/issues/91)** (relancer ce qui
+> reste non lu) perd son objet et se ferme avec elles.
 
 > **Tranché en #66** (les réglages sont une SECTION, pas un écran) : l'issue annonçait, côté
 > mobile, de « donner enfin une destination à la ligne Notifications » de la maquette
