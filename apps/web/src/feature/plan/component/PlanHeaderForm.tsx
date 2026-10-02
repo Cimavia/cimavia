@@ -1,10 +1,8 @@
 import {
   daysBetweenIsoDates,
-  isMondayIsoDate,
   mondayOfIsoWeek,
   type PlanDto,
   PlanStatus,
-  required,
   type UpdatePlanInput,
 } from "@cmv/shared";
 import { type SyntheticEvent, useEffect, useState } from "react";
@@ -59,17 +57,23 @@ export function PlanHeaderForm({
   }, [plan.title, plan.description, plan.startDate, plan.athleteId]);
 
   /**
+   * Le début qui sera ENREGISTRÉ : le lundi de la semaine saisie. C'est sur lui, et non sur la
+   * saisie brute, que se jugent le bouton, le décalage annoncé et ce qui part (#545) — sinon un
+   * jeudi choisi au calendrier, qui ne fait pas perdre le focus, grise un bouton dont le clic
+   * enregistre pourtant. `null` = champ vide ou illisible : rien ne part, aucun repli.
+   */
+  const effectiveStartDate = mondayOfIsoWeek(startDate);
+
+  /**
    * Un cycle démarre un lundi (contrainte du schéma partagé). Plutôt que de rejeter la saisie du
    * coach, on RÉÉCRIT le champ au lundi de la semaine choisie dès qu'il le quitte — et on le lui
    * DIT par un toast : une valeur qui change toute seule sans explication est plus déroutante
    * qu'un refus.
    */
   function snapToMonday() {
-    if (startDate === "" || isMondayIsoDate(startDate)) return;
-    // Un `input type="date"` ne rend que `""`, écarté plus haut, ou une date ISO valide.
-    const monday = required(mondayOfIsoWeek(startDate), "date saisie illisible");
-    setStartDate(monday);
-    toast.onInfo("plan.header.startDateSnapped", { date: formatDate(monday) });
+    if (effectiveStartDate == null || effectiveStartDate === startDate) return;
+    setStartDate(effectiveStartDate);
+    toast.onInfo("plan.header.startDateSnapped", { date: formatDate(effectiveStartDate) });
   }
 
   /**
@@ -85,28 +89,33 @@ export function PlanHeaderForm({
     // l'autre et que le rendu afficherait comme un paragraphe blanc.
     const nextDescription = description.trim() === "" ? null : description.trim();
     if (nextDescription !== plan.description) input.description = nextDescription;
-    if (startDate !== plan.startDate) input.startDate = startDate;
+    if (effectiveStartDate != null && effectiveStartDate !== plan.startDate) {
+      input.startDate = effectiveStartDate;
+    }
     if (athleteId !== plan.athleteId) input.athleteId = athleteId;
     return input;
   }
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
-    // `canSubmit` faux ferme le bouton, donc aussi l'envoi à la touche Entrée.
+    // `canSubmit` faux ferme le bouton, donc aussi l'envoi à la touche Entrée. Ouvert, Entrée
+    // envoie sans passer par le blur : le recalage se fait ici aussi, pour que le champ et le
+    // toast disent ce qui part.
+    snapToMonday();
     onSave(changedFields());
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
   const hasChanges = Object.keys(changedFields()).length > 0;
   const canSubmit =
-    !isPublished && !isSaving && hasChanges && title.trim() !== "" && isMondayIsoDate(startDate);
+    !isPublished && !isSaving && hasChanges && title.trim() !== "" && effectiveStartDate != null;
 
   /**
-   * De combien le cycle se déplace. `null` = la date n'a pas bougé, ou elle est en cours de saisie
-   * et illisible : on n'annonce rien plutôt qu'un « 0 jour » inventé.
+   * De combien le cycle se déplace — entre deux lundis, donc toujours un multiple de 7. `null` = la
+   * date est en cours de saisie et illisible : on n'annonce rien plutôt qu'un « 0 jour » inventé.
    */
   const shiftDays =
-    startDate === plan.startDate ? null : daysBetweenIsoDates(plan.startDate, startDate);
+    effectiveStartDate == null ? null : daysBetweenIsoDates(plan.startDate, effectiveStartDate);
   const warning = shiftWarning(shiftDays, plan.sessionCount);
 
   return (
