@@ -7,6 +7,7 @@ import {
   MAX_FEEDBACK_PHOTO_SIZE_BYTES,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+  mediaBatchShape,
 } from "./media.schema";
 import { messageDtoSchema } from "./message.schema";
 
@@ -139,6 +140,7 @@ export type RequestFeedbackUploadUrlInput = z.infer<typeof requestFeedbackUpload
 export const attachFeedbackMediaSchema = z.discriminatedUnion("type", [
   z
     .object({
+      ...mediaBatchShape,
       type: z.literal(MediaType.IMAGE),
       storagePath: z.string().min(1),
       fileName: z.string().min(1),
@@ -148,6 +150,7 @@ export const attachFeedbackMediaSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      ...mediaBatchShape,
       type: z.literal(MediaType.VIDEO),
       storagePath: z.string().min(1),
       fileName: z.string().min(1),
@@ -158,6 +161,7 @@ export const attachFeedbackMediaSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      ...mediaBatchShape,
       type: z.literal(MediaType.AUDIO),
       storagePath: z.string().min(1),
       fileName: z.string().min(1),

@@ -84,12 +84,20 @@ describe("MediaPicker", () => {
 
   it("ne dit le rang du lot que s'il y a un rang à dire", () => {
     const { queryByText, rerender } = renderRn(
-      <MediaPicker {...base} isUploading step={{ index: 1, total: 1, fileName: "a.jpg" }} />,
+      <MediaPicker
+        {...base}
+        isUploading
+        step={{ index: 1, total: 1, fileName: "a.jpg", continuesBatch: false }}
+      />,
     );
     // « Envoi 1 / 1 » serait du bruit : un lot d'un seul média n'a pas de rang.
     expect(queryByText("feedback.media.batchProgress")).toBeNull();
     rerender(
-      <MediaPicker {...base} isUploading step={{ index: 2, total: 3, fileName: "a.jpg" }} />,
+      <MediaPicker
+        {...base}
+        isUploading
+        step={{ index: 2, total: 3, fileName: "a.jpg", continuesBatch: true }}
+      />,
     );
     expect(queryByText("feedback.media.batchProgress")).not.toBeNull();
   });

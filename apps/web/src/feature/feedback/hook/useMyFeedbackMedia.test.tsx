@@ -151,7 +151,12 @@ describe("useAddFeedbackMedia", () => {
     });
 
     await waitFor(() =>
-      expect(result.current.step).toEqual({ index: 1, total: 2, fileName: "a.jpg" }),
+      expect(result.current.step).toEqual({
+        index: 1,
+        total: 2,
+        fileName: "a.jpg",
+        continuesBatch: false,
+      }),
     );
     expect(result.current.isUploading).toBe(true);
 
@@ -160,7 +165,12 @@ describe("useAddFeedbackMedia", () => {
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(result.current.step).toEqual({ index: 2, total: 2, fileName: "b.jpg" }),
+      expect(result.current.step).toEqual({
+        index: 2,
+        total: 2,
+        fileName: "b.jpg",
+        continuesBatch: true,
+      }),
     );
 
     await act(async () => {

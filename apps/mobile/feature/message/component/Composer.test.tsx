@@ -100,12 +100,22 @@ describe("Composer", () => {
 
   it("ne dit le rang du lot que s'il y a un rang à dire", () => {
     const { queryByText, rerender } = renderRn(
-      <Composer {...base} mediaBusy step={{ index: 1, total: 1, fileName: "a.jpg" }} />,
+      <Composer
+        {...base}
+        mediaBusy
+        step={{ index: 1, total: 1, fileName: "a.jpg", continuesBatch: false }}
+      />,
     );
     expect(queryByText("messages.media.batchProgress")).toBeNull();
     expect(queryByText("messages.media.uploading")).not.toBeNull();
 
-    rerender(<Composer {...base} mediaBusy step={{ index: 2, total: 3, fileName: "a.jpg" }} />);
+    rerender(
+      <Composer
+        {...base}
+        mediaBusy
+        step={{ index: 2, total: 3, fileName: "a.jpg", continuesBatch: true }}
+      />,
+    );
 
     expect(queryByText("messages.media.batchProgress")).not.toBeNull();
     expect(queryByText("messages.media.uploading")).toBeNull();
@@ -140,7 +150,11 @@ describe("Composer", () => {
     });
     const { queryByText } = renderRn(
       <I18nextProvider i18n={i18n}>
-        <Composer {...base} mediaBusy step={{ index: 2, total: 3, fileName: null }} />
+        <Composer
+          {...base}
+          mediaBusy
+          step={{ index: 2, total: 3, fileName: null, continuesBatch: true }}
+        />
       </I18nextProvider>,
     );
 

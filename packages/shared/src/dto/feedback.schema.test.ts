@@ -86,6 +86,22 @@ describe("attachFeedbackMediaSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // Le drapeau est optionnel : une app pas encore mise à jour ne l'envoie pas (#537).
+  it("accepte un rattachement avec ou sans la suite d'un lot", () => {
+    const media = {
+      type: MediaType.IMAGE,
+      storagePath: "a/b.jpg",
+      fileName: "voie.jpg",
+      mimeType: "image/jpeg",
+      size: 1024,
+    };
+
+    expect(attachFeedbackMediaSchema.safeParse(media).success).toBe(true);
+    expect(attachFeedbackMediaSchema.safeParse({ ...media, continuesBatch: true }).success).toBe(
+      true,
+    );
+  });
 });
 
 describe("maxFeedbackMediaCount", () => {

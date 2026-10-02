@@ -60,6 +60,22 @@ describe("sendMessageSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  // Un texte n'appartient à aucun lot : il est toujours un geste à lui seul (#537).
+  it("accepte la suite d'un lot sur un média, la refuse sur un texte", () => {
+    const image = {
+      type: MessageType.IMAGE,
+      storagePath: "a/b.jpg",
+      fileName: "voie.jpg",
+      mimeType: "image/jpeg",
+      size: 1024,
+      continuesBatch: true,
+    };
+    const text = { type: MessageType.TEXT, content: "Salut", continuesBatch: true };
+
+    expect(sendMessageSchema.safeParse(image).success).toBe(true);
+    expect(sendMessageSchema.safeParse(text).success).toBe(false);
+  });
+
   it("refuse un mime audio non supporté", () => {
     const result = sendMessageSchema.safeParse({
       type: MessageType.AUDIO,

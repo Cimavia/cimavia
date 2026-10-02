@@ -300,7 +300,12 @@ describe("useSendMessageMedia", () => {
     });
 
     await waitFor(() =>
-      expect(result.current.step).toEqual({ index: 1, total: 2, fileName: "a.jpg" }),
+      expect(result.current.step).toEqual({
+        index: 1,
+        total: 2,
+        fileName: "a.jpg",
+        continuesBatch: false,
+      }),
     );
     expect(result.current.isUploading).toBe(true);
 
