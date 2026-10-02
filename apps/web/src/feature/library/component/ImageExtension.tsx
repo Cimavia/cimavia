@@ -49,8 +49,9 @@ function InstructionImageView({ node, updateAttributes, deleteNode }: Readonly<N
   const { t } = useTranslation();
   const media = useInstructionMediaContext();
 
-  const mediaId = String(node.attrs.mediaId ?? "");
-  const caption = String(node.attrs.caption ?? "");
+  // Les deux attributs ont un `default` (`addAttributes`) : jamais absents d'un nœud.
+  const mediaId = String(node.attrs.mediaId);
+  const caption = String(node.attrs.caption);
   const width = imageWidthSchema.catch(ImageWidth.FULL).parse(node.attrs.width);
   const src = media.resolve(mediaId);
   const percent = media.progress[mediaId];

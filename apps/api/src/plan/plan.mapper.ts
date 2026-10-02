@@ -1,5 +1,5 @@
 import type { PlanDto, PlanSummaryDto, PlanWeekDto, ScheduledSessionSummaryDto } from "@cmv/shared";
-import { planWeekRange } from "@cmv/shared";
+import { planWeekRange, required } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 import { toIsoDate } from "../util/date.util";
 
@@ -60,10 +60,10 @@ export function toPlanWeekDto(
   week: PlanWithWeeks["weeks"][number],
   planStartDate: Date,
 ): PlanWeekDto {
-  const range = planWeekRange(toIsoDate(planStartDate), week.weekNumber);
-  if (range == null) {
-    throw new Error(`[plan] semaine ${week.id} : weekNumber ${week.weekNumber} invalide`);
-  }
+  const range = required(
+    planWeekRange(toIsoDate(planStartDate), week.weekNumber),
+    `[plan] semaine ${week.id} : weekNumber ${week.weekNumber} invalide`,
+  );
   return {
     id: week.id,
     weekNumber: week.weekNumber,

@@ -253,6 +253,11 @@ describe("le verrou couvre la DÉFINITION des colonnes", () => {
     expect(lockedShapeIssues(blocks(), withMetric(custom("cm_1")))).toEqual(["metrics:blk_1"]);
   });
 
+  it("refuse de remplacer une métrique maison par une colonne du catalogue", () => {
+    const baseline = withMetric(custom("cm_1"));
+    expect(lockedShapeIssues(baseline, blocks())).toEqual(["metrics:blk_1"]);
+  });
+
   it("compare une métrique maison par son identifiant de définition", () => {
     const baseline = withMetric(custom("cm_1"));
     expect(lockedShapeIssues(baseline, withMetric(custom("cm_1")))).toEqual([]);

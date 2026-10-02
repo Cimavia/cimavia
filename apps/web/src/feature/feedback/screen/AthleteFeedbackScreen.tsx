@@ -14,6 +14,7 @@ import {
   mediaRecapText,
   myFeedbackKeys,
   remainingMediaSlots,
+  required,
   trackingOfExercises,
 } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -294,7 +295,11 @@ function MediaUploadStatus({
   progress,
   retry,
   step,
-}: Readonly<{ progress: number; retry: MultipartRetry | null; step: MediaBatchStep | null }>) {
+}: Readonly<{
+  progress: number;
+  retry: MultipartRetry | null;
+  step: MediaBatchStep<string> | null;
+}>) {
   const { t } = useTranslation();
 
   return (
@@ -305,7 +310,7 @@ function MediaUploadStatus({
           {t("feedback.media.batchProgress", {
             index: step.index,
             total: step.total,
-            fileName: step.fileName ?? t("feedback.media.unnamedFile"),
+            fileName: step.fileName,
           })}
         </span>
       ) : null}
@@ -335,7 +340,7 @@ function FeedbackMediaSection({
   // Refus de l'enregistreur (micro, format) : il précède l'upload et ne passe par aucune mutation.
   const [recorderErrorKey, setRecorderErrorKey] = useState<string | null>(null);
   // Ce qui n'a pas été joint au dernier lot, fichier par fichier (#156).
-  const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
+  const [recap, setRecap] = useState<readonly MediaRecapLine<string>[]>([]);
 
   const photosLeft = remainingMediaSlots(feedback, MediaType.IMAGE);
   const videosLeft = remainingMediaSlots(feedback, MediaType.VIDEO);
@@ -360,7 +365,7 @@ function FeedbackMediaSection({
    * restantes et les libellés de ses refus.
    */
   async function onPickFiles(event: ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(event.target.files ?? []);
+    const picked = Array.from(required(event.target.files, "champ fichier sans FileList"));
     // Réinitialisé tout de suite : sans ça, rechoisir le MÊME fichier après un refus ne
     // déclencherait aucun `change`.
     event.target.value = "";
@@ -466,9 +471,7 @@ function FeedbackMediaSection({
                 peuvent avoir le même nom, mais jamais le même rang. */}
             {recap.map((entry) => (
               <li key={entry.id} className="text-cmv-body text-cmv-error-on">
-                <span className="font-medium">
-                  {entry.fileName ?? t("feedback.media.unnamedFile")}
-                </span>
+                <span className="font-medium">{entry.fileName}</span>
                 {" — "}
                 {mediaRecapText(entry.reason, t)}
               </li>

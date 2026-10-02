@@ -37,7 +37,7 @@ export function CmvCapabilityGate({ capability, children }: Readonly<CmvCapabili
   }
 
   if (!hasCapability(capabilities, capability)) {
-    return <Redirect href={landingTab(capabilities) ?? "/login"} />;
+    return <Redirect href={landingTab(capabilities)} />;
   }
 
   return <>{children}</>;

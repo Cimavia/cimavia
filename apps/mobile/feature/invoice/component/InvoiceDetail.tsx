@@ -61,6 +61,8 @@ export function InvoiceDetail({ invoice, canManage, onClose }: Readonly<InvoiceD
   const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
   // L'échéance dépassée se colore : c'est l'information qui appelle une action.
   const isOverdue = resolveInvoiceState(invoice, todayIsoDate()) === InvoiceState.OVERDUE;
+  // Une constante : son test de nullité tient jusque dans le gestionnaire du bouton.
+  const { documentUrl } = invoice;
 
   /**
    * Le titre nomme l'AUTRE partie : le coach suit N athlètes, l'athlète n'a qu'un coach — d'où le
@@ -133,13 +135,10 @@ export function InvoiceDetail({ invoice, canManage, onClose }: Readonly<InvoiceD
 
           {/* URL GET signée, régénérée à chaque lecture, ouverte par le lecteur du téléphone. Le nom
               d'origine accompagne le bouton : c'est lui que le coach reconnaît. */}
-          {invoice.documentUrl == null ? null : (
+          {documentUrl == null ? null : (
             <Stacked label={t("invoice.panel.document")}>
               <Pressable
-                onPress={() => {
-                  const url = invoice.documentUrl;
-                  if (url != null) void Linking.openURL(url);
-                }}
+                onPress={() => void Linking.openURL(documentUrl)}
                 className="flex-row items-center gap-2 rounded-lg border border-cmv-border bg-cmv-surface px-3 py-3"
               >
                 <Ionicons name="document-text-outline" size={16} color={cmvColors.text.mid} />

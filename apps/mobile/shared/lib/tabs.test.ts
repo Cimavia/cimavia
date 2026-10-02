@@ -97,15 +97,11 @@ describe("landingTab", () => {
 
   /**
    * Un compte sans capacité connue n'est PAS échoué sans nulle part où aller : les onglets servis
-   * aux deux (compte, notifications) restent visibles, et c'est là qu'il atterrit.
-   *
-   * Corollaire assumé : le `null` que `landingTab` sait rendre est aujourd'hui **inatteignable**,
-   * puisque la table porte toujours des onglets sans capacité. C'est une garde pour le jour où ce
-   * ne serait plus vrai — on la laisse, on ne prétend pas la couvrir.
+   * aux deux (compte, notifications) restent visibles, et c'est là qu'il atterrit. C'est ce qui
+   * permet à `landingTab` de ne jamais rendre `null` (#512).
    */
   it("fait atterrir un compte sans capacité sur le premier onglet commun", () => {
     expect(landingTab(NEITHER, WITH)).toBe(`/${visibleTabs(NEITHER, WITH)[0]?.name}`);
-    expect(landingTab(NEITHER, WITH)).not.toBeNull();
   });
 });
 

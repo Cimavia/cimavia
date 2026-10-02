@@ -1,5 +1,5 @@
 import type { CopyPlanWeekInput, PlanDto } from "@cmv/shared";
-import { PlanStatus, planWeekCopyShiftDays } from "@cmv/shared";
+import { PlanStatus, planWeekCopyShiftDays, required } from "@cmv/shared";
 import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -69,13 +69,14 @@ export class PlanWeekCopyService {
     }
     const sourcePlan = await this.plans.getOwnedOrThrow(source.planId);
 
-    const shiftDays = planWeekCopyShiftDays(
-      { planStartDate: toIsoDate(sourcePlan.startDate), weekNumber: source.weekNumber },
-      { planStartDate: toIsoDate(targetPlan.startDate), weekNumber: target.weekNumber },
+    // Deux semaines lues en base : `weekNumber` ≥ 1 et `startDate` valide des deux côtés.
+    const shiftDays = required(
+      planWeekCopyShiftDays(
+        { planStartDate: toIsoDate(sourcePlan.startDate), weekNumber: source.weekNumber },
+        { planStartDate: toIsoDate(targetPlan.startDate), weekNumber: target.weekNumber },
+      ),
+      `[plan] semaines non situables pour la copie ${source.id} → ${target.id}`,
     );
-    if (shiftDays == null) {
-      throw new Error(`[plan] semaines non situables pour la copie ${source.id} → ${target.id}`);
-    }
 
     // Les `include` imbriqués ne sont pas scopés (architecture-choice §6, piège n°2) : ici ils
     // pendent à des séances déjà filtrées par le tenant, et portent le même tenant par

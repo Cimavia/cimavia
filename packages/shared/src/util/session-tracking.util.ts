@@ -165,14 +165,20 @@ export function sameTracking(a: SessionTracking, b: SessionTracking): boolean {
   return canonical(a) === canonical(b);
 }
 
-function canonical(value: unknown): string {
+/**
+ * Ce qu'un suivi contient : du JSON — les schémas du suivi n'ont aucun champ optionnel. Typé
+ * ainsi plutôt qu'`unknown`, une feuille est forcément un scalaire que `JSON.stringify` sait
+ * écrire, et aucun `undefined` n'est à rattraper (#512).
+ */
+type Json = string | number | boolean | null | readonly Json[] | { readonly [key: string]: Json };
+
+function canonical(value: Json): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value != null && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => item !== undefined)
-      .sort(([a], [b]) => a.localeCompare(b));
-    const fields = entries.map(([key, item]) => `${key}:${canonical(item)}`);
+    const fields = Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${key}:${canonical(item)}`);
     return `{${fields.join(",")}}`;
   }
-  return JSON.stringify(value) ?? "null";
+  return JSON.stringify(value);
 }

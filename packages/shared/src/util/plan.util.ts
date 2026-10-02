@@ -3,6 +3,7 @@
 
 import { PlanStatus, ScheduledSessionStatus } from "../dto/plan.schema";
 import { DAYS_PER_WEEK, daysBetweenIsoDates, isIsoDate, shiftIsoDate } from "./date.util";
+import { required } from "./invariant.util";
 
 // Une semaine de plan, bornes incluses (lundi → dimanche).
 export type PlanWeekRange = { startDate: string; endDate: string };
@@ -23,7 +24,14 @@ export type SessionProgress = { done: number; total: number };
  *
  * `null` sur une liste absente (chargement, panne) — jamais `{ done: 0, total: 0 }`, qui se lirait
  * « semaine vide, rien à faire » et rendrait une API injoignable indiscernable d'un repos.
+ *
+ * Surchargée : une liste présente rend toujours un avancement — les semaines des deux clients,
+ * tirées d'un `flatMap`, n'écrivent donc plus de « — » qu'aucune entrée n'atteint (#512).
  */
+export function weekSessionProgress(sessions: readonly SessionProgressSource[]): SessionProgress;
+export function weekSessionProgress(
+  sessions: readonly SessionProgressSource[] | null | undefined,
+): SessionProgress | null;
 export function weekSessionProgress(
   sessions: readonly SessionProgressSource[] | null | undefined,
 ): SessionProgress | null {
@@ -48,8 +56,11 @@ export function planWeekRange(planStartDate: string, weekNumber: number): PlanWe
   if (!Number.isInteger(weekNumber) || weekNumber < 1) return null;
   const startDate = shiftIsoDate(planStartDate, (weekNumber - 1) * DAYS_PER_WEEK);
   if (startDate == null) return null;
-  const endDate = shiftIsoDate(startDate, DAYS_PER_WEEK - 1);
-  if (endDate == null) return null;
+  // Décaler une date lisible rend toujours une date lisible.
+  const endDate = required(
+    shiftIsoDate(startDate, DAYS_PER_WEEK - 1),
+    `lundi illisible : ${startDate}`,
+  );
   return { startDate, endDate };
 }
 
@@ -335,19 +346,27 @@ export function planAudience<T extends PlanAudienceSource>(
   const phase = planPhase(plan, today);
   if (phase == null) return null;
 
-  const siblings = athletePlans.filter(
-    (candidate) =>
-      candidate.status === PlanStatus.PUBLISHED && candidate.athleteId === plan.athleteId,
-  );
+  // Le cycle lui-même est TOUJOURS du lot, que l'appelant l'ait inclus ou non : c'est ce qui
+  // garantit qu'un cycle écarté l'a été au profit d'un autre.
+  const siblings = [
+    plan,
+    ...athletePlans.filter(
+      (candidate) =>
+        candidate.id !== plan.id &&
+        candidate.status === PlanStatus.PUBLISHED &&
+        candidate.athleteId === plan.athleteId,
+    ),
+  ];
   const visible = selectVisiblePlans(siblings, today);
   const others = visible.filter((candidate) => candidate.id !== plan.id);
 
   if (!visible.some((candidate) => candidate.id === plan.id)) {
     // Seul un cycle TERMINÉ peut être écarté : en cours et à venir sont toujours servis.
     const [first, ...rest] = others.map((candidate) => candidate.id);
-    return first == null
-      ? { kind: "ENDED_LAST" }
-      : { kind: "ENDED_SUPERSEDED", insteadPlanIds: [first, ...rest] };
+    return {
+      kind: "ENDED_SUPERSEDED",
+      insteadPlanIds: [required(first, `cycle ${plan.id} écarté sans remplaçant`), ...rest],
+    };
   }
 
   if (phase === "UPCOMING") return { kind: "VISIBLE_UPCOMING", startDate: plan.startDate };

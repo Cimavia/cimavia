@@ -14,11 +14,11 @@
  * c'est un affichage, pas une clé de tri.
  */
 export function initialsOf(name: string): string {
-  const words = name.split(/\s+/).filter((word) => word.length > 0);
-  if (words.length === 0) return "";
+  const [first, ...rest] = name.split(/\s+/).filter((word) => word.length > 0);
+  if (first == null) return "";
 
-  const first = words.at(0) ?? "";
-  const last = words.at(-1) ?? "";
-  const initials = words.length === 1 ? first.charAt(0) : first.charAt(0) + last.charAt(0);
+  // Un mot seul n'a qu'une initiale : le « dernier » mot serait le premier.
+  const last = rest.at(-1);
+  const initials = last == null ? first.charAt(0) : first.charAt(0) + last.charAt(0);
   return initials.toLocaleUpperCase();
 }

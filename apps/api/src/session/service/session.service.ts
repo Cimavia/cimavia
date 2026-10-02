@@ -1,6 +1,7 @@
 import {
   type CreateSessionInput,
   lockedShapeIssues,
+  required,
   type SessionDto,
   type SessionExerciseInput,
   type UpdateSessionInput,
@@ -129,10 +130,11 @@ export class SessionService {
       throw new NotFoundException("Exercice de séance introuvable");
     }
 
-    const exercise = await this.db.exercise.findFirst({ where: { id: composed.exerciseId } });
-    if (exercise == null) {
-      throw new NotFoundException("Exercice introuvable");
-    }
+    // FK `Restrict`, même coach : l'exercice composé existe tant que la ligne qui le cite.
+    const exercise = required(
+      await this.db.exercise.findFirst({ where: { id: composed.exerciseId } }),
+      `[session] exercice ${composed.exerciseId} hors scope pour la séance ${sessionId}`,
+    );
 
     const blocks = parseBlocks(exercise.blocks);
     await this.db.sessionExercise.update({
@@ -182,10 +184,11 @@ export class SessionService {
 
     const rows = exercises.map((input, position) => {
       const kept = input.id == null ? null : previousById.get(input.id);
-      const exercise = library.get(input.exerciseId);
-      if (exercise == null) {
-        throw new BadRequestException("Un ou plusieurs exercices sont inconnus");
-      }
+      // `assertExercisesOwned` a déjà refusé en 400 tout exercice inconnu.
+      const exercise = required(
+        library.get(input.exerciseId),
+        `[session] exercice ${input.exerciseId} absent de la bibliothèque chargée`,
+      );
 
       // La référence : celle de la ligne conservée, ou une copie du dosage de l'exercice.
       const baseline = kept == null ? parseBlocks(exercise.blocks) : parseBlocks(kept.baseline);

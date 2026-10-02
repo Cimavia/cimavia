@@ -38,8 +38,8 @@ export function Composer({
   const trimmed = text.trim();
   const canSendText = trimmed.length > 0 && !sending;
 
+  // Le bouton d'envoi n'est rendu que si `canSendText`.
   const submitText = () => {
-    if (!canSendText) return;
     onSendText(trimmed);
     setText("");
   };

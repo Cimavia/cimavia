@@ -59,7 +59,14 @@ export function multipartPartRange(
   const count = multipartPartCount(totalBytes);
   if (count == null) return null;
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > count) return null;
+  return partBounds(partNumber, totalBytes);
+}
 
+/** Les bornes d'une part DÉJÀ validée — le calcul que les deux fonctions publiques partagent. */
+function partBounds(
+  partNumber: number,
+  totalBytes: number,
+): { start: number; end: number; length: number } {
   const start = (partNumber - 1) * MULTIPART_PART_SIZE_BYTES;
   const end = Math.min(start + MULTIPART_PART_SIZE_BYTES, totalBytes);
   return { start, end, length: end - start };
@@ -74,13 +81,8 @@ export function multipartPartSizes(totalBytes: number): number[] | null {
   const count = multipartPartCount(totalBytes);
   if (count == null) return null;
 
-  const sizes: number[] = [];
-  for (let partNumber = 1; partNumber <= count; partNumber += 1) {
-    const range = multipartPartRange(partNumber, totalBytes);
-    if (range == null) return null;
-    sizes.push(range.length);
-  }
-  return sizes;
+  // Les numéros vont de 1 à `count` : tous dans la plage, aucun à revalider.
+  return Array.from({ length: count }, (_, index) => partBounds(index + 1, totalBytes).length);
 }
 
 /**

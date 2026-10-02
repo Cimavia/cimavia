@@ -1,4 +1,4 @@
-import { type CoachAthleteDto, CoachAthleteStatus, SELF_RELATION_ID } from "@cmv/shared";
+import { type CoachAthleteDto, CoachAthleteStatus, required, SELF_RELATION_ID } from "@cmv/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import type { CoachAthlete } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
@@ -43,10 +43,10 @@ export class RelationService {
     if (!capabilities.isCoach || !capabilities.isAthlete) return null;
 
     const names = await this.users.namesByIds([userId]);
-    const name = names.get(userId);
-    if (name == null) {
-      throw new Error(`[account] utilisateur courant introuvable : ${userId}`);
-    }
+    const name = required(
+      names.get(userId),
+      `[account] utilisateur courant introuvable : ${userId}`,
+    );
     return {
       id: SELF_RELATION_ID,
       coachId: userId,
@@ -67,7 +67,7 @@ export class RelationService {
     const relation = await this.db.coachAthlete.findFirst();
     if (relation == null) return null;
     const [dto] = await this.withNames([relation]);
-    return dto ?? null;
+    return required(dto, `[account] relation ${relation.id} non mappée`);
   }
 
   // Un seul aller-retour pour tous les noms, quel que soit le nombre de relations.

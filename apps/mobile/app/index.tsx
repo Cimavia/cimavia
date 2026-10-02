@@ -29,6 +29,5 @@ export default function Index() {
 
   if (!isAuthenticated) return <Redirect href="/login" />;
 
-  const landing = landingTab({ isCoach, isAthlete }, counterparts);
-  return <Redirect href={landing ?? "/login"} />;
+  return <Redirect href={landingTab({ isCoach, isAthlete }, counterparts)} />;
 }

@@ -280,9 +280,8 @@ function planOf(phase: AthleteRowPlan["phase"]): AthleteRowPlan {
 const ONGOING = rowOf("Léa Moreau", planOf("ONGOING"));
 const UPCOMING = rowOf("Thomas Rey", planOf("UPCOMING"));
 const ENDED = rowOf("Camille Bernard", planOf("ENDED"));
-const UNREADABLE = rowOf("Emma Girard", planOf(null));
 const NO_PLAN = rowOf("Noah Fontaine");
-const ALL_ROWS = [ONGOING, UPCOMING, ENDED, UNREADABLE, NO_PLAN];
+const ALL_ROWS = [ONGOING, UPCOMING, ENDED, NO_PLAN];
 
 const QUERY = { search: "", filter: "ALL", locale: "fr" } as const;
 
@@ -317,17 +316,6 @@ describe("visibleAthleteRows", () => {
   it("ne retient sous NO_PLAN que l'absence de cycle", () => {
     const rows = visibleAthleteRows(ALL_ROWS, { ...QUERY, filter: "NO_PLAN" });
     expect(rows.map((row) => row.athleteName)).toEqual(["Noah Fontaine"]);
-  });
-
-  /**
-   * Un cycle non situable (`phase: null`, dates illisibles) n'est PAS un cycle terminé : le ranger
-   * là inventerait un athlète à relancer. Il n'apparaît que sous « Tous ».
-   */
-  it("ne range un cycle non situable dans aucun des deux filtres", () => {
-    const only = [UNREADABLE];
-    expect(visibleAthleteRows(only, { ...QUERY, filter: "ENDED_PLAN" })).toEqual([]);
-    expect(visibleAthleteRows(only, { ...QUERY, filter: "NO_PLAN" })).toEqual([]);
-    expect(visibleAthleteRows(only, QUERY)).toHaveLength(1);
   });
 
   /**

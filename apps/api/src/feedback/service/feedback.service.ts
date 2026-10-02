@@ -4,8 +4,8 @@ import type {
   SessionFeedbackDto,
   UpsertSessionFeedbackInput,
 } from "@cmv/shared";
-import { FEEDBACK_EVENT_MESSAGE_TYPES, ScheduledSessionStatus } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { FEEDBACK_EVENT_MESSAGE_TYPES, required, ScheduledSessionStatus } from "@cmv/shared";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, type SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import { toMessageDto } from "../../message/message.mapper";
@@ -67,7 +67,11 @@ export class FeedbackService {
       await this.writeTracking(scheduledSessionId, input.tracking);
     }
     await this.announcer.announce(feedback);
-    return this.getOrThrow(scheduledSessionId);
+    // Écrit juste au-dessus : le relire ne peut pas manquer.
+    return required(
+      await this.findByScheduledSession(scheduledSessionId),
+      `[feedback] débrief de la séance ${scheduledSessionId} absent après écriture`,
+    );
   }
 
   /**
@@ -219,16 +223,13 @@ export class FeedbackService {
     const attachments = await this.attachments.resolve(messages);
     return Promise.all(
       messages.map((message) =>
-        toMessageDto(message, this.storage, attachments.get(message.id) ?? null),
+        // Chaque message est rattaché à CE débrief (filtre ci-dessus) : le résolveur l'a rendu.
+        toMessageDto(
+          message,
+          this.storage,
+          required(attachments.get(message.id), `[feedback] message ${message.id} non rattaché`),
+        ),
       ),
     );
-  }
-
-  private async getOrThrow(scheduledSessionId: string): Promise<SessionFeedbackDto> {
-    const feedback = await this.findByScheduledSession(scheduledSessionId);
-    if (feedback == null) {
-      throw new NotFoundException("Débrief introuvable");
-    }
-    return feedback;
   }
 }

@@ -472,7 +472,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-1~~ | ~~**Couverture non mesurée sur le web et le mobile**~~ : `sonar.coverage.exclusions` n'écartait la mesure que sur `@cmv/shared`, les trois autres paquets étant hors de vue. Les trois tiers sont levés — API en **#57** (e2e instrumentés, 2,6 % → ~86 %), web en **#58**, mobile en **#59** (Vitest, périmètre total). | ✅ | [#56](https://github.com/Cimavia/cimavia/issues/56) → ~~[#57](https://github.com/Cimavia/cimavia/issues/57)~~ ~~[#58](https://github.com/Cimavia/cimavia/issues/58)~~ ~~[#59](https://github.com/Cimavia/cimavia/issues/59)~~ |
 | ~~Q-2~~ | ~~**nginx tourne en root dans l'image web**~~ (`apps/web/Dockerfile`), signalé par Sonar (`docker:S6471`). Passée à `nginxinc/nginx-unprivileged` (uid 101, port 8080). | ✅ | ~~[#83](https://github.com/Cimavia/cimavia/issues/83)~~ résolu en [#379](https://github.com/Cimavia/cimavia/issues/379) |
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
-| ~~Q-4~~ | ~~**Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer.~~ Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, le reste du web en **#508** : 99,9 % des lignes, 97,9 % des conditions, hors gardes mortes de #512. Le mobile l'est en **#509** : 99,0 % des lignes, 97,2 % des conditions, hors gardes mortes de #512 et hors [#519](https://github.com/Cimavia/cimavia/issues/519). | ✅ | résolue en [#507](https://github.com/Cimavia/cimavia/issues/507), [#508](https://github.com/Cimavia/cimavia/issues/508) et [#509](https://github.com/Cimavia/cimavia/issues/509) — [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
+| ~~Q-4~~ | ~~**Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer.~~ Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, le reste du web en **#508** : 99,9 % des lignes, 97,9 % des conditions, hors gardes mortes, supprimées en #512. Le mobile l'est en **#509** : 99,0 % des lignes, 97,2 % des conditions, hors gardes mortes (#512) et hors [#519](https://github.com/Cimavia/cimavia/issues/519). | ✅ | résolue en [#507](https://github.com/Cimavia/cimavia/issues/507), [#508](https://github.com/Cimavia/cimavia/issues/508) et [#509](https://github.com/Cimavia/cimavia/issues/509) — [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
@@ -765,6 +765,43 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Le hook `update.before` de Better Auth perd son `async`** (S7503) mais rend toujours une
 >   promesse, que son type exige. Le refus part par `throw`, que le `await` de l'appelant reçoit
 >   comme un rejet : les e2e de #310 le couvrent.
+
+> **Tranché en [#512](https://github.com/Cimavia/cimavia/issues/512)** (supprimer les gardes
+> mortes recensées par #506 à #509, une fois toute l'application couverte) : un invariant se
+> prouve par le TYPE quand il le peut, sinon il LÈVE — jamais un repli qui le déguiserait.
+>
+> - **Le type d'abord.** Quand l'appelant tient déjà la donnée, une surcharge le dit :
+>   `formatTrainingDuration`, `buildPlanAthleteRows` et `weekSessionProgress` rendent une valeur
+>   non nulle sur une entrée non nulle. `InvoiceAthleteRow.invoices` devient un tuple non vide,
+>   `AthleteRowPlan.phase` et `endDate` ne sont plus nullables, et `MediaBatch` est générique sur le
+>   nom de fichier — le web, dont chaque `File` est nommé, n'a plus de « fichier sans nom » (ses
+>   deux clés `unnamedFile` sont retirées, le mobile garde les siennes).
+> - **Sinon `required(value, invariant)`** (`@cmv/shared`), une seule fonction testée : une garde
+>   locale qu'aucune entrée n'atteint resterait une branche que rien ne couvre. Côté API, ce qui
+>   répondait 400 ou 404 sur un invariant violé (la ligne relue après écriture, les parts d'un
+>   envoi découpé) répond désormais **500** : c'est un bug, pas une requête fautive, et Sentry le
+>   remonte.
+> - **Quatre entrées se sont révélées vivantes : gardées, et testées.** La garde de plafond de
+>   `toggleCustom` (`MetricPicker`), que la création d'une métrique maison traverse bloc plein ;
+>   `messages.data ?? []` (`ConversationThread` mobile), lu par les hooks pendant le chargement ;
+>   le nom du coach sur le tableau de bord, absent quand la session tombe sous un écran que
+>   `CmvRoleGate` garde monté (#336) ; le `default` de `route.util` mobile, qu'atteint une app plus
+>   ancienne que l'API.
+> - **Trois branches mortes restent, assumées.** Les **14 métadonnées de décorateur**
+>   (`typeof X === "undefined"`) de l'API : le transformateur de Vitest les produit, le build `tsc`
+>   ne les émet pas — rien à supprimer dans le source. Le `label == null` de `reminder-tick` et le
+>   `catch` de la file des vignettes vidéo (mobile) : lever y bloquerait pour toujours le tick de
+>   TOUS les coachs, ou la file de toutes les vignettes, pour une seule ligne corrompue.
+> - **Des tests sont retirés avec l'état qu'ils décrivaient** : le cycle « non situable » d'une
+>   ligne d'athlète (irreprésentable depuis que `phase` ne l'est plus), le fichier sans nom du web.
+>   Le déplacement d'une ligne depuis une position hors liste n'est plus garanti « même tableau »,
+>   seulement « même ordre » — aucun appelant ne la passe.
+> - **`CmvBox` (web) et `CmvView` (mobile) sont supprimés** : exportés, jamais appelés.
+>
+> Hors de cette PR, comme l'issue le prévoyait : les cas dormants jusqu'à la v1.0
+> (`invoice.mapper`, `planId` nul ; `invoice.service`), `joinedAt ?? null` de
+> `coach-athlete.mapper`, vivant sur une invitation `PENDING`, `LibraryPicker` et sa route (#303),
+> les chips de minuteur mobile (#519).
 
 ---
 

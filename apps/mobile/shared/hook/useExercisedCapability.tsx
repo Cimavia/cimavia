@@ -1,4 +1,4 @@
-import { type CapabilityName, capabilitiesOf, Role } from "@cmv/shared";
+import { type CapabilityName, capabilitiesOf, Role, required } from "@cmv/shared";
 import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
 import { authClient } from "@/shared/lib/auth";
 
@@ -61,7 +61,8 @@ export function useCapabilitySwitch(): {
   return {
     visible: current != null,
     current,
-    select: context?.setOverride ?? (() => undefined),
+    // Le fournisseur est posé à la racine (`app/_layout.tsx`) : hors de lui, c'est un bug de câblage.
+    select: required(context, "sélecteur hors de ExercisedCapabilityProvider").setOverride,
   };
 }
 

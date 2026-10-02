@@ -1,14 +1,19 @@
-import type { CapabilityName } from "@cmv/shared";
+import { type CapabilityName, required } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
 
 /**
- * Registre du scope tenant par modèle métier : champ portant le coach et/ou l'athlète
- * propriétaire. Un modèle ABSENT d'ici est **refusé** via le client tenant (fail closed) —
+ * Registre du scope tenant par modèle métier : champ portant le coach propriétaire et, s'il y a
+ * accès, l'athlète. Un modèle ABSENT d'ici est **refusé** via le client tenant (fail closed) —
  * ce qui force à rattacher explicitement toute nouvelle entité au tenant (règle dure).
+ *
+ * Le scope coach est OBLIGATOIRE dans le type : tout modèle métier appartient à un coach. Le
+ * scope athlète, lui, est optionnel — son absence est un refus (cf. `Reminder`).
  */
-const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
+type TenantScope = { coach: string; athlete?: string };
+
+const TENANT_SCOPES: Record<string, TenantScope> = {
   CoachAthlete: { coach: "coachId", athlete: "athleteId" },
   Invitation: { coach: "coachId" },
   AthleteSheet: { coach: "coachId", athlete: "athleteId" },
@@ -62,12 +67,10 @@ const TENANT_SCOPES: Record<string, { coach?: string; athlete?: string }> = {
  * pas besoin qu'on choisisse. Tout autre modèle atteint sans capacité déclarée est refusé, ce qui
  * transforme un oubli de décorateur en panne immédiate plutôt qu'en fuite de tenant.
  */
-function tenantField(model: string, exercised: CapabilityName | null): string | null {
-  const scope = TENANT_SCOPES[model];
-  if (!scope) return null;
-  if (exercised === "coach") return scope.coach ?? null;
+function tenantField(scope: TenantScope, exercised: CapabilityName | null): string | null {
+  if (exercised === "coach") return scope.coach;
   if (exercised === "athlete") return scope.athlete ?? null;
-  return scope.coach != null && scope.coach === scope.athlete ? scope.coach : null;
+  return scope.coach === scope.athlete ? scope.coach : null;
 }
 
 const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
@@ -95,10 +98,11 @@ function tenantFilterOrThrow(
       `[tenancy] acteur courant absent — ${model}.${operation} exécuté hors contexte tenant`,
     );
   }
-  if (!(model in TENANT_SCOPES)) {
+  const scope = TENANT_SCOPES[model];
+  if (scope == null) {
     throw new Error(`[tenancy] modèle non scopé : ${model} — rattacher au tenant avant usage`);
   }
-  const field = tenantField(model, actor.exercised);
+  const field = tenantField(scope, actor.exercised);
   if (!field) {
     throw new Error(
       `[tenancy] capacité ${actor.exercised ?? "(aucune déclarée)"} non autorisée sur ${model}`,
@@ -120,10 +124,11 @@ function findUniqueScoped(
 ): Promise<unknown> {
   const method = operation === "findUnique" ? "findFirst" : "findFirstOrThrow";
   const delegates = prisma as unknown as Record<string, FindFirstDelegate | undefined>;
-  const delegate = delegates[delegateName(model)];
-  if (!delegate) {
-    throw new Error(`[tenancy] délégué Prisma introuvable pour ${model}`);
-  }
+  // Le modèle a passé `tenantFilterOrThrow` : il est au registre, donc un modèle Prisma réel.
+  const delegate = required(
+    delegates[delegateName(model)],
+    `[tenancy] délégué Prisma introuvable pour ${model}`,
+  );
   const a = args as { where?: Record<string, unknown> };
   return delegate[method]({ ...a, where: { ...a.where, ...filter } });
 }

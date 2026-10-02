@@ -1,4 +1,4 @@
-import type { MessageAttachmentDto, MessageDto } from "@cmv/shared";
+import { type MessageAttachmentDto, type MessageDto, required } from "@cmv/shared";
 import type { Message } from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
 
@@ -20,14 +20,12 @@ export async function toMessageDto(
 ): Promise<MessageDto> {
   let media: MessageDto["media"] = null;
   if (message.storagePath != null) {
-    if (message.fileName == null || message.mimeType == null || message.sizeBytes == null) {
-      throw new Error(`[message] message média ${message.id} incomplet (métadonnées manquantes)`);
-    }
+    const incomplete = `[message] message média ${message.id} incomplet (métadonnées manquantes)`;
     media = {
       url: await storage.createDownloadUrl(message.storagePath),
-      fileName: message.fileName,
-      mimeType: message.mimeType,
-      sizeBytes: message.sizeBytes,
+      fileName: required(message.fileName, incomplete),
+      mimeType: required(message.mimeType, incomplete),
+      sizeBytes: required(message.sizeBytes, incomplete),
       durationSeconds: message.durationSeconds,
     };
   }

@@ -56,11 +56,9 @@ export function SessionBlockGrid({
   const isFull = block.rows.length >= BLOCK_MAX_ROWS;
 
   function moveRow(from: number, to: number) {
-    if (to < 0 || to >= block.rows.length || from === to) return;
+    if (to < 0 || to >= block.rows.length) return;
     const next = [...block.rows];
-    const [moved] = next.splice(from, 1);
-    if (moved == null) return;
-    next.splice(to, 0, moved);
+    next.splice(to, 0, ...next.splice(from, 1));
     onRowsChange(next);
   }
 

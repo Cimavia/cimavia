@@ -78,7 +78,7 @@ export function formatMetricValue(
 ): string {
   if (value == null) return ABSENT;
   if (metricValueTypeOf(metric, customMetrics) === MetricValueType.DURATION) {
-    return typeof value === "number" ? (formatTrainingDuration(value) ?? ABSENT) : String(value);
+    return typeof value === "number" ? formatTrainingDuration(value) : String(value);
   }
   return typeof value === "number" ? formatDecimal(value, locale) : value;
 }

@@ -64,8 +64,8 @@ export function CmvPanel({
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      const index = openPanels.lastIndexOf(self);
-      if (index !== -1) openPanels.splice(index, 1);
+      // Inscrit par CETTE ouverture et retiré une seule fois : l'index est toujours trouvé.
+      openPanels.splice(openPanels.lastIndexOf(self), 1);
     };
   }, [open]);
 

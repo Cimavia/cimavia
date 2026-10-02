@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { required } from "../util/invariant.util";
 import {
   type ExerciseBlock,
   type ExerciseBlocks,
@@ -167,11 +168,10 @@ export function resetToBaseline(baseline: ExerciseBlocks): {
 export function lockedShapeIssues(baseline: ExerciseBlocks, next: ExerciseBlocks): string[] {
   if (baseline.length !== next.length) return ["blockCount"];
 
-  return next.flatMap((block, index) => {
-    const base = baseline[index];
-    if (base == null) return ["blockCount"];
-    return blockShapeIssues(base, block);
-  });
+  // Longueurs égales juste au-dessus : chaque bloc a son homologue au même rang.
+  return next.flatMap((block, index) =>
+    blockShapeIssues(required(baseline[index], `bloc de référence absent au rang ${index}`), block),
+  );
 }
 
 function blockShapeIssues(base: ExerciseBlock, next: ExerciseBlock): string[] {
@@ -193,25 +193,21 @@ function blockShapeIssues(base: ExerciseBlock, next: ExerciseBlock): string[] {
  */
 function sameMetrics(base: ExerciseBlock, next: ExerciseBlock): boolean {
   if (base.metrics.length !== next.metrics.length) return false;
-  return base.metrics.every((metric, index) => {
-    const other = next.metrics[index];
-    if (other == null) return false;
-    return sameMetricDefinition(metric, other);
-  });
+  return base.metrics.every((metric, index) =>
+    sameMetricDefinition(metric, required(next.metrics[index], `colonne absente au rang ${index}`)),
+  );
 }
 
 function sameMetricDefinition(
   base: ExerciseBlock["metrics"][number],
   next: ExerciseBlock["metrics"][number],
 ): boolean {
-  if (base.id !== next.id || base.source !== next.source || base.label !== next.label) return false;
-  if (base.source === "CATALOG" && next.source === "CATALOG") {
-    return base.key === next.key && base.unit === next.unit;
+  if (base.id !== next.id || base.label !== next.label) return false;
+  // Changer de source, c'est changer de mesure : chaque branche exige la même des deux côtés.
+  if (base.source === "CATALOG") {
+    return next.source === "CATALOG" && base.key === next.key && base.unit === next.unit;
   }
-  if (base.source === "CUSTOM" && next.source === "CUSTOM") {
-    return base.customMetricId === next.customMetricId;
-  }
-  return false;
+  return next.source === "CUSTOM" && base.customMetricId === next.customMetricId;
 }
 
 // ── L'état complet d'un exercice dosé ───────────────────────────────────────────────────────

@@ -53,13 +53,11 @@ export function StructureSection({
   }
 
   // L'ordre du tableau EST l'ordre d'affichage : déplacer une ligne suffit, rien à renuméroter.
+  // Aucune borne à regarder : les flèches sont fermées aux deux bords, et il n'y a pas de poignée
+  // clavier qui pourrait viser plus loin.
   function move(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= blocks.length) return;
     const next = [...blocks];
-    const [moved] = next.splice(index, 1);
-    if (moved == null) return;
-    next.splice(target, 0, moved);
+    next.splice(index + direction, 0, ...next.splice(index, 1));
     onChange(next);
   }
 

@@ -7,6 +7,7 @@ import {
   InvitationStatus,
   normalizeEmail,
   type PendingInvitationDto,
+  required,
 } from "@cmv/shared";
 import {
   BadRequestException,
@@ -83,8 +84,12 @@ export class InvitationService {
   }) {
     if (invitation.email == null) return;
 
-    // Résolu une fois pour les deux canaux : c'est la même question — qui invite ?
-    const coachName = (await this.users.namesByIds([invitation.coachId])).get(invitation.coachId);
+    // Résolu une fois pour les deux canaux : c'est la même question — qui invite ? Le coach est
+    // l'acteur courant : son nom introuvable serait une donnée incohérente, pas un e-mail anonyme.
+    const coachName = required(
+      (await this.users.namesByIds([invitation.coachId])).get(invitation.coachId),
+      `[account] coach introuvable pour l'invitation ${invitation.id}`,
+    );
 
     const athleteId = await this.users.athleteIdByEmail(invitation.email);
     if (athleteId != null) {
@@ -98,7 +103,7 @@ export class InvitationService {
 
     await this.mailer.send({
       to: invitation.email,
-      coachName: coachName ?? null,
+      coachName,
       code: invitation.code,
       // Dérivée de la constante, jamais réécrite : l'e-mail part à la création, la durée annoncée
       // est donc exactement celle qui reste (« les plafonds ne s'écrivent jamais en dur », #20).

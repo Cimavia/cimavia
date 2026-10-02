@@ -1,4 +1,5 @@
 import type { CapabilityName, CounterpartsDto } from "@cmv/shared";
+import { required } from "@cmv/shared";
 import type { IconType } from "react-icons";
 import {
   IoBarbellOutline,
@@ -115,7 +116,8 @@ export function itemsOfSpace(
  * conditionnelle, le basculeur ne doit pas continuer d'y mener.
  */
 export function landingPath(space: CapabilityName, counterparts: CounterpartsDto): string {
-  return itemsOfSpace(space, counterparts)[0]?.to ?? "/";
+  // Chaque espace a son entrée de tête, jamais conditionnelle : la table ci-dessus le tient.
+  return required(itemsOfSpace(space, counterparts)[0], `espace sans entrée de tête : ${space}`).to;
 }
 
 /**

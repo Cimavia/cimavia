@@ -14,6 +14,7 @@ import {
   mondayOfIsoWeek,
   shiftIsoDate,
 } from "./date.util";
+import { required } from "./invariant.util";
 import { planEndDate, planWeekDays } from "./plan.util";
 
 /** Le strict nécessaire pour poser une séance dans un jour : sa date et son rang dans la journée. */
@@ -99,9 +100,9 @@ export function athleteCalendarWeek<S extends CalendarSession>(
 ): AthleteCalendarWeek<S> | null {
   if (!isIsoDate(monday) || !isMondayIsoDate(monday)) return null;
 
-  const days = planWeekDays(monday);
-  const endDate = days?.[DAYS_PER_WEEK - 1];
-  if (days == null || endDate == null) return null;
+  // Un lundi lisible donne toujours ses sept jours : le garde ci-dessus l'a établi.
+  const days = required(planWeekDays(monday), `semaine illisible : ${monday}`);
+  const endDate = required(days.at(-1), `semaine sans dimanche : ${monday}`);
 
   const cycles: AthleteCalendarCycle[] = [];
   const entriesByDate = new Map<string, AthleteCalendarEntry<S>[]>();

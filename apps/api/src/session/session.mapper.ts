@@ -1,4 +1,5 @@
 import type { SessionDto } from "@cmv/shared";
+import { required } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 import { parseAdjustments, parseBlocks } from "../util/exercise-json.util";
 
@@ -24,12 +25,10 @@ export function toSessionDto(
     title: session.title,
     notes: session.notes,
     exercises: session.exercises.map((composed) => {
-      const exercise = exerciseById.get(composed.exerciseId);
-      if (exercise == null) {
-        throw new Error(
-          `[session] exercice ${composed.exerciseId} hors scope pour la séance ${session.id}`,
-        );
-      }
+      const exercise = required(
+        exerciseById.get(composed.exerciseId),
+        `[session] exercice ${composed.exerciseId} hors scope pour la séance ${session.id}`,
+      );
       return {
         id: composed.id,
         exerciseId: composed.exerciseId,

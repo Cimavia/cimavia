@@ -86,12 +86,12 @@ export function RunnerBody({
     <>
       <Chrono seconds={remaining} />
       <CmvText className="text-cmv-text-mid text-sm">
-        {t("plan.timer.outOf", { total: formatTrainingDuration(total) ?? "—" })}
+        {t("plan.timer.outOf", { total: formatTrainingDuration(total) })}
       </CmvText>
       <Bar ratio={total === 0 ? 0 : remaining / total} />
       <CmvText className="text-cmv-text-lo text-xs">
         {t("plan.timer.totalRemaining", {
-          duration: formatTrainingDuration(totalRemaining) ?? "—",
+          duration: formatTrainingDuration(totalRemaining),
         })}
       </CmvText>
       <Dosage block={block} customMetrics={customMetrics} segment={current} />
@@ -124,7 +124,7 @@ function EmomBody({
       <CmvText className="text-cmv-text-mid text-sm">{t("plan.timer.beforeNextTop")}</CmvText>
       <CmvText className="text-cmv-text-lo text-xs">
         {t("plan.timer.totalRemaining", {
-          duration: formatTrainingDuration(totalRemaining) ?? "—",
+          duration: formatTrainingDuration(totalRemaining),
         })}
       </CmvText>
       <Dosage block={block} customMetrics={customMetrics} segment={current} />
@@ -207,10 +207,10 @@ function Dosage({
   // ligne centrée, et l'athlète a les yeux dessus entre deux séries. `metricCellText` rend TOUJOURS
   // quelque chose — c'est à l'appelant de déclarer ce qu'il omet.
   const detail = block.metrics
-    .filter((metric) => row.values[metric.id] != null)
-    .map((metric) =>
-      metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t, i18n.language),
-    )
+    .flatMap((metric) => {
+      const value = row.values[metric.id];
+      return value == null ? [] : [metricCellText(value, metric, customMetrics, t, i18n.language)];
+    })
     .join(" · ");
   if (detail === "") return null;
 
@@ -220,7 +220,7 @@ function Dosage({
 function Chrono({ seconds }: Readonly<{ seconds: number }>) {
   return (
     <CmvText className="font-cmv-display text-cmv-chrono text-cmv-text-hi">
-      {formatTrainingDuration(seconds) ?? "0 s"}
+      {formatTrainingDuration(seconds)}
     </CmvText>
   );
 }

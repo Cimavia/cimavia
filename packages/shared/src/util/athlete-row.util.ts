@@ -1,4 +1,5 @@
 import { PlanStatus } from "../dto/plan.schema";
+import { required } from "./invariant.util";
 import { type InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
 import {
   type PlanPeriod,
@@ -53,6 +54,9 @@ export type AthleteInvoiceSource = InvoiceTiming & {
   issuedAt: string | null;
 };
 
+/** Une facture ÉMISE : les brouillons sont écartés avant le choix, et le type le dit. */
+type IssuedInvoice = AthleteInvoiceSource & { issuedAt: string };
+
 export type AthleteRowPlan = {
   id: string;
   title: string;
@@ -61,18 +65,19 @@ export type AthleteRowPlan = {
   currentWeek: number | null;
   /**
    * Ce que `currentWeek: null` ne dit pas : « pas encore commencé » et « terminé » sont deux
-   * situations contraires, et seule la seconde appelle un geste du coach. `null` = cycle non
-   * situable (dates illisibles) — ni l'une ni l'autre, et surtout pas rangé d'office parmi les
-   * terminés.
+   * situations contraires, et seule la seconde appelle un geste du coach.
    *
    * Recoupe `currentWeek` sur un point (`ONGOING` ⟺ `currentWeek != null`) sans le dupliquer :
    * `planPhase` est la source UNIQUE de l'époque, `planWeekNumber` celle du numéro de semaine, et
    * un test tient l'équivalence pour qu'elles ne dérivent jamais.
+   *
+   * Jamais `null` : `selectCurrentPlan` n'élit que des cycles situables (#512). Un cycle aux dates
+   * illisibles n'arrive pas jusqu'ici — l'athlète n'a alors pas de cycle courant.
    */
-  phase: PlanPhase | null;
+  phase: PlanPhase;
   startDate: string;
-  /** Dernier jour du cycle. `null` si `weekCount` est illisible (cf. `planEndDate`). */
-  endDate: string | null;
+  /** Dernier jour du cycle — toujours calculable, pour la même raison que `phase`. */
+  endDate: string;
 };
 
 export type AthleteRow = {
@@ -141,7 +146,7 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
     ]),
   );
   const issuedInvoicesByAthlete = groupBy(
-    (input.invoices ?? []).filter((invoice) => invoice.issuedAt != null),
+    (input.invoices ?? []).filter((invoice): invoice is IssuedInvoice => invoice.issuedAt != null),
     (invoice) => invoice.athleteId,
   );
 
@@ -197,9 +202,12 @@ export function currentAthletePlan<T extends AthletePlanSource>(
     title: plan.title,
     weekCount: plan.weekCount,
     currentWeek: planWeekNumber(plan, today),
-    phase: planPhase(plan, today),
+    phase: required(planPhase(plan, today), `cycle élu non situable : ${plan.id}`),
     startDate: plan.startDate,
-    endDate: planEndDate(plan.startDate, plan.weekCount),
+    endDate: required(
+      planEndDate(plan.startDate, plan.weekCount),
+      `cycle élu sans fin : ${plan.id}`,
+    ),
   };
 }
 
@@ -267,8 +275,8 @@ function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {
       return row.plan == null;
     /**
      * Cycle terminé, et rien derrière — `selectCurrentPlan` aurait élu un cycle à venir s'il en
-     * existait un (cf. `currentAthletePlan`). Un `phase: null` (cycle non situable) n'est PAS capturé : on
-     * ne range pas un cycle illisible parmi les terminés, ce serait inventer un travail au coach.
+     * existait un (cf. `currentAthletePlan`). Un cycle non situable n'est jamais élu : il n'arrive
+     * pas jusqu'ici, et ne risque donc pas d'être rangé parmi les terminés.
      */
     case "ENDED_PLAN":
       return row.plan?.phase === "ENDED";
@@ -290,13 +298,12 @@ function latestFeedbackId(feedbacks: readonly AthleteFeedbackSource[]): string |
  * `null` (échéance illisible) — on n'invente alors aucun état.
  */
 function latestInvoiceState(
-  invoices: readonly AthleteInvoiceSource[],
+  invoices: readonly IssuedInvoice[],
   today: string,
 ): InvoiceState | null {
-  let latest: AthleteInvoiceSource | null = null;
+  let latest: IssuedInvoice | null = null;
   for (const invoice of invoices) {
-    // `issuedAt` est non nul ici (les brouillons sont filtrés en amont) — d'où la comparaison directe.
-    if (latest == null || (invoice.issuedAt ?? "") > (latest.issuedAt ?? "")) latest = invoice;
+    if (latest == null || invoice.issuedAt > latest.issuedAt) latest = invoice;
   }
   return latest == null ? null : resolveInvoiceState(latest, today);
 }

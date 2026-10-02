@@ -91,7 +91,7 @@ export function InvoiceAthleteRow({
         >
           {row.amountDueCents == null
             ? "—"
-            : formatMoney(row.amountDueCents, row.invoices[0]?.currency ?? "EUR")}
+            : formatMoney(row.amountDueCents, row.invoices[0].currency)}
         </CmvText>
 
         <Ionicons

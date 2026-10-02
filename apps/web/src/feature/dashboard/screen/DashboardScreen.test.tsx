@@ -63,12 +63,12 @@ vi.mock("@/feature/notification/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/feature/notification/api")>();
   return { ...actual, notificationApi: { ...actual.notificationApi, unreadCount: vi.fn() } };
 });
+const COACH_SESSION = {
+  user: { id: "coach_1", name: "Camille", isCoach: true, isAthlete: false },
+};
+const sessionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/shared/lib/auth", () => ({
-  authClient: {
-    useSession: () => ({
-      data: { user: { id: "coach_1", name: "Camille", isCoach: true, isAthlete: false } },
-    }),
-  },
+  authClient: { useSession: () => ({ data: sessionMock() }) },
 }));
 // L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
 vi.mock("@/shared/component", async (importOriginal) => ({
@@ -164,6 +164,7 @@ async function tile(view: Awaited<ReturnType<typeof mount>>, label: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionMock.mockReturnValue(COACH_SESSION);
 });
 
 describe("DashboardScreen — les tuiles", () => {
@@ -390,6 +391,17 @@ describe("DashboardScreen — la fiche athlète", () => {
 
     await view.findByText("Noah Fontaine");
     expect(view.queryByRole("complementary")).toBeNull();
+  });
+
+  /**
+   * La session peut tomber SOUS l'écran : `CmvRoleGate` le garde alors monté, sous la fenêtre de
+   * reconnexion, pour ne rien jeter (#336). Le nom du coach manque — l'écran tient quand même.
+   */
+  it("reste lisible quand la session tombe sous l'écran", async () => {
+    sessionMock.mockReturnValue(null);
+    const view = await mount();
+
+    expect(view.getByRole("heading", { name: "dashboard.title" })).toBeInTheDocument();
   });
 
   it("invite depuis l'action de l'écran, et referme l'invitation", async () => {

@@ -79,11 +79,9 @@ export function BlockGrid({
 
   // L'ordre du tableau EST l'ordre affiché : déplacer l'élément suffit, rien à renuméroter.
   function moveRow(fromIndex: number, to: number) {
-    if (to < 0 || to >= block.rows.length || fromIndex === to) return;
+    if (to < 0 || to >= block.rows.length) return;
     const next = [...block.rows];
-    const [moved] = next.splice(fromIndex, 1);
-    if (moved == null) return;
-    next.splice(to, 0, moved);
+    next.splice(to, 0, ...next.splice(fromIndex, 1));
     setRows(next);
   }
 

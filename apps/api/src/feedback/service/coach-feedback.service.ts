@@ -1,4 +1,5 @@
 import type { CoachFeedbackSummaryDto } from "@cmv/shared";
+import { required } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { ScheduledSession } from "@prisma/client";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
@@ -47,13 +48,11 @@ export class CoachFeedbackService {
     );
 
     return feedbacks.map((feedback) => {
-      const session = sessionById.get(feedback.scheduledSessionId);
-      const athleteName = names.get(feedback.athleteId);
-      if (session == null || athleteName == null) {
-        // Les deux sont garantis par des FK : une absence signalerait une incohérence de
-        // données, pas un cas métier — on lève plutôt que d'afficher un trou (règle n°5).
-        throw new Error(`[feedback] débrief ${feedback.id} sans séance ou sans athlète résolu`);
-      }
+      // Les deux sont garantis par des FK : une absence signalerait une incohérence de données,
+      // pas un cas métier — on lève plutôt que d'afficher un trou (règle n°5).
+      const missing = `[feedback] débrief ${feedback.id} sans séance ou sans athlète résolu`;
+      const session = required(sessionById.get(feedback.scheduledSessionId), missing);
+      const athleteName = required(names.get(feedback.athleteId), missing);
       return {
         id: feedback.id,
         scheduledSessionId: feedback.scheduledSessionId,
@@ -120,11 +119,11 @@ export class CoachFeedbackService {
       await this.db.sessionFeedback.update({ where: { id }, data: { coachReadAt: new Date() } });
     }
 
+    // Lu juste au-dessus sous le même scope : la liste le contient forcément.
     const summaries = await this.list();
-    const updated = summaries.find((summary) => summary.id === id);
-    if (updated == null) {
-      throw new NotFoundException("Débrief introuvable");
-    }
-    return updated;
+    return required(
+      summaries.find((summary) => summary.id === id),
+      `[feedback] débrief ${id} absent de la liste après lecture`,
+    );
   }
 }

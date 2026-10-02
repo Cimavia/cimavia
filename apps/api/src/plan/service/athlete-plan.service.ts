@@ -1,5 +1,5 @@
 import type { PlanDto, ScheduledSessionDto } from "@cmv/shared";
-import { PlanStatus, selectVisiblePlans, todayIsoDate } from "@cmv/shared";
+import { PlanStatus, required, selectVisiblePlans, todayIsoDate } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { ScheduledSession } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
@@ -76,10 +76,10 @@ export class AthletePlanService {
      * réapplique depuis `visible`. Les clients affichent les cycles dans l'ordre reçu.
      */
     const byId = new Map(details.map((detail) => [detail.id, detail]));
-    return visible.flatMap((plan) => {
-      const detail = byId.get(plan.id);
-      return detail == null ? [] : [toPlanDto(detail)];
-    });
+    // Lus dans la même requête, sous le même scope : chaque cycle visible a son détail.
+    return visible.map((plan) =>
+      toPlanDto(required(byId.get(plan.id), `[plan] détail absent du cycle visible ${plan.id}`)),
+    );
   }
 
   // Détail d'une séance : exercices, consignes et documents (URLs GET signées).

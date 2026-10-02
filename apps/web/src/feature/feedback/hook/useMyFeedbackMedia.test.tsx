@@ -91,7 +91,7 @@ const partsTicket = {
 };
 
 /** Le lot tel que l'écran le compose : c'est lui qui apporte quotas et libellés, pas le hook. */
-const batch = (files: readonly File[]): Omit<MediaBatch<File>, "send"> => ({
+const batch = (files: readonly File[]): Omit<MediaBatch<File, string>, "send"> => ({
   items: files,
   maxItems: MAX_FEEDBACK_PHOTOS + MAX_FEEDBACK_VIDEOS,
   remaining: {

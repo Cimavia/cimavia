@@ -233,11 +233,8 @@ function WeekHeader({ week, bounds, todayMonday, onGoToMonday }: Readonly<WeekHe
           {t("plan.athlete.week.next")}
         </CmvButton>
 
-        {/* `null` = liste absente : « — », jamais « 0/0 » qui se lirait « semaine de repos ». */}
         <span className="text-cmv-caption text-cmv-text-mid">
-          {progress == null
-            ? "—"
-            : t("plan.athlete.doneCount", { done: progress.done, total: progress.total })}
+          {t("plan.athlete.doneCount", { done: progress.done, total: progress.total })}
         </span>
       </div>
     </div>

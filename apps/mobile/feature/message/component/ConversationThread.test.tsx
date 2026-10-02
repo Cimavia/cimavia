@@ -99,6 +99,16 @@ describe("ConversationThread", () => {
     expect(queryByText("messages.empty.title")).toBeNull();
   });
 
+  // Les hooks du fil tournent AVANT le retour du chargement : ils lisent alors une liste vide,
+  // pas un `undefined` — et rien n'est marqué lu tant que rien n'est arrivé (#512).
+  it("ne marque rien et ne dit pas le fil vide pendant le chargement", () => {
+    mockMessages({ data: undefined, isPending: true });
+    const { queryByText } = renderRn(<ConversationThread {...base} />);
+
+    expect(queryByText("messages.empty.title")).toBeNull();
+    expect(markRead).not.toHaveBeenCalled();
+  });
+
   it("propose de recommencer la RÉSOLUTION quand il n'y a pas encore de fil", () => {
     const onRetryResolve = vi.fn();
     const { container } = renderRn(

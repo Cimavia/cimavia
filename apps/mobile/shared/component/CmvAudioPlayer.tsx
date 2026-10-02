@@ -110,7 +110,7 @@ export function CmvAudioPlayer({
   }, [status.isLoaded, player]);
 
   const total = durationSeconds ?? (status.duration || 0);
-  const current = status.currentTime ?? 0;
+  const current = status.currentTime;
   const progress = total > 0 ? Math.min(1, current / total) : 0;
 
   const retry = async () => {

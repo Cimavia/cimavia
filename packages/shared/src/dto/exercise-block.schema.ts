@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { decimalPlaces } from "../util/decimal.util";
+import { required } from "../util/invariant.util";
 import {
   formatTrainingDuration,
   TRAINING_DURATION_MAX_SECONDS,
@@ -379,9 +380,10 @@ export function unitValues(
 ): { metric: BlockMetric; value: MetricValue }[] {
   const row = rowForUnit(block, index);
   if (row == null) return [];
-  return block.metrics
-    .filter((metric) => row.values[metric.id] != null)
-    .map((metric) => ({ metric, value: row.values[metric.id] ?? null }));
+  return block.metrics.flatMap((metric) => {
+    const value = row.values[metric.id];
+    return value == null ? [] : [{ metric, value }];
+  });
 }
 
 /**
@@ -568,13 +570,13 @@ export function structurePhrase(structure: BlockStructure): DosagePhrase | null 
     return {
       key: "exercise.dosage.emom",
       params: {
-        interval: formatTrainingDuration(structure.intervalSeconds) ?? "",
-        total: formatTrainingDuration(structure.totalDurationSeconds) ?? "",
+        interval: formatTrainingDuration(structure.intervalSeconds),
+        total: formatTrainingDuration(structure.totalDurationSeconds),
       },
     };
   }
   if (structure.type === BlockType.AMRAP) {
-    const total = formatTrainingDuration(structure.totalDurationSeconds) ?? "";
+    const total = formatTrainingDuration(structure.totalDurationSeconds);
     // L'objectif est INDICATIF : sans lui la phrase se tient toujours, elle ne promet simplement
     // plus de cible.
     return structure.targetRounds == null
@@ -599,13 +601,13 @@ export function restPhrase(structure: BlockStructure): DosagePhrase | null {
   if (structure.type === BlockType.SERIES && structure.restBetweenSetsSeconds != null) {
     return {
       key: "exercise.dosage.restBetweenSets",
-      params: { rest: formatTrainingDuration(structure.restBetweenSetsSeconds) ?? "" },
+      params: { rest: formatTrainingDuration(structure.restBetweenSetsSeconds) },
     };
   }
   if (structure.type === BlockType.CIRCUIT && structure.restBetweenRoundsSeconds != null) {
     return {
       key: "exercise.dosage.restBetweenRounds",
-      params: { rest: formatTrainingDuration(structure.restBetweenRoundsSeconds) ?? "" },
+      params: { rest: formatTrainingDuration(structure.restBetweenRoundsSeconds) },
     };
   }
   return null;
@@ -668,8 +670,9 @@ function fillScaleStep(
   const from = scaleStepIndex(scale, start);
   if (from == null) return fillSame(count, null);
   return Array.from({ length: count }, (_, index) => {
+    // Bornée à l'échelle, qui n'est pas vide : `from` y a été trouvé.
     const position = Math.min(Math.max(from + index * step, 0), scale.length - 1);
-    return scale[position] ?? null;
+    return required(scale[position], "palier hors échelle");
   });
 }
 
@@ -678,11 +681,8 @@ function fillScaleStep(
  * le palier du milieu n'est pas dupliqué — c'est le sommet de la pyramide.
  */
 function fillMirror(values: readonly MetricValue[]): MetricValue[] {
-  const count = values.length;
-  const half = Math.ceil(count / 2);
-  return Array.from({ length: count }, (_, index) =>
-    index < half ? (values[index] ?? null) : (values[count - 1 - index] ?? null),
-  );
+  const half = Math.ceil(values.length / 2);
+  return [...values.slice(0, half), ...values.slice(0, values.length - half).reverse()];
 }
 
 function plannedValues(current: readonly MetricValue[], plan: ColumnFillPlan): MetricValue[] {
@@ -848,7 +848,8 @@ function cellIssues(
       {
         rowId: row.id,
         metricId: metric.id,
-        message: parsed.error.issues[0]?.message ?? "Valeur invalide pour cette colonne.",
+        // Un échec de Zod porte toujours au moins une issue.
+        message: required(parsed.error.issues[0], "échec de validation sans issue").message,
       },
     ];
   });
@@ -1087,7 +1088,9 @@ function pushEffort(
     segments.push({ kind: SegmentKind.MANUAL, seconds: 0, unitIndex, rowId: row?.id ?? null });
     return;
   }
-  segments.push({ kind: SegmentKind.EFFORT, seconds, unitIndex, rowId: row?.id ?? null });
+  // Une durée n'est lue que sur une ligne : l'effort chronométré en a toujours une.
+  const { id } = required(row, "effort chronométré sans ligne");
+  segments.push({ kind: SegmentKind.EFFORT, seconds, unitIndex, rowId: id });
 }
 
 function pushRest(

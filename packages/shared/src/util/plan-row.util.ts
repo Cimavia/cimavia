@@ -5,6 +5,7 @@ import {
   currentAthletePlan,
 } from "./athlete-row.util";
 import { DAYS_PER_WEEK, daysBetweenIsoDates } from "./date.util";
+import { required } from "./invariant.util";
 import { type PlanPhase, planEndDate, planPhase } from "./plan.util";
 import { comparableText } from "./search.util";
 
@@ -116,7 +117,18 @@ export type PlanAthleteRow<T extends PlanRowSource = PlanRowSource> = {
  *
  * Générique sur la source pour que l'appelant récupère SES objets dans `plans` : le web passe des
  * `PlanSummaryDto` et lit `sessionCount` ou `status` sans rejoindre quoi que ce soit par id.
+ *
+ * Surchargée comme `formatTrainingDuration` : une liste SERVIE rend toujours des lignes, et
+ * l'appelant qui la tient n'écrit plus de `?? []` qu'aucune entrée n'atteint (#512).
  */
+export function buildPlanAthleteRows<T extends PlanRowSource>(
+  plans: readonly T[],
+  today: string,
+): PlanAthleteRow<T>[];
+export function buildPlanAthleteRows<T extends PlanRowSource>(
+  plans: readonly T[] | null | undefined,
+  today: string,
+): PlanAthleteRow<T>[] | null;
 export function buildPlanAthleteRows<T extends PlanRowSource>(
   plans: readonly T[] | null | undefined,
   today: string,
@@ -139,10 +151,11 @@ export function buildPlanAthleteRows<T extends PlanRowSource>(
     else group.push(plan);
   }
 
-  return [...byAthlete.values()].map((group) => toRow(group, today));
+  return [...byAthlete].map(([athleteId, group]) => toRow(athleteId, group, today));
 }
 
 function toRow<T extends PlanRowSource>(
+  athleteId: string,
   plans: readonly [T, ...T[]],
   today: string,
 ): PlanAthleteRow<T> {
@@ -151,10 +164,10 @@ function toRow<T extends PlanRowSource>(
   const currentPlan = currentAthletePlan(plans, today);
 
   return {
-    // Non nuls sur ce chemin : le groupement a écarté les cycles sans destinataire, et #144 tient
-    // les deux champs ensemble. Le repli est là pour le typage, pas pour un cas à chercher.
-    athleteId: first.athleteId ?? "",
-    athleteName: first.athleteName ?? "",
+    // L'id est la clé du groupe. Le nom, lui, va avec l'id (#144) : un cycle qui a l'un sans
+    // l'autre est une donnée incohérente, pas une ligne à afficher sans nom.
+    athleteId,
+    athleteName: required(first.athleteName, `cycle ${first.id} sans nom d'athlète`),
     situation: currentPlan?.phase ?? null,
     currentPlan,
     deadline: toDeadline(currentPlan, today),
@@ -180,34 +193,24 @@ function toDeadline(plan: AthleteRowPlan | null, today: string): PlanDeadline | 
       return { kind: "STARTS_ON", date: plan.startDate };
     case "ONGOING": {
       const weeks = fullWeeksBetween(today, plan.endDate);
-      if (weeks == null) return null;
       return weeks === 0 ? { kind: "ENDS_THIS_WEEK" } : { kind: "ENDS_IN", weeks };
     }
     case "ENDED": {
       const weeks = fullWeeksBetween(plan.endDate, today);
-      if (weeks == null) return null;
       return weeks === 0 ? { kind: "ENDED_THIS_WEEK" } : { kind: "ENDED_SINCE", weeks };
     }
-    /**
-     * Cycle non situable. Inatteignable : `selectCurrentPlan` n'élit que des cycles dont la fin se
-     * calcule, et `planPhase` ne rend `null` que sur ceux-là. Le cas est traité quand même, parce
-     * qu'inventer une échéance sur des dates illisibles est exactement ce que la règle nullable
-     * interdit — et parce que `AthleteRowPlan` autorise ce `null` dans son type.
-     */
-    case null:
-      return null;
   }
 }
 
 /**
- * Combien de semaines PLEINES séparent deux dates. `null` si l'une n'est pas lisible — même repli
- * de typage que ci-dessus. Le plancher est délibéré : « dans 1 semaine » ne doit se dire qu'à
- * partir de sept jours, en deçà de quoi les motifs `THIS_WEEK` prennent le relais.
+ * Combien de semaines PLEINES séparent deux dates. Les deux sont lisibles sur ce chemin :
+ * `selectCurrentPlan` n'élit un cycle que sur un `today` lisible, et seulement s'il a une fin. Le
+ * plancher est délibéré : « dans 1 semaine » ne doit se dire qu'à partir de sept jours, en deçà de
+ * quoi les motifs `THIS_WEEK` prennent le relais.
  */
-function fullWeeksBetween(from: string | null, to: string | null): number | null {
-  if (from == null || to == null) return null;
-  const days = daysBetweenIsoDates(from, to);
-  return days == null ? null : Math.floor(days / DAYS_PER_WEEK);
+function fullWeeksBetween(from: string, to: string): number {
+  const days = required(daysBetweenIsoDates(from, to), `dates illisibles : ${from} → ${to}`);
+  return Math.floor(days / DAYS_PER_WEEK);
 }
 
 /**
@@ -228,8 +231,11 @@ function toConcurrency<T extends PlanRowSource>(
    */
   const ongoing = plans.flatMap((plan) => {
     if (plan.status !== PlanStatus.PUBLISHED || planPhase(plan, today) !== "ONGOING") return [];
-    const endDate = planEndDate(plan.startDate, plan.weekCount);
-    return endDate == null ? [] : [{ id: plan.id, startDate: plan.startDate, endDate }];
+    const endDate = required(
+      planEndDate(plan.startDate, plan.weekCount),
+      `cycle en cours sans fin : ${plan.id}`,
+    );
+    return [{ id: plan.id, startDate: plan.startDate, endDate }];
   });
   /**
    * Déstructuré plutôt que compté : « au moins deux » devient une paire que le typage porte, et
@@ -375,7 +381,7 @@ export function visiblePlanAthleteRows<T extends PlanRowSource>(
  * celui qui court encore deux mois. À venir se départagent sur le DÉBUT, la seule date qu'ils
  * affichent.
  *
- * `0` quand rien ne les sépare (dates illisibles, aucun cycle diffusé) : le nom tranche alors, et
+ * `0` quand rien ne les sépare (aucun cycle diffusé) : le nom tranche alors, et
  * l'ordre reste stable au lieu de dépendre de celui d'arrivée de l'API.
  */
 function compareWithinSituation(
@@ -387,7 +393,6 @@ function compareWithinSituation(
   if (a == null || b == null) return 0;
 
   if (left.situation === "UPCOMING") return a.startDate.localeCompare(b.startDate);
-  if (a.endDate == null || b.endDate == null) return 0;
   return a.endDate.localeCompare(b.endDate);
 }
 

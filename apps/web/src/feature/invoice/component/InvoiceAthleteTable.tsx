@@ -124,7 +124,7 @@ function AthleteRow({ row, expanded, onToggle, onOpenInvoice }: Readonly<Athlete
         >
           {row.amountDueCents == null
             ? "—"
-            : formatMoney(row.amountDueCents, row.invoices[0]?.currency ?? "EUR")}
+            : formatMoney(row.amountDueCents, row.invoices[0].currency)}
         </span>
 
         <span aria-hidden className="text-cmv-text-lo">

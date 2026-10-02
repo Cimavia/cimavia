@@ -67,8 +67,6 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
     },
   });
 
-  if (editor == null) return null;
-
   return (
     <div className="flex flex-col gap-cmv-xs">
       <span className="text-cmv-caption text-cmv-text-mid">

@@ -139,13 +139,12 @@ function CurrentPlanCell({ row }: Readonly<{ row: PlanAthleteRow<PlanSummaryDto>
   return (
     <span className="flex min-w-0 items-center gap-cmv-sm">
       <span className="truncate text-cmv-text-hi">{plan.title}</span>
-      {row.situation == null ? null : (
-        <CmvBadge variant={row.situation === "ONGOING" ? "accent" : "info"}>
-          {row.situation === "ONGOING"
-            ? t("plan.row.week", { week: plan.currentWeek, total: plan.weekCount })
-            : t(`plan.state.${row.situation}`)}
-        </CmvBadge>
-      )}
+      {/* L'époque du cycle élu, jamais nulle — c'est elle qui fait `row.situation`. */}
+      <CmvBadge variant={plan.phase === "ONGOING" ? "accent" : "info"}>
+        {plan.phase === "ONGOING"
+          ? t("plan.row.week", { week: plan.currentWeek, total: plan.weekCount })
+          : t(`plan.state.${plan.phase}`)}
+      </CmvBadge>
     </span>
   );
 }

@@ -1,4 +1,5 @@
 import type { ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
+import { required } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { useState } from "react";
@@ -237,8 +238,8 @@ function SessionBuilder({
                   }
                   onResetAll={() => draft.resetItem(item.key)}
                   onReload={() => {
-                    if (item.id == null) return;
-                    reload.mutate(item.id, {
+                    // `CompositionCard` ferme « Recharger » sur une ligne sans id.
+                    reload.mutate(required(item.id, "rechargement d'une ligne sans id"), {
                       onSuccess: (reloaded, sessionExerciseId) =>
                         draft.applyReloaded(sessionExerciseId, reloaded),
                     });

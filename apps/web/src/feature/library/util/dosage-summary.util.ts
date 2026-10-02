@@ -70,10 +70,10 @@ function firstRowValues(
       // Les absences sont sautées ICI, explicitement : une carte repliée n'a pas la place
       // d'aligner des tirets. `metricCellText` rend TOUJOURS quelque chose — c'est à l'appelant de
       // déclarer ce qu'il omet, pas au formateur de rendre du vide en silence.
-      .filter((metric) => (row.values[metric.id] ?? null) != null)
-      .map((metric) =>
-        metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t, locale),
-      )
+      .flatMap((metric) => {
+        const value = row.values[metric.id];
+        return value == null ? [] : [metricCellText(value, metric, customMetrics, t, locale)];
+      })
       .join(" · ")
   );
 }

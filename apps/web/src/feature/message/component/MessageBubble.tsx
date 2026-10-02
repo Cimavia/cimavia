@@ -2,6 +2,7 @@ import {
   AttachmentDestination,
   attachmentTarget,
   FEEDBACK_EVENT_LABEL_KEY,
+  type FeedbackEventMessageType,
   isFeedbackEventMessage,
   MESSAGE_ATTACHMENT_LABEL_KEY,
   type MessageAttachmentDto,
@@ -135,17 +136,20 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
  *
  * Le libellé d'abord, le lien ensuite, sur une seule ligne : on lit ce qui s'est passé, puis où
  * aller le voir. La puce reste — c'est elle qui porte le LIEN, seul intérêt de l'avis.
+ *
+ * Reçoit le type DÉJÀ restreint par l'appelant, plutôt que le message entier à re-tester : un
+ * second `isFeedbackEventMessage` ici n'aurait aucune entrée pour le faire mentir (#512).
  */
-function FeedbackEventNotice({ message }: Readonly<{ message: MessageDto }>) {
+function FeedbackEventNotice({
+  type,
+  attachment,
+}: Readonly<{ type: FeedbackEventMessageType; attachment: MessageAttachmentDto | null }>) {
   const { t } = useTranslation();
-  if (!isFeedbackEventMessage(message.type)) return null;
 
   return (
     <div className="flex max-w-[70%] flex-row items-center gap-cmv-sm self-start">
-      <p className="text-cmv-caption text-cmv-text-mid">
-        {t(FEEDBACK_EVENT_LABEL_KEY[message.type])}
-      </p>
-      {message.attachment == null ? null : <AttachmentChip attachment={message.attachment} />}
+      <p className="text-cmv-caption text-cmv-text-mid">{t(FEEDBACK_EVENT_LABEL_KEY[type])}</p>
+      {attachment == null ? null : <AttachmentChip attachment={attachment} />}
     </div>
   );
 }
@@ -157,7 +161,7 @@ export function MessageBubble({
   resolveMediaUrl,
 }: Readonly<MessageBubbleProps>) {
   if (isFeedbackEventMessage(message.type)) {
-    return <FeedbackEventNotice message={message} />;
+    return <FeedbackEventNotice type={message.type} attachment={message.attachment} />;
   }
 
   return (
