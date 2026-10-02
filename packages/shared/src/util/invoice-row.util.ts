@@ -1,5 +1,6 @@
 import { InvoiceStatus } from "../dto/invoice.schema";
 import { daysBetweenIsoDates } from "./date.util";
+import { required } from "./invariant.util";
 import { InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
 import type { Page } from "./pagination.util";
 import { comparableText } from "./search.util";
@@ -85,8 +86,12 @@ export type InvoiceAthleteRow<T extends InvoiceRowSource = InvoiceRowSource> = {
   amountDueCents: number | null;
   /** `null` quand rien de vrai ne peut être dit (aucune facture réglée, échéance illisible). */
   subtitle: InvoiceRowSubtitle | null;
-  /** Tout l'historique, annulées comprises, DÉJÀ trié (cf. `sortAthleteInvoices`). */
-  invoices: T[];
+  /**
+   * Tout l'historique, annulées comprises, DÉJÀ trié (cf. `sortAthleteInvoices`). Jamais vide —
+   * une ligne n'existe que pour un athlète facturé —, et le tuple le dit : la devise du montant dû
+   * se lit sur la première facture sans repli sur une devise inventée (#512).
+   */
+  invoices: [T, ...T[]];
 };
 
 /**
@@ -195,16 +200,18 @@ function toSubtitle<T extends InvoiceRowSource>(
     const ages = overdue
       .map((invoice) => daysBetweenIsoDates(invoice.dueDate, today))
       .filter((days): days is number => days != null);
-    // Liste vide inatteignable — être en retard suppose une échéance LISIBLE, `resolveInvoiceState`
-    // l'ayant déjà exigée. Le repli est là pour le typage, pas pour un cas à chercher.
-    return ages.length === 0 ? null : { kind: "OVERDUE_SINCE", days: Math.max(...ages) };
+    // Jamais vide : être en retard suppose une échéance LISIBLE, `resolveInvoiceState` l'ayant
+    // déjà exigée.
+    const [first, ...rest] = ages;
+    const oldest = required(first, "retard sans échéance lisible");
+    return { kind: "OVERDUE_SINCE", days: Math.max(oldest, ...rest) };
   }
 
   if (situation === "DUE") {
-    // La PROCHAINE échéance : la plus proche, donc la plus petite date. `null` inatteignable —
-    // « à échéance » suppose au moins une impayée. Le repli est là pour le typage.
+    // La PROCHAINE échéance : la plus proche, donc la plus petite date. « À échéance » suppose au
+    // moins une impayée.
     const next = minOf(unpaid.map((invoice) => invoice.dueDate));
-    return next == null ? null : { kind: "NEXT_DUE", date: next };
+    return { kind: "NEXT_DUE", date: required(next, "échéance sans facture impayée") };
   }
 
   /**
@@ -247,6 +254,14 @@ function maxOf(values: readonly string[]): string | null {
  * yeux, et deux factures émises le même jour pour deux mois différents doivent se ranger dans
  * l'ordre des mois.
  */
+export function sortAthleteInvoices<T extends InvoiceRowSource>(
+  invoices: readonly [T, ...T[]],
+  today: string,
+): [T, ...T[]];
+export function sortAthleteInvoices<T extends InvoiceRowSource>(
+  invoices: readonly T[],
+  today: string,
+): T[];
 export function sortAthleteInvoices<T extends InvoiceRowSource>(
   invoices: readonly T[],
   today: string,
