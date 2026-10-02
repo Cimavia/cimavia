@@ -16,6 +16,17 @@ import { z } from "zod";
  * du navigateur, le débrief non).
  */
 
+/**
+ * Un envoi qui en SUIT un autre du même geste (#537) : la deuxième photo d'une sélection, puis la
+ * troisième. Le serveur reçoit les médias un par un et ne voit jamais « un lot de six » — seul le
+ * client sait où le geste commence. Le premier envoi réussi prévient, les suivants se taisent :
+ * six photos font un push, pas six.
+ *
+ * Optionnel, et absent veut dire « ouvre un geste » : une app pas encore mise à jour pousse à
+ * chaque média plutôt que jamais. Un drapeau mensonger ne coûte qu'un push, aucune donnée.
+ */
+export const mediaBatchShape = { continuesBatch: z.boolean().optional() };
+
 // MP4 (Android, export standard) et QuickTime (capture iOS native).
 export const FEEDBACK_VIDEO_MIME_TYPES = ["video/mp4", "video/quicktime"] as const;
 export type FeedbackVideoMimeType = (typeof FEEDBACK_VIDEO_MIME_TYPES)[number];

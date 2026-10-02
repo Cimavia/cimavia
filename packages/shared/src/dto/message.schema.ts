@@ -6,6 +6,7 @@ import {
   MAX_FEEDBACK_PHOTO_SIZE_BYTES,
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
+  mediaBatchShape,
 } from "./media.schema";
 
 /**
@@ -124,6 +125,7 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
   z
     .object({
       ...messageAttachmentShape,
+      ...mediaBatchShape,
       type: z.literal(MessageType.AUDIO),
       storagePath: z.string().min(1),
       fileName: z.string().min(1),
@@ -135,6 +137,7 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
   z
     .object({
       ...messageAttachmentShape,
+      ...mediaBatchShape,
       type: z.literal(MessageType.IMAGE),
       storagePath: z.string().min(1),
       fileName: z.string().min(1),
@@ -145,6 +148,7 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
   z
     .object({
       ...messageAttachmentShape,
+      ...mediaBatchShape,
       type: z.literal(MessageType.VIDEO),
       storagePath: z.string().min(1),
       fileName: z.string().min(1),

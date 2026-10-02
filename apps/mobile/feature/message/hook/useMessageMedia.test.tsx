@@ -192,6 +192,8 @@ describe("useSendMessageMedia", () => {
     // pièces jointes.
     expect(sendMessageMock).toHaveBeenCalledTimes(2);
     expect(uploadFileMock).toHaveBeenCalledTimes(2);
+    // Mais un seul geste : seul le premier prévient le destinataire (#537).
+    expect(sendMessageMock.mock.calls.map((call) => call[1].continuesBatch)).toEqual([false, true]);
   });
 
   it("ouvre la galerie sur une sélection multiple, bornée au plafond du lot", async () => {
@@ -300,7 +302,12 @@ describe("useSendMessageMedia", () => {
     });
 
     await waitFor(() =>
-      expect(result.current.step).toEqual({ index: 1, total: 2, fileName: "a.jpg" }),
+      expect(result.current.step).toEqual({
+        index: 1,
+        total: 2,
+        fileName: "a.jpg",
+        continuesBatch: false,
+      }),
     );
     expect(result.current.isUploading).toBe(true);
 
@@ -333,6 +340,7 @@ describe("useSendMessageMedia", () => {
 
     await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
     expect(launchLibraryMock).not.toHaveBeenCalled();
+    expect(sendMessageMock.mock.calls[0]?.[1]).toMatchObject({ continuesBatch: false });
   });
 
   /** #309 : un média envoyé change l'aperçu du fil dans la liste du coach, comme un texte. */

@@ -117,6 +117,12 @@ describe("useSendMessageMedia", () => {
     // Chaque média EST un message : trois fichiers font trois messages, pas un message à trois
     // pièces jointes.
     expect(singleUploadMock).toHaveBeenCalledTimes(3);
+    // Mais un seul geste : seul le premier prévient le destinataire (#537).
+    expect(sendMessageMock.mock.calls.map((call) => call[1].continuesBatch)).toEqual([
+      false,
+      true,
+      true,
+    ]);
   });
 
   /**
@@ -231,6 +237,7 @@ describe("useSendMessageMedia", () => {
 
     await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
     expect(prepareMock.mock.calls[0]?.[0]).toMatchObject({ kind: "audio", durationSeconds: 8 });
+    expect(sendMessageMock.mock.calls[0]?.[1]).toMatchObject({ continuesBatch: false });
   });
 
   it("dit l'échec d'une note vocale par un toast, faute de récapitulatif où le mettre", async () => {

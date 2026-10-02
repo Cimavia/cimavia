@@ -160,6 +160,12 @@ export type MediaBatchStep<N extends string | null = string | null> = {
   index: number;
   total: number;
   fileName: N;
+  /**
+   * Un envoi PRÉCÉDENT de ce lot a abouti : celui-ci n'ouvre pas le geste, il le prolonge — et le
+   * serveur ne le notifie pas (#537). Ce n'est pas `index > 1` : si la première photo échoue, la
+   * deuxième est la première à arriver, et c'est elle qui doit prévenir.
+   */
+  continuesBatch: boolean;
 };
 
 export type MediaBatch<T, N extends string | null = string | null> = {
@@ -212,13 +218,16 @@ export async function sendMediaBatch<T, N extends string | null>(
 
   const { accepted, rejected } = splitByRemainingSlots(slottable, batch.remaining);
   const total = accepted.length;
-  const outcomes = await runSequentially(accepted, (entry, index) =>
-    batch.send(entry.item, {
+  let delivered = 0;
+  const outcomes = await runSequentially(accepted, async (entry, index) => {
+    await batch.send(entry.item, {
       index: index + 1,
       total,
       fileName: batch.nameOf(entry.item),
-    }),
-  );
+      continuesBatch: delivered > 0,
+    });
+    delivered += 1;
+  });
 
   return [
     ...unsupported.map((entry) =>

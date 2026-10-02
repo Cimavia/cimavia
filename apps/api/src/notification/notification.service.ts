@@ -121,6 +121,20 @@ type PushPayload =
 type PushContent = { title: string; body: string; data: PushPayload };
 
 /**
+ * Les canaux d'une émission (#537). Ils ne suivent pas le même rythme : le push part à chaque
+ * envoi, comme dans une messagerie, quand la TRACE — l'entrée du centre et l'e-mail qui la double —
+ * ne part qu'à l'ouverture d'une série (dettes N-3 et N-8). Un téléphone qui vibre à chaque message
+ * est attendu ; une boîte mail qui reçoit un e-mail par message, non.
+ *
+ * La trace regroupe la persistance et l'e-mail parce que l'e-mail n'annonce rien que la ligne du
+ * centre ne dise déjà : l'un sans l'autre n'a pas de cas d'usage.
+ */
+export type NotificationChannels = { push: boolean; trace: boolean };
+
+const ALL_CHANNELS: NotificationChannels = { push: true, trace: true };
+const PUSH_ONLY: NotificationChannels = { push: true, trace: false };
+
+/**
  * Ce qu'on écrit en base : le libellé n'y est pas — seulement de quoi le rendre (cf. §3).
  *
  * `PersistedNotificationType` et non `NotificationType` : `REMINDER_DUE` (#51) est calculé à la
@@ -289,8 +303,40 @@ export class NotificationService {
 
   async notifyFeedbackReceived(event: FeedbackReceivedEvent): Promise<void> {
     this.logger.info({ event: "feedback.received", ...event }, "Débrief reçu par le coach");
-    // Résolu AVANT l'émission, et non plus à la demande : la trace persistée en a besoin même
-    // quand le coach n'a aucun appareil enregistré — c'est justement le cas qu'elle rattrape.
+    await this.emitFeedback(event, ALL_CHANNELS, (athleteName) => ({
+      title: "Nouveau débrief",
+      body: `${athleteName} a débriefé « ${event.sessionTitle} ».`,
+    }));
+  }
+
+  /**
+   * L'athlète a renvoyé quelque chose sur un débrief DÉJÀ déposé : texte corrigé, coches, médias
+   * ajoutés (#537). La seule création ne suffisait pas — un coach qui a déjà lu le débrief ne
+   * saurait pas qu'il a changé.
+   *
+   * **Push seul** : le centre porte déjà l'entrée « nouveau débrief », qui ouvre l'état courant, et
+   * le débrief repasse « à relire » dans la tuile du coach. Une entrée par complément répéterait la
+   * même chose, et l'e-mail avec elle. Même destination que la création, donc même `data`.
+   */
+  async notifyFeedbackCompleted(event: FeedbackReceivedEvent): Promise<void> {
+    this.logger.info({ event: "feedback.completed", ...event }, "Débrief complété par l'athlète");
+    await this.emitFeedback(event, PUSH_ONLY, (athleteName) => ({
+      title: "Débrief complété",
+      body: `${athleteName} a complété son débrief de « ${event.sessionTitle} ».`,
+    }));
+  }
+
+  /**
+   * Ce que le dépôt et le complément d'un débrief ont en commun : le destinataire, la cible, et le
+   * nom de l'athlète — un coach suit N athlètes, sans le nom la notification serait inexploitable.
+   * Résolu AVANT l'émission : la trace persistée en a besoin même quand le coach n'a aucun appareil
+   * enregistré, et c'est justement le cas qu'elle rattrape.
+   */
+  private async emitFeedback(
+    event: FeedbackReceivedEvent,
+    channels: NotificationChannels,
+    text: (athleteName: string) => { title: string; body: string },
+  ): Promise<void> {
     const athleteName = await this.userName(event.athleteId);
     await this.emit(
       {
@@ -302,25 +348,27 @@ export class NotificationService {
         subjectLabel: event.sessionTitle,
       },
       {
-        title: "Nouveau débrief",
-        // Un coach suit N athlètes : sans le nom, la notification serait inexploitable.
-        body: `${athleteName ?? "Un de tes athlètes"} a débriefé « ${event.sessionTitle} ».`,
+        ...text(athleteName ?? "Un de tes athlètes"),
         data: {
           type: NotificationType.FEEDBACK_RECEIVED,
           scheduledSessionId: event.scheduledSessionId,
         },
       },
+      channels,
     );
   }
 
   /**
-   * Nouveau message reçu (CDC §5.8). Le déclencheur (éviter une rafale de notifications) est décidé
-   * par l'appelant — comme « seule la création d'un débrief notifie » en P4 : le MessageService ne
-   * notifie qu'au passage « tout lu » → « non lu » du fil. Ici on ne fait que livrer. Le centre de
-   * notifications hérite donc du même throttle : une entrée par rafale, pas une par message.
+   * Nouveau message reçu (CDC §5.8). Les canaux sont décidés par l'appelant, qui seul connaît le
+   * fil (#537) : le push part à chaque message, sauf la suite d'un lot de médias ; la trace, à
+   * l'ouverture d'une série seulement — une entrée de centre et un e-mail par rafale (N-3, N-8).
+   * Ici on ne fait que livrer.
    */
-  async notifyMessageReceived(event: MessageReceivedEvent): Promise<void> {
-    this.logger.info({ event: "message.received", ...event }, "Message reçu");
+  async notifyMessageReceived(
+    event: MessageReceivedEvent,
+    channels: NotificationChannels,
+  ): Promise<void> {
+    this.logger.info({ event: "message.received", ...event, ...channels }, "Message reçu");
     const senderName = await this.userName(event.senderId);
     await this.emit(
       {
@@ -338,6 +386,7 @@ export class NotificationService {
         body: "Tu as reçu un nouveau message.",
         data: { type: NotificationType.MESSAGE_RECEIVED, conversationId: event.conversationId },
       },
+      channels,
     );
   }
 
@@ -476,11 +525,18 @@ export class NotificationService {
   }
 
   /**
-   * Les deux canaux d'un même événement. La persistance passe EN PREMIER, et surtout avant le
+   * Les canaux d'un même événement. La persistance passe EN PREMIER, et surtout avant le
    * « aucun appareil → rien à faire » du push : c'est exactement le compte web-only qui, sans ça,
    * ne recevrait jamais rien.
+   *
+   * `channels` retient l'un ou l'autre (#537) ; la garde anti-auto-notification, elle, vaut pour
+   * tous — elle passe avant.
    */
-  private async emit(record: NotificationRecord, push: PushContent): Promise<void> {
+  private async emit(
+    record: NotificationRecord,
+    push: PushContent,
+    channels: NotificationChannels = ALL_CHANNELS,
+  ): Promise<void> {
     // On ne s'annonce pas à soi-même ce qu'on vient de faire (#14). En auto-coaching, l'émetteur
     // et le destinataire sont le même compte : diffuser son propre cycle ou écrire son propre
     // débrief déclencherait une notification pour une action qu'on vient de mener.
@@ -501,9 +557,9 @@ export class NotificationService {
       return;
     }
 
-    await this.persist(record);
-    await this.push(record.recipientId, push);
-    await this.email(record);
+    if (channels.trace) await this.persist(record);
+    if (channels.push) await this.push(record.recipientId, push);
+    if (channels.trace) await this.email(record);
   }
 
   /**

@@ -22,6 +22,16 @@ import {
 } from "../feedback.mapper";
 
 /**
+ * Le débrief où l'athlète écrit, et ce que l'écriture en cours en a fait. `created` décide de
+ * l'annonce : « nouveau débrief » s'il naît de ce geste, « débrief complété » sinon (#537).
+ */
+export type WritableFeedback = {
+  feedback: SessionFeedback;
+  sessionTitle: string;
+  created: boolean;
+};
+
+/**
  * Débrief de séance (CDC §5.6) : écrit par l'athlète, lu par le coach.
  *
  * Le tenancy layer garantit qu'un acteur ne voit que SES débriefs, mais il ne dit rien du
@@ -56,17 +66,16 @@ export class FeedbackService {
     if (input.tracking !== undefined) {
       await this.assertTrackedExercisesKnown(scheduledSessionId, input.tracking);
     }
-    const feedback = await this.getOrCreateWritable(scheduledSessionId);
-    // Un débrief complété redevient « à relire » : sinon un ajout tardif de l'athlète resterait
-    // invisible dans la tuile du coach, qui l'a peut-être déjà ouvert.
+    const writable = await this.getOrCreateWritable(scheduledSessionId);
     await this.db.sessionFeedback.update({
-      where: { id: feedback.id },
-      data: { content: input.content ?? null, coachReadAt: null },
+      where: { id: writable.feedback.id },
+      data: { content: input.content ?? null },
     });
     if (input.tracking !== undefined) {
       await this.writeTracking(scheduledSessionId, input.tracking);
     }
-    await this.announcer.announce(feedback);
+    // Enregistrer le texte est toujours un geste à lui seul : jamais la suite d'un lot.
+    await this.markSent(writable, false);
     // Écrit juste au-dessus : le relire ne peut pas manquer.
     return required(
       await this.findByScheduledSession(scheduledSessionId),
@@ -137,13 +146,18 @@ export class FeedbackService {
    * forme que ce soit, passe la séance en DONE — transition sans retour (un débrief complété ne
    * « redevient » pas planifié).
    *
+   * N'annonce RIEN : l'appelant écrit d'abord, puis appelle `markSent`. Prévenir avant d'écrire
+   * laissait au coach le temps d'ouvrir un débrief dont le texte n'était pas encore là.
+   *
    * Création manuelle plutôt que `upsert` Prisma : cette opération est interdite par le client
    * tenant (son `where` unique créerait un angle mort de scope).
    */
-  async getOrCreateWritable(scheduledSessionId: string): Promise<SessionFeedback> {
+  async getOrCreateWritable(scheduledSessionId: string): Promise<WritableFeedback> {
     const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
     const existing = await this.db.sessionFeedback.findFirst({ where: { scheduledSessionId } });
-    if (existing != null) return existing;
+    if (existing != null) {
+      return { feedback: existing, sessionTitle: session.title, created: false };
+    }
 
     const feedback = await this.db.$transaction(async (tx) => {
       // athleteId injecté par le tenancy layer ; coachId dénormalisé depuis la séance (jamais
@@ -162,19 +176,41 @@ export class FeedbackService {
       });
       return created;
     });
+    return { feedback, sessionTitle: session.title, created: true };
+  }
 
-    // Notifié à la CRÉATION seulement : l'athlète débriefe en plusieurs fois (texte puis
-    // photos), et un push par ajout serait du harcèlement. Les compléments repassent
-    // `coachReadAt` à null — visibles dans la tuile « à relire », sans notification.
-    await this.notifications.notifyFeedbackReceived({
-      coachId: feedback.coachId,
-      athleteId: feedback.athleteId,
-      scheduledSessionId,
-      sessionTitle: session.title,
-    });
+  /**
+   * Un envoi de l'athlète vient d'aboutir — texte enregistré, ou média joint (#537).
+   *
+   * - Le débrief redevient « à relire » : sinon un ajout tardif resterait invisible dans la tuile
+   *   du coach, qui l'a peut-être déjà ouvert. Vaut pour un média comme pour le texte — une photo
+   *   ajoutée seule ne remontait pas.
+   * - Un avis est posé dans le fil ; c'est l'annonceur qui décide s'il a quelque chose à dire.
+   * - Le coach est prévenu : « nouveau débrief » s'il naît de ce geste, « débrief complété » par
+   *   push seul sinon. La suite d'un lot de médias se tait — six photos font un push, pas six.
+   *   Le dépôt initial ne pousse qu'une fois : l'appel qui crée est aussi le premier du lot.
+   */
+  async markSent(writable: WritableFeedback, continuesBatch: boolean): Promise<void> {
+    const { feedback, created } = writable;
+    if (!created) {
+      await this.db.sessionFeedback.update({
+        where: { id: feedback.id },
+        data: { coachReadAt: null },
+      });
+    }
     await this.announcer.announce(feedback);
 
-    return feedback;
+    const event = {
+      coachId: feedback.coachId,
+      athleteId: feedback.athleteId,
+      scheduledSessionId: feedback.scheduledSessionId,
+      sessionTitle: writable.sessionTitle,
+    };
+    if (created) {
+      await this.notifications.notifyFeedbackReceived(event);
+    } else if (!continuesBatch) {
+      await this.notifications.notifyFeedbackCompleted(event);
+    }
   }
 
   // Lecture du débrief d'une séance. `null` plutôt qu'un débrief vide de complaisance : le rendu

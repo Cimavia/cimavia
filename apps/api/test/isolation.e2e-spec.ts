@@ -2996,6 +2996,35 @@ describe("Médias de débrief (P4)", () => {
     expect((await athleteA1.get("/me/notifications")).body).toHaveLength(notificationsBefore);
   });
 
+  /**
+   * #537 : un média ajouté SEUL rend le débrief à relire, comme le texte — il ne remontait pas dans
+   * la tuile du coach. Le complément pousse sans trace : l'entrée « nouveau débrief » du centre
+   * ouvre déjà l'état courant. La vidéo est retirée aussitôt : les quotas plus bas en comptent zéro.
+   */
+  it("un média ajouté seul rend le débrief à relire, sans seconde entrée au centre", async () => {
+    const [listed] = (await coachA.get("/feedbacks")).body;
+    expect((await coachA.post(`/feedbacks/${listed.id}/read`)).status).toBe(201);
+    const traces = async () =>
+      (await coachA.get("/me/notifications")).body.filter(
+        (n: { type: string }) => n.type === "FEEDBACK_RECEIVED",
+      ).length;
+    const before = await traces();
+
+    const storagePath = await upload(athleteA1, video());
+    const attached = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
+      .send({ ...video(), storagePath });
+    expect(attached.status).toBe(201);
+
+    expect((await coachA.get("/feedbacks")).body[0].coachReadAt).toBeNull();
+    expect(await traces()).toBe(before);
+
+    const removed = await athleteA1.delete(
+      `/me/scheduled-sessions/${sessionId}/feedback/media/${attached.body.id}`,
+    );
+    expect(removed.status).toBe(204);
+  });
+
   // Débrief vocal (P5, CDC §4) : même flux que photo/vidéo, MediaType étendu à AUDIO.
   it("rattache une note vocale au débrief (durée conservée)", async () => {
     const storagePath = await upload(athleteA1, audio());
@@ -4939,8 +4968,9 @@ describe("Centre de notifications (#48)", () => {
     });
   });
 
-  // Le throttle push de P5-4 vaut aussi pour la trace : on notifie au passage « tout lu » →
-  // « non lu », donc une rafale de messages ne produit qu'UNE entrée tant que rien n'est lu.
+  // La trace garde son throttle (N-3) quand le push n'en a plus (#537) : elle part au passage
+  // « tout lu » → « non lu », donc une rafale de messages ne produit qu'UNE entrée tant que rien
+  // n'est lu. Le push, absent des e2e (aucun appareil), est éprouvé par `message.service.test.ts`.
   it("une rafale de messages ne produit qu'une seule entrée", async () => {
     const before = (await inbox(athleteA1)).filter((n) => n.type === "MESSAGE_RECEIVED").length;
     for (const content of ["et vendredi ?", "ou samedi"]) {
@@ -4963,6 +4993,30 @@ describe("Centre de notifications (#48)", () => {
     await coachA
       .post(`/conversations/${conversationId}/messages`)
       .send({ type: "TEXT", content: "finalement dimanche" });
+
+    expect(await count()).toBe(before + 1);
+  });
+
+  /**
+   * Le bug de #539 : l'avis de débrief, posé au nom de l'athlète, reste non lu chez un coach qui ne
+   * passe que par la page Débriefs. Il comptait comme un message de l'athlète, et tout ce que
+   * celui-ci écrivait ensuite restait muet — ni push, ni e-mail, ni entrée au centre.
+   */
+  it("un avis de débrief non lu n'éteint pas le message suivant de l'athlète", async () => {
+    const thread = await coachA.get(`/conversations/${conversationId}/messages`);
+    const pending = thread.body.filter(
+      (m: { type: string; readAt: string | null }) =>
+        m.type === "FEEDBACK_CREATED" && m.readAt === null,
+    );
+    expect(pending).toHaveLength(1);
+    const count = async () =>
+      (await inbox(coachA)).filter((n) => n.type === "MESSAGE_RECEIVED").length;
+    const before = await count();
+
+    const sent = await athleteA1
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Débrief posté, tu me dis ?" });
+    expect(sent.status).toBe(201);
 
     expect(await count()).toBe(before + 1);
   });

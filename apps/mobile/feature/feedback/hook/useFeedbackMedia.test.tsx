@@ -163,6 +163,8 @@ describe("useAddFeedbackMedia", () => {
     expect(requestUrlMock).toHaveBeenCalledTimes(2);
     expect(uploadFileMock).toHaveBeenCalledTimes(2);
     expect(attachMock).toHaveBeenCalledTimes(2);
+    // Un seul geste, un seul push au coach : seul le premier rattachement le déclenche (#537).
+    expect(attachMock.mock.calls.map((call) => call[1].continuesBatch)).toEqual([false, true]);
   });
 
   /**
@@ -181,7 +183,12 @@ describe("useAddFeedbackMedia", () => {
     });
 
     await waitFor(() =>
-      expect(result.current.step).toEqual({ index: 1, total: 2, fileName: "a.jpg" }),
+      expect(result.current.step).toEqual({
+        index: 1,
+        total: 2,
+        fileName: "a.jpg",
+        continuesBatch: false,
+      }),
     );
     expect(result.current.isUploading).toBe(true);
 
@@ -190,7 +197,12 @@ describe("useAddFeedbackMedia", () => {
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(result.current.step).toEqual({ index: 2, total: 2, fileName: "b.jpg" }),
+      expect(result.current.step).toEqual({
+        index: 2,
+        total: 2,
+        fileName: "b.jpg",
+        continuesBatch: true,
+      }),
     );
 
     await act(async () => {
@@ -338,6 +350,7 @@ describe("useAddFeedbackAudio", () => {
 
     await waitFor(() => expect(attachMock).toHaveBeenCalledOnce());
     expect(launchLibraryMock).not.toHaveBeenCalled();
+    expect(attachMock.mock.calls[0]?.[1]).toMatchObject({ continuesBatch: false });
   });
 });
 

@@ -160,11 +160,30 @@ describe("sendMediaBatch", () => {
     );
 
     expect(steps).toEqual([
-      { index: 1, total: 2, fileName: "a" },
-      { index: 2, total: 2, fileName: "b" },
+      { index: 1, total: 2, fileName: "a", continuesBatch: false },
+      { index: 2, total: 2, fileName: "b", continuesBatch: true },
     ]);
     // Ce qui est parti n'a rien à dire : c'est déjà visible dans la galerie.
     expect(recap).toEqual([]);
+  });
+
+  /**
+   * Seul le premier envoi ABOUTI ouvre le geste (#537) : c'est lui que le serveur notifie. Si la
+   * première photo échoue, la deuxième doit prévenir à sa place — sinon le lot entier serait muet.
+   */
+  it("fait ouvrir le geste par le premier envoi abouti, même après un échec", async () => {
+    const opened: boolean[] = [];
+
+    await sendMediaBatch(
+      batch([image("a"), image("b"), image("c")], {
+        send: async (item, step) => {
+          opened.push(step.continuesBatch);
+          if (item.name === "a") throw new Error("panne");
+        },
+      }),
+    );
+
+    expect(opened).toEqual([false, false, true]);
   });
 
   /**

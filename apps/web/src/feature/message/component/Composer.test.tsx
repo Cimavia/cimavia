@@ -90,7 +90,7 @@ describe("Composer", () => {
         {...props()}
         mediaBusy
         progress={40}
-        step={{ index: 2, total: 5, fileName: "voie.mp4" }}
+        step={{ index: 2, total: 5, fileName: "voie.mp4", continuesBatch: true }}
       />,
     );
 
@@ -103,7 +103,7 @@ describe("Composer", () => {
         {...props()}
         mediaBusy
         progress={40}
-        step={{ index: 1, total: 1, fileName: "voie.mp4" }}
+        step={{ index: 1, total: 1, fileName: "voie.mp4", continuesBatch: false }}
       />,
     );
 
