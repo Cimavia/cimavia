@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { CmvText } from "@/shared/component";
 
-// i18n-values exercise.dosage: series, emom, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
+// i18n-values exercise.dosage: series, emom, emomEveryMinute, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
 // i18n-values exercise.metric: MetricKey
 // i18n-values exercise.unit: MetricUnit
 

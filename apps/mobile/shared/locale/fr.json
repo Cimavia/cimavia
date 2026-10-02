@@ -104,11 +104,12 @@
       "series": "{{count}} série",
       "series_other": "{{count}} séries",
       "emom": "Toutes les {{interval}} pendant {{total}}",
+      "emomEveryMinute": "Chaque minute pendant {{total}}",
       "amrap": "En {{total}}, un maximum de tours",
       "amrapWithTarget": "En {{total}}, un maximum de tours. Objectif : {{count}} tours.",
       "circuit": "Bloc ×{{count}}",
       "restBetweenSets": "{{rest}} de repos entre les séries",
-      "restBetweenRounds": "repos {{rest}} entre tours"
+      "restBetweenRounds": "{{rest}} de repos entre les tours"
     }
   },
   "nav": {
