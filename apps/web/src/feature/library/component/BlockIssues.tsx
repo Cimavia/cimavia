@@ -1,4 +1,5 @@
 import {
+  BlockType,
   type CustomMetric,
   type ExerciseBlock,
   emptyRowIndexes,
@@ -37,7 +38,12 @@ export function BlockIssues({ block, customMetrics }: Readonly<BlockIssuesProps>
     <ul className="flex flex-col gap-cmv-xs">
       {empties.map((index) => (
         <li key={`empty-${index}`} className="text-cmv-caption text-cmv-warning-on">
-          {t("library.builder.issue.emptyRow", { index: index + 1 })}
+          {t(
+            isSet(block, index)
+              ? "library.builder.issue.emptySet"
+              : "library.builder.issue.emptyRow",
+            { index: index + 1 },
+          )}
         </li>
       ))}
       {[...byMetric.keys()].map((metricId) => {
@@ -54,4 +60,12 @@ export function BlockIssues({ block, customMetrics }: Readonly<BlockIssuesProps>
       })}
     </ul>
   );
+}
+
+/**
+ * Vrai si la ligne `index` est une série JOUÉE : l'avertissement la nomme alors comme la grille
+ * l'affiche — « Série 3 » —, et non « Ligne 3 », le mot même que #520 a retiré de cette grille.
+ */
+function isSet(block: ExerciseBlock, index: number): boolean {
+  return block.structure.type === BlockType.SERIES && index < block.structure.setCount;
 }

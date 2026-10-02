@@ -5,6 +5,9 @@ import {
   formatMetricValue,
   metricCellText,
   metricLabel,
+  type ReadingRow,
+  readingRowLabel,
+  readingRows,
   restPhrase,
   structurePhrase,
 } from "@cmv/shared";
@@ -26,6 +29,10 @@ type PreviewBlockProps = {
  * Deux rendus selon le nombre de lignes : une ligne se lit en phrase, plusieurs se lisent en
  * tableau. Forcer la phrase sur quatre lignes produirait une énumération illisible ; forcer le
  * tableau sur une ligne mettrait un en-tête au-dessus d'une seule valeur.
+ *
+ * Les lignes sont celles que l'athlète LIT (`readingRows`) : en Séries, les séries jouées, les
+ * dernières regroupées quand elles reprennent la même ligne — « 2–4 » (#520). C'est aussi ce que
+ * lit l'athlète sur le web : l'aperçu et la lecture ne doivent pas se contredire.
  */
 export function PreviewBlock({ block, customMetrics }: Readonly<PreviewBlockProps>) {
   const { t, i18n } = useTranslation();
@@ -34,6 +41,7 @@ export function PreviewBlock({ block, customMetrics }: Readonly<PreviewBlockProp
   const rest = restPhrase(block.structure);
   const expanded = block.metrics.filter((metric) => !metric.collapsed);
   const collapsed = block.metrics.filter((metric) => metric.collapsed);
+  const readings = readingRows(block);
 
   return (
     <section className="flex flex-col gap-cmv-xs">
@@ -61,21 +69,21 @@ export function PreviewBlock({ block, customMetrics }: Readonly<PreviewBlockProp
       </p>
 
       {/* Une grille SANS ligne annonce ce qui viendra, plutôt que de montrer un tableau vide. */}
-      {block.rows.length === 0 ? (
+      {readings.length === 0 ? (
         <p className="text-cmv-caption text-cmv-text-lo">{t("library.builder.preview.noRow")}</p>
       ) : (
-        <RowValues block={block} metrics={expanded} customMetrics={customMetrics} />
+        <RowValues readings={readings} metrics={expanded} customMetrics={customMetrics} />
       )}
     </section>
   );
 }
 
 function RowValues({
-  block,
+  readings,
   metrics,
   customMetrics,
 }: Readonly<{
-  block: ExerciseBlock;
+  readings: readonly ReadingRow[];
   metrics: ExerciseBlock["metrics"];
   customMetrics: readonly CustomMetric[];
 }>) {
@@ -89,10 +97,10 @@ function RowValues({
     }));
 
   // Une seule ligne : une phrase, pas un tableau à en-tête pour une valeur.
-  if (block.rows.length === 1) {
+  if (readings.length === 1) {
     return (
       <p className="text-cmv-body text-cmv-text-mid">
-        {block.rows.map((row) =>
+        {readings.map(({ row }) =>
           cells(row)
             .map((cell) => cell.text)
             .join(" · "),
@@ -119,12 +127,12 @@ function RowValues({
           </tr>
         </thead>
         <tbody className="text-cmv-text-mid">
-          {block.rows.map((row, index) => (
-            <tr key={row.id} className={CMV_TABLE.row}>
+          {readings.map((reading) => (
+            <tr key={reading.row.id} className={CMV_TABLE.row}>
               <td className={CMV_TABLE.cell}>
-                <span className={CMV_TABLE.index}>{index + 1}</span>
+                <span className={CMV_TABLE.index}>{readingRowLabel(reading)}</span>
               </td>
-              {cells(row).map((cell) => (
+              {cells(reading.row).map((cell) => (
                 <td key={cell.metricId} className={CMV_TABLE.cell}>
                   {cell.text}
                 </td>

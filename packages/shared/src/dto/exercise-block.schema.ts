@@ -404,11 +404,47 @@ export function trackableExercises<T extends { blocks: ExerciseBlocks }>(
  * La LIGNE de dosage qui accompagne l'unité `index`.
  *
  * Une grille qui détaille chaque série en donne une par unité ; une grille à ligne commune la
- * répète. Un décalage — quatre séries, deux lignes — se replie sur la première : l'athlète voit
- * un dosage plausible plutôt qu'une case vide, et le décalage reste l'affaire du coach.
+ * répète. Un décalage — quatre séries, deux lignes — se replie sur la DERNIÈRE (#520) : c'est ce
+ * que fait « Ajouter une ligne », qui la duplique, et ce que la grille du coach montre en fantôme
+ * (« reprend la série 2 »). Le repli sur la première faisait jouer 1 kg, 2 kg, 1 kg, 1 kg sans que
+ * le coach le voie nulle part.
  */
 export function rowForUnit(block: ExerciseBlock, index: number): BlockRow | null {
-  return block.rows[index] ?? block.rows[0] ?? null;
+  return block.rows[index] ?? block.rows.at(-1) ?? null;
+}
+
+/**
+ * Une ligne telle que l'athlète la LIT : la ligne de dosage, et les unités qu'elle couvre — de
+ * `from` à `to`, comptées à partir de 1.
+ */
+export type ReadingRow = { row: BlockRow; from: number; to: number };
+
+/**
+ * Les lignes que l'athlète lit, dans l'ordre.
+ *
+ * Une Séries ne montre que les séries JOUÉES : les dernières, qui reprennent la même ligne, se
+ * regroupent (« 2–4 ») au lieu d'aligner deux lignes pour quatre séries, et une ligne au-delà du
+ * nombre de séries — que personne ne jouera — disparaît. Les autres types gardent leurs lignes
+ * telles quelles : ce sont des postes ou des étapes, pas des répétitions.
+ */
+export function readingRows(block: ExerciseBlock): ReadingRow[] {
+  const structure = block.structure;
+  if (structure.type !== BlockType.SERIES) {
+    return block.rows.map((row, index) => ({ row, from: index + 1, to: index + 1 }));
+  }
+
+  const played = block.rows.slice(0, structure.setCount);
+  return played.map((row, index) => ({
+    row,
+    from: index + 1,
+    // La dernière ligne jouée couvre aussi les séries qui la reprennent (`rowForUnit`).
+    to: index === played.length - 1 ? structure.setCount : index + 1,
+  }));
+}
+
+/** Le repère d'une ligne lue : « 3 », ou « 2–4 » quand elle couvre plusieurs séries. */
+export function readingRowLabel(reading: ReadingRow): string {
+  return reading.from === reading.to ? String(reading.from) : `${reading.from}–${reading.to}`;
 }
 
 // ── L'état du suivi ─────────────────────────────────────────────────────────────────────────
@@ -518,7 +554,9 @@ export function fittingColumnCount(
  * dosage, et les compter ferait basculer en cartes un tableau qui tient largement.
  */
 export function dosageLayout(block: ExerciseBlock, usableWidth?: number): DosageLayout {
-  if (block.rows.length <= 1) return DosageLayout.PHRASE;
+  // Les lignes LUES, pas les lignes stockées : une Séries d'une seule série dont la grille garde
+  // une ligne de trop se dit en phrase, comme toute ligne unique.
+  if (readingRows(block).length <= 1) return DosageLayout.PHRASE;
   const columns = block.metrics.filter((metric) => !metric.collapsed).length;
   return columns <= fittingColumnCount(usableWidth) ? DosageLayout.TABLE : DosageLayout.CARDS;
 }
@@ -736,6 +774,107 @@ export function withDuplicatedLastRow(
 ): ExerciseBlock["rows"] {
   if (rows.length >= BLOCK_MAX_ROWS) return rows;
   return [...rows, { id, values: { ...rows.at(-1)?.values } }];
+}
+
+// ── Les séries d'une grille ─────────────────────────────────────────────────────────────────
+
+export const GridSlotKind = {
+  /** Une ligne d'un bloc qui n'est pas une Séries : un poste, une étape — « Ligne n ». */
+  LINE: "LINE",
+  /** La ligne propre d'une série. */
+  SET: "SET",
+  /** Une série SANS ligne propre : elle reprend la dernière, et la grille la montre en fantôme. */
+  GHOST_SET: "GHOST_SET",
+  /** Une ligne au-delà du nombre de séries : stockée, mais personne ne la jouera. */
+  UNPLAYED: "UNPLAYED",
+} as const;
+export type GridSlotKind = TypesValuesOf<typeof GridSlotKind>;
+
+export type GridSlot =
+  | { kind: typeof GridSlotKind.LINE; index: number; row: BlockRow }
+  | { kind: typeof GridSlotKind.SET; index: number; row: BlockRow }
+  | {
+      kind: typeof GridSlotKind.GHOST_SET;
+      index: number;
+      /** La ligne reprise — la dernière —, ou `null` sur une grille vide : rien à reprendre. */
+      source: { index: number; row: BlockRow } | null;
+    }
+  | { kind: typeof GridSlotKind.UNPLAYED; index: number; row: BlockRow };
+
+/**
+ * Ce que la grille du coach affiche, ligne à ligne (#520).
+ *
+ * Une Séries montre AUTANT de lignes que de séries : celles qui n'ont pas de ligne propre y
+ * figurent en fantôme, avec la ligne qu'elles reprennent — exactement ce que `rowForUnit` fera
+ * jouer à l'athlète. Les lignes au-delà du nombre de séries restent visibles, marquées non jouées,
+ * pour que le coach les retire ou remonte le nombre de séries.
+ *
+ * Les lignes stockées viennent toujours en premier, dans leur ordre : les fantômes ne peuvent
+ * suivre que la dernière d'entre elles, et ils n'existent que si les lignes ne couvrent pas toutes
+ * les séries — fantômes et lignes non jouées ne coexistent donc jamais.
+ *
+ * `index` est le rang dans la grille affichée, compté à partir de 0.
+ */
+export function gridSlots(block: ExerciseBlock): GridSlot[] {
+  const structure = block.structure;
+  if (structure.type !== BlockType.SERIES) {
+    return block.rows.map((row, index) => ({ kind: GridSlotKind.LINE, index, row }));
+  }
+
+  const stored: GridSlot[] = block.rows.map((row, index) =>
+    index < structure.setCount
+      ? { kind: GridSlotKind.SET, index, row }
+      : { kind: GridSlotKind.UNPLAYED, index, row },
+  );
+  const last = block.rows.at(-1);
+  const source = last == null ? null : { index: block.rows.length - 1, row: last };
+  const ghosts: GridSlot[] = Array.from(
+    { length: Math.max(structure.setCount - block.rows.length, 0) },
+    (_unused, offset) => ({
+      kind: GridSlotKind.GHOST_SET,
+      index: block.rows.length + offset,
+      source,
+    }),
+  );
+  return [...stored, ...ghosts];
+}
+
+/**
+ * Les lignes, prolongées jusqu'à la série `index` incluse : chaque ligne créée recopie la dernière,
+ * c'est-à-dire ce que la série jouait déjà en fantôme. Matérialiser ne change donc rien à ce que
+ * l'athlète fera — seule la valeur que le coach tape ensuite le change.
+ *
+ * `newId(index)` fournit l'identifiant de la ligne créée à ce rang : la grille réserve ceux de ses
+ * fantômes, pour qu'une ligne qui se matérialise garde sa place — et le focus — à l'écran.
+ * Plafonné à `BLOCK_MAX_ROWS`, comme tout ajout de ligne.
+ */
+export function withMaterializedSeries(
+  rows: ExerciseBlock["rows"],
+  index: number,
+  newId: (index: number) => string,
+): ExerciseBlock["rows"] {
+  const length = Math.min(index + 1, BLOCK_MAX_ROWS);
+  if (rows.length >= length) return rows;
+  const values = rows.at(-1)?.values;
+  const created = Array.from({ length: length - rows.length }, (_unused, offset) => ({
+    id: newId(rows.length + offset),
+    values: { ...values },
+  }));
+  return [...rows, ...created];
+}
+
+/**
+ * Les lignes qu'un remplissage de colonne réécrit. En Séries, ce sont les N séries : « 8 · 10 ·
+ * 12 · 14 » sur quatre séries en écrit quatre, même si la grille n'en détaillait que deux — sinon
+ * le remplissage s'arrêterait là où la grille, elle, affiche encore des séries.
+ */
+export function fillableRows(
+  block: ExerciseBlock,
+  newId: (index: number) => string,
+): ExerciseBlock["rows"] {
+  const structure = block.structure;
+  if (structure.type !== BlockType.SERIES) return block.rows;
+  return withMaterializedSeries(block.rows, structure.setCount - 1, newId);
 }
 
 // ── Valeurs de départ ───────────────────────────────────────────────────────────────────────
@@ -964,8 +1103,9 @@ export type BlockSegment = {
  *
  * Deux lectures des lignes, selon le type — et c'est le type qui tranche, jamais une heuristique
  * sur leur nombre :
- *  - **Séries** : une ligne = une SÉRIE (c'est déjà ce que dit `rowForUnit`). Le repos d'une ligne
- *    l'emporte sur le repos d'ensemble — « 8 min entre séries, sauf 1 min après la troisième ».
+ *  - **Séries** : une ligne = une SÉRIE (c'est déjà ce que dit `rowForUnit`) ; une série sans ligne
+ *    propre reprend la dernière. Le repos d'une ligne l'emporte sur le repos d'ensemble — « 8 min
+ *    entre séries, sauf 1 min après la troisième ».
  *  - **Circuit** : une ligne = une STATION, et la grille entière se rejoue à chaque tour. C'est là
  *    que vivent les deux repos : celui d'une station et celui, plus long, entre deux tours.
  *  - **Libre** : une ligne = une étape, jouée une fois.

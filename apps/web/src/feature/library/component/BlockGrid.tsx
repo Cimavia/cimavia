@@ -1,18 +1,9 @@
-import {
-  BLOCK_MAX_ROWS,
-  type CustomMetric,
-  type ExerciseBlock,
-  type MetricValue,
-  metricUnitLabel,
-  withCellValue,
-  withDuplicatedLastRow,
-} from "@cmv/shared";
+import { type CustomMetric, type ExerciseBlock, metricUnitLabel, withCellValue } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { IoTrashOutline } from "react-icons/io5";
+import { BlockGridHead, BlockGridRow } from "@/feature/library/component/BlockGridRow";
 import { ColumnMenu } from "@/feature/library/component/ColumnMenu";
-import { GridCell } from "@/feature/library/component/GridCell";
-import { CMV_TABLE, CmvButton, CmvDragHandle } from "@/shared/component";
-import { useReorderDrag } from "@/shared/hook/useReorderDrag";
+import { useBlockRows } from "@/feature/library/hook/useBlockRows";
+import { CMV_TABLE, CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type BlockGridProps = {
@@ -28,12 +19,9 @@ type BlockGridProps = {
   onChange: (block: ExerciseBlock) => void;
 };
 
-type Row = ExerciseBlock["rows"][number];
-
-const newRowId = () => crypto.randomUUID();
-
 /**
- * La grille de dosage d'un bloc : une colonne par métrique, une ligne par effort distinct.
+ * La grille de dosage d'un bloc : une colonne par métrique, une ligne par effort distinct — en
+ * Séries, une ligne par SÉRIE, fantômes compris (#520).
  *
  * Une grille SANS LIGNE garde ses en-têtes — le coach voit ce qu'on va lui demander — et c'est un
  * état valide, pas une erreur.
@@ -46,46 +34,11 @@ export function BlockGrid({
   onChange,
 }: Readonly<BlockGridProps>) {
   const { t } = useTranslation();
+  const rows = useBlockRows(block, (next) => onChange({ ...block, rows: next }));
 
-  const isFull = block.rows.length >= BLOCK_MAX_ROWS;
   // Une colonne repliée quitte la grille et rejoint le bandeau : elle n'y répéterait que la même
   // valeur autant de fois qu'il y a de lignes.
   const shown = block.metrics.filter((metric) => !metric.collapsed);
-
-  function setRows(rows: Row[]) {
-    onChange({ ...block, rows });
-  }
-
-  /** « Ajouter une ligne » DUPLIQUE la dernière : deux séries se ressemblent presque toujours. */
-  function addRow() {
-    setRows(withDuplicatedLastRow(block.rows, newRowId()));
-  }
-
-  function setValue(rowId: string, metricId: string, value: MetricValue) {
-    setRows(withCellValue(block.rows, rowId, metricId, value));
-  }
-
-  /**
-   * Entrée sur la DERNIÈRE ligne : la valeur validée et la nouvelle ligne partent en UNE écriture.
-   * En deux, l'ajout — calculé sur les lignes d'avant la frappe — effaçait la valeur (#299).
-   */
-  function commitLastLine(rowId: string, metricId: string, value: MetricValue) {
-    setRows(withDuplicatedLastRow(withCellValue(block.rows, rowId, metricId, value), newRowId()));
-  }
-
-  function removeRow(rowId: string) {
-    setRows(block.rows.filter((row) => row.id !== rowId));
-  }
-
-  // L'ordre du tableau EST l'ordre affiché : déplacer l'élément suffit, rien à renuméroter.
-  function moveRow(fromIndex: number, to: number) {
-    if (to < 0 || to >= block.rows.length) return;
-    const next = [...block.rows];
-    next.splice(to, 0, ...next.splice(fromIndex, 1));
-    setRows(next);
-  }
-
-  const drag = useReorderDrag(moveRow);
 
   return (
     <div className="flex flex-col gap-cmv-sm">
@@ -93,97 +46,58 @@ export function BlockGrid({
           tableau de défiler — jamais à la page. */}
       <div className={cn("overflow-x-auto", CMV_TABLE.frame)}>
         <table className={CMV_TABLE.table}>
-          <thead>
-            <tr className={cn(CMV_TABLE.head, block.rows.length > 0 && CMV_TABLE.headBorder)}>
-              <th className={cn("w-20", CMV_TABLE.headCell)} scope="col">
-                <span className="sr-only">{t("library.builder.grid.rowIndex")}</span>
-              </th>
-              {shown.map((metric) => {
-                const unit = metricUnitLabel(metric, customMetrics, t);
-                return (
-                  <th key={metric.id} scope="col" className={CMV_TABLE.headCell}>
-                    <ColumnMenu
-                      block={block}
-                      metric={metric}
-                      customMetrics={customMetrics}
-                      openMetricId={openMetricId}
-                      onOpenChange={onOpenChange}
-                      onChange={onChange}
-                    />
-                    {/* L'unité reste en casse normale : « kg » n'est pas un titre de colonne. */}
-                    {unit == null ? null : (
-                      <span className="block text-cmv-caption text-cmv-text-lo">{unit}</span>
-                    )}
-                  </th>
-                );
-              })}
-              <th className={cn("w-10", CMV_TABLE.headCell)} scope="col">
-                <span className="sr-only">{t("library.builder.grid.rowActions")}</span>
-              </th>
-            </tr>
-          </thead>
+          <BlockGridHead isSeries={rows.isSeries} hasRows={rows.slots.length > 0}>
+            {shown.map((metric) => {
+              const unit = metricUnitLabel(metric, customMetrics, t);
+              return (
+                <th key={metric.id} scope="col" className={CMV_TABLE.headCell}>
+                  <ColumnMenu
+                    block={block}
+                    metric={metric}
+                    customMetrics={customMetrics}
+                    openMetricId={openMetricId}
+                    onOpenChange={onOpenChange}
+                    onChange={onChange}
+                  />
+                  {/* L'unité reste en casse normale : « kg » n'est pas un titre de colonne. */}
+                  {unit == null ? null : (
+                    <span className="block text-cmv-caption text-cmv-text-lo">{unit}</span>
+                  )}
+                </th>
+              );
+            })}
+          </BlockGridHead>
 
           <tbody>
-            {block.rows.map((row, index) => (
-              <tr
-                key={row.id}
-                {...drag.rowProps(index)}
-                className={cn(
-                  CMV_TABLE.row,
-                  drag.isDragging(index) && "opacity-40",
-                  drag.isOver(index) && "bg-cmv-accent-soft",
-                )}
-              >
-                <td className={CMV_TABLE.cell}>
-                  <div className="flex items-center gap-cmv-xs">
-                    <CmvDragHandle
-                      label={`${t("library.builder.grid.moveRow")} ${index + 1}`}
-                      {...drag.handleProps(index)}
-                      onMove={(direction) => moveRow(index, index + direction)}
-                    />
-                    <span className={CMV_TABLE.index}>{index + 1}</span>
-                  </div>
-                </td>
-
-                {shown.map((metric) => (
-                  <td key={metric.id} className={CMV_TABLE.cell}>
-                    <GridCell
-                      metric={metric}
-                      customMetrics={customMetrics}
-                      value={row.values[metric.id] ?? null}
-                      onChange={(value) => setValue(row.id, metric.id, value)}
-                      // Entrée sur la DERNIÈRE ligne en crée une nouvelle ; ailleurs elle ne fait
-                      // que valider, sinon on insérerait des lignes au milieu par accident.
-                      onCommitLine={(value) => {
-                        if (index === block.rows.length - 1) {
-                          commitLastLine(row.id, metric.id, value);
-                        }
-                      }}
-                    />
-                  </td>
-                ))}
-
-                <td className={CMV_TABLE.cell}>
-                  <CmvButton
-                    variant="ghost"
-                    title={t("library.builder.grid.removeRow")}
-                    onClick={() => removeRow(row.id)}
-                  >
-                    <IoTrashOutline />
-                  </CmvButton>
-                </td>
-              </tr>
+            {rows.slots.map((slot) => (
+              <BlockGridRow
+                key={rows.keyOf(slot)}
+                slot={slot}
+                metrics={shown}
+                customMetrics={customMetrics}
+                rows={rows}
+                onCellChange={(rowId, metricId, value) =>
+                  onChange({ ...block, rows: withCellValue(block.rows, rowId, metricId, value) })
+                }
+              />
             ))}
           </tbody>
         </table>
       </div>
 
       <div className="flex flex-wrap items-center gap-cmv-md">
-        <CmvButton variant="secondary" onClick={addRow} disabled={isFull}>
-          {t("library.builder.grid.addRow")}
-        </CmvButton>
+        {/* En Séries, c'est le champ « Séries » du bandeau qui fixe le nombre de lignes. */}
+        {rows.canAddRow ? (
+          <CmvButton variant="secondary" onClick={rows.addRow} disabled={rows.isFull}>
+            {t("library.builder.grid.addRow")}
+          </CmvButton>
+        ) : null}
         <span className="text-cmv-caption text-cmv-text-lo">
-          {t("library.builder.grid.keyboardHint")}
+          {t(
+            rows.isSeries
+              ? "library.builder.grid.keyboardHintSeries"
+              : "library.builder.grid.keyboardHint",
+          )}
         </span>
       </div>
     </div>

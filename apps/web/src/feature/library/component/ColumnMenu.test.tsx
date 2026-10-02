@@ -237,12 +237,27 @@ describe("ColumnMenu — remplissage", () => {
     expect(onOpenChange).toHaveBeenCalledWith(null);
   });
 
+  // « Partout », ce sont les QUATRE séries : la troisième ligne a beau manquer, la grille l'affiche.
   it("recopie une première ligne vide comme vide partout", async () => {
     const { user, getByRole, filled } = setup(values(load, [null, 12, 14]));
 
     await user.click(getByRole("button", { name: "library.builder.column.fillSame" }));
 
-    expect(filled()).toEqual([null, null, null]);
+    expect(filled()).toEqual([null, null, null, null]);
+  });
+
+  // #520 : deux lignes détaillées, quatre séries. La progression couvre les quatre, pas deux.
+  it("remplit les N séries d'une Séries, fantômes compris", async () => {
+    const { user, getByRole, written } = setup(values(load, [10, 12]));
+
+    await user.click(getByRole("button", { name: FILL_STEP }));
+
+    expect(columnValues(written(), "col")).toEqual([10, 12, 14, 16]);
+    expect(
+      written()
+        .rows.slice(0, 2)
+        .map((row) => row.id),
+    ).toEqual(["r0", "r1"]);
   });
 
   it("ferme la progression quand la première ligne n'a pas de nombre", () => {

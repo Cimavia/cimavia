@@ -11,6 +11,7 @@ import { renderWithProviders } from "../../../../test/render";
 import { BlockIssues } from "./BlockIssues";
 
 const EMPTY_ROW = "library.builder.issue.emptyRow";
+const EMPTY_SET = "library.builder.issue.emptySet";
 const BAD_VALUE = "library.builder.issue.badValue";
 const ORPHAN = "library.builder.issue.orphanValue";
 
@@ -61,7 +62,31 @@ describe("BlockIssues", () => {
       { id: "r3", values: {} },
     ]);
 
-    expect(messages()).toEqual([EMPTY_ROW, EMPTY_ROW]);
+    expect(messages()).toEqual([EMPTY_SET, EMPTY_SET]);
+  });
+
+  // #520 : en Séries la grille dit « Série 2 » ; l'avertissement la nomme pareil. Au-delà du
+  // nombre de séries, la ligne n'est plus une série — elle reste « Ligne ».
+  it("nomme série une série jouée, et ligne celle que personne ne jouera", () => {
+    const { messages } = setup([
+      { id: "r1", values: { reps: 5, load: 20 } },
+      { id: "r2", values: {} },
+      { id: "r3", values: { reps: 5, load: 20 } },
+      { id: "r4", values: {} },
+    ]);
+
+    expect(messages()).toEqual([EMPTY_SET, EMPTY_ROW]);
+  });
+
+  it("nomme ligne la ligne vide d'un bloc qui n'est pas une Séries", () => {
+    const view = renderWithProviders(
+      <BlockIssues
+        block={{ ...block([{ id: "r1", values: {} }]), structure: { type: BlockType.FREE } }}
+        customMetrics={[]}
+      />,
+    );
+
+    expect(view.getByRole("listitem")).toHaveTextContent(EMPTY_ROW);
   });
 
   // Trois erreurs dans la même colonne disent la même chose : UN message par colonne.
@@ -87,6 +112,6 @@ describe("BlockIssues", () => {
       { id: "r2", values: { reps: null, load: null } },
     ]);
 
-    expect(messages()).toEqual([EMPTY_ROW, BAD_VALUE]);
+    expect(messages()).toEqual([EMPTY_SET, BAD_VALUE]);
   });
 });

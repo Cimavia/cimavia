@@ -25,7 +25,11 @@ export const CMV_TABLE = {
   /** Un filet sous chaque ligne : sans lui, une grille à cinq lignes se lit comme un bloc. */
   row: "border-cmv-border border-b last:border-b-0",
   cell: "px-cmv-sm py-cmv-sm align-middle",
-  /** L'index de ligne, dans sa pastille — le repère visuel des maquettes. */
+  /**
+   * L'index de ligne, dans sa pastille — le repère visuel des maquettes. Une LARGEUR MINIMALE et
+   * non une taille fixe : la lecture d'une Séries regroupe ses dernières séries (« 2–4 », #520),
+   * qui débordaient d'un carré de 24 px. Un chiffre seul garde le carré.
+   */
   index:
-    "inline-flex size-6 items-center justify-center rounded-cmv-sm bg-cmv-surface-hi text-cmv-caption text-cmv-text-mid",
+    "inline-flex h-6 min-w-6 items-center justify-center whitespace-nowrap rounded-cmv-sm bg-cmv-surface-hi px-cmv-xs text-cmv-caption text-cmv-text-mid",
 } as const;

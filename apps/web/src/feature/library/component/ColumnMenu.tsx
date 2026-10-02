@@ -6,6 +6,7 @@ import {
   canCollapseMetric,
   columnValues,
   type ExerciseBlock,
+  fillableRows,
   fillColumn,
   METRIC_CATALOG,
   METRIC_UNIT_LABEL_KEY,
@@ -229,8 +230,17 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
     parsedStep != null && typeof first === "number"
       ? { mode: ColumnFillMode.STEP, start: first, step: parsedStep }
       : null;
-  const fillWith = (plan: ColumnFillPlan | null) =>
-    plan == null ? undefined : () => onFill(fillColumn(block, metric.id, plan));
+  // En Séries, le remplissage couvre les N séries — fantômes compris : la grille les affiche, et
+  // « 8 · 10 · 12 · 14 » qui s'arrêterait à la deuxième ligne mentirait sur ce qu'elle montre.
+  const fill = (plan: ColumnFillPlan) =>
+    onFill(
+      fillColumn(
+        { ...block, rows: fillableRows(block, () => crypto.randomUUID()) },
+        metric.id,
+        plan,
+      ),
+    );
+  const fillWith = (plan: ColumnFillPlan | null) => (plan == null ? undefined : () => fill(plan));
 
   // Sans ligne, aucun remplissage n'a de sens — mais un menu à moitié vide se lit comme un bug.
   // On dit ce qui manque plutôt que de ne rien montrer.
@@ -250,17 +260,12 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
       <div className="flex flex-col items-start gap-cmv-xs pl-cmv-sm">
         <CmvButton
           variant="ghost"
-          onClick={() =>
-            onFill(fillColumn(block, metric.id, { mode: ColumnFillMode.SAME, value: first }))
-          }
+          onClick={() => fill({ mode: ColumnFillMode.SAME, value: first })}
         >
           {t("library.builder.column.fillSame")}
         </CmvButton>
 
-        <CmvButton
-          variant="ghost"
-          onClick={() => onFill(fillColumn(block, metric.id, { mode: ColumnFillMode.MIRROR }))}
-        >
+        <CmvButton variant="ghost" onClick={() => fill({ mode: ColumnFillMode.MIRROR })}>
           {t("library.builder.column.fillMirror")}
         </CmvButton>
 

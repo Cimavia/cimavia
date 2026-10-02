@@ -26,10 +26,14 @@ const column = (id: string, key: MetricKey, unit: MetricUnit): BlockMetric => ({
 const reps = column("reps", MetricKey.REPETITIONS, MetricUnit.REPS);
 const rest = column("rest", MetricKey.REST_BETWEEN_SETS, MetricUnit.NONE);
 
+/**
+ * Un bloc LIBRE : ses lignes sont des étapes, qu'on ajoute, valide et déplace librement. La Séries,
+ * dont la grille suit le nombre de séries (#520), a ses propres tests plus bas.
+ */
 const block = (rows: ExerciseBlock["rows"]): ExerciseBlock => ({
   id: "block-1",
   label: null,
-  structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
+  structure: { type: BlockType.FREE },
   metrics: [reps, rest],
   rows,
 });
@@ -190,5 +194,171 @@ describe("BlockGrid — les lignes", () => {
 
     expect(row(1)).not.toHaveClass("opacity-40");
     expect(row(3)).not.toHaveClass("bg-cmv-accent-soft");
+  });
+});
+
+// ── Séries : une ligne par série (#520) ──────────────────────────────────────────────────────
+
+const GHOST_OF = "library.builder.grid.ghostOf";
+const UNPLAYED = "library.builder.grid.unplayed";
+
+const seriesOf = (rows: ExerciseBlock["rows"], setCount: number): ExerciseBlock => ({
+  ...block(rows),
+  structure: { type: BlockType.SERIES, setCount, restBetweenSetsSeconds: null },
+});
+
+function setupSeries(rows: ExerciseBlock["rows"], setCount: number) {
+  const onRows = vi.fn();
+  const view = renderWithProviders(<Harness initial={seriesOf(rows, setCount)} onRows={onRows} />);
+  const lastRows = () => onRows.mock.lastCall?.[0] as ExerciseBlock["rows"];
+  const cells = () => view.getAllByRole("textbox") as HTMLInputElement[];
+  return { ...view, onRows, lastRows, cells };
+}
+
+/** Le cas du retour coach : 10 × 1 kg puis 10 × 2 kg, quatre séries. */
+const twoOfFour = () =>
+  setupSeries(
+    [
+      { id: "r1", values: { reps: 10, rest: 60 } },
+      { id: "r2", values: { reps: 12, rest: 90 } },
+    ],
+    4,
+  );
+
+describe("BlockGrid — Séries", () => {
+  it("intitule la colonne d'index « Série », en clair", () => {
+    const { getByRole } = twoOfFour();
+
+    expect(getByRole("columnheader", { name: "library.builder.grid.setIndex" })).toBeVisible();
+  });
+
+  it("montre autant de lignes que de séries, les dernières reprenant la dernière ligne", () => {
+    const { cells, getAllByText } = twoOfFour();
+
+    expect(cells().map((cell) => cell.value)).toEqual([
+      "10",
+      "1'",
+      "12",
+      "1'30",
+      "12",
+      "1'30",
+      "12",
+      "1'30",
+    ]);
+    // « reprend la série 2 », sur les séries 3 et 4.
+    expect(getAllByText(GHOST_OF)).toHaveLength(2);
+  });
+
+  // Rien à reprendre sur une grille vide : la cellule dit « — », aucune valeur inventée (règle n°5).
+  it("montre des séries vides et saisissables sur une grille sans ligne", () => {
+    const { cells, queryByText } = setupSeries([], 3);
+
+    expect(cells()).toHaveLength(6);
+    expect(cells().every((cell) => cell.value === "")).toBe(true);
+    expect(cells()[0]).toHaveAttribute("placeholder", "library.builder.grid.emptyValue");
+    expect(queryByText(GHOST_OF)).not.toBeInTheDocument();
+  });
+
+  it("donne sa ligne à une série fantôme — et aux fantômes qui la précèdent", async () => {
+    const { user, cells, lastRows } = twoOfFour();
+
+    const series4 = cells()[6] as HTMLElement;
+    await user.clear(series4);
+    await user.type(series4, "8");
+    await user.tab();
+
+    expect(lastRows().map((row) => row.values)).toEqual([
+      { reps: 10, rest: 60 },
+      { reps: 12, rest: 90 },
+      { reps: 12, rest: 90 },
+      { reps: 8, rest: 90 },
+    ]);
+  });
+
+  // Le coach tabule hors de la cellule qu'il vient de remplir : la ligne se matérialise sous lui,
+  // et le focus doit rester dans la ligne plutôt que de retomber sur la page.
+  it("garde le focus dans la série qui vient de recevoir sa ligne", async () => {
+    const { user, cells } = twoOfFour();
+
+    const series3 = cells()[4] as HTMLElement;
+    await user.clear(series3);
+    await user.type(series3, "8");
+    await user.tab();
+
+    expect(document.activeElement).toBe(cells()[5]);
+  });
+
+  it("ne crée pas de ligne sur Entrée, même sur la dernière série", async () => {
+    const { user, cells, lastRows } = setupSeries([{ id: "r1", values: { reps: 5 } }], 1);
+
+    await user.type(cells()[1] as HTMLElement, "2:30{Enter}");
+
+    expect(lastRows().map((row) => row.values)).toEqual([{ reps: 5, rest: 150 }]);
+  });
+
+  // Entrée dans un fantôme valide la saisie — qui lui donne sa ligne — sans en créer d'autre.
+  it("ne crée que la série visée sur Entrée dans un fantôme", async () => {
+    const { user, cells, lastRows } = setupSeries([{ id: "r1", values: { reps: 5 } }], 2);
+
+    const series2 = cells()[2] as HTMLElement;
+    await user.clear(series2);
+    await user.type(series2, "6{Enter}");
+
+    expect(lastRows().map((row) => row.values.reps)).toEqual([5, 6]);
+  });
+
+  it("n'offre pas d'ajouter une ligne : le nombre de séries la fixe", () => {
+    const { queryByRole, getByText } = twoOfFour();
+
+    expect(queryByRole("button", { name: "library.builder.grid.addRow" })).not.toBeInTheDocument();
+    expect(getByText("library.builder.grid.keyboardHintSeries")).toBeInTheDocument();
+  });
+
+  // Les lignes sont un tableau : la suivante remonte, et la dernière série redevient fantôme.
+  it("rend fantôme la dernière série quand on retire une série détaillée", async () => {
+    const { user, getAllByRole, getAllByText, lastRows } = twoOfFour();
+
+    await user.click(
+      getAllByRole("button", { name: "library.builder.grid.removeRow" })[0] as HTMLElement,
+    );
+
+    expect(lastRows().map((row) => row.id)).toEqual(["r2"]);
+    expect(getAllByText(GHOST_OF)).toHaveLength(3);
+  });
+
+  it("marque non jouées les lignes au-delà du nombre de séries, et les laisse retirer", async () => {
+    const { user, getAllByText, getAllByRole, lastRows } = setupSeries(
+      [1, 2, 3].map((value) => ({ id: `r${value}`, values: { reps: value } })),
+      1,
+    );
+
+    expect(getAllByText(UNPLAYED)).toHaveLength(2);
+
+    await user.click(
+      getAllByRole("button", { name: "library.builder.grid.removeRow" })[2] as HTMLElement,
+    );
+
+    expect(lastRows().map((row) => row.id)).toEqual(["r1", "r2"]);
+  });
+
+  it("suit le nombre de séries : fantômes en plus, lignes non jouées en moins", () => {
+    const four = [1, 2, 3, 4].map((value) => ({ id: `r${value}`, values: { reps: value } }));
+    const grid = (setCount: number) => (
+      <BlockGrid
+        block={seriesOf(four, setCount)}
+        customMetrics={[]}
+        openMetricId={null}
+        onOpenChange={() => undefined}
+        onChange={() => undefined}
+      />
+    );
+    const { rerender, queryAllByText } = renderWithProviders(grid(4));
+    expect(queryAllByText(GHOST_OF)).toHaveLength(0);
+
+    rerender(grid(6));
+    expect(queryAllByText(GHOST_OF)).toHaveLength(2);
+
+    rerender(grid(2));
+    expect(queryAllByText(UNPLAYED)).toHaveLength(2);
   });
 });

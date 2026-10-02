@@ -93,6 +93,48 @@ describe("PreviewBlock — plusieurs lignes", () => {
   });
 });
 
+describe("PreviewBlock — les séries jouées (#520)", () => {
+  const indexes = (container: HTMLElement) =>
+    [...container.querySelectorAll("tbody tr td:first-child")].map((cell) => cell.textContent);
+
+  // Quatre séries, deux lignes : la deuxième couvre aussi les séries 3 et 4, et le dit.
+  it("regroupe les séries qui reprennent la dernière ligne", () => {
+    const { container } = renderWithProviders(
+      <PreviewBlock
+        block={block([
+          { id: "r1", values: { col_reps: 10, col_load: 1 } },
+          { id: "r2", values: { col_reps: 10, col_load: 2 } },
+        ])}
+        customMetrics={[]}
+      />,
+    );
+
+    expect(indexes(container)).toEqual(["1", "2–4"]);
+  });
+
+  it("tait une ligne que personne ne jouera", () => {
+    const one = {
+      ...block([]),
+      structure: { type: BlockType.SERIES, setCount: 1, restBetweenSetsSeconds: null },
+    };
+    const { container } = renderWithProviders(
+      <PreviewBlock
+        block={{
+          ...one,
+          rows: [
+            { id: "r1", values: { col_reps: 6 } },
+            { id: "r2", values: { col_reps: 99 } },
+          ],
+        }}
+        customMetrics={[]}
+      />,
+    );
+
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.textContent).not.toContain("99");
+  });
+});
+
 describe("PreviewBlock — le bandeau", () => {
   it("annonce le nom du bloc, sa structure et son repos", () => {
     const { container } = renderWithProviders(

@@ -143,6 +143,68 @@ describe("DosageBlock — les cartes (quatre colonnes et plus)", () => {
   });
 });
 
+/**
+ * #520 : en Séries, une série sans ligne propre reprend la DERNIÈRE ligne. L'athlète lit donc ce
+ * qu'il jouera — les séries identiques regroupées sous une plage (« 2–4 »), et rien de ce qui
+ * dépasse le nombre de séries.
+ */
+describe("DosageBlock — les séries jouées (#520)", () => {
+  const series = (
+    setCount: number,
+    rows: ExerciseBlock["rows"],
+    metrics: ExerciseBlock["metrics"] = [reps, load],
+  ): ExerciseBlock =>
+    exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.SERIES, setCount, restBetweenSetsSeconds: null },
+      metrics,
+      rows,
+    });
+  const twoRows = [
+    { id: "r1", values: { col_reps: 6, col_load: 12, col_rpe: 8, col_grade: "6b" } },
+    { id: "r2", values: { col_reps: 8, col_load: 10, col_rpe: 7, col_grade: "6a" } },
+  ];
+
+  it("regroupe sous une plage les séries qui reprennent la dernière ligne", () => {
+    const { getByText } = renderRn(<DosageBlock block={series(4, twoRows)} customMetrics={[]} />);
+
+    expect(getByText("1")).toBeTruthy();
+    expect(getByText("2–4")).toBeTruthy();
+  });
+
+  it("numérote chaque série quand toutes ont leur ligne", () => {
+    const { getByText, container } = renderRn(
+      <DosageBlock block={series(2, twoRows)} customMetrics={[]} />,
+    );
+
+    expect(getByText("2")).toBeTruthy();
+    expect(container.textContent).not.toContain("–");
+  });
+
+  it("regroupe aussi sur les cartes", () => {
+    const { getByText } = renderRn(
+      <DosageBlock block={series(4, twoRows, [reps, load, rpe, grade])} customMetrics={[]} />,
+    );
+
+    expect(getByText("2–4")).toBeTruthy();
+  });
+
+  it("tait une ligne au-delà du nombre de séries : personne ne la jouera", () => {
+    const rows = [...twoRows, { id: "r3", values: { col_reps: 99, col_load: 99 } }];
+    const { container } = renderRn(<DosageBlock block={series(2, rows)} customMetrics={[]} />);
+
+    expect(container.textContent).not.toContain("99");
+  });
+
+  it("dit en phrase une série unique, même si le coach a détaillé d'autres lignes", () => {
+    const { container } = renderRn(<DosageBlock block={series(1, twoRows)} customMetrics={[]} />);
+
+    expect(container.textContent).toContain(`6 ${REPS_UNIT} · 12 ${LOAD_UNIT}`);
+    expect(container.textContent).not.toContain(`8 ${REPS_UNIT}`);
+  });
+});
+
 describe("DosageBlock — le bandeau", () => {
   it("assemble le nom du bloc et la structure", () => {
     const { container } = renderRn(

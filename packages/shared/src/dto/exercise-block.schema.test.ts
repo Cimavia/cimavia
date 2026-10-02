@@ -21,13 +21,18 @@ import {
   emptyRowIndexes,
   exerciseBlockSchema,
   exerciseBlocksSchema,
+  fillableRows,
   fillColumn,
   fittingColumnCount,
+  GridSlotKind,
+  gridSlots,
   MetricKey,
   MetricSource,
   MetricUnit,
   MetricValueType,
   metricValueTypeOf,
+  readingRowLabel,
+  readingRows,
   restPhrase,
   rowForUnit,
   SegmentKind,
@@ -45,6 +50,7 @@ import {
   validateBlockValues,
   withCellValue,
   withDuplicatedLastRow,
+  withMaterializedSeries,
 } from "../index";
 
 const reps = {
@@ -1090,13 +1096,169 @@ describe("rowForUnit", () => {
     expect(rowForUnit(block, 1)?.id).toBe("r2");
   });
 
-  // Quatre séries, deux lignes : la troisième se replie sur la première plutôt qu'une case vide.
-  it("se replie sur la première ligne au-delà de la grille", () => {
-    expect(rowForUnit(block, 3)?.id).toBe("r1");
+  // Quatre séries, deux lignes : les deux dernières reprennent la DERNIÈRE ligne, comme « Ajouter
+  // une ligne » la duplique et comme la grille du coach les montre en fantôme (#520).
+  it("se replie sur la dernière ligne au-delà de la grille", () => {
+    expect(rowForUnit(block, 2)?.id).toBe("r2");
+    expect(rowForUnit(block, 3)?.id).toBe("r2");
   });
 
   it("rend null sur un bloc sans ligne", () => {
     expect(rowForUnit(seriesBlock([]), 0)).toBeNull();
+  });
+
+  // Le cas du retour coach : 10 × 1 kg puis 10 × 2 kg, quatre séries. L'athlète jouait 1, 2, 1, 1.
+  it("fait jouer la dernière ligne aux séries non détaillées du déroulé", () => {
+    const loads = blockSegments(
+      seriesBlock([
+        { id: "r1", values: { col_reps: 10, col_load: 1 } },
+        { id: "r2", values: { col_reps: 10, col_load: 2 } },
+      ]),
+    )
+      .filter((segment) => segment.kind === SegmentKind.MANUAL)
+      .map((segment) => segment.rowId);
+
+    expect(loads).toEqual(["r1", "r2", "r2", "r2"]);
+  });
+});
+
+/** `count` lignes vides, nommées r1, r2… */
+const emptyRows = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ id: `r${index + 1}`, values: {} }));
+
+/** Une Séries de `setCount` séries dont la grille porte `count` lignes. */
+const withSets = (count: number, setCount: number): ExerciseBlock => {
+  const block = seriesBlock(emptyRows(count));
+  return { ...block, structure: { ...block.structure, setCount } } as ExerciseBlock;
+};
+
+describe("readingRows", () => {
+  const read = (block: ExerciseBlock) =>
+    readingRows(block).map((reading) => [reading.row.id, readingRowLabel(reading)]);
+
+  it("regroupe les séries qui reprennent la dernière ligne", () => {
+    expect(read(withSets(2, 4))).toEqual([
+      ["r1", "1"],
+      ["r2", "2–4"],
+    ]);
+  });
+
+  it("lit une grille commune comme une seule ligne pour toutes les séries", () => {
+    expect(read(withSets(1, 4))).toEqual([["r1", "1–4"]]);
+  });
+
+  it("lit une ligne par série quand la grille les détaille toutes", () => {
+    expect(read(withSets(3, 3))).toEqual([
+      ["r1", "1"],
+      ["r2", "2"],
+      ["r3", "3"],
+    ]);
+  });
+
+  // Personne ne jouera la quatrième : l'annoncer à l'athlète lui ferait chercher une série de trop.
+  it("tait les lignes au-delà du nombre de séries", () => {
+    expect(read(withSets(4, 2))).toEqual([
+      ["r1", "1"],
+      ["r2", "2"],
+    ]);
+  });
+
+  it("ne lit rien d'une grille vide", () => {
+    expect(readingRows(withSets(0, 4))).toEqual([]);
+  });
+
+  it("garde chaque ligne d'un bloc qui n'est pas une Séries", () => {
+    expect(read(freeBlock(emptyRows(2), [reps]))).toEqual([
+      ["r1", "1"],
+      ["r2", "2"],
+    ]);
+  });
+
+  it("dit en phrase une Séries d'une série dont la grille garde une ligne de trop", () => {
+    expect(dosageLayout(withSets(2, 1))).toBe(DosageLayout.PHRASE);
+  });
+});
+
+describe("gridSlots", () => {
+  /** Chaque rang en abrégé : la nature, puis la ligne montrée ou reprise. */
+  const shape = (block: ExerciseBlock) =>
+    gridSlots(block).map((slot) =>
+      slot.kind === GridSlotKind.GHOST_SET
+        ? `${slot.index}:ghost<${slot.source?.row.id ?? "—"}`
+        : `${slot.index}:${slot.kind}=${slot.row.id}`,
+    );
+
+  // Aucune valeur inventée (règle n°5) : un fantôme sans ligne à reprendre ne reprend rien.
+  it("montre N séries fantômes sans source sur une grille vide", () => {
+    expect(shape(withSets(0, 2))).toEqual(["0:ghost<—", "1:ghost<—"]);
+  });
+
+  it("montre une grille commune comme la série 1, reprise par les autres", () => {
+    expect(shape(withSets(1, 3))).toEqual(["0:SET=r1", "1:ghost<r1", "2:ghost<r1"]);
+  });
+
+  it("fait reprendre la DERNIÈRE ligne aux séries non détaillées", () => {
+    const slots = gridSlots(withSets(2, 4));
+    expect(shape(withSets(2, 4))).toEqual(["0:SET=r1", "1:SET=r2", "2:ghost<r2", "3:ghost<r2"]);
+    expect(slots[2]).toMatchObject({ source: { index: 1 } });
+  });
+
+  it("montre une ligne par série quand elles se couvrent exactement", () => {
+    expect(shape(withSets(2, 2))).toEqual(["0:SET=r1", "1:SET=r2"]);
+  });
+
+  it("marque non jouées les lignes au-delà du nombre de séries", () => {
+    expect(shape(withSets(3, 1))).toEqual(["0:SET=r1", "1:UNPLAYED=r2", "2:UNPLAYED=r3"]);
+  });
+
+  it("garde de simples lignes sur un bloc qui n'est pas une Séries", () => {
+    expect(shape(freeBlock(emptyRows(2), [reps]))).toEqual(["0:LINE=r1", "1:LINE=r2"]);
+  });
+});
+
+describe("withMaterializedSeries", () => {
+  const ids = (index: number) => `new${index}`;
+
+  it("crée les lignes jusqu'à la série visée, en recopiant la dernière", () => {
+    const rows = [
+      { id: "r1", values: { col_load: 1 } },
+      { id: "r2", values: { col_load: 2 } },
+    ];
+    expect(withMaterializedSeries(rows, 3, ids)).toEqual([
+      ...rows,
+      { id: "new2", values: { col_load: 2 } },
+      { id: "new3", values: { col_load: 2 } },
+    ]);
+  });
+
+  it("crée des lignes vides sur une grille qui n'en a pas", () => {
+    expect(withMaterializedSeries([], 1, ids)).toEqual([
+      { id: "new0", values: {} },
+      { id: "new1", values: {} },
+    ]);
+  });
+
+  it("rend les lignes intactes quand la série a déjà la sienne", () => {
+    const rows = [{ id: "r1", values: {} }];
+    expect(withMaterializedSeries(rows, 0, ids)).toBe(rows);
+  });
+
+  it("s'arrête au plafond de lignes", () => {
+    expect(withMaterializedSeries([], BLOCK_MAX_ROWS + 5, ids)).toHaveLength(BLOCK_MAX_ROWS);
+  });
+});
+
+describe("fillableRows", () => {
+  const ids = (index: number) => `new${index}`;
+
+  it("détaille les N séries d'une Séries avant un remplissage", () => {
+    const rows = fillableRows(seriesBlock([{ id: "r1", values: { col_reps: 8 } }]), ids);
+    expect(rows.map((row) => row.id)).toEqual(["r1", "new1", "new2", "new3"]);
+  });
+
+  it("laisse les lignes des autres types telles quelles", () => {
+    const block = freeBlock([{ id: "r1", values: {} }], [reps]);
+    expect(fillableRows(block, ids)).toBe(block.rows);
   });
 });
 

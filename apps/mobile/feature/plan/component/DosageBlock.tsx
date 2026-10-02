@@ -6,6 +6,9 @@ import {
   formatMetricValue,
   metricCellText,
   metricLabel,
+  type ReadingRow,
+  readingRowLabel,
+  readingRows,
   restPhrase,
   structurePhrase,
 } from "@cmv/shared";
@@ -39,6 +42,7 @@ export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>
   const shown = block.metrics.filter((metric) => !metric.collapsed);
   const collapsed = block.metrics.filter((metric) => metric.collapsed);
   const layout = dosageLayout(block);
+  const readings = readingRows(block);
 
   const heading = [
     block.label,
@@ -55,7 +59,7 @@ export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>
 
       {layout === DosageLayout.PHRASE ? (
         <PhraseRows
-          block={block}
+          readings={readings}
           metrics={shown}
           customMetrics={customMetrics}
           t={t}
@@ -64,7 +68,7 @@ export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>
       ) : null}
       {layout === DosageLayout.TABLE ? (
         <TableRows
-          block={block}
+          readings={readings}
           metrics={shown}
           customMetrics={customMetrics}
           t={t}
@@ -73,7 +77,7 @@ export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>
       ) : null}
       {layout === DosageLayout.CARDS ? (
         <CardRows
-          block={block}
+          readings={readings}
           metrics={shown}
           customMetrics={customMetrics}
           t={t}
@@ -85,7 +89,8 @@ export function DosageBlock({ block, customMetrics }: Readonly<DosageBlockProps>
 }
 
 type RowsProps = {
-  block: ExerciseBlock;
+  /** Les lignes telles que l'athlète les joue : en Séries, les séries identiques regroupées (#520). */
+  readings: readonly ReadingRow[];
   metrics: ExerciseBlock["metrics"];
   customMetrics: readonly CustomMetric[];
   t: TFunction;
@@ -93,8 +98,8 @@ type RowsProps = {
 };
 
 /** Une seule ligne : elle se DIT. Un tableau à une ligne met un en-tête sur une seule valeur. */
-function PhraseRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
-  const row = block.rows.at(0);
+function PhraseRows({ readings, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
+  const row = readings.at(0)?.row;
   if (row == null) return null;
 
   // Sans filtre : une colonne vide se DIT « — », comme dans l'aperçu du web. La phrase montre les
@@ -114,31 +119,42 @@ function PhraseRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsP
  * Même habillage que le tableau du web — cadre, en-tête sur fond, filet entre les lignes,
  * pastille d'index. Les deux surfaces montrent la même donnée : les faire se ressembler évite au
  * coach de douter de ce que son athlète voit.
+ *
+ * La colonne d'index s'élargit dès qu'une pastille porte une plage de séries (« 2–4 ») : toutes
+ * les lignes la prennent, pour que les valeurs restent alignées sous leur en-tête.
  */
-function TableRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
+function TableRows({ readings, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
+  const indexWidth = readings.some((reading) => reading.from !== reading.to) ? "w-12" : "w-7";
   return (
     <View className="overflow-hidden rounded-lg border border-cmv-border">
       <View className="flex-row gap-2 border-cmv-border border-b bg-cmv-bg-1 px-2 py-2">
-        <CmvText className="w-7 text-cmv-text-lo text-xs"> </CmvText>
+        <CmvText className={`${indexWidth} text-cmv-text-lo text-xs`}> </CmvText>
         {metrics.map((metric) => (
           <CmvText key={metric.id} className="flex-1 text-cmv-text-lo text-xs">
             {metricLabel(metric, customMetrics, t).toUpperCase()}
           </CmvText>
         ))}
       </View>
-      {block.rows.map((row, index) => (
+      {readings.map((reading, index) => (
         <View
-          key={row.id}
+          key={reading.row.id}
           className={`flex-row items-center gap-2 px-2 py-2 ${
-            index === block.rows.length - 1 ? "" : "border-cmv-border border-b"
+            index === readings.length - 1 ? "" : "border-cmv-border border-b"
           }`}
         >
-          <View className="size-6 items-center justify-center rounded-md bg-cmv-surface">
-            <CmvText className="text-cmv-text-mid text-xs">{index + 1}</CmvText>
+          <View
+            className={`h-6 ${indexWidth} items-center justify-center rounded-md bg-cmv-surface`}
+          >
+            <CmvText className="text-cmv-text-mid text-xs">{readingRowLabel(reading)}</CmvText>
           </View>
           {metrics.map((metric) => (
             <CmvText key={metric.id} className="flex-1 font-cmv-mono text-cmv-text-hi text-sm">
-              {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics, locale)}
+              {formatMetricValue(
+                reading.row.values[metric.id] ?? null,
+                metric,
+                customMetrics,
+                locale,
+              )}
             </CmvText>
           ))}
         </View>
@@ -151,19 +167,24 @@ function TableRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsPr
  * Quatre colonnes et plus : une carte par ligne. C'est la seule forme qui ne demande jamais de
  * défiler latéralement, et elle nomme chaque valeur au lieu de compter sur un en-tête lointain.
  */
-function CardRows({ block, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
+function CardRows({ readings, metrics, customMetrics, t, locale }: Readonly<RowsProps>) {
   return (
     <View className="gap-2">
-      {block.rows.map((row, index) => (
-        <View key={row.id} className="gap-1 rounded-lg bg-cmv-bg-1 p-2">
-          <CmvText className="text-cmv-text-lo text-xs">{index + 1}</CmvText>
+      {readings.map((reading) => (
+        <View key={reading.row.id} className="gap-1 rounded-lg bg-cmv-bg-1 p-2">
+          <CmvText className="text-cmv-text-lo text-xs">{readingRowLabel(reading)}</CmvText>
           {metrics.map((metric) => (
             <View key={metric.id} className="flex-row justify-between gap-2">
               <CmvText className="text-cmv-text-mid text-xs">
                 {metricLabel(metric, customMetrics, t)}
               </CmvText>
               <CmvText className="font-cmv-mono text-cmv-text-hi text-sm">
-                {formatMetricValue(row.values[metric.id] ?? null, metric, customMetrics, locale)}
+                {formatMetricValue(
+                  reading.row.values[metric.id] ?? null,
+                  metric,
+                  customMetrics,
+                  locale,
+                )}
               </CmvText>
             </View>
           ))}

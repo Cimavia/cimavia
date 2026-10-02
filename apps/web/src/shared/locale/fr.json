@@ -275,12 +275,16 @@
       },
       "grid": {
         "rowIndex": "Ligne",
+        "setIndex": "Série",
+        "ghostOf": "reprend la série {{index}}",
+        "unplayed": "non jouée",
         "rowActions": "Actions",
         "moveRow": "Déplacer la ligne",
         "removeRow": "Retirer la ligne",
         "addRow": "Ajouter une ligne",
         "emptyValue": "—",
-        "keyboardHint": "Tabulation → cellule suivante · Entrée → valide et crée la ligne suivante."
+        "keyboardHint": "Tabulation → cellule suivante · Entrée → valide et crée la ligne suivante.",
+        "keyboardHintSeries": "Tabulation → cellule suivante · Entrée → valide la cellule. Le nombre de lignes suit le nombre de séries."
       },
       "column": {
         "unit": "Unité de la colonne",
@@ -350,6 +354,7 @@
       "titleRequired": "Le titre est requis pour enregistrer l'exercice.",
       "issue": {
         "emptyRow": "Ligne {{index}} incomplète — renseigne au moins une valeur, ou supprime la ligne.",
+        "emptySet": "Série {{index}} incomplète — renseigne au moins une valeur, ou supprime la ligne.",
         "badValue": "Colonne « {{column}} » : une valeur ne correspond pas au type attendu.",
         "orphanValue": "Une valeur appartient à une colonne qui n'existe plus."
       },

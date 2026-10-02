@@ -374,7 +374,8 @@ describe("CompositionCard", () => {
 
     it("remonte une valeur saisie, désignée par son bloc, sa ligne et sa colonne", async () => {
       const { user, getByRole, onCellChange } = await opened();
-      const cell = within(getByRole("table")).getByRole("textbox");
+      // La première série : les suivantes, fantômes, la reprennent (#520).
+      const cell = within(getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
 
       await user.clear(cell);
       await user.type(cell, "8");
@@ -388,10 +389,14 @@ describe("CompositionCard", () => {
       );
     });
 
+    // Une Séries n'ajoute pas de ligne : c'est la saisie dans une série fantôme qui lui en donne une.
     it("remonte les lignes de la grille, désignées par leur bloc", async () => {
       const { user, getByRole, onRowsChange } = await opened();
+      const series2 = within(getByRole("table")).getAllByRole("textbox")[1] as HTMLElement;
 
-      await user.click(getByRole("button", { name: "library.builder.grid.addRow" }));
+      await user.clear(series2);
+      await user.type(series2, "8");
+      await user.tab();
 
       expect(onRowsChange).toHaveBeenCalledExactlyOnceWith(SERIES_ID, expect.any(Array));
       expect(onRowsChange.mock.calls[0]?.[1]).toHaveLength(2);

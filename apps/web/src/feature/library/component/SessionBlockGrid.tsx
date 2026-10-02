@@ -2,7 +2,6 @@ import {
   AdjustmentLevel,
   type Adjustments,
   adjustmentLevelAt,
-  BLOCK_MAX_ROWS,
   type BlockMetric,
   type CustomMetric,
   cellPath,
@@ -12,15 +11,12 @@ import {
   type MetricValue,
   metricLabel,
   metricUnitLabel,
-  withCellValue,
-  withDuplicatedLastRow,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { IoTrashOutline } from "react-icons/io5";
-import { GridCell } from "@/feature/library/component/GridCell";
+import { BlockGridHead, BlockGridRow } from "@/feature/library/component/BlockGridRow";
+import { useBlockRows } from "@/feature/library/hook/useBlockRows";
 import { baselineValue } from "@/feature/library/util/dosage-summary.util";
-import { CMV_TABLE, CmvButton, CmvDragHandle } from "@/shared/component";
-import { useReorderDrag } from "@/shared/hook/useReorderDrag";
+import { CMV_TABLE, CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type SessionBlockGridProps = {
@@ -53,124 +49,61 @@ export function SessionBlockGrid({
   const { t } = useTranslation();
 
   const shown = block.metrics.filter((metric) => !metric.collapsed);
-  const isFull = block.rows.length >= BLOCK_MAX_ROWS;
-
-  function moveRow(from: number, to: number) {
-    if (to < 0 || to >= block.rows.length) return;
-    const next = [...block.rows];
-    next.splice(to, 0, ...next.splice(from, 1));
-    onRowsChange(next);
-  }
-
-  const drag = useReorderDrag(moveRow);
-
-  function addRow() {
-    onRowsChange(withDuplicatedLastRow(block.rows, crypto.randomUUID()));
-  }
-
-  /**
-   * Entrée sur la DERNIÈRE ligne. La cellule a déjà écrit sa valeur par `onCellChange` — c'est ce
-   * qui pose son marqueur —, mais l'ajout part dans le même rendu : calculé sur les lignes d'avant,
-   * il remplaçait la valeur par l'ancienne (#299). Les lignes remontées la contiennent donc aussi.
-   */
-  function commitLastLine(rowId: string, metricId: string, value: MetricValue) {
-    onRowsChange(
-      withDuplicatedLastRow(withCellValue(block.rows, rowId, metricId, value), crypto.randomUUID()),
-    );
-  }
+  // Une série FANTÔME qui se matérialise est une ligne ajoutée dans la séance : comme toute ligne
+  // absente de la référence, elle ne porte aucun marqueur, et la corbeille la rend fantôme (#520).
+  const rows = useBlockRows(block, onRowsChange);
 
   return (
     <div className="flex flex-col gap-cmv-sm">
       <div className={cn("overflow-x-auto", CMV_TABLE.frame)}>
         <table className={CMV_TABLE.table}>
-          <thead>
-            <tr className={cn(CMV_TABLE.head, block.rows.length > 0 && CMV_TABLE.headBorder)}>
-              <th className={cn("w-20", CMV_TABLE.headCell)} scope="col">
-                <span className="sr-only">{t("library.builder.grid.rowIndex")}</span>
-              </th>
-              {shown.map((metric) => {
-                const unit = metricUnitLabel(metric, customMetrics, t);
-                return (
-                  <th key={metric.id} scope="col" className={CMV_TABLE.headCell}>
-                    {/* Un libellé, pas un menu : la colonne est verrouillée au niveau séance. */}
-                    <span className={CMV_TABLE.headLabel}>
-                      {metricLabel(metric, customMetrics, t)}
-                    </span>
-                    {unit == null ? null : (
-                      <span className="block text-cmv-caption text-cmv-text-lo">{unit}</span>
-                    )}
-                  </th>
-                );
-              })}
-              <th className={cn("w-10", CMV_TABLE.headCell)} scope="col">
-                <span className="sr-only">{t("library.builder.grid.rowActions")}</span>
-              </th>
-            </tr>
-          </thead>
+          <BlockGridHead isSeries={rows.isSeries} hasRows={rows.slots.length > 0}>
+            {shown.map((metric) => {
+              const unit = metricUnitLabel(metric, customMetrics, t);
+              return (
+                <th key={metric.id} scope="col" className={CMV_TABLE.headCell}>
+                  {/* Un libellé, pas un menu : la colonne est verrouillée au niveau séance. */}
+                  <span className={CMV_TABLE.headLabel}>
+                    {metricLabel(metric, customMetrics, t)}
+                  </span>
+                  {unit == null ? null : (
+                    <span className="block text-cmv-caption text-cmv-text-lo">{unit}</span>
+                  )}
+                </th>
+              );
+            })}
+          </BlockGridHead>
 
           <tbody>
-            {block.rows.map((row, index) => (
-              <tr
-                key={row.id}
-                {...drag.rowProps(index)}
-                className={cn(
-                  CMV_TABLE.row,
-                  drag.isDragging(index) && "opacity-40",
-                  drag.isOver(index) && "bg-cmv-accent-soft",
+            {rows.slots.map((slot) => (
+              <BlockGridRow
+                key={rows.keyOf(slot)}
+                slot={slot}
+                metrics={shown}
+                customMetrics={customMetrics}
+                rows={rows}
+                onCellChange={onCellChange}
+                renderCellExtra={(rowId, metric) => (
+                  <AdjustedHint
+                    metric={metric}
+                    customMetrics={customMetrics}
+                    level={adjustmentLevelAt(adjustments, cellPath(block.id, rowId, metric.id))}
+                    base={baselineValue(baseline, block.id, rowId, metric.id)}
+                    onRevert={() => onRevertCell(rowId, metric.id)}
+                  />
                 )}
-              >
-                <td className={CMV_TABLE.cell}>
-                  <div className="flex items-center gap-cmv-xs">
-                    <CmvDragHandle
-                      label={`${t("library.builder.grid.moveRow")} ${index + 1}`}
-                      {...drag.handleProps(index)}
-                      onMove={(direction) => moveRow(index, index + direction)}
-                    />
-                    <span className={CMV_TABLE.index}>{index + 1}</span>
-                  </div>
-                </td>
-
-                {shown.map((metric) => (
-                  <td key={metric.id} className={CMV_TABLE.cell}>
-                    <GridCell
-                      metric={metric}
-                      customMetrics={customMetrics}
-                      value={row.values[metric.id] ?? null}
-                      onChange={(value) => onCellChange(row.id, metric.id, value)}
-                      onCommitLine={(value) => {
-                        if (index === block.rows.length - 1) {
-                          commitLastLine(row.id, metric.id, value);
-                        }
-                      }}
-                    />
-                    <AdjustedHint
-                      metric={metric}
-                      customMetrics={customMetrics}
-                      level={adjustmentLevelAt(adjustments, cellPath(block.id, row.id, metric.id))}
-                      base={baselineValue(baseline, block.id, row.id, metric.id)}
-                      onRevert={() => onRevertCell(row.id, metric.id)}
-                    />
-                  </td>
-                ))}
-
-                <td className={CMV_TABLE.cell}>
-                  <CmvButton
-                    variant="ghost"
-                    title={t("library.builder.grid.removeRow")}
-                    onClick={() => onRowsChange(block.rows.filter((item) => item.id !== row.id))}
-                  >
-                    <IoTrashOutline />
-                  </CmvButton>
-                </td>
-              </tr>
+              />
             ))}
           </tbody>
         </table>
       </div>
 
-      <CmvButton variant="secondary" onClick={addRow} disabled={isFull}>
-        {t("library.builder.grid.addRow")}
-      </CmvButton>
+      {/* En Séries, c'est le champ « Séries » du bandeau qui fixe le nombre de lignes. */}
+      {rows.canAddRow ? (
+        <CmvButton variant="secondary" onClick={rows.addRow} disabled={rows.isFull}>
+          {t("library.builder.grid.addRow")}
+        </CmvButton>
+      ) : null}
     </div>
   );
 }
