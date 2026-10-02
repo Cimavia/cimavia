@@ -25,6 +25,8 @@ type Setup = {
   failing?: { persist?: boolean; userName?: boolean; push?: boolean; mail?: boolean };
   emailWanted?: boolean;
   recipient?: { email: string; locale: string } | null;
+  /** L'acteur de la requête, quand il y en a un — pour la garde anti-auto-notification. */
+  actorId?: string;
 };
 
 function serviceWith(setup: Setup = {}) {
@@ -66,7 +68,9 @@ function serviceWith(setup: Setup = {}) {
   const service = new NotificationService(
     logger as unknown as PinoLogger,
     prisma,
-    { get: () => undefined } as unknown as ClsService,
+    {
+      get: () => (setup.actorId === undefined ? undefined : { userId: setup.actorId }),
+    } as unknown as ClsService,
     { send } as unknown as NotificationMailer,
     { get: () => undefined } as unknown as ConfigService<never, true>,
   );
@@ -199,6 +203,70 @@ describe("NotificationService — push", () => {
   });
 });
 
+/**
+ * Le push et la trace ne suivent pas le même rythme (#537) : un push par envoi, une entrée de
+ * centre et un e-mail par série. Ce qui est vérifié ici, c'est qu'un canal retenu l'est vraiment —
+ * et que la garde anti-auto-notification passe avant tous.
+ */
+describe("NotificationService — canaux", () => {
+  const MESSAGE = { recipientId: "coach_1", senderId: "ath_1", conversationId: "conv_1" };
+
+  function withEverything(actorId?: string) {
+    return serviceWith({
+      tokens: [{ id: "tok_1", token: VALID }],
+      emailWanted: true,
+      recipient: { email: "coach@cmv.test", locale: "fr" },
+      ...(actorId === undefined ? {} : { actorId }),
+    });
+  }
+
+  it("pousse sans trace : ni entrée de centre, ni e-mail", async () => {
+    const { service, create, send, sendPush } = withEverything();
+
+    await service.notifyMessageReceived(MESSAGE, { push: true, trace: false });
+
+    expect(sendPush).toHaveBeenCalledTimes(1);
+    expect(create).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  // La suite d'un lot de médias qui ouvre pourtant une série : la trace part, le téléphone se tait.
+  it("laisse une trace sans pousser", async () => {
+    const { service, create, send, sendPush } = withEverything();
+
+    await service.notifyMessageReceived(MESSAGE, { push: false, trace: true });
+
+    expect(sendPush).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifie un complément de débrief par push seul, vers la même destination", async () => {
+    const { service, create, send, sendPush } = withEverything();
+
+    await service.notifyFeedbackCompleted(FEEDBACK);
+
+    expect(create).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+    expect(sendPush).toHaveBeenCalledExactlyOnceWith([
+      expect.objectContaining({
+        title: "Débrief complété",
+        body: "Noa a complété son débrief de « Bloc force ».",
+        data: { type: NotificationType.FEEDBACK_RECEIVED, scheduledSessionId: "ss_1" },
+      }),
+    ]);
+  });
+
+  // #14 : en auto-coaching, le coach complète son propre débrief — le push seul ne l'en dispense pas.
+  it("ne pousse pas vers soi-même, même sans trace", async () => {
+    const { service, sendPush } = withEverything("coach_1");
+
+    await service.notifyFeedbackCompleted(FEEDBACK);
+
+    expect(sendPush).not.toHaveBeenCalled();
+  });
+});
+
 describe("NotificationService — chaque canal dégrade seul", () => {
   it("Expo injoignable : la trace et l'e-mail partent quand même, rien ne remonte", async () => {
     const { service, create, send, logger } = serviceWith({
@@ -282,11 +350,14 @@ describe("NotificationService — acteur sans nom", () => {
     {
       name: "message reçu",
       emit: (service: NotificationService) =>
-        service.notifyMessageReceived({
-          recipientId: "coach_1",
-          senderId: "ath_1",
-          conversationId: "conv_1",
-        }),
+        service.notifyMessageReceived(
+          {
+            recipientId: "coach_1",
+            senderId: "ath_1",
+            conversationId: "conv_1",
+          },
+          { push: true, trace: true },
+        ),
       title: "Nouveau message",
       body: "Tu as reçu un nouveau message.",
     },

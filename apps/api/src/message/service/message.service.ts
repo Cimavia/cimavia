@@ -1,5 +1,5 @@
 import type { MessageDto, SendMessageInput } from "@cmv/shared";
-import { MessageType } from "@cmv/shared";
+import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
@@ -67,11 +67,19 @@ export class MessageService {
       assertKeyUnder(messageMediaKeyPrefix(conversation.id), input.storagePath);
     }
 
-    // Throttle push (éviter une rafale de notifications) : on ne notifie que si le destinataire
-    // n'a AUCUN message non lu de ma part dans ce fil — donc au passage « tout lu » → « non lu ».
-    // Même philosophie que P4 (« seule la création d'un débrief notifie »).
+    // Le message ouvre-t-il une SÉRIE ? Oui si le destinataire n'a aucun non-lu de ma part dans ce
+    // fil — le passage « tout lu » → « non lu ». C'est le rythme de la trace (entrée de centre,
+    // e-mail), pas celui du push (#537).
+    //
+    // Les AVIS de débrief ne comptent pas : posés au nom de l'athlète, ils restaient non lus chez
+    // un coach qui travaille depuis la page Débriefs — et éteignaient le fil entier (#539).
     const unreadFromMe = await this.db.message.count({
-      where: { conversationId, senderId: actor.userId, readAt: null },
+      where: {
+        conversationId,
+        senderId: actor.userId,
+        readAt: null,
+        type: { notIn: [...FEEDBACK_EVENT_MESSAGE_TYPES] },
+      },
     });
 
     const attachment = await this.resolveAttachment(conversation, actor, input);
@@ -86,24 +94,29 @@ export class MessageService {
       return created;
     });
 
-    if (unreadFromMe === 0) {
+    // Un push par message, comme dans une messagerie — sauf la suite d'un lot de médias : six
+    // photos d'une même sélection font un push, celui de la première arrivée (#537).
+    const channels = {
+      push: input.type === MessageType.TEXT || input.continuesBatch !== true,
+      trace: unreadFromMe === 0,
+    };
+    if (channels.push || channels.trace) {
       const recipientId =
         exercisedOrThrow(actor) === "coach" ? conversation.athleteId : conversation.coachId;
       // L'id du destinataire vient d'un fil DÉJÀ scopé (jamais du client) : sûr pour le
       // NotificationService, qui lit ses tokens hors tenant. Un échec de push ne remonte pas ici.
-      await this.notifications.notifyMessageReceived({
-        recipientId,
-        senderId: actor.userId,
-        conversationId: conversation.id,
-      });
+      await this.notifications.notifyMessageReceived(
+        { recipientId, senderId: actor.userId, conversationId: conversation.id },
+        channels,
+      );
     }
 
     const attachments = await this.attachments.resolve([message]);
     return toMessageDto(message, this.storage, attachments.get(message.id) ?? null);
   }
 
-  // Marque lus les messages ENTRANTS (envoyés par l'autre) encore non lus. Idempotent. Réarme le
-  // throttle push : après lecture, le prochain message du fil re-notifiera.
+  // Marque lus les messages ENTRANTS (envoyés par l'autre) encore non lus. Idempotent. Réarme la
+  // trace : après lecture, le prochain message du fil ouvre une nouvelle série.
   async markRead(conversationId: string): Promise<void> {
     await this.conversations.getOwnedOrThrow(conversationId);
     const actor = currentActor(this.cls);
