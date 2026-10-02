@@ -79,7 +79,8 @@ export function useSendMessageMedia(
         setProgress,
         setRetry,
         as,
-        attachment,
+        // Une note vocale est un geste à elle seule : elle prévient toujours le destinataire.
+        { ...attachment, continuesBatch: false },
       );
     },
     onSuccess: invalidate,
@@ -100,7 +101,8 @@ export function useSendMessageMedia(
       setProgress,
       setRetry,
       as,
-      attachment,
+      // La suite d'un lot ne pousse pas : le premier envoi abouti a déjà prévenu (#537).
+      { ...attachment, continuesBatch: current.continuesBatch },
     );
     invalidate();
   };
@@ -164,16 +166,22 @@ function failureReason(error: unknown): MediaRecapReason {
   return message == null ? { key: "common.error", params: {} } : { message };
 }
 
+/**
+ * Ce que l'envoi porte en plus du média : le débrief auquel il répond, le cas échéant, et s'il
+ * prolonge un lot déjà commencé — auquel cas il ne pousse pas (#537).
+ */
+type SendExtra = { sessionFeedbackId?: string; continuesBatch: boolean };
+
 async function prepareAndSend(
   conversationId: string,
   source: WebMediaSource,
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
   as: CapabilityName | null,
-  attachment: { sessionFeedbackId: string } | undefined,
+  extra: SendExtra,
 ): Promise<MessageDto> {
   const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
-  return uploadAndSend(conversationId, prepared, onProgress, onRetry, as, attachment);
+  return uploadAndSend(conversationId, prepared, onProgress, onRetry, as, extra);
 }
 
 async function uploadAndSend(
@@ -183,7 +191,7 @@ async function uploadAndSend(
   onRetry: (retry: MultipartRetry | null) => void,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
   as: CapabilityName | null,
-  attachment: { sessionFeedbackId: string } | undefined,
+  extra: SendExtra,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
@@ -198,7 +206,7 @@ async function uploadAndSend(
   const sendInput = {
     ...uploadInput,
     storagePath: ticket.storagePath,
-    ...attachment,
+    ...extra,
   } as SendMessageInput;
   return messageApi.sendMessage(conversationId, sendInput, as);
 }

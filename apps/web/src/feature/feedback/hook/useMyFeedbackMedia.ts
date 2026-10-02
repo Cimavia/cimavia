@@ -71,6 +71,8 @@ export function useAddFeedbackMedia(sessionId: string) {
         { kind: "audio", blob: recorded.blob, durationSeconds: recorded.durationSeconds },
         setProgress,
         setRetry,
+        // Une note vocale est un geste à elle seule : elle prévient toujours le coach.
+        false,
       );
     },
     onSuccess: invalidate,
@@ -85,7 +87,13 @@ export function useAddFeedbackMedia(sessionId: string) {
     setStep(current);
     setProgress(0);
     setRetry(null);
-    await prepareAndUpload(sessionId, { kind: "file", file }, setProgress, setRetry);
+    await prepareAndUpload(
+      sessionId,
+      { kind: "file", file },
+      setProgress,
+      setRetry,
+      current.continuesBatch,
+    );
     invalidate();
   };
 
@@ -121,6 +129,7 @@ async function prepareAndUpload(
   source: WebMediaSource,
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
+  continuesBatch: boolean,
 ): Promise<void> {
   const media = await prepareWebMedia(source, FEEDBACK_MEDIA_PROFILE);
   if (media.size > maxFeedbackMediaSizeBytes(media.type)) {
@@ -128,7 +137,7 @@ async function prepareAndUpload(
       max: megabytesOf(maxFeedbackMediaSizeBytes(media.type)),
     });
   }
-  await uploadAndAttach(sessionId, media, onProgress, onRetry);
+  await uploadAndAttach(sessionId, media, onProgress, onRetry, continuesBatch);
 }
 
 export function useDeleteFeedbackMedia(sessionId: string) {
@@ -152,6 +161,7 @@ async function uploadAndAttach(
   media: PreparedWebMedia,
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
+  continuesBatch: boolean,
 ): Promise<void> {
   const descriptor = {
     type: media.type,
@@ -172,9 +182,11 @@ async function uploadAndAttach(
     await sendInParts(sessionId, ticket, media.file, onProgress, onRetry);
   }
 
+  // La suite d'un lot ne prévient pas le coach : le premier envoi abouti l'a déjà fait (#537).
   await athleteFeedbackApi.attachMedia(sessionId, {
     ...descriptor,
     storagePath: ticket.storagePath,
+    continuesBatch,
   } as AttachFeedbackMediaInput);
 }
 

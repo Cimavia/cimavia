@@ -129,6 +129,8 @@ describe("useAddFeedbackMedia", () => {
     expect(singleUploadMock).toHaveBeenCalledTimes(2);
     expect(attachMock).toHaveBeenCalledTimes(2);
     expect(attachMock.mock.calls[0]?.[1]).toMatchObject({ storagePath: "k/1" });
+    // Un seul geste, un seul push au coach : seul le premier rattachement le déclenche (#537).
+    expect(attachMock.mock.calls.map((call) => call[1].continuesBatch)).toEqual([false, true]);
   });
 
   /**
@@ -334,6 +336,7 @@ describe("useAddFeedbackMedia", () => {
 
     await waitFor(() => expect(attachMock).toHaveBeenCalledOnce());
     expect(prepareMock.mock.calls[0]?.[0]).toMatchObject({ kind: "audio", durationSeconds: 12 });
+    expect(attachMock.mock.calls[0]?.[1]).toMatchObject({ continuesBatch: false });
   });
 
   it("porte l'échec de la note vocale à part, là où le lot a son récapitulatif", async () => {
