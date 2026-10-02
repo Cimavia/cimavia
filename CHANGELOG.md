@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.10.0](https://github.com/Cimavia/cimavia/compare/v1.9.1...v1.10.0) (2026-10-02)
+
+
+### Fonctionnalités
+
+* **api:** un push à chaque envoi sur un débrief déposé, un média seul le rend à relire ([11464c7](https://github.com/Cimavia/cimavia/commit/11464c7a4b5ad78b848ce6f5da031003e744856e))
+* **mobile:** la séance regroupe les séries qui reprennent la même ligne sous une plage ([7d507b3](https://github.com/Cimavia/cimavia/commit/7d507b31f505c1805dc430cb4f3e936533410b62))
+* **mobile:** la suite d'un lot de médias ne pousse pas, une sélection fait un seul push ([6f7d0ea](https://github.com/Cimavia/cimavia/commit/6f7d0ea593cccb41e27fe1d8ecccc6dab258cf86))
+* **shared:** un drapeau de suite de lot, pour qu'une sélection ne pousse qu'une fois ([d8199b6](https://github.com/Cimavia/cimavia/commit/d8199b6e0956f29ac61c78319ded8dff00c11f50))
+* **shared:** une série sans ligne reprend la dernière, fantômes et plages en découlent ([5b226d6](https://github.com/Cimavia/cimavia/commit/5b226d6694a928db8255cd8b74e732449267b759))
+* **web:** l'aperçu regroupe les séries qui reprennent la même ligne sous une plage ([2ec3ac3](https://github.com/Cimavia/cimavia/commit/2ec3ac35ceb886d21690d42d4a2806bdaf0d31b8))
+* **web:** la grille d'une séries montre une ligne par série, les manquantes en fantômes ([389943a](https://github.com/Cimavia/cimavia/commit/389943ad4b0af023865be6e3c68123456d74c978))
+* **web:** la suite d'un lot de médias ne pousse pas, une sélection fait un seul push ([8081761](https://github.com/Cimavia/cimavia/commit/808176121ba98c83abb5eea839f83a019ed3496a))
+
+
+### Corrections
+
+* **api:** un push par message, et l'avis de débrief non lu n'éteint plus la série ([66208d5](https://github.com/Cimavia/cimavia/commit/66208d57a35b005fb47755ea86c1417737729a45))
+* **mobile:** l'emom d'une minute dit chaque minute, le repos du circuit comme en séries ([052af8c](https://github.com/Cimavia/cimavia/commit/052af8c0039adc462157f56e51b4d9945fea621d))
+* **mobile:** l'exemple de note de rappel commence par ex., comme sur le web ([7b29c1a](https://github.com/Cimavia/cimavia/commit/7b29c1a3aecab5241c83f83af61097c137689dda))
+* **shared:** l'emom d'une minute dit chaque minute, plutôt que toutes les 1' ([f32b61f](https://github.com/Cimavia/cimavia/commit/f32b61f8d9436a749dceb7e207d8e8123256ba0c))
+* **web:** le bouton d'en-tête juge le lundi qui sera enregistré, plus le jour encore saisi ([18b7599](https://github.com/Cimavia/cimavia/commit/18b7599fcad0dbe9a0e25edd6fd4ba3fa0f46533))
+* **web:** les durées suivent l'écriture 2'30, jusqu'au message d'erreur du champ ([fe8169b](https://github.com/Cimavia/cimavia/commit/fe8169b91dc7bb88abd588eb72b159c599962cc3))
+* **web:** un exemple de champ vide commence par ex., le repos des séries dit entre séries ([4c84827](https://github.com/Cimavia/cimavia/commit/4c84827ea3ddc84ddb20e54c0036b5efe9fe6767))
+
+
+### Technique
+
+* **api:** les gardes déjà tenues en amont cèdent la place au type ou à required ([2f98748](https://github.com/Cimavia/cimavia/commit/2f987483ae289baeb962d2baa43646e280e813bb))
+* **api:** nom ou ligne garantis par une fk lus par required, plus par une garde ([c3ca3b9](https://github.com/Cimavia/cimavia/commit/c3ca3b9e6c7eee769e404e83d04e58d4ac426e38))
+* **mobile:** gardes mortes retirées, atterrissage garanti, deux branches vivantes ([dea0105](https://github.com/Cimavia/cimavia/commit/dea0105873ce06438addf07d22057e3a80f12280))
+* **shared:** dosage, parts d'upload et grille sans les gardes que le type rend mortes ([ad36b9f](https://github.com/Cimavia/cimavia/commit/ad36b9f91e346d318627f8bcdf7469101aea4173))
+* **shared:** initiales, médias et suivi sans repli, le web lit ses noms de fichier ([cd241df](https://github.com/Cimavia/cimavia/commit/cd241dfedad549f7209a5c91855a1dfba4b00301))
+* **shared:** un cycle élu est toujours situable, et les écrans cessent d'en douter ([493ce1d](https://github.com/Cimavia/cimavia/commit/493ce1de39b3c20bcb9413ea5107f2f8af6ad4c0))
+* **shared:** un invariant violé lève par une fonction unique et testée ([fc2e14d](https://github.com/Cimavia/cimavia/commit/fc2e14df4158760e2856029ec5b243e6837afc44))
+* **shared:** une durée en nombre se formate toujours, sans repli mort chez l'appelant ([8196553](https://github.com/Cimavia/cimavia/commit/81965532facae8a3fecf7b99aec4d519171e2385))
+* **shared:** une ligne de facturation a toujours une facture, sa devise sans repli ([acc9485](https://github.com/Cimavia/cimavia/commit/acc9485a91a871edab370d3ce47521cce4953b1a))
+* **web:** hors bibliothèque, gardes mortes retirées, le nom du coach absent testé ([3833275](https://github.com/Cimavia/cimavia/commit/383327564a7f4abd9bd4e3c24b604bd1742c754e))
+* **web:** la bibliothèque perd ses gardes de boutons fermés et ses replis morts ([d011ef6](https://github.com/Cimavia/cimavia/commit/d011ef6a5ebce3e98bdfae64bd89ed8016092e84))
+* **web:** les exemples de saisie ne supposent plus l'escalade, tout coach s'y retrouve ([fad612c](https://github.com/Cimavia/cimavia/commit/fad612c7b6fa677a5f62b95408e7116b31168de9))
+
 ## [1.9.1](https://github.com/Cimavia/cimavia/compare/v1.9.0...v1.9.1) (2026-10-01)
 
 
