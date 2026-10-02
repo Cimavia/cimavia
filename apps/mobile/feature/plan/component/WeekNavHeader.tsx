@@ -57,11 +57,8 @@ export function WeekNavHeader({
           {formatDateRange(week.startDate, week.endDate)}
         </CmvText>
 
-        {/* `null` = liste absente : « — », jamais « 0/0 » qui se lirait « semaine de repos ». */}
         <CmvText className="text-cmv-text-lo text-sm">
-          {progress == null
-            ? "—"
-            : t("plan.doneCount", { done: progress.done, total: progress.total })}
+          {t("plan.doneCount", { done: progress.done, total: progress.total })}
         </CmvText>
       </View>
 

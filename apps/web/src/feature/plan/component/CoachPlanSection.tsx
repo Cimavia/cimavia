@@ -35,12 +35,9 @@ export function CoachPlanSection({ plans }: Readonly<CoachPlanSectionProps>) {
   const { q, state, athlete } = route.useSearch();
 
   const filter: PlanRowFilter = state ?? "ALL";
-  /**
-   * `plans` est toujours défini ici — l'écran ne monte la section qu'une fois la liste servie, et
-   * c'est lui qui rend l'erreur. Le `?? []` n'est donc pas un repli sur l'absence de données mais
-   * le typage d'un retour nullable dont le `null` est déjà écarté en amont.
-   */
-  const rows = buildPlanAthleteRows(plans, todayIsoDate()) ?? [];
+  // `plans` est toujours défini ici — l'écran ne monte la section qu'une fois la liste servie, et
+  // c'est lui qui rend l'erreur. La surcharge le sait : une liste servie rend des lignes.
+  const rows = buildPlanAthleteRows(plans, todayIsoDate());
   const visible = visiblePlanAthleteRows(rows, { search: q ?? "", filter, locale: i18n.language });
   // La recherche restreint les décomptes, le segment choisi non — cf. la fonction pour le pourquoi.
   const counts = countPlanAthletesBySituation(rows, q ?? "");

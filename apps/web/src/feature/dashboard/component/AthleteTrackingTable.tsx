@@ -1,4 +1,4 @@
-import { type AthleteRow, type AthleteRowPlan, INVOICE_STATE_BADGE } from "@cmv/shared";
+import { type AthleteRow, type AthleteRowPlan, INVOICE_STATE_BADGE, required } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvAvatar, CmvBadge, CmvButton, CmvProgressBar } from "@/shared/component";
@@ -165,7 +165,7 @@ function PlanCell({
 function PlanTiming({ plan }: Readonly<{ plan: AthleteRowPlan }>) {
   const { t } = useTranslation();
 
-  if (plan.phase === "ENDED" && plan.endDate != null) {
+  if (plan.phase === "ENDED") {
     return (
       <span className="text-cmv-caption text-cmv-text-lo">
         {t("dashboard.table.planEnded", { date: formatDate(plan.endDate) })}
@@ -181,18 +181,17 @@ function PlanTiming({ plan }: Readonly<{ plan: AthleteRowPlan }>) {
     );
   }
 
-  // Cycle non situable (dates illisibles) : ni progression ni échéance inventée.
-  if (plan.currentWeek == null) return <span className="text-cmv-text-lo">—</span>;
-
+  // Reste `ONGOING`, où la semaine courante est toujours définie (`ONGOING` ⟺ `currentWeek`).
+  const currentWeek = required(plan.currentWeek, `cycle en cours sans semaine : ${plan.id}`);
   const progress = t("dashboard.table.weekProgress", {
-    current: plan.currentWeek,
+    current: currentWeek,
     total: plan.weekCount,
   });
 
   return (
     <div className="flex items-center gap-cmv-sm">
       <span className="w-36 shrink-0">
-        <CmvProgressBar percent={(plan.currentWeek / plan.weekCount) * 100} label={progress} />
+        <CmvProgressBar percent={(currentWeek / plan.weekCount) * 100} label={progress} />
       </span>
       <span className="shrink-0 text-cmv-caption text-cmv-text-lo">{progress}</span>
     </div>
