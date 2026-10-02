@@ -76,6 +76,7 @@ export function useAddFeedbackMedia(sessionId: string) {
       await prepareMedia(asset, FEEDBACK_MEDIA_PROFILE),
       setProgress,
       setRetry,
+      current.continuesBatch,
     );
     invalidate();
   };
@@ -111,6 +112,8 @@ export function useAddFeedbackAudio(sessionId: string) {
         prepareAudio(audio, FEEDBACK_MEDIA_PROFILE),
         setProgress,
         setRetry,
+        // Une note vocale est un geste à elle seule : elle prévient toujours le coach.
+        false,
       );
     },
     onSuccess: invalidate,
@@ -135,6 +138,7 @@ async function uploadAndAttach(
   media: PreparedMedia,
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
+  continuesBatch: boolean,
 ) {
   const input = toUploadUrlInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
@@ -150,7 +154,12 @@ async function uploadAndAttach(
     throw toFeedbackMediaError(error);
   }
 
-  return athleteFeedbackApi.attachMedia(sessionId, { ...input, storagePath: ticket.storagePath });
+  // La suite d'un lot ne prévient pas le coach : le premier envoi abouti l'a déjà fait (#537).
+  return athleteFeedbackApi.attachMedia(sessionId, {
+    ...input,
+    storagePath: ticket.storagePath,
+    continuesBatch,
+  });
 }
 
 /**

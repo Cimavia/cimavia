@@ -73,7 +73,11 @@ export function useSendMessageMedia(
 
   const audio = useMutation({
     mutationFn: (recorded: RecordedAudio) =>
-      uploadAndSend(conversationId, prepareAudio(recorded, MESSAGE_MEDIA_PROFILE), as, attachment),
+      // Une note vocale est un geste à elle seule : elle prévient toujours le destinataire.
+      uploadAndSend(conversationId, prepareAudio(recorded, MESSAGE_MEDIA_PROFILE), as, {
+        ...attachment,
+        continuesBatch: false,
+      }),
     onSuccess: invalidate,
   });
 
@@ -87,7 +91,8 @@ export function useSendMessageMedia(
       conversationId,
       await prepareMedia(asset, MESSAGE_MEDIA_PROFILE),
       as,
-      attachment,
+      // La suite d'un lot ne pousse pas : le premier envoi abouti a déjà prévenu (#537).
+      { ...attachment, continuesBatch: current.continuesBatch },
     );
     invalidate();
   };
@@ -154,12 +159,18 @@ function failureReason(error: unknown): MediaRecapReason {
   return { key: "messages.media.uploadError", params: {} };
 }
 
+/**
+ * Ce que l'envoi porte en plus du média : le débrief auquel il répond, le cas échéant, et s'il
+ * prolonge un lot déjà commencé — auquel cas il ne pousse pas (#537).
+ */
+type SendExtra = { sessionFeedbackId?: string; continuesBatch: boolean };
+
 async function uploadAndSend(
   conversationId: string,
   media: PreparedMedia,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
   as: CapabilityName | null,
-  attachment: { sessionFeedbackId: string } | undefined,
+  extra: SendExtra,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
@@ -180,7 +191,7 @@ async function uploadAndSend(
   const sendInput = {
     ...uploadInput,
     storagePath: ticket.storagePath,
-    ...attachment,
+    ...extra,
   } as SendMessageInput;
   return messageApi.sendMessage(conversationId, sendInput, as);
 }

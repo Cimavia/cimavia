@@ -163,6 +163,8 @@ describe("useAddFeedbackMedia", () => {
     expect(requestUrlMock).toHaveBeenCalledTimes(2);
     expect(uploadFileMock).toHaveBeenCalledTimes(2);
     expect(attachMock).toHaveBeenCalledTimes(2);
+    // Un seul geste, un seul push au coach : seul le premier rattachement le déclenche (#537).
+    expect(attachMock.mock.calls.map((call) => call[1].continuesBatch)).toEqual([false, true]);
   });
 
   /**
@@ -348,6 +350,7 @@ describe("useAddFeedbackAudio", () => {
 
     await waitFor(() => expect(attachMock).toHaveBeenCalledOnce());
     expect(launchLibraryMock).not.toHaveBeenCalled();
+    expect(attachMock.mock.calls[0]?.[1]).toMatchObject({ continuesBatch: false });
   });
 });
 
