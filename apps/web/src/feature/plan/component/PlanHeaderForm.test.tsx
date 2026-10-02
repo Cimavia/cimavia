@@ -21,6 +21,8 @@ const NEXT_MONDAY = "2026-10-26";
 const PREVIOUS_MONDAY = "2026-10-12";
 // Le mercredi de la semaine suivante — ce qu'un coach choisit sans y penser.
 const WEDNESDAY = "2026-10-28";
+// Un jeudi de la semaine DÉJÀ enregistrée : il se recale sur le début actuel.
+const SAME_WEEK_THURSDAY = "2026-10-22";
 
 const plan = (over: Partial<PlanDto> = {}): PlanDto =>
   ({
@@ -202,6 +204,77 @@ describe("PlanHeaderForm — le début du cycle", () => {
     await user.type(start, NEXT_MONDAY);
 
     expect(queryByText("plan.header.startDateShiftLater")).toBeNull();
+  });
+});
+
+/**
+ * Le bouton juge la date que le formulaire ENREGISTRERA — le lundi de la semaine saisie — et non la
+ * saisie brute (#545). Choisir un jour au calendrier ne fait pas perdre le focus : le champ garde
+ * le jour choisi jusqu'au blur, et un bouton grisé à ce moment-là disait « impossible » pour une
+ * saisie que le clic enregistrait pourtant.
+ */
+describe("PlanHeaderForm — un début choisi hors lundi, avant le recalage", () => {
+  const typeStart = async (value: string, over: Partial<PlanDto> = {}) => {
+    const rendered = mount(over);
+    const start = rendered.container.querySelector("#startDate") as HTMLInputElement;
+    await rendered.user.clear(start);
+    await rendered.user.type(start, value);
+    const submit = rendered.getByRole("button", { name: "plan.header.submit" });
+    return { ...rendered, start, submit };
+  };
+
+  it("ouvre l'enregistrement sans attendre que le champ soit quitté", async () => {
+    const { start, submit } = await typeStart(WEDNESDAY);
+
+    expect(start.value).toBe(WEDNESDAY);
+    expect(submit).toBeEnabled();
+  });
+
+  it("enregistre le lundi de la semaine choisie", async () => {
+    const { submit, user } = await typeStart(WEDNESDAY);
+
+    await user.click(submit);
+
+    expect(onSave).toHaveBeenCalledWith({ startDate: NEXT_MONDAY });
+  });
+
+  /**
+   * Entrée envoie sans blur : sans recalage à l'envoi, le mercredi brut partirait et l'API le
+   * refuserait (`planStartDateSchema`). Le champ et le toast disent ce qui est parti.
+   */
+  it("recale aussi, et le dit, quand on envoie à la touche Entrée", async () => {
+    const { start, getByText, user } = await typeStart(WEDNESDAY);
+
+    await user.keyboard("{Enter}");
+
+    expect(onSave).toHaveBeenCalledWith({ startDate: NEXT_MONDAY });
+    expect(start.value).toBe(NEXT_MONDAY);
+    expect(getByText("plan.header.startDateSnapped")).toBeTruthy();
+  });
+
+  // Un jour de la semaine déjà enregistrée retombe sur le même lundi : rien ne change, rien ne se
+  // décale — là où la saisie brute annonçait un déplacement de trois jours qui n'aurait pas lieu.
+  it("ne voit aucun changement dans un jour de la semaine déjà enregistrée", async () => {
+    const { queryByText, submit } = await typeStart(SAME_WEEK_THURSDAY);
+
+    expect(submit).toBeDisabled();
+    expect(queryByText("plan.header.startDateShiftLater")).toBeNull();
+    expect(queryByText("plan.header.startDateShiftEarlier")).toBeNull();
+  });
+
+  it("annonce le décalage vers le lundi de la semaine choisie", async () => {
+    const { queryByText } = await typeStart(WEDNESDAY);
+
+    expect(queryByText("plan.header.startDateShiftLater")).toBeTruthy();
+  });
+
+  // Un champ vidé n'a pas de lundi : rien ne part plutôt qu'une date inventée.
+  it("ferme l'enregistrement quand la date est effacée", async () => {
+    const { container, getByRole, user } = mount();
+
+    await user.clear(container.querySelector("#startDate") as HTMLInputElement);
+
+    expect(getByRole("button", { name: "plan.header.submit" })).toBeDisabled();
   });
 });
 
