@@ -533,8 +533,15 @@ describe("structurePhrase / restPhrase", () => {
 
   it("met les durées en forme lisible", () => {
     expect(
+      structurePhrase({ type: BlockType.EMOM, intervalSeconds: 90, totalDurationSeconds: 600 }),
+    ).toEqual({ key: "exercise.dosage.emom", params: { interval: "1'30", total: "10'" } });
+  });
+
+  // #528 : « Toutes les 1' pendant 10' » se lisait mal, pour l'EMOM le plus courant.
+  it("dit « chaque minute » d'un EMOM à intervalle d'une minute, sans répéter l'intervalle", () => {
+    expect(
       structurePhrase({ type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 }),
-    ).toEqual({ key: "exercise.dosage.emom", params: { interval: "1'", total: "10'" } });
+    ).toEqual({ key: "exercise.dosage.emomEveryMinute", params: { total: "10'" } });
   });
 
   it("change de phrase selon que l'AMRAP porte un objectif ou non", () => {

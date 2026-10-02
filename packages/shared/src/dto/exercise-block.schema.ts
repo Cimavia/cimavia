@@ -594,8 +594,11 @@ export type DosagePhrase = {
   params: Readonly<Record<string, string | number>>;
 };
 
+/** L'intervalle d'un EMOM qui se dit « chaque minute » plutôt que « toutes les 1' ». */
+const EMOM_EVERY_MINUTE_SECONDS = 60;
+
 /**
- * Ce que le bandeau dit à l'athlète : « 4 séries », « Toutes les minutes pendant 10 min »…
+ * Ce que le bandeau dit à l'athlète : « 4 séries », « Chaque minute pendant 10' »…
  *
  * `null` pour un bloc LIBRE : il n'a aucun paramètre d'ensemble, et inventer une phrase reviendrait
  * à annoncer une consigne que le coach n'a pas écrite.
@@ -605,12 +608,15 @@ export function structurePhrase(structure: BlockStructure): DosagePhrase | null 
     return { key: "exercise.dosage.series", params: { count: structure.setCount } };
   }
   if (structure.type === BlockType.EMOM) {
+    const total = formatTrainingDuration(structure.totalDurationSeconds);
+    // L'EMOM le plus courant a sa phrase : « Toutes les 1' » se lit mal, et c'est précisément
+    // « chaque minute » que l'acronyme veut dire (#528).
+    if (structure.intervalSeconds === EMOM_EVERY_MINUTE_SECONDS) {
+      return { key: "exercise.dosage.emomEveryMinute", params: { total } };
+    }
     return {
       key: "exercise.dosage.emom",
-      params: {
-        interval: formatTrainingDuration(structure.intervalSeconds),
-        total: formatTrainingDuration(structure.totalDurationSeconds),
-      },
+      params: { interval: formatTrainingDuration(structure.intervalSeconds), total },
     };
   }
   if (structure.type === BlockType.AMRAP) {
