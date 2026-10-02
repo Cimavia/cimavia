@@ -88,7 +88,7 @@ function SeriesBandeau({
         label={t("library.builder.bandeau.restBetweenSetsSeconds")}
         value={structure.restBetweenSetsSeconds}
         onChange={(restBetweenSetsSeconds) => onChange({ ...structure, restBetweenSetsSeconds })}
-        placeholder="2'30"
+        placeholder={t("library.builder.bandeau.restBetweenSetsPlaceholder")}
       />
     </Row>
   );
@@ -108,7 +108,7 @@ function EmomBandeau({
           // L'intervalle n'est pas nullable : un EMOM sans intervalle n'est pas un EMOM.
           seconds == null ? undefined : onChange({ ...structure, intervalSeconds: seconds })
         }
-        placeholder="1'"
+        placeholder={t("library.builder.bandeau.intervalPlaceholder")}
       />
       <CmvDurationField
         label={t("library.builder.bandeau.totalDurationSeconds")}
@@ -116,7 +116,7 @@ function EmomBandeau({
         onChange={(seconds) =>
           seconds == null ? undefined : onChange({ ...structure, totalDurationSeconds: seconds })
         }
-        placeholder="10'"
+        placeholder={t("library.builder.bandeau.emomDurationPlaceholder")}
       />
       {/* DÉRIVÉ, jamais stocké : un nombre de tops enregistré finirait par contredire les deux
           durées dont il découle. */}
@@ -140,7 +140,7 @@ function AmrapBandeau({
         onChange={(seconds) =>
           seconds == null ? undefined : onChange({ ...structure, totalDurationSeconds: seconds })
         }
-        placeholder="8'"
+        placeholder={t("library.builder.bandeau.amrapDurationPlaceholder")}
       />
       <CountField
         label={t("library.builder.bandeau.targetRounds")}
@@ -172,7 +172,7 @@ function CircuitBandeau({
         onChange={(restBetweenRoundsSeconds) =>
           onChange({ ...structure, restBetweenRoundsSeconds })
         }
-        placeholder="3'"
+        placeholder={t("library.builder.bandeau.restBetweenRoundsPlaceholder")}
       />
     </Row>
   );

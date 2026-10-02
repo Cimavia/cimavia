@@ -4582,6 +4582,16 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   mobile disent « 1 » puis « 2–4 », plutôt que de répéter trois fois la même ligne ou de taire
 >   les séries reprises. Une ligne non jouée n'y apparaît pas.
 
+> **Tranché en [#526](https://github.com/Cimavia/cimavia/issues/526)** (« Ex. » sur les exemples,
+> rien sur les consignes) : la frontière se lit dans la phrase. Restent sans préfixe, parce qu'ils
+> disent QUOI écrire et non une valeur qu'on croirait saisie : « Palier » (échelle maison), « Ce
+> qui vaut pour toute la séance… », « Sensations, difficultés, ce qui a marché… » (débrief),
+> « Objectifs, points de vigilance, blessures… » (note de suivi, mobile), « Précisions sur la
+> prestation (optionnel) », et `https://…`, qui est un format. Le champ de durée garde sa largeur
+> (`w-20`) : « Ex. 2'30 » y tient, de justesse. Aucune garde automatique — `check:i18n` ne sait
+> pas distinguer un exemple d'une consigne ; la règle vit dans le commentaire de `index.css` et
+> dans les conventions du README.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)

@@ -27,8 +27,10 @@
   }
 
   /*
-   * Un placeholder est une SUGGESTION, jamais une valeur. Sans cette règle il se lit comme du
-   * texte saisi, et le coach croit avoir rempli un champ qui est vide.
+   * Un placeholder est une SUGGESTION, jamais une valeur. La teinte n'est qu'un filet : « 2'30 »
+   * grisé se lisait encore comme un repos saisi (#526). La vraie protection est dans le TEXTE —
+   * tout placeholder qui montre un exemple commence par « Ex. », une consigne (« Rechercher un
+   * athlète… ») reste telle quelle. Aucune garde ne le vérifie : c'est à la relecture du catalogue.
    *
    * Posé ICI et non champ par champ : le problème est déjà revenu plusieurs fois, et chaque
    * `placeholder:text-*` recopié est une occasion de plus de l'oublier.

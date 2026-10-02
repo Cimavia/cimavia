@@ -518,7 +518,7 @@
       "description": "Sur : {{target}}",
       "dueAt": "Échéance",
       "note": "Ce dont il faut se souvenir",
-      "notePlaceholder": "Relancer la facture avant la fin du mois",
+      "notePlaceholder": "Ex. Relancer la facture avant la fin du mois",
       "hint": "Le jour de l'échéance, le rappel apparaît dans tes notifications. Tu le retrouves à tout moment dans « Mes rappels ».",
       "submit": "Programmer",
       "submitting": "Enregistrement…"
