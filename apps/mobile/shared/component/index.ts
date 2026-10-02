@@ -12,5 +12,4 @@ export { CmvRichDocument } from "./CmvRichDocument";
 export { CmvScreen } from "./CmvScreen";
 export { CmvText } from "./CmvText";
 export { CmvVideoPlayer } from "./CmvVideoPlayer";
-export { CmvView } from "./CmvView";
 export { OfflineBanner } from "./OfflineBanner";

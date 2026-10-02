@@ -69,6 +69,13 @@ describe("routeForNotification — côté athlète", () => {
     const dto = entry({ entityType: NotificationEntityType.SCHEDULED_SESSION, entityId: "s-9" });
     expect(routeForNotification(dto, ATHLETE)).toBe("/session/s-9");
   });
+
+  // Une app plus ancienne que l'API reçoit un type d'entité qu'elle ne connaît pas : elle ne
+  // devine pas de destination (#512 — le `default` est vivant, pas mort).
+  it("ne mène nulle part sur un type d'entité inconnu", () => {
+    const dto = entry({ entityType: "TYPE_DU_FUTUR" as NotificationEntityType });
+    expect(routeForNotification(dto, ATHLETE)).toBeNull();
+  });
 });
 
 describe("routeForNotification — repli des rappels dus", () => {

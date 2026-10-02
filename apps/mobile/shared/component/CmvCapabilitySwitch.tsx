@@ -52,6 +52,7 @@ export function CmvCapabilitySwitch({ unread }: Readonly<CmvCapabilitySwitchProp
     <View className="flex-row gap-1 rounded-full bg-cmv-surface p-1" accessibilityRole="tablist">
       {OPTIONS.map(({ capability, icon }) => {
         const active = current === capability;
+        const unreadCount = unread?.[capability] ?? 0;
         return (
           <Pressable
             key={capability}
@@ -75,10 +76,10 @@ export function CmvCapabilitySwitch({ unread }: Readonly<CmvCapabilitySwitchProp
             </CmvText>
             {/* Pastille sur l'espace INACTIF seulement : sur celui qu'on regarde, le badge
                 d'onglet dit déjà ce qui arrive (#176). */}
-            {!active && (unread?.[capability] ?? 0) > 0 && (
+            {!active && unreadCount > 0 && (
               <View
                 className="h-2 w-2 rounded-full bg-cmv-accent"
-                accessibilityLabel={t("nav.spaceUnread", { count: unread?.[capability] ?? 0 })}
+                accessibilityLabel={t("nav.spaceUnread", { count: unreadCount })}
               />
             )}
           </Pressable>

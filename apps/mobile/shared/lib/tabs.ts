@@ -1,4 +1,9 @@
-import { type CapabilityName, type CounterpartsDto, UNKNOWN_COUNTERPARTS } from "@cmv/shared";
+import {
+  type CapabilityName,
+  type CounterpartsDto,
+  required,
+  UNKNOWN_COUNTERPARTS,
+} from "@cmv/shared";
 import type { Href } from "expo-router";
 
 /**
@@ -102,8 +107,10 @@ export function visibleTabs(
  * Où atterrit un compte après connexion : son PREMIER onglet visible.
  *
  * Dérivé de la table plutôt que codé en dur, et c'est le point : le jour où un onglet coach est
- * ajouté en tête, l'entrée le suit sans qu'on y touche. `null` = aucun onglet, ce qui ne peut
- * arriver qu'à un compte sans capacité connue (fail closed de `capabilitiesOf`).
+ * ajouté en tête, l'entrée le suit sans qu'on y touche. Jamais vide : la table porte des onglets
+ * sans capacité ni interlocuteur (compte, notifications), où atterrit même un compte sans capacité
+ * connue (fail closed de `capabilitiesOf`). Un `null` ici n'aurait aucune entrée pour l'atteindre,
+ * et chaque appelant le rattrapait d'un `?? "/login"` mort (#512).
  *
  * `counterparts` a une valeur par défaut parce que les écrans d'authentification appellent cette
  * fonction AVANT d'avoir pu demander quoi que ce soit — et « pas demandé » se répond comme « pas
@@ -114,9 +121,9 @@ export function visibleTabs(
 export function landingTab(
   capabilities: CapabilityFlags,
   counterparts: CounterpartsDto = UNKNOWN_COUNTERPARTS,
-): Href | null {
-  const first = visibleTabs(capabilities, counterparts)[0];
-  return first == null ? null : (`/${first.name}` as Href);
+): Href {
+  const first = required(visibleTabs(capabilities, counterparts)[0], "aucun onglet commun");
+  return `/${first.name}` as Href;
 }
 
 /**

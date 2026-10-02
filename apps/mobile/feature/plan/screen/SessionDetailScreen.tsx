@@ -4,6 +4,7 @@ import {
   checkedUnitsOf,
   countedRoundsOf,
   formatTrainingDuration,
+  required,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
   SegmentKind,
@@ -59,8 +60,8 @@ export function SessionDetailScreen() {
    */
   const runner = useSegmentRunner((blockId, unitIndex) => {
     vibrateTimerDone();
-    const exerciseId = runnerExerciseId.current;
-    if (exerciseId != null) local.checkUnit(exerciseId, blockId, unitIndex);
+    // Le déroulé ne coche qu'une fois lancé, donc sur un exercice connu.
+    local.checkUnit(required(runnerExerciseId.current, "coche hors déroulé"), blockId, unitIndex);
   });
   const runnerExerciseId = useRef<string | null>(null);
   runnerExerciseId.current = runner.context?.exerciseId ?? null;
@@ -147,13 +148,14 @@ export function SessionDetailScreen() {
         armed={timerNotification.armed}
         expanded={expanded}
         tracking={runnerTracking}
+        // Le chrono n'est monté que déroulé lancé : son contexte est toujours là.
         onUnitDone={(unitIndex) => {
-          const context = runner.context;
-          if (context != null) local.checkUnit(context.exerciseId, context.block.id, unitIndex);
+          const { exerciseId, block } = required(runner.context, "chrono hors déroulé");
+          local.checkUnit(exerciseId, block.id, unitIndex);
         }}
         onRoundDone={(rounds) => {
-          const context = runner.context;
-          if (context != null) local.setRounds(context.exerciseId, context.block.id, rounds);
+          const { exerciseId, block } = required(runner.context, "chrono hors déroulé");
+          local.setRounds(exerciseId, block.id, rounds);
         }}
         onExpand={() => setExpanded(true)}
         onReduce={() => setExpanded(false)}
@@ -214,9 +216,8 @@ function RunnerChrono({
     checked,
     rounds,
     onConfirm: runner.confirm,
-    onUnitDone: () => {
-      if (current.unitIndex != null) onUnitDone(current.unitIndex);
-    },
+    // `blockSegments` numérote toujours les tops d'un EMOM.
+    onUnitDone: () => onUnitDone(required(current.unitIndex, "top sans numéro")),
     onRoundDone: () => onRoundDone(rounds + 1),
     onPause: runner.pause,
     onResume: runner.resume,
@@ -365,7 +366,7 @@ function alertBody(next: BlockSegment | undefined, t: TFunction): string {
   if (next.kind === SegmentKind.MANUAL) return t("plan.timer.awaiting");
   return t("plan.timer.nextBody", {
     segment: t(`plan.timer.segment.${next.kind}`),
-    duration: formatTrainingDuration(next.seconds) ?? "—",
+    duration: formatTrainingDuration(next.seconds),
   });
 }
 

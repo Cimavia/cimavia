@@ -4,6 +4,7 @@ import {
   athleteCalendarWeek,
   defaultAthleteMonday,
   mondayOfIsoWeek,
+  required,
   todayIsoDate,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
@@ -90,7 +91,8 @@ export function PlanningScreen() {
       {state.kind === "week" ? (
         <WeekNavHeader
           week={state.week}
-          bounds={plans == null ? null : athleteCalendarBounds(plans)}
+          // Une semaine n'existe que si les cycles sont là : `week` les exige plus haut.
+          bounds={athleteCalendarBounds(required(plans, "semaine sans cycles"))}
           todayMonday={mondayOfIsoWeek(today)}
           onGoToMonday={setChosenMonday}
         />

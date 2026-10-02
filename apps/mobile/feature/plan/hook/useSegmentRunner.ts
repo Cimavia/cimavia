@@ -1,4 +1,10 @@
-import { type BlockSegment, type CustomMetric, type ExerciseBlock, SegmentKind } from "@cmv/shared";
+import {
+  type BlockSegment,
+  type CustomMetric,
+  type ExerciseBlock,
+  required,
+  SegmentKind,
+} from "@cmv/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type RunnerContext = {
@@ -58,8 +64,8 @@ export function useSegmentRunner(onUnitDone: (blockId: string, unitIndex: number
    * attend le geste de l'athlète, `endsAt` reste `null`.
    */
   const enter = useCallback((next: readonly BlockSegment[], cursor: number) => {
-    const segment = next[cursor];
-    if (segment == null) return;
+    // Chaque appelant vérifie d'abord que le segment visé existe.
+    const segment = required(next[cursor], "curseur hors déroulé");
     setIndex(cursor);
     setPaused(null);
     setRemaining(segment.seconds);

@@ -60,8 +60,8 @@ export function ScheduleReminderButton({
     setOpen(true);
   }
 
+  // `canSubmit` faux ferme déjà le bouton : rien à re-garder ici.
   function onSubmit() {
-    if (!canSubmit) return;
     create.mutate(
       { entityType, entityId, dueAt, note: note.trim() },
       { onSuccess: () => setOpen(false) },

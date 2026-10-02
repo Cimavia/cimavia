@@ -25,7 +25,8 @@ export function CoachFeedbacksScreen() {
 
   const unread = (feedbacks ?? []).filter((feedback) => feedback.coachReadAt == null);
   const read = (feedbacks ?? []).filter((feedback) => feedback.coachReadAt != null);
-  const isEmpty = !isPending && !isError && (feedbacks ?? []).length === 0;
+  // Hors chargement et hors panne, la requête a réussi : la liste est là.
+  const isEmpty = !isPending && !isError && feedbacks.length === 0;
 
   return (
     <CmvScreen>
