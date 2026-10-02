@@ -212,6 +212,12 @@ L'aperçu athlète du constructeur est en **lecture seule** : le coach ne config
 suivi d'exécution, ils découlent des valeurs qu'il saisit (cf. section athlète ci-dessous). Rien ne
 doit y laisser croire qu'il les paramètre.
 
+**Écart assumé en [#520](https://github.com/Cimavia/cimavia/issues/520)** : la frame « saisie en
+grille » dessine une Séries à lignes libres, avec « Ajouter une ligne — duplique la dernière ».
+Livré : une ligne par série, les séries sans ligne propre en fantômes qui reprennent la dernière,
+et aucun bouton d'ajout — c'est le champ « Séries » du bandeau qui fixe le nombre de lignes. Le
+bouton reste sur les quatre autres types. Voir « Tranché en #520 » dans `dette-technique.md`.
+
 ## Constructeur de séance — le dosage à trois niveaux
 
 `coach_constructeur_seance.dc.html` suppose la refonte de l'exercice ci-dessus : à lire après elle.

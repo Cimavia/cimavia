@@ -4551,6 +4551,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Lisibilité du constructeur ([#525](https://github.com/Cimavia/cimavia/issues/525))
+
+> **Tranché en [#520](https://github.com/Cimavia/cimavia/issues/520)** (une ligne par série, et les
+> lignes restent un tableau) : la grille d'une Séries montrait les lignes STOCKÉES, et le coach qui
+> saisissait « 4 séries » sur une ligne ne voyait pas que les trois autres la reprenaient. Elle
+> montre désormais une ligne par série ; celles qui n'ont pas de ligne propre sont des **fantômes**
+> estompés, qui disent quelle série ils reprennent. Le modèle ne bouge pas — `setCount` reste
+> distinct des lignes, aucune migration — mais sa lecture change sur un point : une série sans
+> ligne propre reprend la **DERNIÈRE** ligne (`rowForUnit`), et non plus rien. C'est ce que la
+> grille montre, et l'exécution guidée devait jouer la même chose.
+>
+> - **Saisir dans un fantôme le matérialise**, avec les fantômes qui le précèdent, en copie de la
+>   dernière ligne : la ligne n reste la série n (`withMaterializedSeries`). La ligne matérialisée
+>   prend l'identifiant RÉSERVÉ de son fantôme, donc la même clé React : sans ça, le coach qui
+>   tabule hors de la cellule qu'il vient de remplir perdait le focus. Pour la même raison, les
+>   deux natures de ligne partagent UN seul `<tr>` (`BlockGridRow`).
+> - **Plus de « Ajouter une ligne » en Séries**, et Entrée n'en crée plus : c'est le champ
+>   « Séries » du bandeau qui fixe le nombre de lignes. Une ligne au-delà de `setCount` reste
+>   visible, marquée « non jouée », pour que le coach qui baisse le nombre de séries ne perde rien.
+> - **La corbeille fait remonter les séries suivantes** : la dernière redevient fantôme. Les lignes
+>   sont un tableau, pas des cases numérotées — retirer la série 2 sur 4 ne laisse pas de trou.
+> - **L'arbitrage de `resetRow` est conservé** : « Revenir au défaut » ne retire pas une ligne
+>   ajoutée en séance. Une série matérialisée au niveau séance est une ligne ajoutée comme une
+>   autre, sans marqueur d'ajustement ; c'est la corbeille qui la rend fantôme.
+> - **Le remplissage de colonne agit sur les N séries** (`fillableRows`), fantômes compris, et non
+>   sur les seules lignes stockées : « progression sur 4 séries » qui n'en remplit qu'une n'a pas
+>   de sens.
+> - **La lecture regroupe les séries identiques** (`readingRows`) : l'aperçu du web et la séance
+>   mobile disent « 1 » puis « 2–4 », plutôt que de répéter trois fois la même ligne ou de taire
+>   les séries reprises. Une ligne non jouée n'y apparaît pas.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
