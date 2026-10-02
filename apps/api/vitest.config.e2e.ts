@@ -19,7 +19,7 @@ export default defineConfig({
     // Les e2e démarrent Nest DANS le process du worker (`app.listen`) : les requêtes font un
     // aller-retour par la boucle locale, mais `src/` s'exécute ici. V8 relève donc les handlers
     // HTTP : ce rapport porte à lui seul ~93 % des lignes de l'API. Uni aux unitaires, il couvre
-    // tout ce qu'une entrée peut atteindre ; le reste est du code mort recensé en #512 (#506).
+    // tout ce qu'une entrée peut atteindre ; ce qui reste est consigné en « Tranché en #512 ».
     coverage: {
       provider: "v8",
       include: ["src/**"],
