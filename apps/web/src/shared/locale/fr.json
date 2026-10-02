@@ -28,7 +28,7 @@
       "day": "il y a {{count}} jour",
       "day_other": "il y a {{count}} jours"
     },
-    "durationInvalid": "Durée non comprise. Écris 90, 1'30, 30 s ou 2 min.",
+    "durationInvalid": "Durée non comprise. Ex. 1'30, 45 s, ou 90 (en secondes).",
     "save": "Enregistrer",
     "saving": "Enregistrement…"
   },
@@ -125,11 +125,12 @@
       "series": "{{count}} série",
       "series_other": "{{count}} séries",
       "emom": "Toutes les {{interval}} pendant {{total}}",
+      "emomEveryMinute": "Chaque minute pendant {{total}}",
       "amrap": "En {{total}}, un maximum de tours",
       "amrapWithTarget": "En {{total}}, un maximum de tours. Objectif : {{count}} tours.",
       "circuit": "Bloc ×{{count}}",
       "restBetweenSets": "{{rest}} de repos entre les séries",
-      "restBetweenRounds": "repos {{rest}} entre tours"
+      "restBetweenRounds": "{{rest}} de repos entre les tours"
     }
   },
   "library": {

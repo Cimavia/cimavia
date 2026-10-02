@@ -234,6 +234,20 @@ describe("DosageBlock — le bandeau", () => {
     expect(container.textContent).toContain("exercise.dosage.restBetweenSets");
   });
 
+  // #528 : « Toutes les 1' » se lisait mal ; l'EMOM d'une minute a sa propre phrase.
+  it("dit « chaque minute » d'un EMOM à intervalle d'une minute", () => {
+    const emom = exerciseBlockSchema.parse({
+      id: "blk_1",
+      label: null,
+      structure: { type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 },
+      metrics: [reps],
+      rows: [{ id: "r1", values: { col_reps: 6 } }],
+    });
+    const { container } = renderRn(<DosageBlock block={emom} customMetrics={[]} />);
+
+    expect(container.textContent).toContain("exercise.dosage.emomEveryMinute");
+  });
+
   /** Un bloc libre sans nom n'a ni structure ni repos à dire : pas de bandeau vide. */
   it("ne pose aucun bandeau quand il n'a rien à dire", () => {
     const free = exerciseBlockSchema.parse({
