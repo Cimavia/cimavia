@@ -59,7 +59,13 @@ export function parseTrainingDuration(input: string | null | undefined): number 
  *
  * `null` en entrée → `null` en sortie (règle dure n°5) : au rendu d'afficher « — ». Surtout pas
  * « 0 s », qui ferait passer une durée ABSENTE pour une durée nulle.
+ *
+ * Surchargée pour que le type porte l'invariant : un NOMBRE rend toujours une chaîne. Sans elle,
+ * chaque appelant qui tient déjà un nombre écrivait un repli (`?? ""`, `?? "—"`) qu'aucune entrée
+ * n'atteignait — et qui serait devenu un fallback silencieux le jour où l'invariant tombe (#512).
  */
+export function formatTrainingDuration(seconds: number): string;
+export function formatTrainingDuration(seconds: number | null | undefined): string | null;
 export function formatTrainingDuration(seconds: number | null | undefined): string | null {
   if (seconds == null) return null;
   const total = Math.max(0, Math.round(seconds));

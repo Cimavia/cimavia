@@ -51,7 +51,7 @@ export function RestBanner({
 
       <View className="flex-row items-center gap-3">
         <CmvText className="font-cmv-mono text-cmv-text-hi text-2xl">
-          {formatTrainingDuration(remaining) ?? "0 s"}
+          {formatTrainingDuration(remaining)}
         </CmvText>
         {/* Tronqué plutôt que replié : « repos · série 3 sur 4 » déborde sur les petits écrans,
             et couper la fin vaut mieux que pousser les boutons hors de portée. */}

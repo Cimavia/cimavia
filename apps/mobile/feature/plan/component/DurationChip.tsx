@@ -29,7 +29,7 @@ export function DurationChip({ seconds, label, onStart }: Readonly<DurationChipP
       className="h-8 justify-center rounded-full border border-cmv-accent-line bg-cmv-accent-soft px-3"
     >
       <CmvText className="font-cmv-mono text-cmv-accent-on text-sm">
-        {formatTrainingDuration(seconds) ?? "—"}
+        {formatTrainingDuration(seconds)}
       </CmvText>
     </Pressable>
   );

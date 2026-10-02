@@ -237,7 +237,7 @@ function BlockRunControls({
         >
           <CmvText className="text-cmv-accent-on text-sm">{t("plan.timer.run")}</CmvText>
           <CmvText className="font-cmv-mono text-cmv-accent-on text-xs">
-            {formatTrainingDuration(total) ?? ""}
+            {formatTrainingDuration(total)}
           </CmvText>
         </Pressable>
       ) : null}
