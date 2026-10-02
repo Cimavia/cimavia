@@ -150,7 +150,7 @@
     "session": {
       "createTitle": "Nouvelle séance",
       "titleLabel": "Titre",
-      "titlePlaceholder": "Ex. Force haut du corps, Volume grimpe…",
+      "titlePlaceholder": "Ex. Force haut du corps, Endurance…",
       "notesLabel": "Notes de séance",
       "notesPlaceholder": "Ce qui vaut pour toute la séance…",
       "composition": "Exercices",
@@ -196,7 +196,7 @@
     "filterAllTags": "Tous",
     "tags": {
       "label": "Tags",
-      "placeholder": "Ajouter un tag — renfo, grimpe, technique…",
+      "placeholder": "Ajouter un tag — force, endurance, technique…",
       "remove": "Retirer le tag"
     },
     "builder": {
@@ -207,7 +207,7 @@
       "usedInSessions": "Utilisé dans {{count}} séance.",
       "usedInSessions_other": "Utilisé dans {{count}} séances.",
       "titleLabel": "Titre",
-      "titlePlaceholder": "Ex. Tractions lestées, 4×4 bloc…",
+      "titlePlaceholder": "Ex. Tractions lestées, Gainage 3×30 s…",
       "previewTitle": "Aperçu athlète — mis à jour en direct",
       "previewEmpty": "L'aperçu apparaît une fois le titre renseigné.",
       "cancel": "Annuler",
@@ -464,7 +464,7 @@
       "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
       "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
       "titleLabel": "Titre du cycle",
-      "titlePlaceholder": "Cycle bloc — automne",
+      "titlePlaceholder": "Cycle force — automne",
       "athlete": "Destinataire",
       "athletePlaceholder": "À définir plus tard",
       "athleteLockedPublished": "Le destinataire d'un cycle diffusé ne change plus : il en a déjà été prévenu.",
@@ -503,7 +503,7 @@
       "templateNone": "Séance vide (sans modèle)",
       "templateHint": "Le titre, les consignes, les exercices et leurs documents seront copiés du modèle.",
       "titleLabel": "Titre de la séance",
-      "titlePlaceholder": "Bloc force max",
+      "titlePlaceholder": "Force max",
       "notesLabel": "Consignes du coach",
       "notesPlaceholder": "Bien s'échauffer les épaules avant les essais.",
       "composition": "Déroulé de la séance",
