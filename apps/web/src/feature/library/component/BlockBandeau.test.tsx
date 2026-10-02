@@ -92,6 +92,37 @@ describe("BlockBandeau — Séries", () => {
   });
 });
 
+/**
+ * #526 : un placeholder qui montre une valeur se lisait comme une valeur saisie — le coach croyait
+ * avoir posé un repos de 2'30 qu'il n'avait jamais écrit. Chaque exemple passe par le catalogue,
+ * qui le préfixe de « Ex. ».
+ */
+describe("BlockBandeau — les exemples (#526)", () => {
+  it("laisse vide un repos non renseigné, et n'en montre que l'exemple", () => {
+    const { duration } = setup({
+      ...DEFAULT_BLOCK_STRUCTURE[BlockType.SERIES],
+      restBetweenSetsSeconds: null,
+    });
+
+    expect(duration("restBetweenSetsSeconds")).toHaveValue("");
+    expect(duration("restBetweenSetsSeconds")).toHaveAttribute(
+      "placeholder",
+      field("restBetweenSetsPlaceholder"),
+    );
+  });
+
+  it.each([
+    [BlockType.EMOM, "intervalSeconds", "intervalPlaceholder"],
+    [BlockType.EMOM, "totalDurationSeconds", "emomDurationPlaceholder"],
+    [BlockType.AMRAP, "totalDurationSeconds", "amrapDurationPlaceholder"],
+    [BlockType.CIRCUIT, "restBetweenRoundsSeconds", "restBetweenRoundsPlaceholder"],
+  ] as const)("%s : « %s » tire son exemple du catalogue", (type, name, placeholder) => {
+    const { duration } = setup(DEFAULT_BLOCK_STRUCTURE[type]);
+
+    expect(duration(name)).toHaveAttribute("placeholder", field(placeholder));
+  });
+});
+
 describe("BlockBandeau — EMOM", () => {
   const emom = DEFAULT_BLOCK_STRUCTURE[BlockType.EMOM];
 
