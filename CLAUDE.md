@@ -4,7 +4,7 @@ Contexte auto-chargé par Claude Code. Garder **court et à jour** : toute déri
 
 ## Projet
 
-**cimavia** — application de suivi de la relation **coach ↔ athlète** en escalade (multi-sport à terme). Un coach crée des planifications, les diffuse à ses athlètes, échange avec eux et les facture ; l'athlète consulte ses séances, les débriefe avec médias, et discute avec son coach. Dev **solo**, assisté de Claude / Claude Code.
+**cimavia** — application de suivi de la relation **coach ↔ athlète**, sans sport cible. Un coach crée des planifications, les diffuse à ses athlètes, échange avec eux et les facture ; l'athlète consulte ses séances, les débriefe avec médias, et discute avec son coach. Dev **solo**, assisté de Claude / Claude Code.
 
 - Scope packages : `@cmv/*` · préfixe composants : `Cmv` (ex. `CmvButton`) · scheme Expo : `cimavia`
 - Langue produit : **français d'abord**, anglais prévu (strings externalisées dès P0)

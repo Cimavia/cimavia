@@ -1,6 +1,6 @@
 # cimavia
 
-Application de suivi de la relation **coach ↔ athlète** en escalade.
+Application de suivi de la relation **coach ↔ athlète**, quel que soit le sport.
 
 ## Structure
 
