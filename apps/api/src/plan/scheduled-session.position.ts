@@ -34,8 +34,8 @@ export async function writeDay(
   ordered: readonly PositionedSession[],
   date: Date,
 ): Promise<void> {
-  if (ordered.length === 0) return;
-
+  // Une liste vide ne fait rien : aucun `staying`, donc aucun maximum à prendre, et la boucle
+  // n'écrit rien. Pas de garde à part (#512).
   const staying = ordered.filter((session) => session.scheduledDate.getTime() === date.getTime());
   const parking =
     staying.length === 0 ? 0 : Math.max(...staying.map((session) => session.position)) + 1;

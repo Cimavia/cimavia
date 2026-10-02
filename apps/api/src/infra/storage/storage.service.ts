@@ -15,12 +15,12 @@ import type { EnvSchema, MediaUploadTicketDto } from "@cmv/shared";
 import {
   MULTIPART_PART_SIZE_BYTES,
   multipartPartSizes,
+  required,
   requiresMultipart,
   SIGNED_URL_TTL_SECONDS,
   UploadMode,
 } from "@cmv/shared";
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -158,12 +158,12 @@ export class StorageService {
       };
     }
 
-    const partSizes = multipartPartSizes(sizeBytes);
-    // Inatteignable : les schémas bornent déjà `size` à un entier positif. On refuse franchement
-    // plutôt que d'ouvrir un upload sans part, qui ne pourrait jamais être clos.
-    if (partSizes == null) {
-      throw new BadRequestException("Taille de fichier inexploitable");
-    }
+    // Les schémas bornent déjà `size` à un entier positif : un upload sans part, qui ne pourrait
+    // jamais être clos, ne s'ouvre pas.
+    const partSizes = required(
+      multipartPartSizes(sizeBytes),
+      `[storage] taille inexploitable malgré le schéma : ${sizeBytes}`,
+    );
 
     const uploadId = await this.createMultipartUpload(key, contentType);
     const partUrls = await this.createPartUploadUrls(key, uploadId, partSizes);
@@ -282,7 +282,9 @@ export class StorageService {
    */
   private async listParts(key: string, uploadId: string): Promise<CompletedPart[]> {
     const { client, bucket } = this.require();
-    const parts: CompletedPart[] = [];
+    // Typé plus étroit que `CompletedPart` : une part sans numéro est écartée à la lecture, le tri
+    // n'a donc aucune absence à rattraper (#512).
+    const parts: { PartNumber: number; ETag: string }[] = [];
     let marker: string | undefined;
 
     do {
@@ -313,7 +315,7 @@ export class StorageService {
       marker = page.IsTruncated === true ? page.NextPartNumberMarker : undefined;
     } while (marker != null);
 
-    return parts.sort((a, b) => (a.PartNumber ?? 0) - (b.PartNumber ?? 0));
+    return parts.sort((a, b) => a.PartNumber - b.PartNumber);
   }
 
   // URL GET signée : lecture ponctuelle d'un objet privé.

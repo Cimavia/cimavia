@@ -51,10 +51,12 @@ export function buildLogTargets(): TransportTargetOptions[] {
  * `req` elle aussi.
  */
 const serializers = {
-  req: (req: { id?: unknown; method?: string; url?: string }) => ({
+  // `url` toujours présente : Fastify la renseigne sur toute requête, et pino-std-serializers la
+  // recopie telle quelle.
+  req: (req: { id?: unknown; method?: string; url: string }) => ({
     id: req.id,
     method: req.method,
-    url: req.url === undefined ? undefined : redactUrlSecrets(req.url),
+    url: redactUrlSecrets(req.url),
   }),
   res: (res: { statusCode?: number }) => ({ statusCode: res.statusCode }),
 };

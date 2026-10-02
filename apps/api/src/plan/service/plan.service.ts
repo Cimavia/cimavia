@@ -12,6 +12,7 @@ import {
   daysBetweenIsoDates,
   PLAN_MAX_WEEKS,
   PlanStatus,
+  required,
 } from "@cmv/shared";
 import {
   BadRequestException,
@@ -115,11 +116,11 @@ export class PlanService {
 
     let shiftDays = 0;
     if (input.startDate !== undefined) {
-      const days = daysBetweenIsoDates(toIsoDate(plan.startDate), input.startDate);
-      if (days == null) {
-        throw new Error(`[plan] date de début illisible pour le plan ${id}`);
-      }
-      shiftDays = days;
+      // Deux dates lisibles : celle de la base, et celle que le schéma vient de valider.
+      shiftDays = required(
+        daysBetweenIsoDates(toIsoDate(plan.startDate), input.startDate),
+        `[plan] date de début illisible pour le plan ${id}`,
+      );
       data.startDate = toDbDate(input.startDate);
     }
 
