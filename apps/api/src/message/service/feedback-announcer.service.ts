@@ -36,9 +36,10 @@ export class FeedbackAnnouncerService {
    *   de plus que le premier, qui pointe déjà l'état courant ;
    * - tous les avis lus → « mis à jour », qui est cette fois une information neuve.
    *
-   * Même règle que le throttle push « first-unread » de `MessageService.send`, et que « seule la
-   * création d'un débrief notifie » (P4). Elle DOIT porter sur l'état et non sur la requête :
-   * `attach` est appelé une fois par média, le serveur ne voit jamais « un lot de vingt ».
+   * Même rythme que la trace des messages (`MessageService.send`) : une par série non lue. Le
+   * push, lui, suit son propre rythme depuis #537 — c'est `FeedbackService.markSent` qui le
+   * décide. Cette règle-ci DOIT porter sur l'état et non sur la requête : `attach` est appelé une
+   * fois par média, le serveur ne voit jamais « un lot de vingt ».
    *
    * Conséquence assumée : `markRead` est par FIL (tranché en #190), donc un coach qui ne lit que la
    * page Débriefs laisse son avis non lu et n'en reçoit pas d'autre pour ce débrief. Rien n'est
