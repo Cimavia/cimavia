@@ -9,7 +9,7 @@ import {
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 
-// i18n-values exercise.dosage: series, emom, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
+// i18n-values exercise.dosage: series, emom, emomEveryMinute, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
 
 /**
  * La phrase qu'une carte d'exercice affiche repliée — « 4 séries de 6 répétitions à +10 kg, 2'30

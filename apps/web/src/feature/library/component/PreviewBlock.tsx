@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { CMV_TABLE } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
-// i18n-values exercise.dosage: series, emom, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
+// i18n-values exercise.dosage: series, emom, emomEveryMinute, amrap, amrapWithTarget, circuit, restBetweenSets, restBetweenRounds
 
 type PreviewBlockProps = {
   block: ExerciseBlock;
