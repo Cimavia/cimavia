@@ -1,4 +1,4 @@
-import { DocumentType, type DocumentUsage, type ExerciseDocumentDto } from "@cmv/shared";
+import { DocumentType, type DocumentUsage, type ExerciseDocumentDto, required } from "@cmv/shared";
 import type { StorageService } from "./storage.service";
 
 /**
@@ -28,18 +28,12 @@ export async function toDocumentDto(
   doc: DocumentRow,
   storage: StorageService,
 ): Promise<ExerciseDocumentDto> {
-  let url: string;
-  if (doc.type === DocumentType.FILE) {
-    if (doc.storagePath == null) {
-      throw new Error(`[storage] document FILE ${doc.id} sans storagePath`);
-    }
-    url = await storage.createDownloadUrl(doc.storagePath);
-  } else {
-    if (doc.url == null) {
-      throw new Error(`[storage] document LINK ${doc.id} sans url`);
-    }
-    url = doc.url;
-  }
+  const url =
+    doc.type === DocumentType.FILE
+      ? await storage.createDownloadUrl(
+          required(doc.storagePath, `[storage] document FILE ${doc.id} sans storagePath`),
+        )
+      : required(doc.url, `[storage] document LINK ${doc.id} sans url`);
 
   return {
     id: doc.id,

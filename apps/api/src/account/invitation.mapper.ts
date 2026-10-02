@@ -1,4 +1,5 @@
 import type { InvitationDto, PendingInvitationDto } from "@cmv/shared";
+import { required } from "@cmv/shared";
 import type { Invitation } from "@prisma/client";
 
 export function toInvitationDto(invitation: Invitation): InvitationDto {
@@ -27,10 +28,10 @@ export function toPendingInvitationDto(
   invitation: Invitation,
   namesById: Map<string, string>,
 ): PendingInvitationDto {
-  const coachName = namesById.get(invitation.coachId);
-  if (coachName == null) {
-    throw new Error(`[account] coach introuvable pour l'invitation ${invitation.id}`);
-  }
+  const coachName = required(
+    namesById.get(invitation.coachId),
+    `[account] coach introuvable pour l'invitation ${invitation.id}`,
+  );
 
   return {
     id: invitation.id,

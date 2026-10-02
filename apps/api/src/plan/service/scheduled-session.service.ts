@@ -11,6 +11,7 @@ import {
   customMetricIdsIn,
   isDateInPlanWeek,
   PlanStatus,
+  required,
   ScheduledSessionStatus,
 } from "@cmv/shared";
 import {
@@ -376,12 +377,9 @@ export class ScheduledSessionService {
    */
   private async buildDraft(input: CreateScheduledSessionInput): Promise<SessionDraft> {
     if (input.sourceSessionId == null) {
-      if (input.title == null) {
-        // Garanti par le schéma (refine) : titre requis sans modèle source.
-        throw new BadRequestException("Titre requis pour une séance sans modèle source");
-      }
       return {
-        title: input.title,
+        // Garanti par le schéma (refine) : titre requis sans modèle source.
+        title: required(input.title, "[plan] séance ad hoc sans titre malgré le schéma"),
         notes: input.notes ?? null,
         exercises: input.exercises ?? [],
       };
@@ -402,10 +400,10 @@ export class ScheduledSessionService {
     // requête par exercice serait du gaspillage.
     const coachMetrics = await this.db.customMetric.findMany();
     const copied = template.exercises.map((composed) => {
-      const exercise = library.get(composed.exerciseId);
-      if (exercise == null) {
-        throw new Error(`[plan] exercice ${composed.exerciseId} hors scope du coach courant`);
-      }
+      const exercise = required(
+        library.get(composed.exerciseId),
+        `[plan] exercice ${composed.exerciseId} hors scope du coach courant`,
+      );
       return {
         sourceExerciseId: exercise.id,
         title: exercise.title,

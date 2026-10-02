@@ -1,4 +1,4 @@
-import type { CoachAthleteDto } from "@cmv/shared";
+import { type CoachAthleteDto, required } from "@cmv/shared";
 import type { CoachAthlete } from "@prisma/client";
 
 // Source unique du mapping de la relation coach↔athlète : `RelationService` (lecture) ET
@@ -9,11 +9,9 @@ export function toCoachAthleteDto(
   relation: CoachAthlete,
   namesById: Map<string, string>,
 ): CoachAthleteDto {
-  const coachName = namesById.get(relation.coachId);
-  const athleteName = namesById.get(relation.athleteId);
-  if (coachName == null || athleteName == null) {
-    throw new Error(`[account] utilisateur introuvable pour la relation ${relation.id}`);
-  }
+  const missing = `[account] utilisateur introuvable pour la relation ${relation.id}`;
+  const coachName = required(namesById.get(relation.coachId), missing);
+  const athleteName = required(namesById.get(relation.athleteId), missing);
 
   return {
     id: relation.id,

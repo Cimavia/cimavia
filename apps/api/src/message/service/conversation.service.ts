@@ -1,5 +1,5 @@
 import type { ConversationDto, OpenConversationInput } from "@cmv/shared";
-import { CoachAthleteStatus, MessageType } from "@cmv/shared";
+import { CoachAthleteStatus, MessageType, required } from "@cmv/shared";
 import {
   BadRequestException,
   ConflictException,
@@ -44,10 +44,7 @@ export class ConversationService {
     const { coachId, athleteId } = await this.resolvePair(actor, input.athleteId);
     const conversation = await this.ensure(coachId, athleteId);
     const [dto] = await this.toDtos([conversation], actor);
-    if (dto == null) {
-      throw new Error("[message] conversation ouverte mais non mappable");
-    }
-    return dto;
+    return required(dto, "[message] conversation ouverte mais non mappable");
   }
 
   // Fils existants, du plus récemment actif au plus ancien (l'ordre utile au coach). Pas de
@@ -174,10 +171,10 @@ export class ConversationService {
 
     return conversations.map((conversation) => {
       const otherId = counterpartId(conversation);
-      const name = names.get(otherId);
-      if (name == null) {
-        throw new Error(`[message] fil ${conversation.id} sans contrepartie résolue`);
-      }
+      const name = required(
+        names.get(otherId),
+        `[message] fil ${conversation.id} sans contrepartie résolue`,
+      );
       const last = lastByConversation.get(conversation.id) ?? null;
       return {
         id: conversation.id,

@@ -1,4 +1,5 @@
 import type { InvoiceCurrency, InvoiceDto, InvoiceStatusType } from "@cmv/shared";
+import { required } from "@cmv/shared";
 import type { Invoice } from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
 import { toIsoDate } from "../util/date.util";
@@ -17,13 +18,11 @@ export async function toInvoiceDto(
   planTitles: Map<string, string>,
   storage: StorageService,
 ): Promise<InvoiceDto> {
-  const coachName = names.get(invoice.coachId);
-  const athleteName = names.get(invoice.athleteId);
-  if (coachName == null || athleteName == null) {
-    // Les deux sont garantis par des FK : une absence signale une incohérence de données, pas un
-    // cas métier — on lève plutôt que d'afficher un trou (règle nullable).
-    throw new Error(`[invoice] facture ${invoice.id} sans coach ou athlète résolu`);
-  }
+  // Les deux sont garantis par des FK : une absence signale une incohérence de données, pas un
+  // cas métier — on lève plutôt que d'afficher un trou (règle nullable).
+  const missing = `[invoice] facture ${invoice.id} sans coach ou athlète résolu`;
+  const coachName = required(names.get(invoice.coachId), missing);
+  const athleteName = required(names.get(invoice.athleteId), missing);
   return {
     id: invoice.id,
     coachId: invoice.coachId,
