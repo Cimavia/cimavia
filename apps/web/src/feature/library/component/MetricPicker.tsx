@@ -69,8 +69,8 @@ export function MetricPicker({
     const existing = block.metrics.find(
       (metric) => metric.source === MetricSource.CATALOG && metric.key === key,
     );
+    // Au plafond, toute ligne non retenue est fermée : on n'arrive ici que sous le plafond.
     if (existing != null) return remove(existing.id);
-    if (isFull) return;
     const metric: BlockMetric = {
       id: crypto.randomUUID(),
       source: MetricSource.CATALOG,
@@ -87,6 +87,8 @@ export function MetricPicker({
       (metric) => metric.source === MetricSource.CUSTOM && metric.customMetricId === customMetricId,
     );
     if (existing != null) return remove(existing.id);
+    // Atteint au plafond : la CRÉATION d'une métrique maison passe aussi par ici, et elle reste
+    // ouverte bloc plein — la métrique naît dans la bibliothèque sans être posée.
     if (isFull) return;
     const metric: BlockMetric = {
       id: crypto.randomUUID(),
@@ -115,9 +117,7 @@ export function MetricPicker({
   function move(index: number, to: number) {
     if (to < 0 || to >= block.metrics.length) return;
     const next = [...block.metrics];
-    const [moved] = next.splice(index, 1);
-    if (moved == null) return;
-    next.splice(to, 0, moved);
+    next.splice(to, 0, ...next.splice(index, 1));
     onChange({ ...block, metrics: next });
   }
 

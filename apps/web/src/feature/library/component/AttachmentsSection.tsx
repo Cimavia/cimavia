@@ -5,6 +5,7 @@ import {
   type ExerciseDto,
   isAllowedDocumentMime,
   MAX_DOCUMENT_SIZE_BYTES,
+  required,
 } from "@cmv/shared";
 import { type ChangeEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -45,12 +46,18 @@ export function AttachmentsSection({
   const [fileError, setFileError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  const attachments = (exercise?.documents ?? []).filter(
-    (document) => document.usage === DocumentUsage.ATTACHMENT,
-  );
+  // Chaque document enregistré porte l'id de SON exercice : sans exercice, il n'y en a aucun, et le
+  // bouton qui le retire n'a donc jamais à se demander à qui il appartient.
+  const attachments =
+    exercise == null
+      ? []
+      : exercise.documents
+          .filter((document) => document.usage === DocumentUsage.ATTACHMENT)
+          .map((document) => ({ document, exerciseId: exercise.id }));
 
   function onPickFiles(event: ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(event.target.files ?? []);
+    // Un `input type="file"` a toujours sa `FileList`, vide ou non.
+    const picked = Array.from(required(event.target.files, "champ fichier sans FileList"));
     // Remis à zéro : sans ça, re-choisir le MÊME fichier ne déclenche aucun `change`.
     event.target.value = "";
     setFileError(null);
@@ -78,8 +85,8 @@ export function AttachmentsSection({
    * faisait échouer l'enregistrement après la création de l'exercice (#302).
    */
   function addLink() {
+    // Jamais blanc : le bouton, seul appelant, est fermé sur un brouillon blanc.
     const url = linkDraft.trim();
-    if (url === "") return;
     if (!attachDocumentSchema.safeParse({ type: DocumentType.LINK, url }).success) {
       setLinkError(t("library.builder.attachment.errorLink"));
       return;
@@ -88,13 +95,19 @@ export function AttachmentsSection({
     setLinkDraft("");
   }
 
+  // La barre n'apparaît qu'une fois l'envoi parti : avant, aucun pourcentage n'existe.
+  function uploadBar(percent: number | undefined) {
+    if (percent == null) return null;
+    return <CmvProgressBar percent={percent} label={t("library.builder.attachment.uploading")} />;
+  }
+
   return (
     <section className="flex flex-col gap-cmv-sm">
       <span className="text-cmv-caption text-cmv-text-mid">
         {t("library.builder.attachment.title")}
       </span>
 
-      {attachments.map((document) => (
+      {attachments.map(({ document, exerciseId }) => (
         <div
           key={document.id}
           className="flex items-center justify-between gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm"
@@ -115,11 +128,8 @@ export function AttachmentsSection({
             </CmvBadge>
             <CmvButton
               variant="danger"
-              disabled={removeDocument.isPending || exercise == null}
-              onClick={() => {
-                if (exercise == null) return;
-                removeDocument.mutate({ exerciseId: exercise.id, documentId: document.id });
-              }}
+              disabled={removeDocument.isPending}
+              onClick={() => removeDocument.mutate({ exerciseId, documentId: document.id })}
             >
               {t("library.builder.attachment.remove")}
             </CmvButton>
@@ -142,12 +152,7 @@ export function AttachmentsSection({
               {t("library.builder.attachment.remove")}
             </CmvButton>
           </div>
-          {progress[pending.id] == null ? null : (
-            <CmvProgressBar
-              percent={progress[pending.id] ?? 0}
-              label={t("library.builder.attachment.uploading")}
-            />
-          )}
+          {uploadBar(progress[pending.id])}
         </div>
       ))}
 

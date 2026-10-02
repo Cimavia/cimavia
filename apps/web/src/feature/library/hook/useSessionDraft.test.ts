@@ -244,7 +244,6 @@ describe("useSessionDraft — composer", () => {
   it.each([
     ["vers le haut depuis la première", 0, -1],
     ["vers le bas depuis la dernière", 1, 2],
-    ["depuis une position qui n'existe pas", 5, 0],
   ])("ne déplace rien %s", (_label, from, to) => {
     const { result } = renderDraft();
     const before = result.current.items;
@@ -252,6 +251,16 @@ describe("useSessionDraft — composer", () => {
     act(() => result.current.moveItem(from, to));
 
     expect(result.current.items).toBe(before);
+  });
+
+  // Aucun appelant ne passe une source hors liste (#512) : l'ordre reste intact, sans garde dédiée.
+  it("ne déplace rien depuis une position qui n'existe pas", () => {
+    const { result } = renderDraft();
+    const before = result.current.items;
+
+    act(() => result.current.moveItem(5, 0));
+
+    expect(result.current.items).toEqual(before);
   });
 
   it("remplace les lignes d'un bloc sans toucher aux autres", () => {

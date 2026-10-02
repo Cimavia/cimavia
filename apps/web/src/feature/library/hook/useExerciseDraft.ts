@@ -91,6 +91,8 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
 
 // La première occurrence seulement : deux fois le même lien en attente, c'est deux rattachements.
 function withoutFirst(links: readonly string[], url: string): string[] {
+  // Sans branche « introuvable » : un `indexOf` à -1 ne désigne aucune position, et le filtre
+  // rend alors la liste entière — le lien a pu être retiré pendant l'envoi.
   const index = links.indexOf(url);
-  return index === -1 ? [...links] : links.toSpliced(index, 1);
+  return links.filter((_, position) => position !== index);
 }

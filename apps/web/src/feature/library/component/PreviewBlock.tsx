@@ -81,17 +81,24 @@ function RowValues({
 }>) {
   const { t, i18n } = useTranslation();
 
+  // Chaque cellule garde l'id de SA colonne : la clé de rendu se lit dessus, sans ré-indexer.
   const cells = (row: ExerciseBlock["rows"][number]) =>
-    metrics.map((metric) => {
-      const value = row.values[metric.id] ?? null;
-      return metricCellText(value, metric, customMetrics, t, i18n.language);
-    });
+    metrics.map((metric) => ({
+      metricId: metric.id,
+      text: metricCellText(row.values[metric.id] ?? null, metric, customMetrics, t, i18n.language),
+    }));
 
   // Une seule ligne : une phrase, pas un tableau à en-tête pour une valeur.
   if (block.rows.length === 1) {
-    const only = block.rows[0];
-    if (only == null) return null;
-    return <p className="text-cmv-body text-cmv-text-mid">{cells(only).join(" · ")}</p>;
+    return (
+      <p className="text-cmv-body text-cmv-text-mid">
+        {block.rows.map((row) =>
+          cells(row)
+            .map((cell) => cell.text)
+            .join(" · "),
+        )}
+      </p>
+    );
   }
 
   return (
@@ -117,9 +124,9 @@ function RowValues({
               <td className={CMV_TABLE.cell}>
                 <span className={CMV_TABLE.index}>{index + 1}</span>
               </td>
-              {cells(row).map((cell, cellIndex) => (
-                <td key={metrics[cellIndex]?.id ?? cellIndex} className={CMV_TABLE.cell}>
-                  {cell}
+              {cells(row).map((cell) => (
+                <td key={cell.metricId} className={CMV_TABLE.cell}>
+                  {cell.text}
                 </td>
               ))}
             </tr>

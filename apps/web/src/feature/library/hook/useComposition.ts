@@ -53,9 +53,7 @@ export function useComposition<T extends CompositionRow>(
     setItems((current) => {
       if (to < 0 || to >= current.length) return current;
       const next = [...current];
-      const [moved] = next.splice(from, 1);
-      if (moved == null) return current;
-      next.splice(to, 0, moved);
+      next.splice(to, 0, ...next.splice(from, 1));
       return next;
     });
   }

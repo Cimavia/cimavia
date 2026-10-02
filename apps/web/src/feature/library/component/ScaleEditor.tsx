@@ -35,8 +35,9 @@ export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
 
   function add() {
     const step = draft.trim();
-    // Un doublon casserait `scaleStepIndex`, qui rend la PREMIÈRE position trouvée.
-    if (step === "" || isFull || scale.includes(step)) return setDraft("");
+    // Un doublon casserait `scaleStepIndex`, qui rend la PREMIÈRE position trouvée. Le plafond, lui,
+    // n'a pas à être regardé ici : au plafond, le champ ET le bouton sont fermés.
+    if (step === "" || scale.includes(step)) return setDraft("");
     onChange([...scale, step]);
     setDraft("");
     // Le focus revient au champ : on saisit une échelle palier après palier, et devoir recliquer
@@ -47,9 +48,7 @@ export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
   function move(index: number, to: number) {
     if (to < 0 || to >= scale.length) return;
     const next = [...scale];
-    const [moved] = next.splice(index, 1);
-    if (moved == null) return;
-    next.splice(to, 0, moved);
+    next.splice(to, 0, ...next.splice(index, 1));
     onChange(next);
   }
 

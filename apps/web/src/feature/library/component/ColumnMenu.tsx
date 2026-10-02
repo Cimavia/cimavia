@@ -1,6 +1,7 @@
 import {
   type BlockMetric,
   ColumnFillMode,
+  type ColumnFillPlan,
   type CustomMetric,
   canCollapseMetric,
   columnValues,
@@ -215,6 +216,22 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
 
   const parsedStep = usableStep(step, valueType);
 
+  /**
+   * Les deux progressions, prêtes à jouer — ou `null` tant qu'il leur manque un pas lisible ou un
+   * départ du bon type. Calculées UNE fois pour le bouton et son geste : le bouton est fermé sur
+   * `null`, et le geste n'a donc rien à re-vérifier (#512).
+   */
+  const scaleStepPlan: ColumnFillPlan | null =
+    parsedStep != null && scale != null && typeof first === "string"
+      ? { mode: ColumnFillMode.SCALE_STEP, scale, start: first, step: parsedStep }
+      : null;
+  const stepPlan: ColumnFillPlan | null =
+    parsedStep != null && typeof first === "number"
+      ? { mode: ColumnFillMode.STEP, start: first, step: parsedStep }
+      : null;
+  const fillWith = (plan: ColumnFillPlan | null) =>
+    plan == null ? undefined : () => onFill(fillColumn(block, metric.id, plan));
+
   // Sans ligne, aucun remplissage n'a de sens — mais un menu à moitié vide se lit comme un bug.
   // On dit ce qui manque plutôt que de ne rien montrer.
   if (block.rows.length === 0) {
@@ -258,36 +275,13 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
           {valueType === MetricValueType.SCALE ? (
             <CmvButton
               variant="ghost"
-              disabled={parsedStep == null || scale == null || typeof first !== "string"}
-              onClick={() => {
-                if (parsedStep == null || scale == null || typeof first !== "string") return;
-                onFill(
-                  fillColumn(block, metric.id, {
-                    mode: ColumnFillMode.SCALE_STEP,
-                    scale,
-                    start: first,
-                    step: parsedStep,
-                  }),
-                );
-              }}
+              disabled={scaleStepPlan == null}
+              onClick={fillWith(scaleStepPlan)}
             >
               {t("library.builder.column.fillScaleStep")}
             </CmvButton>
           ) : (
-            <CmvButton
-              variant="ghost"
-              disabled={parsedStep == null || typeof first !== "number"}
-              onClick={() => {
-                if (parsedStep == null || typeof first !== "number") return;
-                onFill(
-                  fillColumn(block, metric.id, {
-                    mode: ColumnFillMode.STEP,
-                    start: first,
-                    step: parsedStep,
-                  }),
-                );
-              }}
-            >
+            <CmvButton variant="ghost" disabled={stepPlan == null} onClick={fillWith(stepPlan)}>
               {t("library.builder.column.fillStep")}
             </CmvButton>
           )}

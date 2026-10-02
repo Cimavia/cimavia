@@ -151,46 +151,42 @@ function toTipTapText(node: InlineNode): JSONContent {
   return { type: "text", text: node.text, ...(marks.length > 0 ? { marks } : {}) };
 }
 
-function toTipTapNode(block: RichBlock): JSONContent | null {
-  if (block.type === RichBlockType.HEADING) {
-    return {
-      type: "heading",
-      attrs: { level: HEADING_LEVEL },
-      content: block.content.map(toTipTapText),
-    };
+// Un `switch` exhaustif sur l'union discriminée : un sixième type de bloc ferait échouer la
+// compilation ici, plutôt que de tomber dans un `return null` que rien n'atteint aujourd'hui (#512).
+function toTipTapNode(block: RichBlock): JSONContent {
+  switch (block.type) {
+    case RichBlockType.HEADING:
+      return {
+        type: "heading",
+        attrs: { level: HEADING_LEVEL },
+        content: block.content.map(toTipTapText),
+      };
+    case RichBlockType.PARAGRAPH:
+      return { type: "paragraph", content: block.content.map(toTipTapText) };
+    case RichBlockType.CALLOUT:
+      return { type: CALLOUT_NODE, content: block.content.map(toTipTapText) };
+    case RichBlockType.LIST:
+      return {
+        type: block.ordered ? "orderedList" : "bulletList",
+        content: block.items.map((item) => ({
+          type: "listItem",
+          content: [{ type: "paragraph", content: item.map(toTipTapText) }],
+        })),
+      };
+    case RichBlockType.IMAGE:
+      return {
+        type: IMAGE_NODE,
+        attrs: {
+          mediaId: block.mediaId,
+          caption: block.caption ?? "",
+          width: block.width ?? ImageWidth.FULL,
+        },
+      };
   }
-  if (block.type === RichBlockType.PARAGRAPH) {
-    return { type: "paragraph", content: block.content.map(toTipTapText) };
-  }
-  if (block.type === RichBlockType.CALLOUT) {
-    return { type: CALLOUT_NODE, content: block.content.map(toTipTapText) };
-  }
-  if (block.type === RichBlockType.LIST) {
-    return {
-      type: block.ordered ? "orderedList" : "bulletList",
-      content: block.items.map((item) => ({
-        type: "listItem",
-        content: [{ type: "paragraph", content: item.map(toTipTapText) }],
-      })),
-    };
-  }
-  if (block.type === RichBlockType.IMAGE) {
-    return {
-      type: IMAGE_NODE,
-      attrs: {
-        mediaId: block.mediaId,
-        caption: block.caption ?? "",
-        width: block.width ?? ImageWidth.FULL,
-      },
-    };
-  }
-  return null;
 }
 
 export function toTipTapDocument(blocks: RichDocument | null | undefined): JSONContent {
-  const content = (blocks ?? [])
-    .map(toTipTapNode)
-    .filter((node): node is JSONContent => node != null);
+  const content = (blocks ?? []).map(toTipTapNode);
   // TipTap refuse un document sans contenu : un paragraphe vide est son état de repos.
   return { type: "doc", content: content.length > 0 ? content : [{ type: "paragraph" }] };
 }

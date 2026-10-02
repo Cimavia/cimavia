@@ -8,6 +8,7 @@ import {
   metricValueTypeOf,
   parseDecimal,
   parseTrainingDuration,
+  required,
   scaleFor,
 } from "@cmv/shared";
 import { type KeyboardEvent, useState } from "react";
@@ -97,7 +98,7 @@ function DurationCell(props: Readonly<GridCellProps>) {
 type DraftCellProps = GridCellProps & {
   /** Le texte tapé → une valeur, ou `null` s'il n'en est pas une. */
   parse: (text: string) => number | null;
-  format: (value: number) => string | null;
+  format: (value: number) => string;
   inputMode?: "decimal";
 };
 
@@ -119,7 +120,7 @@ function DraftCell({
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
 
-  const shown = draft ?? (typeof value === "number" ? (format(value) ?? "") : "");
+  const shown = draft ?? (typeof value === "number" ? format(value) : "");
 
   /** La valeur retenue, ou `undefined` quand la saisie est refusée. */
   function commit(): MetricValue | undefined {
@@ -159,7 +160,8 @@ function DraftCell({
 
 function ScaleCell({ metric, customMetrics, value, onChange }: Readonly<GridCellProps>) {
   const { t } = useTranslation();
-  const scale = scaleFor(metric, customMetrics) ?? [];
+  // Rendue seulement pour une colonne à échelle : `scaleFor` en a toujours une à rendre ici.
+  const scale = required(scaleFor(metric, customMetrics), "cellule d'échelle sans échelle");
 
   return (
     <select
