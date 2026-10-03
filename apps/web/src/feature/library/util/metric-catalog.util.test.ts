@@ -1,4 +1,4 @@
-import { METRIC_CATALOG, type MetricKey, MetricUnit } from "@cmv/shared";
+import { METRIC_CATALOG, MetricFamily, type MetricKey, MetricUnit } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { fakeT } from "../../../../test/translator";
 import { catalogByFamily, metricHint } from "./metric-catalog.util";
@@ -7,6 +7,15 @@ describe("catalogByFamily", () => {
   it("n'égare aucune métrique du catalogue", () => {
     const grouped = [...catalogByFamily().values()].flat();
     expect(grouped.toSorted()).toEqual(Object.keys(METRIC_CATALOG).toSorted());
+  });
+
+  it("range les familles dans l'ordre où MetricFamily les déclare", () => {
+    expect([...catalogByFamily().keys()]).toEqual(Object.values(MetricFamily));
+  });
+
+  // Le sélecteur rend un titre par famille : une famille vide y laisserait un titre sans métrique.
+  it("ne laisse aucune famille vide", () => {
+    for (const keys of catalogByFamily().values()) expect(keys.length).toBeGreaterThan(0);
   });
 
   it("garde l'ordre du catalogue dans chaque famille, qui est celui de la maquette", () => {

@@ -1875,6 +1875,17 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > dans le modèle ne rend une séance définitive aujourd'hui ; le jour où quelque chose la clôturera
 > (cycle archivé, facture émise), la règle se réintroduira sur CE fait-là, pas sur `status = DONE`.
 
+> **Tranché en #543** (plus de cotation d'escalade à dupliquer) : #162 livrait la cotation française
+> et la cotation V comme échelles pré-remplies, à dupliquer dans une métrique maison. Cimavia ne
+> cible pas un sport (#544) : une échelle d'escalade n'a pas à servir de raccourci générique. Une
+> échelle maison démarre donc **vide**, et `V_BOULDERING_SCALE` disparaît. La cotation française
+> reste **dans le catalogue**, parce que les coachs actuels grimpent, mais elle quitte la famille
+> Intensité pour une famille **« Spécifique »**, et son libellé nomme son sport (« Cotation
+> escalade (FR) »). La clé `GRADE` ne change pas : elle est stockée dans les blocs et dans les
+> snapshots des planifs diffusées, donc aucune migration. Les familles suivent l'ordre où
+> `MetricFamily` les déclare, plus celui de leur première métrique dans le catalogue : sans ça,
+> « Spécifique » se serait affichée au milieu, à la place qu'occupait `GRADE`.
+
 ---
 
 ## Post-MVP — Sélection multiple de médias ([#156](https://github.com/Cimavia/cimavia/issues/156))
