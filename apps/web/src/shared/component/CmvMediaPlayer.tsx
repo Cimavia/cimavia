@@ -1,5 +1,7 @@
-import { type SyntheticEvent, useEffect, useRef, useState } from "react";
+import type { VoiceNoteCue } from "@cmv/shared";
+import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { voiceNoteFocus } from "@/shared/lib/voice-note-focus";
 
 type CmvMediaPlayerProps = {
   kind: "audio" | "video";
@@ -12,6 +14,11 @@ type CmvMediaPlayerProps = {
   resolveUrl: () => Promise<string | null>;
   preload?: "none" | "metadata" | "auto";
   className?: string;
+  /**
+   * Ce que la liste dit à cette note pour l'enchaîner aux autres (#529). Absent, le lecteur joue
+   * seul : rien ne le lance, et sa fin ne lance rien.
+   */
+  cue?: VoiceNoteCue | undefined;
 };
 
 /** Où en était la lecture quand l'URL a lâché, pour y revenir sur la nouvelle. */
@@ -31,6 +38,9 @@ type Resume = { time: number; playing: boolean };
  *
  * En panne (hors réseau, API tombée), le lecteur reste où il est, avec une phrase : jamais la page
  * d'erreur du storage. Relancer la lecture retente d'elle-même.
+ *
+ * Une note vocale ne joue jamais par-dessus une autre (#529) : lancée, elle met en pause celle qui
+ * jouait. Une vidéo n'entre pas dans cette règle.
  */
 export function CmvMediaPlayer({
   kind,
@@ -38,6 +48,7 @@ export function CmvMediaPlayer({
   resolveUrl,
   preload,
   className,
+  cue,
 }: Readonly<CmvMediaPlayerProps>) {
   const { t } = useTranslation();
   const ref = useRef<HTMLMediaElement | null>(null);
@@ -46,12 +57,38 @@ export function CmvMediaPlayer({
   const resume = useRef<Resume | null>(null);
   // `paused` passe à vrai sur une erreur réseau : c'est l'intention de l'utilisateur qu'on retient.
   const playing = useRef(false);
+  // La note est allée au bout EN JOUANT. Seule cette fin-là enchaîne : un saut au bout d'une note en
+  // pause déclenche aussi `ended`, mais sans la `pause` qui le précède quand elle jouait.
+  const finishedPlaying = useRef(false);
+  // La liste reconstruit ses rappels à chaque rendu : lus par ref, ils ne relancent rien.
+  const cueRef = useRef(cue);
+  cueRef.current = cue;
+  const release = useRef<(() => void) | null>(null);
+  const stop = useCallback(() => ref.current?.pause(), []);
+
+  // Démontée, la note cède sa place : aucune autre n'a plus à l'arrêter.
+  useEffect(() => () => release.current?.(), []);
 
   useEffect(() => {
     const element = ref.current;
     const idle = element == null || (element.paused && element.currentTime === 0);
     if (idle) setSrc(url);
   }, [url]);
+
+  // La note précédente vient de finir : celle-ci démarre au début, comme sous le doigt. L'intention
+  // est posée AVANT `play` — si son URL a expiré, `onError` la relancera sur la nouvelle (#304).
+  const cued = cue?.cued ?? false;
+  useEffect(() => {
+    const element = ref.current;
+    if (!cued || element == null) return;
+    element.currentTime = 0;
+    playing.current = true;
+    // Hors d'un geste, Safari peut refuser (`NotAllowedError`) : l'enchaînement s'arrête là, sans
+    // rien afficher. La note reste prête, un clic la lance.
+    element.play().catch(() => {
+      playing.current = false;
+    });
+  }, [cued]);
 
   const onError = async (event: SyntheticEvent<HTMLMediaElement>) => {
     const element = event.currentTarget;
@@ -92,9 +129,19 @@ export function CmvMediaPlayer({
     onPlay: () => {
       playing.current = true;
       setUnavailable(false);
+      if (kind === "audio") release.current = voiceNoteFocus.take(stop);
+      cueRef.current?.onPlay();
     },
-    onPause: () => {
+    onPause: (event: SyntheticEvent<HTMLMediaElement>) => {
       playing.current = false;
+      // Au bout d'une lecture, le navigateur met en pause PUIS annonce `ended` : `ended` vaut déjà
+      // vrai ici.
+      finishedPlaying.current = event.currentTarget.ended;
+    },
+    onEnded: () => {
+      if (!finishedPlaying.current) return;
+      finishedPlaying.current = false;
+      cueRef.current?.onFinish();
     },
   };
 
