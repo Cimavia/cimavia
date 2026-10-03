@@ -6,6 +6,7 @@ import {
   FRENCH_CLIMBING_SCALE,
   METRIC_CATALOG,
   METRIC_LABEL_KEY,
+  MetricFamily,
   MetricKey,
   MetricUnit,
   MetricValueType,
@@ -14,7 +15,6 @@ import {
   orderedScaleSchema,
   scaleStepIndex,
   updateCustomMetricSchema,
-  V_BOULDERING_SCALE,
 } from "./exercise-metric.schema";
 
 const metricKeys = Object.values(MetricKey);
@@ -37,6 +37,13 @@ describe("METRIC_CATALOG", () => {
     }
   });
 
+  // La cotation est propre à l'escalade : elle se range à part, sans se donner pour une mesure
+  // d'intensité universelle (#543). Sa clé, elle, ne bouge pas — elle est stockée dans les blocs.
+  it("range la cotation dans la famille spécifique, avec ses paliers", () => {
+    expect(METRIC_CATALOG[MetricKey.GRADE].family).toBe(MetricFamily.SPECIFIC);
+    expect(METRIC_CATALOG[MetricKey.GRADE].scale).toBe(FRENCH_CLIMBING_SCALE);
+  });
+
   it("expose l'unité par défaut en première position", () => {
     expect(defaultUnitOf(MetricKey.LOAD)).toBe(MetricUnit.KILOGRAMS);
     expect(defaultUnitOf(MetricKey.REPETITIONS)).toBe(MetricUnit.REPS);
@@ -49,9 +56,8 @@ describe("METRIC_CATALOG", () => {
 });
 
 describe("orderedScaleSchema", () => {
-  it("accepte les deux cotations livrées", () => {
+  it("accepte la cotation française que porte le catalogue", () => {
     expect(orderedScaleSchema.safeParse([...FRENCH_CLIMBING_SCALE]).success).toBe(true);
-    expect(orderedScaleSchema.safeParse([...V_BOULDERING_SCALE]).success).toBe(true);
   });
 
   it("refuse un palier en double — la progression deviendrait ambiguë", () => {

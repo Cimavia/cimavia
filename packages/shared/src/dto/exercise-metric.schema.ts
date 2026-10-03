@@ -26,20 +26,23 @@ export const MetricValueType = {
 export type MetricValueType = TypesValuesOf<typeof MetricValueType>;
 export const metricValueTypeSchema = z.enum(MetricValueType);
 
-// Les familles regroupent les métriques dans le sélecteur. « Repères » n'est ni une mesure ni un
-// dosage : c'est du texte pour situer la ligne — le nom d'une voie, une note.
+// Les familles regroupent les métriques dans le sélecteur, qui les montre dans cet ordre.
+// « Repères » n'est ni une mesure ni un dosage : c'est du texte pour situer la ligne — le nom d'une
+// voie, une note. « Spécifique » range ce qui ne vaut que pour un sport : rien d'autre dans le
+// catalogue ne suppose d'en pratiquer un en particulier (#543).
 export const MetricFamily = {
   VOLUME: "VOLUME",
   INTENSITY: "INTENSITY",
   RECOVERY: "RECOVERY",
   EXECUTION: "EXECUTION",
   MARKER: "MARKER",
+  SPECIFIC: "SPECIFIC",
 } as const;
 export type MetricFamily = TypesValuesOf<typeof MetricFamily>;
 export const metricFamilySchema = z.enum(MetricFamily);
 
-// Cotations livrées. Ce sont des échelles PRÉ-REMPLIES, pas des constantes du produit : le coach
-// les duplique pour les adapter. Rien dans le code ne suppose qu'une cotation est l'une des deux.
+// Les paliers de la cotation française d'escalade, que porte la métrique GRADE du catalogue. Ce
+// n'est pas un modèle à dupliquer : une échelle maison se saisit palier par palier (#543).
 export const FRENCH_CLIMBING_SCALE = [
   // Pas de « + » sous le 6 : la cotation française ne les emploie qu'à partir du sixième degré.
   "4a",
@@ -72,11 +75,6 @@ export const FRENCH_CLIMBING_SCALE = [
   "9b+",
   "9c",
 ] as const satisfies readonly string[];
-
-export const V_BOULDERING_SCALE = Array.from(
-  { length: 18 },
-  (_, index) => `V${index}`,
-) as readonly string[];
 
 /** Position d'un palier, ou `null` s'il n'appartient pas à l'échelle. */
 export function scaleStepIndex(scale: OrderedScale, step: string): number | null {
@@ -188,7 +186,7 @@ export const METRIC_CATALOG = {
     units: [MetricUnit.NONE],
   },
   [MetricKey.GRADE]: {
-    family: MetricFamily.INTENSITY,
+    family: MetricFamily.SPECIFIC,
     valueType: MetricValueType.SCALE,
     units: [MetricUnit.NONE],
     // La cotation du catalogue vaut ce que valent ses paliers : sans eux elle acceptait n'importe

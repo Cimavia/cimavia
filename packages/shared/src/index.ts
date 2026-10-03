@@ -257,7 +257,6 @@ export {
   SCALE_STEP_MAX_LENGTH,
   scaleStepIndex,
   updateCustomMetricSchema,
-  V_BOULDERING_SCALE,
 } from "./dto/exercise-metric.schema";
 export type {
   AttachFeedbackMediaInput,

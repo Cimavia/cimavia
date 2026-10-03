@@ -97,7 +97,7 @@
       "rpe": "RPE",
       "heartRate": "Fréquence cardiaque",
       "pace": "Allure",
-      "grade": "Cotation",
+      "grade": "Cotation escalade (FR)",
       "incline": "Inclinaison",
       "restBetweenSets": "Repos entre séries",
       "restBetweenRounds": "Repos entre tours",
@@ -319,7 +319,8 @@
         "INTENSITY": "Intensité",
         "RECOVERY": "Récupération",
         "EXECUTION": "Exécution",
-        "MARKER": "Repères"
+        "MARKER": "Repères",
+        "SPECIFIC": "Spécifique"
       },
       "custom": {
         "title": "Métrique personnalisée",
@@ -346,8 +347,6 @@
       "scale": {
         "title": "Paliers, dans l'ordre",
         "hint": "C'est cet ordre qui rend possible « progression sur l'échelle ».",
-        "duplicateFrench": "Dupliquer la cotation française",
-        "duplicateV": "Dupliquer la cotation V",
         "stepLabel": "Palier",
         "stepPlaceholder": "Palier",
         "addStep": "Ajouter",

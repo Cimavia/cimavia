@@ -198,9 +198,10 @@ le bandeau et se redéploie à la demande — c'est un état d'affichage, pas un
    (ordonnées — l'ordre est celui des colonnes), lignes et leurs valeurs. Une valeur absente reste
    `null` — l'affichage rend « — ».
 5. **Échelles ordonnées définies par le coach** : la métrique personnalisée a un *type de valeur*
-   (nombre · durée · texte · **échelle ordonnée**). Les cotations livrées (française, V) sont des
-   échelles pré-remplies duplicables, pas des constantes — c'est l'ordre des paliers qui rend
-   possible « progression sur l'échelle ».
+   (nombre · durée · texte · **échelle ordonnée**). C'est l'ordre des paliers qui rend possible
+   « progression sur l'échelle ». *Révisé en #543* : une échelle maison démarre vide et se saisit
+   palier par palier, sans cotation à dupliquer. La cotation française reste une métrique du
+   catalogue, rangée en « Spécifique ».
 6. **Snapshot P3** : `ScheduledSessionExercise` doit copier la **liste ordonnée de blocs** et les
    **références d'images** de la consigne, comme il copie déjà les documents (même clé objet, aucun
    binaire dupliqué). Sans ça, une planif diffusée se dégrade.
