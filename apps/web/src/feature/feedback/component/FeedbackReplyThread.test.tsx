@@ -2,6 +2,7 @@ import type { MessageDto } from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
+import { playToTheEnd, stubPlayback } from "../../../../test/media";
 import { renderWithProviders } from "../../../../test/render";
 
 vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({ useFeedbackReply: vi.fn() }));
@@ -110,5 +111,45 @@ describe("FeedbackReplyThread", () => {
     const { queryByText } = renderWithProviders(<FeedbackReplyThread {...PROPS} messages={[]} />);
 
     expect(queryByText("feedback.reply.threadError")).not.toBeNull();
+  });
+});
+
+describe("FeedbackReplyThread — réponses vocales enchaînées (#529)", () => {
+  function voice(id: string, senderId: string): MessageDto {
+    return message({
+      id,
+      senderId,
+      type: "AUDIO",
+      content: null,
+      media: {
+        url: `https://s3/${id}`,
+        fileName: `${id}.m4a`,
+        mimeType: "audio/mp4",
+        sizeBytes: 10,
+        durationSeconds: 5,
+      },
+    });
+  }
+
+  it("enchaîne les réponses vocales, quel que soit leur auteur, jusqu'à une réponse écrite", () => {
+    mockReply();
+    const { container } = renderWithProviders(
+      <FeedbackReplyThread
+        {...PROPS}
+        messages={[
+          voice("m-1", "coach-1"),
+          voice("m-2", "athlete-1"),
+          message({ id: "m-3" }),
+          voice("m-4", "coach-1"),
+        ]}
+      />,
+    );
+    const [first, second, afterText] = stubPlayback(container);
+
+    playToTheEnd(first as HTMLMediaElement);
+    expect(second?.play).toHaveBeenCalledOnce();
+
+    playToTheEnd(second as HTMLMediaElement);
+    expect(afterText?.play).not.toHaveBeenCalled();
   });
 });

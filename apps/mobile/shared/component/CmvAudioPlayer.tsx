@@ -1,10 +1,11 @@
-import { formatMmSs } from "@cmv/shared";
+import { formatMmSs, type VoiceNoteCue } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { type AudioPlayer, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { voiceNoteFocus } from "@/shared/lib/voice-note-focus";
 import { CmvSeekBar } from "./CmvSeekBar";
 import { CmvText } from "./CmvText";
 
@@ -19,6 +20,11 @@ type CmvAudioPlayerProps = {
    * écoutée en pause assez longtemps survit à son URL, et le storage répond 403 à la reprise.
    */
   resolveUrl: () => Promise<string | null>;
+  /**
+   * Ce que la liste dit à cette note pour l'enchaîner aux autres (#529). Absent, le lecteur joue
+   * seul : rien ne le lance, et sa fin ne lance rien.
+   */
+  cue?: VoiceNoteCue | undefined;
 };
 
 // Là où la lecture en était quand elle a cassé, et si elle jouait : ce qu'on lui rend.
@@ -45,11 +51,15 @@ async function resumeAt(player: AudioPlayer, resume: Resume): Promise<void> {
  * `useAudioPlayer` recrée son lecteur à chaque source, et chaque rechargement du fil re-signait
  * les médias — la note repartait de zéro. Une URL neuve n'est adoptée qu'au repos ; en route, le
  * lecteur garde la sienne et ne la remplace que si elle casse, à la même position.
+ *
+ * Une note ne joue jamais par-dessus une autre (#529) : lancée, à la main ou par l'enchaînement,
+ * elle met en pause celle qui jouait.
  */
 export function CmvAudioPlayer({
   url,
   durationSeconds,
   resolveUrl,
+  cue,
 }: Readonly<CmvAudioPlayerProps>) {
   const { t } = useTranslation();
   const [initialUrl] = useState(url);
@@ -76,6 +86,21 @@ export function CmvAudioPlayer({
   // Le résolveur change à chaque rendu (flèche de l'écran) : lu par ref, il ne relance rien.
   const resolveUrlRef = useRef(resolveUrl);
   resolveUrlRef.current = resolveUrl;
+  // Les rappels de la liste aussi.
+  const cueRef = useRef(cue);
+  cueRef.current = cue;
+  const releaseRef = useRef<(() => void) | null>(null);
+
+  // Une autre note démarre : celle-ci se tait, et ne repartira pas d'elle-même — ni au chargement
+  // d'un saut, ni à la reprise d'une re-signature.
+  const stop = useCallback(() => {
+    wantsPlayRef.current = false;
+    if (resumeRef.current != null) resumeRef.current = { ...resumeRef.current, play: false };
+    player.pause();
+  }, [player]);
+
+  // Démontée, la note cède sa place : aucune autre n'a plus à l'arrêter.
+  useEffect(() => () => releaseRef.current?.(), []);
 
   const load = useCallback(
     (source: string, resume: Resume) => {
@@ -146,21 +171,22 @@ export function CmvAudioPlayer({
       ? status.didJustFinish || (total != null && status.currentTime >= total)
       : total != null && target >= total;
 
-  const seek = (time: number) => {
-    // Une note finie ne « veut » plus jouer, même si on l'avait lancée : sans ça, un 403 sur le saut
-    // la relancerait au rechargement.
-    const resume = { time, play: wantsPlayRef.current && !finished };
+  const goTo = (resume: Resume) => {
     wantsPlayRef.current = resume.play;
-    setTarget(time);
+    setTarget(resume.time);
     // iOS refuse le saut tant que la source n'est pas prête : il attend le chargement, comme une
     // reprise. La note n'est plus « au repos » pour (A), ce qui est voulu.
     if (status.isLoaded) void apply(resume);
     else resumeRef.current = resume;
   };
 
-  const retry = async () => {
+  // Une note finie ne « veut » plus jouer, même si on l'avait lancée : sans ça, un 403 sur le saut
+  // la relancerait au rechargement.
+  const seek = (time: number) => goTo({ time, play: wantsPlayRef.current && !finished });
+
+  const retry = async (time: number) => {
     setUnavailable(false);
-    const resume = { time: targetRef.current ?? player.currentTime, play: true };
+    const resume = { time, play: true };
     const fresh = await resolveUrl();
     if (fresh == null) {
       setUnavailable(true);
@@ -170,10 +196,17 @@ export function CmvAudioPlayer({
     load(fresh, resume);
   };
 
+  // La note démarre : elle prend la place de celle qui joue, et la liste oublie sa demande.
+  const claim = () => {
+    releaseRef.current = voiceNoteFocus.take(stop);
+    cueRef.current?.onPlay();
+  };
+
   const toggle = () => {
     if (unavailable) {
+      claim();
       wantsPlayRef.current = true;
-      void retry();
+      void retry(targetRef.current ?? player.currentTime);
       return;
     }
     if (status.playing) {
@@ -181,6 +214,7 @@ export function CmvAudioPlayer({
       player.pause();
       return;
     }
+    claim();
     // Rejouer depuis le début quand la lecture est terminée (sinon `play` ne repart pas).
     if (finished) {
       // `void` : `play` part aussitôt, comme avant — le lecteur applique la position dans l'ordre.
@@ -191,6 +225,34 @@ export function CmvAudioPlayer({
     if (resumeRef.current != null) resumeRef.current = { ...resumeRef.current, play: true };
     player.play();
   };
+
+  // La note précédente vient de finir : celle-ci démarre au début, comme sous le doigt — l'envie
+  // de jouer posée, une URL expirée sera re-signée et relancée (#304).
+  const startCued = () => {
+    claim();
+    if (unavailable) {
+      wantsPlayRef.current = true;
+      void retry(0);
+      return;
+    }
+    goTo({ time: 0, play: true });
+  };
+  const startCuedRef = useRef(startCued);
+  startCuedRef.current = startCued;
+
+  const cued = cue?.cued ?? false;
+  useEffect(() => {
+    if (cued) startCuedRef.current();
+  }, [cued]);
+
+  // Seule une note qui JOUAIT enchaîne (#529) : une note en pause qu'on amène au bout du curseur ne
+  // lance rien. Finie, elle ne « veut » plus jouer.
+  useEffect(() => {
+    if (!status.didJustFinish) return;
+    const wasPlaying = wantsPlayRef.current;
+    wantsPlayRef.current = false;
+    if (wasPlaying) cueRef.current?.onFinish();
+  }, [status.didJustFinish]);
 
   return (
     <View className="gap-1">

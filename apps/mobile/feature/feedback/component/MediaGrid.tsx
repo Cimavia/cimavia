@@ -1,10 +1,11 @@
 import type { FeedbackMediaDto } from "@cmv/shared";
-import { MediaType } from "@cmv/shared";
+import { MediaType, nextVoiceNoteInFeedback } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { myFeedbackKeys } from "@/feature/feedback/api";
 import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoPlayer } from "@/shared/component";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
+import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 
 type MediaGridProps = {
   media: FeedbackMediaDto[];
@@ -19,11 +20,13 @@ type MediaGridProps = {
  * réseau, comme les documents de séance (dette P3-3).
  *
  * Photos/vidéos vivent dans une grille de vignettes ; les notes vocales (P5), qui ne tiennent pas
- * dans une vignette, s'affichent en lignes avec un lecteur.
+ * dans une vignette, s'affichent en lignes avec un lecteur — et s'enchaînent dans l'ordre du
+ * débrief, photos et vidéos sautées (#529).
  */
 export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<MediaGridProps>) {
   const { t } = useTranslation();
   const freshUrl = useFreshMediaUrl(myFeedbackKeys.detail(sessionId));
+  const chain = useVoiceNoteChain((id) => nextVoiceNoteInFeedback(media, id));
 
   if (media.length === 0) return null;
 
@@ -72,6 +75,7 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
               url={item.url}
               durationSeconds={item.durationSeconds}
               resolveUrl={() => freshUrl(item.id)}
+              cue={chain.cueOf(item.id)}
             />
           </View>
           <Pressable onPress={() => onRemove(item.id)} disabled={isRemoving}>

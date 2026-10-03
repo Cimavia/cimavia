@@ -1,3 +1,4 @@
+import type { VoiceNoteCue } from "@cmv/shared";
 import { act, waitFor } from "@testing-library/react";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,21 +41,38 @@ function setStatus(next: Partial<Status>) {
   status = { ...status, ...next };
 }
 
-function playButton(container: HTMLElement): Element {
-  const icon = container.querySelector("[data-icon]");
-  if (icon?.parentElement == null) throw new Error("bouton de lecture introuvable");
-  return icon.parentElement;
+// Les boutons de lecture rendus, dans l'ordre du document.
+function playButtons(container: HTMLElement): Element[] {
+  return [...container.querySelectorAll("[data-icon]")].map((icon) => {
+    if (icon.parentElement == null) throw new Error("bouton de lecture introuvable");
+    return icon.parentElement;
+  });
 }
 
-function setup(resolveUrl = vi.fn(async (): Promise<string | null> => FRESH)) {
-  const element = (url: string) => (
-    <CmvAudioPlayer url={url} durationSeconds={90} resolveUrl={resolveUrl} />
-  );
+function playButton(container: HTMLElement): Element {
+  const [button] = playButtons(container);
+  if (button == null) throw new Error("bouton de lecture introuvable");
+  return button;
+}
+
+function setup(
+  resolveUrl = vi.fn(async (): Promise<string | null> => FRESH),
+  initialCue?: VoiceNoteCue,
+) {
   let current = FIRST;
-  const view = renderRn(element(current));
+  let cue = initialCue;
+  const element = () => (
+    <CmvAudioPlayer url={current} durationSeconds={90} resolveUrl={resolveUrl} cue={cue} />
+  );
+  const view = renderRn(element());
   const rerenderWith = (url: string) => {
     current = url;
-    view.rerender(element(url));
+    view.rerender(element());
+  };
+  // Ce que la liste dit à la note change : elle la désigne, ou l'oublie.
+  const cueWith = (next: VoiceNoteCue) => {
+    cue = next;
+    view.rerender(element());
   };
   // Le statut natif évolue hors de React : on le pousse, puis on redessine.
   const push = (next: Partial<Status>, url = FIRST) => {
@@ -73,7 +91,12 @@ function setup(resolveUrl = vi.fn(async (): Promise<string | null> => FRESH)) {
     await waitFor(() => view.getByText("media.audio.unavailable"));
     rerenderWith(current);
   };
-  return { ...view, resolveUrl, push, rerenderWith, untilUnavailable };
+  return { ...view, resolveUrl, push, rerenderWith, cueWith, untilUnavailable };
+}
+
+// Ce que la liste dit à une note (#529) : désignée ou non, et ses deux rappels, observables.
+function listedCue(cued = false) {
+  return { cued, onPlay: vi.fn(), onFinish: vi.fn() };
 }
 
 beforeEach(() => {
@@ -483,6 +506,32 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
     expect(player.play).not.toHaveBeenCalled();
   });
 
+  // L'arbitrage de #529 : seule une note qui JOUAIT quand elle s'est terminée lance la suivante.
+  it("enchaîne une note amenée au bout pendant la lecture (#529)", async () => {
+    const listed = listedCue();
+    const view = setup(undefined, listed);
+    press(playButton(view.container));
+    view.push({ playing: true, currentTime: 10 });
+
+    tap(await seekZone(view), 200);
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(90));
+    view.push({ playing: false, currentTime: 90, didJustFinish: true });
+
+    expect(listed.onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it("ne lance rien quand on amène au bout une note en pause (#529)", async () => {
+    const listed = listedCue();
+    const view = setup(undefined, listed);
+    view.push({ currentTime: 10 });
+
+    tap(await seekZone(view), 200);
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(90));
+    view.push({ currentTime: 90, didJustFinish: true });
+
+    expect(listed.onFinish).not.toHaveBeenCalled();
+  });
+
   it("rend la barre inerte tant que la note est cassée", async () => {
     const view = setup();
     view.push({ isLoaded: false, error: "403" });
@@ -507,5 +556,151 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
 
     expect(slider.getAttribute("aria-disabled")).toBe("true");
     expect(player.seekTo).not.toHaveBeenCalled();
+  });
+});
+
+describe("CmvAudioPlayer — enchaînement (#529)", () => {
+  it("dit à la liste qu'elle démarre quand on la lance à la main", () => {
+    const listed = listedCue();
+    const view = setup(undefined, listed);
+
+    press(playButton(view.container));
+
+    expect(listed.onPlay).toHaveBeenCalledTimes(1);
+  });
+
+  // Désignée en pause à mi-chemin, elle repart du début : c'est la suite de la conversation.
+  it("démarre au début quand la liste la désigne, et le lui dit", async () => {
+    const view = setup(undefined, listedCue());
+    view.push({ currentTime: 30 });
+    const cued = listedCue(true);
+
+    view.cueWith(cued);
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(0);
+    expect(cued.onPlay).toHaveBeenCalledTimes(1);
+  });
+
+  // iOS refuse le saut tant que la source n'est pas prête : la note désignée attend son chargement.
+  it("attend le chargement d'une note désignée avant qu'elle soit prête", async () => {
+    setStatus({ isLoaded: false });
+    const view = setup(undefined, listedCue());
+
+    view.cueWith(listedCue(true));
+    expect(player.seekTo).not.toHaveBeenCalled();
+    expect(player.play).not.toHaveBeenCalled();
+    view.push({ isLoaded: true });
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(0);
+  });
+
+  it("re-signe une note indisponible avant de la démarrer", async () => {
+    const resolveUrl = vi.fn(async (): Promise<string | null> => null);
+    const view = setup(resolveUrl, listedCue());
+    view.push({ isLoaded: false, error: "403" });
+    await view.untilUnavailable();
+    resolveUrl.mockResolvedValueOnce(FRESH);
+
+    view.cueWith(listedCue(true));
+    await waitFor(() => expect(player.replace).toHaveBeenCalledWith(FRESH));
+    view.push({ isLoaded: true, error: null });
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(0);
+  });
+
+  it("annonce sa fin à la liste quand elle jouait", () => {
+    const listed = listedCue();
+    const view = setup(undefined, listed);
+    press(playButton(view.container));
+    view.push({ playing: true, currentTime: 80 });
+
+    view.push({ playing: false, currentTime: 90, didJustFinish: true });
+
+    expect(listed.onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  // Finie, elle ne « veut » plus jouer : un second statut de fin ne relance pas l'enchaînement.
+  it("n'annonce sa fin qu'une fois", () => {
+    const listed = listedCue();
+    const view = setup(undefined, listed);
+    press(playButton(view.container));
+    view.push({ playing: false, currentTime: 90, didJustFinish: true });
+
+    view.push({ didJustFinish: false });
+    view.push({ didJustFinish: true });
+
+    expect(listed.onFinish).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Deux notes, deux lecteurs : le faux de `useAudioPlayer` les distingue par leur URL, celui du
+ * statut par le lecteur qu'on lui passe.
+ */
+describe("CmvAudioPlayer — une seule note à la fois (#529)", () => {
+  const OTHER = "https://s3.test/other.m4a?X-Amz-Date=120000";
+  let other = fakePlayer();
+
+  beforeEach(() => {
+    other = fakePlayer();
+    const otherStatus = { ...status };
+    vi.mocked(useAudioPlayer).mockImplementation(
+      (source) =>
+        (source === OTHER ? other : player) as unknown as ReturnType<typeof useAudioPlayer>,
+    );
+    vi.mocked(useAudioPlayerStatus).mockImplementation(
+      (of) =>
+        ((of as unknown) === other ? otherStatus : status) as unknown as ReturnType<
+          typeof useAudioPlayerStatus
+        >,
+    );
+  });
+
+  function renderBoth(resolveUrl = vi.fn(async (): Promise<string | null> => FRESH)) {
+    const element = () => (
+      <>
+        <CmvAudioPlayer url={FIRST} durationSeconds={90} resolveUrl={resolveUrl} />
+        <CmvAudioPlayer url={OTHER} durationSeconds={90} resolveUrl={resolveUrl} />
+      </>
+    );
+    const view = renderRn(element());
+    // Le statut de la première note évolue hors de React : on le pousse, puis on redessine.
+    const push = (next: Partial<Status>) => {
+      setStatus(next);
+      view.rerender(element());
+    };
+    return { ...view, push };
+  }
+
+  it("met en pause la note qui joue quand une autre démarre", () => {
+    const view = renderBoth();
+    const [first, second] = playButtons(view.container);
+    press(first as Element);
+    view.push({ playing: true, currentTime: 12 });
+
+    press(second as Element);
+
+    expect(player.pause).toHaveBeenCalledTimes(1);
+    expect(other.play).toHaveBeenCalledTimes(1);
+  });
+
+  // Coupée pendant qu'elle se re-signait, elle ne repart pas d'elle-même une fois rechargée.
+  it("ne relance pas au chargement une note coupée pendant sa reprise", async () => {
+    const view = renderBoth();
+    const [first, second] = playButtons(view.container);
+    press(first as Element);
+    player.play.mockClear();
+    player.currentTime = 42;
+    view.push({ currentTime: 42, isLoaded: false, error: "403" });
+    await waitFor(() => expect(player.replace).toHaveBeenCalledWith(FRESH));
+
+    press(second as Element);
+    view.push({ isLoaded: true, error: null });
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(42));
+    expect(player.play).not.toHaveBeenCalled();
   });
 });

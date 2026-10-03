@@ -867,3 +867,10 @@ export {
 } from "./util/training-duration.util";
 export { trimTrailingSlashes } from "./util/url.util";
 export { FILTERED, redactUrlSecrets } from "./util/url-secret.util";
+export type { VoiceNoteChain, VoiceNoteCue, VoiceNoteFocus } from "./util/voice-note.util";
+export {
+  createVoiceNoteChainHooks,
+  createVoiceNoteFocus,
+  nextVoiceNoteInFeedback,
+  nextVoiceNoteInThread,
+} from "./util/voice-note.util";

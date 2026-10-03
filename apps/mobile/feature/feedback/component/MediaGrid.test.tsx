@@ -1,22 +1,32 @@
-import { type FeedbackMediaDto, MediaType } from "@cmv/shared";
+import { type FeedbackMediaDto, MediaType, type VoiceNoteCue } from "@cmv/shared";
+import { act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MediaGrid } from "@/feature/feedback/component/MediaGrid";
 import { press, renderRn } from "@/test/render";
 
-const { freshUrl } = vi.hoisted(() => ({ freshUrl: vi.fn(() => Promise.resolve(null)) }));
+const { freshUrl, cues } = vi.hoisted(() => ({
+  freshUrl: vi.fn(() => Promise.resolve(null)),
+  // Ce que chaque lecteur a reçu de la grille pour s'enchaîner (#529), par URL.
+  cues: new Map<string, VoiceNoteCue | undefined>(),
+}));
 vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => freshUrl }));
 
 /**
  * Les trois lecteurs ont leurs tests : ce que la grille décide est LEQUEL elle monte, où — vignette
- * ou ligne —, et à qui elle redemande une url expirée. Chaque double dit son type et relaie la
- * demande d'url d'un tap.
+ * ou ligne —, et à qui elle redemande une url expirée. Chaque double dit son type, relaie la
+ * demande d'url d'un tap, et garde ce que la grille lui dit pour l'enchaîner (#529).
  */
 vi.mock("@/shared/component", async (importOriginal) => {
   const player =
     (kind: string) =>
-    ({ resolveUrl }: Readonly<{ resolveUrl?: () => void }>) => (
-      <button type="button" data-player={kind} onClick={() => resolveUrl?.()} />
-    );
+    ({
+      url,
+      resolveUrl,
+      cue,
+    }: Readonly<{ url?: string; resolveUrl?: () => void; cue?: VoiceNoteCue }>) => {
+      if (url != null) cues.set(url, cue);
+      return <button type="button" data-player={kind} onClick={() => resolveUrl?.()} />;
+    };
   return {
     ...(await importOriginal<Record<string, unknown>>()),
     CmvAudioPlayer: player("audio"),
@@ -92,6 +102,14 @@ describe("MediaGrid", () => {
     press(getAllByText("feedback.media.remove").at(-1) as HTMLElement);
 
     expect(onRemove).toHaveBeenCalledExactlyOnceWith("m-audio");
+  });
+
+  it("enchaîne les notes vocales dans l'ordre du débrief, photo et vidéo sautées (#529)", () => {
+    renderGrid([...ALL, media("m-audio-2", MediaType.AUDIO)]);
+
+    act(() => cues.get("https://storage.test/m-audio")?.onFinish());
+
+    expect(cues.get("https://storage.test/m-audio-2")?.cued).toBe(true);
   });
 
   it("ferme chaque retrait pendant qu'un retrait est en cours", () => {

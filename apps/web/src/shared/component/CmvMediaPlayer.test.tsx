@@ -1,5 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { playToTheEnd, stubPlayback } from "../../../test/media";
 import { CmvMediaPlayer } from "./CmvMediaPlayer";
 
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -147,5 +148,116 @@ describe("CmvMediaPlayer — vidéo", () => {
     );
 
     expect(container.querySelector("video")?.getAttribute("src")).toBe(FIRST);
+  });
+});
+
+describe("CmvMediaPlayer — une seule note à la fois (#529)", () => {
+  it("met en pause la note qui joue quand une autre démarre", () => {
+    const first = render(<CmvMediaPlayer kind="audio" url={FIRST} resolveUrl={async () => null} />);
+    const second = render(
+      <CmvMediaPlayer kind="audio" url={RESIGNED} resolveUrl={async () => null} />,
+    );
+    const [playing] = stubPlayback(first.container);
+    const [started] = stubPlayback(second.container);
+
+    fireEvent.play(playing as HTMLMediaElement);
+    fireEvent.play(started as HTMLMediaElement);
+
+    expect(playing?.pause).toHaveBeenCalledOnce();
+    expect(started?.pause).not.toHaveBeenCalled();
+  });
+
+  it("laisse jouer une note quand c'est une vidéo qui démarre", () => {
+    const note = render(<CmvMediaPlayer kind="audio" url={FIRST} resolveUrl={async () => null} />);
+    const video = render(
+      <CmvMediaPlayer kind="video" url={RESIGNED} resolveUrl={async () => null} />,
+    );
+    const [playing] = stubPlayback(note.container);
+
+    fireEvent.play(playing as HTMLMediaElement);
+    fireEvent.play(stubPlayback(video.container)[0] as HTMLMediaElement);
+
+    expect(playing?.pause).not.toHaveBeenCalled();
+  });
+});
+
+describe("CmvMediaPlayer — enchaînement (#529)", () => {
+  function renderCued() {
+    const onPlay = vi.fn();
+    const onFinish = vi.fn();
+    const element = (cued: boolean) => (
+      <CmvMediaPlayer
+        kind="audio"
+        url={FIRST}
+        resolveUrl={async () => null}
+        cue={{ cued, onPlay, onFinish }}
+      />
+    );
+    const view = render(element(false));
+    const audio = stubPlayback(view.container)[0] as HTMLMediaElement;
+    return {
+      ...view,
+      audio,
+      onPlay,
+      onFinish,
+      cue: (cued: boolean) => view.rerender(element(cued)),
+    };
+  }
+
+  it("démarre au début quand la liste le demande", () => {
+    const { audio, cue } = renderCued();
+    mediaState(audio, { paused: true, currentTime: 30 });
+
+    cue(true);
+
+    expect(audio.currentTime).toBe(0);
+    expect(audio.play).toHaveBeenCalledOnce();
+  });
+
+  it("ne démarre pas tant que rien n'est demandé", () => {
+    const { audio } = renderCued();
+
+    expect(audio.play).not.toHaveBeenCalled();
+  });
+
+  it("se tait quand le navigateur refuse la lecture hors d'un geste", async () => {
+    const { audio, cue, queryByText } = renderCued();
+    const refused = vi.fn(async () => {
+      throw new DOMException("refusé", "NotAllowedError");
+    });
+    audio.play = refused;
+
+    cue(true);
+
+    await waitFor(() => expect(refused).toHaveBeenCalled());
+    expect(queryByText("common.mediaUnavailable")).toBeNull();
+  });
+
+  it("prévient la liste quand elle démarre", () => {
+    const { audio, onPlay } = renderCued();
+
+    fireEvent.play(audio);
+
+    expect(onPlay).toHaveBeenCalledOnce();
+  });
+
+  it("demande la suivante quand elle va au bout en jouant", () => {
+    const { audio, onFinish } = renderCued();
+
+    playToTheEnd(audio);
+
+    expect(onFinish).toHaveBeenCalledOnce();
+  });
+
+  // Le curseur natif permet de l'amener au bout en pause : `ended` part, sans `pause` avant lui.
+  it("ne demande rien quand on amène au bout une note en pause", () => {
+    const { audio, onFinish } = renderCued();
+    fireEvent.play(audio);
+    fireEvent.pause(audio);
+
+    Object.defineProperty(audio, "ended", { configurable: true, value: true });
+    fireEvent.ended(audio);
+
+    expect(onFinish).not.toHaveBeenCalled();
   });
 });

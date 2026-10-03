@@ -1,5 +1,5 @@
 import type { MediaRecapLine, MessageDto } from "@cmv/shared";
-import { mediaRecapText } from "@cmv/shared";
+import { mediaRecapText, nextVoiceNoteInThread } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import type { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
@@ -7,6 +7,7 @@ import { Composer } from "@/feature/message/component/Composer";
 import { MessageBubble, type ResolveMediaUrl } from "@/feature/message/component/MessageBubble";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { CmvText } from "@/shared/component";
+import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { mediaErrorMessage } from "@/shared/util/media.util";
 
 type Reply = ReturnType<typeof useFeedbackReply>;
@@ -34,6 +35,8 @@ export function FeedbackReplyMessages({
   resolveMediaUrl: ResolveMediaUrl;
 }>) {
   const { t } = useTranslation();
+  // Les réponses s'enchaînent comme un fil : un message non vocal arrête (#529).
+  const chain = useVoiceNoteChain((id) => nextVoiceNoteInThread(messages, id));
 
   return (
     <View className="gap-3 border-cmv-border border-t pt-4">
@@ -49,6 +52,7 @@ export function FeedbackReplyMessages({
           mine={message.senderId === currentUserId}
           resolveMediaUrl={resolveMediaUrl}
           hideAttachment
+          voiceNoteCue={chain.cueOf(message.id)}
         />
       ))}
     </View>

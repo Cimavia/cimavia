@@ -1,4 +1,4 @@
-import { createReadMarker, lastUnreadIncomingId } from "@cmv/shared";
+import { createReadMarker, lastUnreadIncomingId, nextVoiceNoteInThread } from "@cmv/shared";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { messageKeys } from "@/feature/message/api";
@@ -9,6 +9,7 @@ import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia"
 import { CmvErrorState } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
+import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { authClient } from "@/shared/lib/auth";
 
 type MessageThreadProps = {
@@ -48,6 +49,7 @@ export function MessageThread({
 
   const currentUserId = session?.user.id ?? "";
   const items = messages.data ?? [];
+  const chain = useVoiceNoteChain((id) => nextVoiceNoteInThread(items, id));
 
   // Marque lu à CHAQUE nouvel entrant, repéré par son id (#305) : la règle et son pourquoi vivent
   // dans `message-read.util`. `markRead` n'invalide que la liste de fils (pas les messages) : pas
@@ -93,6 +95,7 @@ export function MessageThread({
               message={message}
               mine={message.senderId === currentUserId}
               resolveMediaUrl={freshMediaUrl}
+              voiceNoteCue={chain.cueOf(message.id)}
             />
           ))}
           <div ref={bottomRef} />
