@@ -474,7 +474,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~Q-3~~ | ~~**Les e2e ne sont pas typecheckés**~~ : `apps/api/test/` était hors de l'`include` du tsconfig, donc le seul filet de la couche API (cf. Q-1) tournait sans vérification de types — 16 erreurs y dormaient. | ✅ | résolu en **#130** ([#126](https://github.com/Cimavia/cimavia/issues/126)), complété en **#57** — `tsconfig.test.json` couvre `test/` **et** les deux configs Vitest, branché sur le `typecheck` de l'API |
 | ~~Q-4~~ | ~~**Les composants et écrans web n'ont pas de filet** : la couverture est mesurée depuis #56, elle affiche ce qu'elle mesure. 169 fichiers `component/` + `screen/` (105 web, 64 mobile), dont **89** portent de la logique — état dérivé, filtres, tris, `switch` ; les 80 autres n'ont rien à affirmer.~~ Le harnais de rendu web et les **8 plus chargés** sont livrés en **#188** ; celui du mobile en **#156**. Le reste est faisable au coup par coup, le jour où on y touche. La bibliothèque (`feature/library`) est couverte en **#507**, le reste du web en **#508** : 99,9 % des lignes, 97,9 % des conditions, hors gardes mortes, supprimées en #512. Le mobile l'est en **#509** : 99,0 % des lignes, 97,2 % des conditions, hors gardes mortes (#512) et hors [#519](https://github.com/Cimavia/cimavia/issues/519). | ✅ | résolue en [#507](https://github.com/Cimavia/cimavia/issues/507), [#508](https://github.com/Cimavia/cimavia/issues/508) et [#509](https://github.com/Cimavia/cimavia/issues/509) — [#188](https://github.com/Cimavia/cimavia/issues/188) · volet mobile : **#156** (et non #137, qui ne traite que des adaptateurs de formatage — pointeur corrigé en #156) |
 | ~~Q-5~~ | ~~**La Quality Gate bloque la CI alors que `main` est rouge**~~ : la période de code neuf était `days: 30`, héritée de l'instance et jamais choisie ; tout ce qui avait moins d'un mois pesait dans `new_coverage`, et le job sur `push: main` échouait à chaque merge. Le mode « previous version » n'était pas disponible tant qu'aucune version n'était envoyée au scan. | ✅ | [#186](https://github.com/Cimavia/cimavia/issues/186) pose `sonar.projectVersion` ; période passée en `previous_version` dans SonarCloud (constaté par l'API le 2026-09-25) ; [#318](https://github.com/Cimavia/cimavia/issues/318) rend sa référence juste — voir « Tranché en #318 » |
-| Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
+| Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). **Même angle mort depuis #536** : `accessibilityActions`/`onAccessibilityAction` ne passent pas non plus — le pas d'accessibilité de `CmvSeekBar` s'éprouve en fonction pure (`nudge`), son câblage non. Sa valeur, elle, passe par `aria-value*`, rendues. | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
 
 > **Tranché en #130** (trois réglages qu'une bonne intention suffirait à défaire) — la porte e2e
@@ -4607,6 +4607,42 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > entre les tours ». Hors de la règle, parce que ce ne sont pas des durées d'entraînement : « il y
 > a 2 min » (horodatage relatif) et les compteurs média (`formatMmSs`). L'indice « défaut 150 »
 > reste à [#369](https://github.com/Cimavia/cimavia/issues/369).
+
+---
+
+## Post-MVP — Curseur des notes vocales ([#536](https://github.com/Cimavia/cimavia/issues/536))
+
+> **Tranché en #536** (deux zones de geste, sans `PanResponder`) : le curseur mobile (`CmvSeekBar`)
+> vit dans des listes qui défilent. Une zone intérieure prend le doigt dès le toucher SANS bloquer
+> le défilement natif — un toucher bref saute, un mouvement vertical rend la main à la liste ; la
+> zone extérieure ne le prend qu'au-delà de 8 dp horizontaux, et bloque ALORS le défilement jusqu'au
+> relâché. Une seule vue ne peut pas faire les deux : bloquer se décide à la prise du doigt. D'où
+> les props du système de responder plutôt que `PanResponder`, qui les enveloppe : même cœur de
+> React Native, toujours sans dépendance native, mais il bloque par défaut et calcule son `dx` sur
+> des horodatages que le harnais rend égaux. `locationX` n'est lu qu'au premier contact — sur
+> Android, il se recalcule ensuite sur la vue sous le doigt — et le glissé suit l'écart de `pageX`.
+>
+> **Tranché en #536** (un saut garde l'état de lecture) : `seekTo` n'est appelé qu'au relâché ;
+> pendant le glissé, le temps et la pastille suivent le doigt, et après le saut ils montrent la
+> position visée jusqu'à ce que `seekTo` rende la main (les deux plateformes émettent leur statut à
+> jour juste avant). Trois pièges, tous couverts par un test :
+>
+> - **Android relance une note terminée qu'on déplace** : en fin de note, expo-audio fait retomber
+>   `playing` sans jamais mettre son lecteur en pause. Un saut qui ne doit pas jouer passe donc par
+>   `pause()` d'abord.
+> - **L'envie de lecture survivait à la fin** : une note finie, puis déplacée sur une URL expirée,
+>   se relançait au rechargement de (B). Elle est recalée au saut.
+> - **(B) et le réessai reprennent à la position visée**, et non à `player.currentTime`, qui n'a pas
+>   forcément bougé quand le saut lui-même casse sur le 403. Une note pas encore chargée garde son
+>   saut et l'applique au chargement, comme une reprise ; elle n'est plus « au repos » pour (A).
+>
+> **Tranché en #536** (ce que la maquette ne dit pas) : `conversation_1_1` dessine une FORME D'ONDE.
+> Le mobile a toujours eu une barre plate, écart jamais consigné jusqu'ici ; l'issue la garde, et y
+> ajoute une pastille que la maquette n'a pas — le repère qu'on attrape. La zone tactile monte à
+> environ 32 dp par `hitSlop`, sans hausser la ligne. Pour l'accessibilité, `aria-value*` plutôt que
+> l'`accessibilityValue` demandée (même valeur native, mais seule visible des tests, dette **Q-6**),
+> et un pas fixe de 5 s : il se prévoit, là où un dixième de note vaudrait une seconde sur un vocal
+> court et vingt sur un long.
 
 ---
 
