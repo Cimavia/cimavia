@@ -5,6 +5,7 @@ import { type AudioPlayer, useAudioPlayer, useAudioPlayerStatus } from "expo-aud
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { CmvSeekBar } from "./CmvSeekBar";
 import { CmvText } from "./CmvText";
 
 type CmvAudioPlayerProps = {
@@ -24,6 +25,9 @@ type CmvAudioPlayerProps = {
 type Resume = { time: number; play: boolean };
 
 async function resumeAt(player: AudioPlayer, resume: Resume): Promise<void> {
+  // Android ne met jamais le lecteur en pause en fin de note (seul `playing` retombe) : sans ça, un
+  // saut sur une note terminée la relancerait d'office (#536).
+  if (!resume.play) player.pause();
   try {
     await player.seekTo(resume.time);
   } catch {
@@ -33,7 +37,8 @@ async function resumeAt(player: AudioPlayer, resume: Resume): Promise<void> {
 }
 
 /**
- * Lecteur audio partagé (messagerie, débrief) : bouton lecture/pause + barre de progression.
+ * Lecteur audio partagé (messagerie, débrief) : bouton lecture/pause + curseur qu'on tape ou qu'on
+ * glisse (#536).
  * Composant de design system réutilisable — d'où sa place dans `shared/component`.
  *
  * Le lecteur naît sur la PREMIÈRE URL et n'en change ensuite que par `replace` (#304) :
@@ -57,6 +62,17 @@ export function CmvAudioPlayer({
   // L'intention de l'utilisateur : `status.playing` retombe à `false` dès que la lecture casse.
   const wantsPlayRef = useRef(false);
   const resumeRef = useRef<Resume | null>(null);
+  // La position que vise le doigt pendant un glissé : c'est elle qu'on montre, pas le lecteur.
+  const [scrub, setScrub] = useState<number | null>(null);
+  /**
+   * La position d'un saut demandé, montrée tant que le lecteur ne l'a pas appliquée — sinon le
+   * curseur reculerait le temps du saut. Les deux plateformes émettent leur statut à jour juste
+   * AVANT que `seekTo` ne rende la main : l'effacer là ne laisse voir aucun statut périmé.
+   */
+  const [target, setTarget] = useState<number | null>(null);
+  // Lue par (B) et le réessai : une note qui casse sur le saut reprend là où on l'a envoyée.
+  const targetRef = useRef(target);
+  targetRef.current = target;
   // Le résolveur change à chaque rendu (flèche de l'écran) : lu par ref, il ne relance rien.
   const resolveUrlRef = useRef(resolveUrl);
   resolveUrlRef.current = resolveUrl;
@@ -82,7 +98,7 @@ export function CmvAudioPlayer({
   useEffect(() => {
     if (status.error == null) return;
     const failed = sourceRef.current;
-    const resume = { time: player.currentTime, play: wantsPlayRef.current };
+    const resume = { time: targetRef.current ?? player.currentTime, play: wantsPlayRef.current };
     // Démonté (ou une autre erreur arrivée) pendant la re-signature : ce lecteur-ci n'est plus à
     // recharger.
     let cancelled = false;
@@ -101,21 +117,50 @@ export function CmvAudioPlayer({
     };
   }, [status.error, player, load]);
 
+  // Le saut appliqué, la position du lecteur fait foi de nouveau — sauf si un autre l'a remplacé.
+  const apply = useCallback(
+    async (resume: Resume) => {
+      await resumeAt(player, resume);
+      setTarget((current) => (current === resume.time ? null : current));
+    },
+    [player],
+  );
+
   // La nouvelle source est prête : c'est seulement là qu'iOS accepte le saut.
   useEffect(() => {
     const resume = resumeRef.current;
     if (!status.isLoaded || resume == null) return;
     resumeRef.current = null;
-    void resumeAt(player, resume);
-  }, [status.isLoaded, player]);
+    void apply(resume);
+  }, [status.isLoaded, apply]);
 
-  const total = durationSeconds ?? (status.duration || 0);
-  const current = status.currentTime;
-  const progress = total > 0 ? Math.min(1, current / total) : 0;
+  // `null` tant que ni le serveur ni le lecteur ne la connaissent : le curseur n'a rien à viser.
+  const total = durationSeconds ?? (status.duration > 0 ? status.duration : null);
+  const current = scrub ?? target ?? status.currentTime;
+  /**
+   * Un saut en attente dit seul où en est la note : le statut qui la disait finie n'est plus vrai.
+   * C'est ce qui fait repartir une note terminée qu'on a déplacée du point visé, pas du début.
+   */
+  const finished =
+    target == null
+      ? status.didJustFinish || (total != null && status.currentTime >= total)
+      : total != null && target >= total;
+
+  const seek = (time: number) => {
+    // Une note finie ne « veut » plus jouer, même si on l'avait lancée : sans ça, un 403 sur le saut
+    // la relancerait au rechargement.
+    const resume = { time, play: wantsPlayRef.current && !finished };
+    wantsPlayRef.current = resume.play;
+    setTarget(time);
+    // iOS refuse le saut tant que la source n'est pas prête : il attend le chargement, comme une
+    // reprise. La note n'est plus « au repos » pour (A), ce qui est voulu.
+    if (status.isLoaded) void apply(resume);
+    else resumeRef.current = resume;
+  };
 
   const retry = async () => {
     setUnavailable(false);
-    const resume = { time: player.currentTime, play: true };
+    const resume = { time: targetRef.current ?? player.currentTime, play: true };
     const fresh = await resolveUrl();
     if (fresh == null) {
       setUnavailable(true);
@@ -137,11 +182,13 @@ export function CmvAudioPlayer({
       return;
     }
     // Rejouer depuis le début quand la lecture est terminée (sinon `play` ne repart pas).
-    if (status.didJustFinish || (total > 0 && current >= total)) {
+    if (finished) {
       // `void` : `play` part aussitôt, comme avant — le lecteur applique la position dans l'ordre.
       void player.seekTo(0);
     }
     wantsPlayRef.current = true;
+    // Un saut attend le chargement : c'est lui qui lancera la note, au point visé.
+    if (resumeRef.current != null) resumeRef.current = { ...resumeRef.current, play: true };
     player.play();
   };
 
@@ -151,13 +198,20 @@ export function CmvAudioPlayer({
         <Pressable onPress={toggle} hitSlop={8}>
           <Ionicons name={status.playing ? "pause" : "play"} size={22} color={cmvColors.text.hi} />
         </Pressable>
-        <View className="h-1 flex-1 overflow-hidden rounded-full bg-cmv-border">
-          {/* Largeur dynamique (pourcentage de progression) : valeur, pas une classe — aucune
-              couleur ici, juste de la mise en page. */}
-          <View className="h-full bg-cmv-text-hi" style={{ width: `${progress * 100}%` }} />
-        </View>
+        <CmvSeekBar
+          position={current}
+          total={total}
+          disabled={unavailable || status.error != null}
+          label={t("media.audio.seek")}
+          valueText={t("media.audio.position", {
+            current: formatMmSs(current),
+            total: formatMmSs(total ?? 0),
+          })}
+          onScrub={setScrub}
+          onSeek={seek}
+        />
         <CmvText className="text-cmv-text-hi text-xs">
-          {formatMmSs(status.playing || current > 0 ? current : total)}
+          {formatMmSs(status.playing || current > 0 ? current : (total ?? 0))}
         </CmvText>
       </View>
       {unavailable ? (
