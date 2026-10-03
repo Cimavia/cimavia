@@ -1,9 +1,4 @@
-import {
-  FRENCH_CLIMBING_SCALE,
-  type OrderedScale,
-  SCALE_MAX_STEPS,
-  V_BOULDERING_SCALE,
-} from "@cmv/shared";
+import { type OrderedScale, SCALE_MAX_STEPS } from "@cmv/shared";
 import { fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -135,7 +130,7 @@ describe("ScaleEditor — ajout", () => {
   });
 });
 
-describe("ScaleEditor — retrait et cotations livrées", () => {
+describe("ScaleEditor — retrait", () => {
   it("retire le palier désigné, et lui seul", async () => {
     const { user, getAllByRole, order } = setup();
 
@@ -143,18 +138,13 @@ describe("ScaleEditor — retrait et cotations livrées", () => {
 
     expect(order()).toEqual(["facile", "dur"]);
   });
+});
 
-  // Les cotations livrées sont DUPLICABLES : une copie que le coach pourra ensuite retoucher.
-  it.each([
-    ["library.builder.scale.duplicateFrench", FRENCH_CLIMBING_SCALE],
-    ["library.builder.scale.duplicateV", V_BOULDERING_SCALE],
-  ])("remplace l'échelle par une copie de « %s »", async (name, shipped) => {
-    const { user, getByRole, onScale } = setup([]);
+describe("ScaleEditor — échelle vide", () => {
+  // Aucune cotation n'est proposée comme modèle (#543) : une échelle neuve n'offre que la saisie.
+  it("n'offre que la saisie d'un palier, sans échelle toute faite", () => {
+    const { getAllByRole, getByRole } = setup([]);
 
-    await user.click(getByRole("button", { name }));
-
-    const copy = onScale.mock.lastCall?.[0] as OrderedScale;
-    expect(copy).toEqual([...shipped]);
-    expect(copy).not.toBe(shipped);
+    expect(getAllByRole("button")).toEqual([getByRole("button", { name: ADD })]);
   });
 });

@@ -1,25 +1,27 @@
 import {
   METRIC_CATALOG,
   METRIC_UNIT_LABEL_KEY,
-  type MetricFamily,
+  MetricFamily,
   type MetricKey,
   MetricUnit,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 
 /**
- * Les métriques du catalogue, groupées par famille et dans l'ordre du catalogue — qui est celui de
- * la maquette : Volume, Intensité, Récupération, Exécution, Repères.
+ * Les métriques du catalogue, groupées par famille.
+ *
+ * Les familles viennent dans l'ordre où `MetricFamily` les déclare, et chacune garde l'ordre du
+ * catalogue. Les déduire de la première métrique rencontrée ferait dépendre la place d'une famille
+ * de celle d'une métrique dans le catalogue : en déplacer une suffirait à réordonner le sélecteur.
  */
 export function catalogByFamily(): Map<MetricFamily, MetricKey[]> {
-  const grouped = new Map<MetricFamily, MetricKey[]>();
-  for (const [key, definition] of Object.entries(METRIC_CATALOG)) {
-    const family = definition.family;
-    const bucket = grouped.get(family) ?? [];
-    bucket.push(key as MetricKey);
-    grouped.set(family, bucket);
-  }
-  return grouped;
+  const keys = Object.keys(METRIC_CATALOG) as MetricKey[];
+  return new Map(
+    Object.values(MetricFamily).map((family) => [
+      family,
+      keys.filter((key) => METRIC_CATALOG[key].family === family),
+    ]),
+  );
 }
 
 /**

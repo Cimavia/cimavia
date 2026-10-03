@@ -2,7 +2,6 @@ import {
   ApiError,
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
   type CustomMetric,
-  FRENCH_CLIMBING_SCALE,
   MetricValueType,
 } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
@@ -30,7 +29,9 @@ const LABEL = "library.builder.custom.label";
 const UNIT = "library.builder.custom.unit";
 const SUBMIT = "library.builder.custom.submit";
 const UPDATE = "library.builder.custom.update";
-const SCALE_FR = "library.builder.scale.duplicateFrench";
+const STEP = "library.builder.scale.stepLabel";
+// Une échelle maison démarre vide (#543) : le coach en saisit les paliers un par un.
+const STEPS = ["facile", "moyen", "dur"];
 
 const metric = (over: Partial<CustomMetric> = {}): CustomMetric =>
   ({
@@ -45,7 +46,11 @@ const metric = (over: Partial<CustomMetric> = {}): CustomMetric =>
 function setup(editing: CustomMetric | null = null) {
   const handlers = { onCreated: vi.fn(), onUpdated: vi.fn(), onCancelEdit: vi.fn() };
   const view = renderWithProviders(<CustomMetricForm editing={editing} {...handlers} />);
-  return { ...view, ...handlers };
+  const fillScale = async () => {
+    for (const step of STEPS)
+      await view.user.type(view.getByRole("textbox", { name: STEP }), `${step}{Enter}`);
+  };
+  return { ...view, ...handlers, fillScale };
 }
 
 beforeEach(() => {
@@ -74,11 +79,11 @@ describe("CustomMetricForm", () => {
     });
 
     it("autorise l'envoi une fois l'échelle remplie", async () => {
-      const { user, getByRole } = setup();
+      const { user, getByRole, fillScale } = setup();
 
       await user.type(getByRole("textbox", { name: LABEL }), "Cotation");
       await user.click(getByRole("button", { name: "library.builder.valueType.SCALE" }));
-      await user.click(getByRole("button", { name: SCALE_FR }));
+      await fillScale();
 
       expect(getByRole("button", { name: SUBMIT })).toBeEnabled();
     });
@@ -106,13 +111,13 @@ describe("CustomMetricForm", () => {
 
     it("n'envoie pas de paliers hors du type échelle", async () => {
       createMock.mockResolvedValue(metric());
-      const { user, getByRole, getByLabelText } = setup();
+      const { user, getByRole, getByLabelText, fillScale } = setup();
 
       await user.type(getByRole("textbox", { name: LABEL }), "Charge");
       await user.type(getByLabelText(UNIT), "kg");
       // Des paliers saisis PUIS abandonnés au profit d'un autre type : ils ne doivent pas suivre.
       await user.click(getByRole("button", { name: "library.builder.valueType.SCALE" }));
-      await user.click(getByRole("button", { name: SCALE_FR }));
+      await fillScale();
       await user.click(getByRole("button", { name: "library.builder.valueType.NUMBER" }));
       await user.click(getByRole("button", { name: SUBMIT }));
 
@@ -128,18 +133,18 @@ describe("CustomMetricForm", () => {
   describe("une échelle", () => {
     it("envoie ses paliers, dans leur ordre", async () => {
       createMock.mockResolvedValue(metric());
-      const { user, getByRole } = setup();
+      const { user, getByRole, fillScale } = setup();
 
       await user.type(getByRole("textbox", { name: LABEL }), "Cotation");
       await user.click(getByRole("button", { name: "library.builder.valueType.SCALE" }));
-      await user.click(getByRole("button", { name: SCALE_FR }));
+      await fillScale();
       await user.click(getByRole("button", { name: SUBMIT }));
 
       await waitFor(() =>
         expect(createMock).toHaveBeenCalledWith(
           expect.objectContaining({
             valueType: MetricValueType.SCALE,
-            scale: [...FRENCH_CLIMBING_SCALE],
+            scale: STEPS,
           }),
         ),
       );

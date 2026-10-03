@@ -1,10 +1,4 @@
-import {
-  FRENCH_CLIMBING_SCALE,
-  type OrderedScale,
-  SCALE_MAX_STEPS,
-  SCALE_STEP_MAX_LENGTH,
-  V_BOULDERING_SCALE,
-} from "@cmv/shared";
+import { type OrderedScale, SCALE_MAX_STEPS, SCALE_STEP_MAX_LENGTH } from "@cmv/shared";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
@@ -22,8 +16,9 @@ type ScaleEditorProps = {
  * « progression sur l'échelle », et c'est la seule chose qui distingue une échelle d'une liste de
  * textes.
  *
- * Les deux cotations livrées sont DUPLICABLES, pas imposées : un coach qui travaille en salle
- * peut vouloir « facile / moyen / dur », et une échelle figée dans le code le lui interdirait.
+ * Une échelle maison démarre VIDE et se saisit palier par palier : aucune cotation n'est proposée
+ * comme modèle, faute de sport à privilégier (#543). Le coach la saisit une fois, elle vaut
+ * ensuite pour toute sa bibliothèque.
  */
 export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
   const { t } = useTranslation();
@@ -56,15 +51,6 @@ export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
     <div className="flex flex-col gap-cmv-xs">
       <span className="text-cmv-caption text-cmv-text-mid">{t("library.builder.scale.title")}</span>
       <span className="text-cmv-caption text-cmv-text-lo">{t("library.builder.scale.hint")}</span>
-
-      <div className="flex flex-wrap gap-cmv-xs">
-        <CmvButton variant="ghost" onClick={() => onChange([...FRENCH_CLIMBING_SCALE])}>
-          {t("library.builder.scale.duplicateFrench")}
-        </CmvButton>
-        <CmvButton variant="ghost" onClick={() => onChange([...V_BOULDERING_SCALE])}>
-          {t("library.builder.scale.duplicateV")}
-        </CmvButton>
-      </div>
 
       {scale.map((step, index) => (
         <div
