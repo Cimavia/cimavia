@@ -4646,6 +4646,29 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Notes vocales enchaînées ([#529](https://github.com/Cimavia/cimavia/issues/529))
+
+> **Tranché en #529** (une seule note vocale à la fois, et seulement les notes) : lancer une note
+> met en pause celle qui joue, sur toute l'app — les médias d'un débrief et ses réponses partagent
+> une page. Les **vidéos n'entrent pas dans la règle** : une vidéo peut jouer par-dessus une note,
+> en ligne sur le web comme en plein écran sur mobile. C'est un choix, pas un oubli : la demande
+> portait sur les notes, et `CmvVideoPlayer` mobile reste intact.
+>
+> **Tranché en #529** (on n'enchaîne que sur une note qui JOUAIT) : la fin d'une note lance la
+> suivante seulement si elle jouait quand elle s'est terminée. Une note en pause qu'on amène au
+> bout du curseur — natif sur le web, ajouté sur mobile par
+> [#536](https://github.com/Cimavia/cimavia/issues/536) — ne lance rien. Une note qu'on fait
+> glisser jusqu'au bout PENDANT la lecture se termine, et la suivante démarre : distinguer ce
+> saut d'une fin naturelle demandait de suivre `seeking`/`seeked`, dont l'ordre varie d'un
+> navigateur à l'autre, pour un cas où l'auditeur vient justement de passer la note.
+>
+> **Tranché en #529** (ce qui arrête un fil) : la règle « le message suivant, s'il est vocal »
+> s'applique à la lettre. Un **avis de débrief** intercalé arrête l'enchaînement, comme un texte —
+> il se lit, il ne s'écoute pas. Une note vocale **sans média** aussi : sa bulle est vide, il n'y a
+> rien à jouer, et sauter par-dessus enchaînerait deux notes que l'écran sépare.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
