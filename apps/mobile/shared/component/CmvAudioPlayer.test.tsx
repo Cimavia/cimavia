@@ -1,7 +1,7 @@
 import { act, waitFor } from "@testing-library/react";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { press, renderRn } from "@/test/render";
+import { flushLayout, grab, press, renderRn, stubLayoutWidth, tap } from "@/test/render";
 import { CmvAudioPlayer } from "./CmvAudioPlayer";
 
 const FIRST = "https://s3.test/note.m4a?X-Amz-Date=120000";
@@ -303,5 +303,209 @@ describe("CmvAudioPlayer — durée affichée au repos", () => {
 
     expect(player.seekTo).not.toHaveBeenCalled();
     expect(player.play).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Déplacer le curseur (#536). La barre fait 200 px pour une note de 90 s : le milieu vaut 45 s. Le
+ * faux lecteur ne bouge pas de lui-même — `player.currentTime` reste à 0 après un saut —, si bien
+ * qu'une position qui revient vient forcément du composant.
+ */
+describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
+  beforeEach(() => {
+    stubLayoutWidth(200);
+  });
+
+  // La zone qui prend le doigt, une fois la barre mesurée.
+  async function seekZone(view: ReturnType<typeof setup>): Promise<Element> {
+    await flushLayout();
+    const zone = view.getByRole("slider").firstElementChild;
+    if (zone == null) throw new Error("zone tactile introuvable");
+    return zone;
+  }
+
+  // Un saut que le lecteur n'achève jamais : celui qui tombe sur une URL expirée.
+  function stallNextSeek() {
+    player.seekTo.mockReturnValueOnce(new Promise<undefined>(() => {}));
+  }
+
+  it("amène la note au point touché, à mi-barre au milieu", async () => {
+    const view = setup();
+    tap(await seekZone(view), 100);
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(45));
+    expect(player.play).not.toHaveBeenCalled();
+  });
+
+  it("ne saute qu'une fois, au relâché, et montre le temps sous le doigt pendant le glissé", async () => {
+    const view = setup();
+    const finger = grab(await seekZone(view), 50);
+    finger.moveTo(100);
+    finger.moveTo(150);
+
+    // 150 px sur 200 : 67,5 s — le statut, lui, dit toujours 0.
+    expect(view.getByText("1:07")).toBeTruthy();
+    expect(player.seekTo).not.toHaveBeenCalled();
+
+    finger.release(150);
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(67.5);
+  });
+
+  it("borne la position à la note", async () => {
+    const view = setup();
+    const finger = grab(await seekZone(view), 50);
+    finger.moveTo(400);
+    finger.release(400);
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(90));
+  });
+
+  it("continue de jouer une note déplacée pendant la lecture", async () => {
+    const view = setup();
+    press(playButton(view.container));
+    view.push({ playing: true, currentTime: 10 });
+    player.play.mockClear();
+
+    tap(await seekZone(view), 100);
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(45);
+    expect(player.pause).not.toHaveBeenCalled();
+  });
+
+  /**
+   * La pause AVANT le saut est ce qui retient Android : en fin de note, il ne met jamais son lecteur
+   * en pause, et un saut sur une note terminée la relancerait d'office.
+   */
+  it("garde en pause une note déplacée en pause", async () => {
+    const view = setup();
+    view.push({ currentTime: 10 });
+
+    tap(await seekZone(view), 100);
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(45));
+    expect(player.pause).toHaveBeenCalled();
+    expect(player.play).not.toHaveBeenCalled();
+  });
+
+  it("ramène une note terminée au point visé, et la relance de là, pas du début", async () => {
+    const view = setup();
+    press(playButton(view.container));
+    view.push({ playing: false, currentTime: 90, didJustFinish: true });
+    player.play.mockClear();
+
+    tap(await seekZone(view), 100);
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(45));
+    expect(player.pause).toHaveBeenCalled();
+    expect(player.play).not.toHaveBeenCalled();
+
+    // Le statut que le lecteur émet après le saut : la note n'est plus finie.
+    view.push({ currentTime: 45, didJustFinish: false });
+    press(playButton(view.container));
+
+    expect(player.seekTo).not.toHaveBeenCalledWith(0);
+    expect(player.play).toHaveBeenCalledTimes(1);
+  });
+
+  // Sur le réseau, le saut prend du temps : le statut « finie » qu'on a encore ne dit plus rien.
+  it("ne ramène pas au début une note terminée relancée pendant son saut", async () => {
+    const view = setup();
+    view.push({ currentTime: 90, didJustFinish: true });
+    stallNextSeek();
+    tap(await seekZone(view), 100);
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(45));
+
+    press(playButton(view.container));
+
+    expect(player.seekTo).not.toHaveBeenCalledWith(0);
+    expect(player.play).toHaveBeenCalled();
+  });
+
+  // iOS refuse le saut tant que la source n'est pas prête : il attend le chargement.
+  it("applique au chargement le saut d'une note pas encore chargée", async () => {
+    setStatus({ isLoaded: false });
+    const view = setup();
+    tap(await seekZone(view), 100);
+    expect(player.seekTo).not.toHaveBeenCalled();
+
+    view.push({ isLoaded: true });
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(45));
+    expect(player.play).not.toHaveBeenCalled();
+  });
+
+  it("lance du point visé une note lancée avant d'avoir chargé le saut", async () => {
+    setStatus({ isLoaded: false });
+    const view = setup();
+    tap(await seekZone(view), 100);
+    press(playButton(view.container));
+    player.play.mockClear();
+
+    view.push({ isLoaded: true });
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(45);
+  });
+
+  /**
+   * Le piège nommé par l'issue : (B) reprenait `player.currentTime`, qui n'a pas forcément bougé
+   * quand le saut lui-même casse sur l'URL expirée.
+   */
+  it("reprend au point visé quand l'URL expire sur le saut", async () => {
+    const view = setup();
+    stallNextSeek();
+    tap(await seekZone(view), 100);
+
+    view.push({ isLoaded: false, error: "403" });
+    await waitFor(() => expect(player.replace).toHaveBeenCalledWith(FRESH));
+    view.push({ isLoaded: true, error: null });
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledTimes(2));
+    expect(player.seekTo).toHaveBeenLastCalledWith(45);
+    expect(player.play).not.toHaveBeenCalled();
+  });
+
+  // Une note finie ne « veut » plus jouer : le rechargement ne la relance pas d'office.
+  it("ne relance pas une note terminée qu'on déplace quand l'URL expire", async () => {
+    const view = setup();
+    press(playButton(view.container));
+    view.push({ playing: false, currentTime: 90, didJustFinish: true });
+    player.play.mockClear();
+    stallNextSeek();
+    tap(await seekZone(view), 100);
+
+    view.push({ isLoaded: false, error: "403" });
+    await waitFor(() => expect(player.replace).toHaveBeenCalledWith(FRESH));
+    view.push({ isLoaded: true, error: null });
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledTimes(2));
+    expect(player.play).not.toHaveBeenCalled();
+  });
+
+  it("rend la barre inerte tant que la note est cassée", async () => {
+    const view = setup();
+    view.push({ isLoaded: false, error: "403" });
+
+    tap(await seekZone(view), 100);
+
+    expect(view.getByRole("slider").getAttribute("aria-disabled")).toBe("true");
+    expect(player.seekTo).not.toHaveBeenCalled();
+  });
+
+  it("rend la barre inerte tant que personne ne connaît la durée", async () => {
+    setStatus({ duration: 0 });
+    const view = renderRn(
+      <CmvAudioPlayer url={FIRST} durationSeconds={null} resolveUrl={vi.fn()} />,
+    );
+    await flushLayout();
+    const slider = view.getByRole("slider");
+    const zone = slider.firstElementChild;
+    if (zone == null) throw new Error("zone tactile introuvable");
+
+    tap(zone, 100);
+
+    expect(slider.getAttribute("aria-disabled")).toBe("true");
+    expect(player.seekTo).not.toHaveBeenCalled();
   });
 });

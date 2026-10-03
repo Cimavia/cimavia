@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, type RenderResult, render, within } from "@testing-library/react";
+import { act, fireEvent, type RenderResult, render, within } from "@testing-library/react";
 import { createInstance, type i18n } from "i18next";
 import type { ReactElement, ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
+import { vi } from "vitest";
 
 /**
  * L'instance i18next des tests : elle rend la CLÉ, jamais le français. Même raisonnement — et même
@@ -68,9 +69,10 @@ export function renderRn(ui: ReactElement): RenderRn {
  * Presse une cible tactile — `Pressable`, et donc `CmvButton`.
  *
  * `fireEvent.click` et non `pointerDown`/`pointerUp` ni `mouseDown`/`mouseUp` : vérifié à la mise
- * au point du harnais, seul le `click` traverse le système de responder de `react-native-web`. Les
- * deux autres paires ne déclenchent RIEN, silencieusement — un test qui les emploie affirme sur un
- * geste qui n'a jamais eu lieu.
+ * au point du harnais, seul le `click` presse un `Pressable` de `react-native-web`. Les deux autres
+ * paires ne le déclenchent PAS, silencieusement — un test qui les emploie affirme sur un geste qui
+ * n'a jamais eu lieu. Une vue qui porte elle-même ses props de responder, elle, répond aux souris :
+ * voir `grab`.
  */
 export function press(element: Element): void {
   fireEvent.click(element);
@@ -90,4 +92,64 @@ export function pressButton(container: HTMLElement, label: string): void {
   // `noUncheckedIndexedAccess` ne peut pas déduire.
   const [pressable] = within(container).getAllByText(label) as [HTMLElement, ...HTMLElement[]];
   press(pressable);
+}
+
+/**
+ * Pose un doigt sur une vue qui gère elle-même ses gestes (props `onStartShouldSetResponder`…) —
+ * le curseur audio, par exemple —, puis le fait glisser, le relâche ou voit son geste repris.
+ *
+ * Des événements de SOURIS : c'est par eux que le système de responder de `react-native-web` voit un
+ * doigt (vérifié en #536), là où un `Pressable` n'écoute que le `click` (voir `press`). jsdom ne
+ * place rien — tout rectangle vaut 0 —, si bien que `x` est à la fois `pageX` et `locationX`.
+ *
+ * `cancel` reproduit ce que fait une liste qui reprend le doigt : le responder est terminé, sans
+ * relâché.
+ */
+export function grab(element: Element, x: number, y = 0) {
+  fireEvent.mouseDown(element, { clientX: x, clientY: y, button: 0 });
+  return {
+    moveTo(toX: number, toY = y) {
+      fireEvent.mouseMove(element, { clientX: toX, clientY: toY, buttons: 1 });
+    },
+    release(atX: number, atY = y) {
+      fireEvent.mouseUp(element, { clientX: atX, clientY: atY });
+    },
+    cancel() {
+      fireEvent.dragStart(element);
+    },
+  };
+}
+
+/** Un toucher bref en `x` : posé et relâché au même point. */
+export function tap(element: Element, x: number): void {
+  grab(element, x).release(x);
+}
+
+/**
+ * Donne `width` de large à toute vue mesurée par `onLayout`. jsdom ne fait aucune mise en page, et
+ * `react-native-web` ne mesure même rien sans `ResizeObserver` — que jsdom n'a pas. Celui-ci rappelle
+ * dès l'observation ; la mesure, elle, tombe après un `setTimeout(0)` : attendre `flushLayout`.
+ *
+ * À poser AVANT le rendu : c'est au montage que la vue est observée.
+ */
+export function stubLayoutWidth(width: number): void {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(private readonly callback: (entries: { target: Element }[]) => void) {}
+      observe(target: Element) {
+        this.callback([{ target }]);
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(width);
+}
+
+/** Laisse arriver les mesures programmées au montage (voir `stubLayoutWidth`). */
+export async function flushLayout(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
