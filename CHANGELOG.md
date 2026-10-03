@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.11.0](https://github.com/Cimavia/cimavia/compare/v1.10.0...v1.11.0) (2026-10-03)
+
+
+### Fonctionnalités
+
+* **mobile:** déplacer une note vocale garde sa lecture ou sa pause, même après un 403 ([89c72d4](https://github.com/Cimavia/cimavia/commit/89c72d49950b69412611a95b751b9046eba4e766))
+* **mobile:** les notes vocales d'un débrief, de ses réponses et d'un fil s'enchaînent ([4eee5f1](https://github.com/Cimavia/cimavia/commit/4eee5f15d6b8b17c1b287fd27621845a5a774b88))
+* **mobile:** un curseur audio qu'on tape ou glisse sans voler le défilement de la liste ([1e41166](https://github.com/Cimavia/cimavia/commit/1e41166b3ca1c5586d75cdd7224664ca76bd722e))
+* **shared:** fin des cotations à dupliquer, celle du catalogue passe en spécifique ([bec626c](https://github.com/Cimavia/cimavia/commit/bec626cbcf48cc73e28561df582abbffcad13b8c))
+* **shared:** note vocale suivante et note unique, une règle pour les deux apps ([aaf5f3e](https://github.com/Cimavia/cimavia/commit/aaf5f3e1d03c769ae0c98ce2c80f474034cc7092))
+* **web:** les notes vocales d'un débrief, de ses réponses et d'un fil s'enchaînent ([612ea09](https://github.com/Cimavia/cimavia/commit/612ea0947752fca5aeea1fba3951abe9bada3954))
+
+
+### Corrections
+
+* **mobile:** une note vocale lancée coupe celle qui joue, et part si la liste le demande ([bce1aa8](https://github.com/Cimavia/cimavia/commit/bce1aa822f4421da1caa262d1f83222e3bcc4e8a))
+* **web:** une note vocale lancée coupe celle qui joue, et démarre si la liste le demande ([36a8f3b](https://github.com/Cimavia/cimavia/commit/36a8f3b448d5f429666e277eeb8a3d3522589f2b))
+
+
+### Technique
+
+* **web:** les familles du sélecteur suivent leur ordre déclaré, plus le catalogue ([b7ef459](https://github.com/Cimavia/cimavia/commit/b7ef459c20f6a21cf9df08f953f5f7a2891de469))
+
 ## [1.10.0](https://github.com/Cimavia/cimavia/compare/v1.9.1...v1.10.0) (2026-10-02)
 
 
