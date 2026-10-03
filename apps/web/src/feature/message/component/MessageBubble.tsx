@@ -8,6 +8,7 @@ import {
   type MessageAttachmentDto,
   type MessageDto,
   MessageType,
+  type VoiceNoteCue,
 } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -33,6 +34,8 @@ type MessageBubbleProps = {
    * commente.
    */
   resolveMediaUrl: ResolveMediaUrl;
+  /** Enchaîne la note vocale de ce message à celles du fil (#529) — sans effet sur un autre type. */
+  voiceNoteCue?: VoiceNoteCue;
 };
 
 export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
@@ -42,19 +45,26 @@ export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
 function MediaContent({
   message,
   resolveMediaUrl,
-}: Readonly<{ message: MessageDto; resolveMediaUrl: ResolveMediaUrl }>) {
+  voiceNoteCue,
+}: Readonly<{
+  message: MessageDto;
+  resolveMediaUrl: ResolveMediaUrl;
+  voiceNoteCue: VoiceNoteCue | undefined;
+}>) {
   const media = message.media;
   if (media == null) return null;
 
   if (message.type === MessageType.IMAGE) {
     return <ImageMessage url={media.url} alt={media.fileName} />;
   }
+  const isAudio = message.type === MessageType.AUDIO;
   return (
     <CmvMediaPlayer
-      kind={message.type === MessageType.AUDIO ? "audio" : "video"}
+      kind={isAudio ? "audio" : "video"}
       url={media.url}
       resolveUrl={() => resolveMediaUrl(message.id)}
-      className={message.type === MessageType.AUDIO ? "max-w-full" : "max-h-80 rounded-cmv-md"}
+      className={isAudio ? "max-w-full" : "max-h-80 rounded-cmv-md"}
+      cue={isAudio ? voiceNoteCue : undefined}
     />
   );
 }
@@ -159,6 +169,7 @@ export function MessageBubble({
   mine,
   hideAttachment = false,
   resolveMediaUrl,
+  voiceNoteCue,
 }: Readonly<MessageBubbleProps>) {
   if (isFeedbackEventMessage(message.type)) {
     return <FeedbackEventNotice type={message.type} attachment={message.attachment} />;
@@ -184,7 +195,11 @@ export function MessageBubble({
       {message.content != null ? (
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
       ) : (
-        <MediaContent message={message} resolveMediaUrl={resolveMediaUrl} />
+        <MediaContent
+          message={message}
+          resolveMediaUrl={resolveMediaUrl}
+          voiceNoteCue={voiceNoteCue}
+        />
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import {
   useSessionFeedback,
 } from "@/feature/feedback/hook/useFeedbacks";
 import { FeedbacksScreen } from "@/feature/feedback/screen/FeedbacksScreen";
+import { playToTheEnd, stubPlayback } from "../../../../test/media";
 import { renderInRoute } from "../../../../test/render";
 
 /**
@@ -230,6 +231,40 @@ describe("FeedbacksScreen", () => {
     fireEvent.error(container.querySelector("video") as HTMLVideoElement);
 
     await waitFor(() => expect(freshMediaUrl.mock.calls).toEqual([["md-2"], ["md-3"]]));
+  });
+
+  // Les notes du débrief s'enchaînent entre elles, la vidéo sautée, et jamais vers ses réponses.
+  it("enchaîne les notes du débrief sans passer à ses réponses", async () => {
+    vi.mocked(useSessionFeedback).mockReturnValue({
+      data: {
+        media: [
+          { id: "md-1", type: "AUDIO", url: "https://x/1", fileName: "note.m4a" },
+          { id: "md-2", type: "VIDEO", url: "https://x/2", fileName: "essai.mp4" },
+          { id: "md-3", type: "AUDIO", url: "https://x/3", fileName: "suite.m4a" },
+        ],
+        trackedExercises: [],
+        messages: [
+          {
+            id: "m-1",
+            senderId: "coach-1",
+            type: "AUDIO",
+            content: null,
+            media: { url: "https://x/4", fileName: "reponse.m4a", durationSeconds: 5 },
+            attachment: null,
+          },
+        ],
+      } as unknown as SessionFeedbackDto,
+      isPending: false,
+    } as unknown as ReturnType<typeof useSessionFeedback>);
+    const { container } = await open("f-1");
+    const [first, video, last, reply] = stubPlayback(container);
+
+    playToTheEnd(first as HTMLMediaElement);
+    expect(video?.play).not.toHaveBeenCalled();
+    expect(last?.play).toHaveBeenCalledOnce();
+
+    playToTheEnd(last as HTMLMediaElement);
+    expect(reply?.play).not.toHaveBeenCalled();
   });
 
   it("dit qu'il charge le détail du débrief", async () => {

@@ -1,8 +1,9 @@
-import type { MessageDto } from "@cmv/shared";
+import { type MessageDto, nextVoiceNoteInThread } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageBubble, type ResolveMediaUrl } from "@/feature/message/component/MessageBubble";
+import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { authClient } from "@/shared/lib/auth";
 
 type FeedbackReplyThreadProps = {
@@ -48,6 +49,8 @@ export function FeedbackReplyThread({
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
   const reply = useFeedbackReply({ feedbackId, conversationId, isThreadError, onSent });
+  // Les réponses s'enchaînent comme un fil : un message non vocal arrête (#529).
+  const chain = useVoiceNoteChain((id) => nextVoiceNoteInThread(messages, id));
 
   const currentUserId = session?.user.id ?? "";
 
@@ -84,6 +87,7 @@ export function FeedbackReplyThread({
               mine={message.senderId === currentUserId}
               resolveMediaUrl={resolveMediaUrl}
               hideAttachment
+              voiceNoteCue={chain.cueOf(message.id)}
             />
           ))}
         </div>

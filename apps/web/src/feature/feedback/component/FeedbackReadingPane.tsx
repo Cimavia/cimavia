@@ -1,4 +1,9 @@
-import { type CoachFeedbackSummaryDto, coachFeedbackKeys, MediaType } from "@cmv/shared";
+import {
+  type CoachFeedbackSummaryDto,
+  coachFeedbackKeys,
+  MediaType,
+  nextVoiceNoteInFeedback,
+} from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
@@ -8,6 +13,7 @@ import { useConversationWith } from "@/feature/message/hook/useMessages";
 import { CmvAvatar, CmvButton, CmvMediaPlayer } from "@/shared/component";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
+import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { formatDate } from "@/shared/util/date.util";
 
 type FeedbackReadingPaneProps = {
@@ -48,6 +54,9 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
   // La liste ENTIÈRE et pas seulement ce débrief : `repliedAt` y vit aussi, et c'est lui qui pose
   // le badge « répondu » sur la ligne qu'on vient de traiter.
   const refreshFeedbacks = () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
+  // Les notes du débrief s'enchaînent entre elles, jamais vers ses réponses (#529).
+  const media = detail?.media ?? [];
+  const chain = useVoiceNoteChain((id) => nextVoiceNoteInFeedback(media, id));
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -90,12 +99,12 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
           {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
           <div className="grid gap-cmv-sm sm:grid-cols-2">
-            {(detail?.media ?? []).map((media) => {
-              if (media.type === MediaType.IMAGE) {
+            {media.map((item) => {
+              if (item.type === MediaType.IMAGE) {
                 return (
                   <a
-                    key={media.id}
-                    href={media.url}
+                    key={item.id}
+                    href={item.url}
                     target="_blank"
                     rel="noreferrer"
                     title={t("feedback.detail.openFull")}
@@ -103,34 +112,35 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
                     {/* `contain`, pas `cover` : le coach regarde un GESTE — un recadrage rognerait
                         justement ce qu'il doit voir. Le clic ouvre la photo en pleine taille. */}
                     <img
-                      src={media.url}
-                      alt={media.fileName}
+                      src={item.url}
+                      alt={item.fileName}
                       className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 object-contain"
                     />
                   </a>
                 );
               }
-              if (media.type === MediaType.AUDIO) {
+              if (item.type === MediaType.AUDIO) {
                 // Note vocale (débrief vocal, P5) : lecteur audio plein largeur, pas de « boîte
                 // noire » vidéo.
                 return (
-                  <div key={media.id} className="sm:col-span-2">
+                  <div key={item.id} className="sm:col-span-2">
                     <CmvMediaPlayer
                       kind="audio"
-                      url={media.url}
-                      resolveUrl={() => freshMediaUrl(media.id)}
+                      url={item.url}
+                      resolveUrl={() => freshMediaUrl(item.id)}
                       className="w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-sm"
+                      cue={chain.cueOf(item.id)}
                     />
                   </div>
                 );
               }
               // Vidéo : le navigateur streame depuis l'URL signée : rien ne transite par l'API.
               return (
-                <div key={media.id}>
+                <div key={item.id}>
                   <CmvMediaPlayer
                     kind="video"
-                    url={media.url}
-                    resolveUrl={() => freshMediaUrl(media.id)}
+                    url={item.url}
+                    resolveUrl={() => freshMediaUrl(item.id)}
                     className="h-48 w-full rounded-cmv-md border border-cmv-border bg-cmv-bg-1"
                   />
                 </div>

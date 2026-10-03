@@ -1,6 +1,7 @@
 import { type FeedbackMediaDto, MediaType } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { playToTheEnd, stubPlayback } from "../../../../test/media";
 import { renderWithProviders } from "../../../../test/render";
 import { FeedbackMediaGallery } from "./FeedbackMediaGallery";
 
@@ -82,5 +83,28 @@ describe("FeedbackMediaGallery", () => {
     for (const button of getAllByRole("button", { name: "feedback.media.remove" })) {
       expect(button).toBeDisabled();
     }
+  });
+});
+
+describe("FeedbackMediaGallery — notes vocales enchaînées (#529)", () => {
+  const NEXT = media({ id: "md-audio-2", type: MediaType.AUDIO, fileName: "suite.m4a" });
+
+  it("lance la note suivante à la fin d'une note, en sautant photo et vidéo", () => {
+    const { container } = renderGallery([AUDIO, IMAGE, VIDEO, NEXT]);
+    const [first, video, next] = stubPlayback(container) as HTMLMediaElement[];
+
+    playToTheEnd(first as HTMLMediaElement);
+
+    expect(next?.play).toHaveBeenCalledOnce();
+    expect(video?.play).not.toHaveBeenCalled();
+  });
+
+  it("ne relance rien après la dernière note", () => {
+    const { container } = renderGallery([AUDIO, NEXT]);
+    const [first, last] = stubPlayback(container);
+
+    playToTheEnd(last as HTMLMediaElement);
+
+    expect(first?.play).not.toHaveBeenCalled();
   });
 });

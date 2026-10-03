@@ -1,8 +1,9 @@
 import type { FeedbackMediaDto } from "@cmv/shared";
-import { MediaType } from "@cmv/shared";
+import { MediaType, nextVoiceNoteInFeedback } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import type { ResolveMediaUrl } from "@/feature/message/component/MessageBubble";
 import { CmvButton, CmvCard, CmvMediaPlayer } from "@/shared/component";
+import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 
 type FeedbackMediaGalleryProps = {
   media: readonly FeedbackMediaDto[];
@@ -17,6 +18,8 @@ type FeedbackMediaGalleryProps = {
  *
  * Les URLs sont signées à TTL court : le lecteur re-signe celle qui lâche en cours de route, sans
  * repartir de zéro (#304).
+ *
+ * Les notes vocales s'enchaînent, photos et vidéos sautées (#529).
  */
 export function FeedbackMediaGallery({
   media,
@@ -25,6 +28,7 @@ export function FeedbackMediaGallery({
   resolveMediaUrl,
 }: Readonly<FeedbackMediaGalleryProps>) {
   const { t } = useTranslation();
+  const chain = useVoiceNoteChain((id) => nextVoiceNoteInFeedback(media, id));
 
   if (media.length === 0) return null;
 
@@ -59,6 +63,7 @@ export function FeedbackMediaGallery({
                 resolveUrl={() => resolveMediaUrl(item.id)}
                 preload="metadata"
                 className={item.type === MediaType.AUDIO ? "w-full" : "w-full rounded-cmv-md"}
+                cue={item.type === MediaType.AUDIO ? chain.cueOf(item.id) : undefined}
               />
             )}
 

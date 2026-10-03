@@ -1,6 +1,7 @@
 import type { MessageDto } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageBubble } from "@/feature/message/component/MessageBubble";
 import { useMarkRead, useSendMessage, useThreadMessages } from "@/feature/message/hook/useMessages";
 import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia";
 import { renderWithProviders } from "../../../../test/render";
@@ -18,7 +19,7 @@ vi.mock("@/feature/message/hook/useMessages", () => ({
 }));
 vi.mock("@/feature/message/hook/useSendMessageMedia", () => ({ useSendMessageMedia: vi.fn() }));
 vi.mock("@/feature/message/component/Composer", () => ({ Composer: () => null }));
-vi.mock("@/feature/message/component/MessageBubble", () => ({ MessageBubble: () => null }));
+vi.mock("@/feature/message/component/MessageBubble", () => ({ MessageBubble: vi.fn(() => null) }));
 vi.mock("@/shared/hook/useCapabilities", () => ({ useExercisedCapability: () => "coach" }));
 vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => vi.fn() }));
 
@@ -141,5 +142,28 @@ describe("MessageThread — marquage lu", () => {
     mockThread([message("m1")]);
     renderWithProviders(<MessageThread {...props} conversationId={undefined} />);
     expect(markRead).not.toHaveBeenCalled();
+  });
+});
+
+describe("MessageThread — notes vocales enchaînées (#529)", () => {
+  const voice = (id: string) =>
+    message(id, { type: "AUDIO", content: null, media: {} as MessageDto["media"] });
+
+  /** Ce que la dernière bulle rendue pour `id` a reçu pour s'enchaîner aux autres. */
+  function cueOf(id: string) {
+    const calls = vi
+      .mocked(MessageBubble)
+      .mock.calls.filter(([bubble]) => bubble.message.id === id);
+    return calls.at(-1)?.[0].voiceNoteCue;
+  }
+
+  it("demande la note suivante du fil à la fin d'une note", async () => {
+    mockThread([voice("m1"), voice("m2")]);
+    renderWithProviders(<MessageThread {...props} />);
+    expect(cueOf("m2")?.cued).toBe(false);
+
+    act(() => cueOf("m1")?.onFinish());
+
+    await waitFor(() => expect(cueOf("m2")?.cued).toBe(true));
   });
 });
