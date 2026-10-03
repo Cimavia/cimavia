@@ -10,6 +10,7 @@ import {
   type MessageAttachmentDto,
   type MessageDto,
   MessageType,
+  type VoiceNoteCue,
 } from "@cmv/shared";
 import { type Href, router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -33,6 +34,8 @@ type MessageBubbleProps = {
    * seule sait quelle requête porte le message — le fil, ou le débrief qu'il commente.
    */
   resolveMediaUrl: ResolveMediaUrl;
+  /** Enchaîne la note vocale de ce message à celles du fil (#529) — sans effet sur un autre type. */
+  voiceNoteCue?: VoiceNoteCue | undefined;
 };
 
 export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
@@ -41,7 +44,12 @@ export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
 function MediaContent({
   message,
   resolveMediaUrl,
-}: Readonly<{ message: MessageDto; resolveMediaUrl: ResolveMediaUrl }>) {
+  voiceNoteCue,
+}: Readonly<{
+  message: MessageDto;
+  resolveMediaUrl: ResolveMediaUrl;
+  voiceNoteCue: VoiceNoteCue | undefined;
+}>) {
   const media = message.media;
   if (media == null) return null;
 
@@ -51,6 +59,7 @@ function MediaContent({
         url={media.url}
         durationSeconds={media.durationSeconds}
         resolveUrl={() => resolveMediaUrl(message.id)}
+        cue={voiceNoteCue}
       />
     );
   }
@@ -150,6 +159,7 @@ export function MessageBubble({
   mine,
   hideAttachment = false,
   resolveMediaUrl,
+  voiceNoteCue,
 }: Readonly<MessageBubbleProps>) {
   if (isFeedbackEventMessage(message.type)) {
     return <FeedbackEventNotice type={message.type} attachment={message.attachment} />;
@@ -172,7 +182,11 @@ export function MessageBubble({
       {message.content != null ? (
         <CmvText className="text-cmv-text-hi">{message.content}</CmvText>
       ) : (
-        <MediaContent message={message} resolveMediaUrl={resolveMediaUrl} />
+        <MediaContent
+          message={message}
+          resolveMediaUrl={resolveMediaUrl}
+          voiceNoteCue={voiceNoteCue}
+        />
       )}
     </View>
   );

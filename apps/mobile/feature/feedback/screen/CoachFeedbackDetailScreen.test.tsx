@@ -1,6 +1,11 @@
-import type { CoachFeedbackSummaryDto, MessageDto, SessionFeedbackDto } from "@cmv/shared";
+import type {
+  CoachFeedbackSummaryDto,
+  MessageDto,
+  SessionFeedbackDto,
+  VoiceNoteCue,
+} from "@cmv/shared";
 import { coachFeedbackKeys } from "@cmv/shared";
-import { fireEvent } from "@testing-library/react";
+import { act, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useCoachFeedbackDetail,
@@ -24,9 +29,11 @@ vi.mock("@/feature/feedback/hook/useCoachFeedbacks", () => ({
   useMarkFeedbackRead: vi.fn(),
 }));
 vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({ useFeedbackReply: vi.fn() }));
-const { freshUrl, session } = vi.hoisted(() => ({
+const { freshUrl, session, cues } = vi.hoisted(() => ({
   freshUrl: vi.fn(() => Promise.resolve(null)),
   session: { current: { user: { id: "coach-1" } } as { user: { id: string } } | null },
+  // Ce que chaque lecteur a reçu de sa liste pour s'enchaîner (#529), par URL.
+  cues: new Map<string, VoiceNoteCue | undefined>(),
 }));
 vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => freshUrl }));
 vi.mock("@/feature/message/hook/useConversation", () => ({
@@ -41,17 +48,24 @@ vi.mock("@/shared/lib/auth", () => ({
  * d'atteinte sous un runtime sans pont natif. Même raison que dans `ConversationThread.test`.
  *
  * Les trois lecteurs aussi : ils ont leurs tests, et ce que l'écran décide est LEQUEL il monte pour
- * quel média (#151) — et à qui il demande une url fraîche. Chaque double dit son type et relaie la
- * demande d'url d'un tap.
+ * quel média (#151) — et à qui il demande une url fraîche. Chaque double dit son type, relaie la
+ * demande d'url d'un tap, et garde ce que sa liste lui dit pour l'enchaîner (#529).
  */
 vi.mock("@/shared/component", async (importOriginal) => {
   const player =
     (kind: string) =>
-    ({ url, resolveUrl }: Readonly<{ url?: string; resolveUrl?: () => void }>) => (
-      <button type="button" data-player={kind} onClick={() => resolveUrl?.()}>
-        {url}
-      </button>
-    );
+    ({
+      url,
+      resolveUrl,
+      cue,
+    }: Readonly<{ url?: string; resolveUrl?: () => void; cue?: VoiceNoteCue }>) => {
+      if (url != null) cues.set(url, cue);
+      return (
+        <button type="button" data-player={kind} onClick={() => resolveUrl?.()}>
+          {url}
+        </button>
+      );
+    };
   return {
     ...(await importOriginal<Record<string, unknown>>()),
     CmvAudioPlayer: player("audio"),
@@ -491,5 +505,58 @@ describe("CoachFeedbackDetailScreen — après une réponse", () => {
     void options?.onSent?.();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: coachFeedbackKeys.all });
+  });
+});
+
+/**
+ * Le débrief et ses réponses sont deux listes (#529) : chacune enchaîne ses notes, et la dernière
+ * note de l'athlète ne lance pas la réponse du coach.
+ */
+describe("CoachFeedbackDetailScreen — les notes vocales s'enchaînent (#529)", () => {
+  const url = (id: string) => `https://storage.test/${id}`;
+  const note = (id: string) => ({ id, type: "AUDIO", url: url(id), durationSeconds: 12 });
+  const reply = (id: string) =>
+    message({
+      id,
+      type: "AUDIO",
+      content: null,
+      media: { url: url(id), durationSeconds: 5 },
+    } as never);
+  // La fin d'une note, telle que son lecteur l'annonce à la liste.
+  const finish = (id: string) => act(() => cues.get(url(id))?.onFinish());
+  const isCued = (id: string) => cues.get(url(id))?.cued;
+
+  beforeEach(() => {
+    cues.clear();
+    mockDetail({
+      data: detail({
+        media: [note("m-1"), { id: "m-photo", type: "PHOTO", url: url("m-photo") }, note("m-2")],
+        messages: [reply("r-1"), reply("r-2")],
+      } as never),
+    });
+  });
+
+  it("passe d'une note du débrief à la suivante, photo sautée", () => {
+    renderRn(<CoachFeedbackDetailScreen />);
+
+    finish("m-1");
+
+    expect(isCued("m-2")).toBe(true);
+  });
+
+  it("s'arrête à la dernière note du débrief, sans passer aux réponses", () => {
+    renderRn(<CoachFeedbackDetailScreen />);
+
+    finish("m-2");
+
+    expect(isCued("r-1")).toBe(false);
+  });
+
+  it("enchaîne les réponses vocales entre elles", () => {
+    renderRn(<CoachFeedbackDetailScreen />);
+
+    finish("r-1");
+
+    expect(isCued("r-2")).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import {
   type FeedbackMediaDto,
   type MediaRecapLine,
   MediaType,
+  nextVoiceNoteInFeedback,
   type SessionFeedbackDto,
 } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ import {
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
+import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -194,6 +196,8 @@ function FeedbackBody({
  * Le branchement est EXHAUSTIF, et pas « audio d'un côté, tout le reste en image » : c'est
  * exactement ce qui rendait une vidéo par `<Image>` — un bloc vide, sans erreur ni indice, là où
  * l'athlète avait déposé sa voie (#151).
+ *
+ * Les notes vocales s'enchaînent, photos et vidéos sautées (#529).
  */
 function FeedbackMedia({
   media,
@@ -201,6 +205,7 @@ function FeedbackMedia({
 }: Readonly<{ media: readonly FeedbackMediaDto[]; sessionId: string }>) {
   const { t } = useTranslation();
   const freshUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
+  const chain = useVoiceNoteChain((id) => nextVoiceNoteInFeedback(media, id));
 
   if (media.length === 0) return null;
 
@@ -215,6 +220,7 @@ function FeedbackMedia({
               url={item.url}
               durationSeconds={item.durationSeconds}
               resolveUrl={() => freshUrl(item.id)}
+              cue={chain.cueOf(item.id)}
             />
           );
         }
