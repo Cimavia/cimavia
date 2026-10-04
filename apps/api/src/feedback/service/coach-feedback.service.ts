@@ -1,5 +1,5 @@
 import type { CoachFeedbackSummaryDto } from "@cmv/shared";
-import { required } from "@cmv/shared";
+import { FEEDBACK_EVENT_MESSAGE_TYPES, required } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { ScheduledSession } from "@prisma/client";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
@@ -84,13 +84,20 @@ export class CoachFeedbackService {
    * propre débrief ne le marque donc pas « répondu ». Prisma ne sait pas comparer deux colonnes
    * dans un `where` sans SQL brut : le tri se fait ici, sur un lot déjà borné aux débriefs listés.
    *
+   * Les AVIS sont écartés (#316) : ce sont des événements du serveur, pas des réponses. Signés de
+   * l'athlète, ils ne comptaient jusqu'ici que lorsque l'athlète était aussi le coach — l'avis
+   * annonçant un débrief le marquait alors « répondu » de lui-même.
+   *
    * UNE requête pour toute la liste, pas une par ligne.
    */
   private async firstCoachReplyByFeedback(
     feedbackIds: readonly string[],
   ): Promise<Map<string, Date>> {
     const messages = await this.db.message.findMany({
-      where: { sessionFeedbackId: { in: [...feedbackIds] } },
+      where: {
+        sessionFeedbackId: { in: [...feedbackIds] },
+        type: { notIn: [...FEEDBACK_EVENT_MESSAGE_TYPES] },
+      },
       orderBy: { createdAt: "asc" },
       select: { sessionFeedbackId: true, senderId: true, coachId: true, createdAt: true },
     });
