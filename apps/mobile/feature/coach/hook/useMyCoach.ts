@@ -1,12 +1,11 @@
-import type {
-  AcceptInvitationInput,
-  CoachAthleteDto,
-  DeclineInvitationInput,
-  PendingInvitationDto,
+import {
+  acceptInvitationMutation,
+  type CoachAthleteDto,
+  type DeclineInvitationInput,
+  type PendingInvitationDto,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, coachKeys, invitationKeys } from "@/feature/coach/api";
-import { myPlanKeys } from "@/feature/plan/api";
 
 export function useMyCoach() {
   return useQuery<CoachAthleteDto | null>({
@@ -16,24 +15,11 @@ export function useMyCoach() {
 }
 
 /**
- * Rejoint un coach par code d'invitation.
- *
- * Rejoindre change tout ce que l'athlète peut voir : on invalide donc aussi sa planification,
- * dont le `null` mis en cache (« aucun coach ») serait sinon resservi jusqu'à expiration.
+ * Rejoint un coach par code d'invitation. L'invalidation est globale : rejoindre change tout ce
+ * que l'athlète peut voir — le pourquoi vit avec la mutation, partagée (#308).
  */
 export function useAcceptInvitation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: AcceptInvitationInput) => accountApi.acceptInvitation(input),
-    onSuccess: (relation) => {
-      queryClient.setQueryData(coachKeys.mine(), relation);
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.all });
-      // L'invitation acceptée n'attend plus personne : sans cette invalidation, sa carte resterait
-      // affichée au-dessus du « tu as déjà un coach » qu'on vient d'obtenir (#146).
-      queryClient.invalidateQueries({ queryKey: invitationKeys.all });
-    },
-  });
+  return useMutation(acceptInvitationMutation(useQueryClient(), accountApi));
 }
 
 /**

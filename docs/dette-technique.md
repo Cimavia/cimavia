@@ -1657,7 +1657,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~V-1~~ | ~~**Pas de lecture vidéo EN LIGNE sur mobile**~~ : le web lit dans la page (`<video controls>`), le mobile délègue au lecteur système. Lecture hors de l'app, aucun contrôle du rendu. Écart de parité assumé (épic [#20](https://github.com/Cimavia/cimavia/issues/20)). | ✅ | résolue en [#407](https://github.com/Cimavia/cimavia/issues/407) — le déclencheur est survenu (retour du coach beta) : `CmvVideoPlayer` lit en plein écran dans l'app, avec `expo-video` |
-| V-2 | **URL signée périmée non vérifiée à l'ouverture d'un lien** : le justificatif de facture (mobile **et** web), les documents de séance **côté web** et la photo agrandie du débrief **web** (`<a href>` du panneau coach et de la galerie athlète) ouvrent l'URL du cache telle quelle — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. Le débrief MOBILE la vérifie depuis #151 (`isSignedUrlUsable`), la messagerie mobile depuis #304 ; les lecteurs audio et vidéo des deux plateformes la re-signent quand elle casse (#304). **Rectifié en #407** : c'était faux de la vidéo mobile, jouée hors de l'app jusque-là (**V-3**) — vrai depuis. **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. **Rectifié en #304** : cette ligne disait « le débrief la vérifie », sans préciser que c'était le mobile seul. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
+| V-2 | **URL signée périmée non vérifiée à l'ouverture d'un lien** : le justificatif de facture (mobile **et** web), les documents de séance **côté web** et la photo agrandie du débrief **web** (`<a href>` du panneau coach et de la galerie athlète) ouvrent l'URL du cache telle quelle — l'utilisateur atterrit sur la réponse 403 du storage, en XML brut. Le débrief MOBILE la vérifie depuis #151 (`isSignedUrlUsable`), la messagerie mobile depuis #304 ; les lecteurs audio et vidéo des deux plateformes la re-signent quand elle casse (#304). **Rectifié en #407** : c'était faux de la vidéo mobile, jouée hors de l'app jusque-là (**V-3**) — vrai depuis. **Périmètre réduit en #95** : les documents de séance du MOBILE en sortent, le fichier local passant désormais devant l'URL signée. **Rectifié en [#307](https://github.com/Cimavia/cimavia/issues/307)** : c'était vrai du seul document DÉJÀ sur l'appareil — celui que la passe n'avait pas encore descendu s'ouvrait toujours par l'URL du cache, et une séance ouverte depuis plus de cinq minutes menait au 403. Il passe depuis par une re-signature (`freshDocumentUrl`), avec refus explicite quand elle échoue. **Rectifié en #304** : cette ligne disait « le débrief la vérifie », sans préciser que c'était le mobile seul. | 🟡 | — *(déclencheur : un athlète qui signale un document « qui ne s'ouvre pas »)* |
 | ~~V-3~~ | ~~**Vidéo mobile : un saut tardif peut échouer dans le lecteur système**~~ : `CmvVideoLink` re-signe l'URL AVANT de l'ouvrir, mais le lecteur système la garde ensuite. Une vidéo mise en pause plus de 5 min puis relancée ou déplacée redemande des octets avec une URL expirée, et le storage répond 403 — hors de l'app, donc sans reprise possible, là où le web re-signe et reprend à la même position (#304). Rare : la vidéo est plafonnée à 3 min. | ✅ | résolue en [#407](https://github.com/Cimavia/cimavia/issues/407), avec **V-1** — l'erreur de lecture remonte enfin à l'app : `CmvVideoPlayer` re-signe et reprend à la même position |
 
 > **Tranché** (le lecteur système plutôt qu'`expo-video`) : lire la vidéo **dans** l'app demande
@@ -2319,7 +2319,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~MI-1~~ | ~~**Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint**~~ : le `staleTime` par défaut (60 s web, 5 min mobile) retenait `GET /me/counterparts`, et il fallait recharger la page pour voir la messagerie apparaître. | ✅ | déclencheur survenu **le jour même** (retour de bêta) — `staleTime: 0` sur cette seule requête, refetch au montage et au retour sur l'app |
+| ~~MI-1~~ | ~~**Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint**~~ : le `staleTime` par défaut (60 s web, 5 min mobile) retenait `GET /me/counterparts`, et il fallait recharger la page pour voir la messagerie apparaître. | ✅ | déclencheur survenu **le jour même** (retour de bêta) — `staleTime: 0` sur cette seule requête, refetch au montage et au retour sur l'app. **La moitié athlète, corrigée en [#308](https://github.com/Cimavia/cimavia/issues/308)** : sur mobile, l'athlète qui venait de rejoindre n'avait pas non plus son onglet Messages — `useAcceptInvitation` énumérait ses invalidations et oubliait les contreparties, et le `staleTime: 0` n'y pouvait rien, la barre d'onglets restant montée sous `join`. Il invalide depuis tout le cache, comme le web, et par la même mutation : `acceptInvitationMutation` (`@cmv/shared`), écrite une fois pour ne plus diverger |
 | MI-2 | **`landingTab` a une valeur par défaut pour les contreparties** : `LoginScreen`, `RegisterScreen` et `CmvCapabilityGate` l'appellent avant qu'une requête ait pu partir. Sans conséquence tant qu'aucun onglet conditionnel n'est en tête de table — `dashboard` et `planning` y sont, et ni l'un ni l'autre ne dépend d'un interlocuteur. | 🟢 | — *(déclencheur : un onglet conditionnel passe en tête ; le commentaire de `tabs.ts` le dit)* |
 
 > **Tranché en #198** (« quelqu'un en face » est une question sur le SCOPE, pas une lecture scopée) :
@@ -4773,6 +4773,46 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > enregistrées ») : ces deux sorties partent APRÈS un enregistrement réussi, le futur `useBlocker`
 > doit les laisser passer comme `onSubmit`. Sur une séance neuve, le brouillon reste comparé à une
 > séance vide après l'enregistrement : un `isDirty` naïf bloquerait la navigation qui suit.
+
+---
+
+## Post-MVP — Hors-ligne qui se resynchronise ([#307](https://github.com/Cimavia/cimavia/issues/307))
+
+> **Tranché en [#307](https://github.com/Cimavia/cimavia/issues/307)** (la fraîcheur se juge
+> entre deux dates du SERVEUR) : `ScheduledSessionSummaryDto` porte désormais l'`updatedAt` de la
+> séance, et c'est lui qui dit au mobile si son déroulé hors-ligne est encore le bon. Retoucher,
+> ajouter ou retirer une séance ne touche pas la ligne `Plan` : la signature de la passe qui ne
+> regardait que `PlanDto.updatedAt` ne voyait rien, et l'athlète s'entraînait sur la version
+> d'avant. La signature cite donc chaque séance, et une séance du cache n'est resservie que si son
+> `updatedAt` est ÉGAL à celui du résumé. Comparer `dataUpdatedAt` (l'heure du téléphone à la
+> réception) à une date serveur aurait fait dépendre la décision d'une horloge qu'on ne maîtrise
+> pas ; l'égalité de deux valeurs émises par le même mapper n'en dépend pas.
+
+> **Tranché en #307** (une passe n'est retenue que COMPLÈTE) : la signature était posée avant la
+> passe, qui avalait ses échecs — une passe coupée n'était reprise qu'au démarrage à froid suivant.
+> Elle n'est plus retenue qu'après une passe sans échec, et une passe incomplète repart au retour
+> du réseau ou de l'app au premier plan, **pas en boucle** : une API en panne ferait enchaîner les
+> échecs tant que l'app reste en ligne. Le `{}` que rend `useNetworkState()` au premier rendu reste
+> lu « en ligne », comme partout ailleurs : une passe lancée à tort échoue, n'est pas retenue, et
+> repart quand le réseau revient.
+
+> **Corrigé en marge de #307** (les liens externes passaient pour « manquants ») :
+> `missingDocuments` disait en commentaire que les liens n'ont jamais d'octets à descendre, mais
+> ne les filtrait pas — `localDocumentUri` rend `null` pour un lien. Une séance portant un lien
+> était rechargée à chaque passe, et une passe qui doit être complète pour être retenue ne l'aurait
+> jamais été.
+
+> **Tranché en #307** (le bandeau hors-ligne DATE la séance, et elle seule) : l'issue demandait
+> s'il fallait dire à l'athlète de quand date ce qu'il lit — « ton dernier passage » ne distinguait
+> pas une séance récupérée la veille d'une séance de la semaine passée. Décision de Kylian : oui.
+> Sur l'écran de séance, `OfflineBanner` affiche l'instant où CETTE séance a été récupérée
+> (`dataUpdatedAt`, donc l'horloge du téléphone — c'est bien « quand tu l'as eue » que l'athlète
+> veut savoir). Les autres écrans gardent le message générique : le planning agrège plusieurs
+> requêtes, et une date unique y mentirait. Inconnue (`dataUpdatedAt` à 0), la date n'est pas
+> inventée : le bandeau retombe sur le message générique.
+>
+> ⚠️ **Écart de maquette** : le cadre **11c · SANS RÉSEAU** de `athlete_seance_lecture.dc.html`
+> n'affiche que « Hors ligne », sans date.
 
 ---
 
