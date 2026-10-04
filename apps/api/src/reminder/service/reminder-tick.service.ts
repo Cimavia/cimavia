@@ -153,11 +153,16 @@ export class ReminderTickService {
    * ordre : un arrêt brutal entre les deux fait repartir le push au tick suivant. Un doublon vaut
    * mieux qu'un rappel silencieux — et `push()` ne lève jamais (règle 2 de `NotificationService`),
    * donc le cas ne peut venir que d'un process tué.
+   *
+   * L'estampille ne vaut que pour l'échéance LUE (#295) : le coach peut repousser un rappel pendant
+   * que les envois défilent, et son report remet `pushedAt` à `null`. Estampiller par `id` seul
+   * marquerait alors la NOUVELLE échéance comme poussée sans que rien ne soit parti pour elle — le
+   * rappel resterait muet le jour venu. Le couple `(id, dueAt)` laisse ce report intact.
    */
   private async pushDue(coachId: string, now: Date): Promise<number> {
     const due = await this.db.reminder.findMany({
       where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, pushedAt: null },
-      select: { id: true, note: true, reason: true },
+      select: { id: true, dueAt: true, note: true, reason: true },
     });
     /**
      * La note du coach l'emporte sur le motif — même précédence que `reminderLabel`, appliquée ici
@@ -170,7 +175,7 @@ export class ReminderTickService {
      */
     const pushable = due.flatMap((reminder) => {
       const label = reminder.note ?? (reminder.reason && REASON_PUSH_LABEL[reminder.reason]);
-      return label == null ? [] : [{ id: reminder.id, label }];
+      return label == null ? [] : [{ id: reminder.id, dueAt: reminder.dueAt, label }];
     });
     if (pushable.length === 0) return 0;
 
@@ -183,7 +188,7 @@ export class ReminderTickService {
     }
 
     await this.db.reminder.updateMany({
-      where: { id: { in: pushable.map((reminder) => reminder.id) } },
+      where: { OR: pushable.map(({ id, dueAt }) => ({ id, dueAt })) },
       data: { pushedAt: now },
     });
     return pushable.length;

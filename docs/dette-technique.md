@@ -1024,6 +1024,16 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > occurrence) ; et le `PATCH` est **idempotent** comme `updateStatus`, l'historique étant trié par
 > `updatedAt`.
 
+> **Tranché en #295** (ce que devient `pushedAt` au report) : la règle de #105 vaut mot pour mot —
+> **remis à `null` dès que `dueAt` bouge**, avec les trois mêmes corollaires. L'oubli était silencieux :
+> le tick ne sélectionne que `pushedAt: null`, donc un rappel poussé puis repoussé à demain sortait
+> **définitivement** de sa vue, et demain rien ne partait. Corollaire côté tick : l'estampille ne vaut
+> que pour l'échéance **lue** — `pushedAt` est posé sur le couple `(id, dueAt)` et non sur l'`id` seul,
+> sans quoi un report tombé pendant les envois verrait sa nouvelle échéance marquée « poussée » sans
+> qu'aucun push ne soit parti pour elle. Ce que la remise à zéro ne fait **pas** : compter deux fois.
+> L'entrée du centre et la ligne d'historique restent celles de l'unique ligne `reminder`, et
+> `markAllDueRead` ne regarde que `readAt`.
+
 > **Conséquence sur #51, assumée** : l'entrée du centre étant datée du `dueAt` du rappel, **reporter
 > un rappel le déplace dans le tri du centre**. C'est exactement l'intention de #51 (« il se range au
 > moment où il commence à compter »), et l'e2e qui fige cet invariant n'a pas eu à changer — il
