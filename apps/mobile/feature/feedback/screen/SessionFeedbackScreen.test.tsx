@@ -119,7 +119,7 @@ beforeEach(() => {
   vi.mocked(useFeedbackReply).mockReturnValue({
     ready: true,
     hasThreadError: false,
-    sendText: vi.fn(),
+    sendText: vi.fn().mockResolvedValue(undefined),
     sending: false,
     pickAndSend: vi.fn().mockResolvedValue([]),
     recordAndSend: vi.fn(),
