@@ -1,7 +1,6 @@
 import {
   acceptInvitationMutation,
   type CoachAthleteDto,
-  type DeclineInvitationInput,
   type PendingInvitationDto,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,7 +14,7 @@ export function useMyCoach() {
 }
 
 /**
- * Rejoint un coach par code d'invitation. L'invalidation est globale : rejoindre change tout ce
+ * Rejoint un coach depuis la carte de son invitation. L'invalidation est globale : rejoindre change tout ce
  * que l'athlète peut voir — le pourquoi vit avec la mutation, partagée (#308).
  */
 export function useAcceptInvitation() {
@@ -27,7 +26,6 @@ export function useAcceptInvitation() {
  *
  * Liste vide et requête en échec ne se confondent pas — mais ici les deux se taisent : on
  * n'annonce rien, et surtout on n'écrit jamais « aucune invitation » sur une API injoignable.
- * L'écran reste utilisable, le formulaire de code est dessous.
  */
 export function useMyInvitations() {
   return useQuery<PendingInvitationDto[]>({
@@ -46,7 +44,7 @@ export function useDeclineInvitation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: DeclineInvitationInput) => accountApi.declineInvitation(input),
+    mutationFn: (invitationId: string) => accountApi.declineInvitation(invitationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invitationKeys.all });
     },

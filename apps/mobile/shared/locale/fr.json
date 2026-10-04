@@ -382,7 +382,7 @@
   "coach": {
     "missing": {
       "title": "Tu n'as pas encore de coach",
-      "description": "Ton coach t'a transmis un code d'invitation ? Saisis-le pour recevoir tes planifications.",
+      "description": "Ton coach t'invite par ton adresse e-mail : accepte son invitation pour recevoir tes planifications.",
       "action": "Rejoindre mon coach"
     },
     "invitation": {
@@ -390,6 +390,7 @@
       "expires": "Invitation valable jusqu'au {{date}}",
       "join": "Rejoindre {{name}}",
       "joining": "Connexion en cours…",
+      "joinError": "Impossible de rejoindre ce coach. Vérifie ta connexion.",
       "blocked": "Tu es déjà suivi par {{name}} : tu ne peux pas accepter une autre invitation.",
       "decline": "Refuser",
       "declineConfirm": "Confirmer le refus",
@@ -398,12 +399,8 @@
     },
     "join": {
       "title": "Rejoindre mon coach",
-      "description": "Saisis le code d'invitation que ton coach t'a communiqué.",
-      "codeLabel": "Code d'invitation",
-      "codePlaceholder": "Ex. 7QK4M2",
-      "submit": "Rejoindre",
-      "joining": "Connexion en cours…",
-      "error": "Impossible de rejoindre ce coach. Vérifie le code et ta connexion."
+      "description": "Ton coach t'invite par ton adresse e-mail : son invitation apparaîtra ici, et tu la rejoindras d'un geste.",
+      "address": "L'adresse à laquelle ton coach doit t'inviter"
     },
     "joined": {
       "title": "Tu as déjà un coach",
@@ -589,16 +586,20 @@
     }
   },
   "athlete": {
-    "empty": "Aucun athlète pour l'instant. Invite-en un avec le code ci-dessus.",
+    "empty": "Aucun athlète pour l'instant. Invite-en un par son adresse e-mail, ci-dessus.",
     "invite": {
       "title": "Inviter un athlète",
-      "description": "Génère un code, puis transmets-le à ton athlète : il le saisira dans « Mon coach ».",
-      "action": "Générer un code",
-      "creating": "Génération…",
-      "pending": "En attente d'acceptation.",
-      "share": "Partager",
-      "message": "Rejoins-moi sur cimavia avec le code {{code}}.",
-      "error": "Impossible de générer un code. Vérifie ta connexion."
+      "description": "Saisis l'adresse e-mail de ton athlète : l'invitation l'attendra dans son espace, et lui sera envoyée par e-mail s'il n'a pas encore de compte.",
+      "action": "Envoyer l'invitation",
+      "creating": "Envoi…",
+      "pending": "Invitations en attente",
+      "error": "Impossible d'envoyer l'invitation. Vérifie ta connexion.",
+      "emailLabel": "E-mail de l'athlète",
+      "emailPlaceholder": "Ex. lea@exemple.fr",
+      "expires": "expire le {{date}}",
+      "revoke": "Retirer",
+      "revokeConfirm": "Confirmer le retrait",
+      "revokeError": "Impossible de retirer l'invitation. Vérifie ta connexion."
     },
     "sheet": {
       "title": "Note de suivi",

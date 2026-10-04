@@ -34,8 +34,9 @@ export class InvitationMailer {
     config: ConfigService<EnvSchema, true>,
   ) {
     const webUrl = config.get("WEB_URL", { infer: true });
-    // Sans `WEB_URL`, le lien disparaît et le message part quand même : le CODE est le contenu,
-    // le lien n'est qu'un raccourci. Même arbitrage que le pied de `NotificationMailer`.
+    // Sans `WEB_URL`, le lien disparaît et le message part quand même : la consigne — s'inscrire
+    // avec CETTE adresse — est le contenu, le lien n'est qu'un raccourci. Même arbitrage que le
+    // pied de `NotificationMailer`.
     //
     // ⚠️ `/register` est la route d'inscription côté web (`apps/web/src/routes/register.tsx`).
     // Aucun test ne peut le vérifier — l'API ne connaît pas le routeur du client —, donc la
@@ -47,12 +48,10 @@ export class InvitationMailer {
   async send(params: {
     to: string;
     coachName: string | null;
-    code: string;
     expiresInDays: number;
   }): Promise<void> {
     const template = mailCatalog(null).invitation({
       coachName: params.coachName,
-      code: params.code,
       expiresInDays: params.expiresInDays,
       registerUrl: this.registerUrl,
     });

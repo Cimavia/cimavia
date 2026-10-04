@@ -13,6 +13,8 @@ type CmvTextFieldProps = Pick<
   | "multiline"
   | "maxLength"
   | "editable"
+  | "returnKeyType"
+  | "onSubmitEditing"
 > & { label: string };
 
 export function CmvTextField({ label, multiline, ...rest }: CmvTextFieldProps) {

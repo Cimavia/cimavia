@@ -37,9 +37,12 @@ export const fr = {
     heading: "Rejoins ton coach sur Cimavia",
     intro: (coachName) =>
       `${coachName ?? "Un coach"} t'invite à rejoindre son espace sur Cimavia, pour y suivre tes planifications et débriefer tes séances.`,
-    codeLine: (code) => `Ton code d'invitation : ${code}`,
+    addressLine:
+      "Crée ton compte avec l'adresse qui reçoit ce message : ton invitation t'y attendra, il n'y a rien d'autre à saisir.",
     expiry: (days) =>
-      days > 1 ? `Ce code est valable ${days} jours.` : "Ce code est valable une journée.",
+      days > 1
+        ? `Cette invitation est valable ${days} jours.`
+        : "Cette invitation est valable une journée.",
     cta: "Créer mon compte",
     ignore:
       "Si tu ne connais pas cette personne, ignore cet e-mail : rien ne se passera, et personne n'apprendra que tu l'as reçu.",

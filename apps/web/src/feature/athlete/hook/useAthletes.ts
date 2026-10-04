@@ -43,34 +43,51 @@ export function useInvitations() {
 }
 
 /**
- * Efface une invitation REFUSÉE (#146).
- *
- * L'API n'accepte ce geste que sur `DECLINED` : retirer une invitation en attente serait une
- * révocation, c'est-à-dire une autre transition. Un 409 remonte donc tel quel par `onError` — le
- * message du serveur est plus précis que tout libellé générique.
+ * Une écriture sur les invitations du coach : relire sa liste, puis le dire. Un 409 remonte tel
+ * quel par `onError` — le message du serveur est plus précis que tout libellé générique.
  */
-export function useDeleteInvitation() {
+function useInvitationMutation<TInput>(
+  mutationFn: (input: TInput) => Promise<unknown>,
+  successKey: string,
+) {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
   return useMutation({
-    mutationFn: (invitationId: string) => accountApi.deleteInvitation(invitationId),
+    mutationFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invitationKeys.all });
-      toast.onSuccess("athlete.toast.invitationDeleted");
+      toast.onSuccess(successKey);
     },
     onError: toast.onError,
   });
 }
 
+/**
+ * Efface une invitation REFUSÉE (#146). L'API n'accepte ce geste que sur `DECLINED` : retirer une
+ * invitation en attente est une révocation, l'autre transition ci-dessous.
+ */
+export function useDeleteInvitation() {
+  return useInvitationMutation(
+    (invitationId: string) => accountApi.deleteInvitation(invitationId),
+    "athlete.toast.invitationDeleted",
+  );
+}
+
+/**
+ * Retire une invitation EN ATTENTE (#524) — partie à la mauvaise adresse, ou devenue sans objet.
+ * Elle quitte la liste du coach ; son destinataire, s'il tente encore de l'accepter, lit
+ * « retirée ».
+ */
+export function useRevokeInvitation() {
+  return useInvitationMutation(
+    (invitationId: string) => accountApi.revokeInvitation(invitationId),
+    "athlete.toast.invitationRevoked",
+  );
+}
+
 export function useCreateInvitation() {
-  const queryClient = useQueryClient();
-  const toast = useMutationToast();
-  return useMutation({
-    mutationFn: (input: CreateInvitationInput) => accountApi.createInvitation(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.all });
-      toast.onSuccess("athlete.toast.invitationCreated");
-    },
-    onError: toast.onError,
-  });
+  return useInvitationMutation(
+    (input: CreateInvitationInput) => accountApi.createInvitation(input),
+    "athlete.toast.invitationCreated",
+  );
 }

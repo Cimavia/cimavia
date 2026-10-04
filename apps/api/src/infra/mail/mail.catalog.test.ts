@@ -187,26 +187,31 @@ describe("mailCatalog — gabarits de notification", () => {
 });
 
 describe("mailCatalog — gabarit d'invitation", () => {
-  const PARAMS = { coachName: "Marc Keller", code: "7QK4M2XZ9", expiresInDays: 7 };
+  const PARAMS = { coachName: "Marc Keller", expiresInDays: 7 };
 
   /**
-   * Le CODE est le contenu de ce message : sans lui, le destinataire n'a rien sur quoi agir. Il
-   * doit donc figurer dans les deux corps — et le test le vérifie AUSSI sans lien, parce que
-   * c'est le cas où il porte le message tout seul.
+   * La CONSIGNE est le contenu de ce message (#390) : sans code à recopier, la seule chose à
+   * faire est de s'inscrire avec l'adresse qui l'a reçu. Elle doit donc figurer dans les deux
+   * corps — et le test le vérifie AUSSI sans lien, parce que c'est le cas où elle porte le message
+   * toute seule.
    */
-  it("porte le code dans les deux corps, avec ou sans lien d'inscription", () => {
+  it("porte la consigne d'adresse dans les deux corps, avec ou sans lien d'inscription", () => {
     const withLink = mailCatalog(Locale.FR).invitation({
       ...PARAMS,
       registerUrl: "https://app.cimavia.fr/register",
     });
-    expect(withLink.text).toContain("7QK4M2XZ9");
-    expect(withLink.html).toContain("7QK4M2XZ9");
+    expect(withLink.text).toContain(fr.invitation.addressLine);
     expect(withLink.html).toContain("https://app.cimavia.fr/register");
 
     const withoutLink = mailCatalog(Locale.FR).invitation({ ...PARAMS, registerUrl: null });
-    expect(withoutLink.text).toContain("7QK4M2XZ9");
-    expect(withoutLink.html).toContain("7QK4M2XZ9");
+    expect(withoutLink.text).toContain(fr.invitation.addressLine);
     expect(withoutLink.html).not.toContain("<a href");
+  });
+
+  // Plus de code nulle part (#390) : il n'y a plus rien à transmettre de la main à la main.
+  it.each([fr, en])("ne parle plus de code", (strings) => {
+    expect(strings.invitation.addressLine).not.toMatch(/code/i);
+    expect(strings.invitation.expiry(7)).not.toMatch(/code/i);
   });
 
   /**

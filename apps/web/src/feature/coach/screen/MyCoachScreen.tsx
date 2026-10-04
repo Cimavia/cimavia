@@ -1,28 +1,19 @@
 import type { CoachAthleteDto } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
-import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
-import { useAcceptInvitation, useMyCoach, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
-import {
-  CmvAppShell,
-  CmvAvatar,
-  CmvButton,
-  CmvCard,
-  CmvErrorState,
-  CmvTextField,
-} from "@/shared/component";
-import { apiErrorMessage } from "@/shared/lib/api";
+import { useMyCoach, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
+import { CmvAppShell, CmvAvatar, CmvCard, CmvErrorState } from "@/shared/component";
+import { authClient } from "@/shared/lib/auth";
 import { formatDate } from "@/shared/util/date.util";
 
 /**
  * « Mon coach » côté web (#28) — équivalent de `JoinCoachScreen` sur mobile, dont il reprend le
- * flux : soit l'athlète est lié et on le lui montre, soit il ne l'est pas et on lui demande son
- * code d'invitation.
+ * flux : soit l'athlète est lié et on le lui montre, soit il ne l'est pas et on lui dit à quelle
+ * adresse son coach doit l'inviter.
  *
- * Trois états, comme la maquette : lié, aucun coach, code refusé. Ils ne sont pas trois variantes
- * d'un même écran mais trois situations distinctes — d'où deux rendus séparés plutôt qu'un
- * formulaire qu'on désactiverait.
+ * Il n'y a plus de code à saisir (#390) : une invitation vise une adresse, et n'apparaît qu'au
+ * compte qui la porte. L'acceptation passe par la carte de l'invitation, et par elle seule.
  *
  * Un QUATRIÈME s'y superpose depuis #146 : « une invitation t'attend ». Il ne remplace aucun des
  * trois — il se pose AU-DESSUS, dans les deux branches. Déjà lié, l'athlète la voit quand même,
@@ -37,8 +28,8 @@ export function MyCoachScreen() {
     <CmvAppShell title={t("coach.title")} subtitle={t("coach.subtitle")}>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
-      {/* Panne réseau et « pas de coach » sont deux choses différentes : afficher le formulaire de
-          code sur une API injoignable inviterait l'athlète à rejoindre un coach qu'il a déjà. */}
+      {/* Panne réseau et « pas de coach » sont deux choses différentes : dire « aucun coach » sur
+          une API injoignable inquiéterait un athlète qui en a déjà un. */}
       {isError ? (
         <CmvErrorState
           title={t("common.errorTitle")}
@@ -51,7 +42,7 @@ export function MyCoachScreen() {
       {!isPending && !isError ? (
         <div className="flex flex-col gap-cmv-lg">
           <PendingInvitations currentCoachName={coach?.coachName ?? null} />
-          {coach == null ? <JoinCoachForm /> : <LinkedCoachCard coach={coach} />}
+          {coach == null ? <NoCoachCard /> : <LinkedCoachCard coach={coach} />}
         </div>
       ) : null}
     </CmvAppShell>
@@ -63,10 +54,9 @@ export function MyCoachScreen() {
  *
  * **Une requête en échec ne s'annonce pas comme une liste vide** : dans les deux cas on ne rend
  * rien, mais on n'écrit jamais « aucune invitation » sur une API injoignable. C'est le même
- * raisonnement que l'état d'erreur de l'écran, qui refuse d'afficher le formulaire de code quand
- * il n'a pas pu lire — sauf qu'ici l'absence d'invitation est le cas ORDINAIRE, et qu'un bandeau
- * d'erreur pour ça inquiéterait sans rien apprendre. L'écran reste utilisable : le formulaire de
- * code, lui, est dessous.
+ * raisonnement que l'état d'erreur de l'écran, qui refuse de dire « aucun coach » quand il n'a pas
+ * pu lire — sauf qu'ici l'absence d'invitation est le cas ORDINAIRE, et qu'un bandeau d'erreur
+ * pour ça inquiéterait sans rien apprendre.
  */
 function PendingInvitations({ currentCoachName }: Readonly<{ currentCoachName: string | null }>) {
   const { data: invitations } = useMyInvitations();
@@ -123,57 +113,26 @@ function LinkedCoachCard({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   );
 }
 
-// L'athlète n'a pas de coach : on lui demande le code que le sien lui a communiqué.
-function JoinCoachForm() {
+/**
+ * L'athlète n'a pas de coach : on lui dit à quelle adresse son coach doit l'inviter (#390).
+ *
+ * C'est le seul recours qui reste à une invitation partie vers une autre adresse : sans code à
+ * saisir, un compte créé avec une autre adresse ne verrait jamais la carte, et rien ne lui dirait
+ * pourquoi. L'adresse affichée est celle qu'il peut donner à son coach.
+ */
+function NoCoachCard() {
   const { t } = useTranslation();
-  const accept = useAcceptInvitation();
-  const [code, setCode] = useState("");
-
-  const trimmed = code.trim();
-
-  function onSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    // Code blanc ou envoi en cours : le bouton est fermé, et un formulaire au bouton fermé ne se
-    // soumet pas non plus à la touche Entrée — aucune garde à refaire ici (#512).
-    accept.mutate({ code: trimmed });
-  }
+  const { data: session } = authClient.useSession();
 
   return (
     <CmvCard>
-      <form className="flex max-w-md flex-col gap-cmv-md" onSubmit={onSubmit}>
-        <div className="flex flex-col gap-cmv-xs">
-          <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("coach.missing.title")}</h2>
-          <p className="text-cmv-body text-cmv-text-mid">{t("coach.missing.description")}</p>
-        </div>
-
-        {/* Le message du serveur d'abord : il dit précisément ce qui cloche (code inconnu, expiré,
-            déjà consommé) là où un libellé unique devrait rester vague. La seconde ligne, elle,
-            donne le recours — c'est ce qui manque toujours à un message d'erreur d'API. */}
-        {accept.isError ? (
-          <div className="flex flex-col gap-cmv-xs rounded-cmv-md border border-cmv-error-line bg-cmv-error-soft px-cmv-md py-cmv-sm">
-            <p className="text-cmv-body text-cmv-error-on">
-              {apiErrorMessage(accept.error) ?? t("coach.join.errorTitle")}
-            </p>
-            <p className="text-cmv-caption text-cmv-text-mid">{t("coach.join.errorDescription")}</p>
-          </div>
-        ) : null}
-
-        <CmvTextField
-          label={t("coach.join.codeLabel")}
-          name="invitation-code"
-          placeholder={t("coach.join.codePlaceholder")}
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          // Un code se saisit tel quel : ni complétion, ni correction.
-          autoComplete="off"
-        />
-
-        <div>
-          <CmvButton type="submit" disabled={accept.isPending || trimmed.length === 0}>
-            {accept.isPending ? t("coach.join.joining") : t("coach.join.submit")}
-          </CmvButton>
-        </div>
-      </form>
+      <div className="flex max-w-md flex-col gap-cmv-xs">
+        <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("coach.missing.title")}</h2>
+        <p className="text-cmv-body text-cmv-text-mid">{t("coach.missing.description")}</p>
+        <p className="mt-cmv-sm text-cmv-caption text-cmv-text-lo">{t("coach.missing.address")}</p>
+        {/* Session pas encore lue : « — » plutôt qu'un blanc (règle dure n°5). */}
+        <p className="text-cmv-body text-cmv-text-hi">{session?.user.email ?? "—"}</p>
+      </div>
     </CmvCard>
   );
 }

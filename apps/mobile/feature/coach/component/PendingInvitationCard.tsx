@@ -61,7 +61,7 @@ export function PendingInvitationCard({
             ? t("coach.invitation.joining")
             : t("coach.invitation.join", { name: invitation.coachName })
         }
-        onPress={() => accept.mutate({ code: invitation.code })}
+        onPress={() => accept.mutate(invitation.id)}
         disabled={linked || busy}
       />
 
@@ -72,12 +72,18 @@ export function PendingInvitationCard({
         confirmLabel={t("coach.invitation.declineConfirm")}
         cancelLabel={t("common.cancel")}
         disabled={busy}
-        onConfirm={() => decline.mutate({ code: invitation.code })}
+        onConfirm={() => decline.mutate(invitation.id)}
       />
 
       <CmvText className="text-cmv-text-lo text-xs">{t("coach.invitation.declineHint")}</CmvText>
 
-      {/* Le mobile n'a pas de toasts : l'échec se dit sur place, comme pour la saisie du code. */}
+      {/* Le mobile n'a pas de toasts : l'échec se dit sur place. L'acceptation échouait en silence (#365) — le bouton repassait à son libellé, et l'athlète
+          recliquait en boucle sur une invitation expirée ou déjà utilisée. */}
+      {accept.isError ? (
+        <CmvText className="text-cmv-error text-sm">
+          {apiErrorMessage(accept.error) ?? t("coach.invitation.joinError")}
+        </CmvText>
+      ) : null}
       {decline.isError ? (
         <CmvText className="text-cmv-error text-sm">
           {apiErrorMessage(decline.error) ?? t("coach.invitation.declineError")}

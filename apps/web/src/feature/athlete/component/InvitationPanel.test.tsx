@@ -1,5 +1,5 @@
-import { type InvitationDto, InvitationStatus } from "@cmv/shared";
-import { screen, waitFor } from "@testing-library/react";
+import { ApiError, type InvitationDto, InvitationStatus, required } from "@cmv/shared";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
 import { renderWithProviders } from "../../../../test/render";
@@ -11,6 +11,7 @@ vi.mock("@/feature/athlete/api", async () => {
       listInvitations: vi.fn(),
       createInvitation: vi.fn(),
       deleteInvitation: vi.fn(),
+      revokeInvitation: vi.fn(),
     },
     athleteKeys: shared.athleteKeys,
     invitationKeys: shared.invitationKeys,
@@ -21,10 +22,10 @@ const { accountApi } = await import("@/feature/athlete/api");
 const listInvitations = vi.mocked(accountApi.listInvitations);
 const createInvitation = vi.mocked(accountApi.createInvitation);
 const deleteInvitation = vi.mocked(accountApi.deleteInvitation);
+const revokeInvitation = vi.mocked(accountApi.revokeInvitation);
 
 const invitation = (overrides: Partial<InvitationDto> = {}): InvitationDto => ({
   id: "inv_1",
-  code: "7QK4M2XZ9",
   email: "lea@exemple.fr",
   status: InvitationStatus.PENDING,
   expiresAt: "2026-09-12T09:00:00.000Z",
@@ -39,6 +40,7 @@ beforeEach(() => {
   listInvitations.mockResolvedValue([]);
   createInvitation.mockResolvedValue(invitation());
   deleteInvitation.mockResolvedValue(undefined);
+  revokeInvitation.mockResolvedValue(undefined);
 });
 
 const render = () => renderWithProviders(<InvitationPanel onClose={() => {}} />);
@@ -49,14 +51,13 @@ describe("InvitationPanel — les invitations refusées (#146)", () => {
    * `PENDING`, disparaissait de la liste d'attente, et il ne restait au coach ni le nom de qui a
    * dit non, ni rien à faire.
    */
-  it("montre qui a refusé, avec l'adresse plutôt que le code", async () => {
+  it("montre qui a refusé, par son adresse", async () => {
     listInvitations.mockResolvedValue([DECLINED]);
     await render();
 
     expect(await screen.findByText("athlete.invitation.declined")).toBeInTheDocument();
-    // L'adresse EST l'information : le code, lui, est mort avec le refus.
+    // L'adresse EST l'information : c'est elle qui a dit non.
     expect(screen.getByText("lea@exemple.fr")).toBeInTheDocument();
-    expect(screen.queryByText("7QK4M2XZ9")).not.toBeInTheDocument();
   });
 
   // Une invitation en attente n'a rien à faire dans cette section, et réciproquement : ce sont
@@ -65,7 +66,7 @@ describe("InvitationPanel — les invitations refusées (#146)", () => {
     listInvitations.mockResolvedValue([invitation()]);
     await render();
 
-    await screen.findByText("7QK4M2XZ9");
+    await screen.findByText("lea@exemple.fr");
     expect(screen.queryByText("athlete.invitation.declined")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "athlete.invitation.resend" })).toBeNull();
   });
@@ -90,20 +91,51 @@ describe("InvitationPanel — les invitations refusées (#146)", () => {
     await user.click(screen.getByRole("button", { name: "athlete.invitation.deleteConfirm" }));
     await waitFor(() => expect(deleteInvitation).toHaveBeenCalledWith("inv_2"));
   });
+});
+
+describe("InvitationPanel — retirer une invitation en attente (#524)", () => {
+  const REVOKE = "athlete.invitation.revoke";
 
   /**
-   * `email` est nullable au DTO. Une invitation refusée en porte toujours une — le refus exige une
-   * correspondance stricte — mais le type ne le dit pas, et la ligne doit rester lisible plutôt
-   * que d'afficher un blanc (règle dure n°5). Réémettre disparaît alors : il n'y a pas d'adresse
-   * à viser.
+   * Armé en deux temps, comme le refus côté athlète : le retrait est sans retour, l'invitation ne
+   * se rétablit pas. Un seul clic ne doit rien envoyer.
    */
-  it("reste lisible sans adresse, et ne propose alors pas de réémettre", async () => {
-    listInvitations.mockResolvedValue([invitation({ ...DECLINED, email: null })]);
-    await render();
+  it("ne retire qu'après confirmation, puis relit la liste et le dit", async () => {
+    listInvitations.mockResolvedValue([invitation()]);
+    const { user } = render();
 
-    expect(await screen.findByText("—")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "athlete.invitation.resend" })).toBeNull();
-    expect(screen.getByRole("button", { name: "athlete.invitation.delete" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: REVOKE }));
+    expect(revokeInvitation).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "athlete.invitation.revokeConfirm" }));
+    await waitFor(() => expect(revokeInvitation).toHaveBeenCalledWith("inv_1"));
+    expect(await screen.findByText("athlete.toast.invitationRevoked")).toBeInTheDocument();
+    await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(2));
+  });
+
+  // Déjà acceptée ou refusée entre-temps : le 409 du serveur dit pourquoi, mieux qu'un libellé.
+  it("dit le refus du serveur", async () => {
+    listInvitations.mockResolvedValue([invitation()]);
+    revokeInvitation.mockRejectedValue(
+      new ApiError(409, "Seule une invitation en attente peut être retirée", null),
+    );
+    const { user } = render();
+
+    await user.click(await screen.findByRole("button", { name: REVOKE }));
+    await user.click(screen.getByRole("button", { name: "athlete.invitation.revokeConfirm" }));
+
+    expect(
+      await screen.findByText("Seule une invitation en attente peut être retirée"),
+    ).toBeInTheDocument();
+  });
+
+  // Une invitation refusée n'a plus rien à retirer : elle s'efface, c'est un autre geste.
+  it("ne propose pas de retirer une invitation refusée", async () => {
+    listInvitations.mockResolvedValue([DECLINED]);
+    render();
+
+    expect(await screen.findByText("athlete.invitation.declined")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: REVOKE })).toBeNull();
   });
 });
 
@@ -111,14 +143,26 @@ describe("InvitationPanel — émettre une invitation", () => {
   const EMAIL = "athlete.invitation.emailLabel";
   const SUBMIT = "athlete.invitation.submit";
 
-  // Champ vide : une invitation GÉNÉRIQUE, sans `email` — le schéma refuse une chaîne vide.
-  it("émet une invitation générique quand l'adresse est vide", async () => {
+  /**
+   * Plus d'invitation générique (#390) : sans adresse, il n'y a personne à qui l'invitation
+   * apparaîtrait. Le bouton reste fermé tant que la saisie n'en est pas une — l'API ne voit jamais
+   * partir ce qu'elle refuserait d'un message de validation brut.
+   */
+  it.each([
+    ["vide", ""],
+    ["blanche", "   "],
+    ["incomplète", "lea@"],
+  ])("n'émet rien pour une adresse %s", async (_case, typed) => {
     const { user } = render();
 
-    await user.type(screen.getByLabelText(EMAIL), "   ");
-    await user.click(screen.getByRole("button", { name: SUBMIT }));
+    const field = screen.getByLabelText(EMAIL) as HTMLInputElement;
+    if (typed !== "") await user.type(field, typed);
+    expect(screen.getByRole("button", { name: SUBMIT })).toBeDisabled();
+    await user.type(field, "{Enter}");
+    // Le bouton fermé n'est pas le seul rempart : un formulaire soumis quand même n'envoie rien.
+    fireEvent.submit(required(field.form, "formulaire d'invitation"));
 
-    await waitFor(() => expect(createInvitation).toHaveBeenCalledWith({}));
+    expect(createInvitation).not.toHaveBeenCalled();
   });
 
   it("émet vers l'adresse nettoyée, puis vide le champ", async () => {
@@ -136,6 +180,7 @@ describe("InvitationPanel — émettre une invitation", () => {
     createInvitation.mockReturnValue(new Promise(() => {}));
     const { user } = render();
 
+    await user.type(screen.getByLabelText(EMAIL), "lea@exemple.fr");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     expect(
@@ -151,27 +196,12 @@ describe("InvitationPanel — les invitations en attente", () => {
     expect(await screen.findByText("athlete.invitation.emptyPending")).toBeInTheDocument();
   });
 
-  // Invitation générique : pas d'adresse, « — » plutôt qu'un blanc (règle dure n°5).
-  it("rend « — » pour une invitation sans adresse", async () => {
-    listInvitations.mockResolvedValue([invitation({ email: null })]);
+  // L'adresse dit à qui l'invitation apparaîtra : c'est tout ce qu'il y a à en montrer.
+  it("montre l'adresse de chaque invitation", async () => {
+    listInvitations.mockResolvedValue([invitation()]);
     render();
 
-    await screen.findByText("7QK4M2XZ9");
-    expect(screen.getByText(/^— ·/)).toBeInTheDocument();
-  });
-
-  // Le code se transmet hors de l'app (SMS, messagerie) : le copier doit se voir.
-  it("copie le code et le dit", async () => {
-    listInvitations.mockResolvedValue([invitation()]);
-    const writeText = vi.fn(async () => undefined);
-    const { user } = render();
-    // Après `render` : `userEvent.setup()` pose son propre presse-papiers sur `navigator`.
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-
-    await user.click(await screen.findByRole("button", { name: "athlete.invitation.copy" }));
-
-    expect(writeText).toHaveBeenCalledWith("7QK4M2XZ9");
-    expect(await screen.findByRole("status")).toHaveTextContent("athlete.invitation.copied");
+    expect(await screen.findByText("lea@exemple.fr")).toBeInTheDocument();
   });
 
   it("se referme par son pied", async () => {

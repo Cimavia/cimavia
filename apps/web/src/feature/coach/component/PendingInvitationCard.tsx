@@ -15,15 +15,15 @@ type PendingInvitationCardProps = {
 };
 
 /**
- * Une invitation qui attend l'athlète (#146) — le quatrième état de « Mon coach », à côté de
- * « lié », « aucun coach » et « code refusé ».
+ * Une invitation qui attend l'athlète (#146) — le troisième état de « Mon coach », à côté de
+ * « lié » et « aucun coach ».
  *
  * **Elle s'affiche dans les DEUX branches**, y compris quand l'athlète a déjà un coach. La masquer
  * là laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien — et surtout,
  * refuser est le geste UTILE dans ce cas : c'est lui qui vide la liste d'attente de l'inviteur.
  * « Rejoindre » est alors désactivé, avec sa raison écrite : un athlète a au plus un coach.
  *
- * Elle ne remplace pas le formulaire de code, qui reste le chemin des invitations génériques.
+ * Elle est le SEUL chemin pour rejoindre un coach depuis #390 : il n'y a plus de code à saisir.
  */
 export function PendingInvitationCard({
   invitation,
@@ -57,10 +57,7 @@ export function PendingInvitationCard({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-cmv-sm">
-          <CmvButton
-            disabled={linked || busy}
-            onClick={() => accept.mutate({ code: invitation.code })}
-          >
+          <CmvButton disabled={linked || busy} onClick={() => accept.mutate(invitation.id)}>
             {accept.isPending
               ? t("coach.invitation.joining")
               : t("coach.invitation.join", { name: invitation.coachName })}
@@ -72,7 +69,7 @@ export function PendingInvitationCard({
             confirmLabel={t("coach.invitation.declineConfirm")}
             cancelLabel={t("common.cancel")}
             disabled={busy}
-            onConfirm={() => decline.mutate({ code: invitation.code })}
+            onConfirm={() => decline.mutate(invitation.id)}
           />
         </div>
 

@@ -12,7 +12,7 @@ function mailerWith(webUrl?: string) {
   return { mailer: new InvitationMailer({ send } as unknown as MailService, config), send };
 }
 
-const PARAMS = { to: "invite@example.com", coachName: "Marc Keller", code: "7QK4M2XZ9" };
+const PARAMS = { to: "invite@example.com", coachName: "Marc Keller" };
 
 describe("InvitationMailer", () => {
   /**
@@ -28,15 +28,14 @@ describe("InvitationMailer", () => {
       to: "invite@example.com",
       ...mailCatalog(Locale.FR).invitation({
         coachName: "Marc Keller",
-        code: "7QK4M2XZ9",
         expiresInDays: 7,
         registerUrl: "https://app.cimavia.fr/register",
       }),
     });
   });
 
-  // Sans WEB_URL, le message part quand même : le code EST le contenu, le lien un raccourci.
-  it("envoie le code sans lien quand WEB_URL n'est pas configurée", async () => {
+  // Sans WEB_URL, le message part quand même : la consigne EST le contenu, le lien un raccourci.
+  it("envoie la consigne sans lien quand WEB_URL n'est pas configurée", async () => {
     const { mailer, send } = mailerWith(undefined);
 
     await mailer.send({ ...PARAMS, coachName: null, expiresInDays: 3 });
@@ -46,7 +45,6 @@ describe("InvitationMailer", () => {
       to: "invite@example.com",
       ...mailCatalog(Locale.FR).invitation({
         coachName: null,
-        code: "7QK4M2XZ9",
         expiresInDays: 3,
         registerUrl: null,
       }),

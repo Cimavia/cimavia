@@ -70,7 +70,7 @@ describe("useAcceptInvitation — ce que l'athlète peut voir (#308)", () => {
     await waitFor(() => expect(result.current.counterparts.asAthlete).toBe(false));
 
     counterpartsMock.mockResolvedValue({ asCoach: false, asAthlete: true });
-    result.current.accept.mutate({ code: "7QK4M2XZ9" });
+    result.current.accept.mutate("inv_1");
 
     await waitFor(() => expect(result.current.counterparts.asAthlete).toBe(true));
   });
@@ -82,7 +82,7 @@ describe("useAcceptInvitation — ce que l'athlète peut voir (#308)", () => {
     await waitFor(() => expect(result.current.counterparts.asAthlete).toBe(false));
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
-    result.current.accept.mutate({ code: "PERIME" });
+    result.current.accept.mutate("inv_perimee");
 
     await waitFor(() => expect(result.current.accept.isError).toBe(true));
     expect(invalidate).not.toHaveBeenCalled();

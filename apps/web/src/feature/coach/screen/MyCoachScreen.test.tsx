@@ -29,9 +29,13 @@ vi.mock("@/feature/coach/api", async () => {
  * C'est ce qui a rendu la CI rouge sans qu'aucun test ne tombe. Tous les autres écrans posent déjà
  * ce mock ; ces deux fichiers étaient les seuls à l'omettre.
  */
+const session = vi.hoisted(() => ({
+  current: { user: { id: "ath_1", email: "lea@exemple.fr" } } as unknown,
+}));
+
 vi.mock("@/shared/lib/auth", () => ({
   authClient: {
-    useSession: () => ({ data: { user: { id: "ath_1" } } }),
+    useSession: () => ({ data: session.current }),
     signOut: () => Promise.resolve(),
   },
 }));
@@ -55,7 +59,6 @@ const declineInvitation = vi.mocked(accountApi.declineInvitation);
 
 const INVITATION = {
   id: "inv_1",
-  code: "7QK4M2XZ9",
   coachName: "Marc Keller",
   expiresAt: "2026-09-12T09:00:00.000Z",
   createdAt: "2026-09-05T09:00:00.000Z",
@@ -84,17 +87,18 @@ const render = () => renderInRoute(<MyCoachScreen />, { path: "/my-coach", links
  * suit expire. Le test tombait ainsi environ une fois sur trois, d'autant plus souvent que la
  * machine était chargée — un rouge sans régression, le pire des rouges.
  *
- * `coach.join.codeLabel` vient de la branche `myCoach == null`, le bouton de `myInvitations` : les
+ * `coach.missing.title` vient de la branche `myCoach == null`, le bouton de `myInvitations` : les
  * exiger tous les deux, puis REQUÊTER le bouton à l'instant du clic, ferme la fenêtre de course.
  */
 async function clickAfterSettled(user: Awaited<ReturnType<typeof render>>["user"], name: string) {
-  await screen.findByLabelText("coach.join.codeLabel");
+  await screen.findByText("coach.missing.title");
   await screen.findByRole("button", { name });
   await user.click(screen.getByRole("button", { name }));
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session.current = { user: { id: "ath_1", email: "lea@exemple.fr" } };
   myCoach.mockResolvedValue(null);
   myInvitations.mockResolvedValue([]);
   acceptInvitation.mockResolvedValue(RELATION);
@@ -102,23 +106,22 @@ beforeEach(() => {
 });
 
 describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
-  it("annonce l'invitation au-dessus du formulaire de code, sans le remplacer", async () => {
+  // Plus de code à saisir (#390) : la carte est le seul chemin pour rejoindre.
+  it("annonce l'invitation, sans plus rien proposer à saisir", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
     await render();
 
     expect(await screen.findByText("coach.invitation.title")).toBeInTheDocument();
-    // Le formulaire reste : il est le chemin des invitations GÉNÉRIQUES, que la liste n'annonce
-    // jamais. Le remplacer fermerait ce chemin à qui a reçu son code de la main à la main.
-    expect(screen.getByLabelText("coach.join.codeLabel")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("reprend le code de la liste pour rejoindre, sans rien faire recopier", async () => {
+  it("rejoint depuis la carte, sans rien faire recopier", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
     const { user } = await render();
 
     await clickAfterSettled(user, "coach.invitation.join");
 
-    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith("inv_1"));
   });
 
   /**
@@ -133,7 +136,7 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
     expect(declineInvitation).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "coach.invitation.declineConfirm" }));
-    await waitFor(() => expect(declineInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
+    await waitFor(() => expect(declineInvitation).toHaveBeenCalledWith("inv_1"));
   });
 
   /**
@@ -153,6 +156,24 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
     expect(screen.getByRole("button", { name: "coach.invitation.decline" })).toBeDisabled();
   });
 
+  /**
+   * « Rejoindre » échouait en silence (#365) : le bouton repassait à son libellé, et l'athlète
+   * recliquait en boucle sur une invitation expirée ou déjà utilisée. Le message de l'API d'abord,
+   * le libellé générique quand il n'y en a pas (panne réseau).
+   */
+  it.each([
+    ["le message de l'api", new ApiError(400, "Invitation expirée", null), "Invitation expirée"],
+    ["un libellé", new Error("réseau"), "common.error"],
+  ])("dit l'échec de « Rejoindre » par %s", async (_how, failure, text) => {
+    myInvitations.mockResolvedValue([INVITATION]);
+    acceptInvitation.mockRejectedValue(failure);
+    const { user } = await render();
+
+    await clickAfterSettled(user, "coach.invitation.join");
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+  });
+
   it("montre l'invitation à un athlète déjà lié, refusable mais pas acceptable", async () => {
     myCoach.mockResolvedValue(RELATION);
     myInvitations.mockResolvedValue([INVITATION]);
@@ -168,17 +189,16 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
   /**
    * `null` n'est pas la liste vide, et aucun des deux ne s'annonce. Ce qu'on ne fait JAMAIS, c'est
    * écrire « aucune invitation » sur une API injoignable — mais on ne bloque pas l'écran pour
-   * autant : l'absence d'invitation est le cas ordinaire, et le formulaire de code reste le
-   * chemin qui marche.
+   * autant : l'absence d'invitation est le cas ordinaire.
    */
   it.each<[string, () => Promise<PendingInvitationDto[]>]>([
     ["une liste vide", () => Promise.resolve([])],
     ["une requête en échec", () => Promise.reject(new Error("réseau"))],
-  ])("n'annonce rien sur %s, et laisse le formulaire de code", async (_case, response) => {
+  ])("n'annonce rien sur %s, et dit seulement l'absence de coach", async (_case, response) => {
     myInvitations.mockImplementation(response);
     await render();
 
-    expect(await screen.findByLabelText("coach.join.codeLabel")).toBeInTheDocument();
+    expect(await screen.findByText("coach.missing.title")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "coach.invitation.decline" }),
     ).not.toBeInTheDocument();
@@ -191,18 +211,18 @@ describe("MyCoachScreen — les états", () => {
     await render();
 
     expect(screen.getByText("common.loading")).toBeInTheDocument();
-    expect(screen.queryByLabelText("coach.join.codeLabel")).toBeNull();
+    expect(screen.queryByText("coach.missing.title")).toBeNull();
   });
 
-  // Panne et « pas de coach » ne se confondent pas : le formulaire sur une API injoignable
-  // inviterait à rejoindre un coach qu'on a déjà.
-  it("dit la panne sans proposer de code, puis relit au réessai", async () => {
+  // Panne et « pas de coach » ne se confondent pas : dire « aucun coach » sur une API injoignable
+  // inquiéterait un athlète qui en a déjà un.
+  it("dit la panne sans dire « aucun coach », puis relit au réessai", async () => {
     myCoach.mockRejectedValueOnce(new Error("réseau"));
     const { user } = await render();
 
     await user.click(await screen.findByRole("button", { name: "common.retry" }));
 
-    expect(await screen.findByLabelText("coach.join.codeLabel")).toBeInTheDocument();
+    expect(await screen.findByText("coach.missing.title")).toBeInTheDocument();
     expect(myCoach).toHaveBeenCalledTimes(2);
   });
 });
@@ -218,7 +238,7 @@ describe("MyCoachScreen — le coach lié", () => {
       "href",
       "/messages?as=athlete",
     );
-    expect(screen.queryByLabelText("coach.join.codeLabel")).toBeNull();
+    expect(screen.queryByText("coach.missing.title")).toBeNull();
   });
 
   // Une relation posée sans acceptation n'a pas de date : on le dit, on n'en invente pas.
@@ -231,52 +251,25 @@ describe("MyCoachScreen — le coach lié", () => {
   });
 });
 
-describe("MyCoachScreen — rejoindre par un code", () => {
-  const CODE = "coach.join.codeLabel";
-  const SUBMIT = "coach.join.submit";
-
-  it("n'envoie pas un code blanc", async () => {
-    const { user } = await render();
-
-    await user.type(await screen.findByLabelText(CODE), "   ");
-
-    expect(screen.getByRole("button", { name: SUBMIT })).toBeDisabled();
-  });
-
-  // Le code se colle souvent avec l'espace d'un message : il part nettoyé.
-  it("rejoint avec le code nettoyé, à la touche Entrée", async () => {
-    const { user } = await render();
-
-    await user.type(await screen.findByLabelText(CODE), "  7QK4M2XZ9 {Enter}");
-
-    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
-  });
-
-  it("dit la connexion en cours, et ne renvoie pas le code", async () => {
-    acceptInvitation.mockReturnValue(new Promise(() => {}));
-    const { user } = await render();
-
-    await user.type(await screen.findByLabelText(CODE), "7QK4M2XZ9{Enter}");
-    expect(await screen.findByRole("button", { name: "coach.join.joining" })).toBeDisabled();
-    await user.type(screen.getByLabelText(CODE), "{Enter}");
-
-    expect(acceptInvitation).toHaveBeenCalledTimes(1);
-  });
-
+describe("MyCoachScreen — aucun coach (#390)", () => {
   /**
-   * Le message du serveur d'abord (code inconnu, expiré, déjà consommé) ; un libellé seulement
-   * quand il n'en a pas. Le recours, lui, est toujours dit.
+   * Sans code à saisir, une invitation partie vers une autre adresse ne s'afficherait jamais, et
+   * rien ne dirait pourquoi. L'adresse du compte est le seul recours : c'est elle que l'athlète
+   * donne à son coach.
    */
-  it.each([
-    ["le message de l'api", new ApiError(400, "Invitation expirée", null), "Invitation expirée"],
-    ["un libellé", new Error("réseau"), "coach.join.errorTitle"],
-  ])("dit l'échec par %s, et le recours", async (_how, failure, text) => {
-    acceptInvitation.mockRejectedValue(failure);
-    const { user } = await render();
+  it("dit l'adresse à laquelle le coach doit inviter, sans rien proposer à saisir", async () => {
+    await render();
 
-    await user.type(await screen.findByLabelText(CODE), "7QK4M2XZ9{Enter}");
+    expect(await screen.findByText("coach.missing.address")).toBeInTheDocument();
+    expect(screen.getByText("lea@exemple.fr")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
 
-    expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(screen.getByText("coach.join.errorDescription")).toBeInTheDocument();
+  // Session pas encore lue : « — » plutôt qu'un blanc (règle dure n°5).
+  it("rend « — » tant que l'adresse n'est pas connue", async () => {
+    session.current = null;
+    await render();
+
+    expect(await screen.findByText("—")).toBeInTheDocument();
   });
 });

@@ -113,9 +113,14 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   débriefs s'atteignent par la tuile du tableau de bord (comme la maquette le montre). En revanche
   l'onglet **Notifications** a été AJOUTÉ, absent de la planche : c'est la seule surface où le coach
   voit ses `REMINDER_DUE`.
-- **`coach_mobile.dc.html` — invitation partagée, pas copiée** : la planche a « Copier le code »,
-  l'implémentation propose « Partager » (`Share` de React Native). `expo-clipboard` n'est pas une
-  dépendance du projet, et partager couvre mieux le cas réel (SMS, WhatsApp). Dette **M-5**.
+- **Plus de code d'invitation nulle part** ([#390](https://github.com/Cimavia/cimavia/issues/390)) :
+  quatre planches le montrent, aucune ne se suit sur ce point. `coach_mobile.dc.html` (« Partage ce
+  code » — le coach saisit désormais une **adresse**, et voit ses invitations en attente),
+  `athlete_web.dc.html` (« Saisis le code d'invitation »), `auth_onboarding.dc.html` (« Utilise ton
+  code d'invitation », code pré-rempli) et `messagerie_web_athlete_mobile_coach.dc.html` (« Rejoins
+  un coach via un code »). L'invitation apparaît d'elle-même au compte qui porte l'adresse ;
+  l'athlète sans coach voit à la place l'adresse à laquelle se faire inviter. La dette **M-5**
+  (« Copier le code ») est caduque.
 - **`coach_facturation_v2.dc.html` — les notes ⓘ sont des ANNOTATIONS, pas de l'UI** : trois lignes
   à icône ⓘ ferment des frames (« Un athlète avec plusieurs factures impayées affiche le montant
   cumulé en teinte error… », « Cinq factures par page… », « Rien à relancer : pas de bandeau… »).

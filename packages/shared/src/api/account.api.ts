@@ -1,9 +1,7 @@
 import type { AthleteSheetDto, UpdateAthleteSheetInput } from "../dto/athlete-sheet.schema";
 import type { CoachAthleteDto, CounterpartsDto } from "../dto/coach-athlete.schema";
 import type {
-  AcceptInvitationInput,
   CreateInvitationInput,
-  DeclineInvitationInput,
   InvitationDto,
   PendingInvitationDto,
 } from "../dto/invitation.schema";
@@ -75,10 +73,15 @@ export type AccountApi = {
   listInvitations: () => Promise<InvitationDto[]>;
   createInvitation: (input: CreateInvitationInput) => Promise<InvitationDto>;
   /**
-   * Efface une invitation REFUSÉE. 409 sur tout autre état — retirer une invitation en attente
-   * serait une révocation, qui est une transition à part et n'a pas de chemin.
+   * Efface une invitation REFUSÉE. 409 sur tout autre état — retirer une invitation en attente est
+   * une révocation, une transition à part : `revokeInvitation`.
    */
   deleteInvitation: (invitationId: string) => Promise<void>;
+  /**
+   * Retire une invitation EN ATTENTE (#524) : elle passe `REVOKED` et quitte la liste du coach.
+   * 409 sur tout autre état ; son destinataire, s'il tente encore de l'accepter, lit « retirée ».
+   */
+  revokeInvitation: (invitationId: string) => Promise<void>;
 
   // ── Côté athlète ───────────────────────────────────────────────────────────
   /**
@@ -94,14 +97,13 @@ export type AccountApi = {
    * Liste vide = personne ne l'a invité. C'est un état normal, pas une erreur.
    */
   myInvitations: () => Promise<PendingInvitationDto[]>;
-  /** Rejoint un coach avec le code qu'il a communiqué. 409 si l'athlète est déjà lié. */
-  acceptInvitation: (input: AcceptInvitationInput) => Promise<CoachAthleteDto>;
   /**
-   * Refuse une invitation. Le geste est SANS RETOUR — le coach devra réémettre —, et il exige une
-   * correspondance d'adresse stricte côté API, là où l'acceptation ne la vérifie que sur une
-   * invitation nominative.
+   * Rejoint le coach qui a émis cette invitation. 409 si l'athlète est déjà lié ; 404 si elle ne
+   * vise pas l'adresse de sa session — l'`id` n'est pas un secret, l'adresse l'est (#390).
    */
-  declineInvitation: (input: DeclineInvitationInput) => Promise<void>;
+  acceptInvitation: (invitationId: string) => Promise<CoachAthleteDto>;
+  /** Refuse une invitation. Le geste est SANS RETOUR : le coach devra réémettre. */
+  declineInvitation: (invitationId: string) => Promise<void>;
 
   // ── Les deux côtés à la fois ───────────────────────────────────────────────
   /**
@@ -123,11 +125,13 @@ export function createAccountApi(api: ApiClient): AccountApi {
     listInvitations: () => api.get<InvitationDto[]>("/invitations"),
     createInvitation: (input) => api.post<InvitationDto>("/invitations", input),
     deleteInvitation: (invitationId) => api.delete<void>(`/invitations/${invitationId}`),
+    revokeInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/revoke`),
 
     myCoach: () => api.get<CoachAthleteDto | null>("/me/coach"),
     myInvitations: () => api.get<PendingInvitationDto[]>("/invitations/for-me"),
-    acceptInvitation: (input) => api.post<CoachAthleteDto>("/invitations/accept", input),
-    declineInvitation: (input) => api.post<void>("/invitations/decline", input),
+    acceptInvitation: (invitationId) =>
+      api.post<CoachAthleteDto>(`/invitations/${invitationId}/accept`),
+    declineInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/decline`),
 
     myCounterparts: () => api.get<CounterpartsDto>("/me/counterparts"),
   };
