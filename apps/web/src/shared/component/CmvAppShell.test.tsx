@@ -2,10 +2,12 @@ import { UNKNOWN_COUNTERPARTS, type UnreadCountDto } from "@cmv/shared";
 import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notificationApi } from "@/feature/notification/api";
+import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { authClient } from "@/shared/lib/auth";
 import { NAV_ITEMS } from "@/shared/lib/nav";
 import { renderInRoute } from "../../../test/render";
 import { CmvAppShell } from "./CmvAppShell";
+import { CmvLeaveDialog } from "./CmvLeaveDialog";
 
 const session = vi.hoisted(() => ({
   user: { id: "u-1", name: "Dual Curl", isCoach: true, isAthlete: true } as Record<string, unknown>,
@@ -28,10 +30,17 @@ function unread(count: UnreadCountDto) {
   vi.mocked(notificationApi.unreadCount).mockResolvedValue(count);
 }
 
-const open = () =>
+/** Un écran qui porte une saisie non enregistrée (#327). */
+function Unsaved() {
+  const guard = useLeaveGuard(true);
+  return <CmvLeaveDialog {...guard.dialog} />;
+}
+
+const open = ({ unsaved = false } = {}) =>
   renderInRoute(
     <CmvAppShell title="Tableau de bord">
       <p>contenu</p>
+      {unsaved ? <Unsaved /> : null}
     </CmvAppShell>,
     // Une route par cible : `/messages` et `/invoices` figurent une fois dans chaque espace.
     {
@@ -92,5 +101,34 @@ describe("CmvAppShell — la déconnexion", () => {
     expect(authClient.signOut).toHaveBeenCalledOnce();
     // Sans ce vidage, le compte suivant se connectait sur les données du précédent (#341).
     expect(queryClient.getQueryData(["athletes"])).toBeUndefined();
+  });
+});
+
+describe("CmvAppShell — se déconnecter avec une saisie non enregistrée (#327)", () => {
+  beforeEach(() => {
+    vi.mocked(authClient.signOut).mockClear();
+  });
+
+  // Demander APRÈS avoir coupé la session laissait le coach déconnecté sur l'écran qu'il gardait.
+  it("demande AVANT de couper la session, et « Rester » laisse le coach connecté", async () => {
+    const { user, getByRole, findByRole, queryByRole, router } = await open({ unsaved: true });
+
+    await user.click(getByRole("button", { name: "common.logout" }));
+    await user.click(await findByRole("button", { name: "common.leave.stay" }));
+
+    await waitFor(() => expect(queryByRole("dialog")).not.toBeInTheDocument());
+    expect(authClient.signOut).not.toHaveBeenCalled();
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("déconnecte et ramène au login une fois la perte confirmée, sans redemander", async () => {
+    const { user, getByRole, findByRole, queryByRole, router } = await open({ unsaved: true });
+
+    await user.click(getByRole("button", { name: "common.logout" }));
+    await user.click(await findByRole("button", { name: "common.leave.leave" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+    expect(authClient.signOut).toHaveBeenCalledOnce();
+    expect(queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

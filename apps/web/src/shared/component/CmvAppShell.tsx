@@ -9,6 +9,7 @@ import { NotificationBell, useUnreadByCapability } from "@/feature/notification"
 import { CmvButton } from "@/shared/component/CmvButton";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
 import { useCounterparts } from "@/shared/hook/useCounterparts";
+import { confirmLeave } from "@/shared/hook/useLeaveGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
@@ -110,6 +111,8 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
   const items = itemsOfSpace(activeSpace, counterparts);
 
   async function onLogout() {
+    // AVANT de déconnecter : « Rester » doit laisser le coach connecté, sur sa saisie (#327).
+    if (!(await confirmLeave())) return;
     await authClient.signOut();
     // Le cookie part, le reste RESTAIT : sans rechargement complet, le compte suivant se connectait
     // sur les athlètes, débriefs et factures du précédent — et sur son presse-papier de semaine,
