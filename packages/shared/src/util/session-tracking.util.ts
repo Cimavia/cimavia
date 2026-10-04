@@ -5,6 +5,9 @@ import type { ScheduledSessionDto } from "../dto/plan.schema";
 /** Le suivi de TOUTE une séance, indexé par identifiant d'exercice diffusé. */
 export type SessionTracking = Record<string, ExerciseTracking | null>;
 
+/** Ce qu'il faut d'un exercice de la séance pour savoir quelles coches le désignent encore. */
+type TrackedExerciseScope = { id: string; blocks: readonly { id: string }[] };
+
 /**
  * Les transformations du suivi local — pures, et communes aux deux surfaces.
  *
@@ -95,22 +98,41 @@ export function setRounds(
 }
 
 /**
- * Le suivi restreint aux exercices que la séance porte ENCORE — ce qui part avec le débrief.
+ * Le suivi restreint à ce que la séance porte ENCORE — ce qui part avec le débrief.
  *
  * Le suivi local survit à la séance qu'il décrit : le coach peut retirer un exercice que l'athlète
  * a déjà coché, et la clé reste sur l'appareil. Le serveur refuse un débrief qui cite un exercice
  * inconnu de la séance (#311) — l'envoyer tel quel bloquerait donc l'athlète à chaque tentative,
  * pour une coche qui ne désigne plus rien.
  *
+ * Même chose un cran plus bas pour un BLOC retiré (#297) : le serveur borne le nombre de blocs
+ * d'un suivi au plafond de blocs d'un exercice, et une clé morte de plus suffirait à le dépasser.
+ *
  * Rend le suivi LUI-MÊME quand rien n'est à retirer : le cas courant n'alloue rien.
  */
 export function trackingOfExercises(
   tracking: SessionTracking,
-  exercises: readonly { id: string }[],
+  exercises: readonly TrackedExerciseScope[],
 ): SessionTracking {
-  const present = new Set(exercises.map((exercise) => exercise.id));
-  if (Object.keys(tracking).every((id) => present.has(id))) return tracking;
-  return Object.fromEntries(Object.entries(tracking).filter(([id]) => present.has(id)));
+  const blocksById = new Map(
+    exercises.map((exercise) => [exercise.id, new Set(exercise.blocks.map((block) => block.id))]),
+  );
+  const kept: [string, ExerciseTracking | null][] = [];
+  for (const [id, state] of Object.entries(tracking)) {
+    const blocks = blocksById.get(id);
+    if (blocks != null) kept.push([id, state == null ? null : withinBlocks(state, blocks)]);
+  }
+  const unchanged =
+    kept.length === Object.keys(tracking).length &&
+    kept.every(([id, state]) => state === tracking[id]);
+  return unchanged ? tracking : Object.fromEntries(kept);
+}
+
+/** Le suivi d'un exercice sans ses blocs retirés — lui-même s'il n'en cite aucun. */
+function withinBlocks(state: ExerciseTracking, blocks: ReadonlySet<string>): ExerciseTracking {
+  const entries = Object.entries(state);
+  if (entries.every(([blockId]) => blocks.has(blockId))) return state;
+  return Object.fromEntries(entries.filter(([blockId]) => blocks.has(blockId)));
 }
 
 /**
@@ -127,7 +149,7 @@ export function trackingOfExercises(
 export function isTrackingSent(
   current: SessionTracking,
   sent: SessionTracking,
-  exercises: readonly { id: string }[],
+  exercises: readonly TrackedExerciseScope[],
 ): boolean {
   return sameTracking(trackingOfExercises(current, exercises), sent);
 }
