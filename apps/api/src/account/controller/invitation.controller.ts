@@ -24,14 +24,25 @@ export class InvitationController {
 
   /**
    * Coach : efface une invitation refusée, pour que sa liste cesse de la lui montrer. Refusé
-   * (409) sur tout autre état — retirer une invitation en attente serait une révocation, qui est
-   * une transition à part et n'a pas de chemin.
+   * (409) sur tout autre état — retirer une invitation en attente est une révocation, une
+   * transition à part qui a sa propre route.
    */
   @Delete(":id")
   @HttpCode(204)
   @RequireCapability("coach")
   async remove(@Param("id") id: string) {
     await this.invitations.remove(id);
+  }
+
+  /**
+   * Coach : retire une invitation en attente (#524). 204 : la ligne quitte sa liste, il n'y a rien
+   * à lui rendre.
+   */
+  @Post(":id/revoke")
+  @HttpCode(204)
+  @RequireCapability("coach")
+  async revoke(@Param("id") id: string) {
+    await this.invitations.revoke(id);
   }
 
   /**

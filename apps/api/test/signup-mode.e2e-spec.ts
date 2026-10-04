@@ -154,6 +154,16 @@ describe("Inscription fermée (#263)", () => {
     expect(res.status).toBe(403);
   });
 
+  // Une invitation retirée par le coach (#524) n'ouvre plus rien : c'est tout l'objet du retrait.
+  it("refuse une adresse dont l'invitation a été retirée (403)", async () => {
+    const invitation = await coach.post("/invitations").send({ email: "retiree@cmv.test" });
+    expect(invitation.status).toBe(201);
+    expect((await coach.post(`/invitations/${invitation.body.id}/revoke`)).status).toBe(204);
+
+    const res = await signUp("retiree@cmv.test", { isCoach: false, isAthlete: true });
+    expect(res.status).toBe(403);
+  });
+
   // Idem pour une invitation déjà refusée : elle n'est plus PENDING.
   it("refuse une adresse dont l'invitation a été déclinée (403)", async () => {
     const invitation = await coach.post("/invitations").send({ email: "declinee@cmv.test" });
