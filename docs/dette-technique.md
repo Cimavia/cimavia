@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Trente dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
-**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2** et **G-1**,
+**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **G-1** et **DR-1**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, est résolue : période `previous_version` rendue possible par
@@ -4943,6 +4943,25 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   barre sans fil — mais **son échec de résolution se cachait derrière un chargement sans fin** :
 >   sans id, la requête des messages est désactivée et TanStack la rend `isPending`. L'erreur passe
 >   désormais avant le chargement ; le test simulait `isPending: false`, un état qui n'arrive pas.
+
+## Post-MVP — Plage d'une semaine à cheval sur deux mois ([#322](https://github.com/Cimavia/cimavia/issues/322))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| DR-1 | **L'ordre jour/mois de la plage est pensé pour le français** : `formatIsoDateRange` (`@cmv/shared`) pose les deux bornes côte à côte, chacune formatée seule. En `en-US`, une semaine dans un seul mois rendrait « 12 – Oct 18 » au lieu de « Oct 12 – 18 ». Antérieur à #322, qui ne l'aggrave pas. | 🟢 | — *(déclencheur : un catalogue d'interface anglais — même déclencheur que **L-1**)* |
+
+> **Tranché en [#322](https://github.com/Cimavia/cimavia/issues/322)** (la plage compose ses
+> bornes, sans `formatRange`) : l'en-tête du planning affichait « 28 – 4 oct. » pour la semaine du
+> 28 septembre, le mois du début étant toujours tu. Le début ne tait désormais son mois que si la
+> fin porte le même, et l'**année n'apparaît que quand elle change**, des deux côtés
+> (« 28 déc. 2026 – 3 janv. 2027 ») — l'issue disait « les afficher des deux côtés », lu comme
+> « afficher ce qui diffère » : une année sur chaque semaine alourdirait l'en-tête mobile pour ne
+> rien dire.
+>
+> - **`Intl.DateTimeFormat.prototype.formatRange` est écarté**, alors qu'il ferait ce travail ET
+>   l'ordre propre à chaque langue (**DR-1**) : son support par Hermes n'est pas vérifié, et la
+>   recette iPhone ([#394](https://github.com/Cimavia/cimavia/issues/394)) n'est pas faite. Le
+>   composer dans `@cmv/shared` garde au mobile exactement le rendu que testent les tests Node.
 
 ---
 
