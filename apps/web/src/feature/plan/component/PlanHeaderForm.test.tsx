@@ -45,6 +45,7 @@ const plan = (over: Partial<PlanDto> = {}): PlanDto =>
   }) as PlanDto;
 
 const onSave = vi.fn();
+const onDirtyChange = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -57,6 +58,7 @@ const mount = (over: Partial<PlanDto> = {}, hasInvoiceDocument = false) =>
       hasInvoiceDocument={hasInvoiceDocument}
       isSaving={false}
       onSave={onSave}
+      onDirtyChange={onDirtyChange}
     />,
   );
 
@@ -121,7 +123,13 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
 
   it("dit que l'enregistrement part, et ne se relance pas pendant ce temps", () => {
     const { getByRole } = renderWithProviders(
-      <PlanHeaderForm plan={plan()} hasInvoiceDocument={false} isSaving onSave={onSave} />,
+      <PlanHeaderForm
+        plan={plan()}
+        hasInvoiceDocument={false}
+        isSaving
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+      />,
     );
 
     expect(getByRole("button", { name: "plan.header.submitting" })).toBeDisabled();
@@ -317,5 +325,37 @@ describe("PlanHeaderForm — un justificatif joint", () => {
     expect(getByText("plan.header.athleteLockedDocument")).toBeTruthy();
     expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(false);
     expect((container.querySelector("#startDate") as HTMLInputElement).disabled).toBe(false);
+  });
+});
+
+/**
+ * Ce que l'écran apprend de la saisie : « Diffuser » part avec le cycle ENREGISTRÉ, et se ferme
+ * tant que le formulaire montre autre chose (#326).
+ */
+describe("PlanHeaderForm — une saisie non enregistrée", () => {
+  it("se déclare propre tant que rien n'a bougé", () => {
+    mount();
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("signale un destinataire changé, puis rendu à sa valeur enregistrée", async () => {
+    const { getByRole, user } = mount();
+
+    await user.selectOptions(getByRole("combobox"), "ath_noah");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    await user.selectOptions(getByRole("combobox"), "ath_lea");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  // Rien ne partirait à l'enregistrement, mais l'écran ne montre plus la date que la diffusion
+  // emporterait : c'est un écart, pas un formulaire propre.
+  it("signale une date effacée, que l'enregistrement ignorerait", async () => {
+    const { container, user } = mount();
+
+    await user.clear(container.querySelector("#startDate") as HTMLInputElement);
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
   });
 });

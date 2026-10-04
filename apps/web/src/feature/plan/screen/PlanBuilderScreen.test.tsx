@@ -34,15 +34,19 @@ vi.mock("@/feature/invoice/hook/useInvoices", () => ({
   useAttachInvoiceDocument: () => ({ mutate: vi.fn(), isPending: false }),
   useRemoveInvoiceDocument: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+const publishPlan = vi.hoisted(() => vi.fn());
 vi.mock("@/feature/plan/hook/usePlans", () => ({
   useDeletePlan: () => ({ mutate: vi.fn(), isPending: false }),
-  usePublishPlan: () => ({ mutate: vi.fn(), isPending: false }),
+  usePublishPlan: () => ({ mutate: publishPlan, isPending: false }),
   // Les autres cycles du coach, dont l'écran tire ce que l'athlète voit de celui-ci (#172).
   usePlans: vi.fn(),
 }));
 vi.mock("@/feature/athlete/hook/useAthletes", () => ({
   useAthletes: () => ({
-    data: [{ athleteId: "ath_lea", athleteName: "Léa Moreau", isSelf: false }],
+    data: [
+      { athleteId: "ath_lea", athleteName: "Léa Moreau", isSelf: false },
+      { athleteId: "ath_tom", athleteName: "Tom Garnier", isSelf: false },
+    ],
   }),
 }));
 vi.mock("@/shared/lib/auth", () => ({
@@ -371,5 +375,90 @@ describe("PlanBuilderScreen — les semaines", () => {
 
     await user.click(getByRole("button", { name: "plan.clipboard.clear" }));
     expect(queryByText("plan.clipboard.banner")).toBeNull();
+  });
+});
+
+/**
+ * Le scénario de #326 : le coach corrige le destinataire — Léa → Tom — puis clique « Diffuser » en
+ * haut de page sans repasser par « Enregistrer ». Le cycle partait chez Léa, notification et
+ * facture comprises, et l'API refuse ensuite d'en changer. Ce qui s'éprouve ici est le CÂBLAGE :
+ * l'ordre des raisons a ses tests dans `PlanBuilderActions`.
+ */
+describe("PlanBuilderScreen — diffuser une saisie non enregistrée", () => {
+  const week: PlanWeekDto = {
+    id: "pw_1",
+    weekNumber: 1,
+    type: PlanWeekType.TRAINING,
+    note: null,
+    startDate: "2026-10-19",
+    endDate: "2026-10-25",
+    sessions: [],
+  };
+  const billing = {
+    amountCents: 5000,
+    dueDate: "2026-11-05",
+    note: null,
+    documentFileName: null,
+  };
+  const publishButton = (getByText: (text: string) => HTMLElement) =>
+    getByText("plan.builder.publish").closest("button") as HTMLButtonElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("ne diffuse pas chez l'ancien destinataire quand le nouveau n'est pas enregistré", async () => {
+    const { getByRole, getByText, getByTitle, user } = await mount({ weeks: [week] }, billing);
+
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+    await user.click(publishButton(getByText));
+
+    expect(publishPlan).not.toHaveBeenCalled();
+    expect(getByTitle("plan.builder.headerUnsaved")).toContainElement(publishButton(getByText));
+  });
+
+  it("rouvre la diffusion quand la saisie revient à ce qui est enregistré", async () => {
+    const { getByRole, getByText, user } = await mount({ weeks: [week] }, billing);
+
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+    await user.selectOptions(getByRole("combobox"), "ath_lea");
+    await user.click(publishButton(getByText));
+
+    expect(publishPlan).toHaveBeenCalledWith("pln_1");
+  });
+
+  it("ne diffuse pas une facture dont le montant changé n'est pas enregistré", async () => {
+    const { container, getByText, getByTitle, user } = await mount({ weeks: [week] }, billing);
+    const amount = container.querySelector("#amount") as HTMLInputElement;
+
+    await user.clear(amount);
+    await user.type(amount, "80");
+    await user.click(publishButton(getByText));
+
+    expect(publishPlan).not.toHaveBeenCalled();
+    expect(getByTitle("plan.builder.billingUnsaved")).toBeTruthy();
+  });
+
+  /**
+   * Les champs grisés d'un cycle diffusé montraient encore « Tom » sous un titre qui disait Léa.
+   * La diffusion peut partir d'un autre onglet, ou d'une saisie faite pendant qu'elle était en vol :
+   * le verrou ne suffit pas, le formulaire doit repartir de l'enregistré. Le nouvel état arrive au
+   * rendu suivant — ici, provoqué par l'ouverture d'un jour.
+   */
+  it("réaligne l'en-tête sur le cycle enregistré une fois celui-ci diffusé", async () => {
+    const { getAllByRole, getByRole, user } = await mount({ weeks: [week] }, billing);
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+
+    vi.mocked(usePlan).mockReturnValue({
+      data: plan({ weeks: [week], status: PlanStatus.PUBLISHED }),
+      isPending: false,
+      isError: false,
+      refetch,
+    } as unknown as ReturnType<typeof usePlan>);
+    await user.click(getAllByRole("button", { name: "plan.week.addSession" })[0] as HTMLElement);
+
+    // Le panneau de séance ouvert porte ses propres listes : le sélecteur se désigne par son nom.
+    const picker = getByRole("combobox", { name: /plan\.header\.athlete/ }) as HTMLSelectElement;
+    expect(picker.value).toBe("ath_lea");
   });
 });

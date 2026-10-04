@@ -8,6 +8,7 @@ import {
   useSavePlanBilling,
 } from "@/feature/invoice/hook/useInvoices";
 import { CmvButton, CmvCard, CmvTextArea, CmvTextField, useToast } from "@/shared/component";
+import { useReportDirty } from "@/shared/hook/useReportDirty";
 
 type PlanBillingSectionProps = {
   planId: string;
@@ -25,6 +26,11 @@ type PlanBillingSectionProps = {
    * suffisait que l'un des deux soit actif pour que la requête parte.
    */
   billing: InvoiceDto | null | undefined;
+  /**
+   * La saisie diffère des termes enregistrés : « Diffuser » émet la facture ENREGISTRÉE, et se
+   * ferme tant que c'est vrai (#326). Doit être stable : un `setState` de l'écran.
+   */
+  onDirtyChange: (isDirty: boolean) => void;
 };
 
 // Euros saisis → centimes entiers. `Math.round` absorbe l'imprécision du float de saisie
@@ -33,6 +39,24 @@ function toAmountCents(euros: string): number | null {
   const value = Number(euros);
   if (!Number.isFinite(value) || value <= 0) return null;
   return Math.round(value * 100);
+}
+
+type BillingDraft = { amount: string; dueDate: string; note: string };
+
+/**
+ * La saisie s'écarte-t-elle des termes enregistrés ? Comparée sur ce qui PARTIRAIT, pas sur le
+ * texte : « 50 » et « 50.00 » valent les mêmes 5000 centimes, une note faite d'espaces vaut
+ * l'absence de note. Sans termes enregistrés (`null`, ou pas encore lus), tout champ rempli est
+ * un écart — même incomplet : diffuser tant qu'on le remplit n'aurait de toute façon rien émis.
+ */
+function hasUnsavedTerms(draft: BillingDraft, billing: InvoiceDto | null | undefined): boolean {
+  const note = draft.note.trim() || null;
+  if (billing == null) return draft.amount !== "" || draft.dueDate !== "" || note != null;
+  return (
+    toAmountCents(draft.amount) !== billing.amountCents ||
+    draft.dueDate !== billing.dueDate ||
+    note !== billing.note
+  );
 }
 
 /**
@@ -46,6 +70,7 @@ export function PlanBillingSection({
   isPublished,
   hasAthlete,
   billing,
+  onDirtyChange,
 }: Readonly<PlanBillingSectionProps>) {
   const { t } = useTranslation();
   const save = useSavePlanBilling(planId);
@@ -70,6 +95,7 @@ export function PlanBillingSection({
   }
 
   const canSubmit = toAmountCents(amount) != null && dueDate !== "";
+  useReportDirty(hasUnsavedTerms({ amount, dueDate, note }, billing), onDirtyChange);
 
   /**
    * Fermée, expliquée, jamais masquée : la faire disparaître laisserait croire qu'un cycle ne se
