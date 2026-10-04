@@ -235,8 +235,9 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
     replace(key, (item) => ({ ...item, ...resetToBaseline(item.baseline) }));
   }
 
-  async function submit() {
-    await save({
+  /** La séance telle qu'enregistrée : son id ramène à elle après un détour (#303). */
+  async function submit(): Promise<SessionDto> {
+    return save({
       session,
       input: {
         title: trimmedTitle,

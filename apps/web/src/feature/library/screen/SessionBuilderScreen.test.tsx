@@ -125,6 +125,7 @@ const LINKS = [
   "/reminders",
   "/account",
   "/library",
+  "/library/exercises/new",
   "/library/exercises/$exerciseId",
 ];
 
@@ -617,6 +618,80 @@ describe("SessionBuilderScreen — retour d'un exercice créé depuis la séance
   });
 });
 
+describe("SessionBuilderScreen — créer l'exercice manquant (#303)", () => {
+  const CREATE_MISSING = "library.noMatch.create";
+
+  /** Cherche un exercice absent de la bibliothèque, puis demande à le créer. */
+  async function createMissing(view: Awaited<ReturnType<typeof create>>) {
+    await view.user.click(view.getByRole("button", { name: PICK }));
+    await view.user.type(await view.findByRole("searchbox"), "Gainage");
+    await view.user.click(view.getByRole("button", { name: CREATE_MISSING }));
+  }
+
+  // Le cas de l'issue : une séance NEUVE, jamais enregistrée, et rien ne doit s'en perdre.
+  it("enregistre la séance neuve, puis ouvre la création en sachant où revenir", async () => {
+    const view = await create();
+    await view.user.type(view.getByRole("textbox", { name: TITLE }), "Force du lundi");
+    await view.user.click(view.getByRole("button", { name: PICK }));
+    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+
+    await createMissing(view);
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/exercises/new"));
+    expect(view.router.state.location.search).toEqual({ title: "Gainage", session: "s-1" });
+    expect(api.createSession).toHaveBeenCalledExactlyOnceWith({
+      title: "Force du lundi",
+      notes: null,
+      exercises: [{ exerciseId: "ex-9", note: null, blocks: planche.blocks, adjustments: [] }],
+    });
+    expect(view.getByText("library.session.savedBeforeExercise")).toBeInTheDocument();
+  });
+
+  it("enregistre la séance éditée, puis ouvre la création", async () => {
+    const view = await edit();
+
+    await createMissing(view);
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/exercises/new"));
+    expect(api.updateSession).toHaveBeenCalledOnce();
+    expect(api.createSession).not.toHaveBeenCalled();
+  });
+
+  // Sans titre la séance ne peut pas s'enregistrer : rien ne part, le champ le réclame.
+  it("n'enregistre rien et réclame le titre quand la séance n'en a pas", async () => {
+    const view = await create();
+
+    await createMissing(view);
+
+    expect(view.getByText("library.session.titleRequired")).toBeInTheDocument();
+    expect(view.getByText("library.session.titleBeforeLeaving")).toBeInTheDocument();
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/new");
+  });
+
+  it("reste sur la séance et dit l'échec quand elle ne s'enregistre pas", async () => {
+    api.createSession.mockRejectedValue(new Error("500"));
+    const view = await create();
+    await view.user.type(view.getByRole("textbox", { name: TITLE }), "Force");
+
+    await createMissing(view);
+
+    expect(await view.findByText("library.session.saveFailed")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/new");
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Force");
+  });
+
+  it("ferme la création le temps de l'enregistrement", async () => {
+    api.createSession.mockReturnValue(new Promise(() => undefined));
+    const view = await create();
+    await view.user.type(view.getByRole("textbox", { name: TITLE }), "Force");
+
+    await createMissing(view);
+
+    expect(await view.findByRole("button", { name: CREATE_MISSING })).toBeDisabled();
+  });
+});
+
 describe("SessionBuilderScreen — dupliquer en variante", () => {
   beforeEach(() => {
     api.getExercise.mockResolvedValue({
@@ -651,6 +726,20 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
         tags: ["force"],
       }),
     );
+  });
+
+  // Même garde que la création d'exercice manquant : une séance sans titre ne s'enregistre pas.
+  it("ne duplique rien et réclame le titre quand la séance neuve n'en a pas", async () => {
+    const view = await create();
+    await view.user.click(view.getByRole("button", { name: PICK }));
+    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+
+    await view.menu("Planche", "library.session.duplicate");
+
+    expect(view.getByText("library.session.titleBeforeLeaving")).toBeInTheDocument();
+    expect(view.getByText("library.session.titleRequired")).toBeInTheDocument();
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.createExercise).not.toHaveBeenCalled();
   });
 
   it("ne duplique rien quand la séance ne s'enregistre pas, et le dit", async () => {

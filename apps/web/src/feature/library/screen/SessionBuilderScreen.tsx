@@ -118,15 +118,35 @@ function SessionBuilder({
   const drag = useReorderDrag(draft.moveItem);
   const adjustedItems = draft.items.filter((item) => item.adjustments.length > 0).length;
 
-  async function onSubmit() {
+  /**
+   * Enregistre, le dit, et rend la séance enregistrée — ou `null` quand il faut rester : échec
+   * (déjà annoncé), ou séance sans titre.
+   *
+   * Le titre est vérifié ICI parce que deux gestes enregistrent sans passer par le bouton, qui,
+   * lui, reste fermé sans titre : « Dupliquer en variante » et « Créer l'exercice manquant »
+   * (#303). Ils quittent la séance pour l'éditeur d'exercice, et l'enregistrent d'abord — sans
+   * ça tout ce que le coach vient de composer disparaît, et le geste qui devait l'aider lui coûte
+   * son travail. Sans titre, rien ne part : le champ le réclame, plutôt qu'un échec du serveur
+   * qui ne dirait pas pourquoi.
+   */
+  async function save(successKey: string): Promise<SessionDto | null> {
+    if (draft.trimmedTitle === "") {
+      setTitleTouched(true);
+      toast.error(t("library.session.titleBeforeLeaving"));
+      return null;
+    }
     try {
-      await draft.submit();
+      const saved = await draft.submit();
+      toast.success(t(successKey));
+      return saved;
     } catch (error) {
       onFailure("library.session.saveFailed", error);
-      return;
+      return null;
     }
-    toast.success(t("library.session.saved"));
-    onLeave();
+  }
+
+  async function onSubmit() {
+    if ((await save("library.session.saved")) != null) onLeave();
   }
 
   function onPick(exercise: ExerciseDto) {
@@ -134,19 +154,8 @@ function SessionBuilder({
     setPicking(false);
   }
 
-  /**
-   * « Dupliquer en variante » quitte la séance pour l'éditeur d'exercice. On l'ENREGISTRE d'abord :
-   * sans ça tout ce que le coach vient de composer disparaît, et le geste qui devait l'aider lui
-   * coûte son travail.
-   */
   async function onDuplicate(exerciseId: string, blocks: ExerciseBlocks) {
-    try {
-      await draft.submit();
-    } catch (error) {
-      onFailure("library.session.saveFailed", error);
-      return;
-    }
-    toast.success(t("library.session.savedBeforeVariant"));
+    if ((await save("library.session.savedBeforeVariant")) == null) return;
     duplicate.mutate(
       { exerciseId, suffix: t("library.session.variantSuffix"), blocks },
       {
@@ -157,6 +166,13 @@ function SessionBuilder({
           }),
       },
     );
+  }
+
+  /** La séance d'où l'on part est passée par id : l'éditeur d'exercice y ramènera. */
+  async function onCreateMissing(title: string) {
+    const saved = await save("library.session.savedBeforeExercise");
+    if (saved == null) return;
+    navigate({ to: "/library/exercises/new", search: { title, session: saved.id } });
   }
 
   return (
@@ -278,7 +294,12 @@ function SessionBuilder({
                 d'exercice : même geste, même endroit. La colonne de droite ne porte que l'aperçu. */}
             {picking ? (
               <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
-                <LibraryPicker customMetrics={metrics} onPick={onPick} />
+                <LibraryPicker
+                  customMetrics={metrics}
+                  onPick={onPick}
+                  onCreateMissing={onCreateMissing}
+                  isSaving={draft.isSaving}
+                />
                 <div>
                   <CmvButton variant="ghost" onClick={() => setPicking(false)}>
                     {t("library.builder.cancel")}
