@@ -420,3 +420,87 @@ describe("ExerciseBuilderScreen — édition", () => {
     expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
   });
 });
+
+describe("ExerciseBuilderScreen — saisie non enregistrée (#327)", () => {
+  const CANCEL = "library.builder.cancel";
+  const STAY = "common.leave.stay";
+  const LEAVE = "common.leave.leave";
+
+  it("demande avant d'abandonner une saisie, et « Rester » la garde intacte", async () => {
+    const view = await edit();
+    const title = await view.findByRole("textbox", { name: TITLE });
+    await view.user.type(title, " lestées");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: STAY }));
+
+    await waitFor(() => expect(view.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
+    expect(title).toHaveValue("Tractions lestées");
+  });
+
+  it("part sans rien enregistrer quand le coach confirme", async () => {
+    const view = await create();
+    await view.user.type(view.getByRole("textbox", { name: TITLE }), "Planche");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: LEAVE }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(api.createExercise).not.toHaveBeenCalled();
+  });
+
+  it("laisse partir sans friction un exercice ouvert sans être modifié", async () => {
+    const view = await edit();
+    await view.findByRole("textbox", { name: TITLE });
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Ce qui compte est ce qui PARTIRAIT : une frappe effacée ne change rien à l'enregistré.
+  it("ne retient plus une saisie revenue à l'enregistré", async () => {
+    const view = await edit();
+    const title = await view.findByRole("textbox", { name: TITLE });
+    await view.user.type(title, "x{Backspace}");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+  });
+
+  // #302 : l'exercice est créé, le lien n'est pas parti. Partir le perdrait.
+  it("retient la sortie quand un envoi s'est interrompu", async () => {
+    api.attachDocument.mockRejectedValue(new Error("réseau"));
+    const view = await create("Planche");
+    await view.user.type(
+      view.getByRole("textbox", { name: "library.builder.attachment.addLink" }),
+      "https://video.example/tuto",
+    );
+    await view.user.click(
+      view.getByRole("button", { name: "library.builder.attachment.addLinkAction" }),
+    );
+    await view.user.click(view.getByRole("button", { name: SUBMIT_CREATE }));
+    await view.findByRole("button", { name: SUBMIT_EDIT });
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+
+    expect(await view.findByRole("dialog")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/new");
+  });
+
+  // Supprimer l'exercice rend sa saisie sans objet : la demande serait un contresens.
+  it("part sans demander après une suppression, même avec une saisie en cours", async () => {
+    api.deleteExercise.mockResolvedValue(undefined);
+    const view = await edit();
+    await view.user.type(await view.findByRole("textbox", { name: TITLE }), " lestées");
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.deleteExercise" }));
+    await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});

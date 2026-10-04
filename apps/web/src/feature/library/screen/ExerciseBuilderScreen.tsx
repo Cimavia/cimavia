@@ -19,10 +19,12 @@ import {
   CmvConfirmButton,
   CmvErrorState,
   CmvFormError,
+  CmvLeaveDialog,
   CmvTagInput,
   CmvTextField,
   useToast,
 } from "@/shared/component";
+import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
 /**
@@ -136,6 +138,9 @@ function ExerciseBuilder({
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
+  // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
+  // saisie (#327). Seules les sorties qui SUIVENT un enregistrement ou une suppression passent.
+  const guard = useLeaveGuard(draft.isDirty);
   // Le brouillon et non la prop : un enregistrement interrompu a pu créer l'exercice, et l'écran
   // doit alors se présenter en édition — c'en est une.
   const edited = draft.exercise;
@@ -160,7 +165,13 @@ function ExerciseBuilder({
       return;
     }
     toast.success(t("library.builder.saved"));
+    guard.release();
     onSaved(saved);
+  }
+
+  function onDeleted() {
+    guard.release();
+    onLeave();
   }
 
   /**
@@ -184,7 +195,7 @@ function ExerciseBuilder({
           canSubmit={draft.trimmedTitle !== ""}
           onCancel={onLeave}
           onSubmit={onSubmit}
-          onDeleted={onLeave}
+          onDeleted={onDeleted}
         />
       }
     >
@@ -266,6 +277,7 @@ function ExerciseBuilder({
           </aside>
         </div>
       </InstructionMediaProvider>
+      <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
 }
