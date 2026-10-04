@@ -126,6 +126,38 @@ async function billAndPublish(coach: Agent, planId: string) {
   return coach.post(`/plans/${planId}/publish`);
 }
 
+/** L'adresse d'un compte, lue dans sa session : c'est elle qu'une invitation nominative vise. */
+async function emailOf(agent: Agent): Promise<string> {
+  const session = await agent.get("/api/auth/get-session");
+  return required(session.body?.user?.email, "adresse de session");
+}
+
+/** Le coach invite l'adresse de `invited` — la seule forme d'invitation qui la lui destine. */
+async function inviteFor(coach: Agent, invited: Agent) {
+  return coach.post("/invitations").send({ email: await emailOf(invited) });
+}
+
+/**
+ * Lie un athlète à un coach par invitation, et rend les deux bouts de la relation.
+ *
+ * UNE fonction pour tout le fichier, là où quatorze copies locales vivaient : chacune visait
+ * l'invitation générique, et le passage au tout-nominatif (#390) les aurait toutes à reprendre.
+ */
+async function linkRelation(
+  coach: Agent,
+  athlete: Agent,
+): Promise<{ athleteId: string; coachId: string }> {
+  const invitation = await inviteFor(coach, athlete);
+  const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+  expect(accepted.status).toBe(201);
+  return { athleteId: accepted.body.athleteId, coachId: accepted.body.coachId };
+}
+
+// Lie un athlète à un coach par invitation et rend l'id de l'athlète.
+async function link(coach: Agent, athlete: Agent): Promise<string> {
+  return (await linkRelation(coach, athlete)).athleteId;
+}
+
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -176,7 +208,7 @@ describe("Isolation multi-tenant (P1)", () => {
     athleteC = await signUp("athlete-c@cmv.test", Role.ATHLETE);
 
     // Liaison A1 → coach A par invitation.
-    const invA = await coachA.post("/invitations").send({});
+    const invA = await inviteFor(coachA, athleteA1);
     expect(invA.status).toBe(201);
     const acceptA = await athleteA1.post("/invitations/accept").send({ code: invA.body.code });
     expect(acceptA.status).toBe(201);
@@ -184,7 +216,7 @@ describe("Isolation multi-tenant (P1)", () => {
     coachAId = acceptA.body.coachId;
 
     // Liaison B1 → coach B.
-    const invB = await coachB.post("/invitations").send({});
+    const invB = await inviteFor(coachB, athleteB1);
     const acceptB = await athleteB1.post("/invitations/accept").send({ code: invB.body.code });
     b1Id = acceptB.body.athleteId;
   });
@@ -243,7 +275,7 @@ describe("Isolation multi-tenant (P1)", () => {
 
   it("le rôle gouverne l'accès : athlète ≠ coach", async () => {
     // Un athlète ne peut pas émettre d'invitation (route coach).
-    expect((await athleteA1.post("/invitations").send({})).status).toBe(403);
+    expect((await athleteA1.post("/invitations").send({ email: "x@cmv.test" })).status).toBe(403);
     // Un coach ne peut pas accepter d'invitation (route athlète).
     expect((await coachA.post("/invitations/accept").send({ code: "x" })).status).toBe(403);
     // Un athlète autonome ne peut pas agir comme coach.
@@ -251,7 +283,7 @@ describe("Isolation multi-tenant (P1)", () => {
   });
 
   it("un athlète déjà lié ne peut pas rejoindre un second coach", async () => {
-    const inv = await coachB.post("/invitations").send({});
+    const inv = await inviteFor(coachB, athleteA1);
     const res = await athleteA1.post("/invitations/accept").send({ code: inv.body.code });
     expect(res.status).toBe(409);
   });
@@ -1314,14 +1346,6 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     },
   ];
 
-  // Lie un athlète à un coach par invitation et retourne son id.
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
-
   beforeAll(async () => {
     coachA = await signUp("plan-coach-a@cmv.test", Role.COACH);
     coachB = await signUp("plan-coach-b@cmv.test", Role.COACH);
@@ -1890,13 +1914,6 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
   const day = (offset: number) =>
     required(shiftIsoDate(monday, offset) ?? undefined, `J+${offset}`);
 
-  async function link(owner: Agent, invited: Agent): Promise<string> {
-    const invitation = await owner.post("/invitations").send({});
-    const accepted = await invited.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
-
   beforeAll(async () => {
     coach = await signUp("weeks-coach@cmv.test", Role.COACH);
     other = await signUp("weeks-other@cmv.test", Role.COACH);
@@ -2128,13 +2145,6 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   let exerciseId: string;
 
   const monday = mondayOfCurrentWeek();
-
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
 
   /**
    * Un brouillon SANS destinataire, garni d'une séance dont l'exercice porte un TAG et un
@@ -2521,13 +2531,6 @@ describe("Débrief de séance (P4)", () => {
 
   const monday = mondayOfCurrentWeek();
 
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
-
   beforeAll(async () => {
     coachA = await signUp("fb-coach-a@cmv.test", Role.COACH);
     athleteA1 = await signUp("fb-athlete-a1@cmv.test", Role.ATHLETE);
@@ -2646,7 +2649,7 @@ describe("Suivi d'exécution (#168)", () => {
     athlete = await signUp("suivi-athlete@cmv.test", Role.ATHLETE);
     other = await signUp("suivi-other@cmv.test", Role.ATHLETE);
 
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
     const athleteId = accepted.body.athleteId;
 
@@ -3056,12 +3059,6 @@ describe("Médias de débrief (P4)", () => {
     size: 200_000,
     durationSeconds: 18,
   });
-
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    return accepted.body.athleteId;
-  }
 
   // Parcours réel : URL signée → PUT direct vers le storage → rattachement.
   async function upload(agent: Agent, input: Record<string, unknown>): Promise<string> {
@@ -3686,7 +3683,7 @@ describe("Tokens de notification push (P4)", () => {
   it("débriefer réussit sans appareil enregistré", async () => {
     const c = await signUp("push-flow-coach@cmv.test", Role.COACH);
     const a = await signUp("push-flow-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await c.post("/invitations").send({});
+    const invitation = await inviteFor(c, a);
     const accepted = await a.post("/invitations/accept").send({ code: invitation.body.code });
 
     const monday = mondayOfCurrentWeek();
@@ -3726,7 +3723,7 @@ describe("Retouche d'une séance diffusée : le résumé la signale (#307)", () 
   it("la date de la séance bouge, celle du cycle non, et le détail suit le résumé", async () => {
     const coach = await signUp("resync-coach@cmv.test", Role.COACH);
     const athlete = await signUp("resync-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
 
     const monday = mondayOfCurrentWeek();
@@ -3781,7 +3778,7 @@ describe("Lecture coach des débriefs (P4)", () => {
     coachB = await signUp("read-coach-b@cmv.test", Role.COACH);
     athleteA1 = await signUp("read-athlete-a1@cmv.test", Role.ATHLETE);
 
-    const invitation = await coachA.post("/invitations").send({});
+    const invitation = await inviteFor(coachA, athleteA1);
     const accepted = await athleteA1
       .post("/invitations/accept")
       .send({ code: invitation.body.code });
@@ -3870,16 +3867,6 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
   let coachAId: string;
   let conversationId: string;
 
-  async function link(
-    coach: Agent,
-    athlete: Agent,
-  ): Promise<{ athleteId: string; coachId: string }> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return { athleteId: accepted.body.athleteId, coachId: accepted.body.coachId };
-  }
-
   beforeAll(async () => {
     coachA = await signUp("msg-coach-a@cmv.test", Role.COACH);
     athleteA1 = await signUp("msg-athlete-a1@cmv.test", Role.ATHLETE);
@@ -3887,7 +3874,7 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
     athleteB1 = await signUp("msg-athlete-b1@cmv.test", Role.ATHLETE);
     autonome = await signUp("msg-autonome@cmv.test", Role.ATHLETE);
 
-    const relation = await link(coachA, athleteA1);
+    const relation = await linkRelation(coachA, athleteA1);
     a1Id = relation.athleteId;
     coachAId = relation.coachId;
     await link(coachB, athleteB1);
@@ -4037,12 +4024,6 @@ describe("Messagerie : médias (P5)", () => {
     mimeType: "image/jpeg",
     size: 120_000,
   });
-
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    return accepted.body.athleteId;
-  }
 
   // Parcours réel : URL signée → PUT direct vers le storage → envoi du message.
   async function upload(agent: Agent, input: Record<string, unknown>): Promise<string> {
@@ -4275,12 +4256,6 @@ describe("Messagerie : rattachement séance / débrief (P5)", () => {
 
   const monday = mondayOfCurrentWeek();
 
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    return accepted.body.athleteId;
-  }
-
   // Crée un plan (publié ou non) avec une séance, renvoie l'id de la séance.
   async function sessionInPlan(
     athleteId: string,
@@ -4410,12 +4385,6 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
       feedbacks.find((feedback) => feedback.id === id),
       `débrief ${id} absent de la liste du coach`,
     );
-
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    return accepted.body.athleteId;
-  }
 
   // Un cycle diffusé avec une séance, débriefé par son athlète. Renvoie séance et débrief.
   async function debriefedSession(
@@ -4587,23 +4556,13 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
 
   const monday = mondayOfCurrentWeek();
 
-  async function link(
-    coach: Agent,
-    athlete: Agent,
-  ): Promise<{ athleteId: string; coachId: string }> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return { athleteId: accepted.body.athleteId, coachId: accepted.body.coachId };
-  }
-
   beforeAll(async () => {
     coachA = await signUp("inv-coach-a@cmv.test", Role.COACH);
     athleteA1 = await signUp("inv-athlete-a1@cmv.test", Role.ATHLETE);
     coachB = await signUp("inv-coach-b@cmv.test", Role.COACH);
     athleteB1 = await signUp("inv-athlete-b1@cmv.test", Role.ATHLETE);
 
-    const relation = await link(coachA, athleteA1);
+    const relation = await linkRelation(coachA, athleteA1);
     a1Id = relation.athleteId;
     coachAId = relation.coachId;
     await link(coachB, athleteB1);
@@ -4926,7 +4885,7 @@ describe("Justificatif de facture : remplacement et retrait", () => {
   beforeAll(async () => {
     coach = await signUp("doc-coach@cmv.test", Role.COACH);
     const athlete = await signUp("doc-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
     const plan = await coach
       .post("/plans")
@@ -5017,13 +4976,13 @@ describe("Centre de notifications (#48)", () => {
     coachB = await signUp("notif-coach-b@cmv.test", Role.COACH);
     athleteB1 = await signUp("notif-athlete-b1@cmv.test", Role.ATHLETE);
 
-    const invitation = await coachA.post("/invitations").send({});
+    const invitation = await inviteFor(coachA, athleteA1);
     const accepted = await athleteA1
       .post("/invitations/accept")
       .send({ code: invitation.body.code });
     a1Id = accepted.body.athleteId;
 
-    const invitationB = await coachB.post("/invitations").send({});
+    const invitationB = await inviteFor(coachB, athleteB1);
     await athleteB1.post("/invitations/accept").send({ code: invitationB.body.code });
 
     const plan = await coachA.post("/plans").send({
@@ -5045,7 +5004,9 @@ describe("Centre de notifications (#48)", () => {
   });
 
   it("la diffusion laisse deux traces chez l'athlète : le cycle et sa facture", async () => {
-    const list = await inbox(athleteA1);
+    // L'invitation qui a noué la relation est là aussi, puisqu'elle visait son adresse (#390) :
+    // elle ne vient pas de la diffusion, qui est seule mesurée ici.
+    const list = (await inbox(athleteA1)).filter((n) => n.type !== "INVITATION_RECEIVED");
     expect(list).toHaveLength(2);
 
     expect(list.find((n) => n.type === "PLAN_PUBLISHED")).toMatchObject({
@@ -5267,8 +5228,9 @@ describe("Centre de notifications (#48)", () => {
   });
 
   it("isolation : un tiers ne voit aucune notification des autres", async () => {
-    expect(await inbox(athleteB1)).toHaveLength(0);
-    expect(await unread(athleteB1)).toBe(0);
+    // L'athlète B a UNE entrée : l'invitation de son propre coach, qui visait son adresse (#390).
+    expect((await inbox(athleteB1)).map((n) => n.type)).toEqual(["INVITATION_RECEIVED"]);
+    expect(await unread(athleteB1)).toBe(1);
     // Le coach B a UNE entrée, et une seule : son propre athlète l'a rejoint (#146). Rien de ce
     // qui s'est passé chez A — c'est bien l'isolation qu'on mesure, pas une boîte vide.
     expect((await inbox(coachB)).map((n) => n.type)).toEqual(["INVITATION_ACCEPTED"]);
@@ -5305,7 +5267,7 @@ describe("Rappels du coach (#44)", () => {
     coachB = await signUp("rmd-coach-b@cmv.test", Role.COACH);
     athleteA1 = await signUp("rmd-athlete-a1@cmv.test", Role.ATHLETE);
 
-    const invitation = await coachA.post("/invitations").send({});
+    const invitation = await inviteFor(coachA, athleteA1);
     const accepted = await athleteA1
       .post("/invitations/accept")
       .send({ code: invitation.body.code });
@@ -5584,7 +5546,7 @@ describe("Rappels dus dans le centre de notifications (#51)", () => {
     coachD = await signUp("due-coach-d@cmv.test", Role.COACH);
     athleteC1 = await signUp("due-athlete-c1@cmv.test", Role.ATHLETE);
 
-    const invitation = await coachC.post("/invitations").send({});
+    const invitation = await inviteFor(coachC, athleteC1);
     const accepted = await athleteC1
       .post("/invitations/accept")
       .send({ code: invitation.body.code });
@@ -5769,7 +5731,7 @@ describe("Report d'échéance d'un rappel (#105)", () => {
     coachF = await signUp("snz-coach-f@cmv.test", Role.COACH);
     athleteE1 = await signUp("snz-athlete-e1@cmv.test", Role.ATHLETE);
 
-    const invitation = await coachE.post("/invitations").send({});
+    const invitation = await inviteFor(coachE, athleteE1);
     const accepted = await athleteE1
       .post("/invitations/accept")
       .send({ code: invitation.body.code });
@@ -5967,7 +5929,7 @@ describe("Génération automatique des rappels (#47)", () => {
     coachH = await signUp("tick-coach-h@cmv.test", Role.COACH);
     athleteG1 = await signUp("tick-athlete-g1@cmv.test", Role.ATHLETE);
 
-    const invitation = await coachG.post("/invitations").send({});
+    const invitation = await inviteFor(coachG, athleteG1);
     const accepted = await athleteG1
       .post("/invitations/accept")
       .send({ code: invitation.body.code });
@@ -6268,7 +6230,7 @@ describe("Payer ou annuler une facture clôt son rappel « en retard » (#349)",
   beforeAll(async () => {
     coachP = await signUp("paid-coach-p@cmv.test", Role.COACH);
     const athleteP1 = await signUp("paid-athlete-p1@cmv.test", Role.ATHLETE);
-    const invitation = await coachP.post("/invitations").send({});
+    const invitation = await inviteFor(coachP, athleteP1);
     const accepted = await athleteP1
       .post("/invitations/accept")
       .send({ code: invitation.body.code });
@@ -6373,13 +6335,6 @@ describe("Copie d'une semaine de planification (#4)", () => {
   const monday = mondayOfCurrentWeek();
   const otherMonday = shiftIsoDate(monday, 56) as string;
   const day = (offset: number) => shiftIsoDate(monday, offset) as string;
-
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
 
   // Le contenu d'une semaine, tel que le builder le lit.
   async function weekOf(coach: Agent, planId: string, weekId: string) {
@@ -6713,7 +6668,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
     coach = await signUp("coach-parity@cmv.test", Role.COACH);
     athlete = await signUp("athlete-parity@cmv.test", Role.ATHLETE);
 
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
     athleteId = accepted.body.athleteId;
   });
@@ -6797,7 +6752,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
    */
   it("ignore un athleteId ciblé par un athlète, au lieu de l'honorer", async () => {
     const other = await signUp("athlete-parity-2@cmv.test", Role.ATHLETE);
-    const otherInvitation = await coach.post("/invitations").send({});
+    const otherInvitation = await inviteFor(coach, other);
     const otherAccepted = await other
       .post("/invitations/accept")
       .send({ code: otherInvitation.body.code });
@@ -6820,13 +6775,6 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
   let dualId: string;
 
   const monday = mondayOfCurrentWeek();
-
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
 
   async function issueInvoice(coach: Agent, athleteId: string): Promise<void> {
     const plan = await coach.post("/plans").send({
@@ -6966,7 +6914,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     for (let i = 0; i + 1 < depth; i++) {
       const coach = required(agents[i], `coach ${i}`);
       const athlete = required(agents[i + 1], `athlète ${i + 1}`);
-      const invitation = await coach.post("/invitations").send({});
+      const invitation = await inviteFor(coach, athlete);
       const accepted = await athlete
         .post("/invitations/accept")
         .send({ code: invitation.body.code });
@@ -6992,7 +6940,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const c = required(agents[2], "maillon C");
     const a = required(agents[0], "maillon A");
 
-    const invitation = await c.post("/invitations").send({});
+    const invitation = await inviteFor(c, a);
     const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
 
     expect(res.status).toBe(409);
@@ -7004,7 +6952,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const b = required(agents[1], "maillon B");
     const a = required(agents[0], "maillon A");
 
-    const invitation = await b.post("/invitations").send({});
+    const invitation = await inviteFor(b, a);
     const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
 
     expect(res.status).toBe(409);
@@ -7017,7 +6965,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
   it("refuse à un compte à double capacité d'accepter sa propre invitation", async () => {
     const self = await signUpWith("cycle-self@cmv.test", { isCoach: true, isAthlete: true });
 
-    const invitation = await self.post("/invitations").send({});
+    const invitation = await inviteFor(self, self);
     const res = await self.post("/invitations/accept").send({ code: invitation.body.code });
 
     expect(res.status).toBe(409);
@@ -7049,7 +6997,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
 
     try {
       // La remontée depuis B : A, puis C, puis B de nouveau — sans jamais croiser l'invité.
-      const invitation = await b.post("/invitations").send({});
+      const invitation = await inviteFor(b, outsider);
       const res = await outsider.post("/invitations/accept").send({ code: invitation.body.code });
 
       expect(res.status).toBe(500);
@@ -7068,7 +7016,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const outsider = await signUp("cycle-outsider@cmv.test", Role.COACH);
     const a = required(agents[0], "maillon A");
 
-    const invitation = await outsider.post("/invitations").send({});
+    const invitation = await inviteFor(outsider, a);
     const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
 
     expect(res.status).toBe(201);
@@ -7122,7 +7070,7 @@ describe("Capacités modifiables après coup (#13)", () => {
   it("refuse de cesser de coacher avec des athlètes actifs (409)", async () => {
     const coach = await signUpWith("cap-busy-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("cap-busy-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     expect(
       (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
     ).toBe(201);
@@ -7140,7 +7088,7 @@ describe("Capacités modifiables après coup (#13)", () => {
       isAthlete: false,
     });
     const linked = await signUpWith("cap-linked@cmv.test", { isCoach: true, isAthlete: true });
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, linked);
     expect(
       (await linked.post("/invitations/accept").send({ code: invitation.body.code })).status,
     ).toBe(201);
@@ -7194,7 +7142,7 @@ describe("Capacités modifiables après coup (#13)", () => {
       isAthlete: false,
     });
     const athlete = await signUp("cap-bypass-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     expect(
       (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
     ).toBe(201);
@@ -7457,7 +7405,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
   it("garde sa fiche perso distincte de celle que son coach tient sur lui", async () => {
     const coach = await signUp("solo-sheet-coach@cmv.test", Role.COACH);
     const dual = await signUpWith("solo-sheet-dual@cmv.test", { isCoach: true, isAthlete: true });
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, dual);
     const accepted = await dual.post("/invitations/accept").send({ code: invitation.body.code });
     const dualId = accepted.body.athleteId;
 
@@ -7507,7 +7455,7 @@ describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
   it("voit la contrepartie apparaître de chaque côté quand la relation est nouée", async () => {
     const coach = await signUpWith("cp-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("cp-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     expect(
       (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
     ).toBe(201);
@@ -7538,7 +7486,7 @@ describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
   it("range la contrepartie du bon côté pour un compte qui cumule", async () => {
     const dual = await signUpWith("cp-dual@cmv.test", { isCoach: true, isAthlete: true });
     const athlete = await signUp("cp-dual-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await dual.post("/invitations").send({});
+    const invitation = await inviteFor(dual, athlete);
     expect(
       (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
     ).toBe(201);
@@ -7564,11 +7512,11 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     });
 
     // `dual` est l'athlète de `myCoach`…
-    const toDual = await myCoach.post("/invitations").send({});
+    const toDual = await inviteFor(myCoach, dual);
     const dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
       .athleteId;
     // … et le coach de `myAthlete`.
-    const toAthlete = await dual.post("/invitations").send({});
+    const toAthlete = await inviteFor(dual, myAthlete);
     const athleteId = (
       await myAthlete.post("/invitations/accept").send({ code: toAthlete.body.code })
     ).body.athleteId;
@@ -7607,11 +7555,12 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     const unread = await dual.get("/me/notifications/unread-count");
     expect(unread.status).toBe(200);
-    // Reçu en athlète : cycle diffusé + facture émise. Reçu en coach : `myAthlete` qui l'a
-    // rejoint (#146), puis son débrief. Les quatre se rangent des deux côtés sans se mélanger.
-    expect(unread.body.athlete).toBe(2);
+    // Reçu en athlète : l'invitation de `myCoach` (#390), le cycle diffusé, la facture émise. Reçu
+    // en coach : `myAthlete` qui l'a rejoint (#146), puis son débrief. Les cinq se rangent des
+    // deux côtés sans se mélanger.
+    expect(unread.body.athlete).toBe(3);
     expect(unread.body.coach).toBe(2);
-    expect(unread.body.count).toBe(4);
+    expect(unread.body.count).toBe(5);
   });
 
   /**
@@ -7622,7 +7571,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
   it("ventile les messages non lus d'un compte à double capacité", async () => {
     const dual = await signUpWith("vent-msg-dual@cmv.test", { isCoach: true, isAthlete: true });
     const myAthlete = await signUp("vent-msg-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await dual.post("/invitations").send({});
+    const invitation = await inviteFor(dual, myAthlete);
     expect(
       (await myAthlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
     ).toBe(201);
@@ -7653,7 +7602,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
       isAthlete: false,
     });
     const athlete = await signUp("vent-solo-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const id = (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).body
       .athleteId;
 
@@ -7665,8 +7614,9 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     });
     expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
 
+    // L'invitation reçue (#390), le cycle, la facture : tout côté athlète.
     const unread = await athlete.get("/me/notifications/unread-count");
-    expect(unread.body).toMatchObject({ coach: 0, athlete: 2, count: 2 });
+    expect(unread.body).toMatchObject({ coach: 0, athlete: 3, count: 3 });
 
     // Et l'autre moitié : un message reçu par un coach SANS capacité athlète reste côté coach,
     // sans qu'on ait à demander aux fils de quel côté il le tient.
@@ -7714,16 +7664,16 @@ describe("Isolation multi-capacité (#18)", () => {
     strangerAthlete = await signUp("iso-stranger-athlete@cmv.test", Role.ATHLETE);
 
     // `dual` est coaché par `hisCoach`, et coache `hisAthlete`.
-    const toDual = await hisCoach.post("/invitations").send({});
+    const toDual = await inviteFor(hisCoach, dual);
     dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
       .athleteId;
-    const toHisAthlete = await dual.post("/invitations").send({});
+    const toHisAthlete = await inviteFor(dual, hisAthlete);
     hisAthleteId = (
       await hisAthlete.post("/invitations/accept").send({ code: toHisAthlete.body.code })
     ).body.athleteId;
 
     // Un tenant étranger, complet : sa bibliothèque, son athlète, son cycle diffusé.
-    const toStrangerAthlete = await stranger.post("/invitations").send({});
+    const toStrangerAthlete = await inviteFor(stranger, strangerAthlete);
     const strangerAthleteId = (
       await strangerAthlete.post("/invitations/accept").send({ code: toStrangerAthlete.body.code })
     ).body.athleteId;
@@ -7814,7 +7764,7 @@ describe("Isolation multi-capacité (#18)", () => {
    * lui-même. Cumuler ne permet pas de se rattacher à un second.
    */
   it("ne laisse pas un compte à double capacité rejoindre un second coach", async () => {
-    const invitation = await stranger.post("/invitations").send({});
+    const invitation = await inviteFor(stranger, dual);
     const res = await dual.post("/invitations/accept").send({ code: invitation.body.code });
     expect(res.status).toBe(409);
   });
@@ -7855,7 +7805,7 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
     athlete = await signUp(ATHLETE, Role.ATHLETE);
     otherAthlete = await signUp(OTHER, Role.ATHLETE);
 
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
     athleteId = accepted.body.athleteId;
   });
@@ -8154,7 +8104,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     });
     const athlete = await signUp("fm-linked@cmv.test", Role.ATHLETE);
 
-    const join = await first.post("/invitations").send({});
+    const join = await inviteFor(first, athlete);
     await athlete.post("/invitations/accept").send({ code: join.body.code });
 
     const secondInvitation = await second.post("/invitations").send({
@@ -8425,7 +8375,7 @@ describe("Effacer une invitation refusée (#146)", () => {
       isCoach: true,
       isAthlete: false,
     });
-    const pending = await coach.post("/invitations").send({});
+    const pending = await coach.post("/invitations").send({ email: "rm-pending@cmv.test" });
 
     expect((await coach.delete(`/invitations/${pending.body.id}`)).status).toBe(409);
     expect((await coach.get("/invitations")).body).toHaveLength(1);
@@ -8435,7 +8385,7 @@ describe("Effacer une invitation refusée (#146)", () => {
   it("refuse d'effacer une invitation acceptée", async () => {
     const coach = await signUpWith("rm-taken-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("rm-taken-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     await athlete.post("/invitations/accept").send({ code: invitation.body.code });
 
     expect((await coach.delete(`/invitations/${invitation.body.id}`)).status).toBe(409);
@@ -8502,7 +8452,7 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
   it("recolle les rangs après une suppression, et le jour reste ajoutable", async () => {
     const coach = await signUpWith("gap-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("gap-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const athleteId = (
       await athlete.post("/invitations/accept").send({ code: invitation.body.code })
     ).body.athleteId;
@@ -8529,7 +8479,7 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
   it("recolle le jour quitté quand une séance change de date", async () => {
     const coach = await signUpWith("move-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("move-athlete@cmv.test", Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const athleteId = (
       await athlete.post("/invitations/accept").send({ code: invitation.body.code })
     ).body.athleteId;
@@ -8577,7 +8527,7 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
   async function dayOf(slug: string, count: number): Promise<Day> {
     const coach = await signUpWith(`${slug}-coach@cmv.test`, { isCoach: true, isAthlete: false });
     const athlete = await signUp(`${slug}-athlete@cmv.test`, Role.ATHLETE);
-    const invitation = await coach.post("/invitations").send({});
+    const invitation = await inviteFor(coach, athlete);
     const athleteId = (
       await athlete.post("/invitations/accept").send({ code: invitation.body.code })
     ).body.athleteId;
@@ -8860,13 +8810,6 @@ describe("Les cycles diffusés s'accumulent chez l'athlète (#172)", () => {
     return date;
   };
 
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
-
   /**
    * Un cycle garni d'une séance, pour que la lecture athlète porte sur autre chose qu'un en-tête.
    * Le nombre de semaines décide de l'ÉPOQUE autant que la date de début : un cycle d'une semaine
@@ -9009,13 +8952,6 @@ describe("Rattacher la clé objet d'un autre tenant (#293)", () => {
   // Le rattachement d'un document d'exercice ne porte pas de taille (#317) : schéma strict.
   const pdfDocument = { type: "FILE", fileName: pdf.fileName, mimeType: pdf.mimeType };
   const photo = { type: "IMAGE", fileName: "voie.jpg", mimeType: "image/jpeg", size: 2_000 };
-
-  async function link(coach: Agent, athlete: Agent): Promise<string> {
-    const invitation = await coach.post("/invitations").send({});
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(accepted.status).toBe(201);
-    return accepted.body.athleteId;
-  }
 
   async function put(uploadUrl: string, mimeType: string, size: number): Promise<void> {
     const res = await fetch(uploadUrl, {
