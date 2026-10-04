@@ -13,7 +13,7 @@ import { FeedbackAnnouncerService } from "../../message/service/feedback-announc
 import { MessageAttachmentResolver } from "../../message/service/message-attachment.resolver";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
-import type { TenantPrisma } from "../../tenancy/tenancy.extension";
+import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import {
   FEEDBACK_DETAIL_INCLUDE,
@@ -125,17 +125,23 @@ export class FeedbackService {
    *
    * `null` remet l'exercice en NON SUIVI — c'est une intention, pas une absence : l'athlète peut
    * revenir sur un décompte qu'il a posé par erreur.
+   *
+   * Une seule transaction (#297) : le suivi d'une séance arrive d'un bloc, et s'écrit d'un bloc —
+   * jamais la moitié des exercices. Le nombre de clés est borné par le schéma, et chacune a déjà
+   * été reconnue par `assertTrackedExercisesKnown`, en une seule lecture.
    */
   private async writeTracking(
     scheduledSessionId: string,
     tracking: FeedbackTracking,
   ): Promise<void> {
-    for (const [exerciseId, state] of Object.entries(tracking)) {
-      await this.db.scheduledSessionExercise.updateMany({
-        where: { id: exerciseId, scheduledSessionId },
-        data: { tracking: state == null ? Prisma.DbNull : (state as Prisma.InputJsonValue) },
-      });
-    }
+    await this.db.$transaction(async (tx: TenantTx) => {
+      for (const [exerciseId, state] of Object.entries(tracking)) {
+        await tx.scheduledSessionExercise.updateMany({
+          where: { id: exerciseId, scheduledSessionId },
+          data: { tracking: state == null ? Prisma.DbNull : (state as Prisma.InputJsonValue) },
+        });
+      }
+    });
   }
 
   /**
