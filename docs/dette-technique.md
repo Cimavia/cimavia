@@ -4711,6 +4711,34 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Bornes des compositions et du suivi ([#297](https://github.com/Cimavia/cimavia/issues/297))
+
+> **Tranché en #297** (50 exercices, et le serveur seul le dit) : `SESSION_MAX_EXERCISES` borne les
+> séances modèles comme planifiées, et par ricochet le suivi d'un débrief. C'est un garde-fou sur
+> ce qu'un Coach fait vraiment, pas sur ce que la machine tient — le seuil d'OOM n'a pas été
+> mesuré. Comme `PLAN_MAX_WEEKS`, aucun constructeur ne ferme l'ajout au plafond : personne ne
+> l'atteint, et le 400 nomme la borne. Le corps de requête est plafonné à 1 Mio **par écrit**
+> (`API_BODY_LIMIT_BYTES`), sur l'adaptateur que `main.ts` et les e2e partagent.
+>
+> **Tranché en #297** (le suivi se borne par l'EMOM, pas par les lignes) : la revue proposait
+> `checked ≤ BLOCK_MAX_ROWS`. Un EMOM donne une case par top — 24 h à 5 s, 17 280 cases — et ce
+> plafond aurait refusé le suivi d'un EMOM d'une heure. `BLOCK_MAX_TRACKING_UNITS` prend le plus
+> grand des plafonds d'unités. Une case cochée deux fois est **refusée** : elle se comptait deux
+> fois (« 6 sur 4 »), et aucun client ne l'envoie.
+>
+> **Tranché en #297** (l'entrée est bornée, la relecture non) : les plafonds du suivi vivent sur
+> `exerciseTrackingInputSchema`, pas sur `exerciseTrackingSchema`, qui relit ce qui est stocké. Un
+> suivi enregistré avant la borne et qui la dépasse ferait sinon échouer en 500 la lecture de toute
+> la séance, pour le coach comme pour l'athlète.
+>
+> **Tranché en #297** (refuser plutôt que filtrer) : l'issue demandait de « n'écrire que les clés
+> qui correspondent à un exercice de la séance ». #311 avait déjà choisi le **refus** en 400 : un
+> filtre silencieux laissait le client vider un suivi qui n'avait atterri nulle part. Le filtre vit
+> côté client (`trackingOfExercises`), désormais aussi pour les **blocs** retirés : sans lui, une
+> clé morte suffisait à dépasser le plafond de blocs, et l'athlète restait bloqué à chaque envoi.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.
