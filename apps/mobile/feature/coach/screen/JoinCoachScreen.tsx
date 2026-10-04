@@ -1,16 +1,15 @@
 import type { CoachAthleteDto } from "@cmv/shared";
 import { router } from "expo-router";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollView, View } from "react-native";
 import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
-import { useAcceptInvitation, useMyCoach, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
+import { useMyCoach, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
-import { CmvTextField } from "@/shared/component/CmvTextField";
-import { apiErrorMessage } from "@/shared/lib/api";
+import { authClient } from "@/shared/lib/auth";
 
 /**
- * Rejoindre son coach par code d'invitation (p4-5).
+ * Rejoindre son coach (p4-5) — depuis la carte de son invitation, seul chemin depuis #390 : il n'y
+ * a plus de code à saisir, une invitation vise une adresse et n'apparaît qu'au compte qui la porte.
  *
  * Sans cet écran, la relation coach↔athlète ne pouvait s'établir qu'en appelant l'API à la main :
  * l'athlète restait sans coach, donc sans planification ni séance à débriefer.
@@ -26,8 +25,8 @@ export function JoinCoachScreen() {
     <CmvScreen>
       <ScrollView contentContainerClassName="gap-6 p-4">
         <PendingInvitations currentCoachName={coach?.coachName ?? null} />
-        {/* Déjà lié : un athlète n'a qu'un coach (invariant multi-tenant). Rien à saisir ici. */}
-        {coach == null ? <JoinCoachForm /> : <LinkedCoachBlock coach={coach} />}
+        {/* Déjà lié : un athlète n'a qu'un coach (invariant multi-tenant). */}
+        {coach == null ? <NoCoachBlock /> : <LinkedCoachBlock coach={coach} />}
       </ScrollView>
     </CmvScreen>
   );
@@ -39,7 +38,7 @@ export function JoinCoachScreen() {
  * **Une requête en échec ne s'annonce pas comme une liste vide** : dans les deux cas on ne rend
  * rien, mais on n'écrit jamais « aucune invitation » sur une API injoignable. L'absence
  * d'invitation est le cas ORDINAIRE, et un bandeau d'erreur pour ça inquiéterait sans rien
- * apprendre — le formulaire de code, lui, reste dessous et reste le chemin qui marche.
+ * apprendre.
  */
 function PendingInvitations({ currentCoachName }: Readonly<{ currentCoachName: string | null }>) {
   const { data: invitations } = useMyInvitations();
@@ -77,44 +76,30 @@ function LinkedCoachBlock({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   );
 }
 
-// L'athlète n'a pas de coach : on lui demande le code que le sien lui a communiqué. Il reste le
-// chemin des invitations GÉNÉRIQUES, que la liste ci-dessus n'annonce jamais.
-function JoinCoachForm() {
+/**
+ * L'athlète n'a pas de coach : on lui dit à quelle adresse son coach doit l'inviter (#390).
+ *
+ * C'est le seul recours qui reste à une invitation partie vers une autre adresse : sans code à
+ * saisir, un compte créé avec une autre adresse ne verrait jamais la carte, et rien ne lui dirait
+ * pourquoi. L'adresse affichée est celle qu'il peut donner à son coach.
+ */
+function NoCoachBlock() {
   const { t } = useTranslation();
-  const accept = useAcceptInvitation();
-  const [code, setCode] = useState("");
+  const { data: session } = authClient.useSession();
 
   return (
-    <View className="gap-6">
+    <View className="gap-4">
       <View className="gap-1">
         <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
           {t("coach.join.title")}
         </CmvText>
         <CmvText className="text-cmv-text-mid text-sm">{t("coach.join.description")}</CmvText>
       </View>
-
-      <CmvTextField
-        label={t("coach.join.codeLabel")}
-        placeholder={t("coach.join.codePlaceholder")}
-        value={code}
-        onChangeText={setCode}
-        // Un code se saisit tel quel : ni majuscule automatique, ni correction.
-        autoCapitalize="none"
-        autoComplete="off"
-        editable={!accept.isPending}
-      />
-
-      <CmvButton
-        label={accept.isPending ? t("coach.join.joining") : t("coach.join.submit")}
-        onPress={() => accept.mutate({ code: code.trim() })}
-        disabled={accept.isPending || code.trim().length === 0}
-      />
-
-      {accept.isError ? (
-        <CmvText className="text-cmv-error text-sm">
-          {apiErrorMessage(accept.error) ?? t("coach.join.error")}
-        </CmvText>
-      ) : null}
+      <View className="gap-1">
+        <CmvText className="text-cmv-text-lo text-xs">{t("coach.join.address")}</CmvText>
+        {/* Session pas encore lue : « — » plutôt qu'un blanc (règle dure n°5). */}
+        <CmvText className="text-cmv-text-hi">{session?.user.email ?? "—"}</CmvText>
+      </View>
     </View>
   );
 }

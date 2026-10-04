@@ -1,69 +1,87 @@
-import { InvitationStatus } from "@cmv/shared";
+import { InvitationStatus, invitationEmailOf } from "@cmv/shared";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Share, View } from "react-native";
+import { View } from "react-native";
 import { useCreateInvitation, useInvitations } from "@/feature/athlete";
 import { CmvButton, CmvText } from "@/shared/component";
+import { CmvTextField } from "@/shared/component/CmvTextField";
+import { apiErrorMessage } from "@/shared/lib/api";
+import { formatDateTime } from "@/shared/util/date.util";
 
 /**
- * Invitation d'un athlète : le coach émet un code, l'athlète le saisit dans « Mon coach ».
+ * Invitation d'un athlète : le coach saisit une adresse, et l'invitation n'apparaît qu'au compte
+ * qui la porte (#390).
  *
- * Un seul code affiché — le plus récent encore en attente — et non la liste complète du web : sur
- * un téléphone, ce qu'on veut c'est **transmettre le code là, maintenant**, pas administrer un
- * historique. Le suivi des invitations reste sur le web.
+ * Il n'y a plus de code à transmettre — ni à partager, ni à copier : c'est l'adresse de la session
+ * qui fait le verrou, et l'athlète accepte depuis la carte qui l'attend. Le mobile ne savait
+ * émettre que des invitations génériques, inutilisables depuis que preview n'accepte plus
+ * d'inscription sans adresse invitée (#263).
  *
- * Le partage passe par `Share` (React Native), pas par le presse-papier : `expo-clipboard` n'est
- * pas une dépendance du projet, et partager couvre le cas réel (SMS, WhatsApp) mieux qu'un copier
- * qui oblige à changer d'app à la main. « Copier le code » de la maquette attend donc cette
- * dépendance — écart assumé, pas un oubli.
+ * La liste est celle du web pour les invitations EN ATTENTE, adresse affichée : c'est la seule
+ * preuve que le geste a porté, le mobile n'ayant pas de toasts. Les refusées restent au web.
  */
 export function InvitationSection() {
   const { t } = useTranslation();
   const { data: invitations } = useInvitations();
   const create = useCreateInvitation();
+  const [email, setEmail] = useState("");
 
-  // L'API rend les invitations les plus récentes d'abord : la première en attente est la bonne.
-  const pending = (invitations ?? []).find(
+  // `null` tant que la saisie n'est pas une adresse : le bouton reste fermé, et l'API ne voit
+  // jamais partir ce qu'elle refuserait d'un message de validation brut (#319).
+  const target = invitationEmailOf(email);
+  const pending = (invitations ?? []).filter(
     (invitation) => invitation.status === InvitationStatus.PENDING,
   );
 
   return (
     <View className="gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-4">
       <CmvText className="text-cmv-text-mid text-xs uppercase">{t("athlete.invite.title")}</CmvText>
+      <CmvText className="text-cmv-text-lo text-sm">{t("athlete.invite.description")}</CmvText>
 
-      {pending == null ? (
-        <CmvText className="text-cmv-text-lo text-sm">{t("athlete.invite.description")}</CmvText>
-      ) : (
-        <View className="gap-1">
-          <CmvText className="font-cmv-display text-2xl text-cmv-text-hi tracking-widest">
-            {pending.code}
-          </CmvText>
-          <CmvText className="text-cmv-text-lo text-xs">{t("athlete.invite.pending")}</CmvText>
-        </View>
-      )}
+      <CmvTextField
+        label={t("athlete.invite.emailLabel")}
+        placeholder={t("athlete.invite.emailPlaceholder")}
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        editable={!create.isPending}
+      />
 
-      <View className="flex-row gap-3">
-        <View className="flex-1">
-          <CmvButton
-            label={create.isPending ? t("athlete.invite.creating") : t("athlete.invite.action")}
-            onPress={() => create.mutate({})}
-            disabled={create.isPending}
-          />
-        </View>
-        {pending == null ? null : (
-          <View className="flex-1">
-            <CmvButton
-              label={t("athlete.invite.share")}
-              onPress={() => {
-                void Share.share({ message: t("athlete.invite.message", { code: pending.code }) });
-              }}
-            />
-          </View>
-        )}
-      </View>
+      <CmvButton
+        label={create.isPending ? t("athlete.invite.creating") : t("athlete.invite.action")}
+        onPress={() => {
+          if (target == null) return;
+          // Le champ ne se vide qu'au succès : un échec laisse l'adresse à corriger, pas à retaper.
+          create.mutate({ email: target }, { onSuccess: () => setEmail("") });
+        }}
+        disabled={target == null || create.isPending}
+      />
 
       {create.isError ? (
-        <CmvText className="text-cmv-error text-sm">{t("athlete.invite.error")}</CmvText>
+        <CmvText className="text-cmv-error text-sm">
+          {apiErrorMessage(create.error) ?? t("athlete.invite.error")}
+        </CmvText>
       ) : null}
+
+      {pending.length === 0 ? null : (
+        <View className="gap-2">
+          <CmvText className="text-cmv-text-mid text-xs uppercase">
+            {t("athlete.invite.pending")}
+          </CmvText>
+          {pending.map((invitation) => (
+            <View key={invitation.id} className="gap-1 border-cmv-border border-t pt-2">
+              {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. Une
+                  ancienne invitation sans adresse reste lisible (règle dure n°5). */}
+              <CmvText className="text-cmv-text-hi">{invitation.email ?? "—"}</CmvText>
+              <CmvText className="text-cmv-text-lo text-xs">
+                {t("athlete.invite.expires", { date: formatDateTime(invitation.expiresAt) })}
+              </CmvText>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import type { PendingInvitationDto } from "@cmv/shared";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JoinCoachScreen } from "@/feature/coach/screen/JoinCoachScreen";
@@ -20,6 +20,13 @@ vi.mock("@/feature/coach/api", async (importOriginal) => {
 });
 
 vi.mock("expo-router", () => ({ router: { replace: vi.fn() } }));
+
+const session = vi.hoisted(() => ({
+  current: { user: { id: "ath_1", email: "lea@exemple.fr" } } as unknown,
+}));
+vi.mock("@/shared/lib/auth", () => ({
+  authClient: { useSession: () => ({ data: session.current }) },
+}));
 
 const { accountApi } = await import("@/feature/coach/api");
 const myCoach = vi.mocked(accountApi.myCoach);
@@ -48,6 +55,7 @@ const RELATION = {
 } as Awaited<ReturnType<typeof accountApi.acceptInvitation>>;
 
 beforeEach(() => {
+  session.current = { user: { id: "ath_1", email: "lea@exemple.fr" } };
   myCoach.mockResolvedValue(null);
   myInvitations.mockResolvedValue([]);
   acceptInvitation.mockResolvedValue(RELATION);
@@ -55,17 +63,16 @@ beforeEach(() => {
 });
 
 describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
-  it("annonce l'invitation au-dessus du formulaire de code, sans le remplacer", async () => {
+  // Plus de code à saisir (#390) : la carte est le seul chemin pour rejoindre.
+  it("annonce l'invitation, sans plus rien proposer à saisir", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
-    renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<JoinCoachScreen />);
 
     expect(await screen.findByText("coach.invitation.title")).toBeTruthy();
-    // Le formulaire reste : il est le chemin des invitations GÉNÉRIQUES, que la liste n'annonce
-    // jamais. Le remplacer fermerait ce chemin à qui a reçu son code de la main à la main.
-    expect(screen.getByText("coach.join.codeLabel")).toBeTruthy();
+    expect(container.querySelector("input")).toBeNull();
   });
 
-  it("reprend le code de la liste pour rejoindre, sans rien faire recopier", async () => {
+  it("rejoint depuis la carte, sans rien faire recopier", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
     const { container } = renderRn(<JoinCoachScreen />);
     await screen.findByText("coach.invitation.title");
@@ -103,8 +110,8 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
 
     expect(await screen.findByText("coach.invitation.title")).toBeTruthy();
     expect(screen.getByText("coach.invitation.blocked")).toBeTruthy();
-    // Le formulaire de code, lui, a disparu : l'athlète est lié, il n'a rien à saisir.
-    expect(screen.queryByText("coach.join.codeLabel")).toBeNull();
+    // L'adresse où l'inviter, elle, n'a rien à faire ici : l'athlète est lié.
+    expect(screen.queryByText("coach.join.address")).toBeNull();
 
     /**
      * « Rejoindre » est fermé, « Refuser » reste ouvert. L'armement du second sert ici de POINT
@@ -124,11 +131,11 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
   it.each<[string, () => Promise<PendingInvitationDto[]>]>([
     ["une liste vide", () => Promise.resolve([])],
     ["une requête en échec", () => Promise.reject(new Error("réseau"))],
-  ])("n'annonce rien sur %s, et laisse le formulaire de code", async (_case, response) => {
+  ])("n'annonce rien sur %s, et dit seulement l'absence de coach", async (_case, response) => {
     myInvitations.mockImplementation(response);
     renderRn(<JoinCoachScreen />);
 
-    expect(await screen.findByText("coach.join.codeLabel")).toBeTruthy();
+    expect(await screen.findByText("coach.join.title")).toBeTruthy();
     expect(screen.queryByText("coach.invitation.decline")).toBeNull();
   });
 });
@@ -198,57 +205,26 @@ describe("JoinCoachScreen — l'invitation, pendant et après", () => {
   });
 });
 
-describe("JoinCoachScreen — le code saisi", () => {
-  const codeField = (container: HTMLElement) => {
-    const input = container.querySelector("input");
-    if (input == null) throw new Error("champ introuvable");
-    return input;
-  };
-
-  it("rejoint avec le code nettoyé de ses blancs", async () => {
+describe("JoinCoachScreen — sans coach, puis lié", () => {
+  /**
+   * Sans code à saisir (#390), une invitation partie vers une autre adresse ne s'afficherait
+   * jamais, et rien ne dirait pourquoi. L'adresse du compte est le seul recours : c'est elle que
+   * l'athlète donne à son coach.
+   */
+  it("dit l'adresse à laquelle le coach doit inviter, sans rien proposer à saisir", async () => {
     const { container } = renderRn(<JoinCoachScreen />);
-    await screen.findByText("coach.join.codeLabel");
 
-    fireEvent.change(codeField(container), { target: { value: "  7QK4M2XZ9 " } });
-    pressButton(container, "coach.join.submit");
-
-    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
+    expect(await screen.findByText("coach.join.address")).toBeTruthy();
+    expect(screen.getByText("lea@exemple.fr")).toBeTruthy();
+    expect(container.querySelector("input")).toBeNull();
   });
 
-  it("n'envoie rien tant que le code est blanc", async () => {
-    const { container } = renderRn(<JoinCoachScreen />);
-    await screen.findByText("coach.join.codeLabel");
+  // Session pas encore lue : « — » plutôt qu'un blanc (règle dure n°5).
+  it("rend « — » tant que l'adresse n'est pas connue", async () => {
+    session.current = null;
+    renderRn(<JoinCoachScreen />);
 
-    fireEvent.change(codeField(container), { target: { value: "   " } });
-    pressButton(container, "coach.join.submit");
-
-    expect(acceptInvitation).not.toHaveBeenCalled();
-  });
-
-  it("dit l'envoi en cours et fige la saisie", async () => {
-    acceptInvitation.mockReturnValue(new Promise(() => undefined));
-    const { container } = renderRn(<JoinCoachScreen />);
-    await screen.findByText("coach.join.codeLabel");
-    fireEvent.change(codeField(container), { target: { value: "7QK4M2XZ9" } });
-
-    pressButton(container, "coach.join.submit");
-
-    expect(await screen.findByText("coach.join.joining")).toBeTruthy();
-    expect(codeField(container).readOnly).toBe(true);
-  });
-
-  it.each([
-    ["tel que l'API l'a formulé", new ApiError(404, "Code inconnu", null), "Code inconnu"],
-    ["par le message générique sans formulation", new Error("réseau"), "coach.join.error"],
-  ])("dit un code refusé %s", async (_, failure, message) => {
-    acceptInvitation.mockRejectedValue(failure);
-    const { container } = renderRn(<JoinCoachScreen />);
-    await screen.findByText("coach.join.codeLabel");
-    fireEvent.change(codeField(container), { target: { value: "7QK4M2XZ9" } });
-
-    pressButton(container, "coach.join.submit");
-
-    expect(await screen.findByText(message)).toBeTruthy();
+    expect(await screen.findByText("—")).toBeTruthy();
   });
 
   /** Lié, l'athlète n'a plus rien à saisir : l'écran l'envoie vers ses séances. */

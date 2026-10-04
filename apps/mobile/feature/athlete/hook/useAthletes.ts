@@ -24,8 +24,7 @@ export function useInvitations() {
 }
 
 /**
- * Émet une invitation. Corps vide = code générique, acceptable par n'importe quel athlète non
- * encore lié — c'est le cas d'usage du mobile, où l'on transmet le code de vive voix.
+ * Émet une invitation vers une adresse : elle n'apparaîtra qu'au compte qui la porte (#390).
  */
 export function useCreateInvitation() {
   const queryClient = useQueryClient();
