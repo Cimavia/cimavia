@@ -1,6 +1,7 @@
 import type { BlockTrackingState, ExerciseTracking } from "../dto/exercise-block.schema";
 import type { FeedbackTracking } from "../dto/feedback.schema";
 import type { ScheduledSessionDto } from "../dto/plan.schema";
+import { sameJson } from "./same-json.util";
 
 /** Le suivi de TOUTE une séance, indexé par identifiant d'exercice diffusé. */
 export type SessionTracking = Record<string, ExerciseTracking | null>;
@@ -184,23 +185,5 @@ export function withSentTracking(
  * une modification, sinon « Enregistrer » resterait actif sur un débrief déjà envoyé.
  */
 export function sameTracking(a: SessionTracking, b: SessionTracking): boolean {
-  return canonical(a) === canonical(b);
-}
-
-/**
- * Ce qu'un suivi contient : du JSON — les schémas du suivi n'ont aucun champ optionnel. Typé
- * ainsi plutôt qu'`unknown`, une feuille est forcément un scalaire que `JSON.stringify` sait
- * écrire, et aucun `undefined` n'est à rattraper (#512).
- */
-type Json = string | number | boolean | null | readonly Json[] | { readonly [key: string]: Json };
-
-function canonical(value: Json): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value != null && typeof value === "object") {
-    const fields = Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${key}:${canonical(item)}`);
-    return `{${fields.join(",")}}`;
-  }
-  return JSON.stringify(value);
+  return sameJson(a, b);
 }

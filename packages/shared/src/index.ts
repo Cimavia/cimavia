@@ -711,6 +711,12 @@ export {
   visibleInvoiceAthleteRows,
 } from "./util/invoice-row.util";
 export type {
+  ExerciseFields,
+  SessionFields,
+  SessionLineFields,
+} from "./util/library-input.util";
+export { toExerciseInput, toSessionInput } from "./util/library-input.util";
+export type {
   MediaBatch,
   MediaBatchStep,
   MediaRecapLine,
@@ -831,6 +837,7 @@ export {
   snoozedDueAt,
   toReminderFeedId,
 } from "./util/reminder.util";
+export { sameJson } from "./util/same-json.util";
 export { comparableText } from "./util/search.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
