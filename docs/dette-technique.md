@@ -2420,6 +2420,29 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > écarte l'entrée dans les deux listes de fils — **là et nulle part ailleurs** : elle reste sur
 > `GET /athletes`, dont le tableau de bord et le constructeur de cycle dépendent.
 
+> **Corrige à nouveau le journal, tranché en [#316](https://github.com/Cimavia/cimavia/issues/316)**
+> (le fil avec soi-même existait bel et bien) : l'encadré ci-dessus tient l'API pour fermée en
+> solo. Elle l'était pour `open`, pas pour l'avis de débrief (#96), qui passe par
+> `ConversationService.ensure` sans relation à résoudre. Chaque débrief auto-coaché ouvrait donc un
+> fil (soi, soi) et y posait un avis signé de l'athlète — c'est-à-dire du coach : la boîte de
+> réception l'affichait « Répondu », alors que personne n'avait répondu.
+>
+> Trois verrous, du plus près au plus loin :
+>
+> - `FeedbackAnnouncerService.announce` sort quand `coachId === athleteId` — il n'y a personne à
+>   prévenir ;
+> - « Répondu » ne lit plus les avis (`FEEDBACK_EVENT_MESSAGE_TYPES`) : un événement du serveur
+>   n'est pas une réponse, quel qu'en soit l'auteur ;
+> - le CHECK `conversation_not_self` rejoint `coach_athlete_not_self` (#11), même raison et même
+>   partage : le service refuse avec un message, la table SURVIT au chemin qui oublierait la garde.
+>   Comme lui, il ne se lit que dans sa migration.
+>
+> La migration **purge** les fils (soi, soi) déjà posés — preview compris —, leurs avis partant en
+> cascade. Elle s'**arrête** au lieu de purger si l'un d'eux contient un message écrit par un
+> humain : aucune route ne le permet, mais effacer une donnée réelle et orpheliner ses médias dans
+> le stockage serait le pire des deux échecs. Mesuré sur la base e2e : fil fantôme purgé, message
+> écrit → migration refusée, insertion directe d'un fil (soi, soi) → refusée par le CHECK.
+
 ---
 
 ## Post-MVP — Édition de l'en-tête d'un cycle ([#207](https://github.com/Cimavia/cimavia/issues/207))

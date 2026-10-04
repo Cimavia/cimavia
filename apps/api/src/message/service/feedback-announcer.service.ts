@@ -46,6 +46,11 @@ export class FeedbackAnnouncerService {
    * perdu — l'avis qu'il a pointe déjà l'état courant.
    */
   async announce(feedback: SessionFeedback): Promise<void> {
+    // Auto-coaching (#316) : le débrief est le sien, il n'y a personne à prévenir. Sans cette
+    // sortie, `ensure` ouvrait un fil avec soi-même, et l'avis — signé de l'athlète, donc aussi du
+    // coach — faisait passer le débrief pour « Répondu ».
+    if (feedback.coachId === feedback.athleteId) return;
+
     try {
       const events = await this.db.message.findMany({
         where: {
