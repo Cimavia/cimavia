@@ -8,13 +8,20 @@ import {
   exerciseDocumentDtoSchema,
   exerciseTagsSchema,
 } from "./exercise.schema";
-import { exerciseBlocksSchema, exerciseTrackingSchema } from "./exercise-block.schema";
+import {
+  BLOCK_MAX_METRICS,
+  EXERCISE_MAX_BLOCKS,
+  exerciseBlocksSchema,
+  exerciseTrackingSchema,
+} from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 import {
+  SESSION_MAX_EXERCISES,
   SESSION_NOTE_MAX_LENGTH,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
+  SESSION_TOO_MANY_EXERCISES_MESSAGE,
 } from "./session.schema";
 
 export const PLAN_TITLE_MAX_LENGTH = 200;
@@ -23,6 +30,11 @@ export const PLAN_WEEK_NOTE_MAX_LENGTH = 1000;
 // Le nombre de semaines est LIBRE (CDC §5.4) ; ce plafond n'est qu'un garde-fou (un cycle
 // d'entraînement ne dure pas 10 ans) qui borne aussi le coût d'une création de plan.
 export const PLAN_MAX_WEEKS = 52;
+/**
+ * Les métriques maison qu'un exercice diffusé peut embarquer : au plus une par colonne de chacun
+ * de ses blocs, puisque le snapshot ne copie que celles que ses blocs citent (#297).
+ */
+export const SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS = EXERCISE_MAX_BLOCKS * BLOCK_MAX_METRICS;
 
 // Cycle de vie d'une planification. DRAFT : en construction, invisible de l'athlète.
 // PUBLISHED : diffusée → l'athlète la voit, notification envoyée. Pas de retour arrière en MVP.
@@ -147,7 +159,13 @@ export const scheduledSessionExerciseInputSchema = z
     // Copiés de l'exercice source au moment de la diffusion, comme les documents et les tags.
     instructions: richDocumentSchema.nullable().optional(),
     blocks: exerciseBlocksSchema.optional(),
-    customMetrics: z.array(customMetricSchema).optional(),
+    customMetrics: z
+      .array(customMetricSchema)
+      .max(
+        SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
+        `Un exercice ne peut pas embarquer plus de ${SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS} métriques maison.`,
+      )
+      .optional(),
     tags: exerciseTagsSchema.optional(),
     note: z.string().max(SESSION_NOTE_MAX_LENGTH).nullable().optional(),
     adjustments: adjustmentsSchema.optional(),
@@ -165,7 +183,10 @@ export const createScheduledSessionSchema = z
     scheduledDate: z.iso.date(),
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH).optional(),
     notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
-    exercises: z.array(scheduledSessionExerciseInputSchema).optional(),
+    exercises: z
+      .array(scheduledSessionExerciseInputSchema)
+      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE)
+      .optional(),
   })
   .strict()
   .refine((input) => input.sourceSessionId != null || input.title != null, {
@@ -181,7 +202,9 @@ export const updateScheduledSessionSchema = z
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
     notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
     scheduledDate: z.iso.date(),
-    exercises: z.array(scheduledSessionExerciseInputSchema),
+    exercises: z
+      .array(scheduledSessionExerciseInputSchema)
+      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE),
   })
   .strict();
 export type UpdateScheduledSessionInput = z.infer<typeof updateScheduledSessionSchema>;

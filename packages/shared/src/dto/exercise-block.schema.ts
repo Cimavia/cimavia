@@ -449,10 +449,13 @@ export function readingRowLabel(reading: ReadingRow): string {
 
 // ── L'état du suivi ─────────────────────────────────────────────────────────────────────────
 
+const checkedUnitsSchema = z.array(z.number().int().nonnegative());
+const countedRoundsSchema = z.object({ rounds: z.number().int().nonnegative() }).strict();
+
 /** Ce qui a été coché dans un bloc, ou compté pour un AMRAP. */
 export const blockTrackingStateSchema = z.union([
-  z.object({ checked: z.array(z.number().int().nonnegative()) }).strict(),
-  z.object({ rounds: z.number().int().nonnegative() }).strict(),
+  z.object({ checked: checkedUnitsSchema }).strict(),
+  countedRoundsSchema,
 ]);
 export type BlockTrackingState = z.infer<typeof blockTrackingStateSchema>;
 
@@ -461,9 +464,50 @@ export type BlockTrackingState = z.infer<typeof blockTrackingStateSchema>;
  *
  * `null` en base signifie **NON SUIVI**, ce qui n'est pas « zéro coché » : l'athlète n'a rien dit,
  * et on ne lui reproche rien. Un objet vide, lui, dit qu'il a ouvert le suivi sans rien cocher.
+ *
+ * C'est le schéma de RELECTURE : il ne borne rien, parce qu'un suivi déjà stocké qui dépasserait
+ * une borne posée après coup ferait échouer la lecture de toute la séance. Ce qui ENTRE passe par
+ * `exerciseTrackingInputSchema`.
  */
 export const exerciseTrackingSchema = z.record(z.string(), blockTrackingStateSchema);
 export type ExerciseTracking = z.infer<typeof exerciseTrackingSchema>;
+
+/**
+ * Le plus d'unités qu'un bloc puisse donner à cocher. C'est l'EMOM qui le fixe — une case par
+ * top, soit 24 h à 5 s d'intervalle — et non le nombre de lignes : borner au plafond de lignes
+ * refuserait le suivi d'un EMOM d'une heure (#297).
+ */
+export const BLOCK_MAX_TRACKING_UNITS = Math.max(
+  BLOCK_MAX_SET_COUNT,
+  BLOCK_MAX_ROUND_COUNT,
+  BLOCK_MAX_ROWS,
+  Math.floor(TRAINING_DURATION_MAX_SECONDS / EMOM_MIN_INTERVAL_SECONDS),
+);
+
+/**
+ * Le suivi d'un exercice tel qu'un débrief l'ENVOIE (#297) : au plus un état par bloc, chaque
+ * case cochée une seule fois. Une case en double se comptait autant de fois — « 6 sur 4 » — et
+ * aucun client ne l'envoie : `toggleUnit` et `checkUnit` dédupliquent.
+ */
+export const exerciseTrackingInputSchema = z
+  .record(
+    z.string(),
+    z.union([
+      z
+        .object({
+          checked: checkedUnitsSchema
+            .max(BLOCK_MAX_TRACKING_UNITS)
+            .refine((units) => new Set(units).size === units.length, {
+              message: "Une case ne peut être cochée qu'une fois.",
+            }),
+        })
+        .strict(),
+      countedRoundsSchema,
+    ]),
+  )
+  .refine((tracking) => Object.keys(tracking).length <= EXERCISE_MAX_BLOCKS, {
+    message: `Le suivi d'un exercice ne peut pas citer plus de ${EXERCISE_MAX_BLOCKS} blocs.`,
+  });
 
 export const TrackingState = {
   DONE: "DONE",

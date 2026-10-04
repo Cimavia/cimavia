@@ -1,9 +1,9 @@
 import { InvitationStatus, Role } from "@cmv/shared";
-import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { configureApp } from "../src/app.setup";
+import { configureApp, createHttpAdapter } from "../src/app.setup";
 import { MailService } from "../src/infra/mail/mail.service";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
 
@@ -73,7 +73,7 @@ beforeAll(async () => {
     .overrideProvider(MailService)
     .useValue(mailServiceDouble)
     .compile();
-  app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
+  app = moduleRef.createNestApplication<NestFastifyApplication>(createHttpAdapter(), {
     bodyParser: false,
   });
   configureApp(app);

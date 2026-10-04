@@ -12,7 +12,7 @@ const withUnit = (index: number): SessionTracking => ({
 });
 
 // La séance ne porte qu'un exercice : c'est lui que l'envoi du débrief peut citer.
-const EXERCISES = [{ id: "ex-1" }];
+const EXERCISES = [{ id: "ex-1", blocks: [{ id: "b-1" }] }];
 
 const read = (sessionId: string) =>
   JSON.parse(storedItems.get(keyOf(sessionId)) ?? "null") as SessionTracking | null;

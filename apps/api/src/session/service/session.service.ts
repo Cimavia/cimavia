@@ -1,5 +1,6 @@
 import {
   type CreateSessionInput,
+  type ExerciseBlocks,
   lockedShapeIssues,
   required,
   type SessionDto,
@@ -181,17 +182,27 @@ export class SessionService {
 
     const library = await this.loadExerciseMap(exercises.map((e) => e.exerciseId));
     const previousById = new Map(previous.map((row) => [row.id, row]));
+    // Une fois par exercice DISTINCT, pas par ligne (#297) : la même référence citée à chaque
+    // ligne faisait reparser ses blocs autant de fois.
+    const libraryBlocks = new Map<string, ExerciseBlocks>();
+    const blocksOf = (exerciseId: string): ExerciseBlocks => {
+      const cached = libraryBlocks.get(exerciseId);
+      if (cached != null) return cached;
+      // `assertExercisesOwned` a déjà refusé en 400 tout exercice inconnu.
+      const exercise = required(
+        library.get(exerciseId),
+        `[session] exercice ${exerciseId} absent de la bibliothèque chargée`,
+      );
+      const blocks = parseBlocks(exercise.blocks);
+      libraryBlocks.set(exerciseId, blocks);
+      return blocks;
+    };
 
     const rows = exercises.map((input, position) => {
       const kept = input.id == null ? null : previousById.get(input.id);
-      // `assertExercisesOwned` a déjà refusé en 400 tout exercice inconnu.
-      const exercise = required(
-        library.get(input.exerciseId),
-        `[session] exercice ${input.exerciseId} absent de la bibliothèque chargée`,
-      );
 
       // La référence : celle de la ligne conservée, ou une copie du dosage de l'exercice.
-      const baseline = kept == null ? parseBlocks(exercise.blocks) : parseBlocks(kept.baseline);
+      const baseline = kept == null ? blocksOf(input.exerciseId) : parseBlocks(kept.baseline);
       const blocks = input.blocks ?? baseline;
 
       const issues = lockedShapeIssues(baseline, blocks);

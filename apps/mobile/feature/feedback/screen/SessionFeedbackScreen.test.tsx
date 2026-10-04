@@ -76,7 +76,14 @@ const TRACKING_KEY = "cimavia-tracking:s-1";
 // Une séance à un exercice, déjà suivi côté serveur : une série cochée sur deux.
 const SESSION = {
   id: "s-1",
-  exercises: [{ id: "sx-1", title: "Traction", tracking: { "b-1": { checked: [0] } } }],
+  exercises: [
+    {
+      id: "sx-1",
+      title: "Traction",
+      blocks: [{ id: "b-1" }],
+      tracking: { "b-1": { checked: [0] } },
+    },
+  ],
 } as unknown as ScheduledSessionDto;
 
 function mockSession(data: ScheduledSessionDto | null): void {

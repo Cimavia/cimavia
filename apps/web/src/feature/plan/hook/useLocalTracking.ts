@@ -78,7 +78,7 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
    * suivi envoyé — la séance n'avait pas pu être chargée —, rien n'a quitté le navigateur.
    */
   const clearIfSent = useCallback(
-    (sent: SessionTracking | undefined, exercises: readonly { id: string }[]) => {
+    (sent: SessionTracking | undefined, exercises: Parameters<typeof isTrackingSent>[2]) => {
       const current = latest.current;
       if (sent == null || current == null || !isTrackingSent(current, sent, exercises)) return;
       latest.current = null;

@@ -13,15 +13,17 @@ import {
   multipartPartSizes,
   PLAN_MAX_WEEKS,
   Role,
+  SESSION_MAX_EXERCISES,
+  SESSION_TOO_MANY_EXERCISES_MESSAGE,
   shiftIsoDate,
 } from "@cmv/shared";
-import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { ClsService } from "nestjs-cls";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
-import { configureApp } from "../src/app.setup";
+import { API_BODY_LIMIT_BYTES, configureApp, createHttpAdapter } from "../src/app.setup";
 import type { MailMessage } from "../src/infra/mail/mail.service";
 import { MailService } from "../src/infra/mail/mail.service";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
@@ -133,7 +135,7 @@ beforeAll(async () => {
     .overrideProvider(MailService)
     .useValue(mailServiceDouble)
     .compile();
-  app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
+  app = moduleRef.createNestApplication<NestFastifyApplication>(createHttpAdapter(), {
     bodyParser: false,
   });
   // Même configuration HTTP que main.ts (pipe de validation Zod) — sinon les e2e tourneraient
@@ -1001,6 +1003,52 @@ describe("Composition & isolation des séances (P2)", () => {
       exercises: [{ exerciseId: exB }],
     });
     expect(res.status).toBe(400);
+  });
+
+  /**
+   * Le même exercice cité à chaque ligne : la forme qui faisait recopier ses blocs autant de fois
+   * (#297). Au plafond exact, elle reste une composition légitime.
+   */
+  it(`accepte ${SESSION_MAX_EXERCISES} lignes citant le même exercice`, async () => {
+    const res = await coachA.put(`/sessions/${sessionAId}`).send({
+      title: "Bloc force max",
+      exercises: Array.from({ length: SESSION_MAX_EXERCISES }, () => ({ exerciseId: exA1 })),
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.exercises).toHaveLength(SESSION_MAX_EXERCISES);
+    expect(res.body.exercises.at(-1)).toMatchObject({
+      exerciseId: exA1,
+      position: SESSION_MAX_EXERCISES - 1,
+    });
+  });
+
+  it("refuse un exercice de plus que le plafond (400), sans rien écrire", async () => {
+    const tooMany = Array.from({ length: SESSION_MAX_EXERCISES + 1 }, () => ({ exerciseId: exA1 }));
+
+    const updated = await coachA
+      .put(`/sessions/${sessionAId}`)
+      .send({ title: "Trop long", exercises: tooMany });
+    expect(updated.status).toBe(400);
+    expect(updated.body.message).toContainEqual({
+      path: "exercises",
+      message: SESSION_TOO_MANY_EXERCISES_MESSAGE,
+    });
+    const reread = await coachA.get(`/sessions/${sessionAId}`);
+    expect(reread.body.title).toBe("Bloc force max");
+    expect(reread.body.exercises).toHaveLength(SESSION_MAX_EXERCISES);
+
+    const created = await coachA.post("/sessions").send({ title: "Trop long", exercises: tooMany });
+    expect(created.status).toBe(400);
+    expect((await coachA.get("/sessions")).body).toHaveLength(1);
+  });
+
+  // Le corps est refusé avant d'être parsé : aucun schéma n'a à juger ce qui ne tient pas.
+  it("refuse un corps au-delà du plafond de l'API (413)", async () => {
+    const res = await coachA
+      .post("/sessions")
+      .send({ title: "Trop lourd", notes: "x".repeat(API_BODY_LIMIT_BYTES) });
+    expect(res.status).toBe(413);
+    expect((await coachA.get("/sessions")).body).toHaveLength(1);
   });
 
   it("met à jour la séance en remplaçant intégralement la composition (replace-all)", async () => {
@@ -2843,6 +2891,57 @@ describe("Suivi d'exécution (#168)", () => {
     expect((await coach.get(`/scheduled-sessions/${sessionId}`)).body.exercises).toEqual(
       before.exercises,
     );
+  });
+
+  it("refuse une séance planifiée au-delà du plafond d'exercices (400), sans rien écrire", async () => {
+    const before = (await coach.get(`/scheduled-sessions/${sessionId}`)).body;
+
+    const res = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: before.title,
+      scheduledDate: before.scheduledDate,
+      exercises: Array.from({ length: SESSION_MAX_EXERCISES + 1 }, (_, index) => ({
+        title: `Exercice ${index}`,
+      })),
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContainEqual({
+      path: "exercises",
+      message: SESSION_TOO_MANY_EXERCISES_MESSAGE,
+    });
+    expect((await coach.get(`/scheduled-sessions/${sessionId}`)).body.exercises).toEqual(
+      before.exercises,
+    );
+  });
+
+  /**
+   * Au-delà des plafonds, le suivi est refusé avant d'atteindre le service : ni texte, ni coche,
+   * ni débrief créé (#297). Une case cochée deux fois se comptait deux fois — « 6 sur 4 ».
+   */
+  it.each([
+    [
+      "plus d'exercices que la séance n'en peut porter",
+      () =>
+        Object.fromEntries(
+          Array.from({ length: SESSION_MAX_EXERCISES + 1 }, (_, index) => [`sse_${index}`, null]),
+        ),
+    ],
+    [
+      "une case cochée deux fois",
+      () => ({ [exerciseCopyId]: { blk_1: { checked: [0, 0, 0, 0, 0, 1] } } }),
+    ],
+  ])("refuse un suivi qui cite %s (400), sans rien écrire", async (_, tracking) => {
+    const before = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    const feedbackBefore = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
+
+    const res = await athlete
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Ne doit pas s'écrire", tracking: tracking() });
+    expect(res.status).toBe(400);
+
+    const after = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    expect(after.tracking).toEqual(before.tracking);
+    const feedbackAfter = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
+    expect(feedbackAfter?.content ?? null).toBe(feedbackBefore?.content ?? null);
   });
 
   it("un athlète ne suit PAS la séance d'un autre", async () => {

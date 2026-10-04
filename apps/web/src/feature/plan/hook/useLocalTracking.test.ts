@@ -6,7 +6,7 @@ import { useLocalTracking } from "./useLocalTracking";
 const KEY = "cimavia-tracking:s-1";
 const EMPTY: SessionTracking = {};
 // La séance ne porte qu'un exercice : c'est lui que l'envoi du débrief peut citer.
-const EXERCISES = [{ id: "ex-1" }];
+const EXERCISES = [{ id: "ex-1", blocks: [{ id: "b-1" }] }];
 
 const stored = () => JSON.parse(window.localStorage.getItem(KEY) ?? "null") as SessionTracking;
 

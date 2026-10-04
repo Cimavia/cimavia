@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
-import { exerciseTrackingSchema, TrackingState, trackingUnitSchema } from "./exercise-block.schema";
+import {
+  exerciseTrackingInputSchema,
+  TrackingState,
+  trackingUnitSchema,
+} from "./exercise-block.schema";
 import {
   feedbackImageMimeTypeSchema,
   feedbackVideoMimeTypeSchema,
@@ -10,6 +14,7 @@ import {
   mediaBatchShape,
 } from "./media.schema";
 import { messageDtoSchema } from "./message.schema";
+import { SESSION_MAX_EXERCISES } from "./session.schema";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
@@ -87,7 +92,13 @@ export function maxFeedbackMediaSizeBytes(type: MediaType): number {
  * suivi s'il ne l'était pas, suivi sinon ; une entrée à `null` le remet explicitement à « non
  * suivi ».
  */
-export const feedbackTrackingSchema = z.record(z.string(), exerciseTrackingSchema.nullable());
+export const feedbackTrackingSchema = z
+  .record(z.string(), exerciseTrackingInputSchema.nullable())
+  // Le client n'envoie que les exercices de la séance (`trackingOfExercises`), et le serveur
+  // refuse les autres (#311) : la séance en porte au plus `SESSION_MAX_EXERCISES` (#297).
+  .refine((tracking) => Object.keys(tracking).length <= SESSION_MAX_EXERCISES, {
+    message: `Le suivi ne peut pas citer plus de ${SESSION_MAX_EXERCISES} exercices.`,
+  });
 export type FeedbackTracking = z.infer<typeof feedbackTrackingSchema>;
 
 export const upsertSessionFeedbackSchema = z

@@ -1,4 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { TRAINING_DURATION_MAX_SECONDS } from "../util/training-duration.util";
+import {
+  BLOCK_MAX_TRACKING_UNITS,
+  BlockType,
+  EMOM_MIN_INTERVAL_SECONDS,
+  EXERCISE_MAX_BLOCKS,
+  emomTopCount,
+  exerciseTrackingSchema,
+} from "./exercise-block.schema";
 import {
   attachFeedbackMediaSchema,
   isAllowedFeedbackAudioMime,
@@ -14,6 +23,7 @@ import {
   MAX_FEEDBACK_VIDEO_DURATION_SECONDS,
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
 } from "./media.schema";
+import { SESSION_MAX_EXERCISES } from "./session.schema";
 
 describe("upsertSessionFeedbackSchema", () => {
   it("accepte un débrief sans texte (débrief média-seul, complété en plusieurs fois)", () => {
@@ -27,6 +37,46 @@ describe("upsertSessionFeedbackSchema", () => {
       status: "DONE",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("le suivi remonté avec un débrief (#297)", () => {
+  const withTracking = (tracking: unknown) => upsertSessionFeedbackSchema.safeParse({ tracking });
+  const keyed = <T>(count: number, value: T) =>
+    Object.fromEntries(Array.from({ length: count }, (_, index) => [`k${index}`, value]));
+
+  it("accepte un exercice par exercice que la séance peut porter, pas un de plus", () => {
+    expect(withTracking(keyed(SESSION_MAX_EXERCISES, null)).success).toBe(true);
+    expect(withTracking(keyed(SESSION_MAX_EXERCISES + 1, null)).success).toBe(false);
+  });
+
+  it("accepte un état par bloc que l'exercice peut porter, pas un de plus", () => {
+    const blocks = (count: number) => ({ sse_1: keyed(count, { rounds: 1 }) });
+    expect(withTracking(blocks(EXERCISE_MAX_BLOCKS)).success).toBe(true);
+    expect(withTracking(blocks(EXERCISE_MAX_BLOCKS + 1)).success).toBe(false);
+  });
+
+  it("refuse une case cochée deux fois : elle se comptait deux fois", () => {
+    const result = withTracking({ sse_1: { b: { checked: [0, 0, 0, 0, 0, 1] } } });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe("Une case ne peut être cochée qu'une fois.");
+  });
+
+  it("accepte toutes les cases de l'EMOM le plus long, que le plafond de lignes refuserait", () => {
+    const tops = emomTopCount({
+      type: BlockType.EMOM,
+      totalDurationSeconds: TRAINING_DURATION_MAX_SECONDS,
+      intervalSeconds: EMOM_MIN_INTERVAL_SECONDS,
+    });
+    expect(tops).toBe(BLOCK_MAX_TRACKING_UNITS);
+    const checked = Array.from({ length: tops }, (_, index) => index);
+    expect(withTracking({ sse_1: { b: { checked } } }).success).toBe(true);
+    expect(withTracking({ sse_1: { b: { checked: [...checked, tops] } } }).success).toBe(false);
+  });
+
+  it("laisse la relecture accepter ce que l'entrée refuse : un suivi stocké reste lisible", () => {
+    const stored = { ...keyed(EXERCISE_MAX_BLOCKS + 1, { rounds: 1 }), b: { checked: [1, 1] } };
+    expect(exerciseTrackingSchema.safeParse(stored).success).toBe(true);
   });
 });
 

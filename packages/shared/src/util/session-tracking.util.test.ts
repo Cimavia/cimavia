@@ -72,7 +72,10 @@ describe("sameTracking", () => {
 });
 
 describe("trackingOfExercises", () => {
-  const exercises = [{ id: "sse_a" }, { id: "sse_b" }];
+  const exercises = [
+    { id: "sse_a", blocks: [{ id: "b" }] },
+    { id: "sse_b", blocks: [{ id: "b" }, { id: "c" }] },
+  ];
 
   it("écarte la coche d'un exercice que le coach a retiré de la séance", () => {
     const tracking = { sse_a: { b: { checked: [0] } }, sse_retire: { b: { checked: [0, 1] } } };
@@ -83,14 +86,32 @@ describe("trackingOfExercises", () => {
     expect(trackingOfExercises({ sse_b: null }, exercises)).toEqual({ sse_b: null });
   });
 
+  it("écarte la coche d'un bloc que le coach a retiré de l'exercice", () => {
+    const tracking = { sse_b: { c: { rounds: 3 }, retire: { checked: [0] } } };
+    expect(trackingOfExercises(tracking, exercises)).toEqual({ sse_b: { c: { rounds: 3 } } });
+  });
+
+  it("ne touche pas à l'exercice dont tous les blocs sont encore là", () => {
+    const intact = { b: { checked: [0] } };
+    const pruned = trackingOfExercises(
+      { sse_a: intact, sse_b: { retire: { rounds: 1 } } },
+      exercises,
+    );
+    expect(pruned).toEqual({ sse_a: intact, sse_b: {} });
+    expect(pruned.sse_a).toBe(intact);
+  });
+
   it("rend le suivi lui-même quand tout est encore dans la séance", () => {
-    const tracking = { sse_a: {}, sse_b: null };
+    const tracking = { sse_a: {}, sse_b: { b: { checked: [1] }, c: { rounds: 2 } } };
     expect(trackingOfExercises(tracking, exercises)).toBe(tracking);
   });
 });
 
 describe("isTrackingSent", () => {
-  const exercises = [{ id: "sse_a" }, { id: "sse_b" }];
+  const exercises = [
+    { id: "sse_a", blocks: [{ id: "b" }] },
+    { id: "sse_b", blocks: [{ id: "b" }] },
+  ];
   const sent = { sse_a: { b: { checked: [0, 1, 2, 3] } } };
 
   it("vrai quand rien n'a bougé depuis l'envoi", () => {
@@ -108,6 +129,11 @@ describe("isTrackingSent", () => {
 
   it("ignore une coche sur un exercice retiré : elle n'est jamais partie", () => {
     const current = { ...sent, sse_retire: { b: { checked: [0] } } };
+    expect(isTrackingSent(current, sent, exercises)).toBe(true);
+  });
+
+  it("ignore une coche sur un bloc retiré : elle n'est jamais partie non plus", () => {
+    const current = { sse_a: { b: { checked: [0, 1, 2, 3] }, retire: { checked: [0] } } };
     expect(isTrackingSent(current, sent, exercises)).toBe(true);
   });
 });

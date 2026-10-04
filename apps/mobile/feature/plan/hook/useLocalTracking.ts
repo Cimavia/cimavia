@@ -93,7 +93,7 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
    * Lu dans le MAGASIN, pas dans `cached` : la coche peut précéder la réponse du même tic.
    */
   const clearIfSent = useCallback(
-    (sent: SessionTracking | undefined, exercises: readonly { id: string }[]) => {
+    (sent: SessionTracking | undefined, exercises: Parameters<typeof isTrackingSent>[2]) => {
       const current = readLocalTracking(sessionId);
       if (sent == null || current == null) return;
       if (isTrackingSent(current, sent, exercises)) writeLocalTracking(sessionId, null);
