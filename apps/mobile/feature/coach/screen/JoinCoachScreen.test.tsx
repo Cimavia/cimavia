@@ -145,6 +145,34 @@ describe("JoinCoachScreen — l'invitation, pendant et après", () => {
     expect(await screen.findByText("coach.invitation.joining")).toBeTruthy();
   });
 
+  /**
+   * « Rejoindre » échouait en silence (#365) : seul le formulaire de code disait son erreur, de sa
+   * propre mutation. Le message de l'API d'abord, le libellé quand il n'y en a pas.
+   */
+  it.each([
+    [
+      "tel que l'API l'a formulé",
+      new ApiError(400, "Invitation expirée", null),
+      "Invitation expirée",
+    ],
+    [
+      "par le message générique sans formulation",
+      new Error("réseau"),
+      "coach.invitation.joinError",
+    ],
+  ])("dit l'échec de l'acceptation %s", async (_, failure, message) => {
+    acceptInvitation.mockRejectedValue(failure);
+    myInvitations.mockResolvedValue([INVITATION]);
+    const { container } = renderRn(<JoinCoachScreen />);
+    await screen.findByText("coach.invitation.title");
+
+    pressButton(container, "coach.invitation.join");
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    // Une seule fois : le formulaire de code a sa propre mutation, il ne la répète pas.
+    expect(screen.queryByText("coach.join.error")).toBeNull();
+  });
+
   /** Le mobile n'a pas de toasts : l'échec du refus se dit sur la carte. */
   it.each([
     [

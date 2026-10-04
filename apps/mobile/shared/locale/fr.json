@@ -390,6 +390,7 @@
       "expires": "Invitation valable jusqu'au {{date}}",
       "join": "Rejoindre {{name}}",
       "joining": "Connexion en cours…",
+      "joinError": "Impossible de rejoindre ce coach. Vérifie ta connexion.",
       "blocked": "Tu es déjà suivi par {{name}} : tu ne peux pas accepter une autre invitation.",
       "decline": "Refuser",
       "declineConfirm": "Confirmer le refus",

@@ -77,7 +77,14 @@ export function PendingInvitationCard({
 
       <CmvText className="text-cmv-text-lo text-xs">{t("coach.invitation.declineHint")}</CmvText>
 
-      {/* Le mobile n'a pas de toasts : l'échec se dit sur place, comme pour la saisie du code. */}
+      {/* Le mobile n'a pas de toasts : l'échec se dit sur place, comme pour la saisie du code.
+          L'acceptation échouait en silence (#365) — le bouton repassait à son libellé, et l'athlète
+          recliquait en boucle sur une invitation expirée ou déjà utilisée. */}
+      {accept.isError ? (
+        <CmvText className="text-cmv-error text-sm">
+          {apiErrorMessage(accept.error) ?? t("coach.invitation.joinError")}
+        </CmvText>
+      ) : null}
       {decline.isError ? (
         <CmvText className="text-cmv-error text-sm">
           {apiErrorMessage(decline.error) ?? t("coach.invitation.declineError")}
