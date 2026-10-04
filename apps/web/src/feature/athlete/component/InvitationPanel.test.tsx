@@ -1,5 +1,5 @@
-import { ApiError, type InvitationDto, InvitationStatus } from "@cmv/shared";
-import { screen, waitFor } from "@testing-library/react";
+import { ApiError, type InvitationDto, InvitationStatus, required } from "@cmv/shared";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
 import { renderWithProviders } from "../../../../test/render";
@@ -155,9 +155,12 @@ describe("InvitationPanel — émettre une invitation", () => {
   ])("n'émet rien pour une adresse %s", async (_case, typed) => {
     const { user } = render();
 
-    if (typed !== "") await user.type(screen.getByLabelText(EMAIL), typed);
+    const field = screen.getByLabelText(EMAIL) as HTMLInputElement;
+    if (typed !== "") await user.type(field, typed);
     expect(screen.getByRole("button", { name: SUBMIT })).toBeDisabled();
-    await user.type(screen.getByLabelText(EMAIL), "{Enter}");
+    await user.type(field, "{Enter}");
+    // Le bouton fermé n'est pas le seul rempart : un formulaire soumis quand même n'envoie rien.
+    fireEvent.submit(required(field.form, "formulaire d'invitation"));
 
     expect(createInvitation).not.toHaveBeenCalled();
   });
