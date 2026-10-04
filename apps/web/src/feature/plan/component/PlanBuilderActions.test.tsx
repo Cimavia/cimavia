@@ -35,6 +35,7 @@ const READY: ComponentProps<typeof PlanBuilderActions> = {
   isHeaderUnsaved: false,
   isBillingUnsaved: false,
   isBusy: false,
+  onDeleted: vi.fn(),
 };
 
 const mount = (props: Partial<typeof READY>) =>
@@ -174,6 +175,8 @@ describe("PlanBuilderActions — diffuser", () => {
     await user.click(getByText("common.confirmDelete"));
 
     expect(router.state.location.pathname).toBe("/plans");
+    // Prévenu AVANT de partir : l'écran lève sa garde, la saisie n'a plus d'objet (#327).
+    expect(READY.onDeleted).toHaveBeenCalledOnce();
   });
 
   // La raison était posée, mais muette : le bouton la masquait sous son propre `title` (#313).

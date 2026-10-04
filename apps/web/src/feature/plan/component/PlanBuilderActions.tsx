@@ -22,6 +22,11 @@ type PlanBuilderActionsProps = {
   isBillingUnsaved: boolean;
   /** Une écriture du builder est en vol — dont l'enregistrement de l'en-tête. */
   isBusy: boolean;
+  /**
+   * Le cycle est supprimé, juste avant d'en partir : sa saisie non enregistrée n'a plus d'objet,
+   * et la garde de l'écran ne doit pas demander s'il faut la perdre (#327).
+   */
+  onDeleted: () => void;
 };
 
 type PublishGate = {
@@ -66,6 +71,7 @@ export function PlanBuilderActions({
   isHeaderUnsaved,
   isBillingUnsaved,
   isBusy,
+  onDeleted,
 }: Readonly<PlanBuilderActionsProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -98,11 +104,13 @@ export function PlanBuilderActions({
         {...deleteBlocked}
         onConfirm={() =>
           removePlan.mutate(planId, {
-            onSuccess: () =>
+            onSuccess: () => {
+              onDeleted();
               navigate({
                 to: "/plans",
                 search: { q: undefined, state: undefined, athlete: undefined },
-              }),
+              });
+            },
           })
         }
       />

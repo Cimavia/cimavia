@@ -35,8 +35,9 @@ vi.mock("@/feature/invoice/hook/useInvoices", () => ({
   useRemoveInvoiceDocument: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 const publishPlan = vi.hoisted(() => vi.fn());
+const deletePlan = vi.hoisted(() => vi.fn());
 vi.mock("@/feature/plan/hook/usePlans", () => ({
-  useDeletePlan: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeletePlan: () => ({ mutate: deletePlan, isPending: false }),
   usePublishPlan: () => ({ mutate: publishPlan, isPending: false }),
   // Les autres cycles du coach, dont l'écran tire ce que l'athlète voit de celui-ci (#172).
   usePlans: vi.fn(),
@@ -460,5 +461,72 @@ describe("PlanBuilderScreen — diffuser une saisie non enregistrée", () => {
     // Le panneau de séance ouvert porte ses propres listes : le sélecteur se désigne par son nom.
     const picker = getByRole("combobox", { name: /plan\.header\.athlete/ }) as HTMLSelectElement;
     expect(picker.value).toBe("ath_lea");
+  });
+});
+
+describe("PlanBuilderScreen — quitter une saisie non enregistrée (#327)", () => {
+  const BACK = "plan.builder.back";
+  const STAY = "common.leave.stay";
+  const LEAVE = "common.leave.leave";
+  const billing = {
+    amountCents: 5000,
+    dueDate: "2026-11-05",
+    note: null,
+    documentFileName: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("demande avant de quitter un en-tête modifié, et « Rester » le garde", async () => {
+    const { getByRole, getByText, findByRole, queryByRole, router, user } = await mount(
+      {},
+      billing,
+    );
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+
+    await user.click(getByText(BACK));
+    await user.click(await findByRole("button", { name: STAY }));
+
+    await waitFor(() => expect(queryByRole("dialog")).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe("/plans/pln_1");
+    expect((getByRole("combobox") as HTMLSelectElement).value).toBe("ath_tom");
+  });
+
+  it("quitte une facturation modifiée quand le coach confirme", async () => {
+    const { container, getByText, findByRole, router, user } = await mount({}, billing);
+    const amount = container.querySelector("#amount") as HTMLInputElement;
+    await user.clear(amount);
+    await user.type(amount, "80");
+
+    await user.click(getByText(BACK));
+    await user.click(await findByRole("button", { name: LEAVE }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+  });
+
+  it("laisse quitter sans friction un cycle sans saisie en cours", async () => {
+    const { getByText, queryByRole, router, user } = await mount({}, billing);
+
+    await user.click(getByText(BACK));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+    expect(queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Le cycle supprimé emporte sa saisie : demander s'il faut la perdre serait un contresens.
+  it("part sans demander une fois le cycle supprimé", async () => {
+    deletePlan.mockImplementation((_id: string, options: { onSuccess: () => void }) =>
+      options.onSuccess(),
+    );
+    const { getByRole, getByText, queryByRole, router, user } = await mount({}, billing);
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+
+    await user.click(getByText("plan.builder.delete"));
+    await user.click(getByText("common.confirmDelete"));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+    expect(queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
