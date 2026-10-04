@@ -4,17 +4,17 @@ import { EnvSchema } from "@cmv/shared";
 import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
-import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
-import { configureApp } from "./app.setup";
+import { configureApp, createHttpAdapter } from "./app.setup";
 import { docsEnabled } from "./config/docs";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false }),
+    createHttpAdapter(),
     // bodyParser: false → Better Auth lit le body brut des routes /api/auth/* ;
     // @thallesp/nestjs-better-auth ré-ajoute les parseurs par défaut pour les autres routes.
     { bufferLogs: true, bodyParser: false },
