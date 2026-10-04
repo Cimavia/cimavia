@@ -4,6 +4,7 @@
     "password": "Mot de passe",
     "logout": "Se déconnecter",
     "offline": "Hors-ligne — tu vois les données de ton dernier passage",
+    "offlineSavedAt": "Hors-ligne — tu vois les données récupérées le {{date}}",
     "imageOffline": "Image indisponible hors ligne",
     "imageUnavailable": "Image indisponible",
     "errorTitle": "Chargement impossible",

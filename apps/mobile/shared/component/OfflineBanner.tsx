@@ -2,6 +2,15 @@ import { useNetworkState } from "expo-network";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { CmvText } from "@/shared/component/CmvText";
+import { formatDateTime } from "@/shared/util/date.util";
+
+type OfflineBannerProps = {
+  /**
+   * Quand le contenu affiché a été récupéré, en ISO. Absent ou `null` : l'écran ne le sait pas, et
+   * le bandeau garde son message générique plutôt que d'inventer une date.
+   */
+  savedAt?: string | null;
+};
 
 /**
  * Bandeau « hors-ligne » (p3-5). Le contenu reste affiché — il vient du cache persisté — mais
@@ -10,8 +19,12 @@ import { CmvText } from "@/shared/component/CmvText";
  * Il ne parle plus des documents depuis #95 : ceux des cycles diffusés sont sur l'appareil, et
  * les annoncer perdus d'avance serait faux. Ce qui manque vraiment se dit à l'endroit exact où
  * ça manque — sous la pièce jointe, à la place de l'image.
+ *
+ * Il DATE ce qu'il montre quand l'écran le sait (#307) : « ton dernier passage » ne distinguait
+ * pas une séance récupérée hier soir d'une séance de la semaine dernière, et l'athlète en salle
+ * n'a pas d'autre moyen de juger si le coach a pu la retoucher depuis.
  */
-export function OfflineBanner() {
+export function OfflineBanner({ savedAt = null }: Readonly<OfflineBannerProps>) {
   const { t } = useTranslation();
   const network = useNetworkState();
 
@@ -21,7 +34,11 @@ export function OfflineBanner() {
 
   return (
     <View className="bg-cmv-warning px-4 py-2">
-      <CmvText className="text-center text-cmv-bg-0 text-sm">{t("common.offline")}</CmvText>
+      <CmvText className="text-center text-cmv-bg-0 text-sm">
+        {savedAt == null
+          ? t("common.offline")
+          : t("common.offlineSavedAt", { date: formatDateTime(savedAt) })}
+      </CmvText>
     </View>
   );
 }

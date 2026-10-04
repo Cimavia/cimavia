@@ -1,4 +1,10 @@
-import { DocumentType, DocumentUsage, type ExerciseDocumentDto } from "@cmv/shared";
+import {
+  DocumentType,
+  DocumentUsage,
+  type ExerciseDocumentDto,
+  type ScheduledSessionDto,
+} from "@cmv/shared";
+import type { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const localDocumentUri = vi.fn<() => string | null>(() => null);
@@ -40,10 +46,19 @@ vi.mock("react-native", () => ({
   },
 }));
 
-const { openDocument } = await import("./open-document");
+const usableSession = vi.fn<(...args: unknown[]) => Promise<ScheduledSessionDto>>();
+vi.mock("@/feature/plan/lib/usable-session", () => ({
+  usableSession: (...args: unknown[]) => usableSession(...args),
+}));
+
+const { freshDocumentUrl, openDocument } = await import("./open-document");
 
 const LOCAL_URI = "file:///documents/plan-documents/plan-1/doc-1.pdf";
 const SIGNED_URL = "https://storage.test/signed";
+const RESIGNED_URL = "https://storage.test/resigned";
+
+/** La re-signature que l'écran fournit : elle rend l'URL fraîche du document. */
+const freshUrl = vi.fn<() => Promise<string | null>>();
 
 function attachment(overrides: Partial<ExerciseDocumentDto> = {}): ExerciseDocumentDto {
   return {
@@ -65,6 +80,7 @@ beforeEach(() => {
   localDocumentUri.mockReturnValue(null);
   isAvailableAsync.mockResolvedValue(true);
   openURL.mockResolvedValue(undefined);
+  freshUrl.mockResolvedValue(SIGNED_URL);
 });
 
 describe("openDocument — android", () => {
@@ -77,7 +93,7 @@ describe("openDocument — android", () => {
   it("ouvre le fichier local par une intention de lecture", async () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
 
-    await expect(openDocument("plan-1", attachment(), false)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), false, freshUrl)).resolves.toBe("opened");
 
     expect(startActivityAsync).toHaveBeenCalledWith("android.intent.action.VIEW", {
       data: "content://fr.cimavia.app/doc-1.pdf",
@@ -91,7 +107,7 @@ describe("openDocument — android", () => {
   it("accorde la permission de lecture sur l'uri transmise", async () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
 
-    await openDocument("plan-1", attachment(), false);
+    await openDocument("plan-1", attachment(), false, freshUrl);
 
     expect(startActivityAsync).toHaveBeenCalledWith(
       expect.anything(),
@@ -102,7 +118,7 @@ describe("openDocument — android", () => {
   it("laisse android déduire le type quand le document n'en porte pas", async () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
 
-    await openDocument("plan-1", attachment({ mimeType: null }), false);
+    await openDocument("plan-1", attachment({ mimeType: null }), false, freshUrl);
 
     expect(startActivityAsync).toHaveBeenCalledWith("android.intent.action.VIEW", {
       data: "content://fr.cimavia.app/doc-1.pdf",
@@ -114,7 +130,7 @@ describe("openDocument — android", () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
     startActivityAsync.mockRejectedValue(new Error("ActivityNotFound"));
 
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("opened");
 
     expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
   });
@@ -123,7 +139,7 @@ describe("openDocument — android", () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
     contentUri = "";
 
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("opened");
 
     expect(startActivityAsync).not.toHaveBeenCalled();
     expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
@@ -133,7 +149,7 @@ describe("openDocument — android", () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
     contentUri = new Error("hors du sandbox");
 
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("opened");
 
     expect(startActivityAsync).not.toHaveBeenCalled();
     expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
@@ -144,7 +160,7 @@ describe("openDocument — android", () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
     startActivityAsync.mockRejectedValue(new Error("ActivityNotFound"));
 
-    await expect(openDocument("plan-1", attachment(), false)).resolves.toBe("offline");
+    await expect(openDocument("plan-1", attachment(), false, freshUrl)).resolves.toBe("offline");
   });
 });
 
@@ -157,7 +173,7 @@ describe("openDocument — ios", () => {
     platform = "ios";
     localDocumentUri.mockReturnValue(LOCAL_URI);
 
-    await expect(openDocument("plan-1", attachment(), false)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), false, freshUrl)).resolves.toBe("opened");
 
     expect(shareAsync).toHaveBeenCalledWith(LOCAL_URI, { mimeType: "application/pdf" });
     expect(startActivityAsync).not.toHaveBeenCalled();
@@ -167,7 +183,7 @@ describe("openDocument — ios", () => {
     platform = "ios";
     localDocumentUri.mockReturnValue(LOCAL_URI);
 
-    await openDocument("plan-1", attachment({ mimeType: null }), false);
+    await openDocument("plan-1", attachment({ mimeType: null }), false, freshUrl);
 
     expect(shareAsync).toHaveBeenCalledWith(LOCAL_URI, {});
   });
@@ -177,7 +193,7 @@ describe("openDocument — ios", () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
     shareAsync.mockRejectedValueOnce(new Error("feuille fermée par l'OS"));
 
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("opened");
 
     expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
   });
@@ -187,7 +203,7 @@ describe("openDocument — ios", () => {
     localDocumentUri.mockReturnValue(LOCAL_URI);
     isAvailableAsync.mockResolvedValue(false);
 
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("opened");
 
     expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
   });
@@ -195,7 +211,7 @@ describe("openDocument — ios", () => {
 
 describe("openDocument — rien sur l'appareil", () => {
   it("ouvre l'url signée en ligne", async () => {
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("opened");
 
     expect(startActivityAsync).not.toHaveBeenCalled();
     expect(openURL).toHaveBeenCalledWith(SIGNED_URL);
@@ -206,15 +222,50 @@ describe("openDocument — rien sur l'appareil", () => {
    * signée mènerait à une page d'erreur du storage, en XML brut.
    */
   it("annonce le hors-réseau plutôt que d'ouvrir une url morte", async () => {
-    await expect(openDocument("plan-1", attachment(), false)).resolves.toBe("offline");
+    await expect(openDocument("plan-1", attachment(), false, freshUrl)).resolves.toBe("offline");
 
     expect(openURL).not.toHaveBeenCalled();
+  });
+
+  /**
+   * #307 : la séance ouverte depuis plus de cinq minutes porte une URL morte. Celle qu'on ouvre
+   * est celle que la re-signature vient de rendre, jamais celle du cache.
+   */
+  it("ouvre l'url re-signée plutôt que celle du cache", async () => {
+    freshUrl.mockResolvedValue(RESIGNED_URL);
+
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("opened");
+
+    expect(openURL).toHaveBeenCalledWith(RESIGNED_URL);
+  });
+
+  it("rend failed sans rien ouvrir quand la re-signature échoue", async () => {
+    freshUrl.mockResolvedValue(null);
+
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("failed");
+
+    expect(openURL).not.toHaveBeenCalled();
+  });
+
+  it("ne tente pas de re-signer hors réseau", async () => {
+    await openDocument("plan-1", attachment(), false, freshUrl);
+
+    expect(freshUrl).not.toHaveBeenCalled();
+  });
+
+  it("ne re-signe pas un document déjà ouvert depuis l'appareil", async () => {
+    localDocumentUri.mockReturnValue(LOCAL_URI);
+    startActivityAsync.mockResolvedValue({ resultCode: -1 });
+
+    await openDocument("plan-1", attachment(), true, freshUrl);
+
+    expect(freshUrl).not.toHaveBeenCalled();
   });
 
   it("rend failed quand l'ouverture est refusée en ligne", async () => {
     openURL.mockRejectedValue(new Error("aucun lecteur"));
 
-    await expect(openDocument("plan-1", attachment(), true)).resolves.toBe("failed");
+    await expect(openDocument("plan-1", attachment(), true, freshUrl)).resolves.toBe("failed");
   });
 });
 
@@ -222,15 +273,43 @@ describe("openDocument — lien externe", () => {
   it("ouvre le lien sans jamais consulter le magasin", async () => {
     const link = attachment({ type: DocumentType.LINK, url: "https://youtube.test/demo" });
 
-    await expect(openDocument("plan-1", link, true)).resolves.toBe("opened");
+    await expect(openDocument("plan-1", link, true, freshUrl)).resolves.toBe("opened");
 
     expect(localDocumentUri).not.toHaveBeenCalled();
+    expect(freshUrl).not.toHaveBeenCalled();
     expect(openURL).toHaveBeenCalledWith("https://youtube.test/demo");
   });
 
   it("annonce le hors-réseau pour un lien externe", async () => {
     const link = attachment({ type: DocumentType.LINK });
 
-    await expect(openDocument("plan-1", link, false)).resolves.toBe("offline");
+    await expect(openDocument("plan-1", link, false, freshUrl)).resolves.toBe("offline");
+  });
+});
+
+describe("freshDocumentUrl", () => {
+  const queryClient = {} as QueryClient;
+
+  function sessionWith(documents: ExerciseDocumentDto[]): ScheduledSessionDto {
+    return { exercises: [{ documents }] } as unknown as ScheduledSessionDto;
+  }
+
+  it("rend l'url du document dans la séance rechargée", async () => {
+    usableSession.mockResolvedValue(sessionWith([attachment({ url: RESIGNED_URL })]));
+
+    await expect(freshDocumentUrl(queryClient, "s-1", "doc-1")).resolves.toBe(RESIGNED_URL);
+    expect(usableSession).toHaveBeenCalledWith(queryClient, "s-1");
+  });
+
+  it("rend null quand le coach a retiré le document depuis", async () => {
+    usableSession.mockResolvedValue(sessionWith([]));
+
+    await expect(freshDocumentUrl(queryClient, "s-1", "doc-1")).resolves.toBeNull();
+  });
+
+  it("rend null quand la séance ne se recharge pas", async () => {
+    usableSession.mockRejectedValue(new Error("réseau"));
+
+    await expect(freshDocumentUrl(queryClient, "s-1", "doc-1")).resolves.toBeNull();
   });
 });

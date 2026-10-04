@@ -35,12 +35,23 @@ import { formatFullDay } from "@/shared/util/date.util";
  * Détail d'une séance (p3-4) : consignes du coach, déroulé, documents.
  * Déroulé ET documents sont lisibles hors réseau depuis #95 : la passe montée sur le planning les
  * descend sur l'appareil au dernier passage en ligne. Ce qu'elle n'a pas eu le temps de descendre
- * retombe sur l'URL signée, et le dit quand le réseau manque.
+ * retombe sur une URL re-signée (#307), et le dit quand le réseau manque.
  */
 export function SessionDetailScreen() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: session, isPending, isError, isFetching, refetch } = useScheduledSession(id);
+  const {
+    data: session,
+    dataUpdatedAt,
+    isPending,
+    isError,
+    isFetching,
+    refetch,
+  } = useScheduledSession(id);
+  // L'instant où CETTE séance a été récupérée — c'est elle que l'athlète lit, pas le planning.
+  // TanStack dit 0 quand il ne le sait pas : c'est « inconnu », pas le 1er janvier 1970.
+  const savedAt =
+    session == null || dataUpdatedAt === 0 ? null : new Date(dataUpdatedAt).toISOString();
 
   const remote = useMemo(
     () =>
@@ -77,7 +88,7 @@ export function SessionDetailScreen() {
 
   return (
     <CmvScreen>
-      <OfflineBanner />
+      <OfflineBanner savedAt={savedAt} />
 
       {/*
         Tirer pour rafraîchir : le cache est frais 5 min et persisté une semaine, et le coach peut
@@ -303,6 +314,7 @@ function SessionExercises({
           key={exercise.id}
           exercise={exercise}
           planId={session.planId}
+          sessionId={session.id}
           index={index}
           customMetrics={exercise.customMetrics}
           tracking={local.tracking[exercise.id] ?? null}

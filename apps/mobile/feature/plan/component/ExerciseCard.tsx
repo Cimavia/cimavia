@@ -14,6 +14,7 @@ import {
   timerFor,
   trackingSummary,
 } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNetworkState } from "expo-network";
 import type { TFunction } from "i18next";
 import { useState } from "react";
@@ -23,7 +24,11 @@ import { DosageBlock } from "@/feature/plan/component/DosageBlock";
 import { DurationChip } from "@/feature/plan/component/DurationChip";
 import { TrackingList } from "@/feature/plan/component/TrackingList";
 import type { RunnerContext } from "@/feature/plan/hook/useSegmentRunner";
-import { type OpenDocumentOutcome, openDocument } from "@/feature/plan/lib/open-document";
+import {
+  freshDocumentUrl,
+  type OpenDocumentOutcome,
+  openDocument,
+} from "@/feature/plan/lib/open-document";
 import { CmvRichDocument, CmvText } from "@/shared/component";
 
 // i18n-values plan.tracking.open: TrackingUnit
@@ -34,6 +39,8 @@ type ExerciseCardProps = {
   exercise: ScheduledSessionExerciseDto;
   /** Le cycle dont la séance est issue : il localise les documents descendus sur l'appareil. */
   planId: string;
+  /** La séance qui le porte : c'est elle qu'on recharge quand l'URL d'un document a expiré. */
+  sessionId: string;
   index: number;
   customMetrics: readonly CustomMetric[];
   tracking: ExerciseTracking | null;
@@ -52,6 +59,7 @@ type ExerciseCardProps = {
 export function ExerciseCard({
   exercise,
   planId,
+  sessionId,
   index,
   customMetrics,
   tracking,
@@ -60,6 +68,7 @@ export function ExerciseCard({
   onRun,
 }: Readonly<ExerciseCardProps>) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const network = useNetworkState();
   const isOnline = network.isInternetReachable !== false;
@@ -172,7 +181,8 @@ export function ExerciseCard({
         <View key={document.id} className="gap-1">
           <Pressable
             onPress={() => {
-              void openDocument(planId, document, isOnline).then((outcome) =>
+              const freshUrl = () => freshDocumentUrl(queryClient, sessionId, document.id);
+              void openDocument(planId, document, isOnline, freshUrl).then((outcome) =>
                 setFailure(outcome === "opened" ? null : { id: document.id, outcome }),
               );
             }}

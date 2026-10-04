@@ -26,7 +26,11 @@ vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useScheduledSession: vi.fn() }
 /** Les segments que le déclencheur « scripté » lance : chaque cas les pose avant de presser. */
 const { scripted } = vi.hoisted(() => ({ scripted: { segments: [] as BlockSegment[] } }));
 // Le bandeau hors-ligne écoute l'état réseau : hors sujet ici, et il n'a rien à dire d'un test.
-vi.mock("@/shared/component/OfflineBanner", () => ({ OfflineBanner: () => null }));
+// Le bandeau a SON test ; d'ici on ne vérifie que la date que l'écran lui passe.
+vi.mock("@/shared/component/OfflineBanner", () => ({
+  OfflineBanner: ({ savedAt }: Readonly<{ savedAt?: string | null }>) =>
+    savedAt == null ? null : <span>{`offline-saved-at:${savedAt}`}</span>,
+}));
 /**
  * La carte d'exercice est réduite à son titre et à deux déclencheurs de déroulé : elle a SON
  * fichier de test, et la monter pour de vrai ferait entrer ici les documents et le réseau — deux
@@ -147,18 +151,20 @@ function session(overrides: Partial<ScheduledSessionDto> = {}): ScheduledSession
     position: 0,
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: overrides.exercises?.length ?? 0,
+    updatedAt: "2026-08-10T00:00:00.000Z",
     exercises: [],
     ...overrides,
   };
 }
 
 /**
- * `useScheduledSession` rend un `useQuery` : l'écran en lit cinq champs, et les quatre états qu'il
+ * `useScheduledSession` rend un `useQuery` : l'écran en lit six champs, et les quatre états qu'il
  * distingue (chargement, erreur sèche, chargé, rafraîchissement) se jouent sur eux seuls.
  */
 function query(state: Partial<UseQueryResult<ScheduledSessionDto>>) {
   vi.mocked(useScheduledSession).mockReturnValue({
     data: undefined,
+    dataUpdatedAt: 0,
     isPending: false,
     isError: false,
     isFetching: false,
@@ -176,6 +182,22 @@ beforeEach(() => {
 });
 
 describe("SessionDetailScreen", () => {
+  /** #307 : hors-ligne, le bandeau date ce que l'athlète lit — l'arrivée de CETTE séance. */
+  it("passe au bandeau hors-ligne l'instant où la séance a été récupérée", async () => {
+    query({ data: session(), dataUpdatedAt: Date.parse("2026-08-12T19:04:00.000Z") });
+    const { findByText } = renderRn(<SessionDetailScreen />);
+
+    expect(await findByText("offline-saved-at:2026-08-12T19:04:00.000Z")).toBeTruthy();
+  });
+
+  /** Sans séance, aucune date à annoncer : le bandeau garde son message générique. */
+  it("ne date rien tant que la séance n'est pas là", () => {
+    query({ isPending: true, dataUpdatedAt: 0 });
+    const { queryByText } = renderRn(<SessionDetailScreen />);
+
+    expect(queryByText(/offline-saved-at/)).toBeNull();
+  });
+
   /**
    * Le cœur de #276. Une séance sans exercice — un footing, du repos actif — se compose comme ça,
    * et le débrief y est le SEUL geste qui reste : c'est par lui que la trace part au coach. Rien
