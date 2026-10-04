@@ -201,6 +201,7 @@
       "savedBeforeVariant": "Séance enregistrée avant de créer la variante.",
       "savedBeforeExercise": "Séance enregistrée avant de créer l'exercice.",
       "titleBeforeLeaving": "Donne un titre à la séance : elle doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
+      "refusedBeforeLeaving": "Une valeur n'est pas comprise : corrige-la ou vide-la, la séance doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
       "addCreatedFailed": "L'exercice créé n'a pas pu être ajouté à la séance : ajoute-le depuis ta bibliothèque."
     },
     "filterAllTags": "Tous",
@@ -222,6 +223,7 @@
       "previewEmpty": "L'aperçu apparaît une fois le titre renseigné.",
       "cancel": "Annuler",
       "submitCreate": "Créer l'exercice",
+      "refusedBlocksSave": "Une valeur n'est pas comprise : corrige-la ou vide-la pour enregistrer.",
       "submitEdit": "Enregistrer",
       "saving": "Enregistrement…",
       "instructions": "Consigne",
@@ -298,6 +300,8 @@
         "removeRow": "Retirer la ligne",
         "addRow": "Ajouter une ligne",
         "emptyValue": "—",
+        "durationInvalid": "Durée non comprise. Ex. 1'30",
+        "numberInvalid": "Nombre non compris. Ex. 12,5",
         "keyboardHint": "Tabulation → cellule suivante · Entrée → valide et crée la ligne suivante.",
         "keyboardHintSeries": "Tabulation → cellule suivante · Entrée → valide la cellule. Le nombre de lignes suit le nombre de séries."
       },

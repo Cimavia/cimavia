@@ -1,6 +1,7 @@
 import { formatTrainingDuration, parseTrainingDuration } from "@cmv/shared";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useReportRefused } from "@/shared/hook/useRefusedFields";
 import { cn } from "@/shared/util/cn.util";
 
 type CmvDurationFieldProps = {
@@ -31,6 +32,9 @@ export function CmvDurationField({
   const hintId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
+  // La valeur refusée n'est pas dans le brouillon : sans ce signal, l'écran enregistrerait
+  // l'ancienne sans le dire (#566).
+  useReportRefused(invalid);
 
   // `draft` non nul = le coach est en train de taper ; sinon on affiche la valeur mise en forme.
   const shown = draft ?? formatTrainingDuration(value) ?? "";

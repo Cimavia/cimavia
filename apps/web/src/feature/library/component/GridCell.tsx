@@ -11,8 +11,9 @@ import {
   required,
   scaleFor,
 } from "@cmv/shared";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useReportRefused } from "@/shared/hook/useRefusedFields";
 import { cn } from "@/shared/util/cn.util";
 
 type GridCellProps = {
@@ -37,10 +38,18 @@ type GridCellProps = {
   placeholder?: string | undefined;
 };
 
-/** La couleur suit la nature de la valeur ; `cn` ne fusionne pas, d'où une seule des deux. */
-const cellClass = (ghost: boolean | undefined) =>
+/**
+ * La bordure suit la saisie, la couleur la nature de la valeur. `cn` ne fusionne pas : une classe
+ * ajoutée à côté d'une autre de la même propriété ne gagne que si le CSS la range après — c'est
+ * ainsi que `border-transparent` effaçait le liseré d'une saisie refusée (#566). D'où une seule
+ * classe de chaque.
+ */
+const cellClass = (ghost: boolean | undefined, refused = false) =>
   cn(
-    "w-full rounded-cmv-sm border border-transparent bg-transparent px-cmv-sm py-cmv-xs text-cmv-body outline-none hover:border-cmv-border focus:border-cmv-accent focus:bg-cmv-surface",
+    "w-full rounded-cmv-sm border bg-transparent px-cmv-sm py-cmv-xs text-cmv-body outline-none focus:bg-cmv-surface",
+    refused
+      ? "border-cmv-error"
+      : "border-transparent hover:border-cmv-border focus:border-cmv-accent",
     ghost ? "text-cmv-text-lo" : "text-cmv-text-hi",
   );
 
@@ -83,6 +92,7 @@ function NumberCell(props: Readonly<GridCellProps>) {
       inputMode="decimal"
       parse={parseDecimal}
       format={(value) => formatDecimal(value, i18n.language)}
+      refusedKey="library.builder.grid.numberInvalid"
     />
   );
 }
@@ -104,20 +114,30 @@ function TextCell({ value, onChange, onCommitLine, ghost, placeholder }: Readonl
  * à chaque frappe ferait remonter des durées intermédiaires que personne n'a voulues.
  */
 function DurationCell(props: Readonly<GridCellProps>) {
-  return <DraftCell {...props} parse={parseTrainingDuration} format={formatTrainingDuration} />;
+  return (
+    <DraftCell
+      {...props}
+      parse={parseTrainingDuration}
+      format={formatTrainingDuration}
+      refusedKey="library.builder.grid.durationInvalid"
+    />
+  );
 }
 
 type DraftCellProps = GridCellProps & {
   /** Le texte tapé → une valeur, ou `null` s'il n'en est pas une. */
   parse: (text: string) => number | null;
   format: (value: number) => string;
+  /** Ce qui s'affiche sous une saisie refusée : ce qui n'a pas été compris, et un exemple. */
+  refusedKey: string;
   inputMode?: "decimal";
 };
 
 /**
  * Une cellule dont le texte reste LOCAL tant qu'on tape, et n'est lu qu'à la validation — sortie
  * du champ ou Entrée. Une saisie illisible n'écrase rien : le champ la garde, se signale, et la
- * valeur enregistrée reste celle d'avant.
+ * valeur enregistrée reste celle d'avant — et l'écran le sait, qui ferme l'enregistrement tant
+ * qu'elle reste à l'écran (#566).
  *
  * Un champ VIDÉ vaut `null`, jamais `0` (règle dure n°5).
  */
@@ -127,12 +147,16 @@ function DraftCell({
   onCommitLine,
   parse,
   format,
+  refusedKey,
   inputMode,
   ghost,
   placeholder,
 }: Readonly<DraftCellProps>) {
+  const { t } = useTranslation();
+  const hintId = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
+  useReportRefused(invalid);
 
   const shown = draft ?? (typeof value === "number" ? format(value) : "");
 
@@ -154,22 +178,32 @@ function DraftCell({
   }
 
   return (
-    <input
-      value={shown}
-      placeholder={placeholder}
-      inputMode={inputMode}
-      aria-invalid={invalid}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        onEnter(event, () => {
-          const committed = commit();
-          // Une saisie refusée ne crée pas de ligne : l'erreur reste sous les yeux du coach.
-          if (committed !== undefined) onCommitLine(committed);
-        });
-      }}
-      className={cn(cellClass(ghost), invalid && "border-cmv-error")}
-    />
+    <>
+      <input
+        value={shown}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? hintId : undefined}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          onEnter(event, () => {
+            const committed = commit();
+            // Une saisie refusée ne crée pas de ligne : l'erreur reste sous les yeux du coach.
+            if (committed !== undefined) onCommitLine(committed);
+          });
+        }}
+        className={cellClass(ghost, invalid)}
+      />
+      {/* Un liseré seul ne dit ni ce qui est refusé ni ce qu'on attend — et un lecteur d'écran
+          ne le voit pas. La phrase est courte : la colonne est étroite. */}
+      {invalid ? (
+        <span id={hintId} className="block text-cmv-caption text-cmv-error-on">
+          {t(refusedKey)}
+        </span>
+      ) : null}
+    </>
   );
 }
 
