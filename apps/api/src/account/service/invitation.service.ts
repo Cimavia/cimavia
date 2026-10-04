@@ -214,7 +214,8 @@ export class InvitationService {
    */
   private async findActionable(athlete: { email: string }, id: string) {
     const invitation = await this.prisma.invitation.findUnique({ where: { id } });
-    if (invitation == null || invitation.email !== normalizeEmail(athlete.email)) {
+    // Une invitation absente n'a pas d'adresse : `undefined` ne vaut jamais celle de la session.
+    if (invitation?.email !== normalizeEmail(athlete.email)) {
       throw new NotFoundException("Invitation introuvable");
     }
     if (invitation.status === InvitationStatus.REVOKED) {
