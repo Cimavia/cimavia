@@ -10,12 +10,18 @@ vi.mock("@/feature/athlete/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/feature/athlete/api")>();
   return {
     ...original,
-    accountApi: { ...original.accountApi, listInvitations: vi.fn(), createInvitation: vi.fn() },
+    accountApi: {
+      ...original.accountApi,
+      listInvitations: vi.fn(),
+      createInvitation: vi.fn(),
+      revokeInvitation: vi.fn(),
+    },
   };
 });
 
 const listInvitations = vi.mocked(accountApi.listInvitations);
 const createInvitation = vi.mocked(accountApi.createInvitation);
+const revokeInvitation = vi.mocked(accountApi.revokeInvitation);
 
 function invitation(email: string, status: InvitationDto["status"]): InvitationDto {
   return {
@@ -39,6 +45,7 @@ function typeEmail(container: HTMLElement, value: string) {
 beforeEach(() => {
   listInvitations.mockResolvedValue([]);
   createInvitation.mockResolvedValue(invitation("lea@exemple.fr", InvitationStatus.PENDING));
+  revokeInvitation.mockResolvedValue(undefined);
 });
 
 describe("InvitationSection — émettre (#390)", () => {
@@ -121,5 +128,51 @@ describe("InvitationSection — les invitations en attente", () => {
     expect(await findByText("lea@exemple.fr")).toBeTruthy();
     expect(getByText("tom@exemple.fr")).toBeTruthy();
     expect(queryByText("pris@exemple.fr")).toBeNull();
+  });
+});
+
+describe("InvitationSection — retirer une invitation en attente (#524)", () => {
+  const REVOKE = "athlete.invite.revoke";
+
+  /**
+   * Armé en deux temps, comme sur le web : le retrait est sans retour, l'invitation ne se rétablit
+   * pas. Un seul appui ne doit rien envoyer.
+   */
+  it("ne retire qu'après confirmation, puis relit la liste", async () => {
+    listInvitations.mockResolvedValue([invitation("lea@exemple.fr", InvitationStatus.PENDING)]);
+    const { container, findByText, queryClient } = renderRn(<InvitationSection />);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await findByText("lea@exemple.fr");
+
+    pressButton(container, REVOKE);
+    expect(revokeInvitation).not.toHaveBeenCalled();
+
+    pressButton(container, "athlete.invite.revokeConfirm");
+    await waitFor(() => expect(revokeInvitation).toHaveBeenCalledWith("inv-lea@exemple.fr"));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: invitationKeys.all }));
+  });
+
+  /** Le mobile n'a pas de toasts : l'échec se dit sous l'invitation qu'il concerne. */
+  it.each([
+    [
+      "tel que l'API l'a formulé",
+      new ApiError(409, "Seule une invitation en attente peut être retirée", null),
+      "Seule une invitation en attente peut être retirée",
+    ],
+    [
+      "par le message générique sans formulation",
+      new Error("réseau"),
+      "athlete.invite.revokeError",
+    ],
+  ])("dit l'échec du retrait %s", async (_case, failure, message) => {
+    revokeInvitation.mockRejectedValue(failure);
+    listInvitations.mockResolvedValue([invitation("lea@exemple.fr", InvitationStatus.PENDING)]);
+    const { container, findByText } = renderRn(<InvitationSection />);
+    await findByText("lea@exemple.fr");
+
+    pressButton(container, REVOKE);
+    pressButton(container, "athlete.invite.revokeConfirm");
+
+    expect(await findByText(message)).toBeTruthy();
   });
 });

@@ -23,18 +23,35 @@ export function useInvitations() {
   });
 }
 
-/**
- * Émet une invitation vers une adresse : elle n'apparaîtra qu'au compte qui la porte (#390).
- */
-export function useCreateInvitation() {
+// Une écriture sur les invitations du coach : sa liste est à relire. Pas de toast sur mobile —
+// l'échec se dit sur place, par l'écran qui porte le geste.
+function useInvitationMutation<TInput>(mutationFn: (input: TInput) => Promise<unknown>) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: CreateInvitationInput) => accountApi.createInvitation(input),
+    mutationFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invitationKeys.all });
     },
   });
+}
+
+/**
+ * Émet une invitation vers une adresse : elle n'apparaîtra qu'au compte qui la porte (#390).
+ */
+export function useCreateInvitation() {
+  return useInvitationMutation((input: CreateInvitationInput) =>
+    accountApi.createInvitation(input),
+  );
+}
+
+/**
+ * Retire une invitation EN ATTENTE (#524) — partie à la mauvaise adresse, ou devenue sans objet.
+ * Elle quitte la liste du coach ; son destinataire, s'il tente encore de l'accepter, lit
+ * « retirée ».
+ */
+export function useRevokeInvitation() {
+  return useInvitationMutation((invitationId: string) => accountApi.revokeInvitation(invitationId));
 }
 
 /**

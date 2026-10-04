@@ -596,7 +596,10 @@
       "error": "Impossible d'envoyer l'invitation. Vérifie ta connexion.",
       "emailLabel": "E-mail de l'athlète",
       "emailPlaceholder": "Ex. lea@exemple.fr",
-      "expires": "expire le {{date}}"
+      "expires": "expire le {{date}}",
+      "revoke": "Retirer",
+      "revokeConfirm": "Confirmer le retrait",
+      "revokeError": "Impossible de retirer l'invitation. Vérifie ta connexion."
     },
     "sheet": {
       "title": "Note de suivi",

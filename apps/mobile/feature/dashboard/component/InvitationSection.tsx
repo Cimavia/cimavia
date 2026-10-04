@@ -1,9 +1,9 @@
-import { InvitationStatus, invitationEmailOf } from "@cmv/shared";
+import { type InvitationDto, InvitationStatus, invitationEmailOf } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
-import { useCreateInvitation, useInvitations } from "@/feature/athlete";
-import { CmvButton, CmvText } from "@/shared/component";
+import { useCreateInvitation, useInvitations, useRevokeInvitation } from "@/feature/athlete";
+import { CmvButton, CmvConfirmButton, CmvText } from "@/shared/component";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { formatDateTime } from "@/shared/util/date.util";
@@ -18,7 +18,8 @@ import { formatDateTime } from "@/shared/util/date.util";
  * d'inscription sans adresse invitée (#263).
  *
  * La liste est celle du web pour les invitations EN ATTENTE, adresse affichée : c'est la seule
- * preuve que le geste a porté, le mobile n'ayant pas de toasts. Les refusées restent au web.
+ * preuve que le geste a porté, le mobile n'ayant pas de toasts. Chacune s'y retire, comme sur le
+ * web (#524). Les refusées restent au web.
  */
 export function InvitationSection() {
   const { t } = useTranslation();
@@ -71,16 +72,44 @@ export function InvitationSection() {
             {t("athlete.invite.pending")}
           </CmvText>
           {pending.map((invitation) => (
-            <View key={invitation.id} className="gap-1 border-cmv-border border-t pt-2">
-              {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. */}
-              <CmvText className="text-cmv-text-hi">{invitation.email}</CmvText>
-              <CmvText className="text-cmv-text-lo text-xs">
-                {t("athlete.invite.expires", { date: formatDateTime(invitation.expiresAt) })}
-              </CmvText>
-            </View>
+            <PendingInvitationRow key={invitation.id} invitation={invitation} />
           ))}
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * Une invitation en attente, et le geste qui la retire (#524) — une adresse erronée restait sinon
+ * acceptable sept jours par qui la détient.
+ *
+ * Armé en deux temps comme sur le web (parité de #147) : le retrait est sans retour. Sa propre
+ * mutation par ligne, pour que l'échec se dise sous l'invitation qu'il concerne — pas de toasts.
+ */
+function PendingInvitationRow({ invitation }: Readonly<{ invitation: InvitationDto }>) {
+  const { t } = useTranslation();
+  const revoke = useRevokeInvitation();
+
+  return (
+    <View className="gap-1 border-cmv-border border-t pt-2">
+      {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. */}
+      <CmvText className="text-cmv-text-hi">{invitation.email}</CmvText>
+      <CmvText className="text-cmv-text-lo text-xs">
+        {t("athlete.invite.expires", { date: formatDateTime(invitation.expiresAt) })}
+      </CmvText>
+      <CmvConfirmButton
+        label={t("athlete.invite.revoke")}
+        confirmLabel={t("athlete.invite.revokeConfirm")}
+        cancelLabel={t("common.cancel")}
+        disabled={revoke.isPending}
+        onConfirm={() => revoke.mutate(invitation.id)}
+      />
+      {revoke.isError ? (
+        <CmvText className="text-cmv-error text-sm">
+          {apiErrorMessage(revoke.error) ?? t("athlete.invite.revokeError")}
+        </CmvText>
+      ) : null}
     </View>
   );
 }
