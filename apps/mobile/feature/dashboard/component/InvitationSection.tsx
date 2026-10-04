@@ -30,6 +30,14 @@ export function InvitationSection() {
   // `null` tant que la saisie n'est pas une adresse : le bouton reste fermé, et l'API ne voit
   // jamais partir ce qu'elle refuserait d'un message de validation brut (#319).
   const target = invitationEmailOf(email);
+  // Un seul envoi, pour le bouton ET la touche « Envoyer » du clavier — celle-ci n'est pas fermée
+  // par `disabled`, c'est donc ici que la saisie invalide s'arrête.
+  function submit() {
+    if (target == null) return;
+    // Le champ ne se vide qu'au succès : un échec laisse l'adresse à corriger, pas à retaper.
+    create.mutate({ email: target }, { onSuccess: () => setEmail("") });
+  }
+
   const pending = (invitations ?? []).filter(
     (invitation) => invitation.status === InvitationStatus.PENDING,
   );
@@ -48,15 +56,13 @@ export function InvitationSection() {
         autoCapitalize="none"
         autoComplete="email"
         editable={!create.isPending}
+        returnKeyType="send"
+        onSubmitEditing={submit}
       />
 
       <CmvButton
         label={create.isPending ? t("athlete.invite.creating") : t("athlete.invite.action")}
-        onPress={() => {
-          if (target == null) return;
-          // Le champ ne se vide qu'au succès : un échec laisse l'adresse à corriger, pas à retaper.
-          create.mutate({ email: target }, { onSuccess: () => setEmail("") });
-        }}
+        onPress={submit}
         disabled={target == null || create.isPending}
       />
 

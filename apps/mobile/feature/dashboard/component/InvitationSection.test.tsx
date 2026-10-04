@@ -67,6 +67,21 @@ describe("InvitationSection — émettre (#390)", () => {
     expect(createInvitation).not.toHaveBeenCalled();
   });
 
+  /**
+   * La touche « Envoyer » du clavier passe par le même envoi que le bouton — mais rien ne la
+   * désactive : c'est l'envoi lui-même qui doit écarter une saisie qui n'est pas une adresse.
+   */
+  it("émet depuis la touche « Envoyer » du clavier, et seulement une adresse", async () => {
+    const { container, findByText } = renderRn(<InvitationSection />);
+    await findByText("athlete.invite.description");
+
+    fireEvent.keyDown(typeEmail(container, "lea@"), { key: "Enter" });
+    expect(createInvitation).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(typeEmail(container, "lea@exemple.fr"), { key: "Enter" });
+    await waitFor(() => expect(createInvitation).toHaveBeenCalledWith({ email: "lea@exemple.fr" }));
+  });
+
   it("émet vers l'adresse nettoyée, relit la liste et vide le champ", async () => {
     const { container, queryClient } = renderRn(<InvitationSection />);
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
