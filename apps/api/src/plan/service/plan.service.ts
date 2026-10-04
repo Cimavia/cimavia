@@ -220,8 +220,18 @@ export class PlanService {
     await tx.scheduledSessionExerciseTag.updateMany({ where: inExercises, data: { athleteId } });
   }
 
+  /**
+   * Un cycle DIFFUSÉ ne se supprime pas (#85) : la cascade emporterait sa facture émise, que
+   * l'athlète a déjà vue, et les débriefs de ses séances — médias laissés orphelins dans le bucket.
+   * Un brouillon, lui, n'a jamais été visible de l'athlète : aucune séance n'y est débriefée.
+   */
   async delete(id: string): Promise<void> {
-    await this.getOwnedOrThrow(id);
+    const plan = await this.getOwnedOrThrow(id);
+    if (plan.status === PlanStatus.PUBLISHED) {
+      throw new ConflictException(
+        "Un cycle diffusé ne se supprime plus : sa facture est émise et son athlète s'entraîne dessus",
+      );
+    }
     // Semaines, séances, exercices et copies de documents partent en cascade (schéma). Les objets
     // S3 ne sont PAS touchés : ils appartiennent à la bibliothèque, les copies les partagent.
     //
@@ -337,9 +347,24 @@ export class PlanService {
    * Retirer une semaine du milieu du cycle renumérote les suivantes — et fait donc **remonter**
    * leurs séances d'une semaine : sans ce décalage, une séance resterait datée d'une semaine
    * qui n'est plus la sienne.
+   *
+   * Tant que le cycle est un BROUILLON (#312). Sur un cycle diffusé, ce décalage ferait glisser
+   * d'une semaine le planning sur lequel l'athlète s'entraîne, séances débriefées comprises — le
+   * même effet que réécrire `startDate`, que `assertHeaderWritable` refuse déjà. Et même la
+   * dernière semaine, qui ne décale rien, emporterait ses séances et leurs débriefs en cascade.
+   *
+   * La garde lit le plan AVANT la transaction, comme ses voisines. La placer dans la suppression
+   * (#313) ne protégerait de rien ici : le statut vit sur la ligne `Plan`, pas sur celle supprimée,
+   * et Postgres ne revérifie pas une condition portée par une autre table.
    */
   async deleteWeek(weekId: string): Promise<PlanDto> {
     const week = await this.getWeekOwnedOrThrow(weekId);
+    const plan = await this.getOwnedOrThrow(week.planId);
+    if (plan.status === PlanStatus.PUBLISHED) {
+      throw new ConflictException(
+        "Un cycle diffusé ne perd plus de semaine : son athlète s'entraîne dessus",
+      );
+    }
 
     await this.db.$transaction(async (tx) => {
       // Les séances de la semaine supprimée partent en cascade (schéma).

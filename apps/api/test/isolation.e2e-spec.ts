@@ -2017,6 +2017,59 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     ]);
   });
 
+  /**
+   * Sur un cycle DIFFUSÉ, le retrait ferait glisser d'une semaine le planning de l'athlète, en
+   * silence (#312). Le 409 doit laisser le cycle intact : aucune semaine retirée, aucune
+   * renumérotée, aucune séance décalée.
+   */
+  it("refuse de retirer une semaine d'un cycle diffusé (409), sans rien décaler", async () => {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Diffusé",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "DELOAD" }, { type: "TRAINING" }],
+    });
+    const [, week2, week3] = plan.body.weeks;
+    const kept = await coach
+      .post(`/plan-weeks/${week3.id}/sessions`)
+      .send({ title: "Mardi de S3", scheduledDate: day(15) });
+    expect(kept.status).toBe(201);
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+
+    const res = await coach.delete(`/plan-weeks/${week2.id}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain("diffusé");
+    const after = await coach.get(`/plans/${plan.body.id}`);
+    expect(after.body.weeks.map((w: { id: string }) => w.id)).toEqual(
+      plan.body.weeks.map((w: { id: string }) => w.id),
+    );
+    expect(after.body.weeks[2]).toMatchObject({
+      weekNumber: 3,
+      startDate: day(14),
+      sessions: [{ id: kept.body.id, scheduledDate: day(15) }],
+    });
+  });
+
+  // Le cycle entier non plus (#85) : sa facture est émise, et la cascade l'emporterait.
+  it("refuse de supprimer un cycle diffusé (409) : cycle et facture restent", async () => {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title: "Diffusé, à garder",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+
+    const res = await coach.delete(`/plans/${plan.body.id}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain("diffusé");
+    expect((await coach.get(`/plans/${plan.body.id}`)).body.status).toBe("PUBLISHED");
+    const invoices = (await coach.get("/invoices")).body as { planId: string; status: string }[];
+    expect(invoices.find((invoice) => invoice.planId === plan.body.id)?.status).toBe("PENDING");
+  });
+
   // Le filtre de la liste des cycles, côté coach : l'écran d'un athlète ne montre que les siens.
   it("filtre les cycles par athlète, sans franchir la frontière du coach", async () => {
     const mine = await coach
@@ -5935,9 +5988,9 @@ describe("Génération automatique des rappels (#47)", () => {
 
     /**
      * Le cycle qui ne doit RIEN produire : une facture à échéance lointaine (pas encore en retard),
-     * et plus aucune semaine (pas de fin calculable). La diffusion exige une semaine : c'est en
-     * retirant l'unique semaine d'un cycle DÉJÀ diffusé qu'on y arrive — et le tick ne regarde que
-     * les cycles diffusés.
+     * et plus aucune semaine (pas de fin calculable). La diffusion exige une semaine, et l'API ne
+     * retire plus celle d'un cycle diffusé (#312) : l'état est celui qu'a pu laisser un retrait
+     * d'avant la garde. On le rejoue donc en base — et le tick ne regarde que les cycles diffusés.
      */
     const quiet = await coachG.post("/plans").send({
       athleteId: accepted.body.athleteId,
@@ -5951,8 +6004,8 @@ describe("Génération automatique des rappels (#47)", () => {
       .send({ amountCents: 5000, dueDate: "2099-01-05" });
     quietInvoiceId = billing.body.id;
     expect((await coachG.post(`/plans/${quietPlanId}/publish`)).status).toBe(200);
-    const emptied = await coachG.delete(`/plan-weeks/${quiet.body.weeks[0].id}`);
-    expect(emptied.body.weeks).toEqual([]);
+    await app.get(PrismaService).$executeRaw`DELETE FROM plan_week WHERE "planId" = ${quietPlanId}`;
+    expect((await coachG.get(`/plans/${quietPlanId}`)).body.weeks).toEqual([]);
   });
 
   /**
