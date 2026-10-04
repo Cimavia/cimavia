@@ -1,6 +1,7 @@
 import type { MessageDto } from "@cmv/shared";
 import { act, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { Composer } from "@/feature/message/component/Composer";
 import { MessageBubble } from "@/feature/message/component/MessageBubble";
 import { useMarkRead, useSendMessage, useThreadMessages } from "@/feature/message/hook/useMessages";
 import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia";
@@ -18,7 +19,7 @@ vi.mock("@/feature/message/hook/useMessages", () => ({
   useMarkRead: vi.fn(),
 }));
 vi.mock("@/feature/message/hook/useSendMessageMedia", () => ({ useSendMessageMedia: vi.fn() }));
-vi.mock("@/feature/message/component/Composer", () => ({ Composer: () => null }));
+vi.mock("@/feature/message/component/Composer", () => ({ Composer: vi.fn(() => null) }));
 vi.mock("@/feature/message/component/MessageBubble", () => ({ MessageBubble: vi.fn(() => null) }));
 vi.mock("@/shared/hook/useCapabilities", () => ({ useExercisedCapability: () => "coach" }));
 vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => vi.fn() }));
@@ -68,7 +69,7 @@ beforeEach(() => {
   sessionMock.mockReturnValue({ data: { user: { id: "me" } } });
   mockThread([]);
   vi.mocked(useSendMessage).mockReturnValue({
-    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
     isPending: false,
   } as unknown as ReturnType<typeof useSendMessage>);
   vi.mocked(useMarkRead).mockReturnValue({ mutate: markRead } as unknown as ReturnType<
@@ -165,5 +166,24 @@ describe("MessageThread — notes vocales enchaînées (#529)", () => {
     act(() => cueOf("m1")?.onFinish());
 
     await waitFor(() => expect(cueOf("m2")?.cued).toBe(true));
+  });
+});
+
+describe("MessageThread — barre d'envoi", () => {
+  const composerProps = () => vi.mocked(Composer).mock.lastCall?.[0];
+
+  it("ouvre la barre sur un fil résolu", () => {
+    renderWithProviders(<MessageThread {...props} />);
+
+    expect(composerProps()).toMatchObject({ sending: false, mediaBusy: false });
+  });
+
+  // #339 : sans fil, le texte partait vers `/conversations//messages` et se perdait.
+  it("ferme la barre tant que le fil n'est pas résolu, comme quand il a échoué", () => {
+    renderWithProviders(<MessageThread {...props} conversationId={undefined} />);
+    expect(composerProps()).toMatchObject({ sending: true, mediaBusy: true });
+
+    renderWithProviders(<MessageThread {...props} conversationId={undefined} hasResolveError />);
+    expect(composerProps()).toMatchObject({ sending: true, mediaBusy: true });
   });
 });

@@ -21,7 +21,7 @@ export function useFeedbackReply(input: FeedbackReplyInput) {
 
   return {
     ...feedbackReplySurface(input, send.isPending, (content) =>
-      send.mutate({ type: "TEXT", content }, { onSuccess: input.onSent }),
+      send.mutateAsync({ type: "TEXT", content }, { onSuccess: input.onSent }),
     ),
     sendFiles: media.sendFiles,
     sendAudio: media.sendAudio,

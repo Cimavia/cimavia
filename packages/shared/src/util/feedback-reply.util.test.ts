@@ -30,12 +30,12 @@ describe("feedbackReplySurface", () => {
   });
 
   it("porte l'échec du fil et l'envoi de texte tels quels", () => {
-    const sendText = vi.fn();
+    const sendText = vi.fn().mockResolvedValue(undefined);
     const surface = feedbackReplySurface({ ...READY, isThreadError: true }, true, sendText);
 
     expect(surface.hasThreadError).toBe(true);
     expect(surface.sending).toBe(true);
-    surface.sendText("Bien joué");
+    void surface.sendText("Bien joué");
     expect(sendText).toHaveBeenCalledWith("Bien joué");
   });
 });

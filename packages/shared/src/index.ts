@@ -737,6 +737,7 @@ export {
   attachmentTarget,
   MESSAGE_ATTACHMENT_LABEL_KEY,
 } from "./util/message-attachment.util";
+export { draftAfterSend } from "./util/message-draft.util";
 export type { ReadMarker } from "./util/message-read.util";
 export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
 export {

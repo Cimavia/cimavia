@@ -68,7 +68,7 @@ beforeEach(() => {
   sessionMock.mockReturnValue({ data: { user: { id: "me" } } });
   mockMessages({});
   vi.mocked(useSendMessage).mockReturnValue({
-    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
     isPending: false,
     isError: false,
   } as unknown as ReturnType<typeof useSendMessage>);
@@ -111,6 +111,9 @@ describe("ConversationThread", () => {
 
   it("propose de recommencer la RÉSOLUTION quand il n'y a pas encore de fil", () => {
     const onRetryResolve = vi.fn();
+    // Sans fil, la requête des messages est désactivée : TanStack la rend `isPending`, pas
+    // finie. C'est l'état réel, et c'est lui qui masquait l'erreur derrière un chargement.
+    mockMessages({ data: undefined, isPending: true });
     const { container } = renderRn(
       <ConversationThread
         {...base}
@@ -272,9 +275,9 @@ describe("ConversationThread", () => {
   });
 
   it("envoie le texte du composer comme un message TEXT", () => {
-    const mutate = vi.fn();
+    const mutateAsync = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useSendMessage).mockReturnValue({
-      mutate,
+      mutateAsync,
       isPending: false,
       isError: false,
     } as unknown as ReturnType<typeof useSendMessage>);
@@ -285,7 +288,7 @@ describe("ConversationThread", () => {
     fireEvent.change(field, { target: { value: "bien joué" } });
     pressIcon(container, "send");
 
-    expect(mutate).toHaveBeenCalledWith({ type: "TEXT", content: "bien joué" });
+    expect(mutateAsync).toHaveBeenCalledWith({ type: "TEXT", content: "bien joué" });
   });
 
   it("efface le refus précédent avant d'envoyer une note vocale", async () => {

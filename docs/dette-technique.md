@@ -757,7 +757,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > Quatorze bugs ouverts traversent ces écrans (#284, #326, #334, #339, #340, #342, #361, #364,
 > #365, #366, #367, #371, #437, #485) : les tests les contournent sans figer le comportement
-> fautif. Le Composer, par exemple, n'affirme pas l'état de son champ après un envoi (#339).
+> fautif. Le Composer, par exemple, n'affirmait pas l'état de son champ après un envoi — c'est
+> fait depuis #339.
 
 > **Tranché en [#504](https://github.com/Cimavia/cimavia/issues/504)** (lever les issues Sonar
 > de `main`) : l'issue en comptait 40 ; l'analyse du 30/09/2026 en affichait **83**. Les deux de
@@ -4943,6 +4944,28 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   `inert` (`CmvRoleGate`), et le dialogue n'y répondrait plus.
 >
 > Le **mobile** n'a pas de constructeur de bibliothèque : rien à garder.
+
+## Post-MVP — Un message qui n'est pas parti ([#339](https://github.com/Cimavia/cimavia/issues/339))
+
+> **Tranché en [#339](https://github.com/Cimavia/cimavia/issues/339)** (le champ se vide au
+> SUCCÈS, pas au clic) : la barre d'envoi vidait son champ dès l'envoi lancé, et un échec — 502 du
+> tunnel, réseau coupé — emportait le texte. Le toast (web) ou la ligne d'erreur (mobile) disait
+> l'échec sans rendre le texte.
+>
+> - **Pessimiste, pas optimiste.** L'issue laissait le choix : vider puis restaurer à l'échec
+>   aurait dû fusionner le texte rendu avec ce qu'on a commencé d'écrire entre-temps, pour aucun
+>   gain — le MVP n'a pas d'envoi différé, rien n'apparaît dans le fil avant la réponse du serveur.
+>   `onSendText` rend donc une promesse (`mutateAsync`), contrat partagé compris
+>   (`feedbackReplySurface`) : la barre sait si le texte est parti.
+> - **Le champ reste éditable pendant l'envoi**, seul le bouton se ferme. Au retour, ce qui est
+>   parti est retiré s'il est encore en tête du champ, et ce qui a été écrit après reste ; un texte
+>   RÉÉCRIT n'est pas touché — la frappe gagne, comme au débrief (#284). La règle vit dans
+>   `draftAfterSend` (`@cmv/shared`), appelée par les deux barres.
+> - **Le fil web ferme sa barre tant qu'il n'est pas résolu** (en cours ou en échec), comme sous un
+>   débrief : le texte partait vers `/conversations//messages`. Le mobile ne montait déjà pas de
+>   barre sans fil — mais **son échec de résolution se cachait derrière un chargement sans fin** :
+>   sans id, la requête des messages est désactivée et TanStack la rend `isPending`. L'erreur passe
+>   désormais avant le chargement ; le test simulait `isPending: false`, un état qui n'arrive pas.
 
 ---
 

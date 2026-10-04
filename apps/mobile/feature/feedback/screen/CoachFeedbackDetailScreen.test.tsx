@@ -81,7 +81,7 @@ vi.mock("@/shared/component", async (importOriginal) => {
 });
 
 const markRead = vi.fn();
-const sendText = vi.fn();
+const sendText = vi.fn().mockResolvedValue(undefined);
 
 const SUMMARY = {
   id: "f-1",

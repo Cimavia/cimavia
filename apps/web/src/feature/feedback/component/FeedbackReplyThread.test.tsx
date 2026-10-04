@@ -39,7 +39,7 @@ function mockReply(overrides: Record<string, unknown> = {}) {
   vi.mocked(useFeedbackReply).mockReturnValue({
     ready: true,
     hasThreadError: false,
-    sendText: vi.fn(),
+    sendText: vi.fn().mockResolvedValue(undefined),
     sending: false,
     sendFiles: vi.fn(),
     sendAudio: vi.fn(),
