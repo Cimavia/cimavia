@@ -33,7 +33,9 @@ vi.mock("@/feature/plan/api", () => ({
   myPlanKeys: {},
 }));
 
-const { syncOfflineDocuments } = await import("./offline-documents");
+const { offlineSignature, syncOfflineDocuments } = await import("./offline-documents");
+
+const EDITED_AT = "2026-08-10T00:00:00.000Z";
 
 function document(overrides: Partial<ExerciseDocumentDto> = {}): ExerciseDocumentDto {
   return {
@@ -48,7 +50,11 @@ function document(overrides: Partial<ExerciseDocumentDto> = {}): ExerciseDocumen
   };
 }
 
-function session(id: string, documents: ExerciseDocumentDto[]): ScheduledSessionDto {
+function session(
+  id: string,
+  documents: ExerciseDocumentDto[],
+  updatedAt = EDITED_AT,
+): ScheduledSessionDto {
   return {
     id,
     planId: "plan-1",
@@ -60,6 +66,7 @@ function session(id: string, documents: ExerciseDocumentDto[]): ScheduledSession
     position: 0,
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: 1,
+    updatedAt,
     exercises: [
       {
         id: "ex-1",
@@ -81,7 +88,7 @@ function session(id: string, documents: ExerciseDocumentDto[]): ScheduledSession
   };
 }
 
-function plan(id: string, sessionIds: readonly string[]): PlanDto {
+function plan(id: string, sessionIds: readonly string[], sessionUpdatedAt = EDITED_AT): PlanDto {
   return {
     id,
     coachId: "coach-1",
@@ -116,6 +123,7 @@ function plan(id: string, sessionIds: readonly string[]): PlanDto {
           position: index,
           status: ScheduledSessionStatus.PLANNED,
           exerciseCount: 1,
+          updatedAt: sessionUpdatedAt,
         })),
       },
     ],
@@ -238,10 +246,28 @@ describe("syncOfflineDocuments", () => {
       .mockRejectedValueOnce(new Error("réseau"))
       .mockResolvedValue(session("s-2", [document({ id: "doc-b" })]));
 
-    await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1", "s-2"])]);
+    const complete = await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1", "s-2"])]);
 
+    expect(complete).toBe(false);
     expect(cacheDocument).toHaveBeenCalledTimes(1);
     expect(cacheDocument).toHaveBeenCalledWith("plan-1", expect.objectContaining({ id: "doc-b" }));
+  });
+
+  /**
+   * Un lien externe n'a pas d'octets à descendre. Le compter comme « manquant » rechargeait la
+   * séance à chaque passe — et une passe qui doit être complète pour être retenue ne l'aurait
+   * jamais été.
+   */
+  it("ne compte pas un lien externe parmi les documents manquants", async () => {
+    const client = newQueryClient();
+    const link = document({ type: DocumentType.LINK, url: "https://youtu.be/x", mimeType: null });
+    client.setQueryData(myPlanKeys.session("s-1"), session("s-1", [link]));
+
+    const complete = await syncOfflineDocuments(client, [plan("plan-1", ["s-1"])]);
+
+    expect(complete).toBe(true);
+    expect(fetchSession).not.toHaveBeenCalled();
+    expect(cacheDocument).not.toHaveBeenCalled();
   });
 
   it("ne fait rien de plus qu'une purge sans aucun cycle visible", async () => {
@@ -266,8 +292,11 @@ describe("syncOfflineDocuments — changement de compte en cours de passe", () =
       return session(id, []);
     });
 
-    await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1", "s-2", "s-3"])]);
+    const complete = await syncOfflineDocuments(newQueryClient(), [
+      plan("plan-1", ["s-1", "s-2", "s-3"]),
+    ]);
 
+    expect(complete).toBe(false);
     expect(fetchSession).toHaveBeenCalledTimes(1);
   });
 
@@ -280,5 +309,98 @@ describe("syncOfflineDocuments — changement de compte en cours de passe", () =
     await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1"])]);
 
     expect(cacheDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncOfflineDocuments — séance retouchée depuis le cache (#307)", () => {
+  const EDITED_LATER = "2026-08-12T18:00:00.000Z";
+
+  /**
+   * Le scénario de l'issue : le coach change les charges, les documents connus sont déjà là. Le
+   * court-circuit « tout est sur l'appareil » servait l'ancien déroulé, quel que soit son âge.
+   */
+  it("recharge une séance retouchée même quand tous ses documents sont là", async () => {
+    const client = newQueryClient();
+    client.setQueryData(myPlanKeys.session("s-1"), session("s-1", [document()]));
+    localDocumentUri.mockReturnValue("file:///documents/plan-documents/plan-1/doc-1.pdf");
+    fetchSession.mockResolvedValue(session("s-1", [document()], EDITED_LATER));
+
+    await syncOfflineDocuments(client, [plan("plan-1", ["s-1"], EDITED_LATER)]);
+
+    expect(fetchSession).toHaveBeenCalledWith("s-1");
+    expect(client.getQueryData<ScheduledSessionDto>(myPlanKeys.session("s-1"))?.updatedAt).toBe(
+      EDITED_LATER,
+    );
+  });
+
+  /**
+   * Des URLs encore signables ne disent rien de la version : une séance chargée il y a deux
+   * minutes, retouchée depuis, ferait descendre les documents d'avant — et pas le PDF ajouté.
+   */
+  it("recharge une séance retouchée même quand ses urls sont encore valides", async () => {
+    const client = newQueryClient();
+    client.setQueryData(myPlanKeys.session("s-1"), session("s-1", []));
+    fetchSession.mockResolvedValue(session("s-1", [document({ id: "doc-neuf" })], EDITED_LATER));
+
+    await syncOfflineDocuments(client, [plan("plan-1", ["s-1"], EDITED_LATER)]);
+
+    expect(cacheDocument).toHaveBeenCalledWith(
+      "plan-1",
+      expect.objectContaining({ id: "doc-neuf" }),
+    );
+  });
+});
+
+describe("syncOfflineDocuments — complétude (#307)", () => {
+  it("se dit complète quand chaque séance est chargée et chaque document descendu", async () => {
+    fetchSession.mockResolvedValue(session("s-1", [document()]));
+
+    expect(await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1"])])).toBe(true);
+  });
+
+  /** Réseau coupé en plein téléchargement : la passe continue, mais elle devra être reprise. */
+  it("se dit incomplète quand un document ne descend pas", async () => {
+    cacheDocument.mockResolvedValueOnce(false);
+    fetchSession.mockImplementation(async (id) => session(id, [document({ id: `doc-${id}` })]));
+
+    const complete = await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1", "s-2"])]);
+
+    expect(complete).toBe(false);
+    expect(cacheDocument).toHaveBeenCalledTimes(2);
+  });
+
+  it("se dit incomplète quand l'époque change en plein téléchargement", async () => {
+    fetchSession.mockResolvedValue(session("s-1", [document({ id: "a" }), document({ id: "b" })]));
+    cacheDocument.mockImplementation(async () => {
+      generation += 1;
+      return true;
+    });
+
+    expect(await syncOfflineDocuments(newQueryClient(), [plan("plan-1", ["s-1"])])).toBe(false);
+    expect(cacheDocument).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("offlineSignature", () => {
+  it("reste la même pour des cycles identiques", () => {
+    expect(offlineSignature([plan("plan-1", ["s-1"])])).toBe(
+      offlineSignature([plan("plan-1", ["s-1"])]),
+    );
+  });
+
+  it("change quand une séance est retouchée, le cycle restant le même", () => {
+    expect(offlineSignature([plan("plan-1", ["s-1"], "2026-08-12T18:00:00.000Z")])).not.toBe(
+      offlineSignature([plan("plan-1", ["s-1"])]),
+    );
+  });
+
+  it("change quand une séance est ajoutée", () => {
+    expect(offlineSignature([plan("plan-1", ["s-1", "s-2"])])).not.toBe(
+      offlineSignature([plan("plan-1", ["s-1"])]),
+    );
+  });
+
+  it("est vide sans aucun cycle", () => {
+    expect(offlineSignature([])).toBe("");
   });
 });
