@@ -6,7 +6,6 @@ import type {
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, coachKeys, invitationKeys } from "@/feature/coach/api";
-import { myPlanKeys } from "@/feature/plan/api";
 
 export function useMyCoach() {
   return useQuery<CoachAthleteDto | null>({
@@ -18,8 +17,17 @@ export function useMyCoach() {
 /**
  * Rejoint un coach par code d'invitation.
  *
- * Rejoindre change tout ce que l'athlète peut voir : on invalide donc aussi sa planification,
- * dont le `null` mis en cache (« aucun coach ») serait sinon resservi jusqu'à expiration.
+ * L'invalidation est **globale**, comme sur le web et comme au toucher d'une notification :
+ * rejoindre un coach ne change pas une donnée, il change *tout ce que l'athlète peut voir*. Sa
+ * planification, ses factures, sa messagerie n'existaient pas une seconde plus tôt, et chaque
+ * réponse déjà en cache (« aucun coach », « aucune facture ») serait resservie jusqu'à expiration
+ * — la carte de l'invitation acceptée comprise, qui resterait au-dessus du coach obtenu (#146).
+ * L'énumération des clés avait oublié celle des contreparties, dont dépend la BARRE D'ONGLETS :
+ * l'athlète qui venait de rejoindre n'avait pas d'onglet Messages avant d'avoir mis l'app en
+ * arrière-plan (#308). Son `staleTime: 0` n'y pouvait rien — l'observateur vit dans
+ * `app/(app)/_layout.tsx`, qui reste monté sous `join` : rien ne le remonte, seule une
+ * invalidation relance la requête. Énumérer coûterait plus cher que de tout refetcher après un
+ * geste qu'on ne fait qu'une fois.
  */
 export function useAcceptInvitation() {
   const queryClient = useQueryClient();
@@ -28,10 +36,7 @@ export function useAcceptInvitation() {
     mutationFn: (input: AcceptInvitationInput) => accountApi.acceptInvitation(input),
     onSuccess: (relation) => {
       queryClient.setQueryData(coachKeys.mine(), relation);
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.all });
-      // L'invitation acceptée n'attend plus personne : sans cette invalidation, sa carte resterait
-      // affichée au-dessus du « tu as déjà un coach » qu'on vient d'obtenir (#146).
-      queryClient.invalidateQueries({ queryKey: invitationKeys.all });
+      queryClient.invalidateQueries();
     },
   });
 }
