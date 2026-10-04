@@ -9,6 +9,14 @@ export const SESSION_NOTES_MAX_LENGTH = 5000;
  * « prescription », qui portait le dosage écrit à la main — ce rôle revient à `blocks` (#164).
  */
 export const SESSION_NOTE_MAX_LENGTH = 2000;
+/**
+ * Garde-fou, pas règle métier (#297) : un Coach compose quelques dizaines d'exercices au plus.
+ * Sans lui, un `exerciseId` répété des milliers de fois tenait sous la limite de corps et faisait
+ * recopier autant de fois les blocs de l'exercice. Il borne aussi les séances planifiées, et
+ * donc le suivi qu'un débrief peut remonter.
+ */
+export const SESSION_MAX_EXERCISES = 50;
+export const SESSION_TOO_MANY_EXERCISES_MESSAGE = `Une séance ne peut pas dépasser ${SESSION_MAX_EXERCISES} exercices.`;
 
 export const sessionExerciseInputSchema = z
   .object({
@@ -31,7 +39,10 @@ export const createSessionSchema = z
   .object({
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
     notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
-    exercises: z.array(sessionExerciseInputSchema).default([]),
+    exercises: z
+      .array(sessionExerciseInputSchema)
+      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE)
+      .default([]),
   })
   .strict();
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
@@ -40,7 +51,9 @@ export const updateSessionSchema = z
   .object({
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
     notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
-    exercises: z.array(sessionExerciseInputSchema),
+    exercises: z
+      .array(sessionExerciseInputSchema)
+      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE),
   })
   .strict();
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;

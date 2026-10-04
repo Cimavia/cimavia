@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { MetricValueType } from "./exercise-metric.schema";
 import {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
   reorderPlanDaySchema,
+  SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
+  scheduledSessionExerciseInputSchema,
   updateScheduledSessionSchema,
 } from "./plan.schema";
+import { SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from "./session.schema";
 
 const MONDAY = "2026-10-12";
 
@@ -52,6 +56,53 @@ describe("createScheduledSessionSchema", () => {
     const result = createScheduledSessionSchema.safeParse({ scheduledDate: "2026-10-14" });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(["title"]);
+  });
+});
+
+const scheduledExercises = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ title: `Exercice ${index}` }));
+
+describe("plafond d'exercices d'une séance planifiée (#297)", () => {
+  const update = (count: number) =>
+    updateScheduledSessionSchema.safeParse({
+      title: "Bloc",
+      scheduledDate: "2026-10-14",
+      exercises: scheduledExercises(count),
+    });
+  const create = (count: number) =>
+    createScheduledSessionSchema.safeParse({
+      title: "Bloc",
+      scheduledDate: "2026-10-14",
+      exercises: scheduledExercises(count),
+    });
+
+  it.each([
+    ["l'édition", update],
+    ["la création", create],
+  ])("%s accepte le plafond et refuse un exercice de plus", (_, parse) => {
+    expect(parse(SESSION_MAX_EXERCISES).success).toBe(true);
+    const result = parse(SESSION_MAX_EXERCISES + 1);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(SESSION_TOO_MANY_EXERCISES_MESSAGE);
+  });
+});
+
+describe("plafond de métriques maison d'un exercice diffusé (#297)", () => {
+  const withMetrics = (count: number) =>
+    scheduledSessionExerciseInputSchema.safeParse({
+      title: "Tractions",
+      customMetrics: Array.from({ length: count }, (_, index) => ({
+        id: `cm_${index}`,
+        label: `Métrique ${index}`,
+        unit: null,
+        valueType: MetricValueType.NUMBER,
+        scale: null,
+      })),
+    });
+
+  it("accepte une métrique par colonne de chaque bloc, pas une de plus", () => {
+    expect(withMetrics(SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS).success).toBe(true);
+    expect(withMetrics(SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS + 1).success).toBe(false);
   });
 });
 
