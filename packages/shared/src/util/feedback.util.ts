@@ -47,3 +47,26 @@ export function remainingMediaSlots(
   const used = feedback?.media.filter((item) => item.type === type).length ?? 0;
   return maxFeedbackMediaCount(type) - used;
 }
+
+/**
+ * Ce que devient le texte en cours de saisie quand un débrief (re)chargé est examiné — à chaque
+ * changement de son identité, qui naît notamment au premier média joint (#284).
+ *
+ * Le brouillon gagne dès qu'il diffère du texte chargé au dernier examen : l'athlète a écrit
+ * depuis, et rien ne détruit une saisie en cours — pas même un texte écrit entre-temps sur un autre
+ * appareil, que l'enregistrement écrasera comme l'upsert le fait déjà. Sinon, le champ reprend le
+ * texte chargé : un débrief se complète en plusieurs fois.
+ *
+ * On compare plutôt qu'on ne lève un drapeau à la frappe : un drapeau remis à zéro par
+ * l'enregistrement perdrait ce qui a été tapé pendant l'envoi.
+ *
+ * `null` (aucun texte, ou aucun débrief) et le champ vide se valent ici : le champ ne sait pas les
+ * distinguer, et c'est bien « rien d'écrit » dans les deux cas.
+ */
+export function draftAfterLoad(
+  draft: string,
+  lastLoaded: string | null,
+  loaded: string | null,
+): string {
+  return draft === (lastLoaded ?? "") ? (loaded ?? "") : draft;
+}

@@ -9,6 +9,7 @@ import type {
   SessionFeedbackDto,
 } from "@cmv/shared";
 import {
+  draftAfterLoad,
   FEEDBACK_CONTENT_MAX_LENGTH,
   MediaType,
   mediaRecapText,
@@ -82,8 +83,11 @@ export function AthleteFeedbackScreen() {
         />
       ) : null}
 
+      {/* Une autre séance repart d'un formulaire neuf : la frappe d'un débrief ne passe jamais
+          dans un autre, même quand la route garde l'écran monté. */}
       {isPending || isError ? null : (
         <FeedbackBody
+          key={sessionId}
           sessionId={sessionId}
           session={session.data ?? null}
           feedback={feedback ?? null}
@@ -133,17 +137,17 @@ function FeedbackBody({
 
   /**
    * Le formulaire part de ce qui est déjà enregistré (un débrief se complète en plusieurs fois).
-   * On ne resynchronise QUE sur l'identité du débrief chargé : réécrire à chaque render effacerait
-   * la frappe en cours dès qu'une requête d'arrière-plan se termine.
+   * On n'examine le champ QUE quand l'identité du débrief chargé change : réécrire à chaque render
+   * effacerait la frappe en cours dès qu'une requête d'arrière-plan se termine. Et l'examen ne
+   * réécrit pas une frappe : cette identité naît au premier média joint, texte en cours (#284).
    *
    * Ajusté PENDANT le render et non dans un effet : c'est de l'état dérivé d'une donnée chargée
    * (même raisonnement que côté mobile).
    */
-  const [syncedFeedbackId, setSyncedFeedbackId] = useState<string | null>(null);
-  const loadedFeedbackId = feedback?.id ?? null;
-  if (loadedFeedbackId !== syncedFeedbackId) {
-    setSyncedFeedbackId(loadedFeedbackId);
-    setContent(feedback?.content ?? "");
+  const [synced, setSynced] = useState<SessionFeedbackDto | null>(null);
+  if ((feedback?.id ?? null) !== (synced?.id ?? null)) {
+    setSynced(feedback);
+    setContent(draftAfterLoad(content, synced?.content ?? null, feedback?.content ?? null));
   }
 
   // Un PREMIER débrief vide reste légitime — « j'ai fait la séance, rien à dire » est une réponse,

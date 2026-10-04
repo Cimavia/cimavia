@@ -663,7 +663,7 @@ export {
 } from "./util/date-format.util";
 export { decimalPlaces, formatDecimal, parseDecimal } from "./util/decimal.util";
 export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
-export { countUnreadFeedbacks, remainingMediaSlots } from "./util/feedback.util";
+export { countUnreadFeedbacks, draftAfterLoad, remainingMediaSlots } from "./util/feedback.util";
 export type {
   FeedbackReplyAttachment,
   FeedbackReplyInput,
