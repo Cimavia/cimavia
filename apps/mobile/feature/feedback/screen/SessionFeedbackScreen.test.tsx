@@ -1,6 +1,6 @@
 import type { MessageDto, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { myFeedbackKeys } from "@cmv/shared";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
 import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
@@ -30,7 +30,11 @@ vi.mock("@/feature/feedback/component/FeedbackMediaSection", () => ({
 vi.mock("@/feature/feedback/component/FeedbackTrackingSection", () => ({
   FeedbackTrackingSection: vi.fn(() => null),
 }));
-vi.mock("@/feature/feedback/hook/useSessionFeedback", () => ({ useSessionFeedback: vi.fn() }));
+// L'écriture reste la VRAIE : le seul test qui monte la vraie section de texte en a besoin.
+vi.mock("@/feature/feedback/hook/useSessionFeedback", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/feedback/hook/useSessionFeedback")>()),
+  useSessionFeedback: vi.fn(),
+}));
 vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({ useFeedbackReply: vi.fn() }));
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useScheduledSession: vi.fn() }));
 vi.mock("@/feature/coach", () => ({ useMyCoach: () => ({ data: { coachId: "coach-1" } }) }));
@@ -100,6 +104,8 @@ function mockFeedback(state: Record<string, unknown>): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` garde les implémentations : la vraie section montée par un test resterait.
+  vi.mocked(FeedbackTextSection).mockReset();
   currentUser.value = { user: { id: "athlete-1" } };
   mockFeedback({});
   mockSession(null);
@@ -204,6 +210,28 @@ describe("SessionFeedbackScreen — le décompte accompagne le texte", () => {
 
     expect(FeedbackTrackingSection).not.toHaveBeenCalled();
     expect(textSectionProps()).not.toHaveProperty("tracking");
+  });
+
+  /**
+   * Séance en retard ou en panne (réseau coupé), l'athlète écrit quand même : quand elle arrive
+   * enfin, le champ ne doit pas être remonté ailleurs — ce qui effaçait sa frappe.
+   */
+  it("garde la frappe quand la séance arrive après coup", async () => {
+    const actual = await vi.importActual<
+      typeof import("@/feature/feedback/component/FeedbackTextSection")
+    >("@/feature/feedback/component/FeedbackTextSection");
+    vi.mocked(FeedbackTextSection).mockImplementation(actual.FeedbackTextSection);
+    mockFeedback({ data: null });
+    const { container, rerender } = renderRn(<SessionFeedbackScreen />);
+    const field = container.querySelector("textarea");
+    if (field == null) throw new Error("champ introuvable");
+    fireEvent.change(field, { target: { value: "Doigts cuits" } });
+
+    mockSession(SESSION);
+    rerender(<SessionFeedbackScreen />);
+
+    expect(FeedbackTrackingSection).toHaveBeenCalled();
+    expect(container.querySelector("textarea")?.value).toBe("Doigts cuits");
   });
 
   it("avec la séance, le décompte est rendu et part avec le texte", () => {

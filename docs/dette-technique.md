@@ -138,6 +138,27 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > d'app), mais la bascule faisait aussi afficher les notifications de l'attaquant **sur l'écran de
 > la victime** — nuisance, pas fuite. Traité quand même, comme durcissement avant iOS.
 
+> **Tranché en [#284](https://github.com/Cimavia/cimavia/issues/284)** (le texte du débrief effacé
+> par le premier média) : ce média CRÉE le débrief, son identité naît, et le champ se
+> resynchronisait sur elle. La règle vit désormais dans `draftAfterLoad` (`@cmv/shared`), appelée
+> par les deux écrans.
+>
+> - **La frappe gagne, toujours** — y compris sur un texte écrit depuis un autre appareil pendant
+>   la saisie : l'enregistrement l'écrasera, comme l'upsert le fait déjà. Le signaler à l'écran
+>   demanderait une mécanique de conflit que le MVP n'a nulle part ailleurs, pour un cas qui exige
+>   deux appareils sur la même séance au même moment.
+> - **Une comparaison, pas le drapeau que l'issue prescrivait.** Le champ est « touché » quand il
+>   diffère du texte chargé au dernier examen. Un drapeau posé à la frappe et remis à zéro par
+>   l'enregistrement perdait ce qui avait été tapé PENDANT le premier envoi : le retour du serveur
+>   éteignait le drapeau, l'identité naissait, la resynchro passait.
+> - **Une autre séance repart d'un formulaire neuf, par une `key` sur la séance** (web et
+>   mobile). C'était l'identité du débrief qui l'assurait jusqu'ici ; la frappe gagnant désormais,
+>   sans la `key` elle passerait d'un débrief à l'autre quand la route garde l'écran monté.
+> - **Même symptôme, autre cause, corrigé ici** : sur mobile, la section de texte changeait de
+>   place dans l'arbre à l'arrivée de la séance, et se remontait vide. Un athlète qui écrivait
+>   réseau coupé perdait son texte au retour du réseau. Elle ne bouge plus ; seules les coches
+>   attendent la séance, comme sur le web.
+
 > **Rattrapages faits en P4** (hors périmètre annoncé, révélés par le test de bout en bout) :
 > **p4-5** l'écran mobile « rejoindre un coach » — `POST /invitations/accept` existait et était
 > testé, mais aucun client ne l'appelait : la relation ne pouvait s'établir qu'à la main, donc

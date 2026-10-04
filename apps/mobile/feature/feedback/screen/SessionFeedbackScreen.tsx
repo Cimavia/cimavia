@@ -1,4 +1,9 @@
-import type { MediaRecapLine, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
+import type {
+  FeedbackTracking,
+  MediaRecapLine,
+  ScheduledSessionDto,
+  SessionFeedbackDto,
+} from "@cmv/shared";
 import { myFeedbackKeys, trackingOfExercises } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
@@ -77,17 +82,14 @@ export function SessionFeedbackScreen() {
                 <CmvText className="text-cmv-text-mid text-sm">{t("feedback.subtitle")}</CmvText>
               </View>
 
-              {/* Le décompte n'attend PAS la séance pour laisser écrire : si elle tarde ou échoue,
-                  le texte et les médias restent accessibles, seul le rappel des coches manque. */}
-              {session.data == null ? (
-                <FeedbackTextSection sessionId={id} feedback={feedback ?? null} />
-              ) : (
-                <TrackedSections
-                  sessionId={id}
-                  session={session.data}
-                  feedback={feedback ?? null}
-                />
-              )}
+              {/* Une autre séance repart d'un formulaire neuf : la frappe d'un débrief ne passe
+                  jamais dans un autre. */}
+              <WritingSections
+                key={id}
+                sessionId={id}
+                session={session.data ?? null}
+                feedback={feedback ?? null}
+              />
 
               <FeedbackMediaSection sessionId={id} feedback={feedback ?? null} />
 
@@ -126,38 +128,54 @@ export function SessionFeedbackScreen() {
  * Le suivi vit en local depuis la séance ; le débrief est le moment où il franchit le réseau. Un
  * seul bouton pour les deux — deux boutons feraient croire qu'on peut envoyer l'un sans l'autre,
  * alors que le décompte accompagne le ressenti.
+ *
+ * Le décompte n'attend PAS la séance pour laisser écrire : si elle tarde ou échoue, le texte et les
+ * médias restent accessibles, seul le rappel des coches manque — et aucun décompte ne part, plutôt
+ * qu'un objet vide qui écraserait le suivi.
  */
-function TrackedSections({
+function WritingSections({
   sessionId,
   session,
   feedback,
 }: Readonly<{
   sessionId: string;
-  session: ScheduledSessionDto;
+  session: ScheduledSessionDto | null;
   feedback: SessionFeedbackDto | null;
 }>) {
   const remote = useMemo(
-    () => Object.fromEntries(session.exercises.map((exercise) => [exercise.id, exercise.tracking])),
+    () =>
+      Object.fromEntries(
+        (session?.exercises ?? []).map((exercise) => [exercise.id, exercise.tracking]),
+      ),
     [session],
   );
   const local = useLocalTracking(sessionId, remote);
 
   return (
     <>
-      <FeedbackTrackingSection
-        exercises={session.exercises}
-        tracking={local.tracking}
-        onToggleUnit={local.toggleUnit}
-        onRounds={local.setRounds}
-      />
+      {session == null ? null : (
+        <FeedbackTrackingSection
+          exercises={session.exercises}
+          tracking={local.tracking}
+          onToggleUnit={local.toggleUnit}
+          onRounds={local.setRounds}
+        />
+      )}
+      {/* TOUJOURS à cette place, séance chargée ou non : la remonter ailleurs quand la séance
+          arrive effacerait ce que l'athlète a tapé en l'attendant — réseau revenu compris. */}
       <FeedbackTextSection
         sessionId={sessionId}
         feedback={feedback}
-        // Seuls les exercices que la séance porte encore : une coche restée en local sur un
-        // exercice retiré par le coach ferait refuser tout le débrief (#311, #490).
-        tracking={trackingOfExercises(local.tracking, session.exercises)}
-        trackingDirty={local.dirty}
-        onSaved={(sent) => local.clearIfSent(sent, session.exercises)}
+        {...(session == null
+          ? {}
+          : {
+              // Seuls les exercices que la séance porte encore : une coche restée en local sur un
+              // exercice retiré par le coach ferait refuser tout le débrief (#311, #490).
+              tracking: trackingOfExercises(local.tracking, session.exercises),
+              trackingDirty: local.dirty,
+              onSaved: (sent: FeedbackTracking | undefined) =>
+                local.clearIfSent(sent, session.exercises),
+            })}
       />
     </>
   );

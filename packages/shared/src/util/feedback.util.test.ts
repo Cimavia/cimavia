@@ -5,7 +5,7 @@ import {
   MAX_FEEDBACK_VIDEOS,
   MediaType,
 } from "../dto/feedback.schema";
-import { countUnreadFeedbacks, remainingMediaSlots } from "./feedback.util";
+import { countUnreadFeedbacks, draftAfterLoad, remainingMediaSlots } from "./feedback.util";
 
 describe("countUnreadFeedbacks", () => {
   it("compte les débriefs que le coach n'a pas ouverts", () => {
@@ -59,5 +59,43 @@ describe("remainingMediaSlots", () => {
   it("tombe à zéro quand le quota est atteint", () => {
     const media = Array.from({ length: MAX_FEEDBACK_PHOTOS }, () => photo);
     expect(remainingMediaSlots({ media }, MediaType.IMAGE)).toBe(0);
+  });
+});
+
+describe("draftAfterLoad", () => {
+  /**
+   * Le cas de #284 : le premier média CRÉE le débrief, sans texte. Son identité naît, le champ est
+   * examiné — et la frappe, qui diffère de ce qu'on avait chargé (rien), doit rester.
+   */
+  it("garde la frappe quand un média fait naître le débrief", () => {
+    expect(draftAfterLoad("Doigts cuits", null, null)).toBe("Doigts cuits");
+  });
+
+  // Un débrief se complète en plusieurs fois : rien n'a été tapé, le champ part de l'enregistré.
+  it("reprend le texte enregistré quand rien n'a été tapé", () => {
+    expect(draftAfterLoad("", null, "Bonne séance")).toBe("Bonne séance");
+  });
+
+  it("suit le texte rechargé tant que le champ est resté tel quel", () => {
+    expect(draftAfterLoad("Bonne séance", "Bonne séance", "Bonne séance, longue")).toBe(
+      "Bonne séance, longue",
+    );
+  });
+
+  /** Écrit depuis un autre appareil pendant la frappe : la saisie en cours n'est jamais détruite. */
+  it("fait gagner la frappe sur un texte écrit ailleurs entre-temps", () => {
+    expect(draftAfterLoad("Bonne séance, dure", "Bonne séance", "Autre chose")).toBe(
+      "Bonne séance, dure",
+    );
+  });
+
+  // Champ vidé puis rempli à l'identique : il n'y a plus de saisie à protéger.
+  it("tient pour intact un champ revenu au texte chargé", () => {
+    expect(draftAfterLoad("", "", "Bonne séance")).toBe("Bonne séance");
+  });
+
+  // Le champ ne distingue pas « aucun texte » de « texte vide » : un débrief vide rend un champ vide.
+  it("rend un champ vide pour un débrief sans texte", () => {
+    expect(draftAfterLoad("", null, null)).toBe("");
   });
 });

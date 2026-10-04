@@ -1,4 +1,5 @@
 import type { FeedbackTracking, SessionFeedbackDto } from "@cmv/shared";
+import { draftAfterLoad } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FeedbackForm } from "@/feature/feedback/component/FeedbackForm";
@@ -30,19 +31,19 @@ export function FeedbackTextSection({
   const [content, setContent] = useState("");
 
   /**
-   * Le formulaire part de ce qui est déjà enregistré (débrief repris en plusieurs fois). On ne
-   * resynchronise QUE sur l'identité du débrief chargé : réécrire à chaque render effacerait la
-   * frappe en cours dès qu'une requête d'arrière-plan se termine.
+   * Le formulaire part de ce qui est déjà enregistré (débrief repris en plusieurs fois). On
+   * n'examine le champ QUE quand l'identité du débrief chargé change : réécrire à chaque render
+   * effacerait la frappe en cours dès qu'une requête d'arrière-plan se termine. Et l'examen ne
+   * réécrit pas une frappe : cette identité naît au premier média joint, texte en cours (#284).
    *
    * Ajusté PENDANT le render, pas dans un effet : c'est de l'état dérivé d'une donnée chargée, et
    * la version en `useEffect` mentait au linter (elle lisait `content` sans en dépendre) tout en
    * affichant un render de trop avec l'ancien texte.
    */
-  const [syncedFeedbackId, setSyncedFeedbackId] = useState<string | null>(null);
-  const loadedFeedbackId = feedback?.id ?? null;
-  if (loadedFeedbackId !== syncedFeedbackId) {
-    setSyncedFeedbackId(loadedFeedbackId);
-    setContent(feedback?.content ?? "");
+  const [synced, setSynced] = useState<SessionFeedbackDto | null>(null);
+  if ((feedback?.id ?? null) !== (synced?.id ?? null)) {
+    setSynced(feedback);
+    setContent(draftAfterLoad(content, synced?.content ?? null, feedback?.content ?? null));
   }
 
   // Un premier débrief vide reste légitime (« séance faite, rien à signaler ») ; ré-enregistrer

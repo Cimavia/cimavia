@@ -231,6 +231,24 @@ describe("AthleteFeedbackScreen", () => {
       // l'athlète a déjà écrit dès qu'il revient dessus.
       expect(await findByLabelText(CONTENT)).toHaveValue("Bonne séance");
     });
+
+    /**
+     * #284 : le premier média joint CRÉE le débrief, sans texte, et relance sa lecture. Son
+     * identité naît — ce qui réécrivait le champ et effaçait ce que l'athlète venait de taper.
+     */
+    it("garde la frappe quand un premier média fait naître le débrief", async () => {
+      const { user, findByLabelText, getByRole, queryClient } = await setup();
+      const textarea = await findByLabelText(CONTENT);
+      await user.type(textarea, "Doigts cuits");
+
+      getFeedbackMock.mockResolvedValue(feedback({ content: null }));
+      await queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(SESSION_ID) });
+
+      await waitFor(() => expect(getFeedbackMock).toHaveBeenCalledTimes(2));
+      expect(textarea).toHaveValue("Doigts cuits");
+      // Le texte tapé n'est pas celui du débrief créé : il reste à envoyer.
+      expect(getByRole("button", { name: SUBMIT })).toBeEnabled();
+    });
   });
 
   describe("ce qui part au serveur", () => {
