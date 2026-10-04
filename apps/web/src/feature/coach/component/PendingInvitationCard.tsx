@@ -2,6 +2,7 @@ import type { PendingInvitationDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useAcceptInvitation, useDeclineInvitation } from "@/feature/coach/hook/useMyCoach";
 import { CmvButton, CmvCard, CmvConfirmButton } from "@/shared/component";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { formatDateTime } from "@/shared/util/date.util";
 
 type PendingInvitationCardProps = {
@@ -32,6 +33,7 @@ export function PendingInvitationCard({
   const { t } = useTranslation();
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
+  const toast = useMutationToast();
 
   const linked = currentCoachName != null;
   const busy = accept.isPending || decline.isPending;
@@ -59,7 +61,10 @@ export function PendingInvitationCard({
         <div className="flex flex-wrap items-center gap-cmv-sm">
           <CmvButton
             disabled={linked || busy}
-            onClick={() => accept.mutate({ code: invitation.code })}
+            // L'échec se dit en toast, comme celui du refus (#365) : sans lui, le bouton repassait de
+            // « Connexion en cours… » à « Rejoindre » et rien d'autre ne se passait. Passé à
+            // l'appel et non au hook, que `JoinCoachForm` partage et qui affiche déjà l'erreur.
+            onClick={() => accept.mutate({ code: invitation.code }, { onError: toast.onError })}
           >
             {accept.isPending
               ? t("coach.invitation.joining")

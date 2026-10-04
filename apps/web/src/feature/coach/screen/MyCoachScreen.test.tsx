@@ -153,6 +153,26 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
     expect(screen.getByRole("button", { name: "coach.invitation.decline" })).toBeDisabled();
   });
 
+  /**
+   * « Rejoindre » échouait en silence (#365) : le bouton repassait à son libellé, et l'athlète
+   * recliquait en boucle sur une invitation expirée ou déjà utilisée. Le message de l'API d'abord,
+   * le libellé générique quand il n'y en a pas (panne réseau).
+   */
+  it.each([
+    ["le message de l'api", new ApiError(400, "Invitation expirée", null), "Invitation expirée"],
+    ["un libellé", new Error("réseau"), "common.error"],
+  ])("dit l'échec de « Rejoindre » par %s", async (_how, failure, text) => {
+    myInvitations.mockResolvedValue([INVITATION]);
+    acceptInvitation.mockRejectedValue(failure);
+    const { user } = await render();
+
+    await clickAfterSettled(user, "coach.invitation.join");
+
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    // Une seule fois : le formulaire de code, dessous, ne la répète pas — il a sa propre mutation.
+    expect(screen.queryByText("coach.join.errorDescription")).toBeNull();
+  });
+
   it("montre l'invitation à un athlète déjà lié, refusable mais pas acceptable", async () => {
     myCoach.mockResolvedValue(RELATION);
     myInvitations.mockResolvedValue([INVITATION]);
