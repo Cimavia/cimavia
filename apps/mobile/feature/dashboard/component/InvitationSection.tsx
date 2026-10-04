@@ -72,9 +72,8 @@ export function InvitationSection() {
           </CmvText>
           {pending.map((invitation) => (
             <View key={invitation.id} className="gap-1 border-cmv-border border-t pt-2">
-              {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. Une
-                  ancienne invitation sans adresse reste lisible (règle dure n°5). */}
-              <CmvText className="text-cmv-text-hi">{invitation.email ?? "—"}</CmvText>
+              {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. */}
+              <CmvText className="text-cmv-text-hi">{invitation.email}</CmvText>
               <CmvText className="text-cmv-text-lo text-xs">
                 {t("athlete.invite.expires", { date: formatDateTime(invitation.expiresAt) })}
               </CmvText>

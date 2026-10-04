@@ -5,7 +5,6 @@ import type { Invitation } from "@prisma/client";
 export function toInvitationDto(invitation: Invitation): InvitationDto {
   return {
     id: invitation.id,
-    code: invitation.code,
     email: invitation.email,
     status: invitation.status,
     expiresAt: invitation.expiresAt.toISOString(),
@@ -35,7 +34,6 @@ export function toPendingInvitationDto(
 
   return {
     id: invitation.id,
-    code: invitation.code,
     coachName,
     expiresAt: invitation.expiresAt.toISOString(),
     createdAt: invitation.createdAt.toISOString(),

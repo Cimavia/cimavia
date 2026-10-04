@@ -24,7 +24,6 @@ const deleteInvitation = vi.mocked(accountApi.deleteInvitation);
 
 const invitation = (overrides: Partial<InvitationDto> = {}): InvitationDto => ({
   id: "inv_1",
-  code: "7QK4M2XZ9",
   email: "lea@exemple.fr",
   status: InvitationStatus.PENDING,
   expiresAt: "2026-09-12T09:00:00.000Z",
@@ -49,14 +48,13 @@ describe("InvitationPanel — les invitations refusées (#146)", () => {
    * `PENDING`, disparaissait de la liste d'attente, et il ne restait au coach ni le nom de qui a
    * dit non, ni rien à faire.
    */
-  it("montre qui a refusé, avec l'adresse plutôt que le code", async () => {
+  it("montre qui a refusé, par son adresse", async () => {
     listInvitations.mockResolvedValue([DECLINED]);
     await render();
 
     expect(await screen.findByText("athlete.invitation.declined")).toBeInTheDocument();
-    // L'adresse EST l'information : le code, lui, est mort avec le refus.
+    // L'adresse EST l'information : c'est elle qui a dit non.
     expect(screen.getByText("lea@exemple.fr")).toBeInTheDocument();
-    expect(screen.queryByText("7QK4M2XZ9")).not.toBeInTheDocument();
   });
 
   // Une invitation en attente n'a rien à faire dans cette section, et réciproquement : ce sont
@@ -89,21 +87,6 @@ describe("InvitationPanel — les invitations refusées (#146)", () => {
 
     await user.click(screen.getByRole("button", { name: "athlete.invitation.deleteConfirm" }));
     await waitFor(() => expect(deleteInvitation).toHaveBeenCalledWith("inv_2"));
-  });
-
-  /**
-   * `email` est nullable au DTO. Une invitation refusée en porte toujours une — le refus exige une
-   * correspondance stricte — mais le type ne le dit pas, et la ligne doit rester lisible plutôt
-   * que d'afficher un blanc (règle dure n°5). Réémettre disparaît alors : il n'y a pas d'adresse
-   * à viser.
-   */
-  it("reste lisible sans adresse, et ne propose alors pas de réémettre", async () => {
-    listInvitations.mockResolvedValue([invitation({ ...DECLINED, email: null })]);
-    await render();
-
-    expect(await screen.findByText("—")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "athlete.invitation.resend" })).toBeNull();
-    expect(screen.getByRole("button", { name: "athlete.invitation.delete" })).toBeInTheDocument();
   });
 });
 
@@ -161,21 +144,12 @@ describe("InvitationPanel — les invitations en attente", () => {
     expect(await screen.findByText("athlete.invitation.emptyPending")).toBeInTheDocument();
   });
 
-  // L'adresse dit à qui l'invitation apparaîtra ; le code, lui, n'est plus rien à transmettre.
-  it("montre l'adresse de chaque invitation, et plus de code", async () => {
+  // L'adresse dit à qui l'invitation apparaîtra : c'est tout ce qu'il y a à en montrer.
+  it("montre l'adresse de chaque invitation", async () => {
     listInvitations.mockResolvedValue([invitation()]);
     render();
 
     expect(await screen.findByText("lea@exemple.fr")).toBeInTheDocument();
-    expect(screen.queryByText("7QK4M2XZ9")).not.toBeInTheDocument();
-  });
-
-  // Une ancienne invitation sans adresse reste lisible : « — » plutôt qu'un blanc (règle n°5).
-  it("rend « — » pour une invitation sans adresse", async () => {
-    listInvitations.mockResolvedValue([invitation({ email: null })]);
-    render();
-
-    expect(await screen.findByText("—")).toBeInTheDocument();
   });
 
   it("se referme par son pied", async () => {

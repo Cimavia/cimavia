@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  acceptInvitationSchema,
   createInvitationSchema,
-  declineInvitationSchema,
   InvitationStatus,
   invitationDtoSchema,
   pendingInvitationDtoSchema,
@@ -10,7 +8,6 @@ import {
 
 const INVITATION = {
   id: "inv_1",
-  code: "7QK4M2XZ9",
   email: "lea@example.com",
   status: InvitationStatus.PENDING,
   expiresAt: "2026-09-12T09:00:00.000Z",
@@ -32,18 +29,16 @@ describe("InvitationStatus", () => {
 });
 
 describe("createInvitationSchema", () => {
-  // Champ vide = lien générique, acceptable par n'importe quel athlète non lié. C'est un cas
-  // NORMAL de l'émission, pas une saisie incomplète.
-  it("accepte une invitation sans adresse — c'est le lien générique", () => {
-    expect(createInvitationSchema.safeParse({}).success).toBe(true);
+  /**
+   * L'adresse est requise (#390) : une invitation sans adresse n'apparaîtrait à personne, et le
+   * code qu'on transmettait de la main à la main n'existe plus.
+   */
+  it("exige une adresse", () => {
+    expect(createInvitationSchema.safeParse({ email: "lea@example.com" }).success).toBe(true);
+    expect(createInvitationSchema.safeParse({}).success).toBe(false);
   });
 
-  /**
-   * La chaîne vide est refusée, et c'est ce qui compte : le formulaire du coach doit envoyer
-   * `{}` quand le champ n'est pas rempli, jamais `{ email: "" }`. Sans ce refus, une invitation
-   * porterait une adresse vide — ni nominative, ni générique.
-   */
-  it("refuse une adresse vide ou malformée, plutôt que de la prendre pour un lien générique", () => {
+  it("refuse une adresse vide ou malformée", () => {
     expect(createInvitationSchema.safeParse({ email: "" }).success).toBe(false);
     expect(createInvitationSchema.safeParse({ email: "lea@" }).success).toBe(false);
   });
@@ -55,38 +50,15 @@ describe("createInvitationSchema", () => {
   });
 });
 
-describe("acceptInvitationSchema · declineInvitationSchema", () => {
-  /**
-   * Deux transitions, deux schémas — même forme aujourd'hui. Le test les traite ensemble parce
-   * que c'est exactement ce qu'on veut garantir : ce qu'un client peut accepter, il peut le
-   * refuser, avec le même code et sans rien de plus à saisir.
-   */
-  it.each([
-    ["accept", acceptInvitationSchema],
-    ["decline", declineInvitationSchema],
-  ])("%s exige un code non vide", (_name, schema) => {
-    expect(schema.safeParse({ code: "7QK4M2XZ9" }).success).toBe(true);
-    expect(schema.safeParse({ code: "" }).success).toBe(false);
-    expect(schema.safeParse({}).success).toBe(false);
-  });
-
-  // Le refus ne se distingue pas par une adresse envoyée avec : elle vient de la SESSION, jamais
-  // du corps. Un `email` accepté ici ferait de la route un moyen de refuser au nom d'autrui.
-  it("refuse une adresse passée dans le corps du refus", () => {
-    const result = declineInvitationSchema.safeParse({
-      code: "7QK4M2XZ9",
-      email: "quelquun@example.com",
-    });
-    expect(result.success).toBe(false);
-  });
-});
-
 describe("invitationDtoSchema", () => {
-  // `email` nullable veut dire « lien générique », pas « adresse manquante » : le `null` porte du
-  // sens et doit passer le schéma.
-  it("accepte une invitation générique, dont l'absence d'adresse est le sujet", () => {
-    const result = invitationDtoSchema.safeParse({ ...INVITATION, email: null });
-    expect(result.success).toBe(true);
+  // Plus d'invitation générique (#390) : une invitation sans adresse est une donnée incohérente.
+  it("refuse une invitation sans adresse", () => {
+    expect(invitationDtoSchema.safeParse({ ...INVITATION, email: null }).success).toBe(false);
+  });
+
+  // Le code ne verrouille plus rien depuis #390 : il sort du contrat, pas seulement de l'écran.
+  it("ne décrit plus de code", () => {
+    expect(Object.keys(invitationDtoSchema.shape)).not.toContain("code");
   });
 
   it("accepte une invitation refusée", () => {
@@ -108,7 +80,6 @@ describe("invitationDtoSchema", () => {
 describe("pendingInvitationDtoSchema", () => {
   const PENDING = {
     id: "inv_1",
-    code: "7QK4M2XZ9",
     coachName: "Marc Keller",
     expiresAt: "2026-09-12T09:00:00.000Z",
     createdAt: "2026-09-05T09:00:00.000Z",
@@ -127,7 +98,6 @@ describe("pendingInvitationDtoSchema", () => {
   it("ne décrit que ce que l'athlète a besoin de savoir", () => {
     expect(Object.keys(pendingInvitationDtoSchema.shape).sort()).toEqual([
       "coachName",
-      "code",
       "createdAt",
       "expiresAt",
       "id",

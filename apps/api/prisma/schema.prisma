@@ -170,10 +170,11 @@ model CoachAthlete {
   @@map("coach_athlete")
 }
 
+// Toujours nominative depuis #390 : l'adresse, normalisée, est ce qui fait le verrou — c'est
+// elle que l'acceptation compare à la session. Plus de code : l'invitation se désigne par son id.
 model Invitation {
   id                  String           @id @default(cuid())
-  code                String           @unique
-  email               String? // nominative si présent ; sinon lien générique
+  email               String
   status              InvitationStatus @default(PENDING)
   coachId             String
   coach               User             @relation("CoachInvitations", fields: [coachId], references: [id], onDelete: Cascade)

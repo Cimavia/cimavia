@@ -90,13 +90,12 @@ describe("createAccountApi — moitié athlète", () => {
     expect(calls).toEqual([{ method: "GET", path: "/me/coach", body: undefined }]);
   });
 
-  it("rejoint un coach en postant le code d'invitation", async () => {
+  // L'invitation se désigne par son `id`, sans corps : c'est la session qui fait le verrou (#390).
+  it("rejoint un coach en désignant son invitation", async () => {
     const { api, calls } = spyClient();
-    await createAccountApi(api).acceptInvitation({ code: "7K9M2Q" });
+    await createAccountApi(api).acceptInvitation("inv_1");
 
-    expect(calls).toEqual([
-      { method: "POST", path: "/invitations/accept", body: { code: "7K9M2Q" } },
-    ]);
+    expect(calls).toEqual([{ method: "POST", path: "/invitations/inv_1/accept", body: undefined }]);
   });
 });
 
@@ -114,20 +113,19 @@ describe("createAccountApi — les invitations reçues (#146)", () => {
   });
 
   /**
-   * Accepter et refuser sont deux TRANSITIONS distinctes, donc deux routes — mais l'acceptation
-   * reste celle qui existait : le client reprend le code de la liste et appelle
-   * `POST /invitations/accept`, plutôt qu'un second chemin vers la même transition (#105).
+   * Accepter et refuser sont deux TRANSITIONS distinctes, donc deux routes, sur la même invitation
+   * désignée par son `id` — celui que la carte porte déjà (#390).
    */
-  it("accepte et refuse par le même code, sur deux routes distinctes", async () => {
+  it("accepte et refuse la même invitation, sur deux routes distinctes", async () => {
     const { api, calls } = spyClient();
     const account = createAccountApi(api);
 
-    await account.acceptInvitation({ code: "7QK4M2XZ9" });
-    await account.declineInvitation({ code: "7QK4M2XZ9" });
+    await account.acceptInvitation("inv_1");
+    await account.declineInvitation("inv_1");
 
     expect(calls).toEqual([
-      { method: "POST", path: "/invitations/accept", body: { code: "7QK4M2XZ9" } },
-      { method: "POST", path: "/invitations/decline", body: { code: "7QK4M2XZ9" } },
+      { method: "POST", path: "/invitations/inv_1/accept", body: undefined },
+      { method: "POST", path: "/invitations/inv_1/decline", body: undefined },
     ]);
   });
 });

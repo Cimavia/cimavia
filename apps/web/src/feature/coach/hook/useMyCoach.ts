@@ -1,7 +1,6 @@
 import {
   acceptInvitationMutation,
   type CoachAthleteDto,
-  type DeclineInvitationInput,
   type PendingInvitationDto,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -60,7 +59,7 @@ export function useDeclineInvitation() {
   const toast = useMutationToast();
 
   return useMutation({
-    mutationFn: (input: DeclineInvitationInput) => accountApi.declineInvitation(input),
+    mutationFn: (invitationId: string) => accountApi.declineInvitation(invitationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invitationKeys.all });
       toast.onSuccess("coach.invitation.toast.declined");

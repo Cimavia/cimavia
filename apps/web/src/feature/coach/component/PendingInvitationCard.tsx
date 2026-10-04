@@ -57,10 +57,7 @@ export function PendingInvitationCard({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-cmv-sm">
-          <CmvButton
-            disabled={linked || busy}
-            onClick={() => accept.mutate({ code: invitation.code })}
-          >
+          <CmvButton disabled={linked || busy} onClick={() => accept.mutate(invitation.id)}>
             {accept.isPending
               ? t("coach.invitation.joining")
               : t("coach.invitation.join", { name: invitation.coachName })}
@@ -72,7 +69,7 @@ export function PendingInvitationCard({
             confirmLabel={t("coach.invitation.declineConfirm")}
             cancelLabel={t("common.cancel")}
             disabled={busy}
-            onConfirm={() => decline.mutate({ code: invitation.code })}
+            onConfirm={() => decline.mutate(invitation.id)}
           />
         </div>
 

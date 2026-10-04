@@ -2,9 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post } from "@nestjs/co
 import { ApiTags } from "@nestjs/swagger";
 import { Session, type UserSession } from "@thallesp/nestjs-better-auth";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
-import { AcceptInvitationDto } from "../dto/accept-invitation.dto";
 import { CreateInvitationDto } from "../dto/create-invitation.dto";
-import { DeclineInvitationDto } from "../dto/decline-invitation.dto";
 import { InvitationService } from "../service/invitation.service";
 
 @ApiTags("invitations")
@@ -46,10 +44,15 @@ export class InvitationController {
     return this.invitations.listForMe({ email: session.user.email });
   }
 
-  @Post("accept")
+  /**
+   * Athlète : rejoint le coach qui l'a invité. L'invitation se désigne par son `id` (#390) : il
+   * n'est pas un secret, c'est l'adresse de la session qui fait le verrou — l'`id` d'une
+   * invitation adressée à quelqu'un d'autre rend 404.
+   */
+  @Post(":id/accept")
   @RequireCapability("athlete")
-  accept(@Session() session: UserSession, @Body() dto: AcceptInvitationDto) {
-    return this.invitations.accept({ id: session.user.id, email: session.user.email }, dto.code);
+  accept(@Session() session: UserSession, @Param("id") id: string) {
+    return this.invitations.accept({ id: session.user.id, email: session.user.email }, id);
   }
 
   /**
@@ -57,10 +60,10 @@ export class InvitationController {
    * c'est le seul état que le client ait besoin de constater. D'où un 204 plutôt qu'un DTO dont
    * personne ne lirait le contenu.
    */
-  @Post("decline")
+  @Post(":id/decline")
   @HttpCode(204)
   @RequireCapability("athlete")
-  async decline(@Session() session: UserSession, @Body() dto: DeclineInvitationDto) {
-    await this.invitations.decline({ id: session.user.id, email: session.user.email }, dto.code);
+  async decline(@Session() session: UserSession, @Param("id") id: string) {
+    await this.invitations.decline({ id: session.user.id, email: session.user.email }, id);
   }
 }

@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import {
   type CoachAthleteDto,
   CoachAthleteStatus,
@@ -40,14 +39,13 @@ export class InvitationService {
     private readonly mailer: InvitationMailer,
   ) {}
 
-  // Coach : émet une invitation (code + expiration). coachId injecté par le tenancy layer.
+  // Coach : invite une adresse, pour sept jours. coachId injecté par le tenancy layer.
   async create(input: CreateInvitationInput): Promise<InvitationDto> {
     const invitation = await this.db.invitation.create({
       // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
       data: {
-        code: randomBytes(9).toString("base64url"),
         // Normalisée dès l'entrée : c'est cette colonne qu'on compare à l'adresse d'une session.
-        email: input.email == null ? null : normalizeEmail(input.email),
+        email: normalizeEmail(input.email),
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
       } satisfies Omit<
         Prisma.InvitationUncheckedCreateInput,
@@ -61,12 +59,10 @@ export class InvitationService {
   /**
    * Prévenir l'invité — par le canal qu'il a (#146).
    *
-   * Trois issues, et l'important est ce qu'elles ont en commun : **la réponse HTTP est identique**.
-   * Le coach reçoit son invitation et son code dans tous les cas — sinon la route dirait qui est
-   * inscrit chez nous.
+   * Deux issues, et l'important est ce qu'elles ont en commun : **la réponse HTTP est identique**.
+   * Le coach reçoit son invitation dans les deux cas — sinon la route dirait qui est inscrit chez
+   * nous. (Une troisième, l'invitation générique qui ne prévenait personne, a disparu en #390.)
    *
-   * - **Invitation générique** (`email === null`) : personne n'est visé, rien à envoyer. Son canal
-   *   est le code transmis de la main à la main.
    * - **Adresse rattachée à un compte athlète** : notification (centre + push). Il a une
    *   application où lire, l'e-mail n'ajouterait rien qu'il n'y verra pas.
    * - **Tout le reste** — pas de compte, ou un compte qui ne porte pas la capacité athlète :
@@ -76,14 +72,7 @@ export class InvitationService {
    * Aucune des deux branches ne fait échouer la création : les deux appelés absorbent leurs
    * pannes, comme le veut la règle 2 de `NotificationService`.
    */
-  private async announce(invitation: {
-    id: string;
-    coachId: string;
-    code: string;
-    email: string | null;
-  }) {
-    if (invitation.email == null) return;
-
+  private async announce(invitation: { id: string; coachId: string; email: string }) {
     // Résolu une fois pour les deux canaux : c'est la même question — qui invite ? Le coach est
     // l'acteur courant : son nom introuvable serait une donnée incohérente, pas un e-mail anonyme.
     const coachName = required(
@@ -104,7 +93,6 @@ export class InvitationService {
     await this.mailer.send({
       to: invitation.email,
       coachName,
-      code: invitation.code,
       // Dérivée de la constante, jamais réécrite : l'e-mail part à la création, la durée annoncée
       // est donc exactement celle qui reste (« les plafonds ne s'écrivent jamais en dur », #20).
       expiresInDays: INVITATION_TTL_MS / (24 * 60 * 60 * 1000),
@@ -125,7 +113,7 @@ export class InvitationService {
    *
    * - **`PENDING`** : la retirer serait une RÉVOCATION, c'est-à-dire une autre transition. Elle a
    *   sa valeur (`REVOKED`) et n'a pas encore de chemin ; la déguiser en suppression ferait
-   *   disparaître un code encore utilisable sans jamais le dire à qui l'a reçu.
+   *   disparaître une invitation encore acceptable sans jamais le dire à qui l'a reçue.
    * - **`ACCEPTED`** : la ligne est la trace de la façon dont la relation s'est nouée
    *   (`acceptedByAthleteId`). L'effacer effacerait cette trace.
    * - **`REVOKED`** : aucune route ne la produit aujourd'hui. L'autoriser écrirait un chemin que
@@ -148,9 +136,8 @@ export class InvitationService {
   }
 
   /**
-   * Athlète : les invitations qui l'ATTENDENT (#146). Jusqu'ici, une adresse saisie par le coach
-   * ne servait qu'à restreindre l'acceptation — jamais à prévenir l'intéressé, qui devait recevoir
-   * le code par un autre canal.
+   * Athlète : les invitations qui l'ATTENDENT (#146) — depuis #390, le seul chemin par lequel une
+   * invitation lui parvient : il n'y a plus de code à saisir.
    *
    * Trois filtres, et chacun retire quelque chose de différent :
    * - **l'adresse de la SESSION**, jamais un paramètre. Un `?email=` transformerait cette route en
@@ -159,9 +146,6 @@ export class InvitationService {
    *   ne servirait à rien.
    * - **non expirée**, l'expiration n'étant pas un statut mais une date : une invitation périmée
    *   serait proposée puis refusée à l'acceptation.
-   *
-   * Une invitation GÉNÉRIQUE (`email === null`) n'apparaît pour personne : elle n'est adressée à
-   * personne, et la faire remonter la donnerait au premier arrivé.
    *
    * Client de BASE, comme `accept` : `Invitation` n'a qu'un scope coach dans `TENANT_SCOPES`, et
    * le client tenant lèverait (fail closed) plutôt que de rendre une liste vide.
@@ -182,28 +166,41 @@ export class InvitationService {
   }
 
   /**
-   * Athlète : refuse une invitation (#146). Une transition à part entière, d'où sa propre route —
-   * la règle « un seul chemin vers une transition » (#105) n'interdit pas deux transitions
-   * distinctes.
+   * L'invitation que désigne `id`, si elle peut encore être acceptée ou refusée par CETTE session.
    *
-   * **La correspondance d'e-mail est exigée en toutes circonstances**, là où `accept` ne la
-   * vérifie que sur une invitation nominative. Sans ça, le premier détenteur d'un code générique
-   * le brûlerait pour tout le monde — refuser est irréversible, le coach devrait réémettre.
+   * **L'adresse se vérifie en premier, et son échec ne se distingue pas d'un `id` inconnu** (#390).
+   * L'`id` n'est pas un secret — il circule dans la carte, dans les notifications —, c'est l'adresse
+   * de la session qui fait le verrou. Répondre « expirée » ou « déjà utilisée » à quelqu'un d'autre
+   * que le destinataire lui apprendrait le sort d'une invitation qui ne le regarde pas ; répondre
+   * « destinée à une autre adresse » lui confirmerait qu'elle existe.
    *
-   * Un athlète DÉJÀ LIÉ peut refuser, et c'est même le cas utile : cela vide la liste d'attente du
-   * coach, qui saurait enfin que son invitation n'aboutira pas.
+   * Client de BASE : `Invitation` n'a qu'un scope coach dans `TENANT_SCOPES`, et l'athlète n'est pas
+   * l'acteur de ce scope.
    */
-  async decline(athlete: { id: string; email: string }, code: string): Promise<void> {
-    const invitation = await this.prisma.invitation.findUnique({ where: { code } });
-    if (invitation?.status !== InvitationStatus.PENDING) {
+  private async findActionable(athlete: { email: string }, id: string) {
+    const invitation = await this.prisma.invitation.findUnique({ where: { id } });
+    if (invitation == null || invitation.email !== normalizeEmail(athlete.email)) {
+      throw new NotFoundException("Invitation introuvable");
+    }
+    if (invitation.status !== InvitationStatus.PENDING) {
       throw new NotFoundException("Invitation introuvable ou déjà utilisée");
     }
     if (invitation.expiresAt.getTime() < Date.now()) {
       throw new BadRequestException("Invitation expirée");
     }
-    if (invitation.email == null || invitation.email !== normalizeEmail(athlete.email)) {
-      throw new BadRequestException("Invitation destinée à une autre adresse");
-    }
+    return invitation;
+  }
+
+  /**
+   * Athlète : refuse une invitation (#146). Une transition à part entière, d'où sa propre route —
+   * la règle « un seul chemin vers une transition » (#105) n'interdit pas deux transitions
+   * distinctes.
+   *
+   * Un athlète DÉJÀ LIÉ peut refuser, et c'est même le cas utile : cela vide la liste d'attente du
+   * coach, qui saurait enfin que son invitation n'aboutira pas.
+   */
+  async decline(athlete: { id: string; email: string }, id: string): Promise<void> {
+    const invitation = await this.findActionable(athlete, id);
 
     await this.prisma.invitation.update({
       where: { id: invitation.id },
@@ -218,20 +215,9 @@ export class InvitationService {
     });
   }
 
-  // Athlète : rejoint un coach via un code. Client de base (l'athlète n'est pas encore lié).
-  async accept(athlete: { id: string; email: string }, code: string): Promise<CoachAthleteDto> {
-    const invitation = await this.prisma.invitation.findUnique({
-      where: { code },
-    });
-    if (invitation?.status !== InvitationStatus.PENDING) {
-      throw new NotFoundException("Invitation introuvable ou déjà utilisée");
-    }
-    if (invitation.expiresAt.getTime() < Date.now()) {
-      throw new BadRequestException("Invitation expirée");
-    }
-    if (invitation.email != null && invitation.email !== normalizeEmail(athlete.email)) {
-      throw new BadRequestException("Invitation destinée à une autre adresse");
-    }
+  // Athlète : rejoint le coach qui l'a invité. Client de base (l'athlète n'est pas encore lié).
+  async accept(athlete: { id: string; email: string }, id: string): Promise<CoachAthleteDto> {
+    const invitation = await this.findActionable(athlete, id);
     // Invariant : au plus 1 coach par athlète (athleteId UNIQUE en base).
     const existing = await this.prisma.coachAthlete.findUnique({
       where: { athleteId: athlete.id },

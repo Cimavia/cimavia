@@ -109,7 +109,7 @@ export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
             >
               <div className="flex flex-1 flex-col gap-cmv-xs">
                 {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. */}
-                <span className="text-cmv-body text-cmv-text-hi">{invitation.email ?? "—"}</span>
+                <span className="text-cmv-body text-cmv-text-hi">{invitation.email}</span>
                 <span className="text-cmv-caption text-cmv-text-lo">
                   {t("athlete.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
                 </span>
@@ -138,42 +138,31 @@ export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
 /**
  * Une invitation refusée, et les deux gestes qui restent au coach : réémettre vers la même
  * adresse, ou solder la ligne.
- *
- * Composant à part et non une ligne de plus dans la boucle : c'est ce qui donne à `email` un
- * narrowing RÉEL — `invitation.email` est nullable au DTO, et le rétrécir dans une expression JSX
- * ne survit pas au passage dans un gestionnaire de clic. Un `as string` aurait compilé en mentant
- * au lecteur sur ce qu'on sait vraiment.
  */
 function DeclinedInvitationRow({ invitation }: Readonly<{ invitation: InvitationDto }>) {
   const { t } = useTranslation();
   const createInvitation = useCreateInvitation();
   const deleteInvitation = useDeleteInvitation();
 
-  const { email } = invitation;
-
   return (
     <div className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md">
       <div className="flex flex-1 flex-col gap-cmv-xs">
         {/* L'adresse EST l'information : c'est elle qui a dit non. */}
-        <span className="text-cmv-body text-cmv-text-hi">{email ?? "—"}</span>
+        <span className="text-cmv-body text-cmv-text-hi">{invitation.email}</span>
         <span className="text-cmv-caption text-cmv-text-lo">
           {t("athlete.invitation.sentOn", { date: formatDateTime(invitation.createdAt) })}
         </span>
       </div>
       <CmvBadge variant="error">{t(`athlete.invitationStatus.${invitation.status}`)}</CmvBadge>
 
-      {/* Réémettre suppose une adresse à viser. Une invitation refusée en a toujours une — le
-          refus exige une correspondance stricte —, mais le DTO ne le dit pas : on traite le `null`
-          plutôt que de l'écarter d'une assertion qui mentirait. */}
-      {email == null ? null : (
-        <CmvButton
-          variant="ghost"
-          disabled={createInvitation.isPending}
-          onClick={() => createInvitation.mutate({ email })}
-        >
-          {t("athlete.invitation.resend")}
-        </CmvButton>
-      )}
+      {/* Réémettre vise la MÊME adresse : le coach n'a rien à retaper. */}
+      <CmvButton
+        variant="ghost"
+        disabled={createInvitation.isPending}
+        onClick={() => createInvitation.mutate({ email: invitation.email })}
+      >
+        {t("athlete.invitation.resend")}
+      </CmvButton>
 
       {/* Effacer est sans retour, mais sans conséquence pour personne d'autre : la ligne est déjà
           morte. L'armement protège du clic accidentel, rien de plus. */}

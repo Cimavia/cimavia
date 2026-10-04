@@ -20,12 +20,12 @@ import { PrismaService } from "../infra/prisma/prisma.service";
  *
  * Trois façons d'entrer en mode `invitation`, et pas une de plus :
  *   - être sur la liste `SIGNUP_ALLOWED_EMAILS` — c'est la porte des COACHS, que personne n'invite ;
- *   - avoir une invitation NOMINATIVE en cours — c'est la porte des athlètes, ouverte par leur coach ;
+ *   - avoir une invitation en cours à son adresse — c'est la porte des athlètes, ouverte par leur
+ *     coach ;
  *   - rien d'autre.
  *
- * Un lien GÉNÉRIQUE (`email: null`) ne suffit délibérément pas : il n'identifie personne, donc il
- * ne peut rien autoriser avant l'inscription. Le coach qui veut faire entrer quelqu'un sur preview
- * l'invite par son adresse. Ce n'est pas une limite technique, c'est ce que « fermé » veut dire.
+ * Depuis #390, toute invitation est nominative : le lien GÉNÉRIQUE, qui n'identifiait personne et
+ * n'autorisait donc rien ici, n'existe plus.
  *
  * Le contrôle vit ici plutôt que dans un contrôleur parce que l'inscription n'est pas notre route :
  * c'est Better Auth qui l'expose, et elle est appelée par le web, par le mobile et par le lien de

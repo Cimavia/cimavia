@@ -15,8 +15,8 @@ import { PrismaService } from "../src/infra/prisma/prisma.service";
  * dans une seule instance. Celle-ci pose `SIGNUP_MODE=invitation` avant de monter la sienne.
  *
  * Ce qu'on vérifie n'est pas « le code refuse bien », c'est la LISTE EXACTE des façons d'entrer :
- * la liste d'adresses (les coachs, que personne n'invite) et l'invitation nominative (les
- * athlètes). Un lien générique n'en fait pas partie — il n'identifie personne.
+ * la liste d'adresses (les coachs, que personne n'invite) et l'invitation à leur adresse (les
+ * athlètes). Le lien générique, qui n'identifiait personne, n'existe plus depuis #390.
  */
 
 const PASSWORD = "password123";
@@ -137,22 +137,8 @@ describe("Inscription fermée (#263)", () => {
     });
     expect([200, 201]).toContain(created.status);
 
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     expect(accepted.status).toBe(201);
-  });
-
-  /**
-   * L'écart assumé de #263 : un lien générique (`email: null`) ne pré-autorise personne. Il
-   * n'identifie pas son destinataire, donc il ne peut rien dire avant l'inscription — l'accepter
-   * rouvrirait l'environnement à quiconque recopie un code. Sur ce tier, on invite par l'adresse.
-   */
-  it("refuse une inscription adossée à un lien générique (403)", async () => {
-    const generic = await coach.post("/invitations").send({});
-    expect(generic.status).toBe(201);
-    expect(generic.body.email ?? null).toBeNull();
-
-    const res = await signUp("porteur-du-lien@cmv.test", { isCoach: false, isAthlete: true });
-    expect(res.status).toBe(403);
   });
 
   // Une invitation périmée n'ouvre plus rien : les trois critères de `listForMe` valent ici aussi.

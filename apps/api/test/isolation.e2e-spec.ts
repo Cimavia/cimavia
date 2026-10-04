@@ -24,6 +24,7 @@ import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module";
 import { API_BODY_LIMIT_BYTES, configureApp, createHttpAdapter } from "../src/app.setup";
+import { fr } from "../src/infra/mail/locale/fr";
 import type { MailMessage } from "../src/infra/mail/mail.service";
 import { MailService } from "../src/infra/mail/mail.service";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
@@ -148,7 +149,7 @@ async function linkRelation(
   athlete: Agent,
 ): Promise<{ athleteId: string; coachId: string }> {
   const invitation = await inviteFor(coach, athlete);
-  const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+  const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
   expect(accepted.status).toBe(201);
   return { athleteId: accepted.body.athleteId, coachId: accepted.body.coachId };
 }
@@ -210,14 +211,14 @@ describe("Isolation multi-tenant (P1)", () => {
     // Liaison A1 → coach A par invitation.
     const invA = await inviteFor(coachA, athleteA1);
     expect(invA.status).toBe(201);
-    const acceptA = await athleteA1.post("/invitations/accept").send({ code: invA.body.code });
+    const acceptA = await athleteA1.post(`/invitations/${invA.body.id}/accept`);
     expect(acceptA.status).toBe(201);
     a1Id = acceptA.body.athleteId;
     coachAId = acceptA.body.coachId;
 
     // Liaison B1 → coach B.
     const invB = await inviteFor(coachB, athleteB1);
-    const acceptB = await athleteB1.post("/invitations/accept").send({ code: invB.body.code });
+    const acceptB = await athleteB1.post(`/invitations/${invB.body.id}/accept`);
     b1Id = acceptB.body.athleteId;
   });
 
@@ -277,14 +278,14 @@ describe("Isolation multi-tenant (P1)", () => {
     // Un athlète ne peut pas émettre d'invitation (route coach).
     expect((await athleteA1.post("/invitations").send({ email: "x@cmv.test" })).status).toBe(403);
     // Un coach ne peut pas accepter d'invitation (route athlète).
-    expect((await coachA.post("/invitations/accept").send({ code: "x" })).status).toBe(403);
+    expect((await coachA.post("/invitations/x/accept")).status).toBe(403);
     // Un athlète autonome ne peut pas agir comme coach.
     expect((await athleteC.get("/athletes")).status).toBe(403);
   });
 
   it("un athlète déjà lié ne peut pas rejoindre un second coach", async () => {
     const inv = await inviteFor(coachB, athleteA1);
-    const res = await athleteA1.post("/invitations/accept").send({ code: inv.body.code });
+    const res = await athleteA1.post(`/invitations/${inv.body.id}/accept`);
     expect(res.status).toBe(409);
   });
 
@@ -2650,7 +2651,7 @@ describe("Suivi d'exécution (#168)", () => {
     other = await signUp("suivi-other@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coach, athlete);
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     const athleteId = accepted.body.athleteId;
 
     const exercise = await coach.post("/exercises").send({
@@ -3684,7 +3685,7 @@ describe("Tokens de notification push (P4)", () => {
     const c = await signUp("push-flow-coach@cmv.test", Role.COACH);
     const a = await signUp("push-flow-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(c, a);
-    const accepted = await a.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await a.post(`/invitations/${invitation.body.id}/accept`);
 
     const monday = mondayOfCurrentWeek();
     const plan = await c.post("/plans").send({
@@ -3724,7 +3725,7 @@ describe("Retouche d'une séance diffusée : le résumé la signale (#307)", () 
     const coach = await signUp("resync-coach@cmv.test", Role.COACH);
     const athlete = await signUp("resync-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
 
     const monday = mondayOfCurrentWeek();
     const plan = await coach.post("/plans").send({
@@ -3779,9 +3780,7 @@ describe("Lecture coach des débriefs (P4)", () => {
     athleteA1 = await signUp("read-athlete-a1@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coachA, athleteA1);
-    const accepted = await athleteA1
-      .post("/invitations/accept")
-      .send({ code: invitation.body.code });
+    const accepted = await athleteA1.post(`/invitations/${invitation.body.id}/accept`);
 
     const plan = await coachA.post("/plans").send({
       athleteId: accepted.body.athleteId,
@@ -4886,7 +4885,7 @@ describe("Justificatif de facture : remplacement et retrait", () => {
     coach = await signUp("doc-coach@cmv.test", Role.COACH);
     const athlete = await signUp("doc-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     const plan = await coach
       .post("/plans")
       .send({ athleteId: accepted.body.athleteId, title: "Facturé", startDate: monday });
@@ -4977,13 +4976,11 @@ describe("Centre de notifications (#48)", () => {
     athleteB1 = await signUp("notif-athlete-b1@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coachA, athleteA1);
-    const accepted = await athleteA1
-      .post("/invitations/accept")
-      .send({ code: invitation.body.code });
+    const accepted = await athleteA1.post(`/invitations/${invitation.body.id}/accept`);
     a1Id = accepted.body.athleteId;
 
     const invitationB = await inviteFor(coachB, athleteB1);
-    await athleteB1.post("/invitations/accept").send({ code: invitationB.body.code });
+    await athleteB1.post(`/invitations/${invitationB.body.id}/accept`);
 
     const plan = await coachA.post("/plans").send({
       athleteId: a1Id,
@@ -5268,9 +5265,7 @@ describe("Rappels du coach (#44)", () => {
     athleteA1 = await signUp("rmd-athlete-a1@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coachA, athleteA1);
-    const accepted = await athleteA1
-      .post("/invitations/accept")
-      .send({ code: invitation.body.code });
+    const accepted = await athleteA1.post(`/invitations/${invitation.body.id}/accept`);
     a1Id = accepted.body.athleteId;
 
     const plan = await coachA.post("/plans").send({
@@ -5547,9 +5542,7 @@ describe("Rappels dus dans le centre de notifications (#51)", () => {
     athleteC1 = await signUp("due-athlete-c1@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coachC, athleteC1);
-    const accepted = await athleteC1
-      .post("/invitations/accept")
-      .send({ code: invitation.body.code });
+    const accepted = await athleteC1.post(`/invitations/${invitation.body.id}/accept`);
     c1Id = accepted.body.athleteId;
 
     const plan = await coachC.post("/plans").send({
@@ -5732,9 +5725,7 @@ describe("Report d'échéance d'un rappel (#105)", () => {
     athleteE1 = await signUp("snz-athlete-e1@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coachE, athleteE1);
-    const accepted = await athleteE1
-      .post("/invitations/accept")
-      .send({ code: invitation.body.code });
+    const accepted = await athleteE1.post(`/invitations/${invitation.body.id}/accept`);
 
     const plan = await coachE.post("/plans").send({
       athleteId: accepted.body.athleteId,
@@ -5930,9 +5921,7 @@ describe("Génération automatique des rappels (#47)", () => {
     athleteG1 = await signUp("tick-athlete-g1@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coachG, athleteG1);
-    const accepted = await athleteG1
-      .post("/invitations/accept")
-      .send({ code: invitation.body.code });
+    const accepted = await athleteG1.post(`/invitations/${invitation.body.id}/accept`);
 
     /**
      * Un cycle d'UNE semaine démarrant ce lundi : sa fin tombe dimanche, donc l'échéance du rappel
@@ -6231,9 +6220,7 @@ describe("Payer ou annuler une facture clôt son rappel « en retard » (#349)",
     coachP = await signUp("paid-coach-p@cmv.test", Role.COACH);
     const athleteP1 = await signUp("paid-athlete-p1@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coachP, athleteP1);
-    const accepted = await athleteP1
-      .post("/invitations/accept")
-      .send({ code: invitation.body.code });
+    const accepted = await athleteP1.post(`/invitations/${invitation.body.id}/accept`);
 
     paidInvoiceId = await billedPlan(accepted.body.athleteId, "Cycle payé en retard");
     cancelledInvoiceId = await billedPlan(accepted.body.athleteId, "Cycle annulé en retard");
@@ -6669,7 +6656,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
     athlete = await signUp("athlete-parity@cmv.test", Role.ATHLETE);
 
     const invitation = await inviteFor(coach, athlete);
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     athleteId = accepted.body.athleteId;
   });
 
@@ -6753,9 +6740,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
   it("ignore un athleteId ciblé par un athlète, au lieu de l'honorer", async () => {
     const other = await signUp("athlete-parity-2@cmv.test", Role.ATHLETE);
     const otherInvitation = await inviteFor(coach, other);
-    const otherAccepted = await other
-      .post("/invitations/accept")
-      .send({ code: otherInvitation.body.code });
+    const otherAccepted = await other.post(`/invitations/${otherInvitation.body.id}/accept`);
 
     const hijack = await athlete
       .post("/conversations")
@@ -6915,9 +6900,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
       const coach = required(agents[i], `coach ${i}`);
       const athlete = required(agents[i + 1], `athlète ${i + 1}`);
       const invitation = await inviteFor(coach, athlete);
-      const accepted = await athlete
-        .post("/invitations/accept")
-        .send({ code: invitation.body.code });
+      const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
       expect(accepted.status).toBe(201);
       ids.push(accepted.body.coachId);
       if (i + 2 === depth) ids.push(accepted.body.athleteId);
@@ -6941,7 +6924,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const a = required(agents[0], "maillon A");
 
     const invitation = await inviteFor(c, a);
-    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+    const res = await a.post(`/invitations/${invitation.body.id}/accept`);
 
     expect(res.status).toBe(409);
   });
@@ -6953,7 +6936,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const a = required(agents[0], "maillon A");
 
     const invitation = await inviteFor(b, a);
-    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+    const res = await a.post(`/invitations/${invitation.body.id}/accept`);
 
     expect(res.status).toBe(409);
   });
@@ -6966,7 +6949,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const self = await signUpWith("cycle-self@cmv.test", { isCoach: true, isAthlete: true });
 
     const invitation = await inviteFor(self, self);
-    const res = await self.post("/invitations/accept").send({ code: invitation.body.code });
+    const res = await self.post(`/invitations/${invitation.body.id}/accept`);
 
     expect(res.status).toBe(409);
   });
@@ -6998,7 +6981,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     try {
       // La remontée depuis B : A, puis C, puis B de nouveau — sans jamais croiser l'invité.
       const invitation = await inviteFor(b, outsider);
-      const res = await outsider.post("/invitations/accept").send({ code: invitation.body.code });
+      const res = await outsider.post(`/invitations/${invitation.body.id}/accept`);
 
       expect(res.status).toBe(500);
       expect((await outsider.get("/me/coach")).body).toBeNull();
@@ -7017,7 +7000,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
     const a = required(agents[0], "maillon A");
 
     const invitation = await inviteFor(outsider, a);
-    const res = await a.post("/invitations/accept").send({ code: invitation.body.code });
+    const res = await a.post(`/invitations/${invitation.body.id}/accept`);
 
     expect(res.status).toBe(201);
   });
@@ -7071,9 +7054,7 @@ describe("Capacités modifiables après coup (#13)", () => {
     const coach = await signUpWith("cap-busy-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("cap-busy-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    expect(
-      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
-    ).toBe(201);
+    expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
 
     const res = await coach.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
     expect(res.status).toBe(409);
@@ -7089,9 +7070,7 @@ describe("Capacités modifiables après coup (#13)", () => {
     });
     const linked = await signUpWith("cap-linked@cmv.test", { isCoach: true, isAthlete: true });
     const invitation = await inviteFor(coach, linked);
-    expect(
-      (await linked.post("/invitations/accept").send({ code: invitation.body.code })).status,
-    ).toBe(201);
+    expect((await linked.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
 
     const res = await linked.patch("/me/capabilities").send({ isCoach: true, isAthlete: false });
     expect(res.status).toBe(409);
@@ -7143,9 +7122,7 @@ describe("Capacités modifiables après coup (#13)", () => {
     });
     const athlete = await signUp("cap-bypass-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    expect(
-      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
-    ).toBe(201);
+    expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
 
     const res = await coach.post("/api/auth/update-user").send({ isCoach: false });
     expect(res.status).toBe(400);
@@ -7406,7 +7383,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     const coach = await signUp("solo-sheet-coach@cmv.test", Role.COACH);
     const dual = await signUpWith("solo-sheet-dual@cmv.test", { isCoach: true, isAthlete: true });
     const invitation = await inviteFor(coach, dual);
-    const accepted = await dual.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await dual.post(`/invitations/${invitation.body.id}/accept`);
     const dualId = accepted.body.athleteId;
 
     const own = await dual.put(`/athletes/${dualId}/sheet`).send({ content: "mes notes" });
@@ -7456,9 +7433,7 @@ describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
     const coach = await signUpWith("cp-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("cp-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    expect(
-      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
-    ).toBe(201);
+    expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
 
     expect((await coach.get("/me/counterparts")).body).toEqual({ asCoach: true, asAthlete: false });
     expect((await athlete.get("/me/counterparts")).body).toEqual({
@@ -7487,9 +7462,7 @@ describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
     const dual = await signUpWith("cp-dual@cmv.test", { isCoach: true, isAthlete: true });
     const athlete = await signUp("cp-dual-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(dual, athlete);
-    expect(
-      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
-    ).toBe(201);
+    expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
 
     expect((await dual.get("/me/counterparts")).body).toEqual({ asCoach: true, asAthlete: false });
   });
@@ -7513,13 +7486,11 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     // `dual` est l'athlète de `myCoach`…
     const toDual = await inviteFor(myCoach, dual);
-    const dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
-      .athleteId;
+    const dualId = (await dual.post(`/invitations/${toDual.body.id}/accept`)).body.athleteId;
     // … et le coach de `myAthlete`.
     const toAthlete = await inviteFor(dual, myAthlete);
-    const athleteId = (
-      await myAthlete.post("/invitations/accept").send({ code: toAthlete.body.code })
-    ).body.athleteId;
+    const athleteId = (await myAthlete.post(`/invitations/${toAthlete.body.id}/accept`)).body
+      .athleteId;
 
     // Côté ATHLÈTE : son coach lui diffuse un cycle (cycle + facture émise = 2 entrées).
     const received = await myCoach.post("/plans").send({
@@ -7572,9 +7543,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     const dual = await signUpWith("vent-msg-dual@cmv.test", { isCoach: true, isAthlete: true });
     const myAthlete = await signUp("vent-msg-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(dual, myAthlete);
-    expect(
-      (await myAthlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
-    ).toBe(201);
+    expect((await myAthlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
 
     // L'athlète écrit à son coach : le coach (donc `dual`) reçoit un MESSAGE_RECEIVED non lu.
     const thread = await myAthlete.post("/conversations").send({});
@@ -7603,8 +7572,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     });
     const athlete = await signUp("vent-solo-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const id = (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).body
-      .athleteId;
+    const id = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body.athleteId;
 
     const plan = await coach.post("/plans").send({
       athleteId: id,
@@ -7665,17 +7633,15 @@ describe("Isolation multi-capacité (#18)", () => {
 
     // `dual` est coaché par `hisCoach`, et coache `hisAthlete`.
     const toDual = await inviteFor(hisCoach, dual);
-    dualId = (await dual.post("/invitations/accept").send({ code: toDual.body.code })).body
-      .athleteId;
+    dualId = (await dual.post(`/invitations/${toDual.body.id}/accept`)).body.athleteId;
     const toHisAthlete = await inviteFor(dual, hisAthlete);
-    hisAthleteId = (
-      await hisAthlete.post("/invitations/accept").send({ code: toHisAthlete.body.code })
-    ).body.athleteId;
+    hisAthleteId = (await hisAthlete.post(`/invitations/${toHisAthlete.body.id}/accept`)).body
+      .athleteId;
 
     // Un tenant étranger, complet : sa bibliothèque, son athlète, son cycle diffusé.
     const toStrangerAthlete = await inviteFor(stranger, strangerAthlete);
     const strangerAthleteId = (
-      await strangerAthlete.post("/invitations/accept").send({ code: toStrangerAthlete.body.code })
+      await strangerAthlete.post(`/invitations/${toStrangerAthlete.body.id}/accept`)
     ).body.athleteId;
     strangerExerciseId = (await stranger.post("/exercises").send({ title: "Secret" })).body.id;
     const plan = await stranger.post("/plans").send({
@@ -7765,7 +7731,7 @@ describe("Isolation multi-capacité (#18)", () => {
    */
   it("ne laisse pas un compte à double capacité rejoindre un second coach", async () => {
     const invitation = await inviteFor(stranger, dual);
-    const res = await dual.post("/invitations/accept").send({ code: invitation.body.code });
+    const res = await dual.post(`/invitations/${invitation.body.id}/accept`);
     expect(res.status).toBe(409);
   });
 });
@@ -7806,7 +7772,7 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
     otherAthlete = await signUp(OTHER, Role.ATHLETE);
 
     const invitation = await inviteFor(coach, athlete);
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     athleteId = accepted.body.athleteId;
   });
 
@@ -7951,7 +7917,7 @@ describe("Invitation nominative : la casse de l'adresse ne décide de rien", () 
     // Normalisée à l'écriture : ce qui est stocké est comparable à l'adresse d'une session.
     expect(invitation.body.email).toBe("case-athlete@cmv.test");
 
-    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     expect(accepted.status).toBe(201);
   });
 
@@ -7961,13 +7927,14 @@ describe("Invitation nominative : la casse de l'adresse ne décide de rien", () 
     const other = await signUp("case-other@cmv.test", Role.ATHLETE);
 
     const invitation = await coach.post("/invitations").send({ email: "Quelquun@CMV.test" });
-    const refused = await other.post("/invitations/accept").send({ code: invitation.body.code });
-    expect(refused.status).toBe(400);
+    const refused = await other.post(`/invitations/${invitation.body.id}/accept`);
+    // 404 et non 400 (#390) : à qui n'est pas visé, l'invitation n'existe pas.
+    expect(refused.status).toBe(404);
   });
 });
 
 /**
- * `GET /invitations/for-me` et `POST /invitations/decline` (#146) — les deux gestes qui manquaient
+ * `GET /invitations/for-me` et `POST /invitations/:id/decline` (#146) — les deux gestes qui manquaient
  * à l'athlète. L'invitation nominative existait au modèle, mais rien ne la lui montrait : le coach
  * saisissait une adresse en croyant déclencher quelque chose.
  */
@@ -7995,27 +7962,19 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     await coach.post("/invitations").send({ email: "fm-shape@cmv.test" });
 
     const entry = required((await athlete.get("/invitations/for-me")).body[0], "invitation reçue");
-    expect(Object.keys(entry).sort()).toEqual([
-      "coachName",
-      "code",
-      "createdAt",
-      "expiresAt",
-      "id",
-    ]);
+    expect(Object.keys(entry).sort()).toEqual(["coachName", "createdAt", "expiresAt", "id"]);
     expect(entry.coachName).toBe("fm-shape-coach@cmv.test");
   });
 
-  // Une invitation générique n'est adressée à personne : la faire remonter la donnerait au
-  // premier arrivé, alors que son canal est le code transmis de la main à la main.
-  it("ne montre à personne une invitation générique", async () => {
+  // Plus d'invitation générique (#390) : sans adresse, elle n'apparaîtrait à personne.
+  it("refuse d'émettre une invitation sans adresse", async () => {
     const coach = await signUpWith("fm-generic-coach@cmv.test", {
       isCoach: true,
       isAthlete: false,
     });
-    const athlete = await signUp("fm-generic@cmv.test", Role.ATHLETE);
-    await coach.post("/invitations").send({});
 
-    expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+    expect((await coach.post("/invitations").send({})).status).toBe(400);
+    expect((await coach.get("/invitations")).body).toEqual([]);
   });
 
   /**
@@ -8043,7 +8002,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     const coach = await signUpWith("fm-taken-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("fm-taken@cmv.test", Role.ATHLETE);
     const invitation = await coach.post("/invitations").send({ email: "fm-taken@cmv.test" });
-    await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    await athlete.post(`/invitations/${invitation.body.id}/accept`);
 
     expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
   });
@@ -8056,9 +8015,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     const athlete = await signUp("fm-decline@cmv.test", Role.ATHLETE);
     const invitation = await coach.post("/invitations").send({ email: "fm-decline@cmv.test" });
 
-    const declined = await athlete
-      .post("/invitations/decline")
-      .send({ code: invitation.body.code });
+    const declined = await athlete.post(`/invitations/${invitation.body.id}/decline`);
     expect(declined.status).toBe(204);
 
     expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
@@ -8073,22 +8030,33 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
   });
 
   /**
-   * Le refus est plus strict que l'acceptation : il exige la correspondance d'adresse EN TOUTES
-   * CIRCONSTANCES. Sans cela, le premier détenteur d'un code générique le brûlerait pour tout le
-   * monde, et le coach devrait réémettre sans jamais savoir pourquoi.
+   * L'`id` n'est pas un secret — il circule dans la carte et dans les notifications —, c'est
+   * l'adresse de la session qui fait le verrou (#390). À qui n'est pas visé, l'invitation n'existe
+   * pas : même 404 qu'un `id` inconnu, et AVANT tout ce qui dirait son sort. Une invitation
+   * expirée ou déjà acceptée répondrait sinon autre chose, et l'apprendrait à un tiers.
    */
-  it("refuse un refus qui ne vient pas de l'adresse visée", async () => {
+  it("traite l'id d'une invitation adressée à un autre comme inconnu, quel que soit son sort", async () => {
     const coach = await signUpWith("fm-strict-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const target = await signUp("fm-strict@cmv.test", Role.ATHLETE);
     const other = await signUp("fm-strict-other@cmv.test", Role.ATHLETE);
-    const nominative = await coach.post("/invitations").send({ email: "fm-strict@cmv.test" });
-    const generic = await coach.post("/invitations").send({});
+    const pending = await coach.post("/invitations").send({ email: "fm-strict@cmv.test" });
+    const expired = await coach.post("/invitations").send({ email: "fm-strict@cmv.test" });
+    await app.get(PrismaService).invitation.update({
+      where: { id: expired.body.id },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+    const notFound = { status: 404, message: "Invitation introuvable" };
 
-    expect(
-      (await other.post("/invitations/decline").send({ code: nominative.body.code })).status,
-    ).toBe(400);
-    expect(
-      (await other.post("/invitations/decline").send({ code: generic.body.code })).status,
-    ).toBe(400);
+    for (const action of ["accept", "decline"]) {
+      for (const id of [pending.body.id, expired.body.id, "inconnu"]) {
+        const res = await other.post(`/invitations/${id}/${action}`);
+        expect({ status: res.status, message: res.body.message }).toEqual(notFound);
+      }
+    }
+    // Rien n'a bougé pour le destinataire, qui peut toujours rejoindre.
+    expect((await target.post(`/invitations/${pending.body.id}/accept`)).status).toBe(201);
+    const used = await other.post(`/invitations/${pending.body.id}/decline`);
+    expect({ status: used.status, message: used.body.message }).toEqual(notFound);
   });
 
   /**
@@ -8105,40 +8073,37 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     const athlete = await signUp("fm-linked@cmv.test", Role.ATHLETE);
 
     const join = await inviteFor(first, athlete);
-    await athlete.post("/invitations/accept").send({ code: join.body.code });
+    await athlete.post(`/invitations/${join.body.id}/accept`);
 
     const secondInvitation = await second.post("/invitations").send({
       email: "fm-linked@cmv.test",
     });
     expect((await athlete.get("/invitations/for-me")).body).toHaveLength(1);
-    expect(
-      (await athlete.post("/invitations/decline").send({ code: secondInvitation.body.code }))
-        .status,
-    ).toBe(204);
+    expect((await athlete.post(`/invitations/${secondInvitation.body.id}/decline`)).status).toBe(
+      204,
+    );
     expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
   });
 
-  // Un code déjà consommé ne se rejoue pas : ni pour rejoindre une seconde fois, ni pour le
-  // retourner en refus après coup — le coach lirait « refusée » une invitation acceptée.
-  it("refuse un code inconnu ou déjà consommé, à l'acceptation comme au refus (404)", async () => {
+  // Une invitation déjà consommée ne se rejoue pas : ni pour rejoindre une seconde fois, ni pour
+  // la retourner en refus après coup — le coach lirait « refusée » une invitation acceptée.
+  it("refuse une invitation inconnue ou déjà consommée, à l'acceptation comme au refus (404)", async () => {
     const coach = await signUpWith("fm-used-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("fm-used@cmv.test", Role.ATHLETE);
     const invitation = await coach.post("/invitations").send({ email: "fm-used@cmv.test" });
-    expect(
-      (await athlete.post("/invitations/accept").send({ code: invitation.body.code })).status,
-    ).toBe(201);
+    expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
 
-    for (const route of ["/invitations/accept", "/invitations/decline"]) {
-      const used = await athlete.post(route).send({ code: invitation.body.code });
+    for (const action of ["accept", "decline"]) {
+      const used = await athlete.post(`/invitations/${invitation.body.id}/${action}`);
       expect(used.status).toBe(404);
       expect(used.body.message).toBe("Invitation introuvable ou déjà utilisée");
-      expect((await athlete.post(route).send({ code: "inconnu" })).status).toBe(404);
+      expect((await athlete.post(`/invitations/inconnu/${action}`)).status).toBe(404);
     }
   });
 
   /**
    * Même recul d'échéance en base que plus haut. L'expiration se vérifie aux DEUX gestes : la
-   * liste la masque déjà, mais le code circule aussi par e-mail, et un lien ancien reste cliquable.
+   * liste la masque déjà, mais une carte ouverte avant l'échéance reste cliquable après.
    */
   it("refuse une invitation expirée, à l'acceptation comme au refus, sans la consommer", async () => {
     const coach = await signUpWith("fm-late-coach@cmv.test", { isCoach: true, isAthlete: false });
@@ -8149,8 +8114,8 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
 
-    for (const route of ["/invitations/accept", "/invitations/decline"]) {
-      const late = await athlete.post(route).send({ code: invitation.body.code });
+    for (const action of ["accept", "decline"]) {
+      const late = await athlete.post(`/invitations/${invitation.body.id}/${action}`);
       expect(late.status).toBe(400);
       expect(late.body.message).toBe("Invitation expirée");
     }
@@ -8165,7 +8130,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
   it("ferme les deux routes à un coach", async () => {
     const coach = await signUpWith("fm-closed@cmv.test", { isCoach: true, isAthlete: false });
     expect((await coach.get("/invitations/for-me")).status).toBe(403);
-    expect((await coach.post("/invitations/decline").send({ code: "x" })).status).toBe(403);
+    expect((await coach.post("/invitations/x/decline")).status).toBe(403);
   });
 });
 
@@ -8206,10 +8171,10 @@ describe("Notifications d'invitation (#146)", () => {
     const refusing = await signUp("ni-refusing@cmv.test", Role.ATHLETE);
 
     const toJoin = await coach.post("/invitations").send({ email: "ni-joining@cmv.test" });
-    await joining.post("/invitations/accept").send({ code: toJoin.body.code });
+    await joining.post(`/invitations/${toJoin.body.id}/accept`);
 
     const toRefuse = await coach.post("/invitations").send({ email: "ni-refusing@cmv.test" });
-    await refusing.post("/invitations/decline").send({ code: toRefuse.body.code });
+    await refusing.post(`/invitations/${toRefuse.body.id}/decline`);
 
     const inbox = (await coach.get("/me/notifications")).body;
     expect(inbox.find((n: { type: string }) => n.type === "INVITATION_ACCEPTED")).toMatchObject({
@@ -8234,19 +8199,7 @@ describe("Notifications d'invitation (#146)", () => {
     });
     const res = await coach.post("/invitations").send({ email: "personne@cmv.test" });
     expect(res.status).toBe(201);
-    expect(res.body.code).toEqual(expect.any(String));
-  });
-
-  // Une invitation générique n'est adressée à personne : il n'y a personne à prévenir.
-  it("n'écrit aucune notification pour une invitation générique", async () => {
-    const coach = await signUpWith("ni-generic-coach@cmv.test", {
-      isCoach: true,
-      isAthlete: false,
-    });
-    const athlete = await signUp("ni-generic@cmv.test", Role.ATHLETE);
-    await coach.post("/invitations").send({});
-
-    expect(await typesOf(athlete)).toEqual([]);
+    expect(res.body.status).toBe("PENDING");
   });
 
   /**
@@ -8282,14 +8235,14 @@ describe("E-mail d'invitation vers une adresse sans compte (#146)", () => {
     sentMails.length = 0;
   });
 
-  it("écrit à l'adresse invitée, avec le code et le nom de l'inviteur", async () => {
+  it("écrit à l'adresse invitée, avec la consigne et le nom de l'inviteur", async () => {
     const invitation = await coach.post("/invitations").send({ email: "mi-inconnu@cmv.test" });
     expect(invitation.status).toBe(201);
 
     const mail = required(sentMails[0], "e-mail d'invitation");
     expect(mail.to).toBe("mi-inconnu@cmv.test");
-    // Le code EST le contenu : sans lui le destinataire n'a rien sur quoi agir.
-    expect(mail.text).toContain(invitation.body.code);
+    // Plus de code à recopier (#390) : le message dit de s'inscrire avec CETTE adresse.
+    expect(mail.text).toContain(fr.invitation.addressLine);
     // `signUp` pose `name = email` : c'est l'adresse du coach qu'on lit comme nom.
     expect(mail.subject).toContain("mi-coach@cmv.test");
   });
@@ -8308,16 +8261,10 @@ describe("E-mail d'invitation vers une adresse sans compte (#146)", () => {
     expect(sentMails).toEqual([]);
   });
 
-  // Personne n'est visé : le canal d'une invitation générique est le code transmis à la main.
-  it("n'écrit à personne pour une invitation générique", async () => {
-    expect((await coach.post("/invitations").send({})).status).toBe(201);
-    expect(sentMails).toEqual([]);
-  });
-
   /**
    * Un compte COACH SEUL ne peut pas accepter : il ne reçoit donc pas de notification, mais il
-   * n'est pas laissé sans rien pour autant — c'est l'e-mail qui le joint, avec le code qu'il
-   * pourra utiliser une fois la casquette athlète activée.
+   * n'est pas laissé sans rien pour autant — c'est l'e-mail qui le joint, et l'invitation
+   * l'attendra dans « Mon coach » une fois la casquette athlète activée.
    */
   it("écrit à un compte qui ne porte pas la capacité athlète", async () => {
     await signUpWith("mi-coach-seul@cmv.test", { isCoach: true, isAthlete: false });
@@ -8350,9 +8297,7 @@ describe("Effacer une invitation refusée (#146)", () => {
   /** Une invitation nominative que `athlete` vient de refuser. */
   async function declinedInvitation(coach: Agent, athlete: Agent, email: string): Promise<string> {
     const invitation = await coach.post("/invitations").send({ email });
-    expect(
-      (await athlete.post("/invitations/decline").send({ code: invitation.body.code })).status,
-    ).toBe(204);
+    expect((await athlete.post(`/invitations/${invitation.body.id}/decline`)).status).toBe(204);
     return invitation.body.id;
   }
 
@@ -8386,7 +8331,7 @@ describe("Effacer une invitation refusée (#146)", () => {
     const coach = await signUpWith("rm-taken-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("rm-taken-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+    await athlete.post(`/invitations/${invitation.body.id}/accept`);
 
     expect((await coach.delete(`/invitations/${invitation.body.id}`)).status).toBe(409);
   });
@@ -8453,9 +8398,8 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
     const coach = await signUpWith("gap-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("gap-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const athleteId = (
-      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
-    ).body.athleteId;
+    const athleteId = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body
+      .athleteId;
 
     const monday = mondayOfCurrentWeek();
     const weekId = await weekOf(coach, athleteId, monday);
@@ -8480,9 +8424,8 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
     const coach = await signUpWith("move-coach@cmv.test", { isCoach: true, isAthlete: false });
     const athlete = await signUp("move-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const athleteId = (
-      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
-    ).body.athleteId;
+    const athleteId = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body
+      .athleteId;
 
     const monday = mondayOfCurrentWeek();
     const tuesday = new Date(`${monday}T00:00:00Z`);
@@ -8528,9 +8471,8 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     const coach = await signUpWith(`${slug}-coach@cmv.test`, { isCoach: true, isAthlete: false });
     const athlete = await signUp(`${slug}-athlete@cmv.test`, Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const athleteId = (
-      await athlete.post("/invitations/accept").send({ code: invitation.body.code })
-    ).body.athleteId;
+    const athleteId = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body
+      .athleteId;
 
     const plan = await coach.post("/plans").send({
       athleteId,

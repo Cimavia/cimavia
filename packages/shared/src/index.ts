@@ -299,17 +299,13 @@ export {
   upsertSessionFeedbackSchema,
 } from "./dto/feedback.schema";
 export type {
-  AcceptInvitationInput,
   CreateInvitationInput,
-  DeclineInvitationInput,
   InvitationDto,
   InvitationStatus as InvitationStatusType,
   PendingInvitationDto,
 } from "./dto/invitation.schema";
 export {
-  acceptInvitationSchema,
   createInvitationSchema,
-  declineInvitationSchema,
   InvitationStatus,
   invitationDtoSchema,
   invitationStatusSchema,

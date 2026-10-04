@@ -52,7 +52,8 @@ export type NotificationMailParams = {
 };
 
 /**
- * Ce qu'une invitation a pour se présenter : QUI invite, et avec quel code (#146).
+ * Ce qu'une invitation a pour se présenter : QUI invite (#146). Plus de code depuis #390 : c'est
+ * l'adresse qui reçoit le message qui fait le verrou.
  *
  * `coachName` est nullable et chaque gabarit a donc deux formulations, comme les notifications :
  * un nom introuvable ne doit pas empêcher l'e-mail de partir — c'est la seule chose qui atteindra
@@ -60,7 +61,6 @@ export type NotificationMailParams = {
  */
 export type InvitationMailParams = {
   coachName: string | null;
-  code: string;
   /** Durée de validité réelle, passée par l'appelant — jamais réécrite ici (cf. `resetPassword`). */
   expiresInDays: number;
 };
@@ -85,9 +85,9 @@ export type MailStrings = {
    * Invitation d'un athlète qui n'a pas encore de compte (#146) — le SEUL e-mail du produit adressé
    * à quelqu'un qui n'en est pas encore utilisateur.
    *
-   * Deux conséquences sur la rédaction. Le **code** est le contenu, pas un détail : sans lui le
-   * message ne sert à rien, et il doit rester lisible même quand `WEB_URL` n'est pas configurée et
-   * que le lien disparaît. Et le message dit **qui invite**, parce que le destinataire n'a aucun
+   * Deux conséquences sur la rédaction. La **consigne** est le contenu, pas un détail : s'inscrire
+   * avec l'adresse qui a reçu le message, la seule à laquelle l'invitation apparaîtra (#390). Elle
+   * doit rester lisible même quand `WEB_URL` n'est pas configurée et que le lien disparaît. Et le message dit **qui invite**, parce que le destinataire n'a aucun
    * autre contexte — contrairement à toutes les notifications, qui s'adressent à quelqu'un qui
    * connaît déjà son coach.
    */
@@ -95,7 +95,7 @@ export type MailStrings = {
     subject: (coachName: string | null) => string;
     heading: string;
     intro: (coachName: string | null) => string;
-    codeLine: (code: string) => string;
+    addressLine: string;
     expiry: (days: number) => string;
     cta: string;
     ignore: string;
@@ -124,7 +124,7 @@ export type NotificationMailInput = NotificationMailParams & {
 };
 
 export type InvitationMailInput = InvitationMailParams & {
-  /** Lien vers l'inscription. `null` quand `WEB_URL` n'est pas configurée — le code reste, lui. */
+  /** Lien vers l'inscription. `null` quand `WEB_URL` n'est pas configurée — la consigne reste. */
   registerUrl: string | null;
 };
 
@@ -178,14 +178,14 @@ export function mailCatalog(locale: string | null | undefined): MailCatalog {
         html: renderHtml(body, strings),
       };
     },
-    invitation: ({ registerUrl, coachName, code, expiresInDays }) => {
+    invitation: ({ registerUrl, coachName, expiresInDays }) => {
       const body = {
         heading: strings.invitation.heading,
         paragraphs: [
           strings.invitation.intro(coachName),
-          // Le code AVANT le lien : c'est lui le contenu du message, et il reste seul debout
-          // quand `WEB_URL` n'est pas configurée.
-          strings.invitation.codeLine(code),
+          // La consigne AVANT le lien : c'est elle le contenu du message, et elle reste seule
+          // debout quand `WEB_URL` n'est pas configurée.
+          strings.invitation.addressLine,
           strings.invitation.expiry(expiresInDays),
           strings.invitation.ignore,
         ],

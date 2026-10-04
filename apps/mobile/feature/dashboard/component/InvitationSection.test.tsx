@@ -17,10 +17,9 @@ vi.mock("@/feature/athlete/api", async (importOriginal) => {
 const listInvitations = vi.mocked(accountApi.listInvitations);
 const createInvitation = vi.mocked(accountApi.createInvitation);
 
-function invitation(email: string | null, status: InvitationDto["status"]): InvitationDto {
+function invitation(email: string, status: InvitationDto["status"]): InvitationDto {
   return {
     id: `inv-${email}`,
-    code: "7QK4M2XZ9",
     email,
     status,
     expiresAt: "2026-10-30T08:00:00.000Z",
@@ -111,7 +110,7 @@ describe("InvitationSection — les invitations en attente", () => {
   });
 
   // La liste du web, pour l'attente seule : l'adresse dit à qui l'invitation apparaîtra.
-  it("liste les invitations en attente par leur adresse, et plus de code", async () => {
+  it("liste les invitations en attente par leur adresse", async () => {
     listInvitations.mockResolvedValue([
       invitation("pris@exemple.fr", InvitationStatus.ACCEPTED),
       invitation("lea@exemple.fr", InvitationStatus.PENDING),
@@ -122,14 +121,5 @@ describe("InvitationSection — les invitations en attente", () => {
     expect(await findByText("lea@exemple.fr")).toBeTruthy();
     expect(getByText("tom@exemple.fr")).toBeTruthy();
     expect(queryByText("pris@exemple.fr")).toBeNull();
-    expect(queryByText("7QK4M2XZ9")).toBeNull();
-  });
-
-  // Une ancienne invitation sans adresse reste lisible : « — » plutôt qu'un blanc (règle n°5).
-  it("rend « — » pour une invitation sans adresse", async () => {
-    listInvitations.mockResolvedValue([invitation(null, InvitationStatus.PENDING)]);
-    const { findByText } = renderRn(<InvitationSection />);
-
-    expect(await findByText("—")).toBeTruthy();
   });
 });

@@ -61,7 +61,7 @@ export function PendingInvitationCard({
             ? t("coach.invitation.joining")
             : t("coach.invitation.join", { name: invitation.coachName })
         }
-        onPress={() => accept.mutate({ code: invitation.code })}
+        onPress={() => accept.mutate(invitation.id)}
         disabled={linked || busy}
       />
 
@@ -72,7 +72,7 @@ export function PendingInvitationCard({
         confirmLabel={t("coach.invitation.declineConfirm")}
         cancelLabel={t("common.cancel")}
         disabled={busy}
-        onConfirm={() => decline.mutate({ code: invitation.code })}
+        onConfirm={() => decline.mutate(invitation.id)}
       />
 
       <CmvText className="text-cmv-text-lo text-xs">{t("coach.invitation.declineHint")}</CmvText>

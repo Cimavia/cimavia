@@ -22,11 +22,11 @@ function setup() {
 }
 
 describe("acceptInvitationMutation", () => {
-  it("transmet le code tel quel", async () => {
+  it("désigne l'invitation par son id", async () => {
     const { api, mutation } = setup();
 
-    await expect(mutation.mutationFn({ code: "7QK4M2XZ9" })).resolves.toBe(RELATION);
-    expect(api.acceptInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" });
+    await expect(mutation.mutationFn("inv_1")).resolves.toBe(RELATION);
+    expect(api.acceptInvitation).toHaveBeenCalledWith("inv_1");
   });
 
   it("pose le coach obtenu sans attendre de le relire", () => {

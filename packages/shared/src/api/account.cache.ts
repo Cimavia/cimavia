@@ -1,10 +1,9 @@
 import type { CoachAthleteDto } from "../dto/coach-athlete.schema";
-import type { AcceptInvitationInput } from "../dto/invitation.schema";
 import { type AccountApi, coachKeys } from "./account.api";
 import type { CacheClient } from "./cache-client";
 
 /**
- * Rejoindre un coach par code d'invitation, et ce que ça fait au cache — les options du
+ * Rejoindre un coach depuis son invitation, et ce que ça fait au cache — les options du
  * `useMutation` des deux clients, telles quelles.
  *
  * L'invalidation est **globale**, comme au toucher d'une notification et pour la même raison en
@@ -29,7 +28,7 @@ export function acceptInvitationMutation(
   api: Pick<AccountApi, "acceptInvitation">,
 ) {
   return {
-    mutationFn: (input: AcceptInvitationInput) => api.acceptInvitation(input),
+    mutationFn: (invitationId: string) => api.acceptInvitation(invitationId),
     onSuccess: (relation: CoachAthleteDto) => {
       // Posée tout de suite : l'écran bascule sur le coach obtenu sans attendre la relecture.
       cache.setQueryData(coachKeys.mine(), relation);

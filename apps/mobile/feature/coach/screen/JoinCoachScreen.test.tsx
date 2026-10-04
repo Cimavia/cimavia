@@ -36,7 +36,6 @@ const declineInvitation = vi.mocked(accountApi.declineInvitation);
 
 const INVITATION = {
   id: "inv_1",
-  code: "7QK4M2XZ9",
   coachName: "Marc Keller",
   expiresAt: "2026-09-12T09:00:00.000Z",
   createdAt: "2026-09-05T09:00:00.000Z",
@@ -79,7 +78,7 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
 
     pressButton(container, "coach.invitation.join");
 
-    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith("inv_1"));
   });
 
   /**
@@ -95,7 +94,7 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
     expect(declineInvitation).not.toHaveBeenCalled();
 
     pressButton(container, "coach.invitation.declineConfirm");
-    await waitFor(() => expect(declineInvitation).toHaveBeenCalledWith({ code: "7QK4M2XZ9" }));
+    await waitFor(() => expect(declineInvitation).toHaveBeenCalledWith("inv_1"));
   });
 
   /**
