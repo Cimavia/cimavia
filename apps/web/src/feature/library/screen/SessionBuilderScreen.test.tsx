@@ -8,6 +8,7 @@ import {
   type SessionDto,
   structurePath,
 } from "@cmv/shared";
+import { useSearch } from "@tanstack/react-router";
 import { fireEvent, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../../test/render";
@@ -549,6 +550,70 @@ describe("SessionBuilderScreen — édition", () => {
     const [first, second] = view.sent().exercises;
     expect(second.blocks).toEqual(fresh);
     expect(first.note).toBe("Lesté");
+  });
+});
+
+describe("SessionBuilderScreen — retour d'un exercice créé depuis la séance (#303)", () => {
+  /** L'écran tel que la route le monte : `add` lu dans l'URL, qui change sous ses pieds. */
+  function Routed() {
+    const { add } = useSearch({ strict: false }) as { add?: string };
+    return <SessionBuilderScreen sessionId="s-1" addExerciseId={add} />;
+  }
+
+  async function back() {
+    const view = await renderInRoute(<Routed />, {
+      path: "/library/sessions/s-1",
+      search: { add: "ex-9" },
+      links: [...LINKS, "/library/sessions/$sessionId"],
+    });
+    await view.findByRole("button", { name: SUBMIT_EDIT });
+    return withReaders(view);
+  }
+
+  it("ajoute l'exercice créé, une seule fois, et le retire de l'url", async () => {
+    api.getExercise.mockResolvedValue(planche);
+    const view = await back();
+
+    expect(view.card("Planche")).toBeInTheDocument();
+    await waitFor(() => expect(view.router.state.location.search).toEqual({}));
+    expect(view.getAllByRole("button", { name: "Planche", expanded: false })).toHaveLength(1);
+    expect(api.getExercise).toHaveBeenCalledExactlyOnceWith("ex-9");
+  });
+
+  it("l'enregistre à la suite de la séance, sans id de ligne", async () => {
+    api.getExercise.mockResolvedValue(planche);
+    const view = await back();
+
+    await view.save();
+
+    expect(
+      view
+        .sent()
+        .exercises.map((row: { id?: string; exerciseId: string }) => [row.id, row.exerciseId]),
+    ).toEqual([
+      ["se-1", "ex-1"],
+      ["se-2", "ex-2"],
+      ["se-3", "ex-3"],
+      [undefined, "ex-9"],
+    ]);
+  });
+
+  it("dit qu'il n'a pas pu ajouter l'exercice introuvable, et garde la séance intacte", async () => {
+    api.getExercise.mockRejectedValue(new ApiError(404, "introuvable", null));
+    const view = await back();
+
+    expect(await view.findByText("library.session.addCreatedFailed")).toBeInTheDocument();
+    await waitFor(() => expect(view.router.state.location.search).toEqual({}));
+    expect(
+      view.queryByRole("button", { name: "Planche", expanded: false }),
+    ).not.toBeInTheDocument();
+    expect(view.card("Suspensions")).toBeInTheDocument();
+  });
+
+  it("ne cherche aucun exercice sans retour de création", async () => {
+    await edit();
+
+    expect(api.getExercise).not.toHaveBeenCalled();
   });
 });
 

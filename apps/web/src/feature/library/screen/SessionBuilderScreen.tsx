@@ -2,13 +2,13 @@ import type { ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
 import { required } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompositionCard } from "@/feature/library/component/CompositionCard";
 import { LibraryPicker } from "@/feature/library/component/LibraryPicker";
 import { SessionPreview } from "@/feature/library/component/SessionPreview";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
-import { useDuplicateExercise } from "@/feature/library/hook/useExercises";
+import { useDuplicateExercise, useExercise } from "@/feature/library/hook/useExercises";
 import { useSessionDraft } from "@/feature/library/hook/useSessionDraft";
 import { useReloadSessionExercise, useSession } from "@/feature/library/hook/useSessions";
 import {
@@ -29,6 +29,8 @@ import { cn } from "@/shared/util/cn.util";
 type SessionBuilderScreenProps = {
   /** Absent = création. Sinon la séance est chargée depuis l'URL. */
   sessionId?: string | undefined;
+  /** L'exercice créé depuis cette séance, à y ajouter au retour (#303). */
+  addExerciseId?: string | undefined;
 };
 
 /**
@@ -38,12 +40,32 @@ type SessionBuilderScreenProps = {
  * celles de la bibliothèque. Sans ce verrou, cet écran redeviendrait le constructeur d'exercice
  * et la notion de défaut se diluerait.
  */
-export function SessionBuilderScreen({ sessionId }: Readonly<SessionBuilderScreenProps>) {
+export function SessionBuilderScreen({
+  sessionId,
+  addExerciseId,
+}: Readonly<SessionBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const toast = useToast();
   const { data: session, isPending, isError, refetch } = useSession(sessionId);
+  const added = useExercise(addExerciseId);
+  const addSettled = added.data != null || added.isError;
 
-  if (sessionId != null && isPending) {
+  // Une fois l'exercice lu — ou introuvable —, il quitte l'URL : en `replace`, pour qu'un F5 ou un
+  // retour arrière ne l'ajoute pas une seconde fois.
+  useEffect(() => {
+    if (sessionId == null || addExerciseId == null || !addSettled) return;
+    if (added.isError) toast.error(t("library.session.addCreatedFailed"));
+    navigate({
+      to: "/library/sessions/$sessionId",
+      params: { sessionId },
+      search: {},
+      replace: true,
+    });
+  }, [sessionId, addExerciseId, addSettled, added.isError, navigate, toast, t]);
+
+  // Le brouillon naît UNE fois : il doit attendre l'exercice à ajouter pour le compter d'emblée.
+  if ((sessionId != null && isPending) || (addExerciseId != null && !addSettled)) {
     return (
       <CmvAppShell title={t("library.session.loadingTitle")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
@@ -70,6 +92,7 @@ export function SessionBuilderScreen({ sessionId }: Readonly<SessionBuilderScree
     <SessionBuilder
       key={session?.id ?? "new"}
       session={session ?? null}
+      added={added.data ?? null}
       onLeave={() => navigate({ to: "/library" })}
     />
   );
@@ -77,14 +100,15 @@ export function SessionBuilderScreen({ sessionId }: Readonly<SessionBuilderScree
 
 function SessionBuilder({
   session,
+  added,
   onLeave,
-}: Readonly<{ session: SessionDto | null; onLeave: () => void }>) {
+}: Readonly<{ session: SessionDto | null; added: ExerciseDto | null; onLeave: () => void }>) {
   const { t } = useTranslation();
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const navigate = useNavigate();
   const { data: customMetrics } = useCustomMetrics();
-  const draft = useSessionDraft(session);
+  const draft = useSessionDraft(session, added);
   const reload = useReloadSessionExercise(session?.id);
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);

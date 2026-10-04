@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Route as AthletesRoute } from "@/routes/athletes";
 import { Route as FeedbacksRoute } from "@/routes/feedbacks";
 import { Route as ExerciseNewRoute } from "@/routes/library.exercises.new";
+import { Route as SessionEditRoute } from "@/routes/library.sessions.$sessionId";
 import { Route as MessagesRoute } from "@/routes/messages";
 import { Route as SessionsRoute } from "@/routes/sessions.index";
 
@@ -62,6 +63,16 @@ describe("paramètres d'url lus en ligne", () => {
     [{}, {}],
   ])("/library/exercises/new lit %j comme %j", (search, expected) => {
     expect(parse(ExerciseNewRoute, search)).toStrictEqual(expected);
+  });
+
+  // Un exercice à ajouter au retour (#303) : une chaîne vide n'en désigne aucun.
+  it.each([
+    [{ add: "ex-9" }, { add: "ex-9" }],
+    [{ add: "" }, {}],
+    [{ add: 9 }, {}],
+    [{}, {}],
+  ])("/library/sessions/$sessionId lit %j comme %j", (search, expected) => {
+    expect(parse(SessionEditRoute, search)).toStrictEqual(expected);
   });
 });
 

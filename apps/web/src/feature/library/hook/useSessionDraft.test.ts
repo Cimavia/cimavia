@@ -90,9 +90,9 @@ const session = (exercises: SessionExerciseDto[] = [TRACTIONS, GAINAGE]): Sessio
   updatedAt: "2026-09-01T00:00:00.000Z",
 });
 
-function renderDraft(initial: SessionDto | null = session()) {
+function renderDraft(initial: SessionDto | null = session(), added: ExerciseDto | null = null) {
   const { wrapper } = renderWithQueryClient();
-  return renderHook(() => useSessionDraft(initial), { wrapper });
+  return renderHook(() => useSessionDraft(initial, added), { wrapper });
 }
 
 /** L'item d'une ligne enregistrée, ou un échec lisible. */
@@ -129,6 +129,20 @@ describe("useSessionDraft — état initial", () => {
       ["sx-tractions", "sx-tractions", ""],
       ["sx-gainage", "sx-gainage", "Gainage lent"],
     ]);
+  });
+
+  // Retour de l'exercice créé depuis la séance (#303) : il arrive EN PLUS, à la fin, à enregistrer.
+  it("ajoute en dernier l'exercice créé depuis la séance, sans id de ligne", () => {
+    const created = { id: "ex-dips", title: "Dips", tags: [], blocks } as unknown as ExerciseDto;
+    const { result, rerender } = renderDraft(session(), created);
+    rerender();
+
+    expect(result.current.items.map((item) => [item.exerciseId, item.id])).toEqual([
+      ["ex-tractions", "sx-tractions"],
+      ["ex-gainage", "sx-gainage"],
+      ["ex-dips", undefined],
+    ]);
+    expect(result.current.items[2]).toMatchObject({ blocks, baseline: blocks, adjustments: [] });
   });
 
   it("expose le titre tel que tapé, et rogné", () => {

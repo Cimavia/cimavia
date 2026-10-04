@@ -192,7 +192,8 @@
       "saved": "Séance enregistrée.",
       "saveFailed": "L'enregistrement a échoué.",
       "variantSuffix": "(variante)",
-      "savedBeforeVariant": "Séance enregistrée avant de créer la variante."
+      "savedBeforeVariant": "Séance enregistrée avant de créer la variante.",
+      "addCreatedFailed": "L'exercice créé n'a pas pu être ajouté à la séance : ajoute-le depuis ta bibliothèque."
     },
     "filterAllTags": "Tous",
     "tags": {
