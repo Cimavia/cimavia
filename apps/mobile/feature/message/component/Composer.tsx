@@ -1,4 +1,5 @@
 import type { MediaBatchStep } from "@cmv/shared";
+import { draftAfterSend } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
@@ -7,7 +8,8 @@ import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import { CmvAudioRecorder, CmvText, type RecordedAudio } from "@/shared/component";
 
 type ComposerProps = {
-  onSendText: (text: string) => void;
+  /** Le champ ne se vide qu'une fois la promesse tenue : un échec laisse le texte en place. */
+  onSendText: (text: string) => Promise<unknown>;
   onPickMedia: () => void;
   onRecordAudio: (audio: RecordedAudio) => void;
   onMediaError: (reasonKey: string) => void;
@@ -38,10 +40,14 @@ export function Composer({
   const trimmed = text.trim();
   const canSendText = trimmed.length > 0 && !sending;
 
-  // Le bouton d'envoi n'est rendu que si `canSendText`.
+  // Le bouton d'envoi n'est rendu que si `canSendText`. Vider au clic perdait le texte sur un échec
+  // (#339) ; l'échec, lui, est dit par l'écran : le texte n'a pas quitté le champ.
   const submitText = () => {
-    onSendText(trimmed);
-    setText("");
+    const sent = trimmed;
+    onSendText(sent).then(
+      () => setText((draft) => draftAfterSend(draft, sent)),
+      () => undefined,
+    );
   };
 
   const recorder = (

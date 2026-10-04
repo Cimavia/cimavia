@@ -1,5 +1,5 @@
 import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
-import { required } from "@cmv/shared";
+import { draftAfterSend, required } from "@cmv/shared";
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
@@ -9,7 +9,8 @@ import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { useWebAudioRecorder } from "@/shared/hook/useWebAudioRecorder";
 
 type ComposerProps = {
-  onSendText: (text: string) => void;
+  /** Le champ ne se vide qu'une fois la promesse tenue : un échec laisse le texte en place. */
+  onSendText: (text: string) => Promise<unknown>;
   onSendFiles: (files: readonly File[]) => void;
   onRecordedAudio: (audio: RecordedWebAudio) => void;
   sending: boolean;
@@ -59,8 +60,13 @@ export function Composer({
 
   const submitText = () => {
     if (!canSendText) return;
-    onSendText(trimmed);
-    setText("");
+    const sent = trimmed;
+    // Vider au clic perdait le texte sur un échec (#339). L'échec, lui, est dit par l'appelant :
+    // il n'y a rien à faire ici, le texte n'a pas quitté le champ.
+    onSendText(sent).then(
+      () => setText((draft) => draftAfterSend(draft, sent)),
+      () => undefined,
+    );
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

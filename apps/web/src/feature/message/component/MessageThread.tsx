@@ -103,11 +103,13 @@ export function MessageThread({
       )}
 
       <Composer
-        onSendText={(content) => send.mutate({ type: "TEXT", content })}
+        onSendText={(content) => send.mutateAsync({ type: "TEXT", content })}
         onSendFiles={media.sendFiles}
         onRecordedAudio={media.sendAudio}
-        sending={send.isPending}
-        mediaBusy={media.isUploading}
+        // Tant que le fil n'est pas résolu — en cours, ou en échec —, écrire n'aboutirait nulle
+        // part : la barre reste visible mais fermée, comme sous un débrief (`FeedbackReplyThread`).
+        sending={send.isPending || conversationId == null}
+        mediaBusy={media.isUploading || conversationId == null}
         progress={media.progress}
         retry={media.retry}
         step={media.step}

@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { Composer } from "./Composer";
@@ -20,7 +20,7 @@ vi.mock("@/shared/hook/useWebAudioRecorder", () => ({
 vi.mock("@/shared/component", () => ({ useToast: () => ({ error: toastError }) }));
 
 const props = () => ({
-  onSendText: vi.fn(),
+  onSendText: vi.fn().mockResolvedValue(undefined),
   onSendFiles: vi.fn(),
   onRecordedAudio: vi.fn(),
   sending: false,
@@ -149,6 +149,42 @@ describe("Composer", () => {
     await user.click(getByRole("button", { name: "messages.send" }));
 
     expect(given.onSendText).toHaveBeenCalledWith("salut");
+  });
+
+  // #339 : un 502 vidait le champ, et le toast ne rendait pas le texte.
+  it("garde le texte quand l'envoi échoue", async () => {
+    const given = { ...props(), onSendText: vi.fn().mockRejectedValue(new Error("502")) };
+    const { getByPlaceholderText, user } = renderWithProviders(<Composer {...given} />);
+    const field = getByPlaceholderText("messages.placeholder");
+
+    await user.type(field, "cinq lignes de consignes{Enter}");
+
+    await waitFor(() => expect(given.onSendText).toHaveBeenCalledOnce());
+    expect(field).toHaveValue("cinq lignes de consignes");
+  });
+
+  it("ne vide le champ qu'au retour du serveur, et garde ce qui a été écrit entre-temps", async () => {
+    let succeed = () => {};
+    const given = {
+      ...props(),
+      onSendText: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            succeed = resolve;
+          }),
+      ),
+    };
+    const { getByPlaceholderText, rerender, user } = renderWithProviders(<Composer {...given} />);
+    const field = getByPlaceholderText("messages.placeholder");
+
+    await user.type(field, "salut{Enter}");
+    rerender(<Composer {...given} sending />);
+    await user.type(field, " et demain");
+    expect(field).toHaveValue("salut et demain");
+
+    succeed();
+
+    await waitFor(() => expect(field).toHaveValue("et demain"));
   });
 
   it("ouvre le sélecteur de fichiers, et l'éteint pendant un envoi de média", async () => {

@@ -88,22 +88,25 @@ export function ConversationThread({
     markRead(undefined, { onError: () => readMarker.release(unreadTarget) });
   }, [conversationId, unreadTarget, readMarker, markRead, messages.dataUpdatedAt]);
 
-  if (isResolving || messages.isPending) {
-    return (
-      <CmvScreen>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator />
-        </View>
-      </CmvScreen>
-    );
-  }
-
+  // L'échec AVANT le chargement : une résolution en échec laisse le fil sans id, donc sa requête
+  // de messages désactivée — et une requête désactivée sans données reste `isPending`. Dans
+  // l'autre ordre, l'erreur se cachait derrière un chargement sans fin.
   if (hasResolveError || messages.isError) {
     return (
       <CmvScreen>
         <CmvErrorState
           onRetry={() => (conversationId == null ? onRetryResolve() : messages.refetch())}
         />
+      </CmvScreen>
+    );
+  }
+
+  if (isResolving || messages.isPending) {
+    return (
+      <CmvScreen>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator />
+        </View>
       </CmvScreen>
     );
   }
@@ -154,7 +157,7 @@ export function ConversationThread({
         ))}
 
         <Composer
-          onSendText={(content) => send.mutate({ type: "TEXT", content })}
+          onSendText={(content) => send.mutateAsync({ type: "TEXT", content })}
           onPickMedia={() => {
             setPreUploadErrorKey(null);
             setRecap([]);

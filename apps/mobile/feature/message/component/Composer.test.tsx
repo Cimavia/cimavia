@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
@@ -23,7 +23,7 @@ vi.mock("@/shared/component/CmvAudioRecorder", () => ({
 }));
 
 const base = {
-  onSendText: vi.fn(),
+  onSendText: vi.fn().mockResolvedValue(undefined),
   onPickMedia: vi.fn(),
   onRecordAudio: vi.fn(),
   onMediaError: vi.fn(),
@@ -43,6 +43,12 @@ function type(container: HTMLElement, value: string): void {
   fireEvent.change(field, { target: { value } });
 }
 
+function pressSend(container: HTMLElement): void {
+  const send = iconButton(container, "send");
+  if (send == null) throw new Error("bouton d'envoi absent");
+  press(send);
+}
+
 describe("Composer", () => {
   it("n'offre l'envoi qu'une fois quelque chose écrit", () => {
     const { container } = renderRn(<Composer {...base} />);
@@ -59,17 +65,32 @@ describe("Composer", () => {
     expect(iconButton(container, "send")).toBeNull();
   });
 
-  it("envoie le texte détouré, puis vide le champ", () => {
-    const onSendText = vi.fn();
+  it("envoie le texte détouré, puis vide le champ au succès", async () => {
+    const onSendText = vi.fn().mockResolvedValue(undefined);
     const { container } = renderRn(<Composer {...base} onSendText={onSendText} />);
 
     type(container, "  bien joué  ");
-    const send = iconButton(container, "send");
-    if (send == null) throw new Error("bouton d'envoi absent");
-    press(send);
+    pressSend(container);
 
     expect(onSendText).toHaveBeenCalledWith("bien joué");
-    expect(container.querySelector("textarea, input")).toHaveProperty("value", "");
+    await waitFor(() =>
+      expect(container.querySelector("textarea, input")).toHaveProperty("value", ""),
+    );
+  });
+
+  // #339 : un réseau coupé vidait le champ, et la ligne d'erreur ne rendait pas le texte.
+  it("garde le texte quand l'envoi échoue", async () => {
+    const onSendText = vi.fn().mockRejectedValue(new Error("réseau"));
+    const { container } = renderRn(<Composer {...base} onSendText={onSendText} />);
+
+    type(container, "cinq lignes de consignes");
+    pressSend(container);
+
+    await waitFor(() => expect(onSendText).toHaveBeenCalledOnce());
+    expect(container.querySelector("textarea, input")).toHaveProperty(
+      "value",
+      "cinq lignes de consignes",
+    );
   });
 
   it("retient l'envoi tant que le précédent part encore", () => {
