@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
-**IOS-2**, **IOS-3**, **P7-7**, **OTA-1** et **OTA-2**,
+**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2** et **G-1**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, est résolue : période `previous_version` rendue possible par
@@ -2495,9 +2495,9 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - Après diffusion, l'en-tête est **remonté** (`key={plan.status}`) : ses champs grisés repartent
 >   de l'enregistré au lieu de garder une saisie qui n'est pas partie.
 >
-> La **navigation** hors du builder avec une saisie en cours n'est pas gardée : c'est le sujet de
-> [#327](https://github.com/Cimavia/cimavia/issues/327), qui ne vise aujourd'hui que les deux
-> constructeurs de la bibliothèque.
+> La **navigation** hors du builder avec une saisie en cours est gardée depuis
+> [#327](https://github.com/Cimavia/cimavia/issues/327), sur ces deux mêmes booléens — le panneau
+> d'une séance planifiée excepté (**G-1**).
 
 ---
 
@@ -4451,7 +4451,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Aucun toast sur un 401** (`useMutationToast`) : la fenêtre nomme déjà la cause.
 >
 > Conséquence pour [#327](https://github.com/Cimavia/cimavia/issues/327) (garde « modifications
-> non enregistrées ») : aucune navigation ne part sur un 401, le futur `useBlocker` n'a donc pas
+> non enregistrées ») : aucune navigation ne part sur un 401, le `useBlocker` n'a donc pas
 > d'exception à prévoir pour ce cas. Le mobile a le même trou, suivi à part.
 >
 > Découvert en chemin : lire l'adresse par `useLocation()` dans la garde la faisait boucler
@@ -4798,9 +4798,9 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   message au lieu d'un échec serveur muet.
 >
 > Pour [#327](https://github.com/Cimavia/cimavia/issues/327) (garde « modifications non
-> enregistrées ») : ces deux sorties partent APRÈS un enregistrement réussi, le futur `useBlocker`
-> doit les laisser passer comme `onSubmit`. Sur une séance neuve, le brouillon reste comparé à une
-> séance vide après l'enregistrement : un `isDirty` naïf bloquerait la navigation qui suit.
+> enregistrées ») : ces deux sorties partent APRÈS un enregistrement réussi, et la garde les laisse
+> passer comme `onSubmit`. Sur une séance neuve, le brouillon restait comparé à une séance vide
+> après l'enregistrement : c'est pourquoi #327 compare à ce qui est PARTI.
 
 ---
 
@@ -4872,6 +4872,54 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Retirer une semaine d'un cycle **en cours** avec notification et recalage explicite reste un
 > besoin possible, renvoyé à [#231](https://github.com/Cimavia/cimavia/issues/231) : même dispositif
 > que le report (prévenir l'athlète), même déclencheur (un coach qui le demande — aucun à ce jour).
+
+---
+
+## Post-MVP — Quitter une saisie non enregistrée ([#327](https://github.com/Cimavia/cimavia/issues/327))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| G-1 | **Le panneau d'une séance planifiée n'est pas gardé** : son titre, ses notes et sa date se perdent sans confirmation, qu'on navigue hors du cycle ou qu'on referme le panneau. Il ne remonte aucun état « modifié » au constructeur, qui ne garde que l'en-tête et la facturation. Trois champs courts, là où les constructeurs de bibliothèque portent des grilles entières. | 🟢 | — *(déclencheur : un coach qui signale une séance planifiée perdue en cours de saisie)* |
+
+> **Tranché en [#327](https://github.com/Cimavia/cimavia/issues/327)** (la sortie se compare à
+> l'ENREGISTRÉ, et seul ce qui change de page la déclenche) : les constructeurs d'exercice, de
+> séance et de cycle laissaient partir leur saisie sans un mot — Annuler posé à côté
+> d'Enregistrer, un lien de la barre latérale, un retour arrière, un F5. `useLeaveGuard` pose un
+> `useBlocker` de TanStack Router et un `beforeunload`, `CmvLeaveDialog` porte la question.
+>
+> - **« Modifié » = ce qui PARTIRAIT diffère de ce qui est enregistré**, pas de l'état au montage.
+>   L'issue proposait l'état initial : il aurait laissé partir sans un mot l'exercice ajouté au
+>   retour de #303 (il naît dans l'état initial, et n'est pas enregistré), et retenu la navigation
+>   qui suit l'enregistrement d'une séance neuve (comparée à une séance vide). C'est la règle de
+>   #326. Brouillon et enregistré passent par la même mise en forme (`toExerciseInput`,
+>   `toSessionInput`) et se comparent sans tenir compte de l'ordre des clés (`sameJson`) : un titre
+>   suivi d'une espace, une valeur remise à l'identique, ne retiennent rien.
+> - **La référence suit ce qui est PARTI, pas la réponse du serveur** : celle-ci porte les ids
+>   définitifs des images de la consigne, là où le brouillon garde leurs ids provisoires. Elle n'est
+>   remise à jour qu'une fois TOUT envoyé — un envoi interrompu (#302) laisse l'écran modifié.
+>   Fichiers et liens en attente comptent à part, ils ne sont dans aucun champ. Le **rechargement**
+>   d'une ligne de séance s'écrit côté serveur : la référence le suit, sans quoi il passerait pour
+>   une saisie.
+> - **Le titre pré-rempli par « Créer l'exercice « gainage » »** fait partie de la référence : repris
+>   de la recherche, il n'a pas été saisi ici. Annuler sans rien toucher ne demande rien.
+> - **Seul un changement de page est retenu** (`pathname`) : le `?add` que la séance retire de son
+>   URL une fois lu (#303) ne fait rien perdre.
+> - **Les sorties qui SUIVENT une écriture réussie passent** (`release`) : enregistrer, dupliquer en
+>   variante, créer l'exercice manquant, supprimer l'exercice ou le cycle. Elles partent dans la
+>   même tâche que l'écriture, avant que l'écran ne se redessine — l'état de la garde se lit donc
+>   par ref.
+> - **Un `<dialog>` modal, pas `window.confirm`**, pour la même raison que `CmvConfirmButton` : ni
+>   stylable ni traduisible. « Rester » vient en premier, focalisé ; Échap vaut « Rester ». F5 et
+>   fermeture d'onglet montrent la boîte du NAVIGATEUR, dont aucun site ne choisit le texte.
+> - **Se déconnecter et « Changer de compte » demandent AVANT d'agir** (`confirmLeave`) : la garde
+>   du routeur ne voit que la navigation, qui vient APRÈS la coupure de session ou la purge — le
+>   coach se voyait demander s'il voulait quitter un écran qu'il avait déjà perdu. « Rester » le
+>   laisse connecté, sa saisie intacte. Une reconnexion aboutie sur un AUTRE compte part, elle,
+>   sans demander (`ignoreBlocker`) : garder l'écran montrerait le travail du premier sous
+>   l'identité du second. La question est rendue dans `body` : l'écran d'une session perdue est
+>   `inert` (`CmvRoleGate`), et le dialogue n'y répondrait plus.
+>
+> Le **mobile** n'a pas de constructeur de bibliothèque : rien à garder.
 
 ---
 
