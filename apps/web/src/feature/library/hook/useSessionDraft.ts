@@ -46,6 +46,20 @@ const fromSession = (session: SessionDto | null): CompositionItem[] =>
     adjustments: composed.adjustments,
   }));
 
+/** Une ligne neuve, copiée de la bibliothèque. */
+const fromExercise = (exercise: ExerciseDto): CompositionItem => ({
+  key: crypto.randomUUID(),
+  exerciseId: exercise.id,
+  title: exercise.title,
+  tags: exercise.tags,
+  note: "",
+  // La copie à l'AJOUT : la séance est indépendante dès cet instant, et le serveur posera
+  // la même chose en référence.
+  blocks: exercise.blocks,
+  baseline: exercise.blocks,
+  adjustments: [],
+});
+
 /**
  * Toute la composition d'une séance et les gestes qui la modifient.
  *
@@ -53,12 +67,17 @@ const fromSession = (session: SessionDto | null): CompositionItem[] =>
  * recharger — sont écrits avec les fonctions pures de `@cmv/shared`. Deux d'entre eux se calculent
  * ici ; seul le rechargement passe par le serveur, parce qu'il déplace la référence.
  */
-export function useSessionDraft(session: SessionDto | null) {
+export function useSessionDraft(session: SessionDto | null, added: ExerciseDto | null = null) {
   const { save, isSaving, error } = useSaveSession();
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [notes, setNotes] = useState(session?.notes ?? "");
-  const [items, setItems] = useState<CompositionItem[]>(() => fromSession(session));
+  const [items, setItems] = useState<CompositionItem[]>(() => [
+    ...fromSession(session),
+    // L'exercice créé depuis cette séance (#303) entre dans l'état INITIAL, pas par un effet : le
+    // brouillon naît une seule fois, l'exercice ne peut donc pas y entrer deux fois.
+    ...(added == null ? [] : [fromExercise(added)]),
+  ]);
 
   const trimmedTitle = title.trim();
 
@@ -67,21 +86,7 @@ export function useSessionDraft(session: SessionDto | null) {
   }
 
   function addExercise(exercise: ExerciseDto) {
-    setItems((current) => [
-      ...current,
-      {
-        key: crypto.randomUUID(),
-        exerciseId: exercise.id,
-        title: exercise.title,
-        tags: exercise.tags,
-        note: "",
-        // La copie à l'AJOUT : la séance est indépendante dès cet instant, et le serveur posera
-        // la même chose en référence.
-        blocks: exercise.blocks,
-        baseline: exercise.blocks,
-        adjustments: [],
-      },
-    ]);
+    setItems((current) => [...current, fromExercise(exercise)]);
   }
 
   function removeItem(key: string) {
@@ -230,8 +235,9 @@ export function useSessionDraft(session: SessionDto | null) {
     replace(key, (item) => ({ ...item, ...resetToBaseline(item.baseline) }));
   }
 
-  async function submit() {
-    await save({
+  /** La séance telle qu'enregistrée : son id ramène à elle après un détour (#303). */
+  async function submit(): Promise<SessionDto> {
+    return save({
       session,
       input: {
         title: trimmedTitle,

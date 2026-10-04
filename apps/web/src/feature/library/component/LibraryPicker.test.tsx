@@ -41,17 +41,23 @@ function served(exercises: ExerciseDto[] | undefined, ...rest: [tags?: string[] 
   >);
 }
 
-async function setup() {
+async function setup({ isSaving = false } = {}) {
   const onPick = vi.fn();
-  const view = await renderInRoute(<LibraryPicker customMetrics={[]} onPick={onPick} />, {
-    path: "/library/sessions/new",
-    links: ["/library/exercises/new"],
-  });
+  const onCreateMissing = vi.fn();
+  const view = await renderInRoute(
+    <LibraryPicker
+      customMetrics={[]}
+      onPick={onPick}
+      onCreateMissing={onCreateMissing}
+      isSaving={isSaving}
+    />,
+    { path: "/library/sessions/new" },
+  );
   const titles = () =>
     view
       .queryAllByRole("button", { name: /^(Échauffement|Tractions|Gainage)/ })
       .map((button) => button.firstChild?.textContent);
-  return { ...view, onPick, titles };
+  return { ...view, onPick, onCreateMissing, titles };
 }
 
 beforeEach(() => {
@@ -127,15 +133,27 @@ describe("LibraryPicker", () => {
     expect(onPick).toHaveBeenCalledExactlyOnceWith(library[1]);
   });
 
-  // Ce que le bouton FAIT relève de #303 (il jette la séance en cours) : seule l'offre est figée ici.
-  it("propose de créer l'exercice cherché quand la recherche ne trouve rien", async () => {
+  // Le sélecteur ne quitte pas la séance lui-même (#303) : il remonte le titre, rogné, et reste.
+  it("propose de créer l'exercice cherché quand la recherche ne trouve rien, et remonte son titre", async () => {
     served(library);
-    const { user, getByRole, titles } = await setup();
+    const { user, getByRole, titles, onCreateMissing, router } = await setup();
+
+    await user.type(getByRole("searchbox", { name: SEARCH }), "  planche ");
+    expect(titles()).toEqual([]);
+    await user.click(getByRole("button", { name: "library.noMatch.create" }));
+
+    expect(onCreateMissing).toHaveBeenCalledExactlyOnceWith("planche");
+    expect(router.state.location.pathname).toBe("/library/sessions/new");
+  });
+
+  // Un second clic pendant l'enregistrement créerait une seconde séance.
+  it("ferme la création le temps d'un enregistrement", async () => {
+    served(library);
+    const { user, getByRole } = await setup({ isSaving: true });
 
     await user.type(getByRole("searchbox", { name: SEARCH }), "planche");
 
-    expect(titles()).toEqual([]);
-    expect(getByRole("button", { name: "library.noMatch.create" })).toBeInTheDocument();
+    expect(getByRole("button", { name: "library.noMatch.create" })).toBeDisabled();
   });
 
   // Une bibliothèque vide sans recherche n'appelle pas « créer l'exercice “” ».

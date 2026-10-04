@@ -4739,6 +4739,43 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Créer l'exercice manquant sans perdre la séance ([#303](https://github.com/Cimavia/cimavia/issues/303))
+
+> **Tranché en [#303](https://github.com/Cimavia/cimavia/issues/303)** (enregistrer, partir,
+> revenir — pas de nouvel onglet) : « Créer l'exercice « gainage » » naviguait dans le même onglet
+> sans rien enregistrer, et la séance en cours partait avec. Deux voies :
+>
+> - **Un nouvel onglet** a été écarté : il n'invalide que son propre cache. Revenu sur sa séance,
+>   le coach y voit encore « aucun résultat » pour « gainage » jusqu'à une minute (le `staleTime`
+>   de la bibliothèque), et il lui reste un onglet à fermer.
+> - **Enregistrer puis partir**, comme « Dupliquer en variante » le faisait déjà. Le sélecteur ne
+>   navigue plus : il remonte le titre à l'écran, qui enregistre et ouvre
+>   `/library/exercises/new?title=…&session=<id>`. Une séance neuve devient ainsi une séance
+>   enregistrée, visible en bibliothèque même si le coach abandonne en route : c'est le prix du
+>   geste, le même que pour la variante.
+>
+> Ce qui en découle :
+>
+> - **Le retour passe par un id, pas par un chemin** : la cible se reconstruit dans l'écran, l'URL
+>   ne peut donc ramener nulle part ailleurs — pas besoin de `safeRedirect` (#337).
+> - **L'exercice enregistré est ajouté à la séance** au retour (`?add=<id>`), parce que le geste
+>   voulait dire « je veux gainage dans cette séance ». Il entre dans l'état INITIAL du brouillon,
+>   pas par un effet : l'écran attend l'exercice avant de monter le brouillon, puis retire `add`
+>   de l'URL. Un F5 ne l'ajoute pas une seconde fois. Il reste à enregistrer, comme tout ajout.
+> - **Retour en `replace`** : le détour par la création ne reste pas dans l'historique, où un
+>   retour arrière rouvrirait le formulaire d'un exercice déjà créé. Annuler et Supprimer
+>   ramènent aussi à la séance, sans rien ajouter.
+> - **Une séance sans titre ne s'enregistre pas, et rien ne part** : le champ réclame son titre et
+>   un toast dit pourquoi. La variante, qui passe par le même enregistrement, y gagne le même
+>   message au lieu d'un échec serveur muet.
+>
+> Pour [#327](https://github.com/Cimavia/cimavia/issues/327) (garde « modifications non
+> enregistrées ») : ces deux sorties partent APRÈS un enregistrement réussi, le futur `useBlocker`
+> doit les laisser passer comme `onSubmit`. Sur une séance neuve, le brouillon reste comparé à une
+> séance vide après l'enregistrement : un `isDirty` naïf bloquerait la navigation qui suit.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

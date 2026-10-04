@@ -1,5 +1,4 @@
 import { type CustomMetric, comparableText, type ExerciseDto } from "@cmv/shared";
-import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
@@ -18,6 +17,10 @@ const NO_TAG = "";
 type LibraryPickerProps = {
   customMetrics: readonly CustomMetric[];
   onPick: (exercise: ExerciseDto) => void;
+  /** Le titre cherché, rogné. C'est à l'écran de quitter la séance sans la perdre (#303). */
+  onCreateMissing: (title: string) => void;
+  /** Ferme la création le temps d'un enregistrement : un double clic créerait deux séances. */
+  isSaving: boolean;
 };
 
 /**
@@ -25,12 +28,16 @@ type LibraryPickerProps = {
  * coach doit reconnaître ce qu'il ajoute avant de l'ajouter.
  *
  * La recherche sans résultat propose de créer l'exercice manquant en reprenant le texte tapé
- * comme titre — et le fait sans perdre la séance en cours, puisqu'elle est déjà enregistrée ou
- * que l'ouverture se fait dans un nouvel onglet.
+ * comme titre. Le sélecteur ne navigue pas lui-même : quitter la séance la jetterait. Il remonte
+ * le titre à l'écran, qui enregistre la séance avant de partir et sait y revenir (#303).
  */
-export function LibraryPicker({ customMetrics, onPick }: Readonly<LibraryPickerProps>) {
+export function LibraryPicker({
+  customMetrics,
+  onPick,
+  onCreateMissing,
+  isSaving,
+}: Readonly<LibraryPickerProps>) {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState(NO_TAG);
 
@@ -72,14 +79,7 @@ export function LibraryPicker({ customMetrics, onPick }: Readonly<LibraryPickerP
         <CmvEmptyState
           title={t("library.noMatch.title", { search: search.trim() })}
           action={
-            <CmvButton
-              onClick={() =>
-                navigate({
-                  to: "/library/exercises/new",
-                  search: { title: search.trim() },
-                })
-              }
-            >
+            <CmvButton onClick={() => onCreateMissing(search.trim())} disabled={isSaving}>
               {t("library.noMatch.create", { search: search.trim() })}
             </CmvButton>
           }

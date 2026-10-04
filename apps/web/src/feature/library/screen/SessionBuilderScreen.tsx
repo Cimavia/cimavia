@@ -2,13 +2,13 @@ import type { ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
 import { required } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CompositionCard } from "@/feature/library/component/CompositionCard";
 import { LibraryPicker } from "@/feature/library/component/LibraryPicker";
 import { SessionPreview } from "@/feature/library/component/SessionPreview";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
-import { useDuplicateExercise } from "@/feature/library/hook/useExercises";
+import { useDuplicateExercise, useExercise } from "@/feature/library/hook/useExercises";
 import { useSessionDraft } from "@/feature/library/hook/useSessionDraft";
 import { useReloadSessionExercise, useSession } from "@/feature/library/hook/useSessions";
 import {
@@ -29,6 +29,8 @@ import { cn } from "@/shared/util/cn.util";
 type SessionBuilderScreenProps = {
   /** Absent = création. Sinon la séance est chargée depuis l'URL. */
   sessionId?: string | undefined;
+  /** L'exercice créé depuis cette séance, à y ajouter au retour (#303). */
+  addExerciseId?: string | undefined;
 };
 
 /**
@@ -38,12 +40,32 @@ type SessionBuilderScreenProps = {
  * celles de la bibliothèque. Sans ce verrou, cet écran redeviendrait le constructeur d'exercice
  * et la notion de défaut se diluerait.
  */
-export function SessionBuilderScreen({ sessionId }: Readonly<SessionBuilderScreenProps>) {
+export function SessionBuilderScreen({
+  sessionId,
+  addExerciseId,
+}: Readonly<SessionBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const toast = useToast();
   const { data: session, isPending, isError, refetch } = useSession(sessionId);
+  const added = useExercise(addExerciseId);
+  const addSettled = added.data != null || added.isError;
 
-  if (sessionId != null && isPending) {
+  // Une fois l'exercice lu — ou introuvable —, il quitte l'URL : en `replace`, pour qu'un F5 ou un
+  // retour arrière ne l'ajoute pas une seconde fois.
+  useEffect(() => {
+    if (sessionId == null || addExerciseId == null || !addSettled) return;
+    if (added.isError) toast.error(t("library.session.addCreatedFailed"));
+    navigate({
+      to: "/library/sessions/$sessionId",
+      params: { sessionId },
+      search: {},
+      replace: true,
+    });
+  }, [sessionId, addExerciseId, addSettled, added.isError, navigate, toast, t]);
+
+  // Le brouillon naît UNE fois : il doit attendre l'exercice à ajouter pour le compter d'emblée.
+  if ((sessionId != null && isPending) || (addExerciseId != null && !addSettled)) {
     return (
       <CmvAppShell title={t("library.session.loadingTitle")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
@@ -70,6 +92,7 @@ export function SessionBuilderScreen({ sessionId }: Readonly<SessionBuilderScree
     <SessionBuilder
       key={session?.id ?? "new"}
       session={session ?? null}
+      added={added.data ?? null}
       onLeave={() => navigate({ to: "/library" })}
     />
   );
@@ -77,14 +100,15 @@ export function SessionBuilderScreen({ sessionId }: Readonly<SessionBuilderScree
 
 function SessionBuilder({
   session,
+  added,
   onLeave,
-}: Readonly<{ session: SessionDto | null; onLeave: () => void }>) {
+}: Readonly<{ session: SessionDto | null; added: ExerciseDto | null; onLeave: () => void }>) {
   const { t } = useTranslation();
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const navigate = useNavigate();
   const { data: customMetrics } = useCustomMetrics();
-  const draft = useSessionDraft(session);
+  const draft = useSessionDraft(session, added);
   const reload = useReloadSessionExercise(session?.id);
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);
@@ -94,15 +118,35 @@ function SessionBuilder({
   const drag = useReorderDrag(draft.moveItem);
   const adjustedItems = draft.items.filter((item) => item.adjustments.length > 0).length;
 
-  async function onSubmit() {
+  /**
+   * Enregistre, le dit, et rend la séance enregistrée — ou `null` quand il faut rester : échec
+   * (déjà annoncé), ou séance sans titre.
+   *
+   * Le titre est vérifié ICI parce que deux gestes enregistrent sans passer par le bouton, qui,
+   * lui, reste fermé sans titre : « Dupliquer en variante » et « Créer l'exercice manquant »
+   * (#303). Ils quittent la séance pour l'éditeur d'exercice, et l'enregistrent d'abord — sans
+   * ça tout ce que le coach vient de composer disparaît, et le geste qui devait l'aider lui coûte
+   * son travail. Sans titre, rien ne part : le champ le réclame, plutôt qu'un échec du serveur
+   * qui ne dirait pas pourquoi.
+   */
+  async function save(successKey: string): Promise<SessionDto | null> {
+    if (draft.trimmedTitle === "") {
+      setTitleTouched(true);
+      toast.error(t("library.session.titleBeforeLeaving"));
+      return null;
+    }
     try {
-      await draft.submit();
+      const saved = await draft.submit();
+      toast.success(t(successKey));
+      return saved;
     } catch (error) {
       onFailure("library.session.saveFailed", error);
-      return;
+      return null;
     }
-    toast.success(t("library.session.saved"));
-    onLeave();
+  }
+
+  async function onSubmit() {
+    if ((await save("library.session.saved")) != null) onLeave();
   }
 
   function onPick(exercise: ExerciseDto) {
@@ -110,19 +154,8 @@ function SessionBuilder({
     setPicking(false);
   }
 
-  /**
-   * « Dupliquer en variante » quitte la séance pour l'éditeur d'exercice. On l'ENREGISTRE d'abord :
-   * sans ça tout ce que le coach vient de composer disparaît, et le geste qui devait l'aider lui
-   * coûte son travail.
-   */
   async function onDuplicate(exerciseId: string, blocks: ExerciseBlocks) {
-    try {
-      await draft.submit();
-    } catch (error) {
-      onFailure("library.session.saveFailed", error);
-      return;
-    }
-    toast.success(t("library.session.savedBeforeVariant"));
+    if ((await save("library.session.savedBeforeVariant")) == null) return;
     duplicate.mutate(
       { exerciseId, suffix: t("library.session.variantSuffix"), blocks },
       {
@@ -133,6 +166,13 @@ function SessionBuilder({
           }),
       },
     );
+  }
+
+  /** La séance d'où l'on part est passée par id : l'éditeur d'exercice y ramènera. */
+  async function onCreateMissing(title: string) {
+    const saved = await save("library.session.savedBeforeExercise");
+    if (saved == null) return;
+    navigate({ to: "/library/exercises/new", search: { title, session: saved.id } });
   }
 
   return (
@@ -254,7 +294,12 @@ function SessionBuilder({
                 d'exercice : même geste, même endroit. La colonne de droite ne porte que l'aperçu. */}
             {picking ? (
               <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
-                <LibraryPicker customMetrics={metrics} onPick={onPick} />
+                <LibraryPicker
+                  customMetrics={metrics}
+                  onPick={onPick}
+                  onCreateMissing={onCreateMissing}
+                  isSaving={draft.isSaving}
+                />
                 <div>
                   <CmvButton variant="ghost" onClick={() => setPicking(false)}>
                     {t("library.builder.cancel")}

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Route as AthletesRoute } from "@/routes/athletes";
 import { Route as FeedbacksRoute } from "@/routes/feedbacks";
 import { Route as ExerciseNewRoute } from "@/routes/library.exercises.new";
+import { Route as SessionEditRoute } from "@/routes/library.sessions.$sessionId";
 import { Route as MessagesRoute } from "@/routes/messages";
 import { Route as SessionsRoute } from "@/routes/sessions.index";
 
@@ -55,13 +56,30 @@ describe("paramètres d'url lus en ligne", () => {
     expect(parse(SessionsRoute, search)).toStrictEqual(expected);
   });
 
-  // L'objet vide et non `title: undefined` : sinon chaque lien devrait passer un titre qu'il n'a pas.
+  // Des clés absentes et non `title: undefined` : sinon chaque lien devrait passer ce qu'il n'a pas.
+  // `session` (#303) : la séance où revenir — une chaîne vide n'en désigne aucune.
   it.each([
     [{ title: "gainage" }, { title: "gainage" }],
-    [{ title: 3 }, {}],
+    [
+      { title: "gainage", session: "s-1" },
+      { title: "gainage", session: "s-1" },
+    ],
+    [{ session: "s-1" }, { session: "s-1" }],
+    [{ title: 3, session: "" }, {}],
+    [{ session: 1 }, {}],
     [{}, {}],
   ])("/library/exercises/new lit %j comme %j", (search, expected) => {
     expect(parse(ExerciseNewRoute, search)).toStrictEqual(expected);
+  });
+
+  // Un exercice à ajouter au retour (#303) : une chaîne vide n'en désigne aucun.
+  it.each([
+    [{ add: "ex-9" }, { add: "ex-9" }],
+    [{ add: "" }, {}],
+    [{ add: 9 }, {}],
+    [{}, {}],
+  ])("/library/sessions/$sessionId lit %j comme %j", (search, expected) => {
+    expect(parse(SessionEditRoute, search)).toStrictEqual(expected);
   });
 });
 
