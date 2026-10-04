@@ -25,6 +25,7 @@ import {
 } from "@/shared/component";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";
 
@@ -111,9 +112,14 @@ function SessionBuilder({
   const navigate = useNavigate();
   const { data: customMetrics } = useCustomMetrics();
   const draft = useSessionDraft(session, added);
+  // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
+  // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
+  const refused = useRefusedFields();
   // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
   // composition (#327). Seules les sorties qui SUIVENT un enregistrement passent.
-  const guard = useLeaveGuard(draft.isDirty);
+  const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
+  // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
+  const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
   const reload = useReloadSessionExercise(session?.id);
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);
@@ -133,11 +139,18 @@ function SessionBuilder({
    * ça tout ce que le coach vient de composer disparaît, et le geste qui devait l'aider lui coûte
    * son travail. Sans titre, rien ne part : le champ le réclame, plutôt qu'un échec du serveur
    * qui ne dirait pas pourquoi.
+   *
+   * Une saisie refusée retient de même (#566) : ces deux gestes enregistreraient l'ANCIENNE
+   * valeur, puis quitteraient la séance — la saisie disparaîtrait sans que rien ne l'ait dit.
    */
   async function save(successKey: string): Promise<SessionDto | null> {
     if (draft.trimmedTitle === "") {
       setTitleTouched(true);
       toast.error(t("library.session.titleBeforeLeaving"));
+      return null;
+    }
+    if (refused.hasRefused) {
+      toast.error(t("library.session.refusedBeforeLeaving"));
       return null;
     }
     try {
@@ -197,142 +210,150 @@ function SessionBuilder({
           <CmvButton variant="ghost" onClick={onLeave} disabled={draft.isSaving}>
             {t("library.builder.cancel")}
           </CmvButton>
-          <CmvButton onClick={onSubmit} disabled={draft.isSaving || draft.trimmedTitle === ""}>
+          <CmvButton
+            onClick={onSubmit}
+            disabled={draft.isSaving || draft.trimmedTitle === "" || blockedBy != null}
+            title={blockedBy}
+          >
             {submitLabel(draft.isSaving, session != null, t)}
           </CmvButton>
         </>
       }
     >
-      <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="flex min-w-0 flex-col gap-cmv-xl">
-          {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
+      <RefusedFieldsContext value={refused.report}>
+        <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="flex min-w-0 flex-col gap-cmv-xl">
+            {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
               (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
-          <div className="flex flex-col gap-cmv-xs">
-            <CmvTextField
-              label={t("library.session.titleLabel")}
-              name="title"
-              value={draft.title}
-              onChange={(event) => draft.setTitle(event.target.value)}
-              onBlur={() => setTitleTouched(true)}
-              placeholder={t("library.session.titlePlaceholder")}
-              required
-              requiredMark
-            />
-            {titleTouched && draft.trimmedTitle === "" ? (
-              <p className="text-cmv-caption text-cmv-error">
-                {t("library.session.titleRequired")}
-              </p>
-            ) : null}
-            <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
-          </div>
-
-          <CmvTextArea
-            label={t("library.session.notesLabel")}
-            name="notes"
-            value={draft.notes}
-            onChange={(event) => draft.setNotes(event.target.value)}
-            placeholder={t("library.session.notesPlaceholder")}
-            rows={3}
-          />
-
-          <div className="flex flex-col gap-cmv-sm">
-            <span className="text-cmv-caption text-cmv-text-mid">
-              {t("library.session.composition")}
-            </span>
-
-            {draft.items.length === 0 ? (
-              <CmvEmptyState
-                title={t("library.session.emptyTitle")}
-                description={t("library.session.emptyDescription")}
+            <div className="flex flex-col gap-cmv-xs">
+              <CmvTextField
+                label={t("library.session.titleLabel")}
+                name="title"
+                value={draft.title}
+                onChange={(event) => draft.setTitle(event.target.value)}
+                onBlur={() => setTitleTouched(true)}
+                placeholder={t("library.session.titlePlaceholder")}
+                required
+                requiredMark
               />
-            ) : null}
+              {titleTouched && draft.trimmedTitle === "" ? (
+                <p className="text-cmv-caption text-cmv-error">
+                  {t("library.session.titleRequired")}
+                </p>
+              ) : null}
+              <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+            </div>
 
-            {draft.items.map((item, index) => (
-              <div
-                key={item.key}
-                {...drag.rowProps(index)}
-                className={cn(drag.isDragging(index) && "opacity-40")}
-              >
-                <CompositionCard
-                  item={item}
-                  customMetrics={metrics}
-                  isReloading={reload.isPending}
-                  isDropTarget={drag.isOver(index)}
-                  isFirst={index === 0}
-                  isLast={index === draft.items.length - 1}
-                  onMove={(direction) => draft.moveItem(index, index + direction)}
-                  dragHandle={
-                    <CmvDragHandle
-                      label={`${t("library.session.moveExercise")} ${index + 1}`}
-                      {...drag.handleProps(index)}
-                      onMove={(direction) => draft.moveItem(index, index + direction)}
-                    />
-                  }
-                  onNoteChange={(note) =>
-                    draft.setItems((current) =>
-                      current.map((row) => (row.key === item.key ? { ...row, note } : row)),
-                    )
-                  }
-                  onCellChange={(blockId, rowId, metricId, value) =>
-                    draft.setCellValue(item.key, blockId, rowId, metricId, value)
-                  }
-                  onStructureChange={(blockId, structure) =>
-                    draft.setStructure(item.key, blockId, structure as never)
-                  }
-                  onRowsChange={(blockId, rows) => draft.setRows(item.key, blockId, rows as never)}
-                  onRevertCell={(blockId, rowId, metricId) =>
-                    draft.revertCell(item.key, blockId, rowId, metricId)
-                  }
-                  onRevertStructureField={(blockId, field) =>
-                    draft.revertStructureField(item.key, blockId, field)
-                  }
-                  onResetAll={() => draft.resetItem(item.key)}
-                  onReload={() => {
-                    // `CompositionCard` ferme « Recharger » sur une ligne sans id.
-                    reload.mutate(required(item.id, "rechargement d'une ligne sans id"), {
-                      onSuccess: (reloaded, sessionExerciseId) =>
-                        draft.applyReloaded(sessionExerciseId, reloaded),
-                    });
-                  }}
-                  onDuplicate={() => onDuplicate(item.exerciseId, item.blocks)}
-                  onRemove={() => draft.removeItem(item.key)}
+            <CmvTextArea
+              label={t("library.session.notesLabel")}
+              name="notes"
+              value={draft.notes}
+              onChange={(event) => draft.setNotes(event.target.value)}
+              placeholder={t("library.session.notesPlaceholder")}
+              rows={3}
+            />
+
+            <div className="flex flex-col gap-cmv-sm">
+              <span className="text-cmv-caption text-cmv-text-mid">
+                {t("library.session.composition")}
+              </span>
+
+              {draft.items.length === 0 ? (
+                <CmvEmptyState
+                  title={t("library.session.emptyTitle")}
+                  description={t("library.session.emptyDescription")}
                 />
-              </div>
-            ))}
+              ) : null}
 
-            {/* Le sélecteur s'ouvre AU CENTRE, comme le choix de structure du constructeur
+              {draft.items.map((item, index) => (
+                <div
+                  key={item.key}
+                  {...drag.rowProps(index)}
+                  className={cn(drag.isDragging(index) && "opacity-40")}
+                >
+                  <CompositionCard
+                    item={item}
+                    customMetrics={metrics}
+                    isReloading={reload.isPending}
+                    isDropTarget={drag.isOver(index)}
+                    isFirst={index === 0}
+                    isLast={index === draft.items.length - 1}
+                    onMove={(direction) => draft.moveItem(index, index + direction)}
+                    dragHandle={
+                      <CmvDragHandle
+                        label={`${t("library.session.moveExercise")} ${index + 1}`}
+                        {...drag.handleProps(index)}
+                        onMove={(direction) => draft.moveItem(index, index + direction)}
+                      />
+                    }
+                    onNoteChange={(note) =>
+                      draft.setItems((current) =>
+                        current.map((row) => (row.key === item.key ? { ...row, note } : row)),
+                      )
+                    }
+                    onCellChange={(blockId, rowId, metricId, value) =>
+                      draft.setCellValue(item.key, blockId, rowId, metricId, value)
+                    }
+                    onStructureChange={(blockId, structure) =>
+                      draft.setStructure(item.key, blockId, structure as never)
+                    }
+                    onRowsChange={(blockId, rows) =>
+                      draft.setRows(item.key, blockId, rows as never)
+                    }
+                    onRevertCell={(blockId, rowId, metricId) =>
+                      draft.revertCell(item.key, blockId, rowId, metricId)
+                    }
+                    onRevertStructureField={(blockId, field) =>
+                      draft.revertStructureField(item.key, blockId, field)
+                    }
+                    onResetAll={() => draft.resetItem(item.key)}
+                    onReload={() => {
+                      // `CompositionCard` ferme « Recharger » sur une ligne sans id.
+                      reload.mutate(required(item.id, "rechargement d'une ligne sans id"), {
+                        onSuccess: (reloaded, sessionExerciseId) =>
+                          draft.applyReloaded(sessionExerciseId, reloaded),
+                      });
+                    }}
+                    onDuplicate={() => onDuplicate(item.exerciseId, item.blocks)}
+                    onRemove={() => draft.removeItem(item.key)}
+                  />
+                </div>
+              ))}
+
+              {/* Le sélecteur s'ouvre AU CENTRE, comme le choix de structure du constructeur
                 d'exercice : même geste, même endroit. La colonne de droite ne porte que l'aperçu. */}
-            {picking ? (
-              <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
-                <LibraryPicker
-                  customMetrics={metrics}
-                  onPick={onPick}
-                  onCreateMissing={onCreateMissing}
-                  isSaving={draft.isSaving}
-                />
+              {picking ? (
+                <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
+                  <LibraryPicker
+                    customMetrics={metrics}
+                    onPick={onPick}
+                    onCreateMissing={onCreateMissing}
+                    isSaving={draft.isSaving}
+                  />
+                  <div>
+                    <CmvButton variant="ghost" onClick={() => setPicking(false)}>
+                      {t("library.builder.cancel")}
+                    </CmvButton>
+                  </div>
+                </div>
+              ) : (
                 <div>
-                  <CmvButton variant="ghost" onClick={() => setPicking(false)}>
-                    {t("library.builder.cancel")}
+                  <CmvButton variant="secondary" onClick={() => setPicking(true)}>
+                    {t("library.session.pickerTitle")}
                   </CmvButton>
                 </div>
-              </div>
-            ) : (
-              <div>
-                <CmvButton variant="secondary" onClick={() => setPicking(true)}>
-                  {t("library.session.pickerTitle")}
-                </CmvButton>
-              </div>
-            )}
+              )}
+            </div>
+
+            <CmvFormError error={draft.error} />
           </div>
 
-          <CmvFormError error={draft.error} />
+          {/* `sticky` : l'aperçu suit le défilement de la composition, bien plus longue que lui. */}
+          <aside className="min-w-0 xl:sticky xl:top-32 xl:self-start">
+            <SessionPreview items={draft.items} customMetrics={metrics} />
+          </aside>
         </div>
-
-        {/* `sticky` : l'aperçu suit le défilement de la composition, bien plus longue que lui. */}
-        <aside className="min-w-0 xl:sticky xl:top-32 xl:self-start">
-          <SessionPreview items={draft.items} customMetrics={metrics} />
-        </aside>
-      </div>
+      </RefusedFieldsContext>
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );

@@ -851,3 +851,106 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
     expect(view.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * #566 : une valeur refusée reste à l'écran sans entrer dans le brouillon. Enregistrer — par le
+ * bouton, ou par les deux gestes qui enregistrent avant de partir — enverrait l'ancienne.
+ */
+describe("SessionBuilderScreen — saisie refusée (#566)", () => {
+  const REST = "library.builder.bandeau.restBetweenSetsSeconds";
+  const BLOCKED = "library.builder.refusedBlocksSave";
+  const REFUSED_TOAST = "library.session.refusedBeforeLeaving";
+
+  /** Ouvre « Gainage » et refuse une saisie dans sa première cellule de répétitions. */
+  async function refuseCell(view: Awaited<ReturnType<typeof edit>>) {
+    await view.openCard("Gainage");
+    const cell = within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
+    await view.user.clear(cell);
+    await view.user.type(cell, "12kgg");
+    await view.user.tab();
+    return cell;
+  }
+
+  it("ferme l'enregistrement sur une cellule refusée, qui le dit sous elle", async () => {
+    const view = await edit();
+
+    const cell = await refuseCell(view);
+
+    expect(cell).toHaveAccessibleDescription("library.builder.grid.numberInvalid");
+    const submit = view.getByRole("button", { name: SUBMIT_EDIT });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("title", BLOCKED);
+  });
+
+  it("ferme l'enregistrement sur une durée refusée du bandeau", async () => {
+    const view = await edit();
+    await view.openCard("Suspensions");
+
+    await view.user.type(view.getByLabelText(REST), "eff");
+    await view.user.tab();
+
+    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeDisabled();
+  });
+
+  it("rouvre l'enregistrement quand la saisie est corrigée, et envoie la valeur corrigée", async () => {
+    const view = await edit();
+    const cell = await refuseCell(view);
+
+    await view.user.clear(cell);
+    await view.user.type(cell, "8");
+    await view.user.tab();
+    expect(view.getByRole("button", { name: SUBMIT_EDIT })).not.toHaveAttribute("title");
+    await view.save();
+
+    expect(view.sent().exercises[1].blocks[0].rows[0].values).toEqual({ "se-2-b-reps": 8 });
+  });
+
+  // L'exercice retiré emporte sa cellule : rien ne doit rester fermé derrière lui.
+  it("rouvre l'enregistrement quand l'exercice refusé est retiré", async () => {
+    const view = await edit();
+    await refuseCell(view);
+    const card = view
+      .getByRole("button", { name: "Gainage", expanded: true })
+      .closest("article") as HTMLElement;
+
+    await view.user.click(within(card).getByRole("button", { name: MENU }));
+    await view.user.click(within(card).getByRole("button", { name: "library.session.remove" }));
+
+    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeEnabled();
+  });
+
+  // Ce geste enregistre SANS le bouton, puis quitte la séance : la saisie partirait en silence.
+  it("n'enregistre rien avant de créer l'exercice manquant, et dit pourquoi", async () => {
+    const view = await edit();
+    await refuseCell(view);
+
+    await view.user.click(view.getByRole("button", { name: PICK }));
+    await view.user.type(await view.findByRole("searchbox"), "Gainage");
+    await view.user.click(view.getByRole("button", { name: "library.noMatch.create" }));
+
+    expect(view.getByText(REFUSED_TOAST)).toBeInTheDocument();
+    expect(api.updateSession).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+  });
+
+  it("ne duplique rien en variante tant qu'une saisie est refusée", async () => {
+    const view = await edit();
+    await refuseCell(view);
+
+    await view.menu("Tractions", "library.session.duplicate");
+
+    expect(view.getByText(REFUSED_TOAST)).toBeInTheDocument();
+    expect(api.updateSession).not.toHaveBeenCalled();
+    expect(api.createExercise).not.toHaveBeenCalled();
+  });
+
+  it("demande avant de partir en laissant une saisie refusée", async () => {
+    const view = await edit();
+    await refuseCell(view);
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.cancel" }));
+
+    expect(await view.findByRole("dialog")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+  });
+});
