@@ -7396,7 +7396,13 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect(received.body[0]).toMatchObject({
       athleteId: soloId,
       content: "Bonnes sensations",
+      // Personne n'a répondu : l'avis automatique, signé de soi, ne compte pas (#316).
+      repliedAt: null,
     });
+
+    // Et aucun fil avec soi-même, d'un côté comme de l'autre (#316).
+    expect((await solo.get("/conversations?as=coach")).body).toEqual([]);
+    expect((await solo.get("/conversations?as=athlete")).body).toEqual([]);
 
     // Et AUCUNE notification au passage : ni la diffusion, ni le débrief ne s'annoncent à leur
     // propre auteur. C'est la règle posée dans `NotificationService`, qui vaut pour tout émetteur.
