@@ -55,7 +55,7 @@ vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({
     return {
       ready: true,
       hasThreadError: false,
-      sendText: vi.fn(),
+      sendText: vi.fn().mockResolvedValue(undefined),
       sending: false,
       sendFiles: vi.fn(),
       sendAudio: vi.fn(),
