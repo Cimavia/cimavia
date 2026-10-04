@@ -43,14 +43,28 @@ export function formatIsoDayNumber(isoDate: string, locale: string): string {
   return format(isoDate, locale, { day: "numeric" });
 }
 
-// « 12 – 18 oct. » — plage d'une semaine de cycle.
+/**
+ * « 12 – 18 oct. », « 28 sept. – 4 oct. », « 28 déc. 2026 – 3 janv. 2027 » — plage d'une semaine
+ * de cycle. Le début ne tait son mois que si la fin porte le MÊME ; l'année n'apparaît que quand
+ * elle change, des deux côtés.
+ *
+ * Pas d'`Intl.DateTimeFormat.prototype.formatRange`, qui ferait ce travail : son support par
+ * Hermes n'est pas vérifié, et le composer ici garde au mobile le rendu que testent les tests Node.
+ * Les dates sont strictes (`AAAA-MM-JJ`, sinon `format` lève) : comparer leurs préfixes suffit.
+ */
 export function formatIsoDateRange(
   startIsoDate: string,
   endIsoDate: string,
   locale: string,
 ): string {
-  const start = format(startIsoDate, locale, { day: "numeric" });
-  const end = format(endIsoDate, locale, { day: "numeric", month: "short" });
+  const sameYear = startIsoDate.slice(0, 4) === endIsoDate.slice(0, 4);
+  const sameMonth = sameYear && startIsoDate.slice(5, 7) === endIsoDate.slice(5, 7);
+  const dayMonth: Intl.DateTimeFormatOptions = sameYear
+    ? { day: "numeric", month: "short" }
+    : { day: "numeric", month: "short", year: "numeric" };
+
+  const start = format(startIsoDate, locale, sameMonth ? { day: "numeric" } : dayMonth);
+  const end = format(endIsoDate, locale, dayMonth);
   return `${start} – ${end}`;
 }
 

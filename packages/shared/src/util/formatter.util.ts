@@ -37,7 +37,7 @@ export type Formatters = {
   formatWeekday: (isoDate: string) => string;
   /** « 14 » — le seul numéro du jour. */
   formatDayNumber: (isoDate: string) => string;
-  /** « 12 – 18 oct. 2026 » — les bornes d'une semaine ou d'un cycle. */
+  /** « 12 – 18 oct. », « 28 sept. – 4 oct. » — les bornes d'une semaine ou d'un cycle. */
   formatDateRange: (startIsoDate: string, endIsoDate: string) => string;
   /**
    * Un INSTANT (`Reminder.dueAt`, `expiresAt`…), affiché dans le fuseau du LECTEUR.
