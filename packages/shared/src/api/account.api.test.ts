@@ -47,7 +47,7 @@ describe("createAccountApi — moitié coach", () => {
   /**
    * DELETE et non PATCH vers un statut : effacer une invitation refusée la retire pour de bon.
    * L'API n'accepte ce verbe que sur `DECLINED` — une invitation en attente y répond 409, parce
-   * que la retirer serait une révocation, c'est-à-dire une autre transition.
+   * que la retirer est une révocation, c'est-à-dire une autre transition.
    */
   it("efface une invitation par son id", async () => {
     const { api, calls } = spyClient();
@@ -55,6 +55,16 @@ describe("createAccountApi — moitié coach", () => {
     await createAccountApi(api).deleteInvitation("inv_1");
 
     expect(calls).toEqual([{ method: "DELETE", path: "/invitations/inv_1", body: undefined }]);
+  });
+
+  // Une transition, pas une suppression (#524) : la ligne reste, pour que son destinataire lise
+  // « retirée » plutôt qu'« introuvable ».
+  it("retire une invitation en attente par une route de transition", async () => {
+    const { api, calls } = spyClient();
+
+    await createAccountApi(api).revokeInvitation("inv_1");
+
+    expect(calls).toEqual([{ method: "POST", path: "/invitations/inv_1/revoke", body: undefined }]);
   });
 
   // PUT et non PATCH : la fiche est UN champ texte libre, remplacé en entier à chaque

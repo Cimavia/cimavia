@@ -73,10 +73,15 @@ export type AccountApi = {
   listInvitations: () => Promise<InvitationDto[]>;
   createInvitation: (input: CreateInvitationInput) => Promise<InvitationDto>;
   /**
-   * Efface une invitation REFUSÉE. 409 sur tout autre état — retirer une invitation en attente
-   * serait une révocation, qui est une transition à part et n'a pas de chemin.
+   * Efface une invitation REFUSÉE. 409 sur tout autre état — retirer une invitation en attente est
+   * une révocation, une transition à part : `revokeInvitation`.
    */
   deleteInvitation: (invitationId: string) => Promise<void>;
+  /**
+   * Retire une invitation EN ATTENTE (#524) : elle passe `REVOKED` et quitte la liste du coach.
+   * 409 sur tout autre état ; son destinataire, s'il tente encore de l'accepter, lit « retirée ».
+   */
+  revokeInvitation: (invitationId: string) => Promise<void>;
 
   // ── Côté athlète ───────────────────────────────────────────────────────────
   /**
@@ -120,6 +125,7 @@ export function createAccountApi(api: ApiClient): AccountApi {
     listInvitations: () => api.get<InvitationDto[]>("/invitations"),
     createInvitation: (input) => api.post<InvitationDto>("/invitations", input),
     deleteInvitation: (invitationId) => api.delete<void>(`/invitations/${invitationId}`),
+    revokeInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/revoke`),
 
     myCoach: () => api.get<CoachAthleteDto | null>("/me/coach"),
     myInvitations: () => api.get<PendingInvitationDto[]>("/invitations/for-me"),
