@@ -502,6 +502,7 @@
       "addSession": "+ Séance",
       "moveSession": "Déplacer la séance",
       "delete": "Supprimer la semaine",
+      "deleteDisabledPublished": "Un cycle diffusé ne peut pas perdre de semaine.",
       "copy": "Copier",
       "paste": "Coller ici",
       "pasteConfirm": "Remplacer {{count}} séance(s)",

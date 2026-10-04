@@ -219,6 +219,19 @@ describe("PlanWeekCard — la semaine", () => {
     expect(deletePlanWeek).toHaveBeenCalledWith("w-2");
   });
 
+  // Sur un cycle diffusé, retirer une semaine décalerait le planning de l'athlète (#312).
+  it("ferme la suppression de la semaine sur un cycle diffusé, et dit pourquoi", async () => {
+    const { user, target } = mount(busy, { isPublished: true });
+
+    const button = target.getByRole("button", { name: "plan.week.delete" });
+    expect(button).toBeDisabled();
+    expect(target.getByTitle("plan.week.deleteDisabledPublished")).toContainElement(button);
+
+    await user.click(button);
+    expect(target.queryByRole("button", { name: "common.confirmDelete" })).toBeNull();
+    expect(deletePlanWeek).not.toHaveBeenCalled();
+  });
+
   it("ouvre une séance au clic et en ajoute une sur le jour choisi", async () => {
     const onAddSession = vi.fn();
     const onEditSession = vi.fn();

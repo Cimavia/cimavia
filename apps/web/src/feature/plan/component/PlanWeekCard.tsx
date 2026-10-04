@@ -154,11 +154,14 @@ export function PlanWeekCard({
         </CmvButton>
         {renderPasteAction()}
 
+        {/* Retirer une semaine d'un cycle diffusé décalerait le planning de l'athlète (l'API
+            refuse, #312) : le geste reste visible, fermé, avec sa raison. */}
         <CmvConfirmButton
           label={t("plan.week.delete")}
           confirmLabel={t("common.confirmDelete")}
           cancelLabel={t("common.cancel")}
           disabled={isBusy}
+          {...(isPublished ? { disabledReason: t("plan.week.deleteDisabledPublished") } : {})}
           onConfirm={() => removeWeek.mutate(week.id)}
         />
       </header>

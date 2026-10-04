@@ -75,7 +75,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~P4-3~~ | ~~**Vol de token push possible**~~ : `POST /me/push-tokens` réaffectait au compte courant un token déjà enregistré. | ✅ | résolue en [#90](https://github.com/Cimavia/cimavia/issues/90) — un **secret d'installation**, émis par l'API et gardé en `expo-secure-store`, conditionne la réaffectation |
 | ~~P4-4~~ | ~~**Pas de miniature vidéo sur mobile**~~ : ni dans la galerie de débrief, ni dans la bulle de messagerie — une pastille, un libellé, aucun aperçu de l'image. **Rectifié en #92** : la ligne annonçait, depuis #407, `expo-image` comme module natif restant à payer ; `expo-image-manipulator`, déjà là pour les photos, a suffi. | ✅ | résolue en [#92](https://github.com/Cimavia/cimavia/issues/92) · [#155](https://github.com/Cimavia/cimavia/issues/155) — vignette tirée sur l'appareil à l'affichage, sans module natif de plus (cf. « Tranché en #92 ») |
 | ~~P4-5~~ | ~~**Un seul push par débrief** : seule la CRÉATION notifie le coach, pas les compléments.~~ | ✅ | résolue en [#540](https://github.com/Cimavia/cimavia/issues/540) — un push par envoi de l'athlète, sans trace (cf. « Tranché en #537 ») |
-| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : un média de débrief n'est jamais copié ni partagé, et son **retrait** par l'athlète purge l'objet — mais la **disparition de sa séance** cascade débrief et médias en base sans toucher au bucket. Fermé pour la séance seule en [#313](https://github.com/Cimavia/cimavia/issues/313) (409) ; la suppression d'une semaine ou d'un cycle **diffusé** l'emporte encore. **Rectifié en #313** : cette ligne disait « P4 n'ajoute aucun nouveau cas ». | 🟡 | [#312](https://github.com/Cimavia/cimavia/issues/312) · [#85](https://github.com/Cimavia/cimavia/issues/85) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| ~~P2-1~~ / ~~P3-2~~ | ~~**Nouveau cas**~~ : un média de débrief n'est jamais copié ni partagé, et son **retrait** par l'athlète purge l'objet — mais la **disparition de sa séance** cascadait débrief et médias en base sans toucher au bucket. Fermé pour la séance seule en [#313](https://github.com/Cimavia/cimavia/issues/313), pour la semaine et le cycle **diffusés** en [#312](https://github.com/Cimavia/cimavia/issues/312) et [#85](https://github.com/Cimavia/cimavia/issues/85) — tous en 409. Un brouillon n'a jamais été visible de l'athlète : aucune de ses séances n'est débriefée. **Rectifié en #313** : cette ligne disait « P4 n'ajoute aucun nouveau cas ». | ✅ | résolue en [#313](https://github.com/Cimavia/cimavia/issues/313) · [#312](https://github.com/Cimavia/cimavia/issues/312) · [#85](https://github.com/Cimavia/cimavia/issues/85) — le cas général des orphelins reste à [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 > **Tranché en #92** (la vignette tirée à l'AFFICHAGE, pas à l'envoi) : la stocker à l'envoi
 > demandait une migration, un champ de DTO et un second envoi signé — et laissait sans image toutes
@@ -213,7 +213,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | ~~P6-1~~ | ~~**Astérisques d'obligation partiels**~~ : la ligne datait, et disait « seul le formulaire de facturation » alors que quatre autres surfaces avaient reçu `requiredMark` entre-temps. | ✅ | résolue en [#97](https://github.com/Cimavia/cimavia/issues/97) — le repère suit désormais une règle écrite, et non l'ordre d'arrivée des écrans |
 | P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
-| P6-3 | **Suppression d'un cycle diffusé bloquée côté UI seulement** : `DELETE /plans/:id` accepterait encore un `PUBLISHED`, et effacerait sa facture émise — ainsi que les débriefs de ses séances et leurs médias, laissés orphelins dans le bucket (#313). | 🟡 | [#85](https://github.com/Cimavia/cimavia/issues/85) |
+| ~~P6-3~~ | ~~**Suppression d'un cycle diffusé bloquée côté UI seulement**~~ : `DELETE /plans/:id` acceptait encore un `PUBLISHED`, et effaçait sa facture émise — ainsi que les débriefs de ses séances et leurs médias, laissés orphelins dans le bucket (#313). | ✅ | résolue en [#85](https://github.com/Cimavia/cimavia/issues/85) — 409 dans `PlanService.delete`, livré avec le verrou de la semaine (cf. « Tranché en #312 ») |
 
 ---
 
@@ -4813,6 +4813,37 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > ⚠️ **Écart de maquette** : le cadre **11c · SANS RÉSEAU** de `athlete_seance_lecture.dc.html`
 > n'affiche que « Hors ligne », sans date.
+
+---
+
+## Post-MVP — Semaine d'un cycle diffusé ([#312](https://github.com/Cimavia/cimavia/issues/312))
+
+> **Tranché en [#312](https://github.com/Cimavia/cimavia/issues/312)** (un cycle diffusé ne perd
+> plus rien : ni une semaine, ni lui-même) : `DELETE /plan-weeks/:id` renumérotait les semaines
+> suivantes et faisait remonter leurs séances de sept jours, débriefs compris, sans prévenir
+> l'athlète. C'est l'effet d'un `startDate` réécrit, que #207 refusait déjà sur un cycle diffusé.
+> Le verrou couvre **toutes** les semaines, la dernière comprise : elle ne décale rien, mais
+> emporte en cascade ses séances et leurs débriefs, ce que #313 refuse déjà pour une séance seule.
+> Prix assumé : une semaine ajoutée **par erreur** en fin de cycle diffusé y reste (l'ajout, lui,
+> reste ouvert : il ne déplace rien).
+>
+> [#85](https://github.com/Cimavia/cimavia/issues/85) est livrée dans la même PR : la suppression du
+> **cycle** diffusé n'était bloquée que dans l'interface (P6-3), et c'est elle que l'issue citait
+> comme modèle. Même règle, même fichier, même bloc d'e2e.
+>
+> La garde **lit le plan avant** la transaction, comme `assertHeaderWritable` et le collage. La
+> placer dans la suppression, comme #313, ne protégerait de rien : le statut vit sur la ligne
+> `Plan`, pas sur la ligne supprimée, et Postgres ne revérifie pas une condition portée par une
+> autre table. La fenêtre restante (diffuser et retirer une semaine au même instant) est celle de
+> tous les verrous de diffusion voisins.
+>
+> Un cycle diffusé **vidé de ses semaines** n'est plus atteignable par l'API, mais a pu être laissé
+> par un retrait d'avant la garde. Le tick des rappels continue de l'ignorer, et l'e2e qui le
+> prouve le rejoue en base.
+>
+> Retirer une semaine d'un cycle **en cours** avec notification et recalage explicite reste un
+> besoin possible, renvoyé à [#231](https://github.com/Cimavia/cimavia/issues/231) : même dispositif
+> que le report (prévenir l'athlète), même déclencheur (un coach qui le demande — aucun à ce jour).
 
 ---
 
