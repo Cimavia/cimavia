@@ -56,10 +56,17 @@ describe("paramètres d'url lus en ligne", () => {
     expect(parse(SessionsRoute, search)).toStrictEqual(expected);
   });
 
-  // L'objet vide et non `title: undefined` : sinon chaque lien devrait passer un titre qu'il n'a pas.
+  // Des clés absentes et non `title: undefined` : sinon chaque lien devrait passer ce qu'il n'a pas.
+  // `session` (#303) : la séance où revenir — une chaîne vide n'en désigne aucune.
   it.each([
     [{ title: "gainage" }, { title: "gainage" }],
-    [{ title: 3 }, {}],
+    [
+      { title: "gainage", session: "s-1" },
+      { title: "gainage", session: "s-1" },
+    ],
+    [{ session: "s-1" }, { session: "s-1" }],
+    [{ title: 3, session: "" }, {}],
+    [{ session: 1 }, {}],
     [{}, {}],
   ])("/library/exercises/new lit %j comme %j", (search, expected) => {
     expect(parse(ExerciseNewRoute, search)).toStrictEqual(expected);

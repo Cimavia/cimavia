@@ -39,8 +39,9 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
 
   const trimmedTitle = title.trim();
 
-  async function submit() {
-    await save({
+  /** L'exercice tel qu'enregistré : l'écran qui l'a ouvert depuis une séance l'y fait ajouter. */
+  async function submit(): Promise<ExerciseDto> {
+    return save({
       exercise: current,
       input: {
         title: trimmedTitle,

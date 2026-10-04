@@ -252,6 +252,47 @@ describe("ExerciseBuilderScreen — création", () => {
   });
 });
 
+describe("ExerciseBuilderScreen — ouvert depuis une séance (#303)", () => {
+  function fromSession() {
+    return renderInRoute(<ExerciseBuilderScreen initialTitle="Planche" fromSessionId="s-1" />, {
+      path: "/library/exercises/new",
+      links: [...SHELL_LINKS, "/library", "/library/sessions/$sessionId"],
+    });
+  }
+
+  it("ramène à la séance en y faisant ajouter l'exercice enregistré", async () => {
+    api.createExercise.mockResolvedValue(saved({ id: "ex-9", title: "Planche" }));
+    const view = await fromSession();
+
+    await view.user.click(view.getByRole("button", { name: SUBMIT_CREATE }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/sessions/s-1"));
+    expect(view.router.state.location.search).toEqual({ add: "ex-9" });
+    expect(view.getByText("library.builder.saved")).toBeInTheDocument();
+  });
+
+  it("ramène à la séance sans rien y ajouter quand le coach renonce", async () => {
+    const view = await fromSession();
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.cancel" }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/sessions/s-1"));
+    expect(view.router.state.location.search).toEqual({});
+    expect(api.createExercise).not.toHaveBeenCalled();
+  });
+
+  // Le détour ne reste pas dans l'historique : un retour arrière ne rouvre pas le formulaire.
+  it("remplace la création dans l'historique au lieu de s'y empiler", async () => {
+    const view = await fromSession();
+    const depth = view.router.history.length;
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.cancel" }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/sessions/s-1"));
+    expect(view.router.history.length).toBe(depth);
+  });
+});
+
 describe("ExerciseBuilderScreen — édition", () => {
   it("s'ouvre sur l'exercice chargé, consigne comprise", async () => {
     api.getExercise.mockResolvedValue(

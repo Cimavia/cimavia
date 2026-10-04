@@ -41,6 +41,11 @@ type ExerciseBuilderScreenProps = {
   exerciseId?: string | undefined;
   /** Titre pré-rempli, repris de la recherche restée sans résultat. */
   initialTitle: string | undefined;
+  /**
+   * La séance d'où le coach est parti créer l'exercice manquant (#303). Absente, l'écran revient
+   * à la bibliothèque ; présente, il ramène à la séance, et y fait ajouter l'exercice enregistré.
+   */
+  fromSessionId?: string | undefined;
 };
 
 /**
@@ -54,6 +59,7 @@ type ExerciseBuilderScreenProps = {
 export function ExerciseBuilderScreen({
   exerciseId,
   initialTitle,
+  fromSessionId,
 }: Readonly<ExerciseBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -80,6 +86,21 @@ export function ExerciseBuilderScreen({
     );
   }
 
+  // `replace` vers la séance : le détour par la création ne reste pas dans l'historique, où un
+  // retour arrière rouvrirait le formulaire d'un exercice déjà créé.
+  function leave(saved: ExerciseDto | null) {
+    if (fromSessionId == null) {
+      navigate({ to: "/library" });
+      return;
+    }
+    navigate({
+      to: "/library/sessions/$sessionId",
+      params: { sessionId: fromSessionId },
+      search: saved == null ? {} : { add: saved.id },
+      replace: true,
+    });
+  }
+
   // `key` remonte l'identité de l'exercice au montage : l'état local du formulaire naît de lui, et
   // React doit repartir de zéro si l'URL change d'exercice sans démonter l'écran.
   return (
@@ -87,7 +108,8 @@ export function ExerciseBuilderScreen({
       key={exercise?.id ?? "new"}
       exercise={exercise ?? null}
       initialTitle={initialTitle}
-      onLeave={() => navigate({ to: "/library" })}
+      onLeave={() => leave(null)}
+      onSaved={leave}
     />
   );
 }
@@ -95,10 +117,17 @@ export function ExerciseBuilderScreen({
 type ExerciseBuilderProps = {
   exercise: ExerciseDto | null;
   initialTitle: string | undefined;
+  /** Sortie sans enregistrement : Annuler, ou l'exercice supprimé. */
   onLeave: () => void;
+  onSaved: (saved: ExerciseDto) => void;
 };
 
-function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseBuilderProps>) {
+function ExerciseBuilder({
+  exercise,
+  initialTitle,
+  onLeave,
+  onSaved,
+}: Readonly<ExerciseBuilderProps>) {
   const { t } = useTranslation();
   const { data: knownTags } = useExerciseTags();
   // Les colonnes maison résolvent leur type de valeur et leur échelle ici : sans elles, une
@@ -123,14 +152,15 @@ function ExerciseBuilder({ exercise, initialTitle, onLeave }: Readonly<ExerciseB
    * Le message d'erreur, lui, s'affiche déjà sous le formulaire.
    */
   async function onSubmit() {
+    let saved: ExerciseDto;
     try {
-      await draft.submit();
+      saved = await draft.submit();
     } catch (error) {
       onFailure("library.builder.saveFailed", error);
       return;
     }
     toast.success(t("library.builder.saved"));
-    onLeave();
+    onSaved(saved);
   }
 
   /**
