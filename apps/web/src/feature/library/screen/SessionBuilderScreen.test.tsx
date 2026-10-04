@@ -754,3 +754,100 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
     expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
   });
 });
+
+describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
+  const CANCEL = "library.builder.cancel";
+  const STAY = "common.leave.stay";
+  const LEAVE = "common.leave.leave";
+
+  it("demande avant d'abandonner une saisie, et « Rester » la garde intacte", async () => {
+    const view = await edit();
+    const notes = view.getByRole("textbox", { name: NOTES });
+    await view.user.type(notes, ", dos droit");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: STAY }));
+
+    await waitFor(() => expect(view.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+    expect(notes).toHaveValue("Au calme, dos droit");
+  });
+
+  it("part sans rien enregistrer quand le coach confirme", async () => {
+    const view = await create();
+    await view.user.click(view.getByRole("button", { name: PICK }));
+    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: LEAVE }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(api.createSession).not.toHaveBeenCalled();
+  });
+
+  it("laisse partir sans friction une séance ouverte sans être modifiée", async () => {
+    const view = await edit();
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // L'exercice créé en détour entre dans la séance sans y être enregistré : partir le perdrait.
+  it("retient la séance où l'exercice créé vient d'être ajouté", async () => {
+    api.getExercise.mockResolvedValue(planche);
+    const view = await renderInRoute(
+      <SessionBuilderScreen sessionId="s-1" addExerciseId="ex-9" />,
+      {
+        path: "/library/sessions/s-1",
+        links: LINKS,
+      },
+    );
+    await view.findByRole("button", { name: SUBMIT_EDIT });
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+
+    expect(await view.findByRole("dialog")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+  });
+
+  // Le rechargement s'écrit côté serveur : il ne laisse rien en attente.
+  it("ne retient pas une séance dont un exercice vient d'être rechargé", async () => {
+    const fresh = series("se-2-b", 12);
+    api.reloadSessionExercise.mockResolvedValue(
+      saved({
+        exercises: [
+          composed("se-1", "ex-1", "Tractions"),
+          { ...composed("se-2", "ex-2", "Gainage"), blocks: fresh, baseline: fresh },
+          composed("se-3", "ex-3", "Suspensions"),
+        ],
+      } as never),
+    );
+    const view = await edit();
+    await view.menu("Gainage", "library.session.reload");
+    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
+    await view.openCard("Gainage");
+    await view.findAllByDisplayValue("12");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // La variante enregistre d'abord : la sortie qui suit n'a plus rien à perdre.
+  it("ouvre la variante sans demander, la saisie partie avec la séance", async () => {
+    api.getExercise.mockResolvedValue({ ...planche, id: "ex-1", title: "Tractions" });
+    api.createExercise.mockResolvedValue({ id: "ex-new" });
+    const view = await edit();
+    await view.user.type(view.getByRole("textbox", { name: NOTES }), ", dos droit");
+
+    await view.menu("Tractions", "library.session.duplicate");
+
+    await waitFor(() =>
+      expect(view.router.state.location.pathname).toBe("/library/exercises/ex-new"),
+    );
+    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
