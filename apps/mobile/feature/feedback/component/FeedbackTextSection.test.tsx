@@ -61,20 +61,44 @@ describe("FeedbackTextSection — le champ", () => {
   });
 
   /**
-   * Une requête d'arrière-plan qui rend le MÊME débrief ne doit pas effacer la frappe en cours :
-   * seul un autre débrief resynchronise le champ.
+   * Une requête d'arrière-plan qui rend le MÊME débrief ne doit pas effacer la frappe en cours.
    */
-  it("garde la frappe quand le même débrief revient, et se recale sur un autre", () => {
+  it("garde la frappe quand le même débrief revient", () => {
     const { container, rerender } = renderRn(
       <FeedbackTextSection sessionId="s-1" feedback={feedback("Bien tenu")} />,
     );
     fireEvent.change(field(container), { target: { value: "Bien tenu, doigts cuits" } });
 
     rerender(<FeedbackTextSection sessionId="s-1" feedback={feedback("Bien tenu")} />);
-    expect(field(container).value).toBe("Bien tenu, doigts cuits");
 
-    rerender(<FeedbackTextSection sessionId="s-1" feedback={feedback("Autre séance", "f-2")} />);
-    expect(field(container).value).toBe("Autre séance");
+    expect(field(container).value).toBe("Bien tenu, doigts cuits");
+  });
+
+  /**
+   * #284 : le premier média joint CRÉE le débrief, sans texte. Son identité naît — ce qui
+   * réécrivait le champ et effaçait ce que l'athlète venait de taper.
+   */
+  it("garde la frappe quand un premier média fait naître le débrief", () => {
+    const { container, rerender } = renderRn(
+      <FeedbackTextSection sessionId="s-1" feedback={null} />,
+    );
+    fireEvent.change(field(container), { target: { value: "Doigts cuits" } });
+
+    rerender(<FeedbackTextSection sessionId="s-1" feedback={feedback(null)} />);
+
+    expect(field(container).value).toBe("Doigts cuits");
+    // Le texte tapé n'est pas celui du débrief créé : il reste à envoyer.
+    expect(isClosed(container)).toBe(false);
+  });
+
+  it("se recale sur le débrief rechargé tant que rien n'a été tapé", () => {
+    const { container, rerender } = renderRn(
+      <FeedbackTextSection sessionId="s-1" feedback={null} />,
+    );
+
+    rerender(<FeedbackTextSection sessionId="s-1" feedback={feedback("Écrit sur le web")} />);
+
+    expect(field(container).value).toBe("Écrit sur le web");
   });
 });
 
