@@ -25,6 +25,7 @@ const session = (
   position,
   status: ScheduledSessionStatus.PLANNED,
   exerciseCount: 3,
+  updatedAt: "2026-08-10T00:00:00.000Z",
 });
 
 /** Un cycle d'une semaine démarrant le lundi de référence — le plus petit qui alimente la grille. */

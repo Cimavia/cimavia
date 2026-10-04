@@ -67,6 +67,7 @@ export async function toScheduledSessionDto(
     position: session.position,
     status: session.status,
     exerciseCount: session.exercises.length,
+    updatedAt: session.updatedAt.toISOString(),
     exercises,
   };
 }

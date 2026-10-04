@@ -3664,6 +3664,56 @@ describe("Tokens de notification push (P4)", () => {
   });
 });
 
+/**
+ * Ce qui dit au mobile que le déroulé gardé hors-ligne est périmé (#307). Retoucher une séance ne
+ * touche PAS la ligne `Plan` : seul `updatedAt` de la séance le signale, et il doit valoir la même
+ * chose dans le résumé du planning et dans le détail — c'est leur égalité que le mobile compare.
+ */
+describe("Retouche d'une séance diffusée : le résumé la signale (#307)", () => {
+  it("la date de la séance bouge, celle du cycle non, et le détail suit le résumé", async () => {
+    const coach = await signUp("resync-coach@cmv.test", Role.COACH);
+    const athlete = await signUp("resync-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await coach.post("/invitations").send({});
+    const accepted = await athlete.post("/invitations/accept").send({ code: invitation.body.code });
+
+    const monday = mondayOfCurrentWeek();
+    const plan = await coach.post("/plans").send({
+      athleteId: accepted.body.athleteId,
+      title: "Cycle resync",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance", scheduledDate: monday });
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+
+    const summaryOf = async () => {
+      const plans = await athlete.get("/me/plans");
+      return { plan: plans.body[0], session: plans.body[0].weeks[0].sessions[0] };
+    };
+    const before = await summaryOf();
+    const detail = await athlete.get(`/me/scheduled-sessions/${session.body.id}`);
+    expect(detail.body.updatedAt).toBe(before.session.updatedAt);
+
+    // `updatedAt` est à la milliseconde : sans cette attente, la retouche peut tomber dessus.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const adjusted = await coach.put(`/scheduled-sessions/${session.body.id}`).send({
+      title: "Séance (ajustée)",
+      notes: null,
+      scheduledDate: monday,
+      exercises: [],
+    });
+    expect(adjusted.status).toBe(200);
+
+    const after = await summaryOf();
+    expect(after.session.updatedAt).not.toBe(before.session.updatedAt);
+    expect(after.plan.updatedAt).toBe(before.plan.updatedAt);
+    const refreshed = await athlete.get(`/me/scheduled-sessions/${session.body.id}`);
+    expect(refreshed.body.updatedAt).toBe(after.session.updatedAt);
+  });
+});
+
 describe("Lecture coach des débriefs (P4)", () => {
   let coachA: Agent;
   let coachB: Agent;

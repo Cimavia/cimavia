@@ -276,6 +276,12 @@ export const scheduledSessionSummaryDtoSchema = z.object({
   position: z.number().int(),
   status: scheduledSessionStatusSchema,
   exerciseCount: z.number().int(),
+  /**
+   * La dernière écriture sur la séance (#307). Le mobile s'en sert pour savoir si le déroulé qu'il
+   * garde hors-ligne est encore le bon : retoucher une séance ne touche pas la ligne `Plan`, et
+   * `PlanDto.updatedAt` seul laissait l'athlète s'entraîner sur la version d'avant.
+   */
+  updatedAt: z.iso.datetime(),
 });
 export type ScheduledSessionSummaryDto = z.infer<typeof scheduledSessionSummaryDtoSchema>;
 

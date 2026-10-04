@@ -41,6 +41,7 @@ const session = (id: string, date: string, position: number): ScheduledSessionSu
   position,
   status: ScheduledSessionStatus.PLANNED,
   exerciseCount: 2,
+  updatedAt: "2026-08-10T00:00:00.000Z",
 });
 
 const week = (over: Partial<PlanWeekDto> & Pick<PlanWeekDto, "id" | "startDate">): PlanWeekDto => ({
