@@ -141,8 +141,14 @@ export class ReminderService {
    * son badge ne s'allume jamais. C'est exactement ce que `markAllDueRead` s'interdit par l'autre
    * bout, en épargnant les rappels encore à venir.
    *
+   * **`pushedAt` suit le même chemin, pour la même raison (#295)** : il dit « poussé pour CETTE
+   * échéance-là ». Le laisser en place sortait définitivement le rappel de la vue du tick, qui ne
+   * sélectionne que `pushedAt: null` — je repousse à demain un rappel déjà poussé, et demain rien
+   * ne part, alors qu'il est redevenu dû.
+   *
    * La comparaison porte sur les VALEURS, pas sur la présence du champ : renvoyer l'échéance
-   * inchangée depuis un formulaire d'édition ne doit pas rallumer le badge d'un rappel déjà vu.
+   * inchangée depuis un formulaire d'édition ne doit ni rallumer le badge d'un rappel déjà vu, ni
+   * le faire repousser.
    *
    * Idempotent comme `updateStatus`, et pour la même raison : un corps qui ne change rien ne
    * réécrit pas, donc ne redate pas `updatedAt` — sans quoi un rappel traité remonterait en tête de
@@ -157,7 +163,7 @@ export class ReminderService {
     const nextDueAt = input.dueAt == null ? null : new Date(input.dueAt);
     const dueAtChange =
       nextDueAt != null && nextDueAt.getTime() !== reminder.dueAt.getTime()
-        ? { dueAt: nextDueAt, readAt: null }
+        ? { dueAt: nextDueAt, readAt: null, pushedAt: null }
         : null;
     const noteChange =
       input.note != null && input.note !== reminder.note ? { note: input.note } : null;

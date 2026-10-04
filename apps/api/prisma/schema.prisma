@@ -966,7 +966,8 @@ model Reminder {
   // Ce n'est PAS une notification persistée — l'entrée du centre reste calculée à la lecture, et
   // `REMINDER_DUE` reste absent de NotificationType côté Prisma. C'est un marqueur de LIVRAISON,
   // même famille que readAt : il rend le tick idempotent (deux passages rapprochés ne poussent pas
-  // deux fois, un tick manqué rattrape au suivant).
+  // deux fois, un tick manqué rattrape au suivant). Remis à NULL quand l'échéance bouge, comme
+  // readAt (#295) : une nouvelle échéance est une nouvelle occurrence, à pousser à son tour.
   pushedAt   DateTime?
   status     ReminderStatus     @default(PENDING)
   // « Vu dans le centre de notifications » (#51) — DISTINCT du statut : jeter un œil à un rappel dû

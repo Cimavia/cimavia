@@ -1067,6 +1067,10 @@ function mondayOfCurrentWeek(): string {
   return monday;
 }
 
+// Un instant relatif à maintenant, pour placer l'échéance d'un rappel de part et d'autre du « dû ».
+const inPast = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+const inFuture = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+
 describe("Dosage à trois niveaux (#164)", () => {
   let coach: Agent;
   let other: Agent;
@@ -5078,8 +5082,6 @@ describe("Rappels du coach (#44)", () => {
   let invoiceId: string;
 
   const monday = mondayOfCurrentWeek();
-  const inPast = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
-  const inFuture = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
 
   type Rmd = {
     id: string;
@@ -5352,8 +5354,6 @@ describe("Rappels dus dans le centre de notifications (#51)", () => {
   let upcomingId: string;
 
   const monday = mondayOfCurrentWeek();
-  const inPast = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
-  const inFuture = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
 
   type Entry = {
     id: string;
@@ -5545,8 +5545,6 @@ describe("Report d'échéance d'un rappel (#105)", () => {
   let reminderId: string;
 
   const monday = mondayOfCurrentWeek();
-  const inPast = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
-  const inFuture = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
 
   type Rmd = {
     id: string;
@@ -5960,6 +5958,57 @@ describe("Génération automatique des rappels (#47)", () => {
     const after = (await reminders(coachG)).filter((r) => r.reason === "INVOICE_OVERDUE");
     expect(after).toHaveLength(1);
     expect(required(after[0], "rappel traité").status).toBe("DISMISSED");
+  });
+
+  /**
+   * Le report d'un rappel DÉJÀ poussé (#295). `pushedAt` n'est pas exposé par l'API : seul le
+   * compteur du tick le trahit. Chaque test part donc d'une base vidée par un tick préalable — tout
+   * ce qui était dû est parti — et lit le delta du tick suivant, comme « un second tick ne recrée
+   * rien » plus haut.
+   */
+  describe("report d'un rappel déjà poussé (#295)", () => {
+    let snoozedId: string;
+    const pushedBy = async (): Promise<number> => (await tick(SECRET)).body.pushedReminders;
+
+    beforeAll(async () => {
+      const created = await coachG
+        .post("/reminders")
+        .send({ entityType: "PLAN", entityId: planId, dueAt: inPast(2), note: "Relancer" });
+      snoozedId = created.body.id;
+      await tick(SECRET); // le rappel part : `pushedAt` est posé
+    });
+
+    /**
+     * LE test de cette issue. Sans la remise à zéro de `pushedAt`, le tick ne voit plus jamais le
+     * rappel : le coach l'a repoussé à demain, et demain rien ne part. On simule le passage du temps
+     * en le repoussant dans le passé — même chemin de code que « Repousser ».
+     */
+    it("repart au tick suivant une fois repoussé à une échéance atteinte", async () => {
+      expect(await pushedBy()).toBe(0);
+
+      const res = await coachG.patch(`/reminders/${snoozedId}`).send({ dueAt: inPast(1) });
+      expect(res.status).toBe(200);
+
+      expect(await pushedBy()).toBe(1);
+      expect(await pushedBy()).toBe(0); // et une seule fois : l'idempotence tient toujours
+    });
+
+    // Rectifier une faute de frappe n'est pas une nouvelle occurrence — même corollaire que
+    // `readAt` (#105) : la note seule ne rallume rien.
+    it("ne repart pas quand seule la note change", async () => {
+      const res = await coachG.patch(`/reminders/${snoozedId}`).send({ note: "Relancer jeudi" });
+      expect(res.status).toBe(200);
+
+      expect(await pushedBy()).toBe(0);
+    });
+
+    // La remise à zéro ne pousse pas par avance : le tick filtre toujours sur l'échéance.
+    it("ne part pas avant sa nouvelle échéance quand elle est à venir", async () => {
+      const res = await coachG.patch(`/reminders/${snoozedId}`).send({ dueAt: inFuture(24) });
+      expect(res.status).toBe(200);
+
+      expect(await pushedBy()).toBe(0);
+    });
   });
 });
 
