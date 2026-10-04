@@ -73,6 +73,17 @@ describe("FeedbackAnnouncerService", () => {
     expect(ensure).not.toHaveBeenCalled();
   });
 
+  // En auto-coaching, coach et athlète sont la même personne : un fil avec soi-même n'a pas d'objet.
+  it("n'annonce rien d'un débrief écrit à soi-même", async () => {
+    const { service, findMany, create, ensure } = build([]);
+
+    await service.announce({ ...FEEDBACK, athleteId: "c1" });
+
+    expect(ensure).not.toHaveBeenCalled();
+    expect(findMany).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("se tait aussi quand un seul des avis posés reste non lu", async () => {
     const { service, create } = build([{ readAt: new Date("2026-09-01") }, { readAt: null }]);
 
