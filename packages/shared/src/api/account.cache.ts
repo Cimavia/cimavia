@@ -1,0 +1,39 @@
+import type { CoachAthleteDto } from "../dto/coach-athlete.schema";
+import type { AcceptInvitationInput } from "../dto/invitation.schema";
+import { type AccountApi, coachKeys } from "./account.api";
+import type { CacheClient } from "./cache-client";
+
+/**
+ * Rejoindre un coach par code d'invitation, et ce que ça fait au cache — les options du
+ * `useMutation` des deux clients, telles quelles.
+ *
+ * L'invalidation est **globale**, comme au toucher d'une notification et pour la même raison en
+ * plus fort : rejoindre un coach ne change pas une donnée, il change *tout ce que l'athlète peut
+ * voir*. Sa planification, ses factures, sa messagerie n'existaient pas une seconde plus tôt, et
+ * chaque réponse déjà en cache (« aucun coach », « aucune facture ») serait resservie jusqu'à
+ * expiration — la carte de l'invitation acceptée comprise, qui resterait au-dessus du coach obtenu
+ * (#146). Énumérer les clés coûterait plus cher que de tout refetcher après un geste qu'on ne fait
+ * qu'une fois.
+ *
+ * Partagée parce qu'écrite deux fois, elle avait divergé : le mobile énumérait ses clés et oubliait
+ * les contreparties, dont dépend sa BARRE D'ONGLETS — l'athlète qui venait de rejoindre n'avait pas
+ * d'onglet Messages avant d'avoir mis l'app en arrière-plan (#308). Leur `staleTime: 0` n'y pouvait
+ * rien : la barre reste montée sous l'écran « Rejoindre », rien ne la remonte, seule une
+ * invalidation relance sa requête.
+ *
+ * `invalidateQueries()` SANS filtre — que `CacheClient` ne décrit pas, ses autres mutations visant
+ * toutes une clé : le `QueryClient` de TanStack le satisfait tel quel.
+ */
+export function acceptInvitationMutation(
+  cache: Pick<CacheClient, "setQueryData"> & { invalidateQueries(): unknown },
+  api: Pick<AccountApi, "acceptInvitation">,
+) {
+  return {
+    mutationFn: (input: AcceptInvitationInput) => api.acceptInvitation(input),
+    onSuccess: (relation: CoachAthleteDto) => {
+      // Posée tout de suite : l'écran bascule sur le coach obtenu sans attendre la relecture.
+      cache.setQueryData(coachKeys.mine(), relation);
+      cache.invalidateQueries();
+    },
+  };
+}

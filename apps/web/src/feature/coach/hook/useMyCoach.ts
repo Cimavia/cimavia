@@ -1,8 +1,8 @@
-import type {
-  AcceptInvitationInput,
-  CoachAthleteDto,
-  DeclineInvitationInput,
-  PendingInvitationDto,
+import {
+  acceptInvitationMutation,
+  type CoachAthleteDto,
+  type DeclineInvitationInput,
+  type PendingInvitationDto,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, coachKeys, invitationKeys } from "@/feature/coach/api";
@@ -18,24 +18,11 @@ export function useMyCoach() {
 }
 
 /**
- * Rejoint un coach par code d'invitation.
- *
- * L'invalidation est **globale**, comme au clic sur une notification et pour la même raison en plus
- * fort : rejoindre un coach ne change pas une donnée, il change *tout ce que l'athlète peut voir*.
- * Ses factures, sa planification, sa messagerie n'existaient pas une seconde plus tôt — et chaque
- * `null` déjà en cache (« aucune facture ») serait resservi jusqu'à expiration. Énumérer les clés
- * concernées coûterait plus cher que de tout refetcher après un geste qu'on ne fait qu'une fois.
+ * Rejoint un coach par code d'invitation. L'invalidation est globale : rejoindre change tout ce
+ * que l'athlète peut voir — le pourquoi vit avec la mutation, partagée (#308).
  */
 export function useAcceptInvitation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: AcceptInvitationInput) => accountApi.acceptInvitation(input),
-    onSuccess: (relation) => {
-      queryClient.setQueryData(coachKeys.mine(), relation);
-      queryClient.invalidateQueries();
-    },
-  });
+  return useMutation(acceptInvitationMutation(useQueryClient(), accountApi));
 }
 
 /**
