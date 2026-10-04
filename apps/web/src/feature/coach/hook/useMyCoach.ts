@@ -18,11 +18,18 @@ export function useMyCoach() {
 }
 
 /**
- * Rejoint un coach par code d'invitation. L'invalidation est globale : rejoindre change tout ce
- * que l'athlète peut voir — le pourquoi vit avec la mutation, partagée (#308).
+ * Rejoint un coach depuis la carte de son invitation. L'invalidation est globale : rejoindre
+ * change tout ce que l'athlète peut voir — le pourquoi vit avec la mutation, partagée (#308).
+ *
+ * L'échec se dit en toast, comme celui du refus : sans lui, le bouton repassait de « Connexion en
+ * cours… » à « Rejoindre » et rien d'autre ne se passait (#365).
  */
 export function useAcceptInvitation() {
-  return useMutation(acceptInvitationMutation(useQueryClient(), accountApi));
+  const toast = useMutationToast();
+  return useMutation({
+    ...acceptInvitationMutation(useQueryClient(), accountApi),
+    onError: toast.onError,
+  });
 }
 
 /**
@@ -31,7 +38,7 @@ export function useAcceptInvitation() {
  * Liste vide et requête en échec ne se confondent pas, et c'est l'appelant qui en tire les
  * conséquences : on n'annonce rien dans les deux cas, mais on n'écrit jamais « aucune invitation »
  * sur une API injoignable — même raisonnement que l'état d'erreur de `MyCoachScreen`, qui refuse
- * d'afficher le formulaire de code quand il n'a pas pu lire.
+ * de dire « aucun coach » quand il n'a pas pu lire.
  */
 export function useMyInvitations() {
   return useQuery<PendingInvitationDto[]>({

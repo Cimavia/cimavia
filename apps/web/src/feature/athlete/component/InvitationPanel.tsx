@@ -1,4 +1,4 @@
-import { type InvitationDto, InvitationStatus } from "@cmv/shared";
+import { type InvitationDto, InvitationStatus, invitationEmailOf } from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,7 +13,6 @@ import {
   CmvEmptyState,
   CmvPanel,
   CmvTextField,
-  useToast,
 } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
 
@@ -26,30 +25,24 @@ type InvitationPanelProps = {
 };
 
 /**
- * Invitation d'un athlète (CDC §5.1) : le coach émet un code, l'athlète le saisit à l'inscription.
- * L'e-mail est facultatif — sans lui, le code est un lien générique acceptable par n'importe quel
- * athlète non encore lié.
+ * Invitation d'un athlète (CDC §5.1) : le coach saisit une adresse, et l'invitation n'apparaît
+ * qu'au compte qui la porte (#390). Il n'y a plus de code à transmettre : c'est l'adresse de la
+ * session qui fait le verrou, et l'athlète accepte depuis la carte qui l'attend dans « Mon coach ».
  */
 export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
   const { t } = useTranslation();
-  const toast = useToast();
   const { data: invitations } = useInvitations();
   const createInvitation = useCreateInvitation();
 
   const [email, setEmail] = useState("");
+  // `null` tant que la saisie n'est pas une adresse : le bouton reste fermé, et l'API ne voit
+  // jamais partir ce qu'elle refuserait d'un message de validation brut (#319).
+  const target = invitationEmailOf(email);
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
-    // Champ vide → invitation générique (le schéma attend `email` absent, pas une chaîne vide).
-    const trimmed = email.trim();
-    createInvitation.mutate(trimmed === "" ? {} : { email: trimmed }, {
-      onSuccess: () => setEmail(""),
-    });
-  }
-
-  async function copyCode(code: string) {
-    await navigator.clipboard.writeText(code);
-    toast.info(t("athlete.invitation.copied"));
+    if (target == null) return;
+    createInvitation.mutate({ email: target }, { onSuccess: () => setEmail("") });
   }
 
   const pending = (invitations ?? []).filter(
@@ -89,8 +82,11 @@ export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
             onChange={(event) => setEmail(event.target.value)}
             placeholder={t("athlete.invitation.emailPlaceholder")}
           />
-          <p className="text-cmv-caption text-cmv-text-lo">{t("athlete.invitation.emailHint")}</p>
-          <CmvButton type="submit" onClick={onSubmit} disabled={createInvitation.isPending}>
+          <CmvButton
+            type="submit"
+            onClick={onSubmit}
+            disabled={target == null || createInvitation.isPending}
+          >
             {createInvitation.isPending
               ? t("athlete.invitation.submitting")
               : t("athlete.invitation.submit")}
@@ -112,19 +108,13 @@ export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
               className="flex items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md"
             >
               <div className="flex flex-1 flex-col gap-cmv-xs">
-                <span className="font-cmv-mono text-cmv-body text-cmv-text-hi">
-                  {invitation.code}
-                </span>
+                {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. */}
+                <span className="text-cmv-body text-cmv-text-hi">{invitation.email ?? "—"}</span>
                 <span className="text-cmv-caption text-cmv-text-lo">
-                  {/* Invitation générique : pas d'e-mail → « — », jamais une chaîne vide. */}
-                  {invitation.email ?? "—"} ·{" "}
                   {t("athlete.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
                 </span>
               </div>
               <CmvBadge>{t(`athlete.invitationStatus.${invitation.status}`)}</CmvBadge>
-              <CmvButton variant="ghost" onClick={() => copyCode(invitation.code)}>
-                {t("athlete.invitation.copy")}
-              </CmvButton>
             </div>
           ))}
         </section>
@@ -164,7 +154,7 @@ function DeclinedInvitationRow({ invitation }: Readonly<{ invitation: Invitation
   return (
     <div className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md">
       <div className="flex flex-1 flex-col gap-cmv-xs">
-        {/* L'adresse EST l'information : le code, lui, est mort avec le refus. */}
+        {/* L'adresse EST l'information : c'est elle qui a dit non. */}
         <span className="text-cmv-body text-cmv-text-hi">{email ?? "—"}</span>
         <span className="text-cmv-caption text-cmv-text-lo">
           {t("athlete.invitation.sentOn", { date: formatDateTime(invitation.createdAt) })}

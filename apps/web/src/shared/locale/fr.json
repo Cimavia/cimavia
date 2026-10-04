@@ -790,7 +790,7 @@
       "subtitle": "Ton fil avec ton coach.",
       "noCoach": {
         "title": "Aucun coach rattaché",
-        "description": "La messagerie n'est disponible qu'avec un coach. Rejoins-en un avec son code d'invitation pour commencer à échanger.",
+        "description": "La messagerie n'est disponible qu'avec un coach. Accepte son invitation dans « Mon coach » pour commencer à échanger.",
         "action": "Aller à « Mon coach »"
       }
     },
@@ -813,16 +813,15 @@
     },
     "empty": {
       "title": "Aucun athlète",
-      "description": "Invite un athlète : il rejoindra ton espace avec le code que tu lui transmets."
+      "description": "Invite un athlète par son adresse e-mail : il rejoindra ton espace en acceptant ton invitation."
     },
     "invitation": {
       "title": "Inviter un athlète",
-      "description": "Émets un code, transmets-le à ton athlète : il le saisira à son inscription.",
+      "description": "Saisis l'adresse e-mail de ton athlète : l'invitation l'attendra dans son espace, et lui sera envoyée par e-mail s'il n'a pas encore de compte.",
       "emailLabel": "E-mail de l'athlète",
       "emailPlaceholder": "Ex. lea@exemple.fr",
-      "emailHint": "Facultatif. Sans e-mail, le code est utilisable par n'importe quel athlète non encore lié.",
-      "submit": "Émettre un code",
-      "submitting": "Émission…",
+      "submit": "Envoyer l'invitation",
+      "submitting": "Envoi…",
       "pending": "Invitations en attente",
       "emptyPending": "Aucune invitation en attente",
       "declined": "Invitations refusées",
@@ -830,9 +829,7 @@
       "resend": "Réémettre",
       "delete": "Effacer",
       "deleteConfirm": "Confirmer",
-      "expires": "expire le {{date}}",
-      "copy": "Copier",
-      "copied": "Code copié dans le presse-papiers"
+      "expires": "expire le {{date}}"
     },
     "sheet": {
       "description": "Champ libre, visible de toi seul : objectifs, points forts, notes de suivi.",
@@ -842,7 +839,7 @@
       "submitting": "Enregistrement…"
     },
     "toast": {
-      "invitationCreated": "Invitation créée : transmets le code à ton athlète",
+      "invitationCreated": "Invitation envoyée",
       "invitationDeleted": "Invitation effacée",
       "sheetSaved": "Fiche athlète enregistrée"
     },
@@ -1167,15 +1164,8 @@
     },
     "missing": {
       "title": "Aucun coach pour l'instant",
-      "description": "Saisis le code d'invitation que ton coach t'a partagé pour rejoindre son espace."
-    },
-    "join": {
-      "codeLabel": "Code d'invitation",
-      "codePlaceholder": "Ex. 7QK4M2",
-      "submit": "Rejoindre ce coach",
-      "joining": "Connexion en cours…",
-      "errorTitle": "Code invalide ou expiré",
-      "errorDescription": "Vérifie le code, ou demande à ton coach de t'en générer un nouveau."
+      "description": "Ton coach t'invite par ton adresse e-mail : son invitation t'attendra dans « Mon coach ».",
+      "address": "L'adresse à laquelle ton coach doit t'inviter"
     }
   },
   "account": {

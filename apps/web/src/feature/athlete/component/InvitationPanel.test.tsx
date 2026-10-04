@@ -65,7 +65,7 @@ describe("InvitationPanel — les invitations refusées (#146)", () => {
     listInvitations.mockResolvedValue([invitation()]);
     await render();
 
-    await screen.findByText("7QK4M2XZ9");
+    await screen.findByText("lea@exemple.fr");
     expect(screen.queryByText("athlete.invitation.declined")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "athlete.invitation.resend" })).toBeNull();
   });
@@ -111,14 +111,23 @@ describe("InvitationPanel — émettre une invitation", () => {
   const EMAIL = "athlete.invitation.emailLabel";
   const SUBMIT = "athlete.invitation.submit";
 
-  // Champ vide : une invitation GÉNÉRIQUE, sans `email` — le schéma refuse une chaîne vide.
-  it("émet une invitation générique quand l'adresse est vide", async () => {
+  /**
+   * Plus d'invitation générique (#390) : sans adresse, il n'y a personne à qui l'invitation
+   * apparaîtrait. Le bouton reste fermé tant que la saisie n'en est pas une — l'API ne voit jamais
+   * partir ce qu'elle refuserait d'un message de validation brut.
+   */
+  it.each([
+    ["vide", ""],
+    ["blanche", "   "],
+    ["incomplète", "lea@"],
+  ])("n'émet rien pour une adresse %s", async (_case, typed) => {
     const { user } = render();
 
-    await user.type(screen.getByLabelText(EMAIL), "   ");
-    await user.click(screen.getByRole("button", { name: SUBMIT }));
+    if (typed !== "") await user.type(screen.getByLabelText(EMAIL), typed);
+    expect(screen.getByRole("button", { name: SUBMIT })).toBeDisabled();
+    await user.type(screen.getByLabelText(EMAIL), "{Enter}");
 
-    await waitFor(() => expect(createInvitation).toHaveBeenCalledWith({}));
+    expect(createInvitation).not.toHaveBeenCalled();
   });
 
   it("émet vers l'adresse nettoyée, puis vide le champ", async () => {
@@ -136,6 +145,7 @@ describe("InvitationPanel — émettre une invitation", () => {
     createInvitation.mockReturnValue(new Promise(() => {}));
     const { user } = render();
 
+    await user.type(screen.getByLabelText(EMAIL), "lea@exemple.fr");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     expect(
@@ -151,27 +161,21 @@ describe("InvitationPanel — les invitations en attente", () => {
     expect(await screen.findByText("athlete.invitation.emptyPending")).toBeInTheDocument();
   });
 
-  // Invitation générique : pas d'adresse, « — » plutôt qu'un blanc (règle dure n°5).
+  // L'adresse dit à qui l'invitation apparaîtra ; le code, lui, n'est plus rien à transmettre.
+  it("montre l'adresse de chaque invitation, et plus de code", async () => {
+    listInvitations.mockResolvedValue([invitation()]);
+    render();
+
+    expect(await screen.findByText("lea@exemple.fr")).toBeInTheDocument();
+    expect(screen.queryByText("7QK4M2XZ9")).not.toBeInTheDocument();
+  });
+
+  // Une ancienne invitation sans adresse reste lisible : « — » plutôt qu'un blanc (règle n°5).
   it("rend « — » pour une invitation sans adresse", async () => {
     listInvitations.mockResolvedValue([invitation({ email: null })]);
     render();
 
-    await screen.findByText("7QK4M2XZ9");
-    expect(screen.getByText(/^— ·/)).toBeInTheDocument();
-  });
-
-  // Le code se transmet hors de l'app (SMS, messagerie) : le copier doit se voir.
-  it("copie le code et le dit", async () => {
-    listInvitations.mockResolvedValue([invitation()]);
-    const writeText = vi.fn(async () => undefined);
-    const { user } = render();
-    // Après `render` : `userEvent.setup()` pose son propre presse-papiers sur `navigator`.
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-
-    await user.click(await screen.findByRole("button", { name: "athlete.invitation.copy" }));
-
-    expect(writeText).toHaveBeenCalledWith("7QK4M2XZ9");
-    expect(await screen.findByRole("status")).toHaveTextContent("athlete.invitation.copied");
+    expect(await screen.findByText("—")).toBeInTheDocument();
   });
 
   it("se referme par son pied", async () => {

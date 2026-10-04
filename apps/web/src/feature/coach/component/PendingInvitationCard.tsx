@@ -2,7 +2,6 @@ import type { PendingInvitationDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useAcceptInvitation, useDeclineInvitation } from "@/feature/coach/hook/useMyCoach";
 import { CmvButton, CmvCard, CmvConfirmButton } from "@/shared/component";
-import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { formatDateTime } from "@/shared/util/date.util";
 
 type PendingInvitationCardProps = {
@@ -16,15 +15,15 @@ type PendingInvitationCardProps = {
 };
 
 /**
- * Une invitation qui attend l'athlète (#146) — le quatrième état de « Mon coach », à côté de
- * « lié », « aucun coach » et « code refusé ».
+ * Une invitation qui attend l'athlète (#146) — le troisième état de « Mon coach », à côté de
+ * « lié » et « aucun coach ».
  *
  * **Elle s'affiche dans les DEUX branches**, y compris quand l'athlète a déjà un coach. La masquer
  * là laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien — et surtout,
  * refuser est le geste UTILE dans ce cas : c'est lui qui vide la liste d'attente de l'inviteur.
  * « Rejoindre » est alors désactivé, avec sa raison écrite : un athlète a au plus un coach.
  *
- * Elle ne remplace pas le formulaire de code, qui reste le chemin des invitations génériques.
+ * Elle est le SEUL chemin pour rejoindre un coach depuis #390 : il n'y a plus de code à saisir.
  */
 export function PendingInvitationCard({
   invitation,
@@ -33,7 +32,6 @@ export function PendingInvitationCard({
   const { t } = useTranslation();
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
-  const toast = useMutationToast();
 
   const linked = currentCoachName != null;
   const busy = accept.isPending || decline.isPending;
@@ -61,10 +59,7 @@ export function PendingInvitationCard({
         <div className="flex flex-wrap items-center gap-cmv-sm">
           <CmvButton
             disabled={linked || busy}
-            // L'échec se dit en toast, comme celui du refus (#365) : sans lui, le bouton repassait de
-            // « Connexion en cours… » à « Rejoindre » et rien d'autre ne se passait. Passé à
-            // l'appel et non au hook, que `JoinCoachForm` partage et qui affiche déjà l'erreur.
-            onClick={() => accept.mutate({ code: invitation.code }, { onError: toast.onError })}
+            onClick={() => accept.mutate({ code: invitation.code })}
           >
             {accept.isPending
               ? t("coach.invitation.joining")
