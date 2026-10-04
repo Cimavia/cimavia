@@ -47,6 +47,15 @@ globals[Symbol.for("better-auth:online-manager")] = {
 };
 
 /**
+ * jsdom ne sait pas ouvrir un `<dialog>` en modal : `showModal` n'existe pas. On le réduit à ce
+ * qu'un test peut observer — l'attribut `open`, qui rend la fenêtre et son contenu
+ * accessibles. Le focus retenu et l'écran inerte, eux, ne se vérifient que dans un navigateur.
+ */
+HTMLDialogElement.prototype.showModal ??= function showModal(this: HTMLDialogElement) {
+  this.open = true;
+};
+
+/**
  * Sans `globals: true` — les tests du monorepo importent `describe`/`it`/`expect` explicitement —
  * Testing Library ne trouve aucun `afterEach` global et ne démonte donc RIEN toute seule. Deux
  * tests d'un même fichier partageraient alors le même DOM, et le second lirait l'écran laissé par

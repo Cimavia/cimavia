@@ -12,6 +12,7 @@ export { CmvDurationField } from "./CmvDurationField";
 export { CmvEmptyState } from "./CmvEmptyState";
 export { CmvErrorState } from "./CmvErrorState";
 export { CmvFormError } from "./CmvFormError";
+export { CmvLeaveDialog } from "./CmvLeaveDialog";
 export { CmvMediaPlayer } from "./CmvMediaPlayer";
 export { CmvPager } from "./CmvPager";
 export { CmvPanel } from "./CmvPanel";
