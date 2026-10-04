@@ -19,9 +19,11 @@ vi.mock("expo-network", () => ({
   addNetworkStateListener: vi.fn(() => ({ remove: vi.fn() })),
 }));
 
-const openDocument = vi.fn<() => Promise<string>>(async () => "opened");
+const openDocument = vi.fn<(...args: unknown[]) => Promise<string>>(async () => "opened");
+const freshDocumentUrl = vi.fn<(...args: unknown[]) => Promise<string | null>>();
 vi.mock("@/feature/plan/lib/open-document", () => ({
-  openDocument: (...args: unknown[]) => openDocument(...(args as [])),
+  openDocument: (...args: unknown[]) => openDocument(...args),
+  freshDocumentUrl: (...args: unknown[]) => freshDocumentUrl(...args),
 }));
 
 const { ExerciseCard } = await import("./ExerciseCard");
@@ -95,6 +97,7 @@ function renderCard(
     <ExerciseCard
       exercise={exercise(over)}
       planId="plan-1"
+      sessionId="session-1"
       index={0}
       customMetrics={[]}
       tracking={tracking}
@@ -122,7 +125,20 @@ describe("ExerciseCard — pièces jointes", () => {
       "plan-1",
       expect.objectContaining({ id: "doc-1" }),
       true,
+      expect.any(Function),
     );
+  });
+
+  /** La re-signature vise la séance affichée et le document tapé — pas un autre (#307). */
+  it("re-signe le document tapé dans la séance affichée", async () => {
+    const { container, queryClient } = renderCard();
+
+    pressButton(container, "progression.pdf");
+
+    await waitFor(() => expect(openDocument).toHaveBeenCalledTimes(1));
+    const freshUrl = openDocument.mock.calls[0]?.[3] as () => Promise<string | null>;
+    await freshUrl();
+    expect(freshDocumentUrl).toHaveBeenCalledWith(queryClient, "session-1", "doc-1");
   });
 
   it("ne dit rien quand la pièce jointe s'ouvre", async () => {
@@ -194,6 +210,7 @@ describe("ExerciseCard — l'en-tête", () => {
       <ExerciseCard
         exercise={exercise()}
         planId="plan-1"
+        sessionId="session-1"
         index={0}
         customMetrics={[]}
         tracking={null}

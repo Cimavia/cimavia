@@ -23,6 +23,7 @@ const session = (id: string, title: string, position: number, date = MONDAY) =>
     position,
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: 3,
+    updatedAt: "2026-08-10T00:00:00.000Z",
   }) satisfies ScheduledSessionSummaryDto;
 
 const monday = [

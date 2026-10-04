@@ -50,6 +50,7 @@ export function toScheduledSessionSummaryDto(
     position: session.position,
     status: session.status,
     exerciseCount: session._count.exercises,
+    updatedAt: session.updatedAt.toISOString(),
   };
 }
 
