@@ -7,13 +7,14 @@ import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia"
 vi.mock("@/feature/message/hook/useMessages", () => ({ useSendMessage: vi.fn() }));
 vi.mock("@/feature/message/hook/useSendMessageMedia", () => ({ useSendMessageMedia: vi.fn() }));
 
-const mutate = vi.fn();
+const mutateAsync = vi.fn().mockResolvedValue(undefined);
 const onSent = vi.fn();
 
 function setup(feedbackId: string | null, conversationId: string | undefined) {
-  vi.mocked(useSendMessage).mockReturnValue({ mutate, isPending: false } as unknown as ReturnType<
-    typeof useSendMessage
-  >);
+  vi.mocked(useSendMessage).mockReturnValue({
+    mutateAsync,
+    isPending: false,
+  } as unknown as ReturnType<typeof useSendMessage>);
   vi.mocked(useSendMessageMedia).mockReturnValue({
     sendFiles: vi.fn(),
     sendAudio: vi.fn(),
@@ -44,10 +45,13 @@ describe("useFeedbackReply (web)", () => {
 
   // Un envoi rafraîchit AUSSI le débrief : sans ça, la réponse n'apparaît que dans le fil, pas là
   // où on vient de l'écrire.
-  it("recharge le débrief après un envoi de texte", () => {
-    setup("f-1", "c-1").sendText("Reçu");
+  it("recharge le débrief après un envoi de texte", async () => {
+    await setup("f-1", "c-1").sendText("Reçu");
 
-    expect(mutate).toHaveBeenCalledWith({ type: "TEXT", content: "Reçu" }, { onSuccess: onSent });
+    expect(mutateAsync).toHaveBeenCalledWith(
+      { type: "TEXT", content: "Reçu" },
+      { onSuccess: onSent },
+    );
   });
 
   it("n'est pas prêt tant que le fil n'est pas résolu", () => {

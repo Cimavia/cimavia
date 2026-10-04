@@ -45,7 +45,7 @@ export function feedbackReplyAttachment(feedbackId: string | null): FeedbackRepl
 
 /**
  * Ce que les deux apps DÉCIDENT à l'identique : peut-on écrire, le fil est-il en panne, et l'envoi
- * de texte.
+ * de texte — une promesse, parce que la barre d'envoi ne vide son champ qu'au succès (#339).
  *
  * `ready` exige les DEUX : sans débrief on ne sait pas quoi citer, sans fil la réponse n'aboutit
  * nulle part. Un seul des deux suffirait à laisser écrire un texte que l'envoi perdrait.
@@ -61,8 +61,13 @@ export function feedbackReplyAttachment(feedbackId: string | null): FeedbackRepl
 export function feedbackReplySurface(
   input: FeedbackReplyInput,
   sending: boolean,
-  sendText: (content: string) => void,
-): { ready: boolean; hasThreadError: boolean; sending: boolean; sendText: (c: string) => void } {
+  sendText: (content: string) => Promise<unknown>,
+): {
+  ready: boolean;
+  hasThreadError: boolean;
+  sending: boolean;
+  sendText: (c: string) => Promise<unknown>;
+} {
   return {
     ready: input.feedbackId != null && input.conversationId != null,
     /** La résolution du fil a échoué — distinct d'un échec d'envoi, et il faut le dire aussi. */
