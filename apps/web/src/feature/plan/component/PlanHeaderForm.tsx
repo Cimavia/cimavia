@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
 import { CmvButton, CmvCard, CmvTextArea, CmvTextField } from "@/shared/component";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { useReportDirty } from "@/shared/hook/useReportDirty";
 import { formatDate } from "@/shared/util/date.util";
 
 type PlanHeaderFormProps = {
@@ -18,6 +19,11 @@ type PlanHeaderFormProps = {
   hasInvoiceDocument: boolean;
   isSaving: boolean;
   onSave: (input: UpdatePlanInput) => void;
+  /**
+   * Une saisie diffère de ce qui est enregistré : « Diffuser », qui part avec le cycle ENREGISTRÉ,
+   * se ferme tant que c'est vrai (#326). Doit être stable : un `setState` de l'écran.
+   */
+  onDirtyChange: (isDirty: boolean) => void;
 };
 
 /**
@@ -34,6 +40,7 @@ export function PlanHeaderForm({
   hasInvoiceDocument,
   isSaving,
   onSave,
+  onDirtyChange,
 }: Readonly<PlanHeaderFormProps>) {
   const { t } = useTranslation();
   const toast = useMutationToast();
@@ -109,6 +116,13 @@ export function PlanHeaderForm({
   const hasChanges = Object.keys(changedFields()).length > 0;
   const canSubmit =
     !isPublished && !isSaving && hasChanges && title.trim() !== "" && effectiveStartDate != null;
+  /**
+   * Plus large que `hasChanges` : une date effacée ou illisible n'entre pas dans ce qui part, mais
+   * l'écran ne montre plus la date enregistrée — diffuser maintenant partirait sur une valeur que
+   * le coach n'a plus sous les yeux. Le début d'un cycle n'est jamais `null` en base : un champ
+   * illisible est donc toujours un écart.
+   */
+  useReportDirty(hasChanges || effectiveStartDate == null, onDirtyChange);
 
   /**
    * De combien le cycle se déplace — entre deux lundis, donc toujours un multiple de 7. `null` = la

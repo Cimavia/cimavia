@@ -547,6 +547,8 @@
       "emptyWeeksHint": "Ajoute une semaine pour commencer à poser des séances.",
       "athleteRequired": "Choisis le destinataire de ce cycle pour pouvoir le diffuser.",
       "billingRequired": "Renseigne la facturation ci-dessous pour pouvoir diffuser.",
+      "headerUnsaved": "Enregistre d'abord l'en-tête du cycle : la diffusion part avec ce qui est enregistré.",
+      "billingUnsaved": "Enregistre d'abord la facturation : la facture émise est celle qui est enregistrée.",
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé.",
       "titleWithAthlete": "{{title}} — {{name}}",
       "audience": {

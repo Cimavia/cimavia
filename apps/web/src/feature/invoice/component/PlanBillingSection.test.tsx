@@ -16,6 +16,7 @@ vi.mock("@/feature/invoice/hook/useInvoices", () => ({
 }));
 
 const save = vi.fn();
+const onDirtyChange = vi.fn();
 // Des objets et non des valeurs figées : un test passe une mutation « en vol » en basculant
 // `isPending`, remis à plat avant chaque test.
 const saving = { mutate: save, isPending: false };
@@ -50,6 +51,7 @@ const mount = (props: {
       isPublished={false}
       hasAthlete={true}
       billing={null}
+      onDirtyChange={onDirtyChange}
       {...props}
     />,
     { path: "/plans/$planId", params: { planId: "pln_1" }, links: ["/invoices"] },
@@ -279,5 +281,52 @@ describe("PlanBillingSection — le justificatif", () => {
 
     expect(getByRole("button", { name: "invoice.billing.documentReplace" })).toBeDisabled();
     expect(getByRole("button", { name: "invoice.billing.documentRemove" })).toBeDisabled();
+  });
+});
+
+/**
+ * Ce que l'écran apprend de la saisie : « Diffuser » émet la facture ENREGISTRÉE, et se ferme tant
+ * que le formulaire montre autre chose (#326).
+ */
+describe("PlanBillingSection — une saisie non enregistrée", () => {
+  const DRAFT = { amountCents: 5000, dueDate: "2026-11-05", note: null } as InvoiceDto;
+
+  it("se déclare propre sur les termes tels qu'enregistrés", async () => {
+    await mount({ billing: DRAFT });
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("signale un montant changé, puis rendu à sa valeur enregistrée", async () => {
+    const { container, user } = await mount({ billing: DRAFT });
+    const amount = container.querySelector("#amount") as HTMLInputElement;
+
+    await user.clear(amount);
+    await user.type(amount, "80");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    await user.clear(amount);
+    await user.type(amount, "50.00");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("signale une note ajoutée, mais pas des espaces seuls", async () => {
+    const { container, user } = await mount({ billing: DRAFT });
+    const note = container.querySelector("#note") as HTMLTextAreaElement;
+
+    await user.type(note, "   ");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    await user.type(note, "Virement");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  // Rien d'enregistré : le premier champ rempli est déjà une saisie à ne pas perdre.
+  it("signale une première saisie, même incomplète", async () => {
+    const { container, user } = await mount({});
+
+    await user.type(container.querySelector("#amount") as HTMLInputElement, "60");
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
   });
 });

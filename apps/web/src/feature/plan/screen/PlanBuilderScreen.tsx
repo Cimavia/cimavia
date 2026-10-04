@@ -97,6 +97,13 @@ export function PlanBuilderScreen() {
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
+  /**
+   * Ce que l'en-tête et la facturation montrent sans l'avoir enregistré. La diffusion part avec
+   * l'état ENREGISTRÉ du cycle : elle reste fermée tant que l'un des deux est vrai (#326). Les
+   * formulaires gardent leur saisie, ils ne remontent que ce booléen.
+   */
+  const [isHeaderUnsaved, setHeaderUnsaved] = useState(false);
+  const [isBillingUnsaved, setBillingUnsaved] = useState(false);
 
   // Le résumé (vue semaine) ne porte pas la composition : on charge le détail à l'ouverture.
   const { data: editedSession } = useQuery<ScheduledSessionDto>({
@@ -180,6 +187,8 @@ export function PlanBuilderScreen() {
             hasAthlete={hasAthlete}
             isBillingFilled={billing != null}
             requiresBilling={!isSelfCoached(plan)}
+            isHeaderUnsaved={isHeaderUnsaved}
+            isBillingUnsaved={isBillingUnsaved}
             isBusy={isBusy}
           />
         </>
@@ -224,12 +233,17 @@ export function PlanBuilderScreen() {
       <div className="flex flex-col gap-cmv-lg">
         {/* Ce qui définit le cycle, AU-DESSUS des semaines : titre, destinataire, début et
             description ne se saisissaient qu'une fois, dans un panneau qui ne revenait jamais
-            (#207). C'est aussi l'emplacement que la maquette réservait à sa bande « plan meta ». */}
+            (#207). C'est aussi l'emplacement que la maquette réservait à sa bande « plan meta ».
+            Clé sur le statut : la diffusion remonte le formulaire, qui repart des valeurs
+            ENREGISTRÉES — ses champs grisés ne doivent pas garder une saisie qui n'est pas partie
+            (#326). */}
         <PlanHeaderForm
+          key={plan.status}
           plan={plan}
           hasInvoiceDocument={billing?.documentFileName != null}
           isSaving={saveHeader.isPending}
           onSave={(input) => saveHeader.mutate(input)}
+          onDirtyChange={setHeaderUnsaved}
         />
 
         {plan.weeks.length === 0 ? (
@@ -271,6 +285,7 @@ export function PlanBuilderScreen() {
             isPublished={isPublished}
             hasAthlete={hasAthlete}
             billing={billing}
+            onDirtyChange={setBillingUnsaved}
           />
         )}
       </div>

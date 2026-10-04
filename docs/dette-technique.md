@@ -2471,6 +2471,34 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > suppose un **auto-save**. Aucune surface du produit ne fonctionne ainsi (séances, facturation,
 > exercices : bouton explicite) ; l'en-tête suit la règle commune. Écart antérieur à #207, inchangé.
 
+> **Tranché en [#326](https://github.com/Cimavia/cimavia/issues/326)** (la diffusion part avec
+> l'ENREGISTRÉ, donc rien ne part tant que l'écran montre autre chose) : le bouton explicite de
+> l'en-tête a un prix que #207 n'avait pas vu — « Diffuser », dans le bandeau fixe, ignorait la
+> saisie en cours. Un destinataire corrigé Léa → Tom sans enregistrer envoyait le cycle, sa
+> notification et sa facture à Léa, sans retour possible. La **facturation** avait le même trou
+> (un montant changé partait à l'ancien), traité dans la même PR.
+>
+> - **« Diffuser » se ferme, il n'enregistre pas d'office.** Enregistrer en passant ferait partir
+>   en un clic deux écritures dont la première peut échouer (titre vide, 409 du justificatif #472),
+>   et diffuserait une saisie que le coach n'a pas relue comme définitive.
+> - **L'ordre des raisons** : en-tête non enregistré → destinataire manquant → facturation non
+>   enregistrée → facturation manquante. Une saisie en attente passe AVANT le manque qu'elle
+>   comble : le coach qui vient de choisir Tom lirait sinon « choisis le destinataire ».
+> - **« Non enregistré » couvre « en cours d'enregistrement »** : la saisie se compare aux valeurs
+>   du serveur, elle reste un écart jusqu'à la relecture. `isBusy` ferme en plus la diffusion
+>   pendant toute écriture du builder.
+> - **Une date de début effacée ou illisible compte comme un écart**, bien qu'elle ne parte pas à
+>   l'enregistrement : l'écran ne montre plus la date que la diffusion emporterait.
+> - **Les formulaires gardent leur état** et ne remontent qu'un booléen (`useReportDirty`), remis à
+>   faux à leur démontage — sinon une facturation masquée (passage en auto-coaching) fermerait la
+>   diffusion sans plus aucun champ où la lever.
+> - Après diffusion, l'en-tête est **remonté** (`key={plan.status}`) : ses champs grisés repartent
+>   de l'enregistré au lieu de garder une saisie qui n'est pas partie.
+>
+> La **navigation** hors du builder avec une saisie en cours n'est pas gardée : c'est le sujet de
+> [#327](https://github.com/Cimavia/cimavia/issues/327), qui ne vise aujourd'hui que les deux
+> constructeurs de la bibliothèque.
+
 ---
 
 ## Post-MVP — Invitations qui attendent, refus et e-mail ([#146](https://github.com/Cimavia/cimavia/issues/146) · [#147](https://github.com/Cimavia/cimavia/issues/147))

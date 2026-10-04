@@ -32,6 +32,8 @@ const READY: ComponentProps<typeof PlanBuilderActions> = {
   hasAthlete: true,
   isBillingFilled: true,
   requiresBilling: true,
+  isHeaderUnsaved: false,
+  isBillingUnsaved: false,
   isBusy: false,
 };
 
@@ -83,6 +85,68 @@ describe("PlanBuilderActions — diffuser", () => {
     await user.click(getByText("plan.builder.publish"));
 
     expect(publish).toHaveBeenCalledWith("pln_1");
+  });
+
+  /**
+   * La diffusion part avec le cycle ENREGISTRÉ (#326) : un destinataire corrigé mais pas enregistré
+   * envoyait le cycle, sa notification et sa facture à l'ancien — sans retour possible.
+   */
+  it("ne diffuse pas tant que l'en-tête n'est pas enregistré, et dit pourquoi", async () => {
+    const { getByText, getByTitle, user } = await mount({ isHeaderUnsaved: true });
+
+    await user.click(getByText("plan.builder.publish"));
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(getByTitle("plan.builder.headerUnsaved")).toContainElement(
+      getByText("plan.builder.publish").closest("button"),
+    );
+  });
+
+  // Le coach vient de choisir quelqu'un : « choisis le destinataire » lui dirait l'inverse.
+  it("demande d'enregistrer l'en-tête plutôt que de réclamer le destinataire", async () => {
+    const { getByTitle, queryByTitle } = await mount({ isHeaderUnsaved: true, hasAthlete: false });
+
+    expect(getByTitle("plan.builder.headerUnsaved")).toBeTruthy();
+    expect(queryByTitle("plan.builder.athleteRequired")).toBeNull();
+  });
+
+  it("ne diffuse pas tant que la facturation n'est pas enregistrée, et dit pourquoi", async () => {
+    const { getByText, getByTitle, user } = await mount({ isBillingUnsaved: true });
+
+    await user.click(getByText("plan.builder.publish"));
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(getByTitle("plan.builder.billingUnsaved")).toBeTruthy();
+  });
+
+  // Des termes saisis pour la première fois : il ne manque plus que de les enregistrer.
+  it("demande d'enregistrer la facturation plutôt que de la réclamer", async () => {
+    const { getByTitle, queryByTitle } = await mount({
+      isBillingUnsaved: true,
+      isBillingFilled: false,
+    });
+
+    expect(getByTitle("plan.builder.billingUnsaved")).toBeTruthy();
+    expect(queryByTitle("plan.builder.billingRequired")).toBeNull();
+  });
+
+  it("nomme l'en-tête avant la facturation quand les deux attendent", async () => {
+    const { getByTitle } = await mount({ isHeaderUnsaved: true, isBillingUnsaved: true });
+
+    expect(getByTitle("plan.builder.headerUnsaved")).toBeTruthy();
+  });
+
+  // L'enregistrement de l'en-tête, comme toute autre écriture du builder, se termine d'abord.
+  it("ferme la diffusion pendant une écriture du builder", async () => {
+    const { getByText } = await mount({ isBusy: true });
+
+    expect(getByText("plan.builder.publish").closest("button")).toBeDisabled();
+  });
+
+  it("ne dit rien d'une saisie en attente sur un cycle déjà diffusé", async () => {
+    const { queryByTitle } = await mount({ isPublished: true, isHeaderUnsaved: true });
+
+    expect(queryByTitle("plan.builder.headerUnsaved")).toBeNull();
   });
 
   /**

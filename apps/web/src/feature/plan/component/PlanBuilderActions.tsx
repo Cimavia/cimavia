@@ -13,24 +13,41 @@ type PlanBuilderActionsProps = {
   isBillingFilled: boolean;
   /** Faux en auto-coaching : on ne se facture pas soi-même, l'API lève le gating (#14). */
   requiresBilling: boolean;
+  /**
+   * L'en-tête, ou la facturation, montre une saisie que l'API n'a pas (#326). La diffusion part
+   * avec le cycle et la facture ENREGISTRÉS : sans ce verrou, un destinataire corrigé mais pas
+   * enregistré laissait le cycle partir chez l'ancien — et l'API refuse ensuite d'en changer.
+   */
+  isHeaderUnsaved: boolean;
+  isBillingUnsaved: boolean;
+  /** Une écriture du builder est en vol — dont l'enregistrement de l'en-tête. */
   isBusy: boolean;
 };
 
+type PublishGate = {
+  isHeaderUnsaved: boolean;
+  hasAthlete: boolean;
+  isBillingUnsaved: boolean;
+  billingBlocks: boolean;
+};
+
 /**
- * Ce qui manque pour diffuser, dans l'ORDRE des verrous de l'API — destinataire, puis facturation.
- * `null` quand rien ne bloque.
+ * Ce qui empêche de diffuser, `null` quand rien ne bloque.
  *
- * Une fonction nommée plutôt qu'une chaîne de ternaires dans le rendu : cet ordre est une décision
+ * Une fonction nommée plutôt qu'une chaîne de ternaires dans le rendu : cet ORDRE est une décision
  * (le message doit dire ce qui manque VRAIMENT, cf. #144), pas une commodité d'écriture.
+ *
+ * - L'en-tête non enregistré passe AVANT le destinataire : un coach qui vient de le choisir sans
+ *   enregistrer lirait sinon « choisis le destinataire », qu'il croit avoir fait (#326).
+ * - Puis les verrous de l'API, dans son ordre : destinataire, facturation.
+ * - La facturation non enregistrée passe avant la facturation manquante, pour la même raison que
+ *   l'en-tête : elle est saisie, il reste à l'enregistrer.
  */
-function publishBlockedKey(
-  isPublished: boolean,
-  hasAthlete: boolean,
-  billingBlocks: boolean,
-): string | null {
-  if (isPublished) return null;
-  if (!hasAthlete) return "plan.builder.athleteRequired";
-  return billingBlocks ? "plan.builder.billingRequired" : null;
+function publishBlockedKey(gate: PublishGate): string | null {
+  if (gate.isHeaderUnsaved) return "plan.builder.headerUnsaved";
+  if (!gate.hasAthlete) return "plan.builder.athleteRequired";
+  if (gate.isBillingUnsaved) return "plan.builder.billingUnsaved";
+  return gate.billingBlocks ? "plan.builder.billingRequired" : null;
 }
 
 /**
@@ -46,6 +63,8 @@ export function PlanBuilderActions({
   hasAthlete,
   isBillingFilled,
   requiresBilling,
+  isHeaderUnsaved,
+  isBillingUnsaved,
   isBusy,
 }: Readonly<PlanBuilderActionsProps>) {
   const { t } = useTranslation();
@@ -53,11 +72,16 @@ export function PlanBuilderActions({
   const publish = usePublishPlan();
   const removePlan = useDeletePlan();
 
-  // Info-bulle expliquant pourquoi la diffusion est bloquée. Le destinataire passe AVANT la
-  // facturation, dans le même ordre que les verrous de l'API : un cycle sans athlète ni
-  // facturation manque d'abord de quelqu'un à qui parler, pas d'un montant.
-  const billingBlocks = requiresBilling && !isBillingFilled;
-  const publishBlockedTitle = publishBlockedKey(isPublished, hasAthlete, billingBlocks);
+  // Info-bulle expliquant pourquoi la diffusion est bloquée — muette sur un cycle déjà diffusé,
+  // dont le bouton dit lui-même l'état.
+  const publishBlockedTitle = isPublished
+    ? null
+    : publishBlockedKey({
+        isHeaderUnsaved,
+        hasAthlete,
+        isBillingUnsaved,
+        billingBlocks: requiresBilling && !isBillingFilled,
+      });
   const deleteBlocked = isPublished
     ? { disabledReason: t("plan.builder.deleteDisabledPublished") }
     : {};
@@ -84,12 +108,15 @@ export function PlanBuilderActions({
       />
 
       {/* La diffusion est irréversible et exige au moins une semaine ET une facturation saisie
-          (l'API refuse sinon). Info-bulle sur un span : un bouton désactivé ne déclenche pas
-          toujours le `title` natif selon le navigateur. */}
+          (l'API refuse sinon), et ne part pas sur une saisie non enregistrée ni pendant une
+          écriture. Info-bulle sur un span : un bouton désactivé ne déclenche pas toujours le
+          `title` natif selon le navigateur. */}
       <span title={publishBlockedTitle == null ? undefined : t(publishBlockedTitle)}>
         <CmvButton
           onClick={() => publish.mutate(planId)}
-          disabled={isPublished || !hasWeeks || !hasAthlete || billingBlocks || publish.isPending}
+          disabled={
+            isPublished || !hasWeeks || publishBlockedTitle != null || isBusy || publish.isPending
+          }
         >
           {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
         </CmvButton>
