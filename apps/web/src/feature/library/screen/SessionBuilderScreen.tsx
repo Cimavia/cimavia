@@ -18,10 +18,12 @@ import {
   CmvEmptyState,
   CmvErrorState,
   CmvFormError,
+  CmvLeaveDialog,
   CmvTextArea,
   CmvTextField,
   useToast,
 } from "@/shared/component";
+import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";
@@ -109,6 +111,9 @@ function SessionBuilder({
   const navigate = useNavigate();
   const { data: customMetrics } = useCustomMetrics();
   const draft = useSessionDraft(session, added);
+  // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
+  // composition (#327). Seules les sorties qui SUIVENT un enregistrement passent.
+  const guard = useLeaveGuard(draft.isDirty);
   const reload = useReloadSessionExercise(session?.id);
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);
@@ -146,7 +151,9 @@ function SessionBuilder({
   }
 
   async function onSubmit() {
-    if ((await save("library.session.saved")) != null) onLeave();
+    if ((await save("library.session.saved")) == null) return;
+    guard.release();
+    onLeave();
   }
 
   function onPick(exercise: ExerciseDto) {
@@ -159,11 +166,13 @@ function SessionBuilder({
     duplicate.mutate(
       { exerciseId, suffix: t("library.session.variantSuffix"), blocks },
       {
-        onSuccess: (created) =>
+        onSuccess: (created) => {
+          guard.release();
           navigate({
             to: "/library/exercises/$exerciseId",
             params: { exerciseId: created.id },
-          }),
+          });
+        },
       },
     );
   }
@@ -172,6 +181,7 @@ function SessionBuilder({
   async function onCreateMissing(title: string) {
     const saved = await save("library.session.savedBeforeExercise");
     if (saved == null) return;
+    guard.release();
     navigate({ to: "/library/exercises/new", search: { title, session: saved.id } });
   }
 
@@ -323,6 +333,7 @@ function SessionBuilder({
           <SessionPreview items={draft.items} customMetrics={metrics} />
         </aside>
       </div>
+      <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
 }

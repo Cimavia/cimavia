@@ -1,6 +1,7 @@
 import {
   AdjustmentLevel,
   type Adjustments,
+  type CreateSessionInput,
   cellPath,
   clearAdjustment,
   type ExerciseBlocks,
@@ -9,10 +10,14 @@ import {
   resetRow,
   resetToBaseline,
   type SessionDto,
+  sameJson,
   structurePath,
+  toSessionInput,
 } from "@cmv/shared";
 import { useState } from "react";
 import { useSaveSession } from "@/feature/library/hook/useSessions";
+
+type CreateSessionLine = CreateSessionInput["exercises"][number];
 
 /**
  * Une ligne de composition en cours d'édition. `key` est locale et stable : un même exercice peut
@@ -78,6 +83,18 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
     // brouillon naît une seule fois, l'exercice ne peut donc pas y entrer deux fois.
     ...(added == null ? [] : [fromExercise(added)]),
   ]);
+
+  /**
+   * Ce qui est ENREGISTRÉ, sous la forme où le brouillon l'enverrait (#327) — remis à jour avec ce
+   * qui est parti, et non la séance vide d'où une création est partie : sans ça, la navigation qui
+   * suit l'enregistrement d'une séance neuve serait retenue. L'exercice ajouté au retour de #303
+   * n'en fait PAS partie : il reste à enregistrer, comme tout ajout.
+   */
+  const [saved, setSaved] = useState(() =>
+    toSessionInput(session ?? { title: "", notes: null, exercises: [] }),
+  );
+  const input = toSessionInput({ title, notes, exercises: items });
+  const isDirty = !sameJson(input, saved);
 
   const trimmedTitle = title.trim();
 
@@ -237,20 +254,9 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
 
   /** La séance telle qu'enregistrée : son id ramène à elle après un détour (#303). */
   async function submit(): Promise<SessionDto> {
-    return save({
-      session,
-      input: {
-        title: trimmedTitle,
-        notes: notes.trim() === "" ? null : notes.trim(),
-        exercises: items.map((item) => ({
-          ...(item.id == null ? {} : { id: item.id }),
-          exerciseId: item.exerciseId,
-          note: item.note.trim() === "" ? null : item.note.trim(),
-          blocks: item.blocks,
-          adjustments: item.adjustments,
-        })),
-      },
-    });
+    const result = await save({ session, input });
+    setSaved(input);
+    return result;
   }
 
   /**
@@ -265,6 +271,13 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
   function applyReloaded(sessionExerciseId: string, reloaded: SessionDto) {
     const fresh = reloaded.exercises.find((composed) => composed.id === sessionExerciseId);
     if (fresh == null) return;
+    // Le rechargement est ENREGISTRÉ : la ligne repart de ce que le serveur a écrit, des deux côtés
+    // — sinon elle passerait pour une saisie en attente sans que le coach y ait touché.
+    const reload = (line: CreateSessionLine) =>
+      line.id === sessionExerciseId
+        ? { ...line, blocks: fresh.blocks, adjustments: fresh.adjustments }
+        : line;
+    setSaved((current) => ({ ...current, exercises: current.exercises.map(reload) }));
     setItems((current) =>
       current.map((item) =>
         item.id === sessionExerciseId
@@ -299,6 +312,8 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
     revertCell,
     resetItem,
     submit,
+    /** L'écran montre autre chose que l'enregistré : le quitter perdrait la saisie (#327). */
+    isDirty,
     isSaving,
     error,
   };

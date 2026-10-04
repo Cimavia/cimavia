@@ -30,7 +30,13 @@
     },
     "durationInvalid": "Durée non comprise. Ex. 1'30, 45 s, ou 90 (en secondes).",
     "save": "Enregistrer",
-    "saving": "Enregistrement…"
+    "saving": "Enregistrement…",
+    "leave": {
+      "title": "Quitter sans enregistrer ?",
+      "body": "Tes modifications seront perdues.",
+      "stay": "Rester",
+      "leave": "Quitter sans enregistrer"
+    }
   },
   "auth": {
     "login": {

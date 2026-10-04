@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useToast } from "@/shared/component";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
+import { confirmLeave } from "@/shared/hook/useLeaveGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 
@@ -36,9 +37,19 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function switchAccount() {
+  /**
+   * Purge et part, sans rien demander. `ignoreBlocker` : quand un AUTRE compte a pris la session,
+   * garder l'écran — ce que proposerait la garde d'une saisie non enregistrée (#327) — montrerait
+   * le travail du premier sous l'identité du second.
+   */
+  function leaveForLogin() {
     resetAccountData(queryClient);
-    navigate({ to: "/login", replace: true });
+    navigate({ to: "/login", replace: true, ignoreBlocker: true });
+  }
+
+  // Le choix du coach, lui, demande AVANT de purger : sa saisie se reprend en se reconnectant.
+  async function switchAccount() {
+    if (await confirmLeave()) leaveForLogin();
   }
 
   async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -57,7 +68,7 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
       // Garde-fou : l'e-mail est celui du compte parti, mais il a pu changer entre-temps. Un autre
       // identifiant ne reprend PAS l'écran : il repart de zéro, comme à une connexion ordinaire.
       if (data?.user.id !== owner.id) {
-        switchAccount();
+        leaveForLogin();
         return;
       }
       // Les lectures tombées en 401 pendant la perte restent en erreur jusqu'à leur prochain

@@ -28,8 +28,15 @@ import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { ScheduleReminderButton } from "@/feature/reminder";
-import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import {
+  CmvAppShell,
+  CmvButton,
+  CmvEmptyState,
+  CmvErrorState,
+  CmvLeaveDialog,
+} from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
 type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null };
@@ -78,6 +85,21 @@ function athleteHeading(
     : athleteLabel(plan.athleteId, plan.athleteName);
 }
 
+/**
+ * Ce que l'en-tête et la facturation montrent sans l'avoir enregistré. La diffusion part avec
+ * l'état ENREGISTRÉ du cycle : elle reste fermée tant que l'un des deux est vrai (#326). Les
+ * formulaires gardent leur saisie, ils ne remontent que ce booléen.
+ *
+ * Les mêmes saisies retiennent la sortie — lien, retour arrière, F5 (#327). La suppression du
+ * cycle, elle, part sans demander : `guard.release`.
+ */
+function useUnsavedInputs() {
+  const [isHeaderUnsaved, setHeaderUnsaved] = useState(false);
+  const [isBillingUnsaved, setBillingUnsaved] = useState(false);
+  const guard = useLeaveGuard(isHeaderUnsaved || isBillingUnsaved);
+  return { isHeaderUnsaved, setHeaderUnsaved, isBillingUnsaved, setBillingUnsaved, guard };
+}
+
 export function PlanBuilderScreen() {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
@@ -97,13 +119,8 @@ export function PlanBuilderScreen() {
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
-  /**
-   * Ce que l'en-tête et la facturation montrent sans l'avoir enregistré. La diffusion part avec
-   * l'état ENREGISTRÉ du cycle : elle reste fermée tant que l'un des deux est vrai (#326). Les
-   * formulaires gardent leur saisie, ils ne remontent que ce booléen.
-   */
-  const [isHeaderUnsaved, setHeaderUnsaved] = useState(false);
-  const [isBillingUnsaved, setBillingUnsaved] = useState(false);
+  const { isHeaderUnsaved, setHeaderUnsaved, isBillingUnsaved, setBillingUnsaved, guard } =
+    useUnsavedInputs();
 
   // Le résumé (vue semaine) ne porte pas la composition : on charge le détail à l'ouverture.
   const { data: editedSession } = useQuery<ScheduledSessionDto>({
@@ -190,6 +207,7 @@ export function PlanBuilderScreen() {
             isHeaderUnsaved={isHeaderUnsaved}
             isBillingUnsaved={isBillingUnsaved}
             isBusy={isBusy}
+            onDeleted={guard.release}
           />
         </>
       }
@@ -300,6 +318,7 @@ export function PlanBuilderScreen() {
           onClose={() => setEdit(null)}
         />
       ) : null}
+      <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
 }

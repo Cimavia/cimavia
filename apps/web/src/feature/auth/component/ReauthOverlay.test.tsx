@@ -1,6 +1,8 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearPlanClipboard, usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
+import { CmvLeaveDialog } from "@/shared/component";
+import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { renderInRoute } from "../../../../test/render";
 import { ReauthOverlay } from "./ReauthOverlay";
 
@@ -19,11 +21,21 @@ const SUBMIT = "auth.reauth.submit";
  * qui témoigne de la purge : le cache du harnais (`gcTime: 0`) se vide seul faute d'observateur,
  * une assertion dessus passerait quoi que fasse la fenêtre.
  */
-async function setup() {
+async function setup({ unsaved = false } = {}) {
+  /** L'écran perdu, INERTE comme `CmvRoleGate` le rend — et sa saisie, gardée ou non (#327). */
+  function Lost() {
+    const guard = useLeaveGuard(unsaved);
+    return (
+      <div inert>
+        <CmvLeaveDialog {...guard.dialog} />
+      </div>
+    );
+  }
   function Screen() {
     const { copyWeek } = usePlanClipboard();
     return (
       <>
+        <Lost />
         <button
           type="button"
           onClick={() =>
@@ -124,5 +136,52 @@ describe("ReauthOverlay", () => {
     await reconnect(view);
 
     expect(await view.findByText("auth.errors.generic")).toBeInTheDocument();
+  });
+});
+
+describe("ReauthOverlay — saisie non enregistrée (#327)", () => {
+  const SWITCH = "auth.reauth.switchAccount";
+  // La fenêtre de reconnexion est elle-même un dialogue : la question se désigne par son titre.
+  const LEAVE_DIALOG = { name: "common.leave.title" };
+
+  it("demande AVANT de purger, et « Rester » ne touche à rien", async () => {
+    const view = await setup({ unsaved: true });
+
+    await view.user.click(view.getByRole("button", { name: SWITCH }));
+    await view.user.click(await view.findByRole("button", { name: "common.leave.stay" }));
+
+    await waitFor(() => expect(view.queryByRole("dialog", LEAVE_DIALOG)).not.toBeInTheDocument());
+    expect(view.router.state.location.pathname).toBe("/library/exercises/new");
+    expect(sessionStorage.getItem("cmv.planClipboard")).not.toBeNull();
+  });
+
+  it("purge et part une fois la perte confirmée", async () => {
+    const view = await setup({ unsaved: true });
+
+    await view.user.click(view.getByRole("button", { name: SWITCH }));
+    await view.user.click(await view.findByRole("button", { name: "common.leave.leave" }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/login"));
+    expect(sessionStorage.getItem("cmv.planClipboard")).toBeNull();
+  });
+
+  // L'écran perdu est inerte : un dialogue rendu sous lui le serait aussi, boutons compris.
+  it("pose la question hors de l'écran inerte", async () => {
+    const view = await setup({ unsaved: true });
+
+    await view.user.click(view.getByRole("button", { name: SWITCH }));
+
+    expect((await view.findByRole("dialog", LEAVE_DIALOG)).closest("[inert]")).toBeNull();
+  });
+
+  // Un autre compte a pris la session : garder l'écran montrerait le travail du premier au second.
+  it("repart de zéro sans rien demander quand la connexion aboutit sur un autre compte", async () => {
+    signInMock.mockResolvedValue({ data: { user: { id: "u-2" } }, error: null });
+    const view = await setup({ unsaved: true });
+
+    await reconnect(view);
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/login"));
+    expect(view.queryByRole("dialog", LEAVE_DIALOG)).not.toBeInTheDocument();
   });
 });
