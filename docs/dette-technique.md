@@ -5028,6 +5028,32 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Saisie refusée dans les constructeurs ([#566](https://github.com/Cimavia/cimavia/issues/566))
+
+> **Tranché en [#566](https://github.com/Cimavia/cimavia/issues/566)** (une saisie refusée ferme
+> l'enregistrement, une grille incomplète non) : une durée ou un nombre que le champ ne comprend
+> pas reste à l'écran, mais pas dans le brouillon. « Enregistrer » envoyait donc l'ancienne valeur,
+> et le coach croyait avoir enregistré ce qu'il voyait. Le texte refusé reste LOCAL au champ ; seul
+> le FAIT du refus remonte, par un registre en contexte (`useRefusedFields`).
+>
+> - **Ce n'est pas le cas de `BlockIssues`**, qui laisse enregistrer une grille incomplète, et le
+>   reste : refuser cet enregistrement-là ferait perdre ce que le coach a écrit. Ici, fermer le
+>   bouton ne fait rien perdre — le coach corrige ou vide le champ. C'est la règle de
+>   [#332](https://github.com/Cimavia/cimavia/issues/332) pour le pas de remplissage.
+> - **Amende « Tranché en #327 »** : « modifié » ne veut plus seulement dire « ce qui partirait
+>   diffère de l'enregistré ». Une saisie refusée ne change rien à ce qui partirait, mais la quitter
+>   la perd : elle retient la sortie comme une modification.
+> - **Les deux gestes qui enregistrent sans le bouton refusent aussi** : « Dupliquer en variante » et
+>   « Créer l'exercice manquant » enregistrent la séance puis la quittent — la saisie serait partie
+>   en silence. Ils le disent par un toast, comme pour le titre manquant.
+> - **Un champ démonté se retire du registre** (ligne retirée, exercice retiré, structure changée) :
+>   sans ça, l'enregistrement resterait fermé sans plus aucun champ où le rouvrir.
+> - **Le message de la cellule est court** (« Durée non comprise. Ex. 1'30 ») et vit SOUS elle,
+>   relié par `aria-describedby` : la colonne est étroite, et `BlockIssues` lit le brouillon, qui ne
+>   contient pas la saisie refusée.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

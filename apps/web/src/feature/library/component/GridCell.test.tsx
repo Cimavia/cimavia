@@ -126,6 +126,37 @@ describe("GridCell — nombre", () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveValue("abc");
+    expect(input).toHaveAccessibleDescription("library.builder.grid.numberInvalid");
+  });
+
+  /**
+   * #566 : `border-transparent`, posé à côté du liseré rouge, l'emportait dans le CSS construit —
+   * la cellule refusée ne se distinguait de rien.
+   */
+  it("remplace la bordure transparente par le liseré d'erreur sur une saisie refusée", async () => {
+    const { user, input } = setupInput(load, 10);
+
+    await user.clear(input);
+    await user.type(input, "12kgg");
+    await user.tab();
+
+    expect(input).toHaveClass("border-cmv-error");
+    expect(input).not.toHaveClass("border-transparent");
+  });
+
+  it("retire le message dès que la saisie est vidée", async () => {
+    const { user, input, onChange, queryByText } = setupInput(load, 10);
+    await user.clear(input);
+    await user.type(input, "abc");
+    await user.tab();
+
+    await user.clear(input);
+    await user.tab();
+
+    expect(onChange).toHaveBeenCalledWith(null);
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    expect(input).toHaveClass("border-transparent");
+    expect(queryByText("library.builder.grid.numberInvalid")).toBeNull();
   });
 
   it("n'écrit rien quand on retape la valeur déjà enregistrée", async () => {
@@ -165,6 +196,17 @@ describe("GridCell — durée", () => {
 
     expect(onChange).toHaveBeenCalledWith(150);
     expect(onCommitLine).toHaveBeenCalledWith(150);
+  });
+
+  it("dit qu'une durée n'est pas comprise, sous la cellule", async () => {
+    const { user, input } = setupInput(rest, 31);
+
+    await user.clear(input);
+    await user.type(input, "31 sfffff");
+    await user.tab();
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("library.builder.grid.durationInvalid");
   });
 
   it("transmet la valeur en place quand Entrée arrive sans rien avoir tapé", async () => {

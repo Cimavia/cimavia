@@ -26,6 +26,7 @@ import {
 } from "@/shared/component";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 
 /**
  * Chargé à la demande : TipTap et ProseMirror pèsent ~120 kB gzip, pour un éditeur que seul le
@@ -138,9 +139,12 @@ function ExerciseBuilder({
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
+  // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
+  // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
+  const refused = useRefusedFields();
   // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
   // saisie (#327). Seules les sorties qui SUIVENT un enregistrement ou une suppression passent.
-  const guard = useLeaveGuard(draft.isDirty);
+  const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
   // Le brouillon et non la prop : un enregistrement interrompu a pu créer l'exercice, et l'écran
   // doit alors se présenter en édition — c'en est une.
   const edited = draft.exercise;
@@ -193,6 +197,7 @@ function ExerciseBuilder({
           exercise={edited}
           isSaving={draft.isSaving}
           canSubmit={draft.trimmedTitle !== ""}
+          blockedBy={refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined}
           onCancel={onLeave}
           onSubmit={onSubmit}
           onDeleted={onDeleted}
@@ -203,80 +208,82 @@ function ExerciseBuilder({
           que de le comprimer — une grille de dosage étroite devient illisible. */}
       {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
           doit montrer l'image dès qu'elle est posée — pas seulement après enregistrement. */}
-      <InstructionMediaProvider media={draft.media}>
-        <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="flex flex-col gap-cmv-xl">
-            {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
+      <RefusedFieldsContext value={refused.report}>
+        <InstructionMediaProvider media={draft.media}>
+          <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="flex flex-col gap-cmv-xl">
+              {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
                 (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
-            <div className="flex flex-col gap-cmv-xs">
-              <CmvTextField
-                label={t("library.builder.titleLabel")}
-                name="title"
-                value={draft.title}
-                onChange={(event) => draft.setTitle(event.target.value)}
-                onBlur={() => setTitleTouched(true)}
-                placeholder={t("library.builder.titlePlaceholder")}
-                required
-                requiredMark
+              <div className="flex flex-col gap-cmv-xs">
+                <CmvTextField
+                  label={t("library.builder.titleLabel")}
+                  name="title"
+                  value={draft.title}
+                  onChange={(event) => draft.setTitle(event.target.value)}
+                  onBlur={() => setTitleTouched(true)}
+                  placeholder={t("library.builder.titlePlaceholder")}
+                  required
+                  requiredMark
+                />
+                {titleMissing ? (
+                  <p className="text-cmv-caption text-cmv-error">
+                    {t("library.builder.titleRequired")}
+                  </p>
+                ) : null}
+                <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+              </div>
+
+              <CmvTagInput
+                label={t("library.tags.label")}
+                value={draft.tags}
+                onChange={draft.setTags}
+                suggestions={knownTags ?? []}
+                placeholder={t("library.tags.placeholder")}
+                removeLabel={t("library.tags.remove")}
+                max={EXERCISE_MAX_TAGS}
               />
-              {titleMissing ? (
-                <p className="text-cmv-caption text-cmv-error">
-                  {t("library.builder.titleRequired")}
-                </p>
-              ) : null}
-              <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+
+              <Suspense fallback={<p className="text-cmv-text-mid">{t("common.loading")}</p>}>
+                <InstructionsEditor
+                  initialValue={exercise?.instructions ?? null}
+                  onChange={draft.setInstructions}
+                />
+              </Suspense>
+
+              <StructureSection
+                blocks={draft.blocks}
+                customMetrics={customMetrics ?? []}
+                onChange={draft.setBlocks}
+              />
+
+              <AttachmentsSection
+                exercise={edited}
+                pendingFiles={draft.pendingFiles}
+                pendingLinks={draft.pendingLinks}
+                progress={draft.progress}
+                isSaving={draft.isSaving}
+                onPendingFiles={draft.setPendingFiles}
+                onPendingLinks={draft.setPendingLinks}
+              />
+
+              <CmvFormError error={draft.error} />
             </div>
 
-            <CmvTagInput
-              label={t("library.tags.label")}
-              value={draft.tags}
-              onChange={draft.setTags}
-              suggestions={knownTags ?? []}
-              placeholder={t("library.tags.placeholder")}
-              removeLabel={t("library.tags.remove")}
-              max={EXERCISE_MAX_TAGS}
-            />
-
-            <Suspense fallback={<p className="text-cmv-text-mid">{t("common.loading")}</p>}>
-              <InstructionsEditor
-                initialValue={exercise?.instructions ?? null}
-                onChange={draft.setInstructions}
+            {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
+            <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
+              <ExercisePreview
+                title={draft.trimmedTitle}
+                tags={draft.tags}
+                instructions={draft.instructions}
+                blocks={draft.blocks}
+                customMetrics={customMetrics ?? []}
+                documents={edited?.documents ?? []}
+                resolveImage={draft.media.resolve}
               />
-            </Suspense>
-
-            <StructureSection
-              blocks={draft.blocks}
-              customMetrics={customMetrics ?? []}
-              onChange={draft.setBlocks}
-            />
-
-            <AttachmentsSection
-              exercise={edited}
-              pendingFiles={draft.pendingFiles}
-              pendingLinks={draft.pendingLinks}
-              progress={draft.progress}
-              isSaving={draft.isSaving}
-              onPendingFiles={draft.setPendingFiles}
-              onPendingLinks={draft.setPendingLinks}
-            />
-
-            <CmvFormError error={draft.error} />
+            </aside>
           </div>
-
-          {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
-          <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
-            <ExercisePreview
-              title={draft.trimmedTitle}
-              tags={draft.tags}
-              instructions={draft.instructions}
-              blocks={draft.blocks}
-              customMetrics={customMetrics ?? []}
-              documents={edited?.documents ?? []}
-              resolveImage={draft.media.resolve}
-            />
-          </aside>
-        </div>
-      </InstructionMediaProvider>
+        </InstructionMediaProvider>
+      </RefusedFieldsContext>
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
@@ -286,6 +293,12 @@ type BuilderActionsProps = {
   exercise: ExerciseDto | null;
   isSaving: boolean;
   canSubmit: boolean;
+  /**
+   * Pourquoi l'enregistrement est fermé alors que le titre est là — une saisie refusée (#566).
+   * Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux, sans quoi le bouton
+   * pourrait annoncer un refus qu'il ne fait pas (#514).
+   */
+  blockedBy: string | undefined;
   onCancel: () => void;
   onSubmit: () => void;
   onDeleted: () => void;
@@ -295,6 +308,7 @@ function BuilderActions({
   exercise,
   isSaving,
   canSubmit,
+  blockedBy,
   onCancel,
   onSubmit,
   onDeleted,
@@ -322,7 +336,11 @@ function BuilderActions({
       <CmvButton variant="ghost" onClick={onCancel} disabled={isBusy}>
         {t("library.builder.cancel")}
       </CmvButton>
-      <CmvButton onClick={onSubmit} disabled={isBusy || !canSubmit}>
+      <CmvButton
+        onClick={onSubmit}
+        disabled={isBusy || !canSubmit || blockedBy != null}
+        title={blockedBy}
+      >
         {isSaving ? t("library.builder.saving") : t(submitKey)}
       </CmvButton>
       <CmvFormError error={removeExercise.error} />
