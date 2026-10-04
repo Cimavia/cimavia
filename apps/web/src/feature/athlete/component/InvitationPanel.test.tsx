@@ -1,4 +1,4 @@
-import { type InvitationDto, InvitationStatus } from "@cmv/shared";
+import { ApiError, type InvitationDto, InvitationStatus } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
@@ -11,6 +11,7 @@ vi.mock("@/feature/athlete/api", async () => {
       listInvitations: vi.fn(),
       createInvitation: vi.fn(),
       deleteInvitation: vi.fn(),
+      revokeInvitation: vi.fn(),
     },
     athleteKeys: shared.athleteKeys,
     invitationKeys: shared.invitationKeys,
@@ -21,6 +22,7 @@ const { accountApi } = await import("@/feature/athlete/api");
 const listInvitations = vi.mocked(accountApi.listInvitations);
 const createInvitation = vi.mocked(accountApi.createInvitation);
 const deleteInvitation = vi.mocked(accountApi.deleteInvitation);
+const revokeInvitation = vi.mocked(accountApi.revokeInvitation);
 
 const invitation = (overrides: Partial<InvitationDto> = {}): InvitationDto => ({
   id: "inv_1",
@@ -38,6 +40,7 @@ beforeEach(() => {
   listInvitations.mockResolvedValue([]);
   createInvitation.mockResolvedValue(invitation());
   deleteInvitation.mockResolvedValue(undefined);
+  revokeInvitation.mockResolvedValue(undefined);
 });
 
 const render = () => renderWithProviders(<InvitationPanel onClose={() => {}} />);
@@ -87,6 +90,52 @@ describe("InvitationPanel — les invitations refusées (#146)", () => {
 
     await user.click(screen.getByRole("button", { name: "athlete.invitation.deleteConfirm" }));
     await waitFor(() => expect(deleteInvitation).toHaveBeenCalledWith("inv_2"));
+  });
+});
+
+describe("InvitationPanel — retirer une invitation en attente (#524)", () => {
+  const REVOKE = "athlete.invitation.revoke";
+
+  /**
+   * Armé en deux temps, comme le refus côté athlète : le retrait est sans retour, l'invitation ne
+   * se rétablit pas. Un seul clic ne doit rien envoyer.
+   */
+  it("ne retire qu'après confirmation, puis relit la liste et le dit", async () => {
+    listInvitations.mockResolvedValue([invitation()]);
+    const { user } = render();
+
+    await user.click(await screen.findByRole("button", { name: REVOKE }));
+    expect(revokeInvitation).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "athlete.invitation.revokeConfirm" }));
+    await waitFor(() => expect(revokeInvitation).toHaveBeenCalledWith("inv_1"));
+    expect(await screen.findByText("athlete.toast.invitationRevoked")).toBeInTheDocument();
+    await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(2));
+  });
+
+  // Déjà acceptée ou refusée entre-temps : le 409 du serveur dit pourquoi, mieux qu'un libellé.
+  it("dit le refus du serveur", async () => {
+    listInvitations.mockResolvedValue([invitation()]);
+    revokeInvitation.mockRejectedValue(
+      new ApiError(409, "Seule une invitation en attente peut être retirée", null),
+    );
+    const { user } = render();
+
+    await user.click(await screen.findByRole("button", { name: REVOKE }));
+    await user.click(screen.getByRole("button", { name: "athlete.invitation.revokeConfirm" }));
+
+    expect(
+      await screen.findByText("Seule une invitation en attente peut être retirée"),
+    ).toBeInTheDocument();
+  });
+
+  // Une invitation refusée n'a plus rien à retirer : elle s'efface, c'est un autre geste.
+  it("ne propose pas de retirer une invitation refusée", async () => {
+    listInvitations.mockResolvedValue([DECLINED]);
+    render();
+
+    expect(await screen.findByText("athlete.invitation.declined")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: REVOKE })).toBeNull();
   });
 });
 

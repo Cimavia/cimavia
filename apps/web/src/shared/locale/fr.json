@@ -829,6 +829,8 @@
       "resend": "Réémettre",
       "delete": "Effacer",
       "deleteConfirm": "Confirmer",
+      "revoke": "Retirer",
+      "revokeConfirm": "Confirmer le retrait",
       "expires": "expire le {{date}}"
     },
     "sheet": {
@@ -841,6 +843,7 @@
     "toast": {
       "invitationCreated": "Invitation envoyée",
       "invitationDeleted": "Invitation effacée",
+      "invitationRevoked": "Invitation retirée",
       "sheetSaved": "Fiche athlète enregistrée"
     },
     "self": "{{name}} (moi)"

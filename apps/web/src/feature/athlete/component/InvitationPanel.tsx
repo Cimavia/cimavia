@@ -5,6 +5,7 @@ import {
   useCreateInvitation,
   useDeleteInvitation,
   useInvitations,
+  useRevokeInvitation,
 } from "@/feature/athlete/hook/useAthletes";
 import {
   CmvBadge,
@@ -103,19 +104,7 @@ export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
           ) : null}
 
           {pending.map((invitation) => (
-            <div
-              key={invitation.id}
-              className="flex items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md"
-            >
-              <div className="flex flex-1 flex-col gap-cmv-xs">
-                {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. */}
-                <span className="text-cmv-body text-cmv-text-hi">{invitation.email}</span>
-                <span className="text-cmv-caption text-cmv-text-lo">
-                  {t("athlete.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
-                </span>
-              </div>
-              <CmvBadge>{t(`athlete.invitationStatus.${invitation.status}`)}</CmvBadge>
-            </div>
+            <PendingInvitationRow key={invitation.id} invitation={invitation} />
           ))}
         </section>
 
@@ -132,6 +121,38 @@ export function InvitationPanel({ onClose }: Readonly<InvitationPanelProps>) {
         )}
       </div>
     </CmvPanel>
+  );
+}
+
+/**
+ * Une invitation en attente, et le geste qui la retire (#524) — une adresse erronée restait sinon
+ * acceptable sept jours par qui la détient.
+ *
+ * Armé en deux temps, comme le refus côté athlète (parité de #147) : le retrait est SANS RETOUR,
+ * l'invitation ne se rétablit pas, il faudrait en émettre une nouvelle.
+ */
+function PendingInvitationRow({ invitation }: Readonly<{ invitation: InvitationDto }>) {
+  const { t } = useTranslation();
+  const revokeInvitation = useRevokeInvitation();
+
+  return (
+    <div className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md">
+      <div className="flex flex-1 flex-col gap-cmv-xs">
+        {/* L'adresse EST l'invitation : c'est elle seule qui dit à qui elle apparaîtra. */}
+        <span className="text-cmv-body text-cmv-text-hi">{invitation.email}</span>
+        <span className="text-cmv-caption text-cmv-text-lo">
+          {t("athlete.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
+        </span>
+      </div>
+      <CmvBadge>{t(`athlete.invitationStatus.${invitation.status}`)}</CmvBadge>
+      <CmvConfirmButton
+        label={t("athlete.invitation.revoke")}
+        confirmLabel={t("athlete.invitation.revokeConfirm")}
+        cancelLabel={t("common.cancel")}
+        disabled={revokeInvitation.isPending}
+        onConfirm={() => revokeInvitation.mutate(invitation.id)}
+      />
+    </div>
   );
 }
 
