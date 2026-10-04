@@ -21,11 +21,11 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
-**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
+**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-4**,
 **IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **G-1** et **DR-1**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
@@ -2531,7 +2531,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 |---|---|---|---|
 | I-1 | **L'e-mail d'invitation part en français**, quelle que soit la langue du destinataire. Il n'y a pas de `User.locale` à lire pour une adresse SANS compte, et `mailStringsFor(null)` replie sur le français. Seule une invitation portant elle-même une langue fermerait l'écart. | 🟢 | — *(déclencheur : un coach qui invite un athlète anglophone — l'anglais est déjà écrit au catalogue, il manque seulement de quoi le choisir)* |
 | I-2 | **Les deux mailers nomment une route WEB en clair** — `/account` (`NotificationMailer`) et `/register` (`InvitationMailer`). Aucun test ne peut les garder : l'API ne connaît pas le routeur du client. Renommer `account.tsx` ou `register.tsx` casse le lien **en silence**. Le nom du fichier est cité dans un commentaire à côté de chaque URL — c'est la seule parade, un `grep` le trouve. | 🟢 | — *(déclencheur : le jour où l'on renomme une route web ; rien à préparer avant)* |
-| I-3 | **`InvitationStatus.REVOKED` reste une valeur sans chemin** : aucune route ne la pose, et `DELETE /invitations/:id` la refuse comme les autres états non refusés. Un coach ne peut donc pas annuler une invitation encore en attente — il attend son expiration (7 jours). | 🟢 | — *(déclencheur : un coach qui veut retirer une invitation émise par erreur)* |
+| ~~I-3~~ | ~~**`InvitationStatus.REVOKED` reste une valeur sans chemin**~~ : aucune route ne la posait, et un coach ne pouvait pas annuler une invitation encore en attente — il attendait son expiration (7 jours). | ✅ | résolue en [#524](https://github.com/Cimavia/cimavia/issues/524) — `POST /invitations/:id/revoke`, « Retirer » sur le web et le mobile |
 | I-4 | **Rien ne rattrape un `.env` local en retard sur `.env.example`** (transverse, découvert ici). Les variables `SMTP_*` / `WEB_URL` ajoutées en [#61](https://github.com/Cimavia/cimavia/issues/61) manquaient un mois plus tard sur la machine de dev : l'e-mail d'invitation ne partait pas, et **rien ne le disait à l'écran** — seul un `WARN` dans les logs. Même famille que la migration non appliquée, qui a produit une notification muette le même jour. | 🟡 | — *(déclencheur : c'est arrivé deux fois en une session ; une vérification au démarrage — clés absentes, migrations en attente — reste à ouvrir)* |
 
 > **Tranché en #146** (le canal dépend de l'adresse, et la réponse HTTP ne le trahit jamais) :
@@ -2562,16 +2562,38 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > ferait perdre au coach la seule information qui l'intéresse.
 >
 > `DELETE /invitations/:id` n'accepte donc que `DECLINED`, et le refus des trois autres états n'est
-> pas une précaution : chacun perdrait quelque chose de différent. **`PENDING`** — la retirer serait
-> une révocation, c'est-à-dire une autre transition ; la déguiser en suppression ferait disparaître
-> une invitation encore acceptable sans le dire à qui l'a reçue (dette **I-3**). **`ACCEPTED`** — la ligne
-> est la trace de la façon dont la relation s'est nouée (`acceptedByAthleteId`). **`REVOKED`** —
-> aucune route ne la produit, l'autoriser écrirait un chemin que rien n'éprouve.
+> pas une précaution : chacun perdrait quelque chose de différent. **`PENDING`** — la retirer est
+> une révocation, c'est-à-dire une autre transition, qui a sa route depuis #524 ; la déguiser en
+> suppression ferait disparaître une invitation encore acceptable sans le dire à qui l'a reçue.
+> **`ACCEPTED`** — la ligne est la trace de la façon dont la relation s'est nouée
+> (`acceptedByAthleteId`). **`REVOKED`** — ~~aucune route ne la produit~~ la ligne a déjà quitté la
+> liste du coach, et elle reste en base pour que son destinataire lise « retirée » (*Tranché en
+> #524* ci-dessous).
 >
 > ~~Le refus exige une **correspondance d'adresse en toutes circonstances**, là où l'acceptation ne
 > la vérifie que sur une invitation nominative.~~ **Renversé en #390** : toute invitation est
 > nominative, les deux gestes vérifient donc l'adresse — et y répondent 404 (encadré *Tranché en
 > #390* ci-dessous).
+
+> **Tranché en #524** (retirer est une transition, et elle se dit à qui l'a reçue — à lui seul) :
+>
+> - **`REVOKED` reste en base, mais quitte la liste du coach** (`GET /invitations` l'écarte). C'est
+>   son propre geste, il n'a rien à y apprendre ; la ligne existe pour l'athlète, pas pour lui.
+> - **Accepter ou refuser une invitation retirée rend 410 « Invitation retirée par le coach »**, et
+>   non le 404 « déjà utilisée » des autres statuts : une carte ouverte avant le retrait reste
+>   cliquable, et « introuvable » laisserait croire à une panne. Ce 410 vient **après** la
+>   vérification d'adresse de #390 — un tiers, lui, lit toujours 404. Le message est en français
+>   comme tous ceux de l'API (#319) : les clients l'affichent tel quel, toast sur le web, sur place
+>   sur le mobile.
+> - **La condition `PENDING` est dans l'écriture** (`updateMany … where status = PENDING`), pas
+>   seulement dans la lecture qui la précède : une acceptation passée entre les deux n'est pas
+>   réécrite en révocation, le coach lit 409. L'inverse — une acceptation qui écraserait une
+>   révocation de la même milliseconde — n'est pas gardé : `accept` écrit sans condition depuis
+>   #146, et la fenêtre ne justifie pas de le reprendre ici.
+> - Une invitation **expirée** reste révocable : l'expiration est une date, pas un statut. Ce qui
+>   est parti — e-mail, push, `INVITATION_RECEIVED` dans le centre — ne se rattrape pas (#102), et
+>   aucune notification n'annonce le retrait. Cette transition ouvre la seconde option de #314
+>   sans trancher entre les deux.
 
 > **Tranché en #147** (la carte s'affiche dans les DEUX branches — l'issue disait le contraire) :
 > son corps rangeait la carte d'invitation dans la seule branche « aucun coach », où un athlète déjà
