@@ -21,10 +21,10 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Trente dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **M-5**, **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
+déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-3**, **I-4**,
 **IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **G-1** et **DR-1**,
 dont le déclencheur est nommé mais
@@ -270,7 +270,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | ~~P7-6~~ | ~~**Le NAS était déployé par un runner auto-hébergé inscrit sur un dépôt PUBLIC**~~, conteneur `myoung34/github-runner` avec le socket Docker de l'hôte monté. Un contributeur déjà mergé une fois pouvait ouvrir une PR apportant son propre workflow `runs-on: [self-hosted, cimavia-dev]`, exécuté sur le NAS sans approbation (`first_time_contributors`) — c'est-à-dire root sur toute la machine. Tolérable tant que le NAS ne portait que des données synthétiques ; plus du tout depuis qu'il porte celles du Coach bêta ([#260](https://github.com/Cimavia/cimavia/issues/260)). **Jamais inscrite ici** : le runner date du montage du NAS en P7. | ✅ | résolue en **[#266](https://github.com/Cimavia/cimavia/issues/266)** — le NAS tire la version promue (`pull-preview.sh`), plus aucun runner. En attendant la PR, l'approbation des workflows de fork est passée à « all external contributors » le 2026-09-14 |
 | P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/preview/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
 | ~~P7-8~~ | ~~**L'API signait ses URLs avec le compte ROOT du stockage**~~ : `deploy/dev/docker-compose.yml` passait la même paire à `MINIO_ROOT_USER` et à `S3_ACCESS_KEY_ID`. Or une clé d'accès est lisible **en clair dans chaque URL signée** (`X-Amz-Credential`), et c'est tout ce qu'exigeaient les deux écritures sans authentification que SILO corrige. Une fuite de l'environnement de l'API donnait l'administration complète du stockage, pas l'accès à ses médias. **Jamais inscrite ici** : le NAS n'a longtemps porté que des données synthétiques. | ✅ | résolue en **[#267](https://github.com/Cimavia/cimavia/issues/267)** — une clé dédiée, limitée aux objets du bucket, créée par `silo-setup` |
-| P7-9 | **Une adresse invitée s'inscrit sans être vérifiée** : depuis [#263](https://github.com/Cimavia/cimavia/issues/263), preview n'accepte que les adresses invitées ou listées — mais rien ne prouve que celui qui s'inscrit **possède** l'adresse. Qui connaît l'adresse d'un Athlete invité et pas encore inscrit peut créer le compte à sa place, lire le code d'invitation et accepter la liaison. Le mode `invitation` ferme la porte à qui ne connaît aucune adresse, pas à qui en connaît une. | 🟡 | [#270](https://github.com/Cimavia/cimavia/issues/270) |
+| P7-9 | **Une adresse invitée s'inscrit sans être vérifiée** : depuis [#263](https://github.com/Cimavia/cimavia/issues/263), preview n'accepte que les adresses invitées ou listées — mais rien ne prouve que celui qui s'inscrit **possède** l'adresse. Qui connaît l'adresse d'un Athlete invité et pas encore inscrit peut créer le compte à sa place, trouver l'invitation qui l'y attend et accepter la liaison. Le mode `invitation` ferme la porte à qui ne connaît aucune adresse, pas à qui en connaît une. | 🟡 | [#270](https://github.com/Cimavia/cimavia/issues/270) |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
 > est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
@@ -1406,7 +1406,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | ~~M-4~~ | ~~**Préparation média toujours dupliquée entre les deux features mobile**~~ (`feedback` ↔ `message`) — doublon de **P5-5**, la même dette suivie à deux endroits. | ✅ | résolue en [#96](https://github.com/Cimavia/cimavia/issues/96) — voir **P5-5** |
-| M-5 | **Pas de presse-papier sur mobile** : l'invitation se transmet par `Share` (SMS, WhatsApp) et non par « Copier le code » comme la maquette. `expo-clipboard` n'est pas une dépendance du projet. | 🟢 | — *(déclencheur : un coach qui veut coller le code ailleurs)* |
+| ~~M-5~~ | ~~**Pas de presse-papier sur mobile**~~ : l'invitation se transmettait par `Share` (SMS, WhatsApp) et non par « Copier le code » comme la maquette. | ✅ | caduque en [#390](https://github.com/Cimavia/cimavia/issues/390) — il n'y a plus de code à transmettre, ni à copier ni à partager |
 > **Corrigé en #194, trouvé par accident** : `useUnreadNotificationCount` et `useUnreadByCapability`
 > (#176) partageaient une clé de cache — voulu, c'est la même requête — mais avec **deux `queryFn`
 > différents**, l'un projetant `.count`, l'autre rendant le DTO entier. TanStack indexe par CLÉ, pas
@@ -2535,12 +2535,11 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | I-4 | **Rien ne rattrape un `.env` local en retard sur `.env.example`** (transverse, découvert ici). Les variables `SMTP_*` / `WEB_URL` ajoutées en [#61](https://github.com/Cimavia/cimavia/issues/61) manquaient un mois plus tard sur la machine de dev : l'e-mail d'invitation ne partait pas, et **rien ne le disait à l'écran** — seul un `WARN` dans les logs. Même famille que la migration non appliquée, qui a produit une notification muette le même jour. | 🟡 | — *(déclencheur : c'est arrivé deux fois en une session ; une vérification au démarrage — clés absentes, migrations en attente — reste à ouvrir)* |
 
 > **Tranché en #146** (le canal dépend de l'adresse, et la réponse HTTP ne le trahit jamais) :
-> émettre une invitation nominative prend l'une de trois voies, et ce qu'elles ont en commun est le
-> cœur de la décision — **le coach reçoit son invitation et son code à l'identique dans les trois
-> cas**. Sans cette symétrie, la route deviendrait un oracle d'existence de compte.
+> émettre une invitation nominative prend l'une de deux voies, et ce qu'elles ont en commun est le
+> cœur de la décision — **le coach reçoit son invitation à l'identique dans les deux cas**. Sans
+> cette symétrie, la route deviendrait un oracle d'existence de compte. *(Une troisième voie —
+> l'invitation générique, qui ne prévenait personne — a disparu en #390.)*
 >
-> - **Adresse absente** (invitation générique) : rien. Personne n'est visé ; son canal est le code
->   transmis de la main à la main.
 > - **Adresse rattachée à un compte portant la capacité ATHLÈTE** : notification (centre + push).
 >   Il a une application où lire, l'e-mail doublerait un message qu'il verra de toute façon.
 > - **Tout le reste** — pas de compte, ou un compte sans capacité athlète : **e-mail**. C'est le cas
@@ -2565,13 +2564,14 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > `DELETE /invitations/:id` n'accepte donc que `DECLINED`, et le refus des trois autres états n'est
 > pas une précaution : chacun perdrait quelque chose de différent. **`PENDING`** — la retirer serait
 > une révocation, c'est-à-dire une autre transition ; la déguiser en suppression ferait disparaître
-> un code encore utilisable sans le dire à qui l'a reçu (dette **I-3**). **`ACCEPTED`** — la ligne
+> une invitation encore acceptable sans le dire à qui l'a reçue (dette **I-3**). **`ACCEPTED`** — la ligne
 > est la trace de la façon dont la relation s'est nouée (`acceptedByAthleteId`). **`REVOKED`** —
 > aucune route ne la produit, l'autoriser écrirait un chemin que rien n'éprouve.
 >
-> Le refus exige une **correspondance d'adresse en toutes circonstances**, là où l'acceptation ne la
-> vérifie que sur une invitation nominative : sans cela, le premier détenteur d'un code générique le
-> brûlerait pour tout le monde.
+> ~~Le refus exige une **correspondance d'adresse en toutes circonstances**, là où l'acceptation ne
+> la vérifie que sur une invitation nominative.~~ **Renversé en #390** : toute invitation est
+> nominative, les deux gestes vérifient donc l'adresse — et y répondent 404 (encadré *Tranché en
+> #390* ci-dessous).
 
 > **Tranché en #147** (la carte s'affiche dans les DEUX branches — l'issue disait le contraire) :
 > son corps rangeait la carte d'invitation dans la seule branche « aucun coach », où un athlète déjà
@@ -2610,12 +2610,31 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 > **Écarts de maquette assumés** : `auth_onboarding.dc.html` § *MOBILE · ACCEPTATION D'INVITATION*
 > décrit un **écran plein** — avatar, « Marc Keller t'invite », code **pré-rempli depuis ton lien
-> d'invitation**, « Rejoindre Marc ». Trois écarts, tous volontaires. La carte se pose **au-dessus
-> du formulaire** plutôt que de remplacer l'écran, parce qu'elle ne doit pas fermer le chemin des
-> invitations génériques. Elle porte un **« Refuser »** que la maquette ne prévoit pas, sans quoi
-> une invitation non désirée resterait en attente jusqu'à son expiration. Et le **lien profond qui
-> pré-remplit le code n'existe pas** : l'e-mail d'invitation porte le code en clair et un lien vers
-> l'inscription, ce qui suffit tant qu'aucun schéma d'URL n'est branché sur `cimavia://`.
+> d'invitation**, « Rejoindre Marc ». La carte porte un **« Refuser »** que la maquette ne prévoit
+> pas, sans quoi une invitation non désirée resterait en attente jusqu'à son expiration.
+> ~~Elle se pose au-dessus du formulaire de code, qui ne devait pas fermer le chemin des invitations
+> génériques ; le lien profond qui pré-remplit le code n'existe pas.~~ **Renversé en #390** : il n'y
+> a plus ni formulaire ni code — la carte est le seul chemin, et l'e-mail dit de s'inscrire avec
+> l'adresse qui l'a reçu.
+
+> **Tranché en #390** (l'invitation se désigne par son `id`, et l'adresse se vérifie AVANT tout le
+> reste) : le code servait de secret ; il disparaît du contrat et de la base, et c'est l'adresse de
+> la session qui fait le verrou (`POST /invitations/:id/accept|decline`). L'`id`, lui, n'est pas un
+> secret — il circule dans la carte et dans les notifications. D'où l'ordre des vérifications :
+> **une adresse qui ne correspond pas rend 404 « Invitation introuvable », comme un `id` inconnu, et
+> AVANT le statut et l'échéance**. Répondre « expirée » ou « déjà utilisée » à un tiers lui
+> apprendrait le sort d'une invitation qui ne le regarde pas ; répondre 400 « destinée à une autre
+> adresse », comme le faisait le refus, lui confirmerait qu'elle existe.
+
+> **Tranché en #390** (la migration écrit le sort de chaque invitation générique, elle ne le
+> suppose pas) : une générique **acceptée** garde sa ligne — c'est la trace de la façon dont la
+> relation s'est nouée — et prend l'adresse, normalisée, de l'athlète qui l'a acceptée. **Toutes
+> les autres sont supprimées** : celles qui attendaient (personne n'est plus en mesure de les
+> accepter, et leur coach les voyait sans pouvoir rien en faire) et les acceptées dont l'athlète a
+> supprimé son compte (plus d'adresse à leur donner). La colonne `email` devient alors obligatoire.
+> Côté athlète sans coach, l'écran **affiche l'adresse de son compte** : sans code à saisir, une
+> invitation partie vers une autre adresse ne s'afficherait jamais, et c'est cette adresse-là qu'il
+> doit donner à son coach.
 
 ---
 
@@ -3970,9 +3989,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   Les deux ne se contredisent pas : le schéma refuse un environnement **muet**, le compose donne
 >   sa politique à un **tier précis**, et un `.env` incomplet ne doit pas empêcher un déploiement
 >   tout en n'ouvrant jamais la porte.
-> - **Un lien générique n'autorise personne.** Une `Invitation` sans adresse n'identifie pas son
->   destinataire : elle ne peut donc rien dire *avant* l'inscription, et l'accepter rouvrirait
->   l'environnement à quiconque recopie un code. Sur preview, le Coach invite par l'adresse.
+> - ~~**Un lien générique n'autorise personne.**~~ **Caduc en #390** : le lien générique n'existe
+>   plus, toute invitation porte une adresse.
 > - **Le formulaire reste visible sur un environnement fermé**, et le refus n'arrive qu'à l'envoi.
 >   Le client n'a aucun moyen de connaître le mode : il faudrait que l'API le publie sur une route
 >   non authentifiée, donc qu'elle annonce sa politique à qui la sonde. Le coût est un aller-retour

@@ -41,7 +41,7 @@ Ce qui ne s'applique pas à un cycle solo : la **facturation** (on ne se facture
 Ce que la navigation montre à un instant donné. Un compte à double capacité en voit **un seul à la fois**, et bascule ; l'espace inactif porte une **pastille** quand quelque chose l'y attend. Sur le web, l'espace se déduit de l'URL (le chemin, ou `?as=` sur les deux routes servies aux deux capacités) ; sur mobile, d'un sélecteur en tête des écrans partagés.
 
 ### CoachAthlete (relation)
-Le lien coach→athlète, établi par **invitation** (lien/code). Statut `PENDING` → `ACTIVE`. C'est la frontière de tenant : presque toute donnée est scopée par cette relation.
+Le lien coach→athlète, établi par **invitation** — toujours adressée à une adresse e-mail, et acceptée depuis le compte qui la porte (#390 : plus de code à transmettre). Statut `PENDING` → `ACTIVE`. C'est la frontière de tenant : presque toute donnée est scopée par cette relation.
 
 ### AthleteProfile (fiche athlète)
 Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement**. Pas de structure imposée en MVP.
