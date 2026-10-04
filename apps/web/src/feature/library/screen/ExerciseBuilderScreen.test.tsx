@@ -5,7 +5,10 @@ import {
   DocumentType,
   DocumentUsage,
   type ExerciseDto,
+  formatTrainingDuration,
+  MetricKey,
   MetricSource,
+  MetricUnit,
   MetricValueType,
   RichBlockType,
 } from "@cmv/shared";
@@ -502,5 +505,141 @@ describe("ExerciseBuilderScreen — saisie non enregistrée (#327)", () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
     expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * #566 : « eff » dans le repos, « 31 sfffff » dans une durée d'effort. Le champ gardait la saisie,
+ * l'enregistrement partait avec l'ancienne valeur — le coach croyait avoir enregistré ce qu'il
+ * voyait.
+ */
+describe("ExerciseBuilderScreen — saisie refusée (#566)", () => {
+  const REST = "library.builder.bandeau.restBetweenSetsSeconds";
+  const BLOCKED = "library.builder.refusedBlocksSave";
+
+  const effort = {
+    id: "c-effort",
+    source: MetricSource.CATALOG,
+    key: MetricKey.EFFORT_DURATION,
+    unit: MetricUnit.NONE,
+    label: null,
+    collapsed: false,
+  };
+
+  /** Une Séries pour le repos du bandeau, un bloc libre pour une ligne qu'on peut retirer. */
+  function withBlocks() {
+    api.getExercise.mockResolvedValue(
+      saved({
+        title: "Gainage 306",
+        blocks: [
+          {
+            id: "b-series",
+            label: null,
+            structure: { type: BlockType.SERIES, setCount: 1, restBetweenSetsSeconds: 30 },
+            metrics: [],
+            rows: [],
+          },
+          {
+            id: "b-free",
+            label: null,
+            structure: { type: BlockType.FREE },
+            metrics: [effort],
+            rows: [{ id: "r-1", values: { "c-effort": 31 } }],
+          },
+        ] as unknown as ExerciseDto["blocks"],
+      }),
+    );
+    return edit();
+  }
+
+  async function refuse(view: Awaited<ReturnType<typeof edit>>, input: HTMLElement, text: string) {
+    await view.user.clear(input);
+    await view.user.type(input, text);
+    await view.user.tab();
+  }
+
+  const effortCell = (view: Awaited<ReturnType<typeof edit>>) =>
+    view.findByDisplayValue(formatTrainingDuration(31));
+
+  it("ferme l'enregistrement sur une durée refusée du bandeau, et dit pourquoi", async () => {
+    const view = await withBlocks();
+    const submit = await view.findByRole("button", { name: SUBMIT_EDIT });
+
+    await refuse(view, view.getByLabelText(REST), "eff");
+
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("title", BLOCKED);
+  });
+
+  it("ferme l'enregistrement sur une cellule refusée, qui le dit sous elle", async () => {
+    const view = await withBlocks();
+    const cell = await effortCell(view);
+
+    await refuse(view, cell, "31 sfffff");
+
+    expect(cell).toHaveAttribute("aria-invalid", "true");
+    expect(cell).toHaveAccessibleDescription("library.builder.grid.durationInvalid");
+    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeDisabled();
+  });
+
+  // Le clic sur le bouton fait sortir du champ : le refus doit le fermer AVANT que le clic n'arrive.
+  it("n'envoie rien quand on clique sur Enregistrer sans avoir quitté le champ refusé", async () => {
+    const view = await withBlocks();
+    const rest = await view.findByLabelText(REST);
+    await view.user.clear(rest);
+    await view.user.type(rest, "eff");
+
+    await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
+
+    expect(rest).toHaveAttribute("aria-invalid", "true");
+    expect(api.updateExercise).not.toHaveBeenCalled();
+  });
+
+  it("rouvre l'enregistrement quand la saisie est corrigée, et envoie la valeur corrigée", async () => {
+    const view = await withBlocks();
+    const rest = await view.findByLabelText(REST);
+    await refuse(view, rest, "eff");
+
+    await refuse(view, rest, "45");
+    const submit = view.getByRole("button", { name: SUBMIT_EDIT });
+    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("title");
+
+    await view.user.click(submit);
+    await waitFor(() => expect(api.updateExercise).toHaveBeenCalled());
+    const [, sent] = api.updateExercise.mock.calls[0] ?? [];
+    expect(sent.blocks[0].structure.restBetweenSetsSeconds).toBe(45);
+  });
+
+  it("rouvre l'enregistrement quand la saisie refusée est vidée", async () => {
+    const view = await withBlocks();
+    const cell = await effortCell(view);
+    await refuse(view, cell, "31 sfffff");
+
+    await view.user.clear(cell);
+    await view.user.tab();
+
+    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeEnabled();
+  });
+
+  // Sans ça, la ligne supprimée laisserait le bouton fermé pour de bon, sans champ où le rouvrir.
+  it("rouvre l'enregistrement quand la ligne refusée est retirée", async () => {
+    const view = await withBlocks();
+    await refuse(view, await effortCell(view), "31 sfffff");
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.grid.removeRow" }));
+
+    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeEnabled();
+  });
+
+  // Une saisie refusée n'est pas dans le brouillon : la garde de #327 ne la voyait pas.
+  it("demande avant de partir en laissant une saisie refusée", async () => {
+    const view = await withBlocks();
+    await refuse(view, await view.findByLabelText(REST), "eff");
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.cancel" }));
+
+    expect(await view.findByRole("dialog")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
   });
 });
