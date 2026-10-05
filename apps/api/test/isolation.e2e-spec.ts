@@ -1601,6 +1601,31 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
     expect(exercise.baselineAdjustments).toEqual([{ path: R1, level: "SESSION" }]);
   });
 
+  it("une séance posée depuis un modèle AVEC sa propre composition n'a reçu aucun marqueur", async () => {
+    // Le client a composé lui-même : rien n'a été diffusé par la séance-type, sa référence est
+    // ce qu'il envoie — même s'il y pose des marqueurs.
+    const res = await coach.post(`/plan-weeks/${week1Id}/sessions`).send({
+      sourceSessionId: templateId,
+      scheduledDate: monday,
+      exercises: [
+        {
+          sourceExerciseId: exerciseId,
+          title: "Tractions",
+          blocks: withR1(9),
+          adjustments: [{ path: R1, level: "SESSION" }],
+        },
+      ],
+    });
+    expect(res.status).toBe(201);
+
+    const exercise = res.body.exercises[0];
+    expect(exercise.baseline).toEqual(withR1(9));
+    expect(exercise.baselineAdjustments).toEqual([]);
+
+    // Retirée aussitôt : la copie de semaine plus bas n'attend qu'une séance dans la semaine 1.
+    expect((await coach.delete(`/scheduled-sessions/${res.body.id}`)).status).toBe(204);
+  });
+
   it("ACCEPTE un changement de valeur pour l'athlète, sans toucher aux deux références", async () => {
     const res = await save([
       await exerciseLine({

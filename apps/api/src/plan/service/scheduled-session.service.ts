@@ -1,4 +1,5 @@
 import type {
+  Adjustments,
   CreateScheduledSessionInput,
   CustomMetric,
   PlanDto,
@@ -60,14 +61,18 @@ import { PlanService } from "./plan.service";
 type SessionDraft = {
   title: string;
   notes: string | null;
-  exercises: ScheduledSessionExerciseInput[];
-  /**
-   * Les exercices sont la copie de la SÉANCE-TYPE : leurs marqueurs sont ceux qu'elle a diffusés,
-   * et deviennent la référence des marqueurs (#518). Une composition envoyée par le client n'a
-   * rien reçu de personne — sa référence est elle-même.
-   */
-  fromTemplate: boolean;
+  exercises: DraftExercise[];
 };
+
+/**
+ * Un exercice à écrire, et les marqueurs qu'il a REÇUS (#518) : copié de la séance-type, ceux
+ * qu'elle a diffusés, qui deviennent la référence des marqueurs ; composé par le client, aucun —
+ * il n'a rien reçu de personne, sa référence est lui-même.
+ */
+type DraftExercise = { exercise: ScheduledSessionExerciseInput; baselineAdjustments: Adjustments };
+
+const composedByClient = (exercises: ScheduledSessionExerciseInput[]): DraftExercise[] =>
+  exercises.map((exercise) => ({ exercise, baselineAdjustments: [] }));
 
 // Documents de la bibliothèque, par exercice source — à copier sur les exercices de l'instance.
 type DocumentsBySource = Map<string, ExerciseDocument[]>;
@@ -96,7 +101,7 @@ export class ScheduledSessionService {
     this.assertDateInWeek(plan, week, input.scheduledDate);
 
     const draft = await this.buildDraft(input);
-    const documents = await this.loadSourceDocuments(draft.exercises);
+    const documents = await this.loadSourceDocuments(draft.exercises.map((e) => e.exercise));
     // Seule une composition ENVOYÉE se contrôle : celle d'un modèle est écrite par le serveur,
     // depuis une bibliothèque dont les consignes sont contrôlées à l'écriture.
     for (const exercise of input.exercises ?? []) {
@@ -397,8 +402,7 @@ export class ScheduledSessionService {
         // Garanti par le schéma (refine) : titre requis sans modèle source.
         title: required(input.title, "[plan] séance ad hoc sans titre malgré le schéma"),
         notes: input.notes ?? null,
-        exercises: input.exercises ?? [],
-        fromTemplate: false,
+        exercises: composedByClient(input.exercises ?? []),
       };
     }
 
@@ -416,12 +420,13 @@ export class ScheduledSessionService {
     // Chargées UNE fois pour toute la séance : chaque exercice n'en cite qu'une poignée, et une
     // requête par exercice serait du gaspillage.
     const coachMetrics = await this.db.customMetric.findMany();
-    const copied = template.exercises.map((composed) => {
+    const copied = template.exercises.map((composed): DraftExercise => {
       const exercise = required(
         library.get(composed.exerciseId),
         `[plan] exercice ${composed.exerciseId} hors scope du coach courant`,
       );
-      return {
+      const adjustments = parseAdjustments(composed.adjustments);
+      const copy = {
         sourceExerciseId: exercise.id,
         title: exercise.title,
         description: exercise.description,
@@ -432,20 +437,20 @@ export class ScheduledSessionService {
         // les valeurs d'origine et ferait disparaître, sans le moindre avertissement, tout ce que
         // le coach a ajusté au niveau séance.
         blocks: parseBlocks(composed.blocks),
-        adjustments: parseAdjustments(composed.adjustments),
+        adjustments,
         // Les définitions des métriques maison partent AVEC la copie : sans elles l'athlète ne
         // verrait qu'un identifiant, et renommer la métrique dégraderait une planif diffusée.
         customMetrics: customMetricsFor(parseBlocks(composed.blocks), coachMetrics),
         tags: exercise.tags.map((tag) => tag.name).sort(),
         note: composed.note,
       };
+      return { exercise: copy, baselineAdjustments: adjustments };
     });
 
     return {
       title: input.title ?? template.title,
       notes: input.notes !== undefined ? (input.notes ?? null) : template.notes,
-      exercises: input.exercises ?? copied,
-      fromTemplate: input.exercises == null,
+      exercises: input.exercises == null ? copied : composedByClient(input.exercises),
     };
   }
 
@@ -500,9 +505,9 @@ export class ScheduledSessionService {
     draft: SessionDraft,
     documentsBySource: DocumentsBySource,
   ): Promise<void> {
-    const drafts = draft.exercises.map((exercise) => ({
+    const drafts = draft.exercises.map(({ exercise, baselineAdjustments }) => ({
       exercise,
-      baselineAdjustments: draft.fromTemplate ? (exercise.adjustments ?? []) : [],
+      baselineAdjustments,
       documents: libraryDocumentsOf(exercise, documentsBySource),
     }));
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
