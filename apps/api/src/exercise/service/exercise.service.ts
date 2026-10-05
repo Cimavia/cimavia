@@ -1,7 +1,9 @@
 import {
   type CreateExerciseInput,
   comparableText,
+  type DuplicateExerciseInput,
   type ExerciseDto,
+  imageMediaIds,
   type UpdateExerciseInput,
 } from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
@@ -9,7 +11,17 @@ import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { toBlocksInput, toInstructionsInput } from "../../util/exercise-json.util";
+import {
+  parseBlocks,
+  parseInstructions,
+  toBlocksInput,
+  toInstructionsInput,
+} from "../../util/exercise-json.util";
+import {
+  assertInstructionImagesOwned,
+  instructionImageIds,
+  withCopiedImages,
+} from "../../util/instruction-images.util";
 import {
   EXERCISE_DETAIL_INCLUDE,
   type ExerciseWithDocuments,
@@ -63,6 +75,9 @@ export class ExerciseService {
   }
 
   async create(input: CreateExerciseInput): Promise<ExerciseDto> {
+    // Un exercice qui naît n'a aucun document : sa consigne ne peut encore citer aucune image. Le
+    // client les rattache APRÈS, puis réécrit la consigne (`useSaveExercise`).
+    assertInstructionImagesOwned(input.instructions, []);
     const created = await this.db.exercise.create({
       data: {
         title: input.title,
@@ -80,6 +95,82 @@ export class ExerciseService {
     });
     if (!input.tags?.length) return this.toDto(created);
     return this.toDto(await this.replaceTags(created.id, input.tags));
+  }
+
+  /**
+   * « Dupliquer en variante » : une copie indépendante de l'exercice, consigne comprise (#315).
+   *
+   * La consigne cite ses images par l'identifiant d'un document de la SOURCE. Recopiée telle
+   * quelle, elle désignait des documents que la variante n'a pas : ni l'éditeur ni l'athlète ne
+   * les affichaient, sans un message. Chaque image citée est donc rattachée à la variante, sous la
+   * MÊME clé objet — aucun binaire dupliqué, comme une séance planifiée (`DocumentCleanupService`
+   * compte ces copies avant de purger).
+   *
+   * Seules les images de consigne suivent. Pièces jointes et liens restent à la source : la
+   * variante sert à changer structure, colonnes ou consigne, pas les ressources de l'exercice.
+   */
+  async duplicate(sourceId: string, input: DuplicateExerciseInput): Promise<ExerciseDto> {
+    const source = await this.getOwnedOrThrow(sourceId);
+    const instructions = parseInstructions(source.instructions);
+    const cited = new Set(imageMediaIds(instructions ?? []));
+    const owned = instructionImageIds(source.documents);
+    const images = source.documents.filter((doc) => cited.has(doc.id) && owned.has(doc.id));
+
+    const id = await this.db.$transaction(async (tx) => {
+      const created = await tx.exercise.create({
+        data: {
+          title: input.title,
+          titleSearch: comparableText(input.title),
+          description: source.description,
+          blocks: toBlocksInput(input.blocks ?? parseBlocks(source.blocks)),
+        } satisfies Omit<
+          Prisma.ExerciseUncheckedCreateInput,
+          "coachId"
+        > as Prisma.ExerciseUncheckedCreateInput,
+      });
+
+      // Un par un : il faut l'identifiant de chaque copie pour réécrire la consigne.
+      const idByOldId = new Map<string, string>();
+      for (const image of images) {
+        const copy = await tx.exerciseDocument.create({
+          data: {
+            exerciseId: created.id,
+            type: image.type,
+            usage: image.usage,
+            storagePath: image.storagePath,
+            fileName: image.fileName,
+            mimeType: image.mimeType,
+          } satisfies Omit<
+            Prisma.ExerciseDocumentUncheckedCreateInput,
+            "coachId"
+          > as Prisma.ExerciseDocumentUncheckedCreateInput,
+        });
+        idByOldId.set(image.id, copy.id);
+      }
+
+      await tx.exercise.update({
+        where: { id: created.id },
+        data: {
+          instructions: toInstructionsInput(
+            instructions == null ? null : withCopiedImages(instructions, idByOldId),
+          ),
+        },
+      });
+      if (source.tags.length > 0) {
+        await tx.exerciseTag.createMany({
+          data: source.tags.map((tag) => ({
+            exerciseId: created.id,
+            name: tag.name,
+          })) satisfies Omit<
+            Prisma.ExerciseTagUncheckedCreateInput,
+            "coachId"
+          >[] as Prisma.ExerciseTagUncheckedCreateInput[],
+        });
+      }
+      return created.id;
+    });
+
+    return this.get(id);
   }
 
   /**
@@ -118,7 +209,8 @@ export class ExerciseService {
   }
 
   async update(id: string, input: UpdateExerciseInput): Promise<ExerciseDto> {
-    await this.getOwnedOrThrow(id);
+    const current = await this.getOwnedOrThrow(id);
+    assertInstructionImagesOwned(input.instructions, current.documents);
     const data: Prisma.ExerciseUpdateInput = {};
     // Les deux ensemble, sous la MÊME garde : un titre modifié sans sa forme comparable laisserait
     // la ligne introuvable par l'ancien mot autant que par le nouveau, sans rien afficher d'anormal.

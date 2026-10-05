@@ -192,6 +192,28 @@ afterAll(async () => {
   await app?.close();
 });
 
+/** Une image de consigne réellement envoyée : la purge du stockage se vérifie en la relisant. */
+async function uploadInstructionImage(coach: Agent, exerciseId: string) {
+  const documentsUrl = `/exercises/${exerciseId}/documents`;
+  const image = { fileName: "prise.jpg", mimeType: "image/jpeg", size: 2048 };
+  const signed = await coach.post(`${documentsUrl}/upload-url`).send(image);
+  const uploaded = await fetch(signed.body.uploadUrl, {
+    method: "PUT",
+    body: Buffer.alloc(image.size, 1),
+    headers: { "content-type": image.mimeType },
+  });
+  expect(uploaded.status).toBe(200);
+  const attached = await coach.post(documentsUrl).send({
+    type: "FILE",
+    storagePath: signed.body.storagePath,
+    fileName: image.fileName,
+    mimeType: image.mimeType,
+    usage: "INSTRUCTION",
+  });
+  expect(attached.status).toBe(201);
+  return attached.body.id as string;
+}
+
 describe("Isolation multi-tenant (P1)", () => {
   let coachA: Agent;
   let coachB: Agent;
@@ -899,6 +921,167 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect((await coachA.post("/exercises").send({ title: "x", category: "RENFO" })).status).toBe(
       400,
     );
+  });
+});
+
+describe("Images de consigne : possédées, et recopiées en variante (#315)", () => {
+  let coachA: Agent;
+  let coachB: Agent;
+  let sourceId: string;
+  let imageId: string;
+  let attachmentId: string;
+
+  const paragraph = { type: "PARAGRAPH", content: [{ text: "Prise large." }] };
+  const documentsOf = async (exerciseId: string) =>
+    (await coachA.get(`/exercises/${exerciseId}`)).body.documents as {
+      id: string;
+      usage: string;
+      url: string;
+    }[];
+
+  beforeAll(async () => {
+    coachA = await signUp("variant-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("variant-coach-b@cmv.test", Role.COACH);
+
+    const source = await coachA.post("/exercises").send({
+      title: "Tractions",
+      description: "Lestées",
+      tags: ["force"],
+      blocks: [],
+    });
+    expect(source.status).toBe(201);
+    sourceId = source.body.id;
+    imageId = await uploadInstructionImage(coachA, sourceId);
+    const attachment = await coachA
+      .post(`/exercises/${sourceId}/documents`)
+      .send({ type: "LINK", url: "https://exemple.test/demo" });
+    attachmentId = attachment.body.id;
+    const withImage = await coachA.patch(`/exercises/${sourceId}`).send({
+      instructions: [paragraph, { type: "IMAGE", mediaId: imageId, width: "SMALL" }],
+    });
+    expect(withImage.status).toBe(200);
+  });
+
+  it("la variante cite SES images de consigne, et laisse les pièces jointes à la source", async () => {
+    const variant = await coachA
+      .post(`/exercises/${sourceId}/duplicate`)
+      .send({ title: "Tractions (variante)" });
+    expect(variant.status).toBe(201);
+    expect(variant.body.title).toBe("Tractions (variante)");
+    expect(variant.body.description).toBe("Lestées");
+    expect(variant.body.tags).toEqual(["force"]);
+
+    const [copy] = variant.body.documents;
+    expect(variant.body.documents).toHaveLength(1);
+    expect(copy.id).not.toBe(imageId);
+    expect(copy.usage).toBe("INSTRUCTION");
+    expect(variant.body.instructions).toEqual([
+      paragraph,
+      { type: "IMAGE", mediaId: copy.id, width: "SMALL" },
+    ]);
+    expect((await documentsOf(sourceId)).map((d) => d.id)).toEqual(
+      expect.arrayContaining([imageId, attachmentId]),
+    );
+  });
+
+  it("grave le dosage reçu plutôt que celui de la source", async () => {
+    const blocks = [
+      {
+        id: "blk_1",
+        label: "Travail",
+        structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+        metrics: [
+          {
+            id: "col_reps",
+            source: "CATALOG",
+            key: "REPETITIONS",
+            unit: "REPS",
+            label: null,
+            collapsed: false,
+          },
+        ],
+        rows: [{ id: "r1", values: { col_reps: 6 } }],
+      },
+    ];
+    const variant = await coachA
+      .post(`/exercises/${sourceId}/duplicate`)
+      .send({ title: "Tractions ×6", blocks });
+    expect(variant.status).toBe(201);
+    expect(variant.body.blocks).toEqual(blocks);
+  });
+
+  it("supprimer la source garde l'image que la variante affiche", async () => {
+    const source = await coachA.post("/exercises").send({ title: "Dips" });
+    const image = await uploadInstructionImage(coachA, source.body.id);
+    await coachA
+      .patch(`/exercises/${source.body.id}`)
+      .send({ instructions: [{ type: "IMAGE", mediaId: image }] });
+    const variant = await coachA
+      .post(`/exercises/${source.body.id}/duplicate`)
+      .send({ title: "Dips (variante)" });
+
+    expect((await coachA.delete(`/exercises/${source.body.id}`)).status).toBe(204);
+
+    const [copy] = await documentsOf(variant.body.id);
+    expect((await fetch(required(copy, "image de la variante").url)).status).toBe(200);
+
+    // La dernière ligne qui porte la clé part : l'objet part avec elle.
+    expect((await coachA.delete(`/exercises/${variant.body.id}`)).status).toBe(204);
+    expect((await fetch(required(copy, "image de la variante").url)).status).toBe(404);
+  });
+
+  it("un coach ne duplique PAS l'exercice d'un autre coach", async () => {
+    const res = await coachB.post(`/exercises/${sourceId}/duplicate`).send({ title: "Volée" });
+    expect(res.status).toBe(404);
+  });
+
+  it("refuse à la création une consigne qui cite une image (400) : l'exercice n'en a aucune", async () => {
+    const res = await coachA
+      .post("/exercises")
+      .send({ title: "Copie à la main", instructions: [{ type: "IMAGE", mediaId: imageId }] });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("La consigne cite une image qui n'appartient pas à cet exercice");
+  });
+
+  it.each([
+    ["l'image d'un autre exercice du coach", async () => imageId],
+    [
+      "une pièce jointe de l'exercice lui-même",
+      async (targetId: string) =>
+        (
+          await coachA
+            .post(`/exercises/${targetId}/documents`)
+            .send({ type: "LINK", url: "https://exemple.test/cible" })
+        ).body.id as string,
+    ],
+  ])("refuse à la modification %s (400), sans rien écrire", async (_label, citedOf) => {
+    const target = await coachA.post("/exercises").send({ title: "Cible" });
+    const cited = await citedOf(target.body.id);
+
+    const res = await coachA.patch(`/exercises/${target.body.id}`).send({
+      title: "Cible renommée",
+      instructions: [paragraph, { type: "IMAGE", mediaId: cited }],
+    });
+    expect(res.status).toBe(400);
+
+    const after = await coachA.get(`/exercises/${target.body.id}`);
+    expect(after.body.title).toBe("Cible");
+    expect(after.body.instructions).toBeNull();
+  });
+
+  it("refuse l'image d'un autre coach (400)", async () => {
+    const own = await coachB.post("/exercises").send({ title: "Chez B" });
+    const res = await coachB
+      .patch(`/exercises/${own.body.id}`)
+      .send({ instructions: [{ type: "IMAGE", mediaId: imageId }] });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse une consigne fournie par le client : elle vient de la source", async () => {
+    const res = await coachA
+      .post(`/exercises/${sourceId}/duplicate`)
+      .send({ title: "x", instructions: [{ type: "IMAGE", mediaId: imageId }] });
+    expect(res.status).toBe(400);
   });
 });
 
@@ -1743,6 +1926,49 @@ describe("Planifications : diffusion & isolation (P3)", () => {
    * la liste envoyée remplace, une ligne envoyée sans liste n'en a plus. Fusionner laisserait sur
    * la séance de l'athlète un tag que le coach a retiré du panneau.
    */
+  it("refuse une consigne qui cite une image que la ligne ne porte pas (400, #315)", async () => {
+    const source = await coachA.post("/exercises").send({ title: "Planche" });
+    const other = await coachA.post("/exercises").send({ title: "Gainage latéral" });
+    const sourceImage = await uploadInstructionImage(coachA, source.body.id);
+    const otherImage = await uploadInstructionImage(coachA, other.body.id);
+
+    const line = (sourceExerciseId: string | null, mediaId: string) => ({
+      sourceExerciseId,
+      title: "Planche",
+      instructions: [{ type: "IMAGE", mediaId }],
+    });
+    const post = (exercise: ReturnType<typeof line>) =>
+      coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
+        title: "Gainage",
+        scheduledDate: mondayOfWeek2Iso,
+        exercises: [exercise],
+      });
+
+    // Une ligne qui naît cite les images de SA source : ni celles d'un autre exercice, ni aucune
+    // quand elle n'a pas de source.
+    expect((await post(line(source.body.id, otherImage))).status).toBe(400);
+    expect((await post(line(null, sourceImage))).status).toBe(400);
+
+    // Une ligne reprise cite SES copies : l'identifiant de bibliothèque ne désigne plus rien chez
+    // elle depuis sa création.
+    const created = await post(line(source.body.id, sourceImage));
+    expect(created.status).toBe(201);
+    const kept = required(created.body.exercises[0], "ligne créée");
+    const resave = (mediaId: string) =>
+      coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+        title: "Gainage",
+        notes: null,
+        scheduledDate: mondayOfWeek2Iso,
+        exercises: [{ ...line(kept.sourceExerciseId, mediaId), id: kept.id }],
+      });
+    expect((await resave(sourceImage)).status).toBe(400);
+    expect((await resave(kept.instructions[0].mediaId)).status).toBe(200);
+
+    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+    await coachA.delete(`/exercises/${source.body.id}`);
+    await coachA.delete(`/exercises/${other.body.id}`);
+  });
+
   it("remplace les tags d'un exercice repris, et les retire quand la ligne n'en porte plus", async () => {
     const created = await coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
       title: "Tags",
