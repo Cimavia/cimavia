@@ -89,6 +89,7 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
 
 function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) {
   const onClose = vi.fn();
+  const onDirtyChange = vi.fn();
   const view = renderWithProviders(
     <ScheduledSessionPanel
       planId="plan-1"
@@ -98,10 +99,11 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
       session={null}
       athleteName="Léa Bonnet"
       onClose={onClose}
+      onDirtyChange={onDirtyChange}
       {...over}
     />,
   );
-  return { ...view, onClose };
+  return { ...view, onClose, onDirtyChange };
 }
 
 beforeEach(() => {
@@ -518,5 +520,80 @@ describe("ScheduledSessionPanel — dosage ajusté pour l'athlète (#518)", () =
 
     expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
+  });
+});
+
+/** #518, **G-1** : le panneau porte une grille de dosage par exercice, la refermer demande. */
+describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
+  const CANCEL = "common.cancel";
+  const LEAVE_TITLE = "common.leave.title";
+
+  it("se ferme sans rien demander tant que rien n'a changé", async () => {
+    const { user, getByRole, queryByText, onClose, onDirtyChange } = setup({ session: session() });
+
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onDirtyChange).not.toHaveBeenCalledWith(true);
+  });
+
+  it("ne retient rien pour une espace ajoutée au titre", async () => {
+    const { user, getByRole, onClose } = setup({ session: session() });
+
+    await user.type(getByRole("textbox", { name: TITLE }), " ");
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("demande avant de perdre la saisie, et « Rester » la garde", async () => {
+    const { user, getByLabelText, getByRole, queryByText, onClose, onDirtyChange } = setup({
+      session: session(),
+    });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(queryByText(LEAVE_TITLE)).toBeInTheDocument();
+    await user.click(getByRole("button", { name: "common.leave.stay", hidden: true }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
+    expect(getByLabelText(NOTES)).toHaveValue("Échauffement long et les poignets");
+  });
+
+  it("referme sur « Quitter sans enregistrer »", async () => {
+    const { user, getByLabelText, getByRole, onClose } = setup({ session: session() });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    await user.click(getByRole("button", { name: CANCEL }));
+    await user.click(getByRole("button", { name: "common.leave.leave", hidden: true }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("garde aussi une séance en cours de création", async () => {
+    const { user, getByRole, queryByText, onClose } = setup();
+
+    await user.type(getByRole("textbox", { name: TITLE }), "Séance haute");
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(queryByText(LEAVE_TITLE)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("referme sans demander après un enregistrement réussi", async () => {
+    updateMock.mockResolvedValue(session());
+    const { user, getByLabelText, getByRole, queryByText, onClose } = setup({
+      session: session(),
+    });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    await user.click(getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
   });
 });

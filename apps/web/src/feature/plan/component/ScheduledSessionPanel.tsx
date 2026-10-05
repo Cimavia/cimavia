@@ -1,5 +1,5 @@
 import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
-import { planWeekDays, required, ScheduledSessionStatus } from "@cmv/shared";
+import { planWeekDays, required, ScheduledSessionStatus, sameJson } from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
@@ -18,8 +18,9 @@ import {
   toExerciseInput,
   useSessionComposition,
 } from "@/feature/plan/hook/useSessionComposition";
-import { CmvPanel, CmvSelect, CmvTextArea, CmvTextField } from "@/shared/component";
+import { CmvLeaveDialog, CmvPanel, CmvSelect, CmvTextArea, CmvTextField } from "@/shared/component";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
+import { useReportDirty } from "@/shared/hook/useReportDirty";
 import { formatDayLabel } from "@/shared/util/date.util";
 
 /**
@@ -54,6 +55,20 @@ function toSaveInput(
   };
 }
 
+/**
+ * Fermer le panneau — Annuler, la croix, Échap, le fond — demande avant de perdre une saisie
+ * (#518, **G-1**) : il porte désormais une grille de dosage par exercice. Seules les fermetures
+ * qui SUIVENT un enregistrement ou une suppression réussis passent : elles appellent `onClose`
+ * sans passer par ici.
+ */
+function useCloseGuard(isDirty: boolean, onClose: () => void) {
+  const [asking, setAsking] = useState(false);
+  return {
+    requestClose: () => (isDirty ? setAsking(true) : onClose()),
+    dialog: { open: asking, onStay: () => setAsking(false), onLeave: onClose },
+  };
+}
+
 type ScheduledSessionPanelProps = {
   planId: string;
   // Cycle diffusé : retirer une séance prévient l'athlète, le panneau l'annonce avant confirmation.
@@ -69,6 +84,11 @@ type ScheduledSessionPanelProps = {
    */
   athleteName: string | null;
   onClose: () => void;
+  /**
+   * Le panneau porte une saisie non enregistrée : l'écran du cycle retient alors la navigation,
+   * comme pour son en-tête et sa facturation (#327). Doit être stable — un setter d'état.
+   */
+  onDirtyChange: (isDirty: boolean) => void;
 };
 
 /**
@@ -86,6 +106,7 @@ export function ScheduledSessionPanel({
   session,
   athleteName,
   onClose,
+  onDirtyChange,
 }: Readonly<ScheduledSessionPanelProps>) {
   const { t } = useTranslation();
   const { createSession, saveSession, removeSession, isBusy } = usePlanMutations(planId);
@@ -102,6 +123,17 @@ export function ScheduledSessionPanel({
   const [notes, setNotes] = useState(session?.notes ?? "");
   const [scheduledDate, setScheduledDate] = useState(date);
   const composition = useSessionComposition(session);
+
+  /**
+   * « Modifié » = ce qui partirait diffère de ce qui était là à l'ouverture, mis en forme comme à
+   * l'envoi (règle de #327) : une espace ajoutée au titre, une valeur remise à l'identique ne
+   * retiennent rien. Une saisie refusée retient aussi (#566) : la quitter la perdrait.
+   */
+  const form = { sourceSessionId, ...toSaveInput(title, notes, scheduledDate, composition.items) };
+  const [opened] = useState(form);
+  const isDirty = !sameJson(form, opened) || refused.hasRefused;
+  useReportDirty(isDirty, onDirtyChange);
+  const close = useCloseGuard(isDirty, onClose);
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
@@ -142,7 +174,7 @@ export function ScheduledSessionPanel({
       size={isEditing ? "lg" : "md"}
       title={isEditing ? t("plan.session.editTitle") : t("plan.session.createTitle")}
       description={t("plan.session.panelDescription")}
-      onClose={onClose}
+      onClose={close.requestClose}
       footer={
         <SessionPanelFooter
           isEditing={isEditing}
@@ -152,7 +184,7 @@ export function ScheduledSessionPanel({
           canSubmit={canSubmit}
           hasRefused={refused.hasRefused}
           onDelete={onDelete}
-          onClose={onClose}
+          onClose={close.requestClose}
           onSubmit={onSubmit}
         />
       }
@@ -219,6 +251,7 @@ export function ScheduledSessionPanel({
           ) : null}
         </form>
       </RefusedFieldsContext>
+      <CmvLeaveDialog {...close.dialog} />
     </CmvPanel>
   );
 }

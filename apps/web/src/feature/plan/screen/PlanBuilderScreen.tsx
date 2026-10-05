@@ -99,14 +99,24 @@ function athleteHeading(
  * l'état ENREGISTRÉ du cycle : elle reste fermée tant que l'un des deux est vrai (#326). Les
  * formulaires gardent leur saisie, ils ne remontent que ce booléen.
  *
- * Les mêmes saisies retiennent la sortie — lien, retour arrière, F5 (#327). La suppression du
- * cycle, elle, part sans demander : `guard.release`.
+ * Les mêmes saisies retiennent la sortie — lien, retour arrière, F5 (#327) —, et celle du panneau
+ * de séance (#518). La suppression du cycle, elle, part sans demander : `guard.release`.
  */
 function useUnsavedInputs() {
   const [isHeaderUnsaved, setHeaderUnsaved] = useState(false);
   const [isBillingUnsaved, setBillingUnsaved] = useState(false);
-  const guard = useLeaveGuard(isHeaderUnsaved || isBillingUnsaved);
-  return { isHeaderUnsaved, setHeaderUnsaved, isBillingUnsaved, setBillingUnsaved, guard };
+  // Le panneau de séance ne ferme pas la diffusion — la séance s'enregistre à part du cycle —,
+  // mais sa saisie se perd comme les autres à la navigation (#518, **G-1**).
+  const [isPanelUnsaved, setPanelUnsaved] = useState(false);
+  const guard = useLeaveGuard(isHeaderUnsaved || isBillingUnsaved || isPanelUnsaved);
+  return {
+    isHeaderUnsaved,
+    setHeaderUnsaved,
+    isBillingUnsaved,
+    setBillingUnsaved,
+    setPanelUnsaved,
+    guard,
+  };
 }
 
 export function PlanBuilderScreen() {
@@ -128,8 +138,14 @@ export function PlanBuilderScreen() {
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
-  const { isHeaderUnsaved, setHeaderUnsaved, isBillingUnsaved, setBillingUnsaved, guard } =
-    useUnsavedInputs();
+  const {
+    isHeaderUnsaved,
+    setHeaderUnsaved,
+    isBillingUnsaved,
+    setBillingUnsaved,
+    setPanelUnsaved,
+    guard,
+  } = useUnsavedInputs();
 
   // Le résumé (vue semaine) ne porte pas la composition : on charge le détail à l'ouverture.
   const { data: editedSession } = useQuery<ScheduledSessionDto>({
@@ -329,6 +345,7 @@ export function PlanBuilderScreen() {
           session={panelSession}
           athleteName={athleteNameOf(plan, athleteLabel)}
           onClose={() => setEdit(null)}
+          onDirtyChange={setPanelUnsaved}
         />
       ) : null}
       <CmvLeaveDialog {...guard.dialog} />
