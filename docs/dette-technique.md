@@ -1837,9 +1837,11 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   « pleine largeur, jamais habillée de texte ». Trois paliers et non une valeur libre : un
 >   pourcentage dépendrait de l'écran où l'image a été posée, et React Native devrait l'interpréter
 >   au pixel près. **#166 doit rendre les trois**, sinon les deux surfaces divergent.
-> - **« Dupliquer en variante » (frame 14) n'est pas implémenté.** Absent de la liste « À faire »
->   de l'issue, donc laissé de côté plutôt qu'ajouté d'autorité. ~10 lignes le jour où il est
->   demandé.
+> - **« Dupliquer en variante » n'existe que depuis le constructeur de SÉANCE.** L'entrée de la
+>   frame 14, dans l'éditeur d'exercice, n'est pas implémentée : absente de la liste « À faire » de
+>   l'issue, donc laissée de côté plutôt qu'ajoutée d'autorité. Le geste de la séance, lui, est
+>   arrivé avec le constructeur de séance, et copie côté serveur depuis
+>   [#315](https://github.com/Cimavia/cimavia/issues/315).
 > - **`2:75` vaut `3'15` au lieu d'être refusé.** Les secondes au-delà de 59 débordent sur les
 >   minutes. Le refus protégeait mieux de la faute de frappe, mais le rendu canonique montre
 >   aussitôt ce qui a été compris — ce qui la rattrape sans bloquer la saisie.
@@ -5084,6 +5086,35 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Le message de la cellule est court** (« Durée non comprise. Ex. 1'30 ») et vit SOUS elle,
 >   relié par `aria-describedby` : la colonne est étroite, et `BlockIssues` lit le brouillon, qui ne
 >   contient pas la saisie refusée.
+
+---
+
+## Post-MVP — Images de consigne venues du client ([#315](https://github.com/Cimavia/cimavia/issues/315))
+
+> **Tranché en [#315](https://github.com/Cimavia/cimavia/issues/315)** (une consigne ne cite que
+> les images de sa ligne, et la variante est copiée par le serveur) : « Dupliquer en variante »
+> recopiait la consigne côté client, avec les identifiants des documents de la SOURCE. Ni l'éditeur
+> de la variante ni l'athlète n'affichaient ces images, sans un message. Ce n'était pas une fuite :
+> l'affichage ne résout que parmi les documents de la ligne, et une référence étrangère restait
+> morte, même vers un autre coach.
+>
+> - **Le 400 ET la copie serveur, pas l'un ou l'autre.** Le refus seul cassait toute variante
+>   illustrée. `POST /exercises/:id/duplicate` rattache à la variante les images que la consigne
+>   cite, sous la **même clé objet**, comme une séance planifiée. Pièces jointes et liens restent
+>   à la source : la variante sert à changer structure, colonnes ou consigne.
+> - **`DocumentCleanupService` compte aussi les autres documents de bibliothèque** qui portent la
+>   clé. Supprimer la source, ou une de ses images, ne purge plus celle de la variante — et le
+>   ménage des images retirées de la consigne ([#330](https://github.com/Cimavia/cimavia/issues/330))
+>   en hérite.
+> - **Ce qui se contrôle** (`assertInstructionImagesOwned`, piège n°3 de `architecture-choice.md`
+>   §6) : une image doit désigner un fichier d'usage `INSTRUCTION` de la ligne écrite. Exercice
+>   créé : aucun, ses documents viennent après. Exercice modifié : les siens. Ligne de séance
+>   planifiée reprise : ses copies (#296) ; ligne qui naît : les documents de son exercice source.
+> - **Ce qui ne se contrôle pas** : ce que le serveur écrit seul — séance instanciée depuis un
+>   modèle, copie de semaine (#4). Les refuser bloquerait le coach sur une donnée qu'il n'a pas
+>   envoyée.
+> - **Aucune reprise de données** : la base preview ne contenait aucune référence étrangère au
+>   2026-10-05, ni en bibliothèque ni en séances planifiées.
 
 ---
 
