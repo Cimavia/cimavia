@@ -110,7 +110,7 @@ export function adjustStructure<T extends DosageEditable>(
 
   return {
     ...item,
-    blocks: item.blocks.map((block) => (block.id === blockId ? { ...block, structure } : block)),
+    blocks: mapBlock(item.blocks, blockId, (block) => ({ ...block, structure })),
     adjustments,
   };
 }
@@ -126,14 +126,10 @@ export function revertStructureField<T extends DosageEditable>(
   if (base == null) return item;
   return {
     ...item,
-    blocks: item.blocks.map((block) =>
-      block.id === blockId
-        ? {
-            ...block,
-            structure: { ...block.structure, [field]: readField(base, field) } as Structure,
-          }
-        : block,
-    ),
+    blocks: mapBlock(item.blocks, blockId, (block) => ({
+      ...block,
+      structure: { ...block.structure, [field]: readField(base, field) } as Structure,
+    })),
     adjustments: restoreAdjustment(
       item.adjustments,
       scope.reference,
@@ -150,7 +146,7 @@ export function adjustRows<T extends DosageEditable>(
 ): T {
   return {
     ...item,
-    blocks: item.blocks.map((block) => (block.id === blockId ? { ...block, rows } : block)),
+    blocks: mapBlock(item.blocks, blockId, (block) => ({ ...block, rows })),
   };
 }
 
@@ -172,17 +168,25 @@ export function resetAllAdjustments<T extends DosageEditable>(item: T, scope: Do
   return { ...item, ...resetToBaseline(item.baseline, scope.reference) };
 }
 
+/** Transforme le SEUL bloc visé : les autres blocs de l'exercice restent tels quels. */
+function mapBlock(
+  blocks: ExerciseBlocks,
+  blockId: string,
+  change: (block: ExerciseBlock) => ExerciseBlock,
+): ExerciseBlocks {
+  return blocks.map((block) => (block.id === blockId ? change(block) : block));
+}
+
 function mapRow(
   blocks: ExerciseBlocks,
   blockId: string,
   rowId: string,
   change: (row: ExerciseBlock["rows"][number]) => ExerciseBlock["rows"][number],
 ): ExerciseBlocks {
-  return blocks.map((block) =>
-    block.id === blockId
-      ? { ...block, rows: block.rows.map((row) => (row.id === rowId ? change(row) : row)) }
-      : block,
-  );
+  return mapBlock(blocks, blockId, (block) => ({
+    ...block,
+    rows: block.rows.map((row) => (row.id === rowId ? change(row) : row)),
+  }));
 }
 
 function baselineRow(baseline: ExerciseBlocks, blockId: string, rowId: string) {

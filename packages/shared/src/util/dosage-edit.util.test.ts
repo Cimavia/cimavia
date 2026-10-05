@@ -212,3 +212,72 @@ describe("un exercice sans référence — ajouté dans le panneau, sa référen
     expect(adjustRows(item, "blk", [])).toMatchObject({ key: "k-1", note: "Épaule sensible" });
   });
 });
+
+/**
+ * Un exercice à plusieurs blocs — échauffement puis travail : chaque geste ne touche que le bloc
+ * qu'il vise, valeurs, bandeau et lignes compris.
+ */
+describe("sur un exercice à plusieurs blocs", () => {
+  const twoBlocks = (load: number, setCount = 4): ExerciseBlocks => [
+    ...blocks(10),
+    { ...(blocks(load, setCount)[0] as ExerciseBlocks[number]), id: "blk2", label: "Travail" },
+  ];
+  const item = (): DosageEditable => ({
+    blocks: twoBlocks(12),
+    baseline: twoBlocks(12),
+    adjustments: [],
+  });
+  const series = (setCount: number) => ({
+    type: BlockType.SERIES,
+    setCount,
+    restBetweenSetsSeconds: 180,
+  });
+
+  it("une valeur ajustée ne touche que son bloc", () => {
+    const next = adjustCell(
+      item(),
+      SESSION,
+      { blockId: "blk2", rowId: "r1", metricId: "load" },
+      14,
+    );
+
+    expect(next.blocks[0]).toEqual(twoBlocks(12)[0]);
+    expect(next.blocks[1]?.rows[0]?.values.load).toBe(14);
+    expect(next.adjustments).toEqual([
+      { path: cellPath("blk2", "r1", "load"), level: AdjustmentLevel.SESSION },
+    ]);
+  });
+
+  it("un paramètre de bandeau ajusté, puis rendu, ne touche que son bloc", () => {
+    const raised = adjustStructure(item(), SESSION, "blk2", series(5));
+    expect(raised.blocks[0]?.structure).toEqual(series(4));
+    expect(raised.blocks[1]?.structure).toEqual(series(5));
+
+    const back = revertStructureField(raised, SESSION, "blk2", "setCount");
+    expect(back.blocks).toEqual(twoBlocks(12));
+    expect(back.adjustments).toEqual([]);
+  });
+
+  it("les lignes d'un bloc changent sans toucher à celles de l'autre", () => {
+    const next = adjustRows(item(), "blk2", []);
+
+    expect(next.blocks[0]?.rows).toHaveLength(2);
+    expect(next.blocks[1]?.rows).toEqual([]);
+  });
+});
+
+describe("une cellule vide dans la référence", () => {
+  it("redevient vide quand on y revient, plutôt que de garder la valeur tapée", () => {
+    const empty = blocks(10).map((block) => ({
+      ...block,
+      rows: block.rows.map((row) => ({ ...row, values: {} })),
+    }));
+    const at = { blockId: "blk", rowId: "r1", metricId: "load" };
+    const typed = adjustCell({ blocks: empty, baseline: empty, adjustments: [] }, SESSION, at, 14);
+
+    const back = revertCell(typed, SESSION, at);
+
+    expect(valueAt(back, "r1")).toBeNull();
+    expect(back.adjustments).toEqual([]);
+  });
+});
