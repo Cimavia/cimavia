@@ -88,6 +88,15 @@ export const updateExerciseSchema = z
   .strict();
 export type UpdateExerciseInput = z.infer<typeof updateExerciseSchema>;
 
+/**
+ * « Dupliquer en variante » (#315) : le serveur recopie l'exercice source, consigne comprise, et
+ * rattache à la variante les images que cette consigne cite. Le client ne choisit que le titre et,
+ * depuis une séance, le dosage à graver — celui de la SÉANCE, que le coach duplique justement
+ * pour changer ce que le niveau séance verrouille.
+ */
+export const duplicateExerciseSchema = createExerciseSchema.pick({ title: true, blocks: true });
+export type DuplicateExerciseInput = z.infer<typeof duplicateExerciseSchema>;
+
 // Types de documents acceptés (PDF / image — CDC §5.2). Source UNIQUE : la validation
 // serveur (schéma ci-dessous) et le contrôle client avant upload s'y réfèrent tous les deux.
 export const DOCUMENT_MIME_TYPES = [

@@ -3,6 +3,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } fr
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateExerciseDto } from "../dto/create-exercise.dto";
+import { DuplicateExerciseDto } from "../dto/duplicate-exercise.dto";
 import { UpdateExerciseDto } from "../dto/update-exercise.dto";
 import type { ListExercisesFilters } from "../exercise.where";
 import { ExerciseService } from "../service/exercise.service";
@@ -38,6 +39,11 @@ export class ExerciseController {
   @Get(":id")
   get(@Param("id") id: string) {
     return this.exercises.get(id);
+  }
+
+  @Post(":id/duplicate")
+  duplicate(@Param("id") id: string, @Body() dto: DuplicateExerciseDto) {
+    return this.exercises.duplicate(id, dto);
   }
 
   @Patch(":id")

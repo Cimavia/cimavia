@@ -1,8 +1,8 @@
 import type { ExerciseBlocks, ExerciseDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  createExercise,
   deleteExercise,
+  duplicateExercise,
   type ExerciseFilters,
   exerciseKeys,
   getExercise,
@@ -42,9 +42,10 @@ export function useDeleteExercise() {
  * « Dupliquer en variante » : une COPIE indépendante dans la bibliothèque, sur laquelle le coach
  * pourra changer ce que le niveau séance verrouille — structure, colonnes, consigne.
  *
- * Les pièces jointes ne suivent PAS : elles pointent vers des objets de stockage, et les dupliquer
- * demanderait de recopier des binaires ou de partager des clés entre deux exercices dont l'un peut
- * être supprimé. La consigne et le dosage, eux, sont de la donnée pure.
+ * La copie se fait côté SERVEUR (#315) : la consigne cite ses images par l'identifiant d'un
+ * document de la source, et seul le serveur peut les rattacher à la variante. Recopiée d'ici, elle
+ * désignait des documents que la variante n'a pas — ni l'éditeur ni l'athlète ne les affichaient.
+ * Les pièces jointes, elles, restent à la source.
  */
 export function useDuplicateExercise() {
   const queryClient = useQueryClient();
@@ -64,13 +65,11 @@ export function useDuplicateExercise() {
        */
       blocks?: ExerciseBlocks;
     }) => {
+      // Lue pour son seul titre : le suffixe est traduit, le serveur ne le connaît pas.
       const source = await getExercise(exerciseId);
-      return createExercise({
+      return duplicateExercise(exerciseId, {
         title: `${source.title} ${suffix}`,
-        description: source.description,
-        instructions: source.instructions,
-        blocks: blocks ?? source.blocks,
-        tags: source.tags,
+        ...(blocks == null ? {} : { blocks }),
       });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),

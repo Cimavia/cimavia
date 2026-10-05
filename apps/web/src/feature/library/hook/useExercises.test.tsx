@@ -17,7 +17,7 @@ const { apiMock } = vi.hoisted(() => ({
     getExercise: vi.fn(),
     listExerciseTags: vi.fn(),
     deleteExercise: vi.fn(),
-    createExercise: vi.fn(),
+    duplicateExercise: vi.fn(),
   },
 }));
 
@@ -121,9 +121,9 @@ describe("useDeleteExercise", () => {
 });
 
 describe("useDuplicateExercise", () => {
-  it("crée une copie de la source, titre suffixé, dosage de la bibliothèque par défaut", async () => {
+  it("demande au serveur une copie de la source, titre suffixé", async () => {
     apiMock.getExercise.mockResolvedValue(source);
-    apiMock.createExercise.mockResolvedValue({ ...source, id: "ex-2" });
+    apiMock.duplicateExercise.mockResolvedValue({ ...source, id: "ex-2" });
     const { wrapper, invalidate } = spyInvalidate();
 
     const { result } = renderHook(() => useDuplicateExercise(), { wrapper });
@@ -131,12 +131,9 @@ describe("useDuplicateExercise", () => {
 
     expect(created.id).toBe("ex-2");
     expect(apiMock.getExercise).toHaveBeenCalledWith("ex-1");
-    expect(apiMock.createExercise).toHaveBeenCalledExactlyOnceWith({
+    // Ni consigne ni dosage : le serveur les reprend de la source, images de consigne comprises.
+    expect(apiMock.duplicateExercise).toHaveBeenCalledExactlyOnceWith("ex-1", {
       title: "Tractions (variante)",
-      description: "Prise pronation",
-      instructions: source.instructions,
-      blocks: source.blocks,
-      tags: ["force"],
     });
     expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: exerciseKeys.all });
   });
@@ -144,19 +141,20 @@ describe("useDuplicateExercise", () => {
   // Depuis une séance, la variante grave les ajustements du coach, pas le défaut de la source.
   it("grave le dosage fourni plutôt que celui de la source", async () => {
     apiMock.getExercise.mockResolvedValue(source);
-    apiMock.createExercise.mockResolvedValue({ ...source, id: "ex-2" });
+    apiMock.duplicateExercise.mockResolvedValue({ ...source, id: "ex-2" });
     const { wrapper } = renderWithQueryClient();
     const adjusted = [{ id: "b-seance" }] as unknown as ExerciseDto["blocks"];
 
     const { result } = renderHook(() => useDuplicateExercise(), { wrapper });
     await result.current.mutateAsync({ exerciseId: "ex-1", suffix: "(v)", blocks: adjusted });
 
-    expect(apiMock.createExercise).toHaveBeenCalledWith(
-      expect.objectContaining({ blocks: adjusted }),
-    );
+    expect(apiMock.duplicateExercise).toHaveBeenCalledWith("ex-1", {
+      title: "Tractions (v)",
+      blocks: adjusted,
+    });
   });
 
-  it("ne crée rien quand la source est introuvable", async () => {
+  it("ne duplique rien quand la source est introuvable", async () => {
     apiMock.getExercise.mockRejectedValue(new Error("404"));
     const { wrapper } = renderWithQueryClient();
 
@@ -165,6 +163,6 @@ describe("useDuplicateExercise", () => {
       "404",
     );
 
-    expect(apiMock.createExercise).not.toHaveBeenCalled();
+    expect(apiMock.duplicateExercise).not.toHaveBeenCalled();
   });
 });

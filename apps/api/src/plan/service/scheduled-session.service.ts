@@ -39,6 +39,7 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
 import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
+import { assertInstructionImagesOwned } from "../../util/instruction-images.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
 import {
   type ScheduledSessionWithExercises,
@@ -46,7 +47,7 @@ import {
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
 import { compactDay, type PositionedSession, writeDay } from "../scheduled-session.position";
-import { planExerciseRows } from "../scheduled-session.rows";
+import { type ExerciseRows, planExerciseRows } from "../scheduled-session.rows";
 import {
   insertScheduledSessionExercises,
   rewriteScheduledSessionExercises,
@@ -88,6 +89,11 @@ export class ScheduledSessionService {
 
     const draft = await this.buildDraft(input);
     const documents = await this.loadSourceDocuments(draft.exercises);
+    // Seule une composition ENVOYÉE se contrôle : celle d'un modèle est écrite par le serveur,
+    // depuis une bibliothèque dont les consignes sont contrôlées à l'écriture.
+    for (const exercise of input.exercises ?? []) {
+      assertInstructionImagesOwned(exercise.instructions, libraryDocumentsOf(exercise, documents));
+    }
 
     const session = await this.db.$transaction(async (tx) => {
       const created = await tx.scheduledSession.create({
@@ -154,6 +160,7 @@ export class ScheduledSessionService {
     // La bibliothèque ne sert qu'aux exercices AJOUTÉS : une ligne reprise garde ses documents, et
     // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`).
     const documents = await this.loadSourceDocuments(rows.added.map((row) => row.item));
+    assertRowImagesOwned(session.exercises, rows, documents);
 
     await this.db.$transaction(async (tx) => {
       await tx.scheduledSession.update({
@@ -487,6 +494,28 @@ export class ScheduledSessionService {
       documents: libraryDocumentsOf(exercise, documentsBySource),
     }));
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
+  }
+}
+
+/**
+ * Une consigne ne cite que les images de SA ligne (#315) : une ligne reprise, les documents qu'elle
+ * porte déjà (#296) ; une ligne qui naît, ceux de l'exercice source, que l'écriture recopie puis
+ * réaligne. Toute autre référence ne désignerait rien chez l'athlète.
+ */
+function assertRowImagesOwned(
+  existing: ScheduledSessionWithExercises["exercises"],
+  rows: ExerciseRows<ScheduledSessionExerciseInput>,
+  documentsBySource: DocumentsBySource,
+): void {
+  const documentsOfRow = new Map(existing.map((row) => [row.id, row.documents]));
+  for (const row of rows.kept) {
+    assertInstructionImagesOwned(row.item.instructions, documentsOfRow.get(row.id) ?? []);
+  }
+  for (const row of rows.added) {
+    assertInstructionImagesOwned(
+      row.item.instructions,
+      libraryDocumentsOf(row.item, documentsBySource),
+    );
   }
 }
 

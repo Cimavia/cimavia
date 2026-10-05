@@ -24,7 +24,7 @@ const api = vi.hoisted(() => ({
   listExerciseTags: vi.fn(),
   listCustomMetrics: vi.fn(),
   getExercise: vi.fn(),
-  createExercise: vi.fn(),
+  duplicateExercise: vi.fn(),
 }));
 
 // Les appels sont remplacés, les hooks et les clés de cache restent les VRAIS.
@@ -702,7 +702,7 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
       blocks: series("lib-b", 5),
       tags: ["force"],
     });
-    api.createExercise.mockResolvedValue({ id: "ex-new" });
+    api.duplicateExercise.mockResolvedValue({ id: "ex-new" });
   });
 
   // Quitter pour l'éditeur d'exercice sans enregistrer ferait perdre la composition en cours.
@@ -716,16 +716,13 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
     );
     expect(api.updateSession).toHaveBeenCalledOnce();
     expect(api.updateSession.mock.invocationCallOrder[0]).toBeLessThan(
-      api.createExercise.mock.invocationCallOrder[0] as number,
+      api.duplicateExercise.mock.invocationCallOrder[0] as number,
     );
     expect(view.getByText("library.session.savedBeforeVariant")).toBeInTheDocument();
-    expect(api.createExercise).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Tractions library.session.variantSuffix",
-        blocks: series("se-1-b", 6),
-        tags: ["force"],
-      }),
-    );
+    expect(api.duplicateExercise).toHaveBeenCalledWith("ex-1", {
+      title: "Tractions library.session.variantSuffix",
+      blocks: series("se-1-b", 6),
+    });
   });
 
   // Même garde que la création d'exercice manquant : une séance sans titre ne s'enregistre pas.
@@ -739,7 +736,7 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
     expect(view.getByText("library.session.titleBeforeLeaving")).toBeInTheDocument();
     expect(view.getByText("library.session.titleRequired")).toBeInTheDocument();
     expect(api.createSession).not.toHaveBeenCalled();
-    expect(api.createExercise).not.toHaveBeenCalled();
+    expect(api.duplicateExercise).not.toHaveBeenCalled();
   });
 
   it("ne duplique rien quand la séance ne s'enregistre pas, et le dit", async () => {
@@ -750,7 +747,7 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
 
     expect(await view.findByText("library.session.saveFailed")).toBeInTheDocument();
     expect(api.getExercise).not.toHaveBeenCalled();
-    expect(api.createExercise).not.toHaveBeenCalled();
+    expect(api.duplicateExercise).not.toHaveBeenCalled();
     expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
   });
 });
@@ -839,7 +836,7 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
   // La variante enregistre d'abord : la sortie qui suit n'a plus rien à perdre.
   it("ouvre la variante sans demander, la saisie partie avec la séance", async () => {
     api.getExercise.mockResolvedValue({ ...planche, id: "ex-1", title: "Tractions" });
-    api.createExercise.mockResolvedValue({ id: "ex-new" });
+    api.duplicateExercise.mockResolvedValue({ id: "ex-new" });
     const view = await edit();
     await view.user.type(view.getByRole("textbox", { name: NOTES }), ", dos droit");
 
@@ -941,7 +938,7 @@ describe("SessionBuilderScreen — saisie refusée (#566)", () => {
 
     expect(view.getByText(REFUSED_TOAST)).toBeInTheDocument();
     expect(api.updateSession).not.toHaveBeenCalled();
-    expect(api.createExercise).not.toHaveBeenCalled();
+    expect(api.duplicateExercise).not.toHaveBeenCalled();
   });
 
   it("demande avant de partir en laissant une saisie refusée", async () => {

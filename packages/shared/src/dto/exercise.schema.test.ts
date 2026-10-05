@@ -4,6 +4,7 @@ import {
   createExerciseSchema,
   DocumentType,
   DocumentUsage,
+  duplicateExerciseSchema,
   EXERCISE_MAX_TAGS,
   exerciseTagsSchema,
   isAllowedDocumentMime,
@@ -48,6 +49,22 @@ describe("createExerciseSchema", () => {
 
   it("refuse un champ inconnu (schéma strict)", () => {
     expect(createExerciseSchema.safeParse({ ...base, cotation: "6b" }).success).toBe(false);
+  });
+});
+
+describe("duplicateExerciseSchema", () => {
+  it("demande un titre, et rien d'autre n'est obligatoire", () => {
+    expect(duplicateExerciseSchema.safeParse({ title: "Tractions (variante)" }).success).toBe(true);
+    expect(duplicateExerciseSchema.safeParse({}).success).toBe(false);
+  });
+
+  // La consigne vient de la SOURCE, côté serveur : l'accepter du client rouvrirait le trou de
+  // #315 — une consigne qui cite des images que la variante n'a pas.
+  it.each([
+    ["la consigne", { instructions: [] }],
+    ["les tags", { tags: ["force"] }],
+  ])("refuse %s, que le serveur reprend de la source", (_label, extra) => {
+    expect(duplicateExerciseSchema.safeParse({ title: "x", ...extra }).success).toBe(false);
   });
 });
 
