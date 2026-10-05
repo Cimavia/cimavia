@@ -2,6 +2,7 @@ import {
   type Capabilities,
   CapabilityBlocker,
   CoachAthleteStatus,
+  InvitationStatus,
   Role,
   type UpdateCapabilitiesInput,
 } from "@cmv/shared";
@@ -34,19 +35,38 @@ export class CapabilityService {
     // dépend de l'ÉTAT — ce que le schéma ne peut pas connaître.
     await this.assertRemovable(userId, input);
 
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        isCoach: input.isCoach,
-        isAthlete: input.isAthlete,
-        // Le persona se recalcule, il ne se conserve pas. Retirer `isCoach` à un compte
-        // `role=COACH` le laisserait atterrir dans un espace qu'il n'a plus — même dérivation
-        // qu'à l'inscription (#12), coach l'emportant quand les deux restent.
-        role: input.isCoach ? Role.COACH : Role.ATHLETE,
-      },
-      select: { isCoach: true, isAthlete: true },
-    });
+    const [user] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          isCoach: input.isCoach,
+          isAthlete: input.isAthlete,
+          // Le persona se recalcule, il ne se conserve pas. Retirer `isCoach` à un compte
+          // `role=COACH` le laisserait atterrir dans un espace qu'il n'a plus — même dérivation
+          // qu'à l'inscription (#12), coach l'emportant quand les deux restent.
+          role: input.isCoach ? Role.COACH : Role.ATHLETE,
+        },
+        select: { isCoach: true, isAthlete: true },
+      }),
+      ...(input.isCoach ? [] : [this.revokePendingInvitations(userId)]),
+    ]);
     return user;
+  }
+
+  /**
+   * Qui cesse de coacher retire ses invitations EN ATTENTE (#314) — dans la même transaction que
+   * la capacité, pour qu'aucune ne survive au retrait. Acceptée, l'une d'elles lierait un athlète
+   * à un compte qui n'est plus coach, sans aucun moyen d'en sortir (#213).
+   *
+   * Une révocation, la transition de #524, et non un refus à l'acceptation : l'athlète voit la carte
+   * disparaître et lit « retirée par le coach » s'il l'avait ouverte, et réactiver la capacité ne
+   * rend pas acceptable, sans prévenir, une invitation vieille de plusieurs jours.
+   */
+  private revokePendingInvitations(coachId: string) {
+    return this.prisma.invitation.updateMany({
+      where: { coachId, status: InvitationStatus.PENDING },
+      data: { status: InvitationStatus.REVOKED },
+    });
   }
 
   /**
@@ -57,6 +77,8 @@ export class CapabilityService {
    * cycles : ils ne sont pas supprimés, seulement hors de sa vue, et reviennent s'il réactive la
    * capacité. Bloquer là-dessus coincerait quiconque a seulement essayé l'application — c'est à
    * l'UI de prévenir, pas à l'API de refuser.
+   *
+   * Ses invitations en attente ne bloquent pas davantage : elles sont retirées (#314).
    */
   private async assertRemovable(userId: string, input: UpdateCapabilitiesInput): Promise<void> {
     if (!input.isCoach) {

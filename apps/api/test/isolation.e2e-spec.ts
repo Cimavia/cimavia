@@ -1,5 +1,6 @@
 import {
   EMAILABLE_NOTIFICATION_TYPES,
+  InvitationStatus,
   Locale,
   MAX_FEEDBACK_AUDIOS,
   MAX_FEEDBACK_PHOTOS,
@@ -7109,6 +7110,62 @@ describe("Capacités modifiables après coup (#13)", () => {
       (await agent.patch("/me/capabilities").send({ isCoach: true, isAthlete: true })).status,
     ).toBe(200);
     expect((await agent.get("/exercises")).body).toHaveLength(1);
+  });
+
+  /**
+   * #314 : une invitation encore en attente lierait l'athlète à un compte qui ne coache plus, et
+   * aucune route ne l'en sortirait (#213). Cesser de coacher la retire — la transition de #524 —, et
+   * réactiver la capacité ne la ressuscite pas.
+   */
+  it("retire les invitations en attente de qui cesse de coacher, sans les rendre au retour", async () => {
+    const coach = await signUpWith("cap-pending-coach@cmv.test", {
+      isCoach: true,
+      isAthlete: true,
+    });
+    const athlete = await signUp("cap-pending-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await inviteFor(coach, athlete);
+
+    const res = await coach.patch("/me/capabilities").send({ isCoach: false, isAthlete: true });
+    expect(res.status).toBe(200);
+    expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
+
+    expect(
+      (await coach.patch("/me/capabilities").send({ isCoach: true, isAthlete: true })).status,
+    ).toBe(200);
+    const late = await athlete.post(`/invitations/${invitation.body.id}/accept`);
+    expect({ status: late.status, message: late.body.message }).toEqual({
+      status: 410,
+      message: "Invitation retirée par le coach",
+    });
+    expect((await athlete.get("/me/coach")).body).toBeNull();
+  });
+
+  // Le retrait ne touche que l'attente : une relation nouée reste tracée, un refus reste un refus.
+  it("ne touche pas aux invitations qui ne sont plus en attente", async () => {
+    const coach = await signUpWith("cap-done-coach@cmv.test", { isCoach: true, isAthlete: true });
+    const declining = await signUp("cap-done-declining@cmv.test", Role.ATHLETE);
+    const declined = await inviteFor(coach, declining);
+    expect((await declining.post(`/invitations/${declined.body.id}/decline`)).status).toBe(204);
+
+    expect(
+      (await coach.patch("/me/capabilities").send({ isCoach: false, isAthlete: true })).status,
+    ).toBe(200);
+    const row = await app.get(PrismaService).invitation.findUniqueOrThrow({
+      where: { id: declined.body.id },
+    });
+    expect(row.status).toBe(InvitationStatus.DECLINED);
+  });
+
+  // Ne retirer que la capacité athlète laisse les invitations du coach en l'état.
+  it("garde les invitations en attente de qui ne retire que la capacité athlète", async () => {
+    const coach = await signUpWith("cap-keep-coach@cmv.test", { isCoach: true, isAthlete: true });
+    const athlete = await signUp("cap-keep-athlete@cmv.test", Role.ATHLETE);
+    await inviteFor(coach, athlete);
+
+    expect(
+      (await coach.patch("/me/capabilities").send({ isCoach: true, isAthlete: false })).status,
+    ).toBe(200);
+    expect((await athlete.get("/invitations/for-me")).body).toHaveLength(1);
   });
 
   /**

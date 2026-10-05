@@ -1188,7 +1188,7 @@
         "coach": "Composer des exercices et des séances, diffuser des cycles, facturer.",
         "athlete": "Consulter mes séances, les débriefer, échanger avec mon coach."
       },
-      "warnCoach": "Ta bibliothèque et tes cycles seront conservés, mais disparaîtront de ta navigation. Ils reviendront si tu réactives cette casquette.",
+      "warnCoach": "Ta bibliothèque et tes cycles seront conservés, mais disparaîtront de ta navigation. Ils reviendront si tu réactives cette casquette. Tes invitations en attente, elles, seront retirées et ne reviendront pas.",
       "atLeastOne": "Garde au moins une casquette.",
       "blocked": {
         "ACTIVE_ATHLETES": "Des athlètes te sont rattachés : tu ne peux pas cesser de coacher tant que ces relations existent.",
