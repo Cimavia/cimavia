@@ -1,4 +1,9 @@
-import { type Adjustments, type CustomMetric, structurePath } from "@cmv/shared";
+import {
+  AdjustmentLevel,
+  type CustomMetric,
+  type ExerciseBlock,
+  type MetricValue,
+} from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,8 +13,7 @@ import {
   IoChevronForward,
   IoEllipsisHorizontal,
 } from "react-icons/io5";
-import { BlockBandeau } from "@/feature/library/component/BlockBandeau";
-import { SessionBlockGrid } from "@/feature/library/component/SessionBlockGrid";
+import { DosageEditor } from "@/feature/library/component/DosageEditor";
 import type { CompositionItem } from "@/feature/library/hook/useSessionDraft";
 import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
 import { CmvBadge, CmvButton, CmvTagList, CmvTextField } from "@/shared/component";
@@ -20,9 +24,9 @@ type CompositionCardProps = {
   customMetrics: readonly CustomMetric[];
   isReloading: boolean;
   onNoteChange: (note: string) => void;
-  onCellChange: (blockId: string, rowId: string, metricId: string, value: unknown) => void;
-  onStructureChange: (blockId: string, structure: unknown) => void;
-  onRowsChange: (blockId: string, rows: unknown) => void;
+  onCellChange: (blockId: string, rowId: string, metricId: string, value: MetricValue) => void;
+  onStructureChange: (blockId: string, structure: ExerciseBlock["structure"]) => void;
+  onRowsChange: (blockId: string, rows: ExerciseBlock["rows"]) => void;
   onRevertCell: (blockId: string, rowId: string, metricId: string) => void;
   onRevertStructureField: (blockId: string, field: string) => void;
   onResetAll: () => void;
@@ -181,33 +185,16 @@ export function CompositionCard({
 
       {open ? (
         <div className="flex flex-col gap-cmv-lg">
-          {item.blocks.map((block) => (
-            <section key={block.id} className="flex flex-col gap-cmv-sm">
-              {item.blocks.length > 1 && block.label != null ? (
-                <span className="text-cmv-caption text-cmv-text-mid">{block.label}</span>
-              ) : null}
-              <BlockBandeau
-                structure={block.structure}
-                onChange={(structure) => onStructureChange(block.id, structure)}
-              />
-              <StructureAdjustments
-                blockId={block.id}
-                adjustments={item.adjustments}
-                onRevert={(field) => onRevertStructureField(block.id, field)}
-              />
-              <SessionBlockGrid
-                block={block}
-                baseline={item.baseline}
-                adjustments={item.adjustments}
-                customMetrics={customMetrics}
-                onCellChange={(rowId, metricId, value) =>
-                  onCellChange(block.id, rowId, metricId, value)
-                }
-                onRowsChange={(rows) => onRowsChange(block.id, rows)}
-                onRevertCell={(rowId, metricId) => onRevertCell(block.id, rowId, metricId)}
-              />
-            </section>
-          ))}
+          <DosageEditor
+            dosage={item}
+            level={AdjustmentLevel.SESSION}
+            customMetrics={customMetrics}
+            onCellChange={onCellChange}
+            onStructureChange={onStructureChange}
+            onRowsChange={onRowsChange}
+            onRevertCell={onRevertCell}
+            onRevertStructureField={onRevertStructureField}
+          />
 
           <CmvTextField
             label={t("library.session.noteLabel")}
@@ -219,51 +206,5 @@ export function CompositionCard({
         </div>
       ) : null}
     </article>
-  );
-}
-
-/**
- * Les paramètres de bandeau ajustés, avec de quoi y revenir.
- *
- * Sous le bandeau plutôt que dans chaque champ : les champs sont fournis par `BlockBandeau`, qui
- * sert aussi le constructeur d'exercice où la notion de défaut n'existe pas. Y injecter des
- * marqueurs le rendrait dépendant d'un contexte qu'il n'a pas.
- */
-function StructureAdjustments({
-  blockId,
-  adjustments,
-  onRevert,
-}: Readonly<{
-  blockId: string;
-  adjustments: Adjustments;
-  onRevert: (field: string) => void;
-}>) {
-  const { t } = useTranslation();
-  // i18n-values library.builder.bandeau: setCount, restBetweenSetsSeconds, intervalSeconds, totalDurationSeconds, targetRounds, roundCount, restBetweenRoundsSeconds
-  const prefix = structurePath(blockId, "");
-  const fields = adjustments
-    .filter((item) => item.path.startsWith(prefix))
-    .map((item) => item.path.slice(prefix.length));
-
-  if (fields.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-cmv-sm">
-      {fields.map((field) => (
-        <span key={field} className="flex items-center gap-cmv-xs">
-          <span aria-hidden="true" className="size-2 rounded-cmv-pill bg-cmv-accent" />
-          <span className="text-cmv-caption text-cmv-text-lo">
-            {t(`library.builder.bandeau.${field}`)}
-          </span>
-          <button
-            type="button"
-            onClick={() => onRevert(field)}
-            className="text-cmv-caption text-cmv-accent hover:underline"
-          >
-            {t("library.session.revert")}
-          </button>
-        </span>
-      ))}
-    </div>
   );
 }

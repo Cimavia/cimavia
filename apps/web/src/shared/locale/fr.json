@@ -204,6 +204,10 @@
       "refusedBeforeLeaving": "Une valeur n'est pas comprise : corrige-la ou vide-la, la séance doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
       "addCreatedFailed": "L'exercice créé n'a pas pu être ajouté à la séance : ajoute-le depuis ta bibliothèque."
     },
+    "dosage": {
+      "inherited": "séance",
+      "sessionValue": "séance {{value}}"
+    },
     "filterAllTags": "Tous",
     "tags": {
       "label": "Tags",
