@@ -8,6 +8,7 @@ import type {
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
 import {
+  AdjustmentLevel,
   customMetricIdsIn,
   isDateInPlanWeek,
   PlanStatus,
@@ -38,6 +39,7 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
+import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import { assertInstructionImagesOwned } from "../../util/instruction-images.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
@@ -59,6 +61,12 @@ type SessionDraft = {
   title: string;
   notes: string | null;
   exercises: ScheduledSessionExerciseInput[];
+  /**
+   * Les exercices sont la copie de la SÉANCE-TYPE : leurs marqueurs sont ceux qu'elle a diffusés,
+   * et deviennent la référence des marqueurs (#518). Une composition envoyée par le client n'a
+   * rien reçu de personne — sa référence est elle-même.
+   */
+  fromTemplate: boolean;
 };
 
 // Documents de la bibliothèque, par exercice source — à copier sur les exercices de l'instance.
@@ -112,7 +120,7 @@ export class ScheduledSessionService {
           "coachId"
         > as Prisma.ScheduledSessionUncheckedCreateInput,
       });
-      await this.insertExercises(tx, created.id, plan.athleteId, draft.exercises, documents);
+      await this.insertExercises(tx, created.id, plan.athleteId, draft, documents);
       return created;
     });
 
@@ -159,6 +167,7 @@ export class ScheduledSessionService {
     );
     // La bibliothèque ne sert qu'aux exercices AJOUTÉS : une ligne reprise garde ses documents, et
     // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`).
+    assertKeptShapesLocked(session.exercises, rows);
     const documents = await this.loadSourceDocuments(rows.added.map((row) => row.item));
     assertRowImagesOwned(session.exercises, rows, documents);
 
@@ -389,6 +398,7 @@ export class ScheduledSessionService {
         title: required(input.title, "[plan] séance ad hoc sans titre malgré le schéma"),
         notes: input.notes ?? null,
         exercises: input.exercises ?? [],
+        fromTemplate: false,
       };
     }
 
@@ -435,6 +445,7 @@ export class ScheduledSessionService {
       title: input.title ?? template.title,
       notes: input.notes !== undefined ? (input.notes ?? null) : template.notes,
       exercises: input.exercises ?? copied,
+      fromTemplate: input.exercises == null,
     };
   }
 
@@ -486,11 +497,12 @@ export class ScheduledSessionService {
     tx: TenantTx,
     scheduledSessionId: string,
     athleteId: string | null,
-    exercises: ScheduledSessionExerciseInput[],
+    draft: SessionDraft,
     documentsBySource: DocumentsBySource,
   ): Promise<void> {
-    const drafts = exercises.map((exercise) => ({
+    const drafts = draft.exercises.map((exercise) => ({
       exercise,
+      baselineAdjustments: draft.fromTemplate ? (exercise.adjustments ?? []) : [],
       documents: libraryDocumentsOf(exercise, documentsBySource),
     }));
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
@@ -516,6 +528,25 @@ function assertRowImagesOwned(
       row.item.instructions,
       libraryDocumentsOf(row.item, documentsBySource),
     );
+  }
+}
+
+/**
+ * Le verrou de forme au niveau planifié (#518), contre la référence STOCKÉE de chaque ligne
+ * reprise — jamais contre une référence que le client enverrait. Une ligne qui naît a pour
+ * référence son propre dosage : rien à vérifier.
+ */
+function assertKeptShapesLocked(
+  existing: ScheduledSessionWithExercises["exercises"],
+  rows: ExerciseRows<ScheduledSessionExerciseInput>,
+): void {
+  const baselineOf = new Map(existing.map((row) => [row.id, row.baseline]));
+  for (const row of rows.kept) {
+    // Une ligne reprise est par construction une ligne de la séance (`planExerciseRows`).
+    const baseline = parseBlocks(required(baselineOf.get(row.id), `ligne ${row.id} hors séance`));
+    // Un `blocks` omis VIDERAIT le dosage (replace-all) : c'est un changement de forme comme un
+    // autre, refusé de la même façon.
+    assertShapeLocked(AdjustmentLevel.SCHEDULED, baseline, row.item.blocks ?? []);
   }
 }
 

@@ -42,6 +42,7 @@ function exercise(over: Partial<ScheduledSessionExerciseDto> = {}): ScheduledSes
     customMetrics: [],
     baseline: [],
     adjustments: [],
+    baselineAdjustments: [],
     position: 0,
     documents: [
       {

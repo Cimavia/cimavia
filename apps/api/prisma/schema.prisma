@@ -492,35 +492,40 @@ model ScheduledSession {
 }
 
 model ScheduledSessionExercise {
-  id                 String           @id @default(cuid())
-  coachId            String
-  athleteId          String?
-  scheduledSessionId String
-  scheduledSession   ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
-  sourceExerciseId   String? // exercice d'origine — traçabilité seule
-  sourceExercise     Exercise?        @relation(fields: [sourceExerciseId], references: [id], onDelete: SetNull)
-  title              String // snapshot : l'affichage ne dépend jamais de sourceExercise
-  description        String?
+  id                  String           @id @default(cuid())
+  coachId             String
+  athleteId           String?
+  scheduledSessionId  String
+  scheduledSession    ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
+  sourceExerciseId    String? // exercice d'origine — traçabilité seule
+  sourceExercise      Exercise?        @relation(fields: [sourceExerciseId], references: [id], onDelete: SetNull)
+  title               String // snapshot : l'affichage ne dépend jamais de sourceExercise
+  description         String?
   /// Mêmes champs que l'Exercise source, copiés au moment de la diffusion. Sans eux une planif
   /// diffusée se dégraderait : l'athlète verrait le titre mais perdrait consigne et structure.
-  instructions       Json?
-  blocks             Json             @default("[]")
+  instructions        Json?
+  blocks              Json             @default("[]")
   /// Le contexte propre à CET athlète. Anciennement `prescription` — même renommage qu'en séance.
-  note               String?
+  note                String?
   /// La copie reçue à la diffusion, et les ajustements des DEUX niveaux : ceux de la séance
   /// arrivent marqués SESSION, ceux posés pour l'athlète en SCHEDULED.
-  baseline           Json             @default("[]")
-  adjustments        Json             @default("[]")
+  baseline            Json             @default("[]")
+  adjustments         Json             @default("[]")
+  /// Les ajustements REÇUS à la diffusion — les marqueurs SESSION de la séance-type, `[]` pour un
+  /// exercice ajouté dans le panneau (#518). C'est ce que « Revenir au défaut » rend aux marqueurs,
+  /// comme `baseline` aux valeurs : sans lui, revenir effaçait le rond d'une valeur décidée dans la
+  /// séance-type. Même règle que `baseline` : jamais réécrit depuis le panneau du coach.
+  baselineAdjustments Json             @default("[]")
   /// Les métriques maison citées par `blocks`, copiées à la diffusion. Sans elles l'athlète ne
   /// verrait qu'un identifiant — `/custom-metrics` est scopé au coach, et faire dépendre la
   /// lecture d'une planif de sa bibliothèque casserait l'autonomie du snapshot.
-  customMetrics      Json             @default("[]")
+  customMetrics       Json             @default("[]")
   /// Suivi d'exécution, par identifiant de bloc. `null` = NON SUIVI, ce qui n'est pas
   /// « zéro coché » : l'athlète n'a rien dit, et on ne lui reproche rien. Il vit en local
   /// pendant la séance et ne remonte qu'avec le débrief.
-  tracking           Json?
-  position           Int // ordre dans la séance (0-based)
-  createdAt          DateTime         @default(now())
+  tracking            Json?
+  position            Int // ordre dans la séance (0-based)
+  createdAt           DateTime         @default(now())
 
   documents ScheduledSessionExerciseDocument[]
   tags      ScheduledSessionExerciseTag[]
@@ -652,17 +657,17 @@ enum PushPlatform {
 }
 
 model PushToken {
-  id        String       @id @default(cuid())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String       @unique // ExponentPushToken[…] — l'adresse de livraison
-  platform  PushPlatform // sans effet sur la livraison (Expo route seul) : diagnostic prod
+  id                     String       @id @default(cuid())
+  userId                 String
+  user                   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token                  String       @unique // ExponentPushToken[…] — l'adresse de livraison
+  platform               PushPlatform // sans effet sur la livraison (Expo route seul) : diagnostic prod
   // Empreinte du secret d'installation (#90) — JAMAIS le clair : un dump de la base ne doit pas
   // suffire à détourner un appareil. `null` = ligne héritée d'avant #90, adoptée sans preuve au
   // premier enregistrement, et scellée par le même geste.
   installationSecretHash String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 
   @@index([userId])
   @@map("push_token")

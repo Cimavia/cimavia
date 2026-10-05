@@ -258,6 +258,13 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   /** Ce dont le troisième niveau part : ce que la séance a diffusé. */
   baseline: exerciseBlocksSchema,
   adjustments: adjustmentsSchema,
+  /**
+   * Les marqueurs REÇUS à la diffusion — ceux de la séance-type, `[]` pour un exercice ajouté
+   * dans le panneau (#518). La référence des marqueurs, comme `baseline` est celle des valeurs :
+   * « Revenir au défaut » les rend, au lieu d'effacer le rond d'une valeur décidée dans la séance.
+   * Lu seulement : l'entrée ne le porte pas, et le serveur ne le réécrit jamais.
+   */
+  baselineAdjustments: adjustmentsSchema,
   position: z.number().int(),
   // Copies des documents de l'exercice source (URL signée résolue à chaque lecture).
   documents: z.array(exerciseDocumentDtoSchema),

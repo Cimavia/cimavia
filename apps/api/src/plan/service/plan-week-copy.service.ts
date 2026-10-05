@@ -154,6 +154,9 @@ export class PlanWeekCopyService {
             // La copie garde la référence de la source : recopier une semaine ne remet pas les
             // ajustements à zéro, et ne les fige pas non plus comme s'ils étaient le défaut.
             baseline: parseBlocks(exercise.baseline),
+            // Les marqueurs reçus voyagent avec leur référence : revenir au défaut sur la copie rend
+            // ce que la SÉANCE-TYPE avait décidé, comme sur l'instance source.
+            baselineAdjustments: parseAdjustments(exercise.baselineAdjustments),
             documents: exercise.documents,
           })),
         );
