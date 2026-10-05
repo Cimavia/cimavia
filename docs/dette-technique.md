@@ -2593,7 +2593,25 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - Une invitation **expirée** reste révocable : l'expiration est une date, pas un statut. Ce qui
 >   est parti — e-mail, push, `INVITATION_RECEIVED` dans le centre — ne se rattrape pas (#102), et
 >   aucune notification n'annonce le retrait. Cette transition ouvre la seconde option de #314
->   sans trancher entre les deux.
+>   sans trancher entre les deux — c'est fait depuis, encadré suivant.
+
+> **Tranché en #314** (cesser de coacher RETIRE les invitations en attente, plutôt que de les
+> refuser à l'acceptation) : l'issue laissait le choix, et la révocation l'emporte pour deux raisons.
+> L'athlète voit la carte disparaître de sa liste — un refus à l'acceptation la laissait affichée,
+> puis en échec au clic —, et une carte déjà ouverte affiche le 410 de #524, qui dit vrai. Surtout,
+> **réactiver la capacité ne ressuscite rien** : un refus à l'acceptation aurait rendu acceptables,
+> sans prévenir, des invitations vieilles de plusieurs jours ; le coach qui revient réinvite.
+>
+> - La révocation et l'écriture de `isCoach` sont dans **la même transaction** : aucune invitation
+>   ne survit au retrait. Retirer la seule capacité athlète n'y touche pas.
+> - Les invitations émises AVANT par un compte qui ne coache déjà plus sont rattrapées par une
+>   **migration de données** (`20261005090000_revoke_ex_coach_invitations`), qui ne touche aucune
+>   ligne sur une base propre.
+> - L'avertissement du retrait (`warnCoach`, web et mobile) le dit : c'est à l'UI de prévenir
+>   (`CapabilityService`).
+> - **Fenêtre non gardée**, la même qu'en #524 : une acceptation qui passerait entre la vérification
+>   des athlètes actifs et l'écriture du retrait, à la milliseconde près, lierait encore l'athlète.
+>   La fermer exigerait une transaction sérialisable ; c'est disproportionné pour ce risque.
 
 > **Tranché en #147** (la carte s'affiche dans les DEUX branches — l'issue disait le contraire) :
 > son corps rangeait la carte d'invitation dans la seule branche « aucun coach », où un athlète déjà
