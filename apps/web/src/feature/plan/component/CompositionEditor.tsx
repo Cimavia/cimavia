@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IoArrowDown, IoArrowUp } from "react-icons/io5";
+import { IoArrowDown, IoArrowUp, IoChevronDown, IoChevronForward } from "react-icons/io5";
 import type { CompositionRow } from "@/feature/plan/hook/useComposition";
 import {
   CmvButton,
@@ -12,23 +12,32 @@ import {
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";
 
-type CompositionEditorProps = {
-  items: readonly CompositionRow[];
+/**
+ * Ce qu'une ligne montre en plus de son ordre et de sa note : un résumé toujours visible dans son
+ * en-tête, et un corps qui se déplie — le dosage, au panneau de séance planifiée (#518).
+ */
+export type CompositionDetail = { badge: ReactNode; body: ReactNode };
+
+type CompositionEditorProps<T extends CompositionRow> = {
+  items: readonly T[];
   onMove: (index: number, direction: -1 | 1) => void;
   /** Glisser connaît un départ et une arrivée ; les flèches, un cran. Deux gestes, deux formes. */
   onMoveTo: (from: number, to: number) => void;
   onRemove: (key: string) => void;
   onNoteChange: (key: string, value: string) => void;
+  /** Sans lui, la ligne ne se déplie pas : elle n'a que son ordre et sa note. */
+  detail?: (item: T) => CompositionDetail;
 };
 
-// La liste ordonnée des exercices d'une séance : ordre, note, retrait.
-export function CompositionEditor({
+// La liste ordonnée des exercices d'une séance : ordre, note, retrait — et, dépliée, son détail.
+export function CompositionEditor<T extends CompositionRow>({
   items,
   onMove,
   onMoveTo,
   onRemove,
   onNoteChange,
-}: Readonly<CompositionEditorProps>) {
+  detail,
+}: Readonly<CompositionEditorProps<T>>) {
   const { t } = useTranslation();
   const drag = useReorderDrag(onMoveTo);
   // Hors du JSX : imbriqué dans le gabarit du libellé, `check:i18n` ne verrait plus la clé.
@@ -55,6 +64,7 @@ export function CompositionEditor({
           onMove={onMove}
           onRemove={onRemove}
           onNoteChange={onNoteChange}
+          detail={detail?.(item) ?? null}
           rowProps={drag.rowProps(index)}
           isDropTarget={drag.isOver(index)}
           isDragging={drag.isDragging(index)}
@@ -79,6 +89,7 @@ type CompositionEditorRowProps = {
   onMove: (index: number, direction: -1 | 1) => void;
   onRemove: (key: string) => void;
   onNoteChange: (key: string, value: string) => void;
+  detail: CompositionDetail | null;
   rowProps: Record<string, unknown>;
   dragHandle: ReactNode;
   /** La cible de dépôt se teinte ICI : le fond de la ligne masquerait une teinte posée au-dessus. */
@@ -94,12 +105,15 @@ function CompositionEditorRow({
   onMove,
   onRemove,
   onNoteChange,
+  detail,
   rowProps,
   dragHandle,
   isDropTarget,
   isDragging,
 }: Readonly<CompositionEditorRowProps>) {
   const { t } = useTranslation();
+  // Replié par défaut, comme la carte du constructeur : six grilles dépliées sont illisibles.
+  const [open, setOpen] = useState(false);
 
   return (
     <div
@@ -113,8 +127,21 @@ function CompositionEditorRow({
       <div className="flex items-center gap-cmv-sm">
         {dragHandle}
         <span className="text-cmv-caption text-cmv-text-lo">{index + 1}</span>
-        <span className="flex-1 truncate text-cmv-body text-cmv-text-hi">{item.title}</span>
+        {detail == null ? (
+          <span className="flex-1 truncate text-cmv-body text-cmv-text-hi">{item.title}</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen((current) => !current)}
+            aria-expanded={open}
+            className="flex flex-1 items-center gap-cmv-sm truncate text-left"
+          >
+            {open ? <IoChevronDown /> : <IoChevronForward />}
+            <span className="truncate text-cmv-body text-cmv-text-hi">{item.title}</span>
+          </button>
+        )}
         <CmvTagList tags={item.tags} variant="accent" />
+        {detail?.badge}
 
         {/* Les flèches doublent le glisser, inaccessible au clavier — même dispositif que la
             carte de composition du constructeur de séance. */}
@@ -138,6 +165,8 @@ function CompositionEditorRow({
           {t("plan.session.remove")}
         </CmvButton>
       </div>
+
+      {open ? detail?.body : null}
 
       <CmvTextField
         label={t("plan.session.noteLabel")}

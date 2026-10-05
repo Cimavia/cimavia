@@ -61,11 +61,14 @@ export function useComposition<T extends CompositionRow>(
     moveTo(index, index + direction);
   }
 
-  function setNote(key: string, value: string) {
-    setItems((current) =>
-      current.map((item) => (item.key === key ? { ...item, note: value } : item)),
-    );
+  /** Transforme UNE ligne — le point d'entrée des gestes propres à l'appelant, comme le dosage. */
+  function updateItem(key: string, change: (item: T) => T) {
+    setItems((current) => current.map((item) => (item.key === key ? change(item) : item)));
   }
 
-  return { items, addExercise, removeItem, moveItem, moveTo, setNote };
+  function setNote(key: string, value: string) {
+    updateItem(key, (item) => ({ ...item, note: value }));
+  }
+
+  return { items, addExercise, removeItem, moveItem, moveTo, setNote, updateItem };
 }

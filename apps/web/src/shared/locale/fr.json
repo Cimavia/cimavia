@@ -549,7 +549,18 @@
       "submit": "Enregistrer",
       "submitting": "Enregistrement…",
       "noteLabel": "Note",
-      "notePlaceholder": "Ex. Épaule sensible, reste prudent…"
+      "notePlaceholder": "Ex. Épaule sensible, reste prudent…",
+      "dosage": {
+        "adjustedFor": "{{count}} ajusté pour {{name}}",
+        "adjustedFor_other": "{{count}} ajustés pour {{name}}",
+        "valuesFor": "{{count}} valeur pour {{name}}",
+        "valuesFor_other": "{{count}} valeurs pour {{name}}",
+        "viewTemplate": "Voir la séance-type",
+        "legendSession": "modifié dans la séance",
+        "legendScheduled": "modifié pour {{name}}, cette semaine",
+        "weekOnly": "Les ajustements faits ici ne valent que pour cette semaine.",
+        "theAthlete": "l'athlète"
+      }
     },
     "builder": {
       "back": "← Planifications",

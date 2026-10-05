@@ -122,3 +122,31 @@ describe("CompositionEditor", () => {
     expect(onNoteChange).toHaveBeenCalledExactlyOnceWith("c", "Lestées 5 kg");
   });
 });
+
+describe("CompositionEditor — détail dépliable", () => {
+  const detail = (row: CompositionRow) => ({
+    badge: <span>{`badge ${row.title}`}</span>,
+    body: <p>{`grille ${row.title}`}</p>,
+  });
+
+  it("montre le résumé replié, et le corps seulement une fois la ligne dépliée", async () => {
+    const { user, getByRole, getByText, queryByText } = renderWithProviders(
+      <CompositionEditor
+        items={rows.slice(0, 1)}
+        onMove={vi.fn()}
+        onMoveTo={vi.fn()}
+        onRemove={vi.fn()}
+        onNoteChange={vi.fn()}
+        detail={detail}
+      />,
+    );
+
+    expect(getByText("badge Tractions")).toBeInTheDocument();
+    expect(queryByText("grille Tractions")).not.toBeInTheDocument();
+
+    await user.click(getByRole("button", { name: "Tractions", expanded: false }));
+
+    expect(getByText("grille Tractions")).toBeInTheDocument();
+    expect(getByRole("button", { name: "Tractions", expanded: true })).toBeInTheDocument();
+  });
+});

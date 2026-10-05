@@ -14,6 +14,8 @@ type SessionPanelFooterProps = {
   isPublished: boolean;
   isBusy: boolean;
   canSubmit: boolean;
+  /** Une valeur refusée reste à l'écran sans entrer dans la séance : enregistrer est fermé (#566). */
+  hasRefused: boolean;
   onDelete: () => void;
   onClose: () => void;
   onSubmit: (event: SyntheticEvent) => void;
@@ -26,6 +28,7 @@ export function SessionPanelFooter({
   isPublished,
   isBusy,
   canSubmit,
+  hasRefused,
   onDelete,
   onClose,
   onSubmit,
@@ -33,6 +36,8 @@ export function SessionPanelFooter({
   const { t } = useTranslation();
   // Omis plutôt qu'`undefined` (`exactOptionalPropertyTypes`) : un brouillon n'a rien à annoncer.
   const deleteHint = isPublished ? { confirmHint: t("plan.session.deleteHintPublished") } : {};
+  // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
+  const blockedBy = hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
   const deleteBlocked = isDebriefed
     ? { disabledReason: t("plan.session.deleteDisabledDebriefed") }
     : {};
@@ -54,7 +59,12 @@ export function SessionPanelFooter({
       <CmvButton variant="ghost" onClick={onClose} disabled={isBusy}>
         {t("common.cancel")}
       </CmvButton>
-      <CmvButton type="submit" onClick={onSubmit} disabled={isBusy || !canSubmit}>
+      <CmvButton
+        type="submit"
+        onClick={onSubmit}
+        disabled={isBusy || !canSubmit || blockedBy != null}
+        title={blockedBy}
+      >
         {isBusy ? t("plan.session.submitting") : t("plan.session.submit")}
       </CmvButton>
     </>
