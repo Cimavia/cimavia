@@ -4,6 +4,7 @@ import type {
   CreateExerciseInput,
   CreateSessionInput,
   CustomMetric,
+  DuplicateExerciseInput,
   ExerciseDocumentDto,
   ExerciseDto,
   RequestUploadUrlInput,
@@ -56,6 +57,11 @@ export function getExercise(id: string): Promise<ExerciseDto> {
 
 export function createExercise(input: CreateExerciseInput): Promise<ExerciseDto> {
   return api.post<ExerciseDto>("/exercises", input);
+}
+
+/** « Dupliquer en variante » : le serveur recopie la source, images de consigne comprises (#315). */
+export function duplicateExercise(id: string, input: DuplicateExerciseInput): Promise<ExerciseDto> {
+  return api.post<ExerciseDto>(`/exercises/${id}/duplicate`, input);
 }
 
 export function updateExercise(id: string, input: UpdateExerciseInput): Promise<ExerciseDto> {
