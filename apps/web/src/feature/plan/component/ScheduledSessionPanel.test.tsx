@@ -7,9 +7,11 @@ import {
   MetricSource,
   MetricUnit,
   type PlanWeekDto,
+  required,
   type ScheduledSessionDto,
+  structurePath,
 } from "@cmv/shared";
-import { waitFor, within } from "@testing-library/react";
+import { fireEvent, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { ScheduledSessionPanel } from "./ScheduledSessionPanel";
@@ -468,12 +470,79 @@ describe("ScheduledSessionPanel — dosage ajusté pour l'athlète (#518)", () =
     expect(submit).toHaveAttribute("title", "library.builder.refusedBlocksSave");
   });
 
-  it("n'envoie rien quand Entrée soumet une valeur refusée", async () => {
+  // Le bouton fermé ne suffit pas : Entrée dans un champ du formulaire le soumet sans lui.
+  it("n'envoie rien quand le formulaire est soumis avec une valeur refusée", async () => {
     const view = await open();
-    await view.user.clear(view.cell());
-    await view.user.type(view.cell(), "14kgg{Enter}");
+    await view.type("14kgg");
 
-    expect(updateMock).not.toHaveBeenCalled();
+    fireEvent.submit(required(document.querySelector("form"), "formulaire du panneau"));
+
+    // L'envoi est asynchrone : affirmer tout de suite qu'il n'est pas parti ne prouverait rien.
+    await expect(
+      waitFor(() => expect(updateMock).toHaveBeenCalled(), { timeout: 300 }),
+    ).rejects.toThrow();
+  });
+
+  it("ajoute une ligne sans poser de marqueur, et l'enregistre", async () => {
+    updateMock.mockResolvedValue(forLea());
+    const view = await open();
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.grid.addRow" }));
+
+    // Une ligne ajoutée n'est dans aucune référence : elle ne s'écarte d'aucun défaut.
+    expect(within(view.getByRole("table")).getAllByRole("textbox")).toHaveLength(2);
+    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    const [, input] = updateMock.mock.calls[0] as [
+      string,
+      { exercises: { blocks: ExerciseBlocks; adjustments: unknown }[] },
+    ];
+    expect(input.exercises[0]?.blocks[0]?.rows).toHaveLength(2);
+    expect(input.exercises[0]?.adjustments).toEqual(received);
+  });
+
+  it("ajuste le nombre de séries pour l'athlète, puis revient à celui de la séance", async () => {
+    const SET_COUNT = "library.builder.bandeau.setCount";
+    const series = [
+      {
+        ...(tractions[0] as ExerciseBlocks[number]),
+        structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
+      },
+    ];
+    // La séance-type a passé les séries de 3 à 4 : le rond est sur le bandeau, pas sur une cellule.
+    const fromTemplate = [
+      { path: structurePath("blk", "setCount"), level: AdjustmentLevel.SESSION },
+    ];
+    const exercise = forLea().exercises[0] as ScheduledSessionDto["exercises"][number];
+    const view = setup({
+      session: forLea({
+        exercises: [
+          {
+            ...exercise,
+            blocks: series,
+            baseline: series,
+            adjustments: fromTemplate,
+            baselineAdjustments: fromTemplate,
+          },
+        ],
+      }),
+    });
+    await view.user.click(view.getByRole("button", { name: "Tractions lestées" }));
+    const setCount = () => view.getByRole("spinbutton", { name: SET_COUNT });
+
+    fireEvent.change(setCount(), { target: { value: "5" } });
+
+    expect(setCount()).toHaveValue(5);
+    expect(view.getByText(VALUES_FOR)).toBeInTheDocument();
+    expect(view.queryByText(INHERITED)).not.toBeInTheDocument();
+
+    await view.user.click(view.getByRole("button", { name: REVERT }));
+
+    expect(setCount()).toHaveValue(4);
+    expect(view.getByText(INHERITED)).toBeInTheDocument();
+    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
   });
 
   it("ouvre la séance-type dans un autre onglet", () => {
