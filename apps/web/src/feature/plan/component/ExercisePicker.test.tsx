@@ -12,22 +12,15 @@ const exercises = [
   exercise("ex-3", "Gainage"),
 ];
 
-function setup(searchable?: boolean) {
+function setup() {
   const onPick = vi.fn();
-  const view = renderWithProviders(
-    <ExercisePicker
-      exercises={exercises}
-      onPick={onPick}
-      labelPrefix="plan.session"
-      {...(searchable == null ? {} : { searchable })}
-    />,
-  );
+  const view = renderWithProviders(<ExercisePicker exercises={exercises} onPick={onPick} />);
   const titles = () => view.getAllByRole("button").map((button) => button.firstChild?.textContent);
   return { ...view, onPick, titles };
 }
 
 describe("ExercisePicker", () => {
-  it("titre la liste dans l'espace de clés de son écran, et propose tout", () => {
+  it("titre la liste et propose tout, dans l'ordre reçu", () => {
     const { getByText, titles } = setup();
 
     expect(getByText("plan.session.pickerTitle")).toBeInTheDocument();
@@ -38,28 +31,9 @@ describe("ExercisePicker", () => {
     expect(setup().getByRole("button", { name: /Échauffement/ })).toHaveTextContent("mobilité");
   });
 
-  // Le panneau de planification s'ouvre sur une séance déjà composée : pas de recherche par défaut.
-  it("n'a pas de recherche par défaut", () => {
+  // Le panneau de planification s'ouvre sur une séance déjà composée : pas de recherche.
+  it("n'a pas de recherche", () => {
     expect(setup().queryByRole("searchbox")).not.toBeInTheDocument();
-  });
-
-  it.each(["echauf", "ÉCHAUF"])("trouve le titre en tapant « %s »", async (typed) => {
-    const { user, getByRole, titles } = setup(true);
-
-    await user.type(getByRole("searchbox", { name: "library.searchLabel" }), typed);
-
-    expect(titles()).toEqual(["Échauffement"]);
-  });
-
-  it("repropose tout quand la recherche est vidée", async () => {
-    const { user, getByRole, titles } = setup(true);
-    const search = getByRole("searchbox", { name: "library.searchLabel" });
-
-    await user.type(search, "trac");
-    expect(titles()).toEqual(["Tractions"]);
-    await user.clear(search);
-
-    expect(titles()).toEqual(["Échauffement", "Tractions", "Gainage"]);
   });
 
   it("remonte l'exercice choisi", async () => {

@@ -24,9 +24,7 @@ function setup(items: readonly CompositionRow[] = rows) {
     onRemove: vi.fn(),
     onNoteChange: vi.fn(),
   };
-  const view = renderWithProviders(
-    <CompositionEditor items={items} labelPrefix={PREFIX} {...handlers} />,
-  );
+  const view = renderWithProviders(<CompositionEditor items={items} {...handlers} />);
   return { ...view, ...handlers };
 }
 

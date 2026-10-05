@@ -2,10 +2,10 @@ import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
 import { planWeekDays, required, ScheduledSessionStatus } from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CompositionEditor } from "@/feature/library/component/CompositionEditor";
-import { ExercisePicker } from "@/feature/library/component/ExercisePicker";
 import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
+import { CompositionEditor } from "@/feature/plan/component/CompositionEditor";
+import { ExercisePicker } from "@/feature/plan/component/ExercisePicker";
 import { SessionPanelFooter } from "@/feature/plan/component/SessionPanelFooter";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { type EditorItem, useSessionComposition } from "@/feature/plan/hook/useSessionComposition";
@@ -212,7 +212,6 @@ export function ScheduledSessionPanel({
 
               <CompositionEditor
                 items={items}
-                labelPrefix="plan.session"
                 onMove={moveItem}
                 onMoveTo={moveTo}
                 onRemove={removeItem}
@@ -223,13 +222,7 @@ export function ScheduledSessionPanel({
         </section>
 
         {/* En édition seulement : la bibliothèque dans laquelle piocher des exercices. */}
-        {isEditing ? (
-          <ExercisePicker
-            exercises={exercises ?? []}
-            onPick={addExercise}
-            labelPrefix="plan.session"
-          />
-        ) : null}
+        {isEditing ? <ExercisePicker exercises={exercises ?? []} onPick={addExercise} /> : null}
       </form>
     </CmvPanel>
   );

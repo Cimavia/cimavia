@@ -33,7 +33,6 @@ function Host() {
   return (
     <CompositionEditor
       items={composition.items}
-      labelPrefix={PREFIX}
       onMove={composition.moveItem}
       onMoveTo={composition.moveTo}
       onRemove={composition.removeItem}

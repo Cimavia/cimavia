@@ -1,5 +1,5 @@
 import type { ExerciseDto, ScheduledSessionDto } from "@cmv/shared";
-import { type CompositionRow, useComposition } from "@/feature/library/hook/useComposition";
+import { type CompositionRow, useComposition } from "@/feature/plan/hook/useComposition";
 
 /**
  * Ligne de composition d'une séance PLANIFIÉE. Elle porte un snapshot (titre, description,
