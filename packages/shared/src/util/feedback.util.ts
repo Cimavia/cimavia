@@ -50,7 +50,8 @@ export function remainingMediaSlots(
 
 /**
  * Ce que devient le texte en cours de saisie quand un débrief (re)chargé est examiné — à chaque
- * changement de son identité, qui naît notamment au premier média joint (#284).
+ * changement de son identité, qui naît notamment au premier média joint (#284). Même règle, champ
+ * par champ, pour les termes de facturation du builder web, réexaminés à chaque lecture (#334).
  *
  * Le brouillon gagne dès qu'il diffère du texte chargé au dernier examen : l'athlète a écrit
  * depuis, et rien ne détruit une saisie en cours — pas même un texte écrit entre-temps sur un autre
