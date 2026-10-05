@@ -1,5 +1,6 @@
 import { type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
-import { fireEvent } from "@testing-library/react";
+import { act, fireEvent } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanBillingSection } from "@/feature/invoice/component/PlanBillingSection";
 import {
@@ -328,5 +329,82 @@ describe("PlanBillingSection — une saisie non enregistrée", () => {
     await user.type(container.querySelector("#amount") as HTMLInputElement, "60");
 
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+});
+
+/**
+ * Le builder relit la facturation, et chaque lecture redescend un NOUVEL objet — `documentUrl` est
+ * re-signé à chaque fois. Ce builder minimal rend la seconde valeur que `mount` ne sait pas rendre.
+ */
+let reloadBilling: (next: InvoiceDto | null | undefined) => void = () => {};
+function ReloadingBuilder({ first }: Readonly<{ first: InvoiceDto | undefined }>) {
+  const [billing, setBilling] = useState<InvoiceDto | null | undefined>(first);
+  reloadBilling = setBilling;
+  return (
+    <PlanBillingSection
+      planId="pln_1"
+      isPublished={false}
+      hasAthlete={true}
+      billing={billing}
+      onDirtyChange={onDirtyChange}
+    />
+  );
+}
+
+/** La saisie en cours survit aux relectures : seul un champ que le coach n'a pas touché suit (#334). */
+describe("PlanBillingSection — une relecture pendant la saisie", () => {
+  const SAVED = {
+    amountCents: 12000,
+    dueDate: "2026-11-05",
+    note: null,
+    documentUrl: "https://s3/signé/facture.pdf",
+    documentFileName: "facture.pdf",
+  } as InvoiceDto;
+
+  async function mountReloading(first: InvoiceDto | undefined) {
+    const view = await renderInRoute(<ReloadingBuilder first={first} />, {
+      path: "/plans/$planId",
+      params: { planId: "pln_1" },
+      links: ["/invoices"],
+    });
+    const field = (id: string) =>
+      view.container.querySelector(`#${id}`) as HTMLInputElement | HTMLTextAreaElement;
+    const reload = (next: InvoiceDto | null | undefined) => act(() => reloadBilling(next));
+    return { ...view, field, reload };
+  }
+
+  // Le scénario de l'issue : 120 → 150, nouveau justificatif, et la facture partait à 120 €.
+  it("garde le montant tapé quand la facture revient re-signée", async () => {
+    const { container, field, reload, user } = await mountReloading(SAVED);
+
+    await user.clear(field("amount"));
+    await user.type(field("amount"), "150");
+    reload({ ...SAVED, documentUrl: "https://s3/re-signé/facture.pdf" });
+
+    expect(field("amount").value).toBe("150");
+    submit(container);
+    expect(save).toHaveBeenCalledWith({ amountCents: 15000, dueDate: "2026-11-05", note: null });
+  });
+
+  it("suit les termes relus là où le coach n'a rien tapé", async () => {
+    const { field, reload, user } = await mountReloading(SAVED);
+
+    await user.clear(field("amount"));
+    await user.type(field("amount"), "150");
+    reload({ ...SAVED, amountCents: 13000, note: "Virement" });
+
+    expect(field("amount").value).toBe("150");
+    expect(field("note").value).toBe("Virement");
+  });
+
+  // Les termes arrivent après la première frappe : elle n'est pas effacée par leur arrivée.
+  it("garde ce qui a été tapé avant que les termes arrivent", async () => {
+    const { field, reload, user } = await mountReloading(undefined);
+
+    await user.type(field("amount"), "90");
+    reload(SAVED);
+
+    expect(field("amount").value).toBe("90");
+    expect(field("dueDate").value).toBe("2026-11-05");
   });
 });

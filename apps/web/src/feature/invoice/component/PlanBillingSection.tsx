@@ -1,6 +1,6 @@
-import { type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
+import { draftAfterLoad, type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
-import { type ChangeEvent, type SubmitEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useAttachInvoiceDocument,
@@ -44,6 +44,20 @@ function toAmountCents(euros: string): number | null {
 type BillingDraft = { amount: string; dueDate: string; note: string };
 
 /**
+ * Les termes enregistrés tels que le formulaire les affiche — montant en euros. `null` champ par
+ * champ quand rien n'est enregistré (ou pas encore lu) : `draftAfterLoad` le lit comme un champ vide.
+ */
+function termsAsDraft(billing: InvoiceDto | null | undefined): {
+  [Field in keyof BillingDraft]: string | null;
+} {
+  return {
+    amount: billing == null ? null : String(billing.amountCents / 100),
+    dueDate: billing?.dueDate ?? null,
+    note: billing?.note ?? null,
+  };
+}
+
+/**
  * La saisie s'écarte-t-elle des termes enregistrés ? Comparée sur ce qui PARTIRAIT, pas sur le
  * texte : « 50 » et « 50.00 » valent les mêmes 5000 centimes, une note faite d'espaces vaut
  * l'absence de note. Sans termes enregistrés (`null`, ou pas encore lus), tout champ rempli est
@@ -75,17 +89,28 @@ export function PlanBillingSection({
   const { t } = useTranslation();
   const save = useSavePlanBilling(planId);
 
-  const [amount, setAmount] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [note, setNote] = useState("");
+  const loaded = termsAsDraft(billing);
+  const [amount, setAmount] = useState(loaded.amount ?? "");
+  const [dueDate, setDueDate] = useState(loaded.dueDate ?? "");
+  const [note, setNote] = useState(loaded.note ?? "");
 
-  // Pré-remplit depuis les termes déjà enregistrés dès qu'ils arrivent (montant affiché en euros).
-  useEffect(() => {
-    if (billing == null) return;
-    setAmount(String(billing.amountCents / 100));
-    setDueDate(billing.dueDate);
-    setNote(billing.note ?? "");
-  }, [billing]);
+  /**
+   * Le formulaire part des termes enregistrés, et les suit — sauf là où le coach a tapé (#334).
+   * Chaque lecture rend un NOUVEL objet, ne serait-ce que parce que `documentUrl` est re-signé :
+   * joindre un PDF ou revenir sur l'onglet suffit. Ni l'`id` ni `updatedAt` ne disent « les termes
+   * ont changé » — joindre un justificatif avance `updatedAt`. La frappe gagne donc champ par champ,
+   * comme au débrief (#284) : un champ qui diffère des termes lus au dernier examen est gardé.
+   *
+   * Ajusté PENDANT le render et non dans un effet : c'est de l'état dérivé d'une donnée chargée.
+   */
+  const [synced, setSynced] = useState(billing);
+  if (billing !== synced) {
+    const lastLoaded = termsAsDraft(synced);
+    setSynced(billing);
+    setAmount(draftAfterLoad(amount, lastLoaded.amount, loaded.amount));
+    setDueDate(draftAfterLoad(dueDate, lastLoaded.dueDate, loaded.dueDate));
+    setNote(draftAfterLoad(note, lastLoaded.note, loaded.note));
+  }
 
   function onSubmit(event: SubmitEvent) {
     event.preventDefault();

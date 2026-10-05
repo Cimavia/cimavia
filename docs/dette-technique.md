@@ -256,6 +256,21 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > défaut. Le `enabled` qui subsiste n'est plus un garde-fou contre une erreur, c'est une économie :
 > on ne pose pas une question dont on tient déjà la réponse.
 
+> **Tranché en [#334](https://github.com/Cimavia/cimavia/issues/334)** (la saisie de facturation
+> écrasée par une relecture) : le formulaire se resynchronisait sur l'objet `billing`, que chaque
+> lecture renouvelle — `documentUrl` est re-signé. Un montant passé de 120 à 150 € revenait à 120 €
+> au succès de l'upload du justificatif, ou au retour sur l'onglet.
+>
+> - **Ni l'`id` ni `updatedAt`, que l'issue proposait.** Joindre un PDF met à jour la ligne de la
+>   facture, donc avance `updatedAt` : le scénario même de l'issue serait resté cassé. Et l'`id`
+>   naît au premier enregistrement, ce qui perd la frappe faite pendant l'envoi — le piège de #284.
+> - **La règle de #284, champ par champ** : `draftAfterLoad` (`@cmv/shared`) sur le montant,
+>   l'échéance et la note. Un champ que le coach n'a pas touché suit le serveur ; un champ touché
+>   gagne, y compris sur une saisie faite entre-temps dans un autre onglet.
+> - **La comparaison se fait sur le texte affiché** : « 120.00 » tapé sur 120 € enregistrés compte
+>   comme touché. Sans effet, les deux valent les mêmes centimes ; c'est `hasUnsavedTerms`, pas
+>   cette règle, qui dit à « Diffuser » si la saisie s'écarte de l'enregistré (#326).
+
 ---
 
 ## P7 — i18n & Déploiement FR
