@@ -13,6 +13,11 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
  * effacer le fichier tant qu'une planif l'affiche encore : le coach casserait le cycle déjà
  * diffusé à son athlète. On ne purge que si plus aucune copie ne pointe sur la clé.
  *
+ * Une variante partage de même les images de consigne de son exercice source (#315) : les AUTRES
+ * documents de bibliothèque qui portent la clé la retiennent aussi. « Autres » au sens de la ligne,
+ * pas de l'exercice — chaque envoi a sa propre clé, deux documents d'un même exercice ne la
+ * partagent jamais.
+ *
  * Contrepartie assumée : si la dernière copie disparaît plus tard, l'objet reste orphelin en
  * storage (cf. dette P2-1 — tâche de purge).
  */
@@ -23,13 +28,18 @@ export class DocumentCleanupService {
     private readonly storage: StorageService,
   ) {}
 
-  async deleteObjectIfUnreferenced(doc: Pick<DocumentRow, "type" | "storagePath">): Promise<void> {
+  async deleteObjectIfUnreferenced(
+    doc: Pick<DocumentRow, "id" | "type" | "storagePath">,
+  ): Promise<void> {
     if (doc.type !== DocumentType.FILE || doc.storagePath == null) return;
 
-    const copies = await this.db.scheduledSessionExerciseDocument.count({
-      where: { storagePath: doc.storagePath },
-    });
-    if (copies > 0) return;
+    const [copies, siblings] = await Promise.all([
+      this.db.scheduledSessionExerciseDocument.count({ where: { storagePath: doc.storagePath } }),
+      this.db.exerciseDocument.count({
+        where: { storagePath: doc.storagePath, id: { not: doc.id } },
+      }),
+    ]);
+    if (copies + siblings > 0) return;
 
     await this.storage.deleteObject(doc.storagePath);
   }
