@@ -79,6 +79,7 @@ export type {
 export {
   ADJUSTMENTS_MAX,
   AdjustmentLevel,
+  adjustmentCount,
   adjustmentLevelAt,
   adjustmentLevelSchema,
   adjustmentSchema,
@@ -91,6 +92,7 @@ export {
   markAdjusted,
   resetRow,
   resetToBaseline,
+  restoreAdjustment,
   structurePath,
 } from "./dto/dosage-override.schema";
 export type {
@@ -666,6 +668,16 @@ export {
   relativeTimeFrom,
 } from "./util/date-format.util";
 export { decimalPlaces, formatDecimal, parseDecimal } from "./util/decimal.util";
+export type { DosageEditable, DosageScope } from "./util/dosage-edit.util";
+export {
+  adjustCell,
+  adjustRows,
+  adjustStructure,
+  resetAllAdjustments,
+  revertCell,
+  revertRow,
+  revertStructureField,
+} from "./util/dosage-edit.util";
 export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
 export { countUnreadFeedbacks, draftAfterLoad, remainingMediaSlots } from "./util/feedback.util";
 export type {

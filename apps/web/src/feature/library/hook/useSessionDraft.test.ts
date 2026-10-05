@@ -411,14 +411,15 @@ describe("useSessionDraft — bandeau", () => {
     expect(itemOf(result, "sx-tractions").adjustments).toEqual([]);
   });
 
-  it("marque tous les paramètres d'un bloc absent de la référence", () => {
+  // Comme une ligne ajoutée (#518) : sans référence, aucun défaut dont s'écarter, donc aucun
+  // marqueur — c'est le cas d'un exercice ajouté dans une séance planifiée.
+  it("ne marque rien sur un bloc absent de la référence", () => {
     const { result } = renderDraft(session([composed({ baseline: [] })]));
 
-    act(() => result.current.setStructure("sx-tractions", SERIES, series(4)));
+    act(() => result.current.setStructure("sx-tractions", SERIES, series(5)));
 
-    expect(itemOf(result, "sx-tractions").adjustments.map((adjustment) => adjustment.path)).toEqual(
-      [structurePath(SERIES, "setCount"), structurePath(SERIES, "restBetweenSetsSeconds")],
-    );
+    expect(seriesOf(itemOf(result, "sx-tractions").blocks)?.structure).toEqual(series(5));
+    expect(itemOf(result, "sx-tractions").adjustments).toEqual([]);
   });
 
   it("« Revenir au défaut » sur un paramètre reprend sa valeur et retire son marqueur", () => {

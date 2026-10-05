@@ -85,13 +85,20 @@ export function adjustmentLevelAt(adjustments: Adjustments, path: string): Adjus
  * Marque une valeur comme ajustée. Un chemin déjà marqué au niveau SESSION et retouché au niveau
  * SCHEDULED passe au SECOND : c'est le dernier qui a la main sur ce que voit l'athlète, et le
  * marqueur doit dire qui décide aujourd'hui, pas qui a décidé en premier.
+ *
+ * Un marqueur existant est remplacé À SA PLACE, pas déplacé en fin de liste : retoucher puis
+ * revenir doit rendre la liste d'origine à l'identique, sans quoi l'écran se croirait modifié
+ * alors que rien n'a changé (#327).
  */
 export function markAdjusted(
   adjustments: Adjustments,
   path: string,
   level: AdjustmentLevel,
 ): Adjustments {
-  return [...adjustments.filter((item) => item.path !== path), { path, level }];
+  const marker = { path, level };
+  return adjustments.some((item) => item.path === path)
+    ? adjustments.map((item) => (item.path === path ? marker : item))
+    : [...adjustments, marker];
 }
 
 /** Retire le marqueur d'un chemin — la valeur redevient héritée. */
@@ -100,8 +107,52 @@ export function clearAdjustment(adjustments: Adjustments, path: string): Adjustm
 }
 
 /**
+ * Rend à un chemin le marqueur qu'il portait dans la RÉFÉRENCE des marqueurs — ou aucun s'il n'en
+ * portait pas. C'est le marqueur de « Revenir au défaut » (#518).
+ *
+ * La référence est vide au niveau séance : la valeur redevient celle de la bibliothèque, sans
+ * marqueur, et ce geste vaut alors `clearAdjustment`. Au niveau planifié, elle porte les marqueurs
+ * REÇUS à la diffusion (`baselineAdjustments`) : la valeur redevient celle de la séance-type, qui
+ * peut être elle-même un ajustement — l'effacer ferait passer +12 kg décidés dans la séance pour la
+ * valeur de la bibliothèque.
+ */
+export function restoreAdjustment(
+  adjustments: Adjustments,
+  reference: Adjustments,
+  path: string,
+): Adjustments {
+  return restoreWhere(adjustments, reference, (candidate) => candidate === path);
+}
+
+/** Combien de valeurs ont été touchées À CE NIVEAU — les marqueurs hérités ne comptent pas. */
+export function adjustmentCount(adjustments: Adjustments, level: AdjustmentLevel): number {
+  return adjustments.filter((item) => item.level === level).length;
+}
+
+/**
+ * Les chemins retenus par `matches` reprennent le marqueur de la référence ; les autres ne bougent
+ * pas. Remplacés en place, et ceux de la référence absents d'ici ajoutés à la fin.
+ */
+function restoreWhere(
+  adjustments: Adjustments,
+  reference: Adjustments,
+  matches: (path: string) => boolean,
+): Adjustments {
+  const referenceOf = (path: string) => reference.find((item) => item.path === path);
+  const kept = adjustments.flatMap((item) => {
+    if (!matches(item.path)) return [item];
+    const restored = referenceOf(item.path);
+    return restored == null ? [] : [restored];
+  });
+  const missing = reference.filter(
+    (item) => matches(item.path) && !kept.some((current) => current.path === item.path),
+  );
+  return [...kept, ...missing];
+}
+
+/**
  * « Revenir au défaut » sur une ligne : ses valeurs reprennent celles de la référence, et ses
- * marqueurs tombent.
+ * marqueurs ceux de la référence des marqueurs (`restoreAdjustment`) — aucun au niveau séance.
  *
  * Une ligne AJOUTÉE au niveau séance n'existe pas dans la référence : elle est laissée telle
  * quelle. La retirer serait une suppression déguisée derrière un bouton qui dit « revenir ».
@@ -110,6 +161,7 @@ export function resetRow(
   blocks: ExerciseBlocks,
   baseline: ExerciseBlocks,
   adjustments: Adjustments,
+  reference: Adjustments,
   blockId: string,
   rowId: string,
 ): { blocks: ExerciseBlocks; adjustments: Adjustments } {
@@ -133,12 +185,19 @@ export function resetRow(
 
   return {
     blocks: nextBlocks,
-    adjustments: adjustments.filter((item) => !isPathInRow(item.path, blockId, rowId)),
+    adjustments: restoreWhere(adjustments, reference, (path) => isPathInRow(path, blockId, rowId)),
   };
 }
 
-/** « Tout réinitialiser » : retour aux valeurs copiées à l'ajout. La référence, elle, ne bouge pas. */
-export function resetToBaseline(baseline: ExerciseBlocks): {
+/**
+ * « Tout réinitialiser » : retour aux valeurs copiées à l'ajout, et aux marqueurs de la référence
+ * des marqueurs — aucun au niveau séance, ceux reçus à la diffusion au niveau planifié. La
+ * référence, elle, ne bouge pas.
+ */
+export function resetToBaseline(
+  baseline: ExerciseBlocks,
+  reference: Adjustments,
+): {
   blocks: ExerciseBlocks;
   adjustments: Adjustments;
 } {
@@ -150,7 +209,7 @@ export function resetToBaseline(baseline: ExerciseBlocks): {
       ...block,
       rows: block.rows.map((row) => ({ ...row, values: { ...row.values } })),
     })),
-    adjustments: [],
+    adjustments: [...reference],
   };
 }
 

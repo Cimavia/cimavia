@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AdjustmentLevel,
   type Adjustments,
+  adjustmentCount,
   adjustmentLevelAt,
   adjustmentsSchema,
   cellPath,
@@ -11,6 +12,7 @@ import {
   markAdjusted,
   resetRow,
   resetToBaseline,
+  restoreAdjustment,
   structurePath,
 } from "./dosage-override.schema";
 import { BlockType, type ExerciseBlocks, MetricSource } from "./exercise-block.schema";
@@ -74,12 +76,63 @@ describe("marqueurs", () => {
     expect(adjustmentLevelAt(marked, path)).toBe(AdjustmentLevel.SCHEDULED);
   });
 
+  it("remplace un marqueur À SA PLACE : retoucher puis revenir rend la liste d'origine", () => {
+    const other = cellPath("blk_1", "r2", "col_reps");
+    const start: Adjustments = [
+      { path, level: AdjustmentLevel.SESSION },
+      { path: other, level: AdjustmentLevel.SESSION },
+    ];
+
+    const touched = markAdjusted(start, path, AdjustmentLevel.SCHEDULED);
+    expect(touched.map((item) => item.path)).toEqual([path, other]);
+    expect(restoreAdjustment(touched, start, path)).toEqual(start);
+  });
+
   it("refuse deux ajustements sur le même chemin", () => {
     const doubled: Adjustments = [
       { path, level: AdjustmentLevel.SESSION },
       { path, level: AdjustmentLevel.SCHEDULED },
     ];
     expect(adjustmentsSchema.safeParse(doubled).success).toBe(false);
+  });
+});
+
+describe("restoreAdjustment", () => {
+  const path = cellPath("blk_1", "r1", "col_reps");
+  const reference: Adjustments = [{ path, level: AdjustmentLevel.SESSION }];
+
+  it("sans référence, retire le marqueur — comme clearAdjustment au niveau séance", () => {
+    const marked = markAdjusted([], path, AdjustmentLevel.SESSION);
+    expect(restoreAdjustment(marked, [], path)).toEqual(clearAdjustment(marked, path));
+  });
+
+  it("rend le marqueur reçu, et non aucun, à une valeur que la séance avait ajustée", () => {
+    const touched = markAdjusted(reference, path, AdjustmentLevel.SCHEDULED);
+    expect(adjustmentLevelAt(restoreAdjustment(touched, reference, path), path)).toBe(
+      AdjustmentLevel.SESSION,
+    );
+  });
+
+  it("rend aussi un marqueur reçu que la liste courante n'a plus", () => {
+    expect(restoreAdjustment([], reference, path)).toEqual(reference);
+  });
+
+  it("ne touche à aucun autre chemin", () => {
+    const other = { path: cellPath("blk_1", "r2", "col_reps"), level: AdjustmentLevel.SCHEDULED };
+    expect(restoreAdjustment([other], reference, path)).toEqual([other, ...reference]);
+  });
+});
+
+describe("adjustmentCount", () => {
+  it("ne compte que les valeurs touchées à CE niveau, pas les marqueurs hérités", () => {
+    const adjustments: Adjustments = [
+      { path: cellPath("blk_1", "r1", "col_reps"), level: AdjustmentLevel.SESSION },
+      { path: cellPath("blk_1", "r2", "col_reps"), level: AdjustmentLevel.SCHEDULED },
+      { path: structurePath("blk_1", "setCount"), level: AdjustmentLevel.SESSION },
+    ];
+    expect(adjustmentCount(adjustments, AdjustmentLevel.SESSION)).toBe(2);
+    expect(adjustmentCount(adjustments, AdjustmentLevel.SCHEDULED)).toBe(1);
+    expect(adjustmentCount([], AdjustmentLevel.SCHEDULED)).toBe(0);
   });
 });
 
@@ -113,7 +166,7 @@ describe("resetRow", () => {
       { path: cellPath("blk_1", "r2", "col_reps"), level: AdjustmentLevel.SESSION },
     ];
 
-    const next = resetRow(edited, baseline, adjustments, "blk_1", "r1");
+    const next = resetRow(edited, baseline, adjustments, [], "blk_1", "r1");
     expect(next.blocks[0]?.rows[0]?.values).toEqual({ col_reps: 6 });
     // La ligne 2 garde le sien : on revient au défaut SUR UNE LIGNE, pas sur le bloc.
     expect(next.adjustments.map((item) => item.path)).toEqual([
@@ -126,7 +179,7 @@ describe("resetRow", () => {
     const edited = [...withRowValues(blocks(), "r1", { col_reps: 12 }), second];
     const baseline = [...blocks(), second];
 
-    const next = resetRow(edited, baseline, [], "blk_1", "r1");
+    const next = resetRow(edited, baseline, [], [], "blk_1", "r1");
     expect(next.blocks[0]?.rows[0]?.values).toEqual({ col_reps: 6 });
     expect(next.blocks[1]).toBe(second);
   });
@@ -135,23 +188,52 @@ describe("resetRow", () => {
     // La retirer serait une suppression déguisée derrière un bouton qui dit « revenir ».
     const edited = withExtraRow(blocks(), { id: "r3", values: { col_reps: 9 } });
 
-    const next = resetRow(edited, blocks(), [], "blk_1", "r3");
+    const next = resetRow(edited, blocks(), [], [], "blk_1", "r3");
     expect(next.blocks[0]?.rows).toHaveLength(3);
     expect(next.blocks[0]?.rows[2]?.values).toEqual({ col_reps: 9 });
+  });
+  // Le piège de #518 : au niveau planifié, la ligne revient à ce que la SÉANCE a diffusé, marqueurs
+  // compris. Les effacer ferait passer un ajustement de la séance-type pour la bibliothèque.
+  it("rend à la ligne les marqueurs reçus à la diffusion, au niveau planifié", () => {
+    const r1 = cellPath("blk_1", "r1", "col_reps");
+    const r2 = cellPath("blk_1", "r2", "col_reps");
+    const received: Adjustments = [{ path: r1, level: AdjustmentLevel.SESSION }];
+    const adjustments: Adjustments = [
+      { path: r1, level: AdjustmentLevel.SCHEDULED },
+      { path: r2, level: AdjustmentLevel.SCHEDULED },
+    ];
+    const edited = withRowValues(blocks(), "r1", { col_reps: 8 });
+
+    const next = resetRow(edited, blocks(), adjustments, received, "blk_1", "r1");
+
+    expect(next.blocks[0]?.rows[0]?.values).toEqual({ col_reps: 6 });
+    expect(next.adjustments).toEqual([
+      { path: r1, level: AdjustmentLevel.SESSION },
+      { path: r2, level: AdjustmentLevel.SCHEDULED },
+    ]);
   });
 });
 
 describe("resetToBaseline", () => {
   it("rend les valeurs copiées à l'ajout et efface tous les marqueurs", () => {
     const baseline = blocks();
-    const next = resetToBaseline(baseline);
+    const next = resetToBaseline(baseline, []);
     expect(next.blocks).toEqual(baseline);
     expect(next.adjustments).toEqual([]);
   });
 
+  it("rend les marqueurs reçus à la diffusion au niveau planifié, et une copie d'eux", () => {
+    const received: Adjustments = [
+      { path: cellPath("blk_1", "r1", "col_reps"), level: AdjustmentLevel.SESSION },
+    ];
+    const next = resetToBaseline(blocks(), received);
+    expect(next.adjustments).toEqual(received);
+    expect(next.adjustments).not.toBe(received);
+  });
+
   it("rend une COPIE — éditer le résultat ne doit pas toucher la référence", () => {
     const baseline = blocks();
-    const next = resetToBaseline(baseline);
+    const next = resetToBaseline(baseline, []);
     const row = firstBlock(next.blocks).rows.at(0);
     if (row == null) throw new Error("la copie porte les lignes de la référence");
     row.values.col_reps = 99;
