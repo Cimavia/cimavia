@@ -1,3 +1,4 @@
+import { MESSAGE_TEXT_MAX_LENGTH } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
@@ -17,7 +18,10 @@ vi.mock("@/shared/hook/useWebAudioRecorder", () => ({
   useWebAudioRecorder: (options: unknown) => recorderMock(options),
 }));
 
-vi.mock("@/shared/component", () => ({ useToast: () => ({ error: toastError }) }));
+vi.mock("@/shared/component", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared/component")>()),
+  useToast: () => ({ error: toastError }),
+}));
 
 const props = () => ({
   onSendText: vi.fn().mockResolvedValue(undefined),
@@ -44,6 +48,20 @@ beforeEach(() => {
 });
 
 describe("Composer", () => {
+  it("borne le message à ce que l'API accepte, et montre le compteur à l'approche (#319)", () => {
+    const { getByPlaceholderText, queryByText, getByText } = renderWithProviders(
+      <Composer {...props()} />,
+    );
+    const textarea = getByPlaceholderText("messages.placeholder");
+
+    expect(textarea).toHaveAttribute("maxLength", String(MESSAGE_TEXT_MAX_LENGTH));
+    expect(queryByText("common.charCount")).not.toBeInTheDocument();
+
+    fireEvent.change(textarea, { target: { value: "x".repeat(MESSAGE_TEXT_MAX_LENGTH - 10) } });
+
+    expect(getByText("common.charCount")).toBeInTheDocument();
+  });
+
   it("remonte TOUTE la sélection en un seul appel", async () => {
     const given = props();
     const { container, user } = renderWithProviders(<Composer {...given} />);
