@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { CMV_TABLE, CmvPager } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
-import { formatDate } from "@/shared/util/date.util";
+import { formatDate, formatInstantDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -113,8 +113,8 @@ function DueCell({ invoice }: Readonly<{ invoice: InvoiceDto }>) {
   if (invoice.status === InvoiceStatus.PAID && invoice.paidAt != null) {
     return (
       <span className="text-cmv-text-mid">
-        {/* `paidAt` est un INSTANT, la colonne parle d'un jour : tronqué en date civile. */}
-        {t("invoice.history.paidOn", { date: formatDate(invoice.paidAt.slice(0, 10)) })}
+        {/* `paidAt` est un INSTANT, la colonne parle d'un jour : celui du lecteur, pas l'UTC. */}
+        {t("invoice.history.paidOn", { date: formatInstantDate(invoice.paidAt) })}
       </span>
     );
   }

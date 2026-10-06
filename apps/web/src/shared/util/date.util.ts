@@ -9,5 +9,6 @@ export const {
   formatDayNumber,
   formatDateRange,
   formatDateTime,
+  formatInstantDate,
   formatRelativeTime,
 } = formatters;

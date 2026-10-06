@@ -11,7 +11,7 @@ import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBad
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvButton, CmvConfirmButton, CmvPanel } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
-import { formatDate } from "@/shared/util/date.util";
+import { formatDate, formatInstantDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 /**
@@ -102,10 +102,10 @@ export function InvoiceDetailPanel({
         <Field label={t("invoice.panel.dueDate")}>{formatDate(invoice.dueDate)}</Field>
 
         {/* `paidAt` reste null tant qu'impayée : la ligne DISPARAÎT, au lieu d'un « — » qui
-            annoncerait un règlement introuvable. Un instant tronqué en date civile — le panneau
-            parle d'un jour, comme partout ailleurs. */}
+            annoncerait un règlement introuvable. Un instant lu comme le jour du lecteur — le
+            panneau parle d'un jour, comme partout ailleurs. */}
         {isPaid && invoice.paidAt != null ? (
-          <Field label={t("invoice.panel.paidAt")}>{formatDate(invoice.paidAt.slice(0, 10))}</Field>
+          <Field label={t("invoice.panel.paidAt")}>{formatInstantDate(invoice.paidAt)}</Field>
         ) : null}
 
         {/* Le cycle facturé — cœur du lien facture ↔ planification (tranché en P6). Nullable au
