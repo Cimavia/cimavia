@@ -5225,6 +5225,23 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   s'atteint pas en pratique. L'issue disait que le débrief l'avait déjà : il n'avait que le
 >   `maxLength`.
 
+> **Tranché en [#320](https://github.com/Cimavia/cimavia/issues/320)** (le client ne fabrique plus
+> de message à montrer) : la page HTML de cloudflared pendant un redémarrage de l'API levait une
+> `SyntaxError`. L'issue demandait d'en faire une `ApiError` qui garde le statut, ce qui est fait,
+> même sur un 200 (portail captif). Prise à la lettre, la demande aurait pourtant fait **reculer
+> l'écran** : `apiErrorMessage` aurait rendu le message de cette erreur, et « Erreur 502 » aurait
+> remplacé le message traduit que l'écran affiche déjà.
+>
+> - **`ApiError.fromApi`** dit si le message a été écrit par l'API. Il est faux pour un corps
+>   non-JSON, un corps vide, un simple libellé HTTP (« Service Unavailable », en anglais) et une
+>   liste de champs vide. `apiErrorMessage` rend alors `null` et l'écran garde son message.
+>   L'`Error.message` reste, pour les logs et Sentry.
+> - **Le corps vide et le libellé HTTP sont rangés avec le non-JSON**, qui étaient hors de l'issue :
+>   c'est le même texte inventé côté client, en dur, que le contrôle **[F]** de `check:i18n` ne lit
+>   pas (il ne lit que `apps/api/src`).
+> - **Le repli des écrans était déjà en place** : l'issue citait deux encarts vides, et `c2104cb`
+>   (`CmvFormError`) les avait corrigés. Les quinze appelants web et mobile en ont un.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
