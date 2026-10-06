@@ -1489,6 +1489,220 @@ describe("Dosage à trois niveaux (#164)", () => {
   });
 });
 
+describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
+  let coach: Agent;
+  let exerciseId: string;
+  let templateId: string;
+  let planId: string;
+  let week1Id: string;
+  let week2Id: string;
+  let sessionId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const R1 = "blk_1/rows/r1/col_reps";
+  const R2 = "blk_1/rows/r2/col_reps";
+
+  const BLOCKS = [
+    {
+      id: "blk_1",
+      label: "Travail",
+      structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
+      metrics: [
+        {
+          id: "col_reps",
+          source: "CATALOG",
+          key: "REPETITIONS",
+          unit: "REPS",
+          label: null,
+          collapsed: false,
+        },
+      ],
+      rows: [
+        { id: "r1", values: { col_reps: 6 } },
+        { id: "r2", values: { col_reps: 5 } },
+      ],
+    },
+  ];
+  const withR1 = (reps: number) => [
+    { ...BLOCKS[0], rows: [{ id: "r1", values: { col_reps: reps } }, BLOCKS[0]?.rows[1]] },
+  ];
+
+  /** Ce que le panneau du coach renvoie pour une ligne reprise : le snapshot entier. */
+  async function exerciseLine(overrides: Record<string, unknown>) {
+    const read = await coach.get(`/scheduled-sessions/${sessionId}`);
+    const exercise = read.body.exercises[0];
+    return {
+      id: exercise.id,
+      sourceExerciseId: exercise.sourceExerciseId,
+      title: exercise.title,
+      tags: exercise.tags,
+      instructions: exercise.instructions,
+      blocks: exercise.blocks,
+      customMetrics: exercise.customMetrics,
+      adjustments: exercise.adjustments,
+      ...overrides,
+    };
+  }
+
+  function save(exercises: unknown[]) {
+    return coach.put(`/scheduled-sessions/${sessionId}`).send({
+      title: "Force",
+      notes: null,
+      scheduledDate: monday,
+      exercises,
+    });
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("scheduled-dosage-coach@cmv.test", Role.COACH);
+
+    const exercise = await coach.post("/exercises").send({ title: "Tractions", blocks: BLOCKS });
+    exerciseId = exercise.body.id;
+
+    // La séance-type ajuste r1 : 6 → 8, marqué SESSION.
+    const template = await coach
+      .post("/sessions")
+      .send({ title: "Force", exercises: [{ exerciseId }] });
+    templateId = template.body.id;
+    const saved = await coach.put(`/sessions/${templateId}`).send({
+      title: "Force",
+      exercises: [
+        {
+          id: template.body.exercises[0].id,
+          exerciseId,
+          blocks: withR1(8),
+          adjustments: [{ path: R1, level: "SESSION" }],
+        },
+      ],
+    });
+    expect(saved.status).toBe(200);
+
+    // Un brouillon sans destinataire suffit (#144) : le dosage ne dépend pas de l'athlète.
+    const plan = await coach.post("/plans").send({
+      title: "Cycle dosage",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "TRAINING" }],
+    });
+    planId = plan.body.id;
+    [week1Id, week2Id] = plan.body.weeks.map((week: { id: string }) => week.id);
+
+    const diffused = await coach
+      .post(`/plan-weeks/${week1Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: monday });
+    expect(diffused.status).toBe(201);
+    sessionId = diffused.body.id;
+  });
+
+  it("garde les marqueurs reçus de la séance-type comme référence des marqueurs", async () => {
+    const read = await coach.get(`/scheduled-sessions/${sessionId}`);
+    const exercise = read.body.exercises[0];
+    expect(exercise.blocks).toEqual(withR1(8));
+    expect(exercise.adjustments).toEqual([{ path: R1, level: "SESSION" }]);
+    expect(exercise.baselineAdjustments).toEqual([{ path: R1, level: "SESSION" }]);
+  });
+
+  it("une séance posée depuis un modèle AVEC sa propre composition n'a reçu aucun marqueur", async () => {
+    // Le client a composé lui-même : rien n'a été diffusé par la séance-type, sa référence est
+    // ce qu'il envoie — même s'il y pose des marqueurs.
+    const res = await coach.post(`/plan-weeks/${week1Id}/sessions`).send({
+      sourceSessionId: templateId,
+      scheduledDate: monday,
+      exercises: [
+        {
+          sourceExerciseId: exerciseId,
+          title: "Tractions",
+          blocks: withR1(9),
+          adjustments: [{ path: R1, level: "SESSION" }],
+        },
+      ],
+    });
+    expect(res.status).toBe(201);
+
+    const exercise = res.body.exercises[0];
+    expect(exercise.baseline).toEqual(withR1(9));
+    expect(exercise.baselineAdjustments).toEqual([]);
+
+    // Retirée aussitôt : la copie de semaine plus bas n'attend qu'une séance dans la semaine 1.
+    expect((await coach.delete(`/scheduled-sessions/${res.body.id}`)).status).toBe(204);
+  });
+
+  it("ACCEPTE un changement de valeur pour l'athlète, sans toucher aux deux références", async () => {
+    const res = await save([
+      await exerciseLine({
+        blocks: withR1(10),
+        adjustments: [{ path: R1, level: "SCHEDULED" }],
+      }),
+    ]);
+    expect(res.status).toBe(200);
+
+    const exercise = res.body.exercises[0];
+    expect(exercise.blocks).toEqual(withR1(10));
+    expect(exercise.adjustments).toEqual([{ path: R1, level: "SCHEDULED" }]);
+    // Ce que la séance a diffusé ne bouge pas : c'est ce que « Revenir au défaut » rendra.
+    expect(exercise.baseline).toEqual(withR1(8));
+    expect(exercise.baselineAdjustments).toEqual([{ path: R1, level: "SESSION" }]);
+  });
+
+  const REPS = BLOCKS[0]?.metrics[0];
+
+  it.each([
+    ["le libellé du bloc", () => [{ ...BLOCKS[0], label: "Échauffement" }]],
+    ["le type de structure", () => [{ ...BLOCKS[0], structure: { type: "FREE" } }]],
+    [
+      "l'unité d'une colonne",
+      () => [{ ...BLOCKS[0], metrics: [{ ...REPS, unit: "REPS_PER_SIDE" }] }],
+    ],
+    ["le nombre de blocs", () => []],
+  ])("REFUSE de changer %s au niveau planifié", async (_label, build) => {
+    // Le verrou est vérifié côté serveur, contre la référence STOCKÉE : un formulaire n'est pas
+    // une frontière, et le panneau du coach n'est pas le seul client possible.
+    const res = await save([await exerciseLine({ blocks: build() })]);
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("Structure verrouillée au niveau séance planifiée");
+  });
+
+  it("REFUSE une référence des marqueurs envoyée par le client", async () => {
+    // Le client n'envoie que des valeurs, jamais la référence : il pourrait sinon effacer ce que
+    // la séance-type a diffusé.
+    const res = await save([await exerciseLine({ baselineAdjustments: [] })]);
+    expect(res.status).toBe(400);
+  });
+
+  it("un exercice AJOUTÉ a pour référence son propre dosage, sans marqueur reçu", async () => {
+    const res = await save([
+      await exerciseLine({}),
+      {
+        sourceExerciseId: exerciseId,
+        title: "Tractions bis",
+        tags: [],
+        // Une forme libre : aucune référence à respecter pour une ligne qui naît.
+        blocks: [{ ...BLOCKS[0], label: "Autre" }],
+        adjustments: [{ path: R2, level: "SCHEDULED" }],
+      },
+    ]);
+    expect(res.status).toBe(200);
+
+    const added = res.body.exercises[1];
+    expect(added.baseline).toEqual([{ ...BLOCKS[0], label: "Autre" }]);
+    expect(added.baselineAdjustments).toEqual([]);
+  });
+
+  it("la copie de semaine emporte la référence des marqueurs avec celle des valeurs", async () => {
+    const res = await coach
+      .post(`/plan-weeks/${week2Id}/copy-from`)
+      .send({ sourcePlanWeekId: week1Id });
+    expect(res.status).toBe(201);
+
+    const plan = await coach.get(`/plans/${planId}`);
+    const week2 = plan.body.weeks.find((week: { id: string }) => week.id === week2Id);
+    const copy = await coach.get(`/scheduled-sessions/${week2.sessions[0].id}`);
+    const exercise = copy.body.exercises[0];
+    expect(exercise.adjustments).toEqual([{ path: R1, level: "SCHEDULED" }]);
+    expect(exercise.baseline).toEqual(withR1(8));
+    expect(exercise.baselineAdjustments).toEqual([{ path: R1, level: "SESSION" }]);
+  });
+});
+
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
   let coachB: Agent;

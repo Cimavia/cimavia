@@ -134,6 +134,7 @@ function exercise(id: string, title: string): ScheduledSessionExerciseDto {
     customMetrics: [],
     baseline: [],
     adjustments: [],
+    baselineAdjustments: [],
     position: 0,
     documents: [],
   };

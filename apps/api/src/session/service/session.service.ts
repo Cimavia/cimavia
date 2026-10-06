@@ -1,7 +1,7 @@
 import {
+  AdjustmentLevel,
   type CreateSessionInput,
   type ExerciseBlocks,
-  lockedShapeIssues,
   required,
   type SessionDto,
   type SessionExerciseInput,
@@ -11,6 +11,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import type { Prisma } from "@prisma/client";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseBlocks, toAdjustmentsInput, toBlocksInput } from "../../util/exercise-json.util";
 import { type ExerciseWithTags, type SessionWithExercises, toSessionDto } from "../session.mapper";
 
@@ -205,14 +206,7 @@ export class SessionService {
       const baseline = kept == null ? blocksOf(input.exerciseId) : parseBlocks(kept.baseline);
       const blocks = input.blocks ?? baseline;
 
-      const issues = lockedShapeIssues(baseline, blocks);
-      if (issues.length > 0) {
-        // Le verrou est vérifié ICI et pas seulement grisé dans l'UI : un formulaire n'est pas
-        // une frontière. Le message nomme ce qui a bougé, sinon le 400 est indébogable.
-        throw new BadRequestException(
-          `Structure verrouillée au niveau séance : ${issues.join(", ")}`,
-        );
-      }
+      assertShapeLocked(AdjustmentLevel.SESSION, baseline, blocks);
 
       return {
         sessionId,

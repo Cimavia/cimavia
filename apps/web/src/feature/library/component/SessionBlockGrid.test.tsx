@@ -77,6 +77,7 @@ function Harness({ initial = session }: Readonly<{ initial?: SessionDto }>) {
 
   return (
     <SessionBlockGrid
+      level={AdjustmentLevel.SESSION}
       block={block}
       baseline={item.baseline}
       adjustments={item.adjustments}
@@ -236,6 +237,7 @@ describe("SessionBlockGrid — marqueur d'ajustement", () => {
     const [block] = blocks;
     const { getByRole } = renderWithProviders(
       <SessionBlockGrid
+        level={level}
         block={block as ExerciseBlocks[number]}
         baseline={blocks}
         adjustments={[{ path: cellPath("block-1", "r1", "reps"), level }]}
@@ -250,6 +252,42 @@ describe("SessionBlockGrid — marqueur d'ajustement", () => {
       "[aria-hidden='true']",
     );
     expect(marker).toHaveClass(shape);
+  });
+
+  /** La grille d'une séance PLANIFIÉE, avec les marqueurs donnés sur l'unique cellule « reps ». */
+  function scheduledGrid(level: AdjustmentLevel) {
+    const [block] = blocks;
+    const onRevertCell = vi.fn();
+    const view = renderWithProviders(
+      <SessionBlockGrid
+        level={AdjustmentLevel.SCHEDULED}
+        block={block as ExerciseBlocks[number]}
+        baseline={blocks}
+        adjustments={[{ path: cellPath("block-1", "r1", "reps"), level }]}
+        customMetrics={[]}
+        onCellChange={vi.fn()}
+        onRowsChange={vi.fn()}
+        onRevertCell={onRevertCell}
+      />,
+    );
+    return { ...view, onRevertCell };
+  }
+
+  // #518 : le rond d'une valeur décidée dans la séance-type, vu depuis la séance planifiée. La
+  // valeur EST la référence de ce niveau : « Revenir » n'aurait rien à rendre.
+  it("au niveau planifié, montre le rond de la séance sans offrir d'y revenir", () => {
+    const { getByText, queryByRole } = scheduledGrid(AdjustmentLevel.SESSION);
+
+    expect(getByText("library.dosage.inherited")).toBeInTheDocument();
+    expect(queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
+  });
+
+  it("au niveau planifié, donne la valeur de la SÉANCE comme défaut d'un carré", async () => {
+    const { user, getByText, getByRole, onRevertCell } = scheduledGrid(AdjustmentLevel.SCHEDULED);
+
+    expect(getByText("library.dosage.sessionValue")).toBeInTheDocument();
+    await user.click(getByRole("button", { name: REVERT }));
+    expect(onRevertCell).toHaveBeenCalledExactlyOnceWith("r1", "reps");
   });
 });
 

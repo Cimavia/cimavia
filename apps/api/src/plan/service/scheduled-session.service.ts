@@ -1,4 +1,5 @@
 import type {
+  Adjustments,
   CreateScheduledSessionInput,
   CustomMetric,
   PlanDto,
@@ -8,6 +9,7 @@ import type {
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
 import {
+  AdjustmentLevel,
   customMetricIdsIn,
   isDateInPlanWeek,
   PlanStatus,
@@ -38,6 +40,7 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
+import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import { assertInstructionImagesOwned } from "../../util/instruction-images.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
@@ -58,8 +61,18 @@ import { PlanService } from "./plan.service";
 type SessionDraft = {
   title: string;
   notes: string | null;
-  exercises: ScheduledSessionExerciseInput[];
+  exercises: DraftExercise[];
 };
+
+/**
+ * Un exercice à écrire, et les marqueurs qu'il a REÇUS (#518) : copié de la séance-type, ceux
+ * qu'elle a diffusés, qui deviennent la référence des marqueurs ; composé par le client, aucun —
+ * il n'a rien reçu de personne, sa référence est lui-même.
+ */
+type DraftExercise = { exercise: ScheduledSessionExerciseInput; baselineAdjustments: Adjustments };
+
+const composedByClient = (exercises: ScheduledSessionExerciseInput[]): DraftExercise[] =>
+  exercises.map((exercise) => ({ exercise, baselineAdjustments: [] }));
 
 // Documents de la bibliothèque, par exercice source — à copier sur les exercices de l'instance.
 type DocumentsBySource = Map<string, ExerciseDocument[]>;
@@ -88,7 +101,7 @@ export class ScheduledSessionService {
     this.assertDateInWeek(plan, week, input.scheduledDate);
 
     const draft = await this.buildDraft(input);
-    const documents = await this.loadSourceDocuments(draft.exercises);
+    const documents = await this.loadSourceDocuments(draft.exercises.map((e) => e.exercise));
     // Seule une composition ENVOYÉE se contrôle : celle d'un modèle est écrite par le serveur,
     // depuis une bibliothèque dont les consignes sont contrôlées à l'écriture.
     for (const exercise of input.exercises ?? []) {
@@ -112,7 +125,7 @@ export class ScheduledSessionService {
           "coachId"
         > as Prisma.ScheduledSessionUncheckedCreateInput,
       });
-      await this.insertExercises(tx, created.id, plan.athleteId, draft.exercises, documents);
+      await this.insertExercises(tx, created.id, plan.athleteId, draft, documents);
       return created;
     });
 
@@ -159,6 +172,7 @@ export class ScheduledSessionService {
     );
     // La bibliothèque ne sert qu'aux exercices AJOUTÉS : une ligne reprise garde ses documents, et
     // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`).
+    assertKeptShapesLocked(session.exercises, rows);
     const documents = await this.loadSourceDocuments(rows.added.map((row) => row.item));
     assertRowImagesOwned(session.exercises, rows, documents);
 
@@ -388,7 +402,7 @@ export class ScheduledSessionService {
         // Garanti par le schéma (refine) : titre requis sans modèle source.
         title: required(input.title, "[plan] séance ad hoc sans titre malgré le schéma"),
         notes: input.notes ?? null,
-        exercises: input.exercises ?? [],
+        exercises: composedByClient(input.exercises ?? []),
       };
     }
 
@@ -406,12 +420,13 @@ export class ScheduledSessionService {
     // Chargées UNE fois pour toute la séance : chaque exercice n'en cite qu'une poignée, et une
     // requête par exercice serait du gaspillage.
     const coachMetrics = await this.db.customMetric.findMany();
-    const copied = template.exercises.map((composed) => {
+    const copied = template.exercises.map((composed): DraftExercise => {
       const exercise = required(
         library.get(composed.exerciseId),
         `[plan] exercice ${composed.exerciseId} hors scope du coach courant`,
       );
-      return {
+      const adjustments = parseAdjustments(composed.adjustments);
+      const copy = {
         sourceExerciseId: exercise.id,
         title: exercise.title,
         description: exercise.description,
@@ -422,19 +437,20 @@ export class ScheduledSessionService {
         // les valeurs d'origine et ferait disparaître, sans le moindre avertissement, tout ce que
         // le coach a ajusté au niveau séance.
         blocks: parseBlocks(composed.blocks),
-        adjustments: parseAdjustments(composed.adjustments),
+        adjustments,
         // Les définitions des métriques maison partent AVEC la copie : sans elles l'athlète ne
         // verrait qu'un identifiant, et renommer la métrique dégraderait une planif diffusée.
         customMetrics: customMetricsFor(parseBlocks(composed.blocks), coachMetrics),
         tags: exercise.tags.map((tag) => tag.name).sort(),
         note: composed.note,
       };
+      return { exercise: copy, baselineAdjustments: adjustments };
     });
 
     return {
       title: input.title ?? template.title,
       notes: input.notes !== undefined ? (input.notes ?? null) : template.notes,
-      exercises: input.exercises ?? copied,
+      exercises: input.exercises == null ? copied : composedByClient(input.exercises),
     };
   }
 
@@ -486,11 +502,12 @@ export class ScheduledSessionService {
     tx: TenantTx,
     scheduledSessionId: string,
     athleteId: string | null,
-    exercises: ScheduledSessionExerciseInput[],
+    draft: SessionDraft,
     documentsBySource: DocumentsBySource,
   ): Promise<void> {
-    const drafts = exercises.map((exercise) => ({
+    const drafts = draft.exercises.map(({ exercise, baselineAdjustments }) => ({
       exercise,
+      baselineAdjustments,
       documents: libraryDocumentsOf(exercise, documentsBySource),
     }));
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
@@ -516,6 +533,25 @@ function assertRowImagesOwned(
       row.item.instructions,
       libraryDocumentsOf(row.item, documentsBySource),
     );
+  }
+}
+
+/**
+ * Le verrou de forme au niveau planifié (#518), contre la référence STOCKÉE de chaque ligne
+ * reprise — jamais contre une référence que le client enverrait. Une ligne qui naît a pour
+ * référence son propre dosage : rien à vérifier.
+ */
+function assertKeptShapesLocked(
+  existing: ScheduledSessionWithExercises["exercises"],
+  rows: ExerciseRows<ScheduledSessionExerciseInput>,
+): void {
+  const baselineOf = new Map(existing.map((row) => [row.id, row.baseline]));
+  for (const row of rows.kept) {
+    // Une ligne reprise est par construction une ligne de la séance (`planExerciseRows`).
+    const baseline = parseBlocks(required(baselineOf.get(row.id), `ligne ${row.id} hors séance`));
+    // Un `blocks` omis VIDERAIT le dosage (replace-all) : c'est un changement de forme comme un
+    // autre, refusé de la même façon.
+    assertShapeLocked(AdjustmentLevel.SCHEDULED, baseline, row.item.blocks ?? []);
   }
 }
 

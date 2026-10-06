@@ -89,18 +89,28 @@ Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte
     SÉANCE                    ajusté pour cette séance-type
     SÉANCE PLANIFIÉE          ajusté pour UN athlète, une semaine
 
-Chaque niveau stocke trois choses : `blocks` (ce que tout le monde lit), `baseline` (la copie faite
+Chaque niveau éditable stocke trois choses : `blocks` (ce que tout le monde lit), `baseline` (la copie faite
 à l'ajout, ou reçue à la diffusion) et `adjustments` — la liste des **chemins** de valeurs touchées
 avec leur **niveau** (`SESSION` · `SCHEDULED`). Le marqueur hérité/ajusté est donc porté par la
 **donnée**, jamais déduit d'une comparaison à l'affichage : un coach qui retape à la main la même
 valeur que le défaut a bien ajusté cette cellule.
 
-**Verrouillé au niveau séance** : type de structure, jeu et ordre des colonnes, nombre de blocs et
+La séance planifiée en stocke une **quatrième** : `baselineAdjustments`, les marqueurs **reçus** à
+la diffusion (#518). C'est la référence des marqueurs, comme `baseline` est celle des valeurs :
+revenir au défaut y rend +12 kg **et** le rond de la séance-type, pas une cellule nue.
+
+**Les deux niveaux du bas s'éditent**, par la même mécanique paramétrée par le niveau — le
+constructeur de séance, et le panneau de séance planifiée pour UN athlète, une semaine (#518). Rond
+= modifié dans la séance, carré = modifié pour l'athlète ; les deux coexistent sur une grille.
+Seul un marqueur du niveau qui édite offre d'y revenir.
+
+**Verrouillé aux deux niveaux** : type de structure, jeu et ordre des colonnes, nombre de blocs et
 libellés. **Modifiable** : valeurs de cellules, paramètres de bandeau, nombre de lignes. Le verrou
-est vérifié **côté serveur** (`lockedShapeIssues`), pas seulement grisé dans l'UI.
+est vérifié **côté serveur** (`lockedShapeIssues`), pas seulement grisé dans l'UI — sur le `PUT`
+d'une séance comme sur celui d'une séance planifiée, contre la référence **stockée**.
 
 Deux gestes à ne pas confondre : **« Tout réinitialiser »** revient aux valeurs copiées à l'ajout
-et ne touche pas la référence ; **« Recharger depuis la bibliothèque »** relit l'exercice tel qu'il
+(reçues à la diffusion, au niveau planifié, marqueurs compris) et ne touche pas la référence ; **« Recharger depuis la bibliothèque »** relit l'exercice tel qu'il
 est aujourd'hui, **déplace la référence** et efface les ajustements. Le second est le seul qui vit
 côté serveur (`POST /sessions/:id/exercises/:id/reload`) — partout ailleurs le client n'envoie que
 des valeurs, jamais la référence contre laquelle le verrou est vérifié.

@@ -204,6 +204,10 @@
       "refusedBeforeLeaving": "Une valeur n'est pas comprise : corrige-la ou vide-la, la séance doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
       "addCreatedFailed": "L'exercice créé n'a pas pu être ajouté à la séance : ajoute-le depuis ta bibliothèque."
     },
+    "dosage": {
+      "inherited": "séance",
+      "sessionValue": "séance {{value}}"
+    },
     "filterAllTags": "Tous",
     "tags": {
       "label": "Tags",
@@ -545,7 +549,18 @@
       "submit": "Enregistrer",
       "submitting": "Enregistrement…",
       "noteLabel": "Note",
-      "notePlaceholder": "Ex. Épaule sensible, reste prudent…"
+      "notePlaceholder": "Ex. Épaule sensible, reste prudent…",
+      "dosage": {
+        "adjustedFor": "{{count}} ajusté pour {{name}}",
+        "adjustedFor_other": "{{count}} ajustés pour {{name}}",
+        "valuesFor": "{{count}} valeur pour {{name}}",
+        "valuesFor_other": "{{count}} valeurs pour {{name}}",
+        "viewTemplate": "Voir la séance-type",
+        "legendSession": "modifié dans la séance",
+        "legendScheduled": "modifié pour {{name}}, cette semaine",
+        "weekOnly": "Les ajustements faits ici ne valent que pour cette semaine.",
+        "theAthlete": "l'athlète"
+      }
     },
     "builder": {
       "back": "← Planifications",

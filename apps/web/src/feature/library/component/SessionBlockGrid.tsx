@@ -1,5 +1,6 @@
 import {
   AdjustmentLevel,
+  type AdjustmentLevelType,
   type Adjustments,
   adjustmentLevelAt,
   type BlockMetric,
@@ -13,6 +14,7 @@ import {
   metricUnitLabel,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { BlockGridHead, BlockGridRow } from "@/feature/library/component/BlockGridRow";
 import { useBlockRows } from "@/feature/library/hook/useBlockRows";
 import { baselineValue } from "@/feature/library/util/dosage-summary.util";
@@ -20,6 +22,8 @@ import { CMV_TABLE, CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type SessionBlockGridProps = {
+  /** Le niveau qui édite : seuls SES marqueurs offrent d'y revenir (#518). */
+  level: AdjustmentLevelType;
   block: ExerciseBlock;
   baseline: ExerciseBlocks;
   adjustments: Adjustments;
@@ -36,8 +40,12 @@ type SessionBlockGridProps = {
  *
  * Chaque valeur ajustée porte son marqueur et son défaut, avec de quoi y revenir. Le marqueur
  * vient de la donnée (`adjustments`), jamais d'une comparaison avec la référence.
+ *
+ * La même grille sert la séance-type et la séance planifiée (#518) : une seule mécanique,
+ * paramétrée par le niveau qui édite.
  */
 export function SessionBlockGrid({
+  level,
   block,
   baseline,
   adjustments,
@@ -87,7 +95,8 @@ export function SessionBlockGrid({
                   <AdjustedHint
                     metric={metric}
                     customMetrics={customMetrics}
-                    level={adjustmentLevelAt(adjustments, cellPath(block.id, rowId, metric.id))}
+                    editing={level}
+                    marker={adjustmentLevelAt(adjustments, cellPath(block.id, rowId, metric.id))}
                     base={baselineValue(baseline, block.id, rowId, metric.id)}
                     onRevert={() => onRevertCell(rowId, metric.id)}
                   />
@@ -111,41 +120,46 @@ export function SessionBlockGrid({
 /**
  * Sous une valeur ajustée : d'où elle vient et comment y revenir.
  *
- * La FORME distingue les deux niveaux autant que la couleur — rond pour la séance, carré pour
- * l'athlète. Les deux marqueurs coexistent sur la même grille, et une couleur seule serait
- * illisible pour un daltonien.
+ * Seul un marqueur du niveau QUI ÉDITE offre d'y revenir. Celui d'un niveau précédent — le rond
+ * d'une valeur décidée dans la séance-type, vu depuis la séance planifiée — dit seulement d'où vient
+ * la valeur : elle EST déjà la référence de ce niveau, « Revenir » n'aurait rien à rendre.
  */
 function AdjustedHint({
   metric,
   customMetrics,
-  level,
+  editing,
+  marker,
   base,
   onRevert,
 }: Readonly<{
   metric: BlockMetric;
   customMetrics: readonly CustomMetric[];
-  level: AdjustmentLevel | null;
+  editing: AdjustmentLevelType;
+  marker: AdjustmentLevelType | null;
   base: MetricValue;
   onRevert: () => void;
 }>) {
   const { t, i18n } = useTranslation();
-  if (level == null) return null;
+  if (marker == null) return null;
 
+  if (marker !== editing) {
+    return (
+      <div className="flex items-center gap-cmv-xs pt-cmv-xs">
+        <AdjustmentMarker level={marker} />
+        <span className="text-cmv-caption text-cmv-text-lo">{t("library.dosage.inherited")}</span>
+      </div>
+    );
+  }
+
+  const value = formatMetricValue(base, metric, customMetrics, i18n.language);
   return (
     <div className="flex items-center gap-cmv-xs pt-cmv-xs">
-      <span
-        aria-hidden="true"
-        className={cn(
-          "size-2 shrink-0",
-          level === AdjustmentLevel.SESSION
-            ? "rounded-cmv-pill bg-cmv-accent"
-            : "rounded-cmv-sm bg-cmv-info",
-        )}
-      />
+      <AdjustmentMarker level={marker} />
       <span className="text-cmv-caption text-cmv-text-lo">
-        {t("library.session.defaultValue", {
-          value: formatMetricValue(base, metric, customMetrics, i18n.language),
-        })}
+        {/* Au niveau planifié, le défaut est ce que la SÉANCE a diffusé, pas la bibliothèque. */}
+        {editing === AdjustmentLevel.SESSION
+          ? t("library.session.defaultValue", { value })
+          : t("library.dosage.sessionValue", { value })}
       </span>
       <button
         type="button"

@@ -81,6 +81,7 @@ function session(
         customMetrics: [],
         baseline: [],
         adjustments: [],
+        baselineAdjustments: [],
         position: 0,
         documents,
       },

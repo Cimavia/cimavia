@@ -1,18 +1,36 @@
-import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import {
+  AdjustmentLevel,
+  BlockType,
+  cellPath,
+  type ExerciseBlocks,
+  MetricKey,
+  MetricSource,
+  MetricUnit,
+  type PlanWeekDto,
+  required,
+  type ScheduledSessionDto,
+  structurePath,
+} from "@cmv/shared";
+import { fireEvent, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { ScheduledSessionPanel } from "./ScheduledSessionPanel";
 
-const { createMock, updateMock, deleteMock, listSessionsMock, listExercisesMock } = vi.hoisted(
-  () => ({
-    createMock: vi.fn(),
-    updateMock: vi.fn(),
-    deleteMock: vi.fn(),
-    listSessionsMock: vi.fn(),
-    listExercisesMock: vi.fn(),
-  }),
-);
+const {
+  createMock,
+  updateMock,
+  deleteMock,
+  listSessionsMock,
+  listExercisesMock,
+  listCustomMetricsMock,
+} = vi.hoisted(() => ({
+  createMock: vi.fn(),
+  updateMock: vi.fn(),
+  deleteMock: vi.fn(),
+  listSessionsMock: vi.fn(),
+  listExercisesMock: vi.fn(),
+  listCustomMetricsMock: vi.fn(),
+}));
 
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),
@@ -21,11 +39,12 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   deleteScheduledSession: deleteMock,
 }));
 
-// La bibliothèque n'est pas le sujet ici : ses deux listes sont des ENTRÉES du panneau.
+// La bibliothèque n'est pas le sujet ici : ses listes sont des ENTRÉES du panneau.
 vi.mock("@/feature/library/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/library/api")>()),
   listSessions: listSessionsMock,
   listExercises: listExercisesMock,
+  listCustomMetrics: listCustomMetricsMock,
 }));
 
 const SUBMIT = "plan.session.submit";
@@ -46,6 +65,9 @@ const snapshot = {
   adjustments: [{ path: "b-1/structure/setCount", level: "SCHEDULED" }],
 };
 
+/** La référence du dosage : le serveur la garde, le panneau la lit sans jamais la renvoyer. */
+const reference = { baseline: snapshot.blocks, baselineAdjustments: [] };
+
 const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =>
   ({
     id: "ss-1",
@@ -61,6 +83,7 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
         tags: ["dos"],
         note: null,
         ...snapshot,
+        ...reference,
       },
     ],
     ...over,
@@ -68,6 +91,7 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
 
 function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) {
   const onClose = vi.fn();
+  const onDirtyChange = vi.fn();
   const view = renderWithProviders(
     <ScheduledSessionPanel
       planId="plan-1"
@@ -75,17 +99,20 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
       week={week}
       date={DATE}
       session={null}
+      athleteName="Léa Bonnet"
       onClose={onClose}
+      onDirtyChange={onDirtyChange}
       {...over}
     />,
   );
-  return { ...view, onClose };
+  return { ...view, onClose, onDirtyChange };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   listSessionsMock.mockResolvedValue([{ id: "tpl-1", title: "Modèle force" }]);
   listExercisesMock.mockResolvedValue([]);
+  listCustomMetricsMock.mockResolvedValue([]);
 });
 
 describe("ScheduledSessionPanel", () => {
@@ -142,7 +169,7 @@ describe("ScheduledSessionPanel", () => {
 
       // L'enregistrement est un replace-all : ce qui n'est pas émis est EFFACÉ. Omettre les
       // blocs d'une séance diffusée ne la laisserait pas telle quelle, elle ne dirait plus à
-      // l'athlète ce qu'il doit faire.
+      // l'athlète ce qu'il doit faire. La référence, elle, ne part pas : le serveur la refuse.
       await waitFor(() => expect(updateMock).toHaveBeenCalled());
       const [, input] = updateMock.mock.calls[0] as [string, { exercises: unknown[] }];
       expect(input.exercises[0]).toEqual({
@@ -305,5 +332,337 @@ describe("ScheduledSessionPanel", () => {
       expect(queryByText("plan.session.deleteHintPublished")).not.toBeInTheDocument();
       expect(queryByTitle("plan.session.deleteDisabledDebriefed")).not.toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * #518, le scénario de l'issue : Tractions lestées passées à +12 dans la séance-type (● rond),
+ * diffusées à Léa. Le coach met +14 pour elle (■ carré), puis revient : +12 ET le rond.
+ */
+describe("ScheduledSessionPanel — dosage ajusté pour l'athlète (#518)", () => {
+  const REVERT = "library.session.revert";
+  const RESET_ALL = "library.session.resetAll";
+  const INHERITED = "library.dosage.inherited";
+  const ADJUSTED_FOR = "plan.session.dosage.adjustedFor";
+  const VALUES_FOR = "plan.session.dosage.valuesFor";
+  const LOAD = cellPath("blk", "r1", "load");
+
+  const tractions: ExerciseBlocks = [
+    {
+      id: "blk",
+      label: null,
+      structure: { type: BlockType.FREE },
+      metrics: [
+        {
+          id: "load",
+          source: MetricSource.CATALOG,
+          key: MetricKey.REPETITIONS,
+          unit: MetricUnit.REPS,
+          label: null,
+          collapsed: false,
+        },
+      ],
+      rows: [{ id: "r1", values: { load: 12 } }],
+    },
+  ];
+  const received = [{ path: LOAD, level: AdjustmentLevel.SESSION }];
+
+  const forLea = (over: Partial<ScheduledSessionDto> = {}) =>
+    session({
+      sourceSessionId: "tpl-1",
+      exercises: [
+        {
+          id: "sx-1",
+          sourceExerciseId: "ex-1",
+          title: "Tractions lestées",
+          description: null,
+          tags: [],
+          note: null,
+          instructions: null,
+          customMetrics: [],
+          blocks: tractions,
+          baseline: tractions,
+          adjustments: received,
+          baselineAdjustments: received,
+        },
+      ] as unknown as ScheduledSessionDto["exercises"],
+      ...over,
+    });
+
+  /** Ouvre la grille des Tractions et y tape une valeur. */
+  async function open(over: Partial<ScheduledSessionDto> = {}) {
+    const view = setup({ session: forLea(over) });
+    await view.user.click(view.getByRole("button", { name: "Tractions lestées" }));
+    const cell = () => within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
+    async function type(value: string) {
+      await view.user.clear(cell());
+      await view.user.type(cell(), value);
+      await view.user.tab();
+    }
+    return { ...view, cell, type };
+  }
+
+  it("replie la grille, et montre la valeur reçue de la séance sans offrir d'y revenir", async () => {
+    const view = setup({ session: forLea() });
+    expect(view.queryByRole("table")).not.toBeInTheDocument();
+
+    await view.user.click(view.getByRole("button", { name: "Tractions lestées" }));
+
+    expect(view.getByText(INHERITED)).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
+    // Rien d'ajusté pour Léa : ni décompte, ni réinitialisation à offrir.
+    expect(view.queryByText(ADJUSTED_FOR)).not.toBeInTheDocument();
+    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: RESET_ALL })).toBeDisabled();
+  });
+
+  it("ajuste une valeur pour l'athlète, puis « Revenir » rend celle de la séance et son rond", async () => {
+    const view = await open();
+
+    await view.type("14");
+    expect(view.getByText(ADJUSTED_FOR)).toBeInTheDocument();
+    expect(view.getByText(VALUES_FOR)).toBeInTheDocument();
+    expect(view.queryByText(INHERITED)).not.toBeInTheDocument();
+
+    await view.user.click(view.getByRole("button", { name: REVERT }));
+
+    expect(view.cell()).toHaveValue("12");
+    expect(view.getByText(INHERITED)).toBeInTheDocument();
+    expect(view.queryByText(ADJUSTED_FOR)).not.toBeInTheDocument();
+  });
+
+  it("« Tout réinitialiser » rend ce que la séance a diffusé, marqueurs reçus compris", async () => {
+    const view = await open();
+    await view.type("14");
+
+    await view.user.click(view.getByRole("button", { name: RESET_ALL }));
+
+    expect(view.cell()).toHaveValue("12");
+    expect(view.getByText(INHERITED)).toBeInTheDocument();
+  });
+
+  it("enregistre la valeur ajustée et son carré, sans renvoyer la référence", async () => {
+    updateMock.mockResolvedValue(forLea());
+    const view = await open();
+    await view.type("14");
+
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    const [, input] = updateMock.mock.calls[0] as [string, { exercises: object[] }];
+    const [line] = input.exercises;
+    expect(line).toMatchObject({
+      id: "sx-1",
+      blocks: [{ rows: [{ id: "r1", values: { load: 14 } }] }],
+      adjustments: [{ path: LOAD, level: AdjustmentLevel.SCHEDULED }],
+    });
+    expect(line).not.toHaveProperty("baseline");
+    expect(line).not.toHaveProperty("baselineAdjustments");
+  });
+
+  it("ferme l'enregistrement tant qu'une valeur est refusée", async () => {
+    const view = await open();
+
+    await view.type("14kgg");
+
+    const submit = view.getByRole("button", { name: SUBMIT });
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("title", "library.builder.refusedBlocksSave");
+  });
+
+  // Le bouton fermé ne suffit pas : Entrée dans un champ du formulaire le soumet sans lui.
+  it("n'envoie rien quand le formulaire est soumis avec une valeur refusée", async () => {
+    const view = await open();
+    await view.type("14kgg");
+
+    fireEvent.submit(required(document.querySelector("form"), "formulaire du panneau"));
+
+    // L'envoi est asynchrone : affirmer tout de suite qu'il n'est pas parti ne prouverait rien.
+    await expect(
+      waitFor(() => expect(updateMock).toHaveBeenCalled(), { timeout: 300 }),
+    ).rejects.toThrow();
+  });
+
+  it("ajoute une ligne sans poser de marqueur, et l'enregistre", async () => {
+    updateMock.mockResolvedValue(forLea());
+    const view = await open();
+
+    await view.user.click(view.getByRole("button", { name: "library.builder.grid.addRow" }));
+
+    // Une ligne ajoutée n'est dans aucune référence : elle ne s'écarte d'aucun défaut.
+    expect(within(view.getByRole("table")).getAllByRole("textbox")).toHaveLength(2);
+    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    const [, input] = updateMock.mock.calls[0] as [
+      string,
+      { exercises: { blocks: ExerciseBlocks; adjustments: unknown }[] },
+    ];
+    expect(input.exercises[0]?.blocks[0]?.rows).toHaveLength(2);
+    expect(input.exercises[0]?.adjustments).toEqual(received);
+  });
+
+  it("ajuste le nombre de séries pour l'athlète, puis revient à celui de la séance", async () => {
+    const SET_COUNT = "library.builder.bandeau.setCount";
+    const series = [
+      {
+        ...(tractions[0] as ExerciseBlocks[number]),
+        structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
+      },
+    ];
+    // La séance-type a passé les séries de 3 à 4 : le rond est sur le bandeau, pas sur une cellule.
+    const fromTemplate = [
+      { path: structurePath("blk", "setCount"), level: AdjustmentLevel.SESSION },
+    ];
+    const exercise = forLea().exercises[0] as ScheduledSessionDto["exercises"][number];
+    const view = setup({
+      session: forLea({
+        exercises: [
+          {
+            ...exercise,
+            blocks: series,
+            baseline: series,
+            adjustments: fromTemplate,
+            baselineAdjustments: fromTemplate,
+          },
+        ],
+      }),
+    });
+    await view.user.click(view.getByRole("button", { name: "Tractions lestées" }));
+    const setCount = () => view.getByRole("spinbutton", { name: SET_COUNT });
+
+    fireEvent.change(setCount(), { target: { value: "5" } });
+
+    expect(setCount()).toHaveValue(5);
+    expect(view.getByText(VALUES_FOR)).toBeInTheDocument();
+    expect(view.queryByText(INHERITED)).not.toBeInTheDocument();
+
+    await view.user.click(view.getByRole("button", { name: REVERT }));
+
+    expect(setCount()).toHaveValue(4);
+    expect(view.getByText(INHERITED)).toBeInTheDocument();
+    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
+  });
+
+  it("ouvre la séance-type dans un autre onglet", () => {
+    const { getByRole } = setup({ session: forLea() });
+
+    const link = getByRole("link", { name: "plan.session.dosage.viewTemplate" });
+    expect(link).toHaveAttribute("href", "/library/sessions/tpl-1");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  // La trace vers la séance-type est `SetNull` : une séance ad hoc, ou dont le modèle a été
+  // supprimé, n'a rien à ouvrir.
+  it("ne propose pas la séance-type quand il n'y en a plus", () => {
+    const { queryByRole, getByText } = setup({
+      session: forLea({ sourceSessionId: null }),
+      athleteName: null,
+    });
+
+    expect(queryByRole("link", { name: "plan.session.dosage.viewTemplate" })).toBeNull();
+    // Sans destinataire, la légende parle encore — de « l'athlète ».
+    expect(getByText("plan.session.dosage.legendScheduled")).toBeInTheDocument();
+  });
+
+  // Un exercice ajouté ici n'a pas de référence : rien à quoi revenir, donc aucun marqueur.
+  it("n'ajuste rien sur un exercice ajouté dans le panneau", async () => {
+    listExercisesMock.mockResolvedValue([
+      {
+        id: "lib-9",
+        title: "Gainage",
+        description: null,
+        tags: [],
+        instructions: null,
+        blocks: tractions,
+      },
+    ]);
+    const view = setup({ session: forLea({ exercises: [] }) });
+    await view.user.click(await view.findByRole("button", { name: /Gainage/ }));
+    await view.user.click(view.getByRole("button", { name: "Gainage", expanded: false }));
+
+    const cell = within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
+    await view.user.clear(cell);
+    await view.user.type(cell, "20");
+    await view.user.tab();
+
+    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
+  });
+});
+
+/** #518, **G-1** : le panneau porte une grille de dosage par exercice, la refermer demande. */
+describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
+  const CANCEL = "common.cancel";
+  const LEAVE_TITLE = "common.leave.title";
+
+  it("se ferme sans rien demander tant que rien n'a changé", async () => {
+    const { user, getByRole, queryByText, onClose, onDirtyChange } = setup({ session: session() });
+
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onDirtyChange).not.toHaveBeenCalledWith(true);
+  });
+
+  it("ne retient rien pour une espace ajoutée au titre", async () => {
+    const { user, getByRole, onClose } = setup({ session: session() });
+
+    await user.type(getByRole("textbox", { name: TITLE }), " ");
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("demande avant de perdre la saisie, et « Rester » la garde", async () => {
+    const { user, getByLabelText, getByRole, queryByText, onClose, onDirtyChange } = setup({
+      session: session(),
+    });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(queryByText(LEAVE_TITLE)).toBeInTheDocument();
+    await user.click(getByRole("button", { name: "common.leave.stay", hidden: true }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
+    expect(getByLabelText(NOTES)).toHaveValue("Échauffement long et les poignets");
+  });
+
+  it("referme sur « Quitter sans enregistrer »", async () => {
+    const { user, getByLabelText, getByRole, onClose } = setup({ session: session() });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    await user.click(getByRole("button", { name: CANCEL }));
+    await user.click(getByRole("button", { name: "common.leave.leave", hidden: true }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("garde aussi une séance en cours de création", async () => {
+    const { user, getByRole, queryByText, onClose } = setup();
+
+    await user.type(getByRole("textbox", { name: TITLE }), "Séance haute");
+    await user.click(getByRole("button", { name: CANCEL }));
+
+    expect(queryByText(LEAVE_TITLE)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("referme sans demander après un enregistrement réussi", async () => {
+    updateMock.mockResolvedValue(session());
+    const { user, getByLabelText, getByRole, queryByText, onClose } = setup({
+      session: session(),
+    });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    await user.click(getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
   });
 });

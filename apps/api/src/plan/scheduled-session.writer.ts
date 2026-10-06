@@ -1,4 +1,5 @@
 import {
+  type Adjustments,
   type ExerciseBlocks,
   imageMediaIds,
   remapImageMediaIds,
@@ -54,6 +55,13 @@ export type ScheduledSessionExerciseDraft = {
   exercise: ScheduledSessionExerciseInput;
   /** Absente = la référence est le dosage diffusé lui-même (cas d'un exercice ajouté ad hoc). */
   baseline?: ExerciseBlocks;
+  /**
+   * Les marqueurs REÇUS, référence de « Revenir au défaut » (#518) : ceux de la séance-type à la
+   * diffusion, ceux de l'instance source à la copie de semaine, `[]` pour un exercice ajouté — sa
+   * référence est son propre dosage, il n'a rien reçu. Obligatoire : chaque appelant le décide,
+   * aucun défaut ne le décide à sa place.
+   */
+  baselineAdjustments: Adjustments;
   documents: readonly ScheduledSessionDocumentDraft[];
 };
 
@@ -123,9 +131,9 @@ export async function rewriteScheduledSessionExercises(
   for (const row of rows.kept) {
     await tx.scheduledSessionExercise.update({
       where: { id: row.id },
-      // Ni `baseline`, ni `tracking`, ni `sourceExerciseId` : la référence est ce que la séance a
-      // diffusé, le suivi appartient à l'athlète, et l'origine est une trace — rien de tout ça ne
-      // se réécrit depuis le panneau du coach.
+      // Ni `baseline`, ni `baselineAdjustments`, ni `tracking`, ni `sourceExerciseId` : la
+      // référence est ce que la séance a diffusé, le suivi appartient à l'athlète, et l'origine est
+      // une trace — rien de tout ça ne se réécrit depuis le panneau du coach.
       data: { ...snapshotOf(row.item), position: row.position },
     });
     // Remplacés et non fusionnés : la liste reçue EST la liste des tags de la ligne.
@@ -140,7 +148,8 @@ export async function rewriteScheduledSessionExercises(
       tx,
       scheduledSessionId,
       athleteId,
-      { exercise: row.item, documents: documentsOf(row.item) },
+      // Un exercice AJOUTÉ n'a rien reçu : sa référence est son propre dosage, sans marqueur.
+      { exercise: row.item, baselineAdjustments: [], documents: documentsOf(row.item) },
       row.position,
     );
   }
@@ -182,6 +191,7 @@ async function insertScheduledSessionExercise(
       // La référence du niveau 3 est ce que la SÉANCE a diffusé, pas le contenu actuel de la
       // bibliothèque : « Tout réinitialiser » chez l'athlète doit revenir à ce qu'il a reçu.
       baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
+      baselineAdjustments: toAdjustmentsInput(draft.baselineAdjustments),
       position,
     } satisfies Omit<
       Prisma.ScheduledSessionExerciseUncheckedCreateInput,

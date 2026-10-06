@@ -6,11 +6,9 @@ import { useState } from "react";
  * et la note qu'on y écrit. `key` est locale et stable — un même exercice peut figurer
  * deux fois dans une séance, l'id de l'exercice ne suffit donc pas à identifier la ligne.
  *
- * Le RESTE de la ligne appartient à chaque feature, et ce n'est pas un détail :
- *  - bibliothèque → `exerciseId` NON NULL : la séance modèle RÉFÉRENCE l'exercice ;
- *  - planification → `sourceExerciseId` nullable + snapshot : la séance planifiée en est une COPIE.
- * C'est ce qui permet au coach de supprimer un exercice sans casser un cycle diffusé (tranché en
- * P3). Ce socle générique ne connaît donc que la partie commune, jamais l'identité de l'exercice.
+ * Le RESTE de la ligne — `sourceExerciseId` nullable, snapshot — appartient à la séance planifiée
+ * (`useSessionComposition`) : elle est une COPIE de l'exercice, pas une référence, et c'est ce qui
+ * permet au coach de supprimer un exercice sans casser un cycle diffusé (tranché en P3).
  */
 export type CompositionRow = {
   key: string;
@@ -20,8 +18,8 @@ export type CompositionRow = {
 };
 
 /**
- * La liste d'exercices en cours d'édition et les quatre gestes qui la modifient — partagés par le
- * builder de séance (bibliothèque) et le panneau de séance planifiée.
+ * La liste d'exercices en cours d'édition et les quatre gestes qui la modifient, pour le panneau de
+ * séance planifiée. Le constructeur de séance de la bibliothèque a les siens (`useSessionDraft`).
  *
  * `toRow` est le seul point d'extension : il construit la ligne propre à la feature à partir d'un
  * exercice, sans sa `key` — l'identité est la responsabilité du hook, pas de l'appelant.
@@ -63,11 +61,14 @@ export function useComposition<T extends CompositionRow>(
     moveTo(index, index + direction);
   }
 
-  function setNote(key: string, value: string) {
-    setItems((current) =>
-      current.map((item) => (item.key === key ? { ...item, note: value } : item)),
-    );
+  /** Transforme UNE ligne — le point d'entrée des gestes propres à l'appelant, comme le dosage. */
+  function updateItem(key: string, change: (item: T) => T) {
+    setItems((current) => current.map((item) => (item.key === key ? change(item) : item)));
   }
 
-  return { items, addExercise, removeItem, moveItem, moveTo, setNote };
+  function setNote(key: string, value: string) {
+    updateItem(key, (item) => ({ ...item, note: value }));
+  }
+
+  return { items, addExercise, removeItem, moveItem, moveTo, setNote, updateItem };
 }

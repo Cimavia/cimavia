@@ -42,6 +42,7 @@ async function toExerciseDto(
     note: exercise.note,
     baseline: parseBlocks(exercise.baseline),
     adjustments: parseAdjustments(exercise.adjustments),
+    baselineAdjustments: parseAdjustments(exercise.baselineAdjustments),
     customMetrics: parseCustomMetrics(exercise.customMetrics),
     tracking: parseTracking(exercise.tracking),
     position: exercise.position,

@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-sept dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-4**,
-**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **G-1** et **DR-1**,
+**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2** et **DR-1**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, est résolue : période `previous_version` rendue possible par
@@ -2538,7 +2538,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >
 > La **navigation** hors du builder avec une saisie en cours est gardée depuis
 > [#327](https://github.com/Cimavia/cimavia/issues/327), sur ces deux mêmes booléens — le panneau
-> d'une séance planifiée excepté (**G-1**).
+> d'une séance planifiée, gardé à son tour depuis [#518](https://github.com/Cimavia/cimavia/issues/518)
+> (**G-1**).
 
 ---
 
@@ -4978,7 +4979,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| G-1 | **Le panneau d'une séance planifiée n'est pas gardé** : son titre, ses notes et sa date se perdent sans confirmation, qu'on navigue hors du cycle ou qu'on referme le panneau. Il ne remonte aucun état « modifié » au constructeur, qui ne garde que l'en-tête et la facturation. Trois champs courts, là où les constructeurs de bibliothèque portent des grilles entières. | 🟢 | — *(déclencheur : un coach qui signale une séance planifiée perdue en cours de saisie)* |
+| ~~G-1~~ | ~~**Le panneau d'une séance planifiée n'est pas gardé** : son titre, ses notes et sa date se perdent sans confirmation, qu'on navigue hors du cycle ou qu'on referme le panneau. Il ne remonte aucun état « modifié » au constructeur, qui ne garde que l'en-tête et la facturation. Trois champs courts, là où les constructeurs de bibliothèque portent des grilles entières.~~ | ✅ | résolue par [#518](https://github.com/Cimavia/cimavia/issues/518) : le panneau porte désormais une grille de dosage par exercice, et le déclencheur (« trois champs courts ») ne tenait plus. Fermer le panneau ou quitter le cycle demande, comme les constructeurs |
 
 > **Tranché en [#327](https://github.com/Cimavia/cimavia/issues/327)** (la sortie se compare à
 > l'ENREGISTRÉ, et seul ce qui change de page la déclenche) : les constructeurs d'exercice, de
@@ -5115,6 +5116,48 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   envoyée.
 > - **Aucune reprise de données** : la base preview ne contenait aucune référence étrangère au
 >   2026-10-05, ni en bibliothèque ni en séances planifiées.
+
+---
+
+## Post-MVP — Dosage ajusté pour un athlète ([#518](https://github.com/Cimavia/cimavia/issues/518))
+
+> **Tranché en [#518](https://github.com/Cimavia/cimavia/issues/518)** (une mécanique, paramétrée
+> par le niveau) : le panneau de séance planifiée édite le dosage de chaque exercice pour UN
+> athlète, une semaine. L'issue tranchait `baselineAdjustments` ; ce qui suit l'a été en route.
+>
+> - **Les gestes vivent dans `@cmv/shared`** (`dosage-edit.util`), paramétrés par un
+>   `DosageScope` : le niveau qui édite et la référence des marqueurs (`[]` au niveau séance,
+>   `baselineAdjustments` au niveau planifié). Le constructeur de séance et le panneau les
+>   appellent tous deux ; `DosageEditor` est la grille qu'ils partagent.
+> - **`markAdjusted` remplace un marqueur EN PLACE** au lieu de le retirer puis de l'ajouter en
+>   fin de liste : toucher puis revenir rend la liste à l'identique, sans quoi l'écran se croirait
+>   modifié (#327).
+> - **Changement de règle : ce qui est absent de la référence ne porte aucun marqueur.** Un bloc
+>   absent de la référence voyait jusqu'ici tous ses paramètres marqués au niveau séance. Il n'y a
+>   rien à quoi revenir : le marqueur promettait un « Revenir au défaut » sans défaut. C'est ce qui
+>   laisse nu un exercice ajouté dans le panneau — référence `[]` côté écran, son propre dosage
+>   côté serveur, et ajusté pour personne.
+> - **Un marqueur d'un niveau PRÉCÉDENT n'offre pas d'y revenir** : le rond vu depuis la séance
+>   planifiée dit seulement « séance », la valeur EST la référence de ce niveau. Un carré donne la
+>   valeur de la séance comme défaut (« séance +12 kg »), pas celle de la bibliothèque, que le
+>   snapshot ne lit jamais.
+> - **Le nom complet, pas le prénom** (« 1 ajusté pour Léa Bonnet ») : aucun champ prénom
+>   n'existe, et le découper d'un nom libre se tromperait. Même libellé que le titre du cycle
+>   (`useAthleteLabel`) ; « l'athlète » tant qu'aucun destinataire n'est choisi.
+> - **Le verrou se vérifie contre la référence STOCKÉE** des lignes reprises, et `blocks` omis est
+>   refusé — omis, il viderait le dosage. Le message nomme le niveau (« Structure verrouillée au
+>   niveau séance planifiée »). `baselineAdjustments` envoyé par le client est refusé (400) : il
+>   déplacerait la référence.
+> - **Les métriques maison figées d'abord** : une ligne diffusée lit les définitions de son
+>   snapshot, seule une ligne ajoutée dans le panneau lit celles de la bibliothèque.
+> - **« Voir la séance-type » est un lien simple, dans un autre onglet** : la saisie du panneau
+>   n'y risque rien, et il n'apparaît que si `sourceSessionId` subsiste (`SetNull`).
+> - **Le mobile ne change pas** : l'athlète lit `blocks`, les marqueurs sont l'affaire du coach.
+> - **Reprise de données** : `baselineAdjustments = adjustments` à la migration, aucun écran
+>   n'ayant encore écrit de marqueur `SCHEDULED`.
+> - **[#370](https://github.com/Cimavia/cimavia/issues/370) est livrée en préalable** :
+>   `useComposition`, `CompositionEditor` et `ExercisePicker` n'avaient plus que ce panneau pour
+>   client, et sont passés dans `feature/plan`, sans préfixe ni recherche.
 
 ---
 
