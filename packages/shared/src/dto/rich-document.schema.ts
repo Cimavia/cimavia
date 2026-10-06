@@ -121,21 +121,46 @@ export const richBlockSchema = z.discriminatedUnion("type", [
 ]);
 export type RichBlock = z.infer<typeof richBlockSchema>;
 
+/** Les fragments de texte d'un bloc — aucun pour une image, dont la légende n'est pas du texte. */
+function inlineNodesOf(block: RichBlock): readonly InlineNode[] {
+  if (block.type === RichBlockType.IMAGE) return [];
+  if (block.type === RichBlockType.LIST) return block.items.flat();
+  return block.content;
+}
+
 /** Texte cumulé d'un document, marques et légendes exclues. */
 export function richDocumentTextLength(blocks: readonly RichBlock[]): number {
-  return blocks.reduce((total, block) => {
-    if (block.type === RichBlockType.IMAGE) return total;
-    if (block.type === RichBlockType.LIST) {
-      return (
-        total +
-        block.items.reduce(
-          (sum, item) => sum + item.reduce((acc, node) => acc + node.text.length, 0),
-          0,
-        )
-      );
-    }
-    return total + block.content.reduce((acc, node) => acc + node.text.length, 0);
-  }, 0);
+  return blocks.reduce(
+    (total, block) => total + inlineNodesOf(block).reduce((sum, node) => sum + node.text.length, 0),
+    0,
+  );
+}
+
+/** La borne de texte qu'un document dépasse : le cumul, ou un seul fragment. */
+export const RichDocumentLimit = {
+  DOCUMENT: "DOCUMENT",
+  FRAGMENT: "FRAGMENT",
+} as const;
+export type RichDocumentLimit = TypesValuesOf<typeof RichDocumentLimit>;
+
+export type RichDocumentOverflow = { limit: RichDocumentLimit; max: number };
+
+/**
+ * La borne de texte que le document dépasse, ou `null` s'il tient dans les deux (#319).
+ *
+ * Ce sont les deux bornes de `richDocumentSchema` qu'un éditeur riche ne sait pas imposer par
+ * attribut, comme le ferait un `maxLength` : sans ce contrôle, le coach ne l'apprenait qu'au refus
+ * de l'API. Le cumul passe en premier — c'est lui qu'on dépasse en écrivant ; un fragment trop
+ * long (un passage d'un seul tenant, sans changement de mise en forme) ne vient qu'après.
+ */
+export function richDocumentOverflow(blocks: readonly RichBlock[]): RichDocumentOverflow | null {
+  if (richDocumentTextLength(blocks) > RICH_DOCUMENT_MAX_TEXT_LENGTH) {
+    return { limit: RichDocumentLimit.DOCUMENT, max: RICH_DOCUMENT_MAX_TEXT_LENGTH };
+  }
+  const fragmentTooLong = blocks.some((block) =>
+    inlineNodesOf(block).some((node) => node.text.length > RICH_TEXT_MAX_LENGTH),
+  );
+  return fragmentTooLong ? { limit: RichDocumentLimit.FRAGMENT, max: RICH_TEXT_MAX_LENGTH } : null;
 }
 
 export const richDocumentSchema = z

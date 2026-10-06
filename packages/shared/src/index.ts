@@ -523,6 +523,7 @@ export type {
   InlineNode,
   RichBlock,
   RichDocument,
+  RichDocumentOverflow,
 } from "./dto/rich-document.schema";
 export {
   calloutBlockSchema,
@@ -543,10 +544,12 @@ export {
   RICH_LIST_MAX_ITEMS,
   RICH_TEXT_MAX_LENGTH,
   RichBlockType,
+  RichDocumentLimit,
   remapImageMediaIds,
   richBlockSchema,
   richBlockTypeSchema,
   richDocumentFromPlainText,
+  richDocumentOverflow,
   richDocumentSchema,
   richDocumentTextLength,
   richDocumentToPlainText,

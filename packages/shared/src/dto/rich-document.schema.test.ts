@@ -3,10 +3,13 @@ import {
   InlineMark,
   imageMediaIds,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
+  RICH_TEXT_MAX_LENGTH,
   type RichBlock,
   RichBlockType,
+  RichDocumentLimit,
   remapImageMediaIds,
   richDocumentFromPlainText,
+  richDocumentOverflow,
   richDocumentSchema,
   richDocumentTextLength,
   richDocumentToPlainText,
@@ -104,6 +107,56 @@ describe("richDocumentTextLength", () => {
       { type: RichBlockType.IMAGE, mediaId: "med_1", caption: "légende ignorée" },
     ]);
     expect(length).toBe(5);
+  });
+});
+
+describe("richDocumentOverflow (#319)", () => {
+  const fragment = (length: number) => "x".repeat(length);
+
+  it("ne signale rien sur un document dans ses bornes, vide compris", () => {
+    expect(richDocumentOverflow([])).toBeNull();
+    expect(
+      richDocumentOverflow([
+        paragraph(fragment(RICH_TEXT_MAX_LENGTH)),
+        paragraph(fragment(RICH_TEXT_MAX_LENGTH)),
+        paragraph(fragment(RICH_DOCUMENT_MAX_TEXT_LENGTH - 2 * RICH_TEXT_MAX_LENGTH)),
+      ]),
+    ).toBeNull();
+  });
+
+  it("signale le cumul dépassé, même quand chaque paragraphe tient", () => {
+    const blocks = Array.from({ length: 6 }, () => paragraph(fragment(1000)));
+
+    expect(richDocumentOverflow(blocks)).toEqual({
+      limit: RichDocumentLimit.DOCUMENT,
+      max: RICH_DOCUMENT_MAX_TEXT_LENGTH,
+    });
+    // C'est bien ce que l'API refuserait.
+    expect(richDocumentSchema.safeParse(blocks).success).toBe(false);
+  });
+
+  it("signale un fragment trop long, dans un paragraphe comme dans une liste", () => {
+    const tooLong = fragment(RICH_TEXT_MAX_LENGTH + 1);
+    const expected = { limit: RichDocumentLimit.FRAGMENT, max: RICH_TEXT_MAX_LENGTH };
+
+    expect(richDocumentOverflow([paragraph(tooLong)])).toEqual(expected);
+    expect(
+      richDocumentOverflow([
+        { type: RichBlockType.LIST, ordered: false, items: [[{ text: "a" }], [{ text: tooLong }]] },
+      ]),
+    ).toEqual(expected);
+  });
+
+  it("ne compte pas la légende d'une image", () => {
+    expect(
+      richDocumentOverflow([
+        {
+          type: RichBlockType.IMAGE,
+          mediaId: "med_1",
+          caption: fragment(RICH_TEXT_MAX_LENGTH + 1),
+        },
+      ]),
+    ).toBeNull();
   });
 });
 
