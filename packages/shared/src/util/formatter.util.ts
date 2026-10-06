@@ -5,6 +5,7 @@ import {
   formatIsoDayLabel,
   formatIsoDayNumber,
   formatIsoFullDay,
+  formatIsoInstantDate,
   formatIsoWeekday,
   formatRelativeOrDateTime,
 } from "./date-format.util";
@@ -46,6 +47,11 @@ export type Formatters = {
    * d'un jour aux abords de minuit.
    */
   formatDateTime: (isoDateTime: string) => string;
+  /**
+   * « 14 oct. 2026 » — le JOUR d'un instant (`paidAt`, `joinedAt`), dans le fuseau du LECTEUR.
+   * Jamais `formatDate` sur ses dix premiers caractères : ce serait le jour UTC (#321).
+   */
+  formatInstantDate: (isoDateTime: string) => string;
   /** « il y a 2 h », ou la date complète au-delà d'une semaine. La bascule vit dans ce paquet. */
   formatRelativeTime: (isoDateTime: string) => string;
 };
@@ -71,6 +77,7 @@ export function createFormatters(
     formatDayNumber: (isoDate) => formatIsoDayNumber(isoDate, getLocale()),
     formatDateRange: (start, end) => formatIsoDateRange(start, end, getLocale()),
     formatDateTime: (isoDateTime) => formatIsoDateTime(isoDateTime, getLocale()),
+    formatInstantDate: (isoDateTime) => formatIsoInstantDate(isoDateTime, getLocale()),
     formatRelativeTime: (isoDateTime) =>
       formatRelativeOrDateTime(isoDateTime, new Date(), getLocale(), translate),
   };

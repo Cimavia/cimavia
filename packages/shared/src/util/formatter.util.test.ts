@@ -6,6 +6,7 @@ import {
   formatIsoDayLabel,
   formatIsoDayNumber,
   formatIsoFullDay,
+  formatIsoInstantDate,
   formatIsoWeekday,
   RELATIVE_TIME_KEY,
 } from "./date-format.util";
@@ -40,6 +41,9 @@ describe("createFormatters", () => {
     );
     expect(format.formatDateTime("2026-10-14T08:30:00.000Z")).toBe(
       formatIsoDateTime("2026-10-14T08:30:00.000Z", "fr-FR"),
+    );
+    expect(format.formatInstantDate("2026-10-14T08:30:00.000Z")).toBe(
+      formatIsoInstantDate("2026-10-14T08:30:00.000Z", "fr-FR"),
     );
   });
 

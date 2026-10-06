@@ -1,5 +1,5 @@
 import { InvoiceStatus } from "../dto/invoice.schema";
-import { daysBetweenIsoDates } from "./date.util";
+import { daysBetweenIsoDates, isoDateOfInstant } from "./date.util";
 import { required } from "./invariant.util";
 import { InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
 import type { Page } from "./pagination.util";
@@ -215,9 +215,11 @@ function toSubtitle<T extends InvoiceRowSource>(
   }
 
   /**
-   * Le dernier règlement. `paidAt` est un INSTANT, le sous-titre parle d'un jour : on le tronque
-   * ici pour que `formatIsoDate` reçoive une date civile comme partout ailleurs. Comparer les
-   * chaînes ISO revient à les comparer chronologiquement, préfixe commun oblige.
+   * Le dernier règlement. `paidAt` est un INSTANT, le sous-titre parle d'un jour : on le ramène
+   * ici au jour du LECTEUR pour que `formatIsoDate` reçoive une date civile comme partout ailleurs —
+   * le tronquer aurait rendu le jour UTC, la veille pour un règlement saisi à 0 h 30 à Paris
+   * (#321). Comparer les chaînes ISO revient à les comparer chronologiquement, préfixe commun
+   * oblige. Un instant illisible ne fabrique pas de date : pas de sous-titre.
    */
   const paidAt = maxOf(
     invoices
@@ -225,7 +227,8 @@ function toSubtitle<T extends InvoiceRowSource>(
       .map((invoice) => invoice.paidAt)
       .filter((value): value is string => value != null),
   );
-  return paidAt == null ? null : { kind: "LAST_PAID", date: paidAt.slice(0, 10) };
+  const paidOn = paidAt == null ? null : isoDateOfInstant(paidAt);
+  return paidOn == null ? null : { kind: "LAST_PAID", date: paidOn };
 }
 
 function minOf(values: readonly string[]): string | null {
