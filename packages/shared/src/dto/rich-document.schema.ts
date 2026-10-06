@@ -17,7 +17,6 @@ export const RICH_DOCUMENT_MAX_BLOCKS = 200;
 // EXERCISE_DESCRIPTION_MAX_LENGTH : le passage au structuré ne doit pas permettre au coach
 // d'écrire dix fois plus qu'avant.
 export const RICH_DOCUMENT_MAX_TEXT_LENGTH = 5000;
-export const RICH_TEXT_MAX_LENGTH = 2000;
 export const RICH_IMAGE_CAPTION_MAX_LENGTH = 300;
 export const RICH_LIST_MAX_ITEMS = 50;
 
@@ -45,7 +44,7 @@ export const linkHrefSchema = z
 // gras ou italique comme n'importe quel autre.
 export const inlineNodeSchema = z
   .object({
-    text: z.string().min(1).max(RICH_TEXT_MAX_LENGTH),
+    text: z.string().min(1),
     marks: z.array(inlineMarkSchema).max(3).optional(),
     href: linkHrefSchema.optional(),
   })
@@ -136,37 +135,22 @@ export function richDocumentTextLength(blocks: readonly RichBlock[]): number {
   );
 }
 
-/** La borne de texte qu'un document dépasse : le cumul, ou un seul fragment. */
-export const RichDocumentLimit = {
-  DOCUMENT: "DOCUMENT",
-  FRAGMENT: "FRAGMENT",
-} as const;
-export type RichDocumentLimit = TypesValuesOf<typeof RichDocumentLimit>;
-
-export type RichDocumentOverflow = { limit: RichDocumentLimit; max: number };
-
 /**
- * La borne de texte que le document dépasse, ou `null` s'il tient dans les deux (#319).
+ * Le texte du document dépasse-t-il sa borne (#319) ?
  *
- * Ce sont les deux bornes de `richDocumentSchema` qu'un éditeur riche ne sait pas imposer par
- * attribut, comme le ferait un `maxLength` : sans ce contrôle, le coach ne l'apprenait qu'au refus
- * de l'API. Le cumul passe en premier — c'est lui qu'on dépasse en écrivant ; un fragment trop
- * long (un passage d'un seul tenant, sans changement de mise en forme) ne vient qu'après.
+ * Partagée par le schéma et par l'éditeur : un éditeur riche ne se borne pas par `maxLength`, et
+ * sans ce contrôle à l'écran le coach ne l'apprenait qu'au refus de l'API. C'est la SEULE borne de
+ * texte d'une consigne : celle d'un fragment (2 000), posée sans raison écrite à la création du
+ * schéma, refusait un paragraphe d'un seul tenant et acceptait le même avec un mot en gras.
  */
-export function richDocumentOverflow(blocks: readonly RichBlock[]): RichDocumentOverflow | null {
-  if (richDocumentTextLength(blocks) > RICH_DOCUMENT_MAX_TEXT_LENGTH) {
-    return { limit: RichDocumentLimit.DOCUMENT, max: RICH_DOCUMENT_MAX_TEXT_LENGTH };
-  }
-  const fragmentTooLong = blocks.some((block) =>
-    inlineNodesOf(block).some((node) => node.text.length > RICH_TEXT_MAX_LENGTH),
-  );
-  return fragmentTooLong ? { limit: RichDocumentLimit.FRAGMENT, max: RICH_TEXT_MAX_LENGTH } : null;
+export function isRichDocumentTooLong(blocks: readonly RichBlock[]): boolean {
+  return richDocumentTextLength(blocks) > RICH_DOCUMENT_MAX_TEXT_LENGTH;
 }
 
 export const richDocumentSchema = z
   .array(richBlockSchema)
   .max(RICH_DOCUMENT_MAX_BLOCKS)
-  .refine((blocks) => richDocumentTextLength(blocks) <= RICH_DOCUMENT_MAX_TEXT_LENGTH, {
+  .refine((blocks) => !isRichDocumentTooLong(blocks), {
     message: `Le texte du document dépasse ${RICH_DOCUMENT_MAX_TEXT_LENGTH} caractères.`,
   });
 export type RichDocument = z.infer<typeof richDocumentSchema>;

@@ -2,14 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   InlineMark,
   imageMediaIds,
+  isRichDocumentTooLong,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
-  RICH_TEXT_MAX_LENGTH,
   type RichBlock,
   RichBlockType,
-  RichDocumentLimit,
   remapImageMediaIds,
   richDocumentFromPlainText,
-  richDocumentOverflow,
   richDocumentSchema,
   richDocumentTextLength,
   richDocumentToPlainText,
@@ -110,53 +108,35 @@ describe("richDocumentTextLength", () => {
   });
 });
 
-describe("richDocumentOverflow (#319)", () => {
-  const fragment = (length: number) => "x".repeat(length);
+describe("isRichDocumentTooLong (#319)", () => {
+  const text = (length: number) => "x".repeat(length);
 
-  it("ne signale rien sur un document dans ses bornes, vide compris", () => {
-    expect(richDocumentOverflow([])).toBeNull();
-    expect(
-      richDocumentOverflow([
-        paragraph(fragment(RICH_TEXT_MAX_LENGTH)),
-        paragraph(fragment(RICH_TEXT_MAX_LENGTH)),
-        paragraph(fragment(RICH_DOCUMENT_MAX_TEXT_LENGTH - 2 * RICH_TEXT_MAX_LENGTH)),
-      ]),
-    ).toBeNull();
+  it("accepte un document vide, et un document à sa borne exacte", () => {
+    expect(isRichDocumentTooLong([])).toBe(false);
+    expect(isRichDocumentTooLong([paragraph(text(RICH_DOCUMENT_MAX_TEXT_LENGTH))])).toBe(false);
   });
 
-  it("signale le cumul dépassé, même quand chaque paragraphe tient", () => {
-    const blocks = Array.from({ length: 6 }, () => paragraph(fragment(1000)));
+  it("refuse le cumul dépassé, même quand chaque paragraphe est court — comme l'API", () => {
+    const blocks = Array.from({ length: 6 }, () => paragraph(text(1000)));
 
-    expect(richDocumentOverflow(blocks)).toEqual({
-      limit: RichDocumentLimit.DOCUMENT,
-      max: RICH_DOCUMENT_MAX_TEXT_LENGTH,
-    });
-    // C'est bien ce que l'API refuserait.
+    expect(isRichDocumentTooLong(blocks)).toBe(true);
     expect(richDocumentSchema.safeParse(blocks).success).toBe(false);
   });
 
-  it("signale un fragment trop long, dans un paragraphe comme dans une liste", () => {
-    const tooLong = fragment(RICH_TEXT_MAX_LENGTH + 1);
-    const expected = { limit: RichDocumentLimit.FRAGMENT, max: RICH_TEXT_MAX_LENGTH };
+  it("n'a pas de borne par fragment : un paragraphe d'un seul tenant passe tant que le cumul tient", () => {
+    const blocks = [paragraph(text(2500))];
 
-    expect(richDocumentOverflow([paragraph(tooLong)])).toEqual(expected);
-    expect(
-      richDocumentOverflow([
-        { type: RichBlockType.LIST, ordered: false, items: [[{ text: "a" }], [{ text: tooLong }]] },
-      ]),
-    ).toEqual(expected);
+    expect(isRichDocumentTooLong(blocks)).toBe(false);
+    expect(richDocumentSchema.safeParse(blocks).success).toBe(true);
   });
 
   it("ne compte pas la légende d'une image", () => {
     expect(
-      richDocumentOverflow([
-        {
-          type: RichBlockType.IMAGE,
-          mediaId: "med_1",
-          caption: fragment(RICH_TEXT_MAX_LENGTH + 1),
-        },
+      isRichDocumentTooLong([
+        { type: RichBlockType.IMAGE, mediaId: "med_1", caption: "légende" },
+        paragraph(text(RICH_DOCUMENT_MAX_TEXT_LENGTH)),
       ]),
-    ).toBeNull();
+    ).toBe(false);
   });
 });
 
