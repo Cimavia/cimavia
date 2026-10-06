@@ -12,6 +12,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     exclude: ["node_modules/**", "dist/**", "test/**"],
+    // À Paris et non dans le fuseau de la machine (#382) : sous l'UTC des runners, une date calculée
+    // en UTC et une date calculée à Paris se confondent, et le test ne distingue plus rien (#321).
+    env: { TZ: "Europe/Paris" },
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "lcov"],

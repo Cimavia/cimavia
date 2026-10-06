@@ -160,6 +160,9 @@ describe("snoozedDueAt", () => {
    * passage à l'heure d'hiver, là où `+ 24 × 3600 × 1000` la décalerait d'une heure. Le test
    * l'exprime dans le fuseau du système, seul endroit où la distinction est observable — et se
    * contente donc de vérifier l'heure LOCALE, identique de part et d'autre du changement.
+   *
+   * Ce fuseau est Paris, fixé par `vitest.config.ts` (#382) : sous l'UTC des runners, il n'y a pas
+   * de changement d'heure, et l'addition naïve passait aussi bien que `setDate`.
    */
   it("conserve l'heure locale à travers un changement d'heure", () => {
     // 2026 : l'heure d'hiver arrive le dimanche 25 octobre en Europe.

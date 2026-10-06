@@ -43,6 +43,9 @@ export default mergeConfig(
        */
       environment: "jsdom",
       setupFiles: ["./vitest.setup.ts"],
+      // À Paris et non dans le fuseau de la machine (#382) : sous l'UTC des runners, « aujourd'hui »
+      // en UTC et « aujourd'hui » pour le lecteur se confondent, et l'écart de #321 passe inaperçu.
+      env: { TZ: "Europe/Paris" },
       coverage: {
         provider: "v8",
         reporter: ["text-summary", "lcov"],

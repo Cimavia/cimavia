@@ -9,6 +9,13 @@ import { defineConfig } from "vitest/config";
  */
 export default defineConfig({
   test: {
+    /**
+     * Les tests tournent À PARIS, pas dans le fuseau de la machine (#382). Les runners de la CI
+     * sont en UTC : là, « l'heure locale » et « l'heure UTC » ne font qu'un, et un test qui doit
+     * distinguer les deux — changement d'heure, date du jour (#321) — passe quelle que soit
+     * l'implémentation. Paris est aussi le fuseau du produit : c'est celui où un écart se paierait.
+     */
+    env: { TZ: "Europe/Paris" },
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "lcov"],

@@ -53,6 +53,9 @@ export default defineConfig({
      */
     environment: "jsdom",
     setupFiles: ["./test/setup.ts", "./test/native.tsx"],
+    // À Paris et non dans le fuseau de la machine (#382) : sous l'UTC des runners, « aujourd'hui »
+    // en UTC et « aujourd'hui » pour le lecteur se confondent, et l'écart de #321 passe inaperçu.
+    env: { TZ: "Europe/Paris" },
     server: {
       deps: {
         /**
