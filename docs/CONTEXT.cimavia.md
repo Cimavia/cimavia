@@ -161,7 +161,7 @@ Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audi
 
 ⚠️ **« En retard » n'est PAS un statut** : c'est `InvoiceState.OVERDUE`, *dérivé* par `resolveInvoiceState` d'une facture `PENDING` dont la `dueDate` est dépassée — même dispositif que « rappel dû ». Conséquence pour tout compteur ou filtre : **« en attente » ≠ `status === PENDING`**, puisque ce statut couvre aussi les factures en retard. Le vocabulaire produit distingue les deux (`countPendingInvoices` / `countOverdueInvoices`, qui partitionnent l'impayé) ; le statut brut, non.
 
-`Invoice.dueDate` est une **date civile** (`YYYY-MM-DD`), contrairement à `Reminder.dueAt` qui est un instant : elle se compare avec `todayIsoDate()` et s'affiche via `formatIsoDate` (jamais `formatIsoDateTime`).
+`Invoice.dueDate` est une **date civile** (`YYYY-MM-DD`), contrairement à `Reminder.dueAt` qui est un instant : elle se compare avec `todayIsoDate()` — le jour **dans le fuseau de l'appareil**, pas en UTC — et s'affiche via `formatIsoDate` (jamais `formatIsoDateTime`). Côté serveur, « aujourd'hui » et « en retard » se comptent **à Paris** (`productToday`, « Tranché en #321 »). Un instant affiché comme un jour (`paidAt`, `joinedAt`) passe par `formatInstantDate`, jamais par ses dix premiers caractères.
 
 ### Reminder (rappel)
 Aide-mémoire que le coach se pose à lui-même : « proposer le renouvellement avant la dernière semaine », « relancer cette facture ». **Outil privé du coach** — c'est la seule entité métier qu'un athlète ne voit jamais, sous aucune forme (scopée `coachId` **seul**, sans `athleteId`).
