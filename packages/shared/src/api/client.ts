@@ -18,6 +18,11 @@ export class ApiError extends Error {
     message: string,
     // null quand l'erreur n'est pas une erreur de validation (404, 403, 503…).
     readonly fieldErrors: ApiFieldError[] | null,
+    /**
+     * `false` quand le message est fabriqué par le client, faute d'en avoir reçu un : corps vide,
+     * non-JSON, simple libellé HTTP. Il sert alors aux logs et à Sentry, jamais à l'écran (#320).
+     */
+    readonly fromApi = true,
   ) {
     super(message);
     this.name = "ApiError";
@@ -28,13 +33,17 @@ export class ApiError extends Error {
  * Le message à MONTRER pour une erreur d'API, ou `null` quand elle n'en a pas d'utile — l'appelant
  * retombe alors sur son propre message traduit.
  *
+ * `null` sur un message que l'API n'a pas écrit (`fromApi`) : « Erreur 502 » ou « Service
+ * Unavailable » ne disent rien du geste, et seraient du texte en dur — en anglais pour le second —
+ * à la place du message traduit de l'écran (#320).
+ *
  * `null` sur un 401 : son message est le « Unauthorized » brut du garde de session, en anglais, qui
  * ne dit rien de ce qu'il faut faire. La session perdue est expliquée ailleurs, une fois, par l'app
  * (la fenêtre de reconnexion du web depuis #336) ; l'écran, lui, n'a qu'à dire que SON geste a
  * échoué.
  */
 export function apiErrorMessage(error: unknown): string | null {
-  if (!(error instanceof ApiError) || error.status === 401) return null;
+  if (!(error instanceof ApiError) || error.status === 401 || !error.fromApi) return null;
   return error.message;
 }
 
@@ -57,9 +66,29 @@ type NestErrorBody = { message?: string | ApiFieldError[]; error?: string };
 function toApiError(status: number, body: unknown): ApiError {
   const { message, error } = (body ?? {}) as NestErrorBody;
   if (Array.isArray(message)) {
-    return new ApiError(status, message[0]?.message ?? "Requête invalide", message);
+    const first = message[0];
+    return first == null
+      ? new ApiError(status, "Requête invalide", message, false)
+      : new ApiError(status, first.message, message);
   }
-  return new ApiError(status, message ?? error ?? `Erreur ${status}`, null);
+  if (typeof message === "string") return new ApiError(status, message, null);
+  return new ApiError(status, error ?? `Erreur ${status}`, null, false);
+}
+
+// Le corps n'est pas du JSON. Un symbole plutôt que `null`, qui veut déjà dire « corps vide ».
+const UNREADABLE = Symbol("unreadable");
+
+/**
+ * Le corps décodé : `null` s'il est vide, `UNREADABLE` s'il n'est pas du JSON — la page HTML d'un
+ * proxy (le 502 de cloudflared pendant un redémarrage de l'API), d'un portail captif.
+ */
+function parseBody(text: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return UNREADABLE;
+  }
 }
 
 type ApiRequestInit = {
@@ -126,9 +155,13 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     // 204 No Content (DELETE) → pas de corps à parser.
     if (response.status === 204) return undefined as T;
 
-    const text = await response.text();
-    const data: unknown = text ? JSON.parse(text) : null;
+    const data = parseBody(await response.text());
 
+    // Même sur un 200 : la page d'un portail captif rendue comme un `T` casserait plus loin, sans
+    // dire pourquoi. Le statut est gardé, c'est lui qui distingue une panne d'infrastructure.
+    if (data === UNREADABLE) {
+      throw new ApiError(response.status, `Réponse non-json (${response.status})`, null, false);
+    }
     if (!response.ok) throw toApiError(response.status, data);
     return data as T;
   }
