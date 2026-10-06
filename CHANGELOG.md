@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.12.1](https://github.com/Cimavia/cimavia/compare/v1.12.0...v1.12.1) (2026-10-06)
+
+
+### Corrections
+
+* **api:** aujourd'hui et les échéances des rappels se comptent à paris, plus à minuit utc ([f908c58](https://github.com/Cimavia/cimavia/commit/f908c5805dbbb086fd6eab55490c44d700fc1788))
+* **mobile:** les dates de paiement et d'arrivée se lisent au jour du lecteur, plus en utc ([e1f66d5](https://github.com/Cimavia/cimavia/commit/e1f66d57f2823814ad646a07f428321948957ad2))
+* **shared:** aujourd'hui est le jour de l'appareil, plus le jour utc qui retarde la nuit ([4b8298f](https://github.com/Cimavia/cimavia/commit/4b8298fd21bc1830b5ebdad9f06d65b0f74b4aa2))
+* **shared:** la consigne n'a plus de borne par fragment, que le coach ne voit pas ([7ffca67](https://github.com/Cimavia/cimavia/commit/7ffca6748360a079b6f45d497ad0bfdd0b1371bf))
+* **shared:** un corps non-json garde son statut d'erreur, et l'écran son message traduit ([40847b8](https://github.com/Cimavia/cimavia/commit/40847b897185bcfccba2e358ff9401aa4520324f))
+* **web:** l'éditeur de consigne ne vérifie plus que le cumul, seule borne qui reste ([0da9aa2](https://github.com/Cimavia/cimavia/commit/0da9aa2171464c1390f2c968e6a640a1e3332f75))
+* **web:** les dates de paiement et d'arrivée se lisent au jour du lecteur, plus en utc ([e2fe4ac](https://github.com/Cimavia/cimavia/commit/e2fe4acd9a69fd3c09938f5d1527278dfd038d17))
+
 ## [1.12.0](https://github.com/Cimavia/cimavia/compare/v1.11.0...v1.12.0) (2026-10-06)
 
 
