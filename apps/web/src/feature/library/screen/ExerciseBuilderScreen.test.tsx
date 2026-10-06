@@ -4,6 +4,8 @@ import {
   type CustomMetric,
   DocumentType,
   DocumentUsage,
+  EXERCISE_TAG_MAX_LENGTH,
+  EXERCISE_TITLE_MAX_LENGTH,
   type ExerciseDto,
   formatTrainingDuration,
   MetricKey,
@@ -144,6 +146,19 @@ describe("ExerciseBuilderScreen — création", () => {
     ).not.toBeInTheDocument();
     expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeDisabled();
     expect(view.getByText("library.builder.previewEmpty")).toBeInTheDocument();
+  });
+
+  it("borne le titre et chaque tag à ce que l'API accepte (#319)", async () => {
+    const view = await create();
+
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveAttribute(
+      "maxLength",
+      String(EXERCISE_TITLE_MAX_LENGTH),
+    );
+    expect(view.getByLabelText("library.tags.label")).toHaveAttribute(
+      "maxLength",
+      String(EXERCISE_TAG_MAX_LENGTH),
+    );
   });
 
   it("reprend le titre cherché, prêt à enregistrer", async () => {

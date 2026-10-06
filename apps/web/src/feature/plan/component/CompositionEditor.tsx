@@ -1,3 +1,4 @@
+import { SESSION_NOTE_MAX_LENGTH } from "@cmv/shared";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoArrowDown, IoArrowUp, IoChevronDown, IoChevronForward } from "react-icons/io5";
@@ -171,6 +172,7 @@ function CompositionEditorRow({
       <CmvTextField
         label={t("plan.session.noteLabel")}
         name={`note-${item.key}`}
+        maxLength={SESSION_NOTE_MAX_LENGTH}
         value={item.note}
         onChange={(event) => onNoteChange(item.key, event.target.value)}
         placeholder={t("plan.session.notePlaceholder")}

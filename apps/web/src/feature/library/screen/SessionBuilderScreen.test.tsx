@@ -5,6 +5,8 @@ import {
   cellPath,
   type ExerciseBlocks,
   type ExerciseDto,
+  SESSION_NOTES_MAX_LENGTH,
+  SESSION_TITLE_MAX_LENGTH,
   type SessionDto,
   structurePath,
 } from "@cmv/shared";
@@ -202,6 +204,19 @@ describe("SessionBuilderScreen — création", () => {
     expect(view.heading()).toBe("library.session.createTitle");
     expect(view.getByText("library.session.emptyTitle")).toBeInTheDocument();
     expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeDisabled();
+  });
+
+  it("borne le titre et la consigne à ce que l'API accepte (#319)", async () => {
+    const view = await create();
+
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveAttribute(
+      "maxLength",
+      String(SESSION_TITLE_MAX_LENGTH),
+    );
+    expect(view.getByRole("textbox", { name: NOTES })).toHaveAttribute(
+      "maxLength",
+      String(SESSION_NOTES_MAX_LENGTH),
+    );
   });
 
   // Le titre de la page suit la saisie ; tant qu'il n'y en a pas, elle dit ce qu'on crée.

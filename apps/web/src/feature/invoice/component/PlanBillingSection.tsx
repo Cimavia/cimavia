@@ -1,4 +1,9 @@
-import { draftAfterLoad, type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
+import {
+  draftAfterLoad,
+  INVOICE_NOTE_MAX_LENGTH,
+  type InvoiceDto,
+  MAX_INVOICE_DOCUMENT_SIZE_BYTES,
+} from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -195,6 +200,7 @@ export function PlanBillingSection({
         <CmvTextArea
           label={t("invoice.billing.note")}
           name="note"
+          maxLength={INVOICE_NOTE_MAX_LENGTH}
           value={note}
           onChange={(event) => setNote(event.target.value)}
           placeholder={t("invoice.billing.notePlaceholder")}

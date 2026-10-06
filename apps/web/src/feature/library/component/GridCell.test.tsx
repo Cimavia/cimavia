@@ -2,6 +2,7 @@ import {
   type BlockMetric,
   FRENCH_CLIMBING_SCALE,
   formatDecimal,
+  METRIC_TEXT_VALUE_MAX_LENGTH,
   MetricKey,
   MetricSource,
   MetricUnit,
@@ -227,6 +228,12 @@ describe("GridCell — texte", () => {
     await user.type(input, "Voie 1{Enter}");
 
     expect(onCommitLine).toHaveBeenCalledWith("Voie 1");
+  });
+
+  it("borne le texte à ce que l'API accepte (#319)", () => {
+    const { input } = setupInput(label);
+
+    expect(input).toHaveAttribute("maxLength", String(METRIC_TEXT_VALUE_MAX_LENGTH));
   });
 });
 

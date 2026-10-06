@@ -1,6 +1,8 @@
 import {
   daysBetweenIsoDates,
   mondayOfIsoWeek,
+  PLAN_DESCRIPTION_MAX_LENGTH,
+  PLAN_TITLE_MAX_LENGTH,
   type PlanDto,
   PlanStatus,
   type UpdatePlanInput,
@@ -149,6 +151,7 @@ export function PlanHeaderForm({
           <CmvTextField
             label={t("plan.header.titleLabel")}
             name="planTitle"
+            maxLength={PLAN_TITLE_MAX_LENGTH}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={t("plan.header.titlePlaceholder")}
@@ -196,6 +199,7 @@ export function PlanHeaderForm({
         <CmvTextArea
           label={t("plan.header.descriptionLabel")}
           name="planDescription"
+          maxLength={PLAN_DESCRIPTION_MAX_LENGTH}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder={t("plan.header.descriptionPlaceholder")}

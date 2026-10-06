@@ -3,6 +3,7 @@ import {
   type CustomMetric,
   type ExerciseBlock,
   type MetricValue,
+  SESSION_NOTE_MAX_LENGTH,
 } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -199,6 +200,7 @@ export function CompositionCard({
           <CmvTextField
             label={t("library.session.noteLabel")}
             name={`note-${item.key}`}
+            maxLength={SESSION_NOTE_MAX_LENGTH}
             value={item.note}
             onChange={(event) => onNoteChange(event.target.value)}
             placeholder={t("library.session.notePlaceholder")}

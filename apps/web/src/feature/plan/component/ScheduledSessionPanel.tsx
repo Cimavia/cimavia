@@ -1,5 +1,12 @@
 import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
-import { planWeekDays, required, ScheduledSessionStatus, sameJson } from "@cmv/shared";
+import {
+  planWeekDays,
+  required,
+  ScheduledSessionStatus,
+  SESSION_NOTES_MAX_LENGTH,
+  SESSION_TITLE_MAX_LENGTH,
+  sameJson,
+} from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
@@ -222,6 +229,7 @@ export function ScheduledSessionPanel({
                 <CmvTextField
                   label={t("plan.session.titleLabel")}
                   name="sessionTitle"
+                  maxLength={SESSION_TITLE_MAX_LENGTH}
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder={t("plan.session.titlePlaceholder")}
@@ -284,6 +292,7 @@ function EditedSessionFields({
       <CmvTextArea
         label={t("plan.session.notesLabel")}
         name="sessionNotes"
+        maxLength={SESSION_NOTES_MAX_LENGTH}
         value={notes}
         onChange={(event) => onNotesChange(event.target.value)}
         placeholder={t("plan.session.notesPlaceholder")}

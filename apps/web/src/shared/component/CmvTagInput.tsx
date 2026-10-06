@@ -17,6 +17,8 @@ type CmvTagInputProps = {
   suggestions?: readonly string[];
   placeholder?: string;
   max?: number;
+  /** Longueur maximale d'UN tag — la borne d'`exerciseTagSchema`, à passer par l'appelant. */
+  maxLength?: number;
   removeLabel: string;
   normalize?: (raw: string) => string;
 };
@@ -28,6 +30,7 @@ export function CmvTagInput({
   suggestions = [],
   placeholder,
   max,
+  maxLength,
   removeLabel,
   normalize = defaultTagNormalize,
 }: Readonly<CmvTagInputProps>) {
@@ -102,6 +105,7 @@ export function CmvTagInput({
           id={inputId}
           list={listId}
           value={draft}
+          maxLength={maxLength}
           disabled={isFull}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}

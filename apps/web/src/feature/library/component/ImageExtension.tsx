@@ -1,4 +1,4 @@
-import { ImageWidth, imageWidthSchema } from "@cmv/shared";
+import { ImageWidth, imageWidthSchema, RICH_IMAGE_CAPTION_MAX_LENGTH } from "@cmv/shared";
 import { Node } from "@tiptap/core";
 import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { useTranslation } from "react-i18next";
@@ -98,6 +98,7 @@ function InstructionImageView({ node, updateAttributes, deleteNode }: Readonly<N
           </select>
           <input
             value={caption}
+            maxLength={RICH_IMAGE_CAPTION_MAX_LENGTH}
             onChange={(event) => updateAttributes({ caption: event.target.value })}
             placeholder={t("library.builder.image.captionPlaceholder")}
             aria-label={t("library.builder.image.caption")}

@@ -1,3 +1,4 @@
+import { SESSION_NOTE_MAX_LENGTH } from "@cmv/shared";
 import { fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
@@ -110,6 +111,14 @@ describe("CompositionEditor", () => {
     await user.click(getAllByRole("button", { name: `${PREFIX}.remove` })[1] as HTMLElement);
 
     expect(onRemove).toHaveBeenCalledExactlyOnceWith("b");
+  });
+
+  it("borne chaque note à ce que l'API accepte (#319)", () => {
+    const { getAllByLabelText } = setup();
+
+    for (const note of getAllByLabelText(`${PREFIX}.noteLabel`)) {
+      expect(note).toHaveAttribute("maxLength", String(SESSION_NOTE_MAX_LENGTH));
+    }
   });
 
   it("remonte la note saisie avec la clé de sa ligne", () => {
