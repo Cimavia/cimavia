@@ -183,8 +183,19 @@ describe("createApiClient — la réponse", () => {
     await expect(api.get("/me/coach")).resolves.toBeNull();
   });
 
-  // La réponse non-JSON (page HTML d'un proxy) n'est PAS affirmée ici : c'est le bug #320, et un
-  // test qui figerait la `SyntaxError` actuelle protégerait le défaut au lieu du contrat.
+  /**
+   * Un portail captif répond 200 avec sa page HTML : la rendre comme un `T` casserait plus loin,
+   * sur un champ absent, sans dire pourquoi (#320).
+   */
+  it("rejette une réponse réussie dont le corps n'est pas du JSON", async () => {
+    const { fetchFn } = recording(200, "<!doctype html><title>Wi-Fi gratuit</title>");
+    const error = await createApiClient({ baseUrl: "http://api.test", fetchFn })
+      .get("/me")
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 200, message: "Réponse non-json (200)", fromApi: false });
+  });
 });
 
 describe("createApiClient — les erreurs", () => {
@@ -200,7 +211,13 @@ describe("createApiClient — les erreurs", () => {
   it("porte le statut et le message d'une erreur NestJS", async () => {
     const error = await rejection(404, JSON.stringify({ message: "Cycle introuvable" }));
 
-    expect(error).toMatchObject({ status: 404, message: "Cycle introuvable", fieldErrors: null });
+    expect(error).toMatchObject({
+      status: 404,
+      message: "Cycle introuvable",
+      fieldErrors: null,
+      fromApi: true,
+    });
+    expect(apiErrorMessage(error)).toBe("Cycle introuvable");
     expect(error.name).toBe("ApiError");
     expect(error).toBeInstanceOf(Error);
   });
@@ -217,25 +234,67 @@ describe("createApiClient — les erreurs", () => {
     const error = await rejection(400, JSON.stringify({ message: fieldErrors }));
 
     expect(error).toMatchObject({ status: 400, message: "Titre requis", fieldErrors });
+    expect(apiErrorMessage(error)).toBe("Titre requis");
   });
 
-  it("retombe sur un message générique quand la liste des champs est vide", async () => {
-    const error = await rejection(400, JSON.stringify({ message: [] }));
+  /**
+   * Faute de message écrit par l'API, le client en fabrique un pour les logs et Sentry — mais
+   * `apiErrorMessage` le tait : « Erreur 502 » ou « Service Unavailable » prendraient la place du
+   * message traduit de l'écran, qui dit, lui, quel geste a échoué (#320).
+   */
+  describe("sans message écrit par l'API, l'écran garde le sien", () => {
+    it("une liste de champs vide", async () => {
+      const error = await rejection(400, JSON.stringify({ message: [] }));
 
-    expect(error).toMatchObject({ status: 400, message: "Requête invalide", fieldErrors: [] });
-  });
+      expect(error).toMatchObject({
+        status: 400,
+        message: "Requête invalide",
+        fieldErrors: [],
+        fromApi: false,
+      });
+      expect(apiErrorMessage(error)).toBeNull();
+    });
 
-  it("retombe sur le libellé HTTP quand NestJS n'a pas de message", async () => {
-    const error = await rejection(503, JSON.stringify({ error: "Service Unavailable" }));
+    it("le seul libellé HTTP", async () => {
+      const error = await rejection(503, JSON.stringify({ error: "Service Unavailable" }));
 
-    expect(error).toMatchObject({ status: 503, message: "Service Unavailable", fieldErrors: null });
-  });
+      expect(error).toMatchObject({
+        status: 503,
+        message: "Service Unavailable",
+        fieldErrors: null,
+        fromApi: false,
+      });
+      expect(apiErrorMessage(error)).toBeNull();
+    });
 
-  // Pas de corps du tout : le statut est la seule information, il doit rester lisible.
-  it("nomme le statut quand l'erreur n'a aucun corps", async () => {
-    const error = await rejection(502, "");
+    // Pas de corps du tout : le statut est la seule information, il reste lisible dans Sentry.
+    it("aucun corps", async () => {
+      const error = await rejection(502, "");
 
-    expect(error).toMatchObject({ status: 502, message: "Erreur 502", fieldErrors: null });
+      expect(error).toMatchObject({
+        status: 502,
+        message: "Erreur 502",
+        fieldErrors: null,
+        fromApi: false,
+      });
+      expect(apiErrorMessage(error)).toBeNull();
+    });
+
+    /**
+     * La page HTML de cloudflared pendant un redémarrage de l'API. Elle levait une `SyntaxError`,
+     * que Sentry ne distinguait pas d'un bug applicatif : le statut est ce qui dit la panne.
+     */
+    it("un corps qui n'est pas du JSON", async () => {
+      const error = await rejection(502, "<!doctype html><title>Bad gateway</title>");
+
+      expect(error).toMatchObject({
+        status: 502,
+        message: "Réponse non-json (502)",
+        fieldErrors: null,
+        fromApi: false,
+      });
+      expect(apiErrorMessage(error)).toBeNull();
+    });
   });
 });
 
