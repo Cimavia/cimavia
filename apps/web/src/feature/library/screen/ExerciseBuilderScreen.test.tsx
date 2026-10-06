@@ -658,3 +658,27 @@ describe("ExerciseBuilderScreen — saisie refusée (#566)", () => {
     expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
   });
 });
+
+/**
+ * #319 : une consigne de six paragraphes de 1 000 caractères. Chacun tient dans sa borne, le cumul
+ * dépasse 5 000 — le coach ne l'apprenait qu'au refus de l'API, par un toast générique et un
+ * message en bas de page, hors de vue.
+ */
+describe("ExerciseBuilderScreen — consigne trop longue (#319)", () => {
+  it("ferme l'enregistrement et le dit sous la consigne", async () => {
+    api.getExercise.mockResolvedValue(
+      saved({
+        instructions: Array.from({ length: 6 }, () => ({
+          type: RichBlockType.PARAGRAPH,
+          content: [{ text: "x".repeat(1000) }],
+        })),
+      }),
+    );
+    const view = await edit();
+
+    expect(await view.findByText("library.builder.instructionsTooLong")).toBeInTheDocument();
+    const submit = view.getByRole("button", { name: SUBMIT_EDIT });
+    await waitFor(() => expect(submit).toBeDisabled());
+    expect(submit).toHaveAttribute("title", "library.builder.refusedBlocksSave");
+  });
+});

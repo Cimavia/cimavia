@@ -2,7 +2,11 @@ import {
   isInstructionImageMime,
   linkHrefSchema,
   MAX_DOCUMENT_SIZE_BYTES,
+  RICH_DOCUMENT_MAX_TEXT_LENGTH,
   type RichDocument,
+  RichDocumentLimit,
+  richDocumentOverflow,
+  richDocumentTextLength,
 } from "@cmv/shared";
 import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -28,7 +32,15 @@ import {
   toRichDocument,
   toTipTapDocument,
 } from "@/feature/library/util/tiptap-document.util";
+import { CmvCharCount } from "@/shared/component";
+import { useReportRefused } from "@/shared/hook/useRefusedFields";
 import { cn } from "@/shared/util/cn.util";
+
+// Ce que dit la consigne quand elle dépasse une borne de `richDocumentSchema` (#319).
+const OVERFLOW_KEY: Record<RichDocumentLimit, string> = {
+  [RichDocumentLimit.DOCUMENT]: "library.builder.instructionsTooLong",
+  [RichDocumentLimit.FRAGMENT]: "library.builder.instructionsFragmentTooLong",
+};
 
 type InstructionsEditorProps = {
   /** Document initial. NON repoussé dans l'éditeur ensuite : le remonter déplacerait le curseur. */
@@ -38,6 +50,12 @@ type InstructionsEditorProps = {
 
 export function InstructionsEditor({ initialValue, onChange }: Readonly<InstructionsEditorProps>) {
   const { t } = useTranslation();
+  // Le document tel qu'il est À L'ÉCRAN, pour ses bornes : un éditeur riche ne se borne pas par
+  // `maxLength`. Une consigne trop longue est une saisie refusée, comme une cellule illisible
+  // (#566) : le message est sous le champ, et l'enregistrement se ferme au lieu d'échouer.
+  const [blocks, setBlocks] = useState<RichDocument>(() => initialValue ?? []);
+  const overflow = richDocumentOverflow(blocks);
+  useReportRefused(overflow != null);
 
   const editor = useEditor({
     extensions: [
@@ -58,7 +76,11 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
       ImageExtension,
     ],
     content: toTipTapDocument(initialValue),
-    onUpdate: ({ editor: current }) => onChange(toRichDocument(current.getJSON())),
+    onUpdate: ({ editor: current }) => {
+      const next = toRichDocument(current.getJSON());
+      setBlocks(next);
+      onChange(next);
+    },
     editorProps: {
       attributes: {
         class:
@@ -79,6 +101,15 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
         <EditorToolbar editor={editor} />
         <EditorContent editor={editor} />
       </div>
+      <CmvCharCount
+        length={richDocumentTextLength(blocks)}
+        maxLength={RICH_DOCUMENT_MAX_TEXT_LENGTH}
+      />
+      {overflow == null ? null : (
+        <p className="text-cmv-caption text-cmv-error">
+          {t(OVERFLOW_KEY[overflow.limit], { max: overflow.max })}
+        </p>
+      )}
     </div>
   );
 }
