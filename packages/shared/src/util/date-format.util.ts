@@ -1,4 +1,4 @@
-import { isoDateToDate } from "./date.util";
+import { isoDateOfInstant, isoDateToDate } from "./date.util";
 
 /**
  * Formatage LOCALISÉ des dates, partagé web ↔ mobile (Intl est disponible des deux côtés).
@@ -81,6 +81,20 @@ export function formatIsoDateTime(isoDateTime: string, locale: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(isoDateTime));
+}
+
+/**
+ * « 14 oct. 2026 » — le JOUR d'un instant (`paidAt`, `joinedAt`), dans le fuseau du lecteur. Même
+ * rendu que `formatIsoDate`, mais sur un instant : en tronquer les dix premiers caractères aurait
+ * donné le jour UTC, la veille pour ce qui s'est passé à 0 h 30 à Paris (#321). Un instant
+ * illisible LÈVE, comme une date civile illisible : c'est une donnée corrompue.
+ */
+export function formatIsoInstantDate(isoDateTime: string, locale: string): string {
+  const isoDate = isoDateOfInstant(isoDateTime);
+  if (isoDate == null) {
+    throw new Error(`[date] instant illisible : ${isoDateTime}`);
+  }
+  return formatIsoDate(isoDate, locale);
 }
 
 // ── Temps relatif (« il y a 2 h ») ───────────────────────────────────────────

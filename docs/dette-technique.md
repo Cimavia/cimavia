@@ -21,12 +21,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
-autonomes. **Vingt-sept dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-4**,
-**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2** et **DR-1**,
+**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **DR-1** et **TZ-1**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, est résolue : période `previous_version` rendue possible par
@@ -5241,6 +5241,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   pas (il ne lit que `apps/api/src`).
 > - **Le repli des écrans était déjà en place** : l'issue citait deux encarts vides, et `c2104cb`
 >   (`CmvFormError`) les avait corrigés. Les quinze appelants web et mobile en ont un.
+
+---
+
+## Post-MVP — « Aujourd'hui » et le fuseau ([#321](https://github.com/Cimavia/cimavia/issues/321))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| TZ-1 | **Le serveur compte à Paris pour tout le monde** (`PRODUCT_TIME_ZONE`, `apps/api/src/util/date.util.ts`) : les cycles visibles de l'athlète et les échéances des rappels du tick. Les clients, eux, comptent dans le fuseau de leur appareil : les deux ne s'accordent que pour un lecteur en métropole. Aux Antilles, le rappel « facture en retard » arrive vers 18 h ou 19 h le jour de l'échéance, quand l'écran ne l'annonce en retard qu'à minuit. Aucun utilisateur hors métropole aujourd'hui. | 🟢 | — *(déclencheur : un premier Coach ou Athlete hors du fuseau de Paris — le fuseau se stocke alors par utilisateur)* |
+
+> **Tranché en [#321](https://github.com/Cimavia/cimavia/issues/321)** (le jour se lit dans un
+> fuseau DIT, jamais en UTC par défaut) : `todayIsoDate()` rendait le jour UTC. Le lundi à 0 h 30 à
+> Paris, le planning s'ouvrait sur la semaine passée, la séance du dimanche restait « à venir » et
+> une facture échue la veille, « à échéance ».
+>
+> - **Les clients comptent dans le fuseau de l'appareil.** `todayIsoDate()` garde son nom et sa
+>   signature, et lit les accesseurs locaux plutôt qu'`Intl` (le chemin que Hermes tient sans
+>   recette) : ses vingt appelants web et mobile sont corrigés sans être touchés.
+> - **Le serveur compte à Paris, nommément** (**TZ-1**). L'issue proposait un `todayUtcIsoDate`
+>   « explicite » pour l'API : il aurait gardé l'écart, seulement en le nommant. À Paris, le rappel
+>   « facture en retard » ne devenait dû qu'à 1 h ou 2 h du matin, quand l'écran l'annonçait déjà ;
+>   aux Antilles, un cycle disparaissait vers 20 h le soir de son dernier dimanche. `productToday`
+>   et `startOfProductDay` prennent le fuseau en paramètre, Paris par défaut.
+> - **Les rappels déjà en base ne bougent pas** : leur `dueAt` reste à minuit UTC, l'index unique du
+>   tick empêchant de les régénérer. L'écart d'une ou deux heures s'éteint avec eux.
+> - **Un instant affiché comme un jour passe par `formatInstantDate`** (`paidAt`, `joinedAt`), et
+>   par `isoDateOfInstant` quand la logique en a besoin : en tronquer les dix premiers caractères
+>   donnait, lui aussi, le jour UTC. Huit appels le faisaient, l'issue en citait un.
+> - **Les tests tournent à Paris** ([#382](https://github.com/Cimavia/cimavia/issues/382)) :
+>   `env: { TZ: "Europe/Paris" }` dans les quatre `vitest.config.ts` unitaires. Sous l'UTC des
+>   runners, heure locale et heure UTC se confondaient, et le test du changement d'heure passait
+>   avec une addition naïve de 24 h — vérifié en la réintroduisant.
+> - **Hors de cette issue** : un écran resté ouvert au passage de minuit garde la date du jour où
+>   il a été rendu. Aucun retour ne l'a signalé.
 
 ---
 

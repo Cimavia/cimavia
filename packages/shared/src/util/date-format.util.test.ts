@@ -3,6 +3,7 @@ import {
   formatIsoDate,
   formatIsoDateRange,
   formatIsoDateTime,
+  formatIsoInstantDate,
   formatRelativeOrDateTime,
   relativeTimeFrom,
 } from "./date-format.util";
@@ -71,6 +72,17 @@ describe("formatRelativeOrDateTime", () => {
   it("suit la locale pour la forme absolue", () => {
     const old = ago(WEEK + DAY);
     expect(formatRelativeOrDateTime(old, NOW, "en", translate)).toBe(formatIsoDateTime(old, "en"));
+  });
+});
+
+describe("formatIsoInstantDate", () => {
+  // 0 h 30 à Paris le 14, encore le 13 en UTC : le jour affiché est celui du lecteur (#321).
+  it("rend le jour du lecteur, pas le jour UTC", () => {
+    expect(formatIsoInstantDate("2026-09-13T22:30:00.000Z", "fr")).toBe("14 sept. 2026");
+  });
+
+  it("lève sur un instant illisible plutôt que d'afficher une date de repli", () => {
+    expect(() => formatIsoInstantDate("hier", "fr")).toThrow("instant illisible");
   });
 });
 

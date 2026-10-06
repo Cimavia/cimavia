@@ -26,7 +26,7 @@ import { useUnreadByCapability } from "@/feature/notification/hook/useNotificati
 import { CmvCapabilitySwitch, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useActingCapability } from "@/shared/hook/useExercisedCapability";
-import { formatDate } from "@/shared/util/date.util";
+import { formatDate, formatInstantDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 /**
@@ -181,7 +181,7 @@ function InvoiceCard({ invoice, onOpen }: Readonly<InvoiceCardProps>) {
         {t("invoice.dueLabel", { date: formatDate(invoice.dueDate) })}
         {/* paidAt null tant qu'impayée : on n'affiche la date de règlement que si elle existe. */}
         {isPaid && invoice.paidAt != null
-          ? ` · ${t("invoice.paidAtLabel", { date: formatDate(invoice.paidAt.slice(0, 10)) })}`
+          ? ` · ${t("invoice.paidAtLabel", { date: formatInstantDate(invoice.paidAt) })}`
           : ""}
       </CmvText>
     </Pressable>

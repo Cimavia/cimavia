@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { CmvText } from "@/shared/component";
-import { formatDate } from "@/shared/util/date.util";
+import { formatDate, formatInstantDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 /**
@@ -119,8 +119,8 @@ function DueLine({ invoice }: Readonly<{ invoice: InvoiceDto }>) {
   if (invoice.status === InvoiceStatus.PAID && invoice.paidAt != null) {
     return (
       <CmvText className="text-cmv-text-mid text-xs">
-        {/* `paidAt` est un INSTANT, la ligne parle d'un jour : tronqué en date civile. */}
-        {t("invoice.coach.history.paidOn", { date: formatDate(invoice.paidAt.slice(0, 10)) })}
+        {/* `paidAt` est un INSTANT, la ligne parle d'un jour : celui du lecteur, pas l'UTC. */}
+        {t("invoice.coach.history.paidOn", { date: formatInstantDate(invoice.paidAt) })}
       </CmvText>
     );
   }

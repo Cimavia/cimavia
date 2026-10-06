@@ -1,11 +1,11 @@
 import type { PlanDto, ScheduledSessionDto } from "@cmv/shared";
-import { PlanStatus, required, selectVisiblePlans, todayIsoDate } from "@cmv/shared";
+import { PlanStatus, required, selectVisiblePlans } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { ScheduledSession } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { toIsoDate } from "../../util/date.util";
+import { productToday, toIsoDate } from "../../util/date.util";
 import { PLAN_COUNTS_INCLUDE, PLAN_DETAIL_INCLUDE, toPlanDto } from "../plan.mapper";
 import { athleteRecipientOrThrow } from "../plan.recipient";
 import { SESSION_DETAIL_INCLUDE, toScheduledSessionDto } from "../scheduled-session.mapper";
@@ -56,7 +56,9 @@ export class AthletePlanService {
         startDate: toIsoDate(plan.startDate),
         weekCount: plan._count.weeks,
       })),
-      todayIsoDate(),
+      // L'heure du PRODUIT et non l'UTC (« Tranché en #321 ») : le serveur n'a pas d'appareil dont
+      // lire un fuseau, et un cycle ne doit pas disparaître le dernier dimanche avant minuit à Paris.
+      productToday(),
     );
     if (visible.length === 0) return [];
 

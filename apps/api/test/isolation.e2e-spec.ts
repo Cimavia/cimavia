@@ -32,6 +32,7 @@ import { PrismaService } from "../src/infra/prisma/prisma.service";
 import type { TenantPrisma } from "../src/tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../src/tenancy/tenancy.module";
 import { TENANT_CLS_KEY, type TenantContext } from "../src/tenancy/tenant-context.type";
+import { productToday, startOfProductDay, toDbDate } from "../src/util/date.util";
 
 const TABLES = [
   "notification_email_preference",
@@ -1400,9 +1401,11 @@ describe("Composition & isolation des séances (P2)", () => {
 });
 
 // Le cycle démarre TOUJOURS un lundi (planStartDateSchema) : on prend celui de la semaine en
-// cours, pour que le plan diffusé soit bien le plan « courant » vu par l'athlète.
+// cours, pour que le plan diffusé soit bien le plan « courant » vu par l'athlète. La semaine est
+// celle de l'API (`productToday`, Paris) : en UTC, le dimanche soir après 22 h, le test et le
+// serveur ne parleraient pas de la même semaine (#321).
 function mondayOfCurrentWeek(): string {
-  const monday = mondayOfIsoWeek(new Date().toISOString().slice(0, 10));
+  const monday = mondayOfIsoWeek(productToday());
   if (monday == null) throw new Error("[test] lundi de la semaine courante introuvable");
   return monday;
 }
@@ -6520,10 +6523,10 @@ describe("Génération automatique des rappels (#47)", () => {
       (await reminders(coachG)).find((r) => r.reason === "PLAN_ENDING"),
       "rappel de fin de cycle",
     );
-    // Cycle d'une semaine depuis lundi → fin le dimanche (lundi + 6), échéance sept jours avant.
-    const expected = new Date(`${monday}T00:00:00.000Z`);
-    expected.setUTCDate(expected.getUTCDate() + 6 - 7);
-    expect(planReminder.dueAt).toBe(expected.toISOString());
+    // Cycle d'une semaine depuis lundi → fin le dimanche (lundi + 6), échéance sept jours avant —
+    // à minuit À PARIS, pas à minuit UTC (« Tranché en #321 »).
+    const dueDay = required(shiftIsoDate(monday, 6 - 7) ?? undefined, "veille du lundi");
+    expect(planReminder.dueAt).toBe(startOfProductDay(toDbDate(dueDay)).toISOString());
   });
 
   /**

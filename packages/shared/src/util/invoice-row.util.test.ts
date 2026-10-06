@@ -256,6 +256,33 @@ describe("buildInvoiceAthleteRows", () => {
     expect(rowOf(LEA.athleteId, settled)?.subtitle).toEqual(expected);
     expect(rowOf(LEA.athleteId, [...settled].reverse())?.subtitle).toEqual(expected);
   });
+
+  // Réglée le 5 mai à 0 h 30 à Paris, donc le 4 à 22 h 30 UTC : le jour affiché est celui du
+  // lecteur, pas les dix premiers caractères de l'instant (#321).
+  it("date le dernier règlement au jour du lecteur, pas au jour UTC", () => {
+    const settledAfterMidnight = invoice(LEA, {
+      period: "2026-05",
+      amountCents: 18000,
+      status: InvoiceStatus.PAID,
+      dueDate: "2026-05-05",
+      paidAt: "2026-05-04T22:30:00Z",
+    });
+    expect(rowOf(LEA.athleteId, [settledAfterMidnight])?.subtitle).toEqual({
+      kind: "LAST_PAID",
+      date: "2026-05-05",
+    });
+  });
+
+  it("ne fabrique pas de date sur un règlement illisible", () => {
+    const unreadable = invoice(LEA, {
+      period: "2026-05",
+      amountCents: 18000,
+      status: InvoiceStatus.PAID,
+      dueDate: "2026-05-05",
+      paidAt: "pas-un-instant",
+    });
+    expect(rowOf(LEA.athleteId, [unreadable])?.subtitle).toBeNull();
+  });
 });
 
 describe("sortAthleteInvoices", () => {

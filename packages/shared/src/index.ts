@@ -649,11 +649,14 @@ export {
   daysBetweenIsoDates,
   isIsoDate,
   isMondayIsoDate,
+  isoDateOfInstant,
   isoDateToDate,
   mondayOfIsoWeek,
   shiftDate,
   shiftIsoDate,
+  startOfIsoDateIn,
   todayIsoDate,
+  todayIsoDateIn,
 } from "./util/date.util";
 export type { RelativeTime, RelativeTimeUnit } from "./util/date-format.util";
 export {
@@ -663,6 +666,7 @@ export {
   formatIsoDayLabel,
   formatIsoDayNumber,
   formatIsoFullDay,
+  formatIsoInstantDate,
   formatIsoWeekday,
   formatRelativeOrDateTime,
   RELATIVE_TIME_KEY,

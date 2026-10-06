@@ -5,7 +5,7 @@ import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitati
 import { useMyCoach, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
 import { CmvAppShell, CmvAvatar, CmvCard, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
-import { formatDate } from "@/shared/util/date.util";
+import { formatInstantDate } from "@/shared/util/date.util";
 
 /**
  * « Mon coach » côté web (#28) — équivalent de `JoinCoachScreen` sur mobile, dont il reprend le
@@ -94,7 +94,7 @@ function LinkedCoachCard({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
           <p className="text-cmv-caption text-cmv-text-mid">
             {coach.joinedAt == null
               ? t("coach.linked.sinceUnknown")
-              : t("coach.linked.since", { date: formatDate(coach.joinedAt.slice(0, 10)) })}
+              : t("coach.linked.since", { date: formatInstantDate(coach.joinedAt) })}
           </p>
         </div>
 

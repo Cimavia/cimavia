@@ -1,5 +1,6 @@
 import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
+import { formatDate } from "@/shared/util/date.util";
 import { renderWithProviders } from "../../../../test/render";
 import { InvoiceDetailPanel } from "./InvoiceDetailPanel";
 
@@ -92,6 +93,13 @@ describe("InvoiceDetailPanel", () => {
     expect(getByRole("button", { name: "invoice.viewDocument" })).toBeTruthy();
     // Le nom d'origine accompagne le bouton : c'est lui que le coach reconnaît.
     expect(getByText("facture-aout-2026.pdf")).toBeTruthy();
+  });
+
+  // Réglée le 2 août à 0 h 30 à Paris, soit le 1er à 22 h 30 UTC : le panneau dit le 2 (#321).
+  it("date le règlement au jour du lecteur, pas au jour UTC", () => {
+    const { getByText, queryByText } = setup({ ...PAID, paidAt: "2026-08-01T22:30:00Z" });
+    expect(getByText(formatDate("2026-08-02"))).toBeTruthy();
+    expect(queryByText(formatDate("2026-08-01"))).toBeNull();
   });
 
   // Hors cycle (nullable au DTO) ou nom d'origine perdu : la ligne se tait, sans trou.
