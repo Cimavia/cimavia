@@ -642,6 +642,7 @@ export {
   athleteWeekNeighbours,
   defaultAthleteMonday,
 } from "./util/athlete-week.util";
+export { CHAR_COUNT_THRESHOLD, shouldShowCharCount } from "./util/char-count.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,
