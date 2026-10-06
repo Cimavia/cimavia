@@ -111,6 +111,8 @@ export function useSaveExercise() {
           storagePath,
           fileName: pending.file.name,
           mimeType: pending.mimeType,
+          // Redite du ticket : l'API la confronte à ce que le storage a reçu (#317).
+          size: pending.file.size,
         });
         onFileAttached?.(pending.id);
       }
@@ -140,6 +142,7 @@ export function useSaveExercise() {
           storagePath,
           fileName: image.file.name,
           mimeType: image.mimeType,
+          size: image.file.size,
           // Ce qui l'exclut de la liste des pièces jointes : elle est DANS la consigne.
           usage: DocumentUsage.INSTRUCTION,
         });

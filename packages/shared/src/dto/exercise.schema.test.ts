@@ -9,6 +9,7 @@ import {
   exerciseTagsSchema,
   isAllowedDocumentMime,
   isInstructionImageMime,
+  MAX_DOCUMENT_SIZE_BYTES,
   updateExerciseSchema,
 } from "./exercise.schema";
 
@@ -112,6 +113,7 @@ describe("attachDocumentSchema", () => {
     type: DocumentType.FILE,
     storagePath: "coach/ex/1.jpg",
     fileName: "1.jpg",
+    size: 2048,
   };
 
   it("traite un document sans usage comme une pièce jointe", () => {
@@ -140,6 +142,18 @@ describe("attachDocumentSchema", () => {
 
     const asAttachment = { ...file, mimeType: "application/pdf", usage: DocumentUsage.ATTACHMENT };
     expect(attachDocumentSchema.safeParse(asAttachment).success).toBe(true);
+  });
+
+  // La taille redit celle du ticket, que l'API confronte à l'objet reçu : sans elle, rien à
+  // confronter ; au-delà du plafond, aucun ticket n'a pu être signé.
+  it("exige la taille d'un fichier, dans le plafond d'un document", () => {
+    const { size: _size, ...withoutSize } = { ...file, mimeType: "application/pdf" };
+    expect(attachDocumentSchema.safeParse(withoutSize).success).toBe(false);
+
+    const atCap = { ...file, mimeType: "application/pdf", size: MAX_DOCUMENT_SIZE_BYTES };
+    expect(attachDocumentSchema.safeParse(atCap).success).toBe(true);
+    expect(attachDocumentSchema.safeParse({ ...atCap, size: atCap.size + 1 }).success).toBe(false);
+    expect(attachDocumentSchema.safeParse({ ...atCap, size: 0 }).success).toBe(false);
   });
 });
 

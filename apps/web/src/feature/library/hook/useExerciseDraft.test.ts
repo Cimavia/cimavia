@@ -250,3 +250,26 @@ describe("useExerciseDraft — la progression des envois", () => {
     await act(() => saving);
   });
 });
+
+describe("useExerciseDraft — la taille du ticket, redite au rattachement (#317)", () => {
+  // L'API confronte la taille rattachée à l'objet que le storage a reçu : un écart, et le
+  // document est refusé en 409 alors que l'envoi a réussi.
+  it("rattache chaque fichier avec la taille de son ticket, pièce jointe comme image", async () => {
+    api.attachDocument.mockReset().mockResolvedValue({ id: "doc-a" });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(null, "Gainage"), { wrapper });
+    let mediaId = "";
+    act(() => {
+      result.current.setPendingFiles([pendingPdf]);
+      mediaId = result.current.media.register(png("a.png"), "image/png");
+    });
+    act(() => result.current.setInstructions([image(mediaId)]));
+
+    await act(() => result.current.submit());
+
+    const ticketSizes = api.requestUploadUrl.mock.calls.map(([, input]) => input.size);
+    const attachedSizes = fileAttachments().map(([, input]) => input.size);
+    expect(ticketSizes).toEqual([pendingPdf.file.size, 1]);
+    expect(attachedSizes).toEqual(ticketSizes);
+  });
+});
