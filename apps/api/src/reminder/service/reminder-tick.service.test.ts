@@ -1,4 +1,4 @@
-import { ReminderReason, ReminderStatus } from "@cmv/shared";
+import { ReminderEntityType, ReminderReason, ReminderStatus } from "@cmv/shared";
 import type { ClsService } from "nestjs-cls";
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../../infra/prisma/prisma.service";
@@ -118,5 +118,89 @@ describe("ReminderTickService — push à l'échéance", () => {
     expect(result.pushedReminders).toBe(0);
     expect(notifyReminderDue).not.toHaveBeenCalled();
     expect(rows[0]?.pushedAt).toBeNull();
+  });
+});
+
+/**
+ * La génération, seule en jeu : aucun rappel déjà en base, rien à pousser. Le `createMany` est
+ * capturé pour lire ce qui serait inséré — l'unicité, elle, est l'affaire de la base.
+ */
+function buildGeneration(source: {
+  plans?: { id: string; startDate: Date; weekCount: number }[];
+  invoices?: { id: string; dueDate: Date }[];
+}) {
+  const plans = source.plans ?? [];
+  const createMany = vi.fn(async ({ data }: { data: unknown[] }) => ({ count: data.length }));
+  const db = {
+    plan: { findMany: vi.fn().mockResolvedValue(plans) },
+    planWeek: {
+      groupBy: vi
+        .fn()
+        .mockResolvedValue(plans.map((p) => ({ planId: p.id, _count: { _all: p.weekCount } }))),
+    },
+    invoice: { findMany: vi.fn().mockResolvedValue(source.invoices ?? []) },
+    reminder: { createMany, findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn() },
+  } as unknown as TenantPrisma;
+
+  const service = new ReminderTickService(
+    { user: { findMany: vi.fn().mockResolvedValue([{ id: "c1" }]) } } as unknown as PrismaService,
+    db,
+    { run: (fn: () => unknown) => fn(), set: vi.fn() } as unknown as ClsService,
+    { notifyReminderDue: vi.fn() } as unknown as NotificationService,
+  );
+  const inserted = () => (createMany.mock.calls[0]?.[0].data ?? []) as Record<string, unknown>[];
+  return { service, inserted };
+}
+
+/**
+ * Les échéances tombent à minuit À PARIS (« Tranché en #321 »), pas à minuit UTC : sans quoi le
+ * rappel ne devenait dû qu'à 1 h ou 2 h du matin, quand l'écran des factures annonçait déjà le
+ * retard depuis minuit.
+ */
+describe("ReminderTickService — échéances à l'heure du produit", () => {
+  // Facture échue le 4 octobre : en retard le 5 à 0 h à Paris, soit le 4 à 22 h UTC (heure d'été).
+  const INVOICE = { id: "inv1", dueDate: new Date("2026-10-04T00:00:00.000Z") };
+
+  it("rend une facture en retard dès minuit à Paris", async () => {
+    const { service, inserted } = buildGeneration({ invoices: [INVOICE] });
+
+    const result = await service.run(new Date("2026-10-04T22:30:00.000Z"));
+
+    expect(result.createdReminders).toBe(1);
+    expect(inserted()).toEqual([
+      expect.objectContaining({
+        entityType: ReminderEntityType.INVOICE,
+        entityId: "inv1",
+        reason: ReminderReason.INVOICE_OVERDUE,
+        dueAt: new Date("2026-10-04T22:00:00.000Z"),
+      }),
+    ]);
+  });
+
+  it("ne rend pas en retard une facture dont le jour d'échéance court encore à Paris", async () => {
+    const { service, inserted } = buildGeneration({ invoices: [INVOICE] });
+
+    const result = await service.run(new Date("2026-10-04T21:59:00.000Z"));
+
+    expect(result.createdReminders).toBe(0);
+    expect(inserted()).toEqual([]);
+  });
+
+  // Cycle de trois semaines parti le lundi 21/09 : il finit le dimanche 11/10, le rappel tombe une
+  // semaine avant, le dimanche 4 à 0 h à Paris.
+  it("annonce la fin d'un cycle une semaine avant, à minuit à Paris", async () => {
+    const plan = { id: "pln1", startDate: new Date("2026-09-21T00:00:00.000Z"), weekCount: 3 };
+    const { service, inserted } = buildGeneration({ plans: [plan] });
+
+    await service.run(new Date("2026-10-03T22:30:00.000Z"));
+
+    expect(inserted()).toEqual([
+      expect.objectContaining({
+        entityType: ReminderEntityType.PLAN,
+        entityId: "pln1",
+        reason: ReminderReason.PLAN_ENDING,
+        dueAt: new Date("2026-10-03T22:00:00.000Z"),
+      }),
+    ]);
   });
 });

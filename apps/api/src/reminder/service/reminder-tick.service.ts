@@ -15,7 +15,7 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { TENANT_CLS_KEY, type TenantContext } from "../../tenancy/tenant-context.type";
-import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
+import { shiftDbDate, startOfProductDay, toDbDate, toIsoDate } from "../../util/date.util";
 
 /**
  * Combien de jours AVANT la fin d'un cycle le rappel de renouvellement devient dû. Une semaine :
@@ -66,8 +66,12 @@ const REASON_PUSH_LABEL: Record<ReminderReason, string> = {
  *
  * Les conversions passent par `util/date.util` (`toDbDate`, `shiftDbDate`, `toIsoDate`), qui fait
  * déjà le pont entre les colonnes `@db.Date` et les dates civiles de `@cmv/shared` : `Plan.startDate`
- * et `Invoice.dueDate` sont des dates SANS heure, ancrées à minuit UTC parce que l'API n'a aucun
- * fuseau — c'est le client qui les affiche dans le sien.
+ * et `Invoice.dueDate` sont des dates SANS heure, ancrées à minuit UTC en base.
+ *
+ * Une échéance, elle, est un INSTANT : le jour où elle tombe commence à minuit **à Paris**
+ * (`startOfProductDay`, « Tranché en #321 »), pas à minuit UTC. Sans quoi le rappel « facture en
+ * retard » ne devenait dû qu'à 1 h ou 2 h du matin, quand l'écran des factures — qui compte dans le
+ * fuseau du lecteur — l'annonçait déjà en retard depuis minuit.
  */
 @Injectable()
 export class ReminderTickService {
@@ -226,7 +230,7 @@ export class ReminderTickService {
       // `null` = cycle sans semaine, ou date illisible. On ne devine pas une fin de cycle.
       if (endDate == null) return [];
 
-      const dueAt = shiftDbDate(toDbDate(endDate), -PLAN_ENDING_LEAD_DAYS);
+      const dueAt = startOfProductDay(shiftDbDate(toDbDate(endDate), -PLAN_ENDING_LEAD_DAYS));
       if (dueAt > now) return [];
 
       return [
@@ -258,7 +262,7 @@ export class ReminderTickService {
     });
 
     return invoices.flatMap((invoice) => {
-      const dueAt = shiftDbDate(invoice.dueDate, 1);
+      const dueAt = startOfProductDay(shiftDbDate(invoice.dueDate, 1));
       // La facture n'est pas encore en retard : `resolveInvoiceState` dirait `PENDING`, pas
       // `OVERDUE`. Les deux moitiés doivent s'accorder, sinon la liste des rappels annoncerait un
       // retard que l'écran des factures ne montre pas. `now` vient de l'appelant, jamais de
