@@ -1,5 +1,92 @@
 # Changelog
 
+## [1.12.0](https://github.com/Cimavia/cimavia/compare/v1.11.0...v1.12.0) (2026-10-06)
+
+
+### Fonctionnalités
+
+* **api:** la séance planifiée garde ses marqueurs reçus et verrouille sa structure au put ([b46561d](https://github.com/Cimavia/cimavia/commit/b46561d74a525bc44dec323aff67b9b584b92b37))
+* **api:** le coach retire une invitation en attente, et son destinataire le sait ([3da4cdb](https://github.com/Cimavia/cimavia/commit/3da4cdb0cc42b96f80c3b23771635ddbf5eb858d))
+* **api:** le storage confronte un objet reçu à ce que le rattachement déclare ([8e965fa](https://github.com/Cimavia/cimavia/commit/8e965fa41b090db8ad308637024f1757d56a3ec1))
+* **api:** une invitation se désigne par son id et vise toujours une adresse, sans code ([ab682e5](https://github.com/Cimavia/cimavia/commit/ab682e530c878991ce9351a7b88f4f2908e2cc8e))
+* **mobile:** la touche envoyer du clavier émet l'invitation, et seulement une adresse ([4aa90db](https://github.com/Cimavia/cimavia/commit/4aa90dbdaef8b29501db7c35795066511c8ad2b1))
+* **mobile:** le coach invite par adresse, et l'athlète sans coach voit où être invité ([43b91dd](https://github.com/Cimavia/cimavia/commit/43b91dd4984875af0703da744aac9e910ed8025d))
+* **mobile:** retirer une invitation en attente, l'échec dit sous la ligne faute de toasts ([e2acfba](https://github.com/Cimavia/cimavia/commit/e2acfba2e548d33b805c06e99140be5bcb3a5b9d))
+* **shared,web:** gestes de dosage par niveau, revenir rend les marqueurs reçus ([e05b670](https://github.com/Cimavia/cimavia/commit/e05b67025929cbba90a1c5a8c296e624fce9260c))
+* **shared:** comparer un brouillon à l'enregistré sous la forme où il partirait ([faf2122](https://github.com/Cimavia/cimavia/commit/faf2122f7f733c246ebf3d7f8f9d940a4dab3ace))
+* **shared:** l'adresse d'invitation se valide par le schéma de l'api, côté clients ([1534d10](https://github.com/Cimavia/cimavia/commit/1534d109a5becbcc7762142fed6ac89530b85b61))
+* **shared:** la séance résumée porte son updatedat, seul signe d'une retouche du coach ([375834e](https://github.com/Cimavia/cimavia/commit/375834ee12f81ab1bdb9761487e84580f913cfef))
+* **shared:** le client retire une invitation en attente par sa route de transition ([1816b50](https://github.com/Cimavia/cimavia/commit/1816b507b7ba93bfd03eb22cc6fff050d4f807e2))
+* **shared:** le contrat de dupliquer en variante, titre et dosage seulement ([ed3eee3](https://github.com/Cimavia/cimavia/commit/ed3eee300fa133f7dc3655ec1eaaf40423c5fae6))
+* **web:** fermer le panneau ou quitter le cycle demande avant de perdre la séance saisie ([d976817](https://github.com/Cimavia/cimavia/commit/d9768171c5452c75aac353cc332dddea83c48683))
+* **web:** garde de sortie qui demande avant de perdre une saisie non enregistrée ([c08b962](https://github.com/Cimavia/cimavia/commit/c08b9625d712f44a2e4a8aa77ce68977c2f4e843))
+* **web:** le panneau planifié ajuste le dosage pour l'athlète et rend les marqueurs reçus ([bf67e3d](https://github.com/Cimavia/cimavia/commit/bf67e3dde53adbb7a859e44fdad25371afd9a279))
+* **web:** on invite par adresse seulement, et l'athlète sans coach voit où être invité ([b587af2](https://github.com/Cimavia/cimavia/commit/b587af25a8a9db118417a270fdba12d5fc61d6ab))
+* **web:** retirer une invitation en attente, armé en deux temps comme le refus ([b9668f5](https://github.com/Cimavia/cimavia/commit/b9668f578d3a2a6c5349dc29d8b3995eb45138b8))
+
+
+### Corrections
+
+* **api:** 409 sur un cycle diffusé, ni semaine retirée ni cycle supprimé sous l'athlète ([d750dd5](https://github.com/Cimavia/cimavia/commit/d750dd543ed1449a86474eb328fb74af7ec90177))
+* **api:** cesser de coacher retire ses invitations en attente, aucune ne lie à un ex-coach ([03b8b5b](https://github.com/Cimavia/cimavia/commit/03b8b5bf1d1fcdaeeb7520bbf328ae83c51f3c54))
+* **api:** corps de requête plafonné à 1 mio par écrit, et bornes de [#297](https://github.com/Cimavia/cimavia/issues/297) éprouvées en e2e ([7a5558f](https://github.com/Cimavia/cimavia/commit/7a5558f03716f15c3796bd06c85e1850c40d86b4))
+* **api:** le suivi d'un débrief s'écrit en une seule transaction, jamais à moitié ([cac1fc8](https://github.com/Cimavia/cimavia/commit/cac1fc88ca7915ce682b0d3b05d61dee6dad62d1))
+* **api:** les invitations en attente d'un compte qui ne coache déjà plus sont retirées ([b4acd8d](https://github.com/Cimavia/cimavia/commit/b4acd8db86f867754fd4c0803267fe5d8b9219a2))
+* **api:** plus d'avis de débrief en auto-coaching, qui ouvrait un fil avec soi-même ([993aeee](https://github.com/Cimavia/cimavia/commit/993aeee77e249241b5fa26540017f4c2421f44f8))
+* **api:** purger les fils avec soi-même et les interdire par un check, comme coach_athlete ([395e8fb](https://github.com/Cimavia/cimavia/commit/395e8fb4bda94e063be365cea6cb5c20d2b5b647))
+* **api:** repousser un rappel déjà poussé le refait partir à sa nouvelle échéance ([40cfe30](https://github.com/Cimavia/cimavia/commit/40cfe3031d23ab035b17d8c5d88624561a7e413c))
+* **api:** taille d'un document signée puis confrontée à l'objet reçu, plafond opposable ([5eb4fc5](https://github.com/Cimavia/cimavia/commit/5eb4fc5692fe4389c152a636466352a62b95a256))
+* **api:** un avis de débrief ne marque plus le débrief répondu, ce n'est pas une réponse ([944552b](https://github.com/Cimavia/cimavia/commit/944552bccc1611e88fa84ae536b60f06f6c8da23))
+* **api:** un report tombé pendant les envois du tick n'est plus estampillé comme poussé ([881b714](https://github.com/Cimavia/cimavia/commit/881b71458ea76561767cf157b3a0083cddda4a85))
+* **api:** une consigne ne cite que ses images, et la variante est copiée côté serveur ([1f3bb12](https://github.com/Cimavia/cimavia/commit/1f3bb12f77e7be04e1d7584d3cf717e92c48babd))
+* **api:** une image partagée entre exercices n'est purgée qu'avec sa dernière ligne ([1cc7ab6](https://github.com/Cimavia/cimavia/commit/1cc7ab6576a813c0fb6155d69c7d2687a6c7b77b))
+* **mobile:** hors-ligne resynchronisé après une retouche de séance ou une passe coupée ([545f5d8](https://github.com/Cimavia/cimavia/commit/545f5d89b309f618925299b6de890e9cccb4d4ce))
+* **mobile:** joindre un premier média au débrief ne vide plus le texte en cours d'écriture ([01bcaab](https://github.com/Cimavia/cimavia/commit/01bcaab87d754a874016167273b05dd15dc728d1))
+* **mobile:** la carte d'invitation dit l'échec de « rejoindre », sur place faute de toasts ([627006c](https://github.com/Cimavia/cimavia/commit/627006c100bfcb4e6ad1a375aad984b14baddfc0))
+* **mobile:** le message ne quitte le champ qu'au succès, et un fil introuvable le dit ([e91701f](https://github.com/Cimavia/cimavia/commit/e91701ff293f660c0f9d6a9ea00ba627aae345ec))
+* **mobile:** le texte tapé avant l'arrivée de la séance survit à son chargement ([eca31ac](https://github.com/Cimavia/cimavia/commit/eca31acb23a562554159b1c369720f6c759b9868))
+* **mobile:** rejoindre un coach invalide tout le cache, onglet messages compris ([693b7a2](https://github.com/Cimavia/cimavia/commit/693b7a21d29ec430644f87f17b0ddaf70ceffde9))
+* **mobile:** séance hors-ligne datée, document rouvert par une url re-signée ([9d08f92](https://github.com/Cimavia/cimavia/commit/9d08f92fc9468992574585a9dc5dff95de4d2622))
+* **shared:** 50 exercices par séance, suivi de débrief borné et sans case en double ([f8922a2](https://github.com/Cimavia/cimavia/commit/f8922a2a36d0eb24f2f85e80037f502d12171c76))
+* **shared:** au retour d'un envoi, le champ ne perd que le texte parti, pas la suite ([3b11668](https://github.com/Cimavia/cimavia/commit/3b11668cb55ae8e8218d77dc94e200467c9ad957))
+* **shared:** la réponse à un débrief rend la promesse de son envoi de texte ([2f8c514](https://github.com/Cimavia/cimavia/commit/2f8c514ef94e1c98a533e27374b558644ae1e7e0))
+* **shared:** le brouillon de débrief ne cède au texte rechargé que s'il n'a pas été touché ([b61bebd](https://github.com/Cimavia/cimavia/commit/b61bebdd34fd18c4755f6c3d356bb598b757ea7f))
+* **shared:** le suivi envoyé avec un débrief laisse aussi les blocs retirés de l'exercice ([3d3cb0a](https://github.com/Cimavia/cimavia/commit/3d3cb0abebb6adebcec8fe795dcb3bc2f68175f9))
+* **shared:** une semaine sur deux mois nomme le mois de son début, l'année si elle change ([44a6c3d](https://github.com/Cimavia/cimavia/commit/44a6c3dd2fbac0e879387661fc8d577953d2ca64))
+* **web,mobile:** cesser de coacher prévient que les invitations en attente seront retirées ([2e8aa0f](https://github.com/Cimavia/cimavia/commit/2e8aa0f736625aa1128fc0a4a15ff262814fa92d))
+* **web:** « rejoindre » depuis la carte d'invitation dit pourquoi il échoue ([14ee07d](https://github.com/Cimavia/cimavia/commit/14ee07d0edec0c1c5a23d5f99f2fb6d86fdde777))
+* **web:** créer l'exercice manquant enregistre d'abord la séance au lieu de la jeter ([1cb8f88](https://github.com/Cimavia/cimavia/commit/1cb8f883d53930cd98dce6c000c950cae1970abe))
+* **web:** diffuser fermé sur une saisie d'en-tête ou de facturation non enregistrée ([8b31601](https://github.com/Cimavia/cimavia/commit/8b316017e232d406dfbb424a61920d233fa2d2d9))
+* **web:** dupliquer en variante passe par le serveur, qui garde les images de consigne ([ca1da4c](https://github.com/Cimavia/cimavia/commit/ca1da4ca75bbe118cb3fb1a7c2f479d8ab1c50fe))
+* **web:** joindre un premier média au débrief ne vide plus le texte en cours d'écriture ([536eb6b](https://github.com/Cimavia/cimavia/commit/536eb6bab947c55ef71916a70705f9c22e165984))
+* **web:** l'exercice créé depuis une séance y ramène, enregistré ou annulé ([76385e3](https://github.com/Cimavia/cimavia/commit/76385e3a78d07e902c774f8d551080cb4a591382))
+* **web:** l'exercice ne s'enregistre plus sur une saisie refusée, et sa sortie la retient ([87160b2](https://github.com/Cimavia/cimavia/commit/87160b28d08249ab4599681f77970baa796cc7bf))
+* **web:** la facturation garde le montant tapé quand un justificatif relit la facture ([cb6f272](https://github.com/Cimavia/cimavia/commit/cb6f2726e3cdaf8e4ceccc8277dab7e66f0fc366))
+* **web:** la séance ajoute à son retour l'exercice créé depuis elle ([468da39](https://github.com/Cimavia/cimavia/commit/468da39d2def5cc62e8348033ad6c1c9e442e7e2))
+* **web:** la séance ne s'enregistre plus sur une saisie refusée, même avant de la quitter ([4f07004](https://github.com/Cimavia/cimavia/commit/4f070042a60570ed73bd4bddcaa961acd0c78605))
+* **web:** le constructeur d'exercice demande avant de perdre une saisie non enregistrée ([10b32ae](https://github.com/Cimavia/cimavia/commit/10b32ae8e00bb95dc8e1fb4c575a4f6577aabb2f))
+* **web:** le constructeur de cycle demande avant de perdre un en-tête ou une facturation ([4f1ef66](https://github.com/Cimavia/cimavia/commit/4f1ef66f27395d6d0ba527cecaeba3de5944c338))
+* **web:** le constructeur de séance demande avant de perdre une saisie non enregistrée ([9b008f2](https://github.com/Cimavia/cimavia/commit/9b008f2cfd9f23a857c7823bc709996a864e34c2))
+* **web:** le message ne quitte le champ qu'au succès, et sans fil la barre reste fermée ([6aab045](https://github.com/Cimavia/cimavia/commit/6aab04543ce569b2225aa6640575046ef59b8b87))
+* **web:** se déconnecter ou changer de compte demande avant d'agir, pas une fois parti ([44b4389](https://github.com/Cimavia/cimavia/commit/44b4389206d161ecc9459bc2d59f3898785b680d))
+* **web:** suppression de semaine grisée sur un cycle diffusé, avec sa raison ([d3aabd7](https://github.com/Cimavia/cimavia/commit/d3aabd74efc096494bdc9fbfd6281d5b0152448c))
+* **web:** une cellule refusée se voit et se dit, et un champ refusé se déclare à l'écran ([f2cd901](https://github.com/Cimavia/cimavia/commit/f2cd90115efb31fc3efd63e4aaaaafafaac7a25f))
+
+
+### Performance
+
+* **api:** une séance ne parse qu'une fois les blocs de chaque exercice qu'elle cite ([c1530f5](https://github.com/Cimavia/cimavia/commit/c1530f5d80a7173ae0d64c5b243c6676971b0df4))
+
+
+### Technique
+
+* **api:** chaque exercice du brouillon porte ses marqueurs reçus, sans drapeau ([b11746d](https://github.com/Cimavia/cimavia/commit/b11746d366eeefaaddd88c43da6947d29f9e552f))
+* **api:** l'invitation d'une autre adresse se détecte par chaînage optionnel ([7749279](https://github.com/Cimavia/cimavia/commit/774927967440a7521aa7e6269fc777ae16ecc5cc))
+* **shared:** l'acceptation d'invitation partagée, ses deux copies avaient divergé ([81f1856](https://github.com/Cimavia/cimavia/commit/81f1856e4d9076a1f571415e3a3ffb26419a5993))
+* **shared:** un seul parcours transforme le bloc visé, couvert sur plusieurs blocs ([38c1684](https://github.com/Cimavia/cimavia/commit/38c168443a6e7f121275d4456e551d62ba6528c1))
+* **web:** le dosage d'un exercice sort de la carte, ses marqueurs suivent le niveau ([ab3ab70](https://github.com/Cimavia/cimavia/commit/ab3ab702de01bb1b8566095672fefa6ba6fccf52))
+* **web:** seul le panneau planifié s'en sert, ses trois modules passent dans plan ([6731269](https://github.com/Cimavia/cimavia/commit/6731269eb83ed4d603a1aa9a7cea32dc36d4798d))
+
 ## [1.11.0](https://github.com/Cimavia/cimavia/compare/v1.10.0...v1.11.0) (2026-10-03)
 
 
