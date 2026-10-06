@@ -1,3 +1,4 @@
+import { MESSAGE_TEXT_MAX_LENGTH } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
@@ -50,6 +51,19 @@ function pressSend(container: HTMLElement): void {
 }
 
 describe("Composer", () => {
+  it("borne le message à ce que l'API accepte, et montre le compteur à l'approche (#319)", () => {
+    const { container, queryByText } = renderRn(<Composer {...base} />);
+
+    expect(container.querySelector("textarea")?.getAttribute("maxLength")).toBe(
+      String(MESSAGE_TEXT_MAX_LENGTH),
+    );
+    expect(queryByText("common.charCount")).toBeNull();
+
+    type(container, "x".repeat(MESSAGE_TEXT_MAX_LENGTH - 10));
+
+    expect(queryByText("common.charCount")).not.toBeNull();
+  });
+
   it("n'offre l'envoi qu'une fois quelque chose écrit", () => {
     const { container } = renderRn(<Composer {...base} />);
     expect(iconButton(container, "send")).toBeNull();

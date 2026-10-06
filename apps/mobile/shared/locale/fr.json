@@ -2,6 +2,7 @@
   "common": {
     "email": "Adresse e-mail",
     "password": "Mot de passe",
+    "charCount": "{{length, number}} / {{max, number}}",
     "logout": "Se déconnecter",
     "offline": "Hors-ligne — tu vois les données de ton dernier passage",
     "offlineSavedAt": "Hors-ligne — tu vois les données récupérées le {{date}}",
