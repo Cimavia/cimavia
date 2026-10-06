@@ -233,7 +233,6 @@
       "saving": "Enregistrement…",
       "instructions": "Consigne",
       "instructionsTooLong": "La consigne dépasse {{max, number}} caractères : raccourcis-la pour enregistrer.",
-      "instructionsFragmentTooLong": "Un passage de la consigne dépasse {{max, number}} caractères d'un seul tenant : coupe-le en plusieurs paragraphes pour enregistrer.",
       "tool": {
         "bold": "Gras",
         "italic": "Italique",

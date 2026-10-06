@@ -1,11 +1,10 @@
 import {
   isInstructionImageMime,
+  isRichDocumentTooLong,
   linkHrefSchema,
   MAX_DOCUMENT_SIZE_BYTES,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
   type RichDocument,
-  RichDocumentLimit,
-  richDocumentOverflow,
   richDocumentTextLength,
 } from "@cmv/shared";
 import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
@@ -36,12 +35,6 @@ import { CmvCharCount } from "@/shared/component";
 import { useReportRefused } from "@/shared/hook/useRefusedFields";
 import { cn } from "@/shared/util/cn.util";
 
-// Ce que dit la consigne quand elle dépasse une borne de `richDocumentSchema` (#319).
-const OVERFLOW_KEY: Record<RichDocumentLimit, string> = {
-  [RichDocumentLimit.DOCUMENT]: "library.builder.instructionsTooLong",
-  [RichDocumentLimit.FRAGMENT]: "library.builder.instructionsFragmentTooLong",
-};
-
 type InstructionsEditorProps = {
   /** Document initial. NON repoussé dans l'éditeur ensuite : le remonter déplacerait le curseur. */
   initialValue: RichDocument | null;
@@ -54,8 +47,8 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
   // `maxLength`. Une consigne trop longue est une saisie refusée, comme une cellule illisible
   // (#566) : le message est sous le champ, et l'enregistrement se ferme au lieu d'échouer.
   const [blocks, setBlocks] = useState<RichDocument>(() => initialValue ?? []);
-  const overflow = richDocumentOverflow(blocks);
-  useReportRefused(overflow != null);
+  const tooLong = isRichDocumentTooLong(blocks);
+  useReportRefused(tooLong);
 
   const editor = useEditor({
     extensions: [
@@ -105,11 +98,11 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
         length={richDocumentTextLength(blocks)}
         maxLength={RICH_DOCUMENT_MAX_TEXT_LENGTH}
       />
-      {overflow == null ? null : (
+      {tooLong ? (
         <p className="text-cmv-caption text-cmv-error">
-          {t(OVERFLOW_KEY[overflow.limit], { max: overflow.max })}
+          {t("library.builder.instructionsTooLong", { max: RICH_DOCUMENT_MAX_TEXT_LENGTH })}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -1,9 +1,4 @@
-import {
-  MAX_DOCUMENT_SIZE_BYTES,
-  RICH_TEXT_MAX_LENGTH,
-  RichBlockType,
-  type RichDocument,
-} from "@cmv/shared";
+import { MAX_DOCUMENT_SIZE_BYTES, RichBlockType, type RichDocument } from "@cmv/shared";
 import { fireEvent, renderHook } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { InstructionMedia } from "@/feature/library/hook/useInstructionMedia";
@@ -66,7 +61,6 @@ function setup(initialValue: RichDocument | null, media: InstructionMedia = fake
  */
 describe("InstructionsEditor — bornes de texte (#319)", () => {
   const TOO_LONG = "library.builder.instructionsTooLong";
-  const FRAGMENT = "library.builder.instructionsFragmentTooLong";
   const COUNT = "common.charCount";
   const thousand = () => paragraph("x".repeat(1000));
 
@@ -111,11 +105,11 @@ describe("InstructionsEditor — bornes de texte (#319)", () => {
     expect(report).toHaveBeenCalledWith(expect.any(String), true);
   });
 
-  it("dit un passage trop long d'un seul tenant", () => {
-    const { getByText, report } = mount([paragraph("x".repeat(RICH_TEXT_MAX_LENGTH + 1))]);
+  it("ne refuse pas un long paragraphe d'un seul tenant tant que le cumul tient", () => {
+    const { queryByText, report } = mount([paragraph("x".repeat(2500))]);
 
-    expect(getByText(FRAGMENT)).toBeInTheDocument();
-    expect(report).toHaveBeenCalledWith(expect.any(String), true);
+    expect(queryByText(TOO_LONG)).not.toBeInTheDocument();
+    expect(report).not.toHaveBeenCalled();
   });
 
   it("lève le refus quand la consigne revient dans ses bornes", async () => {
