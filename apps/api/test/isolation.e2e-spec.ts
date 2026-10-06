@@ -979,6 +979,24 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       400,
     );
   });
+
+  it("un refus de validation sort en français, sans écraser les messages écrits (#319)", async () => {
+    const tooLong = await coachA.post("/exercises").send({ title: "x".repeat(201) });
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.body.message).toEqual([
+      { path: "title", message: "Ce texte dépasse 200 caractères." },
+    ]);
+
+    const empty = await coachA.post("/exercises").send({ title: "" });
+    expect(empty.body.message).toEqual([{ path: "title", message: "Ce champ est requis." }]);
+
+    // Le message écrit par le schéma garde la main sur la table de l'API.
+    const duplicateTag = await coachA.post("/exercises").send({ title: "x", tags: ["a", "a"] });
+    expect(duplicateTag.status).toBe(400);
+    expect(duplicateTag.body.message[0].message).toBe(
+      "Un exercice ne peut pas porter deux fois le même tag.",
+    );
+  });
 });
 
 describe("Images de consigne : possédées, et recopiées en variante (#315)", () => {

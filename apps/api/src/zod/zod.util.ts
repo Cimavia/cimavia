@@ -1,13 +1,15 @@
 import { BadRequestException } from "@nestjs/common";
 import type { ZodType } from "zod";
+import { frenchIssueMessage } from "./zod-issue-message";
 
 // Une classe DTO fabriquée par createZodDto porte son schéma Zod en statique.
 export type ZodDtoClass = { schema: ZodType };
 
 // Valide `data` contre `schema` et renvoie la donnée typée, ou lève une 400 avec des
-// erreurs structurées ({ path, message }) exploitables côté client (i18n).
+// erreurs structurées ({ path, message }) exploitables côté client. Un refus sans message écrit
+// par le schéma reçoit le sien de `frenchIssueMessage`, jamais le texte anglais de Zod (#319).
 export function zodSafeParse<T>(schema: ZodType<T>, data: unknown): T {
-  const result = schema.safeParse(data);
+  const result = schema.safeParse(data, { error: frenchIssueMessage });
   if (!result.success) {
     const errors = result.error.issues.map((issue) => ({
       path: issue.path.join(".") || "(root)",
