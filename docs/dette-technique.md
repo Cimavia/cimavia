@@ -3442,6 +3442,11 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > arbitrer un volume que le plafond par document borne déjà. La règle retenue tient en une phrase
 > qu'on peut dire à l'athlète : **ce que ton coach t'a diffusé et qui n'est pas fini**. Sans cette
 > ligne, la première relecture verra une issue qui parlait de Mo et un code qui n'en parle pas.
+>
+> **Rectifié en [#317](https://github.com/Cimavia/cimavia/issues/317)** : le plafond ne bornait
+> rien. L'URL d'upload était signée **sans** la taille — un coach déclarait 1 Ko et poussait ce qu'il
+> voulait, que le mobile descendait ensuite d'office. Il borne depuis #317 : la taille entre dans la
+> signature, et le rattachement la confronte à l'objet reçu. L'arbitrage en cycles, lui, tient.
 
 > **Tranché en #95** (les fichiers restent EN CLAIR dans le sandbox) : chiffrer aurait durci le
 > maillon le moins sensible. AsyncStorage garde déjà, en clair et sept jours durant, les séances,
@@ -4638,7 +4643,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| S-1 | **Le rattachement croit le `type`, le mime et la taille déclarés**, pas ceux de l'objet envoyé : une vidéo d'1 Go rattachée en `IMAGE` échappe au plafond de 10 vidéos par débrief. La clé, elle, est vérifiée depuis #293. Pas besoin de mémoriser le ticket comme #293 l'annonçait : le storage garde le type et la taille signés, un `HeadObject` au rattachement suffit. | 🟢 | [#468](https://github.com/Cimavia/cimavia/issues/468) |
+| S-1 | **Le rattachement croit le `type`, le mime et la taille déclarés**, pas ceux de l'objet envoyé : une vidéo d'1 Go rattachée en `IMAGE` échappe au plafond de 10 vidéos par débrief. La clé, elle, est vérifiée depuis #293. Pas besoin de mémoriser le ticket comme #293 l'annonçait : le storage garde le type et la taille signés, un `HeadObject` au rattachement suffit. **Périmètre réduit en [#317](https://github.com/Cimavia/cimavia/issues/317)** : le document d'exercice en sort, confronté par `StorageService.assertUploadedAsDeclared` ; restent le débrief, la messagerie et le justificatif de facture, qui n'ont qu'à l'appeler. | 🟢 | [#468](https://github.com/Cimavia/cimavia/issues/468) |
 
 > **Tranché en [#293](https://github.com/Cimavia/cimavia/issues/293)** (la forme exacte, et 403) :
 > `assertKeyUnder` (`infra/storage/object-key.ts`) exige `<préfixe><uuid>-<nom assaini>`, la forme
@@ -4649,6 +4654,25 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > découpé, testée en e2e, et la ressource visée existe bien — c'est la clé qui n'est pas à
 > l'appelant. Dans `FeedbackMediaService.attach`, la garde passe AVANT `getOrCreateWritable` : un
 > refus ne crée pas de débrief et ne passe pas la séance en DONE.
+
+---
+
+## Post-MVP — Taille signée d'un document d'exercice ([#317](https://github.com/Cimavia/cimavia/issues/317))
+
+> **Tranché en #317** (le document passe avant les trois autres rattachements de #468) : c'était le
+> seul envoi signé sans sa taille, et le seul que l'appareil d'un autre télécharge d'office (#95). La
+> signature suffisait à fermer le trou ; la confrontation au rattachement est venue avec, pour que la
+> ligne en base désigne un objet réellement reçu — sans quoi le mobile chercherait à descendre un
+> fichier absent. La vérification vit dans `StorageService`, pas dans le service des documents :
+> #468 l'appelle telle quelle sur le débrief, la messagerie et la facture. `size` est **exigée** au
+> rattachement : le web est le seul client, livré avec l'API.
+
+> **Tranché en #317** (une clé absente répond 404, sur SILO seulement — vérifié) : sans le droit de
+> lister le bucket, que la clé de l'API n'a pas (#267), S3 répond **403** sur un objet absent, là où
+> SILO répond `NotFound`. Sur un storage qui suit S3, rattacher une clé jamais envoyée finirait en
+> 500 : refusé quand même, mais sous le mauvais code. Ni `s3:ListBucket` ajouté à la policy (il
+> donnerait à l'API l'inventaire du bucket pour corriger un code d'erreur), ni 403 lu comme absent
+> (il maquillerait une vraie panne de droits). À revoir avec le choix du stockage de prod (#259).
 
 ---
 
