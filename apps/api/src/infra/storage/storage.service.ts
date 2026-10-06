@@ -5,6 +5,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListPartsCommand,
   PutObjectCommand,
   S3Client,
@@ -316,6 +317,39 @@ export class StorageService {
     } while (marker != null);
 
     return parts.sort((a, b) => a.PartNumber - b.PartNumber);
+  }
+
+  /**
+   * L'objet envoyé est-il celui que le client déclare au rattachement ? Le ticket signe le type et
+   * la taille, mais le rattachement les redit — et rien ne liait les deux : un client pouvait
+   * demander un ticket pour 20 Mo puis rattacher en déclarant 1 Ko.
+   *
+   * Le storage garde ce qu'il a reçu : un `HeadObject` le relit, sans table ni état côté API.
+   * 404 si l'objet n'existe pas (upload jamais fait), 409 si le type ou la taille diverge. Une
+   * réponse sans type ou sans taille ne prouve rien : elle diverge aussi, plutôt que de passer.
+   *
+   * ⚠️ Le 404 suppose un storage qui répond `NotFound` sur une clé absente. SILO le fait ; S3
+   * répond 403 quand la clé n'a pas le droit de lister le bucket — l'erreur remonterait alors en
+   * 500, refusée quand même.
+   */
+  async assertUploadedAsDeclared(
+    key: string,
+    declared: { mimeType: string; size: number },
+  ): Promise<void> {
+    const { client, bucket } = this.require();
+    const head = await client
+      .send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === "NotFound") {
+          throw new NotFoundException("Aucun fichier n'a été envoyé à ce chemin de storage");
+        }
+        throw error;
+      });
+    if (head.ContentType !== declared.mimeType || head.ContentLength !== declared.size) {
+      throw new ConflictException(
+        "Le fichier envoyé ne correspond pas au type ou à la taille déclarés",
+      );
+    }
   }
 
   // URL GET signée : lecture ponctuelle d'un objet privé.
