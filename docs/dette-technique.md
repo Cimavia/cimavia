@@ -5206,9 +5206,15 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   (« Ce texte dépasse 200 caractères. »), pas le champ — aucune table `path → libellé` à tenir.
 >   Elle est au tutoiement, et c'est le contrôle **[F]** de `check:i18n` qui le garde.
 > - **Les `maxLength` sont posés depuis les constantes `*_MAX_LENGTH`** sur tous les champs qui
->   n'en avaient pas : le refus devient l'exception. Une seule borne reste atteignable : le texte
->   d'un bloc de la consigne riche (`RICH_TEXT_MAX_LENGTH`), qu'un éditeur TipTap ne borne pas par
->   attribut — c'est là que le message de l'API se lit.
+>   n'en avaient pas : le refus devient l'exception.
+> - **La consigne riche est une saisie refusée, comme une cellule illisible (#566)**. Un éditeur
+>   TipTap ne se borne pas par attribut, et ses deux bornes — le cumul (5 000) et un fragment
+>   d'un seul tenant (2 000) — ne s'apprenaient qu'au refus de l'API : un toast générique
+>   (`onFailure`, qui dit le geste et pas l'appel) et le détail en bas de page, hors de vue sous un
+>   bandeau fixe. `richDocumentOverflow` (`@cmv/shared`) les vérifie à l'écran ; l'éditeur le dit
+>   sous lui et se déclare au registre, qui ferme l'enregistrement. **Amende #566** : le libellé du
+>   bouton fermé, `refusedBlocksSave`, disait « une valeur n'est pas comprise » ; il couvre
+>   désormais aussi un texte trop long (« Un champ refuse sa saisie »).
 > - **Un compteur à 90 % de la borne, sur les zones multilignes seulement** (`shouldShowCharCount`,
 >   `@cmv/shared`) : toujours affiché, il serait du bruit sur trois lignes de débrief ; jamais, la
 >   saisie s'arrête sans dire pourquoi. Pas sur un champ d'une ligne, dont la borne (200) ne
