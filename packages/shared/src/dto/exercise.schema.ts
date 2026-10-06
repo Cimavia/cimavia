@@ -153,6 +153,8 @@ export const attachDocumentSchema = z.discriminatedUnion("type", [
       storagePath: z.string().min(1),
       fileName: z.string().min(1),
       mimeType: documentMimeTypeSchema,
+      // Redite du ticket : l'API la confronte à l'objet que le storage a réellement reçu (#317).
+      size: z.number().int().positive().max(MAX_DOCUMENT_SIZE_BYTES),
       // Absent = pièce jointe. C'est le cas de loin le plus courant, et le seul qui existait
       // avant la consigne structurée.
       usage: documentUsageSchema.optional(),

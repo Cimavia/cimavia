@@ -29,11 +29,18 @@ export class ExerciseDocumentService {
 
   // Étape 1 : URL PUT signée pour uploader un fichier directement vers l'object storage.
   // Type MIME et taille max sont validés en amont par `requestUploadUrlSchema` (@cmv/shared,
-  // pipe global) → une entrée non conforme n'atteint jamais ce service (400).
+  // pipe global) → une entrée non conforme n'atteint jamais ce service (400). La taille entre
+  // dans la signature : sans elle, le plafond n'était qu'une déclaration, et l'athlète
+  // télécharge ces documents d'office (#95, #317).
   async createUploadUrl(exerciseId: string, input: RequestUploadUrlInput): Promise<UploadUrlDto> {
     const exercise = await this.exercises.getOwnedOrThrow(exerciseId);
     const storagePath = buildDocumentKey(exercise.coachId, exerciseId, input.fileName);
-    const uploadUrl = await this.storage.createUploadUrl(storagePath, input.mimeType);
+    const uploadUrl = await this.storage.createUploadUrl(
+      storagePath,
+      input.mimeType,
+      SIGNED_URL_TTL_SECONDS,
+      input.size,
+    );
     return { uploadUrl, storagePath, expiresIn: SIGNED_URL_TTL_SECONDS };
   }
 
@@ -43,8 +50,11 @@ export class ExerciseDocumentService {
     // La clé vient du client : elle doit désigner un objet de CET exercice (#293). Sans quoi la
     // suppression du document — qui ne compte les copies que dans le scope du coach — purgerait
     // l'objet d'un autre tenant.
+    // Puis l'objet doit être celui que le ticket a signé : le rattachement redit son type et sa
+    // taille, le storage les confronte à ce qu'il a reçu (#317).
     if (input.type === DocumentType.FILE) {
       assertKeyUnder(documentKeyPrefix(exercise.coachId, exerciseId), input.storagePath);
+      await this.storage.assertUploadedAsDeclared(input.storagePath, input);
     }
     // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast final.
     const data: Omit<Prisma.ExerciseDocumentUncheckedCreateInput, "coachId"> =

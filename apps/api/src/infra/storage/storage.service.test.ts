@@ -1,6 +1,7 @@
 import {
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  HeadObjectCommand,
   ListPartsCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -43,6 +44,9 @@ describe("StorageService — storage non configuré", () => {
     );
     await expect(storage.createDownloadUrl("k")).rejects.toThrow(ServiceUnavailableException);
     await expect(storage.deleteObject("k")).rejects.toThrow(ServiceUnavailableException);
+    await expect(
+      storage.assertUploadedAsDeclared("k", { mimeType: "image/jpeg", size: 1 }),
+    ).rejects.toThrow(ServiceUnavailableException);
   });
 
   it("répond 503 sur les quatre étapes d'un upload découpé", async () => {
@@ -225,6 +229,59 @@ describe("StorageService — réponses du storage", () => {
     const { storage } = storageAnswering(outage);
 
     await expect(storage.completeMultipartUpload("media.mp4", "upload-1", 1)).rejects.toBe(outage);
+  });
+
+  /**
+   * Le rattachement redit le type et la taille du ticket : le storage, qui a reçu l'objet, tranche.
+   * Une réponse muette sur l'un des deux ne prouve rien — elle diverge, plutôt que de passer.
+   */
+  describe("assertUploadedAsDeclared", () => {
+    const declared = { mimeType: "application/pdf", size: 2048 };
+
+    it("laisse passer l'objet reçu tel que déclaré, relu par sa clé", async () => {
+      const { storage, sent } = storageAnswering({
+        ContentType: "application/pdf",
+        ContentLength: 2048,
+      });
+
+      await expect(storage.assertUploadedAsDeclared("doc.pdf", declared)).resolves.toBeUndefined();
+      expect(sent).toEqual([
+        { name: HeadObjectCommand.name, input: { Bucket: "bucket-test", Key: "doc.pdf" } },
+      ]);
+    });
+
+    it.each([
+      ["une autre taille", { ContentType: "application/pdf", ContentLength: 4096 }],
+      ["un autre type", { ContentType: "image/png", ContentLength: 2048 }],
+      ["une réponse sans taille", { ContentType: "application/pdf" }],
+      ["une réponse sans type", { ContentLength: 2048 }],
+    ])("répond 409 sur %s", async (_case, head) => {
+      const { storage } = storageAnswering(head);
+
+      await expect(storage.assertUploadedAsDeclared("doc.pdf", declared)).rejects.toEqual(
+        new ConflictException(
+          "Le fichier envoyé ne correspond pas au type ou à la taille déclarés",
+        ),
+      );
+    });
+
+    // Rattacher avant d'envoyer, ou sans jamais envoyer : la ligne désignerait un objet absent.
+    it("répond 404 sur une clé où rien n'a été envoyé", async () => {
+      const { storage } = storageAnswering(
+        Object.assign(new Error("absent"), { name: "NotFound" }),
+      );
+
+      await expect(storage.assertUploadedAsDeclared("doc.pdf", declared)).rejects.toEqual(
+        new NotFoundException("Aucun fichier n'a été envoyé à ce chemin de storage"),
+      );
+    });
+
+    it("laisse remonter une autre panne telle quelle", async () => {
+      const outage = new Error("connect ECONNREFUSED");
+      const { storage } = storageAnswering(outage);
+
+      await expect(storage.assertUploadedAsDeclared("doc.pdf", declared)).rejects.toBe(outage);
+    });
   });
 
   it("répond 503 quand le storage ouvre un upload sans identifiant", async () => {

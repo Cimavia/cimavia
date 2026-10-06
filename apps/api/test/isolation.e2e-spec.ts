@@ -192,22 +192,37 @@ afterAll(async () => {
   await app?.close();
 });
 
-/** Une image de consigne réellement envoyée : la purge du stockage se vérifie en la relisant. */
-async function uploadInstructionImage(coach: Agent, exerciseId: string) {
-  const documentsUrl = `/exercises/${exerciseId}/documents`;
-  const image = { fileName: "prise.jpg", mimeType: "image/jpeg", size: 2048 };
-  const signed = await coach.post(`${documentsUrl}/upload-url`).send(image);
+type DocumentFile = { fileName: string; mimeType: string; size: number };
+
+const jpeg = (fileName: string): DocumentFile => ({ fileName, mimeType: "image/jpeg", size: 2048 });
+
+/**
+ * Un fichier réellement envoyé sous un exercice, rendu par sa clé : le rattachement confronte sa
+ * déclaration à l'objet reçu, une clé signée mais jamais envoyée y est refusée en 404 (#317).
+ */
+async function putExerciseFile(
+  coach: Agent,
+  exerciseId: string,
+  file: DocumentFile,
+): Promise<string> {
+  const signed = await coach.post(`/exercises/${exerciseId}/documents/upload-url`).send(file);
   const uploaded = await fetch(signed.body.uploadUrl, {
     method: "PUT",
-    body: Buffer.alloc(image.size, 1),
-    headers: { "content-type": image.mimeType },
+    body: Buffer.alloc(file.size, 1),
+    headers: { "content-type": file.mimeType },
   });
   expect(uploaded.status).toBe(200);
-  const attached = await coach.post(documentsUrl).send({
+  return signed.body.storagePath;
+}
+
+/** Une image de consigne réellement envoyée : la purge du stockage se vérifie en la relisant. */
+async function uploadInstructionImage(coach: Agent, exerciseId: string) {
+  const image = jpeg("prise.jpg");
+  const storagePath = await putExerciseFile(coach, exerciseId, image);
+  const attached = await coach.post(`/exercises/${exerciseId}/documents`).send({
     type: "FILE",
-    storagePath: signed.body.storagePath,
-    fileName: image.fileName,
-    mimeType: image.mimeType,
+    storagePath,
+    ...image,
     usage: "INSTRUCTION",
   });
   expect(attached.status).toBe(201);
@@ -819,14 +834,11 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     // texte, pas un document rattaché.
     expect(link.body.usage).toBe("ATTACHMENT");
 
-    const upload = await coachA
-      .post(`/exercises/${exerciseAId}/documents/upload-url`)
-      .send({ fileName: "position-basse.jpg", mimeType: "image/jpeg", size: 2048 });
+    const file = jpeg("position-basse.jpg");
     const image = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
       type: "FILE",
-      storagePath: upload.body.storagePath,
-      fileName: "position-basse.jpg",
-      mimeType: "image/jpeg",
+      storagePath: await putExerciseFile(coachA, exerciseAId, file),
+      ...file,
       usage: "INSTRUCTION",
     });
     expect(image.status).toBe(201);
@@ -847,6 +859,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       storagePath: upload.body.storagePath,
       fileName: "fiche.pdf",
       mimeType: "application/pdf",
+      size: 2048,
       usage: "INSTRUCTION",
     });
     expect(res.status).toBe(400);
@@ -913,6 +926,50 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       .post(`/exercises/${exerciseAId}/documents/upload-url`)
       .send({ fileName: "gros.pdf", mimeType: "application/pdf", size: 50 * 1024 * 1024 });
     expect(tooBig.status).toBe(400);
+  });
+
+  // Sans la taille dans la signature, un coach déclarait 1 Ko puis poussait ce qu'il voulait — et
+  // le mobile de l'athlète télécharge ces documents d'office (#95, #317).
+  it("le storage refuse un envoi plus lourd que la taille signée", async () => {
+    const file = jpeg("menteuse.jpg");
+    const signed = await coachA.post(`/exercises/${exerciseAId}/documents/upload-url`).send(file);
+    expect(signed.status).toBe(201);
+
+    const tooBig = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(file.size * 2, 1),
+      headers: { "content-type": file.mimeType },
+    });
+    expect(tooBig.ok).toBe(false);
+  });
+
+  // Signée mais jamais envoyée : la ligne désignerait un objet absent, que le mobile de l'athlète
+  // chercherait en vain à télécharger.
+  it("refuse de rattacher une clé où rien n'a été envoyé (404)", async () => {
+    const file = jpeg("fantome.jpg");
+    const signed = await coachA.post(`/exercises/${exerciseAId}/documents/upload-url`).send(file);
+
+    const res = await coachA
+      .post(`/exercises/${exerciseAId}/documents`)
+      .send({ type: "FILE", storagePath: signed.body.storagePath, ...file });
+    expect(res.status).toBe(404);
+  });
+
+  // Le rattachement redit le ticket ; le storage, qui a reçu l'objet, tranche.
+  it("refuse un rattachement qui ne redit pas le type ou la taille de l'objet reçu (409)", async () => {
+    const file = jpeg("redite.jpg");
+    const storagePath = await putExerciseFile(coachA, exerciseAId, file);
+    const attach = (declared: Partial<DocumentFile>) =>
+      coachA
+        .post(`/exercises/${exerciseAId}/documents`)
+        .send({ type: "FILE", storagePath, ...file, ...declared });
+
+    expect((await attach({ size: 1 })).status).toBe(409);
+    expect((await attach({ mimeType: "image/png" })).status).toBe(409);
+    // L'objet reste rattachable tel qu'il a été envoyé : le refus ne l'a pas consommé.
+    const honest = await attach({});
+    expect(honest.status).toBe(201);
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${honest.body.id}`);
   });
 
   it("le pipe de validation global est actif (titre vide, champ inconnu → 400)", async () => {
@@ -2002,22 +2059,12 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     // Les documents sont recopiés en NOUVELLES lignes : sans remappage, la consigne de l'athlète
     // référencerait des identifiants de la bibliothèque, qui ne désignent rien chez lui — et
     // l'échec serait silencieux, un média introuvable ne s'affichant simplement pas.
-    const upload = await coachA
-      .post(`/exercises/${exerciseAId}/documents/upload-url`)
-      .send({ fileName: "position.jpg", mimeType: "image/jpeg", size: 2048 });
-    const image = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
-      type: "FILE",
-      storagePath: upload.body.storagePath,
-      fileName: "position.jpg",
-      mimeType: "image/jpeg",
-      usage: "INSTRUCTION",
-    });
-    expect(image.status).toBe(201);
+    const imageId = await uploadInstructionImage(coachA, exerciseAId);
 
     const withImage = await coachA.patch(`/exercises/${exerciseAId}`).send({
       instructions: [
         { type: "PARAGRAPH", content: [{ text: "Position basse." }] },
-        { type: "IMAGE", mediaId: image.body.id },
+        { type: "IMAGE", mediaId: imageId },
       ],
     });
     expect(withImage.status).toBe(200);
@@ -2032,11 +2079,11 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const documentIds = copy.documents.map((document: { id: string }) => document.id);
 
     // L'identifiant a changé ET il désigne un document de la COPIE.
-    expect(block.mediaId).not.toBe(image.body.id);
+    expect(block.mediaId).not.toBe(imageId);
     expect(documentIds).toContain(block.mediaId);
 
     await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
-    await coachA.delete(`/exercises/${exerciseAId}/documents/${image.body.id}`);
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${imageId}`);
   });
 
   it("les images de consigne survivent à l'enregistrement du coach, même sans bibliothèque (#296)", async () => {
@@ -2044,23 +2091,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     // la copie, pas ceux de la bibliothèque. Recréer ces documents à chaque enregistrement laissait
     // la consigne pointer dans le vide chez l'athlète — et l'échec était silencieux.
     const exercise = await coachA.post("/exercises").send({ title: "Planche" });
-    const documentsUrl = `/exercises/${exercise.body.id}/documents`;
-    const image = { fileName: "planche.jpg", mimeType: "image/jpeg", size: 2048 };
-    const signed = await coachA.post(`${documentsUrl}/upload-url`).send(image);
-    const uploaded = await fetch(signed.body.uploadUrl, {
-      method: "PUT",
-      body: Buffer.alloc(image.size, 1),
-      headers: { "content-type": image.mimeType },
-    });
-    expect(uploaded.status).toBe(200);
-    const document = await coachA.post(documentsUrl).send({
-      type: "FILE",
-      storagePath: signed.body.storagePath,
-      fileName: image.fileName,
-      mimeType: image.mimeType,
-      usage: "INSTRUCTION",
-    });
-    expect(document.status).toBe(201);
+    const documentId = await uploadInstructionImage(coachA, exercise.body.id);
 
     // Piocché dans la bibliothèque : la consigne arrive avec l'id du document de BIBLIOTHÈQUE.
     const created = await coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
@@ -2070,7 +2101,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
         {
           sourceExerciseId: exercise.body.id,
           title: "Planche",
-          instructions: [{ type: "IMAGE", mediaId: document.body.id }],
+          instructions: [{ type: "IMAGE", mediaId: documentId }],
         },
       ],
     });
@@ -6920,18 +6951,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     // La copie recrée les documents depuis l'INSTANCE source, dont la consigne cite les copies —
     // pas la bibliothèque. Sans remappage sur les nouvelles lignes, l'image ne désignerait plus rien.
     const exercise = await coachA.post("/exercises").send({ title: "Planche" });
-    const documentsUrl = `/exercises/${exercise.body.id}/documents`;
-    const signed = await coachA
-      .post(`${documentsUrl}/upload-url`)
-      .send({ fileName: "planche.jpg", mimeType: "image/jpeg", size: 2048 });
-    const image = await coachA.post(documentsUrl).send({
-      type: "FILE",
-      storagePath: signed.body.storagePath,
-      fileName: "planche.jpg",
-      mimeType: "image/jpeg",
-      usage: "INSTRUCTION",
-    });
-    expect(image.status).toBe(201);
+    const imageId = await uploadInstructionImage(coachA, exercise.body.id);
 
     const plan = await coachA.post("/plans").send({
       athleteId: a1Id,
@@ -6947,7 +6967,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
         {
           sourceExerciseId: exercise.body.id,
           title: "Planche",
-          instructions: [{ type: "IMAGE", mediaId: image.body.id }],
+          instructions: [{ type: "IMAGE", mediaId: imageId }],
         },
       ],
     });
@@ -9491,8 +9511,7 @@ describe("Rattacher la clé objet d'un autre tenant (#293)", () => {
 
   const monday = mondayOfCurrentWeek();
   const pdf = { fileName: "fiche.pdf", mimeType: "application/pdf", size: 2_000 };
-  // Le rattachement d'un document d'exercice ne porte pas de taille (#317) : schéma strict.
-  const pdfDocument = { type: "FILE", fileName: pdf.fileName, mimeType: pdf.mimeType };
+  const pdfDocument = { type: "FILE", ...pdf };
   const photo = { type: "IMAGE", fileName: "voie.jpg", mimeType: "image/jpeg", size: 2_000 };
 
   async function put(uploadUrl: string, mimeType: string, size: number): Promise<void> {
