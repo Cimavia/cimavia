@@ -5208,11 +5208,15 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Les `maxLength` sont posés depuis les constantes `*_MAX_LENGTH`** sur tous les champs qui
 >   n'en avaient pas : le refus devient l'exception.
 > - **La consigne riche est une saisie refusée, comme une cellule illisible (#566)**. Un éditeur
->   TipTap ne se borne pas par attribut, et ses deux bornes — le cumul (5 000) et un fragment
->   d'un seul tenant (2 000) — ne s'apprenaient qu'au refus de l'API : un toast générique
->   (`onFailure`, qui dit le geste et pas l'appel) et le détail en bas de page, hors de vue sous un
->   bandeau fixe. `richDocumentOverflow` (`@cmv/shared`) les vérifie à l'écran ; l'éditeur le dit
->   sous lui et se déclare au registre, qui ferme l'enregistrement. **Amende #566** : le libellé du
+>   TipTap ne se borne pas par attribut, et son texte trop long ne s'apprenait qu'au refus de
+>   l'API : un toast générique (`onFailure`, qui dit le geste et pas l'appel) et le détail en bas
+>   de page, hors de vue sous un bandeau fixe. `isRichDocumentTooLong` (`@cmv/shared`), partagée
+>   avec le schéma, le vérifie à l'écran ; l'éditeur le dit sous lui et se déclare au registre, qui
+>   ferme l'enregistrement.
+> - **La borne par fragment est retirée** (`RICH_TEXT_MAX_LENGTH`, 2 000) : posée à la création du
+>   schéma sans raison écrite, elle portait sur un passage de même mise en forme — un paragraphe
+>   de 2 500 caractères était refusé, le même avec un mot en gras accepté. Le coach ne voit pas
+>   les fragments, et le cumul (5 000) borne déjà tout : c'est la seule borne de texte qui reste. **Amende #566** : le libellé du
 >   bouton fermé, `refusedBlocksSave`, disait « une valeur n'est pas comprise » ; il couvre
 >   désormais aussi un texte trop long (« Un champ refuse sa saisie »).
 > - **Un compteur à 90 % de la borne, sur les zones multilignes seulement** (`shouldShowCharCount`,
