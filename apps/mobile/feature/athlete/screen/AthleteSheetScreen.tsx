@@ -12,7 +12,7 @@ import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
-import { formatDate } from "@/shared/util/date.util";
+import { formatInstantDate } from "@/shared/util/date.util";
 
 /**
  * Fiche athlète sur mobile (#31) : UN champ texte libre, éditable par le coach seul (CDC §5.9).
@@ -62,7 +62,7 @@ function AthleteIdentity({ athlete }: Readonly<{ athlete: CoachAthleteDto | null
         <CmvText className="text-cmv-text-lo text-xs">
           {athlete?.joinedAt == null
             ? t("athlete.sheet.sinceUnknown")
-            : t("athlete.sheet.since", { date: formatDate(athlete.joinedAt.slice(0, 10)) })}
+            : t("athlete.sheet.since", { date: formatInstantDate(athlete.joinedAt) })}
         </CmvText>
       </View>
     </View>

@@ -17,7 +17,7 @@ import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBad
 import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvButton, CmvConfirmButton, CmvText } from "@/shared/component";
-import { formatDate } from "@/shared/util/date.util";
+import { formatDate, formatInstantDate } from "@/shared/util/date.util";
 import { formatMoney, formatPeriod } from "@/shared/util/money.util";
 
 /**
@@ -114,7 +114,7 @@ export function InvoiceDetail({ invoice, canManage, onClose }: Readonly<InvoiceD
           {isPaid && invoice.paidAt != null ? (
             <Field
               label={t("invoice.panel.paidAt")}
-              value={t("invoice.paidAtLabel", { date: formatDate(invoice.paidAt.slice(0, 10)) })}
+              value={t("invoice.paidAtLabel", { date: formatInstantDate(invoice.paidAt) })}
               valueClassName="text-cmv-success-on"
             />
           ) : null}
