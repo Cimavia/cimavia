@@ -3,6 +3,7 @@ export { CmvAvatar } from "./CmvAvatar";
 export { CmvBadge } from "./CmvBadge";
 export { CmvButton } from "./CmvButton";
 export { CmvCard } from "./CmvCard";
+export { CmvCharCount } from "./CmvCharCount";
 export type { CmvChoiceChip } from "./CmvChoiceChips";
 export { CmvChoiceChips } from "./CmvChoiceChips";
 export { CmvConfirmButton } from "./CmvConfirmButton";

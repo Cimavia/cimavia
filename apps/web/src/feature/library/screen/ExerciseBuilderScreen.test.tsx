@@ -4,6 +4,8 @@ import {
   type CustomMetric,
   DocumentType,
   DocumentUsage,
+  EXERCISE_TAG_MAX_LENGTH,
+  EXERCISE_TITLE_MAX_LENGTH,
   type ExerciseDto,
   formatTrainingDuration,
   MetricKey,
@@ -144,6 +146,19 @@ describe("ExerciseBuilderScreen — création", () => {
     ).not.toBeInTheDocument();
     expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeDisabled();
     expect(view.getByText("library.builder.previewEmpty")).toBeInTheDocument();
+  });
+
+  it("borne le titre et chaque tag à ce que l'API accepte (#319)", async () => {
+    const view = await create();
+
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveAttribute(
+      "maxLength",
+      String(EXERCISE_TITLE_MAX_LENGTH),
+    );
+    expect(view.getByLabelText("library.tags.label")).toHaveAttribute(
+      "maxLength",
+      String(EXERCISE_TAG_MAX_LENGTH),
+    );
   });
 
   it("reprend le titre cherché, prêt à enregistrer", async () => {
@@ -641,5 +656,29 @@ describe("ExerciseBuilderScreen — saisie refusée (#566)", () => {
 
     expect(await view.findByRole("dialog")).toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
+  });
+});
+
+/**
+ * #319 : une consigne de six paragraphes de 1 000 caractères. Chacun tient dans sa borne, le cumul
+ * dépasse 5 000 — le coach ne l'apprenait qu'au refus de l'API, par un toast générique et un
+ * message en bas de page, hors de vue.
+ */
+describe("ExerciseBuilderScreen — consigne trop longue (#319)", () => {
+  it("ferme l'enregistrement et le dit sous la consigne", async () => {
+    api.getExercise.mockResolvedValue(
+      saved({
+        instructions: Array.from({ length: 6 }, () => ({
+          type: RichBlockType.PARAGRAPH,
+          content: [{ text: "x".repeat(1000) }],
+        })),
+      }),
+    );
+    const view = await edit();
+
+    expect(await view.findByText("library.builder.instructionsTooLong")).toBeInTheDocument();
+    const submit = view.getByRole("button", { name: SUBMIT_EDIT });
+    await waitFor(() => expect(submit).toBeDisabled());
+    expect(submit).toHaveAttribute("title", "library.builder.refusedBlocksSave");
   });
 });

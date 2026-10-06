@@ -5185,6 +5185,48 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 ---
 
+## Post-MVP — Refus de validation en français ([#319](https://github.com/Cimavia/cimavia/issues/319))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| VE-1 | **Les refus de l'API sont rédigés en français côté serveur**, ceux de Zod compris depuis #319 (`frenchIssueMessage`, `apps/api/src/zod/`) : les clients les affichent tels quels (`apiErrorMessage`). Antérieur à #319 pour tous les autres refus — #319 y range ceux de Zod au lieu de les traduire côté client. | 🟢 | [#71](https://github.com/Cimavia/cimavia/issues/71) *(épic EN — aucune de ses sous-issues ne couvre encore les messages de l'API)* |
+
+> **Tranché en [#319](https://github.com/Cimavia/cimavia/issues/319)** (un refus de Zod se traduit
+> côté API, pas côté client) : un titre de cycle de 201 caractères affichait « Too big: expected
+> string to have <=200 characters ». L'issue demandait une clé i18n côté client ; elle affirmait
+> aussi qu'aucun schéma ne portait de message propre, et **une vingtaine en portent**, en français
+> (« La date de début doit être un lundi », « Un lien doit être en http ou https. »…).
+>
+> - **Le client ne peut pas trier.** Il ne reçoit que `{ path, message }` : rien ne distingue un
+>   message écrit par nous d'un texte de Zod. Une clé générique côté client aurait écrasé les
+>   messages précis ; un tri côté client aurait demandé de changer la forme du contrat, les deux
+>   catalogues et les appelants d'`apiErrorMessage`.
+> - **La table vit dans `zodSafeParse`**, passée à `safeParse` : Zod 4 la fait passer APRÈS le
+>   message du schéma, elle ne joue donc que là où personne n'a rien écrit. Elle dit la borne
+>   (« Ce texte dépasse 200 caractères. »), pas le champ — aucune table `path → libellé` à tenir.
+>   Elle est au tutoiement, et c'est le contrôle **[F]** de `check:i18n` qui le garde.
+> - **Les `maxLength` sont posés depuis les constantes `*_MAX_LENGTH`** sur tous les champs qui
+>   n'en avaient pas : le refus devient l'exception.
+> - **La consigne riche est une saisie refusée, comme une cellule illisible (#566)**. Un éditeur
+>   TipTap ne se borne pas par attribut, et son texte trop long ne s'apprenait qu'au refus de
+>   l'API : un toast générique (`onFailure`, qui dit le geste et pas l'appel) et le détail en bas
+>   de page, hors de vue sous un bandeau fixe. `isRichDocumentTooLong` (`@cmv/shared`), partagée
+>   avec le schéma, le vérifie à l'écran ; l'éditeur le dit sous lui et se déclare au registre, qui
+>   ferme l'enregistrement.
+> - **La borne par fragment est retirée** (`RICH_TEXT_MAX_LENGTH`, 2 000) : posée à la création du
+>   schéma sans raison écrite, elle portait sur un passage de même mise en forme — un paragraphe
+>   de 2 500 caractères était refusé, le même avec un mot en gras accepté. Le coach ne voit pas
+>   les fragments, et le cumul (5 000) borne déjà tout : c'est la seule borne de texte qui reste. **Amende #566** : le libellé du
+>   bouton fermé, `refusedBlocksSave`, disait « une valeur n'est pas comprise » ; il couvre
+>   désormais aussi un texte trop long (« Un champ refuse sa saisie »).
+> - **Un compteur à 90 % de la borne, sur les zones multilignes seulement** (`shouldShowCharCount`,
+>   `@cmv/shared`) : toujours affiché, il serait du bruit sur trois lignes de débrief ; jamais, la
+>   saisie s'arrête sans dire pourquoi. Pas sur un champ d'une ligne, dont la borne (200) ne
+>   s'atteint pas en pratique. L'issue disait que le débrief l'avait déjà : il n'avait que le
+>   `maxLength`.
+
+---
+
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
 
 Ces manques sont des **choix de périmètre**, pas des raccourcis : résultats de compétition · paiement intégré · WebSocket temps réel · débrief par exercice · historique des modifications. Voir `cahier-des-charges-mvp.md` §4.

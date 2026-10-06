@@ -4,6 +4,7 @@ import {
   cellPath,
   type ExerciseBlock,
   type ExerciseBlocks,
+  SESSION_NOTE_MAX_LENGTH,
   structurePath,
 } from "@cmv/shared";
 import { fireEvent, within } from "@testing-library/react";
@@ -107,6 +108,10 @@ describe("CompositionCard", () => {
     await user.click(getByRole("button", { name: /Traction lestée/ }));
 
     expect(getByLabelText(NOTE_LABEL)).toBeInTheDocument();
+    expect(getByLabelText(NOTE_LABEL)).toHaveAttribute(
+      "maxLength",
+      String(SESSION_NOTE_MAX_LENGTH),
+    );
   });
 
   describe("le déplacement dans la séance", () => {

@@ -4,6 +4,7 @@ export { CmvBadge } from "./CmvBadge";
 export { CmvButton } from "./CmvButton";
 export { CmvCapabilityGate } from "./CmvCapabilityGate";
 export { CmvCapabilitySwitch } from "./CmvCapabilitySwitch";
+export { CmvCharCount } from "./CmvCharCount";
 export { CmvConfirmButton } from "./CmvConfirmButton";
 export { CmvCrashScreen } from "./CmvCrashScreen";
 export { CmvErrorState } from "./CmvErrorState";

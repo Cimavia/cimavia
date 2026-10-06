@@ -1,8 +1,11 @@
 import {
   isInstructionImageMime,
+  isRichDocumentTooLong,
   linkHrefSchema,
   MAX_DOCUMENT_SIZE_BYTES,
+  RICH_DOCUMENT_MAX_TEXT_LENGTH,
   type RichDocument,
+  richDocumentTextLength,
 } from "@cmv/shared";
 import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -28,6 +31,8 @@ import {
   toRichDocument,
   toTipTapDocument,
 } from "@/feature/library/util/tiptap-document.util";
+import { CmvCharCount } from "@/shared/component";
+import { useReportRefused } from "@/shared/hook/useRefusedFields";
 import { cn } from "@/shared/util/cn.util";
 
 type InstructionsEditorProps = {
@@ -38,6 +43,12 @@ type InstructionsEditorProps = {
 
 export function InstructionsEditor({ initialValue, onChange }: Readonly<InstructionsEditorProps>) {
   const { t } = useTranslation();
+  // Le document tel qu'il est À L'ÉCRAN, pour ses bornes : un éditeur riche ne se borne pas par
+  // `maxLength`. Une consigne trop longue est une saisie refusée, comme une cellule illisible
+  // (#566) : le message est sous le champ, et l'enregistrement se ferme au lieu d'échouer.
+  const [blocks, setBlocks] = useState<RichDocument>(() => initialValue ?? []);
+  const tooLong = isRichDocumentTooLong(blocks);
+  useReportRefused(tooLong);
 
   const editor = useEditor({
     extensions: [
@@ -58,7 +69,11 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
       ImageExtension,
     ],
     content: toTipTapDocument(initialValue),
-    onUpdate: ({ editor: current }) => onChange(toRichDocument(current.getJSON())),
+    onUpdate: ({ editor: current }) => {
+      const next = toRichDocument(current.getJSON());
+      setBlocks(next);
+      onChange(next);
+    },
     editorProps: {
       attributes: {
         class:
@@ -79,6 +94,15 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
         <EditorToolbar editor={editor} />
         <EditorContent editor={editor} />
       </div>
+      <CmvCharCount
+        length={richDocumentTextLength(blocks)}
+        maxLength={RICH_DOCUMENT_MAX_TEXT_LENGTH}
+      />
+      {tooLong ? (
+        <p className="text-cmv-caption text-cmv-error">
+          {t("library.builder.instructionsTooLong", { max: RICH_DOCUMENT_MAX_TEXT_LENGTH })}
+        </p>
+      ) : null}
     </div>
   );
 }

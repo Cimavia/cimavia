@@ -1,10 +1,10 @@
 import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
-import { draftAfterSend, required } from "@cmv/shared";
+import { draftAfterSend, MESSAGE_TEXT_MAX_LENGTH, required } from "@cmv/shared";
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
-import { useToast } from "@/shared/component";
+import { CmvCharCount, useToast } from "@/shared/component";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { useWebAudioRecorder } from "@/shared/hook/useWebAudioRecorder";
 
@@ -135,6 +135,7 @@ export function Composer({
           onKeyDown={onKeyDown}
           placeholder={t("messages.placeholder")}
           rows={1}
+          maxLength={MESSAGE_TEXT_MAX_LENGTH}
           className="max-h-32 flex-1 resize-none rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm text-cmv-text-hi"
         />
 
@@ -159,6 +160,8 @@ export function Composer({
           </button>
         )}
       </div>
+
+      <CmvCharCount length={text.length} maxLength={MESSAGE_TEXT_MAX_LENGTH} />
 
       {mediaBusy ? (
         <div className="flex flex-col pt-cmv-sm">

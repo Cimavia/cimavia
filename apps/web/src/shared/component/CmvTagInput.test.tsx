@@ -94,6 +94,14 @@ describe("CmvTagInput", () => {
     expect(input).toBeDisabled();
   });
 
+  it("borne la longueur d'un tag quand l'appelant la donne, et seulement alors", () => {
+    expect(setup({ maxLength: 30 }).input).toHaveAttribute("maxLength", "30");
+  });
+
+  it("laisse la longueur libre sans borne", () => {
+    expect(setup().input).not.toHaveAttribute("maxLength");
+  });
+
   it("retire le tag désigné par sa croix", async () => {
     const { user, onChange, getByRole } = setup({ value: ["renfo", "gainage"] });
 

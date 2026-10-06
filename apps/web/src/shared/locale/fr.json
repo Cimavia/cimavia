@@ -7,6 +7,7 @@
     "error": "Une erreur est survenue. Réessaie.",
     "cancel": "Annuler",
     "requiredLegend": "* champs obligatoires",
+    "charCount": "{{length, number}} / {{max, number}}",
     "crash": {
       "title": "L'application a rencontré un problème",
       "description": "L'incident nous a été signalé. Recharge la page pour reprendre où tu en étais.",
@@ -227,10 +228,11 @@
       "previewEmpty": "L'aperçu apparaît une fois le titre renseigné.",
       "cancel": "Annuler",
       "submitCreate": "Créer l'exercice",
-      "refusedBlocksSave": "Une valeur n'est pas comprise : corrige-la ou vide-la pour enregistrer.",
+      "refusedBlocksSave": "Un champ refuse sa saisie : corrige-le pour enregistrer.",
       "submitEdit": "Enregistrer",
       "saving": "Enregistrement…",
       "instructions": "Consigne",
+      "instructionsTooLong": "La consigne dépasse {{max, number}} caractères : raccourcis-la pour enregistrer.",
       "tool": {
         "bold": "Gras",
         "italic": "Italique",

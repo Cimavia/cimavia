@@ -1,4 +1,9 @@
-import { type PlanDto, PlanStatus } from "@cmv/shared";
+import {
+  PLAN_DESCRIPTION_MAX_LENGTH,
+  PLAN_TITLE_MAX_LENGTH,
+  type PlanDto,
+  PlanStatus,
+} from "@cmv/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { renderWithProviders } from "../../../../test/render";
@@ -113,6 +118,19 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
     await user.click(getByText("plan.header.submit"));
 
     expect(onSave).toHaveBeenCalledWith({ description: null });
+  });
+
+  it("borne le titre et la description à ce que l'API accepte (#319)", () => {
+    const { container } = mount();
+
+    expect(container.querySelector("#planTitle")).toHaveAttribute(
+      "maxLength",
+      String(PLAN_TITLE_MAX_LENGTH),
+    );
+    expect(container.querySelector("#planDescription")).toHaveAttribute(
+      "maxLength",
+      String(PLAN_DESCRIPTION_MAX_LENGTH),
+    );
   });
 
   it("ferme l'enregistrement tant que rien n'a changé", () => {

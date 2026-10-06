@@ -1,5 +1,5 @@
 import type { ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
-import { required } from "@cmv/shared";
+import { required, SESSION_NOTES_MAX_LENGTH, SESSION_TITLE_MAX_LENGTH } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
@@ -229,6 +229,7 @@ function SessionBuilder({
               <CmvTextField
                 label={t("library.session.titleLabel")}
                 name="title"
+                maxLength={SESSION_TITLE_MAX_LENGTH}
                 value={draft.title}
                 onChange={(event) => draft.setTitle(event.target.value)}
                 onBlur={() => setTitleTouched(true)}
@@ -247,6 +248,7 @@ function SessionBuilder({
             <CmvTextArea
               label={t("library.session.notesLabel")}
               name="notes"
+              maxLength={SESSION_NOTES_MAX_LENGTH}
               value={draft.notes}
               onChange={(event) => draft.setNotes(event.target.value)}
               placeholder={t("library.session.notesPlaceholder")}

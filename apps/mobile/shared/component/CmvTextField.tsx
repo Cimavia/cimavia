@@ -1,5 +1,6 @@
 import { cmvColors } from "@cmv/tokens";
 import { Text, TextInput, type TextInputProps, View } from "react-native";
+import { CmvCharCount } from "./CmvCharCount";
 
 type CmvTextFieldProps = Pick<
   TextInputProps,
@@ -17,7 +18,10 @@ type CmvTextFieldProps = Pick<
   | "onSubmitEditing"
 > & { label: string };
 
+// Une zone multiligne bornée montre son compteur à l'approche de la borne (#319). Pas un champ
+// d'une ligne : ses bornes (titre, e-mail) ne s'atteignent pas en pratique.
 export function CmvTextField({ label, multiline, ...rest }: CmvTextFieldProps) {
+  const { value, maxLength } = rest;
   return (
     <View className="gap-1">
       <Text className="text-cmv-text-mid text-sm">{label}</Text>
@@ -32,6 +36,9 @@ export function CmvTextField({ label, multiline, ...rest }: CmvTextFieldProps) {
         }`}
         {...rest}
       />
+      {multiline === true && maxLength !== undefined ? (
+        <CmvCharCount length={value?.length ?? 0} maxLength={maxLength} />
+      ) : null}
     </View>
   );
 }

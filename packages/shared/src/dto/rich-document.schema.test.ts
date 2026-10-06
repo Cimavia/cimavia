@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   InlineMark,
   imageMediaIds,
+  isRichDocumentTooLong,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
   type RichBlock,
   RichBlockType,
@@ -104,6 +105,38 @@ describe("richDocumentTextLength", () => {
       { type: RichBlockType.IMAGE, mediaId: "med_1", caption: "légende ignorée" },
     ]);
     expect(length).toBe(5);
+  });
+});
+
+describe("isRichDocumentTooLong (#319)", () => {
+  const text = (length: number) => "x".repeat(length);
+
+  it("accepte un document vide, et un document à sa borne exacte", () => {
+    expect(isRichDocumentTooLong([])).toBe(false);
+    expect(isRichDocumentTooLong([paragraph(text(RICH_DOCUMENT_MAX_TEXT_LENGTH))])).toBe(false);
+  });
+
+  it("refuse le cumul dépassé, même quand chaque paragraphe est court — comme l'API", () => {
+    const blocks = Array.from({ length: 6 }, () => paragraph(text(1000)));
+
+    expect(isRichDocumentTooLong(blocks)).toBe(true);
+    expect(richDocumentSchema.safeParse(blocks).success).toBe(false);
+  });
+
+  it("n'a pas de borne par fragment : un paragraphe d'un seul tenant passe tant que le cumul tient", () => {
+    const blocks = [paragraph(text(2500))];
+
+    expect(isRichDocumentTooLong(blocks)).toBe(false);
+    expect(richDocumentSchema.safeParse(blocks).success).toBe(true);
+  });
+
+  it("ne compte pas la légende d'une image", () => {
+    expect(
+      isRichDocumentTooLong([
+        { type: RichBlockType.IMAGE, mediaId: "med_1", caption: "légende" },
+        paragraph(text(RICH_DOCUMENT_MAX_TEXT_LENGTH)),
+      ]),
+    ).toBe(false);
   });
 });
 

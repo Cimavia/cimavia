@@ -17,7 +17,6 @@ export const RICH_DOCUMENT_MAX_BLOCKS = 200;
 // EXERCISE_DESCRIPTION_MAX_LENGTH : le passage au structuré ne doit pas permettre au coach
 // d'écrire dix fois plus qu'avant.
 export const RICH_DOCUMENT_MAX_TEXT_LENGTH = 5000;
-export const RICH_TEXT_MAX_LENGTH = 2000;
 export const RICH_IMAGE_CAPTION_MAX_LENGTH = 300;
 export const RICH_LIST_MAX_ITEMS = 50;
 
@@ -45,7 +44,7 @@ export const linkHrefSchema = z
 // gras ou italique comme n'importe quel autre.
 export const inlineNodeSchema = z
   .object({
-    text: z.string().min(1).max(RICH_TEXT_MAX_LENGTH),
+    text: z.string().min(1),
     marks: z.array(inlineMarkSchema).max(3).optional(),
     href: linkHrefSchema.optional(),
   })
@@ -121,27 +120,37 @@ export const richBlockSchema = z.discriminatedUnion("type", [
 ]);
 export type RichBlock = z.infer<typeof richBlockSchema>;
 
+/** Les fragments de texte d'un bloc — aucun pour une image, dont la légende n'est pas du texte. */
+function inlineNodesOf(block: RichBlock): readonly InlineNode[] {
+  if (block.type === RichBlockType.IMAGE) return [];
+  if (block.type === RichBlockType.LIST) return block.items.flat();
+  return block.content;
+}
+
 /** Texte cumulé d'un document, marques et légendes exclues. */
 export function richDocumentTextLength(blocks: readonly RichBlock[]): number {
-  return blocks.reduce((total, block) => {
-    if (block.type === RichBlockType.IMAGE) return total;
-    if (block.type === RichBlockType.LIST) {
-      return (
-        total +
-        block.items.reduce(
-          (sum, item) => sum + item.reduce((acc, node) => acc + node.text.length, 0),
-          0,
-        )
-      );
-    }
-    return total + block.content.reduce((acc, node) => acc + node.text.length, 0);
-  }, 0);
+  return blocks.reduce(
+    (total, block) => total + inlineNodesOf(block).reduce((sum, node) => sum + node.text.length, 0),
+    0,
+  );
+}
+
+/**
+ * Le texte du document dépasse-t-il sa borne (#319) ?
+ *
+ * Partagée par le schéma et par l'éditeur : un éditeur riche ne se borne pas par `maxLength`, et
+ * sans ce contrôle à l'écran le coach ne l'apprenait qu'au refus de l'API. C'est la SEULE borne de
+ * texte d'une consigne : celle d'un fragment (2 000), posée sans raison écrite à la création du
+ * schéma, refusait un paragraphe d'un seul tenant et acceptait le même avec un mot en gras.
+ */
+export function isRichDocumentTooLong(blocks: readonly RichBlock[]): boolean {
+  return richDocumentTextLength(blocks) > RICH_DOCUMENT_MAX_TEXT_LENGTH;
 }
 
 export const richDocumentSchema = z
   .array(richBlockSchema)
   .max(RICH_DOCUMENT_MAX_BLOCKS)
-  .refine((blocks) => richDocumentTextLength(blocks) <= RICH_DOCUMENT_MAX_TEXT_LENGTH, {
+  .refine((blocks) => !isRichDocumentTooLong(blocks), {
     message: `Le texte du document dépasse ${RICH_DOCUMENT_MAX_TEXT_LENGTH} caractères.`,
   });
 export type RichDocument = z.infer<typeof richDocumentSchema>;

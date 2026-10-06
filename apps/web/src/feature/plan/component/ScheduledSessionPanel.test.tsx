@@ -9,6 +9,8 @@ import {
   type PlanWeekDto,
   required,
   type ScheduledSessionDto,
+  SESSION_NOTES_MAX_LENGTH,
+  SESSION_TITLE_MAX_LENGTH,
   structurePath,
 } from "@cmv/shared";
 import { fireEvent, waitFor, within } from "@testing-library/react";
@@ -124,6 +126,15 @@ describe("ScheduledSessionPanel", () => {
       expect(getByRole("button", { name: SUBMIT })).toBeDisabled();
     });
 
+    it("borne le titre à ce que l'API accepte (#319)", () => {
+      const { getByRole } = setup();
+
+      expect(getByRole("textbox", { name: TITLE })).toHaveAttribute(
+        "maxLength",
+        String(SESSION_TITLE_MAX_LENGTH),
+      );
+    });
+
     it("envoie le titre nettoyé et aucune séance source", async () => {
       createMock.mockResolvedValue(session());
       const { user, getByRole, onClose } = setup();
@@ -198,6 +209,12 @@ describe("ScheduledSessionPanel", () => {
       // La CLÉ est absente, et non présente à `null` : `null` demanderait au serveur d'effacer
       // les définitions, là où l'absence lui demande de les calculer.
       expect(input.exercises[0]).not.toHaveProperty("customMetrics");
+    });
+
+    it("borne la consigne à ce que l'API accepte (#319)", () => {
+      const { getByLabelText } = setup({ session: session() });
+
+      expect(getByLabelText(NOTES)).toHaveAttribute("maxLength", String(SESSION_NOTES_MAX_LENGTH));
     });
 
     it("envoie null plutôt qu'une consigne vide", async () => {

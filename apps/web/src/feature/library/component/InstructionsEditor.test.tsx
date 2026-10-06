@@ -2,6 +2,7 @@ import { MAX_DOCUMENT_SIZE_BYTES, RichBlockType, type RichDocument } from "@cmv/
 import { fireEvent, renderHook } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { InstructionMedia } from "@/feature/library/hook/useInstructionMedia";
+import { RefusedFieldsContext } from "@/shared/hook/useRefusedFields";
 import { installProseMirrorLayout } from "../../../../test/prosemirror";
 import { renderWithProviders } from "../../../../test/render";
 import { InstructionMediaProvider, useInstructionMediaContext } from "./InstructionMediaContext";
@@ -53,6 +54,74 @@ function setup(initialValue: RichDocument | null, media: InstructionMedia = fake
   const fileInput = () => view.container.querySelector("input[type=file]") as HTMLInputElement;
   return { ...view, onChange, media, surface, selectAll, tool, last, fileInput };
 }
+
+/**
+ * #319 : un éditeur riche ne se borne pas par `maxLength`. Une consigne qui dépasse une borne de
+ * `richDocumentSchema` le dit sous elle, et se déclare refusée — c'est ce qui ferme l'enregistrement.
+ */
+describe("InstructionsEditor — bornes de texte (#319)", () => {
+  const TOO_LONG = "library.builder.instructionsTooLong";
+  const COUNT = "common.charCount";
+  const thousand = () => paragraph("x".repeat(1000));
+
+  function mount(initialValue: RichDocument) {
+    const report = vi.fn();
+    const view = renderWithProviders(
+      <RefusedFieldsContext value={report}>
+        <InstructionMediaProvider media={fakeMedia()}>
+          <InstructionsEditor initialValue={initialValue} onChange={vi.fn()} />
+        </InstructionMediaProvider>
+      </RefusedFieldsContext>,
+    );
+    return { ...view, report };
+  }
+
+  it("se tait, sans compteur ni refus, loin des bornes", () => {
+    const { queryByText, report } = mount([paragraph("Coudes serrés")]);
+
+    expect(queryByText(COUNT)).not.toBeInTheDocument();
+    expect(queryByText(TOO_LONG)).not.toBeInTheDocument();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("montre le compteur à l'approche du cumul, sans refuser", () => {
+    const { getByText, queryByText, report } = mount([
+      thousand(),
+      thousand(),
+      thousand(),
+      thousand(),
+      paragraph("x".repeat(600)),
+    ]);
+
+    expect(getByText(COUNT)).toBeInTheDocument();
+    expect(queryByText(TOO_LONG)).not.toBeInTheDocument();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("dit le cumul dépassé sous la consigne, et se déclare refusée", () => {
+    const { getByText, report } = mount(Array.from({ length: 6 }, thousand));
+
+    expect(getByText(TOO_LONG)).toBeInTheDocument();
+    expect(report).toHaveBeenCalledWith(expect.any(String), true);
+  });
+
+  it("ne refuse pas un long paragraphe d'un seul tenant tant que le cumul tient", () => {
+    const { queryByText, report } = mount([paragraph("x".repeat(2500))]);
+
+    expect(queryByText(TOO_LONG)).not.toBeInTheDocument();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("lève le refus quand la consigne revient dans ses bornes", async () => {
+    const { container, user, queryByText, report } = mount(Array.from({ length: 6 }, thousand));
+
+    (container.querySelector(".ProseMirror") as HTMLElement).focus();
+    await user.keyboard("{Control>}a{/Control}{Backspace}");
+
+    expect(queryByText(TOO_LONG)).not.toBeInTheDocument();
+    expect(report).toHaveBeenLastCalledWith(expect.any(String), false);
+  });
+});
 
 describe("InstructionsEditor — ouverture", () => {
   it("rend la consigne enregistrée, sans la réécrire", () => {

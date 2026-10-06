@@ -534,6 +534,7 @@ export {
   imageWidthSchema,
   inlineMarkSchema,
   inlineNodeSchema,
+  isRichDocumentTooLong,
   linkHrefSchema,
   listBlockSchema,
   paragraphBlockSchema,
@@ -541,7 +542,6 @@ export {
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
   RICH_IMAGE_CAPTION_MAX_LENGTH,
   RICH_LIST_MAX_ITEMS,
-  RICH_TEXT_MAX_LENGTH,
   RichBlockType,
   remapImageMediaIds,
   richBlockSchema,
@@ -642,6 +642,7 @@ export {
   athleteWeekNeighbours,
   defaultAthleteMonday,
 } from "./util/athlete-week.util";
+export { CHAR_COUNT_THRESHOLD, shouldShowCharCount } from "./util/char-count.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,

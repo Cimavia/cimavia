@@ -1,4 +1,9 @@
-import { EXERCISE_MAX_TAGS, type ExerciseDto } from "@cmv/shared";
+import {
+  EXERCISE_MAX_TAGS,
+  EXERCISE_TAG_MAX_LENGTH,
+  EXERCISE_TITLE_MAX_LENGTH,
+  type ExerciseDto,
+} from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -218,6 +223,7 @@ function ExerciseBuilder({
                 <CmvTextField
                   label={t("library.builder.titleLabel")}
                   name="title"
+                  maxLength={EXERCISE_TITLE_MAX_LENGTH}
                   value={draft.title}
                   onChange={(event) => draft.setTitle(event.target.value)}
                   onBlur={() => setTitleTouched(true)}
@@ -235,6 +241,7 @@ function ExerciseBuilder({
 
               <CmvTagInput
                 label={t("library.tags.label")}
+                maxLength={EXERCISE_TAG_MAX_LENGTH}
                 value={draft.tags}
                 onChange={draft.setTags}
                 suggestions={knownTags ?? []}

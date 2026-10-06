@@ -11,6 +11,7 @@ type CmvTextFieldProps = Pick<
   | "autoComplete"
   | "name"
   | "minLength"
+  | "maxLength"
   | "min"
   | "max"
   | "disabled"

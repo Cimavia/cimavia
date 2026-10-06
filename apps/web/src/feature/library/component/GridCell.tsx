@@ -3,6 +3,7 @@ import {
   type CustomMetric,
   formatDecimal,
   formatTrainingDuration,
+  METRIC_TEXT_VALUE_MAX_LENGTH,
   type MetricValue,
   MetricValueType,
   metricValueTypeOf,
@@ -102,6 +103,7 @@ function TextCell({ value, onChange, onCommitLine, ghost, placeholder }: Readonl
     <input
       value={value == null ? "" : String(value)}
       placeholder={placeholder}
+      maxLength={METRIC_TEXT_VALUE_MAX_LENGTH}
       onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
       onKeyDown={(event) => onEnter(event, () => onCommitLine(value))}
       className={cellClass(ghost)}

@@ -1,4 +1,8 @@
-import { type InvoiceDto, MAX_INVOICE_DOCUMENT_SIZE_BYTES } from "@cmv/shared";
+import {
+  INVOICE_NOTE_MAX_LENGTH,
+  type InvoiceDto,
+  MAX_INVOICE_DOCUMENT_SIZE_BYTES,
+} from "@cmv/shared";
 import { act, fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -104,6 +108,15 @@ describe("PlanBillingSection — le verrou de destinataire", () => {
       dueDate: "2026-10-31",
       note: null,
     });
+  });
+
+  it("borne la note à ce que l'API accepte (#319)", async () => {
+    const { container } = await mount({});
+
+    expect(container.querySelector("#note")).toHaveAttribute(
+      "maxLength",
+      String(INVOICE_NOTE_MAX_LENGTH),
+    );
   });
 
   // Une note faite d'espaces n'est pas une note : elle part nettoyée, ou pas du tout.

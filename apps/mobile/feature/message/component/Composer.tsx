@@ -1,11 +1,11 @@
 import type { MediaBatchStep } from "@cmv/shared";
-import { draftAfterSend } from "@cmv/shared";
+import { draftAfterSend, MESSAGE_TEXT_MAX_LENGTH } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
-import { CmvAudioRecorder, CmvText, type RecordedAudio } from "@/shared/component";
+import { CmvAudioRecorder, CmvCharCount, CmvText, type RecordedAudio } from "@/shared/component";
 
 type ComposerProps = {
   /** Le champ ne se vide qu'une fois la promesse tenue : un échec laisse le texte en place. */
@@ -78,6 +78,7 @@ export function Composer({
               placeholder={t("messages.placeholder")}
               placeholderTextColor={cmvColors.text.lo}
               multiline
+              maxLength={MESSAGE_TEXT_MAX_LENGTH}
               textAlignVertical="center"
               className="max-h-32 flex-1 rounded-2xl border border-cmv-border bg-cmv-surface px-4 py-2 text-cmv-text-hi"
             />
@@ -92,6 +93,9 @@ export function Composer({
           recorder
         )}
       </View>
+
+      {/* Le champ s'efface pendant un enregistrement : son compteur avec lui. */}
+      {recording ? null : <CmvCharCount length={text.length} maxLength={MESSAGE_TEXT_MAX_LENGTH} />}
 
       {mediaBusy ? (
         <View className="flex-row items-center gap-2 pt-2">
