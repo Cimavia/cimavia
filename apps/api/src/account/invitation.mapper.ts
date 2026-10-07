@@ -7,6 +7,7 @@ export function toInvitationDto(invitation: Invitation): InvitationDto {
     id: invitation.id,
     email: invitation.email,
     status: invitation.status,
+    role: invitation.role,
     expiresAt: invitation.expiresAt.toISOString(),
     createdAt: invitation.createdAt.toISOString(),
   };
@@ -28,7 +29,9 @@ export function toPendingInvitationDto(
   namesById: Map<string, string>,
 ): PendingInvitationDto {
   const coachName = required(
-    namesById.get(invitation.coachId),
+    namesById.get(
+      required(invitation.coachId, `[account] invitation sans Coach : ${invitation.id}`),
+    ),
     `[account] coach introuvable pour l'invitation ${invitation.id}`,
   );
 

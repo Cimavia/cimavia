@@ -80,6 +80,8 @@ export function capabilityOfNotification(type: NotificationType): TrainingCapabi
     // Les deux réponses à une invitation reviennent à celui qui l'a émise, donc au coach.
     case NotificationType.INVITATION_ACCEPTED:
     case NotificationType.INVITATION_DECLINED:
+    // L'invitation d'une entreprise ne s'accepte qu'en Coach (#601).
+    case NotificationType.ORGANIZATION_INVITATION_RECEIVED:
       return "coach";
     case NotificationType.MESSAGE_RECEIVED:
       return null;

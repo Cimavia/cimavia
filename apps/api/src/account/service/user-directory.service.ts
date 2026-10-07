@@ -40,6 +40,37 @@ export class UserDirectoryService {
     return user?.id ?? null;
   }
 
+  /**
+   * Le compte qui porte cette adresse et s'il coache, ou `null` s'il n'y en a pas — de quoi
+   * choisir le canal de l'invitation d'une entreprise (#601) : notification à un compte Coach,
+   * e-mail à une adresse sans compte, rien du tout à un compte qui ne coache pas.
+   *
+   * Même justification que `athleteIdByEmail`, et même condition : l'appelant ne fait AUCUNE
+   * différence visible entre les trois issues, la création répond à l'identique.
+   */
+  async accountByEmail(email: string): Promise<{ id: string; isCoach: boolean } | null> {
+    return this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { id: true, isCoach: true },
+    });
+  }
+
+  /**
+   * Nom et adresse des comptes demandés — la page Coachs d'une entreprise (#601). Les ids viennent
+   * de ses lignes `OrganizationCoach`, déjà scopées : elle ne lit que ses membres, dont elle a
+   * elle-même saisi l'adresse pour les inviter.
+   */
+  async contactsByIds(ids: string[]): Promise<Map<string, { name: string; email: string }>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, name: true, email: true },
+    });
+    return new Map(users.map((user) => [user.id, { name: user.name, email: user.email }]));
+  }
+
   async namesByIds(ids: string[]): Promise<Map<string, string>> {
     const unique = [...new Set(ids)];
     if (unique.length === 0) return new Map();

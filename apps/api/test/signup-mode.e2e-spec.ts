@@ -21,6 +21,7 @@ import { PrismaService } from "../src/infra/prisma/prisma.service";
 
 const PASSWORD = "password123";
 const COACH_EMAIL = "coach-autorise@cmv.test";
+const COMPANY_EMAIL = "entreprise-autorisee@cmv.test";
 
 type Agent = ReturnType<typeof request.agent>;
 
@@ -33,7 +34,10 @@ let previousAllowed: string | undefined;
 const mailServiceDouble = { isConfigured: true, send: () => Promise.resolve(true) };
 
 /** L'inscription telle que les deux clients l'envoient : capacités, jamais `role` (#12). */
-function signUp(email: string, capabilities: { isCoach: boolean; isAthlete: boolean }) {
+function signUp(
+  email: string,
+  capabilities: { isCoach: boolean; isAthlete: boolean; isCompany?: boolean },
+) {
   return request(baseURL)
     .post("/api/auth/sign-up/email")
     .send({ name: email, email, password: PASSWORD, ...capabilities });
@@ -57,7 +61,7 @@ beforeAll(async () => {
   previousAllowed = process.env.SIGNUP_ALLOWED_EMAILS;
   process.env.SIGNUP_MODE = "invitation";
   // Casse et espaces volontaires : cette liste se tape à la main dans un `.env`.
-  process.env.SIGNUP_ALLOWED_EMAILS = ` Coach-Autorise@CMV.test , autre-coach@cmv.test `;
+  process.env.SIGNUP_ALLOWED_EMAILS = ` Coach-Autorise@CMV.test , autre-coach@cmv.test , ${COMPANY_EMAIL}`;
 
   /**
    * Import DYNAMIQUE, et après les deux lignes ci-dessus — ce n'est pas un détail de style.
@@ -115,7 +119,7 @@ describe("Inscription fermée (#263)", () => {
     await expect(prisma.user.count({ where: { email: "inconnu@cmv.test" } })).resolves.toBe(0);
   });
 
-  // La porte des coachs : personne ne les invite. Le compte ci-dessus a été créé par `beforeAll`,
+  // La porte de ceux que personne n'invite. Le compte ci-dessus a été créé par `beforeAll`,
   // avec une casse et des espaces différents de ceux du `.env` — et c'est exprès.
   it("laisse entrer une adresse listée malgré la casse et les espaces", async () => {
     await expect(prisma.user.count({ where: { email: COACH_EMAIL } })).resolves.toBe(1);
@@ -175,5 +179,67 @@ describe("Inscription fermée (#263)", () => {
 
     const res = await signUp("declinee@cmv.test", { isCoach: false, isAthlete: true });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("Inscription fermée : la porte d'une entreprise et de ses Coachs (#601)", () => {
+  const COMPANY = { isCoach: false, isAthlete: false, isCompany: true };
+  let company: Agent;
+
+  beforeAll(async () => {
+    company = request.agent(baseURL);
+    const created = await company.post("/api/auth/sign-up/email").send({
+      name: "F",
+      email: COMPANY_EMAIL,
+      password: PASSWORD,
+      ...COMPANY,
+    });
+    expect([200, 201]).toContain(created.status);
+  });
+
+  // L'invitation d'une entreprise ouvre la porte comme celle d'un Coach : c'est la même table.
+  it("laisse entrer un Coach invité par une entreprise, qui accepte ensuite", async () => {
+    const invitation = await company
+      .post("/organization/invitations")
+      .send({ email: "c@cmv.test" });
+    expect(invitation.status).toBe(201);
+
+    const coach = request.agent(baseURL);
+    const created = await coach.post("/api/auth/sign-up/email").send({
+      name: "C",
+      email: "c@cmv.test",
+      password: PASSWORD,
+      isCoach: true,
+      isAthlete: false,
+    });
+    expect([200, 201]).toContain(created.status);
+    expect(
+      (await coach.post(`/organization-invitations/${invitation.body.id}/accept`)).status,
+    ).toBe(204);
+  });
+
+  /**
+   * Une invitation n'ouvre jamais une entreprise : sinon quiconque est invité — en athlète ou en
+   * Coach — pourrait en ouvrir une sur un environnement fermé. Elle n'entre que par la liste.
+   */
+  it("refuse une entreprise invitée par une entreprise (403)", async () => {
+    const email = "entreprise-invitee-1@cmv.test";
+    expect((await company.post("/organization/invitations").send({ email })).status).toBe(201);
+
+    const res = await signUp(email, COMPANY);
+
+    expect(res.status).toBe(403);
+    await expect(prisma.user.count({ where: { email } })).resolves.toBe(0);
+  });
+
+  it("refuse une entreprise invitée par un Coach (403)", async () => {
+    const email = "entreprise-invitee-2@cmv.test";
+    const coach = await signUpAgent("autre-coach@cmv.test", Role.COACH);
+    expect((await coach.post("/invitations").send({ email })).status).toBe(201);
+
+    const res = await signUp(email, COMPANY);
+
+    expect(res.status).toBe(403);
+    await expect(prisma.user.count({ where: { email } })).resolves.toBe(0);
   });
 });

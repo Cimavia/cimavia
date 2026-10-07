@@ -407,6 +407,16 @@
       "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
       "declineError": "Impossible de refuser cette invitation. Vérifie ta connexion."
     },
+    "organizationInvitation": {
+      "title": "{{name}} t'invite à rejoindre son équipe",
+      "description": "Tu suivras les athlètes de {{name}}",
+      "expires": "Expire le {{date}}",
+      "accept": "Accepter",
+      "accepting": "Connexion en cours…",
+      "decline": "Refuser",
+      "declineConfirm": "Confirmer le refus",
+      "error": "Impossible de répondre à cette invitation. Vérifie ta connexion."
+    },
     "join": {
       "title": "Aucun coach pour l'instant",
       "description": "Un coach t'invite par ton adresse e-mail : son invitation apparaîtra ici, et tu la rejoindras d'un geste.",
@@ -557,6 +567,7 @@
       "invitationReceived": "{{actor}} t'invite à rejoindre son espace",
       "invitationAccepted": "{{actor}} a rejoint ton espace",
       "invitationDeclined": "{{actor}} a refusé ton invitation",
+      "organizationInvitationReceived": "{{actor}} t'invite à rejoindre son équipe",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {

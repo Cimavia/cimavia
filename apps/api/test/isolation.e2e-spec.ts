@@ -62,6 +62,7 @@ const TABLES = [
   "session",
   "account",
   "verification",
+  "organization_coach",
   "organization",
   "user",
 ];

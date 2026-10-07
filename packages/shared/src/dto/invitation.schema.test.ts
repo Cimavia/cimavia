@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createInvitationSchema,
+  InvitationRole,
   InvitationStatus,
   invitationDtoSchema,
   pendingInvitationDtoSchema,
@@ -10,6 +11,7 @@ const INVITATION = {
   id: "inv_1",
   email: "lea@example.com",
   status: InvitationStatus.PENDING,
+  role: InvitationRole.ATHLETE,
   expiresAt: "2026-09-12T09:00:00.000Z",
   createdAt: "2026-09-05T09:00:00.000Z",
 };
@@ -67,6 +69,16 @@ describe("invitationDtoSchema", () => {
       status: InvitationStatus.DECLINED,
     });
     expect(result.success).toBe(true);
+  });
+
+  // Le rôle proposé est lu par l'entreprise pour ranger ses invitations (#601) : il ne se devine pas.
+  it("exige un rôle connu", () => {
+    expect(
+      invitationDtoSchema.safeParse({ ...INVITATION, role: InvitationRole.COACH }).success,
+    ).toBe(true);
+    const { role: _omitted, ...withoutRole } = INVITATION;
+    expect(invitationDtoSchema.safeParse(withoutRole).success).toBe(false);
+    expect(invitationDtoSchema.safeParse({ ...INVITATION, role: "ADMIN" }).success).toBe(false);
   });
 
   it("refuse un statut inconnu et une échéance qui n'est pas une date ISO", () => {

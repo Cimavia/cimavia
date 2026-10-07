@@ -26,6 +26,7 @@ import { MessageModule } from "./message/message.module";
 import { NotificationModule } from "./notification/notification.module";
 import { loggerOptions } from "./observability/logger.config";
 import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
+import { OrganizationModule } from "./organization/organization.module";
 import { PlanModule } from "./plan/plan.module";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
@@ -59,7 +60,7 @@ import { VersionModule } from "./version/version.module";
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
           trustedOrigins: [...browserOrigins(config), ...MOBILE_SCHEMES],
           sendResetPassword: (params) => passwordReset.send(params),
-          mayCreateAccount: (email) => signup.mayCreateAccount(email),
+          mayCreateAccount: (email, account) => signup.mayCreateAccount(email, account),
         }),
       }),
     }),
@@ -68,6 +69,7 @@ import { VersionModule } from "./version/version.module";
     TenancyModule,
     NotificationModule,
     AccountModule,
+    OrganizationModule,
     ExerciseModule,
     CustomMetricModule,
     SessionModule,

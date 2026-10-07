@@ -1,4 +1,10 @@
-import { ApiError, type InvitationDto, InvitationStatus, required } from "@cmv/shared";
+import {
+  ApiError,
+  type InvitationDto,
+  InvitationRole,
+  InvitationStatus,
+  required,
+} from "@cmv/shared";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
@@ -27,6 +33,7 @@ const revokeInvitation = vi.mocked(accountApi.revokeInvitation);
 const invitation = (overrides: Partial<InvitationDto> = {}): InvitationDto => ({
   id: "inv_1",
   email: "lea@exemple.fr",
+  role: InvitationRole.ATHLETE,
   status: InvitationStatus.PENDING,
   expiresAt: "2026-09-12T09:00:00.000Z",
   createdAt: "2026-09-05T09:00:00.000Z",

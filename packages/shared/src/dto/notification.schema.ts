@@ -41,6 +41,13 @@ export const NotificationType = {
   INVITATION_ACCEPTED: "INVITATION_ACCEPTED",
   INVITATION_DECLINED: "INVITATION_DECLINED",
   /**
+   * Une entreprise invite un Coach à rejoindre son équipe (#601). Un type à part de
+   * `INVITATION_RECEIVED` : le destinataire la lit en Coach, pas en athlète, et l'accepte depuis
+   * son tableau de bord. Émis seulement si l'adresse est celle d'un compte Coach — un compte sans
+   * cette capacité ne peut pas être invité par une entreprise, et ne reçoit rien.
+   */
+  ORGANIZATION_INVITATION_RECEIVED: "ORGANIZATION_INVITATION_RECEIVED",
+  /**
    * Rappel du coach arrivé à échéance (#51). Le SEUL type qui n'existe pas dans l'enum Prisma : il
    * n'est jamais persisté, l'entrée est calculée à chaque lecture depuis la table `reminder`
    * (`reminderToNotificationDto`). Aucun push non plus — il n'y a pas de scheduler pour le déclencher
@@ -135,6 +142,8 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.INVITATION_RECEIVED]: "notification.type.invitationReceived",
   [NotificationType.INVITATION_ACCEPTED]: "notification.type.invitationAccepted",
   [NotificationType.INVITATION_DECLINED]: "notification.type.invitationDeclined",
+  [NotificationType.ORGANIZATION_INVITATION_RECEIVED]:
+    "notification.type.organizationInvitationReceived",
   [NotificationType.REMINDER_DUE]: "notification.type.reminderDue",
 } as const satisfies Record<NotificationType, string>;
 

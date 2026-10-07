@@ -394,6 +394,17 @@ describe("NotificationService — acteur sans nom", () => {
       title: "Invitation refusée",
       body: "Un athlète a refusé ton invitation.",
     },
+    {
+      name: "invitation d'une entreprise",
+      emit: (service: NotificationService) =>
+        service.notifyOrganizationInvitationReceived({
+          coachId: "coach_1",
+          organizationId: "org_1",
+          invitationId: "inv_1",
+        }),
+      title: "Invitation",
+      body: "Une entreprise t'invite à rejoindre son équipe.",
+    },
   ];
 
   it.each(cases)("$name : formule générique quand le compte est introuvable", async (c) => {
