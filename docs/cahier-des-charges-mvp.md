@@ -178,7 +178,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès ou participation *(cible — #605, #611)*. Refus d'une version périmée (409) sur un élément partagé *(cible — #604)*. |
 | **RGPD / hébergement** | Données perso + médias : consentement, droit à l'effacement. **Hébergement en France** (résidence MVP, souveraineté visée — voir §7.5). Caveat : si les données sont qualifiées de **santé**, hébergeur **HDS** requis. |
 | **i18n** | Toutes les chaînes externalisées dès le MVP (FR), EN activable en v1.0. |
-| **Médias** | Compression côté client avant upload. Plafonds : vidéo 60 s / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |
+| **Médias** | Compression côté client avant upload. Plafonds : vidéo **180 s** / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |
 | **Offline** | Lecture des séances de la semaine sans réseau (cache local). |
 | **Notifications** | Push mobile + web. |
 | **Performance** | Consultation fluide en réseau faible. |
@@ -246,7 +246,7 @@ packages/
   tsconfig/   # @cmv/tsconfig — configs TS de base
 ```
 
-L'affichage est conditionné par le **rôle** (`User.role`), pas par la plateforme : les deux rôles accèdent aux deux clients. Conventions détaillées par couche dans `architecture-choice.md`.
+L'affichage est conditionné par les **capacités** (`isCoach` / `isAthlete`, épique #7), pas par la plateforme : les deux capacités accèdent aux deux clients ; `User.role` ne décide plus que l'espace où l'on atterrit. Conventions détaillées par couche dans `architecture-choice.md`.
 
 ### 7.4 Environnements
 - **local** (Docker `postgres:18-alpine`), **preview** (NAS auto-hébergé, `deploy/preview/`), **production** (GitLab Flow : `feature/*` → `main` → `preview` → `production`).
@@ -333,7 +333,7 @@ Deux niveaux à ne pas confondre :
 - `scheduled_session_exercises` est une **copie** des `session_exercises` : modifier une planif n'altère pas la bibliothèque (répond à « modifier un exercice en cours de planif »).
 - `session_feedback` rattaché à `scheduled_sessions` → le coach relie débrief et séance prescrite.
 
-> **Athlète autonome (v1.0) — impact modèle.** Les tables de contenu (`exercises`, `sessions`, `plans`…) sont rattachées à un **propriétaire** (en MVP : `coach_id`). Pour l'auto-coaching, l'athlète autonome devient propriétaire de son propre contenu. Concevoir dès le MVP cette propriété comme un **`owner_id` générique** (profil propriétaire) plutôt qu'un `coach_id` strict évite une migration lourde en v1.0. À trancher au moment de poser le schéma Prisma (voir §15).
+> **Athlète autonome (v1.0) — impact modèle.** Les tables de contenu (`exercises`, `sessions`, `plans`…) sont rattachées à un **propriétaire** (en MVP : `coach_id`). Pour l'auto-coaching, l'athlète autonome devient propriétaire de son propre contenu. ~~Concevoir dès le MVP cette propriété comme un **`owner_id` générique**…~~ **Tranché par l'auto-coaching (épique #7)** : `coach_id` est resté, et un compte qui se coache écrit `coach_id = athlete_id` — aucune migration n'a été nécessaire.
 
 ---
 
@@ -355,7 +355,7 @@ L'isolation des données est garantie **à la couche données**, dans l'API Nest
 ## 10. Gestion des médias
 - Capture via `expo-camera` / `expo-image-picker`.
 - **Compression côté client** avant upload (réduction du coût stockage/bande passante).
-- **Plafonds :** vidéo **60 s max**, **720p max**, **1 Go max**, **10 vidéos** par débrief ; photos **20 max** (100 Mo), réduites à ~1600 px ; **20 notes vocales** (5 min / 100 Mo). Relevés deux fois depuis les valeurs MVP d'origine (50 Mo / 10 Mo / 3 notes) : les tailles en P4, puis les **comptes en #156**, la sélection multiple ayant montré que c'était le nombre qui gênait.
+- **Plafonds :** vidéo **180 s max**, **720p max**, **1 Go max**, **10 vidéos** par débrief ; photos **20 max** (100 Mo), réduites à ~1600 px ; **20 notes vocales** (5 min / 100 Mo). Relevés depuis les valeurs MVP d'origine (60 s, 50 Mo / 10 Mo / 3 notes) : les tailles en P4, la **durée** avec l'envoi découpé des médias, puis les **comptes en #156**, la sélection multiple ayant montré que c'était le nombre qui gênait.
 - Upload vers l'**object storage S3** (Scaleway en MVP) : bucket **privé**, accès via **URLs signées** délivrées par l'API.
 - Vidéos = principal poste de coût : ces plafonds gardent les coûts prévisibles ; bascule vers stockage objet externe + CDN si le volume grandit.
 
@@ -395,11 +395,11 @@ Gratuit au lancement. À structurer ensuite :
 
 ## 15. Questions ouvertes restantes
 - ~~Région d'hébergement~~ → **tranché : France** (preview auto-hébergé sur NAS ; cible de production à choisir entre Scaleway et Clever Cloud selon le cadrage HDS #259, voir §7.5).
-- ~~Limites vidéo MVP~~ → **tranché** : 60 s / 720p. Les tailles ont été relevées depuis (1 Go vidéo, 100 Mo photo/audio) et les comptes aussi (#156 : 10 vidéos + 20 photos) — la durée, elle, n'a pas bougé.
+- ~~Limites vidéo MVP~~ → **tranché** : 60 s / 720p. Tout a été relevé depuis sauf le 720p : la durée (180 s, envoi découpé), les tailles (1 Go vidéo, 100 Mo photo/audio) et les comptes (#156 : 10 vidéos + 20 photos).
 - ~~Débrief par exercice~~ → **tranché** : débrief séance suffit en MVP, par exercice à évaluer plus tard.
 - Les données d'entraînement sont-elles qualifiables de **données de santé** (→ obligation HDS) ? À clarifier juridiquement.
 - Modèle économique : abonnement vs commission — à trancher avant v1.0.
-- **Athlète autonome (v1.0)** : poser la propriété du contenu en `owner_id` générique dès le MVP, ou refactorer à l'arrivée de l'auto-coaching ? À trancher au moment du schéma Prisma (P1).
+- ~~Athlète autonome : `owner_id` générique ou refactor à l'arrivée de l'auto-coaching ?~~ → **tranché** (épique #7) : ni l'un ni l'autre, `coach_id = athlete_id` pour un compte qui se coache (voir §8).
 
 ---
 

@@ -50,7 +50,7 @@ Le lien coach→athlète, **un par couple**, établi par **invitation** — touj
 
 **Via une entreprise** *(cible — #602)* : un athlète invité par l'entreprise F reçoit un lien **par Coach de F**, marqué « via F » ; un Coach qui rejoint F reçoit un lien avec chaque athlète de F. Il n'y a pas de table « relations » : elles se déduisent du lien et de l'appartenance à une entreprise.
 
-### AthleteProfile (fiche athlète)
+### AthleteSheet (fiche athlète)
 Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement**. Pas de structure imposée en MVP.
 
 ---
@@ -159,7 +159,7 @@ Trois règles à connaître :
 - **`coachReadAt`** alimente la tuile « Débriefs à relire ». Sur une planification partagée, le débrief est notifié à **chaque Coach** qui y a accès, et « lu » devient propre à chacun *(cible — #610)*. Il repasse à `null` quand l'athlète complète son débrief — sinon un ajout tardif resterait invisible pour un coach qui l'a déjà ouvert. Seule la **création** notifie le coach (un push par ajout serait du harcèlement).
 
 ### Media
-Photo / vidéo / **note vocale** rattachée à un `SessionFeedback`. L'**audio** (débrief vocal, CDC §4) a rejoint `MediaType` en P5, avec l'enregistreur/lecteur construits pour la messagerie (promus en `shared/component/` côté mobile) — même flux d'upload que photo/vidéo. Stocké en object storage (URL GET signée), compressé côté client. Limites : vidéo **60 s / 720p / 1 Go**, **3 vidéos + 5 photos (100 Mo) + 15 notes vocales** (m4a, ≤ 5 min / 100 Mo) par débrief. Ces valeurs ont été relevées après les plafonds MVP d'origine (50 Mo / 10 Mo / 3 notes) ; elles vivent dans `@cmv/shared` et sont **interpolées** dans les messages de refus.
+Photo / vidéo / **note vocale** rattachée à un `SessionFeedback`. L'**audio** (débrief vocal, CDC §4) a rejoint `MediaType` en P5, avec l'enregistreur/lecteur construits pour la messagerie (promus en `shared/component/` côté mobile) — même flux d'upload que photo/vidéo. Stocké en object storage (URL GET signée), compressé côté client. Limites : vidéo **180 s / 720p / 1 Go**, **10 vidéos + 20 photos (100 Mo) + 20 notes vocales** (m4a, ≤ 5 min / 100 Mo) par débrief. Ces valeurs ont été relevées depuis les plafonds MVP d'origine (60 s, 50 Mo / 10 Mo / 3 notes) : les tailles en P4, la durée avec l'envoi découpé, les comptes en #156 ; elles vivent dans `@cmv/shared` et sont **interpolées** dans les messages de refus.
 
 Contrairement à un `Document` de la bibliothèque, un média de débrief n'est **jamais copié ni partagé** : sa clé objet n'appartient qu'à lui, donc sa suppression purge l'objet **directement**, sans garde de comptage.
 
@@ -221,7 +221,7 @@ Trois règles à connaître :
 
 - **Invariant** : 1 `Athlete` = **0..N `Coach`** *(cible — #599 ; aujourd'hui 0 ou 1)*, un lien par couple, en direct ou via une entreprise. 1 `Coach` = N `Athlete`, et 0..N entreprises. Le compte Entreprise n'a accès à **aucun** contenu d'entraînement.
 - **Trois formes de scope**, toujours au sein de la capacité exercée — jamais un `OR` entre les deux : **colonne directe** (aujourd'hui partout), **élément partageable** — propriétaire, ou droit d'accès qui vise l'acteur ou l'une de ses entreprises *(cible — #603, #605)* —, **participation** à une conversation *(cible — #611)*.
-- Presque toute entité par couple (`Plan`, `SessionFeedback`, `Invoice`, `AthleteProfile`…) est **scopée à la relation `CoachAthlete`**.
+- Presque toute entité par couple (`Plan`, `SessionFeedback`, `Invoice`, `AthleteSheet`…) est **scopée à la relation `CoachAthlete`**.
 - La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) appartient à **un coach** (`coachId`), qui peut l'ouvrir aux Coachs de ses entreprises *(cible — #605)* : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux capacités** : chaque table porte donc `coachId` ET `athleteId` en direct.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
