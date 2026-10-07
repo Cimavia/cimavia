@@ -20,7 +20,8 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#68](https://github.com/Cimavia/cimavia/issues/68) pagination ·
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
-[#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète — plus neuf issues
+[#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète ·
+[#593](https://github.com/Cimavia/cimavia/issues/593) entreprises et multi-coach — plus neuf issues
 autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
@@ -2067,6 +2068,12 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > Conséquence tenue : le scope tenant reste **une colonne unique**, jamais un `OR` sur les deux. La
 > règle dure n°1 ne change pas de forme. Une liste fusionnée l'aurait exigé, en contredisant au
 > passage les sections nommées de #129.
+>
+> *Renversé en [#593](https://github.com/Cimavia/cimavia/issues/593)* pour sa première moitié : la
+> colonne unique cède à un **filtre composé au sein d'une capacité** — propriétaire, ou droit
+> d'accès qui vise l'acteur ou l'une de ses entreprises, ou participation à une conversation (voir
+> « Tranché en #593 »). La seconde moitié tient : **jamais un `OR` entre les deux capacités**, et un
+> compte qui cumule ne voit toujours qu'un espace à la fois.
 
 > **Tranché en #10** (`role` disparaît du `TenantContext`) : une fois les cinq branchements
 > convertis, plus rien ne le lisait côté API. Le retirer transforme la règle en contrainte — un
@@ -5274,6 +5281,61 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   avec une addition naïve de 24 h — vérifié en la réintroduisant.
 > - **Hors de cette issue** : un écran resté ouvert au passage de minuit garde la date du jour où
 >   il a été rendu. Aucun retour ne l'a signalé.
+
+---
+
+## v1.0 — Entreprises, plusieurs Coachs par athlète, droits d'accès ([#593](https://github.com/Cimavia/cimavia/issues/593))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| MC-1 | **Les docs décrivent la cible avant le code** ([#594](https://github.com/Cimavia/cimavia/issues/594)) : règle dure n°1, `architecture-choice.md` §6, `CONTEXT.cimavia.md` et le cahier des charges posent déjà les règles de l'épic. Chaque affirmation que le code ne tient pas encore porte un marqueur *(cible — #N)* ; la PR de #N le retire en rendant la règle vraie. | 🟡 | [#593](https://github.com/Cimavia/cimavia/issues/593) — résolue au dernier marqueur retiré (`grep -rnE "cible — #[0-9]" CLAUDE.md docs/`) |
+
+> **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
+> phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
+> des fils à deux — le modèle ne savait représenter ni C et M suivant TI ensemble, ni M ajustant le
+> cycle que C a écrit.
+>
+> - **Entreprise** : un compte **dédié et exclusif** (capacité `company`, jamais cumulée avec
+>   Coach ou athlète), choisi en premier à l'inscription. Il ajoute ses Coachs, invite des
+>   athlètes, et ne voit **aucun contenu en v1**. L'entreprise est une table (`Organization`)
+>   distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son
+>   espace vit sur le web seul ; le mobile y renvoie.
+> - **Relations sans table dédiée** : elles se déduisent du lien coach-athlète et de
+>   l'appartenance à une entreprise. Un athlète a **0..N Coachs**, en direct ou via une
+>   entreprise ; un Coach appartient à 0..N entreprises. Un athlète invité par F reçoit **un lien
+>   par Coach de F**, marqué « via F », et un Coach qui rejoint F reçoit un lien avec chaque athlète
+>   de F : planifications, débriefs, factures, fiches et conversations restent **par couple**.
+> - **Droits d'accès par élément** (exercice, séance, planification) : `READ` ou `WRITE`, accordés à
+>   une entreprise ou à un Coach de ses entreprises. Un droit accordé à F vaut pour ses Coachs, pas
+>   pour le compte F. La ligne d'un Coach l'emporte sur celle de son entreprise, `NONE` compris ; un
+>   Coach de plusieurs entreprises hérite du droit le plus large.
+> - **Écrire n'est pas posséder** : `WRITE` modifie le contenu, enfants et publication compris.
+>   Supprimer l'élément, gérer ses accès et réaffecter une planification à un autre athlète restent
+>   au **propriétaire**. Les enfants suivent leur racine (semaines, séances planifiées, débriefs et
+>   facture suivent la planification ; documents et tags suivent l'exercice) ; une facture sans
+>   planification reste privée.
+> - **Une planification ne se partage qu'avec les Coachs de son athlète** ; sans athlète, elle se
+>   partage comme un exercice. Celle d'un athlète d'entreprise est ouverte **en écriture à
+>   l'entreprise par défaut** : M la crée, C l'ajuste.
+> - **Une séance qui cite l'exercice d'un autre Coach le référence en direct** ; si l'accès
+>   disparaît ou si l'exercice est supprimé, elle en garde une **copie figée**.
+> - **Plus d'écrasement silencieux** : une version périmée est refusée (409) sur tout élément
+>   partagé.
+> - **Suivi** : le débrief d'une planification partagée est notifié à tous les Coachs qui y ont
+>   accès, et « lu » devient propre à chacun. Partager ne notifie rien ; les rappels restent au seul
+>   propriétaire.
+> - **Messagerie à participants**, chacun avec sa marque de lecture. Une conversation à deux reste
+>   unique par paire. On écrit à ses Coachs, à ses athlètes et aux Coachs de ses entreprises ; les
+>   participants sont fixés à la création, sans nom de groupe ; le compte Entreprise n'est dans
+>   aucune conversation.
+> - **Ce qui tient de #10** : deux capacités, deux scopes, jamais un `OR` entre elles. Ce qui cède :
+>   la colonne unique — au sein d'une capacité, le scope devient propriété, droit d'accès ou
+>   participation (voir le renversement sous « Tranché en #10 »).
+> - **Hors de l'épic** : retirer un membre d'une entreprise ou la quitter (dépend de
+>   [#213](https://github.com/Cimavia/cimavia/issues/213)), affecter un athlète d'entreprise à
+>   certains Coachs seulement, ce que voit le compte Entreprise, partager hors de ses entreprises,
+>   une fiche athlète commune, modifier les participants d'une conversation. Rangés en v1.x au §4
+>   du cahier des charges.
 
 ---
 
