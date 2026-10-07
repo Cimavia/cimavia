@@ -1,1 +1,1 @@
-export { JoinCoachScreen as default } from "@/feature/coach";
+export { MyCoachesScreen as default } from "@/feature/coach";

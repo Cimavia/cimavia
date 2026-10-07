@@ -23,7 +23,6 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { type ChangeEvent, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMyCoach } from "@/feature/coach";
 import { FeedbackMediaGallery } from "@/feature/feedback/component/FeedbackMediaGallery";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
 import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
@@ -33,7 +32,7 @@ import {
   useAddFeedbackMedia,
   useDeleteFeedbackMedia,
 } from "@/feature/feedback/hook/useMyFeedbackMedia";
-import { useMyConversation } from "@/feature/message/hook/useMessages";
+import { useConversationWithCoach } from "@/feature/message/hook/useMessages";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import {
@@ -44,6 +43,7 @@ import {
   CmvProgressBar,
   CmvTextArea,
 } from "@/shared/component";
+import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { useWebAudioRecorder } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
@@ -199,7 +199,11 @@ function FeedbackBody({
           {/* La conversation avec le coach, LÀ OÙ ELLE A COMMENCÉ. Rien tant que le débrief
               n'existe pas : on ne répond pas à ce qu'on n'a pas encore écrit. */}
           {feedback == null ? null : (
-            <FeedbackReplyDiscussion sessionId={sessionId} feedback={feedback} />
+            <FeedbackReplyDiscussion
+              sessionId={sessionId}
+              coachId={session?.coachId ?? null}
+              feedback={feedback}
+            />
           )}
         </div>
 
@@ -531,15 +535,21 @@ function resolveMediaError(error: unknown, manualKey: string | null, t: TFunctio
  * depuis le débrief éteindrait le compteur de toute la messagerie, y compris pour des messages que
  * l'athlète n'a jamais vus. Le badge reste donc allumé jusqu'à l'ouverture du fil — conséquence
  * voulue, et cohérente avec « `Message.readAt` reste le seul marqueur ».
+ *
+ * Le fil est celui du coach DE LA SÉANCE (#599) : un athlète suivi par plusieurs coachs répond à
+ * celui qui a programmé ce qu'il débriefe, pas à un coach choisi au hasard. `null` tant que la
+ * séance n'est pas lue — rien ne s'ouvre.
  */
 function FeedbackReplyDiscussion({
   sessionId,
+  coachId,
   feedback,
-}: Readonly<{ sessionId: string; feedback: SessionFeedbackDto }>) {
+}: Readonly<{ sessionId: string; coachId: string | null; feedback: SessionFeedbackDto }>) {
   const queryClient = useQueryClient();
-  const { data: coach } = useMyCoach();
-  // Un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait.
-  const conversation = useMyConversation(coach != null);
+  // Une séance qu'il s'est programmée lui-même n'a personne à qui répondre : le fil `(soi, soi)`
+  // n'existe pas, l'API refuserait de l'ouvrir.
+  const isSelf = useIsSelfAthlete()(coachId ?? "");
+  const conversation = useConversationWithCoach(isSelf ? null : coachId);
   const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(sessionId));
 
   return (
@@ -548,6 +558,7 @@ function FeedbackReplyDiscussion({
       messages={feedback.messages}
       conversationId={conversation.data?.id}
       isThreadError={conversation.isError}
+      isSelf={isSelf}
       // Son PROPRE débrief, pas la boîte du coach : c'est là que la réponse doit réapparaître.
       onSent={() => queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) })}
       resolveMediaUrl={freshMediaUrl}

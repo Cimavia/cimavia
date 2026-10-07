@@ -15,6 +15,7 @@ vi.mock("@cmv/shared", async (importOriginal) => {
 function plan(over: Partial<PlanSummaryDto> & Pick<PlanSummaryDto, "id">): PlanSummaryDto {
   return {
     coachId: "usr_coach",
+    coachName: "Julie Renaud",
     athleteId: "ath_lea",
     athleteName: "Léa Bonnet",
     athleteEmail: "lea@example.test",

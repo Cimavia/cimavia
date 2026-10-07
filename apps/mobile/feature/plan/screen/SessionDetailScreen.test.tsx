@@ -153,6 +153,8 @@ function session(overrides: Partial<ScheduledSessionDto> = {}): ScheduledSession
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: overrides.exercises?.length ?? 0,
     updatedAt: "2026-08-10T00:00:00.000Z",
+    coachId: "coach_1",
+    coachName: "Julie Renaud",
     exercises: [],
     ...overrides,
   };

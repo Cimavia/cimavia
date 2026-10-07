@@ -272,13 +272,19 @@ describe("Isolation multi-tenant (P1)", () => {
   });
 
   it("un athlète lié voit SON coach ; un athlète autonome n'en a aucun", async () => {
-    const mine = await athleteA1.get("/me/coach");
+    const mine = await athleteA1.get("/me/coaches");
     expect(mine.status).toBe(200);
-    expect(mine.body.coachId).toBe(coachAId);
+    expect(mine.body.map((relation: { coachId: string }) => relation.coachId)).toEqual([coachAId]);
 
-    const none = await athleteC.get("/me/coach");
+    // Une liste vide, pas `null` : l'autonomie est un état prévu, pas une absence de réponse.
+    const none = await athleteC.get("/me/coaches");
     expect(none.status).toBe(200);
-    expect(none.body).toBeNull();
+    expect(none.body).toEqual([]);
+  });
+
+  // L'ancien contrat d'un athlète à un seul coach est retiré (#599) : la route n'existe plus.
+  it("ne sert plus la route d'un coach unique", async () => {
+    expect((await athleteA1.get("/me/coach")).status).toBe(404);
   });
 
   it("un coach ne peut PAS lire la fiche d'un athlète d'un autre coach", async () => {
@@ -322,10 +328,12 @@ describe("Isolation multi-tenant (P1)", () => {
     expect((await athleteC.get("/athletes")).status).toBe(403);
   });
 
-  it("un athlète déjà lié ne peut pas rejoindre un second coach", async () => {
-    const inv = await inviteFor(coachB, athleteA1);
+  // Un lien par COUPLE (#599) : un second coach est permis, un second lien au même ne l'est pas.
+  it("un athlète déjà suivi ne rejoint pas une seconde fois le même coach", async () => {
+    const inv = await inviteFor(coachA, athleteA1);
     const res = await athleteA1.post(`/invitations/${inv.body.id}/accept`);
     expect(res.status).toBe(409);
+    expect(res.body.message).toBe("Tu es déjà suivi par ce coach");
   });
 
   it("une requête non authentifiée est refusée", async () => {
@@ -4387,7 +4395,7 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
   });
 
   it("l'athlète ouvre SON fil (même conversation, contrepartie = le coach)", async () => {
-    const res = await athleteA1.post("/conversations").send({});
+    const res = await athleteA1.post("/conversations").send({ coachId: coachAId });
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(conversationId);
     expect(res.body.counterpartId).toBe(coachAId);
@@ -4406,8 +4414,15 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
     expect(res.status).toBe(400);
   });
 
+  // Le symétrique côté athlète (#599) : il a 0..N coachs, et le fil se désigne, il ne se devine pas.
+  it("un athlète sans coach visé ne peut pas ouvrir de fil (400)", async () => {
+    const res = await athleteA1.post("/conversations").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("coachId requis pour ouvrir un fil");
+  });
+
   it("un athlète autonome (0 coach) n'a pas de messagerie (400)", async () => {
-    const res = await autonome.post("/conversations").send({});
+    const res = await autonome.post("/conversations").send({ coachId: coachAId });
     expect(res.status).toBe(400);
   });
 
@@ -7132,6 +7147,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
   let coach: Agent;
   let athlete: Agent;
   let athleteId: string;
+  let coachId: string;
 
   beforeAll(async () => {
     coach = await signUp("coach-parity@cmv.test", Role.COACH);
@@ -7140,6 +7156,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
     const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     athleteId = accepted.body.athleteId;
+    coachId = accepted.body.coachId;
   });
 
   /**
@@ -7149,7 +7166,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
    */
   it("refuse au coach les surfaces /me de l'athlète", async () => {
     expect((await coach.get("/me/plans")).status).toBe(403);
-    expect((await coach.get("/me/coach")).status).toBe(403);
+    expect((await coach.get("/me/coaches")).status).toBe(403);
   });
 
   /**
@@ -7199,7 +7216,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
 
   /**
    * La messagerie est le seul domaine ouvert aux deux rôles de bout en bout. L'ouverture d'un fil
-   * se distingue par le seul CORPS : `athleteId` présent côté coach, absent côté athlète — et un
+   * se distingue par le seul CORPS : `athleteId` côté coach, `coachId` côté athlète (#599) — et un
    * athlète qui tenterait de cibler quelqu'un d'autre ne doit pas y arriver.
    */
   it("ouvre la messagerie aux deux rôles, chacun de son côté", async () => {
@@ -7207,14 +7224,14 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
     expect(opened.status).toBe(201);
     expect(opened.body.counterpartId).toBe(athleteId);
 
-    const mine = await athlete.post("/conversations").send({});
+    const mine = await athlete.post("/conversations").send({ coachId });
     expect(mine.status).toBe(201);
     expect(mine.body.id).toBe(opened.body.id);
   });
 
   /**
-   * Côté athlète, `athleteId` est **ignoré** — pas refusé : `resolvePair` lit sa relation scopée et
-   * pose `athleteId: actor.userId`. Un athlète qui viserait quelqu'un d'autre récupère donc SON
+   * Côté athlète, `athleteId` est **ignoré** — pas refusé : `resolvePair` vérifie le coach désigné
+   * et pose `athleteId: actor.userId`. Un athlète qui viserait quelqu'un d'autre récupère donc SON
    * propre fil, pas celui d'un tiers. C'est le comportement voulu, et ce test le fige : le jour où
    * quelqu'un « corrigerait » le service pour honorer le champ, il ouvrirait une fuite entre
    * tenants.
@@ -7226,7 +7243,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
 
     const hijack = await athlete
       .post("/conversations")
-      .send({ athleteId: otherAccepted.body.athleteId });
+      .send({ athleteId: otherAccepted.body.athleteId, coachId });
     expect(hijack.status).toBe(201);
     // Le fil rendu est celui de l'athlète courant avec SON coach, jamais celui du tiers visé.
     expect(hijack.body.counterpartId).not.toBe(otherAccepted.body.athleteId);
@@ -7362,6 +7379,171 @@ describe("Double capacité : le scope suit le titre auquel on lit (#10)", () => 
   });
 });
 
+describe("Plusieurs coachs par athlète (#599)", () => {
+  let coachC: Agent;
+  let coachM: Agent;
+  let athlete: Agent;
+  let cId: string;
+  let mId: string;
+  let tiId: string;
+  let fromC: { planId: string; sessionId: string };
+  let fromM: { planId: string; sessionId: string };
+
+  const monday = mondayOfCurrentWeek();
+
+  // Un cycle d'une semaine, une séance au lundi, facturé et diffusé : de quoi lire de chaque côté.
+  async function publishedCycle(coach: Agent, title: string) {
+    const template = await coach.post("/sessions").send({ title, notes: null, exercises: [] });
+    const plan = await coach.post("/plans").send({
+      athleteId: tiId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    const scheduled = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
+    expect(scheduled.status).toBe(201);
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+    return { planId: plan.body.id as string, sessionId: scheduled.body.id as string };
+  }
+
+  beforeAll(async () => {
+    coachC = await signUp("multi-coach-c@cmv.test", Role.COACH);
+    coachM = await signUp("multi-coach-m@cmv.test", Role.COACH);
+    athlete = await signUp("multi-athlete-ti@cmv.test", Role.ATHLETE);
+
+    const withC = await linkRelation(coachC, athlete);
+    const withM = await linkRelation(coachM, athlete);
+    cId = withC.coachId;
+    mId = withM.coachId;
+    tiId = withC.athleteId;
+
+    fromC = await publishedCycle(coachC, "Cycle de C");
+    fromM = await publishedCycle(coachM, "Cycle de M");
+  });
+
+  it("l'athlète voit ses deux coachs, et chaque coach le voit parmi ses athlètes", async () => {
+    const coaches = await athlete.get("/me/coaches");
+    expect(coaches.status).toBe(200);
+    expect(coaches.body.map((relation: { coachId: string }) => relation.coachId).sort()).toEqual(
+      [cId, mId].sort(),
+    );
+    expect(
+      coaches.body.map((relation: { coachName: string }) => relation.coachName).sort(),
+    ).toEqual(["multi-coach-c@cmv.test", "multi-coach-m@cmv.test"]);
+
+    for (const coach of [coachC, coachM]) {
+      const athletes = await coach.get("/athletes");
+      expect(athletes.body.map((relation: { athleteId: string }) => relation.athleteId)).toEqual([
+        tiId,
+      ]);
+    }
+  });
+
+  it("un athlète autonome n'a aucun coach — une liste vide, pas une erreur", async () => {
+    const autonome = await signUp("multi-autonome@cmv.test", Role.ATHLETE);
+    const res = await autonome.get("/me/coaches");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("la liste des coachs reste fermée au titre de coach", async () => {
+    expect((await coachC.get("/me/coaches")).status).toBe(403);
+  });
+
+  it("l'athlète reçoit les cycles des deux, chacun nommant son coach", async () => {
+    const plans = await athlete.get("/me/plans");
+    expect(plans.status).toBe(200);
+    const byId = new Map(
+      plans.body.map((plan: { id: string; coachName: string }) => [plan.id, plan.coachName]),
+    );
+    expect(byId.get(fromC.planId)).toBe("multi-coach-c@cmv.test");
+    expect(byId.get(fromM.planId)).toBe("multi-coach-m@cmv.test");
+    expect(byId.size).toBe(2);
+
+    const session = await athlete.get(`/me/scheduled-sessions/${fromM.sessionId}`);
+    expect(session.status).toBe(200);
+    expect(session.body).toMatchObject({ coachId: mId, coachName: "multi-coach-m@cmv.test" });
+  });
+
+  it("aucun des deux coachs ne voit le cycle ni la séance de l'autre", async () => {
+    expect((await coachC.get("/plans")).body.map((plan: { id: string }) => plan.id)).toEqual([
+      fromC.planId,
+    ]);
+    expect((await coachC.get(`/plans/${fromM.planId}`)).status).toBe(404);
+    expect((await coachM.get(`/plans/${fromC.planId}`)).status).toBe(404);
+    expect((await coachC.get(`/scheduled-sessions/${fromM.sessionId}`)).status).toBe(404);
+  });
+
+  it("l'athlète reçoit les deux factures ; chaque coach ne voit que la sienne", async () => {
+    const invoices = await athlete.get("/invoices");
+    expect(invoices.body.map((invoice: { coachId: string }) => invoice.coachId).sort()).toEqual(
+      [cId, mId].sort(),
+    );
+
+    const ofC = await coachC.get("/invoices");
+    expect(ofC.body.map((invoice: { planId: string }) => invoice.planId)).toEqual([fromC.planId]);
+    const ofM = await coachM.get("/invoices");
+    expect(ofM.body.map((invoice: { planId: string }) => invoice.planId)).toEqual([fromM.planId]);
+  });
+
+  it("l'athlète ouvre un fil avec chacun de ses coachs, et ce sont deux fils", async () => {
+    const withC = await athlete.post("/conversations").send({ coachId: cId });
+    const withM = await athlete.post("/conversations").send({ coachId: mId });
+    expect(withC.status).toBe(201);
+    expect(withM.status).toBe(201);
+    expect(withC.body.counterpartId).toBe(cId);
+    expect(withM.body.counterpartId).toBe(mId);
+    expect(withC.body.id).not.toBe(withM.body.id);
+
+    // Le MÊME fil que celui que le coach ouvre de son côté.
+    const fromCoach = await coachM.post("/conversations").send({ athleteId: tiId });
+    expect(fromCoach.body.id).toBe(withM.body.id);
+  });
+
+  it("refuse un fil avec un coach qui ne le suit pas, ou avec soi-même", async () => {
+    const stranger = await signUp("multi-coach-stranger@cmv.test", Role.COACH);
+    const strangerId = (await stranger.get("/api/auth/get-session")).body.user.id;
+
+    const foreign = await athlete.post("/conversations").send({ coachId: strangerId });
+    expect(foreign.status).toBe(400);
+    expect(foreign.body.message).toBe("Coach inconnu");
+
+    const self = await athlete.post("/conversations").send({ coachId: tiId });
+    expect(self.status).toBe(409);
+  });
+
+  it("aucun coach ne lit le fil de l'autre — un débrief va au fil du coach de la séance", async () => {
+    const withC = await athlete.post("/conversations").send({ coachId: cId });
+    const sent = await athlete
+      .post(`/conversations/${withC.body.id}/messages`)
+      .send({ type: "TEXT", content: "Pour C seulement" });
+    expect(sent.status).toBe(201);
+
+    // M débriefé : l'avis tombe dans le fil (M, TI), pas dans celui de C.
+    const feedback = await athlete
+      .put(`/me/scheduled-sessions/${fromM.sessionId}/feedback`)
+      .send({ content: "Séance de M faite" });
+    expect(feedback.status).toBe(200);
+
+    expect((await coachM.get(`/conversations/${withC.body.id}/messages`)).status).toBe(404);
+    const threadsOfM = await coachM.get("/conversations");
+    expect(
+      threadsOfM.body.map((thread: { counterpartId: string }) => thread.counterpartId),
+    ).toEqual([tiId]);
+    const withM = required(threadsOfM.body[0], "fil de M") as { id: string };
+    const messagesOfM = await coachM.get(`/conversations/${withM.id}/messages`);
+    expect(
+      messagesOfM.body.map((message: { content: string | null }) => message.content),
+    ).not.toContain("Pour C seulement");
+
+    const messagesOfC = await coachC.get(`/conversations/${withC.body.id}/messages`);
+    expect(messagesOfC.body.map((message: { type: string }) => message.type)).toEqual(["TEXT"]);
+  });
+});
+
 describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () => {
   /**
    * Chaîne A → B → C : chacun coache le suivant. Elle n'est possible que parce que B et C portent
@@ -7424,6 +7606,42 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
   });
 
   /**
+   * Le losange (#599) : A suivi par B et C, tous deux suivis par D. La remontée depuis A atteint D
+   * deux fois sans aucune boucle — l'ensemble de visités de #11 y aurait vu un cycle et répondu
+   * 500 à une invitation valide.
+   */
+  it("laisse un tiers rejoindre le bas d'un losange de coachs", async () => {
+    const both = { isCoach: true, isAthlete: true };
+    const d = await signUpWith("cycle-diamond-d@cmv.test", both);
+    const b = await signUpWith("cycle-diamond-b@cmv.test", both);
+    const c = await signUpWith("cycle-diamond-c@cmv.test", both);
+    const a = await signUpWith("cycle-diamond-a@cmv.test", both);
+    await linkRelation(d, b);
+    await linkRelation(d, c);
+    await linkRelation(b, a);
+    await linkRelation(c, a);
+    const outsider = await signUp("cycle-diamond-outsider@cmv.test", Role.ATHLETE);
+
+    const invitation = await inviteFor(a, outsider);
+    expect((await outsider.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
+  });
+
+  // Deux coachs ne cachent pas la boucle : elle remonte par l'un d'eux, pas par l'autre.
+  it("refuse la boucle qui remonterait par l'un de deux coachs", async () => {
+    const both = { isCoach: true, isAthlete: true };
+    const top = await signUpWith("cycle-branch-top@cmv.test", both);
+    const left = await signUpWith("cycle-branch-left@cmv.test", both);
+    const right = await signUpWith("cycle-branch-right@cmv.test", both);
+    const bottom = await signUpWith("cycle-branch-bottom@cmv.test", both);
+    await linkRelation(top, left);
+    await linkRelation(right, bottom);
+    await linkRelation(left, bottom);
+
+    const invitation = await inviteFor(bottom, top);
+    expect((await top.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(409);
+  });
+
+  /**
    * Anti-self. Inatteignable avant #9/#10 : accepter exige la capacité athlète, qu'un coach
    * n'avait pas. Un compte qui cumule peut désormais présenter son propre code.
    */
@@ -7466,7 +7684,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
       const res = await outsider.post(`/invitations/${invitation.body.id}/accept`);
 
       expect(res.status).toBe(500);
-      expect((await outsider.get("/me/coach")).body).toBeNull();
+      expect((await outsider.get("/me/coaches")).body).toEqual([]);
     } finally {
       await prisma.coachAthlete.delete({ where: { id: corrupt.id } });
     }
@@ -7618,7 +7836,7 @@ describe("Capacités modifiables après coup (#13)", () => {
       status: 410,
       message: "Invitation retirée par le coach",
     });
-    expect((await athlete.get("/me/coach")).body).toBeNull();
+    expect((await athlete.get("/me/coaches")).body).toEqual([]);
   });
 
   // Le retrait ne touche que l'attente : une relation nouée reste tracée, un refus reste un refus.
@@ -7937,7 +8155,10 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
       409,
     );
-    expect((await solo.post("/conversations?as=athlete").send({})).status).toBe(400);
+    // Le même refus des deux côtés : se viser soi-même est impossible, pas inconnu (#198, #599).
+    expect((await solo.post("/conversations?as=athlete").send({ coachId: soloId })).status).toBe(
+      409,
+    );
   });
 });
 
@@ -7957,7 +8178,7 @@ describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
   });
 
   // Sans garde de capacité : un athlète autonome obtient une réponse là où `GET /athletes` et
-  // `GET /me/coach` lui donneraient un 403 et un `null`.
+  // `GET /me/coaches` lui donneraient un 403 et une liste vide.
   it("répond à un athlète autonome sans exiger de capacité", async () => {
     const athlete = await signUp("cp-autonomous@cmv.test", Role.ATHLETE);
     expect((await athlete.get("/athletes")).status).toBe(403);
@@ -8081,10 +8302,11 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     const dual = await signUpWith("vent-msg-dual@cmv.test", { isCoach: true, isAthlete: true });
     const myAthlete = await signUp("vent-msg-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(dual, myAthlete);
-    expect((await myAthlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
+    const accepted = await myAthlete.post(`/invitations/${invitation.body.id}/accept`);
+    expect(accepted.status).toBe(201);
 
     // L'athlète écrit à son coach : le coach (donc `dual`) reçoit un MESSAGE_RECEIVED non lu.
-    const thread = await myAthlete.post("/conversations").send({});
+    const thread = await myAthlete.post("/conversations").send({ coachId: accepted.body.coachId });
     expect(thread.status).toBe(201);
     expect(
       (
@@ -8110,7 +8332,8 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     });
     const athlete = await signUp("vent-solo-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const id = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body.athleteId;
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
+    const id = accepted.body.athleteId;
 
     const plan = await coach.post("/plans").send({
       athleteId: id,
@@ -8126,7 +8349,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     // Et l'autre moitié : un message reçu par un coach SANS capacité athlète reste côté coach,
     // sans qu'on ait à demander aux fils de quel côté il le tient.
-    const thread = await athlete.post("/conversations").send({});
+    const thread = await athlete.post("/conversations").send({ coachId: accepted.body.coachId });
     expect(
       (
         await athlete
@@ -8264,13 +8487,19 @@ describe("Isolation multi-capacité (#18)", () => {
   });
 
   /**
-   * L'invariant qui tient tout : un athlète a AU PLUS un coach, y compris quand il en est un
-   * lui-même. Cumuler ne permet pas de se rattacher à un second.
+   * Un second coach (#599), y compris pour un compte qui en est un lui-même — et le dernier test
+   * du bloc, parce qu'il change ce que `dual` reçoit. Rejoindre `stranger` ne lui ouvre que ce que
+   * `stranger` lui adresse : ni sa bibliothèque, ni le cycle de son autre athlète.
    */
-  it("ne laisse pas un compte à double capacité rejoindre un second coach", async () => {
+  it("laisse un compte à double capacité rejoindre un second coach, sans rien voir de plus", async () => {
     const invitation = await inviteFor(stranger, dual);
-    const res = await dual.post(`/invitations/${invitation.body.id}/accept`);
-    expect(res.status).toBe(409);
+    expect((await dual.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
+
+    expect((await dual.get("/me/coaches")).body).toHaveLength(2);
+    expect((await dual.get(`/exercises/${strangerExerciseId}`)).status).toBe(404);
+    expect((await dual.get("/me/plans")).body.map((plan: { id: string }) => plan.id)).not.toContain(
+      strangerPlanId,
+    );
   });
 });
 
@@ -8657,7 +8886,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
       expect(late.status).toBe(400);
       expect(late.body.message).toBe("Invitation expirée");
     }
-    expect((await athlete.get("/me/coach")).body).toBeNull();
+    expect((await athlete.get("/me/coaches")).body).toEqual([]);
     const seenByCoach = (await coach.get("/invitations")).body.find(
       (row: { id: string }) => row.id === invitation.body.id,
     );
@@ -8934,7 +9163,7 @@ describe("Retirer une invitation en attente (#524)", () => {
       });
       expect((await other.post(`/invitations/${invitation.body.id}/${action}`)).status).toBe(404);
     }
-    expect((await athlete.get("/me/coach")).body).toBeNull();
+    expect((await athlete.get("/me/coaches")).body).toEqual([]);
   });
 
   // L'expiration est une date, pas un statut : une invitation périmée reste à retirer.

@@ -6,6 +6,7 @@ import { renderInRoute } from "../../../../test/render";
 function draft(over: Partial<PlanSummaryDto> & Pick<PlanSummaryDto, "id">): PlanSummaryDto {
   return {
     coachId: "usr_coach",
+    coachName: "Julie Renaud",
     athleteId: null,
     athleteName: null,
     athleteEmail: null,

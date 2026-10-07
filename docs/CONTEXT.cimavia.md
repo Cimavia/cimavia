@@ -32,7 +32,7 @@ Identité authentifiée (gérée par Better Auth). Porte deux **capacités cumul
 Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exercices/séances, ses planifications, ses factures, et participe à ses conversations. Appartient à **0..N entreprises** *(cible — #601)*, dont il peut lire ou modifier ce que les autres Coachs lui ouvrent *(cible — #605)*.
 
 ### Athlete
-Un `User` qui porte `isAthlete`, suivi par **0..N Coachs** *(cible — #599 ; aujourd'hui au plus un, unicité en base)*, en direct ou via une entreprise *(cible — #602)*. Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
+Un `User` qui porte `isAthlete`, suivi par **0..N Coachs**, en direct ou via une entreprise *(cible — #602)*. Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
 
 ### Organization (entreprise)
 Une structure qui réunit des Coachs *(cible — #600)*. Interface : « Entreprise » ; code : `Organization`. Elle s'ouvre par un **compte Entreprise**, dédié et **exclusif** : un `User` qui porte la capacité `company`, jamais cumulée avec `isCoach` ou `isAthlete` — il ne coache ni ne s'entraîne. Il ajoute ses Coachs (#601) et invite des athlètes (#602), et ne voit **aucun contenu** en v1. La table est distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son espace vit sur le **web** seulement ; le mobile y renvoie.
@@ -219,7 +219,7 @@ Trois règles à connaître :
 
 ## Multi-tenant (frontière de données)
 
-- **Invariant** : 1 `Athlete` = **0..N `Coach`** *(cible — #599 ; aujourd'hui 0 ou 1)*, un lien par couple, en direct ou via une entreprise. 1 `Coach` = N `Athlete`, et 0..N entreprises. Le compte Entreprise n'a accès à **aucun** contenu d'entraînement.
+- **Invariant** : 1 `Athlete` = **0..N `Coach`**, un lien par couple, en direct ou via une entreprise. 1 `Coach` = N `Athlete`, et 0..N entreprises. Le compte Entreprise n'a accès à **aucun** contenu d'entraînement.
 - **Trois formes de scope**, toujours au sein de la capacité exercée — jamais un `OR` entre les deux : **colonne directe** (aujourd'hui partout), **élément partageable** — propriétaire, ou droit d'accès qui vise l'acteur ou l'une de ses entreprises *(cible — #603, #605)* —, **participation** à une conversation *(cible — #611)*.
 - Presque toute entité par couple (`Plan`, `SessionFeedback`, `Invoice`, `AthleteSheet`…) est **scopée à la relation `CoachAthlete`**.
 - La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) appartient à **un coach** (`coachId`), qui peut l'ouvrir aux Coachs de ses entreprises *(cible — #605)* : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.

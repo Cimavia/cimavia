@@ -12,12 +12,17 @@ import {
 } from "../util/exercise-json.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
+// Le coach, par le cycle : la séance n'a que la colonne `coachId`, pas la relation (#599).
 export const SESSION_DETAIL_INCLUDE = {
   exercises: { orderBy: { position: "asc" }, include: { documents: true, tags: true } },
+  plan: { select: { coach: { select: { name: true } } } },
 } satisfies Prisma.ScheduledSessionInclude;
 
 export type ScheduledSessionWithExercises = Prisma.ScheduledSessionGetPayload<{
-  include: { exercises: { include: { documents: true; tags: true } } };
+  include: {
+    exercises: { include: { documents: true; tags: true } };
+    plan: { select: { coach: { select: { name: true } } } };
+  };
 }>;
 
 type ScheduledExerciseWithDocuments = ScheduledSessionWithExercises["exercises"][number];
@@ -69,6 +74,8 @@ export async function toScheduledSessionDto(
     status: session.status,
     exerciseCount: session.exercises.length,
     updatedAt: session.updatedAt.toISOString(),
+    coachId: session.coachId,
+    coachName: session.plan.coach.name,
     exercises,
   };
 }

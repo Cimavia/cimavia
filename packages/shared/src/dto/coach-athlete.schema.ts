@@ -53,7 +53,7 @@ export type CoachAthleteDto = z.infer<typeof coachAthleteDtoSchema>;
  * A-t-on quelqu'un en face ? Un drapeau par espace (#198).
  *
  * Servi par une route SANS capacité exigée, et c'est tout l'intérêt : la navigation le lit avant
- * de savoir à quel titre elle s'affiche. Le déduire de `GET /athletes` et `GET /me/coach` — toutes
+ * de savoir à quel titre elle s'affiche. Le déduire de `GET /athletes` et `GET /me/coaches` — toutes
  * deux gardées par capacité — ferait prendre un 403 à un compte mono-capacité sur chaque écran,
  * exactement la dérive que décrit `CmvRoleGate`.
  *

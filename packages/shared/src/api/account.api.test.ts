@@ -90,14 +90,14 @@ describe("createAccountApi — moitié coach", () => {
 describe("createAccountApi — moitié athlète", () => {
   /**
    * Deux chemins DIFFÉRENTS pour la même ligne `CoachAthlete`, lue par ses deux bouts : le coach
-   * liste ses athlètes, l'athlète demande son coach. Ce n'est pas une route à facteur commun — le
-   * scope tenant ne saurait pas dans quel sens répondre.
+   * liste ses athlètes, l'athlète ses coachs. Ce n'est pas une route à facteur commun — le scope
+   * tenant ne saurait pas dans quel sens répondre.
    */
-  it("demande son coach sur une route qui lui est propre", async () => {
+  it("demande ses coachs, tous à la fois, sur une route qui lui est propre", async () => {
     const { api, calls } = spyClient();
-    await createAccountApi(api).myCoach();
+    await createAccountApi(api).myCoaches();
 
-    expect(calls).toEqual([{ method: "GET", path: "/me/coach", body: undefined }]);
+    expect(calls).toEqual([{ method: "GET", path: "/me/coaches", body: undefined }]);
   });
 
   // L'invitation se désigne par son `id`, sans corps : c'est la session qui fait le verrou (#390).
@@ -172,7 +172,7 @@ describe("clés de cache", () => {
     expect(athleteKeys.sheet("ath_1")[0]).toBe(athleteKeys.all[0]);
     expect(invitationKeys.list()[0]).toBe(invitationKeys.all[0]);
     expect(invitationKeys.forMe()[0]).toBe(invitationKeys.all[0]);
-    expect(coachKeys.mine()[0]).toBe(coachKeys.all[0]);
+    expect(coachKeys.list()[0]).toBe(coachKeys.all[0]);
     expect(counterpartKeys.mine()[0]).toBe(counterpartKeys.all[0]);
   });
 

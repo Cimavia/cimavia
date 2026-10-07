@@ -24,7 +24,7 @@ import type { ApiClient } from "./client";
  *
  * Rien ici n'est propre à un rôle : `conversation.controller.ts` et `message.controller.ts` portent
  * `@Roles([COACH, ATHLETE])`, et le scope tenant décide de ce que chacun voit. Un fil est 1:1 ; le
- * coach en a N (un par athlète), l'athlète au plus un (avec son coach).
+ * coach en a N (un par athlète), l'athlète un par coach qui le suit (#599).
  */
 
 /**
@@ -42,8 +42,11 @@ export const messageKeys = {
   conversations: (as: CapabilityName | null) => ["messages", "conversations", asKey(as)] as const,
   /** Le fil avec UN athlète donné, résolu par get-or-create — côté coach. */
   conversationWith: (athleteId: string) => ["messages", "with", athleteId] as const,
-  /** Le fil de l'athlète courant avec SON coach : aucun id à donner, l'API le résout. */
-  myConversation: () => ["messages", "mine"] as const,
+  /**
+   * Le fil avec UN de ses coachs, côté athlète (#599). Une clé à part de `conversationWith` : un
+   * compte à double capacité a des fils des deux côtés, et l'id seul ne dit pas de quel côté il est.
+   */
+  conversationWithCoach: (coachId: string) => ["messages", "with-coach", coachId] as const,
   /** Le contenu d'un fil dépend du titre : le scope tenant filtre sur `coachId` ou `athleteId`,
    * donc le même id ne rend pas la même chose selon le côté d'où on le lit. */
   thread: (conversationId: string, as: CapabilityName | null) =>
@@ -51,12 +54,12 @@ export const messageKeys = {
 };
 
 export type MessageApi = {
-  /** Les fils existants, du plus récemment actif au plus ancien. Un athlète en a 0 ou 1. */
+  /** Les fils existants, du plus récemment actif au plus ancien. Un athlète en a un par coach. */
   listConversations: (as: CapabilityName | null) => Promise<ConversationDto[]>;
   /**
-   * Get-or-create, idempotent. `athleteId` présent = ouverture côté coach (il cible un athlète) ;
-   * absent = côté athlète, l'API résout son coach. Un seul appel pour les deux, parce que c'est
-   * une seule route.
+   * Get-or-create, idempotent. `athleteId` = ouverture côté coach (il cible un athlète) ;
+   * `coachId` = côté athlète, qui désigne lequel de ses coachs (#599). Un seul appel pour les deux,
+   * parce que c'est une seule route.
    */
   openConversation: (
     input: OpenConversationInput,

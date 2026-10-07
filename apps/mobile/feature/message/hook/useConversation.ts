@@ -11,20 +11,6 @@ import { keepThreadUrls } from "@/shared/lib/signed-url";
 const POLL_INTERVAL_MS = 10_000;
 
 /**
- * Ouvre (get-or-create) le fil de l'athlète avec son coach. Idempotent → sûr comme query. Activé
- * seulement si l'athlète a un coach : sans coach, l'API refuse (400) et il n'y a rien à ouvrir.
- */
-export function useMyConversation(enabled: boolean) {
-  // « Mon coach » est une lecture d'athlète par nature : le titre est dans le geste, pas dans le
-  // persona du compte.
-  return useQuery<ConversationDto>({
-    queryKey: messageKeys.myConversation(),
-    queryFn: () => messageApi.openConversation({}, "athlete"),
-    enabled,
-  });
-}
-
-/**
  * Les fils du coach — un par athlète avec qui il a échangé. Le tableau de bord n'en tire que des
  * compteurs de non-lus : pas de sondage, le retour au premier plan et le tirer-pour-rafraîchir
  * suffisent (un intervalle permanent viderait la batterie pour un chiffre qu'on ne regarde pas
@@ -45,12 +31,26 @@ export function useConversations() {
 export function useConversationWith(athleteId: string | null) {
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWith(athleteId ?? ""),
-    // Symétrique de `useMyConversation` : cibler un athlète, c'est agir en coach.
+    // Cibler un athlète, c'est agir en coach : le titre est dans le geste, pas dans le persona.
     queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }, "coach"),
     // `null` tant que l'écran n'a pas chargé de quoi désigner l'athlète : un get-or-create sans
     // cible créerait un fil au hasard. Le hook est appelé inconditionnellement (règle des hooks),
     // c'est `enabled` qui décide s'il part.
     enabled: athleteId != null,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/**
+ * Ouvre (get-or-create) le fil de l'athlète avec UN de ses coachs (#599) : il en a 0..N, c'est
+ * donc à lui de désigner lequel. Symétrique de `useConversationWith` : désigner un de ses coachs,
+ * c'est agir en athlète. `null` tant que rien n'est désigné — même raison que côté coach.
+ */
+export function useConversationWithCoach(coachId: string | null) {
+  return useQuery<ConversationDto>({
+    queryKey: messageKeys.conversationWithCoach(coachId ?? ""),
+    queryFn: () => messageApi.openConversation({ coachId: coachId as string }, "athlete"),
+    enabled: coachId != null,
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
@@ -117,8 +117,8 @@ export function useSendMessage(conversationId: string, attachment?: { sessionFee
  * messages : sinon le refetch relancerait le marquage en boucle. C'est l'écran qui décide quand
  * repartir — à chaque nouvel entrant, par son id (#305).
  *
- * Pas `myConversation()` : on n'en lit que l'id, et l'invalider rejouerait le get-or-create à
- * chaque lecture (#309).
+ * Pas le fil résolu (`conversationWithCoach`) : on n'en lit que l'id, et l'invalider rejouerait
+ * le get-or-create à chaque lecture (#309).
  */
 export function useMarkRead(conversationId: string | undefined) {
   const queryClient = useQueryClient();

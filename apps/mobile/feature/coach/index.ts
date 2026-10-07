@@ -1,2 +1,2 @@
-export { useMyCoach } from "./hook/useMyCoach";
-export { JoinCoachScreen } from "./screen/JoinCoachScreen";
+export { useMyCoaches } from "./hook/useMyCoach";
+export { MyCoachesScreen } from "./screen/MyCoachesScreen";

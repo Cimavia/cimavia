@@ -21,7 +21,7 @@ import {
 /**
  * Fil 1:1 coach ↔ athlète (CDC §5.8). Les DEUX rôles lisent et écrivent : le tenancy layer scope
  * par `coachId` OU `athleteId` selon l'acteur, et l'unicité `[coachId, athleteId]` garantit un
- * seul fil par relation.
+ * seul fil par relation — un athlète suivi par plusieurs coachs a donc un fil avec chacun (#599).
  *
  * La contrepartie (l'autre partie du fil) dépend de qui interroge : elle est résolue à partir de
  * l'acteur courant, lu dans le CLS — la conversation elle-même est symétrique.
@@ -37,11 +37,11 @@ export class ConversationService {
   /**
    * Ouvre le fil et le crée s'il n'existe pas. Idempotent : le client l'appelle à chaque ouverture
    * d'écran pour obtenir un `conversationId` stable. Coach → cible un de SES athlètes ; athlète →
-   * son coach (aucun champ, la relation est résolue).
+   * un de SES coachs.
    */
   async open(input: OpenConversationInput): Promise<ConversationDto> {
     const actor = currentActor(this.cls);
-    const { coachId, athleteId } = await this.resolvePair(actor, input.athleteId);
+    const { coachId, athleteId } = await this.resolvePair(actor, input);
     const conversation = await this.ensure(coachId, athleteId);
     const [dto] = await this.toDtos([conversation], actor);
     return required(dto, "[message] conversation ouverte mais non mappable");
@@ -68,47 +68,59 @@ export class ConversationService {
   }
 
   /**
-   * Résout le couple (coach, athlète) du fil selon l'acteur. La FK n'impose pas le tenant : côté
-   * coach, on VÉRIFIE que l'athlète visé est bien l'un des siens (relation active). Côté athlète,
-   * on lit sa relation scopée — un athlète autonome (0 coach) n'a pas de messagerie en MVP.
+   * Résout le couple (coach, athlète) du fil selon l'acteur. La FK n'impose pas le tenant : on
+   * VÉRIFIE que l'autre bout est bien lié à l'acteur (relation active), dans les deux sens — le
+   * coach vise un de SES athlètes, l'athlète un de SES coachs (#599). Un athlète autonome (0 coach)
+   * n'a pas de messagerie.
    *
    * Trois refus, et trois ÉTATS distincts (#198). Se viser soi-même est **impossible** : le CHECK
    * `coach_athlete_not_self` (#11) interdit la relation, donc aucune requête ne pourra jamais la
    * trouver — c'est un 409, le même que le refus d'auto-relation, et pour la même raison. Viser un
-   * athlète tiers qui n'est pas le sien reste un 400 « Athlète inconnu », qui dit vrai. Et l'athlète
-   * sans coach reste un 400 lui aussi : une relation ABSENTE, pas une relation impossible — elle
-   * apparaîtra le jour où il en rejoint un.
+   * tiers qui n'est pas lié reste un 400 « inconnu », qui dit vrai — l'athlète sans coach compris :
+   * une relation ABSENTE, pas une relation impossible, qui apparaîtra le jour où il en rejoint un.
    */
   private async resolvePair(
     actor: TenantContext,
-    athleteId: string | undefined,
+    input: OpenConversationInput,
   ): Promise<{ coachId: string; athleteId: string }> {
     if (exercisedOrThrow(actor) === "coach") {
-      if (athleteId == null) {
+      if (input.athleteId == null) {
         throw new BadRequestException("athleteId requis pour ouvrir un fil");
       }
-      // AVANT la relation, et pas à la place du `null` qu'elle rendrait : le filtre tenant ajoute
-      // `coachId = moi`, donc chercher `athleteId = moi` ne peut rien trouver et le refus tomberait
-      // en « Athlète inconnu » — un état faux. L'athlète est parfaitement connu, c'est soi.
-      if (athleteId === actor.userId) {
-        throw new ConflictException("Tu ne peux pas ouvrir un fil avec toi-même");
-      }
-      const relation = await this.db.coachAthlete.findFirst({
-        where: { athleteId, status: CoachAthleteStatus.ACTIVE },
-      });
-      if (relation == null) {
-        throw new BadRequestException("Athlète inconnu");
-      }
-      return { coachId: actor.userId, athleteId };
+      await this.assertLinked(actor, { athleteId: input.athleteId }, "Athlète inconnu");
+      return { coachId: actor.userId, athleteId: input.athleteId };
     }
 
+    // L'athlète a 0..N coachs (#599) : sans désigner lequel, il n'y a pas de fil à résoudre.
+    if (input.coachId == null) {
+      throw new BadRequestException("coachId requis pour ouvrir un fil");
+    }
+    await this.assertLinked(actor, { coachId: input.coachId }, "Coach inconnu");
+    return { coachId: input.coachId, athleteId: actor.userId };
+  }
+
+  /**
+   * L'autre bout du fil est-il lié à l'acteur ? Le filtre tenant ajoute l'acteur à sa colonne
+   * (`coachId` ou `athleteId` selon la capacité) : il ne reste qu'à nommer l'autre.
+   *
+   * Soi-même AVANT la relation, et pas à la place du `null` qu'elle rendrait : chercher `moi` dans
+   * l'autre colonne ne peut rien trouver, et le refus tomberait en « inconnu » — un état faux.
+   * L'autre bout est parfaitement connu, c'est soi.
+   */
+  private async assertLinked(
+    actor: TenantContext,
+    other: { athleteId: string } | { coachId: string },
+    unknown: string,
+  ): Promise<void> {
+    if (Object.values(other).includes(actor.userId)) {
+      throw new ConflictException("Tu ne peux pas ouvrir un fil avec toi-même");
+    }
     const relation = await this.db.coachAthlete.findFirst({
-      where: { status: CoachAthleteStatus.ACTIVE },
+      where: { ...other, status: CoachAthleteStatus.ACTIVE },
     });
     if (relation == null) {
-      throw new BadRequestException("Aucun coach : pas de messagerie");
+      throw new BadRequestException(unknown);
     }
-    return { coachId: relation.coachId, athleteId: actor.userId };
   }
 
   /**

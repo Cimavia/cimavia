@@ -19,11 +19,11 @@ export class RelationController {
     return this.relations.listAthletes();
   }
 
-  // Athlète : SON coach (ou null si autonome).
-  @Get("me/coach")
+  // Athlète : SES coachs (#599), liste vide s'il est autonome.
+  @Get("me/coaches")
   @RequireCapability("athlete")
-  myCoach() {
-    return this.relations.myCoach();
+  myCoaches() {
+    return this.relations.myCoaches();
   }
 
   /**

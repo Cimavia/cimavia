@@ -1,7 +1,13 @@
-import type { AthleteCalendarWeek, PlanDto, ScheduledSessionSummaryDto } from "@cmv/shared";
+import type {
+  AthleteCalendarWeek,
+  CoachPresence,
+  PlanDto,
+  ScheduledSessionSummaryDto,
+} from "@cmv/shared";
 import {
   athleteCalendarBounds,
   athleteCalendarWeek,
+  coachPresence,
   defaultAthleteMonday,
   mondayOfIsoWeek,
   required,
@@ -12,7 +18,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView } from "react-native";
-import { useMyCoach } from "@/feature/coach";
+import { useMyCoaches } from "@/feature/coach";
 import { CurrentWeekSection } from "@/feature/plan/component/CurrentWeekSection";
 import { PlanningNotice } from "@/feature/plan/component/PlanningNotice";
 import { WeekNavHeader } from "@/feature/plan/component/WeekNavHeader";
@@ -22,12 +28,14 @@ import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 
 /**
- * Ce que l'écran a à montrer, en un seul état — les cinq cas s'excluent, et l'exclusivité vaut
+ * Ce que l'écran a à montrer, en un seul état — les six cas s'excluent, et l'exclusivité vaut
  * mieux affirmée ici que reconstituée à chaque bloc par une conjonction de négations.
  *
- * Deux nuances qui ne se devinent pas :
- *  - « sans coach » et « coach sans cycle diffusé » sont DIFFÉRENTS : dire à un athlète non
- *    rattaché que son coach n'a rien diffusé le laisserait attendre pour rien ;
+ * Trois nuances qui ne se devinent pas :
+ *  - « sans coach » et « coachs sans cycle diffusé » sont DIFFÉRENTS : dire à un athlète non
+ *    rattaché que ses coachs n'ont rien diffusé le laisserait attendre pour rien ;
+ *  - « sans coach » ne se dit qu'une fois ses coachs LUS (#364) : ni pendant la lecture, ni sur une
+ *    panne, qui a son propre état — l'écran annonçait sinon « aucun coach » à qui en avait un ;
  *  - hors-ligne, le cache sert encore les cycles — l'erreur n'a donc de sens que sans données.
  *
  * « Aucun cycle n'a cours cette semaine-là » n'est plus un cas ici depuis #236 : c'est une semaine
@@ -37,6 +45,7 @@ import { OfflineBanner } from "@/shared/component/OfflineBanner";
 type PlanningState =
   | { kind: "loading" }
   | { kind: "error" }
+  | { kind: "coachError" }
   | { kind: "noCoach" }
   | { kind: "noPlan" }
   | { kind: "week"; week: AthleteCalendarWeek<ScheduledSessionSummaryDto> };
@@ -45,17 +54,29 @@ export function resolvePlanningState(
   isPending: boolean,
   isError: boolean,
   plans: PlanDto[] | undefined,
-  hasCoach: boolean,
+  coaches: CoachPresence,
   week: AthleteCalendarWeek<ScheduledSessionSummaryDto> | null,
 ): PlanningState {
   if (isPending) return { kind: "loading" };
-  if (plans == null) return isError ? { kind: "error" } : { kind: "noCoach" };
+  if (plans == null) return isError ? { kind: "error" } : withoutWeek(coaches);
   // Aucun cycle, ou aucun cycle SITUABLE dans le temps : dans les deux cas il n'y a pas de semaine
   // à parcourir, et sept cases muettes ne diraient rien de plus que l'état vide.
-  if (plans.length === 0 || week == null) {
-    return hasCoach ? { kind: "noPlan" } : { kind: "noCoach" };
-  }
+  if (plans.length === 0 || week == null) return withoutWeek(coaches);
   return { kind: "week", week };
+}
+
+// Sans semaine à montrer, ce sont les coachs qui disent pourquoi — une fois lus seulement.
+function withoutWeek(coaches: CoachPresence): PlanningState {
+  switch (coaches) {
+    case "loading":
+      return { kind: "loading" };
+    case "error":
+      return { kind: "coachError" };
+    case "none":
+      return { kind: "noCoach" };
+    case "some":
+      return { kind: "noPlan" };
+  }
 }
 
 // Vue semaine de l'athlète (p3-4) : une semaine CIVILE, alimentée par tous ses cycles, et de quoi
@@ -63,7 +84,7 @@ export function resolvePlanningState(
 export function PlanningScreen() {
   const { t } = useTranslation();
   const { data: plans, isPending, isError, isRefetching, refetch } = useMyPlans();
-  const { data: coach } = useMyCoach();
+  const coaches = useMyCoaches();
 
   // Le planning est l'écran d'accueil de l'athlète, donc le dernier passage en ligne avant la
   // salle : c'est là qu'on met séances et documents sur l'appareil, pas à l'ouverture d'une séance.
@@ -80,7 +101,7 @@ export function PlanningScreen() {
   // fait disparaître l'écran muet du dimanche soir, la veille d'un cycle qui commence.
   const monday = chosenMonday ?? defaultAthleteMonday(plans ?? [], today);
   const week = monday == null || plans == null ? null : athleteCalendarWeek(plans, monday);
-  const state = resolvePlanningState(isPending, isError, plans, coach != null, week);
+  const state = resolvePlanningState(isPending, isError, plans, coachPresence(coaches), week);
 
   return (
     <CmvScreen>
@@ -115,6 +136,8 @@ export function PlanningScreen() {
         {state.kind === "loading" ? <ActivityIndicator /> : null}
 
         {state.kind === "error" ? <CmvErrorState onRetry={() => refetch()} /> : null}
+
+        {state.kind === "coachError" ? <CmvErrorState onRetry={() => coaches.refetch()} /> : null}
 
         {state.kind === "noCoach" ? (
           <PlanningNotice

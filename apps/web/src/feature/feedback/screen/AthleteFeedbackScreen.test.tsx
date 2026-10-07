@@ -14,9 +14,13 @@ const {
   addFilesMock,
   addMediaMock,
   removeMock,
+  openConversationMock,
+  selfId,
   reply,
 } = vi.hoisted(() => ({
   reply: { onSent: (): unknown => undefined },
+  openConversationMock: vi.fn(),
+  selfId: { current: "ath_1" },
   getFeedbackMock: vi.fn(),
   upsertMock: vi.fn(),
   getSessionMock: vi.fn(),
@@ -33,6 +37,17 @@ vi.mock("@/feature/feedback/api", async (importOriginal) => ({
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),
   athletePlanApi: { session: getSessionMock },
+}));
+
+// Le fil où le débrief se discute : celui du coach DE LA SÉANCE (#599), que l'on vérifie ici.
+vi.mock("@/feature/message/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/message/api")>()),
+  messageApi: { openConversation: openConversationMock },
+}));
+
+// Le compte courant décide si la séance a un coach à qui répondre, ou s'il se l'est programmée.
+vi.mock("@/shared/lib/auth", () => ({
+  authClient: { useSession: () => ({ data: { user: { id: selfId.current } } }) },
 }));
 
 /**
@@ -117,11 +132,13 @@ const SESSION_ID = "ss-1";
 const ROUTE = "/sessions/$sessionId/feedback";
 const CONTENT = "feedback.contentLabel";
 const SUBMIT = "feedback.submit.action";
+const COACH_ID = "coach_m";
 
 const session = (): ScheduledSessionDto =>
   ({
     id: SESSION_ID,
     title: "Séance haute",
+    coachId: COACH_ID,
     exercises: [
       {
         id: "sx-1",
@@ -156,6 +173,8 @@ beforeEach(() => {
   // `useLocalTracking` lit le stockage du navigateur : un test laisserait sinon ses coches au
   // suivant, qui décrirait une séance déjà remplie sans l'avoir demandé.
   window.localStorage.clear();
+  selfId.current = "ath_1";
+  openConversationMock.mockResolvedValue({ id: "conv-1" });
   getSessionMock.mockResolvedValue(session());
   getFeedbackMock.mockResolvedValue(null);
   upsertMock.mockResolvedValue(feedback());
@@ -817,6 +836,30 @@ describe("AthleteFeedbackScreen", () => {
     reply.onSent();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: myFeedbackKeys.detail(SESSION_ID) });
+  });
+
+  /**
+   * Le débrief se discute avec le coach QUI A PROGRAMMÉ la séance (#599) : un athlète suivi par
+   * plusieurs coachs n'a plus de fil « par défaut » où sa réponse pourrait tomber.
+   */
+  it("ouvre le fil du coach de la séance", async () => {
+    getFeedbackMock.mockResolvedValue(feedback());
+    await setup();
+
+    await waitFor(() =>
+      expect(openConversationMock).toHaveBeenCalledWith({ coachId: COACH_ID }, "athlete"),
+    );
+  });
+
+  // Une séance qu'il s'est programmée lui-même : le fil `(soi, soi)` n'existe pas, rien ne part.
+  it("n'ouvre aucun fil sur une séance auto-coachée", async () => {
+    selfId.current = COACH_ID;
+    getFeedbackMock.mockResolvedValue(feedback());
+    const { findByText } = await setup();
+
+    // Le fil est monté, et il le dit : la preuve qu'on n'affirme pas l'absence avant son rendu.
+    expect(await findByText("feedback.reply.self")).toBeInTheDocument();
+    expect(openConversationMock).not.toHaveBeenCalled();
   });
 
   it("ramène à LA séance, pas au planning", async () => {

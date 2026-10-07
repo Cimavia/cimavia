@@ -52,7 +52,7 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
 
 **Règles de relation** (révisées par l'épic #593 — un *(cible — #N)* marque ce que le code ne tient pas encore) :
 - Architecture **multi-tenant** : plusieurs coachs, plusieurs athlètes, plusieurs entreprises.
-- Un athlète a **0..N coachs** *(cible — #599 ; aujourd'hui 0 ou 1)*, en direct ou **via une entreprise** *(cible — #602)*, avec **un lien par couple** : planifications, débriefs, factures, fiches et conversations restent par couple.
+- Un athlète a **0..N coachs**, en direct ou **via une entreprise** *(cible — #602)*, avec **un lien par couple** : planifications, débriefs, factures, fiches et conversations restent par couple.
   - Un athlète peut être **autonome** (0 coach) ou **s'auto-coacher** s'il porte aussi la capacité coach — livré avec l'épique #7, plus tôt que la v1.0 prévue ici. La liaison est **réversible** : un athlète autonome peut rejoindre un coach plus tard, et redevenir autonome si la relation se termine.
   - Une chaîne est possible (A coache B, B coache C) mais **jamais une boucle** : anti-cycle et anti-self à l'acceptation d'une invitation.
 - Un coach a **N athlètes** et appartient à **0..N entreprises** *(cible — #601)*.
@@ -69,7 +69,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | Fonctionnalité | Version | Notes |
 |----------------|---------|-------|
 | Comptes, rôles, connexion | MVP | email + mot de passe, reset par e-mail |
-| Liaison coach ↔ athlète (invitation) | MVP | un lien par couple ; au plus 1 coach par athlète *(cible — #599 : plusieurs)* |
+| Liaison coach ↔ athlète (invitation) | MVP | un lien par couple ; plusieurs coachs par athlète (#599) |
 | **Compte Entreprise** | v1.0 | exclusif (ni coach ni athlète) ; ajoute ses coachs, invite des athlètes ; espace web seul — #593 |
 | **Plusieurs coachs par athlète** | v1.0 | 0..N, en direct ou via une entreprise — #593 |
 | **Droits d'accès entre coachs d'une même entreprise** | v1.0 | Lecture / Écriture par exercice, séance ou planification ; supprimer et gérer les accès restent au propriétaire — #593 |
@@ -116,7 +116,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - OAuth (Google) en option v1.0.
 - **Capacités** choisies à l'inscription, en cases à cocher (coach et/ou athlète, au moins une), modifiables ensuite depuis son compte — avec refus si la capacité est en cours d'usage (athlètes actifs, ou coach rattaché).
 - **Compte Entreprise** *(cible — #600)* : choisi **en premier** à l'inscription, exclusif des deux capacités ; « Nom de l'entreprise » remplace « Nom complet ». Il ajoute ses coachs et invite des athlètes.
-- Liaison : le coach invite par **adresse e-mail** (toute invitation est nominative depuis #390), l'athlète accepte depuis le compte qui la porte → **un lien par couple**. Un athlète peut rejoindre un coach même s'il en a déjà un *(cible — #599)*.
+- Liaison : le coach invite par **adresse e-mail** (toute invitation est nominative depuis #390), l'athlète accepte depuis le compte qui la porte → **un lien par couple**. Un athlète peut rejoindre un coach même s'il en a déjà un (#599).
 - **Auto-coaching (livré, épique #7) :** un compte portant les deux capacités crée ses propres exercices, séances et cycles, se les diffuse et les débriefe. Ni facturation ni notification vers soi-même ; la messagerie reste fermée (un fil suppose deux personnes). La liaison à un coach reste possible et **réversible** (voir §3).
 
 ### 5.2 Bibliothèque d'exercices (coach)
@@ -182,7 +182,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | **Offline** | Lecture des séances de la semaine sans réseau (cache local). |
 | **Notifications** | Push mobile + web. |
 | **Performance** | Consultation fluide en réseau faible. |
-| **Évolutivité** | Plusieurs coachs par athlète et partage entre coachs d'une entreprise *(cible — #599, #605)* ; générique, sans sport cible. |
+| **Évolutivité** | Plusieurs coachs par athlète (#599) et partage entre coachs d'une entreprise *(cible — #605)* ; générique, sans sport cible. |
 
 ---
 
@@ -275,7 +275,7 @@ Deux niveaux à ne pas confondre :
 - `id`, `email`, `role` enum(`coach`,`athlete`,`admin`), `full_name`, `avatar_url`, `locale` (`fr`/`en`)
 
 **coach_athlete** (relation, un lien par couple)
-- `coach_id` → profiles, `athlete_id` → profiles, **UNIQUE (`coach_id`, `athlete_id`)** *(cible — #599 ; aujourd'hui `athlete_id` seul unique)*, `status` enum(`pending`,`active`), `invited_at`, `joined_at` ; marqué « via » une entreprise quand il en naît *(cible — #602)*
+- `coach_id` → profiles, `athlete_id` → profiles, **UNIQUE (`coach_id`, `athlete_id`)**, `status` enum(`pending`,`active`), `invited_at`, `joined_at` ; marqué « via » une entreprise quand il en naît *(cible — #602)*
 
 **organizations** (entreprise) *(cible — #600)*
 - `id` = celui du compte Entreprise ; le nom est celui du compte. Appartenance des coachs *(cible — #601)*
@@ -329,7 +329,7 @@ Deux niveaux à ne pas confondre :
 - `coach_id`, `athlete_id`, `period` (ex. `2026-07`), `amount_cents` int, `currency`, `status` enum(`pending`,`paid`), `issued_at`, `due_date`, `paid_at`, `note`
 
 ### 8.2 Relations clés
-- `coach_athlete` unique par couple → **0..N coachs par athlète** *(cible — #599 ; aujourd'hui `athlete_id` unique, 0 ou 1)*. Aucune ligne = athlète **autonome**.
+- `coach_athlete` unique par couple → **0..N coachs par athlète**. Aucune ligne = athlète **autonome**.
 - `scheduled_session_exercises` est une **copie** des `session_exercises` : modifier une planif n'altère pas la bibliothèque (répond à « modifier un exercice en cours de planif »).
 - `session_feedback` rattaché à `scheduled_sessions` → le coach relie débrief et séance prescrite.
 

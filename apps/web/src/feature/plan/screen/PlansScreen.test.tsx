@@ -34,6 +34,7 @@ const mutate = vi.fn();
 const existingPlan: PlanSummaryDto = {
   id: "pln_1",
   coachId: "coach_1",
+  coachName: "Julie Renaud",
   athleteId: "ath_lea",
   athleteName: "Léa Moreau",
   athleteEmail: "lea@example.test",

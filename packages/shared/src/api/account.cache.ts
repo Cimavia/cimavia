@@ -30,9 +30,27 @@ export function acceptInvitationMutation(
   return {
     mutationFn: (invitationId: string) => api.acceptInvitation(invitationId),
     onSuccess: (relation: CoachAthleteDto) => {
-      // Posée tout de suite : l'écran bascule sur le coach obtenu sans attendre la relecture.
-      cache.setQueryData(coachKeys.mine(), relation);
+      // Posé tout de suite : la liste montre le coach obtenu sans attendre la relecture.
+      cache.setQueryData(coachKeys.list(), (coaches: CoachAthleteDto[] | undefined) =>
+        withJoinedCoach(coaches, relation),
+      );
       cache.invalidateQueries();
     },
   };
+}
+
+/**
+ * La liste des coachs, le coach qu'on vient de rejoindre en tête — l'ordre de `GET /me/coaches`,
+ * le plus récent lien d'abord (#599). Remplacé s'il y figurait déjà : une ligne par coach.
+ *
+ * `undefined` quand la liste n'a jamais été lue : on n'invente pas une liste d'un seul coach à un
+ * athlète qui en a peut-être d'autres — la relecture qui suit dira la vraie. TanStack laisse alors
+ * le cache intact.
+ */
+export function withJoinedCoach(
+  coaches: readonly CoachAthleteDto[] | undefined,
+  relation: CoachAthleteDto,
+): CoachAthleteDto[] | undefined {
+  if (coaches == null) return undefined;
+  return [relation, ...coaches.filter((coach) => coach.coachId !== relation.coachId)];
 }

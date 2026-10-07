@@ -12,11 +12,11 @@ import type { ApiClient } from "./client";
  * fiche de suivi, les invitations, et le coach d'un athlète.
  *
  * Un seul module parce que c'est un seul module côté API (`account/`), et surtout parce que c'est
- * **une seule relation lue par ses deux bouts** : `GET /athletes` et `GET /me/coach` répondent à la
+ * **une seule relation lue par ses deux bouts** : `GET /athletes` et `GET /me/coaches` répondent à la
  * même question posée depuis les deux côtés de la même ligne `CoachAthlete`.
  *
  * Les deux moitiés sont bi-clientes en même temps, chacune dans un sens :
- * - moitié **athlète** (`myCoach`, `acceptInvitation`) : écrite pour le mobile, réclamée par le web
+ * - moitié **athlète** (`myCoaches`, `acceptInvitation`) : écrite pour le mobile, réclamée par le web
  *   en #28 ;
  * - moitié **coach** (`listAthletes`, fiche, invitations) : écrite pour le web, réclamée par le
  *   mobile en #30 et #31.
@@ -50,7 +50,7 @@ export const invitationKeys = {
 
 export const coachKeys = {
   all: ["coach"] as const,
-  mine: () => ["coach", "mine"] as const,
+  list: () => ["coach", "list"] as const,
 };
 
 /**
@@ -85,10 +85,10 @@ export type AccountApi = {
 
   // ── Côté athlète ───────────────────────────────────────────────────────────
   /**
-   * Le coach de l'athlète courant, ou `null` s'il n'en a pas. Le `null` n'est pas une erreur :
-   * l'athlète autonome est un état prévu du modèle (relation nullable dès P1).
+   * Les coachs de l'athlète courant, un par lien (#599). Liste vide = athlète autonome, ou qui se
+   * coache seul : un état prévu du modèle, pas une erreur.
    */
-  myCoach: () => Promise<CoachAthleteDto | null>;
+  myCoaches: () => Promise<CoachAthleteDto[]>;
   /**
    * Les invitations nominatives qui attendent l'athlète courant (#146) — `PENDING`, non expirées,
    * adressées à l'adresse de SA session. Le filtre n'est pas un paramètre : la route le tire de la
@@ -127,7 +127,7 @@ export function createAccountApi(api: ApiClient): AccountApi {
     deleteInvitation: (invitationId) => api.delete<void>(`/invitations/${invitationId}`),
     revokeInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/revoke`),
 
-    myCoach: () => api.get<CoachAthleteDto | null>("/me/coach"),
+    myCoaches: () => api.get<CoachAthleteDto[]>("/me/coaches"),
     myInvitations: () => api.get<PendingInvitationDto[]>("/invitations/for-me"),
     acceptInvitation: (invitationId) =>
       api.post<CoachAthleteDto>(`/invitations/${invitationId}/accept`),

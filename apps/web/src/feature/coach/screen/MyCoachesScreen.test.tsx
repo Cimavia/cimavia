@@ -2,14 +2,14 @@ import type { PendingInvitationDto } from "@cmv/shared";
 import { ApiError } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MyCoachScreen } from "@/feature/coach/screen/MyCoachScreen";
+import { MyCoachesScreen } from "@/feature/coach/screen/MyCoachesScreen";
 import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/coach/api", async () => {
   const shared = await import("@cmv/shared");
   return {
     accountApi: {
-      myCoach: vi.fn(),
+      myCoaches: vi.fn(),
       myInvitations: vi.fn(),
       acceptInvitation: vi.fn(),
       declineInvitation: vi.fn(),
@@ -52,7 +52,7 @@ vi.mock("@/shared/component", async (importOriginal) => ({
 }));
 
 const { accountApi } = await import("@/feature/coach/api");
-const myCoach = vi.mocked(accountApi.myCoach);
+const myCoaches = vi.mocked(accountApi.myCoaches);
 const myInvitations = vi.mocked(accountApi.myInvitations);
 const acceptInvitation = vi.mocked(accountApi.acceptInvitation);
 const declineInvitation = vi.mocked(accountApi.declineInvitation);
@@ -76,18 +76,21 @@ const RELATION = {
   isSelf: false,
 } as Awaited<ReturnType<typeof accountApi.acceptInvitation>>;
 
-const render = () => renderInRoute(<MyCoachScreen />, { path: "/my-coach", links: ["/messages"] });
+const MARC = { ...RELATION, id: "rel_2", coachId: "u_marc", coachName: "Marc Keller" };
+
+const render = () =>
+  renderInRoute(<MyCoachesScreen />, { path: "/my-coach", links: ["/messages"] });
 
 /**
  * Attend que les DEUX requêtes de l'écran soient posées avant de cliquer quoi que ce soit.
  *
- * `findByRole` sur le bouton résout dès que `myInvitations` a répondu — mais `myCoach` répond
+ * `findByRole` sur le bouton résout dès que `myInvitations` a répondu — mais `myCoaches` répond
  * ensuite et **re-rend l'écran**, détachant le nœud qu'on vient d'obtenir. Le clic atterrit alors
  * sur un élément qui n'est plus dans le document, la mutation ne part pas, et le `waitFor` qui
  * suit expire. Le test tombait ainsi environ une fois sur trois, d'autant plus souvent que la
  * machine était chargée — un rouge sans régression, le pire des rouges.
  *
- * `coach.missing.title` vient de la branche `myCoach == null`, le bouton de `myInvitations` : les
+ * `coach.missing.title` vient de la branche « aucun coach », le bouton de `myInvitations` : les
  * exiger tous les deux, puis REQUÊTER le bouton à l'instant du clic, ferme la fenêtre de course.
  */
 async function clickAfterSettled(user: Awaited<ReturnType<typeof render>>["user"], name: string) {
@@ -99,13 +102,13 @@ async function clickAfterSettled(user: Awaited<ReturnType<typeof render>>["user"
 beforeEach(() => {
   vi.clearAllMocks();
   session.current = { user: { id: "ath_1", email: "lea@exemple.fr" } };
-  myCoach.mockResolvedValue(null);
+  myCoaches.mockResolvedValue([]);
   myInvitations.mockResolvedValue([]);
   acceptInvitation.mockResolvedValue(RELATION);
   declineInvitation.mockResolvedValue(undefined);
 });
 
-describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
+describe("MyCoachesScreen — l'invitation qui m'attend (#146)", () => {
   // Plus de code à saisir (#390) : la carte est le seul chemin pour rejoindre.
   it("annonce l'invitation, sans plus rien proposer à saisir", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
@@ -139,11 +142,6 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
     await waitFor(() => expect(declineInvitation).toHaveBeenCalledWith("inv_1"));
   });
 
-  /**
-   * Le cœur de l'arbitrage : un athlète DÉJÀ LIÉ voit quand même l'invitation. La masquer
-   * laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien — et refuser
-   * est justement le geste utile ici, c'est lui qui vide la liste d'attente de l'inviteur.
-   */
   // Pendant la connexion, ni second envoi ni refus croisé : les deux gestes s'éteignent.
   it("dit la connexion en cours depuis la carte, gestes éteints", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
@@ -174,16 +172,19 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
     expect(await screen.findByText(text)).toBeInTheDocument();
   });
 
-  it("montre l'invitation à un athlète déjà lié, refusable mais pas acceptable", async () => {
-    myCoach.mockResolvedValue(RELATION);
+  /**
+   * Le cœur de #599 : un athlète déjà suivi accepte une seconde invitation. Jusque-là la carte
+   * restait affichée mais « Rejoindre » était éteint — au plus un coach.
+   */
+  it("laisse un athlète déjà suivi rejoindre un second coach", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
     myInvitations.mockResolvedValue([INVITATION]);
-    await render();
+    const { user } = await render();
 
-    expect(await screen.findByText("coach.invitation.title")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "coach.invitation.join" })).toBeDisabled();
-    // La raison est écrite : un bouton grisé sans explication laisse chercher ce qui cloche.
-    expect(screen.getByText("coach.invitation.blocked")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "coach.invitation.decline" })).toBeEnabled();
+    await screen.findByText("Julie Renaud");
+    await user.click(await screen.findByRole("button", { name: "coach.invitation.join" }));
+
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith("inv_1"));
   });
 
   /**
@@ -205,9 +206,9 @@ describe("MyCoachScreen — l'invitation qui m'attend (#146)", () => {
   });
 });
 
-describe("MyCoachScreen — les états", () => {
+describe("MyCoachesScreen — les états", () => {
   it("dit qu'il charge", async () => {
-    myCoach.mockReturnValue(new Promise(() => {}));
+    myCoaches.mockReturnValue(new Promise(() => {}));
     await render();
 
     expect(screen.getByText("common.loading")).toBeInTheDocument();
@@ -215,43 +216,52 @@ describe("MyCoachScreen — les états", () => {
   });
 
   // Panne et « pas de coach » ne se confondent pas : dire « aucun coach » sur une API injoignable
-  // inquiéterait un athlète qui en a déjà un.
+  // inquiéterait un athlète qui en a déjà.
   it("dit la panne sans dire « aucun coach », puis relit au réessai", async () => {
-    myCoach.mockRejectedValueOnce(new Error("réseau"));
+    myCoaches.mockRejectedValueOnce(new Error("réseau"));
     const { user } = await render();
 
     await user.click(await screen.findByRole("button", { name: "common.retry" }));
 
     expect(await screen.findByText("coach.missing.title")).toBeInTheDocument();
-    expect(myCoach).toHaveBeenCalledTimes(2);
+    expect(myCoaches).toHaveBeenCalledTimes(2);
   });
 });
 
-describe("MyCoachScreen — le coach lié", () => {
-  it("nomme le coach, depuis quand, et ouvre le fil à titre d'athlète", async () => {
-    myCoach.mockResolvedValue(RELATION);
+describe("MyCoachesScreen — ses coachs (#599)", () => {
+  it("rend une ligne par coach, chacune ouvrant SON fil à titre d'athlète", async () => {
+    myCoaches.mockResolvedValue([RELATION, MARC]);
     await render();
 
-    expect(await screen.findByRole("heading", { name: "Julie Renaud" })).toBeInTheDocument();
-    expect(screen.getByText("coach.linked.since")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "coach.linked.message" })).toHaveAttribute(
-      "href",
-      "/messages?as=athlete",
-    );
+    expect(await screen.findByText("Julie Renaud")).toBeInTheDocument();
+    expect(screen.getByText("Marc Keller")).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: "coach.linked.messageTo" });
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/messages?coach=u_coach&as=athlete",
+      "/messages?coach=u_marc&as=athlete",
+    ]);
     expect(screen.queryByText("coach.missing.title")).toBeNull();
   });
 
   // Une relation posée sans acceptation n'a pas de date : on le dit, on n'en invente pas.
-  it("dit qu'on ignore depuis quand, sans date inventée", async () => {
-    myCoach.mockResolvedValue({ ...RELATION, joinedAt: null });
+  it("rend « — » quand on ignore depuis quand", async () => {
+    myCoaches.mockResolvedValue([{ ...RELATION, joinedAt: null }]);
     await render();
 
-    expect(await screen.findByText("coach.linked.sinceUnknown")).toBeInTheDocument();
-    expect(screen.queryByText("coach.linked.since")).toBeNull();
+    expect(await screen.findByText("—")).toBeInTheDocument();
+  });
+
+  // Être suivi n'empêche plus d'en rejoindre un autre : l'adresse reste utile.
+  it("dit à quelle adresse un autre coach peut l'inviter", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
+    await render();
+
+    expect(await screen.findByText("coach.more.description")).toBeInTheDocument();
+    expect(screen.getByText("lea@exemple.fr")).toBeInTheDocument();
   });
 });
 
-describe("MyCoachScreen — aucun coach (#390)", () => {
+describe("MyCoachesScreen — aucun coach (#390)", () => {
   /**
    * Sans code à saisir, une invitation partie vers une autre adresse ne s'afficherait jamais, et
    * rien ne dirait pourquoi. L'adresse du compte est le seul recours : c'est elle que l'athlète

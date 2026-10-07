@@ -4,36 +4,21 @@ import { useAcceptInvitation, useDeclineInvitation } from "@/feature/coach/hook/
 import { CmvButton, CmvCard, CmvConfirmButton } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
 
-type PendingInvitationCardProps = {
-  invitation: PendingInvitationDto;
-  /**
-   * Le nom du coach ACTUEL, ou `null` si l'athlète est autonome. C'est lui qui décide si
-   * l'invitation est acceptable — et il est passé plutôt que relu ici, pour que la carte n'ait
-   * qu'une source de vérité : celle de l'écran qui la monte.
-   */
-  currentCoachName: string | null;
-};
-
 /**
- * Une invitation qui attend l'athlète (#146) — le troisième état de « Mon coach », à côté de
- * « lié » et « aucun coach ».
+ * Une invitation qui attend l'athlète (#146), posée au-dessus de « Mes coachs ».
  *
- * **Elle s'affiche dans les DEUX branches**, y compris quand l'athlète a déjà un coach. La masquer
- * là laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien — et surtout,
- * refuser est le geste UTILE dans ce cas : c'est lui qui vide la liste d'attente de l'inviteur.
- * « Rejoindre » est alors désactivé, avec sa raison écrite : un athlète a au plus un coach.
+ * Elle s'affiche qu'il ait déjà des coachs ou non, et reste acceptable dans les deux cas depuis
+ * #599 : un athlète est suivi par 0..N coachs. Refuser vide la liste d'attente de l'inviteur.
  *
  * Elle est le SEUL chemin pour rejoindre un coach depuis #390 : il n'y a plus de code à saisir.
  */
 export function PendingInvitationCard({
   invitation,
-  currentCoachName,
-}: Readonly<PendingInvitationCardProps>) {
+}: Readonly<{ invitation: PendingInvitationDto }>) {
   const { t } = useTranslation();
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
 
-  const linked = currentCoachName != null;
   const busy = accept.isPending || decline.isPending;
 
   return (
@@ -48,16 +33,8 @@ export function PendingInvitationCard({
           </p>
         </div>
 
-        {/* La raison AVANT le bouton désactivé : un bouton grisé sans explication laisse chercher
-            ce qui cloche, alors que la cause est une règle du produit — au plus un coach. */}
-        {linked ? (
-          <p className="rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid">
-            {t("coach.invitation.blocked", { name: currentCoachName })}
-          </p>
-        ) : null}
-
         <div className="flex flex-wrap items-center gap-cmv-sm">
-          <CmvButton disabled={linked || busy} onClick={() => accept.mutate(invitation.id)}>
+          <CmvButton disabled={busy} onClick={() => accept.mutate(invitation.id)}>
             {accept.isPending
               ? t("coach.invitation.joining")
               : t("coach.invitation.join", { name: invitation.coachName })}

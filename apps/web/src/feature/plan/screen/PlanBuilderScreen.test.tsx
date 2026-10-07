@@ -319,6 +319,8 @@ describe("PlanBuilderScreen — les semaines", () => {
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: 0,
     updatedAt: "2026-08-10T00:00:00.000Z",
+    coachId: "coach_1",
+    coachName: "Julie Renaud",
     exercises: [],
   };
 

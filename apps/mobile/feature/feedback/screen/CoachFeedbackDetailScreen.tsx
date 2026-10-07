@@ -16,6 +16,7 @@ import { coachFeedbackKeys } from "@/feature/feedback/api";
 import {
   FeedbackReplyComposer,
   FeedbackReplyMessages,
+  FeedbackReplySelf,
 } from "@/feature/feedback/component/FeedbackReplySection";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import {
@@ -157,17 +158,8 @@ function FeedbackBody({
 
         <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
 
-        {/* La section GARDE son titre sur son propre débrief, et n'affiche qu'une phrase :
-            disparaître entièrement ferait chercher la barre d'envoi en passant d'un débrief à
-            l'autre. La phrase dit un état DÉFINITIF, là où l'erreur de résolution annonçait à tort
-            un incident passager. */}
         {isSelf ? (
-          <View className="gap-2">
-            <CmvText className="font-cmv-display text-cmv-text-hi">
-              {t("feedback.reply.title")}
-            </CmvText>
-            <CmvText className="text-cmv-text-mid">{t("feedback.reply.self")}</CmvText>
-          </View>
+          <FeedbackReplySelf />
         ) : (
           <FeedbackReplyMessages
             messages={feedback?.messages ?? []}

@@ -7,6 +7,7 @@ import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTr
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
 import { SessionFeedbackScreen } from "@/feature/feedback/screen/SessionFeedbackScreen";
+import { useConversationWithCoach } from "@/feature/message/hook/useConversation";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { pressButton, renderRn } from "@/test/render";
@@ -37,9 +38,8 @@ vi.mock("@/feature/feedback/hook/useSessionFeedback", async (importOriginal) => 
 }));
 vi.mock("@/feature/feedback/hook/useFeedbackReply", () => ({ useFeedbackReply: vi.fn() }));
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useScheduledSession: vi.fn() }));
-vi.mock("@/feature/coach", () => ({ useMyCoach: () => ({ data: { coachId: "coach-1" } }) }));
 vi.mock("@/feature/message/hook/useConversation", () => ({
-  useMyConversation: () => ({ data: { id: "c-1" }, isError: false }),
+  useConversationWithCoach: vi.fn(() => ({ data: { id: "c-1" }, isError: false })),
 }));
 const { currentUser } = vi.hoisted(() => ({
   currentUser: { value: { user: { id: "athlete-1" } } as { user: { id: string } } | null },
@@ -201,6 +201,29 @@ describe("SessionFeedbackScreen", () => {
     void vi.mocked(useFeedbackReply).mock.lastCall?.[0].onSent?.();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: myFeedbackKeys.detail("s-1") });
+  });
+
+  /**
+   * Le fil du coach DE CETTE SÉANCE (#599) : suivi par plusieurs coachs, l'athlète répond à celui
+   * qui l'a programmée — et à personne tant que la séance ne l'a pas dit.
+   */
+  it("répond dans le fil du coach qui a programmé la séance", () => {
+    renderRn(<SessionFeedbackScreen />);
+    expect(useConversationWithCoach).toHaveBeenLastCalledWith(null);
+
+    mockSession({ ...SESSION, coachId: "coach-1" } as ScheduledSessionDto);
+    renderRn(<SessionFeedbackScreen />);
+    expect(useConversationWithCoach).toHaveBeenLastCalledWith("coach-1");
+  });
+
+  // Une séance qu'il s'est programmée lui-même : le fil `(soi, soi)` n'existe pas, rien ne part.
+  it("dit qu'il n'y a personne à qui répondre sur une séance auto-coachée", () => {
+    mockSession({ ...SESSION, coachId: "athlete-1" } as ScheduledSessionDto);
+    const { queryByPlaceholderText, queryByText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(useConversationWithCoach).toHaveBeenLastCalledWith(null);
+    expect(queryByText("feedback.reply.self")).not.toBeNull();
+    expect(queryByPlaceholderText("messages.placeholder")).toBeNull();
   });
 
   it("montre l'erreur de chargement plutôt que le formulaire", () => {

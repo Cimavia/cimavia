@@ -24,6 +24,16 @@ import type { Href } from "expo-router";
  *
  * `null` aussi sur un type inconnu — une app plus ancienne que l'API ne doit pas deviner.
  */
+/**
+ * Le fil notifié, pour les deux rôles. `entityId` est l'id de la CONVERSATION, alors que la route
+ * d'un fil attend l'interlocuteur : la liste reçoit le fil et le traduit, puis l'ouvre (#599) — un
+ * athlète suivi par plusieurs coachs doit tomber sur le fil de celui qui a écrit. Sans id, la
+ * liste seule reste très au-dessus de rien.
+ */
+function conversationTarget(entityId: string | undefined): Href {
+  return entityId == null ? "/messages" : `/messages?conversation=${entityId}`;
+}
+
 function targetFor(
   entityType: string,
   entityId: string | undefined,
@@ -43,9 +53,7 @@ function targetFor(
     if (entityType === NotificationEntityType.SCHEDULED_SESSION) {
       return entityId == null ? null : `/feedbacks/${entityId}`;
     }
-    // La liste des fils, pas un fil précis : `entityId` est l'id de la CONVERSATION, alors que la
-    // route du coach attend l'id de l'ATHLÈTE. Ouvrir la liste reste très au-dessus de rien.
-    if (entityType === NotificationEntityType.CONVERSATION) return "/messages";
+    if (entityType === NotificationEntityType.CONVERSATION) return conversationTarget(entityId);
     return null;
   }
 
@@ -58,7 +66,7 @@ function targetFor(
     case NotificationEntityType.SCHEDULED_SESSION:
       return entityId == null ? null : `/session/${entityId}`;
     case NotificationEntityType.CONVERSATION:
-      return "/messages";
+      return conversationTarget(entityId);
     case NotificationEntityType.INVOICE:
       return "/invoices";
     default:

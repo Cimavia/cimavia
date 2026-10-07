@@ -10,7 +10,7 @@ import {
 } from "@cmv/shared";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useMyCoach } from "@/feature/coach";
+import { useMyCoaches } from "@/feature/coach";
 import { CurrentWeekSection } from "@/feature/plan/component/CurrentWeekSection";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
@@ -18,7 +18,7 @@ import { PlanningScreen, resolvePlanningState } from "@/feature/plan/screen/Plan
 import { press, pressButton, renderRn } from "@/test/render";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useMyPlans: vi.fn() }));
-vi.mock("@/feature/coach", () => ({ useMyCoach: vi.fn() }));
+vi.mock("@/feature/coach", () => ({ useMyCoaches: vi.fn() }));
 // Le bandeau hors-ligne écoute l'état réseau : hors sujet ici.
 vi.mock("@/shared/component/OfflineBanner", () => ({ OfflineBanner: () => null }));
 /**
@@ -67,6 +67,7 @@ function plan(
   return {
     id,
     coachId: "coach_1",
+    coachName: "Julie Renaud",
     athleteId: "ath_1",
     athleteName: "Léa Moreau",
     athleteEmail: "lea@example.test",
@@ -125,18 +126,34 @@ describe("resolvePlanningState", () => {
   const week = weekOf([BLOC]);
 
   it("attend la réponse avant de conclure quoi que ce soit", () => {
-    expect(resolvePlanningState(true, false, undefined, true, null).kind).toBe("loading");
+    expect(resolvePlanningState(true, false, undefined, "some", null).kind).toBe("loading");
   });
 
   it("distingue la panne de l'absence de coach, sur la même donnée manquante", () => {
-    expect(resolvePlanningState(false, true, undefined, true, null).kind).toBe("error");
-    expect(resolvePlanningState(false, false, undefined, false, null).kind).toBe("noCoach");
+    expect(resolvePlanningState(false, true, undefined, "some", null).kind).toBe("error");
+    expect(resolvePlanningState(false, false, undefined, "none", null).kind).toBe("noCoach");
   });
 
-  // Dire à un athlète non rattaché que son coach n'a rien diffusé le laisserait attendre pour rien.
-  it("sépare l'athlète sans coach de celui dont le coach n'a rien diffusé", () => {
-    expect(resolvePlanningState(false, false, [], false, null).kind).toBe("noCoach");
-    expect(resolvePlanningState(false, false, [], true, null).kind).toBe("noPlan");
+  // Dire à un athlète non rattaché que ses coachs n'ont rien diffusé le laisserait attendre pour rien.
+  it("sépare l'athlète sans coach de celui dont les coachs n'ont rien diffusé", () => {
+    expect(resolvePlanningState(false, false, [], "none", null).kind).toBe("noCoach");
+    expect(resolvePlanningState(false, false, [], "some", null).kind).toBe("noPlan");
+  });
+
+  /**
+   * #364 : « aucun coach » ne se dit qu'une fois les coachs LUS. Pendant la lecture, l'écran attend ;
+   * sur une panne, il dit la panne — et non une absence qu'il ne connaît pas.
+   */
+  it("ne conclut à aucun coach ni pendant leur lecture, ni sur une panne", () => {
+    expect(resolvePlanningState(false, false, [], "loading", null).kind).toBe("loading");
+    expect(resolvePlanningState(false, false, [], "error", null).kind).toBe("coachError");
+    expect(resolvePlanningState(false, false, undefined, "error", null).kind).toBe("coachError");
+  });
+
+  // Une semaine à montrer se montre, quoi qu'on sache des coachs : les cycles disent déjà tout.
+  it("montre la semaine sans attendre les coachs", () => {
+    expect(resolvePlanningState(false, false, [BLOC], "loading", week).kind).toBe("week");
+    expect(resolvePlanningState(false, false, [BLOC], "error", week).kind).toBe("week");
   });
 
   /**
@@ -146,15 +163,15 @@ describe("resolvePlanningState", () => {
    */
   it("traite la semaine hors cycle comme une semaine, pas comme un cul-de-sac", () => {
     const horsCycle = weekOf([]);
-    expect(resolvePlanningState(false, false, [BLOC], true, horsCycle).kind).toBe("week");
-    expect(resolvePlanningState(false, false, [BLOC], true, week).kind).toBe("week");
+    expect(resolvePlanningState(false, false, [BLOC], "some", horsCycle).kind).toBe("week");
+    expect(resolvePlanningState(false, false, [BLOC], "some", week).kind).toBe("week");
   });
 
   // Des cycles existent mais aucun n'est situable : il n'y a aucune semaine à parcourir, donc rien
   // que des commandes fermées à montrer. L'état vide en dit autant, et le dit mieux.
   it("retombe sur l'état vide quand aucune semaine n'est situable", () => {
-    expect(resolvePlanningState(false, false, [BLOC], true, null).kind).toBe("noPlan");
-    expect(resolvePlanningState(false, false, [BLOC], false, null).kind).toBe("noCoach");
+    expect(resolvePlanningState(false, false, [BLOC], "some", null).kind).toBe("noPlan");
+    expect(resolvePlanningState(false, false, [BLOC], "none", null).kind).toBe("noCoach");
   });
 });
 
@@ -189,6 +206,13 @@ describe("PlanWeekList", () => {
  */
 describe("PlanningScreen", () => {
   const refetch = vi.fn();
+  const coachesRefetch = vi.fn();
+  const coaches = (data: unknown[] | undefined, isError = false) =>
+    vi.mocked(useMyCoaches).mockReturnValue({
+      data,
+      isError,
+      refetch: coachesRefetch,
+    } as unknown as ReturnType<typeof useMyCoaches>);
   const mount = (
     data: PlanDto[] | undefined,
     over: { isPending?: boolean; isError?: boolean } = {},
@@ -205,22 +229,16 @@ describe("PlanningScreen", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useMyCoach).mockReturnValue({ data: { id: "coach_1" } } as unknown as ReturnType<
-      typeof useMyCoach
-    >);
+    coaches([{ coachId: "coach_1" }]);
   });
 
   it("dit à l'athlète sans coach que c'est un coach qui lui manque", () => {
-    vi.mocked(useMyCoach).mockReturnValue({ data: null } as unknown as ReturnType<
-      typeof useMyCoach
-    >);
+    coaches([]);
     expect(mount([]).getByText("coach.missing.title")).toBeTruthy();
   });
 
   it("mène l'athlète sans coach vers le rattachement", () => {
-    vi.mocked(useMyCoach).mockReturnValue({ data: null } as unknown as ReturnType<
-      typeof useMyCoach
-    >);
+    coaches([]);
     const { container } = mount([]);
 
     pressButton(container, "coach.missing.action");
@@ -244,6 +262,18 @@ describe("PlanningScreen", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
+  // #364 : une panne de lecture des coachs n'est pas une absence de coach, et se relit.
+  it("dit la panne de lecture des coachs plutôt que leur absence, et la relit", () => {
+    coaches(undefined, true);
+    const { container, queryByText } = mount([]);
+
+    expect(queryByText("coach.missing.title")).toBeNull();
+    pressButton(container, "common.retry");
+
+    expect(coachesRefetch).toHaveBeenCalledOnce();
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
   it("se rafraîchit quand on tire la liste", () => {
     const { container } = mount([BLOC]);
 
@@ -257,10 +287,12 @@ describe("PlanningScreen", () => {
   });
 
   it("montre la semaine en cours, séances des deux cycles comprises", () => {
-    const { getByText } = mount([BLOC, FALAISE]);
+    const { getAllByText, getByText } = mount([BLOC, FALAISE]);
 
     expect(getByText("Force max")).toBeTruthy();
     expect(getByText("Voie longue")).toBeTruthy();
+    // Chaque cycle nomme son coach : deux coachs peuvent diffuser la même semaine (#599).
+    expect(getAllByText("plan.cycle.coach")).toHaveLength(2);
   });
 
   /**

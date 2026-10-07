@@ -32,16 +32,27 @@ describe("paramètres d'url lus en ligne", () => {
     expect(parse(FeedbacksRoute, search)).toStrictEqual(expected);
   });
 
+  const noThread = { athlete: undefined, coach: undefined, conversation: undefined };
   it.each([
     [
       { athlete: "a-1", as: "coach" },
-      { athlete: "a-1", as: "coach" },
+      { ...noThread, athlete: "a-1", as: "coach" },
+    ],
+    // Côté athlète, le coach qu'il désigne parmi les siens (#599).
+    [
+      { coach: "c-1", as: "athlete" },
+      { ...noThread, coach: "c-1", as: "athlete" },
+    ],
+    // La porte des notifications, qui ne connaissent que le fil.
+    [{ conversation: "cnv-1" }, { ...noThread, conversation: "cnv-1", as: undefined }],
+    [
+      { athlete: "", coach: "", conversation: "", as: "admin" },
+      { ...noThread, as: undefined },
     ],
     [
-      { athlete: "", as: "admin" },
-      { athlete: undefined, as: undefined },
+      { athlete: 7, coach: 7, conversation: 7 },
+      { ...noThread, as: undefined },
     ],
-    [{ athlete: 7 }, { athlete: undefined, as: undefined }],
   ])("/messages lit %j comme %j", (search, expected) => {
     expect(parse(MessagesRoute, search)).toStrictEqual(expected);
   });

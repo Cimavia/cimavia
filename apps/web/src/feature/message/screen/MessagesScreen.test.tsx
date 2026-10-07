@@ -33,7 +33,7 @@ vi.mock("@/feature/athlete/api", async (importOriginal) => {
 });
 vi.mock("@/feature/coach/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/feature/coach/api")>();
-  return { ...actual, accountApi: { ...actual.accountApi, myCoach: vi.fn() } };
+  return { ...actual, accountApi: { ...actual.accountApi, myCoaches: vi.fn() } };
 });
 vi.mock("@/feature/message/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/feature/message/api")>();
@@ -282,6 +282,17 @@ describe("MessagesScreen — côté coach, le fil", () => {
     expect(messageApi.openConversation).not.toHaveBeenCalled();
   });
 
+  // Une notification ne connaît que le fil : l'écran retrouve l'athlète qui y écrit.
+  it("arrive sur le fil qu'une notification désigne", async () => {
+    const view = await open(
+      { athletes: [LEA, NOAH], conversations: [conversation({ id: "c-2", counterpartId: "a-2" })] },
+      { conversation: "c-2" },
+    );
+
+    expect(await view.findByRole("heading", { name: "Noah Fontaine" })).toBeInTheDocument();
+    expect(messageApi.openConversation).toHaveBeenCalledWith({ athleteId: "a-2" }, "coach");
+  });
+
   it("dit un fil sans message", async () => {
     vi.mocked(messageApi.getMessages).mockResolvedValue([]);
     const view = await open({}, { athlete: "a-1" });
@@ -338,58 +349,114 @@ describe("MessagesScreen — côté coach, le fil", () => {
   });
 });
 
-describe("MessagesScreen — côté athlète", () => {
+describe("MessagesScreen — côté athlète (#599)", () => {
+  const JULIE = relation({
+    id: "rel-j",
+    coachId: "c-1",
+    coachName: "Julie Renaud",
+    athleteId: "me",
+  });
+  const MARC = relation({ id: "rel-m", coachId: "c-2", coachName: "Marc Keller", athleteId: "me" });
+
+  async function openAthlete(coaches: CoachAthleteDto[] | Error = [JULIE, MARC], search = {}) {
+    if (coaches instanceof Error)
+      vi.mocked(coachAccountApi.myCoaches)
+        .mockRejectedValueOnce(coaches)
+        .mockResolvedValue([JULIE, MARC]);
+    else vi.mocked(coachAccountApi.myCoaches).mockResolvedValue(coaches);
+
+    const view = await renderInRoute(<MessagesScreen />, {
+      path: "/messages",
+      search,
+      links: ["/my-coach"],
+    });
+    await waitFor(() => expect(view.queryByText("common.loading")).toBeNull());
+    return view;
+  }
+
   beforeEach(() => {
     session.user = { id: "me", name: "Léa Moreau", isCoach: false, isAthlete: true };
   });
 
-  it("dit qu'il charge tant que le coach n'est pas connu", async () => {
-    vi.mocked(coachAccountApi.myCoach).mockReturnValue(new Promise(() => {}));
+  it("dit qu'il charge tant que ses coachs ne sont pas connus", async () => {
+    vi.mocked(coachAccountApi.myCoaches).mockReturnValue(new Promise(() => {}));
 
     const view = await renderInRoute(<MessagesScreen />, { path: "/messages" });
 
     expect(view.getByText("common.loading")).toBeInTheDocument();
   });
 
-  it("ouvre SON fil avec son coach, en athlète, sans colonne de fils", async () => {
-    vi.mocked(coachAccountApi.myCoach).mockResolvedValue(relation({ coachName: "Marc Keller" }));
-    const view = await renderInRoute(<MessagesScreen />, { path: "/messages" });
+  // Le cœur de #599 : un fil par coach, et c'est à l'athlète de choisir lequel ouvrir.
+  it("liste un fil par coach, en invitant à en choisir un", async () => {
+    const view = await openAthlete();
 
-    expect(await view.findByRole("heading", { name: "Marc Keller" })).toBeInTheDocument();
-    expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(messageApi.openConversation).toHaveBeenCalledWith({}, "athlete");
+    expect(threadRow(view, "Julie Renaud")).not.toBeNull();
+    expect(threadRow(view, "Marc Keller")).not.toBeNull();
+    expect(view.getByText("messages.athlete.pickThread")).toBeInTheDocument();
+    expect(messageApi.openConversation).not.toHaveBeenCalled();
     // La liste des athlètes est une lecture de coach : un athlète n'a pas à la demander.
     expect(athleteAccountApi.listAthletes).not.toHaveBeenCalled();
   });
 
+  it("ouvre le fil du coach choisi, en athlète, et l'écrit dans l'url", async () => {
+    const view = await openAthlete([JULIE, MARC], { as: "athlete" });
+
+    await view.user.click(threadRow(view, "Marc Keller") as HTMLElement);
+
+    expect(await view.findByText("Message m-1")).toBeInTheDocument();
+    expect(view.router.state.location.search).toEqual({ coach: "c-2", as: "athlete" });
+    expect(messageApi.openConversation).toHaveBeenCalledWith({ coachId: "c-2" }, "athlete");
+  });
+
+  it("arrive sur le fil du coach désigné par l'url", async () => {
+    const view = await openAthlete([JULIE, MARC], { coach: "c-1" });
+
+    expect(await view.findByRole("heading", { name: "Julie Renaud" })).toBeInTheDocument();
+    expect(messageApi.openConversation).toHaveBeenCalledWith({ coachId: "c-1" }, "athlete");
+  });
+
+  // Le message de Marc notifié ouvre le fil de Marc — pas « le » fil, il y en a deux.
+  it("arrive sur le fil qu'une notification désigne", async () => {
+    vi.mocked(messageApi.listConversations).mockResolvedValue([
+      conversation({ id: "c-julie", counterpartId: "c-1" }),
+      conversation({ id: "c-marc", counterpartId: "c-2" }),
+    ]);
+    const view = await openAthlete([JULIE, MARC], { conversation: "c-marc" });
+
+    expect(await view.findByRole("heading", { name: "Marc Keller" })).toBeInTheDocument();
+    expect(messageApi.openConversation).toHaveBeenCalledWith({ coachId: "c-2" }, "athlete");
+  });
+
+  // Un fil inconnu (coach quitté, lien périmé) ne fait rien deviner.
+  it("invite à choisir quand le fil notifié n'est pas dans la liste", async () => {
+    const view = await openAthlete([JULIE, MARC], { conversation: "c-inconnu" });
+
+    expect(view.getByText("messages.athlete.pickThread")).toBeInTheDocument();
+    expect(messageApi.openConversation).not.toHaveBeenCalled();
+  });
+
   // Sans coach, pas de fil (l'API refuserait) : on dit où en rejoindre un.
-  it("renvoie vers « mon coach » quand il n'en a pas", async () => {
-    vi.mocked(coachAccountApi.myCoach).mockResolvedValue(null);
-    const view = await renderInRoute(<MessagesScreen />, {
-      path: "/messages",
-      links: ["/my-coach"],
-    });
+  it("renvoie vers ses coachs quand il n'en a aucun", async () => {
+    const view = await openAthlete([]);
 
     const link = await view.findByRole("link", { name: "messages.athlete.noCoach.action" });
     expect(link).toHaveAttribute("href", "/my-coach");
     expect(messageApi.openConversation).not.toHaveBeenCalled();
   });
 
-  it("dit la panne, et relit le coach au réessai", async () => {
-    vi.mocked(coachAccountApi.myCoach)
-      .mockRejectedValueOnce(new Error("réseau"))
-      .mockResolvedValue(relation({ coachName: "Marc Keller" }));
-    const view = await renderInRoute(<MessagesScreen />, { path: "/messages" });
+  it("dit la panne, et relit ses coachs au réessai", async () => {
+    const view = await openAthlete(new Error("réseau"));
 
+    expect(view.queryByText("messages.athlete.noCoach.title")).toBeNull();
     await view.user.click(await view.findByRole("button", { name: "common.retry" }));
 
-    expect(await view.findByRole("heading", { name: "Marc Keller" })).toBeInTheDocument();
+    await waitFor(() => expect(threadRow(view, "Julie Renaud")).not.toBeNull());
+    expect(coachAccountApi.myCoaches).toHaveBeenCalledTimes(2);
   });
 
-  it("dit l'échec de résolution de son fil, et le résout de nouveau au réessai", async () => {
-    vi.mocked(coachAccountApi.myCoach).mockResolvedValue(relation({ coachName: "Marc Keller" }));
+  it("dit l'échec de résolution du fil, et le résout de nouveau au réessai", async () => {
     vi.mocked(messageApi.openConversation).mockRejectedValueOnce(new Error("réseau"));
-    const view = await renderInRoute(<MessagesScreen />, { path: "/messages" });
+    const view = await openAthlete([JULIE], { coach: "c-1" });
 
     await view.user.click(await view.findByRole("button", { name: "common.retry" }));
 

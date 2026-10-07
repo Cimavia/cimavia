@@ -48,7 +48,11 @@ export function CurrentWeekSection({ week, today }: Readonly<CurrentWeekSectionP
   );
 }
 
-/** Un cycle en cours : son nom, son avancement, la note que le coach a laissée sur la semaine. */
+/**
+ * Un cycle en cours : son nom, son coach, son avancement, la note que le coach a laissée sur la
+ * semaine. Le coach est nommé parce qu'un athlète suivi par plusieurs en reçoit les cycles côte à
+ * côte (#599) : sans lui, deux cycles concurrents ne diraient pas qui attend quoi.
+ */
 function CycleLine({ cycle }: Readonly<{ cycle: AthleteCalendarCycle }>) {
   const { t } = useTranslation();
 
@@ -67,6 +71,9 @@ function CycleLine({ cycle }: Readonly<{ cycle: AthleteCalendarCycle }>) {
           variant={cycle.type === PlanWeekType.DELOAD ? "info" : "neutral"}
         />
       </View>
+      <CmvText className="text-cmv-text-mid text-sm">
+        {t("plan.cycle.coach", { name: cycle.coachName })}
+      </CmvText>
       {cycle.note == null ? null : (
         <CmvText className="text-cmv-text-mid text-sm">{cycle.note}</CmvText>
       )}

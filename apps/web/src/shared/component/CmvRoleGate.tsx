@@ -33,10 +33,10 @@ type CmvRoleGateProps = {
  *
  * POURQUOI la route et pas l'écran — c'est le point entier. Une garde en tête d'écran est un
  * `return` anticipé, or **les hooks s'exécutent avant tout `return`** : les requêtes de l'écran
- * partent quand même. `MessagesScreen` appelle `useAthletes()` (`GET /athletes`, coach seul) et
- * `ConversationScreen` (mobile) appelle `useMyCoach()` (`GET /me/coach`, athlète seul) — ouvrir ces
- * écrans à l'autre rôle avec une garde interne donnerait un 403 sur sa propre page. Ici l'écran
- * n'est pas monté du tout tant que la capacité n'est pas confirmée, donc aucun de ses hooks ne part.
+ * partent quand même. `MessagesScreen` appelle `useAthletes()` (`GET /athletes`, coach seul) côté
+ * coach et `useMyCoaches()` (`GET /me/coaches`, athlète seul) côté athlète — ouvrir ces écrans à
+ * l'autre rôle avec une garde interne donnerait un 403 sur sa propre page. Ici l'écran n'est pas
+ * monté du tout tant que la capacité n'est pas confirmée, donc aucun de ses hooks ne part.
  *
  * POURQUOI pas un `beforeLoad` TanStack : il s'exécute hors React, alors que la session Better Auth
  * ne s'obtient que par `authClient.useSession()`. La porter dans le contexte du routeur imposerait

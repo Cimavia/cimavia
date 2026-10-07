@@ -5,18 +5,16 @@ import { renderRn } from "@/test/render";
 
 // Chaque écran a ses propres tests : ici, on vérifie seulement lequel des deux est monté — l'autre
 // ferait partir une requête que ce titre n'a pas le droit de lire (403).
-vi.mock("@/feature/message/screen/CoachConversationsScreen", () => ({
+vi.mock("@/feature/message/screen/ConversationsScreen", () => ({
   CoachConversationsScreen: () => <span data-screen="coach" />,
-}));
-vi.mock("@/feature/message/screen/ConversationScreen", () => ({
-  ConversationScreen: () => <span data-screen="athlete" />,
+  AthleteConversationsScreen: () => <span data-screen="athlete" />,
 }));
 vi.mock("@/shared/hook/useExercisedCapability", () => ({ useActingCapability: vi.fn() }));
 
 describe("MessagesScreen", () => {
   it.each([
     ["la liste des fils au titre de coach", "coach"],
-    ["le fil unique au titre d'athlète", "athlete"],
+    ["la liste des fils au titre d'athlète", "athlete"],
   ] as const)("monte %s", (_, capability) => {
     vi.mocked(useActingCapability).mockReturnValue(capability);
     const { container } = renderRn(<MessagesScreen />);

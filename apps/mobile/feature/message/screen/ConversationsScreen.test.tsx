@@ -5,11 +5,15 @@ import {
   MessageType,
   SELF_RELATION_ID,
 } from "@cmv/shared";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAthletes } from "@/feature/athlete";
+import { useMyCoaches } from "@/feature/coach/hook/useMyCoach";
 import { useConversations } from "@/feature/message/hook/useConversation";
-import { CoachConversationsScreen } from "@/feature/message/screen/CoachConversationsScreen";
+import {
+  AthleteConversationsScreen,
+  CoachConversationsScreen,
+} from "@/feature/message/screen/ConversationsScreen";
 import { press, pressButton, renderRn } from "@/test/render";
 
 /**
@@ -18,6 +22,7 @@ import { press, pressButton, renderRn } from "@/test/render";
  * montre quand il n'en reste aucune.
  */
 vi.mock("@/feature/athlete", () => ({ useAthletes: vi.fn() }));
+vi.mock("@/feature/coach/hook/useMyCoach", () => ({ useMyCoaches: vi.fn() }));
 vi.mock("@/feature/message/hook/useConversation", () => ({ useConversations: vi.fn() }));
 vi.mock("@/feature/notification/hook/useNotifications", () => ({
   useUnreadByCapability: () => ({ data: undefined }),
@@ -273,5 +278,90 @@ describe("CoachConversationsScreen — chargement, panne, rafraîchissement", ()
 
     expect(athletes).toHaveBeenCalledOnce();
     expect(conversations).toHaveBeenCalledOnce();
+  });
+});
+
+function mockCoaches(state: Record<string, unknown>): void {
+  vi.mocked(useMyCoaches).mockReturnValue({
+    data: [],
+    isPending: false,
+    isError: false,
+    isRefetching: false,
+    refetch: vi.fn(),
+    ...state,
+  } as unknown as ReturnType<typeof useMyCoaches>);
+}
+
+const JULIE = relation({ id: "rel-j", coachId: "c-1", coachName: "Julie Renaud", athleteId: "me" });
+const MARC = relation({ id: "rel-m", coachId: "c-2", coachName: "Marc Keller", athleteId: "me" });
+
+describe("AthleteConversationsScreen (#599)", () => {
+  beforeEach(() => mockCoaches({ data: [JULIE, MARC] }));
+
+  it("liste un fil par coach, et ouvre celui du coach touché", () => {
+    const { getByText, queryByText } = renderRn(<AthleteConversationsScreen />);
+
+    expect(queryByText("Julie Renaud")).not.toBeNull();
+    press(getByText("Marc Keller"));
+
+    expect(router.push).toHaveBeenCalledWith("/messages/c-2");
+    // La liste des athlètes est une lecture de coach : l'athlète n'a pas à la demander.
+    expect(useAthletes).not.toHaveBeenCalled();
+  });
+
+  it("dit qu'il n'a pas de coach plutôt qu'une liste vide", () => {
+    mockCoaches({ data: [] });
+    const { queryByText } = renderRn(<AthleteConversationsScreen />);
+
+    expect(queryByText("messages.noCoach.title")).not.toBeNull();
+  });
+
+  it("dit la panne plutôt que l'absence de coach", () => {
+    mockCoaches({ data: undefined, isError: true });
+    const { queryByText } = renderRn(<AthleteConversationsScreen />);
+
+    expect(queryByText("messages.noCoach.title")).toBeNull();
+    expect(queryByText("common.retry")).not.toBeNull();
+  });
+});
+
+/**
+ * Une notification n'apporte que le fil ; la route d'un fil attend l'interlocuteur. La liste fait
+ * la traduction — sans quoi le message de Marc ouvrirait « le » fil, alors qu'il y en a deux.
+ */
+describe("ConversationsScreen — le fil notifié", () => {
+  beforeEach(() => {
+    mockCoaches({ data: [JULIE, MARC] });
+    mockConversations({
+      data: [
+        conversation({ id: "conv-j", counterpartId: "c-1" }),
+        conversation({ id: "conv-m", counterpartId: "c-2" }),
+      ],
+    });
+  });
+
+  it("ouvre le fil notifié, après avoir consommé le paramètre", () => {
+    vi.mocked(useLocalSearchParams).mockReturnValue({ conversation: "conv-m" });
+    renderRn(<AthleteConversationsScreen />);
+
+    expect(router.setParams).toHaveBeenCalledWith({ conversation: undefined });
+    expect(router.push).toHaveBeenCalledWith("/messages/c-2");
+  });
+
+  it("vaut aussi pour le coach, qui n'ouvrait jusque-là que sa liste", () => {
+    vi.mocked(useLocalSearchParams).mockReturnValue({ conversation: "conv-2" });
+    mockAthletes({ data: [LEA, SARAH] });
+    mockConversations({ data: [conversation({ id: "conv-2", counterpartId: "a-2" })] });
+    renderRn(<CoachConversationsScreen />);
+
+    expect(router.push).toHaveBeenCalledWith("/messages/a-2");
+  });
+
+  // Un fil inconnu (coach quitté, notification périmée) ne fait rien deviner : la liste suffit.
+  it("reste sur la liste quand le fil notifié n'y est pas", () => {
+    vi.mocked(useLocalSearchParams).mockReturnValue({ conversation: "conv-inconnu" });
+    renderRn(<AthleteConversationsScreen />);
+
+    expect(router.push).not.toHaveBeenCalled();
   });
 });

@@ -8,13 +8,13 @@ import {
   todayIsoDate,
 } from "@cmv/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useMyCoach } from "@/feature/coach";
+import { useMyCoaches } from "@/feature/coach";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import { AthletePlanningScreen } from "@/feature/plan/screen/AthletePlanningScreen";
 import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useMyPlans: vi.fn() }));
-vi.mock("@/feature/coach", () => ({ useMyCoach: vi.fn() }));
+vi.mock("@/feature/coach", () => ({ useMyCoaches: vi.fn() }));
 /**
  * `CmvAppShell` importe `authClient`, et `@/shared/lib/auth` CRÉE ce client au chargement du
  * module — même quand l'AppShell est remplacé juste en dessous, l'`importOriginal` évalue le
@@ -86,6 +86,7 @@ function plan(id: string, title: string, weeks: PlanWeekDto[]): PlanDto {
   return {
     id,
     coachId: "coach_1",
+    coachName: "Julie Renaud",
     athleteId: "ath_1",
     athleteName: "Léa Moreau",
     athleteEmail: "lea@example.test",
@@ -131,10 +132,18 @@ const mount = async (state: QueryState, search: Record<string, string> = {}) => 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(useMyCoach).mockReturnValue({ data: { id: "coach_1" } } as unknown as ReturnType<
-    typeof useMyCoach
-  >);
+  coaches({ data: [{ id: "rel_1" }] });
 });
+
+const coachesRefetch = vi.fn();
+function coaches(state: { data?: unknown[]; isError?: boolean }) {
+  vi.mocked(useMyCoaches).mockReturnValue({
+    data: undefined,
+    isError: false,
+    refetch: coachesRefetch,
+    ...state,
+  } as unknown as ReturnType<typeof useMyCoaches>);
+}
 
 describe("AthletePlanningScreen", () => {
   it("attend la réponse avant de conclure quoi que ce soit", async () => {
@@ -153,11 +162,30 @@ describe("AthletePlanningScreen", () => {
   });
 
   it("dit à l'athlète sans coach que c'est un coach qui lui manque, pas un cycle", async () => {
-    vi.mocked(useMyCoach).mockReturnValue({ data: null } as unknown as ReturnType<
-      typeof useMyCoach
-    >);
+    coaches({ data: [] });
     const { getByText } = await mount({ data: [] });
     expect(getByText("coach.missing.title")).toBeInTheDocument();
+  });
+
+  /**
+   * #364 : « aucun coach » s'affichait tant que ses coachs n'étaient pas lus, ou quand leur
+   * lecture échouait — à un athlète qui en avait un. L'absence ne se dit qu'une fois confirmée.
+   */
+  it("ne dit pas « aucun coach » tant que ses coachs ne sont pas lus", async () => {
+    coaches({});
+    const { getByText, queryByText } = await mount({ data: [] });
+    expect(getByText("common.loading")).toBeInTheDocument();
+    expect(queryByText("coach.missing.title")).toBeNull();
+  });
+
+  it("dit la panne de lecture des coachs plutôt que leur absence, et la relit", async () => {
+    coaches({ isError: true });
+    const { getByRole, queryByText, user } = await mount({ data: [] });
+    expect(queryByText("coach.missing.title")).toBeNull();
+
+    await user.click(getByRole("button", { name: "common.retry" }));
+
+    expect(coachesRefetch).toHaveBeenCalledOnce();
   });
 
   it("dit à l'athlète rattaché que son coach n'a rien diffusé", async () => {
@@ -178,6 +206,8 @@ describe("AthletePlanningScreen", () => {
     expect(getAllByText("Prépa falaise")).toHaveLength(2);
     expect(getByText("Force max")).toBeInTheDocument();
     expect(getByText("Voie longue")).toBeInTheDocument();
+    // Chaque cycle dit son coach : ils peuvent venir de deux coachs (#599).
+    expect(getAllByText("plan.athlete.cycle.coach")).toHaveLength(2);
   });
 
   it("reprend la note de la semaine du cycle auquel elle appartient", async () => {
