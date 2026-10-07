@@ -76,9 +76,8 @@ export class ConversationService {
    * Trois refus, et trois ÉTATS distincts (#198). Se viser soi-même est **impossible** : le CHECK
    * `coach_athlete_not_self` (#11) interdit la relation, donc aucune requête ne pourra jamais la
    * trouver — c'est un 409, le même que le refus d'auto-relation, et pour la même raison. Viser un
-   * tiers qui n'est pas lié reste un 400 « inconnu », qui dit vrai. Et l'athlète sans coach reste
-   * un 400 lui aussi : une relation ABSENTE, pas une relation impossible — elle apparaîtra le jour
-   * où il en rejoint un.
+   * tiers qui n'est pas lié reste un 400 « inconnu », qui dit vrai — l'athlète sans coach compris :
+   * une relation ABSENTE, pas une relation impossible, qui apparaîtra le jour où il en rejoint un.
    */
   private async resolvePair(
     actor: TenantContext,
@@ -92,15 +91,9 @@ export class ConversationService {
       return { coachId: actor.userId, athleteId: input.athleteId };
     }
 
-    // Sans `coachId`, l'ancien contrat d'un athlète à un seul coach — retiré en fin de #599.
+    // L'athlète a 0..N coachs (#599) : sans désigner lequel, il n'y a pas de fil à résoudre.
     if (input.coachId == null) {
-      const relation = await this.db.coachAthlete.findFirst({
-        where: { status: CoachAthleteStatus.ACTIVE },
-      });
-      if (relation == null) {
-        throw new BadRequestException("Aucun coach : pas de messagerie");
-      }
-      return { coachId: relation.coachId, athleteId: actor.userId };
+      throw new BadRequestException("coachId requis pour ouvrir un fil");
     }
     await this.assertLinked(actor, { coachId: input.coachId }, "Coach inconnu");
     return { coachId: input.coachId, athleteId: actor.userId };

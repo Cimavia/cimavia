@@ -7,15 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, coachKeys, invitationKeys } from "@/feature/coach/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 
-// `null` = athlète sans coach. Ce n'est pas une erreur : l'autonomie est un état prévu du modèle
-// (relation nullable et réversible dès P1).
-export function useMyCoach() {
-  return useQuery<CoachAthleteDto | null>({
-    queryKey: coachKeys.mine(),
-    queryFn: accountApi.myCoach,
-  });
-}
-
 /**
  * Les coachs de l'athlète courant (#599), les plus récemment rejoints d'abord. Liste vide =
  * athlète autonome : ce n'est pas une erreur, l'autonomie est un état prévu du modèle.

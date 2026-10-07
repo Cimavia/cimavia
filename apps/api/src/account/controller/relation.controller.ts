@@ -26,13 +26,6 @@ export class RelationController {
     return this.relations.myCoaches();
   }
 
-  // Athlète : SON coach (ou null si autonome).
-  @Get("me/coach")
-  @RequireCapability("athlete")
-  myCoach() {
-    return this.relations.myCoach();
-  }
-
   /**
    * A-t-on quelqu'un en face, de chaque côté ? (#198)
    *

@@ -6,13 +6,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, coachKeys, invitationKeys } from "@/feature/coach/api";
 
-export function useMyCoach() {
-  return useQuery<CoachAthleteDto | null>({
-    queryKey: coachKeys.mine(),
-    queryFn: accountApi.myCoach,
-  });
-}
-
 /**
  * Les coachs de l'athlète courant (#599), les plus récemment rejoints d'abord. Liste vide =
  * athlète autonome : ce n'est pas une erreur, l'autonomie est un état prévu du modèle.

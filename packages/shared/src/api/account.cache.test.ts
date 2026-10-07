@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CoachAthleteDto } from "../dto/coach-athlete.schema";
 import { coachKeys } from "./account.api";
-import { acceptInvitationMutation } from "./account.cache";
+import { acceptInvitationMutation, withJoinedCoach } from "./account.cache";
 
 const RELATION = {
   id: "rel_1",
@@ -14,6 +14,9 @@ const RELATION = {
   joinedAt: "2026-03-12T09:00:00.000Z",
   isSelf: false,
 } as CoachAthleteDto;
+
+// Un coach déjà là, rejoint plus tôt (#599).
+const OTHER = { ...RELATION, id: "rel_0", coachId: "u_other", coachName: "Marc Keller" };
 
 function setup() {
   const cache = { setQueryData: vi.fn(), invalidateQueries: vi.fn() };
@@ -29,12 +32,14 @@ describe("acceptInvitationMutation", () => {
     expect(api.acceptInvitation).toHaveBeenCalledWith("inv_1");
   });
 
-  it("pose le coach obtenu sans attendre de le relire", () => {
+  it("pose le coach obtenu dans la liste sans attendre de la relire", () => {
     const { cache, mutation } = setup();
 
     mutation.onSuccess(RELATION);
 
-    expect(cache.setQueryData).toHaveBeenCalledWith(coachKeys.mine(), RELATION);
+    const [key, updater] = cache.setQueryData.mock.lastCall ?? [];
+    expect(key).toEqual(coachKeys.list());
+    expect(updater([OTHER])).toEqual([RELATION, OTHER]);
   });
 
   /**
@@ -47,5 +52,22 @@ describe("acceptInvitationMutation", () => {
     mutation.onSuccess(RELATION);
 
     expect(cache.invalidateQueries).toHaveBeenCalledExactlyOnceWith();
+  });
+});
+
+describe("withJoinedCoach", () => {
+  it("met le coach rejoint en tête, avant ceux déjà là", () => {
+    expect(withJoinedCoach([OTHER], RELATION)).toEqual([RELATION, OTHER]);
+  });
+
+  // Une ligne par coach : rejoindre deux fois le même ne le dédouble pas.
+  it("remplace le coach s'il figurait déjà dans la liste", () => {
+    const stale = { ...RELATION, id: "rel_old" };
+    expect(withJoinedCoach([stale, OTHER], RELATION)).toEqual([RELATION, OTHER]);
+  });
+
+  // Jamais lue : on n'invente pas une liste d'un seul coach à qui en a peut-être d'autres.
+  it("laisse intacte une liste jamais lue", () => {
+    expect(withJoinedCoach(undefined, RELATION)).toBeUndefined();
   });
 });

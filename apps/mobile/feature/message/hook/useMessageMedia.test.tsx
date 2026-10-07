@@ -347,7 +347,7 @@ describe("useSendMessageMedia", () => {
   it("invalide la liste des fils après l'envoi, pas le fil de l'athlète", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(messageKeys.conversations(null), []);
-    queryClient.setQueryData(messageKeys.myConversation(), { id: CONVERSATION_ID });
+    queryClient.setQueryData(messageKeys.conversationWithCoach("coach_1"), { id: CONVERSATION_ID });
     launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("bloc.jpg")] });
     const { result } = renderHook(() => useSendMessageMedia(CONVERSATION_ID), {
       wrapper: ({ children }: Readonly<{ children: ReactNode }>) => (
@@ -358,7 +358,9 @@ describe("useSendMessageMedia", () => {
     await act(() => result.current.pickAndSend(onPickError));
 
     expect(queryClient.getQueryState(messageKeys.conversations(null))?.isInvalidated).toBe(true);
-    expect(queryClient.getQueryState(messageKeys.myConversation())?.isInvalidated).toBe(false);
+    expect(
+      queryClient.getQueryState(messageKeys.conversationWithCoach("coach_1"))?.isInvalidated,
+    ).toBe(false);
   });
 
   it("porte l'échec d'une note vocale à part, là où le lot a son récapitulatif", async () => {

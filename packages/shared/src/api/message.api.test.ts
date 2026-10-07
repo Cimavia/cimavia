@@ -153,19 +153,8 @@ describe("messageKeys", () => {
     const root = messageKeys.all[0];
     expect(messageKeys.conversations(null)[0]).toBe(root);
     expect(messageKeys.conversationWith("ath_1")[0]).toBe(root);
-    expect(messageKeys.myConversation()[0]).toBe(root);
     expect(messageKeys.conversationWithCoach("coa_1")[0]).toBe(root);
     expect(messageKeys.thread("cnv_1", null)[0]).toBe(root);
-  });
-
-  /**
-   * Le fil de l'athlète ne peut PAS emprunter `conversationWith` : il n'a pas d'`athleteId` à
-   * donner (c'est lui, l'athlète). Une clé à part évite qu'un identifiant vide se confonde avec
-   * le fil d'un athlète réel.
-   */
-  it("distingue le fil de l'athlète d'un fil ciblé par le coach", () => {
-    expect(messageKeys.myConversation()).not.toEqual(messageKeys.conversationWith(""));
-    expect(messageKeys.myConversation()).not.toEqual(messageKeys.conversations(null));
   });
 
   // Le même id lu des deux bouts : celui d'un athlète qu'on coache, ou d'un coach qui nous suit.

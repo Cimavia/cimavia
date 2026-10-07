@@ -180,7 +180,7 @@ describe("createApiClient — la réponse", () => {
     const { fetchFn } = recording(200, "");
     const api = createApiClient({ baseUrl: "http://api.test", fetchFn });
 
-    await expect(api.get("/me/coach")).resolves.toBeNull();
+    await expect(api.get("/athletes/ath_1/sheet")).resolves.toBeNull();
   });
 
   /**

@@ -42,8 +42,6 @@ export const messageKeys = {
   conversations: (as: CapabilityName | null) => ["messages", "conversations", asKey(as)] as const,
   /** Le fil avec UN athlète donné, résolu par get-or-create — côté coach. */
   conversationWith: (athleteId: string) => ["messages", "with", athleteId] as const,
-  /** Le fil de l'athlète courant avec SON coach : aucun id à donner, l'API le résout. */
-  myConversation: () => ["messages", "mine"] as const,
   /**
    * Le fil avec UN de ses coachs, côté athlète (#599). Une clé à part de `conversationWith` : un
    * compte à double capacité a des fils des deux côtés, et l'id seul ne dit pas de quel côté il est.

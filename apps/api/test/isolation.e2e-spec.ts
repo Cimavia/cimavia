@@ -272,13 +272,19 @@ describe("Isolation multi-tenant (P1)", () => {
   });
 
   it("un athlète lié voit SON coach ; un athlète autonome n'en a aucun", async () => {
-    const mine = await athleteA1.get("/me/coach");
+    const mine = await athleteA1.get("/me/coaches");
     expect(mine.status).toBe(200);
-    expect(mine.body.coachId).toBe(coachAId);
+    expect(mine.body.map((relation: { coachId: string }) => relation.coachId)).toEqual([coachAId]);
 
-    const none = await athleteC.get("/me/coach");
+    // Une liste vide, pas `null` : l'autonomie est un état prévu, pas une absence de réponse.
+    const none = await athleteC.get("/me/coaches");
     expect(none.status).toBe(200);
-    expect(none.body).toBeNull();
+    expect(none.body).toEqual([]);
+  });
+
+  // L'ancien contrat d'un athlète à un seul coach est retiré (#599) : la route n'existe plus.
+  it("ne sert plus la route d'un coach unique", async () => {
+    expect((await athleteA1.get("/me/coach")).status).toBe(404);
   });
 
   it("un coach ne peut PAS lire la fiche d'un athlète d'un autre coach", async () => {
@@ -4389,7 +4395,7 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
   });
 
   it("l'athlète ouvre SON fil (même conversation, contrepartie = le coach)", async () => {
-    const res = await athleteA1.post("/conversations").send({});
+    const res = await athleteA1.post("/conversations").send({ coachId: coachAId });
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(conversationId);
     expect(res.body.counterpartId).toBe(coachAId);
@@ -4408,8 +4414,15 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
     expect(res.status).toBe(400);
   });
 
+  // Le symétrique côté athlète (#599) : il a 0..N coachs, et le fil se désigne, il ne se devine pas.
+  it("un athlète sans coach visé ne peut pas ouvrir de fil (400)", async () => {
+    const res = await athleteA1.post("/conversations").send({});
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("coachId requis pour ouvrir un fil");
+  });
+
   it("un athlète autonome (0 coach) n'a pas de messagerie (400)", async () => {
-    const res = await autonome.post("/conversations").send({});
+    const res = await autonome.post("/conversations").send({ coachId: coachAId });
     expect(res.status).toBe(400);
   });
 
@@ -7134,6 +7147,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
   let coach: Agent;
   let athlete: Agent;
   let athleteId: string;
+  let coachId: string;
 
   beforeAll(async () => {
     coach = await signUp("coach-parity@cmv.test", Role.COACH);
@@ -7142,6 +7156,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
     const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     athleteId = accepted.body.athleteId;
+    coachId = accepted.body.coachId;
   });
 
   /**
@@ -7151,7 +7166,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
    */
   it("refuse au coach les surfaces /me de l'athlète", async () => {
     expect((await coach.get("/me/plans")).status).toBe(403);
-    expect((await coach.get("/me/coach")).status).toBe(403);
+    expect((await coach.get("/me/coaches")).status).toBe(403);
   });
 
   /**
@@ -7201,7 +7216,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
 
   /**
    * La messagerie est le seul domaine ouvert aux deux rôles de bout en bout. L'ouverture d'un fil
-   * se distingue par le seul CORPS : `athleteId` présent côté coach, absent côté athlète — et un
+   * se distingue par le seul CORPS : `athleteId` côté coach, `coachId` côté athlète (#599) — et un
    * athlète qui tenterait de cibler quelqu'un d'autre ne doit pas y arriver.
    */
   it("ouvre la messagerie aux deux rôles, chacun de son côté", async () => {
@@ -7209,14 +7224,14 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
     expect(opened.status).toBe(201);
     expect(opened.body.counterpartId).toBe(athleteId);
 
-    const mine = await athlete.post("/conversations").send({});
+    const mine = await athlete.post("/conversations").send({ coachId });
     expect(mine.status).toBe(201);
     expect(mine.body.id).toBe(opened.body.id);
   });
 
   /**
-   * Côté athlète, `athleteId` est **ignoré** — pas refusé : `resolvePair` lit sa relation scopée et
-   * pose `athleteId: actor.userId`. Un athlète qui viserait quelqu'un d'autre récupère donc SON
+   * Côté athlète, `athleteId` est **ignoré** — pas refusé : `resolvePair` vérifie le coach désigné
+   * et pose `athleteId: actor.userId`. Un athlète qui viserait quelqu'un d'autre récupère donc SON
    * propre fil, pas celui d'un tiers. C'est le comportement voulu, et ce test le fige : le jour où
    * quelqu'un « corrigerait » le service pour honorer le champ, il ouvrirait une fuite entre
    * tenants.
@@ -7228,7 +7243,7 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
 
     const hijack = await athlete
       .post("/conversations")
-      .send({ athleteId: otherAccepted.body.athleteId });
+      .send({ athleteId: otherAccepted.body.athleteId, coachId });
     expect(hijack.status).toBe(201);
     // Le fil rendu est celui de l'athlète courant avec SON coach, jamais celui du tiers visé.
     expect(hijack.body.counterpartId).not.toBe(otherAccepted.body.athleteId);
@@ -7669,7 +7684,7 @@ describe("Anti-cycle et anti-self sur la relation coach↔athlète (#11)", () =>
       const res = await outsider.post(`/invitations/${invitation.body.id}/accept`);
 
       expect(res.status).toBe(500);
-      expect((await outsider.get("/me/coach")).body).toBeNull();
+      expect((await outsider.get("/me/coaches")).body).toEqual([]);
     } finally {
       await prisma.coachAthlete.delete({ where: { id: corrupt.id } });
     }
@@ -7821,7 +7836,7 @@ describe("Capacités modifiables après coup (#13)", () => {
       status: 410,
       message: "Invitation retirée par le coach",
     });
-    expect((await athlete.get("/me/coach")).body).toBeNull();
+    expect((await athlete.get("/me/coaches")).body).toEqual([]);
   });
 
   // Le retrait ne touche que l'attente : une relation nouée reste tracée, un refus reste un refus.
@@ -8140,7 +8155,10 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
       409,
     );
-    expect((await solo.post("/conversations?as=athlete").send({})).status).toBe(400);
+    // Le même refus des deux côtés : se viser soi-même est impossible, pas inconnu (#198, #599).
+    expect((await solo.post("/conversations?as=athlete").send({ coachId: soloId })).status).toBe(
+      409,
+    );
   });
 });
 
@@ -8160,7 +8178,7 @@ describe("Contreparties : a-t-on quelqu'un en face (#198)", () => {
   });
 
   // Sans garde de capacité : un athlète autonome obtient une réponse là où `GET /athletes` et
-  // `GET /me/coach` lui donneraient un 403 et un `null`.
+  // `GET /me/coaches` lui donneraient un 403 et une liste vide.
   it("répond à un athlète autonome sans exiger de capacité", async () => {
     const athlete = await signUp("cp-autonomous@cmv.test", Role.ATHLETE);
     expect((await athlete.get("/athletes")).status).toBe(403);
@@ -8284,10 +8302,11 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     const dual = await signUpWith("vent-msg-dual@cmv.test", { isCoach: true, isAthlete: true });
     const myAthlete = await signUp("vent-msg-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(dual, myAthlete);
-    expect((await myAthlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
+    const accepted = await myAthlete.post(`/invitations/${invitation.body.id}/accept`);
+    expect(accepted.status).toBe(201);
 
     // L'athlète écrit à son coach : le coach (donc `dual`) reçoit un MESSAGE_RECEIVED non lu.
-    const thread = await myAthlete.post("/conversations").send({});
+    const thread = await myAthlete.post("/conversations").send({ coachId: accepted.body.coachId });
     expect(thread.status).toBe(201);
     expect(
       (
@@ -8313,7 +8332,8 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     });
     const athlete = await signUp("vent-solo-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
-    const id = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body.athleteId;
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
+    const id = accepted.body.athleteId;
 
     const plan = await coach.post("/plans").send({
       athleteId: id,
@@ -8329,7 +8349,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     // Et l'autre moitié : un message reçu par un coach SANS capacité athlète reste côté coach,
     // sans qu'on ait à demander aux fils de quel côté il le tient.
-    const thread = await athlete.post("/conversations").send({});
+    const thread = await athlete.post("/conversations").send({ coachId: accepted.body.coachId });
     expect(
       (
         await athlete
@@ -8866,7 +8886,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
       expect(late.status).toBe(400);
       expect(late.body.message).toBe("Invitation expirée");
     }
-    expect((await athlete.get("/me/coach")).body).toBeNull();
+    expect((await athlete.get("/me/coaches")).body).toEqual([]);
     const seenByCoach = (await coach.get("/invitations")).body.find(
       (row: { id: string }) => row.id === invitation.body.id,
     );
@@ -9143,7 +9163,7 @@ describe("Retirer une invitation en attente (#524)", () => {
       });
       expect((await other.post(`/invitations/${invitation.body.id}/${action}`)).status).toBe(404);
     }
-    expect((await athlete.get("/me/coach")).body).toBeNull();
+    expect((await athlete.get("/me/coaches")).body).toEqual([]);
   });
 
   // L'expiration est une date, pas un statut : une invitation périmée reste à retirer.

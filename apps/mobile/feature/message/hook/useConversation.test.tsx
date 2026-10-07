@@ -119,7 +119,7 @@ describe("useMessages — quand le fil se relit", () => {
 
 /**
  * #309 : lire ou écrire dans un fil change sa ligne dans la liste du coach — la pastille, l'aperçu.
- * Le mobile n'invalidait que `myConversation()`, dont aucun écran ne lit autre chose que l'id : la
+ * Le mobile n'invalidait que le fil résolu de l'athlète, dont aucun écran ne lit autre chose que l'id : la
  * liste restait sur l'état d'avant jusqu'au tirer-pour-rafraîchir.
  */
 describe("invalidation de la liste des fils", () => {
@@ -131,7 +131,7 @@ describe("invalidation de la liste des fils", () => {
   function seededClient() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(messageKeys.conversations("coach"), []);
-    queryClient.setQueryData(messageKeys.myConversation(), { id: "c1" });
+    queryClient.setQueryData(messageKeys.conversationWithCoach("coach_1"), { id: "c1" });
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
@@ -164,6 +164,6 @@ describe("invalidation de la liste des fils", () => {
     expect(isInvalidated(messageKeys.conversations("coach"))).toBe(true);
     // Invalider le fil résolu rejouerait le get-or-create à chaque lecture, pour un id qui ne
     // change pas.
-    expect(isInvalidated(messageKeys.myConversation())).toBe(false);
+    expect(isInvalidated(messageKeys.conversationWithCoach("coach_1"))).toBe(false);
   });
 });

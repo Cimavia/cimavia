@@ -19,9 +19,9 @@ import { mediaErrorMessage } from "@/shared/util/media.util";
 
 type ConversationThreadProps = {
   /**
-   * Le fil DÉJÀ résolu par l'appelant. C'est lui qui sait comment : l'athlète ouvre le sien avec
-   * son coach, le coach celui d'un athlète désigné. Résoudre ici obligerait ce composant à
-   * connaître les deux rôles pour n'en servir qu'un à la fois — et à appeler `GET /me/coach`, que
+   * Le fil DÉJÀ résolu par l'appelant. C'est lui qui sait comment : l'athlète ouvre celui d'un de
+   * ses coachs, le coach celui d'un de ses athlètes. Résoudre ici obligerait ce composant à
+   * connaître les deux rôles pour n'en servir qu'un à la fois — et à appeler `GET /me/coaches`, que
    * l'API refuse à un coach.
    */
   conversationId: string | undefined;

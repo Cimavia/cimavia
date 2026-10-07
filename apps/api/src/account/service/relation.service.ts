@@ -76,14 +76,6 @@ export class RelationService {
     return this.withNames(relations);
   }
 
-  // Athlète : sa relation coach, ou null s'il est autonome (pas de fallback silencieux).
-  async myCoach(): Promise<CoachAthleteDto | null> {
-    const relation = await this.db.coachAthlete.findFirst();
-    if (relation == null) return null;
-    const [dto] = await this.withNames([relation]);
-    return required(dto, `[account] relation ${relation.id} non mappée`);
-  }
-
   // Un seul aller-retour pour tous les noms, quel que soit le nombre de relations.
   private async withNames(relations: CoachAthlete[]): Promise<CoachAthleteDto[]> {
     const names = await this.users.namesByIds(
