@@ -366,7 +366,7 @@ describe("NotificationService — acteur sans nom", () => {
       emit: (service: NotificationService) =>
         service.notifyInvitationReceived({
           athleteId: "coach_1",
-          coachId: "other",
+          inviterId: "other",
           invitationId: "inv_1",
         }),
       title: "Invitation",

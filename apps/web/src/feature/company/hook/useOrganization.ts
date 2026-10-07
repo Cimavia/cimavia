@@ -2,6 +2,7 @@ import {
   acceptOrganizationInvitationMutation,
   type CreateInvitationInput,
   type InvitationDto,
+  type InvitationRole,
   type OrganizationCoachDto,
   type PendingOrganizationInvitationDto,
 } from "@cmv/shared";
@@ -19,11 +20,14 @@ export function useOrganizationCoaches() {
   });
 }
 
-/** Ses invitations, sauf celles qu'elle a retirées : en attente, refusées, acceptées. */
-export function useOrganizationInvitations() {
+/**
+ * Ses invitations d'un rôle (#602), sauf celles qu'elle a retirées : en attente, refusées,
+ * acceptées.
+ */
+export function useOrganizationInvitations(role: InvitationRole) {
   return useQuery<InvitationDto[]>({
-    queryKey: organizationKeys.invitations(),
-    queryFn: organizationApi.listInvitations,
+    queryKey: organizationKeys.invitations(role),
+    queryFn: () => organizationApi.listInvitations(role),
   });
 }
 

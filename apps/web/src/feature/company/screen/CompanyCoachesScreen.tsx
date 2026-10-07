@@ -1,4 +1,9 @@
-import { type InvitationDto, InvitationStatus, type OrganizationCoachDto } from "@cmv/shared";
+import {
+  type InvitationDto,
+  InvitationRole,
+  InvitationStatus,
+  type OrganizationCoachDto,
+} from "@cmv/shared";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AddCoachPanel } from "@/feature/company/component/AddCoachPanel";
@@ -46,7 +51,7 @@ const DECLINED_GRID = "grid grid-cols-[2fr_1fr_auto] items-center gap-cmv-lg";
 export function CompanyCoachesScreen() {
   const { t } = useTranslation();
   const coaches = useOrganizationCoaches();
-  const invitations = useOrganizationInvitations();
+  const invitations = useOrganizationInvitations(InvitationRole.COACH);
   const [panelOpen, setPanelOpen] = useState(false);
 
   const pending = byStatus(invitations.data, InvitationStatus.PENDING);

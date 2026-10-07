@@ -39,6 +39,12 @@ export const coachAthleteDtoSchema = z.object({
   invitedAt: z.iso.datetime(),
   joinedAt: z.iso.datetime().nullable(),
   /**
+   * L'entreprise dont le lien est né — « via F » (#602). `null` = lien DIRECT, noué par
+   * l'invitation d'un Coach : « aucune entreprise », pas une donnée indisponible. Le rendu laisse
+   * donc la place vide, sans « — ».
+   */
+  organizationName: z.string().nullable(),
+  /**
    * Le compte est son PROPRE athlète (auto-coaching). Un drapeau plutôt qu'une comparaison
    * `coachId === athleteId` recopiée dans chaque écran : l'information est la même, mais elle est
    * ici nommée une fois pour toutes, et le jour où le modèle change il n'y a qu'un endroit à

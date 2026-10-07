@@ -318,18 +318,22 @@ export {
 } from "./dto/feedback.schema";
 export type {
   CreateInvitationInput,
+  CreateOrganizationInvitationInput,
   InvitationDto,
   InvitationRole as InvitationRoleType,
   InvitationStatus as InvitationStatusType,
+  OrganizationInvitationQuery,
   PendingInvitationDto,
 } from "./dto/invitation.schema";
 export {
   createInvitationSchema,
+  createOrganizationInvitationSchema,
   InvitationRole,
   InvitationStatus,
   invitationDtoSchema,
   invitationRoleSchema,
   invitationStatusSchema,
+  organizationInvitationQuerySchema,
   pendingInvitationDtoSchema,
 } from "./dto/invitation.schema";
 export type {
@@ -444,10 +448,12 @@ export {
   updateNotificationEmailPreferencesSchema,
 } from "./dto/notification.schema";
 export type {
+  OrganizationAthleteDto,
   OrganizationCoachDto,
   PendingOrganizationInvitationDto,
 } from "./dto/organization.schema";
 export {
+  organizationAthleteDtoSchema,
   organizationCoachDtoSchema,
   pendingOrganizationInvitationDtoSchema,
 } from "./dto/organization.schema";

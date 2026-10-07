@@ -52,11 +52,12 @@ export class InvitationController {
   @Get("for-me")
   @RequireCapability("athlete")
   listForMe(@Session() session: UserSession) {
-    return this.invitations.listForMe({ email: session.user.email });
+    return this.invitations.listForMe({ id: session.user.id, email: session.user.email });
   }
 
   /**
-   * Athlète : rejoint le coach qui l'a invité. L'invitation se désigne par son `id` (#390) : il
+   * Athlète : rejoint qui l'a invité — un Coach, ou une entreprise et tous ses Coachs (#602), d'où
+   * une liste de liens. L'invitation se désigne par son `id` (#390) : il
    * n'est pas un secret, c'est l'adresse de la session qui fait le verrou — l'`id` d'une
    * invitation adressée à quelqu'un d'autre rend 404.
    */

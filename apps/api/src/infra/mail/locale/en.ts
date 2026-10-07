@@ -1,4 +1,4 @@
-import { Locale, NotificationType } from "@cmv/shared";
+import { InvitationRole, Locale, NotificationType } from "@cmv/shared";
 import type { MailStrings } from "../mail.catalog";
 
 /**
@@ -41,15 +41,29 @@ export const en = {
       "If you do not know this person, ignore this email: nothing will happen, and nobody will learn that you received it.",
   },
   organizationInvitation: {
-    subject: (organizationName) => `${organizationName} invited you to join their team on Cimavia`,
-    heading: (organizationName) => `Join the ${organizationName} team`,
-    intro: (organizationName) =>
-      `${organizationName} invited you to join their team of coaches on Cimavia. Once a member, you will follow the athletes of ${organizationName}.`,
-    addressLine:
-      'Create your account with the address that received this email, ticking "I coach": your invitation will be waiting on your dashboard.',
-    cta: "Create my account",
-    ignore:
-      "If you do not know this company, ignore this email: nothing will happen, and nobody will learn that you received it.",
+    [InvitationRole.COACH]: {
+      subject: (organizationName) =>
+        `${organizationName} invited you to join their team on Cimavia`,
+      heading: (organizationName) => `Join the ${organizationName} team`,
+      intro: (organizationName) =>
+        `${organizationName} invited you to join their team of coaches on Cimavia. Once a member, you will follow the athletes of ${organizationName}.`,
+      addressLine:
+        'Create your account with the address that received this email, ticking "I coach": your invitation will be waiting on your dashboard.',
+      cta: "Create my account",
+      ignore:
+        "If you do not know this company, ignore this email: nothing will happen, and nobody will learn that you received it.",
+    },
+    [InvitationRole.ATHLETE]: {
+      subject: (organizationName) => `${organizationName} invited you to Cimavia`,
+      heading: (organizationName) => `Join ${organizationName} on Cimavia`,
+      intro: (organizationName) =>
+        `${organizationName} invited you to join their athletes on Cimavia. Their coaches will follow you there, for your training plans and the debrief of your sessions.`,
+      addressLine:
+        'Create your account with the address that received this email, ticking "I train": your invitation will be waiting in "My coaches".',
+      cta: "Create my account",
+      ignore:
+        "If you do not know this company, ignore this email: nothing will happen, and nobody will learn that you received it.",
+    },
   },
   // Deux formulations par gabarit, comme en français : le sujet est nullable, et des guillemets
   // vides seraient pires qu'une phrase générique.

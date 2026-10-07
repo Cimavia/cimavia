@@ -26,7 +26,7 @@ export function PendingInvitationCard({
     <View className="gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-4">
       <View className="gap-1">
         <CmvText className="font-cmv-display text-cmv-text-hi text-lg">
-          {t("coach.invitation.title", { name: invitation.coachName })}
+          {t("coach.invitation.title", { name: invitation.issuer.name })}
         </CmvText>
         <CmvText className="text-cmv-text-lo text-xs">
           {t("coach.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
@@ -37,7 +37,7 @@ export function PendingInvitationCard({
         label={
           accept.isPending
             ? t("coach.invitation.joining")
-            : t("coach.invitation.join", { name: invitation.coachName })
+            : t("coach.invitation.join", { name: invitation.issuer.name })
         }
         onPress={() => accept.mutate(invitation.id)}
         disabled={busy}

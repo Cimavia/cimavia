@@ -26,7 +26,7 @@ export function PendingInvitationCard({
       <div className="flex flex-col gap-cmv-md">
         <div className="flex flex-col gap-cmv-xs">
           <h2 className="text-cmv-subtitle text-cmv-text-hi">
-            {t("coach.invitation.title", { name: invitation.coachName })}
+            {t("coach.invitation.title", { name: invitation.issuer.name })}
           </h2>
           <p className="text-cmv-caption text-cmv-text-mid">
             {t("coach.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
@@ -37,7 +37,7 @@ export function PendingInvitationCard({
           <CmvButton disabled={busy} onClick={() => accept.mutate(invitation.id)}>
             {accept.isPending
               ? t("coach.invitation.joining")
-              : t("coach.invitation.join", { name: invitation.coachName })}
+              : t("coach.invitation.join", { name: invitation.issuer.name })}
           </CmvButton>
 
           {/* Armé comme une suppression : le refus est sans retour, le coach devra réémettre. */}
