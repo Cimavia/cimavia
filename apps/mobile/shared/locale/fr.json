@@ -658,5 +658,10 @@
       "photoLibrary": "cimavia a besoin d'accéder à ta photothèque pour joindre photos et vidéos à un débrief ou à un message.",
       "microphone": "cimavia utilise le micro pour enregistrer tes messages vocaux."
     }
+  },
+  "company": {
+    "mobile": {
+      "title": "L'espace Entreprise est sur le web"
+    }
   }
 }

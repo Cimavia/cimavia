@@ -48,6 +48,7 @@ const EXPECTED: Readonly<Record<string, CapabilityName>> = {
   reminders: "coach", // `/reminders` — `Reminder` est scopé `coachId` seul
   join: "athlete", // `POST /invitations/accept`
   session: "athlete", // `/me/scheduled-sessions/…`
+  company: "company", // l'écran de renvoi vers le web (#600) — il n'appelle aucune route métier
 };
 
 const entries = readdirSync(APP, { withFileTypes: true });

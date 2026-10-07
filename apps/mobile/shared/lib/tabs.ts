@@ -1,4 +1,5 @@
 import {
+  type Capabilities,
   type CapabilityName,
   type CounterpartsDto,
   required,
@@ -76,9 +77,17 @@ export const TABS: readonly TabDefinition[] = [
   { name: "profile", labelKey: "nav.profile", icon: "person-outline", capability: null },
 ];
 
-type CapabilityFlags = { isCoach: boolean; isAthlete: boolean };
+type CapabilityFlags = Pick<Capabilities, "isCoach" | "isAthlete" | "isCompany">;
+
+/**
+ * Où vit un compte Entreprise sur le téléphone : un écran unique qui le renvoie vers le web (#600).
+ * Aucun onglet ne lui est ouvert, pas même ceux « servis aux deux » : le profil y règle des
+ * capacités qu'il ne peut pas prendre, la messagerie et les factures n'ont pas de sens pour lui.
+ */
+const COMPANY_HOME: Href = "/company";
 
 function isGranted(tab: TabDefinition, capabilities: CapabilityFlags): boolean {
+  if (capabilities.isCompany) return false;
   if (tab.capability == null) return true;
   return tab.capability === "coach" ? capabilities.isCoach : capabilities.isAthlete;
 }
@@ -122,6 +131,7 @@ export function landingTab(
   capabilities: CapabilityFlags,
   counterparts: CounterpartsDto = UNKNOWN_COUNTERPARTS,
 ): Href {
+  if (capabilities.isCompany) return COMPANY_HOME;
   const first = required(visibleTabs(capabilities, counterparts)[0], "aucun onglet commun");
   return `/${first.name}` as Href;
 }

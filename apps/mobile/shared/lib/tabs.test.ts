@@ -9,10 +9,11 @@ const WITH = { asCoach: true, asAthlete: true };
 const ALONE = { asCoach: false, asAthlete: false };
 const COACHES_SOMEONE = { asCoach: true, asAthlete: false };
 
-const COACH = { isCoach: true, isAthlete: false };
-const ATHLETE = { isCoach: false, isAthlete: true };
-const BOTH = { isCoach: true, isAthlete: true };
-const NEITHER = { isCoach: false, isAthlete: false };
+const COACH = { isCoach: true, isAthlete: false, isCompany: false };
+const ATHLETE = { isCoach: false, isAthlete: true, isCompany: false };
+const BOTH = { isCoach: true, isAthlete: true, isCompany: false };
+const NEITHER = { isCoach: false, isAthlete: false, isCompany: false };
+const COMPANY = { isCoach: false, isAthlete: false, isCompany: true };
 
 describe("visibleTabs", () => {
   /**
@@ -146,5 +147,29 @@ describe("redirectForPath", () => {
   // Le préfixe doit être un SEGMENT entier : « /sessions-archivees » n'est pas dans « /sessions ».
   it("ne confond pas un onglet avec un chemin qui commence pareil", () => {
     expect(redirectForPath("/sessionsarchivees", COACH, WITH)).toBeNull();
+  });
+});
+
+/**
+ * Le compte Entreprise n'a pas d'espace sur le téléphone (#600) : un écran unique le renvoie vers
+ * le web. Aucun onglet ne lui est ouvert, pas même ceux servis aux deux capacités.
+ */
+describe("un compte Entreprise", () => {
+  it("ne voit aucun onglet", () => {
+    expect(visibleTabs(COMPANY, WITH)).toEqual([]);
+  });
+
+  it("atterrit sur l'écran qui le renvoie vers le web", () => {
+    expect(landingTab(COMPANY, WITH)).toBe("/company");
+  });
+
+  it("en est ramené depuis n'importe quel onglet, profil compris", () => {
+    for (const tab of TABS) {
+      expect(redirectForPath(`/${tab.name}`, COMPANY, WITH)).toBe("/company");
+    }
+  });
+
+  it("y reste une fois arrivé", () => {
+    expect(redirectForPath("/company", COMPANY, WITH)).toBeNull();
   });
 });
