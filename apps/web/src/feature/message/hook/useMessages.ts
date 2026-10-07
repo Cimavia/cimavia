@@ -40,6 +40,19 @@ export function useConversationWith(athleteId: string | null) {
 }
 
 /**
+ * Ouvre (get-or-create) le fil avec UN des coachs de l'athlète courant (#599) — il en a 0..N, et
+ * c'est donc à lui de désigner lequel. Symétrique de `useConversationWith` : désigner un de ses
+ * coachs, c'est agir en athlète.
+ */
+export function useConversationWithCoach(coachId: string) {
+  return useQuery<ConversationDto>({
+    queryKey: messageKeys.conversationWithCoach(coachId),
+    queryFn: () => messageApi.openConversation({ coachId }, "athlete"),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/**
  * Ouvre (get-or-create) le fil de l'athlète courant avec SON coach : aucun id à donner, l'API le
  * résout. `enabled` parce qu'un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait.
  */

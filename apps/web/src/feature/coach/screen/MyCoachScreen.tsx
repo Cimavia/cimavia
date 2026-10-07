@@ -100,10 +100,15 @@ function LinkedCoachCard({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
 
         <Link
           to="/messages"
-          // `?athlete=` désigne le fil ouvert côté coach : l'athlète n'en a qu'un, le paramètre
-          // reste donc absent. La clé est REQUISE mais peut valoir undefined (cf. la route).
-          // `as` : c'est un écran d'athlète, le fil s'ouvre donc à ce titre.
-          search={{ athlete: undefined, as: "athlete" }}
+          // `?coach=` : le fil avec CE coach, parmi les siens (#599). Les autres clés sont
+          // REQUISES mais peuvent valoir undefined (cf. la route). `as` : c'est un écran
+          // d'athlète, le fil s'ouvre donc à ce titre.
+          search={{
+            athlete: undefined,
+            coach: coach.coachId,
+            conversation: undefined,
+            as: "athlete",
+          }}
           className="inline-flex items-center rounded-cmv-md border border-cmv-border px-cmv-lg py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:border-cmv-border-hi hover:text-cmv-text-hi"
         >
           {t("coach.linked.message")}

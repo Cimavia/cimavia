@@ -1,4 +1,4 @@
-import type { ConversationDto } from "@cmv/shared";
+import type { ConversationRow } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { CmvBadge } from "@/shared/component";
 
@@ -8,25 +8,16 @@ import { cn } from "@/shared/util/cn.util";
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values messages.preview: IMAGE, VIDEO, AUDIO, FEEDBACK_CREATED, FEEDBACK_UPDATED
 
-// Une ligne = un athlète, enrichi de son fil s'il existe (aperçu + non-lus). Sans fil, la ligne
-// reste cliquable : la sélectionner crée le fil.
-export type ConversationRow = {
-  athleteId: string;
-  athleteName: string;
-  conversation: ConversationDto | null;
-};
-
+// Une ligne = un interlocuteur — un athlète pour le coach, un coach pour l'athlète (#599) —
+// enrichi de son fil s'il existe (aperçu + non-lus). Sans fil, la ligne reste cliquable : la
+// sélectionner crée le fil. Les lignes se construisent dans `conversationRows` (@cmv/shared).
 type ConversationListProps = {
   rows: ConversationRow[];
-  selectedAthleteId: string | null;
-  onSelect: (athleteId: string) => void;
+  selectedId: string | null;
+  onSelect: (counterpartId: string) => void;
 };
 
-export function ConversationList({
-  rows,
-  selectedAthleteId,
-  onSelect,
-}: Readonly<ConversationListProps>) {
+export function ConversationList({ rows, selectedId, onSelect }: Readonly<ConversationListProps>) {
   const { t } = useTranslation();
 
   return (
@@ -43,16 +34,16 @@ export function ConversationList({
         return (
           <button
             type="button"
-            key={row.athleteId}
-            onClick={() => onSelect(row.athleteId)}
+            key={row.counterpartId}
+            onClick={() => onSelect(row.counterpartId)}
             className={cn(
               "flex flex-col gap-cmv-xs border-cmv-border border-b px-cmv-md py-cmv-sm text-left transition-colors",
-              row.athleteId === selectedAthleteId ? "bg-cmv-surface" : "hover:bg-cmv-surface",
+              row.counterpartId === selectedId ? "bg-cmv-surface" : "hover:bg-cmv-surface",
             )}
           >
             <div className="flex items-center gap-cmv-sm">
               <span className="flex-1 truncate text-cmv-body text-cmv-text-hi">
-                {row.athleteName}
+                {row.counterpartName}
               </span>
               {conversation != null && conversation.unreadCount > 0 ? (
                 <CmvBadge variant="accent">{String(conversation.unreadCount)}</CmvBadge>

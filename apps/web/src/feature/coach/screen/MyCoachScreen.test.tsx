@@ -236,7 +236,7 @@ describe("MyCoachScreen — le coach lié", () => {
     expect(screen.getByText("coach.linked.since")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "coach.linked.message" })).toHaveAttribute(
       "href",
-      "/messages?as=athlete",
+      "/messages?coach=u_coach&as=athlete",
     );
     expect(screen.queryByText("coach.missing.title")).toBeNull();
   });

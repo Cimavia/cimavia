@@ -61,7 +61,12 @@ describe("routeForNotification", () => {
   });
 
   it.each([
-    [NotificationEntityType.CONVERSATION, "/messages", { athlete: undefined, as: undefined }],
+    // Le fil, et lui seul : l'écran le traduit en interlocuteur, coach ou athlète (#599).
+    [
+      NotificationEntityType.CONVERSATION,
+      "/messages",
+      { athlete: undefined, coach: undefined, conversation: "entity-1", as: undefined },
+    ],
     [
       NotificationEntityType.INVOICE,
       "/invoices",

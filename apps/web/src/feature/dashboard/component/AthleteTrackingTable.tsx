@@ -98,7 +98,12 @@ export function AthleteTrackingTable({
             <CountCell
               count={row.unreadMessages}
               to="/messages"
-              search={{ athlete: row.athleteId, as: "coach" }}
+              search={{
+                athlete: row.athleteId,
+                coach: undefined,
+                conversation: undefined,
+                as: "coach",
+              }}
             />
 
             <InvoiceCell state={row.invoiceState} />
@@ -202,7 +207,11 @@ function PlanTiming({ plan }: Readonly<{ plan: AthleteRowPlan }>) {
 // le typecheck refuse un `?athlete=` posé sur `/feedbacks`.
 type CountCellProps =
   // `as: "coach"` : ce tableau EST le tableau de suivi du coach — il ouvre le fil à ce titre.
-  | { count: number | null; to: "/messages"; search: { athlete: string; as: "coach" } }
+  | {
+      count: number | null;
+      to: "/messages";
+      search: { athlete: string; coach: undefined; conversation: undefined; as: "coach" };
+    }
   | {
       count: number | null;
       to: "/feedbacks";

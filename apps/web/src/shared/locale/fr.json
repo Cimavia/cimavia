@@ -808,7 +808,8 @@
       "FEEDBACK_UPDATED": "📝 Débrief mis à jour"
     },
     "athlete": {
-      "subtitle": "Ton fil avec ton coach.",
+      "subtitle": "Échange avec tes coachs.",
+      "pickThread": "Sélectionne un coach pour ouvrir la conversation.",
       "noCoach": {
         "title": "Aucun coach rattaché",
         "description": "La messagerie n'est disponible qu'avec un coach. Accepte son invitation dans « Mon coach » pour commencer à échanger.",

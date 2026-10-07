@@ -17,6 +17,17 @@ export function useMyCoach() {
 }
 
 /**
+ * Les coachs de l'athlète courant (#599), les plus récemment rejoints d'abord. Liste vide =
+ * athlète autonome : ce n'est pas une erreur, l'autonomie est un état prévu du modèle.
+ */
+export function useMyCoaches() {
+  return useQuery<CoachAthleteDto[]>({
+    queryKey: coachKeys.list(),
+    queryFn: accountApi.myCoaches,
+  });
+}
+
+/**
  * Rejoint un coach depuis la carte de son invitation. L'invalidation est globale : rejoindre
  * change tout ce que l'athlète peut voir — le pourquoi vit avec la mutation, partagée (#308).
  *

@@ -19,7 +19,10 @@ type NotificationTarget =
   | { to: "/plans/$planId"; params: { planId: string } }
   | { to: "/sessions/$sessionId"; params: { sessionId: string }; search: { from: undefined } }
   | { to: "/feedbacks"; search: { feedback: undefined; session: undefined } }
-  | { to: "/messages"; search: { athlete: undefined; as: undefined } }
+  | {
+      to: "/messages";
+      search: { athlete: undefined; coach: undefined; conversation: string; as: undefined };
+    }
   | { to: "/planning"; search: { from: undefined } }
   | {
       to: "/invoices";
@@ -108,10 +111,19 @@ export function routeForNotification(
             params: { sessionId: notification.entityId },
             search: { from: undefined },
           };
-    // Servie aux deux rôles depuis #29 : même route, contenu décidé par l'écran (N fils pour le
-    // coach, un seul pour l'athlète).
+    // Servie aux deux rôles depuis #29 : même route, contenu décidé par l'écran. La notification
+    // ne connaît que le fil ; c'est l'écran qui le traduit en interlocuteur — un athlète suivi par
+    // plusieurs coachs doit tomber sur le fil de celui qui a écrit (#599).
     case NotificationEntityType.CONVERSATION:
-      return { to: "/messages", search: { athlete: undefined, as: undefined } };
+      return {
+        to: "/messages",
+        search: {
+          athlete: undefined,
+          coach: undefined,
+          conversation: notification.entityId,
+          as: undefined,
+        },
+      };
     // Servie aux deux rôles depuis #27 : même route, contenu scopé par le tenant.
     case NotificationEntityType.INVOICE:
       return {
