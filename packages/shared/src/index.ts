@@ -643,6 +643,10 @@ export {
   defaultAthleteMonday,
 } from "./util/athlete-week.util";
 export { CHAR_COUNT_THRESHOLD, shouldShowCharCount } from "./util/char-count.util";
+export type { CoachPresence } from "./util/coach-presence.util";
+export { coachPresence } from "./util/coach-presence.util";
+export type { ConversationRelation, ConversationRow } from "./util/conversation-row.util";
+export { conversationRows, counterpartOfConversation } from "./util/conversation-row.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,

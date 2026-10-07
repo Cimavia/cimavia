@@ -154,6 +154,7 @@ describe("messageKeys", () => {
     expect(messageKeys.conversations(null)[0]).toBe(root);
     expect(messageKeys.conversationWith("ath_1")[0]).toBe(root);
     expect(messageKeys.myConversation()[0]).toBe(root);
+    expect(messageKeys.conversationWithCoach("coa_1")[0]).toBe(root);
     expect(messageKeys.thread("cnv_1", null)[0]).toBe(root);
   });
 
@@ -165,6 +166,13 @@ describe("messageKeys", () => {
   it("distingue le fil de l'athlète d'un fil ciblé par le coach", () => {
     expect(messageKeys.myConversation()).not.toEqual(messageKeys.conversationWith(""));
     expect(messageKeys.myConversation()).not.toEqual(messageKeys.conversations(null));
+  });
+
+  // Le même id lu des deux bouts : celui d'un athlète qu'on coache, ou d'un coach qui nous suit.
+  it("sépare le fil ouvert vers un coach de celui ouvert vers un athlète", () => {
+    expect(messageKeys.conversationWithCoach("acc_1")).not.toEqual(
+      messageKeys.conversationWith("acc_1"),
+    );
   });
 
   /**
