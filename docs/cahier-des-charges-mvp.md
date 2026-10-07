@@ -42,7 +42,7 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
 |------|----------------|-------|
 | **Coach** | Création (exercices, séances, planifs) — plus confortable sur web | **Web + mobile** |
 | **Athlète** | Usage quotidien (consultation, débrief, messages) — surtout mobile | **Web + mobile** |
-| **Entreprise** | Réunit des Coachs, invite des athlètes *(cible — #601, #602)* ; ne coache ni ne s'entraîne, ne voit aucun contenu en v1 | **Web** (le mobile y renvoie) |
+| **Entreprise** | Réunit des Coachs, invite des athlètes *(cible — #602)* ; ne coache ni ne s'entraîne, ne voit aucun contenu en v1 | **Web** (le mobile y renvoie) |
 | **Admin** | Gestion comptes, support (rôle minimal en MVP) | Web |
 
 > **Révisé (épique #7, livrée).** Ce ne sont plus des rôles exclusifs mais des **capacités
@@ -55,7 +55,7 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
 - Un athlète a **0..N coachs**, en direct ou **via une entreprise** *(cible — #602)*, avec **un lien par couple** : planifications, débriefs, factures, fiches et conversations restent par couple.
   - Un athlète peut être **autonome** (0 coach) ou **s'auto-coacher** s'il porte aussi la capacité coach — livré avec l'épique #7, plus tôt que la v1.0 prévue ici. La liaison est **réversible** : un athlète autonome peut rejoindre un coach plus tard, et redevenir autonome si la relation se termine.
   - Une chaîne est possible (A coache B, B coache C) mais **jamais une boucle** : anti-cycle et anti-self à l'acceptation d'une invitation.
-- Un coach a **N athlètes** et appartient à **0..N entreprises** *(cible — #601)*.
+- Un coach a **N athlètes** et appartient à **0..N entreprises** (#601).
 - Un compte **Entreprise** est **exclusif** : ni coach ni athlète. Un athlète qu'il invite est suivi par **chacun** de ses coachs (un lien par coach, marqué « via » l'entreprise) *(cible — #602)*.
 - Les coachs d'une même entreprise s'ouvrent leurs exercices, séances et planifications par des **droits d'accès** (Lecture ou Écriture) *(cible — #605, #607)* ; supprimer, gérer les accès et réaffecter restent au propriétaire.
 - **Les deux capacités accèdent aux deux clients** (web et mobile) — l'usage diffère, pas les droits d'accès aux plateformes.
@@ -115,7 +115,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - Réinitialisation du mot de passe (« mot de passe oublié » → lien de reset par e-mail).
 - OAuth (Google) en option v1.0.
 - **Capacités** choisies à l'inscription, en cases à cocher (coach et/ou athlète, au moins une), modifiables ensuite depuis son compte — avec refus si la capacité est en cours d'usage (athlètes actifs, ou coach rattaché).
-- **Compte Entreprise** : choisi **en premier** à l'inscription, exclusif des deux capacités ; « Nom de l'entreprise » remplace « Nom complet ». Il ajoute ses coachs et invite des athlètes *(cible — #601, #602)*.
+- **Compte Entreprise** : choisi **en premier** à l'inscription, exclusif des deux capacités ; « Nom de l'entreprise » remplace « Nom complet ». Il ajoute ses coachs et invite des athlètes *(cible — #602)*.
 - Liaison : le coach invite par **adresse e-mail** (toute invitation est nominative depuis #390), l'athlète accepte depuis le compte qui la porte → **un lien par couple**. Un athlète peut rejoindre un coach même s'il en a déjà un (#599).
 - **Auto-coaching (livré, épique #7) :** un compte portant les deux capacités crée ses propres exercices, séances et cycles, se les diffuse et les débriefe. Ni facturation ni notification vers soi-même ; la messagerie reste fermée (un fil suppose deux personnes). La liaison à un coach reste possible et **réversible** (voir §3).
 
@@ -278,7 +278,7 @@ Deux niveaux à ne pas confondre :
 - `coach_id` → profiles, `athlete_id` → profiles, **UNIQUE (`coach_id`, `athlete_id`)**, `status` enum(`pending`,`active`), `invited_at`, `joined_at` ; marqué « via » une entreprise quand il en naît *(cible — #602)*
 
 **organizations** (entreprise)
-- `id` = celui du compte Entreprise ; le nom est celui du compte. Appartenance des coachs *(cible — #601)*
+- `id` = celui du compte Entreprise ; le nom est celui du compte. Appartenance des coachs : `organization_coach`, une ligne par couple entreprise ↔ Coach (#601)
 
 **access_grants** (droit d'accès) *(cible — #605)*
 - cible : exercice, séance ou planification (exactement une) ; bénéficiaire : entreprise ou coach (exactement un) ; niveau `none` / `read` / `write` ; `owner_id` dénormalisé ; unicité (cible, bénéficiaire)

@@ -12,6 +12,8 @@ import { useTranslation } from "react-i18next";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
 import { InvitationPanel } from "@/feature/athlete/component/InvitationPanel";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
+import { OrganizationInvitationCard } from "@/feature/company/component/OrganizationInvitationCard";
+import { useMyOrganizationInvitations } from "@/feature/company/hook/useOrganization";
 import { AthleteTrackingSection } from "@/feature/dashboard/component/AthleteTrackingSection";
 import { DashboardTile } from "@/feature/dashboard/component/DashboardTile";
 import { useFeedbacks } from "@/feature/feedback/hook/useFeedbacks";
@@ -86,6 +88,11 @@ export function DashboardScreen() {
   // Le badge de la cloche, lui, GARDE son sondage : il vit dans la nav, sur tous les écrans, et
   // c'est sa raison d'être. Même clé de cache — la tuile ne déclenche aucune requête de plus.
   const unreadNotifications = useUnreadNotificationCount();
+  /**
+   * Les entreprises qui invitent ce Coach (#601). HORS de `sources` : leur absence est le cas
+   * ordinaire, et une panne ici ne fausse aucune tuile — on ne rend alors rien, sans bandeau.
+   */
+  const organizationInvitations = useMyOrganizationInvitations().data ?? [];
 
   /**
    * La fiche ouverte vit dans l'URL (`?athlete=<id>`), pas dans un `useState`.
@@ -225,10 +232,22 @@ export function DashboardScreen() {
       title={t("dashboard.title")}
       subtitle={t("dashboard.welcome", { name: authSession?.user.name ?? "—" })}
       // Action primaire de l'écran, comme la top bar de la maquette : inviter un athlète était le
-      // seul geste que `/athletes` portait et que les tuiles ne remplacent pas.
-      actions={<CmvButton onClick={() => setInvitationOpen(true)}>{t("athlete.invite")}</CmvButton>}
+      // seul geste que `/athletes` portait et que les tuiles ne remplacent pas. Elle passe en
+      // secondaire tant qu'une entreprise attend une réponse : c'est alors la carte qui l'est.
+      actions={
+        <CmvButton
+          variant={organizationInvitations.length > 0 ? "secondary" : "primary"}
+          onClick={() => setInvitationOpen(true)}
+        >
+          {t("athlete.invite")}
+        </CmvButton>
+      }
     >
       <div className="flex flex-col gap-cmv-xl">
+        {organizationInvitations.map((invitation) => (
+          <OrganizationInvitationCard key={invitation.id} invitation={invitation} />
+        ))}
+
         {/* Au-dessus des rangées, jamais à leur place : les tuiles qui ONT répondu restent lisibles,
             seules celles qui manquent affichent « — ». Une panne partielle ne doit pas effacer
             l'écran entier. */}

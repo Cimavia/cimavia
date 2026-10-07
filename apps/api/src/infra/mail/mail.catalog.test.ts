@@ -261,3 +261,43 @@ describe("mailCatalog — gabarit d'invitation", () => {
     expect(en.invitation.ignore).not.toBe(fr.invitation.ignore);
   });
 });
+
+describe("mailCatalog — invitation d'une entreprise (#601)", () => {
+  const PARAMS = { organizationName: "Fontainebleau Escalade", expiresInDays: 7 };
+
+  // Le destinataire n'a aucun contexte : le nom de l'entreprise est dans l'objet et dans le titre.
+  it.each([Locale.FR, Locale.EN])("%s : nomme l'entreprise dans l'objet et le corps", (locale) => {
+    const mail = mailCatalog(locale).organizationInvitation({ ...PARAMS, registerUrl: null });
+
+    expect(mail.subject).toContain("Fontainebleau Escalade");
+    expect(mail.text).toContain("Fontainebleau Escalade");
+    expect(mail.html).not.toContain("<a href");
+  });
+
+  /**
+   * La consigne porte la case à cocher : un compte créé sans « Je coache » ne pourrait pas accepter
+   * l'invitation. Elle figure avec ou sans lien d'inscription.
+   */
+  it("dit de s'inscrire avec cette adresse en cochant « Je coache »", () => {
+    const mail = mailCatalog(Locale.FR).organizationInvitation({
+      ...PARAMS,
+      registerUrl: "https://app.cimavia.fr/register",
+    });
+
+    expect(mail.text).toContain(fr.organizationInvitation.addressLine);
+    expect(fr.organizationInvitation.addressLine).toContain("Je coache");
+    expect(en.organizationInvitation.addressLine).toContain("I coach");
+    expect(mail.html).toContain("https://app.cimavia.fr/register");
+  });
+
+  it("annonce la durée qu'on lui donne, et comment l'ignorer", () => {
+    const mail = mailCatalog(Locale.FR).organizationInvitation({
+      ...PARAMS,
+      expiresInDays: 3,
+      registerUrl: null,
+    });
+
+    expect(mail.text).toContain("3 jours");
+    expect(mail.text).toContain(fr.organizationInvitation.ignore);
+  });
+});

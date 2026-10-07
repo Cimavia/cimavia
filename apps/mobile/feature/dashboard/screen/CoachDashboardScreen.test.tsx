@@ -3,6 +3,7 @@ import type {
   CoachFeedbackSummaryDto,
   ConversationDto,
   InvoiceDto,
+  PendingOrganizationInvitationDto,
 } from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { router } from "expo-router";
@@ -10,6 +11,7 @@ import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountApi } from "@/feature/athlete/api";
+import { organizationApi } from "@/feature/company/api";
 import { CoachDashboardScreen } from "@/feature/dashboard/screen/CoachDashboardScreen";
 import { coachFeedbackApi } from "@/feature/feedback/api";
 import { invoiceApi } from "@/feature/invoice/api";
@@ -30,6 +32,18 @@ vi.mock("@/feature/athlete/api", async (importOriginal) => {
   return {
     ...original,
     accountApi: { ...original.accountApi, listAthletes: vi.fn(), listInvitations: vi.fn() },
+  };
+});
+vi.mock("@/feature/company/api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/feature/company/api")>();
+  return {
+    ...original,
+    organizationApi: {
+      ...original.organizationApi,
+      myInvitations: vi.fn(),
+      acceptInvitation: vi.fn(),
+      declineInvitation: vi.fn(),
+    },
   };
 });
 vi.mock("@/feature/feedback/api", async (importOriginal) => {
@@ -98,6 +112,7 @@ const calls = {
   invoices: vi.mocked(invoiceApi.list),
   conversations: vi.mocked(messageApi.listConversations),
   reminders: vi.mocked(reminderApi.summary),
+  organizationInvitations: vi.mocked(organizationApi.myInvitations),
 };
 
 const FAILURE = new ApiError(500, "boom", null);
@@ -121,6 +136,9 @@ beforeEach(() => {
   calls.conversations.mockResolvedValue([CONVERSATION]);
   calls.reminders.mockResolvedValue({ dueCount: 3, pendingCount: 5 });
   vi.mocked(accountApi.listInvitations).mockResolvedValue([]);
+  calls.organizationInvitations.mockResolvedValue([]);
+  vi.mocked(organizationApi.acceptInvitation).mockResolvedValue(undefined);
+  vi.mocked(organizationApi.declineInvitation).mockResolvedValue(undefined);
 });
 
 describe("CoachDashboardScreen — les tuiles", () => {
@@ -248,5 +266,68 @@ describe("CoachDashboardScreen — l'accueil", () => {
     const { queryByText } = renderRn(withName());
 
     expect(queryByText("Bonjour —")).not.toBeNull();
+  });
+});
+
+const ORGANIZATION_INVITATION: PendingOrganizationInvitationDto = {
+  id: "oinv-1",
+  organizationName: "Fontainebleau Escalade",
+  expiresAt: "2026-10-16T09:00:00.000Z",
+  createdAt: "2026-10-09T09:00:00.000Z",
+};
+
+describe("CoachDashboardScreen — une entreprise m'invite (#601)", () => {
+  it("pose la carte de l'invitation", async () => {
+    calls.organizationInvitations.mockResolvedValue([ORGANIZATION_INVITATION]);
+    const { findByText } = renderRn(<CoachDashboardScreen />);
+
+    expect(await findByText("coach.organizationInvitation.title")).toBeTruthy();
+  });
+
+  // L'absence d'invitation est le cas ordinaire : une panne ici ne mérite pas le bandeau.
+  it("ne dit rien quand la liste des invitations est en panne", async () => {
+    calls.organizationInvitations.mockRejectedValue(FAILURE);
+    const { container } = renderRn(<CoachDashboardScreen />);
+    await loaded(container);
+
+    await waitFor(() => expect(calls.organizationInvitations).toHaveBeenCalled());
+    expect(container.textContent).not.toContain("common.retry");
+    expect(container.textContent).not.toContain("coach.organizationInvitation.title");
+  });
+
+  it("accepte depuis la carte", async () => {
+    calls.organizationInvitations.mockResolvedValue([ORGANIZATION_INVITATION]);
+    const { container, findByText } = renderRn(<CoachDashboardScreen />);
+    await findByText("coach.organizationInvitation.accept");
+
+    pressButton(container, "coach.organizationInvitation.accept");
+
+    await waitFor(() => expect(organizationApi.acceptInvitation).toHaveBeenCalledWith("oinv-1"));
+  });
+
+  it("n'envoie le refus qu'après confirmation", async () => {
+    calls.organizationInvitations.mockResolvedValue([ORGANIZATION_INVITATION]);
+    const { container, findByText } = renderRn(<CoachDashboardScreen />);
+    await findByText("coach.organizationInvitation.decline");
+
+    pressButton(container, "coach.organizationInvitation.decline");
+    expect(organizationApi.declineInvitation).not.toHaveBeenCalled();
+    pressButton(container, "coach.organizationInvitation.declineConfirm");
+
+    await waitFor(() => expect(organizationApi.declineInvitation).toHaveBeenCalledWith("oinv-1"));
+  });
+
+  // Pas de toasts sur mobile : l'échec se dit sur la carte, avec le message de l'API.
+  it("dit sur place pourquoi l'acceptation a échoué", async () => {
+    calls.organizationInvitations.mockResolvedValue([ORGANIZATION_INVITATION]);
+    vi.mocked(organizationApi.acceptInvitation).mockRejectedValue(
+      new ApiError(409, "Tu es déjà membre de cette entreprise", null),
+    );
+    const { container, findByText } = renderRn(<CoachDashboardScreen />);
+    await findByText("coach.organizationInvitation.accept");
+
+    pressButton(container, "coach.organizationInvitation.accept");
+
+    expect(await findByText("Tu es déjà membre de cette entreprise")).toBeTruthy();
   });
 });

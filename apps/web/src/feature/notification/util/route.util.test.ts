@@ -95,6 +95,19 @@ describe("routeForNotification", () => {
     expect(routeForNotification(dto, ATHLETE)).toEqual({ to: "/my-coach" });
   });
 
+  // L'invitation d'une entreprise (#601) ne vise que des Coachs : sa carte attend sur leur
+  // tableau de bord, la destination que la table donne déjà à toute invitation reçue en coach.
+  it("mène le coach invité par une entreprise à la carte de son tableau de bord", () => {
+    const dto = {
+      ...notification(NotificationEntityType.INVITATION, "inv-3"),
+      type: NotificationType.ORGANIZATION_INVITATION_RECEIVED,
+    };
+    expect(routeForNotification(dto, COACH)).toStrictEqual({
+      to: "/",
+      search: { q: undefined, filter: undefined, athlete: undefined },
+    });
+  });
+
   /**
    * Le seul type dont la destination est SUPPRIMÉE plutôt que déduite, et le seul branchement sur
    * le type de toute la table. L'écran existe pourtant — c'est le panneau d'invitations du coach —

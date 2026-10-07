@@ -78,6 +78,13 @@ export type InvitationReceivedEvent = {
  * L'athlète a répondu — rejoint ou refusé. Une seule charge pour les deux, comme les trois
  * ajustements de cycle : mêmes parties, même entité, seul le sens de la réponse change.
  */
+/** Une entreprise invite un compte Coach à rejoindre son équipe (#601). */
+export type OrganizationInvitationReceivedEvent = {
+  coachId: string;
+  organizationId: string;
+  invitationId: string;
+};
+
 export type InvitationAnsweredEvent = {
   coachId: string;
   athleteId: string;
@@ -114,6 +121,7 @@ type PushPayload =
   | { type: typeof NotificationType.INVITATION_RECEIVED; invitationId: string }
   | { type: typeof NotificationType.INVITATION_ACCEPTED; invitationId: string }
   | { type: typeof NotificationType.INVITATION_DECLINED; invitationId: string }
+  | { type: typeof NotificationType.ORGANIZATION_INVITATION_RECEIVED; invitationId: string }
   // Le seul type poussé SANS ligne en base (#47) : l'entrée du centre reste calculée à la lecture.
   // Sa clé d'id est `reminderId`, comme les autres sont `planId` ou `invoiceId`.
   | { type: typeof NotificationType.REMINDER_DUE; reminderId: string };
@@ -438,6 +446,39 @@ export class NotificationService {
         body: `${coachName ?? "Un coach"} t'invite à rejoindre son espace.`,
         data: {
           type: NotificationType.INVITATION_RECEIVED,
+          invitationId: event.invitationId,
+        },
+      },
+    );
+  }
+
+  /**
+   * Une entreprise invite un Coach (#601). Émise seulement vers un compte qui porte la capacité
+   * Coach : c'est la seule qui puisse accepter, et un compte sans elle ne doit rien recevoir. Le nom
+   * de l'entreprise est celui de son compte (#600), et c'est toute l'information.
+   */
+  async notifyOrganizationInvitationReceived(
+    event: OrganizationInvitationReceivedEvent,
+  ): Promise<void> {
+    this.logger.info(
+      { event: "organization-invitation.received", ...event },
+      "Invitation d'entreprise adressée à un Coach",
+    );
+    const organizationName = await this.userName(event.organizationId);
+    await this.emit(
+      {
+        recipientId: event.coachId,
+        type: NotificationType.ORGANIZATION_INVITATION_RECEIVED,
+        entityType: NotificationEntityType.INVITATION,
+        entityId: event.invitationId,
+        actorName: organizationName,
+        subjectLabel: null,
+      },
+      {
+        title: "Invitation",
+        body: `${organizationName ?? "Une entreprise"} t'invite à rejoindre son équipe.`,
+        data: {
+          type: NotificationType.ORGANIZATION_INVITATION_RECEIVED,
           invitationId: event.invitationId,
         },
       },

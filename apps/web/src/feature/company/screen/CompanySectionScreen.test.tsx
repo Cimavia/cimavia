@@ -14,13 +14,10 @@ vi.mock("@/shared/component/CmvAppShell", () => ({
 }));
 
 describe("CompanySectionScreen", () => {
-  it.each([
-    ["coaches", "company.coaches.title", "company.coaches.empty"],
-    ["athletes", "company.athletes.title", "company.athletes.empty"],
-  ] as const)("dit que la page %s est encore vide", (section, title, empty) => {
-    const { getByRole, getByText } = render(<CompanySectionScreen section={section} />);
+  it("dit que la page des athlètes est encore vide", () => {
+    const { getByRole, getByText } = render(<CompanySectionScreen section="athletes" />);
 
-    expect(getByRole("heading", { name: title })).toBeInTheDocument();
-    expect(getByText(empty)).toBeInTheDocument();
+    expect(getByRole("heading", { name: "company.athletes.title" })).toBeInTheDocument();
+    expect(getByText("company.athletes.empty")).toBeInTheDocument();
   });
 });

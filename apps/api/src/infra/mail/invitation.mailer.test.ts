@@ -51,4 +51,24 @@ describe("InvitationMailer", () => {
     });
     expect(message?.html).not.toContain("<a href");
   });
+
+  // L'invitation d'une entreprise (#601) : même transport, même lien, son propre gabarit.
+  it("envoie l'invitation d'une entreprise avec le même lien d'inscription", async () => {
+    const { mailer, send } = mailerWith("https://app.cimavia.fr");
+
+    await mailer.sendOrganizationInvitation({
+      to: "julie@example.com",
+      organizationName: "Fontainebleau Escalade",
+      expiresInDays: 7,
+    });
+
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      to: "julie@example.com",
+      ...mailCatalog(Locale.FR).organizationInvitation({
+        organizationName: "Fontainebleau Escalade",
+        expiresInDays: 7,
+        registerUrl: "https://app.cimavia.fr/register",
+      }),
+    });
+  });
 });

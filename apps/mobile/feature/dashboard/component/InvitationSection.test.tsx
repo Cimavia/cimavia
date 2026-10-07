@@ -1,4 +1,10 @@
-import { ApiError, type InvitationDto, InvitationStatus, invitationKeys } from "@cmv/shared";
+import {
+  ApiError,
+  type InvitationDto,
+  InvitationRole,
+  InvitationStatus,
+  invitationKeys,
+} from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountApi } from "@/feature/athlete/api";
@@ -27,6 +33,7 @@ function invitation(email: string, status: InvitationDto["status"]): InvitationD
   return {
     id: `inv-${email}`,
     email,
+    role: InvitationRole.ATHLETE,
     status,
     expiresAt: "2026-10-30T08:00:00.000Z",
     createdAt: "2026-09-30T08:00:00.000Z",

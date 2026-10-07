@@ -1172,6 +1172,7 @@
       "invitationReceived": "{{actor}} t'invite à rejoindre son espace",
       "invitationAccepted": "{{actor}} a rejoint ton espace",
       "invitationDeclined": "{{actor}} a refusé ton invitation",
+      "organizationInvitationReceived": "{{actor}} t'invite à rejoindre son équipe",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {
@@ -1207,6 +1208,19 @@
       "declineConfirm": "Confirmer le refus",
       "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
       "toast": {
+        "declined": "Invitation refusée"
+      }
+    },
+    "organizationInvitation": {
+      "title": "{{name}} t'invite à rejoindre son équipe",
+      "description": "Tu suivras les athlètes de {{name}}",
+      "expires": "Expire le {{date}}",
+      "accept": "Accepter",
+      "accepting": "Connexion en cours…",
+      "decline": "Refuser",
+      "declineConfirm": "Confirmer le refus",
+      "toast": {
+        "accepted": "Tu as rejoint l'équipe",
         "declined": "Invitation refusée"
       }
     },
@@ -1247,7 +1261,42 @@
   "company": {
     "coaches": {
       "title": "Coachs",
-      "empty": "Aucun coach pour l'instant."
+      "add": "Ajouter un coach",
+      "count": "{{count}} coach",
+      "count_other": "{{count}} coachs",
+      "pendingCount": "{{count}} invitation en attente",
+      "pendingCount_other": "{{count}} invitations en attente",
+      "empty": "Aucun coach pour l'instant.",
+      "emptyPending": "Aucune invitation en attente.",
+      "first": {
+        "title": "Ajoute ton premier coach",
+        "description": "Le coach reçoit une invitation par e-mail."
+      },
+      "columns": {
+        "name": "Nom",
+        "email": "E-mail",
+        "since": "Membre depuis",
+        "sentOn": "Envoyée le",
+        "expiresOn": "Expire le"
+      },
+      "pending": "Invitations en attente",
+      "declined": "Refusées",
+      "revoke": "Révoquer",
+      "revokeConfirm": "Confirmer le retrait",
+      "delete": "Effacer",
+      "deleteConfirm": "Confirmer l'effacement",
+      "panel": {
+        "emailLabel": "Adresse e-mail",
+        "emailPlaceholder": "nom@exemple.fr",
+        "hint": "Le coach reçoit une invitation par e-mail. Sans compte, il le crée depuis ce lien. Une fois membre, il suit tous les athlètes de {{name}}.",
+        "submit": "Envoyer l'invitation",
+        "submitting": "Envoi…"
+      },
+      "toast": {
+        "invited": "Invitation envoyée",
+        "revoked": "Invitation retirée",
+        "deleted": "Invitation effacée"
+      }
     },
     "athletes": {
       "title": "Athlètes",

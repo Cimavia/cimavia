@@ -5438,6 +5438,35 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Mobile** : aucun onglet, profil compris ; un écran unique (`/company`) donne l'adresse du web
 >   et la déconnexion.
 
+> **Tranché en [#601](https://github.com/Cimavia/cimavia/issues/601)** (l'entreprise ajoute des
+> Coachs à son équipe) : ce que le code ne dit pas seul.
+>
+> - **Une seule table d'invitations, deux émetteurs** : `Invitation` porte `coachId` OU
+>   `organizationId` (CHECK `invitation_single_issuer`) et un `role` (`ATHLETE` | `COACH`) ; seule
+>   une entreprise propose `COACH` (CHECK `invitation_coach_by_organization`). La table garde son nom
+>   `coach_invitation` : la renommer aurait coûté une migration de plus pour rien de lisible.
+>   `acceptedByAthleteId` devient `acceptedById`, un Coach pouvant désormais accepter.
+> - **Une troisième forme de `TenantScope`, `{ coach, company }`** : `Invitation` est le premier
+>   modèle « émis » par les deux familles de #600. Chaque capacité y lit SA colonne — jamais un `OR`.
+> - **Le rôle se filtre côté destinataire comme l'adresse** : les routes athlète ne voient que
+>   `ATHLETE`, celles du Coach que `COACH`, et un rôle qui ne correspond pas répond le même 404
+>   qu'un `id` inconnu (#390). Le cycle de vie commun (expiration, révocation, effacement des refus)
+>   vit dans `invitation.lifecycle.ts`, écrit une fois pour les deux émetteurs.
+> - **La porte d'inscription est fermée aux entreprises** : une invitation (de Coach ou
+>   d'entreprise) ouvre l'inscription d'un Coach ou d'un athlète, jamais celle d'un compte
+>   Entreprise. Une entreprise n'entre que par `SIGNUP_ALLOWED_EMAILS`.
+> - **Réinviter un membre → 409**, et seulement lui : l'entreprise voit déjà ses membres, le dire
+>   ne révèle rien. Toute autre adresse reçoit la même réponse, compte ou pas (#146) — y compris un
+>   compte athlète seul, qui ne reçoit ni e-mail ni notification : l'invitation reste en attente
+>   jusqu'à expiration.
+> - **Les refus restent visibles à l'entreprise**, section « Refusées » qu'elle efface — écart à la
+>   maquette, qui n'en montre pas. Aucune notification ne lui est envoyée : elle n'a ni cloche
+>   utile ni mobile, la page suffit.
+> - **Accepter ne crée aucun lien avec des athlètes** : c'est #602. La carte du Coach annonce déjà
+>   « Tu suivras les athlètes de … » — vrai dès que l'entreprise en aura.
+> - **Une suite e2e dédiée** (`organization.e2e-spec.ts`) plutôt qu'un ajout à `isolation` : elle
+>   éprouve les deux bouts et l'étanchéité entre entreprises sans alourdir le harnais commun.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)

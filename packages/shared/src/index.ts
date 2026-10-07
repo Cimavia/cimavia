@@ -38,6 +38,12 @@ export {
   preferenceToggleMutation,
   withToggledPreference,
 } from "./api/notification-preference.cache";
+export type { OrganizationApi } from "./api/organization.api";
+export {
+  acceptOrganizationInvitationMutation,
+  createOrganizationApi,
+  organizationKeys,
+} from "./api/organization.api";
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export {
@@ -313,13 +319,16 @@ export {
 export type {
   CreateInvitationInput,
   InvitationDto,
+  InvitationRole as InvitationRoleType,
   InvitationStatus as InvitationStatusType,
   PendingInvitationDto,
 } from "./dto/invitation.schema";
 export {
   createInvitationSchema,
+  InvitationRole,
   InvitationStatus,
   invitationDtoSchema,
+  invitationRoleSchema,
   invitationStatusSchema,
   pendingInvitationDtoSchema,
 } from "./dto/invitation.schema";
@@ -434,6 +443,14 @@ export {
   unreadCountDtoSchema,
   updateNotificationEmailPreferencesSchema,
 } from "./dto/notification.schema";
+export type {
+  OrganizationCoachDto,
+  PendingOrganizationInvitationDto,
+} from "./dto/organization.schema";
+export {
+  organizationCoachDtoSchema,
+  pendingOrganizationInvitationDtoSchema,
+} from "./dto/organization.schema";
 export type {
   CopyPlanWeekInput,
   CreatePlanInput,

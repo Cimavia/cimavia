@@ -41,6 +41,13 @@ describe("capabilityOfNotification", () => {
     expect(capabilityOfNotification(NotificationType.INVITATION_DECLINED)).toBe("coach");
   });
 
+  // Une entreprise n'invite que des Coachs (#601) : l'invitation se range dans leur espace.
+  it("range l'invitation d'une entreprise côté Coach", () => {
+    expect(capabilityOfNotification(NotificationType.ORGANIZATION_INVITATION_RECEIVED)).toBe(
+      "coach",
+    );
+  });
+
   /**
    * Le message est le seul type indécidable : les deux côtés d'un fil en reçoivent. Rendre « coach »
    * par défaut rangerait la moitié des messages du mauvais côté — mieux vaut ne pas répondre et

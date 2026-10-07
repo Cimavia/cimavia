@@ -101,6 +101,20 @@ export type MailStrings = {
     ignore: string;
   };
   /**
+   * Invitation d'une entreprise à rejoindre son équipe, vers une adresse SANS compte (#601). Même
+   * consigne que `invitation` — s'inscrire avec cette adresse —, plus la case à cocher : seul un
+   * compte Coach peut accepter. Le nom de l'entreprise n'est pas nullable : c'est elle qui émet,
+   * depuis sa session, et son nom est celui de son compte. L'échéance reprend `invitation.expiry`.
+   */
+  organizationInvitation: {
+    subject: (organizationName: string) => string;
+    heading: (organizationName: string) => string;
+    intro: (organizationName: string) => string;
+    addressLine: string;
+    cta: string;
+    ignore: string;
+  };
+  /**
    * Un gabarit par type envoyable. `Record<EmailableNotificationType, …>` et non un objet libre :
    * élargir `EMAILABLE_NOTIFICATION_TYPES` ne compile plus tant que les textes manquent, dans LES
    * DEUX langues.
@@ -128,10 +142,19 @@ export type InvitationMailInput = InvitationMailParams & {
   registerUrl: string | null;
 };
 
+export type OrganizationInvitationMailInput = {
+  organizationName: string;
+  /** Durée de validité réelle, passée par l'appelant — jamais réécrite ici. */
+  expiresInDays: number;
+  /** Lien vers l'inscription. `null` quand `WEB_URL` n'est pas configurée — la consigne reste. */
+  registerUrl: string | null;
+};
+
 export type MailCatalog = {
   resetPassword(params: ResetPasswordParams): MailTemplate;
   notification(type: EmailableNotificationType, params: NotificationMailInput): MailTemplate;
   invitation(params: InvitationMailInput): MailTemplate;
+  organizationInvitation(params: OrganizationInvitationMailInput): MailTemplate;
 };
 
 // `Record<Locale, …>` et non un objet libre : ajouter une valeur à `Locale` sans écrire son
@@ -160,6 +183,9 @@ export function mailStringsFor(locale: string | null | undefined): MailStrings {
 
 export function mailCatalog(locale: string | null | undefined): MailCatalog {
   const strings = mailStringsFor(locale);
+  function render(subject: string, body: MailBody): MailTemplate {
+    return { subject, text: renderText(body, strings), html: renderHtml(body, strings) };
+  }
   return {
     resetPassword: ({ url, expiresInHours }) => {
       const body = {
@@ -191,11 +217,21 @@ export function mailCatalog(locale: string | null | undefined): MailCatalog {
         ],
         ...(registerUrl != null && { cta: strings.invitation.cta, url: registerUrl }),
       };
-      return {
-        subject: strings.invitation.subject(coachName),
-        text: renderText(body, strings),
-        html: renderHtml(body, strings),
-      };
+      return render(strings.invitation.subject(coachName), body);
+    },
+    organizationInvitation: ({ registerUrl, organizationName, expiresInDays }) => {
+      const texts = strings.organizationInvitation;
+      return render(texts.subject(organizationName), {
+        heading: texts.heading(organizationName),
+        paragraphs: [
+          texts.intro(organizationName),
+          // La consigne avant le lien, comme pour l'invitation d'un athlète.
+          texts.addressLine,
+          strings.invitation.expiry(expiresInDays),
+          texts.ignore,
+        ],
+        ...(registerUrl != null && { cta: texts.cta, url: registerUrl }),
+      });
     },
     notification: (type, { settingsUrl, ...params }) => {
       const template = strings.notification[type](params);

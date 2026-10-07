@@ -8,19 +8,31 @@ import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
  * accès, l'athlète. Un modèle ABSENT d'ici est **refusé** via le client tenant (fail closed) —
  * ce qui force à rattacher explicitement toute nouvelle entité au tenant (règle dure).
  *
- * Deux familles, et le type les sépare (#600) :
+ * Trois familles, et le type les sépare (#600, #601) :
  * - un modèle d'ENTRAÎNEMENT appartient à un coach : son scope coach est obligatoire, le scope
  *   athlète optionnel — son absence est un refus (cf. `Reminder`) ;
  * - un modèle d'ENTREPRISE n'a qu'un scope `company`. Il n'a ni clé coach ni clé athlète, et un
  *   modèle d'entraînement n'a pas de clé `company` : un compte Entreprise ne peut donc atteindre
  *   AUCUN contenu d'entraînement, et c'est la structure du registre qui le dit, pas une règle de
- *   service.
+ *   service ;
+ * - un modèle ÉMIS par un Coach OU par une entreprise — `Invitation` seule (#601) : un scope
+ *   coach et un scope `company`, chacun sur SA colonne d'émetteur, et jamais de scope athlète.
+ *   Chaque capacité n'y voit que ce qu'elle a émis : l'émetteur absent d'une ligne y est `NULL`,
+ *   que rien ne peut égaler. Le destinataire, lui, la lit par le client de base, sur l'adresse de
+ *   sa session.
+ *
+ * Les `never` ferment les mélanges : un modèle d'entraînement qui recevrait `company`, ou un modèle
+ * émis qui recevrait `athlete`, ne compile pas.
  */
-type TenantScope = { coach: string; athlete?: string } | { company: string };
+type TenantScope =
+  | { coach: string; athlete?: string; company?: never }
+  | { company: string; coach?: never; athlete?: never }
+  | { coach: string; company: string; athlete?: never };
 
 export const TENANT_SCOPES: Record<string, TenantScope> = {
   CoachAthlete: { coach: "coachId", athlete: "athleteId" },
-  Invitation: { coach: "coachId" },
+  // Émise par un Coach (vers un athlète) ou par une entreprise (vers un Coach, #601).
+  Invitation: { coach: "coachId", company: "organizationId" },
   AthleteSheet: { coach: "coachId", athlete: "athleteId" },
   Exercise: { coach: "coachId" },
   ExerciseDocument: { coach: "coachId" },
@@ -58,6 +70,9 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   Reminder: { coach: "coachId" },
   // L'entreprise (#600) : son id EST celui du compte Entreprise, qui ne voit qu'elle.
   Organization: { company: "id" },
+  // Ses Coachs (#601). Le Coach n'y lit rien par ce client en v1 : ses entreprises viendront avec
+  // les droits d'accès (#605), avec leur propre clé.
+  OrganizationCoach: { company: "organizationId" },
 };
 
 /**
@@ -74,20 +89,19 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
  * pas besoin qu'on choisisse. Tout autre modèle atteint sans capacité déclarée est refusé, ce qui
  * transforme un oubli de décorateur en panne immédiate plutôt qu'en fuite de tenant.
  *
- * Les deux familles du registre ne se croisent jamais (#600) : un modèle d'entreprise ne s'ouvre
- * qu'à la capacité `company`, un modèle d'entraînement jamais à elle.
+ * La capacité `company` ne s'ouvre qu'aux modèles qui portent sa clé (#600) ; un modèle émis
+ * (#601) s'ouvre à l'entreprise ET au coach, chacun sur sa colonne.
  */
 export function tenantField(scope: TenantScope, exercised: CapabilityName | null): string | null {
-  if ("company" in scope) return exercised === "company" ? scope.company : null;
   switch (exercised) {
+    case "company":
+      return scope.company ?? null;
     case "coach":
-      return scope.coach;
+      return scope.coach ?? null;
     case "athlete":
       return scope.athlete ?? null;
-    case "company":
-      return null;
     case null:
-      return scope.coach === scope.athlete ? scope.coach : null;
+      return scope.coach != null && scope.coach === scope.athlete ? scope.coach : null;
   }
 }
 

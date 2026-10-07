@@ -131,6 +131,16 @@ describe("routeForNotification — l'invitation (#146)", () => {
     expect(routeForNotification(dto, ATHLETE)).toBe("/join");
   });
 
+  // L'invitation d'une entreprise (#601) ne vise que des Coachs : sa carte attend sur leur accueil.
+  it("mène le coach invité par une entreprise à la carte de son tableau de bord", () => {
+    const dto = entry({
+      type: NotificationType.ORGANIZATION_INVITATION_RECEIVED,
+      entityType: NotificationEntityType.INVITATION,
+      entityId: "inv-2",
+    });
+    expect(routeForNotification(dto, COACH)).toBe("/dashboard");
+  });
+
   /**
    * Le seul type dont la destination est SUPPRIMÉE plutôt que déduite — l'exact inverse du repli
    * des rappels dus, qui en COMBLE une absente. L'écran existe pourtant : c'est que l'ENTITÉ est
@@ -198,6 +208,12 @@ describe("routeForPushPayload", () => {
       { invitationId: "inv-1" },
       NotificationEntityType.INVITATION,
       "inv-1",
+    ],
+    [
+      NotificationType.ORGANIZATION_INVITATION_RECEIVED,
+      { invitationId: "inv-2" },
+      NotificationEntityType.INVITATION,
+      "inv-2",
     ],
   ])("mène %s au même endroit que la ligne du centre", (type, ids, entityType, entityId) => {
     for (const capabilities of [COACH, ATHLETE]) {

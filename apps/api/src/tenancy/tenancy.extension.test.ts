@@ -2,7 +2,7 @@ import { required } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { TENANT_SCOPES, tenantField } from "./tenancy.extension";
 
-const TRAINING_MODELS = Object.entries(TENANT_SCOPES).filter(([, scope]) => !("company" in scope));
+const TRAINING_MODELS = Object.entries(TENANT_SCOPES).filter(([, scope]) => scope.company == null);
 
 describe("tenantField", () => {
   it("scope un modèle d'entraînement sur la colonne de la capacité exercée", () => {
@@ -27,6 +27,28 @@ describe("tenantField", () => {
    */
   it.each(TRAINING_MODELS)("ferme %s au compte Entreprise", (_model, scope) => {
     expect(tenantField(scope, "company")).toBeNull();
+  });
+
+  /**
+   * `Invitation` (#601), seul modèle émis par l'un OU l'autre : chaque émetteur sur sa colonne.
+   * Le destinataire n'a pas de scope — l'athlète, comme le Coach invité, la lit par l'adresse.
+   */
+  it("ouvre l'invitation à ses deux émetteurs, chacun sur sa colonne", () => {
+    const scope = required(TENANT_SCOPES.Invitation, "Invitation absente du registre");
+    expect(tenantField(scope, "coach")).toBe("coachId");
+    expect(tenantField(scope, "company")).toBe("organizationId");
+    expect(tenantField(scope, "athlete")).toBeNull();
+    expect(tenantField(scope, null)).toBeNull();
+  });
+
+  it("ouvre les Coachs d'une entreprise à la seule entreprise", () => {
+    const scope = required(
+      TENANT_SCOPES.OrganizationCoach,
+      "OrganizationCoach absente du registre",
+    );
+    expect(tenantField(scope, "company")).toBe("organizationId");
+    expect(tenantField(scope, "coach")).toBeNull();
+    expect(tenantField(scope, "athlete")).toBeNull();
   });
 
   it("ouvre l'entreprise à la seule capacité Entreprise", () => {

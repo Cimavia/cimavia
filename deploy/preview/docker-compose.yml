@@ -119,8 +119,8 @@ services:
       # Qui peut créer un compte (#263). Défaut `invitation` posé ICI, et c'est le point : ce
       # tier est joignable publiquement — son URL est figée dans l'APK et dans chaque e-mail — et
       # il porte de vraies données. Un `.env` qui oublierait la ligne doit laisser la porte
-      # FERMÉE, pas l'ouvrir. `SIGNUP_ALLOWED_EMAILS` est la porte des coachs, que personne
-      # n'invite — les athlètes, eux, passent par l'invitation de leur coach.
+      # FERMÉE, pas l'ouvrir. `SIGNUP_ALLOWED_EMAILS` est la porte de ceux que personne n'invite —
+      # un coach sans entreprise, toute entreprise (#601) ; les autres passent par une invitation.
       SIGNUP_MODE: ${SIGNUP_MODE:-invitation}
       SIGNUP_ALLOWED_EMAILS: ${SIGNUP_ALLOWED_EMAILS:-}
       # ⚠️ URL PUBLIQUE du storage, PAS http://silo:9000 : l'API SIGNE les URLs S3 avec cette

@@ -2,10 +2,11 @@ import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 
 /**
- * Cycle de vie d'une invitation coach→athlète, nominative depuis #390.
+ * Cycle de vie d'une invitation, nominative depuis #390 — d'un Coach à un athlète, ou d'une
+ * entreprise à un Coach depuis #601.
  *
  * PENDING : émise, non encore utilisée ; ACCEPTED : redeemée (→ crée/active CoachAthlete) ;
- * DECLINED : l'athlète a dit non ; REVOKED : annulée par le coach. L'expiration (`expiresAt`
+ * DECLINED : l'invité a dit non ; REVOKED : annulée par son émetteur. L'expiration (`expiresAt`
  * dépassé) est évaluée à la redemption, elle n'est pas un statut.
  *
  * `DECLINED` est une valeur À PART et non un `REVOKED` réutilisé (#146). Les confondre ferait
@@ -22,6 +23,23 @@ export const InvitationStatus = {
 export type InvitationStatus = TypesValuesOf<typeof InvitationStatus>;
 
 export const invitationStatusSchema = z.enum(InvitationStatus);
+
+/**
+ * Ce que l'invitation propose de devenir (#601) : athlète d'un Coach, ou Coach d'une entreprise.
+ * Une invitation de Coach n'est émise que par une entreprise — un CHECK le tient en base.
+ *
+ * Chaque côté ne lit que le rôle qui le concerne : la carte d'un athlète ne propose jamais de
+ * devenir Coach, et l'inverse. Sans ce filtre, accepter « en athlète » une invitation de Coach
+ * créerait un lien sans Coach.
+ */
+export const InvitationRole = {
+  ATHLETE: "ATHLETE",
+  COACH: "COACH",
+} as const;
+
+export type InvitationRole = TypesValuesOf<typeof InvitationRole>;
+
+export const invitationRoleSchema = z.enum(InvitationRole);
 
 /**
  * Entrée : le coach invite une ADRESSE (#390). Elle est requise : une invitation sans adresse
@@ -44,6 +62,7 @@ export const invitationDtoSchema = z.object({
   id: z.string(),
   email: z.email(),
   status: invitationStatusSchema,
+  role: invitationRoleSchema,
   expiresAt: z.iso.datetime(),
   createdAt: z.iso.datetime(),
 });
