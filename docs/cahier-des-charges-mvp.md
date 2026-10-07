@@ -154,7 +154,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - **Pas d'historique** des modifications en MVP.
 
 ### 5.8 Messagerie intégrée
-- Conversation **à participants** *(cible — #611 ; aujourd'hui coach ↔ athlète)* : à deux ou à plusieurs, chacun avec sa marque de lecture. Une conversation à deux reste unique par paire.
+- Conversation **à participants** *(cible — #611 ; aujourd'hui coach ↔ athlète)* : à deux ou à plusieurs, chacun avec sa marque de lecture. Une conversation est unique par ensemble de participants, à deux comme à plusieurs : en recréer une rouvre l'existante.
 - Un athlète écrit à ses coachs ; un coach à ses athlètes et aux coachs de ses entreprises. Participants fixés à la création, sans nom de groupe ; le compte Entreprise n'est dans aucune conversation.
 - Messages **texte, audio, photo, vidéo**.
 - **Asynchrone** : pas de temps réel strict ; les nouveaux messages remontent via **notification push + polling** (TanStack Query). WebSocket temps réel (NestJS Gateway + Redis) **différé post-MVP**.
@@ -317,7 +317,7 @@ Deux niveaux à ne pas confondre :
 - `session_feedback_id`, `storage_path`, `media_type` enum(`image`,`video`)
 
 **conversations**
-- `coach_id`, `athlete_id`, `last_message_at` — *(cible — #611)* : `kind` (`direct` / `group`), `direct_key` unique sur les seules conversations à deux, plus de `coach_id` / `athlete_id`
+- `coach_id`, `athlete_id`, `last_message_at` — *(cible — #611)* : `kind` (`direct` / `group`), `participant_key` unique sur toutes les conversations, plus de `coach_id` / `athlete_id`
 
 **conversation_participants** *(cible — #611)*
 - `conversation_id`, `user_id`, capacité de participation, `last_read_at`

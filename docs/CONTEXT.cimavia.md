@@ -170,10 +170,10 @@ Ce qui est réellement appliqué, et où :
 - **le 720p** n'est ni appliqué ni vérifié (pas de transcodage — dette P4-1), et la **durée est déclarative** (le serveur ne décode pas le fichier — dette P4-2).
 
 ### Conversation / Message
-Échange entre **participants**, à deux ou à plusieurs *(cible — #611 ; aujourd'hui un fil coach ↔ athlète, `Conversation(coachId, athleteId)` unique par couple)*. Une conversation à deux reste **unique par paire** — et par capacité : un compte à double capacité peut avoir deux fils avec la même personne, un par espace. `Message` = texte / audio / image / vidéo, rattachable à une séance ou un débrief **si tous les participants y ont accès**. Asynchrone (polling TanStack Query + push) ; WebSocket temps réel **différé**.
+Échange entre **participants**, à deux ou à plusieurs *(cible — #611 ; aujourd'hui un fil coach ↔ athlète, `Conversation(coachId, athleteId)` unique par couple)*. Une conversation est **unique par ensemble de participants**, à deux comme à plusieurs *(cible — #611)* — et par capacité : un compte à double capacité peut avoir deux fils avec la même personne, un par espace. `Message` = texte / audio / image / vidéo, rattachable à une séance ou un débrief **si tous les participants y ont accès**. Asynchrone (polling TanStack Query + push) ; WebSocket temps réel **différé**.
 
 - **Qui écrit à qui** : un athlète à ses Coachs ; un Coach à ses athlètes et aux Coachs de ses entreprises. Le compte Entreprise n'est dans aucune conversation.
-- **Participants fixés à la création**, sans nom de groupe : le titre liste les participants.
+- **Participants fixés à la création**, sans nom de groupe : le titre liste les autres participants. D'où l'unicité par ensemble : deux conversations aux mêmes participants porteraient le même titre.
 
 ### ConversationParticipant (participant)
 Un `User` dans une conversation, **au titre d'une capacité**, avec sa propre marque de lecture (`lastReadAt`) — elle remplace le `Message.readAt` unique *(cible — #611)*. C'est la troisième forme de scope : on lit une conversation et ses messages si l'on en est participant.

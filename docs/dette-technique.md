@@ -5337,6 +5337,22 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   une fiche athlète commune, modifier les participants d'une conversation. Rangés en v1.x au §4
 >   du cahier des charges.
 
+> **Tranché en [#598](https://github.com/Cimavia/cimavia/issues/598)** (relecture de la maquette de
+> messagerie, 2026-10-07) : trois règles que la planche ne tranchait pas, reportées dans #611 et
+> #612.
+>
+> - **Mêmes participants, même conversation**, à plusieurs aussi — et plus seulement à deux.
+>   Sans nom de groupe, deux conversations aux mêmes participants porteraient le même titre et ne
+>   se distingueraient que par leur dernier message. La clé d'unicité couvre donc toutes les
+>   conversations (`participantKey`), plus les seules conversations à deux.
+> - **Prévenir plutôt qu'interdire** quand un Coach choisi ne suit pas un athlète choisi : C peut
+>   réunir TE, qu'il suit seul, et M, qui ne le suit pas. Un second avertissement le dit avant la
+>   création, comme celui qui prévient que les athlètes se verront entre eux. Écarté : griser M
+>   dans le sélecteur tant qu'il ne suit pas tous les athlètes choisis.
+> - **L'aperçu dit qui a écrit** : `ConversationDto` gagne l'auteur du dernier message. L'écart
+>   « Vous : » relevé en #20 se lève, et l'aperçu d'une conversation à plusieurs n'est plus
+>   anonyme.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
