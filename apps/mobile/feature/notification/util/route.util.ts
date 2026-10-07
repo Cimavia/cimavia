@@ -170,6 +170,8 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
     // L'invitation d'une entreprise (#601) ne vise que des Coachs : sa carte attend sur leur
     // tableau de bord, où la table mène déjà toute invitation reçue en coach.
     case NotificationType.ORGANIZATION_INVITATION_RECEIVED:
+    // Le Coach qui rejoint une entreprise (#602) : l'athlète le retrouve dans « Mes coachs ».
+    case NotificationType.ORGANIZATION_COACH_JOINED:
       return targetFor(NotificationEntityType.INVITATION, payload.invitationId, capabilities);
     case NotificationType.INVITATION_DECLINED:
       return null;

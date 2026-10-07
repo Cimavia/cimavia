@@ -73,6 +73,8 @@ export function capabilityOfNotification(type: NotificationType): TrainingCapabi
     // Une invitation qui attend se lit forcément en athlète : c'est la capacité qu'elle propose
     // d'exercer, et la seule qui puisse l'accepter.
     case NotificationType.INVITATION_RECEIVED:
+    // Le Coach qui rejoint une entreprise (#602) suit désormais l'athlète : c'est lui qu'on prévient.
+    case NotificationType.ORGANIZATION_COACH_JOINED:
       return "athlete";
     // Le débrief est écrit par l'athlète et lu par son coach ; le rappel est un outil du coach.
     case NotificationType.FEEDBACK_RECEIVED:

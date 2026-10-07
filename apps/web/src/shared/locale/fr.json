@@ -1173,6 +1173,7 @@
       "invitationAccepted": "{{actor}} a rejoint ton espace",
       "invitationDeclined": "{{actor}} a refusé ton invitation",
       "organizationInvitationReceived": "{{actor}} t'invite à rejoindre son équipe",
+      "organizationCoachJoined": "{{actor}} te suit désormais, via {{subject}}",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {
