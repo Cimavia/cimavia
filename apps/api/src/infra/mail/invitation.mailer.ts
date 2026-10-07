@@ -57,4 +57,22 @@ export class InvitationMailer {
     });
     await this.mail.send({ to: params.to, ...template });
   }
+
+  /**
+   * L'invitation d'une entreprise à rejoindre son équipe (#601), vers une adresse sans compte. Même
+   * lien d'inscription : c'est là que se coche « Je coache », sans quoi l'invitation resterait
+   * inacceptable.
+   */
+  async sendOrganizationInvitation(params: {
+    to: string;
+    organizationName: string;
+    expiresInDays: number;
+  }): Promise<void> {
+    const template = mailCatalog(null).organizationInvitation({
+      organizationName: params.organizationName,
+      expiresInDays: params.expiresInDays,
+      registerUrl: this.registerUrl,
+    });
+    await this.mail.send({ to: params.to, ...template });
+  }
 }

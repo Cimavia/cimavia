@@ -40,6 +40,17 @@ export const en = {
     ignore:
       "If you do not know this person, ignore this email: nothing will happen, and nobody will learn that you received it.",
   },
+  organizationInvitation: {
+    subject: (organizationName) => `${organizationName} invited you to join their team on Cimavia`,
+    heading: (organizationName) => `Join the ${organizationName} team`,
+    intro: (organizationName) =>
+      `${organizationName} invited you to join their team of coaches on Cimavia. Once a member, you will follow the athletes of ${organizationName}.`,
+    addressLine:
+      'Create your account with the address that received this email, ticking "I coach": your invitation will be waiting on your dashboard.',
+    cta: "Create my account",
+    ignore:
+      "If you do not know this company, ignore this email: nothing will happen, and nobody will learn that you received it.",
+  },
   // Deux formulations par gabarit, comme en français : le sujet est nullable, et des guillemets
   // vides seraient pires qu'une phrase générique.
   notification: {
