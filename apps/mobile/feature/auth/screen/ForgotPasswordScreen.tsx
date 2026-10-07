@@ -1,4 +1,3 @@
-import { trimTrailingSlashes } from "@cmv/shared";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,22 +6,13 @@ import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { authClient } from "@/shared/lib/auth";
+import { WEB_URL } from "@/shared/lib/web-url";
 
 /**
- * Origine de l'app WEB, où atterrit le lien de réinitialisation (#64).
- *
- * On vise la page web et non un deep link `cimavia://` : un lien de réinitialisation s'ouvre dans
+ * Le lien de réinitialisation vise la page WEB et non un deep link `cimavia://` : il s'ouvre dans
  * le client mail, souvent depuis un autre appareil que le téléphone — un scheme natif n'y résout
  * rien, et l'utilisateur resterait devant une page morte.
- *
- * ⚠️ Cette origine doit figurer dans le `CORS_ORIGINS` de l'API. Better Auth valide `redirectTo`
- * contre ses `trustedOrigins` et refuse une origine inconnue : le web s'en sort sans y penser
- * parce qu'il envoie la SIENNE, le mobile en envoie une tierce.
- *
- * La barre oblique finale est retirée : la valeur vient d'une variable d'environnement copiée à la
- * main, et `https://app.cimavia.fr/` produirait un `//reset-password` que le routeur web ignore.
  */
-const WEB_URL = trimTrailingSlashes(process.env.EXPO_PUBLIC_WEB_URL ?? "http://localhost:5173");
 
 export function ForgotPasswordScreen() {
   const { t } = useTranslation();

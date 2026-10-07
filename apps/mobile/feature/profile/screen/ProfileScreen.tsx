@@ -9,9 +9,9 @@ import {
   capabilityErrorKey,
   useCapabilityUpdate,
 } from "@/feature/account/hook/useCapabilityUpdate";
-import { NotificationEmailSection, revokeCurrentPushToken } from "@/feature/notification";
+import { useLogout } from "@/feature/account/hook/useLogout";
+import { NotificationEmailSection } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { appVersionLabel } from "@/shared/lib/app-version";
 import { authClient } from "@/shared/lib/auth";
 
@@ -23,6 +23,7 @@ const OPTIONS: readonly TrainingCapability[] = ["coach", "athlete"];
 export function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const logout = useLogout();
   const { data: session, refetch } = authClient.useSession();
   const current = capabilitiesOf(session?.user);
   const version = appVersionLabel();
@@ -54,17 +55,6 @@ export function ProfileScreen() {
       { isCoach, isAthlete },
       { onError: (cause) => setError(t(capabilityErrorKey(cause))) },
     );
-  }
-
-  async function onLogout() {
-    // Détacher l'appareil AVANT de fermer la session : la route de révocation est scopée à
-    // l'utilisateur connecté, elle n'aurait plus d'effet après le signOut.
-    await revokeCurrentPushToken();
-    await authClient.signOut();
-    // Le cookie part, ce que l'appareil garde RESTAIT — cache persisté sept jours et frais cinq
-    // minutes, documents descendus pour le hors-ligne : tout était resservi au compte suivant.
-    await resetAccountData();
-    router.replace("/login");
   }
 
   return (
@@ -158,7 +148,7 @@ export function ProfileScreen() {
             n'aurait contenu qu'eux ferait payer une navigation pour rien. */}
         <NotificationEmailSection />
 
-        <CmvButton label={t("common.logout")} onPress={onLogout} />
+        <CmvButton label={t("common.logout")} onPress={logout} />
 
         {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), SOUS la déconnexion : c'est la
             seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison est un build
