@@ -7,24 +7,25 @@ import type {
 import { myFeedbackKeys, trackingOfExercises } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useMyCoach } from "@/feature/coach";
 import { FeedbackMediaSection } from "@/feature/feedback/component/FeedbackMediaSection";
 import {
   FeedbackReplyComposer,
   FeedbackReplyMessages,
+  FeedbackReplySelf,
 } from "@/feature/feedback/component/FeedbackReplySection";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
 import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
-import { useMyConversation } from "@/feature/message/hook/useConversation";
+import { useConversationWithCoach } from "@/feature/message/hook/useConversation";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { authClient } from "@/shared/lib/auth";
 
@@ -46,10 +47,9 @@ export function SessionFeedbackScreen() {
   const { data: user } = authClient.useSession();
 
   const queryClient = useQueryClient();
-  // Un athlète sans coach n'a pas de fil à ouvrir — l'API refuserait. Les hooks partent
-  // inconditionnellement : c'est `enabled` et `feedbackId: null` qui disent l'attente.
-  const { data: coach } = useMyCoach();
-  const conversation = useMyConversation(coach != null);
+  // Les hooks partent inconditionnellement : c'est un coach inconnu et `feedbackId: null` qui
+  // disent l'attente.
+  const { isSelf, conversation } = useSessionThread(session.data?.coachId);
   const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(id));
   const reply = useFeedbackReply({
     feedbackId: feedback?.id ?? null,
@@ -96,7 +96,8 @@ export function SessionFeedbackScreen() {
               {/* La conversation avec le coach, LÀ OÙ ELLE A COMMENCÉ. Rien tant que le débrief
                   n'existe pas : on ne répond pas à ce qu'on n'a pas encore écrit. */}
               {feedback == null ? null : (
-                <FeedbackReplyMessages
+                <Replies
+                  isSelf={isSelf}
                   messages={feedback.messages}
                   currentUserId={user?.user.id ?? ""}
                   resolveMediaUrl={freshMediaUrl}
@@ -108,7 +109,7 @@ export function SessionFeedbackScreen() {
 
         {/* ⚠️ Lire ici ne marque RIEN comme lu : `markRead` est par FIL, pas par message, et
             l'appeler éteindrait des non-lus que l'athlète n'a jamais vus (tranché en #190). */}
-        {feedback == null ? null : (
+        {feedback == null || isSelf ? null : (
           <FeedbackReplyComposer
             reply={reply}
             preUploadErrorKey={preUploadErrorKey}
@@ -120,6 +121,25 @@ export function SessionFeedbackScreen() {
       </KeyboardAvoidingView>
     </CmvScreen>
   );
+}
+
+/**
+ * Le fil du coach DE CETTE SÉANCE (#599) : suivi par plusieurs coachs, l'athlète répond à celui
+ * qui l'a programmée — et à personne tant que la séance ne l'a pas dit. Une séance qu'il s'est
+ * programmée lui-même n'a personne à qui répondre : le fil `(soi, soi)` n'existe pas.
+ */
+function useSessionThread(coachId: string | undefined) {
+  const isSelf = useIsSelfAthlete()(coachId ?? "");
+  const conversation = useConversationWithCoach(isSelf ? null : (coachId ?? null));
+  return { isSelf, conversation };
+}
+
+/** Les réponses du coach — ou, sur une séance qu'on s'est programmée, personne à qui répondre. */
+function Replies({
+  isSelf,
+  ...messages
+}: Readonly<{ isSelf: boolean } & ComponentProps<typeof FeedbackReplyMessages>>) {
+  return isSelf ? <FeedbackReplySelf /> : <FeedbackReplyMessages {...messages} />;
 }
 
 /**

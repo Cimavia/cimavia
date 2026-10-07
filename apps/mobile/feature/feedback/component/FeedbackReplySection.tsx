@@ -23,6 +23,25 @@ type Reply = ReturnType<typeof useFeedbackReply>;
  * D'où deux composants au lieu d'un : ils ne peuvent pas être frères dans l'arbre.
  */
 
+/**
+ * À la place des réponses, sur un débrief sans personne à qui répondre : celui d'une séance qu'on
+ * s'est programmée soi-même, vu d'un côté comme de l'autre (#198, #599).
+ *
+ * La section GARDE son titre et n'affiche qu'une phrase : disparaître entièrement ferait chercher
+ * la barre d'envoi en passant d'un débrief à l'autre. La phrase dit un état DÉFINITIF, là où
+ * l'erreur de résolution annonçait à tort un incident passager.
+ */
+export function FeedbackReplySelf() {
+  const { t } = useTranslation();
+
+  return (
+    <View className="gap-2">
+      <CmvText className="font-cmv-display text-cmv-text-hi">{t("feedback.reply.title")}</CmvText>
+      <CmvText className="text-cmv-text-mid">{t("feedback.reply.self")}</CmvText>
+    </View>
+  );
+}
+
 /** Les réponses déjà envoyées, dans le flux du débrief. */
 export function FeedbackReplyMessages({
   messages,

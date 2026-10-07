@@ -149,7 +149,7 @@
     },
     "empty": {
       "title": "Aucune séance planifiée",
-      "description": "Ton coach n'a pas encore diffusé de planification. Dès qu'il le fera, tes séances s'afficheront ici."
+      "description": "Tes coachs n'ont encore diffusé aucune planification. Dès qu'un cycle le sera, tes séances s'afficheront ici."
     },
     "sessions": {
       "upcoming": "À venir",
@@ -244,7 +244,8 @@
       "roundDone": "Tour fait"
     },
     "cycle": {
-      "week": "S{{number}}/{{total}} · {{type}}"
+      "week": "S{{number}}/{{total}} · {{type}}",
+      "coach": "par {{name}}"
     }
   },
   "media": {
@@ -388,7 +389,7 @@
     "missing": {
       "title": "Tu n'as pas encore de coach",
       "description": "Ton coach t'invite par ton adresse e-mail : accepte son invitation pour recevoir tes planifications.",
-      "action": "Rejoindre mon coach"
+      "action": "Rejoindre un coach"
     },
     "invitation": {
       "title": "{{name}} t'invite à le rejoindre",
