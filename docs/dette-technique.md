@@ -2189,6 +2189,13 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > timeout. D'où l'ensemble de visités, qui sépare deux choses que rien ne distinguerait autrement :
 > l'invité est dans la chaîne (**409**, refus métier) et on repasse sur un nœud tiers (**erreur** —
 > données incohérentes, à voir tout de suite plutôt que déguisées en refus).
+>
+> *Renversé en [#599](https://github.com/Cimavia/cimavia/issues/599)* : l'unicité porte désormais sur le couple, un compte a 0..N coachs, et
+> la forêt devient un graphe. Repasser sur un compte déjà vu ne prouve plus rien — A suivi par B et
+> C, tous deux suivis par D, atteint D deux fois sans boucle. L'ensemble de visités aurait rendu une
+> 500 à cette invitation valide. La boucle se cherche donc APRÈS le chargement, par
+> `hasCoachCycle` (`coach-graph.ts`), qui distingue un compte « en cours » d'un compte « terminé ».
+> Le partage tient : invité au-dessus de l'inviteur → **409** ; boucle déjà en base → **erreur**.
 
 > **Tranché en #9** (les capacités sont des colonnes Prisma **ET** des `additionalFields`) :
 > l'épique annonçait « colonnes Prisma directes, **hors** `additionalFields` Better Auth — qui ne
@@ -2647,6 +2654,10 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra jamais rien. « Rejoindre » est
 > alors désactivé **avec sa raison écrite au-dessus** : un bouton grisé sans explication laisse
 > chercher ce qui cloche, alors que la cause est une règle du produit (au plus un coach).
+>
+> *Renversé en [#599](https://github.com/Cimavia/cimavia/issues/599)* pour sa seconde moitié : la règle « au plus un coach » tombe, une
+> seconde invitation s'accepte, et ni le bouton grisé ni sa raison n'ont plus d'objet. La carte
+> reste affichée dans les deux branches, pour la même raison qu'ici.
 >
 > Le libellé ne dit pas « quitte d'abord cette relation » : **aucune route ne supprime une
 > `CoachAthlete`**. Envoyer vers un geste inexistant serait pire que de ne rien proposer — c'est
@@ -5369,6 +5380,32 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **Modifier les droits de plusieurs éléments n'écrit que les bénéficiaires changés** : une
 >   ligne restée « Mixte » garde la valeur de chaque élément. Remplacer tous les droits de chaque
 >   élément, comme l'écrivait #605, écraserait ces valeurs.
+
+> **Tranché en [#599](https://github.com/Cimavia/cimavia/issues/599)** (un athlète suivi par plusieurs Coachs, absorbant
+> [#364](https://github.com/Cimavia/cimavia/issues/364)) : ce que le cadrage de #593 ne disait pas.
+>
+> - **Le contrat d'un coach unique est cassé, pas prolongé** : `GET /me/coach` disparaît (404) et
+>   un athlète qui ouvre un fil doit désigner le coach (`coachId`, 400 sinon). Tolérer l'ancien
+>   corps aurait obligé l'API à choisir un coach au hasard pour un athlète qui en a deux. Les APK
+>   installés se cassent donc sur la messagerie : le nouvel APK sort **avec** la promotion du NAS.
+> - **« Aucun coach » ne se dit qu'une fois les coachs LUS** (#364) : `coachPresence` rend
+>   quatre états (`loading`, `error`, `none`, `some`). Un booléen confondait la lecture en cours et
+>   la panne avec l'absence, et annonçait « aucun coach » à un athlète qui en avait un.
+> - **Le coach de la séance décide du fil** : le débrief et « Écrire à » visent le coach qui a
+>   programmé la séance, pas un coach principal qui n'existe plus. Sur une séance qu'il s'est
+>   programmée lui-même, l'athlète n'a personne à qui écrire : ni lien, ni barre d'envoi, une
+>   phrase.
+> - **Chaque cycle nomme son coach** sur la semaine athlète, web et mobile : deux coachs peuvent
+>   diffuser la même semaine.
+> - **« Mes coachs » est une liste, même à un seul coach** : une ligne par coach, avec son fil.
+>   Sur mobile, l'entrée est une ligne du Profil ; « Message » depuis l'espace coach d'un compte
+>   qui cumule bascule d'abord dans l'espace athlète, où vit ce fil.
+> - **Les URLs restent** : `/my-coach` (web) et `/join` (mobile) gardent leur chemin. Les liens
+>   déjà envoyés, les notifications et les favoris y mènent encore ; seul le titre change.
+> - **Une notification de message ouvre le fil de son AUTEUR** : elle porte l'id de la
+>   conversation, alors que la route d'un fil attend l'interlocuteur. La liste reçoit l'id et le
+>   traduit ; « le » fil de l'athlète, qui suffisait à un seul coach, aurait ouvert celui d'un
+>   autre.
 
 ---
 
