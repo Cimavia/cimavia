@@ -5353,6 +5353,23 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   « Vous : » relevé en #20 se lève, et l'aperçu d'une conversation à plusieurs n'est plus
 >   anonyme.
 
+> **Tranché en [#597](https://github.com/Cimavia/cimavia/issues/597)** (relecture de la maquette
+> de la bibliothèque et des droits d'accès, 2026-10-07) : quatre règles que la planche ne
+> tranchait pas, reportées dans #604, #605 et #606.
+>
+> - **Les tags d'une séance sont ceux de ses exercices**, réunis sans doublon. `Session` n'a pas
+>   de tags et n'en gagne pas : en saisir à part en ferait une seconde source qui dériverait.
+>   Une séance dont aucun exercice n'a de tag affiche « — ».
+> - **Sans entreprise, le partage n'apparaît pas** : ni colonne Propriétaire ni colonne Accès, ni
+>   filtre de portée, ni cases à cocher. Un Coach seul n'a personne à qui ouvrir un élément ;
+>   afficher « Privé » partout serait du bruit.
+> - **Un conflit d'écriture prévient, sans montrer la version serveur** : le 409 laisse la saisie
+>   affichée et propose de recharger la dernière version. Ni fusion, ni comparaison, ni nom
+>   d'auteur. La question laissée ouverte en #440 est close.
+> - **Modifier les droits de plusieurs éléments n'écrit que les bénéficiaires changés** : une
+>   ligne restée « Mixte » garde la valeur de chaque élément. Remplacer tous les droits de chaque
+>   élément, comme l'écrivait #605, écraserait ces valeurs.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
