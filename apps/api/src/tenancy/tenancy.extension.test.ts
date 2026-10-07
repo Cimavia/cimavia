@@ -41,14 +41,21 @@ describe("tenantField", () => {
     expect(tenantField(scope, null)).toBeNull();
   });
 
-  it("ouvre les Coachs d'une entreprise à la seule entreprise", () => {
-    const scope = required(
-      TENANT_SCOPES.OrganizationCoach,
-      "OrganizationCoach absente du registre",
-    );
+  // Ses Coachs (#601) et ses athlètes (#602) : l'athlète d'une entreprise n'y lit rien non plus.
+  it.each([
+    "OrganizationCoach",
+    "OrganizationAthlete",
+  ])("ouvre %s à la seule entreprise", (model) => {
+    const scope = required(TENANT_SCOPES[model], `${model} absente du registre`);
     expect(tenantField(scope, "company")).toBe("organizationId");
     expect(tenantField(scope, "coach")).toBeNull();
     expect(tenantField(scope, "athlete")).toBeNull();
+  });
+
+  // Le suivi né d'une entreprise reste un modèle d'entraînement : elle n'en voit rien (#602).
+  it("ferme les liens coach-athlète à l'entreprise", () => {
+    const scope = required(TENANT_SCOPES.CoachAthlete, "CoachAthlete absente du registre");
+    expect(tenantField(scope, "company")).toBeNull();
   });
 
   it("ouvre l'entreprise à la seule capacité Entreprise", () => {

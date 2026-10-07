@@ -41,6 +41,11 @@ describe("capabilityOfNotification", () => {
     expect(capabilityOfNotification(NotificationType.INVITATION_DECLINED)).toBe("coach");
   });
 
+  // Le Coach qui rejoint une entreprise (#602) s'annonce à ses athlètes, dans leur espace.
+  it("range l'arrivée d'un Coach d'entreprise côté athlète", () => {
+    expect(capabilityOfNotification(NotificationType.ORGANIZATION_COACH_JOINED)).toBe("athlete");
+  });
+
   // Une entreprise n'invite que des Coachs (#601) : l'invitation se range dans leur espace.
   it("range l'invitation d'une entreprise côté Coach", () => {
     expect(capabilityOfNotification(NotificationType.ORGANIZATION_INVITATION_RECEIVED)).toBe(

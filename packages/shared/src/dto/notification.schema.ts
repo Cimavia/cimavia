@@ -48,6 +48,13 @@ export const NotificationType = {
    */
   ORGANIZATION_INVITATION_RECEIVED: "ORGANIZATION_INVITATION_RECEIVED",
   /**
+   * Un Coach a rejoint une entreprise (#602), et suit désormais chacun de ses athlètes : chacun
+   * l'apprend. `actorName` est le Coach, `subjectLabel` l'entreprise. Le lien naît sans que
+   * l'athlète ait rien fait — sans elle, un nouveau Coach apparaîtrait dans « Mes coachs » sans
+   * explication. Elle se lit côté athlète, dans « Mes coachs ».
+   */
+  ORGANIZATION_COACH_JOINED: "ORGANIZATION_COACH_JOINED",
+  /**
    * Rappel du coach arrivé à échéance (#51). Le SEUL type qui n'existe pas dans l'enum Prisma : il
    * n'est jamais persisté, l'entrée est calculée à chaque lecture depuis la table `reminder`
    * (`reminderToNotificationDto`). Aucun push non plus — il n'y a pas de scheduler pour le déclencher
@@ -144,6 +151,7 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.INVITATION_DECLINED]: "notification.type.invitationDeclined",
   [NotificationType.ORGANIZATION_INVITATION_RECEIVED]:
     "notification.type.organizationInvitationReceived",
+  [NotificationType.ORGANIZATION_COACH_JOINED]: "notification.type.organizationCoachJoined",
   [NotificationType.REMINDER_DUE]: "notification.type.reminderDue",
 } as const satisfies Record<NotificationType, string>;
 

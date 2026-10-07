@@ -73,6 +73,9 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   // Ses Coachs (#601). Le Coach n'y lit rien par ce client en v1 : ses entreprises viendront avec
   // les droits d'accès (#605), avec leur propre clé.
   OrganizationCoach: { company: "organizationId" },
+  // Ses athlètes (#602), au même titre. Le suivi, lui, reste dans `CoachAthlete`, sans clé
+  // `company` : l'entreprise sait qui en est, jamais ce qui s'y fait.
+  OrganizationAthlete: { company: "organizationId" },
 };
 
 /**

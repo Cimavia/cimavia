@@ -215,6 +215,12 @@ describe("routeForPushPayload", () => {
       NotificationEntityType.INVITATION,
       "inv-2",
     ],
+    [
+      NotificationType.ORGANIZATION_COACH_JOINED,
+      { invitationId: "inv-3" },
+      NotificationEntityType.INVITATION,
+      "inv-3",
+    ],
   ])("mène %s au même endroit que la ligne du centre", (type, ids, entityType, entityId) => {
     for (const capabilities of [COACH, ATHLETE]) {
       expect(routeForPushPayload({ type, ...ids }, capabilities)).toBe(
