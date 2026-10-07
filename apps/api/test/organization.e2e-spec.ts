@@ -668,3 +668,192 @@ describe("Une entreprise sans Coach, et la garde anti-boucle (#602)", () => {
     expect(row.status).toBe(InvitationStatus.PENDING);
   });
 });
+
+/** Ses athlètes par lien — sans l'entrée d'auto-coaching qu'un compte qui cumule voit aussi. */
+const athleteIdsOf = async (coach: Agent): Promise<string[]> =>
+  (await coach.get("/athletes")).body
+    .filter((relation: { isSelf: boolean }) => !relation.isSelf)
+    .map((relation: { athleteId: string }) => relation.athleteId);
+
+describe("Le Coach qui rejoint une entreprise suit chacun de ses athlètes (#602)", () => {
+  let company: Agent;
+  let ti: { agent: Agent; id: string };
+
+  /** Un athlète de `company` : invité, puis accepté. */
+  async function joinAsAthlete(email: string, capabilities = ATHLETE) {
+    const athlete = await signUpWith(email, capabilities);
+    const id = await invite(company, email, InvitationRole.ATHLETE);
+    expect((await athlete.post(`/invitations/${id}/accept`)).status).toBe(201);
+    return { agent: athlete, id: await idOf(athlete) };
+  }
+
+  beforeAll(async () => {
+    company = await signUpWith("org-join-f@cmv.test", COMPANY);
+    ti = await joinAsAthlete("org-join-ti@cmv.test");
+  });
+
+  it("lie le Coach à chaque athlète, qui l'apprend « via » l'entreprise", async () => {
+    const n = await joinAsCoach(company, "org-join-n@cmv.test");
+
+    expect(await athleteIdsOf(n.agent)).toEqual([ti.id]);
+    const relation = required(
+      (await ti.agent.get("/me/coaches")).body.find(
+        (row: { coachId: string }) => row.coachId === n.id,
+      ),
+      "lien du nouveau Coach",
+    );
+    expect(relation.organizationName).toBe("org-join-f@cmv.test");
+    const entry = required((await ti.agent.get("/me/notifications")).body[0], "notification");
+    expect(entry).toMatchObject({
+      type: "ORGANIZATION_COACH_JOINED",
+      entityType: "INVITATION",
+      actorName: "org-join-n@cmv.test",
+      subjectLabel: "org-join-f@cmv.test",
+    });
+    const member = (await company.get("/organization/athletes")).body.find(
+      (row: { athleteId: string }) => row.athleteId === ti.id,
+    );
+    expect(member.coaches).toEqual([{ coachId: n.id, name: "org-join-n@cmv.test" }]);
+  });
+
+  // Le lien direct précède l'entreprise : gardé sans provenance, et son athlète n'apprend rien.
+  it("garde un lien direct existant, sans provenance ni notification", async () => {
+    const direct = await joinAsAthlete("org-join-direct@cmv.test");
+    const p = await signUpWith("org-join-p@cmv.test", COACH);
+    const invitation = await p.post("/invitations").send({ email: "org-join-direct@cmv.test" });
+    await direct.agent.post(`/invitations/${invitation.body.id}/accept`);
+    const pId = await idOf(p);
+    const id = await invite(company, "org-join-p@cmv.test");
+
+    expect((await p.post(`/organization-invitations/${id}/accept`)).status).toBe(204);
+
+    const relation = (await direct.agent.get("/me/coaches")).body.find(
+      (row: { coachId: string }) => row.coachId === pId,
+    );
+    expect(relation.organizationName).toBeNull();
+    expect(await typesOf(direct.agent)).not.toContain("ORGANIZATION_COACH_JOINED");
+    expect((await athleteIdsOf(p)).sort()).toEqual([ti.id, direct.id].sort());
+  });
+
+  it("saute le lien d'un athlète de l'entreprise vers lui-même", async () => {
+    const both = await joinAsAthlete("org-join-both@cmv.test", BOTH);
+    const id = await invite(company, "org-join-both@cmv.test");
+
+    expect((await both.agent.post(`/organization-invitations/${id}/accept`)).status).toBe(204);
+
+    expect(await athleteIdsOf(both.agent)).not.toContain(both.id);
+    expect(await athleteIdsOf(both.agent)).toContain(ti.id);
+  });
+
+  /**
+   * Le verrou sur l'entreprise : sans lui, chacun lirait la liste de l'autre AVANT son arrivée, et
+   * leur lien ne naîtrait jamais. Répété, pour que l'entrelacement ait sa chance.
+   */
+  it("ne perd aucun lien quand un athlète et un Coach arrivent ensemble", async () => {
+    for (const round of [1, 2, 3]) {
+      const athlete = await signUpWith(`org-race-ath-${round}@cmv.test`, ATHLETE);
+      const coach = await signUpWith(`org-race-coach-${round}@cmv.test`, COACH);
+      const toAthlete = await invite(
+        company,
+        `org-race-ath-${round}@cmv.test`,
+        InvitationRole.ATHLETE,
+      );
+      const toCoach = await invite(company, `org-race-coach-${round}@cmv.test`);
+
+      const [joined, member] = await Promise.all([
+        athlete.post(`/invitations/${toAthlete}/accept`),
+        coach.post(`/organization-invitations/${toCoach}/accept`),
+      ]);
+
+      expect([joined.status, member.status]).toEqual([201, 204]);
+      expect(await athleteIdsOf(coach)).toContain(await idOf(athlete));
+    }
+  });
+
+  /**
+   * TE est athlète de F et coache Y, qui coache Z ; Z rejoint F : Z → TE refermerait la boucle.
+   * Toute l'adhésion est refusée — Z ne devient pas membre d'une équipe dont il ne suivrait
+   * qu'une partie des athlètes.
+   */
+  it("refuse toute l'adhésion si un seul lien boucle (409)", async () => {
+    const te = await joinAsAthlete("org-join-te@cmv.test", BOTH);
+    const y = await signUpWith("org-join-y@cmv.test", BOTH);
+    const z = await signUpWith("org-join-z@cmv.test", BOTH);
+    const toY = await te.agent.post("/invitations").send({ email: "org-join-y@cmv.test" });
+    await y.post(`/invitations/${toY.body.id}/accept`);
+    const toZ = await y.post("/invitations").send({ email: "org-join-z@cmv.test" });
+    await z.post(`/invitations/${toZ.body.id}/accept`);
+    const id = await invite(company, "org-join-z@cmv.test");
+
+    const refused = await z.post(`/organization-invitations/${id}/accept`);
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.message).toBe(
+      "Un athlète de cette entreprise te coache déjà, directement ou non",
+    );
+    expect(await athleteIdsOf(z)).toEqual([]);
+    const zId = await idOf(z);
+    const members = (await company.get("/organization/coaches")).body;
+    expect(members.map((member: { coachId: string }) => member.coachId)).not.toContain(zId);
+    const row = (await company.get(COACH_INVITATIONS)).body.find(
+      (invitation: { id: string }) => invitation.id === id,
+    );
+    expect(row.status).toBe(InvitationStatus.PENDING);
+  });
+});
+
+/**
+ * Le scénario de la phase de test multi-coach (#593) : C et M sont les Coachs de F ; C suit aussi
+ * TE et K en direct ; F invite TI. TI est suivi par C et M — M ne voit pour autant ni TE ni K, et
+ * l'entreprise voit ses membres sans jamais lire un contenu d'entraînement.
+ */
+describe("Isolation : l'entreprise, ses Coachs et les athlètes directs (#602)", () => {
+  let f: Agent;
+  let c: { agent: Agent; id: string };
+  let m: { agent: Agent; id: string };
+  let teId: string;
+  let kId: string;
+  let tiId: string;
+
+  async function directAthleteOf(coach: Agent, email: string): Promise<string> {
+    const athlete = await signUpWith(email, ATHLETE);
+    const invitation = await coach.post("/invitations").send({ email });
+    expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
+    return idOf(athlete);
+  }
+
+  beforeAll(async () => {
+    f = await signUpWith("org-sc-f@cmv.test", COMPANY);
+    c = await joinAsCoach(f, "org-sc-c@cmv.test");
+    teId = await directAthleteOf(c.agent, "org-sc-te@cmv.test");
+    kId = await directAthleteOf(c.agent, "org-sc-k@cmv.test");
+    m = await joinAsCoach(f, "org-sc-m@cmv.test");
+    const ti = await signUpWith("org-sc-ti@cmv.test", ATHLETE);
+    const id = await invite(f, "org-sc-ti@cmv.test", InvitationRole.ATHLETE);
+    expect((await ti.post(`/invitations/${id}/accept`)).status).toBe(201);
+    tiId = await idOf(ti);
+  });
+
+  it("montre TI à C et à M", async () => {
+    expect((await athleteIdsOf(c.agent)).sort()).toEqual([teId, kId, tiId].sort());
+    expect(await athleteIdsOf(m.agent)).toEqual([tiId]);
+  });
+
+  // Entrer dans l'entreprise n'ouvre que ses athlètes : les suivis directs de C restent les siens.
+  it("ne montre à M ni TE ni K, ni leur fiche", async () => {
+    for (const athleteId of [teId, kId]) {
+      expect((await m.agent.get(`/athletes/${athleteId}/sheet`)).status).not.toBe(200);
+    }
+    expect((await m.agent.get(`/athletes/${tiId}/sheet`)).status).toBe(200);
+  });
+
+  it("montre à l'entreprise ses membres, et aucun contenu d'entraînement (403)", async () => {
+    expect((await f.get("/organization/coaches")).body).toHaveLength(2);
+    const athletes = (await f.get("/organization/athletes")).body;
+    expect(athletes.map((row: { athleteId: string }) => row.athleteId)).toEqual([tiId]);
+
+    for (const path of ["/athletes", `/athletes/${tiId}/sheet`, "/plans", "/me/coaches"]) {
+      expect((await f.get(path)).status).toBe(403);
+    }
+  });
+});

@@ -12,7 +12,7 @@ type OrganizationInvitation = { id: string; organizationId: string };
 
 /**
  * Les liens qu'une entreprise crée entre ses Coachs et ses athlètes (#602) : un athlète qui
- * rejoint F est suivi par chacun de ses Coachs.
+ * rejoint F est suivi par chacun de ses Coachs, un Coach qui rejoint F suit chacun de ses athlètes.
  *
  * Vit dans l'AccountModule, et pas dans celui de l'entreprise : c'est le module des liens
  * coach-athlète, et l'OrganizationModule l'importe déjà — l'inverse ferait une dépendance
@@ -97,6 +97,63 @@ export class OrganizationLinkService {
       });
     }
     return withNames(this.users, relations);
+  }
+
+  /**
+   * Le Coach accepte l'invitation de F : son appartenance, un lien vers chaque athlète de F, et
+   * l'invitation acceptée — dans une seule transaction, sous le même verrou que `athleteJoins`.
+   *
+   * Seuls les athlètes dont le lien vient de NAÎTRE sont prévenus : un nouveau Coach apparaît dans
+   * leur « Mes coachs » sans qu'ils l'aient invité. Celui qui le suivait déjà en direct n'apprend
+   * rien.
+   */
+  async coachJoins(coach: { id: string }, invitation: OrganizationInvitation): Promise<void> {
+    const { organizationId } = invitation;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await lockOrganization(tx, organizationId);
+
+      const member = await tx.organizationCoach.findUnique({
+        where: { organizationId_coachId: { organizationId, coachId: coach.id } },
+        select: { id: true },
+      });
+      if (member != null) {
+        throw new ConflictException("Tu es déjà membre de cette entreprise");
+      }
+
+      const athleteIds = (
+        await tx.organizationAthlete.findMany({
+          where: { organizationId, athleteId: { not: coach.id } },
+          select: { athleteId: true },
+        })
+      ).map((athlete) => athlete.athleteId);
+      await this.graph.assertNoCycle(
+        [coach.id],
+        athleteIds,
+        "Un athlète de cette entreprise te coache déjà, directement ou non",
+      );
+
+      await tx.organizationCoach.create({ data: { organizationId, coachId: coach.id } });
+      const created = await link(
+        tx,
+        organizationId,
+        athleteIds.map((athleteId) => ({ coachId: coach.id, athleteId })),
+      );
+      await tx.invitation.update({
+        where: { id: invitation.id },
+        data: { status: InvitationStatus.ACCEPTED, acceptedById: coach.id },
+      });
+      return created;
+    });
+
+    for (const relation of created) {
+      await this.notifications.notifyOrganizationCoachJoined({
+        athleteId: relation.athleteId,
+        coachId: coach.id,
+        organizationId,
+        invitationId: invitation.id,
+      });
+    }
   }
 }
 

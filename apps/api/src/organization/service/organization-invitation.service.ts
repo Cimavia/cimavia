@@ -3,8 +3,9 @@ import {
   InvitationStatus,
   type PendingOrganizationInvitationDto,
 } from "@cmv/shared";
-import { ConflictException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { assertActionable, pendingFor } from "../../account/invitation.lifecycle";
+import { OrganizationLinkService } from "../../account/service/organization-link.service";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { issuingOrganization, toPendingOrganizationInvitationDto } from "../organization.mapper";
@@ -24,6 +25,7 @@ export class OrganizationInvitationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UserDirectoryService,
+    private readonly links: OrganizationLinkService,
   ) {}
 
   /** Les invitations d'entreprise qui attendent ce Coach : en cours, non expirées, à son adresse. */
@@ -55,30 +57,15 @@ export class OrganizationInvitationService {
   }
 
   /**
-   * Rejoint l'entreprise : la ligne `OrganizationCoach` et l'invitation acceptée, dans une seule
-   * transaction. Les liens avec les athlètes de l'entreprise viendront avec #602.
+   * Rejoint l'entreprise, et suit chacun de ses athlètes (#602) — voir `coachJoins`, qui porte les
+   * règles des liens et la transaction.
    */
   async accept(coach: { id: string; email: string }, id: string): Promise<void> {
     const invitation = await this.findActionable(coach, id);
-    const existing = await this.prisma.organizationCoach.findUnique({
-      where: {
-        organizationId_coachId: { organizationId: invitation.organizationId, coachId: coach.id },
-      },
-      select: { id: true },
+    await this.links.coachJoins(coach, {
+      id: invitation.id,
+      organizationId: invitation.organizationId,
     });
-    if (existing != null) {
-      throw new ConflictException("Tu es déjà membre de cette entreprise");
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.organizationCoach.create({
-        data: { organizationId: invitation.organizationId, coachId: coach.id },
-      }),
-      this.prisma.invitation.update({
-        where: { id: invitation.id },
-        data: { status: InvitationStatus.ACCEPTED, acceptedById: coach.id },
-      }),
-    ]);
   }
 
   /**
