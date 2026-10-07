@@ -35,7 +35,7 @@ Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exe
 Un `User` qui porte `isAthlete`, suivi par **0..N Coachs**, en direct ou via une entreprise *(cible — #602)*. Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
 
 ### Organization (entreprise)
-Une structure qui réunit des Coachs *(cible — #600)*. Interface : « Entreprise » ; code : `Organization`. Elle s'ouvre par un **compte Entreprise**, dédié et **exclusif** : un `User` qui porte la capacité `company`, jamais cumulée avec `isCoach` ou `isAthlete` — il ne coache ni ne s'entraîne. Il ajoute ses Coachs (#601) et invite des athlètes (#602), et ne voit **aucun contenu** en v1. La table est distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son espace vit sur le **web** seulement ; le mobile y renvoie.
+Une structure qui réunit des Coachs *(cible — #601)*. Interface : « Entreprise » ; code : `Organization`. Elle s'ouvre par un **compte Entreprise**, dédié et **exclusif** : un `User` qui porte la capacité `company`, jamais cumulée avec `isCoach` ou `isAthlete` — il ne coache ni ne s'entraîne. Il ajoute ses Coachs (#601) et invite des athlètes (#602), et ne voit **aucun contenu** en v1. La table est distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son espace vit sur le **web** seulement ; le mobile y renvoie.
 
 ### Auto-coaching
 Un `User` qui porte **les deux** capacités peut s'écrire ses propres cycles : `coachId = athleteId`, **sans** ligne `CoachAthlete` — l'auto-relation est d'ailleurs interdite en base (`coach_athlete_not_self`). Il apparaît dans sa propre liste d'athlètes sous une entrée **synthétique** (`isSelf`), ce qui lui permet de se désigner comme destinataire.
@@ -237,7 +237,7 @@ Trois règles à connaître :
 Une ligne par donnée, une colonne par **capacité** — et non par personne : un compte qui porte les
 deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il se trouve.
 
-| Donnée | isCoach | isAthlete | Entreprise *(cible — #600)* |
+| Donnée | isCoach | isAthlete | Entreprise |
 |---|---|---|---|
 | Bibliothèque exercices/séances | CRUD (les siens) ; lecture ou écriture de ce qu'on lui ouvre *(cible — #605)* | — | — |
 | Planification | CRUD (ses athlètes) ; lecture ou écriture de ce qu'on lui ouvre *(cible — #607)* | lecture (les siennes, de chaque Coach) | — |

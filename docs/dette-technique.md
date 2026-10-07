@@ -5407,6 +5407,37 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   traduit ; « le » fil de l'athlète, qui suffisait à un seul coach, aurait ouvert celui d'un
 >   autre.
 
+> **Tranché en [#600](https://github.com/Cimavia/cimavia/issues/600)** (compte Entreprise, inscription
+> et espace dédié) : ce que le code ne dit pas seul.
+>
+> - **L'exclusivité se tient deux fois** : le CHECK `user_company_exclusive` en base, et un 400
+>   lisible à l'inscription (`create.before`), qui refuse aussi un compte sans aucun type. Le CHECK
+>   seul aurait rendu un 500. `role` vaut `COMPANY`, toujours déduit, jamais reçu.
+> - **L'entreprise naît après le compte, et se défait avec lui** : `Organization` (id = celui du
+>   compte, sans colonne nom) est créée par `create.after`, en `upsert` pour qu'un rejeu ne casse
+>   rien. Better Auth n'ouvre pas de transaction autour de l'inscription : si l'entreprise échoue, le
+>   compte tout juste créé est supprimé, puis l'échec d'origine remonte. Sans cela, l'adresse
+>   restait prise par un compte Entreprise sans entreprise.
+> - **Un compte Entreprise ne change pas de type** : `PATCH /me/capabilities` lui répond **403**,
+>   et non le 409 d'un `CapabilityBlocker`, qui annonce un blocage levable. `/update-user` refuse
+>   `isCompany` (400) comme les autres capacités, dans les deux sens.
+> - **Le registre des scopes sépare deux familles** (`TenantScope`) : un modèle d'entraînement n'a
+>   pas de clé `company`, un modèle d'entreprise n'a qu'elle. Les routes sans capacité restent
+>   ouvertes à l'entreprise (notifications, `me/counterparts`, jetons push) : elles ne rendent que
+>   ce qui lui appartient, c'est-à-dire rien, et la coquille web les lit sur chaque écran.
+> - **`TrainingCapability`** (`coach | athlete`) type `?as=` et tout ternaire coach/athlète. Élargi
+>   à `CapabilityName`, un `space === "coach" ? … : …` rangeait l'entreprise côté athlète sans
+>   qu'aucun compilateur ne le signale.
+> - **Inscription** : aucun type présélectionné, le choix engageant le compte pour de bon ; sous
+>   « Coach et/ou athlète », « Je m'entraîne » reste cochée d'office comme avant. Passer d'une
+>   carte à l'autre garde le nom, l'e-mail et le mot de passe saisis.
+> - **Web** : deux pages, `/company/coaches` et `/company/athletes`, vides jusqu'à #601 et #602.
+>   `/` envoie l'entreprise chez elle : renvoyée au planning comme un athlète, elle bouclait entre
+>   `/` et `/planning`. Pas de page Compte pour elle, qui n'y réglerait que des capacités qu'elle ne
+>   peut pas prendre : son nom s'affiche en texte simple dans le pied de la barre latérale.
+> - **Mobile** : aucun onglet, profil compris ; un écran unique (`/company`) donne l'adresse du web
+>   et la déconnexion.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
