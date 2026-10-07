@@ -97,7 +97,7 @@ describe("CompanyCoachesScreen — ce que la page montre", () => {
     render();
 
     expect(await screen.findByText("company.coaches.first.title")).toBeInTheDocument();
-    expect(screen.queryByText("company.coaches.pending")).toBeNull();
+    expect(screen.queryByText("company.invitations.pending")).toBeNull();
   });
 
   // Sans membre, une invitation en attente garde sa section : l'envoi ne doit pas sembler perdu.
@@ -117,7 +117,7 @@ describe("CompanyCoachesScreen — ce que la page montre", () => {
 
     expect(await screen.findByText("Claire Dumas")).toBeInTheDocument();
     expect(screen.getByText("claire.dumas@mail.fr")).toBeInTheDocument();
-    expect(screen.getByText("company.coaches.emptyPending")).toBeInTheDocument();
+    expect(screen.getByText("company.invitations.emptyPending")).toBeInTheDocument();
     expect(screen.queryByText("julie.roche@mail.fr")).toBeNull();
   });
 
@@ -127,15 +127,23 @@ describe("CompanyCoachesScreen — ce que la page montre", () => {
     render();
 
     expect(await screen.findByTestId("subtitle")).toHaveTextContent(
-      "company.coaches.count · company.coaches.pendingCount",
+      "company.coaches.count · company.invitations.pendingCount",
     );
+  });
+
+  // Les invitations d'athlète (#602) vivent sur l'autre page.
+  it("ne lit que les invitations de Coach", async () => {
+    render();
+    await screen.findByText("company.coaches.first.title");
+
+    expect(listInvitations).toHaveBeenCalledWith(InvitationRole.COACH);
   });
 
   it("ne montre la section des refus que s'il y en a", async () => {
     listCoaches.mockResolvedValue([CLAIRE]);
     render();
     await screen.findByText("Claire Dumas");
-    expect(screen.queryByText("company.coaches.declined")).toBeNull();
+    expect(screen.queryByText("company.invitations.declined")).toBeNull();
   });
 
   // Une panne ne se lit pas « aucun coach » : ni état vide, ni décompte inventé.
@@ -161,9 +169,9 @@ describe("CompanyCoachesScreen — les gestes", () => {
     listInvitations.mockResolvedValue([invitation()]);
     const { user } = render();
 
-    await user.click(await screen.findByRole("button", { name: "company.coaches.revoke" }));
+    await user.click(await screen.findByRole("button", { name: "company.invitations.revoke" }));
     expect(revokeInvitation).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "company.coaches.revokeConfirm" }));
+    await user.click(screen.getByRole("button", { name: "company.invitations.revokeConfirm" }));
 
     await waitFor(() => expect(revokeInvitation).toHaveBeenCalledWith("inv_1"));
   });
@@ -172,11 +180,11 @@ describe("CompanyCoachesScreen — les gestes", () => {
     listInvitations.mockResolvedValue([DECLINED]);
     const { user } = render();
 
-    const section = (await screen.findByText("company.coaches.declined")).closest("section");
+    const section = (await screen.findByText("company.invitations.declined")).closest("section");
     expect(within(section as HTMLElement).getByText("paul@mail.fr")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "company.coaches.delete" }));
-    await user.click(screen.getByRole("button", { name: "company.coaches.deleteConfirm" }));
+    await user.click(screen.getByRole("button", { name: "company.invitations.delete" }));
+    await user.click(screen.getByRole("button", { name: "company.invitations.deleteConfirm" }));
 
     await waitFor(() => expect(deleteInvitation).toHaveBeenCalledWith("inv_2"));
   });
@@ -187,19 +195,19 @@ describe("CompanyCoachesScreen — les gestes", () => {
 
     // Le bouton de l'en-tête — l'état vide porte le même.
     await user.click(screen.getAllByRole("button", { name: "company.coaches.add" })[0] as never);
-    const submit = await screen.findByRole("button", { name: "company.coaches.panel.submit" });
+    const submit = await screen.findByRole("button", { name: "company.invitations.panel.submit" });
     // Pas d'adresse, pas d'envoi (#319).
     expect(submit).toBeDisabled();
 
     await user.type(
-      screen.getByLabelText("company.coaches.panel.emailLabel"),
+      screen.getByLabelText("company.invitations.panel.emailLabel"),
       "  Julie.Roche@Mail.fr ",
     );
     await user.click(submit);
 
     await waitFor(() => expect(inviteCoach).toHaveBeenCalledWith({ email: "Julie.Roche@Mail.fr" }));
     await waitFor(() =>
-      expect(screen.queryByLabelText("company.coaches.panel.emailLabel")).toBeNull(),
+      expect(screen.queryByLabelText("company.invitations.panel.emailLabel")).toBeNull(),
     );
   });
 
@@ -212,14 +220,14 @@ describe("CompanyCoachesScreen — les gestes", () => {
 
     await user.click(screen.getAllByRole("button", { name: "company.coaches.add" })[0] as never);
     await user.type(
-      await screen.findByLabelText("company.coaches.panel.emailLabel"),
+      await screen.findByLabelText("company.invitations.panel.emailLabel"),
       "claire.dumas@mail.fr",
     );
-    await user.click(screen.getByRole("button", { name: "company.coaches.panel.submit" }));
+    await user.click(screen.getByRole("button", { name: "company.invitations.panel.submit" }));
 
     expect(
       await screen.findByText("Ce coach est déjà membre de ton entreprise"),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("company.coaches.panel.emailLabel")).toBeInTheDocument();
+    expect(screen.getByLabelText("company.invitations.panel.emailLabel")).toBeInTheDocument();
   });
 });
