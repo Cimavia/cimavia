@@ -196,14 +196,14 @@ export const requestMessageUploadUrlSchema = z.discriminatedUnion("type", [
 export type RequestMessageUploadUrlInput = z.infer<typeof requestMessageUploadUrlSchema>;
 
 /**
- * Get-or-create d'un fil. Le coach vise un de SES athlètes (`athleteId` requis, possédé vérifié) ;
- * l'athlète n'a qu'un coach (aucun champ — le service résout la relation). Union discriminée par
- * un `role` explicite plutôt que par la présence du champ, pour un 400 net.
+ * Get-or-create d'un fil. Le coach vise un de SES athlètes (`athleteId`, possédé vérifié) ;
+ * l'athlète, un de SES coachs (`coachId`, #599) — il en a 0..N. Lequel des deux est requis dépend
+ * de la capacité EXERCÉE, que le schéma ne connaît pas : c'est le service qui refuse le mauvais.
  */
 export const openConversationSchema = z
   .object({
-    // Optionnel : présent = ouverture côté coach (cible un athlète) ; absent = côté athlète.
     athleteId: z.string().min(1).optional(),
+    coachId: z.string().min(1).optional(),
   })
   .strict();
 export type OpenConversationInput = z.infer<typeof openConversationSchema>;

@@ -130,8 +130,16 @@ describe("openConversationSchema", () => {
     expect(openConversationSchema.safeParse({ athleteId: "ath_1" }).success).toBe(true);
   });
 
+  it("accepte une ouverture côté athlète vers un de ses coachs (coachId)", () => {
+    expect(openConversationSchema.safeParse({ coachId: "c_1" }).success).toBe(true);
+  });
+
   it("refuse un champ inconnu (schéma strict)", () => {
-    expect(openConversationSchema.safeParse({ coachId: "c_1" }).success).toBe(false);
+    expect(openConversationSchema.safeParse({ counterpartId: "c_1" }).success).toBe(false);
+  });
+
+  it("refuse un identifiant vide", () => {
+    expect(openConversationSchema.safeParse({ coachId: "" }).success).toBe(false);
   });
 });
 
