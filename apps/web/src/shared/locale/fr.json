@@ -40,6 +40,16 @@
     }
   },
   "auth": {
+    "brand": {
+      "title": "Chaque séance compte.",
+      "lead": "Crée ton compte en moins d'une minute. Coach, athlète ou entreprise, tout commence ici.",
+      "coach": "Coach",
+      "coachText": "— compose tes séances et planifications",
+      "athlete": "Athlète",
+      "athleteText": "— consulte tes séances et débriefe-les",
+      "company": "Entreprise",
+      "companyText": "— ajoute tes coachs et invite tes athlètes"
+    },
     "login": {
       "title": "Connexion",
       "submit": "Se connecter",
@@ -50,16 +60,14 @@
     },
     "register": {
       "title": "Créer un compte",
+      "lead": "D'abord, dis-nous qui tu es.",
       "name": "Nom complet",
       "companyName": "Nom de l'entreprise",
-      "capabilities": "Je veux",
-      "capabilityCoach": "Coacher des athlètes",
-      "capabilityAthlete": "Suivre mes entraînements",
-      "capabilityHint": "Les deux sont possibles.",
+      "capabilityCoach": "Je coache",
+      "capabilityAthlete": "Je m'entraîne",
       "submit": "Créer mon compte",
       "submitting": "Création…",
-      "hasAccount": "Déjà un compte ?",
-      "toLogin": "Se connecter",
+      "toLogin": "J'ai déjà un compte",
       "type": {
         "training": "Coach et/ou athlète",
         "trainingHint": "Je coache, je m'entraîne, ou les deux.",
@@ -96,8 +104,8 @@
       "generic": "Une erreur est survenue. Réessaie.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",
       "invalidCredentials": "E-mail ou mot de passe incorrect.",
-      "noCapability": "Choisis au moins une option.",
-      "signupClosed": "Les inscriptions sont fermées. Pour créer ton compte, demande une invitation à ton coach."
+      "noCapability": "Coche au moins une case : « Je coache », « Je m'entraîne » ou les deux.",
+      "signupClosed": "Les inscriptions sont fermées sur cet environnement. Il faut une invitation."
     }
   },
   "exercise": {

@@ -16,6 +16,9 @@ export const authClient = createAuthClient({
       user: {
         isCoach: { type: "boolean", required: false },
         isAthlete: { type: "boolean", required: false },
+        // Exclusive des deux autres (#600) : sans elle, un compte Entreprise serait lu sans aucune
+        // capacité, et l'inscription ne pourrait pas l'envoyer.
+        isCompany: { type: "boolean", required: false },
         // `required: false` comme côté serveur depuis #12 : le signup n'envoie plus `role`, il est
         // DÉDUIT des capacités. Le déclarer requis ici le rendrait obligatoire à l'inscription.
         role: { type: "string", required: false },
