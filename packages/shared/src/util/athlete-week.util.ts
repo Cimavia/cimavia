@@ -36,6 +36,8 @@ export type CalendarWeek<S extends CalendarSession> = {
 export type CalendarPlan<S extends CalendarSession> = {
   id: string;
   title: string;
+  /** Qui l'a diffusé : un athlète suivi par plusieurs coachs a des cycles de chacun (#599). */
+  coachName: string;
   startDate: string;
   weekCount: number;
   weeks: readonly CalendarWeek<S>[];
@@ -61,6 +63,8 @@ export type AthleteCalendarDay<S extends CalendarSession> = {
 export type AthleteCalendarCycle = {
   planId: string;
   title: string;
+  /** Deux cycles concurrents peuvent venir de deux coachs : le bandeau dit lequel (#599). */
+  coachName: string;
   /** La semaine DE CE CYCLE qui tombe dans la semaine civile — le « 3 » de « S3/4 ». */
   weekNumber: number;
   weekCount: number;
@@ -115,6 +119,7 @@ export function athleteCalendarWeek<S extends CalendarSession>(
     cycles.push({
       planId: plan.id,
       title: plan.title,
+      coachName: plan.coachName,
       weekNumber: week.weekNumber,
       weekCount: plan.weekCount,
       type: week.type,

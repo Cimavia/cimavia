@@ -36,6 +36,7 @@ const plan = (
 ): CalendarPlan<ScheduledSessionSummaryDto> => ({
   id,
   title,
+  coachName: "Julie Renaud",
   startDate: MONDAY,
   weekCount: 1,
   weeks: [{ weekNumber: 1, type: PlanWeekType.TRAINING, note: null, startDate: MONDAY, sessions }],

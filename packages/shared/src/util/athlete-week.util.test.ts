@@ -26,10 +26,12 @@ function plan(
   title: string,
   startDate: string,
   weeks: { type?: PlanWeekType; note?: string | null; sessions?: Session[] }[],
+  coachName = "Julie Renaud",
 ): CalendarPlan<Session> {
   return {
     id,
     title,
+    coachName,
     startDate,
     weekCount: weeks.length,
     weeks: weeks.map((week, index) => {
@@ -52,9 +54,14 @@ const BLOC = plan("bloc", "Cycle Bloc", MONDAY, [
 ]);
 
 // Démarre le même lundi que BLOC : c'est l'accumulation, le cas que #172 servait à moitié.
-const FALAISE = plan("falaise", "Prépa falaise", MONDAY, [
-  { sessions: [session("falaise-lun", MONDAY, 1), session("falaise-jeu", "2026-10-15")] },
-]);
+// D'un AUTRE coach (#599) : chaque cycle annonce le sien.
+const FALAISE = plan(
+  "falaise",
+  "Prépa falaise",
+  MONDAY,
+  [{ sessions: [session("falaise-lun", MONDAY, 1), session("falaise-jeu", "2026-10-15")] }],
+  "Marc Keller",
+);
 
 describe("athleteCalendarWeek", () => {
   it("rend toujours les 7 jours, du lundi au dimanche", () => {
@@ -94,12 +101,19 @@ describe("athleteCalendarWeek", () => {
     expect(week?.days[1]?.entries.map((entry) => entry.session.id)).toEqual(["tot", "tard"]);
   });
 
+  // Deux cycles concurrents de deux coachs : chacun garde le nom du sien.
+  it("nomme le coach de chaque cycle de la semaine", () => {
+    const week = athleteCalendarWeek([BLOC, FALAISE], MONDAY);
+    expect(week?.cycles.map((cycle) => cycle.coachName)).toEqual(["Julie Renaud", "Marc Keller"]);
+  });
+
   it("annonce les cycles qui couvrent la semaine, avec leur numéro et leur note", () => {
     const week = athleteCalendarWeek([BLOC, FALAISE], "2026-10-19");
     expect(week?.cycles).toEqual([
       {
         planId: "bloc",
         title: "Cycle Bloc",
+        coachName: "Julie Renaud",
         weekNumber: 2,
         weekCount: 2,
         type: PlanWeekType.DELOAD,
