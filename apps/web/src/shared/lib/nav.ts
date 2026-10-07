@@ -82,7 +82,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     requiresCounterpart: true,
   },
   { to: "/invoices", labelKey: "nav.myInvoices", icon: IoReceiptOutline, capability: "athlete" },
-  { to: "/my-coach", labelKey: "nav.myCoach", icon: IoPersonOutline, capability: "athlete" },
+  { to: "/my-coach", labelKey: "nav.myCoaches", icon: IoPersonOutline, capability: "athlete" },
 ];
 
 /**

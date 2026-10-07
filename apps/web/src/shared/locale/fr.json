@@ -686,7 +686,7 @@
     "invoices": "Facturation",
     "reminders": "Rappels",
     "myInvoices": "Factures",
-    "myCoach": "Mon coach",
+    "myCoaches": "Mes coachs",
     "planning": "Planning",
     "sessions": "Séances",
     "myMessages": "Messagerie",
@@ -812,8 +812,8 @@
       "pickThread": "Sélectionne un coach pour ouvrir la conversation.",
       "noCoach": {
         "title": "Aucun coach rattaché",
-        "description": "La messagerie n'est disponible qu'avec un coach. Accepte son invitation dans « Mon coach » pour commencer à échanger.",
-        "action": "Aller à « Mon coach »"
+        "description": "La messagerie n'est disponible qu'avec un coach. Accepte son invitation dans « Mes coachs » pour commencer à échanger.",
+        "action": "Aller à « Mes coachs »"
       }
     },
     "feedback": {
@@ -1026,10 +1026,10 @@
     "byCoach": "De {{name}}",
     "athlete": {
       "title": "Mes factures",
-      "subtitle": "Les factures émises par ton coach.",
+      "subtitle": "Les factures émises par tes coachs.",
       "empty": {
         "title": "Aucune facture",
-        "description": "Quand ton coach émettra une facture, elle apparaîtra ici."
+        "description": "Quand un de tes coachs émettra une facture, elle apparaîtra ici."
       }
     },
     "markPaid": "Marquer payée",
@@ -1167,19 +1167,23 @@
     }
   },
   "coach": {
-    "title": "Mon coach",
-    "subtitle": "La personne qui te suit.",
+    "title": "Mes coachs",
+    "subtitle": "Les personnes qui te suivent.",
+    "table": {
+      "columns": {
+        "coach": "Coach",
+        "since": "Suivi depuis"
+      }
+    },
     "linked": {
-      "since": "Coach · suivi depuis le {{date}}",
-      "sinceUnknown": "Coach · date de rattachement —",
-      "message": "Message"
+      "message": "Message",
+      "messageTo": "Écrire à {{name}}"
     },
     "invitation": {
       "title": "{{name}} t'invite à le rejoindre",
       "expires": "Invitation valable jusqu'au {{date}}",
       "join": "Rejoindre {{name}}",
       "joining": "Connexion en cours…",
-      "blocked": "Tu es déjà suivi par {{name}} : tu ne peux pas accepter une autre invitation.",
       "decline": "Refuser",
       "declineConfirm": "Confirmer le refus",
       "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
@@ -1189,8 +1193,11 @@
     },
     "missing": {
       "title": "Aucun coach pour l'instant",
-      "description": "Ton coach t'invite par ton adresse e-mail : son invitation t'attendra dans « Mon coach ».",
+      "description": "Un coach t'invite par ton adresse e-mail : son invitation t'attendra dans « Mes coachs ».",
       "address": "L'adresse à laquelle ton coach doit t'inviter"
+    },
+    "more": {
+      "description": "Un autre coach peut aussi te suivre : son invitation t'attendra ici."
     }
   },
   "account": {
