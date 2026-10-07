@@ -5337,6 +5337,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   une fiche athlète commune, modifier les participants d'une conversation. Rangés en v1.x au §4
 >   du cahier des charges.
 
+> **Tranché en [#598](https://github.com/Cimavia/cimavia/issues/598)** (relecture de la maquette de
+> messagerie, 2026-10-07) : trois règles que la planche ne tranchait pas, reportées dans #611 et
+> #612.
+>
+> - **Mêmes participants, même conversation**, à plusieurs aussi — et plus seulement à deux.
+>   Sans nom de groupe, deux conversations aux mêmes participants porteraient le même titre et ne
+>   se distingueraient que par leur dernier message. La clé d'unicité couvre donc toutes les
+>   conversations (`participantKey`), plus les seules conversations à deux.
+> - **Prévenir plutôt qu'interdire** quand un Coach choisi ne suit pas un athlète choisi : C peut
+>   réunir TE, qu'il suit seul, et M, qui ne le suit pas. Un second avertissement le dit avant la
+>   création, comme celui qui prévient que les athlètes se verront entre eux. Écarté : griser M
+>   dans le sélecteur tant qu'il ne suit pas tous les athlètes choisis.
+> - **L'aperçu dit qui a écrit** : `ConversationDto` gagne l'auteur du dernier message. L'écart
+>   « Vous : » relevé en #20 se lève, et l'aperçu d'une conversation à plusieurs n'est plus
+>   anonyme.
+
+> **Tranché en [#597](https://github.com/Cimavia/cimavia/issues/597)** (relecture de la maquette
+> de la bibliothèque et des droits d'accès, 2026-10-07) : quatre règles que la planche ne
+> tranchait pas, reportées dans #604, #605 et #606.
+>
+> - **Les tags d'une séance sont ceux de ses exercices**, réunis sans doublon. `Session` n'a pas
+>   de tags et n'en gagne pas : en saisir à part en ferait une seconde source qui dériverait.
+>   Une séance dont aucun exercice n'a de tag affiche « — ».
+> - **Sans entreprise, le partage n'apparaît pas** : ni colonne Propriétaire ni colonne Accès, ni
+>   filtre de portée, ni cases à cocher. Un Coach seul n'a personne à qui ouvrir un élément ;
+>   afficher « Privé » partout serait du bruit.
+> - **Un conflit d'écriture prévient, sans montrer la version serveur** : le 409 laisse la saisie
+>   affichée et propose de recharger la dernière version. Ni fusion, ni comparaison, ni nom
+>   d'auteur. La question laissée ouverte en #440 est close.
+> - **Modifier les droits de plusieurs éléments n'écrit que les bénéficiaires changés** : une
+>   ligne restée « Mixte » garde la valeur de chaque élément. Remplacer tous les droits de chaque
+>   élément, comme l'écrivait #605, écraserait ces valeurs.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)
