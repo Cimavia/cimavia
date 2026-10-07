@@ -62,6 +62,7 @@ const TABLES = [
   "session",
   "account",
   "verification",
+  "organization",
   "user",
 ];
 
@@ -109,10 +110,10 @@ async function signUp(email: string, role: string): Promise<Agent> {
   return signUpWith(email, { isCoach: role === Role.COACH, isAthlete: role === Role.ATHLETE });
 }
 
-/** Inscription à capacités explicites — le seul moyen d'obtenir un compte qui CUMULE. */
+/** Inscription à capacités explicites — le seul moyen d'obtenir un compte qui CUMULE, ou une entreprise. */
 async function signUpWith(
   email: string,
-  capabilities: { isCoach: boolean; isAthlete: boolean },
+  capabilities: { isCoach: boolean; isAthlete: boolean; isCompany?: boolean },
 ): Promise<Agent> {
   const agent = request.agent(baseURL);
   const res = await agent
@@ -7925,13 +7926,139 @@ describe("Capacités modifiables après coup (#13)", () => {
     expect((await capabilitiesOfSession(agent)).role).toBe(Role.ATHLETE);
   });
 
-  // Le reste du profil passe toujours : le hook ferme trois champs, pas la route.
+  // Le reste du profil passe toujours : le hook ferme les champs de capacité, pas la route.
   it("laisse modifier le nom et la langue par /update-user", async () => {
     const agent = await signUp("cap-profile@cmv.test", Role.ATHLETE);
     const res = await agent.post("/api/auth/update-user").send({ name: "Léa", locale: Locale.EN });
     expect(res.status).toBe(200);
     const session = await agent.get("/api/auth/get-session");
     expect(session.body.user).toMatchObject({ name: "Léa", locale: Locale.EN });
+  });
+});
+
+describe("Compte Entreprise : exclusif, et sans accès à l'entraînement (#600)", () => {
+  const COMPANY = { isCoach: false, isAthlete: false, isCompany: true };
+  let company: Agent;
+  let companyId: string;
+
+  function attempt(email: string, capabilities: Record<string, boolean>) {
+    return request
+      .agent(baseURL)
+      .post("/api/auth/sign-up/email")
+      .send({ name: email, email, password: PASSWORD, ...capabilities });
+  }
+
+  beforeAll(async () => {
+    company = await signUpWith("company@cmv.test", COMPANY);
+    const session = await company.get("/api/auth/get-session");
+    companyId = required(session.body?.user?.id, "id du compte Entreprise");
+  });
+
+  it("inscrit une entreprise seule, persona entreprise", async () => {
+    const session = await company.get("/api/auth/get-session");
+
+    expect(session.body.user).toMatchObject({
+      isCompany: true,
+      isCoach: false,
+      isAthlete: false,
+      role: Role.COMPANY,
+    });
+  });
+
+  // L'entreprise porte l'id du compte : c'est ce qui la rattache, sans table de jointure.
+  it("crée son entreprise sous l'id du compte", async () => {
+    const organization = await app
+      .get(PrismaService)
+      .organization.findUnique({ where: { id: companyId } });
+
+    expect(organization).not.toBeNull();
+  });
+
+  it.each([
+    ["coach", { ...COMPANY, isCoach: true }],
+    ["athlète", { ...COMPANY, isAthlete: true }],
+  ])("refuse une entreprise qui serait aussi %s, sans rien créer (400)", async (_, capabilities) => {
+    const email = `company-${capabilities.isCoach ? "coach" : "athlete"}@cmv.test`;
+
+    const res = await attempt(email, capabilities);
+
+    expect(res.status).toBe(400);
+    expect(await app.get(PrismaService).user.findUnique({ where: { email } })).toBeNull();
+  });
+
+  it("refuse une inscription sans aucun type, entreprise comprise (400)", async () => {
+    const res = await attempt("company-none@cmv.test", {
+      isCoach: false,
+      isAthlete: false,
+      isCompany: false,
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  /**
+   * Une route représentative de chaque module : le garde de capacité refuse avant tout service,
+   * et un 403 ici, c'est la promesse « une entreprise ne voit aucun contenu d'entraînement ».
+   */
+  it.each([
+    "/exercises",
+    "/custom-metrics",
+    "/sessions",
+    "/plans",
+    "/athletes",
+    "/invitations",
+    "/feedbacks",
+    "/reminders",
+    "/me/coaches",
+    "/me/plans",
+    "/invitations/for-me",
+    "/invoices",
+    "/conversations",
+  ])("ferme %s à un compte Entreprise (403)", async (path) => {
+    expect((await company.get(path)).status).toBe(403);
+  });
+
+  /**
+   * Les routes sans capacité restent ouvertes : la coquille web les lit sur chaque écran. Elles ne
+   * rendent que ce qui appartient au compte, c'est-à-dire rien.
+   */
+  it("lui laisse les routes sans capacité, vides", async () => {
+    const counterparts = await company.get("/me/counterparts");
+    const unread = await company.get("/me/notifications/unread-count");
+
+    expect(counterparts.status).toBe(200);
+    expect(counterparts.body).toEqual({ asCoach: false, asAthlete: false });
+    expect(unread.status).toBe(200);
+  });
+
+  it("refuse de lui ajouter une capacité par PATCH /me/capabilities (403)", async () => {
+    const res = await company.patch("/me/capabilities").send({ isCoach: true, isAthlete: false });
+
+    expect(res.status).toBe(403);
+    expect((await company.get("/api/auth/get-session")).body.user).toMatchObject({
+      isCompany: true,
+      isCoach: false,
+      role: Role.COMPANY,
+    });
+  });
+
+  it.each([
+    ["d'en sortir", { isCompany: false }],
+    ["de coacher", { isCoach: true }],
+  ])("refuse à l'entreprise %s par /update-user (400)", async (_, change) => {
+    const res = await company.post("/api/auth/update-user").send(change);
+
+    expect(res.status).toBe(400);
+    expect((await company.get("/api/auth/get-session")).body.user).toMatchObject(COMPANY);
+  });
+
+  it("refuse à un coach de devenir entreprise par /update-user (400)", async () => {
+    const coach = await signUp("company-wannabe@cmv.test", Role.COACH);
+
+    const res = await coach.post("/api/auth/update-user").send({ isCompany: true });
+
+    expect(res.status).toBe(400);
+    expect((await coach.get("/api/auth/get-session")).body.user.isCompany).toBe(false);
   });
 });
 
