@@ -91,24 +91,28 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
     router.push(`/messages/${coach.coachId}`);
   }
 
+  // Le bouton SOUS l'identité, comme sur la carte d'invitation : `CmvButton` prend toute la
+  // largeur, et posé à côté du nom il l'écrasait jusqu'à zéro.
   return (
-    <View className="flex-row items-center gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3">
-      <View className="h-9 w-9 items-center justify-center rounded-md bg-cmv-surface-hi">
-        <CmvText className="font-cmv-display text-cmv-text-mid text-xs">
-          {initialsOf(coach.coachName)}
-        </CmvText>
-      </View>
-      <View className="flex-1 gap-1">
-        <CmvText className="text-cmv-text-hi" numberOfLines={1}>
-          {coach.coachName}
-        </CmvText>
-        {/* `joinedAt` est nullable (relation posée sans acceptation) : « — », pas de date
-            inventée. */}
-        <CmvText className="text-cmv-text-lo text-xs">
-          {coach.joinedAt == null
-            ? t("coach.sinceUnknown")
-            : t("coach.since", { date: formatInstantDate(coach.joinedAt) })}
-        </CmvText>
+    <View className="gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3">
+      <View className="flex-row items-center gap-3">
+        <View className="h-9 w-9 items-center justify-center rounded-md bg-cmv-surface-hi">
+          <CmvText className="font-cmv-display text-cmv-text-mid text-xs">
+            {initialsOf(coach.coachName)}
+          </CmvText>
+        </View>
+        <View className="flex-1 gap-1">
+          <CmvText className="text-cmv-text-hi" numberOfLines={1}>
+            {coach.coachName}
+          </CmvText>
+          {/* `joinedAt` est nullable (relation posée sans acceptation) : « — », pas de date
+              inventée. */}
+          <CmvText className="text-cmv-text-lo text-xs">
+            {coach.joinedAt == null
+              ? t("coach.sinceUnknown")
+              : t("coach.since", { date: formatInstantDate(coach.joinedAt) })}
+          </CmvText>
+        </View>
       </View>
       <CmvButton label={t("coach.message")} onPress={openThread} />
     </View>
