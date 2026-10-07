@@ -42,6 +42,7 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
 |------|----------------|-------|
 | **Coach** | Création (exercices, séances, planifs) — plus confortable sur web | **Web + mobile** |
 | **Athlète** | Usage quotidien (consultation, débrief, messages) — surtout mobile | **Web + mobile** |
+| **Entreprise** *(cible — #600)* | Réunit des Coachs, invite des athlètes ; ne coache ni ne s'entraîne, ne voit aucun contenu en v1 | **Web** (le mobile y renvoie) |
 | **Admin** | Gestion comptes, support (rôle minimal en MVP) | Web |
 
 > **Révisé (épique #7, livrée).** Ce ne sont plus des rôles exclusifs mais des **capacités
@@ -49,12 +50,14 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
 > **livré** — il n'attend plus la v1.0. Le tableau ci-dessus se lit donc par capacité, pas par
 > personne. Détail dans `CONTEXT.cimavia.md` § Acteurs & relation.
 
-**Règles de relation :**
-- Architecture **multi-tenant** : plusieurs coachs, plusieurs athlètes.
-- Un athlète a **au plus un coach** (contrainte d'unicité en base : **0 ou 1**).
-  - Un athlète peut être **autonome** (0 coach) ou **s'auto-coacher** s'il porte aussi la capacité coach — livré avec l'épique #7, plus tôt que la v1.0 prévue ici. La liaison est **réversible** : un athlète autonome peut rejoindre un coach plus tard, et redevenir autonome si la relation se termine. Quand un coach existe, il reste **unique**.
+**Règles de relation** (révisées par l'épic #593 — un *(cible — #N)* marque ce que le code ne tient pas encore) :
+- Architecture **multi-tenant** : plusieurs coachs, plusieurs athlètes, plusieurs entreprises.
+- Un athlète a **0..N coachs** *(cible — #599 ; aujourd'hui 0 ou 1)*, en direct ou **via une entreprise** *(cible — #602)*, avec **un lien par couple** : planifications, débriefs, factures, fiches et conversations restent par couple.
+  - Un athlète peut être **autonome** (0 coach) ou **s'auto-coacher** s'il porte aussi la capacité coach — livré avec l'épique #7, plus tôt que la v1.0 prévue ici. La liaison est **réversible** : un athlète autonome peut rejoindre un coach plus tard, et redevenir autonome si la relation se termine.
   - Une chaîne est possible (A coache B, B coache C) mais **jamais une boucle** : anti-cycle et anti-self à l'acceptation d'une invitation.
-- Un coach a **N athlètes**.
+- Un coach a **N athlètes** et appartient à **0..N entreprises** *(cible — #601)*.
+- Un compte **Entreprise** est **exclusif** : ni coach ni athlète *(cible — #600)*. Un athlète qu'il invite est suivi par **chacun** de ses coachs (un lien par coach, marqué « via » l'entreprise).
+- Les coachs d'une même entreprise s'ouvrent leurs exercices, séances et planifications par des **droits d'accès** (Lecture ou Écriture) *(cible — #605, #607)* ; supprimer, gérer les accès et réaffecter restent au propriétaire.
 - **Les deux capacités accèdent aux deux clients** (web et mobile) — l'usage diffère, pas les droits d'accès aux plateformes.
 
 ---
@@ -66,7 +69,11 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | Fonctionnalité | Version | Notes |
 |----------------|---------|-------|
 | Comptes, rôles, connexion | MVP | email + mot de passe, reset par e-mail |
-| Liaison coach ↔ athlète (invitation) | MVP | au plus 1 coach par athlète (1 en MVP) |
+| Liaison coach ↔ athlète (invitation) | MVP | un lien par couple ; au plus 1 coach par athlète *(cible — #599 : plusieurs)* |
+| **Compte Entreprise** | v1.0 | exclusif (ni coach ni athlète) ; ajoute ses coachs, invite des athlètes ; espace web seul — #593 |
+| **Plusieurs coachs par athlète** | v1.0 | 0..N, en direct ou via une entreprise — #593 |
+| **Droits d'accès entre coachs d'une même entreprise** | v1.0 | Lecture / Écriture par exercice, séance ou planification ; supprimer et gérer les accès restent au propriétaire — #593 |
+| **Conversations à plusieurs** | v1.0 | participants fixés à la création, lecture par participant — #593 |
 | **Athlète autonome** (auto-coaching, sans coach) | v1.0 | 0 coach ; liaison réversible ; l'athlète crée/débriefe ses propres séances |
 | Création d'exercices + documents joints | MVP | PDF/image/lien |
 | Composition de séances | MVP | liste ordonnée d'exercices |
@@ -87,7 +94,13 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | Suivi/analyse de progression (tableaux de bord) | v1.x | agrégation des débriefs |
 | Versionnement des planifications (historique) | v1.x | non MVP |
 | Messagerie temps réel (présence, frappe) | v2 | MVP = asynchrone |
-| Bibliothèque d'exercices partagée / templates publics | v2 | |
+| Templates publics (bibliothèque ouverte au-delà de ses entreprises) | v2 | le partage entre coachs d'une entreprise est en v1.0 |
+| Retirer un coach ou un athlète d'une entreprise, quitter une entreprise | v1.x | dépend de #213 — hors de l'épic #593 |
+| Affecter un athlète d'entreprise à certains coachs seulement | v1.x | l'affectation retirera des liens — hors de l'épic #593 |
+| Ce que voit le compte Entreprise (factures, activité), administrateurs nommés | v1.x | hors de l'épic #593 |
+| Partager avec un coach hors de ses entreprises | v1.x | hors de l'épic #593 |
+| Fiche athlète commune aux coachs d'un athlète | v1.x | une fiche par couple en v1.0 — hors de l'épic #593 |
+| Ajouter ou retirer des participants d'une conversation, nommer un groupe | v1.x | hors de l'épic #593 |
 | **Sans sport cible** | acquis | tags libres (#162), métriques et échelles maison ; dernières traces d'escalade : #543 |
 | Marketplace / mise en relation coach-athlète | Vision LT | |
 
@@ -102,7 +115,8 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - Réinitialisation du mot de passe (« mot de passe oublié » → lien de reset par e-mail).
 - OAuth (Google) en option v1.0.
 - **Capacités** choisies à l'inscription, en cases à cocher (coach et/ou athlète, au moins une), modifiables ensuite depuis son compte — avec refus si la capacité est en cours d'usage (athlètes actifs, ou coach rattaché).
-- Liaison : le coach invite (lien ou code), l'athlète rejoint → relation unique.
+- **Compte Entreprise** *(cible — #600)* : choisi **en premier** à l'inscription, exclusif des deux capacités ; « Nom de l'entreprise » remplace « Nom complet ». Il ajoute ses coachs et invite des athlètes.
+- Liaison : le coach invite par **adresse e-mail** (toute invitation est nominative depuis #390), l'athlète accepte depuis le compte qui la porte → **un lien par couple**. Un athlète peut rejoindre un coach même s'il en a déjà un *(cible — #599)*.
 - **Auto-coaching (livré, épique #7) :** un compte portant les deux capacités crée ses propres exercices, séances et cycles, se les diffuse et les débriefe. Ni facturation ni notification vers soi-même ; la messagerie reste fermée (un fil suppose deux personnes). La liaison à un coach reste possible et **réversible** (voir §3).
 
 ### 5.2 Bibliothèque d'exercices (coach)
@@ -140,7 +154,8 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - **Pas d'historique** des modifications en MVP.
 
 ### 5.8 Messagerie intégrée
-- Conversation 1:1 coach ↔ athlète.
+- Conversation **à participants** *(cible — #611 ; aujourd'hui coach ↔ athlète)* : à deux ou à plusieurs, chacun avec sa marque de lecture. Une conversation à deux reste unique par paire.
+- Un athlète écrit à ses coachs ; un coach à ses athlètes et aux coachs de ses entreprises. Participants fixés à la création, sans nom de groupe ; le compte Entreprise n'est dans aucune conversation.
 - Messages **texte, audio, photo, vidéo**.
 - **Asynchrone** : pas de temps réel strict ; les nouveaux messages remontent via **notification push + polling** (TanStack Query). WebSocket temps réel (NestJS Gateway + Redis) **différé post-MVP**.
 
@@ -160,14 +175,14 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 
 | Domaine | Exigence |
 |--------|----------|
-| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension). |
+| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès ou participation *(cible — #605, #611)*. Refus d'une version périmée (409) sur un élément partagé *(cible — #604)*. |
 | **RGPD / hébergement** | Données perso + médias : consentement, droit à l'effacement. **Hébergement en France** (résidence MVP, souveraineté visée — voir §7.5). Caveat : si les données sont qualifiées de **santé**, hébergeur **HDS** requis. |
 | **i18n** | Toutes les chaînes externalisées dès le MVP (FR), EN activable en v1.0. |
-| **Médias** | Compression côté client avant upload. Plafonds : vidéo 60 s / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |
+| **Médias** | Compression côté client avant upload. Plafonds : vidéo **180 s** / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |
 | **Offline** | Lecture des séances de la semaine sans réseau (cache local). |
 | **Notifications** | Push mobile + web. |
 | **Performance** | Consultation fluide en réseau faible. |
-| **Évolutivité** | Modèle prêt multi-coach ; générique, sans sport cible. |
+| **Évolutivité** | Plusieurs coachs par athlète et partage entre coachs d'une entreprise *(cible — #599, #605)* ; générique, sans sport cible. |
 
 ---
 
@@ -231,7 +246,7 @@ packages/
   tsconfig/   # @cmv/tsconfig — configs TS de base
 ```
 
-L'affichage est conditionné par le **rôle** (`User.role`), pas par la plateforme : les deux rôles accèdent aux deux clients. Conventions détaillées par couche dans `architecture-choice.md`.
+L'affichage est conditionné par les **capacités** (`isCoach` / `isAthlete`, épique #7), pas par la plateforme : les deux capacités accèdent aux deux clients ; `User.role` ne décide plus que l'espace où l'on atterrit. Conventions détaillées par couche dans `architecture-choice.md`.
 
 ### 7.4 Environnements
 - **local** (Docker `postgres:18-alpine`), **preview** (NAS auto-hébergé, `deploy/preview/`), **production** (GitLab Flow : `feature/*` → `main` → `preview` → `production`).
@@ -259,8 +274,14 @@ Deux niveaux à ne pas confondre :
 **users** (compte Better Auth + profil)
 - `id`, `email`, `role` enum(`coach`,`athlete`,`admin`), `full_name`, `avatar_url`, `locale` (`fr`/`en`)
 
-**coach_athlete** (relation, 1 coach par athlète)
-- `coach_id` → profiles, `athlete_id` → profiles **UNIQUE**, `status` enum(`pending`,`active`), `invited_at`, `joined_at`
+**coach_athlete** (relation, un lien par couple)
+- `coach_id` → profiles, `athlete_id` → profiles, **UNIQUE (`coach_id`, `athlete_id`)** *(cible — #599 ; aujourd'hui `athlete_id` seul unique)*, `status` enum(`pending`,`active`), `invited_at`, `joined_at` ; marqué « via » une entreprise quand il en naît *(cible — #602)*
+
+**organizations** (entreprise) *(cible — #600)*
+- `id` = celui du compte Entreprise ; le nom est celui du compte. Appartenance des coachs *(cible — #601)*
+
+**access_grants** (droit d'accès) *(cible — #605)*
+- cible : exercice, séance ou planification (exactement une) ; bénéficiaire : entreprise ou coach (exactement un) ; niveau `none` / `read` / `write` ; `owner_id` dénormalisé ; unicité (cible, bénéficiaire)
 
 **athlete_sheets** (fiche athlète, champ libre)
 - `athlete_id` → profiles, `coach_id` → profiles, `content` text
@@ -296,20 +317,23 @@ Deux niveaux à ne pas confondre :
 - `session_feedback_id`, `storage_path`, `media_type` enum(`image`,`video`)
 
 **conversations**
-- `coach_id`, `athlete_id`, `last_message_at`
+- `coach_id`, `athlete_id`, `last_message_at` — *(cible — #611)* : `kind` (`direct` / `group`), `direct_key` unique sur les seules conversations à deux, plus de `coach_id` / `athlete_id`
+
+**conversation_participants** *(cible — #611)*
+- `conversation_id`, `user_id`, capacité de participation, `last_read_at`
 
 **messages**
-- `conversation_id`, `sender_id`, `type` enum(`text`,`audio`,`image`,`video`), `content` text (nullable), `storage_path` (nullable), `read_at`
+- `conversation_id`, `sender_id`, `type` enum(`text`,`audio`,`image`,`video`), `content` text (nullable), `storage_path` (nullable), `read_at` (remplacé par `last_read_at` du participant *(cible — #611)*)
 
 **invoices**
 - `coach_id`, `athlete_id`, `period` (ex. `2026-07`), `amount_cents` int, `currency`, `status` enum(`pending`,`paid`), `issued_at`, `due_date`, `paid_at`, `note`
 
 ### 8.2 Relations clés
-- `coach_athlete.athlete_id` unique → garantit **au plus 1 coach par athlète** (0 ou 1). En MVP, une ligne existe toujours ; en v1.0, son absence = athlète **autonome**.
+- `coach_athlete` unique par couple → **0..N coachs par athlète** *(cible — #599 ; aujourd'hui `athlete_id` unique, 0 ou 1)*. Aucune ligne = athlète **autonome**.
 - `scheduled_session_exercises` est une **copie** des `session_exercises` : modifier une planif n'altère pas la bibliothèque (répond à « modifier un exercice en cours de planif »).
 - `session_feedback` rattaché à `scheduled_sessions` → le coach relie débrief et séance prescrite.
 
-> **Athlète autonome (v1.0) — impact modèle.** Les tables de contenu (`exercises`, `sessions`, `plans`…) sont rattachées à un **propriétaire** (en MVP : `coach_id`). Pour l'auto-coaching, l'athlète autonome devient propriétaire de son propre contenu. Concevoir dès le MVP cette propriété comme un **`owner_id` générique** (profil propriétaire) plutôt qu'un `coach_id` strict évite une migration lourde en v1.0. À trancher au moment de poser le schéma Prisma (voir §15).
+> **Athlète autonome (v1.0) — impact modèle.** Les tables de contenu (`exercises`, `sessions`, `plans`…) sont rattachées à un **propriétaire** (en MVP : `coach_id`). Pour l'auto-coaching, l'athlète autonome devient propriétaire de son propre contenu. ~~Concevoir dès le MVP cette propriété comme un **`owner_id` générique**…~~ **Tranché par l'auto-coaching (épique #7)** : `coach_id` est resté, et un compte qui se coache écrit `coach_id = athlete_id` — aucune migration n'a été nécessaire.
 
 ---
 
@@ -317,12 +341,12 @@ Deux niveaux à ne pas confondre :
 
 L'isolation des données est garantie **à la couche données**, dans l'API NestJS — **pas** par RLS Postgres (tous les accès passent par Prisma, donc l'extension suffit et reste portable).
 
-- **Tenancy guard** (NestJS) : à partir de la session Better Auth, résout l'acteur courant (`User`) et sa relation `CoachAthlete`, puis les injecte dans le contexte de requête.
-- **Prisma Client Extension** : applique automatiquement le scope tenant (filtre `where` par coach/athlète) à **toute** requête métier. Aucune query ne s'exécute hors scope.
-- **Invariant** : un coach ne lit/écrit que SES athlètes ; un athlète (lié ou autonome) que SES données. Toute nouvelle entité métier doit être rattachée au tenant.
+- **Tenancy guard** (NestJS) : à partir de la session Better Auth, résout l'acteur courant (`User`) et la capacité exercée par la route, puis les injecte dans le contexte de requête.
+- **Prisma Client Extension** : applique automatiquement le scope tenant à **toute** requête métier, sous trois formes — colonne directe, élément partageable (propriétaire ou droit d'accès, selon l'opération : lire, écrire, administrer — *(cible — #603, #605)*), participation à une conversation *(cible — #611)*. Aucune query ne s'exécute hors scope.
+- **Invariant** : un coach ne lit/écrit que ce qu'il possède ou ce qu'un droit d'accès lui ouvre *(cible — #605)*, et ne touche que SES athlètes ; un athlète (lié ou autonome) que SES données ; un compte Entreprise, aucun contenu d'entraînement. Deux capacités, deux scopes, jamais un `OR` entre elles. Toute nouvelle entité métier doit être rattachée au tenant.
 - **Médias** : buckets **privés** en object storage ; accès uniquement via **URLs signées** générées par l'API après contrôle du scope (jamais d'accès direct au bucket).
-- **Messagerie** : les conversations sont scopées par la relation ; un utilisateur ne lit que les messages de SES conversations.
-- **Tests e2e d'isolation obligatoires** : vérifier qu'un coach A ne peut jamais lire/écrire les données d'un athlète du coach B.
+- **Messagerie** : un utilisateur ne lit que les messages des conversations dont il est participant *(cible — #611 ; aujourd'hui scopées par la relation)*.
+- **Tests e2e d'isolation obligatoires** : vérifier qu'un coach A ne peut jamais lire/écrire les données d'un athlète du coach B, ni un élément qu'on ne lui a pas ouvert.
 
 > Décidé dès le départ plutôt que de gérer l'autorisation au cas par cas dans chaque service. Détail dans `architecture-choice.md` §6.
 
@@ -331,7 +355,7 @@ L'isolation des données est garantie **à la couche données**, dans l'API Nest
 ## 10. Gestion des médias
 - Capture via `expo-camera` / `expo-image-picker`.
 - **Compression côté client** avant upload (réduction du coût stockage/bande passante).
-- **Plafonds :** vidéo **60 s max**, **720p max**, **1 Go max**, **10 vidéos** par débrief ; photos **20 max** (100 Mo), réduites à ~1600 px ; **20 notes vocales** (5 min / 100 Mo). Relevés deux fois depuis les valeurs MVP d'origine (50 Mo / 10 Mo / 3 notes) : les tailles en P4, puis les **comptes en #156**, la sélection multiple ayant montré que c'était le nombre qui gênait.
+- **Plafonds :** vidéo **180 s max**, **720p max**, **1 Go max**, **10 vidéos** par débrief ; photos **20 max** (100 Mo), réduites à ~1600 px ; **20 notes vocales** (5 min / 100 Mo). Relevés depuis les valeurs MVP d'origine (60 s, 50 Mo / 10 Mo / 3 notes) : les tailles en P4, la **durée** avec l'envoi découpé des médias, puis les **comptes en #156**, la sélection multiple ayant montré que c'était le nombre qui gênait.
 - Upload vers l'**object storage S3** (Scaleway en MVP) : bucket **privé**, accès via **URLs signées** délivrées par l'API.
 - Vidéos = principal poste de coût : ces plafonds gardent les coûts prévisibles ; bascule vers stockage objet externe + CDN si le volume grandit.
 
@@ -371,11 +395,11 @@ Gratuit au lancement. À structurer ensuite :
 
 ## 15. Questions ouvertes restantes
 - ~~Région d'hébergement~~ → **tranché : France** (preview auto-hébergé sur NAS ; cible de production à choisir entre Scaleway et Clever Cloud selon le cadrage HDS #259, voir §7.5).
-- ~~Limites vidéo MVP~~ → **tranché** : 60 s / 720p. Les tailles ont été relevées depuis (1 Go vidéo, 100 Mo photo/audio) et les comptes aussi (#156 : 10 vidéos + 20 photos) — la durée, elle, n'a pas bougé.
+- ~~Limites vidéo MVP~~ → **tranché** : 60 s / 720p. Tout a été relevé depuis sauf le 720p : la durée (180 s, envoi découpé), les tailles (1 Go vidéo, 100 Mo photo/audio) et les comptes (#156 : 10 vidéos + 20 photos).
 - ~~Débrief par exercice~~ → **tranché** : débrief séance suffit en MVP, par exercice à évaluer plus tard.
 - Les données d'entraînement sont-elles qualifiables de **données de santé** (→ obligation HDS) ? À clarifier juridiquement.
 - Modèle économique : abonnement vs commission — à trancher avant v1.0.
-- **Athlète autonome (v1.0)** : poser la propriété du contenu en `owner_id` générique dès le MVP, ou refactorer à l'arrivée de l'auto-coaching ? À trancher au moment du schéma Prisma (P1).
+- ~~Athlète autonome : `owner_id` générique ou refactor à l'arrivée de l'auto-coaching ?~~ → **tranché** (épique #7) : ni l'un ni l'autre, `coach_id = athlete_id` pour un compte qui se coache (voir §8).
 
 ---
 

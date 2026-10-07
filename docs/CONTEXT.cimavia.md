@@ -15,7 +15,9 @@ cimavia outille la relation **coach ↔ athlète**, quel que soit le sport. Bouc
 3. L'athlète **consulte** ses séances (y compris hors-ligne en salle) et les **débriefe** (texte libre + photos/vidéos).
 4. Coach et athlète **échangent** en messagerie asynchrone ; le coach **facture** ses prestations.
 
-Tout le reste (auth, capacités, notifications) sert cette boucle.
+Tout le reste (auth, capacités, notifications) sert cette boucle. Des Coachs peuvent s'associer dans une **entreprise**, suivre ensemble un même athlète et s'ouvrir leurs exercices, séances et planifications (épic #593).
+
+> Un *(cible — #N)* marque ce que le code ne tient pas encore : la PR de #N le rend vrai et retire le marqueur (dette **MC-1**).
 
 ---
 
@@ -27,10 +29,13 @@ Identité authentifiée (gérée par Better Auth). Porte deux **capacités cumul
 `role` (`COACH` | `ATHLETE` | `ADMIN`) survit sur le modèle, mais **ne fonde plus aucun droit** : c'est le **persona d'affichage**, l'univers dans lequel un compte à double capacité atterrit. Toute autorisation se décide sur les capacités.
 
 ### Coach
-Un `User` qui porte `isCoach`. Possède N athlètes, sa bibliothèque d'exercices/séances, ses planifications, ses conversations et ses factures.
+Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exercices/séances, ses planifications, ses factures, et participe à ses conversations. Appartient à **0..N entreprises** *(cible — #601)*, dont il peut lire ou modifier ce que les autres Coachs lui ouvrent *(cible — #605)*.
 
 ### Athlete
-Un `User` qui porte `isAthlete`, rattaché à **au plus un** coach (unicité en base — voir « Multi-tenant »). Consulte ses planifications, débriefe ses séances, échange avec son coach.
+Un `User` qui porte `isAthlete`, suivi par **0..N Coachs** *(cible — #599 ; aujourd'hui au plus un, unicité en base)*, en direct ou via une entreprise *(cible — #602)*. Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
+
+### Organization (entreprise)
+Une structure qui réunit des Coachs *(cible — #600)*. Interface : « Entreprise » ; code : `Organization`. Elle s'ouvre par un **compte Entreprise**, dédié et **exclusif** : un `User` qui porte la capacité `company`, jamais cumulée avec `isCoach` ou `isAthlete` — il ne coache ni ne s'entraîne. Il ajoute ses Coachs (#601) et invite des athlètes (#602), et ne voit **aucun contenu** en v1. La table est distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son espace vit sur le **web** seulement ; le mobile y renvoie.
 
 ### Auto-coaching
 Un `User` qui porte **les deux** capacités peut s'écrire ses propres cycles : `coachId = athleteId`, **sans** ligne `CoachAthlete` — l'auto-relation est d'ailleurs interdite en base (`coach_athlete_not_self`). Il apparaît dans sa propre liste d'athlètes sous une entrée **synthétique** (`isSelf`), ce qui lui permet de se désigner comme destinataire.
@@ -41,9 +46,11 @@ Ce qui ne s'applique pas à un cycle solo : la **facturation** (on ne se facture
 Ce que la navigation montre à un instant donné. Un compte à double capacité en voit **un seul à la fois**, et bascule ; l'espace inactif porte une **pastille** quand quelque chose l'y attend. Sur le web, l'espace se déduit de l'URL (le chemin, ou `?as=` sur les deux routes servies aux deux capacités) ; sur mobile, d'un sélecteur en tête des écrans partagés.
 
 ### CoachAthlete (relation)
-Le lien coach→athlète, établi par **invitation** — toujours adressée à une adresse e-mail, et acceptée depuis le compte qui la porte (#390 : plus de code à transmettre). Statut `PENDING` → `ACTIVE`. C'est la frontière de tenant : presque toute donnée est scopée par cette relation.
+Le lien coach→athlète, **un par couple**, établi par **invitation** — toujours adressée à une adresse e-mail, et acceptée depuis le compte qui la porte (#390 : plus de code à transmettre). Statut `PENDING` → `ACTIVE`. C'est la frontière de tenant : presque toute donnée est scopée par cette relation.
 
-### AthleteProfile (fiche athlète)
+**Via une entreprise** *(cible — #602)* : un athlète invité par l'entreprise F reçoit un lien **par Coach de F**, marqué « via F » ; un Coach qui rejoint F reçoit un lien avec chaque athlète de F. Il n'y a pas de table « relations » : elles se déduisent du lien et de l'appartenance à une entreprise.
+
+### AthleteSheet (fiche athlète)
 Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement**. Pas de structure imposée en MVP.
 
 ---
@@ -51,7 +58,7 @@ Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement
 ## Entraînement
 
 ### Exercise
-Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Scopé au coach (`coachId`). Réutilisable dans plusieurs `Session`.
+Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Appartient à un coach (`coachId`), qui peut l'ouvrir par un **droit d'accès** *(cible — #605)*. Réutilisable dans plusieurs `Session` — y compris celles d'un autre Coach à qui il est ouvert, qui le **référencent en direct** et en gardent une **copie figée** si l'accès disparaît ou si l'exercice est supprimé *(cible — #609)*.
 
 ### Document
 Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
@@ -128,6 +135,15 @@ Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: Se
 
 La bibliothèque, elle, garde son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
+### AccessGrant (droit d'accès)
+Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou planification — à une **entreprise** ou à un **Coach** de ses entreprises *(cible — #605, #607, #608)*. Niveau `READ` (Lecture) ou `WRITE` (Écriture), et `NONE` pour une ligne de Coach qui ferme ce que son entreprise ouvre.
+
+- **Un droit accordé à F vaut pour ses Coachs**, pas pour le compte Entreprise. La ligne d'un Coach l'emporte sur celle de son entreprise, `NONE` compris ; un Coach de plusieurs entreprises hérite du droit le plus large.
+- **Écrire n'est pas posséder** : `WRITE` modifie le contenu, enfants et publication compris. **Supprimer** l'élément, **gérer ses accès** et **réaffecter** une planification à un autre athlète restent au propriétaire.
+- **Les enfants suivent leur racine** : semaines, séances planifiées, débriefs et facture suivent la planification ; documents et tags suivent l'exercice. Une facture sans planification reste privée.
+- **Une planification ne s'ouvre qu'aux Coachs de son athlète** ; sans athlète, elle s'ouvre comme un exercice. Celle d'un athlète d'entreprise naît ouverte **en écriture à l'entreprise**.
+- **Plus d'écrasement silencieux** : une écriture sur une version périmée d'un élément partagé est refusée en 409 *(cible — #604)*. Ouvrir un élément ne notifie personne.
+
 ---
 
 ## Suivi & échanges
@@ -140,10 +156,10 @@ Retour de l'athlète sur une `ScheduledSession` : **un champ texte libre** (« r
 Trois règles à connaître :
 - **Le texte est nullable** : un débrief peut n'être que des photos, et l'athlète le complète **en plusieurs fois** (texte puis médias, ou l'inverse). D'où un `PUT` idempotent, et aucune contrainte « texte OU média » — elle interdirait le débrief média-seul, qui commence forcément par un débrief vide. Un débrief vide est un état légitime : « séance faite, rien à signaler ».
 - **Débriefer passe la séance en `DONE`**, sous quelque forme que ce soit (texte, ou premier média rattaché). Transition **sans retour** : un débrief complété ne redevient pas `PLANNED`.
-- **`coachReadAt`** alimente la tuile « Débriefs à relire ». Il repasse à `null` quand l'athlète complète son débrief — sinon un ajout tardif resterait invisible pour un coach qui l'a déjà ouvert. Seule la **création** notifie le coach (un push par ajout serait du harcèlement).
+- **`coachReadAt`** alimente la tuile « Débriefs à relire ». Sur une planification partagée, le débrief est notifié à **chaque Coach** qui y a accès, et « lu » devient propre à chacun *(cible — #610)*. Il repasse à `null` quand l'athlète complète son débrief — sinon un ajout tardif resterait invisible pour un coach qui l'a déjà ouvert. Seule la **création** notifie le coach (un push par ajout serait du harcèlement).
 
 ### Media
-Photo / vidéo / **note vocale** rattachée à un `SessionFeedback`. L'**audio** (débrief vocal, CDC §4) a rejoint `MediaType` en P5, avec l'enregistreur/lecteur construits pour la messagerie (promus en `shared/component/` côté mobile) — même flux d'upload que photo/vidéo. Stocké en object storage (URL GET signée), compressé côté client. Limites : vidéo **60 s / 720p / 1 Go**, **3 vidéos + 5 photos (100 Mo) + 15 notes vocales** (m4a, ≤ 5 min / 100 Mo) par débrief. Ces valeurs ont été relevées après les plafonds MVP d'origine (50 Mo / 10 Mo / 3 notes) ; elles vivent dans `@cmv/shared` et sont **interpolées** dans les messages de refus.
+Photo / vidéo / **note vocale** rattachée à un `SessionFeedback`. L'**audio** (débrief vocal, CDC §4) a rejoint `MediaType` en P5, avec l'enregistreur/lecteur construits pour la messagerie (promus en `shared/component/` côté mobile) — même flux d'upload que photo/vidéo. Stocké en object storage (URL GET signée), compressé côté client. Limites : vidéo **180 s / 720p / 1 Go**, **10 vidéos + 20 photos (100 Mo) + 20 notes vocales** (m4a, ≤ 5 min / 100 Mo) par débrief. Ces valeurs ont été relevées depuis les plafonds MVP d'origine (60 s, 50 Mo / 10 Mo / 3 notes) : les tailles en P4, la durée avec l'envoi découpé, les comptes en #156 ; elles vivent dans `@cmv/shared` et sont **interpolées** dans les messages de refus.
 
 Contrairement à un `Document` de la bibliothèque, un média de débrief n'est **jamais copié ni partagé** : sa clé objet n'appartient qu'à lui, donc sa suppression purge l'objet **directement**, sans garde de comptage.
 
@@ -154,7 +170,13 @@ Ce qui est réellement appliqué, et où :
 - **le 720p** n'est ni appliqué ni vérifié (pas de transcodage — dette P4-1), et la **durée est déclarative** (le serveur ne décode pas le fichier — dette P4-2).
 
 ### Conversation / Message
-Fil **1:1** coach ↔ athlète, scopé par la relation. `Message` = texte / audio / image / vidéo, rattachable à une séance ou un débrief. MVP : **asynchrone** (polling TanStack Query + push). WebSocket temps réel **différé** (post-MVP).
+Échange entre **participants**, à deux ou à plusieurs *(cible — #611 ; aujourd'hui un fil coach ↔ athlète, `Conversation(coachId, athleteId)` unique par couple)*. Une conversation à deux reste **unique par paire** — et par capacité : un compte à double capacité peut avoir deux fils avec la même personne, un par espace. `Message` = texte / audio / image / vidéo, rattachable à une séance ou un débrief **si tous les participants y ont accès**. Asynchrone (polling TanStack Query + push) ; WebSocket temps réel **différé**.
+
+- **Qui écrit à qui** : un athlète à ses Coachs ; un Coach à ses athlètes et aux Coachs de ses entreprises. Le compte Entreprise n'est dans aucune conversation.
+- **Participants fixés à la création**, sans nom de groupe : le titre liste les participants.
+
+### ConversationParticipant (participant)
+Un `User` dans une conversation, **au titre d'une capacité**, avec sa propre marque de lecture (`lastReadAt`) — elle remplace le `Message.readAt` unique *(cible — #611)*. C'est la troisième forme de scope : on lit une conversation et ses messages si l'on en est participant.
 
 ### Invoice (facture)
 Émise par le coach pour un athlète (période, montant, échéance, note). Statut `PENDING` / `PAID` (**marquage manuel** en MVP). Paiement réel **externe** (virement) ; PSP intégré (Stripe) en v1.0.
@@ -197,9 +219,10 @@ Trois règles à connaître :
 
 ## Multi-tenant (frontière de données)
 
-- **Invariant** : 1 `Athlete` = exactement 1 `Coach`. 1 `Coach` = N `Athlete`.
-- Presque toute entité (`Plan`, `Session`, `SessionFeedback`, `Conversation`, `Invoice`, `AthleteProfile`…) est **scopée à la relation `CoachAthlete`**.
-- La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) est scopée au **coach seul** (`coachId`) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
+- **Invariant** : 1 `Athlete` = **0..N `Coach`** *(cible — #599 ; aujourd'hui 0 ou 1)*, un lien par couple, en direct ou via une entreprise. 1 `Coach` = N `Athlete`, et 0..N entreprises. Le compte Entreprise n'a accès à **aucun** contenu d'entraînement.
+- **Trois formes de scope**, toujours au sein de la capacité exercée — jamais un `OR` entre les deux : **colonne directe** (aujourd'hui partout), **élément partageable** — propriétaire, ou droit d'accès qui vise l'acteur ou l'une de ses entreprises *(cible — #603, #605)* —, **participation** à une conversation *(cible — #611)*.
+- Presque toute entité par couple (`Plan`, `SessionFeedback`, `Invoice`, `AthleteSheet`…) est **scopée à la relation `CoachAthlete`**.
+- La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) appartient à **un coach** (`coachId`), qui peut l'ouvrir aux Coachs de ses entreprises *(cible — #605)* : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux capacités** : chaque table porte donc `coachId` ET `athleteId` en direct.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
 - ⚠️ **`CoachAthleteStatus.PENDING` n'est jamais écrit** : la colonne est `@default(ACTIVE)`, `InvitationService` pose `ACTIVE` à l'acceptation, et les services filtrent sur `ACTIVE`. Le palier existe dans le modèle (« réservé si besoin »), pas dans les faits — ne pas construire d'UI qui suppose deux états tant qu'un flux n'en produit pas deux.
@@ -214,16 +237,20 @@ Trois règles à connaître :
 Une ligne par donnée, une colonne par **capacité** — et non par personne : un compte qui porte les
 deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il se trouve.
 
-| Donnée | isCoach | isAthlete |
-|---|---|---|
-| Bibliothèque exercices/séances | CRUD (les siens) | — |
-| Planification | CRUD (ses athlètes) | lecture (la sienne) |
-| Débrief de séance | lecture + marquage « lu » | écriture (le sien) |
-| Fiche athlète | CRUD | — |
-| Messagerie | 1:1 avec ses athlètes | 1:1 avec son coach |
-| Facture | émission + statut | lecture |
-| Rappel | CRUD (les siens) | — *(aucun accès : 403)* |
-| Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |
+| Donnée | isCoach | isAthlete | Entreprise *(cible — #600)* |
+|---|---|---|---|
+| Bibliothèque exercices/séances | CRUD (les siens) ; lecture ou écriture de ce qu'on lui ouvre *(cible — #605)* | — | — |
+| Planification | CRUD (ses athlètes) ; lecture ou écriture de ce qu'on lui ouvre *(cible — #607)* | lecture (les siennes, de chaque Coach) | — |
+| Débrief de séance | lecture + marquage « lu » (le sien, par Coach *(cible — #610)*) | écriture (le sien) | — |
+| Fiche athlète | CRUD (une par couple) | — | — |
+| Messagerie | avec ses athlètes et les Coachs de ses entreprises *(cible — #611)* | avec ses Coachs | — *(dans aucune conversation)* |
+| Facture | émission + statut ; suit le droit de sa planification *(cible — #607)* | lecture | — |
+| Rappel | CRUD (les siens) | — *(aucun accès : 403)* | — |
+| Entreprise : Coachs, athlètes, invitations | — | — | gestion (la sienne) *(cible — #601, #602)* |
+| Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |
+
+Le compte Entreprise porte la capacité `company`, **exclusive** : sa colonne ne se cumule avec aucune autre.
+Supprimer un élément ouvert, gérer ses accès ou réaffecter une planification restent au **propriétaire**.
 
 Le centre de notifications, lui, n'a **pas** de capacité exercée : il montre ce qui est adressé au
 compte, tous espaces confondus. Son compteur est en revanche **ventilé** (`{ count, coach, athlete }`),
