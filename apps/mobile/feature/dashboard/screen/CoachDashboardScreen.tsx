@@ -10,6 +10,8 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { useAthletes } from "@/feature/athlete";
+import { OrganizationInvitationCard } from "@/feature/company/component/OrganizationInvitationCard";
+import { useMyOrganizationInvitations } from "@/feature/company/hook/useOrganizationInvitations";
 import { AthleteRowCard } from "@/feature/dashboard/component/AthleteRowCard";
 import { DashboardTile } from "@/feature/dashboard/component/DashboardTile";
 import { InvitationSection } from "@/feature/dashboard/component/InvitationSection";
@@ -51,6 +53,11 @@ export function CoachDashboardScreen() {
   // Le RÉSUMÉ, pas la liste : deux entiers comptés en SQL, là où `useReminders` rapporterait
   // jusqu'à 200 lignes pour qu'on en mesure une.
   const reminders = useReminderSummary();
+  /**
+   * Les entreprises qui invitent ce Coach (#601). HORS de `sources` : leur absence est le cas
+   * ordinaire, et une panne ici ne fausse aucune tuile — on ne rend alors rien, sans bandeau.
+   */
+  const organizationInvitations = useMyOrganizationInvitations();
 
   // `todayIsoDate()` et non un instant : `Invoice.dueDate` est une date CIVILE, la lire en heure
   // locale ferait basculer de jour aux abords de minuit.
@@ -90,6 +97,7 @@ export function CoachDashboardScreen() {
     for (const source of sources) {
       source.refetch();
     }
+    organizationInvitations.refetch();
   };
 
   return (
@@ -110,6 +118,11 @@ export function CoachDashboardScreen() {
         <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
           {t("dashboard.welcome", { name: session?.user.name ?? "—" })}
         </CmvText>
+
+        {/* En tête, comme sur le web : c'est la seule chose de l'écran qui attend une réponse. */}
+        {(organizationInvitations.data ?? []).map((invitation) => (
+          <OrganizationInvitationCard key={invitation.id} invitation={invitation} />
+        ))}
 
         {isPending ? <ActivityIndicator /> : null}
 
