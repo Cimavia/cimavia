@@ -16,7 +16,10 @@ vi.mock("@/feature/plan", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan")>()),
   AthletePlanningScreen: () => null,
 }));
-vi.mock("@/feature/company", () => ({ CompanySectionScreen: () => null }));
+vi.mock("@/feature/company", () => ({
+  CompanyCoachesScreen: () => null,
+  CompanySectionScreen: () => null,
+}));
 
 async function landingOf(user: Record<string, unknown>): Promise<string> {
   session.user = { id: "u-1", name: "Compte", email: "u@cmv.test", ...user };

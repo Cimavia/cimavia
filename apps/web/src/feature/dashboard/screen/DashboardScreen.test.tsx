@@ -5,6 +5,7 @@ import {
   type InvoiceDto,
   InvoiceStatus,
   mondayOfIsoWeek,
+  type PendingOrganizationInvitationDto,
   PlanStatus,
   type PlanSummaryDto,
   shiftIsoDate,
@@ -13,6 +14,7 @@ import {
 import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountApi } from "@/feature/athlete/api";
+import { organizationApi } from "@/feature/company/api";
 import { coachFeedbackApi } from "@/feature/feedback/api";
 import { invoiceApi } from "@/feature/invoice/api";
 import { messageApi } from "@/feature/message/api";
@@ -36,6 +38,18 @@ vi.mock("@/feature/athlete/api", async (importOriginal) => {
       listAthletes: vi.fn(),
       getAthleteSheet: vi.fn(async () => null),
       listInvitations: vi.fn(async () => []),
+    },
+  };
+});
+vi.mock("@/feature/company/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/feature/company/api")>();
+  return {
+    ...actual,
+    organizationApi: {
+      ...actual.organizationApi,
+      myInvitations: vi.fn(),
+      acceptInvitation: vi.fn(async () => undefined),
+      declineInvitation: vi.fn(async () => undefined),
     },
   };
 });
@@ -131,6 +145,7 @@ type Sources = {
   plans?: PlanSummaryDto[] | Error;
   invoices?: InvoiceDto[] | Error;
   conversations?: ConversationDto[] | Error;
+  organizationInvitations?: PendingOrganizationInvitationDto[] | Error;
 };
 
 function answer(fn: unknown, value: unknown) {
@@ -147,6 +162,7 @@ async function mount(sources: Sources = {}, search: Record<string, string> = {})
   answer(messageApi.listConversations, sources.conversations ?? [CONVERSATION]);
   answer(reminderApi.summary, { dueCount: 0 });
   answer(notificationApi.unreadCount, { count: 5, coach: 5, athlete: 0 });
+  answer(organizationApi.myInvitations, sources.organizationInvitations ?? []);
 
   const view = await renderInRoute(<DashboardScreen />, { path: "/", search, links: LINKS });
   // Les tuiles répondent toutes : la dernière source à arriver est la liste d'athlètes.
@@ -416,5 +432,61 @@ describe("DashboardScreen — la fiche athlète", () => {
     await view.user.keyboard("{Escape}");
 
     await waitFor(() => expect(view.queryByText("athlete.invitation.title")).toBeNull());
+  });
+});
+
+const ORGANIZATION_INVITATION: PendingOrganizationInvitationDto = {
+  id: "oinv_1",
+  organizationName: "Fontainebleau Escalade",
+  expiresAt: "2026-10-16T09:00:00.000Z",
+  createdAt: "2026-10-09T09:00:00.000Z",
+};
+
+describe("DashboardScreen — une entreprise m'invite (#601)", () => {
+  it("pose la carte en tête, et fait passer « Inviter un athlète » en secondaire", async () => {
+    const view = await mount({ organizationInvitations: [ORGANIZATION_INVITATION] });
+
+    expect(await view.findByText("coach.organizationInvitation.title")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "athlete.invite" })).toHaveClass("bg-cmv-surface-hi");
+  });
+
+  it("garde « Inviter un athlète » en primaire sans invitation", async () => {
+    const view = await mount();
+
+    expect(view.queryByText("coach.organizationInvitation.title")).toBeNull();
+    expect(view.getByRole("button", { name: "athlete.invite" })).toHaveClass("bg-cmv-accent");
+  });
+
+  // L'absence d'invitation est le cas ordinaire : une panne ici ne mérite pas le bandeau.
+  it("ne dit rien quand la liste des invitations est en panne", async () => {
+    const view = await mount({ organizationInvitations: new Error("boom") });
+
+    expect(view.queryByText("dashboard.error.title")).toBeNull();
+    expect(view.queryByText("coach.organizationInvitation.title")).toBeNull();
+  });
+
+  it("accepte depuis la carte", async () => {
+    const view = await mount({ organizationInvitations: [ORGANIZATION_INVITATION] });
+
+    await view.user.click(
+      await view.findByRole("button", { name: "coach.organizationInvitation.accept" }),
+    );
+
+    await waitFor(() => expect(organizationApi.acceptInvitation).toHaveBeenCalledWith("oinv_1"));
+  });
+
+  it("n'envoie le refus qu'après confirmation", async () => {
+    const view = await mount({ organizationInvitations: [ORGANIZATION_INVITATION] });
+
+    await view.user.click(
+      await view.findByRole("button", { name: "coach.organizationInvitation.decline" }),
+    );
+    expect(organizationApi.declineInvitation).not.toHaveBeenCalled();
+
+    await view.user.click(
+      view.getByRole("button", { name: "coach.organizationInvitation.declineConfirm" }),
+    );
+
+    await waitFor(() => expect(organizationApi.declineInvitation).toHaveBeenCalledWith("oinv_1"));
   });
 });

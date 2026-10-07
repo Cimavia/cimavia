@@ -135,6 +135,9 @@ export function routeForNotification(
      * destinations tombent sans une seule ligne de branchement sur le type : le coach va voir le
      * nouvel athlète apparaître dans son tableau de suivi — c'est ce qu'on vient de lui annoncer —
      * et l'athlète va à l'écran où l'invitation s'accepte.
+     *
+     * L'invitation d'une entreprise (#601) tombe dans la même branche : elle ne vise que des
+     * Coachs, et sa carte attend sur leur tableau de bord.
      */
     case NotificationEntityType.INVITATION:
       return isCoach ? COACH_HOME : { to: "/my-coach" };
