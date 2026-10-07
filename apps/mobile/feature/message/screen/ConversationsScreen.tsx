@@ -1,11 +1,22 @@
-import { type ConversationDto, initialsOf, MessageType } from "@cmv/shared";
+import {
+  type CapabilityName,
+  type ConversationDto,
+  type ConversationRelation,
+  conversationRows,
+  counterpartOfConversation,
+  initialsOf,
+  MessageType,
+  type ConversationRow as Row,
+} from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
-import { router, useFocusEffect } from "expo-router";
+import type { UseQueryResult } from "@tanstack/react-query";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import type { TFunction } from "i18next";
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useAthletes } from "@/feature/athlete";
+import { useMyCoaches } from "@/feature/coach/hook/useMyCoach";
 import { useConversations } from "@/feature/message/hook/useConversation";
 import { useUnreadByCapability } from "@/feature/notification/hook/useNotifications";
 import { CmvCapabilitySwitch, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
@@ -16,19 +27,54 @@ import { formatRelativeTime } from "@/shared/util/date.util";
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values messages.preview: IMAGE, VIDEO, AUDIO, FEEDBACK_CREATED, FEEDBACK_UPDATED
 
-type Row = { athleteId: string; athleteName: string; conversation: ConversationDto | null };
-
-/**
- * La liste des fils du coach (#34) : un par athlète TIERS, **qu'un fil existe ou non**. Sélectionner
- * un athlète jamais contacté crée le fil à la volée (get-or-create).
- *
- * Même fusion athlètes × fils que côté web : les fils les plus récemment actifs d'abord, puis les
- * athlètes sans échange. Un athlète absent de la liste serait injoignable — c'est pour ça qu'on
- * part des athlètes et non des conversations.
- */
+/** La liste des fils du coach (#34) : un par athlète TIERS, qu'un fil existe ou non. */
 export function CoachConversationsScreen() {
   const { t } = useTranslation();
-  const athletes = useAthletes();
+  return (
+    <ConversationsView
+      as="coach"
+      relations={useAthletes()}
+      emptyTitle={t("messages.noAthletes.title")}
+      emptyDescription={t("messages.noAthletes.description")}
+    />
+  );
+}
+
+/**
+ * La liste des fils de l'athlète (#599) : un par coach qui le suit. Sans coach, il n'y a rien à
+ * ouvrir — l'API refuserait —, et le dire vaut mieux qu'une liste vide sans explication.
+ */
+export function AthleteConversationsScreen() {
+  const { t } = useTranslation();
+  return (
+    <ConversationsView
+      as="athlete"
+      relations={useMyCoaches()}
+      emptyTitle={t("messages.noCoach.title")}
+      emptyDescription={t("messages.noCoach.description")}
+    />
+  );
+}
+
+type ConversationsViewProps = {
+  as: CapabilityName;
+  relations: UseQueryResult<ConversationRelation[]>;
+  emptyTitle: string;
+  emptyDescription: string;
+};
+
+/**
+ * Une ligne par interlocuteur, **qu'un fil existe ou non** : sélectionner un interlocuteur jamais
+ * contacté crée le fil à la volée (get-or-create). Les lignes se construisent dans
+ * `conversationRows` (@cmv/shared), la même fusion que côté web.
+ */
+function ConversationsView({
+  as,
+  relations,
+  emptyTitle,
+  emptyDescription,
+}: Readonly<ConversationsViewProps>) {
+  const { t } = useTranslation();
   const conversations = useConversations();
   // Même clé de cache pour tous les appelants : une seule requête, quel que soit le nombre
   // d'écrans qui affichent le sélecteur.
@@ -38,7 +84,7 @@ export function CoachConversationsScreen() {
    * Relue à chaque passage au premier plan, comme les notifications et les factures : le cache est
    * persisté et frais 5 min, donc un message arrivé pendant qu'on regardait ailleurs n'y apparaîtrait
    * qu'au tirer-pour-rafraîchir (#309). Les fils seulement : ce sont eux qui bougent, pas la liste
-   * des athlètes. Pas de sondage — on ne regarde pas cette liste changer.
+   * des interlocuteurs. Pas de sondage — on ne regarde pas cette liste changer.
    */
   const { refetch: refetchConversations } = conversations;
   useFocusEffect(
@@ -47,28 +93,28 @@ export function CoachConversationsScreen() {
     }, [refetchConversations]),
   );
 
-  const byAthlete = new Map(
-    (conversations.data ?? []).map((conversation) => [conversation.counterpartId, conversation]),
+  const rows = useMemo(
+    () => conversationRows(relations.data ?? [], conversations.data ?? [], as),
+    [relations.data, conversations.data, as],
   );
-  const rows: Row[] = (athletes.data ?? [])
-    // L'entrée SYNTHÉTIQUE de l'auto-coaching est écartée ici, et ici seulement (#198) : elle reste
-    // sur `GET /athletes`, dont le tableau de bord et le constructeur de cycle dépendent (#14). La
-    // messagerie est la seule surface où elle n'a pas de sens — le fil `(soi, soi)` ne peut pas
-    // exister, et la ligne menait à un écran d'erreur.
-    .filter((relation) => !relation.isSelf)
-    .map((relation) => ({
-      athleteId: relation.athleteId,
-      athleteName: relation.athleteName,
-      conversation: byAthlete.get(relation.athleteId) ?? null,
-    }))
-    .sort((a, b) =>
-      (b.conversation?.lastMessageAt ?? "").localeCompare(a.conversation?.lastMessageAt ?? ""),
-    );
 
-  const isPending = athletes.isPending || conversations.isPending;
-  const isError = athletes.isError || conversations.isError;
+  /**
+   * Une notification n'apporte que le fil (`?conversation=`), la route d'un fil attend
+   * l'interlocuteur : on le retrouve dans la liste, puis on l'ouvre (#599). Le paramètre est
+   * CONSOMMÉ avant la navigation — sinon revenir du fil le rouvrirait aussitôt.
+   */
+  const { conversation: notified } = useLocalSearchParams<{ conversation?: string }>();
+  const target = counterpartOfConversation(rows, notified);
+  useEffect(() => {
+    if (target == null) return;
+    router.setParams({ conversation: undefined });
+    router.push(`/messages/${target}`);
+  }, [target]);
+
+  const isPending = relations.isPending || conversations.isPending;
+  const isError = relations.isError || conversations.isError;
   const refresh = () => {
-    athletes.refetch();
+    relations.refetch();
     conversations.refetch();
   };
 
@@ -88,7 +134,7 @@ export function CoachConversationsScreen() {
         contentContainerClassName="gap-3 px-4 pb-4 pt-4"
         refreshControl={
           <RefreshControl
-            refreshing={athletes.isRefetching || conversations.isRefetching}
+            refreshing={relations.isRefetching || conversations.isRefetching}
             onRefresh={refresh}
             // Le spinner est natif : il ignore les className, d'où la valeur (issue des tokens).
             tintColor={cmvColors.accent.DEFAULT}
@@ -100,15 +146,13 @@ export function CoachConversationsScreen() {
 
         {!isPending && !isError && rows.length === 0 ? (
           <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
-            <CmvText className="text-cmv-text-hi">{t("messages.noAthletes.title")}</CmvText>
-            <CmvText className="text-cmv-text-mid text-sm">
-              {t("messages.noAthletes.description")}
-            </CmvText>
+            <CmvText className="text-cmv-text-hi">{emptyTitle}</CmvText>
+            <CmvText className="text-cmv-text-mid text-sm">{emptyDescription}</CmvText>
           </View>
         ) : null}
 
         {rows.map((row) => (
-          <ConversationRow key={row.athleteId} row={row} />
+          <ConversationRow key={row.counterpartId} row={row} />
         ))}
       </ScrollView>
     </CmvScreen>
@@ -138,19 +182,19 @@ function ConversationRow({ row }: Readonly<{ row: Row }>) {
 
   return (
     <Pressable
-      onPress={() => router.push(`/messages/${row.athleteId}`)}
+      onPress={() => router.push(`/messages/${row.counterpartId}`)}
       className="flex-row items-center gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3"
     >
       <View className="h-9 w-9 items-center justify-center rounded-md bg-cmv-surface-hi">
         <CmvText className="font-cmv-display text-cmv-text-mid text-xs">
-          {initialsOf(row.athleteName)}
+          {initialsOf(row.counterpartName)}
         </CmvText>
       </View>
 
       <View className="flex-1 gap-1">
         <View className="flex-row items-center gap-2">
           <CmvText className="flex-1 text-cmv-text-hi" numberOfLines={1}>
-            {row.athleteName}
+            {row.counterpartName}
           </CmvText>
           {/* `null` = aucun échange : pas de date inventée. */}
           <CmvText className="text-cmv-text-lo text-xs">

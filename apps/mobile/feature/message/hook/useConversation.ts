@@ -55,6 +55,20 @@ export function useConversationWith(athleteId: string | null) {
   });
 }
 
+/**
+ * Ouvre (get-or-create) le fil de l'athlète avec UN de ses coachs (#599) : il en a 0..N, c'est
+ * donc à lui de désigner lequel. Symétrique de `useConversationWith` : désigner un de ses coachs,
+ * c'est agir en athlète. `null` tant que rien n'est désigné — même raison que côté coach.
+ */
+export function useConversationWithCoach(coachId: string | null) {
+  return useQuery<ConversationDto>({
+    queryKey: messageKeys.conversationWithCoach(coachId ?? ""),
+    queryFn: () => messageApi.openConversation({ coachId: coachId as string }, "athlete"),
+    enabled: coachId != null,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
 export function useMessages(conversationId: string | undefined) {
   // Polling gated par le focus de l'écran (useFocusEffect) : pas de refetch quand l'onglet est
   // en arrière-plan. Le focusManager global (retour au premier plan) reste en plus actif.

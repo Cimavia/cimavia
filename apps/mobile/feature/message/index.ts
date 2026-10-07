@@ -1,4 +1,3 @@
-export { CoachConversationScreen } from "./screen/CoachConversationScreen";
-export { CoachConversationsScreen } from "./screen/CoachConversationsScreen";
-export { ConversationScreen } from "./screen/ConversationScreen";
+export { AthleteConversationsScreen, CoachConversationsScreen } from "./screen/ConversationsScreen";
+export { CounterpartConversationScreen } from "./screen/CounterpartConversationScreen";
 export { MessagesScreen } from "./screen/MessagesScreen";

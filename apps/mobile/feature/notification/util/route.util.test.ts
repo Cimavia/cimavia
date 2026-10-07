@@ -40,13 +40,14 @@ describe("routeForNotification — côté coach", () => {
   });
 
   /**
-   * La LISTE des fils, pas un fil précis : `entityId` porte l'id de la conversation, alors que la
-   * route coach attend celui de l'athlète. Y passer l'un pour l'autre ouvrirait le mauvais fil.
+   * La liste des fils, avec le fil à ouvrir : `entityId` porte l'id de la conversation, alors que
+   * la route d'un fil attend l'interlocuteur. Y passer l'un pour l'autre ouvrirait le mauvais fil —
+   * c'est donc la liste qui traduit (#599).
    */
-  it("ouvre la liste des fils et non un fil précis", () => {
+  it("ouvre la liste en lui confiant le fil notifié", () => {
     expect(
       routeForNotification(entry({ entityType: NotificationEntityType.CONVERSATION }), COACH),
-    ).toBe("/messages");
+    ).toBe("/messages?conversation=e-1");
   });
 
   it("mène aux factures", () => {
@@ -59,7 +60,8 @@ describe("routeForNotification — côté coach", () => {
 describe("routeForNotification — côté athlète", () => {
   it.each([
     [NotificationEntityType.PLAN, "/planning"],
-    [NotificationEntityType.CONVERSATION, "/messages"],
+    // Le fil notifié, et non « le » fil : l'athlète en a un par coach (#599).
+    [NotificationEntityType.CONVERSATION, "/messages?conversation=e-1"],
     [NotificationEntityType.INVOICE, "/invoices"],
   ])("mène %s vers %s", (entityType, expected) => {
     expect(routeForNotification(entry({ entityType }), ATHLETE)).toBe(expected);
@@ -232,5 +234,14 @@ describe("routeForPushPayload", () => {
   it("rend null quand l'id attendu manque de la charge utile", () => {
     expect(routeForPushPayload({ type: NotificationType.FEEDBACK_RECEIVED }, COACH)).toBeNull();
     expect(routeForPushPayload({ type: NotificationType.FEEDBACK_RECEIVED }, ATHLETE)).toBeNull();
+  });
+
+  // Un message sans fil connu ouvre quand même la messagerie : la liste vaut mieux que rien.
+  it("ouvre la liste quand le fil manque de la charge utile", () => {
+    for (const capabilities of [COACH, ATHLETE]) {
+      expect(routeForPushPayload({ type: NotificationType.MESSAGE_RECEIVED }, capabilities)).toBe(
+        "/messages",
+      );
+    }
   });
 });
