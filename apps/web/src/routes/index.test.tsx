@@ -18,7 +18,7 @@ vi.mock("@/feature/plan", async (importOriginal) => ({
 }));
 vi.mock("@/feature/company", () => ({
   CompanyCoachesScreen: () => null,
-  CompanySectionScreen: () => null,
+  CompanyAthletesScreen: () => null,
 }));
 
 async function landingOf(user: Record<string, unknown>): Promise<string> {
