@@ -8,6 +8,8 @@ export const PLAN_COUNTS_INCLUDE = {
   _count: { select: { weeks: true, scheduledSessions: true } },
   // L'athlète destinataire : un cycle sans son nom ne se lit pas dans une liste.
   athlete: { select: { name: true, email: true } },
+  // Son auteur : l'athlète suivi par plusieurs coachs lit de qui vient chaque cycle (#599).
+  coach: { select: { name: true } },
 } satisfies Prisma.PlanInclude;
 
 export type PlanWithCounts = Prisma.PlanGetPayload<{
@@ -28,6 +30,7 @@ export const PLAN_DETAIL_INCLUDE = {
   },
   _count: { select: { weeks: true, scheduledSessions: true } },
   athlete: { select: { name: true, email: true } },
+  coach: { select: { name: true } },
 } satisfies Prisma.PlanInclude;
 
 export type PlanWithWeeks = Prisma.PlanGetPayload<{
@@ -80,6 +83,7 @@ export function toPlanSummaryDto(plan: PlanWithCounts): PlanSummaryDto {
   return {
     id: plan.id,
     coachId: plan.coachId,
+    coachName: plan.coach.name,
     athleteId: plan.athleteId,
     // La relation suit la colonne : un brouillon sans destinataire (#144) n'a pas d'athlète à
     // nommer. Les trois champs disent la MÊME absence — il n'y a pas de cycle nommé sans athlète.

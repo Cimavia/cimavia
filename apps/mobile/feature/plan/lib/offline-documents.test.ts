@@ -67,6 +67,8 @@ function session(
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: 1,
     updatedAt,
+    coachId: "coach-1",
+    coachName: "Julie Renaud",
     exercises: [
       {
         id: "ex-1",
@@ -93,6 +95,7 @@ function plan(id: string, sessionIds: readonly string[], sessionUpdatedAt = EDIT
   return {
     id,
     coachId: "coach-1",
+    coachName: "Julie Renaud",
     athleteId: "athlete-1",
     athleteName: "Ada",
     athleteEmail: "ada@test.fr",

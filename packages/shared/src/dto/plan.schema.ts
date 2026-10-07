@@ -293,6 +293,13 @@ export const scheduledSessionSummaryDtoSchema = z.object({
 export type ScheduledSessionSummaryDto = z.infer<typeof scheduledSessionSummaryDtoSchema>;
 
 export const scheduledSessionDtoSchema = scheduledSessionSummaryDtoSchema.extend({
+  /**
+   * Le coach dont vient la séance (#599). Un athlète suivi par plusieurs coachs ne saurait pas,
+   * sans lui, à qui écrire depuis la séance ni avec qui son débrief s'échange : c'est le fil de CE
+   * coach qui s'ouvre. Sur le détail seulement — dans le planning, chaque cycle le porte déjà.
+   */
+  coachId: z.string(),
+  coachName: z.string(),
   exercises: z.array(scheduledSessionExerciseDtoSchema),
 });
 export type ScheduledSessionDto = z.infer<typeof scheduledSessionDtoSchema>;
@@ -313,6 +320,11 @@ export type PlanWeekDto = z.infer<typeof planWeekDtoSchema>;
 export const planSummaryDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
+  /**
+   * Le coach qui a écrit le cycle (#599) : un athlète suivi par plusieurs coachs doit savoir de qui
+   * vient chacun. Toujours renseigné — un cycle a toujours un auteur.
+   */
+  coachName: z.string(),
   /**
    * `null` = brouillon dont le destinataire n'est pas encore choisi (#144). Ce n'est pas une
    * donnée manquante mais un ÉTAT, et il est actionnable : le coach affecte quand il a décidé.

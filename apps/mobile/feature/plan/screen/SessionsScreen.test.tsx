@@ -38,6 +38,7 @@ const session = (id: string, title: string, scheduledDate: string): ScheduledSes
 const plan = (id: string, title: string, sessions: ScheduledSessionSummaryDto[]): PlanDto => ({
   id,
   coachId: "coach_1",
+  coachName: "Julie Renaud",
   athleteId: "ath_1",
   athleteName: "Léa Moreau",
   athleteEmail: "lea@example.test",

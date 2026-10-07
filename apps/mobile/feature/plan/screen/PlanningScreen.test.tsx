@@ -67,6 +67,7 @@ function plan(
   return {
     id,
     coachId: "coach_1",
+    coachName: "Julie Renaud",
     athleteId: "ath_1",
     athleteName: "Léa Moreau",
     athleteEmail: "lea@example.test",
