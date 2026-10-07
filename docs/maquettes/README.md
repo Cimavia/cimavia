@@ -8,7 +8,10 @@ Maquettes d'écrans produites via **Claude Design** (format `*.dc.html`), track 
   plusieurs *frames* (`athlete_web.dc.html` en contient 14). Ne pas déduire la couverture du nombre
   de fichiers : elle se lit dans la colonne « Écran » ci-dessous, et dans les commentaires
   `<!-- ===== NOM DE LA FRAME ===== -->` du fichier.
-- Rangé par cible : `shared/`, `web-coach/`, `web-athlete/`, `mobile-athlete/`, `mobile-coach/`.
+- Rangé par cible : `shared/`, `web-coach/`, `web-athlete/`, `web-entreprise/`, `mobile-athlete/`,
+  `mobile-coach/`. Une planche range par l'espace qu'elle introduit, même si elle dessine aussi
+  l'autre bout du flux : `web-entreprise/` porte la carte d'invitation vue par le Coach et par
+  l'athlète.
 - Garder le nom d'export Claude Design ; le mapping vers la tâche `pd-N` (track PD) ou vers l'issue
   qui l'a commandée se fait dans le tableau ci-dessous.
 - Les fichiers `support.js` / `ios-frame.jsx` font partie du **runtime Claude Design** (rendu), pas du produit : non versionnés ici. Ces maquettes servent de **référence**, pas de code à importer tel quel.
@@ -61,6 +64,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `web-athlete/athlete_seance_web.dc.html` | — | **7 frames** — le même écran côté web, avec rail de droite : détail de séance (consignes dépliées, cases visibles), grilles à 2 et 4 colonnes, exercice à plusieurs blocs + pièces jointes, suivi en cours, débrief, séance à venir, séance déjà débriefée | refonte du détail de séance de `athlete_web.dc.html` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `shared/coach_athlete_etats_vides.dc.html` | — | **11 écrans** — les vides que la refonte fait apparaître, sur les deux plateformes : bibliothèque vide, onglet Séances vide, grille sans ligne, exercice sans structure, recherche sans résultat · aucune séance, séance sans exercice, exercice sans consigne, amorçage du suivi · aucune séance et débrief vide côté web | **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `shared/auth_inscription_type.dc.html` | [#595](https://github.com/Cimavia/cimavia/issues/595) | **9 frames** — inscription avec choix du type de compte : web sans type choisi / Coach et/ou athlète / Entreprise / aucune case cochée / inscriptions fermées (refus après envoi, formulaire visible) · mobile sans type / Coach et/ou athlète / Entreprise / compte Entreprise connecté (renvoi vers le web) | [#600](https://github.com/Cimavia/cimavia/issues/600) | ⏳ |
+| `web-entreprise/entreprise_espace_web.dc.html` | [#596](https://github.com/Cimavia/cimavia/issues/596) | **9 frames** — espace Entreprise : Coachs (membres + invitations en attente), panneau « Ajouter un coach », Athlètes (une pastille par Coach), panneau « Inviter un athlète », aucun coach, aucun athlète · côté Coach : carte d'invitation sur le tableau de bord · côté athlète : « Mes coachs » avec l'invitation reçue, puis en tableau avec la provenance de chaque lien | [#601](https://github.com/Cimavia/cimavia/issues/601) [#602](https://github.com/Cimavia/cimavia/issues/602) | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
 
@@ -187,6 +191,21 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   `invitation`, une adresse listée dans `SIGNUP_ALLOWED_EMAILS` ou invitée peut s'inscrire, et le
   client ne sait pas à l'avance laquelle l'est. Le formulaire reste donc affiché, et le message
   vient du 403 renvoyé après l'envoi (frame 5).
+- **`entreprise_espace_web.dc.html` — trois écarts au prompt de
+  [#596](https://github.com/Cimavia/cimavia/issues/596), voulus** :
+  - **pas de colonne « Athlètes suivis »** sur la page Coachs. Tous les Coachs de l'entreprise
+    suivent tous ses athlètes : la valeur serait la même partout, sauf pour un Coach qui suivait
+    déjà l'athlète en direct ([#602](https://github.com/Cimavia/cimavia/issues/602) garde ce lien
+    sans provenance). Ce « sauf » laisserait l'entreprise deviner un suivi direct. La colonne
+    reviendra avec l'affectation à certains Coachs ;
+  - **pas de bouton « Rejoindre un coach »** dans « Mes coachs » : il n'a plus de destination
+    depuis [#390](https://github.com/Cimavia/cimavia/issues/390) (plus de code à saisir). À sa
+    place, la ligne de `NoCoachCard` : l'adresse à donner au Coach ;
+  - **la date d'expiration** est ajoutée aux deux cartes d'invitation, comme sur
+    `PendingInvitationCard`.
+- **`entreprise_espace_web.dc.html` — une provenance vide n'est pas un « — »** (frame 9) : un lien
+  direct a `organizationId` à `null`, ce qui veut dire « aucune entreprise », pas « donnée
+  indisponible ». La cellule reste vide ; la règle du « — » ne s'applique pas.
 
 ## Constructeur d'exercice — modèle et changements requis
 
