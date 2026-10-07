@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegisterScreen } from "@/feature/auth/screen/RegisterScreen";
@@ -21,6 +21,14 @@ const resetAccount = vi.mocked(resetAccountData);
 
 const SUBMIT = "auth.register.submit";
 const ATHLETE = "auth.register.capabilityAthlete";
+const COACH = "auth.register.capabilityCoach";
+const TRAINING = "auth.register.type.training";
+const COMPANY = "auth.register.type.company";
+
+/** Choisit une carte de type : le reste du formulaire n'existe qu'après. */
+function choose(name: string): void {
+  press(screen.getByRole("radio", { name }));
+}
 
 /** Les trois champs, dans l'ordre du formulaire — `CmvTextField` n'associe pas de `<label>`. */
 function fillIdentity(container: HTMLElement): void {
@@ -37,9 +45,60 @@ beforeEach(() => {
   signUp.mockResolvedValue({ error: null } as never);
 });
 
+describe("RegisterScreen (mobile) — le type de compte (#600)", () => {
+  /**
+   * Le type engage le compte pour de bon — une entreprise ne deviendra jamais coach —, il ne se
+   * présélectionne donc pas, et rien ne se saisit avant lui : c'est lui qui nomme le champ « nom ».
+   */
+  it("ne montre que le choix du type tant qu'aucun n'est choisi", () => {
+    const { container, queryByText } = renderRn(<RegisterScreen />);
+
+    // Sur la marque VISIBLE de la carte, comme `TrackingList` : `accessibilityState` ne se
+    // traduit pas toujours en `aria-checked` sous react-native-web.
+    expect(container.querySelectorAll('[data-icon="ellipse-outline"]')).toHaveLength(2);
+    expect(container.querySelector('[data-icon="checkmark-circle"]')).toBeNull();
+    expect(container.querySelectorAll("input")).toHaveLength(0);
+    expect(queryByText(SUBMIT)).toBeNull();
+  });
+
+  it("inscrit une entreprise seule, sous le nom de l'entreprise", async () => {
+    const { container, queryByText } = renderRn(<RegisterScreen />);
+    choose(COMPANY);
+
+    // Pas de cases sous « Entreprise » : elle ne coache ni ne s'entraîne.
+    expect(queryByText(COACH)).toBeNull();
+    expect(queryByText("auth.register.companyName")).not.toBeNull();
+    fillIdentity(container);
+    pressButton(container, SUBMIT);
+
+    await vi.waitFor(() =>
+      expect(signUp).toHaveBeenCalledWith({
+        name: "Léa",
+        email: "lea@cmv.test",
+        password: "motdepasse1",
+        isCoach: false,
+        isAthlete: false,
+        isCompany: true,
+      }),
+    );
+  });
+
+  it("garde l'e-mail et le mot de passe d'une carte à l'autre", () => {
+    const { container } = renderRn(<RegisterScreen />);
+    choose(TRAINING);
+    fillIdentity(container);
+
+    choose(COMPANY);
+
+    const values = [...container.querySelectorAll("input")].map((input) => input.value);
+    expect(values).toEqual(["Léa", "lea@cmv.test", "motdepasse1"]);
+  });
+});
+
 describe("RegisterScreen (mobile)", () => {
   it("envoie les capacités cochées, jamais un rôle", async () => {
     const { container } = renderRn(<RegisterScreen />);
+    choose(TRAINING);
     fillIdentity(container);
 
     pressButton(container, SUBMIT);
@@ -53,12 +112,14 @@ describe("RegisterScreen (mobile)", () => {
         password: "motdepasse1",
         isCoach: false,
         isAthlete: true,
+        isCompany: false,
       }),
     );
   });
 
   it("vide le cache du compte précédent avant de laisser entrer", async () => {
     const { container } = renderRn(<RegisterScreen />);
+    choose(TRAINING);
     fillIdentity(container);
 
     pressButton(container, SUBMIT);
@@ -70,6 +131,7 @@ describe("RegisterScreen (mobile)", () => {
 
   it("refuse une inscription sans aucune capacité, sans appeler l'API", async () => {
     const { container, queryByText } = renderRn(<RegisterScreen />);
+    choose(TRAINING);
     fillIdentity(container);
 
     // Athlète est cochée au départ (le cas le plus courant : un athlète invité par son coach
@@ -79,6 +141,10 @@ describe("RegisterScreen (mobile)", () => {
 
     await vi.waitFor(() => expect(queryByText("auth.errors.noCapability")).not.toBeNull());
     expect(signUp).not.toHaveBeenCalled();
+
+    // Le message s'efface dès qu'une case est cochée, sans attendre un nouvel envoi.
+    pressButton(container, COACH);
+    expect(queryByText("auth.errors.noCapability")).toBeNull();
   });
 
   describe("ce que dit l'échec", () => {
@@ -95,6 +161,7 @@ describe("RegisterScreen (mobile)", () => {
     ])("traduit le refus %s en %s", async (status, message) => {
       signUp.mockResolvedValue({ error: { status } } as never);
       const { container, queryByText } = renderRn(<RegisterScreen />);
+      choose(TRAINING);
       fillIdentity(container);
 
       pressButton(container, SUBMIT);
@@ -110,6 +177,7 @@ describe("RegisterScreen (mobile)", () => {
     it("dit quelque chose même quand l'appel casse", async () => {
       signUp.mockRejectedValue(new Error("réseau coupé"));
       const { container, queryByText } = renderRn(<RegisterScreen />);
+      choose(TRAINING);
       fillIdentity(container);
 
       pressButton(container, SUBMIT);
@@ -138,6 +206,7 @@ describe("RegisterScreen (mobile)", () => {
 
   it("n'aiguille pas lui-même après l'inscription", async () => {
     const { container } = renderRn(<RegisterScreen />);
+    choose(TRAINING);
     fillIdentity(container);
 
     pressButton(container, SUBMIT);
