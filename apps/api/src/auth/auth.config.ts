@@ -10,6 +10,7 @@ import type { PrismaClient } from "@prisma/client";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError } from "better-auth/api";
+import { personaOf } from "./persona";
 
 /**
  * Envoi du lien de réinitialisation. Un callback plutôt qu'un service injecté : ce fichier est une
@@ -53,8 +54,21 @@ function localeOf(user: unknown): string | null {
   return typeof user.locale === "string" ? user.locale : null;
 }
 
-/** Écrits par `PATCH /me/capabilities` seul — `role` en découle, il ne se pose jamais. */
-const CAPABILITY_FIELDS = ["isCoach", "isAthlete", "role"] as const;
+/**
+ * Écrits par `PATCH /me/capabilities` seul — `role` en découle, il ne se pose jamais. `isCompany`
+ * n'y est même pas écrit : un compte ne devient ni ne cesse d'être une entreprise (#600).
+ */
+const CAPABILITY_FIELDS = ["isCoach", "isAthlete", "isCompany", "role"] as const;
+
+/**
+ * Un drapeau de capacité lu sur l'utilisateur que passe Better Auth, `false` s'il manque. Même
+ * raison que `localeOf` : déclarés en `additionalFields`, ils sont bien là, mais le type `User` de
+ * la bibliothèque ne les porte pas.
+ */
+function flagOf(user: unknown, field: "isCoach" | "isAthlete" | "isCompany"): boolean {
+  if (typeof user !== "object" || user == null || !(field in user)) return false;
+  return (user as Record<string, unknown>)[field] === true;
+}
 
 /**
  * Instance Better Auth branchée sur le PrismaClient **unique** de l'app (adapter Prisma).
@@ -107,6 +121,11 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
         isCoach: { type: "boolean", required: false, input: true, defaultValue: false },
         isAthlete: { type: "boolean", required: false, input: true, defaultValue: false },
         /**
+         * Le compte Entreprise (#600) : choisi en premier à l'inscription, EXCLUSIF des deux
+         * ci-dessus — `create.before` refuse le cumul, le CHECK `user_company_exclusive` aussi.
+         */
+        isCompany: { type: "boolean", required: false, input: true, defaultValue: false },
+        /**
          * Persona d'AFFICHAGE seul depuis #9 : sur quel univers atterrit un compte à double
          * capacité. Ne fonde aucun droit — `capabilitiesOf()` ne le lit plus.
          *
@@ -137,24 +156,57 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
                 message: "inscription fermée sur cet environnement",
               });
             }
-            const { isCoach = false, isAthlete = false } = user as {
-              isCoach?: boolean;
-              isAthlete?: boolean;
+            const capabilities = {
+              isCoach: flagOf(user, "isCoach"),
+              isAthlete: flagOf(user, "isAthlete"),
+              isCompany: flagOf(user, "isCompany"),
             };
+            // L'entreprise est un TYPE de compte, pas une case de plus (#600) : elle ne coache ni ne
+            // s'entraîne. Refusée ici plutôt qu'au CHECK, qui répondrait 500.
+            if (capabilities.isCompany && (capabilities.isCoach || capabilities.isAthlete)) {
+              throw new APIError("BAD_REQUEST", {
+                message: "un compte Entreprise ne coache ni ne s'entraîne",
+              });
+            }
             // Au moins une capacité : un compte sans aucune ne pourrait RIEN faire, et le fail
             // closed de `capabilitiesOf` le laisserait devant une application vide sans lui dire
             // pourquoi. Le refus est ici, à la création, plutôt qu'à chaque écran.
-            if (!isCoach && !isAthlete) {
+            if (!capabilities.isCompany && !capabilities.isCoach && !capabilities.isAthlete) {
               throw new APIError("BAD_REQUEST", {
-                message: "au moins une capacité requise : coach ou athlète",
+                message: "un type de compte requis : coach, athlète ou entreprise",
               });
             }
             // `role` est DÉDUIT, jamais reçu (#12) : il ne dit plus ce qu'on a le droit de faire,
-            // seulement où l'on atterrit. Coach l'emporte quand les deux sont cochées — c'est
-            // l'univers où l'on crée, et le cas qui a motivé #7 est un coach qui se coache
-            // lui-même. Le choix explicite viendra avec les deux sections de nav (#129).
-            const role = isCoach ? Role.COACH : Role.ATHLETE;
-            return { data: { ...user, isCoach, isAthlete, role } };
+            // seulement où l'on atterrit.
+            return { data: { ...user, ...capabilities, role: personaOf(capabilities) } };
+          },
+          /**
+           * L'entreprise qu'ouvre un compte Entreprise (#600), du même id.
+           *
+           * APRÈS la création et non avant : la ligne `organization` pointe sur le compte, qui doit
+           * exister. Better Auth n'enveloppe pas ce hook dans la transaction de l'inscription — le
+           * prisma-adapter n'en ouvre aucune par défaut. D'où les deux précautions :
+           * - un upsert, et non un create : rejoué, il ne casse rien ;
+           * - en cas d'échec, le compte tout juste créé est SUPPRIMÉ avant de rendre l'erreur. Sans
+           *   ça, l'inscription échouait en laissant un compte Entreprise sans entreprise, que la
+           *   personne ne pouvait plus recréer (« adresse déjà utilisée ») et auquel #601 n'aurait
+           *   jamais pu ajouter de Coach. Le hook passe avant la création des identifiants et de la
+           *   session : supprimer le compte suffit à tout défaire.
+           */
+          after: async (user) => {
+            if (!flagOf(user, "isCompany")) return;
+            try {
+              await prisma.organization.upsert({
+                where: { id: user.id },
+                create: { id: user.id },
+                update: {},
+              });
+            } catch (cause) {
+              // Si la suppression échoue à son tour, c'est l'échec d'origine qui part : c'est lui
+              // qui dit pourquoi l'inscription n'a pas abouti.
+              await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
+              throw cause;
+            }
           },
         },
         update: {

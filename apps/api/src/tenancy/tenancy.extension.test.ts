@@ -1,0 +1,39 @@
+import { required } from "@cmv/shared";
+import { describe, expect, it } from "vitest";
+import { TENANT_SCOPES, tenantField } from "./tenancy.extension";
+
+const TRAINING_MODELS = Object.entries(TENANT_SCOPES).filter(([, scope]) => !("company" in scope));
+
+describe("tenantField", () => {
+  it("scope un modèle d'entraînement sur la colonne de la capacité exercée", () => {
+    expect(tenantField({ coach: "coachId", athlete: "athleteId" }, "coach")).toBe("coachId");
+    expect(tenantField({ coach: "coachId", athlete: "athleteId" }, "athlete")).toBe("athleteId");
+  });
+
+  // `Reminder` : l'outil privé du coach n'a pas de scope athlète, l'athlète n'y entre pas.
+  it("refuse la capacité athlète sur un modèle sans scope athlète", () => {
+    expect(tenantField({ coach: "coachId" }, "athlete")).toBeNull();
+  });
+
+  // `Notification`, `PushToken` : un seul destinataire, pas de titre à choisir.
+  it("sans capacité exercée, n'ouvre que les modèles au champ commun aux deux", () => {
+    expect(tenantField({ coach: "userId", athlete: "userId" }, null)).toBe("userId");
+    expect(tenantField({ coach: "coachId", athlete: "athleteId" }, null)).toBeNull();
+  });
+
+  /**
+   * Le refus STRUCTUREL de #600 : aucun modèle d'entraînement du registre n'a de clé `company`.
+   * Parcourir le registre réel plutôt qu'un exemple : un modèle ajouté demain est vérifié aussi.
+   */
+  it.each(TRAINING_MODELS)("ferme %s au compte Entreprise", (_model, scope) => {
+    expect(tenantField(scope, "company")).toBeNull();
+  });
+
+  it("ouvre l'entreprise à la seule capacité Entreprise", () => {
+    const scope = required(TENANT_SCOPES.Organization, "Organization absente du registre");
+    expect(tenantField(scope, "company")).toBe("id");
+    expect(tenantField(scope, "coach")).toBeNull();
+    expect(tenantField(scope, "athlete")).toBeNull();
+    expect(tenantField(scope, null)).toBeNull();
+  });
+});

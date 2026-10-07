@@ -8,12 +8,17 @@ import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
  * accès, l'athlète. Un modèle ABSENT d'ici est **refusé** via le client tenant (fail closed) —
  * ce qui force à rattacher explicitement toute nouvelle entité au tenant (règle dure).
  *
- * Le scope coach est OBLIGATOIRE dans le type : tout modèle métier appartient à un coach. Le
- * scope athlète, lui, est optionnel — son absence est un refus (cf. `Reminder`).
+ * Deux familles, et le type les sépare (#600) :
+ * - un modèle d'ENTRAÎNEMENT appartient à un coach : son scope coach est obligatoire, le scope
+ *   athlète optionnel — son absence est un refus (cf. `Reminder`) ;
+ * - un modèle d'ENTREPRISE n'a qu'un scope `company`. Il n'a ni clé coach ni clé athlète, et un
+ *   modèle d'entraînement n'a pas de clé `company` : un compte Entreprise ne peut donc atteindre
+ *   AUCUN contenu d'entraînement, et c'est la structure du registre qui le dit, pas une règle de
+ *   service.
  */
-type TenantScope = { coach: string; athlete?: string };
+type TenantScope = { coach: string; athlete?: string } | { company: string };
 
-const TENANT_SCOPES: Record<string, TenantScope> = {
+export const TENANT_SCOPES: Record<string, TenantScope> = {
   CoachAthlete: { coach: "coachId", athlete: "athleteId" },
   Invitation: { coach: "coachId" },
   AthleteSheet: { coach: "coachId", athlete: "athleteId" },
@@ -51,6 +56,8 @@ const TENANT_SCOPES: Record<string, TenantScope> = {
    * notifications (#51), qui ne lit les rappels que pour un coach.
    */
   Reminder: { coach: "coachId" },
+  // L'entreprise (#600) : son id EST celui du compte Entreprise, qui ne voit qu'elle.
+  Organization: { company: "id" },
 };
 
 /**
@@ -66,11 +73,22 @@ const TENANT_SCOPES: Record<string, TenantScope> = {
  * capacités. La condition l'exprime littéralement — un modèle dont les deux scopes coïncident n'a
  * pas besoin qu'on choisisse. Tout autre modèle atteint sans capacité déclarée est refusé, ce qui
  * transforme un oubli de décorateur en panne immédiate plutôt qu'en fuite de tenant.
+ *
+ * Les deux familles du registre ne se croisent jamais (#600) : un modèle d'entreprise ne s'ouvre
+ * qu'à la capacité `company`, un modèle d'entraînement jamais à elle.
  */
-function tenantField(scope: TenantScope, exercised: CapabilityName | null): string | null {
-  if (exercised === "coach") return scope.coach;
-  if (exercised === "athlete") return scope.athlete ?? null;
-  return scope.coach === scope.athlete ? scope.coach : null;
+export function tenantField(scope: TenantScope, exercised: CapabilityName | null): string | null {
+  if ("company" in scope) return exercised === "company" ? scope.company : null;
+  switch (exercised) {
+    case "coach":
+      return scope.coach;
+    case "athlete":
+      return scope.athlete ?? null;
+    case "company":
+      return null;
+    case null:
+      return scope.coach === scope.athlete ? scope.coach : null;
+  }
 }
 
 const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);

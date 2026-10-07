@@ -3,11 +3,11 @@ import {
   CapabilityBlocker,
   CoachAthleteStatus,
   InvitationStatus,
-  Role,
   type UpdateCapabilitiesInput,
 } from "@cmv/shared";
-import { ConflictException, Injectable } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable } from "@nestjs/common";
 import { ClsService } from "nestjs-cls";
+import { personaOf } from "../../auth/persona";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { currentActor } from "../../tenancy/tenant-context.type";
 
@@ -30,7 +30,14 @@ export class CapabilityService {
   ) {}
 
   async update(input: UpdateCapabilitiesInput): Promise<Capabilities> {
-    const { userId } = currentActor(this.cls);
+    const { userId, capabilities } = currentActor(this.cls);
+    // Un compte Entreprise ne coache ni ne s'entraîne, et ne le devient pas (#600). Le schéma exige
+    // au moins une des deux capacités : toute demande d'ici lui en ajouterait une. 403, là où les
+    // refus d'état ci-dessous sont des 409 : aucun changement d'état ne lèverait celui-ci — c'est
+    // le type de compte qui refuse. Le CHECK `user_company_exclusive` tiendrait aussi, mais en 500.
+    if (capabilities.isCompany) {
+      throw new ForbiddenException("un compte Entreprise ne coache ni ne s'entraîne");
+    }
     // « Au moins une » est déjà refusé par le schéma partagé (400) : ici on ne garde que ce qui
     // dépend de l'ÉTAT — ce que le schéma ne peut pas connaître.
     await this.assertRemovable(userId, input);
@@ -44,7 +51,7 @@ export class CapabilityService {
           // Le persona se recalcule, il ne se conserve pas. Retirer `isCoach` à un compte
           // `role=COACH` le laisserait atterrir dans un espace qu'il n'a plus — même dérivation
           // qu'à l'inscription (#12), coach l'emportant quand les deux restent.
-          role: input.isCoach ? Role.COACH : Role.ATHLETE,
+          role: personaOf({ ...input, isCompany: false }),
         },
         select: { isCoach: true, isAthlete: true },
       }),
