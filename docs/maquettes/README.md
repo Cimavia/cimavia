@@ -65,6 +65,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `shared/coach_athlete_etats_vides.dc.html` | — | **11 écrans** — les vides que la refonte fait apparaître, sur les deux plateformes : bibliothèque vide, onglet Séances vide, grille sans ligne, exercice sans structure, recherche sans résultat · aucune séance, séance sans exercice, exercice sans consigne, amorçage du suivi · aucune séance et débrief vide côté web | **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `shared/auth_inscription_type.dc.html` | [#595](https://github.com/Cimavia/cimavia/issues/595) | **9 frames** — inscription avec choix du type de compte : web sans type choisi / Coach et/ou athlète / Entreprise / aucune case cochée / inscriptions fermées (refus après envoi, formulaire visible) · mobile sans type / Coach et/ou athlète / Entreprise / compte Entreprise connecté (renvoi vers le web) | [#600](https://github.com/Cimavia/cimavia/issues/600) | ⏳ |
 | `web-entreprise/entreprise_espace_web.dc.html` | [#596](https://github.com/Cimavia/cimavia/issues/596) | **9 frames** — espace Entreprise : Coachs (membres + invitations en attente), panneau « Ajouter un coach », Athlètes (une pastille par Coach), panneau « Inviter un athlète », aucun coach, aucun athlète · côté Coach : carte d'invitation sur le tableau de bord · côté athlète : « Mes coachs » avec l'invitation reçue, puis en tableau avec la provenance de chaque lien | [#601](https://github.com/Cimavia/cimavia/issues/601) [#602](https://github.com/Cimavia/cimavia/issues/602) | ⏳ |
+| `shared/messagerie_conversations_à_plusieurs.dc.html` | [#598](https://github.com/Cimavia/cimavia/issues/598) | **11 frames** — messagerie à deux ou à plusieurs : web athlète liste / création (ses coachs à cocher) / conversation à plusieurs avec « Lu par » · web coach liste / création (athlètes et coachs de F, recherche, avertissement) · mobile athlète liste / création · mobile coach conversation à plusieurs · vides : athlète sans coach, liste sans conversation, conversation sans message | [#611](https://github.com/Cimavia/cimavia/issues/611) [#612](https://github.com/Cimavia/cimavia/issues/612) | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
 
@@ -98,7 +99,9 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   `REMINDER_DUE`. Écart assumé à l'implémentation — le coach reçoit le même onglet que l'athlète.
 - **`messagerie_…dc.html` (frame D) — aperçu préfixé « Vous : »** sur un dernier message sortant :
   `ConversationDto` ne porte pas l'auteur du dernier message (`lastMessageAt`, `lastMessageType`,
-  `lastMessagePreview`, `unreadCount`). Non rendable sans changement backend.
+  `lastMessagePreview`, `unreadCount`). Non rendable sans changement backend. *Levé par
+  [#611](https://github.com/Cimavia/cimavia/issues/611)*, qui ajoute l'auteur au DTO (tranché en
+  [#598](https://github.com/Cimavia/cimavia/issues/598)).
 - **`messagerie_…dc.html` (frame D) — barre « Rechercher un athlète… »** : même famille que
   [#123](https://github.com/Cimavia/cimavia/issues/123). À trancher à l'implémentation de #34.
 - **`coach_debrief.dc.html` — sidebar périmée** : première entrée « Athlètes » alors que
@@ -206,6 +209,29 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
 - **`entreprise_espace_web.dc.html` — une provenance vide n'est pas un « — »** (frame 9) : un lien
   direct a `organizationId` à `null`, ce qui veut dire « aucune entreprise », pas « donnée
   indisponible ». La cellule reste vide ; la règle du « — » ne s'applique pas.
+- **`messagerie_conversations_à_plusieurs.dc.html` — écarts à l'implémentation**
+  ([#598](https://github.com/Cimavia/cimavia/issues/598), repris dans
+  [#612](https://github.com/Cimavia/cimavia/issues/612)) :
+  - **une couleur par personne** (avatars, nom de l'auteur sur les bulles) **non reprise** : les
+    teintes sont `info-on`, `success-on` et `warning-on` détournées en décoration, sur quatre fonds
+    hors tokens — exactement ce que refuse `CmvAvatar`. Avatars neutres, nom de l'auteur en
+    `text-mid` : c'est le nom qui distingue les auteurs ;
+  - **« Coach · via F » dans l'en-tête d'un fil** (A1, B1) : la provenance n'est pas portée par la
+    conversation. L'en-tête affiche la capacité du participant, que `ConversationParticipant`
+    stocke ; « via F » reste dans le sélecteur de création, alimenté par les liens de l'athlète ;
+  - **sous-titre** : « 3 participants » partout. A3 y ajoute « C, M et toi », que le titre dit déjà ;
+  - **athlète sans coach** (E1) : la planche retire le bouton vers « Mes coachs », seul chemin vers
+    les invitations — il est gardé. Et le texte cite l'invitation d'un coach **ou d'une
+    entreprise** ([#602](https://github.com/Cimavia/cimavia/issues/602)) ;
+  - **conversation vide en tête de liste** (E3) : elle se trie à sa création
+    (`lastMessageAt ?? createdAt`), d'où `createdAt` dans `ConversationDto` (#611) ;
+  - **non dessinés** : la création côté Coach sur mobile (M2, plus les sections, la recherche et les
+    avertissements de B2) et « Créer » désactivé sans participant choisi.
+- **`messagerie_conversations_à_plusieurs.dc.html` — trois règles que la planche ne montre pas**,
+  tranchées en #598 (voir le journal de dette) : des participants déjà réunis rouvrent leur
+  conversation, à plusieurs aussi ; un second avertissement prévient qu'un Coach choisi ne suit pas
+  un athlète choisi (B2 : M ne suit pas TE) ; l'aperçu d'un message reçu à plusieurs est préfixé
+  de son auteur (« M : »), ce que la planche ne montre que pour « Vous : ».
 
 ## Constructeur d'exercice — modèle et changements requis
 
