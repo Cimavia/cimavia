@@ -60,6 +60,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `mobile-athlete/athlete_timers_suivi.dc.html` | — | **10 écrans** — même écran, volet **exécution** : séance en cours, cocher les séries d'un bloc groupé, repos en bandeau / agrandi, effort-repos alterné, EMOM, AMRAP, notification sur écran verrouillé, débrief avec décompte, encart des trois états | **fonctionnalité nouvelle** (timers + suivi) — cf. section dédiée ci-dessous | ⏳ |
 | `web-athlete/athlete_seance_web.dc.html` | — | **7 frames** — le même écran côté web, avec rail de droite : détail de séance (consignes dépliées, cases visibles), grilles à 2 et 4 colonnes, exercice à plusieurs blocs + pièces jointes, suivi en cours, débrief, séance à venir, séance déjà débriefée | refonte du détail de séance de `athlete_web.dc.html` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `shared/coach_athlete_etats_vides.dc.html` | — | **11 écrans** — les vides que la refonte fait apparaître, sur les deux plateformes : bibliothèque vide, onglet Séances vide, grille sans ligne, exercice sans structure, recherche sans résultat · aucune séance, séance sans exercice, exercice sans consigne, amorçage du suivi · aucune séance et débrief vide côté web | **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
+| `shared/auth_inscription_type.dc.html` | [#595](https://github.com/Cimavia/cimavia/issues/595) | **9 frames** — inscription avec choix du type de compte : web sans type choisi / Coach et/ou athlète / Entreprise / aucune case cochée / inscriptions fermées (refus après envoi, formulaire visible) · mobile sans type / Coach et/ou athlète / Entreprise / compte Entreprise connecté (renvoi vers le web) | [#600](https://github.com/Cimavia/cimavia/issues/600) | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
 
@@ -173,6 +174,19 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   la planche n'a qu'un composer TEXTE, ne montre aucune réponse déjà envoyée, et n'a pas de badge
   « répondu » sur les lignes de la liste — l'implémentation ajoute les médias et la note vocale
   (le `Composer` de la messagerie, réutilisé tel quel), le fil des réponses, et le badge.
+- **`auth_onboarding.dc.html` — le panneau de marque n'a jamais été implémenté** : les frames web
+  de pd-3 posent un panneau à gauche du formulaire, mais `AuthLayout` est resté une carte centrée.
+  [#600](https://github.com/Cimavia/cimavia/issues/600) le livre, d'après
+  `auth_inscription_type.dc.html` ([#595](https://github.com/Cimavia/cimavia/issues/595)) et non
+  d'après pd-3 : titre « Chaque séance compte. » au lieu de « Commence à tracer la voie. », qui
+  renvoyait aux voies d'escalade alors que le produit ne vise aucun sport ; une puce Entreprise ;
+  plus de lien « Se connecter » en pied de panneau, que le formulaire porte déjà. La frame de
+  connexion de pd-3 n'a pas été redessinée : le même panneau, et donc le même titre, sert aux deux
+  écrans.
+- **`auth_inscription_type.dc.html` — « inscriptions fermées » est un refus, pas un état** : en mode
+  `invitation`, une adresse listée dans `SIGNUP_ALLOWED_EMAILS` ou invitée peut s'inscrire, et le
+  client ne sait pas à l'avance laquelle l'est. Le formulaire reste donc affiché, et le message
+  vient du 403 renvoyé après l'envoi (frame 5).
 
 ## Constructeur d'exercice — modèle et changements requis
 
