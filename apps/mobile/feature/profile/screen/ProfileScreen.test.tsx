@@ -112,6 +112,24 @@ describe("ProfileScreen", () => {
     expect(screen.getByText("lea@cmv.test")).toBeTruthy();
   });
 
+  // « Mes coachs » (#599) : la seule entrée d'un athlète déjà suivi vers un second coach.
+  it("mène un athlète à ses coachs", () => {
+    renderRn(<ProfileScreen />);
+
+    pressButton(document.body, "account.coaches.title");
+
+    expect(router.push).toHaveBeenCalledWith("/join");
+  });
+
+  // La route est gardée par capacité : la proposer à un coach seul le mènerait à un refus.
+  it("ne propose pas « Mes coachs » à un coach seul", () => {
+    signedIn({ isCoach: true });
+
+    renderRn(<ProfileScreen />);
+
+    expect(screen.queryByText("account.coaches.title")).toBeNull();
+  });
+
   /** Session pas encore là : « — » plutôt qu'un nom vide qui ferait croire à un compte sans nom. */
   it("marque l'absence du nom et de l'adresse tant que la session manque", () => {
     signedIn(null);

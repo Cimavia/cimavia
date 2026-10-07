@@ -1,17 +1,18 @@
 import type { PendingInvitationDto } from "@cmv/shared";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { JoinCoachScreen } from "@/feature/coach/screen/JoinCoachScreen";
+import { MyCoachesScreen } from "@/feature/coach/screen/MyCoachesScreen";
+import { useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
 import { ApiError } from "@/shared/lib/api";
-import { pressButton, renderRn } from "../../../test/render";
+import { press, pressButton, renderRn } from "../../../test/render";
 
 vi.mock("@/feature/coach/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/feature/coach/api")>();
   return {
     ...original,
     accountApi: {
-      myCoach: vi.fn(),
+      myCoaches: vi.fn(),
       myInvitations: vi.fn(),
       acceptInvitation: vi.fn(),
       declineInvitation: vi.fn(),
@@ -19,7 +20,10 @@ vi.mock("@/feature/coach/api", async (importOriginal) => {
   };
 });
 
-vi.mock("expo-router", () => ({ router: { replace: vi.fn() } }));
+vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
+// Le sélecteur d'espace vit dans un fournisseur posé à la racine de l'app : on lit ce qu'on lui
+// demande, sans le monter.
+vi.mock("@/shared/hook/useExercisedCapability", () => ({ useCapabilitySwitch: vi.fn() }));
 
 const session = vi.hoisted(() => ({
   current: { user: { id: "ath_1", email: "lea@exemple.fr" } } as unknown,
@@ -29,7 +33,8 @@ vi.mock("@/shared/lib/auth", () => ({
 }));
 
 const { accountApi } = await import("@/feature/coach/api");
-const myCoach = vi.mocked(accountApi.myCoach);
+const myCoaches = vi.mocked(accountApi.myCoaches);
+const select = vi.fn();
 const myInvitations = vi.mocked(accountApi.myInvitations);
 const acceptInvitation = vi.mocked(accountApi.acceptInvitation);
 const declineInvitation = vi.mocked(accountApi.declineInvitation);
@@ -53,19 +58,22 @@ const RELATION = {
   isSelf: false,
 } as Awaited<ReturnType<typeof accountApi.acceptInvitation>>;
 
+const MARC = { ...RELATION, id: "rel_2", coachId: "u_marc", coachName: "Marc Keller" };
+
 beforeEach(() => {
+  vi.mocked(useCapabilitySwitch).mockReturnValue({ visible: false, current: null, select });
   session.current = { user: { id: "ath_1", email: "lea@exemple.fr" } };
-  myCoach.mockResolvedValue(null);
+  myCoaches.mockResolvedValue([]);
   myInvitations.mockResolvedValue([]);
   acceptInvitation.mockResolvedValue(RELATION);
   declineInvitation.mockResolvedValue(undefined);
 });
 
-describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
+describe("MyCoachesScreen — l'invitation qui m'attend (#146)", () => {
   // Plus de code à saisir (#390) : la carte est le seul chemin pour rejoindre.
   it("annonce l'invitation, sans plus rien proposer à saisir", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
 
     expect(await screen.findByText("coach.invitation.title")).toBeTruthy();
     expect(container.querySelector("input")).toBeNull();
@@ -73,7 +81,7 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
 
   it("rejoint depuis la carte, sans rien faire recopier", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
     await screen.findByText("coach.invitation.title");
 
     pressButton(container, "coach.invitation.join");
@@ -87,7 +95,7 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
    */
   it("n'envoie le refus qu'après confirmation", async () => {
     myInvitations.mockResolvedValue([INVITATION]);
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
     await screen.findByText("coach.invitation.title");
 
     pressButton(container, "coach.invitation.decline");
@@ -98,29 +106,19 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
   });
 
   /**
-   * Le cœur de l'arbitrage, et la parité avec le web : un athlète DÉJÀ LIÉ voit quand même
-   * l'invitation. La masquer laisserait un coach persuadé d'avoir invité quelqu'un qui ne verra
-   * jamais rien — et refuser est justement le geste utile ici.
+   * Le cœur de #599 : un athlète déjà suivi accepte une seconde invitation. Jusque-là la carte
+   * restait affichée mais « Rejoindre » était fermé — au plus un coach.
    */
-  it("montre l'invitation à un athlète déjà lié, avec la raison de ne pas pouvoir l'accepter", async () => {
-    myCoach.mockResolvedValue(RELATION);
+  it("laisse un athlète déjà suivi rejoindre un second coach", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
     myInvitations.mockResolvedValue([INVITATION]);
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+    await screen.findByText("coach.invitation.title");
 
-    expect(await screen.findByText("coach.invitation.title")).toBeTruthy();
-    expect(screen.getByText("coach.invitation.blocked")).toBeTruthy();
-    // L'adresse où l'inviter, elle, n'a rien à faire ici : l'athlète est lié.
-    expect(screen.queryByText("coach.join.address")).toBeNull();
-
-    /**
-     * « Rejoindre » est fermé, « Refuser » reste ouvert. L'armement du second sert ici de POINT
-     * D'ARRÊT : il prouve que les deux appuis ont bien été traités, et rend donc l'absence d'appel
-     * à l'acceptation observable plutôt que simplement pas-encore-arrivée.
-     */
     pressButton(container, "coach.invitation.join");
-    pressButton(container, "coach.invitation.decline");
-    await waitFor(() => expect(screen.getByText("coach.invitation.declineConfirm")).toBeTruthy());
-    expect(acceptInvitation).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith("inv_1"));
   });
 
   /**
@@ -132,18 +130,18 @@ describe("JoinCoachScreen — l'invitation qui m'attend (#146)", () => {
     ["une requête en échec", () => Promise.reject(new Error("réseau"))],
   ])("n'annonce rien sur %s, et dit seulement l'absence de coach", async (_case, response) => {
     myInvitations.mockImplementation(response);
-    renderRn(<JoinCoachScreen />);
+    renderRn(<MyCoachesScreen />);
 
     expect(await screen.findByText("coach.join.title")).toBeTruthy();
     expect(screen.queryByText("coach.invitation.decline")).toBeNull();
   });
 });
 
-describe("JoinCoachScreen — l'invitation, pendant et après", () => {
+describe("MyCoachesScreen — l'invitation, pendant et après", () => {
   it("dit l'acceptation en cours", async () => {
     acceptInvitation.mockReturnValue(new Promise(() => undefined));
     myInvitations.mockResolvedValue([INVITATION]);
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
     await screen.findByText("coach.invitation.title");
 
     pressButton(container, "coach.invitation.join");
@@ -169,7 +167,7 @@ describe("JoinCoachScreen — l'invitation, pendant et après", () => {
   ])("dit l'échec de l'acceptation %s", async (_, failure, message) => {
     acceptInvitation.mockRejectedValue(failure);
     myInvitations.mockResolvedValue([INVITATION]);
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
     await screen.findByText("coach.invitation.title");
 
     pressButton(container, "coach.invitation.join");
@@ -194,7 +192,7 @@ describe("JoinCoachScreen — l'invitation, pendant et après", () => {
   ])("dit l'échec du refus %s", async (_, failure, message) => {
     declineInvitation.mockRejectedValue(failure);
     myInvitations.mockResolvedValue([INVITATION]);
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
     await screen.findByText("coach.invitation.title");
 
     pressButton(container, "coach.invitation.decline");
@@ -204,14 +202,14 @@ describe("JoinCoachScreen — l'invitation, pendant et après", () => {
   });
 });
 
-describe("JoinCoachScreen — sans coach, puis lié", () => {
+describe("MyCoachesScreen — sans coach", () => {
   /**
    * Sans code à saisir (#390), une invitation partie vers une autre adresse ne s'afficherait
    * jamais, et rien ne dirait pourquoi. L'adresse du compte est le seul recours : c'est elle que
    * l'athlète donne à son coach.
    */
   it("dit l'adresse à laquelle le coach doit inviter, sans rien proposer à saisir", async () => {
-    const { container } = renderRn(<JoinCoachScreen />);
+    const { container } = renderRn(<MyCoachesScreen />);
 
     expect(await screen.findByText("coach.join.address")).toBeTruthy();
     expect(screen.getByText("lea@exemple.fr")).toBeTruthy();
@@ -221,19 +219,71 @@ describe("JoinCoachScreen — sans coach, puis lié", () => {
   // Session pas encore lue : « — » plutôt qu'un blanc (règle dure n°5).
   it("rend « — » tant que l'adresse n'est pas connue", async () => {
     session.current = null;
-    renderRn(<JoinCoachScreen />);
+    renderRn(<MyCoachesScreen />);
 
     expect(await screen.findByText("—")).toBeTruthy();
   });
+});
 
-  /** Lié, l'athlète n'a plus rien à saisir : l'écran l'envoie vers ses séances. */
-  it("mène un athlète lié à sa planification", async () => {
-    myCoach.mockResolvedValue(RELATION);
-    const { container } = renderRn(<JoinCoachScreen />);
-    await screen.findByText("coach.joined.title");
+describe("MyCoachesScreen — ses coachs (#599)", () => {
+  it("rend une ligne par coach, et dit l'adresse où un autre peut l'inviter", async () => {
+    myCoaches.mockResolvedValue([RELATION, { ...MARC, joinedAt: null }]);
+    renderRn(<MyCoachesScreen />);
 
-    pressButton(container, "coach.joined.goToPlanning");
+    expect(await screen.findByText("Julie Renaud")).toBeTruthy();
+    expect(screen.getByText("Marc Keller")).toBeTruthy();
+    expect(screen.getByText("coach.since")).toBeTruthy();
+    // Une relation posée sans acceptation n'a pas de date : on le dit, on n'en invente pas.
+    expect(screen.getByText("coach.sinceUnknown")).toBeTruthy();
+    expect(screen.getByText("coach.more.description")).toBeTruthy();
+    expect(screen.queryByText("coach.join.title")).toBeNull();
+  });
 
-    expect(router.replace).toHaveBeenCalledWith("/planning");
+  it("ouvre le fil du coach touché", async () => {
+    myCoaches.mockResolvedValue([RELATION, MARC]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("Marc Keller");
+
+    // Un nœud par bouton, dans l'ordre des lignes : le second est celui de Marc.
+    press(within(container).getAllByText("coach.message")[1] as HTMLElement);
+
+    expect(router.push).toHaveBeenCalledWith("/messages/u_marc");
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  // Écrire à son coach est un geste d'athlète : depuis l'espace coach, on y bascule d'abord.
+  it("bascule un compte à double capacité en athlète avant d'ouvrir le fil", async () => {
+    vi.mocked(useCapabilitySwitch).mockReturnValue({ visible: true, current: "coach", select });
+    myCoaches.mockResolvedValue([RELATION]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+
+    pressButton(container, "coach.message");
+
+    expect(select).toHaveBeenCalledWith("athlete");
+    expect(router.push).toHaveBeenCalledWith("/messages/u_coach");
+  });
+});
+
+/** #364 : l'écran disait « aucun coach » pendant le chargement, et sur une panne. */
+describe("MyCoachesScreen — chargement et panne", () => {
+  it("n'affirme rien tant que la liste charge", () => {
+    myCoaches.mockReturnValue(new Promise(() => {}));
+    const { container } = renderRn(<MyCoachesScreen />);
+
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(screen.queryByText("coach.join.title")).toBeNull();
+  });
+
+  it("dit la panne plutôt que l'absence, puis relit au réessai", async () => {
+    myCoaches.mockRejectedValueOnce(new Error("réseau"));
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("common.retry");
+    expect(screen.queryByText("coach.join.title")).toBeNull();
+
+    pressButton(container, "common.retry");
+
+    expect(await screen.findByText("coach.join.title")).toBeTruthy();
+    expect(myCoaches).toHaveBeenCalledTimes(2);
   });
 });

@@ -19,7 +19,7 @@ import { authClient } from "@/shared/lib/auth";
 // i18n-values account.capabilities.hint: coach, athlete
 const OPTIONS: readonly CapabilityName[] = ["coach", "athlete"];
 
-// Profil : point d'entrée du compte. Langue et coach viendront ici.
+// Profil : point d'entrée du compte — ses casquettes, ses coachs (#599), ses notifications.
 export function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -76,6 +76,23 @@ export function ProfileScreen() {
           </CmvText>
           <CmvText className="text-cmv-text-mid">{session?.user.email ?? "—"}</CmvText>
         </View>
+
+        {/* « Mes coachs » (#599) : l'entrée de l'athlète vers ses coachs et ses invitations. Le
+            planning n'y mène plus que sans coach — un athlète déjà suivi n'avait aucun chemin
+            vers un second. Athlète seul : la route est gardée par capacité. */}
+        {current.isAthlete ? (
+          <Pressable
+            onPress={() => router.push("/join")}
+            accessibilityRole="button"
+            className="flex-row items-center gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3"
+          >
+            <View className="flex-1 gap-1">
+              <CmvText className="text-cmv-text-hi">{t("account.coaches.title")}</CmvText>
+              <CmvText className="text-cmv-text-mid text-sm">{t("account.coaches.hint")}</CmvText>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={cmvColors.text.lo} />
+          </Pressable>
+        ) : null}
 
         <View className="gap-2">
           <CmvText className="font-cmv-display text-cmv-text-hi text-lg">

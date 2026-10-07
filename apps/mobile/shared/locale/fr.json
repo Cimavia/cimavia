@@ -381,6 +381,10 @@
     }
   },
   "coach": {
+    "title": "Mes coachs",
+    "since": "Suivi depuis le {{date}}",
+    "sinceUnknown": "Date de rattachement —",
+    "message": "Message",
     "missing": {
       "title": "Tu n'as pas encore de coach",
       "description": "Ton coach t'invite par ton adresse e-mail : accepte son invitation pour recevoir tes planifications.",
@@ -392,21 +396,18 @@
       "join": "Rejoindre {{name}}",
       "joining": "Connexion en cours…",
       "joinError": "Impossible de rejoindre ce coach. Vérifie ta connexion.",
-      "blocked": "Tu es déjà suivi par {{name}} : tu ne peux pas accepter une autre invitation.",
       "decline": "Refuser",
       "declineConfirm": "Confirmer le refus",
       "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
       "declineError": "Impossible de refuser cette invitation. Vérifie ta connexion."
     },
     "join": {
-      "title": "Rejoindre mon coach",
-      "description": "Ton coach t'invite par ton adresse e-mail : son invitation apparaîtra ici, et tu la rejoindras d'un geste.",
-      "address": "L'adresse à laquelle ton coach doit t'inviter"
+      "title": "Aucun coach pour l'instant",
+      "description": "Un coach t'invite par ton adresse e-mail : son invitation apparaîtra ici, et tu la rejoindras d'un geste.",
+      "address": "L'adresse à laquelle un coach doit t'inviter"
     },
-    "joined": {
-      "title": "Tu as déjà un coach",
-      "description": "Tu es suivi par {{name}}.",
-      "goToPlanning": "Voir mon planning"
+    "more": {
+      "description": "Un autre coach peut aussi te suivre : son invitation t'attendra ici."
     }
   },
   "invoice": {
@@ -640,6 +641,10 @@
     "about": {
       "version": "cimavia · v{{version}}",
       "unknown": "cimavia · —"
+    },
+    "coaches": {
+      "title": "Mes coachs",
+      "hint": "Ceux qui te suivent, et les invitations qui t'attendent."
     }
   },
   "permission": {
