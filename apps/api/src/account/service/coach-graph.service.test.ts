@@ -45,6 +45,14 @@ describe("CoachGraphService.assertNoCycle", () => {
     );
   });
 
+  it("dit le refus avec le message de l'appelant", async () => {
+    const graph = serviceOver([link("te", "m")]);
+
+    await expect(graph.assertNoCycle(["m"], ["te"], "Refus du Coach")).rejects.toThrow(
+      "Refus du Coach",
+    );
+  });
+
   it("ne lit rien quand il n'y a aucun lien à créer", async () => {
     const graph = serviceOver([]);
 

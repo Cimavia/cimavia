@@ -25,18 +25,25 @@ export class CoachGraphService {
    *
    * A coache B, B coache C, C invite A : A est au-dessus de C, et le lien refermerait la boucle.
    *
+   * `message` dit le refus à celui qui accepte : par défaut l'athlète, que ses propres athlètes
+   * coachent déjà ; le Coach qui rejoint une entreprise (#602) a le sien.
+   *
    * Une boucle DÉJÀ présente en base — un chemin de création qui oublierait cette garde, une
    * écriture manuelle — n'est pas un refus métier mais une incohérence de données : on lève,
    * bruyamment et distinctement, plutôt que de la déguiser en 409. Elle se cherche APRÈS le
    * chargement, par `hasCoachCycle` : pendant le parcours, retomber sur un compte déjà vu ne la
    * prouve plus (voir le losange qu'elle décrit).
    */
-  async assertNoCycle(coachIds: readonly string[], athleteIds: readonly string[]): Promise<void> {
+  async assertNoCycle(
+    coachIds: readonly string[],
+    athleteIds: readonly string[],
+    message = "Ce lien créerait une boucle avec tes propres athlètes",
+  ): Promise<void> {
     if (coachIds.length === 0 || athleteIds.length === 0) return;
 
     const coaches = await this.coachesAbove(coachIds);
     if (athleteIds.some((athleteId) => coaches.has(athleteId))) {
-      throw new ConflictException("Ce lien créerait une boucle avec tes propres athlètes");
+      throw new ConflictException(message);
     }
     if (hasCoachCycle(coaches)) {
       throw new Error(
