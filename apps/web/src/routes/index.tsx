@@ -2,6 +2,7 @@ import { ATHLETE_ROW_FILTERS, type AthleteRowFilter } from "@cmv/shared";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { DashboardScreen } from "@/feature/dashboard";
 import { CmvRoleGate } from "@/shared/component";
+import { useCapabilities } from "@/shared/hook/useCapabilities";
 
 /**
  * `/` est l'accueil du COACH — son tableau de bord.
@@ -12,7 +13,18 @@ import { CmvRoleGate } from "@/shared/component";
  *
  * `search` est requis mais peut valoir `undefined` : sans paramètre, le planning ouvre la semaine
  * courante, ce qui est exactement ce qu'on veut d'un accueil.
+ *
+ * Le compte Entreprise (#600) va sur son propre espace. Renvoyé au planning comme un athlète, il
+ * en serait refusé, donc ramené ici, et ainsi de suite : la page bouclait.
  */
+function NotCoachHome() {
+  const { isCompany } = useCapabilities();
+  return isCompany ? (
+    <Navigate to="/company/coaches" replace />
+  ) : (
+    <Navigate to="/planning" search={{ from: undefined }} replace />
+  );
+}
 
 /**
  * `?q=` et `?filter=` — l'état de la barre d'outils du tableau vit dans l'URL, pas dans un
@@ -57,10 +69,7 @@ export const Route = createFileRoute("/")({
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
   }),
   component: () => (
-    <CmvRoleGate
-      capability="coach"
-      fallback={<Navigate to="/planning" search={{ from: undefined }} replace />}
-    >
+    <CmvRoleGate capability="coach" fallback={<NotCoachHome />}>
       <DashboardScreen />
     </CmvRoleGate>
   ),

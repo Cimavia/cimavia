@@ -132,3 +132,37 @@ describe("CmvAppShell — se déconnecter avec une saisie non enregistrée (#327
     expect(queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+describe("CmvAppShell — un compte Entreprise (#600)", () => {
+  const openCompany = () =>
+    renderInRoute(
+      <CmvAppShell title="Coachs">
+        <p>contenu</p>
+      </CmvAppShell>,
+      {
+        path: "/company/coaches",
+        links: ["/login", "/account", "/company/athletes"],
+      },
+    );
+
+  beforeEach(() => {
+    session.user = { id: "u-f", name: "Altitude Club", isCompany: true, role: "COMPANY" };
+  });
+
+  it("ne montre que son espace, sans basculeur", async () => {
+    const { getByRole, getByText, queryByRole } = await openCompany();
+
+    expect(getByText("nav.spaceTitle.company")).toBeInTheDocument();
+    expect(getByRole("link", { name: "nav.companyAthletes" })).toBeInTheDocument();
+    expect(queryByRole("link", { name: "nav.library" })).toBeNull();
+    expect(queryByRole("tablist")).toBeNull();
+  });
+
+  // `/account` lui est fermé : un lien vers elle le renverrait aussitôt d'où il vient.
+  it("montre son nom sans lien vers la page Compte", async () => {
+    const { getByText, queryByRole } = await openCompany();
+
+    expect(getByText("Altitude Club")).toBeInTheDocument();
+    expect(queryByRole("link", { name: "Altitude Club" })).toBeNull();
+  });
+});

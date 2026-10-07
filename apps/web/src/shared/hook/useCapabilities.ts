@@ -59,7 +59,7 @@ export function useExercisedCapability(): TrainingCapability | null {
 }
 
 /**
- * L'espace de navigation courant — coach ou athlète. Toujours une valeur, y compris pour un compte
+ * L'espace de navigation courant — coach, athlète ou entreprise. Toujours une valeur, y compris pour un compte
  * mono-capacité, chez qui il n'y a jamais qu'une réponse.
  *
  * Il se DÉDUIT de l'URL, sans état applicatif : le chemin dit déjà à quel univers on est
@@ -78,7 +78,15 @@ export function useActiveSpace(): CapabilityName {
   if (search.as === "coach" || search.as === "athlete") return search.as;
   const fromPath = spaceOfPath(pathname);
   if (fromPath != null) return fromPath;
-  return data?.user.role === Role.ATHLETE ? "athlete" : "coach";
+  switch (data?.user.role) {
+    case Role.ATHLETE:
+      return "athlete";
+    // Sans ce cas, un compte Entreprise sur `/account` ou une page inconnue verrait le menu coach.
+    case Role.COMPANY:
+      return "company";
+    default:
+      return "coach";
+  }
 }
 
 /**

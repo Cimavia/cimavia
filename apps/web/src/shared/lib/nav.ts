@@ -3,12 +3,14 @@ import { required } from "@cmv/shared";
 import type { IconType } from "react-icons";
 import {
   IoBarbellOutline,
+  IoBusinessOutline,
   IoCalendarOutline,
   IoChatbubbleOutline,
   IoCheckboxOutline,
   IoGridOutline,
   IoLibraryOutline,
   IoNotificationsOutline,
+  IoPeopleOutline,
   IoPersonOutline,
   IoReceiptOutline,
 } from "react-icons/io5";
@@ -38,6 +40,10 @@ import {
  * jamais ce que la route refuse.
  *
  * Pas d'entrée « Athlètes » : la liste vit dans le tableau de bord depuis #113.
+ *
+ * L'espace Entreprise (#600) n'a que les siennes, et aucune route partagée : un compte Entreprise
+ * ne coache ni ne s'entraîne, il ne voit donc ni factures ni messagerie. Ses deux pages sont des
+ * coquilles que #601 (coachs) et #602 (athlètes) remplissent.
  */
 export type NavItem = {
   to: string;
@@ -83,6 +89,18 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { to: "/invoices", labelKey: "nav.myInvoices", icon: IoReceiptOutline, capability: "athlete" },
   { to: "/my-coach", labelKey: "nav.myCoaches", icon: IoPersonOutline, capability: "athlete" },
+  {
+    to: "/company/coaches",
+    labelKey: "nav.companyCoaches",
+    icon: IoBusinessOutline,
+    capability: "company",
+  },
+  {
+    to: "/company/athletes",
+    labelKey: "nav.companyAthletes",
+    icon: IoPeopleOutline,
+    capability: "company",
+  },
 ];
 
 /**
@@ -91,9 +109,19 @@ export const NAV_ITEMS: readonly NavItem[] = [
  */
 export const SHARED_ROUTES = new Set(["/invoices", "/messages"]);
 
-/** Y a-t-il quelqu'un en face DANS cet espace ? */
+/**
+ * Y a-t-il quelqu'un en face DANS cet espace ? Jamais pour l'entreprise : elle n'est partie à aucune
+ * relation d'entraînement, et un ternaire coach/athlète l'aurait rangée côté athlète.
+ */
 function hasCounterpart(space: CapabilityName, counterparts: CounterpartsDto): boolean {
-  return space === "coach" ? counterparts.asCoach : counterparts.asAthlete;
+  switch (space) {
+    case "coach":
+      return counterparts.asCoach;
+    case "athlete":
+      return counterparts.asAthlete;
+    case "company":
+      return false;
+  }
 }
 
 /** Les entrées d'un espace, dans l'ordre de la table. */

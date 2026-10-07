@@ -706,13 +706,16 @@
     "planning": "Planning",
     "sessions": "Séances",
     "myMessages": "Messagerie",
+    "companyCoaches": "Coachs",
+    "companyAthletes": "Athlètes",
     "space": {
       "coach": "Coach",
       "athlete": "Athlète"
     },
     "spaceTitle": {
       "coach": "Espace coach",
-      "athlete": "Espace athlète"
+      "athlete": "Espace athlète",
+      "company": "Espace entreprise"
     },
     "spaceUnread": "{{count}} non lue dans cet espace",
     "spaceUnread_other": "{{count}} non lues dans cet espace"
@@ -1239,6 +1242,16 @@
     "about": {
       "version": "cimavia · v{{version}}",
       "unknown": "cimavia · —"
+    }
+  },
+  "company": {
+    "coaches": {
+      "title": "Coachs",
+      "empty": "Aucun coach pour l'instant."
+    },
+    "athletes": {
+      "title": "Athlètes",
+      "empty": "Aucun athlète pour l'instant."
     }
   }
 }

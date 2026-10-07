@@ -63,7 +63,7 @@ describe("itemsOfSpace", () => {
 
 describe("landingPath", () => {
   it("mène à la première entrée de l'espace visé", () => {
-    for (const space of ["coach", "athlete"] as const) {
+    for (const space of ["coach", "athlete", "company"] as const) {
       expect(landingPath(space, BOTH_SIDES)).toBe(itemsOfSpace(space, BOTH_SIDES)[0]?.to);
     }
   });
@@ -100,7 +100,28 @@ describe("spaceOfPath", () => {
     }
   });
 
+  it("range les pages de l'entreprise dans son espace", () => {
+    expect(spaceOfPath("/company/coaches")).toBe("company");
+    expect(spaceOfPath("/company/athletes")).toBe("company");
+  });
+
   it("rend null pour un chemin hors nav", () => {
     expect(spaceOfPath("/login")).toBeNull();
+  });
+});
+
+describe("l'espace Entreprise (#600)", () => {
+  it("n'a que ses deux pages, coachs en tête", () => {
+    expect(itemsOfSpace("company", BOTH_SIDES).map((item) => item.to)).toEqual([
+      "/company/coaches",
+      "/company/athletes",
+    ]);
+  });
+
+  // Un compte Entreprise ne coache ni ne s'entraîne : rien à lire à deux titres.
+  it("ne sert aucune route partagée", () => {
+    const company = NAV_ITEMS.filter((item) => item.capability === "company");
+
+    expect(company.some((item) => SHARED_ROUTES.has(item.to))).toBe(false);
   });
 });
