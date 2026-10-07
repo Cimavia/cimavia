@@ -100,6 +100,13 @@ describe("createAccountApi — moitié athlète", () => {
     expect(calls).toEqual([{ method: "GET", path: "/me/coach", body: undefined }]);
   });
 
+  it("demande ses coachs, tous à la fois", async () => {
+    const { api, calls } = spyClient();
+    await createAccountApi(api).myCoaches();
+
+    expect(calls).toEqual([{ method: "GET", path: "/me/coaches", body: undefined }]);
+  });
+
   // L'invitation se désigne par son `id`, sans corps : c'est la session qui fait le verrou (#390).
   it("rejoint un coach en désignant son invitation", async () => {
     const { api, calls } = spyClient();

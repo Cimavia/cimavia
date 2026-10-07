@@ -51,6 +51,7 @@ export const invitationKeys = {
 export const coachKeys = {
   all: ["coach"] as const,
   mine: () => ["coach", "mine"] as const,
+  list: () => ["coach", "list"] as const,
 };
 
 /**
@@ -90,6 +91,11 @@ export type AccountApi = {
    */
   myCoach: () => Promise<CoachAthleteDto | null>;
   /**
+   * Les coachs de l'athlète courant, un par lien (#599). Liste vide = athlète autonome, ou qui se
+   * coache seul : un état prévu du modèle, pas une erreur.
+   */
+  myCoaches: () => Promise<CoachAthleteDto[]>;
+  /**
    * Les invitations nominatives qui attendent l'athlète courant (#146) — `PENDING`, non expirées,
    * adressées à l'adresse de SA session. Le filtre n'est pas un paramètre : la route le tire de la
    * session, sans quoi elle deviendrait l'annuaire de qui a été invité par qui.
@@ -128,6 +134,7 @@ export function createAccountApi(api: ApiClient): AccountApi {
     revokeInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/revoke`),
 
     myCoach: () => api.get<CoachAthleteDto | null>("/me/coach"),
+    myCoaches: () => api.get<CoachAthleteDto[]>("/me/coaches"),
     myInvitations: () => api.get<PendingInvitationDto[]>("/invitations/for-me"),
     acceptInvitation: (invitationId) =>
       api.post<CoachAthleteDto>(`/invitations/${invitationId}/accept`),

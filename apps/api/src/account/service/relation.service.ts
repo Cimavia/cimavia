@@ -62,6 +62,20 @@ export class RelationService {
     };
   }
 
+  /**
+   * Athlète : ses coachs, un par lien (#599) — liste vide s'il est autonome, ou s'il se coache
+   * seul : l'auto-coaching n'a pas de ligne `CoachAthlete` (CHECK `coach_athlete_not_self`, #11).
+   *
+   * Même ordre que `listAthletes`, le plus récent lien d'abord : c'est le coach qu'on vient de
+   * rejoindre qu'on cherche des yeux.
+   */
+  async myCoaches(): Promise<CoachAthleteDto[]> {
+    const relations = await this.db.coachAthlete.findMany({
+      orderBy: { joinedAt: "desc" },
+    });
+    return this.withNames(relations);
+  }
+
   // Athlète : sa relation coach, ou null s'il est autonome (pas de fallback silencieux).
   async myCoach(): Promise<CoachAthleteDto | null> {
     const relation = await this.db.coachAthlete.findFirst();
