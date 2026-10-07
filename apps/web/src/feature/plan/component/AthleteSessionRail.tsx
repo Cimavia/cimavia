@@ -7,6 +7,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CmvButton, CmvCard } from "@/shared/component";
+import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 
 type AthleteSessionRailProps = {
   session: ScheduledSessionDto;
@@ -27,6 +28,8 @@ export function AthleteSessionRail({
   onOpenFeedback,
 }: Readonly<AthleteSessionRailProps>) {
   const { t } = useTranslation();
+  // Une séance qu'il s'est programmée lui-même : il n'y a personne à qui écrire.
+  const isSelf = useIsSelfAthlete()(session.coachId);
   const hasExercises = session.exercises.length > 0;
 
   /**
@@ -84,9 +87,22 @@ export function AthleteSessionRail({
         </CmvCard>
       )}
 
-      <Link to="/my-coach" className="text-cmv-caption text-cmv-accent hover:underline">
-        {t("plan.athlete.contactCoach")}
-      </Link>
+      {/* Le fil du coach DE CETTE SÉANCE (#599), pas « le » coach : un athlète suivi par
+          plusieurs coachs écrit à celui qui l'a programmée. */}
+      {isSelf ? null : (
+        <Link
+          to="/messages"
+          search={{
+            athlete: undefined,
+            coach: session.coachId,
+            conversation: undefined,
+            as: "athlete",
+          }}
+          className="text-cmv-caption text-cmv-accent hover:underline"
+        >
+          {t("plan.athlete.contactCoach", { name: session.coachName })}
+        </Link>
+      )}
 
       {/* INCONDITIONNEL (#276) : une séance sans exercice se débriefe comme les autres. Seul le
           SOMMAIRE ci-dessus dépend de la composition — il n'y a rien à sommer. */}

@@ -8,6 +8,8 @@ import {
   athleteCalendarBounds,
   athleteCalendarWeek,
   athleteWeekNeighbours,
+  type CoachPresence,
+  coachPresence,
   defaultAthleteMonday,
   mondayOfIsoWeek,
   PlanWeekType,
@@ -16,7 +18,7 @@ import {
 } from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useMyCoach } from "@/feature/coach";
+import { useMyCoaches } from "@/feature/coach";
 import { AthleteWeekGrid } from "@/feature/plan/component/AthleteWeekGrid";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
 import { CmvAppShell, CmvBadge, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
@@ -47,7 +49,7 @@ export function AthletePlanningScreen() {
 
   const { data: plans, isPending, isError, refetch } = useMyPlans();
   // Sans coach, il n'y a pas de cycle à attendre — et le dire évite de laisser patienter pour rien.
-  const { data: coach } = useMyCoach();
+  const coaches = useMyCoaches();
 
   const today = todayIsoDate();
 
@@ -80,14 +82,7 @@ export function AthletePlanningScreen() {
   if (week == null) {
     return (
       <CmvAppShell title={t("plan.athlete.title")}>
-        <CmvEmptyState
-          // « Pas de coach » et « coach sans cycle diffusé » sont DIFFÉRENTS : dire à un athlète
-          // non rattaché que son coach n'a rien diffusé le laisserait attendre pour rien.
-          title={coach == null ? t("coach.missing.title") : t("plan.athlete.empty.title")}
-          description={
-            coach == null ? t("coach.missing.description") : t("plan.athlete.empty.description")
-          }
-        />
+        <NoWeek presence={coachPresence(coaches)} onRetry={() => coaches.refetch()} />
       </CmvAppShell>
     );
   }
@@ -130,6 +125,45 @@ export function AthletePlanningScreen() {
 }
 
 /**
+ * Rien à afficher : pourquoi. « Pas de coach » et « coach sans cycle diffusé » sont DIFFÉRENTS —
+ * dire à un athlète non rattaché que son coach n'a rien diffusé le laisserait attendre pour rien.
+ *
+ * Et l'absence de coach ne se dit qu'une fois CONFIRMÉE (#364) : pendant le chargement ou sur une
+ * panne, « aucun coach » s'affichait à un athlète qui en avait un.
+ */
+function NoWeek({ presence, onRetry }: Readonly<{ presence: CoachPresence; onRetry: () => void }>) {
+  const { t } = useTranslation();
+
+  switch (presence) {
+    case "loading":
+      return <p className="text-cmv-text-mid">{t("common.loading")}</p>;
+    case "error":
+      return (
+        <CmvErrorState
+          title={t("common.errorTitle")}
+          description={t("common.errorDescription")}
+          retryLabel={t("common.retry")}
+          onRetry={onRetry}
+        />
+      );
+    case "none":
+      return (
+        <CmvEmptyState
+          title={t("coach.missing.title")}
+          description={t("coach.missing.description")}
+        />
+      );
+    case "some":
+      return (
+        <CmvEmptyState
+          title={t("plan.athlete.empty.title")}
+          description={t("plan.athlete.empty.description")}
+        />
+      );
+  }
+}
+
+/**
  * Les cycles qui ont cours cette semaine, avec leur avancement. C'est ici que vit tout ce que le
  * numéro de semaine portait avant #172 : « S3/4 », le type de la semaine, la note du coach — trois
  * choses qui appartiennent à UN cycle et qui ne peuvent donc plus coiffer la grille entière.
@@ -149,6 +183,10 @@ function CycleList({ cycles }: Readonly<{ cycles: readonly AthleteCalendarCycle[
           className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm"
         >
           <span className="font-cmv-display text-cmv-body text-cmv-text-hi">{cycle.title}</span>
+          {/* Deux cycles concurrents peuvent venir de deux coachs (#599) : chacun dit le sien. */}
+          <span className="text-cmv-caption text-cmv-text-mid">
+            {t("plan.athlete.cycle.coach", { name: cycle.coachName })}
+          </span>
           {/* La décharge se colore, l'entraînement reste neutre : la couleur marque l'EXCEPTION du
               cycle, pas sa règle (arbitrage #37). */}
           <CmvBadge variant={cycle.type === PlanWeekType.DELOAD ? "info" : "neutral"}>

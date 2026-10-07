@@ -446,7 +446,7 @@
       },
       "empty": {
         "title": "Aucune planification publiée",
-        "description": "Ton coach n'a pas encore diffusé de planification. Dès qu'il le fera, tes séances de la semaine s'afficheront ici."
+        "description": "Tes coachs n'ont encore diffusé aucune planification. Dès qu'un cycle le sera, tes séances de la semaine s'afficheront ici."
       },
       "sessions": {
         "title": "Mes séances",
@@ -461,13 +461,14 @@
       "summary": "Sommaire",
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
-      "contactCoach": "Écrire à mon coach",
+      "contactCoach": "Écrire à {{name}}",
       "emptyTitle": "Pas de déroulé détaillé",
       "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer.",
       "progress": "Ma progression",
       "progressCount": "{{done}} sur {{total}}",
       "cycle": {
-        "week": "S{{number}}/{{total}} · {{type}}"
+        "week": "S{{number}}/{{total}} · {{type}}",
+        "coach": "par {{name}}"
       }
     },
     "new": "Nouvelle planification",

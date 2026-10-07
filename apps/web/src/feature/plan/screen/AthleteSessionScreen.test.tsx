@@ -4,7 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteSessionScreen } from "./AthleteSessionScreen";
 
-const { getSessionMock } = vi.hoisted(() => ({ getSessionMock: vi.fn() }));
+const { getSessionMock, selfId } = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
+  selfId: { current: "ath_1" },
+}));
+
+// Le compte courant décide si la séance a un coach à qui écrire, ou s'il se l'est programmée.
+vi.mock("@/shared/lib/auth", () => ({
+  authClient: { useSession: () => ({ data: { user: { id: selfId.current } } }) },
+}));
 
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),
@@ -13,6 +21,8 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
 
 const SESSION_ID = "ss-1";
 const MONDAY = "2026-10-12";
+const COACH_ID = "coach_m";
+const CONTACT = "plan.athlete.contactCoach";
 const OPEN_FEEDBACK = "feedback.open";
 const BACK = "plan.athlete.backToPlanning";
 
@@ -24,6 +34,8 @@ const session = (): ScheduledSessionDto =>
     notes: null,
     scheduledDate: "2026-10-14",
     status: ScheduledSessionStatus.PLANNED,
+    coachId: COACH_ID,
+    coachName: "Marc Keller",
     exercises: [
       {
         id: "sx-1",
@@ -82,11 +94,12 @@ const setup = (search: Record<string, string> = {}) =>
     path: "/sessions/$sessionId/",
     params: { sessionId: SESSION_ID },
     search,
-    links: ["/planning", "/my-coach", "/sessions/$sessionId/feedback"],
+    links: ["/planning", "/messages", "/sessions/$sessionId/feedback"],
   });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  selfId.current = "ath_1";
   getSessionMock.mockResolvedValue(session());
 });
 
@@ -194,6 +207,28 @@ describe("AthleteSessionScreen", () => {
     // Le rejeu relit la séance : elle s'affiche, l'erreur s'efface.
     expect(await findByText("Traction")).toBeInTheDocument();
     expect(getSessionMock).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * Le fil du coach DE CETTE SÉANCE (#599) : un athlète suivi par plusieurs coachs écrit à celui
+   * qui l'a programmée, pas à un coach « principal » qui n'existe plus.
+   */
+  it("ouvre le fil du coach qui a programmé la séance", async () => {
+    const { findByRole } = await setup();
+
+    expect(await findByRole("link", { name: CONTACT })).toHaveAttribute(
+      "href",
+      `/messages?coach=${COACH_ID}&as=athlete`,
+    );
+  });
+
+  // Une séance qu'il s'est programmée lui-même : personne à qui écrire, donc aucun lien.
+  it("n'offre pas d'écrire à soi-même sur une séance auto-coachée", async () => {
+    selfId.current = COACH_ID;
+    const { findByText, queryByRole } = await setup();
+
+    expect(await findByText("Traction")).toBeInTheDocument();
+    expect(queryByRole("link", { name: CONTACT })).toBeNull();
   });
 
   // Le libellé suit le STATUT : « débriefer » sur une séance débriefée ferait craindre d'écraser.
