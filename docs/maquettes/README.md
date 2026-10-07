@@ -66,6 +66,7 @@ l'**issue** qui les a commandées (tableau suivant).
 | `shared/auth_inscription_type.dc.html` | [#595](https://github.com/Cimavia/cimavia/issues/595) | **9 frames** — inscription avec choix du type de compte : web sans type choisi / Coach et/ou athlète / Entreprise / aucune case cochée / inscriptions fermées (refus après envoi, formulaire visible) · mobile sans type / Coach et/ou athlète / Entreprise / compte Entreprise connecté (renvoi vers le web) | [#600](https://github.com/Cimavia/cimavia/issues/600) | ⏳ |
 | `web-entreprise/entreprise_espace_web.dc.html` | [#596](https://github.com/Cimavia/cimavia/issues/596) | **9 frames** — espace Entreprise : Coachs (membres + invitations en attente), panneau « Ajouter un coach », Athlètes (une pastille par Coach), panneau « Inviter un athlète », aucun coach, aucun athlète · côté Coach : carte d'invitation sur le tableau de bord · côté athlète : « Mes coachs » avec l'invitation reçue, puis en tableau avec la provenance de chaque lien | [#601](https://github.com/Cimavia/cimavia/issues/601) [#602](https://github.com/Cimavia/cimavia/issues/602) | ⏳ |
 | `shared/messagerie_conversations_à_plusieurs.dc.html` | [#598](https://github.com/Cimavia/cimavia/issues/598) | **11 frames** — messagerie à deux ou à plusieurs : web athlète liste / création (ses coachs à cocher) / conversation à plusieurs avec « Lu par » · web coach liste / création (athlètes et coachs de F, recherche, avertissement) · mobile athlète liste / création · mobile coach conversation à plusieurs · vides : athlète sans coach, liste sans conversation, conversation sans message | [#611](https://github.com/Cimavia/cimavia/issues/611) [#612](https://github.com/Cimavia/cimavia/issues/612) | ⏳ |
+| `web-coach/coach_bibliotheque_acces.dc.html` | [#597](https://github.com/Cimavia/cimavia/issues/597) | **14 frames** — bibliothèque en tableaux : exercices, sélection multiple, séances, « Partagés avec moi » vide · panneau des accès : propriétaire, plusieurs éléments (« Mixte »), lecture seule · builder de séance avec le sélecteur d'exercice · accès d'une planification : athlète suivi à deux (TI), suivi par un seul coach (TE) · builder d'exercice : conflit d'écriture, lecture seule · refus de réduire un accès · bibliothèque d'un coach sans entreprise | [#606](https://github.com/Cimavia/cimavia/issues/606) (1 à 8, 11, 12, 14) [#607](https://github.com/Cimavia/cimavia/issues/607) (9, 10) [#608](https://github.com/Cimavia/cimavia/issues/608) (5 à 7, 13) | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
 
@@ -232,6 +233,20 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   conversation, à plusieurs aussi ; un second avertissement prévient qu'un Coach choisi ne suit pas
   un athlète choisi (B2 : M ne suit pas TE) ; l'aperçu d'un message reçu à plusieurs est préfixé
   de son auteur (« M : »), ce que la planche ne montre que pour « Vous : ».
+- **`coach_bibliotheque_acces.dc.html` — écarts à l'implémentation**
+  ([#597](https://github.com/Cimavia/cimavia/issues/597), repris dans #606 à #608) :
+  - **la pastille « Mobilité »** reste dans le filtre des frames 2, 4 à 7 et 13 alors qu'aucun
+    exercice ne la porte. Le filtre liste les tags présents dans la liste ;
+  - **« Bloc force max »** compte 4 exercices en frame 3 et en compose 3 en frame 8 : artefact de
+    données ;
+  - **frame 8** : le champ Notes du builder de séance n'est pas dessiné, il reste. La poignée de
+    chaque ligne est celle du réordonnancement existant ; l'ajout depuis le sélecteur se fait au
+    clic ;
+  - **« Aucun » sur la ligne d'une entreprise** n'écrit pas de `NONE` : c'est l'absence de ligne
+    de droit. `NONE` n'existe que sur la ligne d'un Coach, pour l'emporter sur son entreprise ;
+  - **un Coach membre de plusieurs entreprises du propriétaire** n'apparaît qu'une fois dans le
+    panneau, sous la première. Sa ligne est unique en base ; la répéter laisserait croire à deux
+    réglages.
 
 ## Constructeur d'exercice — modèle et changements requis
 
