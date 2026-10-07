@@ -39,7 +39,7 @@ model User {
   accounts Account[]
 
   // Métier — tenancy (relation coach↔athlète nullable/réversible)
-  athleteRelation     CoachAthlete?  @relation("AthleteRelation") // athlète → au plus 1 coach
+  athleteRelations    CoachAthlete[] @relation("AthleteRelation") // athlète → 0..N coachs (#599)
   coachRelations      CoachAthlete[] @relation("CoachRelations") // coach → N athlètes
   coachInvitations    Invitation[]   @relation("CoachInvitations")
   acceptedInvitations Invitation[]   @relation("AthleteAcceptedInvitations")
@@ -158,7 +158,7 @@ model CoachAthlete {
   id        String             @id @default(cuid())
   coachId   String
   coach     User               @relation("CoachRelations", fields: [coachId], references: [id], onDelete: Cascade)
-  athleteId String             @unique // unicité → au plus 1 coach par athlète
+  athleteId String
   athlete   User               @relation("AthleteRelation", fields: [athleteId], references: [id], onDelete: Cascade)
   status    CoachAthleteStatus @default(ACTIVE)
   invitedAt DateTime           @default(now())
@@ -166,7 +166,10 @@ model CoachAthlete {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  @@index([coachId])
+  // Un lien par COUPLE : un athlète a 0..N coachs (#599). Préfixe coachId : couvre l'index seul ;
+  // l'index sur athleteId sert le scope athlète, qui filtre sur cette colonne.
+  @@unique([coachId, athleteId])
+  @@index([athleteId])
   @@map("coach_athlete")
 }
 

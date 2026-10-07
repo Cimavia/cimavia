@@ -23,6 +23,7 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toCoachAthleteDto } from "../coach-athlete.mapper";
+import { hasCoachCycle } from "../coach-graph";
 import { toInvitationDto, toPendingInvitationDto } from "../invitation.mapper";
 import { UserDirectoryService } from "./user-directory.service";
 
@@ -257,12 +258,12 @@ export class InvitationService {
   // Athlète : rejoint le coach qui l'a invité. Client de base (l'athlète n'est pas encore lié).
   async accept(athlete: { id: string; email: string }, id: string): Promise<CoachAthleteDto> {
     const invitation = await this.findActionable(athlete, id);
-    // Invariant : au plus 1 coach par athlète (athleteId UNIQUE en base).
+    // Un lien par COUPLE (#599) : un athlète a 0..N coachs, mais un seul lien avec chacun.
     const existing = await this.prisma.coachAthlete.findUnique({
-      where: { athleteId: athlete.id },
+      where: { coachId_athleteId: { coachId: invitation.coachId, athleteId: athlete.id } },
     });
     if (existing) {
-      throw new ConflictException("Tu es déjà lié à un coach");
+      throw new ConflictException("Tu es déjà suivi par ce coach");
     }
     await this.assertNoCycle(invitation.coachId, athlete.id);
 
@@ -298,39 +299,52 @@ export class InvitationService {
    * #9/#10 : accepter une invitation exige la capacité athlète, donc seul un compte qui CUMULE
    * peut accepter la sienne.
    *
-   * Le second remonte la chaîne de coachs de l'inviteur. Elle est LINÉAIRE, pas arborescente :
-   * `athleteId` est unique, donc chaque compte a au plus un coach, et la structure est une forêt.
-   * A coache B, B coache C, C invite A — la remontée depuis C rencontre A, et refuse.
+   * Le second cherche l'invité parmi les coachs de l'inviteur, de proche en proche. Depuis #599 ce
+   * n'est plus une chaîne mais un graphe — un compte a 0..N coachs. A coache B, B coache C, C
+   * invite A : A est au-dessus de C, et le lien refermerait la boucle.
    *
-   * `seen` n'est pas une précaution de style. Si la base contient DÉJÀ un cycle — un chemin de
-   * création futur qui oublierait cette garde, une écriture manuelle — la remontée ne terminerait
-   * jamais et la requête pendrait jusqu'au timeout. Repasser sur un nœud déjà vu n'est pas un refus
-   * métier mais une incohérence de données : on lève, bruyamment et distinctement, plutôt que de la
-   * déguiser en 409.
+   * Une boucle DÉJÀ présente en base — un chemin de création futur qui oublierait cette garde, une
+   * écriture manuelle — n'est pas un refus métier mais une incohérence de données : on lève,
+   * bruyamment et distinctement, plutôt que de la déguiser en 409. Elle se cherche APRÈS le
+   * chargement, par `hasCoachCycle` : pendant le parcours, retomber sur un compte déjà vu ne la
+   * prouve plus (voir le losange qu'elle décrit).
    */
   private async assertNoCycle(coachId: string, athleteId: string): Promise<void> {
     if (coachId === athleteId) {
       throw new ConflictException("Tu ne peux pas être ton propre coach");
     }
 
-    const seen = new Set<string>([athleteId]);
-    let current: string | null = coachId;
-
-    while (current != null) {
-      if (seen.has(current)) {
-        if (current === athleteId) {
-          throw new ConflictException("Ce lien créerait une boucle avec tes propres athlètes");
-        }
-        throw new Error(
-          `[relation] cycle DÉJÀ présent dans CoachAthlete en remontant depuis ${coachId}`,
-        );
-      }
-      seen.add(current);
-      const parent: { coachId: string } | null = await this.prisma.coachAthlete.findUnique({
-        where: { athleteId: current },
-        select: { coachId: true },
-      });
-      current = parent?.coachId ?? null;
+    const coaches = await this.coachesAbove(coachId);
+    if (coaches.has(athleteId)) {
+      throw new ConflictException("Ce lien créerait une boucle avec tes propres athlètes");
     }
+    if (hasCoachCycle(coaches)) {
+      throw new Error(`[relation] cycle DÉJÀ présent dans CoachAthlete au-dessus de ${coachId}`);
+    }
+  }
+
+  /**
+   * Tous les comptes au-dessus de `coachId` (lui compris), avec leurs coachs. Une requête par
+   * NIVEAU, pas par compte : la profondeur se compte en unités, la largeur peut croître avec les
+   * entreprises.
+   *
+   * Termine même sur une base qui boucle : un compte n'entre qu'une fois dans la frontière.
+   */
+  private async coachesAbove(coachId: string): Promise<Map<string, string[]>> {
+    const coaches = new Map<string, string[]>();
+    let frontier = [coachId];
+
+    while (frontier.length > 0) {
+      const links = await this.prisma.coachAthlete.findMany({
+        where: { athleteId: { in: frontier } },
+        select: { coachId: true, athleteId: true },
+      });
+      for (const account of frontier) coaches.set(account, []);
+      for (const link of links) coaches.get(link.athleteId)?.push(link.coachId);
+      frontier = [...new Set(links.map((link) => link.coachId))].filter(
+        (account) => !coaches.has(account),
+      );
+    }
+    return coaches;
   }
 }
