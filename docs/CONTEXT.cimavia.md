@@ -29,13 +29,13 @@ Identité authentifiée (gérée par Better Auth). Porte deux **capacités cumul
 `role` (`COACH` | `ATHLETE` | `ADMIN`) survit sur le modèle, mais **ne fonde plus aucun droit** : c'est le **persona d'affichage**, l'univers dans lequel un compte à double capacité atterrit. Toute autorisation se décide sur les capacités.
 
 ### Coach
-Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exercices/séances, ses planifications, ses factures, et participe à ses conversations. Appartient à **0..N entreprises** *(cible — #601)*, dont il peut lire ou modifier ce que les autres Coachs lui ouvrent *(cible — #605)*.
+Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exercices/séances, ses planifications, ses factures, et participe à ses conversations. Appartient à **0..N entreprises** (#601), dont il peut lire ou modifier ce que les autres Coachs lui ouvrent *(cible — #605)*.
 
 ### Athlete
 Un `User` qui porte `isAthlete`, suivi par **0..N Coachs**, en direct ou via une entreprise *(cible — #602)*. Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
 
 ### Organization (entreprise)
-Une structure qui réunit des Coachs *(cible — #601)*. Interface : « Entreprise » ; code : `Organization`. Elle s'ouvre par un **compte Entreprise**, dédié et **exclusif** : un `User` qui porte la capacité `company`, jamais cumulée avec `isCoach` ou `isAthlete` — il ne coache ni ne s'entraîne. Il ajoute ses Coachs (#601) et invite des athlètes (#602), et ne voit **aucun contenu** en v1. La table est distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son espace vit sur le **web** seulement ; le mobile y renvoie.
+Une structure qui réunit des Coachs. Interface : « Entreprise » ; code : `Organization`. Elle s'ouvre par un **compte Entreprise**, dédié et **exclusif** : un `User` qui porte la capacité `company`, jamais cumulée avec `isCoach` ou `isAthlete` — il ne coache ni ne s'entraîne. Il ajoute ses Coachs (#601) et invite des athlètes (#602), et ne voit **aucun contenu** en v1. Un Coach rejoint une entreprise en acceptant son **invitation** — la même table que celle d'un athlète, au rôle `COACH` et avec l'entreprise pour émetteur ; l'appartenance est une ligne `OrganizationCoach` par couple (#601). La table est distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son espace vit sur le **web** seulement ; le mobile y renvoie.
 
 ### Auto-coaching
 Un `User` qui porte **les deux** capacités peut s'écrire ses propres cycles : `coachId = athleteId`, **sans** ligne `CoachAthlete` — l'auto-relation est d'ailleurs interdite en base (`coach_athlete_not_self`). Il apparaît dans sa propre liste d'athlètes sous une entrée **synthétique** (`isSelf`), ce qui lui permet de se désigner comme destinataire.
@@ -226,6 +226,7 @@ Trois règles à connaître :
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux capacités** : chaque table porte donc `coachId` ET `athleteId` en direct.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
 - ⚠️ **`CoachAthleteStatus.PENDING` n'est jamais écrit** : la colonne est `@default(ACTIVE)`, `InvitationService` pose `ACTIVE` à l'acceptation, et les services filtrent sur `ACTIVE`. Le palier existe dans le modèle (« réservé si besoin »), pas dans les faits — ne pas construire d'UI qui suppose deux états tant qu'un flux n'en produit pas deux.
+- ⚠️ **`Invitation` a deux émetteurs** (#601) : scopée `coachId` sous la capacité coach, `organizationId` sous la capacité company — une ligne n'en porte qu'un (CHECK `invitation_single_issuer`). Son **destinataire** la lit par le client de base, filtré par l'adresse de la session ET le rôle proposé : un athlète ne voit jamais une invitation de Coach, ni l'inverse.
 - ⚠️ **`Reminder` est scopé `coachId` SEUL** — la seule entité métier sans scope athlète (outil privé du coach). L'absence de clé `athlete` dans `TENANT_SCOPES` n'est pas un oubli, mais elle se manifeste par une **erreur** (fail closed), pas un 403 : deux gardes doivent donc la précéder — le `@RequireCapability("coach")` du contrôleur, et le branchement du centre de notifications sur la capacité POSSÉDÉE (`runAsCapability` y qualifie la seule lecture concernée).
 - ⚠️ **`PushToken` est scopé `userId` pour les deux capacités**, et **`Notification` par `recipientId`** : l'un adresse une *installation* de l'app, l'autre une personne — ni l'un ni l'autre n'appartient à la relation coach↔athlète. L'**écriture et la lecture d'envoi** visent le DESTINATAIRE, donc un autre tenant : elles passent par le client Prisma de base (`NotificationService`), comme `UserDirectoryService`. La **consultation**, elle, est scopée normalement (`NotificationFeedService`) — chacun ne lit que ce qui lui est adressé.
 - L'isolation est **garantie à la couche données** (tenancy guard + Prisma Client Extension), pas seulement par la logique applicative. Un acteur n'accède jamais aux données d'un autre tenant. Voir `architecture-choice.md` §Multi-tenant (dont les **pièges du scope automatique** : `include` imbriqués non scopés, FK non contraintes par le tenant).
@@ -246,7 +247,7 @@ deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il
 | Messagerie | avec ses athlètes et les Coachs de ses entreprises *(cible — #611)* | avec ses Coachs | — *(dans aucune conversation)* |
 | Facture | émission + statut ; suit le droit de sa planification *(cible — #607)* | lecture | — |
 | Rappel | CRUD (les siens) | — *(aucun accès : 403)* | — |
-| Entreprise : Coachs, athlètes, invitations | — | — | gestion (la sienne) *(cible — #601, #602)* |
+| Entreprise : Coachs, athlètes, invitations | — | — | gestion (la sienne) ; ses athlètes *(cible — #602)* |
 | Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |
 
 Le compte Entreprise porte la capacité `company`, **exclusive** : sa colonne ne se cumule avec aucune autre.
