@@ -17,7 +17,6 @@ import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toCoachAthleteDto } from "../coach-athlete.mapper";
-import { hasCoachCycle } from "../coach-graph";
 import {
   assertActionable,
   INVITATION_TTL_DAYS,
@@ -27,6 +26,7 @@ import {
   revokePending,
 } from "../invitation.lifecycle";
 import { toInvitationDto, toPendingInvitationDto } from "../invitation.mapper";
+import { CoachGraphService } from "./coach-graph.service";
 import { UserDirectoryService } from "./user-directory.service";
 
 /**
@@ -51,6 +51,7 @@ export class InvitationService {
     private readonly users: UserDirectoryService,
     private readonly notifications: NotificationService,
     private readonly mailer: InvitationMailer,
+    private readonly graph: CoachGraphService,
   ) {}
 
   // Coach : invite une adresse, pour sept jours. coachId injecté par le tenancy layer.
@@ -220,7 +221,12 @@ export class InvitationService {
     if (existing) {
       throw new ConflictException("Tu es déjà suivi par ce coach");
     }
-    await this.assertNoCycle(invitation.coachId, athlete.id);
+    // Accepter exige la capacité athlète : seul un compte qui CUMULE peut présenter la sienne
+    // (#9/#10). Ce refus-là n'est pas une boucle, il a son propre message.
+    if (invitation.coachId === athlete.id) {
+      throw new ConflictException("Tu ne peux pas être ton propre coach");
+    }
+    await this.graph.assertNoCycle([invitation.coachId], [athlete.id]);
 
     const [relation] = await this.prisma.$transaction([
       this.prisma.coachAthlete.create({
@@ -247,59 +253,5 @@ export class InvitationService {
 
     const names = await this.users.namesByIds([relation.coachId, relation.athleteId]);
     return toCoachAthleteDto(relation, names);
-  }
-
-  /**
-   * Refuse une relation qui bouclerait (#11). Deux cas, et le premier n'est un cas que depuis
-   * #9/#10 : accepter une invitation exige la capacité athlète, donc seul un compte qui CUMULE
-   * peut accepter la sienne.
-   *
-   * Le second cherche l'invité parmi les coachs de l'inviteur, de proche en proche. Depuis #599 ce
-   * n'est plus une chaîne mais un graphe — un compte a 0..N coachs. A coache B, B coache C, C
-   * invite A : A est au-dessus de C, et le lien refermerait la boucle.
-   *
-   * Une boucle DÉJÀ présente en base — un chemin de création futur qui oublierait cette garde, une
-   * écriture manuelle — n'est pas un refus métier mais une incohérence de données : on lève,
-   * bruyamment et distinctement, plutôt que de la déguiser en 409. Elle se cherche APRÈS le
-   * chargement, par `hasCoachCycle` : pendant le parcours, retomber sur un compte déjà vu ne la
-   * prouve plus (voir le losange qu'elle décrit).
-   */
-  private async assertNoCycle(coachId: string, athleteId: string): Promise<void> {
-    if (coachId === athleteId) {
-      throw new ConflictException("Tu ne peux pas être ton propre coach");
-    }
-
-    const coaches = await this.coachesAbove(coachId);
-    if (coaches.has(athleteId)) {
-      throw new ConflictException("Ce lien créerait une boucle avec tes propres athlètes");
-    }
-    if (hasCoachCycle(coaches)) {
-      throw new Error(`[relation] cycle DÉJÀ présent dans CoachAthlete au-dessus de ${coachId}`);
-    }
-  }
-
-  /**
-   * Tous les comptes au-dessus de `coachId` (lui compris), avec leurs coachs. Une requête par
-   * NIVEAU, pas par compte : la profondeur se compte en unités, la largeur peut croître avec les
-   * entreprises.
-   *
-   * Termine même sur une base qui boucle : un compte n'entre qu'une fois dans la frontière.
-   */
-  private async coachesAbove(coachId: string): Promise<Map<string, string[]>> {
-    const coaches = new Map<string, string[]>();
-    let frontier = [coachId];
-
-    while (frontier.length > 0) {
-      const links = await this.prisma.coachAthlete.findMany({
-        where: { athleteId: { in: frontier } },
-        select: { coachId: true, athleteId: true },
-      });
-      for (const account of frontier) coaches.set(account, []);
-      for (const link of links) coaches.get(link.athleteId)?.push(link.coachId);
-      frontier = [...new Set(links.map((link) => link.coachId))].filter(
-        (account) => !coaches.has(account),
-      );
-    }
-    return coaches;
   }
 }
