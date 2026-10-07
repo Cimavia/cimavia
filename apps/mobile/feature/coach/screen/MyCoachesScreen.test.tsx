@@ -1,4 +1,4 @@
-import type { PendingInvitationDto } from "@cmv/shared";
+import type { CoachAthleteDto, PendingInvitationDto } from "@cmv/shared";
 import { screen, waitFor, within } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,7 +41,7 @@ const declineInvitation = vi.mocked(accountApi.declineInvitation);
 
 const INVITATION = {
   id: "inv_1",
-  coachName: "Marc Keller",
+  issuer: { kind: "coach" as const, name: "Marc Keller" },
   expiresAt: "2026-09-12T09:00:00.000Z",
   createdAt: "2026-09-05T09:00:00.000Z",
 };
@@ -55,8 +55,9 @@ const RELATION = {
   status: "ACTIVE",
   invitedAt: "2026-03-12T09:00:00.000Z",
   joinedAt: "2026-03-12T09:00:00.000Z",
+  organizationName: null,
   isSelf: false,
-} as Awaited<ReturnType<typeof accountApi.acceptInvitation>>;
+} satisfies CoachAthleteDto;
 
 const MARC = { ...RELATION, id: "rel_2", coachId: "u_marc", coachName: "Marc Keller" };
 
@@ -65,7 +66,7 @@ beforeEach(() => {
   session.current = { user: { id: "ath_1", email: "lea@exemple.fr" } };
   myCoaches.mockResolvedValue([]);
   myInvitations.mockResolvedValue([]);
-  acceptInvitation.mockResolvedValue(RELATION);
+  acceptInvitation.mockResolvedValue([RELATION]);
   declineInvitation.mockResolvedValue(undefined);
 });
 

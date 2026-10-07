@@ -1,4 +1,9 @@
-import { EMAILABLE_NOTIFICATION_TYPES, Locale, NotificationType } from "@cmv/shared";
+import {
+  EMAILABLE_NOTIFICATION_TYPES,
+  InvitationRole,
+  Locale,
+  NotificationType,
+} from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { en } from "./locale/en";
 import { fr } from "./locale/fr";
@@ -262,16 +267,42 @@ describe("mailCatalog — gabarit d'invitation", () => {
   });
 });
 
-describe("mailCatalog — invitation d'une entreprise (#601)", () => {
-  const PARAMS = { organizationName: "Fontainebleau Escalade", expiresInDays: 7 };
+describe("mailCatalog — invitation d'une entreprise (#601, #602)", () => {
+  const PARAMS = {
+    role: InvitationRole.COACH,
+    organizationName: "Fontainebleau Escalade",
+    expiresInDays: 7,
+  };
+  const ROLES = [InvitationRole.COACH, InvitationRole.ATHLETE];
+  const LOCALES = [Locale.FR, Locale.EN];
 
   // Le destinataire n'a aucun contexte : le nom de l'entreprise est dans l'objet et dans le titre.
-  it.each([Locale.FR, Locale.EN])("%s : nomme l'entreprise dans l'objet et le corps", (locale) => {
-    const mail = mailCatalog(locale).organizationInvitation({ ...PARAMS, registerUrl: null });
+  it.each(
+    LOCALES.flatMap((locale) => ROLES.map((role) => [locale, role] as const)),
+  )("%s, %s : nomme l'entreprise dans l'objet et le corps", (locale, role) => {
+    const mail = mailCatalog(locale).organizationInvitation({
+      ...PARAMS,
+      role,
+      registerUrl: null,
+    });
 
     expect(mail.subject).toContain("Fontainebleau Escalade");
     expect(mail.text).toContain("Fontainebleau Escalade");
     expect(mail.html).not.toContain("<a href");
+  });
+
+  // Un athlète inscrit en Coach seul ne verrait jamais l'invitation : la case est celle du rôle.
+  it("dit à l'athlète de cocher « Je m'entraîne », et où l'attend son invitation", () => {
+    const mail = mailCatalog(Locale.FR).organizationInvitation({
+      ...PARAMS,
+      role: InvitationRole.ATHLETE,
+      registerUrl: null,
+    });
+
+    expect(mail.text).toContain(fr.organizationInvitation.ATHLETE.addressLine);
+    expect(fr.organizationInvitation.ATHLETE.addressLine).toContain("Je m'entraîne");
+    expect(fr.organizationInvitation.ATHLETE.addressLine).toContain("Mes coachs");
+    expect(en.organizationInvitation.ATHLETE.addressLine).toContain("I train");
   });
 
   /**
@@ -284,9 +315,9 @@ describe("mailCatalog — invitation d'une entreprise (#601)", () => {
       registerUrl: "https://app.cimavia.fr/register",
     });
 
-    expect(mail.text).toContain(fr.organizationInvitation.addressLine);
-    expect(fr.organizationInvitation.addressLine).toContain("Je coache");
-    expect(en.organizationInvitation.addressLine).toContain("I coach");
+    expect(mail.text).toContain(fr.organizationInvitation.COACH.addressLine);
+    expect(fr.organizationInvitation.COACH.addressLine).toContain("Je coache");
+    expect(en.organizationInvitation.COACH.addressLine).toContain("I coach");
     expect(mail.html).toContain("https://app.cimavia.fr/register");
   });
 
@@ -298,6 +329,6 @@ describe("mailCatalog — invitation d'une entreprise (#601)", () => {
     });
 
     expect(mail.text).toContain("3 jours");
-    expect(mail.text).toContain(fr.organizationInvitation.ignore);
+    expect(mail.text).toContain(fr.organizationInvitation.COACH.ignore);
   });
 });

@@ -40,6 +40,7 @@ function relation(overrides: Partial<CoachAthleteDto>): CoachAthleteDto {
     status: CoachAthleteStatus.ACTIVE,
     invitedAt: "2026-01-01T00:00:00.000Z",
     joinedAt: "2026-01-02T00:00:00.000Z",
+    organizationName: null,
     isSelf: false,
     ...overrides,
   };

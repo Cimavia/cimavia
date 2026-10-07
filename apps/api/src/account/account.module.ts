@@ -9,6 +9,7 @@ import { CapabilityService } from "./service/capability.service";
 import { CoachGraphService } from "./service/coach-graph.service";
 import { CounterpartService } from "./service/counterpart.service";
 import { InvitationService } from "./service/invitation.service";
+import { OrganizationLinkService } from "./service/organization-link.service";
 import { RelationService } from "./service/relation.service";
 import { UserDirectoryService } from "./service/user-directory.service";
 
@@ -31,10 +32,11 @@ import { UserDirectoryService } from "./service/user-directory.service";
     CounterpartService,
     UserDirectoryService,
     CoachGraphService,
+    OrganizationLinkService,
   ],
   // Exporté pour la liste des débriefs (P4) : elle nomme l'athlète, et le nom ne vit que sur
-  // `User` — table hors scope tenant, lue par ce seul service. La garde anti-boucle l'est pour
-  // les liens qu'une entreprise crée (#602).
-  exports: [UserDirectoryService, CoachGraphService],
+  // `User` — table hors scope tenant, lue par ce seul service. Les liens d'une entreprise le sont
+  // pour le Coach qui la rejoint (#602).
+  exports: [UserDirectoryService, OrganizationLinkService],
 })
 export class AccountModule {}

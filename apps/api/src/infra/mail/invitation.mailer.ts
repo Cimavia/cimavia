@@ -1,4 +1,4 @@
-import { type EnvSchema, trimTrailingSlashes } from "@cmv/shared";
+import { type EnvSchema, type InvitationRole, trimTrailingSlashes } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { mailCatalog } from "./mail.catalog";
@@ -59,16 +59,18 @@ export class InvitationMailer {
   }
 
   /**
-   * L'invitation d'une entreprise à rejoindre son équipe (#601), vers une adresse sans compte. Même
-   * lien d'inscription : c'est là que se coche « Je coache », sans quoi l'invitation resterait
-   * inacceptable.
+   * L'invitation d'une entreprise, vers une adresse sans compte : à rejoindre son équipe (#601), ou
+   * ses athlètes (#602). Même lien d'inscription : c'est là que se coche la capacité du rôle, sans
+   * quoi l'invitation resterait inacceptable.
    */
   async sendOrganizationInvitation(params: {
     to: string;
+    role: InvitationRole;
     organizationName: string;
     expiresInDays: number;
   }): Promise<void> {
     const template = mailCatalog(null).organizationInvitation({
+      role: params.role,
       organizationName: params.organizationName,
       expiresInDays: params.expiresInDays,
       registerUrl: this.registerUrl,

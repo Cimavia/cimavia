@@ -41,17 +41,20 @@ export class UserDirectoryService {
   }
 
   /**
-   * Le compte qui porte cette adresse et s'il coache, ou `null` s'il n'y en a pas — de quoi
-   * choisir le canal de l'invitation d'une entreprise (#601) : notification à un compte Coach,
-   * e-mail à une adresse sans compte, rien du tout à un compte qui ne coache pas.
+   * Le compte qui porte cette adresse et ses capacités, ou `null` s'il n'y en a pas — de quoi
+   * choisir le canal de l'invitation d'une entreprise (#601, #602) : notification à un compte qui
+   * porte la capacité du rôle, e-mail à une adresse sans compte, rien du tout à un compte qui ne
+   * la porte pas.
    *
    * Même justification que `athleteIdByEmail`, et même condition : l'appelant ne fait AUCUNE
    * différence visible entre les trois issues, la création répond à l'identique.
    */
-  async accountByEmail(email: string): Promise<{ id: string; isCoach: boolean } | null> {
+  async accountByEmail(
+    email: string,
+  ): Promise<{ id: string; isCoach: boolean; isAthlete: boolean } | null> {
     return this.prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true, isCoach: true },
+      select: { id: true, isCoach: true, isAthlete: true },
     });
   }
 

@@ -1,11 +1,10 @@
 import { type CoachAthleteDto, CoachAthleteStatus, required, SELF_RELATION_ID } from "@cmv/shared";
 import { Inject, Injectable } from "@nestjs/common";
-import type { CoachAthlete } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
-import { toCoachAthleteDto } from "../coach-athlete.mapper";
+import { withNames } from "../coach-athlete.mapper";
 import { UserDirectoryService } from "./user-directory.service";
 
 @Injectable()
@@ -32,7 +31,7 @@ export class RelationService {
     const relations = await this.db.coachAthlete.findMany({
       orderBy: { joinedAt: "desc" },
     });
-    const dtos = await this.withNames(relations);
+    const dtos = await withNames(this.users, relations);
     const self = await this.selfEntry();
     return self == null ? dtos : [self, ...dtos];
   }
@@ -58,6 +57,8 @@ export class RelationService {
       // date du jour laisserait croire à un événement qui n'a pas eu lieu.
       invitedAt: new Date(0).toISOString(),
       joinedAt: null,
+      // Aucune entreprise : on se coache soi-même, en direct.
+      organizationName: null,
       isSelf: true,
     };
   }
@@ -73,14 +74,6 @@ export class RelationService {
     const relations = await this.db.coachAthlete.findMany({
       orderBy: { joinedAt: "desc" },
     });
-    return this.withNames(relations);
-  }
-
-  // Un seul aller-retour pour tous les noms, quel que soit le nombre de relations.
-  private async withNames(relations: CoachAthlete[]): Promise<CoachAthleteDto[]> {
-    const names = await this.users.namesByIds(
-      relations.flatMap((relation) => [relation.coachId, relation.athleteId]),
-    );
-    return relations.map((relation) => toCoachAthleteDto(relation, names));
+    return withNames(this.users, relations);
   }
 }

@@ -64,20 +64,17 @@ export type InvoiceIssuedEvent = {
 /**
  * Une invitation nominative vient d'être émise (#146), et l'adresse visée a un compte athlète.
  *
- * Le coach est passé par son ID et non par son nom : le résoudre ici garde au même endroit la
+ * Qui invite est passé par son ID et non par son nom : le résoudre ici garde au même endroit la
  * lecture de `User` (table hors scope tenant) et le « une notification ne casse jamais l'action
- * métier » — l'appelant n'a rien à faire de plus qu'émettre.
+ * métier » — l'appelant n'a rien à faire de plus qu'émettre. Un Coach, ou une entreprise depuis
+ * #602 : son nom est celui de son compte (#600), résolu de la même façon.
  */
 export type InvitationReceivedEvent = {
   athleteId: string;
-  coachId: string;
+  inviterId: string;
   invitationId: string;
 };
 
-/**
- * L'athlète a répondu — rejoint ou refusé. Une seule charge pour les deux, comme les trois
- * ajustements de cycle : mêmes parties, même entité, seul le sens de la réponse change.
- */
 /** Une entreprise invite un compte Coach à rejoindre son équipe (#601). */
 export type OrganizationInvitationReceivedEvent = {
   coachId: string;
@@ -85,6 +82,10 @@ export type OrganizationInvitationReceivedEvent = {
   invitationId: string;
 };
 
+/**
+ * L'athlète a répondu — rejoint ou refusé. Une seule charge pour les deux, comme les trois
+ * ajustements de cycle : mêmes parties, même entité, seul le sens de la réponse change.
+ */
 export type InvitationAnsweredEvent = {
   coachId: string;
   athleteId: string;
@@ -429,21 +430,21 @@ export class NotificationService {
    */
   async notifyInvitationReceived(event: InvitationReceivedEvent): Promise<void> {
     this.logger.info({ event: "invitation.received", ...event }, "Invitation adressée à un compte");
-    const coachName = await this.userName(event.coachId);
+    const inviterName = await this.userName(event.inviterId);
     await this.emit(
       {
         recipientId: event.athleteId,
         type: NotificationType.INVITATION_RECEIVED,
         entityType: NotificationEntityType.INVITATION,
         entityId: event.invitationId,
-        actorName: coachName,
+        actorName: inviterName,
         subjectLabel: null,
       },
       {
         title: "Invitation",
         // Le nom EST l'information : un athlète non lié n'a aucun contexte qui dise de qui vient
         // cette invitation, contrairement à un cycle diffusé par le coach qu'il a déjà.
-        body: `${coachName ?? "Un coach"} t'invite à rejoindre son espace.`,
+        body: `${inviterName ?? "Un coach"} t'invite à rejoindre son espace.`,
         data: {
           type: NotificationType.INVITATION_RECEIVED,
           invitationId: event.invitationId,

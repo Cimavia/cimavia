@@ -16,7 +16,7 @@ import { PrismaService } from "../../infra/prisma/prisma.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { toCoachAthleteDto } from "../coach-athlete.mapper";
+import { withNames } from "../coach-athlete.mapper";
 import {
   assertActionable,
   INVITATION_TTL_DAYS,
@@ -25,19 +25,19 @@ import {
   removeDeclined,
   revokePending,
 } from "../invitation.lifecycle";
-import { toInvitationDto, toPendingInvitationDto } from "../invitation.mapper";
+import { issuerOf, toInvitationDto, toPendingInvitationDto } from "../invitation.mapper";
 import { CoachGraphService } from "./coach-graph.service";
+import { OrganizationLinkService } from "./organization-link.service";
 import { UserDirectoryService } from "./user-directory.service";
 
 /**
- * Le Coach d'une invitation d'athlète. Toutes viennent d'un Coach jusqu'à #602, qui ouvrira
- * l'invitation d'athlètes par une entreprise : un `coachId` absent ici est une donnée incohérente,
- * pas un cas à replier.
+ * Le Coach d'une invitation créée par CE service : la route `POST /invitations` est gardée
+ * `coach`, et le tenancy layer y injecte `coachId`. Son absence serait une incohérence.
  */
 function issuingCoach(invitation: Pick<Invitation, "id" | "coachId">): string {
   return required(
     invitation.coachId,
-    `[account] invitation d'athlète sans Coach : ${invitation.id}`,
+    `[account] invitation de Coach sans Coach : ${invitation.id}`,
   );
 }
 
@@ -52,6 +52,7 @@ export class InvitationService {
     private readonly notifications: NotificationService,
     private readonly mailer: InvitationMailer,
     private readonly graph: CoachGraphService,
+    private readonly organizationLinks: OrganizationLinkService,
   ) {}
 
   // Coach : invite une adresse, pour sept jours. coachId injecté par le tenancy layer.
@@ -100,7 +101,7 @@ export class InvitationService {
     if (athleteId != null) {
       await this.notifications.notifyInvitationReceived({
         athleteId,
-        coachId,
+        inviterId: coachId,
         invitationId: invitation.id,
       });
       return;
@@ -157,18 +158,47 @@ export class InvitationService {
    * - **le rôle athlète** (#601) : l'invitation d'une entreprise à devenir Coach ne s'accepte pas
    *   d'ici, et ne doit pas y apparaître.
    *
-   * Client de BASE, comme `accept` : `Invitation` n'a qu'un scope coach dans `TENANT_SCOPES`, et
-   * le client tenant lèverait (fail closed) plutôt que de rendre une liste vide.
+   * Celle d'une entreprise à devenir son athlète (#602), si : elle nomme alors les Coachs qui le
+   * suivront — lui excepté, s'il en est un.
+   *
+   * Client de BASE, comme `accept` : `Invitation` n'a pas de scope athlète dans `TENANT_SCOPES`,
+   * et le client tenant lèverait (fail closed) plutôt que de rendre une liste vide.
    */
-  async listForMe(athlete: { email: string }): Promise<PendingInvitationDto[]> {
+  async listForMe(athlete: { id: string; email: string }): Promise<PendingInvitationDto[]> {
     const invitations = await this.prisma.invitation.findMany({
       where: pendingFor(athlete.email, InvitationRole.ATHLETE),
       orderBy: { createdAt: "desc" },
     });
     if (invitations.length === 0) return [];
 
-    const names = await this.users.namesByIds(invitations.map(issuingCoach));
-    return invitations.map((invitation) => toPendingInvitationDto(invitation, names));
+    const issuerIds = invitations.map((invitation) => {
+      const issuer = issuerOf(invitation);
+      return issuer.kind === "coach" ? issuer.coachId : issuer.organizationId;
+    });
+    const coaches = await this.prisma.organizationCoach.findMany({
+      where: { organizationId: { in: issuerIds }, coachId: { not: athlete.id } },
+      orderBy: { createdAt: "asc" },
+      select: { organizationId: true, coachId: true },
+    });
+    const names = await this.users.namesByIds([
+      ...issuerIds,
+      ...coaches.map((coach) => coach.coachId),
+    ]);
+
+    const coachNamesByOrganization = new Map<string, string[]>();
+    for (const coach of coaches) {
+      const coachName = required(
+        names.get(coach.coachId),
+        `[account] coach introuvable pour l'entreprise ${coach.organizationId}`,
+      );
+      coachNamesByOrganization.set(coach.organizationId, [
+        ...(coachNamesByOrganization.get(coach.organizationId) ?? []),
+        coachName,
+      ]);
+    }
+    return invitations.map((invitation) =>
+      toPendingInvitationDto(invitation, names, coachNamesByOrganization),
+    );
   }
 
   /**
@@ -176,15 +206,16 @@ export class InvitationService {
    * `assertActionable`. Client de BASE : l'athlète n'est pas l'acteur du scope de `Invitation`.
    */
   private async findActionable(athlete: { email: string }, id: string) {
-    const invitation = assertActionable(
-      await this.prisma.invitation.findUnique({ where: { id } }),
-      {
-        email: athlete.email,
-        role: InvitationRole.ATHLETE,
-        revokedMessage: "Invitation retirée par le coach",
-      },
-    );
-    return { ...invitation, coachId: issuingCoach(invitation) };
+    const found = await this.prisma.invitation.findUnique({ where: { id } });
+    const invitation = assertActionable(found, {
+      email: athlete.email,
+      role: InvitationRole.ATHLETE,
+      revokedMessage:
+        found?.organizationId == null
+          ? "Invitation retirée par le coach"
+          : "Invitation retirée par l'entreprise",
+    });
+    return { ...invitation, issuer: issuerOf(invitation) };
   }
 
   /**
@@ -194,6 +225,9 @@ export class InvitationService {
    *
    * Un athlète DÉJÀ LIÉ peut refuser, et c'est même le cas utile : cela vide la liste d'attente du
    * coach, qui saurait enfin que son invitation n'aboutira pas.
+   *
+   * Le refus d'une invitation d'entreprise (#602) ne notifie personne : le compte Entreprise n'en
+   * reçoit pas en v1, il le lit dans sa liste — comme le refus d'un Coach (#601).
    */
   async decline(athlete: { id: string; email: string }, id: string): Promise<void> {
     const invitation = await this.findActionable(athlete, id);
@@ -202,36 +236,50 @@ export class InvitationService {
       where: { id: invitation.id },
       data: { status: InvitationStatus.DECLINED },
     });
+    if (invitation.issuer.kind === "organization") return;
     // APRÈS l'écriture, comme partout : une notification est un effet de bord, et l'action métier
     // a déjà réussi quand elle part.
     await this.notifications.notifyInvitationDeclined({
-      coachId: invitation.coachId,
+      coachId: invitation.issuer.coachId,
       athleteId: athlete.id,
       invitationId: invitation.id,
     });
   }
 
-  // Athlète : rejoint le coach qui l'a invité. Client de base (l'athlète n'est pas encore lié).
-  async accept(athlete: { id: string; email: string }, id: string): Promise<CoachAthleteDto> {
+  /**
+   * Athlète : rejoint qui l'a invité. Client de base (l'athlète n'est pas encore lié).
+   *
+   * Rend une LISTE depuis #602 : l'invitation d'une entreprise le lie à chacun de ses Coachs — et
+   * à aucun si elle n'en a pas encore. Celle d'un Coach en rend un seul.
+   */
+  async accept(athlete: { id: string; email: string }, id: string): Promise<CoachAthleteDto[]> {
     const invitation = await this.findActionable(athlete, id);
+    if (invitation.issuer.kind === "organization") {
+      return this.organizationLinks.athleteJoins(athlete, {
+        id: invitation.id,
+        organizationId: invitation.issuer.organizationId,
+      });
+    }
+
+    const { coachId } = invitation.issuer;
     // Un lien par COUPLE (#599) : un athlète a 0..N coachs, mais un seul lien avec chacun.
     const existing = await this.prisma.coachAthlete.findUnique({
-      where: { coachId_athleteId: { coachId: invitation.coachId, athleteId: athlete.id } },
+      where: { coachId_athleteId: { coachId, athleteId: athlete.id } },
     });
     if (existing) {
       throw new ConflictException("Tu es déjà suivi par ce coach");
     }
     // Accepter exige la capacité athlète : seul un compte qui CUMULE peut présenter la sienne
     // (#9/#10). Ce refus-là n'est pas une boucle, il a son propre message.
-    if (invitation.coachId === athlete.id) {
+    if (coachId === athlete.id) {
       throw new ConflictException("Tu ne peux pas être ton propre coach");
     }
-    await this.graph.assertNoCycle([invitation.coachId], [athlete.id]);
+    await this.graph.assertNoCycle([coachId], [athlete.id]);
 
     const [relation] = await this.prisma.$transaction([
       this.prisma.coachAthlete.create({
         data: {
-          coachId: invitation.coachId,
+          coachId,
           athleteId: athlete.id,
           status: CoachAthleteStatus.ACTIVE,
           joinedAt: new Date(),
@@ -246,12 +294,11 @@ export class InvitationService {
       }),
     ]);
     await this.notifications.notifyInvitationAccepted({
-      coachId: invitation.coachId,
+      coachId,
       athleteId: athlete.id,
       invitationId: invitation.id,
     });
 
-    const names = await this.users.namesByIds([relation.coachId, relation.athleteId]);
-    return toCoachAthleteDto(relation, names);
+    return withNames(this.users, [relation]);
   }
 }

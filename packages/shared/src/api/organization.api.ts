@@ -1,13 +1,20 @@
-import type { CreateInvitationInput, InvitationDto } from "../dto/invitation.schema";
 import type {
+  CreateInvitationInput,
+  InvitationDto,
+  InvitationRole,
+} from "../dto/invitation.schema";
+import type {
+  OrganizationAthleteDto,
   OrganizationCoachDto,
   PendingOrganizationInvitationDto,
 } from "../dto/organization.schema";
 import type { ApiClient } from "./client";
 
 /**
- * Appels HTTP de l'entreprise (#601), partagés web ↔ mobile — par ses deux bouts, comme
- * `createAccountApi` : l'entreprise qui ajoute ses Coachs, le Coach qui répond à son invitation.
+ * Appels HTTP de l'entreprise (#601, #602), partagés web ↔ mobile — par ses deux bouts, comme
+ * `createAccountApi` : l'entreprise qui ajoute ses Coachs et invite ses athlètes, le Coach qui
+ * répond à son invitation. L'athlète, lui, répond par les routes de toute invitation d'athlète
+ * (`createAccountApi`) : il n'a qu'une liste, quel que soit l'émetteur.
  *
  * Deux préfixes, parce que deux capacités : `/organization` est gardé `company`,
  * `/organization-invitations` est gardé `coach`. Un client qui appelle la moitié qui n'est pas la
@@ -16,7 +23,9 @@ import type { ApiClient } from "./client";
 export const organizationKeys = {
   all: ["organization"] as const,
   coaches: () => ["organization", "coaches"] as const,
-  invitations: () => ["organization", "invitations"] as const,
+  athletes: () => ["organization", "athletes"] as const,
+  /** Une liste par rôle (#602) : la page Coachs et la page Athlètes ne lisent que la leur. */
+  invitations: (role: InvitationRole) => ["organization", "invitations", role] as const,
   /**
    * Les invitations d'entreprise qui attendent le Coach courant — sous la même racine que la liste
    * de l'entreprise, comme `invitationKeys.forMe` : c'est la même table, et un refus doit périmer
@@ -29,13 +38,20 @@ export type OrganizationApi = {
   // ── Côté entreprise ────────────────────────────────────────────────────────
   /** Ses Coachs, le plus récent arrivé d'abord. Liste vide = aucun membre, un état normal. */
   listCoaches: () => Promise<OrganizationCoachDto[]>;
-  /** Ses invitations, sauf celles qu'elle a retirées. */
-  listInvitations: () => Promise<InvitationDto[]>;
+  /** Ses athlètes (#602), le plus récent arrivé d'abord, chacun avec les Coachs qui le suivent. */
+  listAthletes: () => Promise<OrganizationAthleteDto[]>;
+  /** Ses invitations d'un rôle, sauf celles qu'elle a retirées. */
+  listInvitations: (role: InvitationRole) => Promise<InvitationDto[]>;
   /**
    * Invite une adresse à rejoindre l'équipe. La réponse est la même que l'adresse ait un compte ou
    * non (#146) ; 409 seulement si elle est celle d'un membre, que l'entreprise voit déjà.
    */
   inviteCoach: (input: CreateInvitationInput) => Promise<InvitationDto>;
+  /**
+   * Invite une adresse à être suivie par tous ses Coachs (#602). Mêmes réponses qu'`inviteCoach` :
+   * 409 seulement si elle est déjà celle d'un de ses athlètes.
+   */
+  inviteAthlete: (input: CreateInvitationInput) => Promise<InvitationDto>;
   /** Retire une invitation EN ATTENTE ; 409 sur tout autre état. */
   revokeInvitation: (invitationId: string) => Promise<void>;
   /** Efface une invitation REFUSÉE ; 409 sur tout autre état. */
@@ -53,8 +69,12 @@ export type OrganizationApi = {
 export function createOrganizationApi(api: ApiClient): OrganizationApi {
   return {
     listCoaches: () => api.get<OrganizationCoachDto[]>("/organization/coaches"),
-    listInvitations: () => api.get<InvitationDto[]>("/organization/invitations"),
-    inviteCoach: (input) => api.post<InvitationDto>("/organization/invitations", input),
+    listAthletes: () => api.get<OrganizationAthleteDto[]>("/organization/athletes"),
+    listInvitations: (role) => api.get<InvitationDto[]>(`/organization/invitations?role=${role}`),
+    inviteCoach: (input) =>
+      api.post<InvitationDto>("/organization/invitations", { ...input, role: "COACH" }),
+    inviteAthlete: (input) =>
+      api.post<InvitationDto>("/organization/invitations", { ...input, role: "ATHLETE" }),
     revokeInvitation: (invitationId) =>
       api.post<void>(`/organization/invitations/${invitationId}/revoke`),
     deleteInvitation: (invitationId) =>

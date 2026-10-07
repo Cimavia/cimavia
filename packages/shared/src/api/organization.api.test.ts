@@ -28,7 +28,7 @@ function spyClient() {
 describe("createOrganizationApi", () => {
   it.each([
     ["listCoaches", "GET", "/organization/coaches"],
-    ["listInvitations", "GET", "/organization/invitations"],
+    ["listAthletes", "GET", "/organization/athletes"],
     ["myInvitations", "GET", "/organization-invitations/for-me"],
   ] as const)("%s lit %s %s", async (name, method, path) => {
     const { api, calls } = spyClient();
@@ -37,12 +37,29 @@ describe("createOrganizationApi", () => {
     expect(calls).toEqual([{ method, path, body: undefined }]);
   });
 
-  it("invite une adresse sous le préfixe de l'entreprise", async () => {
+  // Une liste par rôle (#602) : la page Coachs ne montre pas les invitations d'athlètes.
+  it("lit les invitations d'un seul rôle", async () => {
     const { api, calls } = spyClient();
-    await createOrganizationApi(api).inviteCoach({ email: "julie@example.com" });
+    await createOrganizationApi(api).listInvitations("ATHLETE");
 
     expect(calls).toEqual([
-      { method: "POST", path: "/organization/invitations", body: { email: "julie@example.com" } },
+      { method: "GET", path: "/organization/invitations?role=ATHLETE", body: undefined },
+    ]);
+  });
+
+  it.each([
+    ["inviteCoach", "COACH"],
+    ["inviteAthlete", "ATHLETE"],
+  ] as const)("%s invite une adresse en %s, sous le préfixe de l'entreprise", async (name, role) => {
+    const { api, calls } = spyClient();
+    await createOrganizationApi(api)[name]({ email: "julie@example.com" });
+
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        path: "/organization/invitations",
+        body: { email: "julie@example.com", role },
+      },
     ]);
   });
 
@@ -64,7 +81,9 @@ describe("organizationKeys", () => {
   it("range toutes les listes sous la même racine", () => {
     for (const key of [
       organizationKeys.coaches(),
-      organizationKeys.invitations(),
+      organizationKeys.athletes(),
+      organizationKeys.invitations("COACH"),
+      organizationKeys.invitations("ATHLETE"),
       organizationKeys.forMe(),
     ]) {
       expect(key.slice(0, 1)).toEqual(organizationKeys.all);

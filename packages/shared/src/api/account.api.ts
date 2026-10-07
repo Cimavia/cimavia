@@ -98,10 +98,12 @@ export type AccountApi = {
    */
   myInvitations: () => Promise<PendingInvitationDto[]>;
   /**
-   * Rejoint le coach qui a émis cette invitation. 409 si l'athlète est déjà lié ; 404 si elle ne
-   * vise pas l'adresse de sa session — l'`id` n'est pas un secret, l'adresse l'est (#390).
+   * Rejoint le coach qui a émis cette invitation, ou chaque Coach de l'entreprise qui l'a émise
+   * (#602) — d'où une LISTE : un lien par Coach, vide si l'entreprise n'en a pas encore. 409 si
+   * l'athlète est déjà lié ou membre, ou si un lien bouclerait ; 404 si elle ne vise pas l'adresse
+   * de sa session — l'`id` n'est pas un secret, l'adresse l'est (#390).
    */
-  acceptInvitation: (invitationId: string) => Promise<CoachAthleteDto>;
+  acceptInvitation: (invitationId: string) => Promise<CoachAthleteDto[]>;
   /** Refuse une invitation. Le geste est SANS RETOUR : le coach devra réémettre. */
   declineInvitation: (invitationId: string) => Promise<void>;
 
@@ -130,7 +132,7 @@ export function createAccountApi(api: ApiClient): AccountApi {
     myCoaches: () => api.get<CoachAthleteDto[]>("/me/coaches"),
     myInvitations: () => api.get<PendingInvitationDto[]>("/invitations/for-me"),
     acceptInvitation: (invitationId) =>
-      api.post<CoachAthleteDto>(`/invitations/${invitationId}/accept`),
+      api.post<CoachAthleteDto[]>(`/invitations/${invitationId}/accept`),
     declineInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/decline`),
 
     myCounterparts: () => api.get<CounterpartsDto>("/me/counterparts"),

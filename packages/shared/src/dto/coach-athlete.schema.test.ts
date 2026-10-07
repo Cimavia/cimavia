@@ -25,6 +25,7 @@ describe("coachAthleteDtoSchema", () => {
     status: CoachAthleteStatus.ACTIVE,
     invitedAt: "2026-09-01T10:00:00.000Z",
     joinedAt: "2026-09-02T10:00:00.000Z",
+    organizationName: null,
     isSelf: false,
   };
 
@@ -36,6 +37,14 @@ describe("coachAthleteDtoSchema", () => {
   it("accepte une relation pas encore rejointe", () => {
     const pending = { ...relation, status: CoachAthleteStatus.PENDING, joinedAt: null };
     expect(coachAthleteDtoSchema.parse(pending)).toEqual(pending);
+  });
+
+  // La provenance (#602) : « via F », ou `null` pour un lien direct — jamais absente.
+  it("porte l'entreprise dont le lien est né, ou null pour un lien direct", () => {
+    const viaCompany = { ...relation, organizationName: "Fontainebleau Escalade" };
+    expect(coachAthleteDtoSchema.parse(viaCompany)).toEqual(viaCompany);
+    const { organizationName: _omitted, ...withoutProvenance } = relation;
+    expect(coachAthleteDtoSchema.safeParse(withoutProvenance).success).toBe(false);
   });
 
   it("refuse un statut inconnu", () => {
