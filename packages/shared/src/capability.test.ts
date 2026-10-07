@@ -1,19 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACCOUNT_TYPES,
   capabilitiesOf,
   hasCapability,
   SELECTABLE_CAPABILITIES,
+  signUpCapabilities,
   toggledCapability,
 } from "./capability";
 import { Role } from "./role";
 
-const NONE = { isCoach: false, isAthlete: false };
+const NONE = { isCoach: false, isAthlete: false, isCompany: false };
 
 describe("capabilitiesOf", () => {
   it("lit la capacité coach", () => {
     expect(capabilitiesOf({ isCoach: true, isAthlete: false })).toEqual({
       isCoach: true,
       isAthlete: false,
+      isCompany: false,
     });
   });
 
@@ -21,6 +24,7 @@ describe("capabilitiesOf", () => {
     expect(capabilitiesOf({ isCoach: false, isAthlete: true })).toEqual({
       isCoach: false,
       isAthlete: true,
+      isCompany: false,
     });
   });
 
@@ -28,10 +32,15 @@ describe("capabilitiesOf", () => {
    * Le cas que #7 rend possible et que le rôle exclusif ne produisait jamais : un coach qui se
    * coache lui-même. Les deux drapeaux sortent vrais ensemble.
    */
+  it("lit la capacité entreprise", () => {
+    expect(capabilitiesOf({ isCompany: true })).toEqual({ ...NONE, isCompany: true });
+  });
+
   it("rend les deux capacités d'un compte qui cumule", () => {
     expect(capabilitiesOf({ isCoach: true, isAthlete: true })).toEqual({
       isCoach: true,
       isAthlete: true,
+      isCompany: false,
     });
   });
 
@@ -64,6 +73,7 @@ describe("capabilitiesOf", () => {
     expect(capabilitiesOf({ isCoach: "true" } as never)).toEqual(NONE);
     expect(capabilitiesOf({ isCoach: "false" } as never)).toEqual(NONE);
     expect(capabilitiesOf({ isCoach: 1 } as never)).toEqual(NONE);
+    expect(capabilitiesOf({ isCompany: "true" } as never)).toEqual(NONE);
   });
 
   /**
@@ -76,6 +86,7 @@ describe("capabilitiesOf", () => {
     expect(capabilitiesOf({ role: Role.COACH, isAthlete: true } as never)).toEqual({
       isCoach: false,
       isAthlete: true,
+      isCompany: false,
     });
   });
 });
@@ -91,12 +102,27 @@ describe("hasCapability", () => {
     expect(hasCapability(athlete, "coach")).toBe(false);
   });
 
+  /**
+   * Le piège que #600 a refermé : écrite en ternaire, la fonction répondait `isAthlete` à « est-ce
+   * une entreprise ? ». Un athlète passait donc toute garde Entreprise, et une entreprise aucune.
+   */
+  it("ne confond pas l'entreprise avec l'athlète", () => {
+    const athlete = capabilitiesOf({ isAthlete: true });
+    expect(hasCapability(athlete, "company")).toBe(false);
+
+    const company = capabilitiesOf({ isCompany: true });
+    expect(hasCapability(company, "company")).toBe(true);
+    expect(hasCapability(company, "coach")).toBe(false);
+    expect(hasCapability(company, "athlete")).toBe(false);
+  });
+
   // Sans capacité, aucune exigence n'est satisfaite : c'est ce qui fait qu'une navigation dérivée
   // de cette fonction est VIDE pour un compte non résolu, jamais complète « par défaut ».
   it("ne satisfait aucune exigence sans capacité", () => {
     const none = capabilitiesOf(null);
     expect(hasCapability(none, "coach")).toBe(false);
     expect(hasCapability(none, "athlete")).toBe(false);
+    expect(hasCapability(none, "company")).toBe(false);
   });
 
   // Les deux capacités se lisent INDÉPENDAMMENT sur le même compte — le cas que #7 rend courant.
@@ -139,5 +165,57 @@ describe("SELECTABLE_CAPABILITIES", () => {
     expect(
       SELECTABLE_CAPABILITIES.every(({ labelKey }) => labelKey.startsWith("auth.register.")),
     ).toBe(true);
+  });
+});
+
+describe("ACCOUNT_TYPES", () => {
+  // La personne d'abord, l'entreprise ensuite — l'ordre des cartes de la maquette #595.
+  it("propose « Coach et/ou athlète » puis « Entreprise », libellés traduits", () => {
+    expect(ACCOUNT_TYPES.map(({ type }) => type)).toEqual(["training", "company"]);
+    expect(
+      ACCOUNT_TYPES.every((entry) =>
+        [entry.labelKey, entry.hintKey, entry.nameLabelKey].every((key) =>
+          key.startsWith("auth.register."),
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  // Une entreprise n'a pas de « nom complet » : le champ change de libellé avec la carte.
+  it("donne à chaque type son propre libellé de nom", () => {
+    const [training, company] = ACCOUNT_TYPES;
+    expect(training?.nameLabelKey).not.toBe(company?.nameLabelKey);
+  });
+});
+
+describe("signUpCapabilities", () => {
+  it("envoie les cases cochées d'un compte qui coache et/ou s'entraîne", () => {
+    expect(signUpCapabilities("training", new Set(["coach", "athlete"]))).toEqual({
+      isCoach: true,
+      isAthlete: true,
+      isCompany: false,
+    });
+    expect(signUpCapabilities("training", new Set(["athlete"]))).toEqual({
+      isCoach: false,
+      isAthlete: true,
+      isCompany: false,
+    });
+  });
+
+  // Rien ne part : l'écran le dit sous les cases (frame 4), sans aller-retour avec l'API.
+  it("ne part pas sans aucune case cochée", () => {
+    expect(signUpCapabilities("training", new Set())).toBeNull();
+  });
+
+  /**
+   * Des cases cochées avant de changer de carte restent dans l'état de l'écran : elles ne doivent
+   * pas suivre l'entreprise, que l'API refuserait alors en cumul (400).
+   */
+  it("n'envoie qu'isCompany pour une entreprise, cases éventuelles ignorées", () => {
+    expect(signUpCapabilities("company", new Set(["coach"]))).toEqual({
+      isCoach: false,
+      isAthlete: false,
+      isCompany: true,
+    });
   });
 });

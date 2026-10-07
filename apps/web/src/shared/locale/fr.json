@@ -40,6 +40,16 @@
     }
   },
   "auth": {
+    "brand": {
+      "title": "Chaque séance compte.",
+      "lead": "Crée ton compte en moins d'une minute. Coach, athlète ou entreprise, tout commence ici.",
+      "coach": "Coach",
+      "coachText": "— compose tes séances et planifications",
+      "athlete": "Athlète",
+      "athleteText": "— consulte tes séances et débriefe-les",
+      "company": "Entreprise",
+      "companyText": "— ajoute tes coachs et invite tes athlètes"
+    },
     "login": {
       "title": "Connexion",
       "submit": "Se connecter",
@@ -50,15 +60,20 @@
     },
     "register": {
       "title": "Créer un compte",
+      "lead": "D'abord, dis-nous qui tu es.",
       "name": "Nom complet",
-      "capabilities": "Je veux",
-      "capabilityCoach": "Coacher des athlètes",
-      "capabilityAthlete": "Suivre mes entraînements",
-      "capabilityHint": "Les deux sont possibles.",
+      "companyName": "Nom de l'entreprise",
+      "capabilityCoach": "Je coache",
+      "capabilityAthlete": "Je m'entraîne",
       "submit": "Créer mon compte",
       "submitting": "Création…",
-      "hasAccount": "Déjà un compte ?",
-      "toLogin": "Se connecter"
+      "toLogin": "J'ai déjà un compte",
+      "type": {
+        "training": "Coach et/ou athlète",
+        "trainingHint": "Je coache, je m'entraîne, ou les deux.",
+        "company": "Entreprise",
+        "companyHint": "Une entreprise ne coache pas et ne s'entraîne pas : elle ajoute ses coachs et invite des athlètes."
+      }
     },
     "forgot": {
       "title": "Mot de passe oublié",
@@ -89,8 +104,8 @@
       "generic": "Une erreur est survenue. Réessaie.",
       "emailInUse": "Cette adresse e-mail est déjà utilisée.",
       "invalidCredentials": "E-mail ou mot de passe incorrect.",
-      "noCapability": "Choisis au moins une option.",
-      "signupClosed": "Les inscriptions sont fermées. Pour créer ton compte, demande une invitation à ton coach."
+      "noCapability": "Coche au moins une case : « Je coache », « Je m'entraîne » ou les deux.",
+      "signupClosed": "Les inscriptions sont fermées sur cet environnement. Il faut une invitation."
     }
   },
   "exercise": {
@@ -691,13 +706,16 @@
     "planning": "Planning",
     "sessions": "Séances",
     "myMessages": "Messagerie",
+    "companyCoaches": "Coachs",
+    "companyAthletes": "Athlètes",
     "space": {
       "coach": "Coach",
       "athlete": "Athlète"
     },
     "spaceTitle": {
       "coach": "Espace coach",
-      "athlete": "Espace athlète"
+      "athlete": "Espace athlète",
+      "company": "Espace entreprise"
     },
     "spaceUnread": "{{count}} non lue dans cet espace",
     "spaceUnread_other": "{{count}} non lues dans cet espace"
@@ -1224,6 +1242,16 @@
     "about": {
       "version": "cimavia · v{{version}}",
       "unknown": "cimavia · —"
+    }
+  },
+  "company": {
+    "coaches": {
+      "title": "Coachs",
+      "empty": "Aucun coach pour l'instant."
+    },
+    "athletes": {
+      "title": "Athlètes",
+      "empty": "Aucun athlète pour l'instant."
     }
   }
 }

@@ -1,4 +1,4 @@
-import type { CapabilityName } from "../capability";
+import type { TrainingCapability } from "../capability";
 import { type MessageAttachmentDto, MessageAttachmentType } from "../dto/message.schema";
 import type { TypesValuesOf } from "../type/generics.type";
 
@@ -51,7 +51,7 @@ export type AttachmentTarget = {
  */
 export function attachmentTarget(
   attachment: MessageAttachmentDto,
-  as: CapabilityName,
+  as: TrainingCapability,
 ): AttachmentTarget {
   if (as === "coach") {
     return {

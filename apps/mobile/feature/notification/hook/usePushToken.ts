@@ -30,7 +30,7 @@ export function usePushToken() {
    * chaque rendu, et le mettre en dépendance de l'effet réabonnerait le listener de push à chaque
    * fois — donc perdrait la réponse à une notification ouverte au mauvais moment.
    */
-  const { isCoach, isAthlete } = useCapabilities();
+  const { isCoach, isAthlete, isCompany } = useCapabilities();
 
   useEffect(() => {
     void registerDevice();
@@ -47,11 +47,12 @@ export function usePushToken() {
       const target = routeForPushPayload(response.notification.request.content.data, {
         isCoach,
         isAthlete,
+        isCompany,
       });
       if (target != null) router.push(target);
     });
     return () => subscription.remove();
-  }, [queryClient, isCoach, isAthlete]);
+  }, [queryClient, isCoach, isAthlete, isCompany]);
 }
 
 async function registerDevice(): Promise<void> {

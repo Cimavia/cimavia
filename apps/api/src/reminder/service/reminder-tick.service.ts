@@ -112,7 +112,7 @@ export class ReminderTickService {
     // du coach (seul modèle sans scope athlète, cf. TENANT_SCOPES).
     const actor: TenantContext = {
       userId: coachId,
-      capabilities: { isCoach: true, isAthlete: false },
+      capabilities: { isCoach: true, isAthlete: false, isCompany: false },
       exercised: "coach",
     };
 

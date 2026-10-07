@@ -1,5 +1,4 @@
 import type {
-  CapabilityName,
   MediaBatchStep,
   MediaRecapLine,
   MediaRecapReason,
@@ -8,6 +7,7 @@ import type {
   MultipartUploadTicket,
   RequestMessageUploadUrlInput,
   SendMessageInput,
+  TrainingCapability,
 } from "@cmv/shared";
 import {
   MAX_MESSAGE_MEDIA_BATCH,
@@ -169,7 +169,7 @@ async function uploadAndSend(
   conversationId: string,
   media: PreparedMedia,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
-  as: CapabilityName | null,
+  as: TrainingCapability | null,
   extra: SendExtra,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
@@ -210,7 +210,7 @@ function sendInParts(
   conversationId: string,
   ticket: MultipartUploadTicket,
   media: PreparedMedia,
-  as: CapabilityName | null,
+  as: TrainingCapability | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
   return runMultipartUpload(ticket, storageFileSize(media.uri), {

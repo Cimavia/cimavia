@@ -4,7 +4,7 @@ import { currentActor, exercisedOrThrow, type TenantContext } from "./tenant-con
 
 const ACTOR: TenantContext = {
   userId: "usr_1",
-  capabilities: { isCoach: true, isAthlete: true },
+  capabilities: { isCoach: true, isAthlete: true, isCompany: false },
   exercised: "coach",
 };
 

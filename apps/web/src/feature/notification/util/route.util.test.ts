@@ -7,8 +7,8 @@ import {
 import { describe, expect, it } from "vitest";
 import { routeForNotification } from "./route.util";
 
-const COACH: Capabilities = { isCoach: true, isAthlete: false };
-const ATHLETE: Capabilities = { isCoach: false, isAthlete: true };
+const COACH: Capabilities = { isCoach: true, isAthlete: false, isCompany: false };
+const ATHLETE: Capabilities = { isCoach: false, isAthlete: true, isCompany: false };
 
 const notification = (entityType: string, entityId = "entity-1"): NotificationDto =>
   ({
@@ -125,7 +125,7 @@ describe("routeForNotification", () => {
    * concernait l'espace athlète. Le test FIGE ce comportement plutôt que de le taire.
    */
   it("fait gagner la capacité coach sur un compte qui a les deux", () => {
-    const both: Capabilities = { isCoach: true, isAthlete: true };
+    const both: Capabilities = { isCoach: true, isAthlete: true, isCompany: false };
     expect(routeForNotification(notification(NotificationEntityType.PLAN, "p-1"), both)).toEqual({
       to: "/plans/$planId",
       params: { planId: "p-1" },

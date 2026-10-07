@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../test/render";
 import { useActingCapability, useActiveSpace, useExercisedCapability } from "./useCapabilities";
 
-type SessionUser = { isCoach: boolean; isAthlete: boolean; role: Role };
+type SessionUser = { isCoach: boolean; isAthlete: boolean; isCompany?: boolean; role: Role };
 
 const session = vi.hoisted(() => ({ user: null as SessionUser | null }));
 
@@ -57,6 +57,27 @@ describe("useActiveSpace — un compte à double capacité", () => {
 
     session.user = DUAL;
     expect(await read(useActiveSpace, "/invoices")).toBe("coach");
+  });
+});
+
+describe("useActiveSpace — un compte Entreprise (#600)", () => {
+  const COMPANY: SessionUser = {
+    isCoach: false,
+    isAthlete: false,
+    isCompany: true,
+    role: Role.COMPANY,
+  };
+
+  it("se range dans son espace hors de ses pages, plutôt que dans celui du coach", async () => {
+    session.user = COMPANY;
+
+    expect(await read(useActiveSpace, "/account")).toBe("company");
+  });
+
+  it("n'a aucun titre à préciser, même sur son espace", async () => {
+    session.user = COMPANY;
+
+    expect(await read(useExercisedCapability, "/company/coaches")).toBe("null");
   });
 });
 

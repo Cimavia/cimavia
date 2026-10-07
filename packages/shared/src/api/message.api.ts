@@ -1,4 +1,4 @@
-import type { CapabilityName } from "../capability";
+import type { TrainingCapability } from "../capability";
 import type {
   ConversationDto,
   MessageDto,
@@ -39,7 +39,8 @@ export const messageKeys = {
   all: ["messages"] as const,
   /** Les fils du compte, à ce titre. `as` fait partie de la clé : un compte à double capacité a
    * des fils des DEUX côtés, et les confondre servirait à l'un le cache de l'autre (cf. `asKey`). */
-  conversations: (as: CapabilityName | null) => ["messages", "conversations", asKey(as)] as const,
+  conversations: (as: TrainingCapability | null) =>
+    ["messages", "conversations", asKey(as)] as const,
   /** Le fil avec UN athlète donné, résolu par get-or-create — côté coach. */
   conversationWith: (athleteId: string) => ["messages", "with", athleteId] as const,
   /**
@@ -49,13 +50,13 @@ export const messageKeys = {
   conversationWithCoach: (coachId: string) => ["messages", "with-coach", coachId] as const,
   /** Le contenu d'un fil dépend du titre : le scope tenant filtre sur `coachId` ou `athleteId`,
    * donc le même id ne rend pas la même chose selon le côté d'où on le lit. */
-  thread: (conversationId: string, as: CapabilityName | null) =>
+  thread: (conversationId: string, as: TrainingCapability | null) =>
     ["messages", "thread", conversationId, asKey(as)] as const,
 };
 
 export type MessageApi = {
   /** Les fils existants, du plus récemment actif au plus ancien. Un athlète en a un par coach. */
-  listConversations: (as: CapabilityName | null) => Promise<ConversationDto[]>;
+  listConversations: (as: TrainingCapability | null) => Promise<ConversationDto[]>;
   /**
    * Get-or-create, idempotent. `athleteId` = ouverture côté coach (il cible un athlète) ;
    * `coachId` = côté athlète, qui désigne lequel de ses coachs (#599). Un seul appel pour les deux,
@@ -63,16 +64,16 @@ export type MessageApi = {
    */
   openConversation: (
     input: OpenConversationInput,
-    as: CapabilityName | null,
+    as: TrainingCapability | null,
   ) => Promise<ConversationDto>;
-  getMessages: (conversationId: string, as: CapabilityName | null) => Promise<MessageDto[]>;
+  getMessages: (conversationId: string, as: TrainingCapability | null) => Promise<MessageDto[]>;
   sendMessage: (
     conversationId: string,
     input: SendMessageInput,
-    as: CapabilityName | null,
+    as: TrainingCapability | null,
   ) => Promise<MessageDto>;
   /** Marque lus les messages ENTRANTS du fil. 204, pas de corps. */
-  markRead: (conversationId: string, as: CapabilityName | null) => Promise<void>;
+  markRead: (conversationId: string, as: TrainingCapability | null) => Promise<void>;
   /**
    * Ticket d'upload (audio/image/vidéo) avant l'envoi direct vers le storage. Son MODE dicte la
    * forme de l'envoi : un PUT unique pour les fichiers courants, un envoi part par part suivi
@@ -81,7 +82,7 @@ export type MessageApi = {
   requestUploadUrl: (
     conversationId: string,
     input: RequestMessageUploadUrlInput,
-    as: CapabilityName | null,
+    as: TrainingCapability | null,
   ) => Promise<MediaUploadTicketDto>;
   /**
    * Mode découpé UNIQUEMENT : recoller les parts en un objet. Tant que ce n'est pas fait, rien
@@ -90,13 +91,13 @@ export type MessageApi = {
   completeMediaUpload: (
     conversationId: string,
     input: CompleteMultipartUploadInput,
-    as: CapabilityName | null,
+    as: TrainingCapability | null,
   ) => Promise<void>;
   /** Renoncer à un envoi découpé : sans quoi ses parts restent facturées, invisibles au bucket. */
   abortMediaUpload: (
     conversationId: string,
     input: AbortMultipartUploadInput,
-    as: CapabilityName | null,
+    as: TrainingCapability | null,
   ) => Promise<void>;
 };
 

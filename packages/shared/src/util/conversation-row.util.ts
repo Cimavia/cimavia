@@ -1,4 +1,4 @@
-import type { CapabilityName } from "../capability";
+import type { TrainingCapability } from "../capability";
 import type { ConversationDto } from "../dto/message.schema";
 
 /** Ce dont une ligne dépend dans une relation : les deux bouts, et si c'est soi. */
@@ -36,7 +36,7 @@ export type ConversationRow = {
 export function conversationRows(
   relations: readonly ConversationRelation[],
   conversations: readonly ConversationDto[],
-  as: CapabilityName,
+  as: TrainingCapability,
 ): ConversationRow[] {
   const byCounterpart = new Map(
     conversations.map((conversation) => [conversation.counterpartId, conversation]),

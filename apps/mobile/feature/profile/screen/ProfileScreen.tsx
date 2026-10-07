@@ -1,4 +1,4 @@
-import { type CapabilityName, capabilitiesOf } from "@cmv/shared";
+import { capabilitiesOf, type TrainingCapability } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -9,25 +9,26 @@ import {
   capabilityErrorKey,
   useCapabilityUpdate,
 } from "@/feature/account/hook/useCapabilityUpdate";
-import { NotificationEmailSection, revokeCurrentPushToken } from "@/feature/notification";
+import { useLogout } from "@/feature/account/hook/useLogout";
+import { NotificationEmailSection } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { appVersionLabel } from "@/shared/lib/app-version";
 import { authClient } from "@/shared/lib/auth";
 
 // i18n-values account.capabilities.option: coach, athlete
 // i18n-values account.capabilities.hint: coach, athlete
-const OPTIONS: readonly CapabilityName[] = ["coach", "athlete"];
+const OPTIONS: readonly TrainingCapability[] = ["coach", "athlete"];
 
 // Profil : point d'entrée du compte — ses casquettes, ses coachs (#599), ses notifications.
 export function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const logout = useLogout();
   const { data: session, refetch } = authClient.useSession();
   const current = capabilitiesOf(session?.user);
   const version = appVersionLabel();
 
-  const [selected, setSelected] = useState<Set<CapabilityName>>(
+  const [selected, setSelected] = useState<Set<TrainingCapability>>(
     new Set(OPTIONS.filter((name) => (name === "coach" ? current.isCoach : current.isAthlete))),
   );
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export function ProfileScreen() {
   const isAthlete = selected.has("athlete");
   const unchanged = isCoach === current.isCoach && isAthlete === current.isAthlete;
 
-  function toggle(name: CapabilityName) {
+  function toggle(name: TrainingCapability) {
     const next = new Set(selected);
     if (!next.delete(name)) next.add(name);
     setSelected(next);
@@ -54,17 +55,6 @@ export function ProfileScreen() {
       { isCoach, isAthlete },
       { onError: (cause) => setError(t(capabilityErrorKey(cause))) },
     );
-  }
-
-  async function onLogout() {
-    // Détacher l'appareil AVANT de fermer la session : la route de révocation est scopée à
-    // l'utilisateur connecté, elle n'aurait plus d'effet après le signOut.
-    await revokeCurrentPushToken();
-    await authClient.signOut();
-    // Le cookie part, ce que l'appareil garde RESTAIT — cache persisté sept jours et frais cinq
-    // minutes, documents descendus pour le hors-ligne : tout était resservi au compte suivant.
-    await resetAccountData();
-    router.replace("/login");
   }
 
   return (
@@ -158,7 +148,7 @@ export function ProfileScreen() {
             n'aurait contenu qu'eux ferait payer une navigation pour rien. */}
         <NotificationEmailSection />
 
-        <CmvButton label={t("common.logout")} onPress={onLogout} />
+        <CmvButton label={t("common.logout")} onPress={logout} />
 
         {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), SOUS la déconnexion : c'est la
             seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison est un build

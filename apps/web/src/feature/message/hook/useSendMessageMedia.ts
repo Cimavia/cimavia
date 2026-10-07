@@ -1,5 +1,4 @@
 import {
-  type CapabilityName,
   MAX_MESSAGE_MEDIA_BATCH,
   type MediaBatchStep,
   type MediaRecapReason,
@@ -14,6 +13,7 @@ import {
   runMultipartUpload,
   type SendMessageInput,
   sendMediaBatch,
+  type TrainingCapability,
   UploadMode,
 } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -177,7 +177,7 @@ async function prepareAndSend(
   source: WebMediaSource,
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
-  as: CapabilityName | null,
+  as: TrainingCapability | null,
   extra: SendExtra,
 ): Promise<MessageDto> {
   const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
@@ -190,7 +190,7 @@ async function uploadAndSend(
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
-  as: CapabilityName | null,
+  as: TrainingCapability | null,
   extra: SendExtra,
 ): Promise<MessageDto> {
   const uploadInput = toUploadUrlInput(media);
@@ -228,7 +228,7 @@ function sendInParts(
   file: File,
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
-  as: CapabilityName | null,
+  as: TrainingCapability | null,
 ): Promise<void> {
   const upload = { storagePath: ticket.storagePath, uploadId: ticket.uploadId };
   return runMultipartUpload(ticket, file.size, {

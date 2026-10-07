@@ -16,7 +16,7 @@ import { landingTab } from "@/shared/lib/tabs";
  * on déconnecte plutôt que d'ouvrir une app vide dont on ne pourrait plus sortir.
  */
 export default function Index() {
-  const { isPending, isAuthenticated, isCoach, isAthlete } = useCapabilities();
+  const { isPending, isAuthenticated, isCoach, isAthlete, isCompany } = useCapabilities();
   const counterparts = useCounterparts();
 
   if (isPending) {
@@ -29,5 +29,5 @@ export default function Index() {
 
   if (!isAuthenticated) return <Redirect href="/login" />;
 
-  return <Redirect href={landingTab({ isCoach, isAthlete }, counterparts)} />;
+  return <Redirect href={landingTab({ isCoach, isAthlete, isCompany }, counterparts)} />;
 }

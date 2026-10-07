@@ -1,4 +1,4 @@
-import { type CapabilityName, capabilitiesOf, Role, required } from "@cmv/shared";
+import { capabilitiesOf, Role, required, type TrainingCapability } from "@cmv/shared";
 import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
 import { authClient } from "@/shared/lib/auth";
 
@@ -15,12 +15,12 @@ import { authClient } from "@/shared/lib/auth";
  * que le sélecteur. Le faire descendre en props traverserait des composants que ça ne regarde pas.
  */
 const ExercisedCapabilityContext = createContext<{
-  override: CapabilityName | null;
-  setOverride: (capability: CapabilityName) => void;
+  override: TrainingCapability | null;
+  setOverride: (capability: TrainingCapability) => void;
 } | null>(null);
 
 export function ExercisedCapabilityProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const [override, setOverride] = useState<CapabilityName | null>(null);
+  const [override, setOverride] = useState<TrainingCapability | null>(null);
   const value = useMemo(() => ({ override, setOverride }), [override]);
   return (
     <ExercisedCapabilityContext.Provider value={value}>
@@ -37,7 +37,7 @@ export function ExercisedCapabilityProvider({ children }: Readonly<{ children: R
  * — l'univers d'atterrissage que #9 lui a laissé. Ce n'est pas un droit dérivé du rôle : la garde,
  * elle, lit les capacités.
  */
-export function useExercisedCapability(): CapabilityName | null {
+export function useExercisedCapability(): TrainingCapability | null {
   const { data } = authClient.useSession();
   const context = useContext(ExercisedCapabilityContext);
   const { isCoach, isAthlete } = capabilitiesOf(data?.user);
@@ -53,8 +53,8 @@ export function useExercisedCapability(): CapabilityName | null {
  */
 export function useCapabilitySwitch(): {
   visible: boolean;
-  current: CapabilityName | null;
-  select: (capability: CapabilityName) => void;
+  current: TrainingCapability | null;
+  select: (capability: TrainingCapability) => void;
 } {
   const context = useContext(ExercisedCapabilityContext);
   const current = useExercisedCapability();
@@ -78,7 +78,7 @@ export function useCapabilitySwitch(): {
  * Ce n'est pas une garde : qui entre est décidé par la route et le scope tenant. C'est ce que
  * l'écran montre une fois entré.
  */
-export function useActingCapability(): CapabilityName {
+export function useActingCapability(): TrainingCapability {
   const exercised = useExercisedCapability();
   const { isCoach } = capabilitiesOf(authClient.useSession().data?.user);
   return exercised ?? (isCoach ? "coach" : "athlete");

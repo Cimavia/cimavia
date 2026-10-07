@@ -1,4 +1,10 @@
-import { type Capabilities, type CapabilityName, capabilitiesOf, Role } from "@cmv/shared";
+import {
+  type Capabilities,
+  type CapabilityName,
+  capabilitiesOf,
+  Role,
+  type TrainingCapability,
+} from "@cmv/shared";
 import { useLocation, useSearch } from "@tanstack/react-router";
 import { authClient } from "@/shared/lib/auth";
 import { spaceOfPath } from "@/shared/lib/nav";
@@ -44,15 +50,16 @@ export function useCapabilities(): SessionCapabilities {
  * écrans sans passer par la nav — un lien profond, un signet, une notification. Ce n'est pas un
  * droit dérivé du rôle : la garde, elle, lit les capacités.
  */
-export function useExercisedCapability(): CapabilityName | null {
+export function useExercisedCapability(): TrainingCapability | null {
   const { data } = authClient.useSession();
   const { isCoach, isAthlete } = capabilitiesOf(data?.user);
   const space = useActiveSpace();
-  return isCoach && isAthlete ? space : null;
+  // L'espace Entreprise n'a aucun titre à préciser : il ne touche à aucune route servie aux deux.
+  return isCoach && isAthlete && space !== "company" ? space : null;
 }
 
 /**
- * L'espace de navigation courant — coach ou athlète. Toujours une valeur, y compris pour un compte
+ * L'espace de navigation courant — coach, athlète ou entreprise. Toujours une valeur, y compris pour un compte
  * mono-capacité, chez qui il n'y a jamais qu'une réponse.
  *
  * Il se DÉDUIT de l'URL, sans état applicatif : le chemin dit déjà à quel univers on est
@@ -71,7 +78,15 @@ export function useActiveSpace(): CapabilityName {
   if (search.as === "coach" || search.as === "athlete") return search.as;
   const fromPath = spaceOfPath(pathname);
   if (fromPath != null) return fromPath;
-  return data?.user.role === Role.ATHLETE ? "athlete" : "coach";
+  switch (data?.user.role) {
+    case Role.ATHLETE:
+      return "athlete";
+    // Sans ce cas, un compte Entreprise sur `/account` ou une page inconnue verrait le menu coach.
+    case Role.COMPANY:
+      return "company";
+    default:
+      return "coach";
+  }
 }
 
 /**
@@ -86,12 +101,14 @@ export function useActiveSpace(): CapabilityName {
  * Ce n'est pas une garde : qui entre est décidé par la route et le scope tenant. C'est ce que
  * l'écran montre une fois entré.
  */
-export function useActingCapability(): CapabilityName {
+export function useActingCapability(): TrainingCapability {
   const { isCoach, isAthlete } = useCapabilities();
   const space = useActiveSpace();
   // Un compte mono-capacité n'a qu'une réponse, quelle que soit l'URL : sans ça, un athlète
   // ouvrant `/invoices` sans paramètre verrait l'écran du coach par le seul repli du persona.
   if (!isCoach) return "athlete";
   if (!isAthlete) return "coach";
-  return space;
+  // Un compte qui cumule n'est jamais Entreprise (CHECK en base, #600) : l'espace qu'il parcourt
+  // est l'un des deux siens. Le type ne le sait pas, d'où le repli sur coach, son persona par défaut.
+  return space === "company" ? "coach" : space;
 }

@@ -23,11 +23,14 @@ vi.mock("@/shared/lib/auth", () => ({
 }));
 
 const NAME = "auth.register.name";
+const COMPANY_NAME = "auth.register.companyName";
 const EMAIL = "common.email";
 const PASSWORD = "common.password";
 const SUBMIT = "auth.register.submit";
 const COACH = "auth.register.capabilityCoach";
 const ATHLETE = "auth.register.capabilityAthlete";
+const TRAINING = "auth.register.type.training";
+const COMPANY = "auth.register.type.company";
 
 function setup() {
   return renderInRoute(<RegisterScreen />, { path: "/register", links: ["/", "/login"] });
@@ -35,15 +38,21 @@ function setup() {
 
 type View = Awaited<ReturnType<typeof setup>>;
 
+/** Choisit la carte « Coach et/ou athlète » : le reste du formulaire n'existe qu'après. */
+async function chooseTraining(view: View) {
+  await view.user.click(view.getByRole("radio", { name: TRAINING }));
+}
+
 /** Remplit l'identité et soumet — quand le sujet est ce qui SUIT une inscription réussie. */
 async function submitRegistration(view: View) {
+  await chooseTraining(view);
   await fillIdentity(view);
   await view.user.click(view.getByRole("button", { name: SUBMIT }));
 }
 
 /** Remplit l'identité, qui n'est jamais le sujet des assertions ci-dessous. */
-async function fillIdentity(view: View) {
-  await view.user.type(view.getByLabelText(NAME), "Kylian");
+async function fillIdentity(view: View, nameLabel = NAME) {
+  await view.user.type(view.getByLabelText(nameLabel), "Kylian");
   await view.user.type(view.getByLabelText(EMAIL), "kylian@example.test");
   await view.user.type(view.getByLabelText(PASSWORD), "motdepasse1");
 }
@@ -62,17 +71,71 @@ beforeEach(() => {
   signUpMock.mockResolvedValue({ error: null });
 });
 
+describe("RegisterScreen — le type de compte (#600)", () => {
+  /**
+   * Le type engage le compte pour de bon — une entreprise ne deviendra jamais coach —, il ne se
+   * présélectionne donc pas, et rien ne se saisit avant lui : c'est lui qui nomme le champ « nom ».
+   */
+  it("ne montre que le choix du type tant qu'aucun n'est choisi", async () => {
+    const view = await setup();
+
+    expect(view.getByRole("radio", { name: TRAINING })).not.toBeChecked();
+    expect(view.getByRole("radio", { name: COMPANY })).not.toBeChecked();
+    // L'explication est lue comme description, pas fondue dans le nom de la carte.
+    expect(view.getByRole("radio", { name: COMPANY })).toHaveAccessibleDescription(
+      "auth.register.type.companyHint",
+    );
+    expect(view.queryByLabelText(EMAIL)).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: SUBMIT })).not.toBeInTheDocument();
+  });
+
+  it("inscrit une entreprise seule, sous le nom de l'entreprise", async () => {
+    const view = await setup();
+    await view.user.click(view.getByRole("radio", { name: COMPANY }));
+
+    // Pas de cases sous « Entreprise » : elle ne coache ni ne s'entraîne.
+    expect(view.queryByLabelText(COACH)).not.toBeInTheDocument();
+    await fillIdentity(view, COMPANY_NAME);
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(signUpMock).toHaveBeenCalledWith({
+        email: "kylian@example.test",
+        password: "motdepasse1",
+        name: "Kylian",
+        isCoach: false,
+        isAthlete: false,
+        isCompany: true,
+      }),
+    );
+  });
+
+  it("garde l'e-mail et le mot de passe d'une carte à l'autre", async () => {
+    const view = await setup();
+    await chooseTraining(view);
+    await fillIdentity(view);
+
+    await view.user.click(view.getByRole("radio", { name: COMPANY }));
+
+    expect(view.getByLabelText(COMPANY_NAME)).toHaveValue("Kylian");
+    expect(view.getByLabelText(EMAIL)).toHaveValue("kylian@example.test");
+    expect(view.getByLabelText(PASSWORD)).toHaveValue("motdepasse1");
+  });
+});
+
 describe("RegisterScreen", () => {
   it("part avec la capacité athlète cochée", async () => {
-    const { getByLabelText } = await setup();
+    const view = await setup();
+    await chooseTraining(view);
 
     // Le cas le plus courant est préparé : un athlète invité par son coach n'a rien à cocher.
-    expect(getByLabelText(ATHLETE)).toBeChecked();
-    expect(getByLabelText(COACH)).not.toBeChecked();
+    expect(view.getByLabelText(ATHLETE)).toBeChecked();
+    expect(view.getByLabelText(COACH)).not.toBeChecked();
   });
 
   it("laisse cumuler les deux capacités", async () => {
     const view = await setup();
+    await chooseTraining(view);
     await fillIdentity(view);
 
     await view.user.click(view.getByLabelText(COACH));
@@ -87,12 +150,14 @@ describe("RegisterScreen", () => {
         name: "Kylian",
         isCoach: true,
         isAthlete: true,
+        isCompany: false,
       }),
     );
   });
 
   it("refuse une inscription sans aucune capacité, sans appeler l'API", async () => {
     const view = await setup();
+    await chooseTraining(view);
     await fillIdentity(view);
 
     await view.user.click(view.getByLabelText(ATHLETE));
@@ -102,6 +167,10 @@ describe("RegisterScreen", () => {
     // devant une application vide, et l'apprendre après un aller-retour serait pire.
     expect(await view.findByText("auth.errors.noCapability")).toBeInTheDocument();
     expect(signUpMock).not.toHaveBeenCalled();
+
+    // Le message s'efface dès qu'une case est cochée, sans attendre un nouvel envoi.
+    await view.user.click(view.getByLabelText(COACH));
+    expect(view.queryByText("auth.errors.noCapability")).not.toBeInTheDocument();
   });
 
   it("efface tout ce qui reste du compte précédent AVANT de naviguer", async () => {
@@ -136,9 +205,8 @@ describe("RegisterScreen", () => {
 
   it("emmène à l'accueil une fois le compte créé", async () => {
     const view = await setup();
-    await fillIdentity(view);
 
-    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+    await submitRegistration(view);
 
     // Sans cette navigation, l'inscription réussie laisserait l'utilisateur sur le formulaire
     // qu'il vient de soumettre — indiscernable d'un échec silencieux.
@@ -160,9 +228,8 @@ describe("RegisterScreen", () => {
     ])("traduit le refus %s en %s", async (status, message) => {
       signUpMock.mockResolvedValue({ error: { status } });
       const view = await setup();
-      await fillIdentity(view);
 
-      await view.user.click(view.getByRole("button", { name: SUBMIT }));
+      await submitRegistration(view);
 
       expect(await view.findByText(message)).toBeInTheDocument();
     });
@@ -170,9 +237,8 @@ describe("RegisterScreen", () => {
     it("dit quelque chose même quand l'appel casse", async () => {
       signUpMock.mockRejectedValue(new Error("réseau coupé"));
       const view = await setup();
-      await fillIdentity(view);
 
-      await view.user.click(view.getByRole("button", { name: SUBMIT }));
+      await submitRegistration(view);
 
       // Une panne réseau ne remonte pas d'`error.status` : sans ce `catch`, l'écran resterait
       // muet et l'utilisateur recliquerait indéfiniment.
@@ -182,20 +248,20 @@ describe("RegisterScreen", () => {
 
   it("renvoie à l'accueil qui est déjà connecté", async () => {
     useSessionMock.mockReturnValue({ data: { user: { id: "u-1" } }, isPending: false });
-    const { router, queryByLabelText } = await setup();
+    const { router, queryByRole } = await setup();
 
     // La REDIRECTION est affirmée, pas seulement l'absence du formulaire : un DOM vide pour
     // n'importe quelle autre raison ferait passer une assertion d'absence sans rien vérifier.
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    expect(queryByLabelText(EMAIL)).not.toBeInTheDocument();
+    expect(queryByRole("radio", { name: TRAINING })).not.toBeInTheDocument();
   });
 
   it("montre le formulaire tant que la session n'est pas tranchée", async () => {
     useSessionMock.mockReturnValue({ data: null, isPending: true });
-    const { getByLabelText } = await setup();
+    const { getByRole } = await setup();
 
     // Rediriger pendant le chargement enverrait un visiteur non connecté vers l'accueil, d'où il
     // reviendrait aussitôt : la redirection attend une réponse, pas une absence de réponse.
-    expect(getByLabelText(EMAIL)).toBeInTheDocument();
+    expect(getByRole("radio", { name: TRAINING })).toBeInTheDocument();
   });
 });

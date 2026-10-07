@@ -1,9 +1,17 @@
-import type { CapabilityName } from "@cmv/shared";
-import { SELECTABLE_CAPABILITIES, signUpErrorKey, toggledCapability } from "@cmv/shared";
+import type { AccountType, TrainingCapability } from "@cmv/shared";
+import {
+  ACCOUNT_TYPES,
+  SELECTABLE_CAPABILITIES,
+  signUpCapabilities,
+  signUpErrorKey,
+  toggledCapability,
+} from "@cmv/shared";
+import { cmvColors } from "@cmv/tokens";
+import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
@@ -11,6 +19,14 @@ import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { landingTab } from "@/shared/lib/tabs";
+
+const TYPE_ICONS: Record<AccountType, ComponentProps<typeof Ionicons>["name"]> = {
+  training: "person-outline",
+  company: "business-outline",
+};
+
+const CHOICE_ON = "border-cmv-accent bg-cmv-accent-soft";
+const CHOICE_OFF = "border-cmv-border bg-cmv-surface";
 
 export function RegisterScreen() {
   const { t } = useTranslation();
@@ -20,7 +36,12 @@ export function RegisterScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selected, setSelected] = useState<Set<CapabilityName>>(new Set(["athlete"]));
+  // Aucun type au départ (#595) : le choix est exclusif et engage le compte pour de bon — une
+  // entreprise ne deviendra jamais coach —, il ne se présélectionne donc pas.
+  const [type, setType] = useState<AccountType | null>(null);
+  const [selected, setSelected] = useState<Set<TrainingCapability>>(new Set(["athlete"]));
+  // À part de `error` : la maquette le place sous les cases, et il s'efface dès qu'on en coche une.
+  const [noCapability, setNoCapability] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -30,11 +51,15 @@ export function RegisterScreen() {
     return <Redirect href={landingTab(capabilities)} />;
   }
 
+  const chosen = ACCOUNT_TYPES.find((option) => option.type === type);
+
   async function onSubmit() {
+    if (type == null) return;
     // Garde côté client EN PLUS de celle de l'API (400) : un compte sans capacité se retrouverait
     // devant une application vide, et le dire ici évite un aller-retour pour l'apprendre.
-    if (selected.size === 0) {
-      setError(t("auth.errors.noCapability"));
+    const signUp = signUpCapabilities(type, selected);
+    if (signUp == null) {
+      setNoCapability(true);
       return;
     }
     setSubmitting(true);
@@ -44,8 +69,7 @@ export function RegisterScreen() {
         email,
         password,
         name,
-        isCoach: selected.has("coach"),
-        isAthlete: selected.has("athlete"),
+        ...signUp,
       });
       if (signUpError != null) {
         setError(t(signUpErrorKey(signUpError.status)));
@@ -67,65 +91,127 @@ export function RegisterScreen() {
     }
   }
 
-  return (
-    <View className="flex-1 justify-center gap-4 bg-cmv-bg-0 p-6">
-      <CmvText className="mb-2 font-cmv-display text-cmv-title text-cmv-text-hi">
-        {t("auth.register.title")}
-      </CmvText>
-      <CmvTextField label={t("auth.register.name")} value={name} onChangeText={setName} />
-      <CmvTextField
-        label={t("common.email")}
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoComplete="email"
-      />
-      <CmvTextField
-        label={t("common.password")}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="new-password"
-      />
-      <View className="gap-1">
-        <CmvText className="text-cmv-text-mid text-sm">{t("auth.register.capabilities")}</CmvText>
-        <View className="flex-row gap-2">
-          {SELECTABLE_CAPABILITIES.map(({ name, labelKey }) => {
-            const checked = selected.has(name);
-            return (
-              <Pressable
-                key={name}
-                onPress={() => setSelected(toggledCapability(selected, name))}
-                // Case à cocher et non bouton : ce sont deux choix INDÉPENDANTS, et VoiceOver doit
-                // l'annoncer ainsi — sans quoi rien ne dit qu'on peut cocher les deux.
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked }}
-                className={
-                  checked
-                    ? "flex-1 rounded-lg border border-cmv-accent bg-cmv-accent-soft px-3 py-3"
-                    : "flex-1 rounded-lg border border-cmv-border bg-cmv-surface px-3 py-3"
-                }
-              >
-                <CmvText className="text-center text-cmv-text-hi">{t(labelKey)}</CmvText>
-              </Pressable>
-            );
-          })}
-        </View>
-        <CmvText className="text-cmv-text-lo text-xs">{t("auth.register.capabilityHint")}</CmvText>
+  const capabilityBoxes = (
+    <View className="gap-2">
+      <View className="flex-row gap-2">
+        {SELECTABLE_CAPABILITIES.map(({ name: capability, labelKey }) => {
+          const checked = selected.has(capability);
+          return (
+            <Pressable
+              key={capability}
+              onPress={() => {
+                setSelected(toggledCapability(selected, capability));
+                setNoCapability(false);
+              }}
+              // Case à cocher et non bouton : ce sont deux choix INDÉPENDANTS, et VoiceOver doit
+              // l'annoncer ainsi — sans quoi rien ne dit qu'on peut cocher les deux.
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked }}
+              accessibilityLabel={t(labelKey)}
+              className={`flex-1 flex-row items-center gap-2 rounded-lg border px-3 py-3 ${checked ? CHOICE_ON : CHOICE_OFF}`}
+            >
+              <Ionicons
+                name={checked ? "checkbox" : "square-outline"}
+                size={18}
+                color={checked ? cmvColors.accent.DEFAULT : cmvColors.border.hi}
+              />
+              <CmvText className={checked ? "text-cmv-text-hi" : "text-cmv-text-mid"}>
+                {t(labelKey)}
+              </CmvText>
+            </Pressable>
+          );
+        })}
       </View>
-      {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
-      <CmvButton
-        label={submitting ? t("auth.register.submitting") : t("auth.register.submit")}
-        onPress={onSubmit}
-        disabled={submitting}
-      />
-      <View className="flex-row gap-1">
-        <CmvText className="text-cmv-text-mid">{t("auth.register.hasAccount")}</CmvText>
-        <Pressable onPress={() => router.push("/login")}>
-          <CmvText className="text-cmv-accent">{t("auth.register.toLogin")}</CmvText>
-        </Pressable>
-      </View>
+      {noCapability && (
+        <CmvText className="text-cmv-error text-sm">{t("auth.errors.noCapability")}</CmvText>
+      )}
     </View>
+  );
+
+  return (
+    <ScrollView
+      className="flex-1 bg-cmv-bg-0"
+      contentContainerClassName="grow justify-center gap-4 p-6"
+      keyboardShouldPersistTaps="handled"
+    >
+      <View className="mb-2 gap-1">
+        <CmvText className="font-cmv-display text-cmv-title text-cmv-text-hi">
+          {t("auth.register.title")}
+        </CmvText>
+        <CmvText className="text-cmv-text-lo">{t("auth.register.lead")}</CmvText>
+      </View>
+      {ACCOUNT_TYPES.map((option) => {
+        const checked = option.type === type;
+        return (
+          <View key={option.type} className="gap-3">
+            <Pressable
+              onPress={() => setType(option.type)}
+              // Bouton radio : les deux cartes sont EXCLUSIVES, ce que des cases ne diraient pas.
+              // Le titre nomme la carte, l'explication la décrit — lus d'un seul tenant sinon.
+              accessibilityRole="radio"
+              accessibilityState={{ checked }}
+              accessibilityLabel={t(option.labelKey)}
+              accessibilityHint={t(option.hintKey)}
+              className={`flex-row items-start gap-3 rounded-xl border p-4 ${checked ? CHOICE_ON : CHOICE_OFF}`}
+            >
+              <Ionicons
+                name={TYPE_ICONS[option.type]}
+                size={24}
+                color={checked ? cmvColors.accent.on : cmvColors.text.lo}
+              />
+              <View className="flex-1 gap-1">
+                <CmvText className="font-cmv-heading text-cmv-subtitle text-cmv-text-hi">
+                  {t(option.labelKey)}
+                </CmvText>
+                <CmvText className="text-cmv-text-mid text-xs">{t(option.hintKey)}</CmvText>
+              </View>
+              <Ionicons
+                name={checked ? "checkmark-circle" : "ellipse-outline"}
+                size={18}
+                color={checked ? cmvColors.accent.DEFAULT : cmvColors.border.hi}
+              />
+            </Pressable>
+            {/* Sur mobile, les cases s'insèrent sous la carte choisie, avant « Entreprise ». */}
+            {checked && option.type === "training" && capabilityBoxes}
+          </View>
+        );
+      })}
+      {/* Le reste n'apparaît qu'une fois le type choisi : c'est lui qui nomme le champ « nom ».
+          Les valeurs vivent dans l'écran, pas dans les champs : changer de carte les garde. */}
+      {chosen != null && (
+        <>
+          <CmvTextField
+            label={t(chosen.nameLabelKey)}
+            value={name}
+            onChangeText={setName}
+            autoComplete={chosen.type === "training" ? "name" : undefined}
+          />
+          <CmvTextField
+            label={t("common.email")}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+          />
+          <CmvTextField
+            label={t("common.password")}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="new-password"
+          />
+          {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
+          <CmvButton
+            label={submitting ? t("auth.register.submitting") : t("auth.register.submit")}
+            onPress={onSubmit}
+            disabled={submitting}
+          />
+        </>
+      )}
+      <Pressable onPress={() => router.push("/login")} className="items-center py-2">
+        <CmvText className="font-semibold text-cmv-accent">{t("auth.register.toLogin")}</CmvText>
+      </Pressable>
+    </ScrollView>
   );
 }

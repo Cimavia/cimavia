@@ -27,6 +27,8 @@ import { Route as PlansIndexRouteImport } from './routes/plans.index'
 import { Route as LibraryIndexRouteImport } from './routes/library.index'
 import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as CompanyCoachesRouteImport } from './routes/company.coaches'
+import { Route as CompanyAthletesRouteImport } from './routes/company.athletes'
 import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
 import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
 import { Route as LibrarySessionsNewRouteImport } from './routes/library.sessions.new'
@@ -124,6 +126,16 @@ const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   path: '/plans/$planId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompanyCoachesRoute = CompanyCoachesRouteImport.update({
+  id: '/company/coaches',
+  path: '/company/coaches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanyAthletesRoute = CompanyAthletesRouteImport.update({
+  id: '/company/athletes',
+  path: '/company/athletes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SessionsSessionIdIndexRoute = SessionsSessionIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -172,6 +184,8 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/company/athletes': typeof CompanyAthletesRoute
+  '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
   '/library/': typeof LibraryIndexRoute
@@ -198,6 +212,8 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/company/athletes': typeof CompanyAthletesRoute
+  '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/library': typeof LibraryIndexRoute
   '/plans': typeof PlansIndexRoute
@@ -224,6 +240,8 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/company/athletes': typeof CompanyAthletesRoute
+  '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
   '/sessions/$sessionId': typeof SessionsSessionIdRouteWithChildren
   '/library/': typeof LibraryIndexRoute
@@ -252,6 +270,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/reminders'
     | '/reset-password'
+    | '/company/athletes'
+    | '/company/coaches'
     | '/plans/$planId'
     | '/sessions/$sessionId'
     | '/library/'
@@ -278,6 +298,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/reminders'
     | '/reset-password'
+    | '/company/athletes'
+    | '/company/coaches'
     | '/plans/$planId'
     | '/library'
     | '/plans'
@@ -303,6 +325,8 @@ export interface FileRouteTypes {
     | '/register'
     | '/reminders'
     | '/reset-password'
+    | '/company/athletes'
+    | '/company/coaches'
     | '/plans/$planId'
     | '/sessions/$sessionId'
     | '/library/'
@@ -330,6 +354,8 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  CompanyAthletesRoute: typeof CompanyAthletesRoute
+  CompanyCoachesRoute: typeof CompanyCoachesRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
   SessionsSessionIdRoute: typeof SessionsSessionIdRouteWithChildren
   LibraryIndexRoute: typeof LibraryIndexRoute
@@ -469,6 +495,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansPlanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/company/coaches': {
+      id: '/company/coaches'
+      path: '/company/coaches'
+      fullPath: '/company/coaches'
+      preLoaderRoute: typeof CompanyCoachesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/company/athletes': {
+      id: '/company/athletes'
+      path: '/company/athletes'
+      fullPath: '/company/athletes'
+      preLoaderRoute: typeof CompanyAthletesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sessions/$sessionId/': {
       id: '/sessions/$sessionId/'
       path: '/'
@@ -541,6 +581,8 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  CompanyAthletesRoute: CompanyAthletesRoute,
+  CompanyCoachesRoute: CompanyCoachesRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,
   SessionsSessionIdRoute: SessionsSessionIdRouteWithChildren,
   LibraryIndexRoute: LibraryIndexRoute,

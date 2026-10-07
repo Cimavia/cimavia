@@ -349,7 +349,7 @@ le PC étant un faux négatif en mode *mirrored* :
 - Commits : **Conventional Commits** (sujet en minuscule, signés)
 - Composants design system : préfixe `Cmv`
 - Packages : scope `@cmv/*`
-- Auth : **Better Auth** (email/mot de passe) sur les 3 couches ; profil (`role`, `locale`) sur `user`
+- Auth : **Better Auth** (email/mot de passe) sur les 3 couches ; sur `user`, les capacités `isCoach` / `isAthlete` (cumulables) ou `isCompany` (exclusive, compte Entreprise), `role` (persona d'affichage, déduit, jamais un droit) et `locale`
 - Inscription : **l'environnement déclare qui peut s'y inscrire** — `SIGNUP_MODE` (`open` | `invitation`) **sans valeur par défaut**, l'API refuse de démarrer s'il se tait. En `invitation`, seules entrent une adresse **invitée** (toute invitation est nominative depuis #390) ou listée dans `SIGNUP_ALLOWED_EMAILS` — la porte des coachs, que personne n'invite. Le refus tombe avant la création, en **403**. Pour la même raison, `/docs` (Swagger) n'est monté qu'hors `NODE_ENV=production` : toute image le ferme, `pnpm dev` le garde
 - Multi-tenant : isolation à la couche données (tenancy interceptor + Prisma Client Extension) — voir `docs/architecture-choice.md` §6
 - i18n : **i18next** dès le départ, aucune string en dur (FR ; EN en P7). Un placeholder qui montre un **exemple** commence par « Ex. » (« ex. » derrière une consigne) — sinon il se lit comme une valeur saisie (#526) ; une consigne (« Rechercher un athlète… ») reste telle quelle
