@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import type { TrainingCapability } from "@cmv/shared";
 import { SELECTABLE_CAPABILITIES, signUpErrorKey, toggledCapability } from "@cmv/shared";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
@@ -20,7 +20,7 @@ export function RegisterScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selected, setSelected] = useState<Set<CapabilityName>>(new Set(["athlete"]));
+  const [selected, setSelected] = useState<Set<TrainingCapability>>(new Set(["athlete"]));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

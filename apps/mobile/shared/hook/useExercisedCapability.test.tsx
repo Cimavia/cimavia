@@ -1,4 +1,4 @@
-import { type CapabilityName, Role } from "@cmv/shared";
+import { Role, type TrainingCapability } from "@cmv/shared";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,7 +49,7 @@ describe("useExercisedCapability", () => {
     expect(renderHook(() => useExercisedCapability(), { wrapper }).result.current).toBeNull();
   });
 
-  it.each<[string, Account, CapabilityName]>([
+  it.each<[string, Account, TrainingCapability]>([
     ["coach", DUAL_COACH, "coach"],
     ["athlète", DUAL_ATHLETE, "athlete"],
   ])("atterrit sur le persona d'un compte double de persona %s", (_, account, expected) => {
@@ -91,7 +91,7 @@ describe("useCapabilitySwitch", () => {
 });
 
 describe("useActingCapability", () => {
-  it.each<[string, Account | null, CapabilityName]>([
+  it.each<[string, Account | null, TrainingCapability]>([
     ["un coach seul", COACH, "coach"],
     ["un athlète seul", ATHLETE, "athlete"],
     // Sans capacité connue, rien ne s'ouvre au titre de coach : l'écran montre le versant athlète,

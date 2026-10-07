@@ -1,4 +1,4 @@
-import { type CapabilityName, type MessageDto, messageKeys } from "@cmv/shared";
+import { type MessageDto, messageKeys, type TrainingCapability } from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useFocusEffect } from "expo-router";
@@ -10,7 +10,7 @@ const { getMessagesMock, markReadMock, sendMessageMock, exercised } = vi.hoisted
   getMessagesMock: vi.fn(),
   markReadMock: vi.fn(),
   sendMessageMock: vi.fn(),
-  exercised: { as: null as CapabilityName | null },
+  exercised: { as: null as TrainingCapability | null },
 }));
 
 vi.mock("@/feature/message/api", async () => ({

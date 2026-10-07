@@ -51,6 +51,7 @@
     "register": {
       "title": "Créer un compte",
       "name": "Nom complet",
+      "companyName": "Nom de l'entreprise",
       "capabilities": "Je veux",
       "capabilityCoach": "Coacher des athlètes",
       "capabilityAthlete": "Suivre mes entraînements",
@@ -58,7 +59,13 @@
       "submit": "Créer mon compte",
       "submitting": "Création…",
       "hasAccount": "Déjà un compte ?",
-      "toLogin": "Se connecter"
+      "toLogin": "Se connecter",
+      "type": {
+        "training": "Coach et/ou athlète",
+        "trainingHint": "Je coache, je m'entraîne, ou les deux.",
+        "company": "Entreprise",
+        "companyHint": "Une entreprise ne coache pas et ne s'entraîne pas : elle ajoute ses coachs et invite des athlètes."
+      }
     },
     "forgot": {
       "title": "Mot de passe oublié",

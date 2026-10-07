@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import type { TrainingCapability } from "@cmv/shared";
 import {
   PASSWORD_MIN_LENGTH,
   SELECTABLE_CAPABILITIES,
@@ -23,7 +23,7 @@ export function RegisterScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [capabilities, setCapabilities] = useState<Set<CapabilityName>>(new Set(["athlete"]));
+  const [capabilities, setCapabilities] = useState<Set<TrainingCapability>>(new Set(["athlete"]));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

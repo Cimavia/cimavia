@@ -1,5 +1,4 @@
 import {
-  type CapabilityName,
   type ConversationDto,
   type ConversationRelation,
   conversationRows,
@@ -7,6 +6,7 @@ import {
   initialsOf,
   MessageType,
   type ConversationRow as Row,
+  type TrainingCapability,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -57,7 +57,7 @@ export function AthleteConversationsScreen() {
 }
 
 type ConversationsViewProps = {
-  as: CapabilityName;
+  as: TrainingCapability;
   relations: UseQueryResult<ConversationRelation[]>;
   emptyTitle: string;
   emptyDescription: string;

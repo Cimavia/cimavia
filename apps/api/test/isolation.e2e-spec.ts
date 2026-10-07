@@ -444,7 +444,7 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
 
   const coach = (userId: string): TenantContext => ({
     userId,
-    capabilities: { isCoach: true, isAthlete: false },
+    capabilities: { isCoach: true, isAthlete: false, isCompany: false },
     exercised: "coach",
   });
 
@@ -478,7 +478,7 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
   it("refuse une capacité qui n'a aucun accès au modèle", async () => {
     const athlete: TenantContext = {
       userId: coachAId,
-      capabilities: { isCoach: true, isAthlete: true },
+      capabilities: { isCoach: true, isAthlete: true, isCompany: false },
       exercised: "athlete",
     };
 

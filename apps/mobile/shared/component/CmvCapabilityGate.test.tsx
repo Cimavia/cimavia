@@ -11,6 +11,7 @@ const SCREEN = "écran gardé";
 const SIGNED_OUT: SessionCapabilities = {
   isCoach: false,
   isAthlete: false,
+  isCompany: false,
   isPending: false,
   isAuthenticated: false,
 };

@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import type { TrainingCapability } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -13,7 +13,7 @@ const OPTIONS = [
   { capability: "coach", icon: "person-outline" },
   { capability: "athlete", icon: "barbell-outline" },
 ] as const satisfies readonly {
-  capability: CapabilityName;
+  capability: TrainingCapability;
   icon: keyof typeof Ionicons.glyphMap;
 }[];
 

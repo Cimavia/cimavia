@@ -1,4 +1,4 @@
-import type { CapabilityName } from "../capability";
+import type { TrainingCapability } from "../capability";
 import { type NotificationDto, NotificationType } from "../dto/notification.schema";
 
 /**
@@ -61,7 +61,7 @@ export function notificationSubject(
  * seule la conversation dirait lequel. Le résoudre demanderait de charger chaque fil cité —
  * l'appelant le fait s'il en a besoin, plutôt que de le supposer ici (`capabilityOfMessage`).
  */
-export function capabilityOfNotification(type: NotificationType): CapabilityName | null {
+export function capabilityOfNotification(type: NotificationType): TrainingCapability | null {
   switch (type) {
     // Tout ce qui concerne un cycle est reçu par celui qui s'entraîne dessus.
     case NotificationType.PLAN_PUBLISHED:
@@ -97,6 +97,6 @@ export function capabilityOfNotification(type: NotificationType): CapabilityName
 export function capabilityOfMessage(
   recipientId: string,
   conversation: { coachId: string; athleteId: string },
-): CapabilityName {
+): TrainingCapability {
   return conversation.coachId === recipientId ? "coach" : "athlete";
 }

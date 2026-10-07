@@ -6,12 +6,17 @@
  * notifications consomment son résultat. C'est ce qui a permis à #9 de remplacer le rôle exclusif
  * par deux capacités sans toucher un seul de ses appelants.
  *
- * Les deux drapeaux sont **cumulables et indépendants** (#7) : un coach qui se coache lui-même les
- * porte tous les deux. Ne jamais traiter l'un comme la négation de l'autre.
+ * `isCoach` et `isAthlete` sont **cumulables et indépendants** (#7) : un coach qui se coache
+ * lui-même les porte tous les deux. Ne jamais traiter l'un comme la négation de l'autre.
+ *
+ * `isCompany` est **exclusif** des deux autres (#600) : un compte Entreprise ne coache ni ne
+ * s'entraîne. La base le garantit par un CHECK ; ce type ne le suppose pas pour autant — chaque
+ * drapeau se lit pour lui-même.
  */
 export type Capabilities = {
   isCoach: boolean;
   isAthlete: boolean;
+  isCompany: boolean;
 };
 
 /**
@@ -19,15 +24,35 @@ export type Capabilities = {
  * laquelle une exigence s'ÉCRIT (`capability="coach"`), là où `Capabilities` est ce qu'un compte
  * POSSÈDE.
  */
-export type CapabilityName = "coach" | "athlete";
+export type CapabilityName = "coach" | "athlete" | "company";
+
+/**
+ * Les deux capacités d'ENTRAÎNEMENT — celles qui se cumulent, se cochent à l'inscription, et qu'un
+ * compte à double capacité précise par `?as=` sur les routes servies aux deux (#10).
+ *
+ * Un type à part et non `CapabilityName` partout (#600) : le code qui les départage s'écrit en
+ * ternaire, `as === "coach" ? … : …`. Élargi à `"company"`, chacun de ces ternaires rangeait
+ * l'entreprise dans la branche athlète, sans rien qui le signale. Restreint ici, il ne compile pas.
+ */
+export type TrainingCapability = Exclude<CapabilityName, "company">;
 
 /**
  * Traduit une exigence en réponse. Une seule table de correspondance pour tous les consommateurs
  * (garde de route, sidebar web, onglets mobile) : sans elle, chacun réécrit le même ternaire, et le
  * jour où une troisième capacité existe il faut les retrouver tous.
+ *
+ * Un `switch` exhaustif et non plus un ternaire : c'est ici que la troisième est arrivée (#600), et
+ * le ternaire répondait `isAthlete` à la question « est-ce une entreprise ? ».
  */
 export function hasCapability(capabilities: Capabilities, name: CapabilityName): boolean {
-  return name === "coach" ? capabilities.isCoach : capabilities.isAthlete;
+  switch (name) {
+    case "coach":
+      return capabilities.isCoach;
+    case "athlete":
+      return capabilities.isAthlete;
+    case "company":
+      return capabilities.isCompany;
+  }
 }
 
 /**
@@ -44,6 +69,7 @@ export function hasCapability(capabilities: Capabilities, name: CapabilityName):
 export type CapabilitySource = {
   isCoach?: boolean | null | undefined;
   isAthlete?: boolean | null | undefined;
+  isCompany?: boolean | null | undefined;
 };
 
 /**
@@ -55,7 +81,11 @@ export type CapabilitySource = {
  * plus ancien n'a pas déclaré — tout cela ferme.
  */
 export function capabilitiesOf(user: CapabilitySource | null | undefined): Capabilities {
-  return { isCoach: user?.isCoach === true, isAthlete: user?.isAthlete === true };
+  return {
+    isCoach: user?.isCoach === true,
+    isAthlete: user?.isAthlete === true,
+    isCompany: user?.isCompany === true,
+  };
 }
 
 /**
@@ -66,7 +96,7 @@ export function capabilitiesOf(user: CapabilitySource | null | undefined): Capab
  * Elles sont **cumulables** (#7) : un coach qui se coache lui-même coche les deux. `role` n'est
  * plus envoyé — l'API le déduit comme persona d'atterrissage (#12).
  */
-export const SELECTABLE_CAPABILITIES: readonly { name: CapabilityName; labelKey: string }[] = [
+export const SELECTABLE_CAPABILITIES: readonly { name: TrainingCapability; labelKey: string }[] = [
   { name: "coach", labelKey: "auth.register.capabilityCoach" },
   { name: "athlete", labelKey: "auth.register.capabilityAthlete" },
 ];
@@ -76,10 +106,56 @@ export const SELECTABLE_CAPABILITIES: readonly { name: CapabilityName; labelKey:
  * mutation en place ne redessinerait rien.
  */
 export function toggledCapability(
-  current: ReadonlySet<CapabilityName>,
-  name: CapabilityName,
-): Set<CapabilityName> {
+  current: ReadonlySet<TrainingCapability>,
+  name: TrainingCapability,
+): Set<TrainingCapability> {
   const next = new Set(current);
   if (!next.delete(name)) next.add(name);
   return next;
+}
+
+/**
+ * Le PREMIER choix de l'inscription (#600, maquette #595) : un compte qui coache et/ou s'entraîne,
+ * ou un compte Entreprise. Exclusifs — c'est ce qui fait de l'entreprise un type de compte et non
+ * une troisième case à cocher.
+ */
+export type AccountType = "training" | "company";
+
+/**
+ * Les deux cartes de l'inscription, dans l'ordre d'affichage. Le libellé du champ nom en dépend :
+ * « Nom complet » pour une personne, « Nom de l'entreprise » pour une entreprise — qui n'a pas
+ * d'autre nom que celui de son compte. Partagée pour la même raison que `SELECTABLE_CAPABILITIES`.
+ */
+export const ACCOUNT_TYPES: readonly {
+  type: AccountType;
+  labelKey: string;
+  hintKey: string;
+  nameLabelKey: string;
+}[] = [
+  {
+    type: "training",
+    labelKey: "auth.register.type.training",
+    hintKey: "auth.register.type.trainingHint",
+    nameLabelKey: "auth.register.name",
+  },
+  {
+    type: "company",
+    labelKey: "auth.register.type.company",
+    hintKey: "auth.register.type.companyHint",
+    nameLabelKey: "auth.register.companyName",
+  },
+];
+
+/**
+ * Ce que l'inscription envoie, ou `null` quand elle ne doit pas partir : « Coach et/ou athlète »
+ * sans aucune case cochée. Les cases ne valent que sous ce type — une entreprise qui les aurait
+ * cochées avant de changer de carte n'envoie qu'`isCompany`, que l'API exige seul.
+ */
+export function signUpCapabilities(
+  type: AccountType,
+  selected: ReadonlySet<TrainingCapability>,
+): Capabilities | null {
+  if (type === "company") return { isCoach: false, isAthlete: false, isCompany: true };
+  if (selected.size === 0) return null;
+  return { isCoach: selected.has("coach"), isAthlete: selected.has("athlete"), isCompany: false };
 }

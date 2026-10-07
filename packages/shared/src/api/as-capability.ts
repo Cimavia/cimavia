@@ -1,4 +1,4 @@
-import type { CapabilityName } from "../capability";
+import type { TrainingCapability } from "../capability";
 
 /**
  * Le paramètre par lequel un appel dit **à quel titre** il est fait — `coach` ou `athlete` (#10).
@@ -14,7 +14,7 @@ import type { CapabilityName } from "../capability";
 export const AS_CAPABILITY_PARAM = "as";
 
 /** Le suffixe d'URL, ou rien. Sortie vide sur `null` : voir `AS_CAPABILITY_PARAM`. */
-export function asQuery(as: CapabilityName | null | undefined): string {
+export function asQuery(as: TrainingCapability | null | undefined): string {
   return as == null ? "" : `?${AS_CAPABILITY_PARAM}=${as}`;
 }
 
@@ -24,6 +24,6 @@ export function asQuery(as: CapabilityName | null | undefined): string {
  * qui les confondrait servirait à l'un le cache de l'autre — un compte à double capacité verrait
  * ses factures reçues sous l'onglet de ses factures émises.
  */
-export function asKey(as: CapabilityName | null | undefined): CapabilityName | null {
+export function asKey(as: TrainingCapability | null | undefined): TrainingCapability | null {
   return as ?? null;
 }

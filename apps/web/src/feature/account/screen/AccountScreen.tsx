@@ -1,4 +1,4 @@
-import { type CapabilityName, capabilitiesOf } from "@cmv/shared";
+import { capabilitiesOf, type TrainingCapability } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoWarningOutline } from "react-icons/io5";
@@ -10,7 +10,7 @@ import { authClient } from "@/shared/lib/auth";
 
 // i18n-values account.capabilities.option: coach, athlete
 // i18n-values account.capabilities.hint: coach, athlete
-const OPTIONS: readonly CapabilityName[] = ["coach", "athlete"];
+const OPTIONS: readonly TrainingCapability[] = ["coach", "athlete"];
 
 /**
  * Le compte : identité, et les capacités qu'on peut ajouter ou retirer après coup (#13).
@@ -23,7 +23,7 @@ export function AccountScreen() {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
   const current = capabilitiesOf(session?.user);
-  const [selected, setSelected] = useState<Set<CapabilityName>>(
+  const [selected, setSelected] = useState<Set<TrainingCapability>>(
     new Set(OPTIONS.filter((name) => (name === "coach" ? current.isCoach : current.isAthlete))),
   );
   const update = useCapabilityUpdate();
@@ -33,7 +33,7 @@ export function AccountScreen() {
   const isAthlete = selected.has("athlete");
   const unchanged = isCoach === current.isCoach && isAthlete === current.isAthlete;
 
-  function toggle(name: CapabilityName) {
+  function toggle(name: TrainingCapability) {
     const next = new Set(selected);
     if (!next.delete(name)) next.add(name);
     setSelected(next);

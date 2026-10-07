@@ -14,7 +14,7 @@ import type { MessageAttachmentResolver } from "./message-attachment.resolver";
 const CONVERSATION = { id: "conv1", coachId: "c1", athleteId: "a1" } as Conversation;
 const ATHLETE: TenantContext = {
   userId: "a1",
-  capabilities: { isCoach: false, isAthlete: true },
+  capabilities: { isCoach: false, isAthlete: true, isCompany: false },
   exercised: "athlete",
 };
 

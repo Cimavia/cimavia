@@ -1,4 +1,4 @@
-import { type CapabilityName, INVOICE_ROW_FILTERS, type InvoiceRowFilter } from "@cmv/shared";
+import { INVOICE_ROW_FILTERS, type InvoiceRowFilter, type TrainingCapability } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { InvoicesScreen } from "@/feature/invoice";
 import { CmvRoleGate } from "@/shared/component";
@@ -32,13 +32,13 @@ import { CmvRoleGate } from "@/shared/component";
  * n'est pas une mesure métier manquante, et refuser de rendre l'écran serait disproportionné.
  */
 export type InvoicesSearch = {
-  as: CapabilityName | undefined;
+  as: TrainingCapability | undefined;
   q: string | undefined;
   situation: InvoiceRowFilter | undefined;
   athlete: string | undefined;
 };
 
-export function parseAsSearch(value: unknown): CapabilityName | undefined {
+export function parseAsSearch(value: unknown): TrainingCapability | undefined {
   return value === "coach" || value === "athlete" ? value : undefined;
 }
 

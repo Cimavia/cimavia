@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import type { CapabilityName, TrainingCapability } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -75,7 +75,7 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
 const SPACES = [
   { space: "coach", icon: IoPersonOutline },
   { space: "athlete", icon: IoBarbellOutline },
-] as const satisfies readonly { space: CapabilityName; icon: IconType }[];
+] as const satisfies readonly { space: TrainingCapability; icon: IconType }[];
 
 /**
  * Le `search` d'une entrée de nav. Les routes partagées portent leur titre — c'est ce qui distingue
@@ -84,7 +84,8 @@ const SPACES = [
  * « clé absente ».
  */
 function searchFor(to: string, space: CapabilityName) {
-  return SHARED_ROUTES.has(to)
+  // L'espace Entreprise ne sert aucune route partagée : il n'a jamais de titre à porter.
+  return SHARED_ROUTES.has(to) && space !== "company"
     ? { as: space, athlete: undefined, q: undefined, filter: undefined, session: undefined }
     : { as: undefined, athlete: undefined, q: undefined, filter: undefined, session: undefined };
 }

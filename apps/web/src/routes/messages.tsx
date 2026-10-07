@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import type { TrainingCapability } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { MessagesScreen } from "@/feature/message";
 import { parseAsSearch } from "@/routes/invoices";
@@ -20,7 +20,7 @@ export type MessagesSearch = {
   athlete: string | undefined;
   coach: string | undefined;
   conversation: string | undefined;
-  as: CapabilityName | undefined;
+  as: TrainingCapability | undefined;
 };
 
 const idSearch = (value: unknown) =>

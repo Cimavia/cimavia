@@ -73,7 +73,7 @@ beforeEach(() => {
   journal.length = 0;
   versionLabel.mockReturnValue("1.2.0 (dev)");
   signedIn({ isAthlete: true });
-  update.mockResolvedValue({ isCoach: true, isAthlete: true });
+  update.mockResolvedValue({ isCoach: true, isAthlete: true, isCompany: false });
   vi.mocked(router.replace).mockImplementation(() => {
     journal.push("replace:/login");
   });

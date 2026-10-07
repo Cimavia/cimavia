@@ -2,7 +2,6 @@ import {
   AttachmentDestination,
   type AttachmentTarget,
   attachmentTarget,
-  type CapabilityName,
   FEEDBACK_EVENT_LABEL_KEY,
   type FeedbackEventMessageType,
   isFeedbackEventMessage,
@@ -10,6 +9,7 @@ import {
   type MessageAttachmentDto,
   type MessageDto,
   MessageType,
+  type TrainingCapability,
   type VoiceNoteCue,
 } from "@cmv/shared";
 import { type Href, router } from "expo-router";
@@ -119,7 +119,7 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
  * plutôt qu'un ternaire imbriqué : ce qui se lit ici est une règle de navigation, pas un
  * branchement.
  */
-function routeOf(target: AttachmentTarget, as: CapabilityName): Href {
+function routeOf(target: AttachmentTarget, as: TrainingCapability): Href {
   if (target.destination === AttachmentDestination.SESSION) {
     return `/session/${target.scheduledSessionId}`;
   }

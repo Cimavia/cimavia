@@ -1,4 +1,4 @@
-import { type CapabilityName, capabilitiesOf } from "@cmv/shared";
+import { capabilitiesOf, type TrainingCapability } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -17,7 +17,7 @@ import { authClient } from "@/shared/lib/auth";
 
 // i18n-values account.capabilities.option: coach, athlete
 // i18n-values account.capabilities.hint: coach, athlete
-const OPTIONS: readonly CapabilityName[] = ["coach", "athlete"];
+const OPTIONS: readonly TrainingCapability[] = ["coach", "athlete"];
 
 // Profil : point d'entrée du compte — ses casquettes, ses coachs (#599), ses notifications.
 export function ProfileScreen() {
@@ -27,7 +27,7 @@ export function ProfileScreen() {
   const current = capabilitiesOf(session?.user);
   const version = appVersionLabel();
 
-  const [selected, setSelected] = useState<Set<CapabilityName>>(
+  const [selected, setSelected] = useState<Set<TrainingCapability>>(
     new Set(OPTIONS.filter((name) => (name === "coach" ? current.isCoach : current.isAthlete))),
   );
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export function ProfileScreen() {
   const isAthlete = selected.has("athlete");
   const unchanged = isCoach === current.isCoach && isAthlete === current.isAthlete;
 
-  function toggle(name: CapabilityName) {
+  function toggle(name: TrainingCapability) {
     const next = new Set(selected);
     if (!next.delete(name)) next.add(name);
     setSelected(next);

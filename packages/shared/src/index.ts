@@ -46,11 +46,19 @@ export {
   RESET_PASSWORD_TOKEN_TTL_HOURS,
   RESET_PASSWORD_TOKEN_TTL_SECONDS,
 } from "./auth";
-export type { Capabilities, CapabilityName, CapabilitySource } from "./capability";
+export type {
+  AccountType,
+  Capabilities,
+  CapabilityName,
+  CapabilitySource,
+  TrainingCapability,
+} from "./capability";
 export {
+  ACCOUNT_TYPES,
   capabilitiesOf,
   hasCapability,
   SELECTABLE_CAPABILITIES,
+  signUpCapabilities,
   toggledCapability,
 } from "./capability";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";

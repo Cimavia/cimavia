@@ -50,7 +50,8 @@ export class CapabilityService {
       }),
       ...(input.isCoach ? [] : [this.revokePendingInvitations(userId)]),
     ]);
-    return user;
+    // Un compte qui passe ici coache ou s'entraîne : il n'est donc pas Entreprise.
+    return { ...user, isCompany: false };
   }
 
   /**

@@ -1,9 +1,9 @@
 import {
-  type CapabilityName,
   type ConversationRelation,
   type ConversationRow,
   conversationRows,
   counterpartOfConversation,
+  type TrainingCapability,
 } from "@cmv/shared";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
@@ -109,7 +109,7 @@ function AthleteMessages() {
 }
 
 type ConversationsViewProps = {
-  as: CapabilityName;
+  as: TrainingCapability;
   relations: UseQueryResult<ConversationRelation[]>;
   subtitle: string;
   pickTitle: string;

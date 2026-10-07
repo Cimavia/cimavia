@@ -7,8 +7,8 @@ import {
 import { describe, expect, it } from "vitest";
 import { routeForNotification, routeForPushPayload } from "./route.util";
 
-const COACH: Capabilities = { isCoach: true, isAthlete: false };
-const ATHLETE: Capabilities = { isCoach: false, isAthlete: true };
+const COACH: Capabilities = { isCoach: true, isAthlete: false, isCompany: false };
+const ATHLETE: Capabilities = { isCoach: false, isAthlete: true, isCompany: false };
 
 const entry = (over: Partial<NotificationDto> = {}): NotificationDto =>
   ({
