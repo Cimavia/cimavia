@@ -53,6 +53,7 @@ pnpm --filter @cmv/api dev               # API seule
 pnpm --filter @cmv/mobile start          # Mobile seule
 pnpm --filter @cmv/web dev               # Web seule
 pnpm biome ci .                          # lint+format — PAS `turbo lint`, qui saute @cmv/shared
+pnpm check:lint-rules                    # les règles Biome maison mordent encore (fixtures)
 pnpm turbo typecheck test                # (la CI bloque aussi sur les e2e, plus bas)
 pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
 pnpm check:i18n --strict                 # + les clés mortes — exigé en local, pas en CI
@@ -344,7 +345,7 @@ le PC étant un faux négatif en mode *mirrored* :
 
 ## Conventions
 
-- Lint/format : **Biome**
+- Lint/format : **Biome**, plus des règles maison en GritQL (`scripts/lint-rules/`) qui tiennent quatre règles dures : pas de SQL brut, pas de couleur hex hors tokens, des routes mobiles réduites au shell, pas de texte en dur dans le JSX. Une exception se déclare dans le code, `// biome-ignore lint/plugin/<règle>: <raison>`, et `pnpm check:lint-rules` vérifie sur des fixtures que chaque règle signale encore ce qu'elle doit
 - Tests : **Vitest** sur les quatre paquets, mobile compris (pas de `jest-expo`) ; la couverture est mesurée partout et remontée à SonarCloud
 - Commits : **Conventional Commits** (sujet en minuscule, signés)
 - Composants design system : préfixe `Cmv`

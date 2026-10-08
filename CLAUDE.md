@@ -62,10 +62,12 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.5`). Lint/format **Biome** (`2.5.1`, 
 1. **Multi-tenant** : un athlète a **0..N Coachs**, en direct ou via une entreprise, **un lien par couple** ; 1 Coach = N athlètes. 0 Coach = athlète **autonome**, ou qui s'auto-coache (`coachId = athleteId`, sans lien). Un Coach appartient à 0..N entreprises ; un compte **Entreprise** ne coache ni ne s'entraîne. Toute requête est **scopée à l'acteur courant** via le tenancy guard + **Prisma Client Extension** — jamais par la seule logique applicative : par **propriété**, par **droit d'accès** *(cible — #605)* ou par **participation** *(cible — #611)*. Deux capacités, deux scopes, **jamais un `OR`** entre elles. Couvrir par des tests e2e d'isolation. Détail : `architecture-choice.md` §6 ; un *(cible — #N)* dit ce que le code ne tient pas encore, et la PR de #N le retire.
 2. **Types métier** : tout ce qui transite par l'API HTTP vit dans **`@cmv/shared`** (DTO). Pas de type métier dupliqué côté app.
 3. **Design system** : composants préfixés **`Cmv`**. **Zéro `#xxxxxx`** hors `@cmv/tokens` / `theme/`. Couleurs exposées en classes `bg-cmv-*` / `text-cmv-*`.
-4. **Pure shells** (mobile) : les fichiers sous `app/` sont du routing ou un shell d'1 ligne `export { Screen as default } from "@/feature/<x>"`. Aucune logique dans `app/`.
+4. **Pure shells** (mobile) : les fichiers sous `app/` sont un `_layout.tsx` (la navigation dans son composant, rien d'autre au niveau du fichier) ou un shell d'1 ligne `export { Screen as default } from "@/feature/<x>"`. Aucune logique dans `app/`.
 5. **Nullable, pas de fallback silencieux** : une fonction sur données manquantes retourne `null`, jamais `0`/valeur par défaut. Le rendu gère le `null` (`—`).
 6. **i18n dès le départ** : aucune string en dur dans l'UI — tout passe par i18next.
 7. **Médias hors BDD** : photos/vidéos/audio → object storage (URLs signées). Postgres ne stocke que du relationnel.
+
+Les règles **1** (SQL brut), **3**, **4** et **6** sont vérifiées par des plugins Biome (`scripts/lint-rules/`). Une exception se déclare là où elle vit, `// biome-ignore lint/plugin/<règle>: <raison>` — jamais en élargissant le périmètre du plugin.
 
 ## Commandes
 
@@ -80,7 +82,7 @@ pnpm --filter @cmv/api exec prisma migrate dev   # migrations (local ; preview l
 
 ### Porte qualité
 
-Tout doit passer avant de conclure une étape. Ces quatre commandes sont celles du job CI
+Tout doit passer avant de conclure une étape. Ces cinq commandes sont celles du job CI
 *Lint + Typecheck + Test*, à l'exception du `--strict`, exigé en local et pas en CI :
 
 ```bash
@@ -88,6 +90,7 @@ pnpm biome ci .                # ⚠️ PAS `turbo lint` : les 5 paquets ont dé
                                #    script (`biome check .`), mais turbo ne voit JAMAIS la racine —
                                #    biome.json, turbo.json, scripts/check-i18n-keys.mjs. C'est
                                #    celle-ci que lance la CI.
+pnpm check:lint-rules          # les règles Biome maison mordent encore (fixtures)
 pnpm turbo typecheck test
 pnpm check:i18n                # doit sortir en 0
 pnpm check:i18n --strict       # + les clés mortes — plus strict que la CI
