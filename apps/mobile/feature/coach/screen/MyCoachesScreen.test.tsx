@@ -1,5 +1,5 @@
 import type { CoachAthleteDto, PendingInvitationDto } from "@cmv/shared";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MyCoachesScreen } from "@/feature/coach/screen/MyCoachesScreen";
@@ -20,7 +20,14 @@ vi.mock("@/feature/coach/api", async (importOriginal) => {
   };
 });
 
-vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
+// `useFocusEffect` capturé plutôt qu'exécuté : le test du premier plan le rejoue quand il veut.
+const focus = vi.hoisted(() => ({ effect: null as (() => void) | null }));
+vi.mock("expo-router", () => ({
+  router: { push: vi.fn() },
+  useFocusEffect: (effect: () => void) => {
+    focus.effect = effect;
+  },
+}));
 // Le sélecteur d'espace vit dans un fournisseur posé à la racine de l'app : on lit ce qu'on lui
 // demande, sans le monter.
 vi.mock("@/shared/hook/useExercisedCapability", () => ({ useCapabilitySwitch: vi.fn() }));
@@ -332,6 +339,29 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
 });
 
 /** #364 : l'écran disait « aucun coach » pendant le chargement, et sur une panne. */
+describe("MyCoachesScreen — au retour sur l'écran (#602)", () => {
+  /**
+   * Le Coach qui rejoint l'entreprise de l'athlète apparaît sans que l'athlète ait rien fait. Le
+   * cache persisté, frais 5 min, le cachait même après une relance de l'app : l'écran relit donc
+   * coachs et invitations à chaque passage au premier plan.
+   */
+  it("relit ses coachs et ses invitations, et montre le coach arrivé entre-temps", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
+    renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+
+    myCoaches.mockResolvedValue([
+      RELATION,
+      { ...MARC, organizationName: "Fontainebleau Escalade" },
+    ]);
+    myInvitations.mockClear();
+    act(() => focus.effect?.());
+
+    expect(await screen.findByText("Marc Keller")).toBeTruthy();
+    expect(myInvitations).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("MyCoachesScreen — chargement et panne", () => {
   it("n'affirme rien tant que la liste charge", () => {
     myCoaches.mockReturnValue(new Promise(() => {}));
