@@ -28,12 +28,12 @@ export function CompanyCoachesScreen() {
           { count: pending.length },
         )}`
       }
-      table={(members) => <CoachesTable coaches={members} />}
+      table={CoachesTable}
     />
   );
 }
 
-function CoachesTable({ coaches }: Readonly<{ coaches: OrganizationCoachDto[] }>) {
+function CoachesTable({ members: coaches }: Readonly<{ members: OrganizationCoachDto[] }>) {
   const { t } = useTranslation();
 
   return (

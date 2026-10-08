@@ -6,7 +6,7 @@ import {
   type OrganizationAthleteDto,
   type OrganizationCoachDto,
 } from "@cmv/shared";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CompanyAthletesScreen } from "@/feature/company/screen/CompanyAthletesScreen";
@@ -29,8 +29,11 @@ vi.mock("@/feature/company/api", async () => {
 
 // Le panneau et l'état vide lisent le nom de l'entreprise dans la session ; le client réel arme un
 // temporisateur qui survit au jsdom (cf. `MyCoachesScreen.test`).
+const session = vi.hoisted(() => ({
+  current: { user: { name: "Fontainebleau Escalade" } } as unknown,
+}));
 vi.mock("@/shared/lib/auth", () => ({
-  authClient: { useSession: () => ({ data: { user: { name: "Fontainebleau Escalade" } } }) },
+  authClient: { useSession: () => ({ data: session.current }) },
 }));
 
 // L'AppShell tire toute la navigation : seul compte ici ce que l'écran y pose.
@@ -85,6 +88,7 @@ const invitation = (overrides: Partial<InvitationDto> = {}): InvitationDto => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  session.current = { user: { name: "Fontainebleau Escalade" } };
   listAthletes.mockResolvedValue([]);
   listCoaches.mockResolvedValue([CLAIRE]);
   listInvitations.mockResolvedValue([]);
@@ -150,6 +154,31 @@ describe("CompanyAthletesScreen — ce que la page montre", () => {
     expect(await screen.findByText("common.errorTitle")).toBeInTheDocument();
     expect(screen.queryByText("company.athletes.first.title")).toBeNull();
   });
+
+  // L'autre moitié du rejeu sélectif : les invitations seules ont échoué, les athlètes restent lus.
+  it("ne rejoue que les invitations quand elles seules ont échoué", async () => {
+    listInvitations.mockRejectedValue(new ApiError(500, "boom", null));
+    const { user } = render();
+
+    expect(await screen.findByText("common.errorTitle")).toBeInTheDocument();
+    listAthletes.mockClear();
+    listInvitations.mockResolvedValue([invitation()]);
+    await user.click(screen.getByRole("button", { name: "common.retry" }));
+
+    expect(await screen.findByText("lea@mail.fr")).toBeInTheDocument();
+    expect(listAthletes).not.toHaveBeenCalled();
+  });
+
+  // Session pas encore lue : l'état vide et le panneau s'affichent quand même, le nom de
+  // l'entreprise y vaut « — » (règle dure n°5) plutôt que de faire attendre la page.
+  it("s'affiche sans attendre la session qui porte le nom de l'entreprise", async () => {
+    session.current = null;
+    const { user } = render();
+
+    expect(await screen.findByText("company.athletes.first.title")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "company.athletes.add" })[0] as never);
+    expect(await screen.findAllByText("company.athletes.hint")).toHaveLength(2);
+  });
 });
 
 describe("CompanyAthletesScreen — les gestes", () => {
@@ -166,6 +195,41 @@ describe("CompanyAthletesScreen — les gestes", () => {
     await waitFor(() =>
       expect(screen.queryByLabelText("company.invitations.panel.emailLabel")).toBeNull(),
     );
+  });
+
+  // Pendant l'envoi, le bouton le dit et ne repart pas.
+  it("dit l'envoi en cours, bouton fermé", async () => {
+    inviteAthlete.mockReturnValue(new Promise(() => {}));
+    const { user } = render();
+    await screen.findByText("company.athletes.first.title");
+
+    await user.click(screen.getAllByRole("button", { name: "company.athletes.add" })[0] as never);
+    await user.type(
+      await screen.findByLabelText("company.invitations.panel.emailLabel"),
+      "lea@mail.fr",
+    );
+    await user.click(screen.getByRole("button", { name: "company.invitations.panel.submit" }));
+
+    expect(
+      await screen.findByRole("button", { name: "company.invitations.panel.submitting" }),
+    ).toBeDisabled();
+  });
+
+  /**
+   * Le bouton fermé ne suffit pas : le formulaire peut partir sans lui (Entrée, assistance). Sans
+   * adresse valide, rien ne part (#319).
+   */
+  it("n'envoie rien quand le formulaire part sans adresse", async () => {
+    const { user } = render();
+    await screen.findByText("company.athletes.first.title");
+
+    await user.click(screen.getAllByRole("button", { name: "company.athletes.add" })[0] as never);
+    const field = await screen.findByLabelText("company.invitations.panel.emailLabel");
+    await user.type(field, "lea@");
+    fireEvent.submit(field.closest("form") as HTMLFormElement);
+
+    expect(inviteAthlete).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("company.invitations.panel.emailLabel")).toBeInTheDocument();
   });
 
   it("révoque une invitation d'athlète, après confirmation", async () => {
