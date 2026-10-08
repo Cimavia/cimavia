@@ -6,7 +6,7 @@ name: Release
 # décide QUAND on livre, jamais quel numéro (celui-là se déduit des types de commit).
 #
 # Ce workflow n'ajoute AUCUN check requis et n'en renomme aucun : les rulesets exigent les trois
-# jobs de `ci.yml` par leur nom exact (cf. « Appris en #130 », docs/dette-technique.md).
+# jobs de `ci.yml` par leur nom exact (cf. « Appris en #130 », docs/dette/qualite-et-depot.md).
 
 on:
   push:

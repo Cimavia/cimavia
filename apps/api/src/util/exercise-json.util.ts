@@ -15,8 +15,8 @@ import { z } from "zod";
 
 /**
  * Consigne structurée et blocs vivent en colonnes JSON (décision tranchée : voir
- * `docs/dette-technique.md` § « Refonte du modèle d'exercice »). Prisma les rend en `JsonValue`,
- * sans contrat, et les attend en `InputJsonValue`, qu'un type Zod ne satisfait pas seul.
+ * `docs/dette/seances-et-exercices.md` § « Refonte du modèle d'exercice »). Prisma les rend en
+ * `JsonValue`, sans contrat, et les attend en `InputJsonValue`, qu'un type Zod ne satisfait pas seul.
  *
  * Ces quatre fonctions sont le SEUL passage entre les deux mondes. Elles vivent ici et non dans
  * `exercise.mapper` parce que la planification en a autant besoin que la bibliothèque : une séance

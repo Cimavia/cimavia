@@ -12,8 +12,8 @@ quoi lire, quelles questions poser, et dans quel ordre livrer.
 
 1. **Les règles vivent dans les docs, pas ici.** `CLAUDE.md` (règles dures, porte qualité, façon de
    travailler), `docs/architecture-choice.md`, `docs/CONTEXT.cimavia.md` (termes canoniques),
-   `docs/dette-technique.md`. **En cas de contradiction avec ce fichier, les docs gagnent** — et
-   c'est un résultat à signaler.
+   `docs/dette-technique.md` (index du journal, rangé par domaine sous `docs/dette/`). **En cas de
+   contradiction avec ce fichier, les docs gagnent** — et c'est un résultat à signaler.
 2. **Ce qui cloche se signale, ne se répare pas en douce.** Test cassé, doc fausse, dette mal
    suivie : le dire. Le corriger seulement si c'est le sujet de la PR, ou après accord.
 3. **Je n'exécute jamais git** (add, commit, push) **ni les interfaces web** (GitHub, Scaleway,
@@ -45,7 +45,7 @@ Neuf questions, avant toute proposition. Trois d'entre elles sont de simples `gr
 
 | # | Question | Où chercher |
 |---|---|---|
-| 1 | L'issue correspond-elle à une **ligne du journal de dette** ? La colonne « Suivi » pointe-t-elle bien vers elle ? L'en-tête la range-t-elle parmi les dettes « sans issue » ? | `docs/dette-technique.md` |
+| 1 | L'issue correspond-elle à une **ligne du journal de dette** ? La colonne « Suivi » pointe-t-elle bien vers elle ? Si elle n'a pas d'issue, `pnpm check:dette` la liste-t-il ? | `docs/dette-technique.md` (index) → `docs/dette/<domaine>.md` |
 | 2 | Quels encadrés **« Tranché en #N »** touchent cette zone ? L'issue en **contredit**-elle un ? | idem, section concernée |
 | 3 | Le code visé est-il dans **`@cmv/shared`** ? **Qui d'autre l'appelle** ? Le label `area:` couvre-t-il ce qui est vraiment touché ? | `grep -rn` sur le symbole |
 | 4 | L'issue nomme-t-elle un **déclencheur** ? Ce qui est demandé y répond-il, ou le **déguise**-t-il ? Une autre issue couvre-t-elle la vraie cause ? | corps de l'issue + issues ouvertes |
@@ -97,8 +97,8 @@ Commits atomiques, **relus un par un**. Pour chacun, donner :
 Le sujet étant tout ce qui reste, il dit **le pourquoi** autant que le quoi — le diff, lui, dit déjà
 le quoi. Attendre la relecture avant de produire l'incrément suivant.
 
-**Avant de donner un commit, le faire relire par un autre contexte que le mien** : l'auteur ne voit
-pas ses propres angles morts.
+**Avant de donner un commit, le faire relire** : l'auteur ne voit pas ses propres angles morts. Cette
+relecture se fait dans ma session ; la relecture par une autre session vient sur la PR (§8).
 
 - `/code-review` sur le diff de l'incrément — toujours ;
 - `/security-review` en plus dès que l'incrément touche l'auth, la tenancy (garde, extension Prisma,
@@ -116,8 +116,10 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
 
 ## 7. Journal, issues, board
 
-- Une dette traitée ou prise se met à jour dans `docs/dette-technique.md` **dans la PR qui la
-  traite**, pas plus tard — ligne du tableau **et** en-tête si elle y est citée.
+- Une dette traitée ou prise se met à jour dans `docs/dette/<domaine>.md` **dans la PR qui la
+  traite**, pas plus tard. Résolue (✅), sa ligne part dans `docs/dette/archive.md` et son
+  identifiant rejoint la mention « *Résolues, à l'archive* » sous le tableau. `pnpm check:dette`
+  doit rester vert.
 - Une **décision que le code ne justifie pas seul** se consigne en encadré « Tranché en #N ».
 - Les issues à créer se proposent, puis se créent après validation (→ skill `issue`).
 - Toute anomalie de board (statut, titre désynchronisé, relation manquante) se signale.
@@ -126,10 +128,30 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
 ## 8. Test
 - Préparer un plan de test à la fin de chaque issue pour que le développeur test
 
-**Grosse PR → relecture ultra.** Une PR est grosse dès que `git diff --shortstat main...HEAD` dépasse
-**20 fichiers ou 600 lignes**, ou qu'elle touche une migration Prisma ou la tenancy. Je ne peux pas
-lancer `/code-review ultra` moi-même (lancée par le développeur, facturée) : je le **dis en tête** du
-plan de test, avec la commande exacte `/code-review ultra <n° de PR>`, à lancer avant le merge.
+**Revue de la PR par une autre session.** En tête du plan de test, je dis si elle est conseillée,
+et avec quelle commande. Elle est lancée par le développeur, dans une **autre session** que la mienne
+(regard neuf, sans mon raisonnement), une fois la PR créée et son dernier commit poussé :
+
+| La PR… | Commande à donner |
+|---|---|
+| touche la tenancy, l'auth, une migration Prisma ou les médias | `/code-review <n° de PR> --comment` |
+| est grosse : `git diff --shortstat main...HEAD` dépasse **20 fichiers ou 600 lignes** | `/code-review ultra <n° de PR> --post` (facturée — je ne peux pas la lancer moi-même) |
+| aucun des deux | rien : les incréments ont déjà été relus un par un (§5) |
+
+- **Jamais `--fix`** dans l'autre session : elle partage souvent mon worktree et écrirait sous mes
+  pieds.
+- Les constats arrivent **sur la PR**, pas par copier-coller : c'est là que je les relis.
+
+**Traiter la revue.** Quand le développeur me dit de traiter les commentaires de revue de la PR :
+
+1. Les lire : `gh api repos/Cimavia/cimavia/pulls/<n>/comments` (commentaires de ligne) et
+   `gh api repos/Cimavia/cimavia/issues/<n>/comments` (commentaire unique de l'ultra `--post`).
+2. **Vérifier chaque constat dans le code** avant d'y toucher : une revue se trompe aussi. Un faux
+   positif se dit, avec la raison ; il ne se corrige pas pour faire taire le commentaire.
+3. Corriger les constats confirmés en commits atomiques (§5), et remonter ceux qui sortent du sujet
+   de la PR (→ issue, après validation).
+4. Rendre le bilan : corrigé, faux positif, ou reporté — un par constat. Une seconde revue n'est à
+   conseiller que si les corrections sont importantes.
 
 ## 9. Ce que je dois demander
 

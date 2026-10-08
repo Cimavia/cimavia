@@ -10,9 +10,9 @@ Transformer un retour ou une idée en issue bien formée. **On ne code pas ici.*
 ## Règles d'or
 
 1. **Instruire avant de proposer.** Vérifier dans le code ce qui existe, si une issue couvre déjà
-   le sujet, si `docs/dette-technique.md` le consigne, ou si un encadré « Tranché en #N » l'a
-   **déjà arbitré**. Un doublon ou une contradiction avec une décision passée est un **résultat à
-   signaler**, pas à contourner.
+   le sujet, si le journal de dette le consigne (`grep -rn` sur `docs/dette/`), ou si un encadré
+   « Tranché en #N » l'a **déjà arbitré**. Un doublon ou une contradiction avec une décision passée
+   est un **résultat à signaler**, pas à contourner.
 2. **Proposer, puis créer.** Le développeur valide avant toute écriture sur GitHub.
 3. **Termes canoniques de `docs/CONTEXT.cimavia.md`** (Coach, Athlete, Session, Plan, Feedback…),
    dans les titres comme dans les corps. Pas de synonyme inventé.
@@ -84,7 +84,7 @@ gh api repos/Cimavia/cimavia/milestones --jq '.[] | "\(.number) \(.title)"'
 
 ## Après création
 
-- Si le sujet correspond à une dette de `docs/dette-technique.md`, la colonne « Suivi » doit
+- Si le sujet correspond à une dette de `docs/dette/<domaine>.md`, la colonne « Suivi » doit
   pointer la nouvelle issue — **le dire**, la correction se fait dans la PR qui traite le sujet.
 - Un retour qui est en fait un **bug reproductible** n'est pas une demande de fonctionnalité :
   le dire, l'étiquette diffère.

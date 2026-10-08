@@ -22,7 +22,7 @@ Merge unidirectionnel `feature/* → main → preview → production` (jamais en
 CI (`.github/workflows/`) :
 
 - `ci.yml`, job **`Lint + Typecheck + Test`** — commitlint sur les commits de la PR (#416), Biome,
-  `turbo typecheck test`, `check:i18n`.
+  `check:lint-rules`, `check:dette`, `turbo typecheck test`, `check:i18n`.
 - `ci.yml`, job **`E2E (isolation multi-tenant)`** — les e2e de l'API (359 en #257), contre un Postgres
   et un SILO jetables montés par les composes du dépôt. Ils portent la couverture réelle de la couche
   API (~89 %) : ses douze tests unitaires n'en couvrent que 3,5 %. Bloquant.

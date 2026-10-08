@@ -28,7 +28,7 @@ aws s3api get-bucket-lifecycle-configuration --bucket "$S3_BUCKET" --endpoint-ur
 > `AbortIncompleteMultipartUpload` part en 400, et accompagnée d'une `Expiration` elle est acceptée
 > puis relue **sans** la clause — confirmé par le SDK AWS *et* par `mc ilm export`. Si
 > `AbortIncompleteMultipartUpload` ne revient pas dans la réponse du `get`, la règle ne fait rien.
-> C'est la dette **U-6** de `docs/dette-technique.md`.
+> C'est la dette **U-6** de `docs/dette/debrief-et-medias.md`.
 
 Le dev n'a donc aucun filet, et c'est assumé : son volume SILO est jetable
 (`docker compose down -v`), les parts orphelines n'y coûtent rien. Pour voir ce qui traîne sur un

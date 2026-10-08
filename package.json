@@ -24,6 +24,7 @@
     "test": "turbo test",
     "format": "biome format --write .",
     "check": "biome check --write .",
+    "check:dette": "node scripts/check-dette.mjs",
     "check:i18n": "node scripts/check-i18n-keys.mjs",
     "check:lint-rules": "node scripts/check-lint-rules.mjs",
     "prepare": "husky"

@@ -7,7 +7,7 @@ import { File, FileMode, Paths, UploadType } from "expo-file-system";
  *
  * Pourquoi ce détour par un fichier de cache plutôt que `File.slice()`, qui rendrait un `Blob`
  * directement envoyable — MESURÉ sur appareil, vidéo de 398 Mo
- * (`docs/dette-technique.md` §« Envoi découpé des médias ») :
+ * (`docs/dette/debrief-et-medias.md` §« Envoi découpé des médias ») :
  *
  *     Call to function 'FileSystemFile.bytesSync' has been rejected.
  *     java.lang.OutOfMemoryError: Failed to allocate a 418159312 byte allocation

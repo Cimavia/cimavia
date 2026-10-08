@@ -42,7 +42,7 @@ export function useUpdateCustomMetric() {
 
 /**
  * Supprime une métrique maison. Les colonnes qui la citaient deviennent orphelines —
- * `validateBlockValues` les signale au coach (dette R-2). Les planifications déjà diffusées, elles,
+ * `validateBlockValues` les signale au coach (dette EX-2). Les planifications déjà diffusées, elles,
  * en gardent la définition dans leur snapshot et ne bougent pas.
  */
 export function useDeleteCustomMetric() {
