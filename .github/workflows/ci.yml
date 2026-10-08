@@ -83,6 +83,12 @@ jobs:
       - name: Check Biome rules
         run: pnpm check:lint-rules
 
+      # Le journal de dette n'a plus de liste « sans issue » tenue à la main : elle dérivait sans que
+      # rien ne casse. Ce script la calcule, et refuse un identifiant en double ou une dette ouverte
+      # sans suivi (#624). Avant typecheck et tests : une lecture de fichiers, qui répond aussitôt.
+      - name: Check journal de dette
+        run: pnpm check:dette
+
       - name: Typecheck
         run: pnpm turbo typecheck
 

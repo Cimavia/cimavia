@@ -25,17 +25,16 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète ·
 [#593](https://github.com/Cimavia/cimavia/issues/593) entreprises et multi-coach ·
 [#621](https://github.com/Cimavia/cimavia/issues/621) garde-fous du dépôt — plus neuf issues
-autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
-**IOS-4**, dont
-le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **EX-2**,
-**W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-4**,
-**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **DR-1**, **TZ-1** et **MC-2**,
-dont le déclencheur est nommé mais
-dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
-ici comme la seule involontaire, est résolue : période `previous_version` rendue possible par
-[#186](https://github.com/Cimavia/cimavia/issues/186), et sa référence rendue juste par
-[#318](https://github.com/Cimavia/cimavia/issues/318).
+autonomes.
+
+**Dettes sans issue** : `pnpm check:dette` les liste par domaine, avec leur déclencheur — la liste
+n'est plus tenue à la main ([#624](https://github.com/Cimavia/cimavia/issues/624)). Toutes sont
+volontaires, et leur colonne Suivi dit pourquoi elles n'ont pas d'issue, en `— *(…)*` : le plus
+souvent un déclencheur nommé avant lequel rien n'est à préparer, parfois « aucun » (pour **C-1**,
+l'issue serait même un contresens — le déclencheur est qu'on la « corrige » à tort). Le même
+script, lancé en CI, refuse un identifiant défini deux fois, une dette ouverte sans suivi, une ligne
+de dette hors tableau, et une archive qui ne correspond plus aux lignes « Résolues, à l'archive ».
+
 Toutes les lignes de la section [#7](https://github.com/Cimavia/cimavia/issues/7) (domaine
 *Comptes, capacités et tenancy*) sont résolues sauf **C-1** : ce qui y reste est de la décision,
 pas de la dette en attente.

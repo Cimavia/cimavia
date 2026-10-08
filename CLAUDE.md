@@ -82,7 +82,7 @@ pnpm --filter @cmv/api exec prisma migrate dev   # migrations (local ; preview l
 
 ### Porte qualité
 
-Tout doit passer avant de conclure une étape. Ces cinq commandes sont celles du job CI
+Tout doit passer avant de conclure une étape. Ces six commandes sont celles du job CI
 *Lint + Typecheck + Test*, à l'exception du `--strict`, exigé en local et pas en CI :
 
 ```bash
@@ -94,6 +94,7 @@ pnpm check:lint-rules          # les règles Biome maison mordent encore (fixtur
 pnpm turbo typecheck test
 pnpm check:i18n                # doit sortir en 0
 pnpm check:i18n --strict       # + les clés mortes — plus strict que la CI
+pnpm check:dette               # journal de dette : identifiants, suivi, archive
 ```
 
 E2E et builds de production, selon ce qui est touché. **Les deux sont des checks requis sur `main`** :

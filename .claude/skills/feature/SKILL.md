@@ -45,7 +45,7 @@ Neuf questions, avant toute proposition. Trois d'entre elles sont de simples `gr
 
 | # | Question | Où chercher |
 |---|---|---|
-| 1 | L'issue correspond-elle à une **ligne du journal de dette** ? La colonne « Suivi » pointe-t-elle bien vers elle ? L'en-tête la range-t-elle parmi les dettes « sans issue » ? | `docs/dette-technique.md` |
+| 1 | L'issue correspond-elle à une **ligne du journal de dette** ? La colonne « Suivi » pointe-t-elle bien vers elle ? Si elle n'a pas d'issue, `pnpm check:dette` la liste-t-il ? | `docs/dette-technique.md` (index) → `docs/dette/<domaine>.md` |
 | 2 | Quels encadrés **« Tranché en #N »** touchent cette zone ? L'issue en **contredit**-elle un ? | idem, section concernée |
 | 3 | Le code visé est-il dans **`@cmv/shared`** ? **Qui d'autre l'appelle** ? Le label `area:` couvre-t-il ce qui est vraiment touché ? | `grep -rn` sur le symbole |
 | 4 | L'issue nomme-t-elle un **déclencheur** ? Ce qui est demandé y répond-il, ou le **déguise**-t-il ? Une autre issue couvre-t-elle la vraie cause ? | corps de l'issue + issues ouvertes |
@@ -116,8 +116,10 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
 
 ## 7. Journal, issues, board
 
-- Une dette traitée ou prise se met à jour dans `docs/dette-technique.md` **dans la PR qui la
-  traite**, pas plus tard — ligne du tableau **et** en-tête si elle y est citée.
+- Une dette traitée ou prise se met à jour dans `docs/dette/<domaine>.md` **dans la PR qui la
+  traite**, pas plus tard. Résolue (✅), sa ligne part dans `docs/dette/archive.md` et son
+  identifiant rejoint la mention « *Résolues, à l'archive* » sous le tableau. `pnpm check:dette`
+  doit rester vert.
 - Une **décision que le code ne justifie pas seul** se consigne en encadré « Tranché en #N ».
 - Les issues à créer se proposent, puis se créent après validation (→ skill `issue`).
 - Toute anomalie de board (statut, titre désynchronisé, relation manquante) se signale.

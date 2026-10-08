@@ -38,6 +38,8 @@ Ces sorties sont le socle du rapport, et elles cadrent le §2 : là où Sonar es
 ```bash
 # La porte qualité (CLAUDE.md). Elle échoue déjà ? C'est le premier constat du rapport.
 pnpm biome ci .
+pnpm check:lint-rules
+pnpm check:dette
 pnpm turbo typecheck test
 pnpm check:i18n --strict          # --strict : clés mortes comprises
 
