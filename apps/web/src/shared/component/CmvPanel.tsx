@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/util/cn.util";
 
 // md = formulaire simple (exercice) ; lg = mise en page à deux colonnes (builder de séance).
@@ -41,6 +42,7 @@ export function CmvPanel({
   footer,
   size = "md",
 }: Readonly<CmvPanelProps>) {
+  const { t } = useTranslation();
   /**
    * `onClose` est lu dans une ref plutôt que déclaré en dépendance : les appelants passent une
    * flèche en ligne, l'effet se relancerait donc à chaque rendu — et la pile serait redépilée puis
@@ -75,7 +77,7 @@ export function CmvPanel({
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
         type="button"
-        aria-label="Fermer"
+        aria-label={t("common.close")}
         onClick={onClose}
         className="absolute inset-0 bg-cmv-bg-0/70"
       />

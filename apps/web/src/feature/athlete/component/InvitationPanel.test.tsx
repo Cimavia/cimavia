@@ -215,7 +215,8 @@ describe("InvitationPanel — les invitations en attente", () => {
     const onClose = vi.fn();
     const { user } = renderWithProviders(<InvitationPanel onClose={onClose} />);
 
-    await user.click(screen.getByRole("button", { name: "common.close" }));
+    // Par son TEXTE : le fond du panneau porte le même nom accessible, sans texte visible.
+    await user.click(screen.getByText("common.close"));
 
     expect(onClose).toHaveBeenCalled();
   });
