@@ -1,12 +1,10 @@
-import type { PendingInvitationDto } from "@cmv/shared";
+import { INVITATION_CARD_KEY, type PendingInvitationDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { useAcceptInvitation, useDeclineInvitation } from "@/feature/coach/hook/useMyCoach";
 import { CmvButton, CmvConfirmButton, CmvText } from "@/shared/component";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { formatDateTime } from "@/shared/util/date.util";
-
-type Issuer = PendingInvitationDto["issuer"];
 
 /**
  * Une invitation qui attend l'athlète (#146) — jumelle de celle du web, et la parité est le point :
@@ -26,16 +24,15 @@ export function PendingInvitationCard({
   const decline = useDeclineInvitation();
 
   const { issuer } = invitation;
-  const fromCoach = issuer.kind === "coach";
+  // Les textes selon l'émetteur (#602), une seule table pour les deux clients.
+  const keys = INVITATION_CARD_KEY[issuer.kind];
   const busy = accept.isPending || decline.isPending;
 
   return (
     <View className="gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-4">
       <View className="gap-1">
         <CmvText className="font-cmv-display text-cmv-text-hi text-lg">
-          {fromCoach
-            ? t("coach.invitation.title", { name: issuer.name })
-            : t("coach.invitation.fromOrganization.title", { name: issuer.name })}
+          {t(keys.title, { name: issuer.name })}
         </CmvText>
         <CmvText className="text-cmv-text-lo text-xs">
           {t("coach.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
@@ -45,7 +42,9 @@ export function PendingInvitationCard({
       {issuer.kind === "organization" ? <FutureCoaches names={issuer.coachNames} /> : null}
 
       <CmvButton
-        label={acceptLabel(t, issuer, accept.isPending)}
+        label={
+          accept.isPending ? t("coach.invitation.joining") : t(keys.accept, { name: issuer.name })
+        }
         onPress={() => accept.mutate(invitation.id)}
         disabled={busy}
       />
@@ -61,9 +60,7 @@ export function PendingInvitationCard({
       />
 
       <CmvText className="text-cmv-text-lo text-xs">
-        {fromCoach
-          ? t("coach.invitation.declineHint")
-          : t("coach.invitation.fromOrganization.declineHint", { name: issuer.name })}
+        {t(keys.declineHint, { name: issuer.name })}
       </CmvText>
 
       {/* Le mobile n'a pas de toasts : l'échec se dit sur place. L'acceptation échouait en silence (#365) — le bouton repassait à son libellé, et l'athlète
@@ -71,7 +68,7 @@ export function PendingInvitationCard({
       {accept.isError ? (
         <CmvText className="text-cmv-error text-sm">
           {apiErrorMessage(accept.error) ??
-            (fromCoach
+            (issuer.kind === "coach"
               ? t("coach.invitation.joinError")
               : t("coach.invitation.fromOrganization.acceptError"))}
         </CmvText>
@@ -83,18 +80,6 @@ export function PendingInvitationCard({
       ) : null}
     </View>
   );
-}
-
-/** « Rejoindre M » pour un Coach ; « Accepter » pour une entreprise, qui n'est pas un coach. */
-function acceptLabel(
-  t: ReturnType<typeof useTranslation>["t"],
-  issuer: Issuer,
-  pending: boolean,
-): string {
-  if (pending) return t("coach.invitation.joining");
-  return issuer.kind === "coach"
-    ? t("coach.invitation.join", { name: issuer.name })
-    : t("coach.invitation.fromOrganization.accept");
 }
 
 /**

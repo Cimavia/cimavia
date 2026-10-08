@@ -1,10 +1,8 @@
-import type { PendingInvitationDto } from "@cmv/shared";
+import { INVITATION_CARD_KEY, type PendingInvitationDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useAcceptInvitation, useDeclineInvitation } from "@/feature/coach/hook/useMyCoach";
 import { CmvAvatar, CmvButton, CmvCard, CmvConfirmButton } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
-
-type Issuer = PendingInvitationDto["issuer"];
 
 /**
  * Une invitation qui attend l'athlète (#146), posée au-dessus de « Mes coachs ».
@@ -25,7 +23,8 @@ export function PendingInvitationCard({
   const decline = useDeclineInvitation();
 
   const { issuer } = invitation;
-  const fromCoach = issuer.kind === "coach";
+  // Les textes selon l'émetteur (#602), une seule table pour les deux clients.
+  const keys = INVITATION_CARD_KEY[issuer.kind];
   const busy = accept.isPending || decline.isPending;
 
   return (
@@ -33,9 +32,7 @@ export function PendingInvitationCard({
       <div className="flex flex-col gap-cmv-md">
         <div className="flex flex-col gap-cmv-xs">
           <h2 className="text-cmv-subtitle text-cmv-text-hi">
-            {fromCoach
-              ? t("coach.invitation.title", { name: issuer.name })
-              : t("coach.invitation.fromOrganization.title", { name: issuer.name })}
+            {t(keys.title, { name: issuer.name })}
           </h2>
           <p className="text-cmv-caption text-cmv-text-mid">
             {t("coach.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
@@ -46,7 +43,9 @@ export function PendingInvitationCard({
 
         <div className="flex flex-wrap items-center gap-cmv-sm">
           <CmvButton disabled={busy} onClick={() => accept.mutate(invitation.id)}>
-            {acceptLabel(t, issuer, accept.isPending)}
+            {accept.isPending
+              ? t("coach.invitation.joining")
+              : t(keys.accept, { name: issuer.name })}
           </CmvButton>
 
           {/* Armé comme une suppression : le refus est sans retour, l'inviteur devra réémettre. */}
@@ -60,25 +59,11 @@ export function PendingInvitationCard({
         </div>
 
         <p className="text-cmv-caption text-cmv-text-lo">
-          {fromCoach
-            ? t("coach.invitation.declineHint")
-            : t("coach.invitation.fromOrganization.declineHint", { name: issuer.name })}
+          {t(keys.declineHint, { name: issuer.name })}
         </p>
       </div>
     </CmvCard>
   );
-}
-
-/** « Rejoindre M » pour un Coach ; « Accepter » pour une entreprise, qui n'est pas un coach. */
-function acceptLabel(
-  t: ReturnType<typeof useTranslation>["t"],
-  issuer: Issuer,
-  pending: boolean,
-): string {
-  if (pending) return t("coach.invitation.joining");
-  return issuer.kind === "coach"
-    ? t("coach.invitation.join", { name: issuer.name })
-    : t("coach.invitation.fromOrganization.accept");
 }
 
 /**

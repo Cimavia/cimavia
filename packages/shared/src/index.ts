@@ -730,7 +730,7 @@ export type { Formatters } from "./util/formatter.util";
 export { createFormatters } from "./util/formatter.util";
 export { translatedOr } from "./util/i18n-fallback.util";
 export { required } from "./util/invariant.util";
-export { invitationEmailOf } from "./util/invitation.util";
+export { INVITATION_CARD_KEY, invitationEmailOf } from "./util/invitation.util";
 export type { InvoiceStateBadge, InvoiceTiming } from "./util/invoice.util";
 export {
   countOverdueInvoices,
