@@ -49,7 +49,7 @@ export class UserDirectoryService {
    * Même justification que `athleteIdByEmail`, et même condition : l'appelant ne fait AUCUNE
    * différence visible entre les trois issues, la création répond à l'identique.
    */
-  async accountByEmail(
+  accountByEmail(
     email: string,
   ): Promise<{ id: string; isCoach: boolean; isAthlete: boolean } | null> {
     return this.prisma.user.findFirst({

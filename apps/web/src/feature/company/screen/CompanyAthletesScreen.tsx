@@ -39,12 +39,12 @@ export function CompanyAthletesScreen() {
           coaches: t("company.coaches.count", { count: coaches.data.length }),
         });
       }}
-      table={(members) => <AthletesTable athletes={members} />}
+      table={AthletesTable}
     />
   );
 }
 
-function AthletesTable({ athletes }: Readonly<{ athletes: OrganizationAthleteDto[] }>) {
+function AthletesTable({ members: athletes }: Readonly<{ members: OrganizationAthleteDto[] }>) {
   const { t } = useTranslation();
 
   return (

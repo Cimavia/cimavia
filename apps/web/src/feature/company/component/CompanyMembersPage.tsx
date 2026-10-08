@@ -1,6 +1,6 @@
 import { type InvitationDto, InvitationRole, InvitationStatus } from "@cmv/shared";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ComponentType, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { InviteToOrganizationPanel } from "@/feature/company/component/InviteToOrganizationPanel";
 import { OrganizationInvitationSections } from "@/feature/company/component/OrganizationInvitationSections";
@@ -30,8 +30,11 @@ type CompanyMembersPageProps<T> = {
   members: UseQueryResult<T[]>;
   /** Le décompte de l'en-tête, une fois membres et invitations lus ; `null` = rien à afficher. */
   subtitle: (members: T[], pending: InvitationDto[]) => string | null;
-  /** Le tableau des membres — ce qui distingue vraiment les deux pages. */
-  table: (members: T[]) => ReactNode;
+  /**
+   * Le tableau des membres — ce qui distingue vraiment les deux pages. Un composant, et non une
+   * fonction de rendu : déclaré hors de l'écran, il garde son identité d'un rendu à l'autre.
+   */
+  table: ComponentType<{ members: T[] }>;
 };
 
 /**
@@ -55,6 +58,7 @@ export function CompanyMembersPage<T>({
   const invitations = useOrganizationInvitations(role);
   const [panelOpen, setPanelOpen] = useState(false);
   const texts = TEXTS[role];
+  const Table = table;
 
   const pending = byStatus(invitations.data, InvitationStatus.PENDING);
   const declined = byStatus(invitations.data, InvitationStatus.DECLINED);
@@ -93,7 +97,7 @@ export function CompanyMembersPage<T>({
       {loaded ? (
         <MembersContent
           role={role}
-          table={table(members.data)}
+          table={<Table members={members.data} />}
           isEmpty={members.data.length === 0}
           pending={pending}
           declined={declined}
