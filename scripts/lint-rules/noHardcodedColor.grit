@@ -1,0 +1,20 @@
+language js
+
+// Règle dure n°3 : aucune couleur hexadécimale hors de @cmv/tokens et des dossiers theme/
+// (périmètre : `includes` du plugin dans biome.json).
+//
+// 6 ou 8 chiffres partout où un # n'est pas collé à un mot (une ancre d'url, doc#facade, n'est
+// pas une couleur) ; 3 ou 4 seulement quand ils forment la chaîne entière ou une valeur arbitraire
+// Tailwind (`bg-[#abc]`) — ailleurs, « #602 » est un renvoi d'issue.
+or {
+  JsStringLiteralExpression(),
+  JsxString(),
+  JsTemplateChunkElement()
+} as $literal where {
+  $literal <: or {
+    r"(?s)(?:.*[^\w&])?#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b.*",
+    r"[\"'`]?#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4})[\"'`]?",
+    r"(?s).*\[#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4})\].*"
+  },
+  register_diagnostic(span=$literal, message="Couleur hexadécimale en dur : elle vit dans @cmv/tokens, exposée en classe cmv-* (règle dure n°3).", severity="error")
+}

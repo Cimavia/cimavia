@@ -194,7 +194,7 @@ describe("InvoicesScreen — coach", () => {
       node.textContent?.includes("invoice.history.overdueOn"),
     );
     await user.click(line as HTMLElement);
-    await user.click(getByRole("button", { name: "Fermer" }));
+    await user.click(getByRole("button", { name: "common.close" }));
 
     expect(queryByRole("complementary")).toBeNull();
     expect(mutate).not.toHaveBeenCalled();

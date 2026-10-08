@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { landingTab, redirectForPath, TABS, visibleTabs } from "./tabs";
+import { landingTab, redirectForPath, TABS, tabBadgeOption, visibleTabs } from "./tabs";
 
 /**
  * Le signal de contreparties (#198). Les cas qui ne portent pas sur lui passent `WITH` : la barre
@@ -171,5 +171,29 @@ describe("un compte Entreprise", () => {
 
   it("y reste une fois arrivé", () => {
     expect(redirectForPath("/company", COMPANY, WITH)).toBeNull();
+  });
+});
+
+describe("tabBadgeOption", () => {
+  it("pose le nombre de non-lus sur l'onglet des notifications", () => {
+    expect(tabBadgeOption("notifications", 7)).toEqual({ tabBarBadge: 7 });
+  });
+
+  it("garde 99 tel quel et plafonne au-delà", () => {
+    expect(tabBadgeOption("notifications", 99)).toEqual({ tabBarBadge: 99 });
+    expect(tabBadgeOption("notifications", 100)).toEqual({ tabBarBadge: "99+" });
+  });
+
+  /**
+   * L'objet VIDE, pas `{ tabBarBadge: undefined }` : sous `exactOptionalPropertyTypes`, la
+   * propriété posée à `undefined` dessinerait quand même une pastille.
+   */
+  it("ne pose aucune propriété quand il n'y a rien à lire, ou pas encore de compte", () => {
+    expect(tabBadgeOption("notifications", 0)).toStrictEqual({});
+    expect(tabBadgeOption("notifications", undefined)).toStrictEqual({});
+  });
+
+  it("ne pose rien sur un autre onglet, quel que soit le compte", () => {
+    expect(tabBadgeOption("messages", 7)).toStrictEqual({});
   });
 });

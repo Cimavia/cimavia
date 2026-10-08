@@ -1,3 +1,4 @@
+// biome-ignore-all lint/plugin/useRouteShell: l'aiguillage de session est du routing (architecture-choice §3), pas un écran
 import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { useCounterparts } from "@/feature/account/hook/useCounterparts";

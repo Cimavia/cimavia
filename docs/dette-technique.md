@@ -21,7 +21,8 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#69](https://github.com/Cimavia/cimavia/issues/69) transcodage des médias ·
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète ·
-[#593](https://github.com/Cimavia/cimavia/issues/593) entreprises et multi-coach — plus neuf issues
+[#593](https://github.com/Cimavia/cimavia/issues/593) entreprises et multi-coach ·
+[#621](https://github.com/Cimavia/cimavia/issues/621) garde-fous du dépôt — plus neuf issues
 autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
@@ -289,7 +290,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | P7-9 | **Une adresse invitée s'inscrit sans être vérifiée** : depuis [#263](https://github.com/Cimavia/cimavia/issues/263), preview n'accepte que les adresses invitées ou listées — mais rien ne prouve que celui qui s'inscrit **possède** l'adresse. Qui connaît l'adresse d'un Athlete invité et pas encore inscrit peut créer le compte à sa place, trouver l'invitation qui l'y attend et accepter la liaison. Le mode `invitation` ferme la porte à qui ne connaît aucune adresse, pas à qui en connaît une. | 🟡 | [#270](https://github.com/Cimavia/cimavia/issues/270) |
 
 > **L'anglais n'est PAS de la dette** — c'est du périmètre v1.0 (CDC §4, §11) dont l'infrastructure
-> est déjà payée : zéro string en dur depuis P0, formats localisés en fonctions pures de
+> est déjà payée : zéro string en dur depuis P0 (vérifié par lint depuis
+> [#623](https://github.com/Cimavia/cimavia/issues/623), qui en a trouvé une), formats localisés en fonctions pures de
 > `@cmv/shared`, `Locale` et `User.locale` déjà en place. Il ne manque que `en.json`, la détection
 > (les deux apps forcent `lng: "fr"`, **délibérément** — sans ressource `en`, un appareil anglais
 > afficherait des libellés FR avec des dates EN) et la vérification des formats. Suivi par l'épic
@@ -5531,6 +5533,39 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > - **L'invitation reçue nomme les Coachs qui suivront** (`issuer.coachNames`), l'invité exclu
 >   s'il en est. Liste vide = l'entreprise n'a pas encore de Coach, et la carte le dit.
 > - **Routage d'un compte à double capacité** : voir **MC-2**.
+
+---
+
+## v1.0 — Garde-fous du dépôt ([#621](https://github.com/Cimavia/cimavia/issues/621))
+
+> **Tranché en [#623](https://github.com/Cimavia/cimavia/issues/623)** (quatre règles dures
+> vérifiées par Biome) : des plugins **GritQL**, et non les règles natives. `style/noJsxLiterals`
+> ne voit que le texte enfant sans option ; avec `noStrings`, il signale aussi des chaînes hors du
+> JSX ; et son `allowedStrings` compare le texte espaces compris, `" · "` n'y valant pas `"·"`. Le
+> critère retenu pour la règle 6 est **« contient une lettre »**, hors entité HTML : les glyphes,
+> la ponctuation et les nombres passent sans liste à tenir. Une expression compte si elle **rend**
+> du texte — branche de ternaire, droite d'un `&&`, opérande de `+` — et non quand elle choisit une
+> clé (`t(c ? "a" : "b")`) ou teste une valeur (`status === "DONE"`). `style/noHexColors` reste,
+> mais pour le CSS seul.
+>
+> Une couleur hex de **3 ou 4 chiffres** n'est signalée que seule dans sa chaîne ou entre crochets
+> Tailwind (`bg-[#abc]`) : ailleurs, « #602 » est un renvoi d'issue. Celles de 6 ou 8 chiffres le
+> sont partout où le `#` n'est pas collé à un mot — une ancre d'url (`doc#facade`) n'est pas une
+> couleur.
+>
+> Les **exceptions vivent dans le code**, en `biome-ignore` justifié, et non dans `biome.json` :
+> le fichier n'accepte pas de commentaire, une liste sans raison n'aurait rien dit, et une
+> suppression devenue inutile est signalée là où elle traîne. Les `includes` d'un plugin portent
+> son **périmètre** (tests, tokens, layouts), jamais un cas particulier.
+>
+> Les `_layout.tsx` ne sont pas hors règle : ils ne portent que leur composant. La pastille de
+> l'onglet notifications en est sortie pour `shared/lib/tabs.ts`, où elle se teste seule.
+>
+> Une règle GritQL qui ne trouve plus rien **se tait** au lieu d'échouer — un nœud renommé à une
+> montée de Biome suffit. D'où `check:lint-rules` et ses fixtures, qui vérifient aussi le
+> périmètre : un hex signalé sous `theme/` échoue autant qu'un hex ignoré ailleurs. Chaque marque
+> nomme sa règle (`✗ noRawSql`) : Biome ne nomme pas le plugin dans son rapport, le script le
+> reconnaît à son message, lu dans le `.grit`.
 
 ---
 

@@ -57,7 +57,7 @@ describe("CmvPanel", () => {
       </CmvPanel>,
     );
 
-    await user.click(getByRole("button", { name: "Fermer" }));
+    await user.click(getByRole("button", { name: "common.close" }));
 
     expect(onClose).toHaveBeenCalledOnce();
   });

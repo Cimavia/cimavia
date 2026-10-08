@@ -1,0 +1,19 @@
+language js
+
+// Règle dure n°4 : un fichier de route d'apps/mobile/app/ (hors _layout.tsx, voir
+// noLogicInLayout) n'est que le shell d'une ligne vers l'écran de sa feature.
+or {
+  JsImport(),
+  JsExport(),
+  JsFunctionDeclaration(),
+  JsClassDeclaration(),
+  JsVariableStatement(),
+  JsExpressionStatement(),
+  TsTypeAliasDeclaration(),
+  TsInterfaceDeclaration(),
+  TsEnumDeclaration()
+} as $item where {
+  $item <: not within JsFunctionBody() ,
+  $item <: not r"export \{ \w+ as default \} from \"@/feature/[\w/-]+\";",
+  register_diagnostic(span=$item, message="Fichier de route : seulement « export { Screen as default } from @/feature/<x> » ; l'écran vit dans sa feature (règle dure n°4).", severity="error")
+}

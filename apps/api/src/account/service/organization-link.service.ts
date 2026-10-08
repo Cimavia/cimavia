@@ -163,6 +163,7 @@ export class OrganizationLinkService {
  * ne naîtrait jamais. Les entreprises différentes ne s'attendent pas.
  */
 async function lockOrganization(tx: Prisma.TransactionClient, organizationId: string) {
+  // biome-ignore lint/plugin/noRawSql: Prisma n'exprime pas FOR UPDATE ; ne lit aucune donnée, verrouille une ligne par son id
   await tx.$queryRaw`SELECT 1 FROM "organization" WHERE "id" = ${organizationId} FOR UPDATE`;
 }
 

@@ -1,0 +1,17 @@
+language js
+
+// Règle dure n°1 : le SQL brut ne passe pas par l'extension Prisma qui scope chaque requête à
+// l'acteur courant. Toute la famille ($queryRaw, $executeRawUnsafe, $queryRawTyped…), qu'on y
+// accède par un point, par crochets ou par déstructuration. Un usage légitime se déclare là où il
+// vit, et `grep -rn "lint/plugin/noRawSql" apps` en donne la liste :
+//   // biome-ignore lint/plugin/noRawSql: <pourquoi il ne contourne pas la tenancy>
+// Tests et e2e hors périmètre.
+or {
+  JsStaticMemberExpression(member=$name),
+  JsComputedMemberExpression(member=$name),
+  JsObjectBindingPatternShorthandProperty(identifier=$name),
+  JsObjectBindingPatternProperty(member=$name)
+} as $access where {
+  $name <: r"[\"'`]?[$](?:query|execute)Raw\w*[\"'`]?",
+  register_diagnostic(span=$access, message="SQL brut : il échappe à l'extension Prisma de tenancy (règle dure n°1). Un usage légitime se déclare par biome-ignore, avec sa raison.", severity="error")
+}

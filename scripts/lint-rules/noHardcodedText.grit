@@ -1,0 +1,35 @@
+language js
+
+// Règle dure n°6 : un texte affiché passe par i18next. « Texte » = qui contient une lettre, hors
+// entité HTML (&nbsp;) : les glyphes (—, ·, +, ✓), la ponctuation et les nombres restent libres,
+// sans liste à tenir. Trois portes : un enfant texte, une expression entre accolades, et les
+// attributs que l'utilisateur lit ou entend. Une expression est du texte si elle EN REND — une
+// chaîne, un gabarit, une branche de ternaire, la droite d'un &&, un opérande de + ; les arguments
+// d'un appel (t("clé")) et la condition d'un ternaire n'en rendent pas. Tests hors périmètre.
+// Un glyphe qui s'écrit avec une lettre se déclare :
+//   {/* biome-ignore lint/plugin/noHardcodedText: <raison> */}
+pattern rendered_text() {
+  or {
+    JsStringLiteralExpression() as $string where { $string <: r"(?s)(?:.*[^&#\p{L}])?\p{L}.*" },
+    JsTemplateExpression(elements=some JsTemplateChunkElement() as $chunk) where {
+      $chunk <: r"(?s)(?:.*[^&#\p{L}])?\p{L}.*"
+    },
+    JsConditionalExpression(consequent=$then, alternate=$else) where {
+      or { $then <: rendered_text(), $else <: rendered_text() }
+    },
+    JsLogicalExpression(right=rendered_text()),
+    `$left + $right` where { or { $left <: rendered_text(), $right <: rendered_text() } },
+    JsParenthesizedExpression(expression=rendered_text())
+  }
+}
+
+or {
+  JsxText() as $text where { $text <: r"(?s)(?:.*[^&#\p{L}])?\p{L}.*" },
+  JsxExpressionChild(expression=rendered_text()),
+  JsxAttribute(name=r"(?:placeholder|title|alt|label|aria-label|aria-description|aria-placeholder|aria-roledescription|aria-valuetext|accessibilityLabel|accessibilityHint|headerTitle|tabBarLabel)", initializer=JsxAttributeInitializerClause(value=or {
+    JsxString() as $value where { $value <: r"(?s)(?:.*[^&#\p{L}])?\p{L}.*" },
+    JsxExpressionAttributeValue(expression=rendered_text())
+  }))
+} as $node where {
+  register_diagnostic(span=$node, message="Texte en dur dans le JSX : il passe par i18next (règle dure n°6).", severity="error")
+}

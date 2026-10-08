@@ -216,6 +216,7 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
           active={state.bold}
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
+          {/* biome-ignore lint/plugin/noHardcodedText: glyphe de la barre d'outils, son nom accessible passe par i18n */}
           <span className="font-bold">B</span>
         </ToolButton>
         <ToolButton
@@ -223,6 +224,7 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
           active={state.italic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
+          {/* biome-ignore lint/plugin/noHardcodedText: glyphe de la barre d'outils, son nom accessible passe par i18n */}
           <span className="italic">I</span>
         </ToolButton>
         <ToolButton
@@ -230,6 +232,7 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
           active={state.underline}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
         >
+          {/* biome-ignore lint/plugin/noHardcodedText: glyphe de la barre d'outils, son nom accessible passe par i18n */}
           <span className="underline">U</span>
         </ToolButton>
 
@@ -347,6 +350,7 @@ function LinkField({ value, onChange, onSubmit, onCancel }: Readonly<LinkFieldPr
           if (event.key === "Escape") onCancel();
         }}
         aria-label={t("library.builder.tool.linkUrl")}
+        // biome-ignore lint/plugin/noHardcodedText: préfixe d'url, le même dans toutes les langues
         placeholder="https://"
         className="flex-1 rounded-cmv-sm border border-cmv-border bg-cmv-surface px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-hi outline-none focus:border-cmv-accent"
       />
