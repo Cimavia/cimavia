@@ -13,8 +13,8 @@ export const TENANT_CLS_KEY = "tenant";
  * en tant que coach comme en tant qu'athlète, et c'est `exercised` qui départage la colonne de
  * scope (`coachId` ou `athleteId`).
  *
- * `exercised` vaut `null` sur une route qui n'exerce aucune capacité — c'est le cas voulu des
- * ressources au scope identique pour les deux (`Notification`, `PushToken`), pas un oubli.
+ * `exercised` vaut `null` sur une route qui n'exerce aucune capacité — déclarée telle par
+ * `@ExercisesNoCapability()`, comme le centre de notifications ou les tokens push, pas un oubli.
  */
 export type TenantContext = {
   userId: string;

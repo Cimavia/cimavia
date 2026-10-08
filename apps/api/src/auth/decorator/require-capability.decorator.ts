@@ -32,31 +32,65 @@ export type RouteCapability = CapabilityName | "either";
  * émises ou reçues. La route le sait, elle. Une déclaration, deux lecteurs — c'est aussi ce qui
  * garantit qu'exigence et scope ne peuvent pas diverger.
  *
- * Une route SANS ce décorateur n'exige rien et n'exerce rien : c'est le cas voulu des ressources
- * dont le scope est identique pour les deux capacités (`Notification`, `PushToken` — un seul champ
- * destinataire), pas un oubli.
+ * Une route qui n'exerce aucune capacité le dit aussi, par `@ExercisesNoCapability()` : l'absence
+ * de déclaration ne veut rien dire, et un test e2e la refuse sur toute route montée (#622).
  */
 export const RequireCapability = (capability: RouteCapability) =>
   SetMetadata(REQUIRED_CAPABILITY_KEY, capability);
 
+export const NO_CAPABILITY = "none";
+
+/** Ce qu'une route authentifiée déclare : la capacité qu'elle exerce, ou aucune. */
+export type RouteDeclaration = RouteCapability | typeof NO_CAPABILITY;
+
 /**
- * La capacité exigée par la route courante, `null` si elle n'en exige aucune. Méthode d'abord,
- * classe ensuite : un contrôleur peut poser la règle commune et une route la remplacer.
+ * La route est authentifiée mais n'exerce aucune capacité : elle n'exige rien, et le scope n'a
+ * pas de titre (`exercised: null`). Trois cas l'appellent, tous voulus (#622) :
  *
- * Partagée entre la garde et l'interceptor à dessein : les deux doivent lire **exactement** la
- * même chose. Recopier ce `getAllAndOverride` des deux côtés laisserait un jour l'un des deux
- * oublier la classe, et le scope s'écarterait de l'exigence sans qu'aucun test ne le voie.
+ * - une ressource adressée au compte, au scope identique pour les deux capacités (`Notification`,
+ *   `PushToken`, les préférences d'envoi) ;
+ * - une lecture des deux espaces à la fois (`me/counterparts`), ou une action sur le compte
+ *   lui-même (`me/capabilities`, par laquelle on obtient justement une capacité) ;
+ * - une route qui ne touche aucune donnée tenant (`/version`).
+ *
+ * Même clé que `@RequireCapability`, et c'est voulu : posé sur une méthode, il remplace la
+ * capacité déclarée par le contrôleur, et la garde comme l'interceptor continuent de lire une
+ * seule déclaration.
+ */
+export const ExercisesNoCapability = () => SetMetadata(REQUIRED_CAPABILITY_KEY, NO_CAPABILITY);
+
+/**
+ * Ce que la route déclare, `null` si elle ne déclare rien. Méthode d'abord, classe ensuite : un
+ * contrôleur peut poser la règle commune et une route la remplacer.
+ *
+ * Seul lecteur de la métadonnée : la garde et l'interceptor passent par `requiredCapabilityOf`,
+ * le test d'énumération des routes par celui-ci. Recopier ce `getAllAndOverride` laisserait un
+ * jour l'un d'eux oublier la classe, et le scope s'écarterait de l'exigence sans qu'aucun test ne
+ * le voie.
+ */
+export function routeDeclarationOf(
+  reflector: Reflector,
+  context: Pick<ExecutionContext, "getHandler" | "getClass">,
+): RouteDeclaration | null {
+  return (
+    reflector.getAllAndOverride<RouteDeclaration>(REQUIRED_CAPABILITY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]) ?? null
+  );
+}
+
+/**
+ * La capacité exigée par la route courante, `null` si elle n'en exige aucune — route publique ou
+ * `@ExercisesNoCapability()`. Partagée entre la garde et l'interceptor : les deux doivent lire
+ * **exactement** la même chose.
  */
 export function requiredCapabilityOf(
   reflector: Reflector,
   context: ExecutionContext,
 ): RouteCapability | null {
-  return (
-    reflector.getAllAndOverride<RouteCapability>(REQUIRED_CAPABILITY_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]) ?? null
-  );
+  const declared = routeDeclarationOf(reflector, context);
+  return declared === NO_CAPABILITY ? null : declared;
 }
 
 /** Nom du paramètre par lequel une route `"either"` apprend à quel titre on l'appelle. */

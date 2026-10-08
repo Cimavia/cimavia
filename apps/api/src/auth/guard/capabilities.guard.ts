@@ -29,7 +29,7 @@ export class CapabilitiesGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const required = requiredCapabilityOf(this.reflector, context);
-    // Aucune exigence : route publique, ou ressource au scope identique pour les deux capacités.
+    // Aucune exigence : route publique (`@AllowAnonymous`), ou `@ExercisesNoCapability()`.
     if (required == null) return true;
 
     const request = context.switchToHttp().getRequest<{ user?: CapabilitySource | null }>();

@@ -1,6 +1,9 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
-import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import {
+  ExercisesNoCapability,
+  RequireCapability,
+} from "../../auth/decorator/require-capability.decorator";
 import { CounterpartService } from "../service/counterpart.service";
 import { RelationService } from "../service/relation.service";
 
@@ -35,6 +38,7 @@ export class RelationController {
    * elles rendraient un 403 à un compte mono-capacité sur chaque écran.
    */
   @Get("me/counterparts")
+  @ExercisesNoCapability()
   myCounterparts() {
     return this.counterparts.mine();
   }

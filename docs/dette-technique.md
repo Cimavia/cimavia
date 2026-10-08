@@ -2090,6 +2090,38 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > la suite : quand une route touche une ressource mono-capacité sans être elle-même d'un seul
 > titre, c'est la LECTURE qu'on qualifie, jamais la route. Deux e2e figent le contraste — 400 sur
 > les factures, 200 sur les notifications, pour le même compte.
+>
+> *Précisé en [#622](https://github.com/Cimavia/cimavia/issues/622)* : « ne déclare plus rien »
+> est devenu `@ExercisesNoCapability()`. Le comportement est le même, mais l'absence de
+> déclaration ne veut plus rien dire.
+
+> **Tranché en [#622](https://github.com/Cimavia/cimavia/issues/622)** (chaque route déclare son
+> scope) : onze routes reposaient sur l'absence de décorateur, et rien ne distinguait ce choix
+> d'un oubli. L'issue parlait d'un décorateur « même scope pour les deux capacités » ; c'est trop
+> étroit — seules huit routes sont dans ce cas (notifications, tokens push, préférences d'envoi).
+> `me/counterparts` lit les deux espaces à la fois, `me/capabilities` agit sur le compte lui-même,
+> `/version` ne touche aucune donnée tenant. Ce que les onze partagent, c'est d'être
+> **authentifiées sans titre** (`exercised: null`, tout compte passe, Entreprise comprise) : d'où
+> `@ExercisesNoCapability()`.
+>
+> Il pose la **même clé** de métadonnée que `@RequireCapability` (valeur `"none"`) : sur une
+> méthode, il remplace la capacité du contrôleur, et garde comme interceptor lisent toujours une
+> seule déclaration. `routeDeclarationOf` est le seul lecteur de la clé ; `requiredCapabilityOf`
+> traduit `"none"` en `null`.
+>
+> Le test est un **e2e** et non un unitaire, alors qu'il ne fait que compiler `AppModule` :
+> importer `AppModule` valide l'environnement dès l'évaluation du décorateur, et seule la config
+> e2e charge `.env.test`. Il énumère les contrôleurs **montés** (`DiscoveryService`), pas les
+> fichiers `*.controller.ts`, et fige aussi la surface joignable sans session (`@AllowAnonymous`,
+> `@OptionalAuth`, dont il lit les clés sur les décorateurs mêmes, la librairie ne les exportant
+> pas). La garde, elle, ne refuse pas une route non déclarée à l'exécution :
+> le test couvre toutes les routes montées, un refus au runtime ferait doublon.
+>
+> L'issue demandait que la déclaration accueille la classe d'opération (#603) et le droit accordé
+> (#605). Ni l'une ni l'autre ne lit la route : #603 décide la classe **par modèle**, dans
+> l'extension, et #605 ajoute le droit **dans le filtre**, sous la même capacité. Rien à y
+> préparer, donc — sinon que tout passe par `routeDeclarationOf` : si une route doit un jour en
+> dire plus, c'est le type de sa valeur qui change, pas le test.
 
 > **Tranché en #129** (un basculeur d'espace, et non des sections) : l'épique #7 prescrivait
 > « pas de switch exclusif », et une première version a donc livré une nav SECTIONNÉE — douze

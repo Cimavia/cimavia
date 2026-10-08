@@ -1,12 +1,14 @@
 import { Body, Controller, Delete, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { ExercisesNoCapability } from "../../auth/decorator/require-capability.decorator";
 import { RegisterPushTokenDto } from "../dto/register-push-token.dto";
 import { PushTokenService } from "../service/push-token.service";
 
-// Appareils de l'utilisateur courant. Aucun @Roles : les DEUX rôles reçoivent des notifications
-// (l'athlète une planif diffusée ou ajustée, le coach un débrief) — le scope tenant suffit,
-// chacun ne gérant que ses propres appareils.
+// Appareils de l'utilisateur courant. Aucune capacité exercée : les DEUX capacités reçoivent des
+// notifications (l'athlète une planif diffusée ou ajustée, le coach un débrief) — le scope tenant
+// suffit, chacun ne gérant que ses propres appareils.
 @ApiTags("notifications")
+@ExercisesNoCapability()
 @Controller("me/push-tokens")
 export class PushTokenController {
   constructor(private readonly tokens: PushTokenService) {}
