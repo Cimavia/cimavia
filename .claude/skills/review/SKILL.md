@@ -25,9 +25,9 @@ Portée : `/review` = tout le dépôt. `/review api`, `/review web`, `/review sh
 3. **Les outils d'abord, la lecture ensuite.** Ce que Biome, `tsc`, Vitest et Sonar trouvent déjà
    ne se re-cherche pas à la main. La lecture sert à trouver ce qu'aucun d'eux ne voit.
 4. **Les références sont celles du dépôt** : `CLAUDE.md` (les 7 règles dures, la porte qualité),
-   `docs/architecture-choice.md`, `docs/CONTEXT.cimavia.md`, `docs/dette-technique.md`. Un écart
-   **déjà consigné** comme dette assumée n'est pas un constat neuf — le citer comme tel, avec sa
-   ligne de journal.
+   `docs/architecture-choice.md`, `docs/CONTEXT.cimavia.md`, `docs/dette-technique.md` (index) et
+   `docs/dette/` (domaines). Un écart **déjà consigné** comme dette assumée n'est pas un constat
+   neuf — le citer comme tel, avec sa ligne de journal.
 5. **Je ne lance ni git ni les interfaces web** (GitHub, Sonar, Scaleway, Neon). Je les liste.
 
 ## 1. Passe machine — avant de lire une ligne
@@ -97,8 +97,8 @@ Gabarit de prompt d'agent :
 > Revue de qualité du lot `<chemin>` du monorepo cimavia. Lis d'abord `CLAUDE.md` (7 règles dures)
 > et `docs/architecture-choice.md`. Ne modifie AUCUN fichier. Pour chaque constat : ouvre le
 > fichier, lis le contexte, cherche le test qui le couvre peut-être déjà, et vérifie qu'il n'est pas
-> déjà consigné dans `docs/dette-technique.md` — sinon ne le rapporte pas. Cherche : <grille §3>.
-> Rends au plus 10 constats au format `[S<n>] <fichier>:<ligne> — <titre>` + Constat / Pourquoi /
+> déjà consigné dans `docs/dette/` (cherche par `grep -rn`) — sinon ne le rapporte pas. Cherche :
+> <grille §3>. Rends au plus 10 constats au format `[S<n>] <fichier>:<ligne> — <titre>` + Constat / Pourquoi /
 > Piste. Dis explicitement ce que tu n'as pas pu vérifier.
 
 **Deux lots restent à ma charge, pas à celle d'un sous-agent** — ils exigent de voir tout le dépôt
@@ -119,7 +119,7 @@ en même temps, ce qu'un agent cantonné à un dossier ne peut pas faire :
 | **Sécurité** | route sans guard de tenancy ni test e2e d'isolation · entrée non validée par Zod · URL signée trop longue ou trop large · secret en dur, `.env` versionné, secret étendu dans un `run:` de workflow · action GitHub non épinglée · conteneur en root · CORS/headers permissifs · log qui recrache un token ou une donnée personnelle |
 | **Tests** | fichier de production à 0 % de couverture · test qui n'assertionne rien · `beforeAll` dont l'échec saute la suite en silence · e2e d'isolation manquant sur une route neuve |
 | **Architecture** | module qui contourne `app.setup.ts` · accès Prisma hors du service qui le porte · import croisé entre features · fichier > 400 lignes ou fonction au-delà de la complexité 15 que Biome n'a pas vue (paquet non linté) |
-| **Dette & docs** | `MOCKED` sans phase de raccrochage · dette réelle absente de `docs/dette-technique.md` · ligne de journal qui ment sur l'état du code |
+| **Dette & docs** | `MOCKED` sans phase de raccrochage · dette réelle absente de `docs/dette/` · ligne de journal qui ment sur l'état du code |
 
 ## 4. Ce qui n'est PAS un constat
 
@@ -157,7 +157,7 @@ qu'on n'a pas pu lancer les e2e, ou qu'un lot n'a pas été couvert, vaut mieux 
 
 - **Rien n'est corrigé dans la foulée sans accord.** Proposer un ordre de traitement : ce qui se
   règle en un commit, ce qui demande une issue, ce qui n'a pas de déclencheur et attend.
-- S1/S2 → issues (skill `issue`) ; raccourci assumé → ligne dans `docs/dette-technique.md`.
+- S1/S2 → issues (skill `issue`) ; raccourci assumé → ligne dans `docs/dette/<domaine>.md`.
 - Un constat qui **contredit un encadré « Tranché en #N »** ne devient pas une issue : il se
   remonte comme une contradiction, à trancher par Le développeur.
 - Les corrections retenues repartent par le skill `feature` — commits atomiques, relus un par un.

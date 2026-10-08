@@ -15,7 +15,7 @@ Contexte auto-chargé par Claude Code. Garder **court et à jour** : toute déri
 - `architecture-choice.md` — **règles & conventions** d'archi (à respecter pour toute feature).
 - `cahier-des-charges-mvp.md` — périmètre MVP (MoSCoW, modèle de données, non-fonctionnel).
 - `dev-plan` (HTML) — plan en 8 phases P0→P7 ; l'avancement réel est l'objet `checked` (mis à jour à la main en fin de phase).
-- `dette-technique.md` — **journal de décisions + index de dette** : les raccourcis assumés (une ligne + lien vers l'issue, qui porte le raisonnement) et les **décisions tranchées en route** que le code ne justifie pas seul. Tout raccourci pris s'y ajoute **au moment où on le prend** — une ligne suffit, l'issue peut attendre.
+- `dette-technique.md` — **index du journal de décisions et de dette**, rangé par domaine sous `docs/dette/` : les raccourcis assumés (une ligne + lien vers l'issue, qui porte le raisonnement) et les **décisions tranchées en route** que le code ne justifie pas seul. Lire le domaine touché, pas tout le dossier ; un identifiant ou un « Tranché en #N » se cherche par `grep -rn … docs/dette/`. Tout raccourci pris s'ajoute à son domaine **au moment où on le prend** — une ligne suffit, l'issue peut attendre. Les dettes résolues partent à `docs/dette/archive.md` ; `pnpm check:dette` liste celles sans issue.
 
 ## Monorepo
 

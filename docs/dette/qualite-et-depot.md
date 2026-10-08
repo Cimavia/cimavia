@@ -625,3 +625,29 @@ liste des domaines vivent dans l'index.
 > périmètre : un hex signalé sous `theme/` échoue autant qu'un hex ignoré ailleurs. Chaque marque
 > nomme sa règle (`✗ noRawSql`) : Biome ne nomme pas le plugin dans son rapport, le script le
 > reconnaît à son message, lu dans le `.grit`.
+
+> **Tranché en [#624](https://github.com/Cimavia/cimavia/issues/624)** (le journal se range par
+> domaine, et c'est le découpage qui l'allège, pas l'archive) : à 5 574 lignes, les dettes ✅ n'en
+> pesaient que 41 ; les encadrés, 85 %. Sortir les dettes résolues ne gagnait presque rien, et les
+> encadrés ne s'archivent pas : une décision reste vraie après la dette qui l'a fait naître. Le
+> journal se lit donc par **domaine** — neuf fichiers sous `docs/dette/`, sections inchangées et
+> dans leur ordre de naissance — et non par épic (la plupart des sections n'en ont pas) ni par
+> label `area:` (une décision traverse les couches).
+>
+> `docs/dette-technique.md` **garde son chemin** et devient l'index : aucune issue ne pointe le
+> fichier par URL — elles citent un identifiant (« P2-1 ») ou un titre d'encadré (« Tranché en
+> #10 »), qu'un `grep -rn` sur `docs/dette/` retrouve où qu'il ait été rangé. Un renvoi « § Section »
+> du code a suivi son domaine, sauf celui de la migration `20260824070000_…`, qui ne se modifie plus
+> une fois jouée : il mène à l'index, qui mène au domaine.
+>
+> L'archive trie par **statut**, jamais par identifiant barré : `~~P2-1~~ / ~~P3-2~~` existe en 🟡,
+> un « nouveau cas » ouvert d'une dette déjà close. Le domaine garde, sous le tableau qu'une dette
+> a quitté, la ligne « *Résolues, à l'archive : …* » qui la nomme.
+>
+> La liste des dettes sans issue n'est **plus écrite** : `pnpm check:dette` la calcule. Elle avait
+> déjà dérivé — **MI-1**, résolue, y restait ; **L-1** n'y était jamais entrée — et le même relevé a
+> trouvé deux **R-1** et deux **R-2** : celles de la refonte d'exercice (#157) sont devenues **EX-1**
+> et **EX-2**, la ligne gardant son ancien nom. Une liste générée dans l'index aurait demandé à
+> chaque PR de la régénérer ; un script qui la rend à la demande et refuse ce qui la fausserait
+> (identifiant en double, dette ouverte sans suivi, ligne hors tableau — **M-6** en était une, écrite
+> sous un encadré, affichée en barres verticales) ne demande rien.

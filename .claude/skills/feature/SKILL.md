@@ -12,8 +12,8 @@ quoi lire, quelles questions poser, et dans quel ordre livrer.
 
 1. **Les règles vivent dans les docs, pas ici.** `CLAUDE.md` (règles dures, porte qualité, façon de
    travailler), `docs/architecture-choice.md`, `docs/CONTEXT.cimavia.md` (termes canoniques),
-   `docs/dette-technique.md`. **En cas de contradiction avec ce fichier, les docs gagnent** — et
-   c'est un résultat à signaler.
+   `docs/dette-technique.md` (index du journal, rangé par domaine sous `docs/dette/`). **En cas de
+   contradiction avec ce fichier, les docs gagnent** — et c'est un résultat à signaler.
 2. **Ce qui cloche se signale, ne se répare pas en douce.** Test cassé, doc fausse, dette mal
    suivie : le dire. Le corriger seulement si c'est le sujet de la PR, ou après accord.
 3. **Je n'exécute jamais git** (add, commit, push) **ni les interfaces web** (GitHub, Scaleway,
