@@ -12,10 +12,10 @@ import { formatInstantDate } from "@/shared/util/date.util";
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values coach.table.columns: COACH_COLUMNS
 
-const COACH_COLUMNS = ["coach", "since"] as const;
+const COACH_COLUMNS = ["coach", "origin", "since"] as const;
 
 /** L'en-tête et les lignes partagent leur grille — sinon les intitulés se décalent du contenu. */
-const GRID = "grid grid-cols-[2fr_1fr_auto] items-center gap-cmv-lg";
+const GRID = "grid grid-cols-[2fr_2fr_1fr_auto] items-center gap-cmv-lg";
 
 /**
  * « Mes coachs » côté web (#28, #599) — équivalent de `JoinCoachScreen` sur mobile. Un athlète est
@@ -27,6 +27,9 @@ const GRID = "grid grid-cols-[2fr_1fr_auto] items-center gap-cmv-lg";
  *
  * Les invitations en attente se posent AU-DESSUS (#146), coach ou pas. Elles sont toutes
  * acceptables depuis #599 : être déjà suivi n'empêche plus d'en rejoindre un autre.
+ *
+ * Chaque lien dit d'où il vient (#602, maquette entreprise, frame 9) : « via F » quand une
+ * entreprise l'a créé, rien quand il est direct.
  */
 export function MyCoachesScreen() {
   const { t } = useTranslation();
@@ -84,7 +87,7 @@ function CoachTable({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
   return (
     <div className="flex flex-col gap-cmv-md">
       <div className={cn(CMV_TABLE.frame, "overflow-x-auto bg-cmv-surface")}>
-        <div className="min-w-[32rem]">
+        <div className="min-w-[40rem]">
           <div className={cn(GRID, CMV_TABLE.head, CMV_TABLE.headBorder, "px-cmv-lg py-cmv-sm")}>
             {COACH_COLUMNS.map((column) => (
               <span key={column} className={CMV_TABLE.headLabel}>
@@ -114,6 +117,14 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
       <span className="flex items-center gap-cmv-sm">
         <CmvAvatar name={coach.coachName} />
         <span className="text-cmv-text-hi">{coach.coachName}</span>
+      </span>
+
+      {/* `null` = lien direct, « aucune entreprise » et non une donnée manquante : la cellule reste
+          vide, sans « — » (écart consigné au README des maquettes). */}
+      <span className="text-cmv-text-mid">
+        {coach.organizationName == null
+          ? null
+          : t("coach.table.via", { name: coach.organizationName })}
       </span>
 
       {/* `joinedAt` est nullable (la relation peut avoir été posée sans passer par une

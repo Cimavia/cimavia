@@ -1193,8 +1193,10 @@
     "table": {
       "columns": {
         "coach": "Coach",
+        "origin": "Provenance",
         "since": "Suivi depuis"
-      }
+      },
+      "via": "via {{name}}"
     },
     "linked": {
       "message": "Message",
@@ -1208,6 +1210,13 @@
       "decline": "Refuser",
       "declineConfirm": "Confirmer le refus",
       "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
+      "fromOrganization": {
+        "title": "{{name}} t'invite",
+        "coaches": "Tu seras suivi par",
+        "noCoach": "Tu seras suivi par ses coachs dès leur arrivée.",
+        "accept": "Accepter",
+        "declineHint": "Refuser est sans retour : {{name}} devra t'inviter à nouveau."
+      },
       "toast": {
         "declined": "Invitation refusée"
       }
