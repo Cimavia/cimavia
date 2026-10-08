@@ -32,7 +32,7 @@ Identité authentifiée (gérée par Better Auth). Porte deux **capacités cumul
 Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exercices/séances, ses planifications, ses factures, et participe à ses conversations. Appartient à **0..N entreprises** (#601), dont il peut lire ou modifier ce que les autres Coachs lui ouvrent *(cible — #605)*.
 
 ### Athlete
-Un `User` qui porte `isAthlete`, suivi par **0..N Coachs**, en direct ou via une entreprise *(cible — #602)*. Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
+Un `User` qui porte `isAthlete`, suivi par **0..N Coachs**, en direct ou via une entreprise (#602). Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
 
 ### Organization (entreprise)
 Une structure qui réunit des Coachs. Interface : « Entreprise » ; code : `Organization`. Elle s'ouvre par un **compte Entreprise**, dédié et **exclusif** : un `User` qui porte la capacité `company`, jamais cumulée avec `isCoach` ou `isAthlete` — il ne coache ni ne s'entraîne. Il ajoute ses Coachs (#601) et invite des athlètes (#602), et ne voit **aucun contenu** en v1. Un Coach rejoint une entreprise en acceptant son **invitation** — la même table que celle d'un athlète, au rôle `COACH` et avec l'entreprise pour émetteur ; l'appartenance est une ligne `OrganizationCoach` par couple (#601). La table est distincte du compte qui l'ouvre, pour accueillir plus tard des administrateurs nommés. Son espace vit sur le **web** seulement ; le mobile y renvoie.
@@ -48,7 +48,7 @@ Ce que la navigation montre à un instant donné. Un compte à double capacité 
 ### CoachAthlete (relation)
 Le lien coach→athlète, **un par couple**, établi par **invitation** — toujours adressée à une adresse e-mail, et acceptée depuis le compte qui la porte (#390 : plus de code à transmettre). Statut `PENDING` → `ACTIVE`. C'est la frontière de tenant : presque toute donnée est scopée par cette relation.
 
-**Via une entreprise** *(cible — #602)* : un athlète invité par l'entreprise F reçoit un lien **par Coach de F**, marqué « via F » ; un Coach qui rejoint F reçoit un lien avec chaque athlète de F. Il n'y a pas de table « relations » : elles se déduisent du lien et de l'appartenance à une entreprise.
+**Via une entreprise** (#602) : un athlète qui accepte l'invitation de l'entreprise F devient son athlète (ligne `OrganizationAthlete`) et reçoit un lien **par Coach de F**, marqué « via F » (`CoachAthlete.organizationId`) ; un Coach qui rejoint F reçoit un lien avec chaque athlète de F. Un lien **direct** déjà là est gardé tel quel, sans provenance ; le lien d'un compte vers lui-même est sauté ; une boucle refuse toute l'arrivée. Il n'y a pas de table « relations » : elles se déduisent du lien et de l'appartenance à une entreprise.
 
 ### AthleteSheet (fiche athlète)
 Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement**. Pas de structure imposée en MVP.
@@ -247,7 +247,7 @@ deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il
 | Messagerie | avec ses athlètes et les Coachs de ses entreprises *(cible — #611)* | avec ses Coachs | — *(dans aucune conversation)* |
 | Facture | émission + statut ; suit le droit de sa planification *(cible — #607)* | lecture | — |
 | Rappel | CRUD (les siens) | — *(aucun accès : 403)* | — |
-| Entreprise : Coachs, athlètes, invitations | — | — | gestion (la sienne) ; ses athlètes *(cible — #602)* |
+| Entreprise : Coachs, athlètes, invitations | — | — | gestion (la sienne), athlètes compris (#602) |
 | Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |
 
 Le compte Entreprise porte la capacité `company`, **exclusive** : sa colonne ne se cumule avec aucune autre.

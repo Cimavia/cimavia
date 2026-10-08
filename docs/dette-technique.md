@@ -22,12 +22,12 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 [#70](https://github.com/Cimavia/cimavia/issues/70) durcissement avant prod ·
 [#7](https://github.com/Cimavia/cimavia/issues/7) capacités coach/athlète ·
 [#593](https://github.com/Cimavia/cimavia/issues/593) entreprises et multi-coach — plus neuf issues
-autonomes. **Vingt-huit dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
+autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
 déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-4**,
-**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **DR-1** et **TZ-1**,
+**IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **DR-1**, **TZ-1** et **MC-2**,
 dont le déclencheur est nommé mais
 dont rien n'est à préparer avant qu'il survienne. Toutes sont volontaires. **Q-5**, longtemps citée
 ici comme la seule involontaire, est résolue : période `previous_version` rendue possible par
@@ -5300,6 +5300,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | MC-1 | **Les docs décrivent la cible avant le code** ([#594](https://github.com/Cimavia/cimavia/issues/594)) : règle dure n°1, `architecture-choice.md` §6, `CONTEXT.cimavia.md` et le cahier des charges posent déjà les règles de l'épic. Chaque affirmation que le code ne tient pas encore porte un marqueur *(cible — #N)* ; la PR de #N le retire en rendant la règle vraie. | 🟡 | [#593](https://github.com/Cimavia/cimavia/issues/593) — résolue au dernier marqueur retiré (`grep -rnE "cible — #[0-9]" CLAUDE.md docs/`) |
+| MC-2 | **Une notification d'invitation mène toujours côté coach un compte à double capacité** : la cloche et le push routent `INVITATION` par capacité, pas par type. Invité par une entreprise (`INVITATION_RECEIVED`) ou rejoint par l'un de ses Coachs (`ORGANIZATION_COACH_JOINED`, #602), un compte coach et athlète arrive sur son tableau de bord de coach, et non dans « Mes coachs ». Déjà vrai de l'invitation d'un Coach depuis #146. | 🟢 | — *(déclencheur : un retour beta d'un compte à double capacité perdu ; le correctif lirait `capabilityOfNotification` dans les deux tables de routage)* |
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -5466,6 +5467,38 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 >   « Tu suivras les athlètes de … » — vrai dès que l'entreprise en aura.
 > - **Une suite e2e dédiée** (`organization.e2e-spec.ts`) plutôt qu'un ajout à `isolation` : elle
 >   éprouve les deux bouts et l'étanchéité entre entreprises sans alourdir le harnais commun.
+
+> **Tranché en [#602](https://github.com/Cimavia/cimavia/issues/602)** (l'entreprise invite des
+> athlètes, suivis par tous ses Coachs) : ce que le code ne dit pas seul.
+>
+> - **Contrat cassé** : `POST /invitations/:id/accept` rend une LISTE de `CoachAthleteDto` (un
+>   lien par Coach de l'entreprise, vide si elle n'en a pas encore), et plus un lien seul. Web et
+>   mobile suivent dans la même PR ; l'APK part avec la promotion sur le NAS.
+> - **La provenance d'un lien** est `CoachAthlete.organizationId`, en `onDelete: SetNull` :
+>   supprimer l'entreprise ne coupe pas le suivi, le lien redevient direct. `null` veut dire
+>   « direct », pas « inconnu » : la cellule reste vide, sans « — ».
+> - **Un lien direct déjà là est gardé sans provenance** (`skipDuplicates`) : il précède
+>   l'entreprise et ne doit pas partir avec elle. Le lien d'un compte vers lui-même est sauté.
+> - **Une boucle refuse TOUTE l'arrivée** (409), pour l'athlète comme pour le Coach : un athlète
+>   suivi par une partie seulement des Coachs de F contredirait ce que l'invitation lui a annoncé.
+> - **Les arrivées dans une même entreprise sont sérialisées** par un verrou
+>   (`SELECT … FOR UPDATE` sur `organization`) : sans lui, un athlète et un Coach arrivés au même
+>   instant lisaient chacun la liste de l'autre avant son arrivée, et leur lien ne naissait pas — le
+>   test e2e de concurrence le fait échouer sans verrou.
+> - **La colonne « Coachs » de la page Athlètes se déduit de l'équipe**, pas des liens : tous les
+>   Coachs de F suivent tous ses athlètes, et un compte Entreprise ne lit jamais `CoachAthlete`.
+>   Lire les liens révélerait les suivis directs, que l'entreprise n'a pas à connaître.
+> - **Notifications** : l'invitation d'un athlète réutilise `INVITATION_RECEIVED` (l'entreprise
+>   pour émettrice), son acceptation `INVITATION_ACCEPTED`, envoyée à chaque Coach dont le lien
+>   vient de naître. L'arrivée d'un Coach est un type neuf, `ORGANIZATION_COACH_JOINED`, envoyé à
+>   chaque athlète dont le lien vient de naître : un coach apparaît dans « Mes coachs » sans qu'il
+>   l'ait invité. Celui qui était déjà suivi en direct n'apprend rien. Le refus d'un athlète ne
+>   prévient pas l'entreprise, comme celui d'un Coach (#601).
+> - **`GET /organization/invitations?role=`** sépare les deux pages : sans `role`, 400, plutôt
+>   qu'un mélange que l'une des deux devrait filtrer.
+> - **L'invitation reçue nomme les Coachs qui suivront** (`issuer.coachNames`), l'invité exclu
+>   s'il en est. Liste vide = l'entreprise n'a pas encore de Coach, et la carte le dit.
+> - **Routage d'un compte à double capacité** : voir **MC-2**.
 
 ---
 

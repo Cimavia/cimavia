@@ -136,8 +136,10 @@ export function routeForNotification(
      * nouvel athlète apparaître dans son tableau de suivi — c'est ce qu'on vient de lui annoncer —
      * et l'athlète va à l'écran où l'invitation s'accepte.
      *
-     * L'invitation d'une entreprise (#601) tombe dans la même branche : elle ne vise que des
-     * Coachs, et sa carte attend sur leur tableau de bord.
+     * L'invitation d'une entreprise tombe dans la même branche : celle d'un Coach (#601) attend sur
+     * son tableau de bord, celle d'un athlète (#602) dans « Mes coachs », comme l'arrivée d'un Coach
+     * de l'entreprise qui le suit désormais. Limite connue : un compte à double capacité va toujours
+     * côté coach, faute de lire le type (consigné en #602).
      */
     case NotificationEntityType.INVITATION:
       return isCoach ? COACH_HOME : { to: "/my-coach" };
