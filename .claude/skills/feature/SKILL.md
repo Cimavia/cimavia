@@ -97,6 +97,18 @@ Commits atomiques, **relus un par un**. Pour chacun, donner :
 Le sujet étant tout ce qui reste, il dit **le pourquoi** autant que le quoi — le diff, lui, dit déjà
 le quoi. Attendre la relecture avant de produire l'incrément suivant.
 
+**Avant de donner un commit, le faire relire par un autre contexte que le mien** : l'auteur ne voit
+pas ses propres angles morts.
+
+- `/code-review` sur le diff de l'incrément — toujours ;
+- `/security-review` en plus dès que l'incrément touche l'auth, la tenancy (garde, extension Prisma,
+  scopes), les médias ou les URLs signées ;
+- chaque constat est **corrigé avant** de donner le commit, ou **remonté** s'il sort du sujet — jamais
+  ignoré en silence.
+
+Les hooks de `.claude/settings.json` passent déjà Biome sur chaque fichier modifié et refusent
+`git commit` / `git push` / `gh pr create` : un refus du hook n'est pas un obstacle à contourner.
+
 ## 6. Portes
 
 **La porte qualité de `CLAUDE.md`** (section *Porte qualité*) — je lance ce qui est automatisable,
@@ -113,6 +125,11 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
 
 ## 8. Test
 - Préparer un plan de test à la fin de chaque issue pour que le développeur test
+
+**Grosse PR → relecture ultra.** Une PR est grosse dès que `git diff --shortstat main...HEAD` dépasse
+**20 fichiers ou 600 lignes**, ou qu'elle touche une migration Prisma ou la tenancy. Je ne peux pas
+lancer `/code-review ultra` moi-même (lancée par le développeur, facturée) : je le **dis en tête** du
+plan de test, avec la commande exacte `/code-review ultra <n° de PR>`, à lancer avant le merge.
 
 ## 9. Ce que je dois demander
 
