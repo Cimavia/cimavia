@@ -1,9 +1,10 @@
 import { Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { ExercisesNoCapability } from "../../auth/decorator/require-capability.decorator";
 import { NotificationFeedService } from "../service/notification-feed.service";
 
 /**
- * Centre de notifications de l'utilisateur courant (#48). AUCUNE capacité déclarée, comme pour les
+ * Centre de notifications de l'utilisateur courant (#48). AUCUNE capacité exercée, comme pour les
  * tokens push, et c'est un choix : ce centre montre ce qui m'est ADRESSÉ, sans notion de titre.
  * Lui en faire déclarer un obligerait un compte à double capacité à choisir à quel titre il
  * consulte ses notifications — et à n'en voir que la moitié. `Notification` scope sur `recipientId`
@@ -15,6 +16,7 @@ import { NotificationFeedService } from "../service/notification-feed.service";
  * (`runAsCapability`), plutôt qu'en donnant un titre à la route entière.
  */
 @ApiTags("notifications")
+@ExercisesNoCapability()
 @Controller("me/notifications")
 export class NotificationController {
   constructor(private readonly feed: NotificationFeedService) {}

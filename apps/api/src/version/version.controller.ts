@@ -1,5 +1,6 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import { ExercisesNoCapability } from "../auth/decorator/require-capability.decorator";
 import { VersionService } from "./version.service";
 
 /**
@@ -10,8 +11,11 @@ import { VersionService } from "./version.service";
  * Contrepartie assumée : la sonde de déploiement frappe `/health` sans session et ne peut donc pas
  * dire quelle version elle vient de rendre saine. C'est le journal de démarrage qui le fait
  * (`main.ts`), au même endroit que le tier.
+ *
+ * Authentifiée, mais sans capacité exercée : elle ne lit aucune donnée tenant.
  */
 @ApiTags("version")
+@ExercisesNoCapability()
 @Controller("version")
 export class VersionController {
   constructor(private readonly version: VersionService) {}

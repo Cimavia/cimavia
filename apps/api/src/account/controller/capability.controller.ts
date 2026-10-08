@@ -1,5 +1,6 @@
 import { Body, Controller, Patch } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { ExercisesNoCapability } from "../../auth/decorator/require-capability.decorator";
 import { UpdateCapabilitiesDto } from "../dto/update-capabilities.dto";
 import { CapabilityService } from "../service/capability.service";
 
@@ -16,6 +17,7 @@ import { CapabilityService } from "../service/capability.service";
  * modifiable parmi d'autres se contourne.
  */
 @ApiTags("account")
+@ExercisesNoCapability()
 @Controller("me/capabilities")
 export class CapabilityController {
   constructor(private readonly capabilities: CapabilityService) {}

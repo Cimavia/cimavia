@@ -1,12 +1,13 @@
 import { Body, Controller, Get, Put } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { ExercisesNoCapability } from "../../auth/decorator/require-capability.decorator";
 import { UpdateNotificationEmailPreferencesDto } from "../dto/update-notification-email-preferences.dto";
 import { NotificationEmailPreferenceService } from "../service/notification-email-preference.service";
 
 /**
  * Réglage des notifications par e-mail de l'utilisateur courant (#65).
  *
- * Aucune capacité déclarée, pour la même raison que `/me/push-tokens` et que le centre : les DEUX
+ * Aucune capacité exercée, pour la même raison que `/me/push-tokens` et que le centre : les DEUX
  * rôles reçoivent des notifications, et un compte à double capacité n'a qu'un seul réglage — lui
  * faire choisir un titre reviendrait à lui donner deux boîtes mail.
  *
@@ -15,6 +16,7 @@ import { NotificationEmailPreferenceService } from "../service/notification-emai
  * concurrentes que le remplacement ferme.
  */
 @ApiTags("notifications")
+@ExercisesNoCapability()
 @Controller("me/notification-preferences")
 export class NotificationEmailPreferenceController {
   constructor(private readonly preferences: NotificationEmailPreferenceService) {}
