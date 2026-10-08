@@ -30,12 +30,12 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.1",
-    "@commitlint/cli": "21.1.0",
-    "@commitlint/config-conventional": "21.1.0",
+    "@biomejs/biome": "2.5.15",
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
     "husky": "9.1.7",
-    "lint-staged": "17.0.8",
-    "turbo": "2.10.0",
+    "lint-staged": "17.6.0",
+    "turbo": "2.11.6",
     "typescript": "6.0.3"
   }
 }
