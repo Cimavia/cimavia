@@ -163,3 +163,24 @@ export function redirectForPath(
   if (current == null || isGranted(current, capabilities)) return null;
   return landingTab(capabilities, counterparts);
 }
+
+// Un seul onglet porte un compteur ; le nommer ici évite un drapeau sur chaque entrée de TABS.
+const BADGED_TAB = "notifications";
+// Au-delà, le chiffre exact n'apporte rien et déborde de la pastille.
+const BADGE_MAX = 99;
+
+/**
+ * La pastille d'un onglet, ou `{}` s'il n'y a rien à signaler. On rend un OBJET à étaler plutôt
+ * qu'une valeur : sous `exactOptionalPropertyTypes`, poser `tabBarBadge: undefined` n'est pas la
+ * même chose que ne pas poser la propriété — et une pastille « 0 » se dessinerait quand même.
+ *
+ * Elle vit ici et non dans le layout qui la pose : `app/` ne porte que du routing (règle dure
+ * n°4), et c'est une décision — quel onglet, à partir de quand, jusqu'à quel plafond.
+ */
+export function tabBadgeOption(
+  tabName: string,
+  unreadCount: number | undefined,
+): { tabBarBadge?: string | number } {
+  if (tabName !== BADGED_TAB || unreadCount == null || unreadCount === 0) return {};
+  return { tabBarBadge: unreadCount > BADGE_MAX ? `${BADGE_MAX}+` : unreadCount };
+}
