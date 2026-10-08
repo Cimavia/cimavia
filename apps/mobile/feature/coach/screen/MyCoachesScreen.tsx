@@ -18,6 +18,9 @@ import { formatInstantDate } from "@/shared/util/date.util";
  * compte qui la porte. Les invitations en attente se posent AU-DESSUS (#146), coach ou pas, et
  * restent acceptables depuis #599 : être suivi n'empêche plus d'en rejoindre un autre.
  *
+ * Chaque lien dit d'où il vient (#602) : « via F » sous le nom du coach quand une entreprise l'a
+ * créé, rien quand il est direct.
+ *
  * Quatre états et non deux (#364) : tant que la liste charge ou qu'elle a échoué, on ne dit pas
  * « aucun coach » — c'était le cas avant, l'écran rendait l'absence pendant le chargement.
  */
@@ -105,6 +108,12 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
           <CmvText className="text-cmv-text-hi" numberOfLines={1}>
             {coach.coachName}
           </CmvText>
+          {/* `null` = lien direct, « aucune entreprise » et non une donnée manquante : pas de « — ». */}
+          {coach.organizationName == null ? null : (
+            <CmvText className="text-cmv-text-mid text-xs" numberOfLines={1}>
+              {t("coach.via", { name: coach.organizationName })}
+            </CmvText>
+          )}
           {/* `joinedAt` est nullable (relation posée sans acceptation) : « — », pas de date
               inventée. */}
           <CmvText className="text-cmv-text-lo text-xs">

@@ -61,6 +61,17 @@ const RELATION = {
 
 const MARC = { ...RELATION, id: "rel_2", coachId: "u_marc", coachName: "Marc Keller" };
 
+/** L'invitation d'une entreprise (#602) : ses Coachs, ceux qui suivront l'athlète s'il accepte. */
+const FROM_ORGANIZATION = {
+  ...INVITATION,
+  id: "inv_f",
+  issuer: {
+    kind: "organization" as const,
+    name: "Fontainebleau Escalade",
+    coachNames: ["Claire Dumas", "Marc Keller"],
+  },
+};
+
 beforeEach(() => {
   vi.mocked(useCapabilitySwitch).mockReturnValue({ visible: false, current: null, select });
   session.current = { user: { id: "ath_1", email: "lea@exemple.fr" } };
@@ -135,6 +146,46 @@ describe("MyCoachesScreen — l'invitation qui m'attend (#146)", () => {
 
     expect(await screen.findByText("coach.join.title")).toBeTruthy();
     expect(screen.queryByText("coach.invitation.decline")).toBeNull();
+  });
+});
+
+describe("MyCoachesScreen — l'invitation d'une entreprise (#602)", () => {
+  // Accepter n'en choisit aucun : la carte nomme tous ceux qui suivront.
+  it("nomme l'entreprise et chacun des coachs qui suivront l'athlète", async () => {
+    myInvitations.mockResolvedValue([FROM_ORGANIZATION]);
+    renderRn(<MyCoachesScreen />);
+
+    expect(await screen.findByText("coach.invitation.fromOrganization.title")).toBeTruthy();
+    expect(screen.getByText("coach.invitation.fromOrganization.coaches")).toBeTruthy();
+    expect(screen.getByText("Claire Dumas")).toBeTruthy();
+    expect(screen.getByText("Marc Keller")).toBeTruthy();
+    expect(screen.getByText("coach.invitation.fromOrganization.declineHint")).toBeTruthy();
+    // Une entreprise n'est pas un coach à rejoindre.
+    expect(screen.queryByText("coach.invitation.join")).toBeNull();
+  });
+
+  // Liste vide = l'entreprise n'a pas encore de coach : un état à dire, pas un trou à laisser.
+  it("dit que les coachs suivront dès leur arrivée quand l'entreprise n'en a pas", async () => {
+    myInvitations.mockResolvedValue([
+      { ...FROM_ORGANIZATION, issuer: { ...FROM_ORGANIZATION.issuer, coachNames: [] } },
+    ]);
+    renderRn(<MyCoachesScreen />);
+
+    expect(await screen.findByText("coach.invitation.fromOrganization.noCoach")).toBeTruthy();
+    expect(screen.queryByText("coach.invitation.fromOrganization.coaches")).toBeNull();
+  });
+
+  it("accepte depuis la carte, et dit l'échec sans parler d'un coach", async () => {
+    acceptInvitation.mockRejectedValue(new Error("réseau"));
+    myInvitations.mockResolvedValue([FROM_ORGANIZATION]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("coach.invitation.fromOrganization.title");
+
+    pressButton(container, "coach.invitation.fromOrganization.accept");
+
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith("inv_f"));
+    expect(await screen.findByText("coach.invitation.fromOrganization.acceptError")).toBeTruthy();
+    expect(screen.queryByText("coach.invitation.joinError")).toBeNull();
   });
 });
 
@@ -238,6 +289,20 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
     expect(screen.getByText("coach.sinceUnknown")).toBeTruthy();
     expect(screen.getByText("coach.more.description")).toBeTruthy();
     expect(screen.queryByText("coach.join.title")).toBeNull();
+  });
+
+  // Chaque lien dit d'où il vient (#602) : « via F » sous le nom, rien pour un lien direct.
+  it("dit la provenance d'un lien d'entreprise, et rien pour un lien direct", async () => {
+    myCoaches.mockResolvedValue([
+      RELATION,
+      { ...MARC, organizationName: "Fontainebleau Escalade" },
+    ]);
+    renderRn(<MyCoachesScreen />);
+
+    await screen.findByText("Marc Keller");
+    // Une seule mention : le lien direct de Julie n'en porte aucune, pas même un « — ».
+    expect(screen.getAllByText("coach.via")).toHaveLength(1);
+    expect(screen.queryByText("—")).toBeNull();
   });
 
   it("ouvre le fil du coach touché", async () => {
