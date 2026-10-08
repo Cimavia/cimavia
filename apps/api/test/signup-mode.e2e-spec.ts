@@ -1,4 +1,4 @@
-import { InvitationStatus, Role } from "@cmv/shared";
+import { InvitationRole, InvitationStatus, Role } from "@cmv/shared";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
@@ -201,7 +201,7 @@ describe("Inscription fermée : la porte d'une entreprise et de ses Coachs (#601
   it("laisse entrer un Coach invité par une entreprise, qui accepte ensuite", async () => {
     const invitation = await company
       .post("/organization/invitations")
-      .send({ email: "c@cmv.test" });
+      .send({ email: "c@cmv.test", role: InvitationRole.COACH });
     expect(invitation.status).toBe(201);
 
     const coach = request.agent(baseURL);
@@ -218,13 +218,35 @@ describe("Inscription fermée : la porte d'une entreprise et de ses Coachs (#601
     ).toBe(204);
   });
 
+  // Et celle d'un athlète (#602) : la porte ne regarde ni l'émetteur ni le rôle.
+  it("laisse entrer un athlète invité par une entreprise, qui accepte ensuite", async () => {
+    const invitation = await company
+      .post("/organization/invitations")
+      .send({ email: "ti@cmv.test", role: InvitationRole.ATHLETE });
+    expect(invitation.status).toBe(201);
+
+    const athlete = request.agent(baseURL);
+    const created = await athlete.post("/api/auth/sign-up/email").send({
+      name: "TI",
+      email: "ti@cmv.test",
+      password: PASSWORD,
+      isCoach: false,
+      isAthlete: true,
+    });
+    expect([200, 201]).toContain(created.status);
+    expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
+  });
+
   /**
    * Une invitation n'ouvre jamais une entreprise : sinon quiconque est invité — en athlète ou en
    * Coach — pourrait en ouvrir une sur un environnement fermé. Elle n'entre que par la liste.
    */
   it("refuse une entreprise invitée par une entreprise (403)", async () => {
     const email = "entreprise-invitee-1@cmv.test";
-    expect((await company.post("/organization/invitations").send({ email })).status).toBe(201);
+    expect(
+      (await company.post("/organization/invitations").send({ email, role: InvitationRole.COACH }))
+        .status,
+    ).toBe(201);
 
     const res = await signUp(email, COMPANY);
 

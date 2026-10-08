@@ -1173,6 +1173,7 @@
       "invitationAccepted": "{{actor}} a rejoint ton espace",
       "invitationDeclined": "{{actor}} a refusé ton invitation",
       "organizationInvitationReceived": "{{actor}} t'invite à rejoindre son équipe",
+      "organizationCoachJoined": "{{actor}} te suit désormais, via {{subject}}",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {
@@ -1192,8 +1193,10 @@
     "table": {
       "columns": {
         "coach": "Coach",
+        "origin": "Provenance",
         "since": "Suivi depuis"
-      }
+      },
+      "via": "via {{name}}"
     },
     "linked": {
       "message": "Message",
@@ -1207,6 +1210,13 @@
       "decline": "Refuser",
       "declineConfirm": "Confirmer le refus",
       "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
+      "fromOrganization": {
+        "title": "{{name}} t'invite",
+        "coaches": "Tu seras suivi par",
+        "noCoach": "Tu seras suivi par ses coachs dès leur arrivée.",
+        "accept": "Accepter",
+        "declineHint": "Refuser est sans retour : {{name}} devra t'inviter à nouveau."
+      },
       "toast": {
         "declined": "Invitation refusée"
       }
@@ -1259,27 +1269,19 @@
     }
   },
   "company": {
-    "coaches": {
-      "title": "Coachs",
-      "add": "Ajouter un coach",
-      "count": "{{count}} coach",
-      "count_other": "{{count}} coachs",
+    "columns": {
+      "name": "Nom",
+      "email": "E-mail",
+      "since": "Membre depuis",
+      "coaches": "Coachs",
+      "sentOn": "Envoyée le",
+      "expiresOn": "Expire le"
+    },
+    "invitations": {
+      "pending": "Invitations en attente",
       "pendingCount": "{{count}} invitation en attente",
       "pendingCount_other": "{{count}} invitations en attente",
-      "empty": "Aucun coach pour l'instant.",
       "emptyPending": "Aucune invitation en attente.",
-      "first": {
-        "title": "Ajoute ton premier coach",
-        "description": "Le coach reçoit une invitation par e-mail."
-      },
-      "columns": {
-        "name": "Nom",
-        "email": "E-mail",
-        "since": "Membre depuis",
-        "sentOn": "Envoyée le",
-        "expiresOn": "Expire le"
-      },
-      "pending": "Invitations en attente",
       "declined": "Refusées",
       "revoke": "Révoquer",
       "revokeConfirm": "Confirmer le retrait",
@@ -1288,7 +1290,6 @@
       "panel": {
         "emailLabel": "Adresse e-mail",
         "emailPlaceholder": "nom@exemple.fr",
-        "hint": "Le coach reçoit une invitation par e-mail. Sans compte, il le crée depuis ce lien. Une fois membre, il suit tous les athlètes de {{name}}.",
         "submit": "Envoyer l'invitation",
         "submitting": "Envoi…"
       },
@@ -1298,9 +1299,30 @@
         "deleted": "Invitation effacée"
       }
     },
+    "coaches": {
+      "title": "Coachs",
+      "add": "Ajouter un coach",
+      "count": "{{count}} coach",
+      "count_other": "{{count}} coachs",
+      "empty": "Aucun coach pour l'instant.",
+      "first": {
+        "title": "Ajoute ton premier coach",
+        "description": "Le coach reçoit une invitation par e-mail."
+      },
+      "hint": "Le coach reçoit une invitation par e-mail. Sans compte, il le crée depuis ce lien. Une fois membre, il suit tous les athlètes de {{name}}."
+    },
     "athletes": {
       "title": "Athlètes",
-      "empty": "Aucun athlète pour l'instant."
+      "add": "Inviter un athlète",
+      "none": "Aucun athlète",
+      "summary": "{{count}} athlète · suivi par {{coaches}}",
+      "summary_other": "{{count}} athlètes · suivis par {{coaches}}",
+      "empty": "Aucun athlète pour l'instant.",
+      "noCoach": "Suivi par ses coachs dès leur arrivée",
+      "first": {
+        "title": "Invite ton premier athlète"
+      },
+      "hint": "L'athlète sera suivi par tous les coachs de {{name}}."
     }
   }
 }

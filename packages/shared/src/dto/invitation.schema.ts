@@ -57,6 +57,22 @@ export const createInvitationSchema = z
 
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
 
+/**
+ * Entrée de l'entreprise (#602) : la même adresse, et le rôle proposé — rejoindre son équipe de
+ * Coachs, ou être suivi par eux. Requis : une invitation dont on ne saurait pas ce qu'elle propose
+ * serait acceptée depuis le mauvais écran.
+ */
+export const createOrganizationInvitationSchema = createInvitationSchema
+  .extend({ role: invitationRoleSchema })
+  .strict();
+
+export type CreateOrganizationInvitationInput = z.infer<typeof createOrganizationInvitationSchema>;
+
+/** Les invitations d'une entreprise, lues rôle par rôle : chaque page n'a que les siennes. */
+export const organizationInvitationQuerySchema = z.object({ role: invitationRoleSchema }).strict();
+
+export type OrganizationInvitationQuery = z.infer<typeof organizationInvitationQuerySchema>;
+
 // DTO de sortie.
 export const invitationDtoSchema = z.object({
   id: z.string(),
@@ -84,14 +100,27 @@ export type InvitationDto = z.infer<typeof invitationDtoSchema>;
  * - **`status`** — toujours `PENDING` : une invitation acceptée, refusée ou expirée ne figure pas
  *   dans cette liste.
  *
- * `coachName` est REQUIS, comme sur `CoachAthleteDto` : une invitation dont on ne saurait pas
- * nommer l'émetteur ne se propose pas, elle signale une donnée incohérente (règle dure n°5).
- * L'`id` suffit à l'accepter ou à la refuser (#390) : il n'est pas un secret, l'adresse de la
- * session l'est — l'`id` d'une invitation adressée à quelqu'un d'autre rend 404.
+ * L'émetteur est un Coach, ou une entreprise depuis #602 — `issuer`, qui dit lequel. Son nom est
+ * REQUIS, comme sur `CoachAthleteDto` : une invitation dont on ne saurait pas nommer l'émetteur ne
+ * se propose pas, elle signale une donnée incohérente (règle dure n°5). L'`id` suffit à l'accepter
+ * ou à la refuser (#390) : il n'est pas un secret, l'adresse de la session l'est — l'`id` d'une
+ * invitation adressée à quelqu'un d'autre rend 404.
  */
 export const pendingInvitationDtoSchema = z.object({
   id: z.string(),
-  coachName: z.string(),
+  issuer: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("coach"), name: z.string() }),
+    /**
+     * Une entreprise (#602), et les Coachs qui suivront l'athlète s'il accepte — tous ceux de
+     * l'entreprise, sauf lui-même s'il en est. Liste VIDE = l'entreprise n'a pas encore de Coach,
+     * et ils le suivront dès leur arrivée : un état, pas une donnée manquante.
+     */
+    z.object({
+      kind: z.literal("organization"),
+      name: z.string(),
+      coachNames: z.array(z.string()),
+    }),
+  ]),
   expiresAt: z.iso.datetime(),
   createdAt: z.iso.datetime(),
 });

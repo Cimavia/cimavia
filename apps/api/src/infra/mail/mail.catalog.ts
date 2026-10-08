@@ -1,4 +1,4 @@
-import type { EmailableNotificationType } from "@cmv/shared";
+import type { EmailableNotificationType, InvitationRole } from "@cmv/shared";
 import { Locale } from "@cmv/shared";
 import { en } from "./locale/en";
 import { fr } from "./locale/fr";
@@ -101,19 +101,25 @@ export type MailStrings = {
     ignore: string;
   };
   /**
-   * Invitation d'une entreprise à rejoindre son équipe, vers une adresse SANS compte (#601). Même
-   * consigne que `invitation` — s'inscrire avec cette adresse —, plus la case à cocher : seul un
-   * compte Coach peut accepter. Le nom de l'entreprise n'est pas nullable : c'est elle qui émet,
-   * depuis sa session, et son nom est celui de son compte. L'échéance reprend `invitation.expiry`.
+   * Invitation d'une entreprise, vers une adresse SANS compte : à rejoindre son équipe de Coachs
+   * (#601), ou à devenir l'un de ses athlètes (#602). Même consigne que `invitation` — s'inscrire
+   * avec cette adresse —, plus la case à cocher : seul un compte qui porte la capacité du rôle
+   * peut accepter. Le nom de l'entreprise n'est pas nullable : c'est elle qui émet, depuis sa
+   * session, et son nom est celui de son compte. L'échéance reprend `invitation.expiry`.
+   *
+   * Un texte par rôle, en `Record` : un rôle ajouté ne compile plus tant que ses textes manquent.
    */
-  organizationInvitation: {
-    subject: (organizationName: string) => string;
-    heading: (organizationName: string) => string;
-    intro: (organizationName: string) => string;
-    addressLine: string;
-    cta: string;
-    ignore: string;
-  };
+  organizationInvitation: Record<
+    InvitationRole,
+    {
+      subject: (organizationName: string) => string;
+      heading: (organizationName: string) => string;
+      intro: (organizationName: string) => string;
+      addressLine: string;
+      cta: string;
+      ignore: string;
+    }
+  >;
   /**
    * Un gabarit par type envoyable. `Record<EmailableNotificationType, …>` et non un objet libre :
    * élargir `EMAILABLE_NOTIFICATION_TYPES` ne compile plus tant que les textes manquent, dans LES
@@ -143,6 +149,8 @@ export type InvitationMailInput = InvitationMailParams & {
 };
 
 export type OrganizationInvitationMailInput = {
+  /** Ce que l'invité deviendra : Coach de l'entreprise, ou l'un de ses athlètes. */
+  role: InvitationRole;
   organizationName: string;
   /** Durée de validité réelle, passée par l'appelant — jamais réécrite ici. */
   expiresInDays: number;
@@ -219,8 +227,8 @@ export function mailCatalog(locale: string | null | undefined): MailCatalog {
       };
       return render(strings.invitation.subject(coachName), body);
     },
-    organizationInvitation: ({ registerUrl, organizationName, expiresInDays }) => {
-      const texts = strings.organizationInvitation;
+    organizationInvitation: ({ role, registerUrl, organizationName, expiresInDays }) => {
+      const texts = strings.organizationInvitation[role];
       return render(texts.subject(organizationName), {
         heading: texts.heading(organizationName),
         paragraphs: [

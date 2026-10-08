@@ -29,10 +29,10 @@ export function acceptInvitationMutation(
 ) {
   return {
     mutationFn: (invitationId: string) => api.acceptInvitation(invitationId),
-    onSuccess: (relation: CoachAthleteDto) => {
-      // Posé tout de suite : la liste montre le coach obtenu sans attendre la relecture.
+    onSuccess: (relations: CoachAthleteDto[]) => {
+      // Posé tout de suite : la liste montre les coachs obtenus sans attendre la relecture.
       cache.setQueryData(coachKeys.list(), (coaches: CoachAthleteDto[] | undefined) =>
-        withJoinedCoach(coaches, relation),
+        withJoinedCoaches(coaches, relations),
       );
       cache.invalidateQueries();
     },
@@ -40,17 +40,20 @@ export function acceptInvitationMutation(
 }
 
 /**
- * La liste des coachs, le coach qu'on vient de rejoindre en tête — l'ordre de `GET /me/coaches`,
- * le plus récent lien d'abord (#599). Remplacé s'il y figurait déjà : une ligne par coach.
+ * La liste des coachs, ceux qu'on vient de rejoindre en tête — l'ordre de `GET /me/coaches`, le
+ * plus récent lien d'abord (#599). Un coach qui y figurait déjà est remplacé : une ligne par coach.
+ * Plusieurs d'un coup depuis #602 : accepter l'invitation d'une entreprise lie à chacun de ses
+ * Coachs.
  *
- * `undefined` quand la liste n'a jamais été lue : on n'invente pas une liste d'un seul coach à un
- * athlète qui en a peut-être d'autres — la relecture qui suit dira la vraie. TanStack laisse alors
- * le cache intact.
+ * `undefined` quand la liste n'a jamais été lue : on n'invente pas une liste aux seuls coachs
+ * obtenus pour un athlète qui en a peut-être d'autres — la relecture qui suit dira la vraie.
+ * TanStack laisse alors le cache intact.
  */
-export function withJoinedCoach(
+export function withJoinedCoaches(
   coaches: readonly CoachAthleteDto[] | undefined,
-  relation: CoachAthleteDto,
+  relations: readonly CoachAthleteDto[],
 ): CoachAthleteDto[] | undefined {
   if (coaches == null) return undefined;
-  return [relation, ...coaches.filter((coach) => coach.coachId !== relation.coachId)];
+  const joined = new Set(relations.map((relation) => relation.coachId));
+  return [...relations, ...coaches.filter((coach) => !joined.has(coach.coachId))];
 }

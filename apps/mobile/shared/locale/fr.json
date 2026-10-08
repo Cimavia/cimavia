@@ -391,6 +391,7 @@
     "since": "Suivi depuis le {{date}}",
     "sinceUnknown": "Date de rattachement —",
     "message": "Message",
+    "via": "via {{name}}",
     "missing": {
       "title": "Tu n'as pas encore de coach",
       "description": "Ton coach t'invite par ton adresse e-mail : accepte son invitation pour recevoir tes planifications.",
@@ -405,7 +406,15 @@
       "decline": "Refuser",
       "declineConfirm": "Confirmer le refus",
       "declineHint": "Refuser est sans retour : ton coach devra t'inviter à nouveau.",
-      "declineError": "Impossible de refuser cette invitation. Vérifie ta connexion."
+      "declineError": "Impossible de refuser cette invitation. Vérifie ta connexion.",
+      "fromOrganization": {
+        "title": "{{name}} t'invite",
+        "coaches": "Tu seras suivi par",
+        "noCoach": "Tu seras suivi par ses coachs dès leur arrivée.",
+        "accept": "Accepter",
+        "acceptError": "Impossible d'accepter cette invitation. Vérifie ta connexion.",
+        "declineHint": "Refuser est sans retour : {{name}} devra t'inviter à nouveau."
+      }
     },
     "organizationInvitation": {
       "title": "{{name}} t'invite à rejoindre son équipe",
@@ -568,6 +577,7 @@
       "invitationAccepted": "{{actor}} a rejoint ton espace",
       "invitationDeclined": "{{actor}} a refusé ton invitation",
       "organizationInvitationReceived": "{{actor}} t'invite à rejoindre son équipe",
+      "organizationCoachJoined": "{{actor}} te suit désormais, via {{subject}}",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {

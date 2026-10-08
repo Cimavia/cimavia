@@ -1,5 +1,5 @@
 import type { EnvSchema } from "@cmv/shared";
-import { Locale } from "@cmv/shared";
+import { InvitationRole, Locale } from "@cmv/shared";
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
 import { InvitationMailer } from "./invitation.mailer";
@@ -58,6 +58,7 @@ describe("InvitationMailer", () => {
 
     await mailer.sendOrganizationInvitation({
       to: "julie@example.com",
+      role: InvitationRole.ATHLETE,
       organizationName: "Fontainebleau Escalade",
       expiresInDays: 7,
     });
@@ -65,6 +66,7 @@ describe("InvitationMailer", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({
       to: "julie@example.com",
       ...mailCatalog(Locale.FR).organizationInvitation({
+        role: InvitationRole.ATHLETE,
         organizationName: "Fontainebleau Escalade",
         expiresInDays: 7,
         registerUrl: "https://app.cimavia.fr/register",

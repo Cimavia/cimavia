@@ -2,6 +2,8 @@ import {
   acceptOrganizationInvitationMutation,
   type CreateInvitationInput,
   type InvitationDto,
+  InvitationRole,
+  type OrganizationAthleteDto,
   type OrganizationCoachDto,
   type PendingOrganizationInvitationDto,
 } from "@cmv/shared";
@@ -19,11 +21,22 @@ export function useOrganizationCoaches() {
   });
 }
 
-/** Ses invitations, sauf celles qu'elle a retirées : en attente, refusées, acceptées. */
-export function useOrganizationInvitations() {
+/** Ses athlètes (#602), chacun avec les Coachs qui le suivent. Liste vide = aucun, un état prévu. */
+export function useOrganizationAthletes() {
+  return useQuery<OrganizationAthleteDto[]>({
+    queryKey: organizationKeys.athletes(),
+    queryFn: organizationApi.listAthletes,
+  });
+}
+
+/**
+ * Ses invitations d'un rôle (#602), sauf celles qu'elle a retirées : en attente, refusées,
+ * acceptées.
+ */
+export function useOrganizationInvitations(role: InvitationRole) {
   return useQuery<InvitationDto[]>({
-    queryKey: organizationKeys.invitations(),
-    queryFn: organizationApi.listInvitations,
+    queryKey: organizationKeys.invitations(role),
+    queryFn: () => organizationApi.listInvitations(role),
   });
 }
 
@@ -48,26 +61,30 @@ function useOrganizationMutation<TInput>(
   });
 }
 
-export function useInviteCoach() {
+/** Invite une adresse à rejoindre l'équipe, ou à être suivie par elle (#602). */
+export function useInviteToOrganization(role: InvitationRole) {
   return useOrganizationMutation(
-    (input: CreateInvitationInput) => organizationApi.inviteCoach(input),
-    "company.coaches.toast.invited",
+    (input: CreateInvitationInput) =>
+      role === InvitationRole.COACH
+        ? organizationApi.inviteCoach(input)
+        : organizationApi.inviteAthlete(input),
+    "company.invitations.toast.invited",
   );
 }
 
 /** Retire une invitation EN ATTENTE : son destinataire, s'il tente encore, lit « retirée ». */
-export function useRevokeCoachInvitation() {
+export function useRevokeOrganizationInvitation() {
   return useOrganizationMutation(
     (invitationId: string) => organizationApi.revokeInvitation(invitationId),
-    "company.coaches.toast.revoked",
+    "company.invitations.toast.revoked",
   );
 }
 
 /** Efface une invitation REFUSÉE — le seul état qui s'efface. */
-export function useDeleteCoachInvitation() {
+export function useDeleteOrganizationInvitation() {
   return useOrganizationMutation(
     (invitationId: string) => organizationApi.deleteInvitation(invitationId),
-    "company.coaches.toast.deleted",
+    "company.invitations.toast.deleted",
   );
 }
 

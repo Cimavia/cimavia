@@ -1,4 +1,4 @@
-import type { PendingInvitationDto } from "@cmv/shared";
+import { INVITATION_CARD_KEY, type PendingInvitationDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { useAcceptInvitation, useDeclineInvitation } from "@/feature/coach/hook/useMyCoach";
@@ -12,6 +12,9 @@ import { formatDateTime } from "@/shared/util/date.util";
  *
  * Elle s'affiche qu'il ait déjà des coachs ou non, et reste acceptable dans les deux cas depuis
  * #599 : un athlète est suivi par 0..N coachs. Refuser vide la liste d'attente de l'inviteur.
+ *
+ * L'émetteur est un Coach, ou une entreprise depuis #602 : la carte nomme alors les Coachs qui le
+ * suivront, tous ceux de l'entreprise — accepter n'en choisit aucun.
  */
 export function PendingInvitationCard({
   invitation,
@@ -20,30 +23,33 @@ export function PendingInvitationCard({
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
 
+  const { issuer } = invitation;
+  // Les textes selon l'émetteur (#602), une seule table pour les deux clients.
+  const keys = INVITATION_CARD_KEY[issuer.kind];
   const busy = accept.isPending || decline.isPending;
 
   return (
     <View className="gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-4">
       <View className="gap-1">
         <CmvText className="font-cmv-display text-cmv-text-hi text-lg">
-          {t("coach.invitation.title", { name: invitation.coachName })}
+          {t(keys.title, { name: issuer.name })}
         </CmvText>
         <CmvText className="text-cmv-text-lo text-xs">
           {t("coach.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
         </CmvText>
       </View>
 
+      {issuer.kind === "organization" ? <FutureCoaches names={issuer.coachNames} /> : null}
+
       <CmvButton
         label={
-          accept.isPending
-            ? t("coach.invitation.joining")
-            : t("coach.invitation.join", { name: invitation.coachName })
+          accept.isPending ? t("coach.invitation.joining") : t(keys.accept, { name: issuer.name })
         }
         onPress={() => accept.mutate(invitation.id)}
         disabled={busy}
       />
 
-      {/* Armé en deux temps comme une suppression : le refus est sans retour, le coach devra
+      {/* Armé en deux temps comme une suppression : le refus est sans retour, l'inviteur devra
           réémettre. */}
       <CmvConfirmButton
         label={t("coach.invitation.decline")}
@@ -53,13 +59,18 @@ export function PendingInvitationCard({
         onConfirm={() => decline.mutate(invitation.id)}
       />
 
-      <CmvText className="text-cmv-text-lo text-xs">{t("coach.invitation.declineHint")}</CmvText>
+      <CmvText className="text-cmv-text-lo text-xs">
+        {t(keys.declineHint, { name: issuer.name })}
+      </CmvText>
 
       {/* Le mobile n'a pas de toasts : l'échec se dit sur place. L'acceptation échouait en silence (#365) — le bouton repassait à son libellé, et l'athlète
           recliquait en boucle sur une invitation expirée ou déjà utilisée. */}
       {accept.isError ? (
         <CmvText className="text-cmv-error text-sm">
-          {apiErrorMessage(accept.error) ?? t("coach.invitation.joinError")}
+          {apiErrorMessage(accept.error) ??
+            (issuer.kind === "coach"
+              ? t("coach.invitation.joinError")
+              : t("coach.invitation.fromOrganization.acceptError"))}
         </CmvText>
       ) : null}
       {decline.isError ? (
@@ -67,6 +78,35 @@ export function PendingInvitationCard({
           {apiErrorMessage(decline.error) ?? t("coach.invitation.declineError")}
         </CmvText>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * Les Coachs qui suivront l'athlète s'il accepte. Liste VIDE = l'entreprise n'en a pas encore :
+ * ils le suivront dès leur arrivée (#602) — un état à dire, pas une donnée manquante.
+ */
+function FutureCoaches({ names }: Readonly<{ names: string[] }>) {
+  const { t } = useTranslation();
+
+  if (names.length === 0) {
+    return (
+      <CmvText className="text-cmv-text-mid text-sm">
+        {t("coach.invitation.fromOrganization.noCoach")}
+      </CmvText>
+    );
+  }
+  return (
+    <View className="gap-1">
+      <CmvText className="text-cmv-text-lo text-xs">
+        {t("coach.invitation.fromOrganization.coaches")}
+      </CmvText>
+      {/* Deux Coachs peuvent porter le même nom ; la liste, figée, ne se réordonne jamais. */}
+      {names.map((name, index) => (
+        <CmvText key={`${index}:${name}`} className="text-cmv-text-hi">
+          {name}
+        </CmvText>
+      ))}
     </View>
   );
 }

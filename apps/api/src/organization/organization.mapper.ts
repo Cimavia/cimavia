@@ -1,6 +1,10 @@
-import type { OrganizationCoachDto, PendingOrganizationInvitationDto } from "@cmv/shared";
+import type {
+  OrganizationAthleteDto,
+  OrganizationCoachDto,
+  PendingOrganizationInvitationDto,
+} from "@cmv/shared";
 import { required } from "@cmv/shared";
-import type { Invitation, OrganizationCoach } from "@prisma/client";
+import type { Invitation, OrganizationAthlete, OrganizationCoach } from "@prisma/client";
 
 /**
  * Un membre tel que l'entreprise le voit. Nom et adresse viennent d'une résolution séparée
@@ -25,6 +29,37 @@ export function toOrganizationCoachDto(
 }
 
 /**
+ * Un athlète tel que l'entreprise le voit (#602). Ses Coachs se DÉDUISENT de l'équipe — `coachIds`,
+ * dans l'ordre d'arrivée — et non de ses liens, que l'entreprise ne lit pas : tous, sauf lui-même
+ * s'il en est un. Même contrat de nom que `toOrganizationCoachDto`.
+ */
+export function toOrganizationAthleteDto(
+  member: OrganizationAthlete,
+  coachIds: string[],
+  contacts: Map<string, { name: string; email: string }>,
+): OrganizationAthleteDto {
+  const contact = required(
+    contacts.get(member.athleteId),
+    `[organization] athlète introuvable pour le membre ${member.id}`,
+  );
+  return {
+    athleteId: member.athleteId,
+    name: contact.name,
+    email: contact.email,
+    joinedAt: member.createdAt.toISOString(),
+    coaches: coachIds
+      .filter((coachId) => coachId !== member.athleteId)
+      .map((coachId) => ({
+        coachId,
+        name: required(
+          contacts.get(coachId),
+          `[organization] coach introuvable pour l'athlète ${member.id}`,
+        ).name,
+      })),
+  };
+}
+
+/**
  * L'invitation telle que le Coach la reçoit — mapping à part de `toInvitationDto`, comme
  * `toPendingInvitationDto` côté athlète : rien ne doit pouvoir y faire fuiter l'adresse ou
  * l'`organizationId`. Le nom de l'entreprise est celui de son compte (#600).
@@ -45,12 +80,13 @@ export function toPendingOrganizationInvitationDto(
 }
 
 /**
- * L'entreprise qui émet une invitation de Coach. Le CHECK `invitation_coach_by_organization` la
- * garantit en base : son absence ici est une incohérence, pas un cas.
+ * L'entreprise qui émet une invitation lue ou créée par elle — ou celle d'une invitation de Coach,
+ * que le CHECK `invitation_coach_by_organization` garantit en base. Son absence ici est une
+ * incohérence, pas un cas.
  */
 export function issuingOrganization(invitation: Pick<Invitation, "id" | "organizationId">): string {
   return required(
     invitation.organizationId,
-    `[organization] invitation de Coach sans entreprise : ${invitation.id}`,
+    `[organization] invitation sans entreprise : ${invitation.id}`,
   );
 }

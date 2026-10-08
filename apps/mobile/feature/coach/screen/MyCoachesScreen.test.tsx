@@ -1,5 +1,5 @@
-import type { PendingInvitationDto } from "@cmv/shared";
-import { screen, waitFor, within } from "@testing-library/react";
+import type { CoachAthleteDto, PendingInvitationDto } from "@cmv/shared";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MyCoachesScreen } from "@/feature/coach/screen/MyCoachesScreen";
@@ -20,7 +20,14 @@ vi.mock("@/feature/coach/api", async (importOriginal) => {
   };
 });
 
-vi.mock("expo-router", () => ({ router: { push: vi.fn() } }));
+// `useFocusEffect` capturé plutôt qu'exécuté : le test du premier plan le rejoue quand il veut.
+const focus = vi.hoisted(() => ({ effect: null as (() => void) | null }));
+vi.mock("expo-router", () => ({
+  router: { push: vi.fn() },
+  useFocusEffect: (effect: () => void) => {
+    focus.effect = effect;
+  },
+}));
 // Le sélecteur d'espace vit dans un fournisseur posé à la racine de l'app : on lit ce qu'on lui
 // demande, sans le monter.
 vi.mock("@/shared/hook/useExercisedCapability", () => ({ useCapabilitySwitch: vi.fn() }));
@@ -41,7 +48,7 @@ const declineInvitation = vi.mocked(accountApi.declineInvitation);
 
 const INVITATION = {
   id: "inv_1",
-  coachName: "Marc Keller",
+  issuer: { kind: "coach" as const, name: "Marc Keller" },
   expiresAt: "2026-09-12T09:00:00.000Z",
   createdAt: "2026-09-05T09:00:00.000Z",
 };
@@ -55,17 +62,29 @@ const RELATION = {
   status: "ACTIVE",
   invitedAt: "2026-03-12T09:00:00.000Z",
   joinedAt: "2026-03-12T09:00:00.000Z",
+  organizationName: null,
   isSelf: false,
-} as Awaited<ReturnType<typeof accountApi.acceptInvitation>>;
+} satisfies CoachAthleteDto;
 
 const MARC = { ...RELATION, id: "rel_2", coachId: "u_marc", coachName: "Marc Keller" };
+
+/** L'invitation d'une entreprise (#602) : ses Coachs, ceux qui suivront l'athlète s'il accepte. */
+const FROM_ORGANIZATION = {
+  ...INVITATION,
+  id: "inv_f",
+  issuer: {
+    kind: "organization" as const,
+    name: "Fontainebleau Escalade",
+    coachNames: ["Claire Dumas", "Marc Keller"],
+  },
+};
 
 beforeEach(() => {
   vi.mocked(useCapabilitySwitch).mockReturnValue({ visible: false, current: null, select });
   session.current = { user: { id: "ath_1", email: "lea@exemple.fr" } };
   myCoaches.mockResolvedValue([]);
   myInvitations.mockResolvedValue([]);
-  acceptInvitation.mockResolvedValue(RELATION);
+  acceptInvitation.mockResolvedValue([RELATION]);
   declineInvitation.mockResolvedValue(undefined);
 });
 
@@ -134,6 +153,46 @@ describe("MyCoachesScreen — l'invitation qui m'attend (#146)", () => {
 
     expect(await screen.findByText("coach.join.title")).toBeTruthy();
     expect(screen.queryByText("coach.invitation.decline")).toBeNull();
+  });
+});
+
+describe("MyCoachesScreen — l'invitation d'une entreprise (#602)", () => {
+  // Accepter n'en choisit aucun : la carte nomme tous ceux qui suivront.
+  it("nomme l'entreprise et chacun des coachs qui suivront l'athlète", async () => {
+    myInvitations.mockResolvedValue([FROM_ORGANIZATION]);
+    renderRn(<MyCoachesScreen />);
+
+    expect(await screen.findByText("coach.invitation.fromOrganization.title")).toBeTruthy();
+    expect(screen.getByText("coach.invitation.fromOrganization.coaches")).toBeTruthy();
+    expect(screen.getByText("Claire Dumas")).toBeTruthy();
+    expect(screen.getByText("Marc Keller")).toBeTruthy();
+    expect(screen.getByText("coach.invitation.fromOrganization.declineHint")).toBeTruthy();
+    // Une entreprise n'est pas un coach à rejoindre.
+    expect(screen.queryByText("coach.invitation.join")).toBeNull();
+  });
+
+  // Liste vide = l'entreprise n'a pas encore de coach : un état à dire, pas un trou à laisser.
+  it("dit que les coachs suivront dès leur arrivée quand l'entreprise n'en a pas", async () => {
+    myInvitations.mockResolvedValue([
+      { ...FROM_ORGANIZATION, issuer: { ...FROM_ORGANIZATION.issuer, coachNames: [] } },
+    ]);
+    renderRn(<MyCoachesScreen />);
+
+    expect(await screen.findByText("coach.invitation.fromOrganization.noCoach")).toBeTruthy();
+    expect(screen.queryByText("coach.invitation.fromOrganization.coaches")).toBeNull();
+  });
+
+  it("accepte depuis la carte, et dit l'échec sans parler d'un coach", async () => {
+    acceptInvitation.mockRejectedValue(new Error("réseau"));
+    myInvitations.mockResolvedValue([FROM_ORGANIZATION]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("coach.invitation.fromOrganization.title");
+
+    pressButton(container, "coach.invitation.fromOrganization.accept");
+
+    await waitFor(() => expect(acceptInvitation).toHaveBeenCalledWith("inv_f"));
+    expect(await screen.findByText("coach.invitation.fromOrganization.acceptError")).toBeTruthy();
+    expect(screen.queryByText("coach.invitation.joinError")).toBeNull();
   });
 });
 
@@ -239,6 +298,20 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
     expect(screen.queryByText("coach.join.title")).toBeNull();
   });
 
+  // Chaque lien dit d'où il vient (#602) : « via F » sous le nom, rien pour un lien direct.
+  it("dit la provenance d'un lien d'entreprise, et rien pour un lien direct", async () => {
+    myCoaches.mockResolvedValue([
+      RELATION,
+      { ...MARC, organizationName: "Fontainebleau Escalade" },
+    ]);
+    renderRn(<MyCoachesScreen />);
+
+    await screen.findByText("Marc Keller");
+    // Une seule mention : le lien direct de Julie n'en porte aucune, pas même un « — ».
+    expect(screen.getAllByText("coach.via")).toHaveLength(1);
+    expect(screen.queryByText("—")).toBeNull();
+  });
+
   it("ouvre le fil du coach touché", async () => {
     myCoaches.mockResolvedValue([RELATION, MARC]);
     const { container } = renderRn(<MyCoachesScreen />);
@@ -266,6 +339,29 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
 });
 
 /** #364 : l'écran disait « aucun coach » pendant le chargement, et sur une panne. */
+describe("MyCoachesScreen — au retour sur l'écran (#602)", () => {
+  /**
+   * Le Coach qui rejoint l'entreprise de l'athlète apparaît sans que l'athlète ait rien fait. Le
+   * cache persisté, frais 5 min, le cachait même après une relance de l'app : l'écran relit donc
+   * coachs et invitations à chaque passage au premier plan.
+   */
+  it("relit ses coachs et ses invitations, et montre le coach arrivé entre-temps", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
+    renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+
+    myCoaches.mockResolvedValue([
+      RELATION,
+      { ...MARC, organizationName: "Fontainebleau Escalade" },
+    ]);
+    myInvitations.mockClear();
+    act(() => focus.effect?.());
+
+    expect(await screen.findByText("Marc Keller")).toBeTruthy();
+    expect(myInvitations).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("MyCoachesScreen — chargement et panne", () => {
   it("n'affirme rien tant que la liste charge", () => {
     myCoaches.mockReturnValue(new Promise(() => {}));

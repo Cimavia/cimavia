@@ -1,5 +1,6 @@
 import { type CoachAthleteDto, coachPresence, initialsOf } from "@cmv/shared";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
@@ -18,6 +19,13 @@ import { formatInstantDate } from "@/shared/util/date.util";
  * compte qui la porte. Les invitations en attente se posent AU-DESSUS (#146), coach ou pas, et
  * restent acceptables depuis #599 : être suivi n'empêche plus d'en rejoindre un autre.
  *
+ * Chaque lien dit d'où il vient (#602) : « via F » sous le nom du coach quand une entreprise l'a
+ * créé, rien quand il est direct.
+ *
+ * Relue à chaque passage au premier plan, coachs ET invitations : le cache est persisté et frais
+ * 5 min, et un Coach qui rejoint l'entreprise de l'athlète (#602) apparaît sans que l'athlète ait
+ * rien fait. Sans ce refetch, ni la relance de l'app ni le retour sur l'écran ne le montraient.
+ *
  * Quatre états et non deux (#364) : tant que la liste charge ou qu'elle a échoué, on ne dit pas
  * « aucun coach » — c'était le cas avant, l'écran rendait l'absence pendant le chargement.
  */
@@ -25,6 +33,15 @@ export function MyCoachesScreen() {
   const { t } = useTranslation();
   const coaches = useMyCoaches();
   const presence = coachPresence(coaches);
+  const { refetch: refetchCoaches } = coaches;
+  const { refetch: refetchInvitations } = useMyInvitations();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetchCoaches();
+      void refetchInvitations();
+    }, [refetchCoaches, refetchInvitations]),
+  );
 
   return (
     <CmvScreen>
@@ -105,6 +122,12 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
           <CmvText className="text-cmv-text-hi" numberOfLines={1}>
             {coach.coachName}
           </CmvText>
+          {/* `null` = lien direct, « aucune entreprise » et non une donnée manquante : pas de « — ». */}
+          {coach.organizationName == null ? null : (
+            <CmvText className="text-cmv-text-mid text-xs" numberOfLines={1}>
+              {t("coach.via", { name: coach.organizationName })}
+            </CmvText>
+          )}
           {/* `joinedAt` est nullable (relation posée sans acceptation) : « — », pas de date
               inventée. */}
           <CmvText className="text-cmv-text-lo text-xs">

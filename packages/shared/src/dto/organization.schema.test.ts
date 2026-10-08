@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  organizationAthleteDtoSchema,
   organizationCoachDtoSchema,
   pendingOrganizationInvitationDtoSchema,
 } from "./organization.schema";
@@ -26,6 +27,28 @@ describe("organizationCoachDtoSchema", () => {
   // Un membre sans nom signale une donnée incohérente, il ne s'affiche pas en blanc (règle n°5).
   it("refuse un membre sans nom", () => {
     expect(organizationCoachDtoSchema.safeParse({ ...MEMBER, name: null }).success).toBe(false);
+  });
+});
+
+describe("organizationAthleteDtoSchema", () => {
+  const ATHLETE = {
+    athleteId: "u_athlete",
+    name: "Thomas Imbert",
+    email: "thomas@example.com",
+    joinedAt: "2026-10-09T09:00:00.000Z",
+    coaches: [{ coachId: "u_coach", name: "Claire Dumas" }],
+  };
+
+  // Liste vide = l'entreprise n'a pas encore de Coach (#602) : un état, pas une donnée manquante.
+  it("accepte un athlète suivi, ou pas encore", () => {
+    expect(organizationAthleteDtoSchema.safeParse(ATHLETE).success).toBe(true);
+    expect(organizationAthleteDtoSchema.safeParse({ ...ATHLETE, coaches: [] }).success).toBe(true);
+  });
+
+  it("refuse un athlète sans nom, ou un Coach sans nom", () => {
+    expect(organizationAthleteDtoSchema.safeParse({ ...ATHLETE, name: null }).success).toBe(false);
+    const unnamedCoach = { ...ATHLETE, coaches: [{ coachId: "u_coach", name: null }] };
+    expect(organizationAthleteDtoSchema.safeParse(unnamedCoach).success).toBe(false);
   });
 });
 

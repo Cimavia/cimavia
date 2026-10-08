@@ -1,7 +1,7 @@
-import type { PendingInvitationDto } from "@cmv/shared";
+import { INVITATION_CARD_KEY, type PendingInvitationDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useAcceptInvitation, useDeclineInvitation } from "@/feature/coach/hook/useMyCoach";
-import { CmvButton, CmvCard, CmvConfirmButton } from "@/shared/component";
+import { CmvAvatar, CmvButton, CmvCard, CmvConfirmButton } from "@/shared/component";
 import { formatDateTime } from "@/shared/util/date.util";
 
 /**
@@ -9,6 +9,9 @@ import { formatDateTime } from "@/shared/util/date.util";
  *
  * Elle s'affiche qu'il ait déjà des coachs ou non, et reste acceptable dans les deux cas depuis
  * #599 : un athlète est suivi par 0..N coachs. Refuser vide la liste d'attente de l'inviteur.
+ *
+ * L'émetteur est un Coach, ou une entreprise depuis #602 (maquette entreprise, frame 8) : la carte
+ * nomme alors les Coachs qui le suivront, tous ceux de l'entreprise — accepter n'en choisit aucun.
  *
  * Elle est le SEUL chemin pour rejoindre un coach depuis #390 : il n'y a plus de code à saisir.
  */
@@ -19,6 +22,9 @@ export function PendingInvitationCard({
   const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
 
+  const { issuer } = invitation;
+  // Les textes selon l'émetteur (#602), une seule table pour les deux clients.
+  const keys = INVITATION_CARD_KEY[issuer.kind];
   const busy = accept.isPending || decline.isPending;
 
   return (
@@ -26,21 +32,23 @@ export function PendingInvitationCard({
       <div className="flex flex-col gap-cmv-md">
         <div className="flex flex-col gap-cmv-xs">
           <h2 className="text-cmv-subtitle text-cmv-text-hi">
-            {t("coach.invitation.title", { name: invitation.coachName })}
+            {t(keys.title, { name: issuer.name })}
           </h2>
           <p className="text-cmv-caption text-cmv-text-mid">
             {t("coach.invitation.expires", { date: formatDateTime(invitation.expiresAt) })}
           </p>
         </div>
 
+        {issuer.kind === "organization" ? <FutureCoaches names={issuer.coachNames} /> : null}
+
         <div className="flex flex-wrap items-center gap-cmv-sm">
           <CmvButton disabled={busy} onClick={() => accept.mutate(invitation.id)}>
             {accept.isPending
               ? t("coach.invitation.joining")
-              : t("coach.invitation.join", { name: invitation.coachName })}
+              : t(keys.accept, { name: issuer.name })}
           </CmvButton>
 
-          {/* Armé comme une suppression : le refus est sans retour, le coach devra réémettre. */}
+          {/* Armé comme une suppression : le refus est sans retour, l'inviteur devra réémettre. */}
           <CmvConfirmButton
             label={t("coach.invitation.decline")}
             confirmLabel={t("coach.invitation.declineConfirm")}
@@ -50,8 +58,42 @@ export function PendingInvitationCard({
           />
         </div>
 
-        <p className="text-cmv-caption text-cmv-text-lo">{t("coach.invitation.declineHint")}</p>
+        <p className="text-cmv-caption text-cmv-text-lo">
+          {t(keys.declineHint, { name: issuer.name })}
+        </p>
       </div>
     </CmvCard>
+  );
+}
+
+/**
+ * Les Coachs qui suivront l'athlète s'il accepte. Liste VIDE = l'entreprise n'en a pas encore :
+ * ils le suivront dès leur arrivée (#602) — un état à dire, pas une donnée manquante.
+ */
+function FutureCoaches({ names }: Readonly<{ names: string[] }>) {
+  const { t } = useTranslation();
+
+  if (names.length === 0) {
+    return (
+      <p className="text-cmv-body text-cmv-text-mid">
+        {t("coach.invitation.fromOrganization.noCoach")}
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-cmv-xs">
+      <p className="text-cmv-caption text-cmv-text-mid">
+        {t("coach.invitation.fromOrganization.coaches")}
+      </p>
+      <ul className="flex flex-wrap gap-cmv-md">
+        {/* Deux Coachs peuvent porter le même nom ; la liste, figée, ne se réordonne jamais. */}
+        {names.map((name, index) => (
+          <li key={`${index}:${name}`} className="flex items-center gap-cmv-sm">
+            <CmvAvatar name={name} />
+            <span className="text-cmv-text-hi">{name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

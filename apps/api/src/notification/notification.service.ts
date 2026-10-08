@@ -64,20 +64,17 @@ export type InvoiceIssuedEvent = {
 /**
  * Une invitation nominative vient d'être émise (#146), et l'adresse visée a un compte athlète.
  *
- * Le coach est passé par son ID et non par son nom : le résoudre ici garde au même endroit la
+ * Qui invite est passé par son ID et non par son nom : le résoudre ici garde au même endroit la
  * lecture de `User` (table hors scope tenant) et le « une notification ne casse jamais l'action
- * métier » — l'appelant n'a rien à faire de plus qu'émettre.
+ * métier » — l'appelant n'a rien à faire de plus qu'émettre. Un Coach, ou une entreprise depuis
+ * #602 : son nom est celui de son compte (#600), résolu de la même façon.
  */
 export type InvitationReceivedEvent = {
   athleteId: string;
-  coachId: string;
+  inviterId: string;
   invitationId: string;
 };
 
-/**
- * L'athlète a répondu — rejoint ou refusé. Une seule charge pour les deux, comme les trois
- * ajustements de cycle : mêmes parties, même entité, seul le sens de la réponse change.
- */
 /** Une entreprise invite un compte Coach à rejoindre son équipe (#601). */
 export type OrganizationInvitationReceivedEvent = {
   coachId: string;
@@ -85,6 +82,21 @@ export type OrganizationInvitationReceivedEvent = {
   invitationId: string;
 };
 
+/**
+ * Un Coach a rejoint une entreprise dont l'athlète est membre (#602) : il le suit désormais. Les
+ * deux noms sont résolus ici, comme partout — le Coach est l'acteur, l'entreprise le sujet.
+ */
+export type OrganizationCoachJoinedEvent = {
+  athleteId: string;
+  coachId: string;
+  organizationId: string;
+  invitationId: string;
+};
+
+/**
+ * L'athlète a répondu — rejoint ou refusé. Une seule charge pour les deux, comme les trois
+ * ajustements de cycle : mêmes parties, même entité, seul le sens de la réponse change.
+ */
 export type InvitationAnsweredEvent = {
   coachId: string;
   athleteId: string;
@@ -122,6 +134,7 @@ type PushPayload =
   | { type: typeof NotificationType.INVITATION_ACCEPTED; invitationId: string }
   | { type: typeof NotificationType.INVITATION_DECLINED; invitationId: string }
   | { type: typeof NotificationType.ORGANIZATION_INVITATION_RECEIVED; invitationId: string }
+  | { type: typeof NotificationType.ORGANIZATION_COACH_JOINED; invitationId: string }
   // Le seul type poussé SANS ligne en base (#47) : l'entrée du centre reste calculée à la lecture.
   // Sa clé d'id est `reminderId`, comme les autres sont `planId` ou `invoiceId`.
   | { type: typeof NotificationType.REMINDER_DUE; reminderId: string };
@@ -429,21 +442,21 @@ export class NotificationService {
    */
   async notifyInvitationReceived(event: InvitationReceivedEvent): Promise<void> {
     this.logger.info({ event: "invitation.received", ...event }, "Invitation adressée à un compte");
-    const coachName = await this.userName(event.coachId);
+    const inviterName = await this.userName(event.inviterId);
     await this.emit(
       {
         recipientId: event.athleteId,
         type: NotificationType.INVITATION_RECEIVED,
         entityType: NotificationEntityType.INVITATION,
         entityId: event.invitationId,
-        actorName: coachName,
+        actorName: inviterName,
         subjectLabel: null,
       },
       {
         title: "Invitation",
         // Le nom EST l'information : un athlète non lié n'a aucun contexte qui dise de qui vient
         // cette invitation, contrairement à un cycle diffusé par le coach qu'il a déjà.
-        body: `${coachName ?? "Un coach"} t'invite à rejoindre son espace.`,
+        body: `${inviterName ?? "Un coach"} t'invite à rejoindre son espace.`,
         data: {
           type: NotificationType.INVITATION_RECEIVED,
           invitationId: event.invitationId,
@@ -479,6 +492,39 @@ export class NotificationService {
         body: `${organizationName ?? "Une entreprise"} t'invite à rejoindre son équipe.`,
         data: {
           type: NotificationType.ORGANIZATION_INVITATION_RECEIVED,
+          invitationId: event.invitationId,
+        },
+      },
+    );
+  }
+
+  /**
+   * Un nouveau Coach suit l'athlète, parce qu'il a rejoint l'entreprise dont l'athlète est membre
+   * (#602). Rien ne le lui aurait appris sinon : il n'a rien fait, et le Coach apparaît dans « Mes
+   * coachs » sans qu'il l'ait invité. L'entité est l'invitation que le Coach a acceptée — celle
+   * qui a créé le lien.
+   */
+  async notifyOrganizationCoachJoined(event: OrganizationCoachJoinedEvent): Promise<void> {
+    this.logger.info(
+      { event: "organization.coach-joined", ...event },
+      "Un Coach de l'entreprise suit désormais l'athlète",
+    );
+    const coachName = await this.userName(event.coachId);
+    const organizationName = await this.userName(event.organizationId);
+    await this.emit(
+      {
+        recipientId: event.athleteId,
+        type: NotificationType.ORGANIZATION_COACH_JOINED,
+        entityType: NotificationEntityType.INVITATION,
+        entityId: event.invitationId,
+        actorName: coachName,
+        subjectLabel: organizationName,
+      },
+      {
+        title: "Nouveau coach",
+        body: `${coachName ?? "Un coach"} te suit désormais, via ${organizationName ?? "ton entreprise"}.`,
+        data: {
+          type: NotificationType.ORGANIZATION_COACH_JOINED,
           invitationId: event.invitationId,
         },
       },

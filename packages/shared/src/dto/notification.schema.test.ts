@@ -107,6 +107,7 @@ describe("notificationDtoSchema", () => {
       NotificationType.INVITATION_ACCEPTED,
       NotificationType.INVITATION_DECLINED,
       NotificationType.ORGANIZATION_INVITATION_RECEIVED,
+      NotificationType.ORGANIZATION_COACH_JOINED,
     ]) {
       const result = notificationDtoSchema.safeParse({
         ...NOTIFICATION,

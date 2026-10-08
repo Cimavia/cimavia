@@ -1,4 +1,4 @@
-import { Locale, NotificationType } from "@cmv/shared";
+import { InvitationRole, Locale, NotificationType } from "@cmv/shared";
 import type { MailStrings } from "../mail.catalog";
 
 /**
@@ -52,16 +52,29 @@ export const fr = {
    * case « Je coache » est dans la consigne : sans elle, le compte créé ne pourrait pas accepter.
    */
   organizationInvitation: {
-    subject: (organizationName) =>
-      `${organizationName} t'invite à rejoindre son équipe sur Cimavia`,
-    heading: (organizationName) => `Rejoins l'équipe de ${organizationName}`,
-    intro: (organizationName) =>
-      `${organizationName} t'invite à rejoindre son équipe de coachs sur Cimavia. Une fois membre, tu suivras les athlètes de ${organizationName}.`,
-    addressLine:
-      "Crée ton compte avec l'adresse qui reçoit ce message, en cochant « Je coache » : ton invitation t'attendra sur ton tableau de bord.",
-    cta: "Créer mon compte",
-    ignore:
-      "Si tu ne connais pas cette entreprise, ignore cet e-mail : rien ne se passera, et personne n'apprendra que tu l'as reçu.",
+    [InvitationRole.COACH]: {
+      subject: (organizationName) =>
+        `${organizationName} t'invite à rejoindre son équipe sur Cimavia`,
+      heading: (organizationName) => `Rejoins l'équipe de ${organizationName}`,
+      intro: (organizationName) =>
+        `${organizationName} t'invite à rejoindre son équipe de coachs sur Cimavia. Une fois membre, tu suivras les athlètes de ${organizationName}.`,
+      addressLine:
+        "Crée ton compte avec l'adresse qui reçoit ce message, en cochant « Je coache » : ton invitation t'attendra sur ton tableau de bord.",
+      cta: "Créer mon compte",
+      ignore:
+        "Si tu ne connais pas cette entreprise, ignore cet e-mail : rien ne se passera, et personne n'apprendra que tu l'as reçu.",
+    },
+    [InvitationRole.ATHLETE]: {
+      subject: (organizationName) => `${organizationName} t'invite sur Cimavia`,
+      heading: (organizationName) => `Rejoins ${organizationName} sur Cimavia`,
+      intro: (organizationName) =>
+        `${organizationName} t'invite à rejoindre ses athlètes sur Cimavia. Tu y seras suivi par ses coachs, pour tes planifications et le débrief de tes séances.`,
+      addressLine:
+        "Crée ton compte avec l'adresse qui reçoit ce message, en cochant « Je m'entraîne » : ton invitation t'attendra dans « Mes coachs ».",
+      cta: "Créer mon compte",
+      ignore:
+        "Si tu ne connais pas cette entreprise, ignore cet e-mail : rien ne se passera, et personne n'apprendra que tu l'as reçu.",
+    },
   },
   /**
    * Un gabarit par type envoyable. Chacun a DEUX formulations, selon que le sujet est connu ou

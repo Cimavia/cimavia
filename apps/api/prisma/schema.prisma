@@ -42,9 +42,10 @@ model User {
   accounts Account[]
 
   // L'entreprise qu'ouvre un compte Entreprise (#600) — même id, absente pour tout autre compte.
-  organization Organization?
-  // Les entreprises dont ce compte est Coach (#601).
+  organization            Organization?
+  // Les entreprises dont ce compte est Coach (#601), puis athlète (#602).
   organizationMemberships OrganizationCoach[]
+  organizationAthletes    OrganizationAthlete[]
 
   // Métier — tenancy (relation coach↔athlète nullable/réversible)
   athleteRelations    CoachAthlete[] @relation("AthleteRelation") // athlète → 0..N coachs (#599)
@@ -94,13 +95,17 @@ model User {
 /// Entreprise (#600) — interface : « Entreprise ». Son id EST celui du compte Entreprise qui l'ouvre :
 /// créée à l'inscription, elle ne se désigne jamais autrement. Pas de colonne nom : le nom de
 /// l'entreprise est le `name` de ce compte, lu à un seul endroit. La table existe à part du compte
-/// pour accueillir plus tard ses administrateurs nommés ; ses Coachs y viennent avec #601.
+/// pour accueillir plus tard ses administrateurs nommés ; ses Coachs y viennent avec #601, ses
+/// athlètes avec #602.
 model Organization {
-  id          String              @id
-  user        User                @relation(fields: [id], references: [id], onDelete: Cascade)
-  createdAt   DateTime            @default(now())
-  coaches     OrganizationCoach[]
-  invitations Invitation[]
+  id            String                @id
+  user          User                  @relation(fields: [id], references: [id], onDelete: Cascade)
+  createdAt     DateTime              @default(now())
+  coaches       OrganizationCoach[]
+  athletes      OrganizationAthlete[]
+  invitations   Invitation[]
+  // Les liens coach-athlète nés de l'entreprise (#602) — leur provenance, pas leur propriétaire.
+  coachAthletes CoachAthlete[]
 
   @@map("organization")
 }
@@ -121,6 +126,25 @@ model OrganizationCoach {
   @@unique([organizationId, coachId])
   @@index([coachId])
   @@map("organization_coach")
+}
+
+/// Un athlète de l'entreprise (#602). Il naît de l'acceptation d'une invitation de l'entreprise, et
+/// d'elle seule ; `createdAt` est la date d'arrivée. Le suivi lui-même vit dans `CoachAthlete`, un
+/// lien par Coach de l'entreprise : cette ligne dit qu'il en est, pas qui le suit. Pas de retrait
+/// en v1, pour la même raison que `OrganizationCoach` (#213).
+model OrganizationAthlete {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  athleteId      String
+  athlete        User         @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  // Une appartenance par couple, comme `OrganizationCoach`. Préfixe organizationId : couvre le
+  // scope de l'entreprise ; l'index sur athleteId sert la suppression d'un compte athlète.
+  @@unique([organizationId, athleteId])
+  @@index([athleteId])
+  @@map("organization_athlete")
 }
 
 // Renommé `AuthSession` (table `session` conservée via @@map) pour libérer `Session` au
@@ -202,21 +226,28 @@ enum InvitationRole {
 }
 
 model CoachAthlete {
-  id        String             @id @default(cuid())
-  coachId   String
-  coach     User               @relation("CoachRelations", fields: [coachId], references: [id], onDelete: Cascade)
-  athleteId String
-  athlete   User               @relation("AthleteRelation", fields: [athleteId], references: [id], onDelete: Cascade)
-  status    CoachAthleteStatus @default(ACTIVE)
-  invitedAt DateTime           @default(now())
-  joinedAt  DateTime?
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  id             String             @id @default(cuid())
+  coachId        String
+  coach          User               @relation("CoachRelations", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId      String
+  athlete        User               @relation("AthleteRelation", fields: [athleteId], references: [id], onDelete: Cascade)
+  status         CoachAthleteStatus @default(ACTIVE)
+  invitedAt      DateTime           @default(now())
+  joinedAt       DateTime?
+  // L'entreprise dont le lien est né (#602) ; `null` = lien direct, noué par l'invitation d'un
+  // Coach — « aucune entreprise », pas une donnée manquante. Un lien direct déjà présent quand
+  // l'entreprise arrive le reste. `SetNull` : supprimer l'entreprise ne coupe pas le suivi.
+  organizationId String?
+  organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   // Un lien par COUPLE : un athlète a 0..N coachs (#599). Préfixe coachId : couvre l'index seul ;
   // l'index sur athleteId sert le scope athlète, qui filtre sur cette colonne.
   @@unique([coachId, athleteId])
   @@index([athleteId])
+  // Les liens d'une entreprise, que l'affectation à certains Coachs viendra trier.
+  @@index([organizationId])
   @@map("coach_athlete")
 }
 
@@ -900,6 +931,8 @@ enum NotificationType {
   // Une entreprise invite un Coach à rejoindre son équipe (#601). Un type à part : le destinataire
   // n'est pas un futur athlète, et l'écran qui l'accepte n'est pas le même.
   ORGANIZATION_INVITATION_RECEIVED
+  // Un Coach rejoint une entreprise, et suit désormais ses athlètes (#602) : chacun l'apprend.
+  ORGANIZATION_COACH_JOINED
 }
 
 // Ce que la notification désigne, pour router à l'ouverture. Aujourd'hui dérivable du `type` — on
