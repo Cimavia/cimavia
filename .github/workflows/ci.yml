@@ -283,7 +283,8 @@ jobs:
   # après le plus long des deux, `quality`, mais n'a plus ~2 min de tests à rejouer.
   #
   # Le nom du job est inchangé à dessein : les rulesets exigent le contexte « SonarCloud Analysis »,
-  # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 », docs/dette-technique.md).
+  # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 »,
+  # docs/dette/qualite-et-depot.md).
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-26.04

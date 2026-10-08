@@ -24,7 +24,7 @@ type ScheduledExercise = ScheduledSessionDto["exercises"][number];
  * Ligne de composition d'une séance PLANIFIÉE. Elle porte un snapshot (titre, description,
  * catégorie) et `sourceExerciseId` **nullable** : la séance planifiée est une copie autonome, pas
  * une référence — supprimer l'exercice d'origine dans la bibliothèque ne doit jamais casser un
- * cycle diffusé (tranché en P3, cf. dette-technique.md).
+ * cycle diffusé (tranché en P3, cf. docs/dette/planifications.md).
  *
  * Son dosage s'édite au niveau SÉANCE PLANIFIÉE (#518) : `blocks`, `baseline` et `adjustments`
  * comme au niveau séance, plus `baselineAdjustments`, les marqueurs reçus de la séance-type.
