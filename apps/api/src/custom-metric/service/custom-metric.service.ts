@@ -11,7 +11,7 @@ import { toCustomMetricDto } from "../custom-metric.mapper";
  *
  * Les blocs les référencent par `customMetricId` DANS du JSON — ce n'est donc pas une clé
  * étrangère, et supprimer une métrique laisse des colonnes orphelines que `validateBlockValues`
- * signale à l'affichage. Choix assumé : dette R-2.
+ * signale à l'affichage. Choix assumé : dette EX-2.
  */
 @Injectable()
 export class CustomMetricService {

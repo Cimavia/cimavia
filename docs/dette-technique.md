@@ -26,7 +26,7 @@ Statuts : 🟢 acceptable durablement · 🟡 à traiter avant v1.0 · 🔴 à t
 autonomes. **Vingt-neuf dettes n'ont pas d'issue**, en trois familles : **P2-4**, **N-3**, **C-1** et
 **IOS-4**, dont
 le déclencheur est explicitement « aucun » (pour **C-1**, l'issue serait même un contresens — le
-déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **R-2**,
+déclencheur est qu'on la « corrige » à tort) ; **U-3**, **U-4**, **U-5**, **U-6**, **V-2**, **EX-2**,
 **W-1**, **Q-6**, **Q-7**, **MI-1**, **MI-2**, **O-2**, **N-5**, **N-9**, **I-1**, **I-2**, **I-4**,
 **IOS-2**, **IOS-3**, **P7-7**, **OTA-1**, **OTA-2**, **DR-1**, **TZ-1** et **MC-2**,
 dont le déclencheur est nommé mais
@@ -1810,8 +1810,8 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| R-1 | **`description` survit à côté d'`instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même consigne tant que le constructeur n'écrit pas la version structurée — l'API alimente les deux, et rien n'empêche qu'elles divergent. La moitié `category` → `tags` est **close** (#163, migration `20260824120000_retrait_categorie_exercice`). | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) *(le contract est sa dernière étape)* |
-| R-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient. | 🟢 | — *(`validateBlockValues` la signale au coach ; le nettoyage en masse attend un besoin réel)* |
+| EX-1 | **`description` survit à côté d'`instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même consigne tant que le constructeur n'écrit pas la version structurée — l'API alimente les deux, et rien n'empêche qu'elles divergent. La moitié `category` → `tags` est **close** (#163, migration `20260824120000_retrait_categorie_exercice`). *Nommée **R-1** avant [#624](https://github.com/Cimavia/cimavia/issues/624), comme une dette des rappels — la migration `20260824070000_reprise_descriptions_en_consigne` la cite encore sous ce nom.* | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) *(le contract est sa dernière étape)* |
+| EX-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient. *Nommée **R-2** avant [#624](https://github.com/Cimavia/cimavia/issues/624).* | 🟢 | — *(`validateBlockValues` la signale au coach ; le nettoyage en masse attend un besoin réel)* |
 
 > **Tranché — les blocs en JSON, pas en tables.** Quatre tables (bloc / métrique / ligne / valeur)
 > donnaient l'intégrité référentielle sur `customMetricId` et des cellules interrogeables en SQL.
@@ -1820,7 +1820,7 @@ résolues sauf **C-1** : ce qui y reste est de la décision, pas de la dette en 
 > départage, c'est le **snapshot de diffusion** (P3) : en JSON c'est la copie d'un champ, en
 > relationnel c'est quatre SELECT/INSERT imbriqués avec remapping des identifiants de colonnes
 > dans chaque ligne — soit exactement l'endroit où une planif diffusée se dégrade en silence. Le
-> contrat est tenu par `exerciseBlocksSchema` à l'entrée. Coût accepté : **R-2**.
+> contrat est tenu par `exerciseBlocksSchema` à l'entrée. Coût accepté : **EX-2**.
 >
 > **Tranché — aucun rattrapage des descriptions.** `description → instructions` touche tous les
 > exercices existants. La base en contient 7, dont 4 avec description, d'une longueur moyenne de

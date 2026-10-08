@@ -65,7 +65,7 @@ export const createExerciseSchema = z
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
     // Consigne structurée, remplaçante de `description`. Les deux cohabitent le temps que le
-    // constructeur web bascule (#163) — voir dette R-1.
+    // constructeur web bascule (#163) — voir dette EX-1.
     instructions: richDocumentSchema.nullable().optional(),
     // Absent = aucun bloc, ce qui est un exercice LÉGITIME : un coach peut n'écrire qu'une
     // consigne. Pas de bloc par défaut, qui obligerait ensuite à le supprimer.
