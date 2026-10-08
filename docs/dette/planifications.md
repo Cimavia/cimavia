@@ -9,12 +9,10 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~P3-1~~ | ~~**Push non envoyé à la diffusion**~~ : `notifyPlanPublished` journalisait au lieu d'émettre. | ✅ | résolu en **p4-4** — `expo-server-sdk` branché dans `NotificationService`, table `PushToken` |
 | P3-2 | **Objets S3 orphelins après suppression d'une planif** : une copie de document partage la clé objet de la bibliothèque. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
-| ~~P3-3~~ | ~~**Documents non lisibles hors-ligne**~~ : servis par des URLs signées à TTL court (5 min). | ✅ | résolue en [#95](https://github.com/Cimavia/cimavia/issues/95) — documents ET déroulé descendus sur l'appareil à la première ouverture en ligne. Le TTL, lui, n'a pas bougé : c'est le CLIENT qui a changé |
-| ~~P3-4~~ | ~~**Écrans coach de P1 jamais construits**~~ (nav, liste d'athlètes, invitation, fiche). | ✅ | résolu en **p3-8** — `CmvAppShell`, `/athletes`, invitation, fiche athlète |
 | P3-5 | **Écart aux maquettes assumé** : pas de durée de séance (« 75 min » en pd-7/pd-9). Le glisser-déposer, lui, n'en est plus un — cf. ~~P2-3~~. | 🟢 | [#94](https://github.com/Cimavia/cimavia/issues/94) |
-| ~~P3-6~~ | ~~**Tuile « Factures en attente » non branchée**~~ : affichait `—`, marquée `// MOCKED`. | ✅ | résolue en **P6** — branchée sur `pendingCount(invoices)` |
+
+*Résolues, à l'[archive](archive.md) : P3-1, P3-3, P3-4, P3-6.*
 
 ---
 

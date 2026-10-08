@@ -63,6 +63,10 @@ d'encadré, sur tout le dossier : `grep -rn "Tranché en #10" docs/dette/`.
 Une section nouvelle va dans le domaine de ce qu'elle touche ; si elle en touche deux, dans celui
 où l'on viendra la chercher en premier.
 
+Les dettes **résolues** (✅) vivent dans [`dette/archive.md`](dette/archive.md), rangées par
+domaine : une dette qui passe à ✅ y part dans la PR qui la résout, et son domaine garde sous le
+tableau la ligne « *Résolues, à l'archive* » qui la nomme. Les encadrés restent dans leur domaine.
+
 ---
 
 ## Hors périmètre MVP (rappel — ce n'est PAS de la dette)

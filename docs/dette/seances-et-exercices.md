@@ -11,9 +11,10 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | P2-1 | **Objets orphelins en object storage** : upload réussi mais `POST /documents` échoué → fichier dans le bucket sans ligne en base. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
 | P2-2 | **Pas de pagination** sur `GET /exercises` et `GET /sessions` : tout est renvoyé. | 🟢 | [#79](https://github.com/Cimavia/cimavia/issues/79) |
-| ~~P2-3~~ | ~~**Pas de drag & drop** dans le SessionBuilder~~ : réordonnancement par boutons ↑/↓. | ✅ | jamais vraie pour le `SessionBuilder`, qui a le glisser **depuis son commit de création** — [#165](https://github.com/Cimavia/cimavia/issues/165) l'annonçait (« absorbe #93 ») sans que #93 soit fermée. [#93](https://github.com/Cimavia/cimavia/issues/93), recyclée, a couvert les **deux surfaces qui manquaient** : la séance planifiée et les séances d'une journée |
 | P2-4 | **`crypto.randomUUID()` pour la clé objet**, alors que les `id` de tables sont des `cuid`. | 🟢 | — *(incohérence assumée, déclencheur : aucun)* |
 | P2-5 | **Suppression d'un document : pas de rollback**. L'objet S3 part **avant** la ligne — ordre choisi volontairement. | 🟢 | [#75](https://github.com/Cimavia/cimavia/issues/75) |
+
+*Résolues, à l'[archive](archive.md) : P2-3.*
 
 ---
 
@@ -431,9 +432,7 @@ liste des domaines vivent dans l'index.
 
 ## Post-MVP — Quitter une saisie non enregistrée ([#327](https://github.com/Cimavia/cimavia/issues/327))
 
-| # | Dette | Statut | Suivi |
-|---|---|---|---|
-| ~~G-1~~ | ~~**Le panneau d'une séance planifiée n'est pas gardé** : son titre, ses notes et sa date se perdent sans confirmation, qu'on navigue hors du cycle ou qu'on referme le panneau. Il ne remonte aucun état « modifié » au constructeur, qui ne garde que l'en-tête et la facturation. Trois champs courts, là où les constructeurs de bibliothèque portent des grilles entières.~~ | ✅ | résolue par [#518](https://github.com/Cimavia/cimavia/issues/518) : le panneau porte désormais une grille de dosage par exercice, et le déclencheur (« trois champs courts ») ne tenait plus. Fermer le panneau ou quitter le cycle demande, comme les constructeurs |
+*Résolues, à l'[archive](archive.md) : G-1.*
 
 > **Tranché en [#327](https://github.com/Cimavia/cimavia/issues/327)** (la sortie se compare à
 > l'ENREGISTRÉ, et seul ce qui change de page la déclenche) : les constructeurs d'exercice, de

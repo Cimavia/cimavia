@@ -9,9 +9,9 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~P6-1~~ | ~~**Astérisques d'obligation partiels**~~ : la ligne datait, et disait « seul le formulaire de facturation » alors que quatre autres surfaces avaient reçu `requiredMark` entre-temps. | ✅ | résolue en [#97](https://github.com/Cimavia/cimavia/issues/97) — le repère suit désormais une règle écrite, et non l'ordre d'arrivée des écrans |
 | P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
-| ~~P6-3~~ | ~~**Suppression d'un cycle diffusé bloquée côté UI seulement**~~ : `DELETE /plans/:id` acceptait encore un `PUBLISHED`, et effaçait sa facture émise — ainsi que les débriefs de ses séances et leurs médias, laissés orphelins dans le bucket (#313). | ✅ | résolue en [#85](https://github.com/Cimavia/cimavia/issues/85) — 409 dans `PlanService.delete`, livré avec le verrou de la semaine (cf. « Tranché en #312 ») |
+
+*Résolues, à l'[archive](archive.md) : P6-1, P6-3.*
 
 ---
 

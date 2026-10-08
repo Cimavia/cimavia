@@ -62,11 +62,10 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~M-1~~ | ~~**Les e2e ne tournent dans aucune porte**~~ : la CI lançait `pnpm turbo test`, qui exécute le script `test` de chaque paquet — les 186 e2e ont le leur (`test:e2e`) et n'étaient donc jamais exécutés en PR. Découvert en #36 : deux e2e cassés pendant des jours derrière une CI verte. | ✅ | résolu en **#130** — job `E2E (isolation multi-tenant)` sur chaque PR, **requis** dans les rulesets `main` et `staging`/`production` |
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
 | M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
-| ~~M-4~~ | ~~**Préparation média toujours dupliquée entre les deux features mobile**~~ (`feedback` ↔ `message`) — doublon de **P5-5**, la même dette suivie à deux endroits. | ✅ | résolue en [#96](https://github.com/Cimavia/cimavia/issues/96) — voir **P5-5** |
-| ~~M-5~~ | ~~**Pas de presse-papier sur mobile**~~ : l'invitation se transmettait par `Share` (SMS, WhatsApp) et non par « Copier le code » comme la maquette. | ✅ | caduque en [#390](https://github.com/Cimavia/cimavia/issues/390) — il n'y a plus de code à transmettre, ni à copier ni à partager |
+
+*Résolues, à l'[archive](archive.md) : M-1, M-4, M-5.*
 > **Corrigé en #194, trouvé par accident** : `useUnreadNotificationCount` et `useUnreadByCapability`
 > (#176) partageaient une clé de cache — voulu, c'est la même requête — mais avec **deux `queryFn`
 > différents**, l'un projetant `.count`, l'autre rendant le DTO entier. TanStack indexe par CLÉ, pas
@@ -76,7 +75,7 @@ liste des domaines vivent dans l'index.
 > chaud — il ne l'est plus au premier lancement, ni après un changement de `buster`, ni chez un
 > nouvel utilisateur. La projection se fait désormais par `select`, à la lecture, sur les deux apps.
 
-| ~~M-6~~ | ~~**Le `buster` du cache persisté se bump à la main**~~ (`CACHE_SCHEMA_VERSION`, `shared/lib/query.tsx`) : rien ne forçait à y penser, et la panne ne se voit pas chez celui qui développe — son cache est toujours neuf. | ✅ | résolue en **#187** — le buster est la version du produit, lue par `currentAppVersion()` |
+*Résolues, à l'[archive](archive.md) : M-6.*
 
 > **Tranché en #137** (un formateur ne rend jamais du vide) : les libellés et valeurs de métrique
 > vivent désormais dans `@cmv/shared` (`metricLabel`, `metricUnitLabel`, `formatMetricValue`,

@@ -12,9 +12,9 @@ liste des domaines vivent dans l'index.
 | P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | 🟢 | [#77](https://github.com/Cimavia/cimavia/issues/77) |
 | P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du webm/opus, qu'iOS peut ne pas lire. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
-| ~~P5-4~~ | ~~**Throttle push « first-unread » sans reprise temporelle** : une rafale de messages = 1 push, sans rappel.~~ | ✅ | résolue pour le push en [#539](https://github.com/Cimavia/cimavia/issues/539) — un push par message ; la trace garde le throttle (**N-3**, **N-8**) |
-| ~~P5-5~~ | ~~**Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile)~~. La moitié mobile↔web n'a jamais été une dette : elle s'est réglée en promotion **intra-app** côté web (#26), ce que la ligne d'origine annonçait à tort comme un partage à faire. | ✅ | résolue en [#96](https://github.com/Cimavia/cimavia/issues/96) — `shared/util/media.util.ts` paramétré par un `MediaProfile`, le déclencheur ayant fini par survenir : les deux copies contrôlaient les plafonds à deux endroits différents |
 | ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+
+*Résolues, à l'[archive](archive.md) : P5-4, P5-5.*
 
 > **Tranché en #190** (répondre à un débrief) : la réponse est un **`Message` rattaché**
 > (`Message.sessionFeedbackId`), pas une entité nouvelle — le champ était au schéma et validé
@@ -156,11 +156,11 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~R-1~~ | ~~**Aucun push quand un rappel devient dû**~~ : sans scheduler, il n'apparaissait qu'au prochain chargement du centre. | ✅ | résolu en **#47** — tick externe horaire (`POST /internal/reminders/tick`), push idempotent via `pushedAt` |
 | R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | [#106](https://github.com/Cimavia/cimavia/issues/106) |
-| ~~R-3~~ | ~~**Pas de report d'échéance ni d'édition**~~ : reprogrammer un rappel demandait de le traiter puis d'en créer un autre — deux gestes, et un historique de doublons. | ✅ | résolu en **#105** — `PATCH /reminders/:id` (échéance et/ou note) + bouton « Repousser » sur l'écran **et** dans le centre de notifications |
 | R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts. | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | R-5 | **Aucune rétention** des rappels `DONE`/`DISMISSED` : la table grossit indéfiniment (même famille que N-2). | 🟢 | [#107](https://github.com/Cimavia/cimavia/issues/107) |
+
+*Résolues, à l'[archive](archive.md) : R-1, R-3.*
 
 > **Tranché en #44** (le modèle) : un rappel est l'**outil privé du coach** — la seule entité métier
 > scopée `coachId` **seul**, qu'aucun athlète ne voit sous aucune forme. Quatre conséquences
@@ -316,8 +316,9 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| ~~MI-1~~ | ~~**Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint**~~ : le `staleTime` par défaut (60 s web, 5 min mobile) retenait `GET /me/counterparts`, et il fallait recharger la page pour voir la messagerie apparaître. | ✅ | déclencheur survenu **le jour même** (retour de bêta) — `staleTime: 0` sur cette seule requête, refetch au montage et au retour sur l'app. **La moitié athlète, corrigée en [#308](https://github.com/Cimavia/cimavia/issues/308)** : sur mobile, l'athlète qui venait de rejoindre n'avait pas non plus son onglet Messages — `useAcceptInvitation` énumérait ses invalidations et oubliait les contreparties, et le `staleTime: 0` n'y pouvait rien, la barre d'onglets restant montée sous `join`. Il invalide depuis tout le cache, comme le web, et par la même mutation : `acceptInvitationMutation` (`@cmv/shared`), écrite une fois pour ne plus diverger |
 | MI-2 | **`landingTab` a une valeur par défaut pour les contreparties** : `LoginScreen`, `RegisterScreen` et `CmvCapabilityGate` l'appellent avant qu'une requête ait pu partir. Sans conséquence tant qu'aucun onglet conditionnel n'est en tête de table — `dashboard` et `planning` y sont, et ni l'un ni l'autre ne dépend d'un interlocuteur. | 🟢 | — *(déclencheur : un onglet conditionnel passe en tête ; le commentaire de `tabs.ts` le dit)* |
+
+*Résolues, à l'[archive](archive.md) : MI-1.*
 
 > **Tranché en #198** (« quelqu'un en face » est une question sur le SCOPE, pas une lecture scopée) :
 > la nav doit savoir s'il y a un interlocuteur **avant** de savoir à quel titre elle s'affiche. Les

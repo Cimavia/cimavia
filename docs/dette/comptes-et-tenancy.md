@@ -10,8 +10,9 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | D-1 | **Sept requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, conversations, résumé des rappels, non-lues) : la jointure du tableau est faite côté client, sans endpoint d'agrégat. Le **polling** de deux d'entre elles a été coupé sur cet écran (#113) — il ne reste que celui du badge, qui est sa raison d'être. Le tableau rend par ailleurs **toutes** ses lignes, `GET /athletes` n'étant pas borné : même déclencheur, même épic. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) *(épic : [#139](https://github.com/Cimavia/cimavia/issues/139) agrégat · [#140](https://github.com/Cimavia/cimavia/issues/140) pagination)* |
-| ~~D-2~~ | ~~**Pas de recherche, de tri ni de filtre** sur le tableau de suivi, là où la maquette en prévoit.~~ | ✅ | résolue en **#123** — recherche par nom, filtres *Cycle terminé* / *Sans plan*, ordre alphabétique. Le **tri par activité** est resté dehors (cf. encadré ci-dessous) |
 | D-3 | **La fiche athlète n'a pas de garde serveur contre l'écrasement** : `PUT /athletes/:id/sheet` remplace `content` sans vérifier la version lue, et le produit n'a pas d'historique. Depuis #301, seuls les clients empêchent d'éditer une fiche non reçue ; deux onglets (ou le web et le mobile) ouverts sur la même fiche s'écrasent toujours sans que personne ne le voie. | 🟡 | [#440](https://github.com/Cimavia/cimavia/issues/440) |
+
+*Résolues, à l'[archive](archive.md) : D-2.*
 
 > **Tranché en #52** (aucune information lue deux fois) : c'est la contrainte qui a façonné l'écran,
 > parce que sept tuiles offrent sept occasions de recompter la même chose. Trois conséquences.
@@ -118,8 +119,8 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | C-1 | **`role` et les capacités coexistent sans contrainte qui les lie.** `User` porte `isCoach`/`isAthlete` (le droit) **et** `role` (le persona d'affichage). Les deux chemins d'écriture les tiennent alignés — le `databaseHook` à la création, `CapabilityService` à la modification ; `/update-user` est fermé depuis #310 — mais rien en base ne l'impose. C'est le comportement **voulu**, pas un bug : un persona n'est pas un droit, et le second peut légitimement survivre au premier. | 🟢 | — *(déclencheur : quelqu'un qui prendrait la divergence pour une incohérence et « réparerait » en resynchronisant)* |
-| ~~C-2~~ | ~~**L'autorisation API tourne encore sur le rôle exclusif**~~ : `@Roles` et `tenantField` lisaient `actor.role`. | ✅ | résolue en **#10** — `@RequireCapability` maison, `TenantContext` sans `role` |
-| ~~C-3~~ | ~~**Les clients n'envoient pas `?as=`**~~ : les routes servant les deux capacités répondaient 400 à un compte cumulant. | ✅ | résolue en **#12** (le paramètre) et **#129** (le choix explicite) |
+
+*Résolues, à l'[archive](archive.md) : C-2, C-3.*
 
 > **Appris en #10** (l'ordre des gardes globales n'est pas celui qu'on croit) : deux `APP_GUARD`
 > s'exécutent dans l'ordre où leurs **providers** sont enregistrés, et ceux du module **racine**
@@ -365,8 +366,9 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | I-1 | **L'e-mail d'invitation part en français**, quelle que soit la langue du destinataire. Il n'y a pas de `User.locale` à lire pour une adresse SANS compte, et `mailStringsFor(null)` replie sur le français. Seule une invitation portant elle-même une langue fermerait l'écart. | 🟢 | — *(déclencheur : un coach qui invite un athlète anglophone — l'anglais est déjà écrit au catalogue, il manque seulement de quoi le choisir)* |
 | I-2 | **Les deux mailers nomment une route WEB en clair** — `/account` (`NotificationMailer`) et `/register` (`InvitationMailer`). Aucun test ne peut les garder : l'API ne connaît pas le routeur du client. Renommer `account.tsx` ou `register.tsx` casse le lien **en silence**. Le nom du fichier est cité dans un commentaire à côté de chaque URL — c'est la seule parade, un `grep` le trouve. | 🟢 | — *(déclencheur : le jour où l'on renomme une route web ; rien à préparer avant)* |
-| ~~I-3~~ | ~~**`InvitationStatus.REVOKED` reste une valeur sans chemin**~~ : aucune route ne la posait, et un coach ne pouvait pas annuler une invitation encore en attente — il attendait son expiration (7 jours). | ✅ | résolue en [#524](https://github.com/Cimavia/cimavia/issues/524) — `POST /invitations/:id/revoke`, « Retirer » sur le web et le mobile |
 | I-4 | **Rien ne rattrape un `.env` local en retard sur `.env.example`** (transverse, découvert ici). Les variables `SMTP_*` / `WEB_URL` ajoutées en [#61](https://github.com/Cimavia/cimavia/issues/61) manquaient un mois plus tard sur la machine de dev : l'e-mail d'invitation ne partait pas, et **rien ne le disait à l'écran** — seul un `WARN` dans les logs. Même famille que la migration non appliquée, qui a produit une notification muette le même jour. | 🟡 | — *(déclencheur : c'est arrivé deux fois en une session ; une vérification au démarrage — clés absentes, migrations en attente — reste à ouvrir)* |
+
+*Résolues, à l'[archive](archive.md) : I-3.*
 
 > **Tranché en #146** (le canal dépend de l'adresse, et la réponse HTTP ne le trahit jamais) :
 > émettre une invitation nominative prend l'une de deux voies, et ce qu'elles ont en commun est le
