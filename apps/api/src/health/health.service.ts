@@ -29,6 +29,7 @@ export class HealthService {
 
   private async pingDatabase(): Promise<DependencyState> {
     try {
+      // biome-ignore lint/plugin/noRawSql: sonde de disponibilité, SELECT 1 ne touche à aucune table
       await this.prisma.$queryRaw`SELECT 1`;
       return "up";
     } catch {

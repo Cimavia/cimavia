@@ -78,6 +78,11 @@ jobs:
       - name: Biome CI
         run: pnpm biome ci .
 
+      # Une règle GritQL qui ne trouve plus rien ne fait pas échouer `biome ci` : elle se tait. Ce
+      # banc la passe sur des fixtures où chaque ligne à signaler est marquée (#623).
+      - name: Check Biome rules
+        run: pnpm check:lint-rules
+
       - name: Typecheck
         run: pnpm turbo typecheck
 

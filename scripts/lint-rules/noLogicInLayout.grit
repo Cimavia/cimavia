@@ -1,0 +1,25 @@
+language js
+
+// Règle dure n°4, côté layouts : un _layout.tsx porte la navigation (pile, onglets, garde,
+// redirection) dans son composant, et rien d'autre au niveau du fichier — ni fonction, ni
+// constante, ni type. Une décision qu'on voudrait y poser vit dans shared/lib/, où elle se teste.
+// Admis : les imports, le composant exporté par défaut, et ce qu'Expo Router lit d'un layout — le
+// réexport d'un ErrorBoundary et `unstable_settings`, qui sont de la configuration de navigation.
+or {
+  JsExport(),
+  JsFunctionDeclaration(),
+  JsClassDeclaration(),
+  JsVariableStatement(),
+  JsExpressionStatement(),
+  TsTypeAliasDeclaration(),
+  TsInterfaceDeclaration(),
+  TsEnumDeclaration()
+} as $item where {
+  $item <: not within JsFunctionBody() ,
+  $item <: not or {
+    r"(?s)export default function \w+\(.*",
+    r"export \{ \w+ as ErrorBoundary \} from \"[^\"]+\";",
+    r"(?s)export const unstable_settings = .*"
+  },
+  register_diagnostic(span=$item, message="Layout : rien d'autre que le composant de navigation exporté par défaut ; la logique vit dans shared/lib (règle dure n°4).", severity="error")
+}

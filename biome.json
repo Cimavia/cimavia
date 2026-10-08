@@ -24,9 +24,32 @@
       "!apps/mobile/tailwind.config.js",
       "!apps/web/tailwind.config.js",
       "!apps/web/postcss.config.js",
-      "!packages/tokens/src/tailwind-preset.js"
+      "!packages/tokens/src/tailwind-preset.js",
+      "!scripts/lint-rules/fixtures"
     ]
   },
+  "plugins": [
+    {
+      "path": "./scripts/lint-rules/noHardcodedColor.grit",
+      "includes": ["**", "!**/packages/tokens/**", "!**/theme/**"]
+    },
+    {
+      "path": "./scripts/lint-rules/noHardcodedText.grit",
+      "includes": ["**/*.tsx", "!**/*.test.tsx", "!**/test/**"]
+    },
+    {
+      "path": "./scripts/lint-rules/useRouteShell.grit",
+      "includes": ["**/apps/mobile/app/**", "!**/_layout.tsx", "!**/*.test.*"]
+    },
+    {
+      "path": "./scripts/lint-rules/noLogicInLayout.grit",
+      "includes": ["**/apps/mobile/app/**/_layout.tsx"]
+    },
+    {
+      "path": "./scripts/lint-rules/noRawSql.grit",
+      "includes": ["**", "!**/*.test.ts", "!**/*.e2e-spec.ts", "!**/test/**"]
+    }
+  ],
   "assist": {
     "actions": {
       "source": {
@@ -57,7 +80,8 @@
         "useExhaustiveDependencies": "error"
       },
       "style": {
-        "noNonNullAssertion": "warn"
+        "noNonNullAssertion": "warn",
+        "noHexColors": "error"
       }
     }
   },
@@ -77,6 +101,16 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["**/packages/tokens/**", "**/theme/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noHexColors": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["**/*.css"],
       "linter": {
