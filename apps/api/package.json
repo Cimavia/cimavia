@@ -20,7 +20,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1079.0",
     "@aws-sdk/s3-request-presigner": "^3.1079.0",
-    "@axiomhq/pino": "^1.7.0",
+    "@axiomhq/pino": "^2.0.0",
     "@better-auth/expo": "1.6.23",
     "@cmv/shared": "workspace:*",
     "@fastify/cors": "11.1.0",
