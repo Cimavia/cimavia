@@ -9,7 +9,7 @@ name: Mutation testing (Stryker)
 #     mutants dont le code ou les tests ont changé : quelques dizaines de secondes, contre ~4 min
 #     pour un run complet. Le seuil est un cliquet, posé dans `packages/shared/stryker.config.mjs` ;
 #   - la tenancy de l'API, chaque semaine et à la demande. Son juge est la suite e2e, sur une vraie
-#     base (« Tranché en #506 ») : ~40 min, un mutant à la fois. Son seuil est 100 % — un survivant
+#     base (« Tranché en #506 ») : ~30 min, un mutant à la fois. Son seuil est 100 % — un survivant
 #     y est un filtre qu'on pourrait retirer sans qu'aucun test ne le voie.
 #
 # Une PR qui modifie ce workflow ou la configuration d'une cible la fait tourner aussi : c'est la
@@ -32,7 +32,7 @@ on:
   workflow_dispatch:
 
 # Une PR relancée annule son run précédent. Un run de `main` (le lundi, ou à la demande) ne l'est
-# jamais : il porte les 40 min de la tenancy et le cache incrémental que les PR relisent.
+# jamais : il porte la demi-heure de la tenancy et le cache incrémental que les PR relisent.
 concurrency:
   group: mutation-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -101,7 +101,7 @@ jobs:
   tenancy:
     name: Mutation — tenancy (API)
     runs-on: ubuntu-26.04
-    timeout-minutes: 90 # ~40 min en local
+    timeout-minutes: 90 # ~30 min en local
     permissions:
       contents: read
     steps:
@@ -111,7 +111,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # Jamais pour une PR de code (« Tranché en #626 ») : 40 min par PR, pour un code qui bouge
+      # Jamais pour une PR de code (« Tranché en #626 ») : 30 min par PR, pour un code qui bouge
       # peu. Seulement quand sa propre configuration change.
       - name: Ce que la PR touche
         id: changes

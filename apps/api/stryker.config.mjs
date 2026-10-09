@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
  * ne scope rien.
  *
  * Le juge est la suite e2e (`vitest.config.mutation.ts`) : une base Postgres et un SILO réels, un
- * seul port. D'où `concurrency: 1`, et une durée (~40 min) qui la tient hors des PR. Elle tourne
+ * seul port. D'où `concurrency: 1`, et une durée (~30 min) qui la tient hors des PR. Elle tourne
  * dans le fuseau de la machine, comme le job `E2E` de la CI : le runner Vitest de Stryker impose
  * des threads, et un `TZ` posé ici changerait le fuseau de toute la suite, pas seulement le sien.
  */
@@ -36,4 +36,7 @@ export default {
   reporters: ["clear-text", "progress", "html", "json"],
   htmlReporter: { fileName: "reports/mutation/mutation.html" },
   jsonReporter: { fileName: "reports/mutation/mutation.json" },
+  // Un survivant ici est un filtre tenant qu'on pourrait retirer sans que rien ne le voie : le seuil
+  // ne descend pas. Un mutant que nul test ne peut tuer se déclare à sa ligne (« Tranché en #626 »).
+  thresholds: { high: 100, low: 100, break: 100 },
 };
