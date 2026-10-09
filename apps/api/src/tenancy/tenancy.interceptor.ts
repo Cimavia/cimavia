@@ -37,7 +37,7 @@ export class TenancyInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context
       .switchToHttp()
-      .getRequest<{ user?: RequestUser; query?: Record<string, unknown> }>();
+      .getRequest<{ user?: RequestUser; query: Record<string, unknown> }>();
     const user = request.user;
 
     if (user?.id != null) {
@@ -46,14 +46,11 @@ export class TenancyInterceptor implements NestInterceptor {
       const tenant: TenantContext = {
         userId: user.id,
         capabilities,
-        exercised:
-          required == null
-            ? null
-            : resolveExercisedCapability(
-                required,
-                capabilities,
-                request.query?.[AS_CAPABILITY_QUERY],
-              ),
+        exercised: resolveExercisedCapability(
+          required,
+          capabilities,
+          request.query[AS_CAPABILITY_QUERY],
+        ),
       };
       this.cls.set(TENANT_CLS_KEY, tenant);
     }

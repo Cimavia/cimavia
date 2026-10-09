@@ -1,0 +1,40 @@
+name: Rapport de mutation
+description: Le score de Stryker dans le résumé du job, et son rapport HTML en artefact — commun aux deux jobs de `mutation.yml`.
+
+# Une seule copie de la formule : les deux cibles (#626) la partagent, et deux copies finiraient
+# par compter différemment.
+
+inputs:
+  report-dir:
+    description: Le dossier des rapports de Stryker, `<paquet>/reports/mutation`.
+    required: true
+  artifact-name:
+    description: Le nom de l'artefact du rapport HTML.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Le score tel que Stryker le calcule : les mutants détectés (tués ou en timeout) sur ceux
+    # qu'un test pouvait voir. Ceux qu'un `Stryker disable` ignore n'y entrent pas.
+    - name: Résumé
+      shell: bash
+      env:
+        REPORT: ${{ inputs.report-dir }}/mutation.json
+      run: |
+        [[ -f "$REPORT" ]] || exit 0 # le run a échoué avant d'écrire un rapport : son log suffit
+        jq -r '
+          [.files[].mutants[].status] as $s
+          | ([$s[] | select(. == "Killed" or . == "Timeout")] | length) as $killed
+          | ([$s[] | select(. == "Survived" or . == "NoCoverage")] | length) as $alive
+          | if $killed + $alive == 0 then "Aucun mutant évalué."
+            else "Score : **\((10000 * $killed / ($killed + $alive) | floor) / 100) %** — \($alive) mutants survivants sur \($killed + $alive). Le détail est dans l’artefact du rapport."
+            end
+        ' "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Rapport
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.report-dir }}/mutation.html
+        retention-days: 14

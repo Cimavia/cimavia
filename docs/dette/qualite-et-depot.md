@@ -597,6 +597,10 @@ liste des domaines vivent dans l'index.
 
 ## v1.0 — Garde-fous du dépôt ([#621](https://github.com/Cimavia/cimavia/issues/621))
 
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| GF-1 | **Un `findUnique` regroupé pourrait rendre la ligne d'un tenant à l'autre, dans un cas que rien n'atteint** (#626). Prisma rattache chaque ligne d'un lot à sa requête par les champs du `where`, dans leur ordre. Un appelant du client tenant qui écrirait lui-même la colonne tenant AVANT une clé composée qui la contient (`coachId_athleteId` de `CoachAthlete`, `AthleteSheet`) ferait comparer la valeur de la clé composée, pas celle du filtre : lu dans le même tick que la lecture légitime de l'autre coach, il recevrait sa ligne. Constaté sur le plan compilé, jamais en vrai : aucun `findUnique` ne passe aujourd'hui par le client tenant. La parade est dans `scopeWhere` — retirer du `where` les clés du filtre avant de les reposer en dernier —, avec un e2e concurrent sur clé composée pour la tenir. | 🟢 | — *(déclencheur : le premier `findUnique` sur le client tenant d'un modèle à clé composée tenant)* |
+
 > **Tranché en [#623](https://github.com/Cimavia/cimavia/issues/623)** (quatre règles dures
 > vérifiées par Biome) : des plugins **GritQL**, et non les règles natives. `style/noJsxLiterals`
 > ne voit que le texte enfant sans option ; avec `noStrings`, il signale aussi des chaînes hors du
@@ -651,3 +655,58 @@ liste des domaines vivent dans l'index.
 > chaque PR de la régénérer ; un script qui la rend à la demande et refuse ce qui la fausserait
 > (identifiant en double, dette ouverte sans suivi, ligne hors tableau — **M-6** en était une, écrite
 > sous un encadré, affichée en barres verticales) ne demande rien.
+
+> **Tranché en [#626](https://github.com/Cimavia/cimavia/issues/626)** (mutation testing) : la
+> couverture dit qu'une ligne a tourné, pas qu'un test l'a vérifiée. **Stryker** mute deux cibles,
+> choisies pour ce qu'une erreur y coûte : `@cmv/shared`, où vit la logique pure, et la **tenancy**
+> de l'API — l'extension Prisma, l'interceptor qui pose l'acteur, le décorateur qui dit à quel
+> titre une route l'exerce. `CapabilitiesGuard` n'en est pas : elle répond 403, elle ne scope rien.
+>
+> Le **juge de la tenancy est la suite e2e**, pas un mock : un filtre tenant ne se vérifie que
+> contre une vraie base. D'où une passe longue (~30 min, `concurrency: 1` sur un seul port et une
+> seule base) et un `timeoutMS` de 60 s — Stryker compte un timeout comme un mutant tué, et la
+> marge par défaut aurait gonflé le score sur un simple boot lent de Nest. Elle tourne **chaque
+> lundi et à la demande**, et sur une PR seulement quand sa propre configuration change ; shared,
+> sur **chaque PR qui le touche**, en mode incrémental, et aussi le lundi — c'est ce run de `main`
+> qui alimente le fichier d'état que les PR relisent depuis le cache. Sous son seuil, un job
+> **échoue** ; mais **aucun des deux n'est requis** : le rouge se voit, il ne bloque pas un merge.
+>
+> Les seuils diffèrent par nature. La tenancy est à **100 %** (`break: 100`) : un survivant y est
+> un filtre qu'on pourrait retirer sans que rien ne le voie. Shared suit un **cliquet** — le score
+> mesuré, arrondi en dessous, et qui ne fait que monter : 89 au départ, ses 457 survivants sont
+> suivis en [#635](https://github.com/Cimavia/cimavia/issues/635). Un mutant qu'aucun test ne
+> peut tuer se déclare **à sa ligne**, `// Stryker disable next-line <mutateur>: <raison>`, jamais
+> par une exclusion de configuration : la raison reste lisible là où elle vaut.
+>
+> Le tri des 21 survivants de la tenancy :
+> - **quatre clés athlète fermées** — `AthleteSheet`, `PlanWeek` et les deux tables de rattachement
+>   des exercices planifiés. Aucune route ne les traversait : l'athlète les lit imbriquées, et une
+>   clé ouverte sans usage est une surface sans test ;
+> - **trois opérations testées** que l'extension autorisait sans appelant (`findFirstOrThrow`,
+>   `aggregate`, `createManyAndReturn`), et les refus de `?as=` ;
+> - **deux mutations rendues sans objet** : l'interceptor confie la route sans titre à
+>   `resolveExercisedCapability` au lieu de la tester lui-même, et lit `request.query`, que Fastify
+>   pose toujours, sans `?.` ;
+> - **cinq mutants déclarés équivalents**, chacun avec sa raison : la clé coach de `FeedbackMedia`
+>   qu'impose le type, deux valeurs de métadonnées opaques, deux décorateurs dont la mutation
+>   empêche les tests de se charger (Stryker compte alors un survivant à zéro test).
+>
+> **Le détour de `findUnique` par `findFirst` est retiré.** Il datait d'un Prisma qui refusait un
+> champ non unique à côté de la clé ; la v5 l'admet, et `update` et `delete` passaient déjà par là.
+> Trois survivants l'ont montré : le vider ne changeait rien. Une raison de le garder a été pesée —
+> Prisma **regroupe** les `findUnique` d'un même tick, par modèle et forme d'arguments, sans leurs
+> valeurs, donc entre tenants. Constaté sur la base e2e : deux coachs lisant le même id partent en
+> un seul `SELECT … WHERE (id, coachId A) OR (id, coachId B)`, et Prisma rend à chacun sa ligne en
+> comparant tout le `where`. Ce tri est ce qui sépare les deux tenants : un e2e le tient désormais,
+> au lieu d'un détour qui l'évitait sans que rien ne dise pourquoi. Effet de bord voulu : un
+> `findUnique` sur le client de transaction lit enfin DANS la transaction, là où le détour passait
+> par le client de base.
+>
+> L'outillage : **Stryker 9.6.1**, pas la 10, qui tire Babel 8 et bascule la résolution des pairs de
+> la chaîne Expo jusqu'au mobile. Sous pnpm, le runner Vitest se déclare **par chemin**
+> (`plugins`) : Stryker ne le trouve pas à côté de son propre paquet. Ce runner impose
+> `pool: "threads"`, où `env.TZ` ne change plus le fuseau, qui appartient au process : shared le
+> pose dans sa config Stryker (Paris, #382), et son test des Antilles saute hors du thread
+> principal. La tenancy n'en pose pas — un `TZ` là changerait le fuseau de toute la suite e2e. Le
+> bac à sable `.stryker-tmp` est exclu des configs Vitest : sans quoi `pnpm test` rejouait ses
+> copies, dépendances comprises.

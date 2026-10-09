@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import type { Reflector } from "@nestjs/core";
 
+// Stryker disable next-line StringLiteral: clé opaque, écrite et lue par la même constante
 export const REQUIRED_CAPABILITY_KEY = "cmv:required-capability";
 
 /**
@@ -35,9 +36,11 @@ export type RouteCapability = CapabilityName | "either";
  * Une route qui n'exerce aucune capacité le dit aussi, par `@ExercisesNoCapability()` : l'absence
  * de déclaration ne veut rien dire, et un test e2e la refuse sur toute route montée (#622).
  */
+// Stryker disable next-line ArrowFunction: un décorateur vide casse le chargement des contrôleurs ; le runner n'y voit aucun test
 export const RequireCapability = (capability: RouteCapability) =>
   SetMetadata(REQUIRED_CAPABILITY_KEY, capability);
 
+// Stryker disable next-line StringLiteral: valeur opaque, écrite et comparée par la même constante
 export const NO_CAPABILITY = "none";
 
 /** Ce qu'une route authentifiée déclare : la capacité qu'elle exerce, ou aucune. */
@@ -57,6 +60,7 @@ export type RouteDeclaration = RouteCapability | typeof NO_CAPABILITY;
  * capacité déclarée par le contrôleur, et la garde comme l'interceptor continuent de lire une
  * seule déclaration.
  */
+// Stryker disable next-line ArrowFunction: même artefact que RequireCapability, aucun test ne se charge
 export const ExercisesNoCapability = () => SetMetadata(REQUIRED_CAPABILITY_KEY, NO_CAPABILITY);
 
 /**
@@ -97,9 +101,10 @@ export function requiredCapabilityOf(
 export const AS_CAPABILITY_QUERY = "as";
 
 /**
- * À quel titre la route est exercée — la capacité qui décidera de la colonne de scope.
- *
- * Trois cas, et le troisième est le seul intéressant :
+ * À quel titre la route est exercée — la capacité qui décidera de la colonne de scope. Une route
+ * sans titre (`required` à `null`) n'en exerce aucune, et une route à capacité unique impose la
+ * sienne. Seule une route `"either"` se résout, en trois cas — le troisième est le seul
+ * intéressant :
  *
  * - `?as=coach` fourni : on l'honore, à condition que le compte porte la capacité (sinon 403 — sans
  *   ce contrôle, un athlète demanderait `?as=coach` et lirait les factures qu'il a émises, c'est-à-
@@ -110,10 +115,10 @@ export const AS_CAPABILITY_QUERY = "as";
  *   serait exactement le fallback que la règle dure n°5 interdit : l'appelant croirait voir tout.
  */
 export function resolveExercisedCapability(
-  required: RouteCapability,
+  required: RouteCapability | null,
   capabilities: Capabilities,
   asParam: unknown,
-): CapabilityName {
+): CapabilityName | null {
   if (required !== "either") return required;
 
   if (asParam === "coach" || asParam === "athlete") {

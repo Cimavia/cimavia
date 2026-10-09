@@ -32,6 +32,14 @@
       // `outputs` ne sert qu'à restaurer depuis le cache, qui est désactivé ici. Les déclarer
       // laisserait croire que ce rapport peut être rejoué sans exécuter la suite.
       "cache": false
+    },
+    "test:mutation": {
+      // Mutation testing (#626). `^build` pour la même raison que les e2e : la tenancy est jugée
+      // par eux, et boote donc le vrai AppModule. Pas de cache Turbo non plus : côté API, ses
+      // entrées vivent dans une base ; côté shared, le mode incrémental de Stryker rejoue déjà
+      // le seul travail qui reste, mutant par mutant, là où Turbo ne saurait que tout ou rien.
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

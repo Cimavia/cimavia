@@ -1,5 +1,5 @@
 {
-  // Typecheck du HARNAIS de test : les specs e2e et les deux configs Vitest. Aucun ne peut entrer
+  // Typecheck du HARNAIS de test : les specs e2e et les configs Vitest. Aucun ne peut entrer
   // dans l'`include` de tsconfig.json, et pour deux raisons distinctes :
   //
   //  1. `global-setup.e2e.ts` utilise `import.meta.url`, interdit par le `module: CommonJS` de la
@@ -20,6 +20,6 @@
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["test", "vitest.config.ts", "vitest.config.e2e.ts"],
+  "include": ["test", "vitest.config.ts", "vitest.config.e2e.ts", "vitest.config.mutation.ts"],
   "exclude": ["node_modules", "dist"]
 }

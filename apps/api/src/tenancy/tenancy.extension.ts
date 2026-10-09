@@ -1,4 +1,4 @@
-import { type CapabilityName, required } from "@cmv/shared";
+import type { CapabilityName } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
@@ -29,11 +29,20 @@ type TenantScope =
   | { company: string; coach?: never; athlete?: never }
   | { coach: string; company: string; athlete?: never };
 
+/**
+ * Une clé n'est ouverte que si une route la TRAVERSE (#626) : le mutation testing a montré qu'on
+ * pouvait vider `AthleteSheet.athlete`, `PlanWeek.athlete` et les deux tables de rattachement des
+ * exercices planifiés sans qu'aucun test ne le voie — aucune route athlète n'interroge ces modèles
+ * à plat. L'athlète lit ses semaines et ses rattachements IMBRIQUÉS dans la séance ou le cycle,
+ * que l'extension ne voit pas : leur scope est celui du parent. Les colonnes `athleteId` restent,
+ * la réaffectation d'un cycle les tient à jour. La fiche, elle, n'est à l'athlète en aucune façon
+ * (`CONTEXT.cimavia.md`, matrice des capacités).
+ */
 export const TENANT_SCOPES: Record<string, TenantScope> = {
   CoachAthlete: { coach: "coachId", athlete: "athleteId" },
   // Émise par un Coach (vers un athlète) ou par une entreprise (vers un Coach, #601).
   Invitation: { coach: "coachId", company: "organizationId" },
-  AthleteSheet: { coach: "coachId", athlete: "athleteId" },
+  AthleteSheet: { coach: "coachId" },
   Exercise: { coach: "coachId" },
   ExerciseDocument: { coach: "coachId" },
   ExerciseTag: { coach: "coachId" },
@@ -41,13 +50,19 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   Session: { coach: "coachId" },
   SessionExercise: { coach: "coachId" },
   Plan: { coach: "coachId", athlete: "athleteId" },
-  PlanWeek: { coach: "coachId", athlete: "athleteId" },
+  PlanWeek: { coach: "coachId" },
   ScheduledSession: { coach: "coachId", athlete: "athleteId" },
   ScheduledSessionExercise: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExerciseDocument: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExerciseTag: { coach: "coachId", athlete: "athleteId" },
+  ScheduledSessionExerciseDocument: { coach: "coachId" },
+  ScheduledSessionExerciseTag: { coach: "coachId" },
   SessionFeedback: { coach: "coachId", athlete: "athleteId" },
-  FeedbackMedia: { coach: "coachId", athlete: "athleteId" },
+  FeedbackMedia: {
+    // Le coach lit les médias IMBRIQUÉS dans le débrief, jamais à plat : sa clé ne sert à aucune
+    // route, mais un modèle d'entraînement en porte une par construction (`TenantScope`).
+    // Stryker disable next-line StringLiteral: clé coach imposée par le type, qu'aucune route ne traverse
+    coach: "coachId",
+    athlete: "athleteId",
+  },
   Conversation: { coach: "coachId", athlete: "athleteId" },
   Message: { coach: "coachId", athlete: "athleteId" },
   Invoice: { coach: "coachId", athlete: "athleteId" },
@@ -59,9 +74,10 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   // La LECTURE pour envoyer vise le destinataire, donc un autre tenant → NotificationService.
   NotificationEmailPreference: { coach: "userId", athlete: "userId" },
   /**
-   * Rappels (#44) — le SEUL modèle métier sans scope athlète : c'est un outil privé du coach.
-   * L'absence de clé `athlete` n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait
-   * ce modèle se verrait refusé par `tenantFilterOrThrow` (fail closed).
+   * Rappels (#44) — le SEUL modèle métier que l'athlète n'atteint d'aucune façon, ni à plat ni
+   * imbriqué : c'est un outil privé du coach, sans colonne athlète. L'absence de clé `athlete`
+   * n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait ce modèle se verrait
+   * refusé par `tenantFilterOrThrow` (fail closed).
    *
    * Ce refus étant une ERREUR (500) et non un 403, deux gardes le précèdent :
    * `@RequireCapability("coach")` sur le contrôleur, et le branchement par rôle du centre de
@@ -108,13 +124,6 @@ export function tenantField(scope: TenantScope, exercised: CapabilityName | null
   }
 }
 
-const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
-
-type FindFirstDelegate = {
-  findFirst: (args: unknown) => Promise<unknown>;
-  findFirstOrThrow: (args: unknown) => Promise<unknown>;
-};
-
 type TenantFilter = Record<string, unknown>;
 
 /**
@@ -147,28 +156,14 @@ function tenantFilterOrThrow(
 }
 
 /**
- * findUnique n'accepte que des clés uniques dans `where` → bascule en findFirst pour pouvoir AND
- * le filtre tenant sans que Prisma rejette l'argument.
+ * Lecture/écriture ciblée : le filtre s'ajoute au `where`. Un `where` unique (`findUnique`,
+ * `update`, `delete`) l'accepte aussi : Prisma y admet des champs non uniques à côté de la clé.
+ *
+ * Prisma REGROUPE les `findUnique` d'un même tick en une requête — par modèle et forme
+ * d'arguments, sans leurs valeurs, donc entre tenants — et rend à chacun sa ligne en comparant
+ * TOUS les champs du `where`, filtre tenant compris. Un e2e tient ce tri (« Tranché en #626 ») :
+ * il est ce qui sépare deux coachs lisant le même id.
  */
-function findUniqueScoped(
-  prisma: PrismaClient,
-  model: string,
-  operation: string,
-  args: unknown,
-  filter: TenantFilter,
-): Promise<unknown> {
-  const method = operation === "findUnique" ? "findFirst" : "findFirstOrThrow";
-  const delegates = prisma as unknown as Record<string, FindFirstDelegate | undefined>;
-  // Le modèle a passé `tenantFilterOrThrow` : il est au registre, donc un modèle Prisma réel.
-  const delegate = required(
-    delegates[delegateName(model)],
-    `[tenancy] délégué Prisma introuvable pour ${model}`,
-  );
-  const a = args as { where?: Record<string, unknown> };
-  return delegate[method]({ ...a, where: { ...a.where, ...filter } });
-}
-
-// Lecture/écriture ciblée : le filtre s'ajoute au `where`.
 function scopeWhere(args: unknown, filter: TenantFilter): void {
   const a = args as { where?: Record<string, unknown> };
   a.where = { ...a.where, ...filter };
@@ -199,8 +194,6 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
           switch (operation) {
             case "findUnique":
             case "findUniqueOrThrow":
-              return findUniqueScoped(prisma, model, operation, args, filter);
-
             case "findFirst":
             case "findFirstOrThrow":
             case "findMany":

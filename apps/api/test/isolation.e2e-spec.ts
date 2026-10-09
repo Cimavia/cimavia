@@ -532,14 +532,58 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
     ).resolves.toBeNull();
   });
 
-  it("findUniqueOrThrow lève sur la ligne d'un autre coach, comme sur une absente", async () => {
-    await expect(
-      as(coach(coachAId), () => db.exercise.findUniqueOrThrow({ where: { id: exerciseAId } })),
-    ).resolves.toMatchObject({ id: exerciseAId });
+  /**
+   * Prisma REGROUPE les `findUnique` d'un même tick, sans regarder leurs valeurs : ces deux
+   * lectures partent en UNE requête (`WHERE (id, coachId A) OR (id, coachId B)`, constaté en #626),
+   * et Prisma rend à chacun sa ligne en comparant tout le `where`. Le jour où il ne comparerait que
+   * la clé unique, le coach B recevrait la ligne du coach A : c'est ce test qui le verrait.
+   */
+  it("deux findUnique simultanés de deux coachs sur le même id ne se répondent pas l'un l'autre", async () => {
+    const read = (coachId: string) =>
+      as(coach(coachId), () => db.exercise.findUnique({ where: { id: exerciseAId } }));
 
-    await expect(
-      as(coach(coachBId), () => db.exercise.findUniqueOrThrow({ where: { id: exerciseAId } })),
-    ).rejects.toMatchObject({ code: "P2025" });
+    const [own, foreign] = await Promise.all([read(coachAId), read(coachBId)]);
+
+    expect(own).toMatchObject({ id: exerciseAId, coachId: coachAId });
+    expect(foreign).toBeNull();
+  });
+
+  /**
+   * `findFirstOrThrow`, `aggregate` et `createManyAndReturn` : l'extension les autorise sans
+   * qu'aucun service ne les appelle encore (#626). Le mutation testing a montré qu'on pouvait les
+   * retirer du `switch` sans qu'un test le voie ; le jour où un service les emprunte, elles doivent
+   * déjà scoper.
+   */
+  it.each([
+    ["findUniqueOrThrow", () => db.exercise.findUniqueOrThrow({ where: { id: exerciseAId } })],
+    ["findFirstOrThrow", () => db.exercise.findFirstOrThrow({ where: { id: exerciseAId } })],
+  ] as const)("%s lève sur la ligne d'un autre coach, comme sur une absente", async (_, read) => {
+    await expect(as(coach(coachAId), read)).resolves.toMatchObject({ id: exerciseAId });
+    await expect(as(coach(coachBId), read)).rejects.toMatchObject({ code: "P2025" });
+  });
+
+  it("aggregate ne compte que les lignes du coach courant", async () => {
+    const countOf = (coachId: string) =>
+      as(coach(coachId), () =>
+        db.exercise.aggregate({ where: { id: exerciseAId }, _count: { _all: true } }),
+      );
+
+    await expect(countOf(coachAId)).resolves.toMatchObject({ _count: { _all: 1 } });
+    await expect(countOf(coachBId)).resolves.toMatchObject({ _count: { _all: 0 } });
+  });
+
+  // Le tenant est injecté dans CHAQUE ligne, et l'emporte sur celui qu'un appelant glisserait.
+  it("createManyAndReturn écrit chez le coach courant, même si la donnée en désigne un autre", async () => {
+    const created = await as(coach(coachAId), () =>
+      db.exercise.createManyAndReturn({
+        data: [
+          { title: "Traction", titleSearch: "traction" },
+          { title: "Gainage", titleSearch: "gainage", coachId: coachBId },
+        ] as never,
+      }),
+    );
+
+    expect(created.map((row) => row.coachId)).toEqual([coachAId, coachAId]);
   });
 });
 

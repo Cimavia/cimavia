@@ -15,6 +15,21 @@ describe("tenantField", () => {
     expect(tenantField({ coach: "coachId" }, "athlete")).toBeNull();
   });
 
+  /**
+   * Lus par l'athlète IMBRIQUÉS dans la séance ou le cycle, jamais à plat — ou pas du tout pour la
+   * fiche (#626) : leur clé athlète est fermée. Rouvrir l'une d'elles est une décision, pas un oubli.
+   */
+  it.each([
+    "AthleteSheet",
+    "PlanWeek",
+    "ScheduledSessionExerciseDocument",
+    "ScheduledSessionExerciseTag",
+  ])("ferme %s à la capacité athlète, et le laisse au coach", (model) => {
+    const scope = required(TENANT_SCOPES[model], `${model} absente du registre`);
+    expect(tenantField(scope, "athlete")).toBeNull();
+    expect(tenantField(scope, "coach")).toBe("coachId");
+  });
+
   // `Notification`, `PushToken` : un seul destinataire, pas de titre à choisir.
   it("sans capacité exercée, n'ouvre que les modèles au champ commun aux deux", () => {
     expect(tenantField({ coach: "userId", athlete: "userId" }, null)).toBe("userId");
