@@ -11,7 +11,10 @@ import { defineConfig } from "vitest/config";
  */
 export default defineConfig({
   test: {
-    exclude: ["node_modules/**", "dist/**", "test/**"],
+    // `.stryker-tmp` : le bac à sable du mutation testing (#626), une copie du paquet AVEC son
+    // `node_modules` — sans cette ligne, un `pnpm test` lancé pendant un run, ou après un run
+    // interrompu, y exécuterait aussi les tests des dépendances.
+    exclude: ["node_modules/**", "dist/**", "test/**", ".stryker-tmp/**"],
     // À Paris et non dans le fuseau de la machine (#382) : sous l'UTC des runners, une date calculée
     // en UTC et une date calculée à Paris se confondent, et le test ne distingue plus rien (#321).
     env: { TZ: "Europe/Paris" },

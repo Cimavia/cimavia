@@ -48,6 +48,10 @@ ios/
 coverage/
 # Couverture des e2e — répertoire distinct, sinon les deux rapports s'effacent l'un l'autre.
 coverage-e2e/
+# Mutation testing (#626) : rapports et cache incrémental régénérés à chaque run, et le bac à
+# sable où Stryker copie le paquet — il y reste si un run est interrompu.
+**/reports/mutation/
+.stryker-tmp/
 
 # Prisma
 prisma/migrations/.gitkeep

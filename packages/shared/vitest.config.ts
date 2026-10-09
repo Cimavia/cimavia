@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 /**
  * La couverture est produite à CHAQUE `pnpm test` (pas derrière un script séparé) : c'est le
@@ -16,6 +16,9 @@ export default defineConfig({
      * l'implémentation. Paris est aussi le fuseau du produit : c'est celui où un écart se paierait.
      */
     env: { TZ: "Europe/Paris" },
+    // `.stryker-tmp` : le bac à sable du mutation testing (#626), une copie du paquet. Un
+    // `pnpm test` lancé pendant un run, ou après un run interrompu, y rejouerait chaque test.
+    exclude: [...configDefaults.exclude, ".stryker-tmp/**"],
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "lcov"],
