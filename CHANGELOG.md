@@ -1,5 +1,68 @@
 # Changelog
 
+## [1.13.0](https://github.com/Cimavia/cimavia/compare/v1.12.1...v1.13.0) (2026-10-09)
+
+
+### Fonctionnalités
+
+* **api:** cycles et séances nomment leur coach, pour l'athlète suivi par plusieurs ([95d8717](https://github.com/Cimavia/cimavia/commit/95d87178f1341f34e2890519e7254f6af8eb9bff))
+* **api:** get /me/coaches rend tous les coachs de l'athlète, vide s'il est autonome ([d9008ab](https://github.com/Cimavia/cimavia/commit/d9008ab4b362aa0b4677c7e61bbd8813585971c5))
+* **api:** l'athlète désigne son coach pour ouvrir un fil, fin de la route du coach unique ([a537644](https://github.com/Cimavia/cimavia/commit/a537644377f96457551ecd9ef69f78ed58f91dc2))
+* **api:** l'athlète ouvre le fil du coach qu'il désigne parmi les siens ([922c912](https://github.com/Cimavia/cimavia/commit/922c912e32d49468166d5576e8b4f7ca0ce0c9f3))
+* **api:** l'e-mail qui invite une adresse sans compte dans l'équipe d'une entreprise ([7d7dd1a](https://github.com/Cimavia/cimavia/commit/7d7dd1aa009c2c1686388d6e31dfbe5212dcad37))
+* **api:** l'entreprise invite des athlètes, que l'acceptation lie à chacun de ses coachs ([48834b3](https://github.com/Cimavia/cimavia/commit/48834b3aa297b4b4bbdf013fd77ac5b3c077e1f5))
+* **api:** le coach qui rejoint une entreprise suit ses athlètes, qui en sont prévenus ([67e1b71](https://github.com/Cimavia/cimavia/commit/67e1b71341eb4cba56dd6f92df8a8fb7c44fdf09))
+* **api:** les athlètes d'une entreprise et la provenance de chaque lien, en base ([2f1a3d0](https://github.com/Cimavia/cimavia/commit/2f1a3d0188c6d8e09b8ef3c57f6b27892f53e488))
+* **api:** un compte entreprise s'inscrit seul avec son entreprise, fermé à l'entraînement ([2d3bcb9](https://github.com/Cimavia/cimavia/commit/2d3bcb9fb54c089416c8b434a1e3a55d5aea89fa))
+* **api:** un lien par couple coach-athlète, la détection de boucle tolère le losange ([341d600](https://github.com/Cimavia/cimavia/commit/341d6000204127f189520a6fbdc28a580881bc28))
+* **api:** une entreprise invite des coachs, qui rejoignent son équipe en acceptant ([d618c98](https://github.com/Cimavia/cimavia/commit/d618c98604df4591374fe3b6b77f02d9fac4347e))
+* **mobile:** l'athlète voit les coachs qu'une entreprise lui amène, et d'où vient chacun ([2db59f8](https://github.com/Cimavia/cimavia/commit/2db59f8de55658bdef2495fff4679711492044bc))
+* **mobile:** l'inscription s'ouvre sur le type de compte, entreprise comprise ([6693f06](https://github.com/Cimavia/cimavia/commit/6693f064f46f46ccac188fbf73bb40e69e551ffd))
+* **mobile:** le coach répond à l'invitation d'une entreprise depuis son tableau de bord ([28b2183](https://github.com/Cimavia/cimavia/commit/28b21831613f866890ed4b22b355c908f17415ef))
+* **mobile:** mes coachs depuis le profil, chaque coach avec son fil, un second possible ([58cee1d](https://github.com/Cimavia/cimavia/commit/58cee1d420f28236ee786d0ed4a8c137ff7f8ee1))
+* **mobile:** un compte entreprise ne voit aucun onglet, un écran le renvoie vers le web ([a45dd98](https://github.com/Cimavia/cimavia/commit/a45dd984c85dfe45a41b66402c6f76eb00af1a52))
+* **mobile:** un fil par coach pour l'athlète, la notification ouvre le fil de son auteur ([13f5410](https://github.com/Cimavia/cimavia/commit/13f5410021365e614d4f4dc33fba9d33346deb66))
+* **shared:** chaque cycle de la semaine athlète porte le nom de son coach ([a7d0ac9](https://github.com/Cimavia/cimavia/commit/a7d0ac97b1e1ffdc0887583ff5597a09c0e2ce5f))
+* **shared:** fils et présence de coachs en fonctions pures, communes au web et au mobile ([6435e72](https://github.com/Cimavia/cimavia/commit/6435e72ce8dddb1462506da78e841ba9b2fdc4a6))
+* **shared:** la capacité entreprise arrive, le titre ?as= se restreint à coach ou athlète ([3db4d39](https://github.com/Cimavia/cimavia/commit/3db4d3915d942ca34f90dd1c6e014f2b4bc4c97d))
+* **web:** inscription par type de compte, entreprise comprise, et panneau de marque ([d0de83f](https://github.com/Cimavia/cimavia/commit/d0de83f2822f17c69619e8dd9ea1c5b1e3d03edc))
+* **web:** l'athlète voit les coachs qu'une entreprise lui amène, et d'où vient son lien ([47acc0d](https://github.com/Cimavia/cimavia/commit/47acc0d0c2579429f90ef7fcd2ded1fa36fa71a5))
+* **web:** la page athlètes de l'entreprise, sur un gabarit commun avec celle des coachs ([a78b450](https://github.com/Cimavia/cimavia/commit/a78b450647ceb7274051900167e0e3d8bd86143a))
+* **web:** la page coachs de l'entreprise, et la carte qui attend le coach sur son accueil ([f7b9da9](https://github.com/Cimavia/cimavia/commit/f7b9da961752612f45f4d353e86f41d62af3c427))
+* **web:** mes coachs liste chaque coach avec son fil, et une seconde invitation s'accepte ([e372010](https://github.com/Cimavia/cimavia/commit/e37201036c05d63b64f9a0eee3aed63aa56afaec))
+* **web:** un espace entreprise et ses deux pages vides, sans boucle sur l'accueil ([eb7f974](https://github.com/Cimavia/cimavia/commit/eb7f9749284cd3a0347917a84708ba7de84f31a1))
+* **web:** un fil par coach pour l'athlète, et la notification ouvre le fil de son auteur ([d076526](https://github.com/Cimavia/cimavia/commit/d07652602a02ba9def04a4927148cddc63877147))
+
+
+### Corrections
+
+* **api:** ferme à l'athlète la fiche, les semaines et les rattachements, lus imbriqués ([8d6ea9f](https://github.com/Cimavia/cimavia/commit/8d6ea9fe1aedde233a4de1281a72d5ada7544cd2))
+* **i18n:** l'échec d'ouverture du fil de débrief ne nomme plus l'athlète, lu aussi par lui ([8ade3e2](https://github.com/Cimavia/cimavia/commit/8ade3e26cead8bbe2f583abdd7e32c4a67fa8849))
+* **mobile:** aucun coach dit une fois les coachs lus, le débrief répond au coach du cycle ([421cafd](https://github.com/Cimavia/cimavia/commit/421cafd7b9331693371c426d83393daebf2ecc96))
+* **mobile:** le bouton message passe sous le coach, il écrasait son nom dans la ligne ([240d1d2](https://github.com/Cimavia/cimavia/commit/240d1d29cd612c57b0424ce3e97fcce37af8bc4f))
+* **mobile:** mes coachs se relit au retour sur l'écran, pour montrer le coach arrivé ([ea0dce1](https://github.com/Cimavia/cimavia/commit/ea0dce1375a1c492fcd60e42a3b0652a35ab13e2))
+* **web:** aucun coach dit une fois les coachs lus, la séance écrit à son propre coach ([31177d5](https://github.com/Cimavia/cimavia/commit/31177d51f021c25f76e823f7ff9bdfb970d35f03))
+* **web:** le fond du panneau se nomme par i18n, dernier aria-label écrit en dur ([61d1057](https://github.com/Cimavia/cimavia/commit/61d1057259eb77366951f6c77a06bfbf7a42fb9d))
+
+
+### Technique
+
+* **api:** findunique scope son where comme update, un e2e tient le lot entre tenants ([651aef3](https://github.com/Cimavia/cimavia/commit/651aef3e71f0dec631b7a9bf399856e71b3d01c6))
+* **api:** la garde anti-boucle devient un service, pour les liens d'une entreprise ([c91f51c](https://github.com/Cimavia/cimavia/commit/c91f51ca95590f4c0048b059bfef7f00b3b7883a))
+* **api:** la route sans titre se résout comme les autres, les refus de as sont testés ([377b9c4](https://github.com/Cimavia/cimavia/commit/377b9c40da725ac56db648fd6dd5e3798b959361))
+* **api:** la tenancy tenue à 100 % de mutants tués, le seuil ne descend plus ([6bbd390](https://github.com/Cimavia/cimavia/commit/6bbd390f9b5b4287e0ff31f02b329c3cde862583))
+* **api:** les onze routes sans titre le déclarent, sans changer qui les atteint ([a773ed1](https://github.com/Cimavia/cimavia/commit/a773ed1d986f9180fec2a67d98b392e3dfec03b5))
+* **api:** une route sans titre se déclare, l'absence de décorateur ne dit plus rien ([b97bd02](https://github.com/Cimavia/cimavia/commit/b97bd02c15c519a8a83242d7c9f3dfdd84179f00))
+* hooks claude code : biome sur chaque fichier modifié, commit et push refusés ([541c12f](https://github.com/Cimavia/cimavia/commit/541c12f057a8f1dd4771546c964e8011c998febc))
+* les issues sonar de la pr, et l'espace entreprise couvert jusqu'au bout ([b217f20](https://github.com/Cimavia/cimavia/commit/b217f20fad7b1c0d50dd2f6a15c72b8ff65014c7))
+* les textes de la carte d'invitation en une table partagée, plus en double ([7d68c50](https://github.com/Cimavia/cimavia/commit/7d68c50bbb73f65888431afefc91630a8db3079d))
+* **lint:** quatre règles dures tenues par biome, et un banc qui prouve qu'elles mordent ([073aff7](https://github.com/Cimavia/cimavia/commit/073aff7597ce94c138e9ad367bc417113a20341c))
+* **mobile:** la déconnexion et l'adresse du web deviennent partagées ([bd14bd4](https://github.com/Cimavia/cimavia/commit/bd14bd490f3e284ea58d3a136fe163bbb349e793))
+* **mobile:** la pastille d'onglet sort du layout, app/ ne porte plus de logique ([320f7da](https://github.com/Cimavia/cimavia/commit/320f7da9ae4dac9b632163dc9246e0933abd88e1))
+* mutation testing de shared sur ses pr, de la tenancy chaque lundi, sans check requis ([d524279](https://github.com/Cimavia/cimavia/commit/d5242794c8c2f9bac43158bc2eb684c51b1b4f66))
+* pnpm check:dette calcule les dettes sans issue, la liste tenue à la main dérivait ([649838b](https://github.com/Cimavia/cimavia/commit/649838b334b2223af2282d127c4cc3e972338fb9))
+* stryker mute shared et la tenancy, en 9.6.1 car la 10 tire babel 8 jusqu'au mobile ([9b60996](https://github.com/Cimavia/cimavia/commit/9b609966e2f55da240bd3a3fc2500b9fac935d4e))
+
 ## [1.12.1](https://github.com/Cimavia/cimavia/compare/v1.12.0...v1.12.1) (2026-10-06)
 
 
