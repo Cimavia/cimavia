@@ -66,7 +66,16 @@ docker compose -f apps/api/docker-compose.yml run --rm silo-setup   # buckets + 
 # Via turbo, pas `pnpm --filter` : la tâche dépend de `^build`, et les e2e bootent le vrai
 # AppModule — qui importe @cmv/shared depuis son `dist`. Sans build préalable, ça casse à l'import.
 pnpm turbo test:e2e --filter=@cmv/api
+# Mutation testing (Stryker) — rapport HTML dans <paquet>/reports/mutation/mutation.html
+pnpm turbo test:mutation --filter=@cmv/shared   # ~4 min, puis incrémental : seul ce qui a changé repasse
+pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e : mêmes conteneurs, ~30 min
 ```
+
+> Le **mutation testing** altère le code (une borne, un opérateur, une condition) et compte les
+> mutants qu'aucun test ne voit. La tenancy doit rester à **100 %** ; `@cmv/shared` suit un
+> cliquet, dont le seuil ne fait que monter (#635). Un mutant qu'aucun test ne peut tuer se
+> déclare à sa ligne, `// Stryker disable next-line <mutateur>: <raison>`. La CI le fait tourner
+> dans `mutation.yml`, sans check requis.
 
 > Les e2e tournent contre le **SILO du docker-compose** (bucket `cimavia-media-e2e`) : sans
 > storage réel, le flux d'upload des médias ne serait pas couvert. Le cas « storage non
