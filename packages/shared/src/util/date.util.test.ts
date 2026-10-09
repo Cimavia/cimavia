@@ -1,3 +1,4 @@
+import { isMainThread } from "node:worker_threads";
 import { describe, expect, it, vi } from "vitest";
 import {
   dateToIsoDate,
@@ -133,16 +134,25 @@ describe("todayIsoDate", () => {
     expect(at(MONDAY_0030_PARIS, todayIsoDate)).toBe("2026-09-14");
   });
 
-  // L'autre sens de l'écart : à l'ouest d'UTC, le jour UTC change dès le soir.
-  it("rend encore la veille aux Antilles quand UTC est déjà passé au lendemain", () => {
-    const parisTz = process.env.TZ;
-    process.env.TZ = "America/Martinique";
-    try {
-      expect(at(new Date("2026-09-14T01:00:00Z"), todayIsoDate)).toBe("2026-09-13");
-    } finally {
-      process.env.TZ = parisTz;
-    }
-  });
+  /**
+   * L'autre sens de l'écart : à l'ouest d'UTC, le jour UTC change dès le soir.
+   *
+   * Changer `TZ` en cours de route n'agit que dans un process : un worker thread garde le fuseau du
+   * process qui l'a lancé. Le mutation testing impose des threads (#626) — le test y mentirait, il
+   * n'y tourne pas. Sous `pnpm test`, il s'exécute dans un fork, où il mord.
+   */
+  it.skipIf(!isMainThread)(
+    "rend encore la veille aux Antilles quand UTC est déjà passé au lendemain",
+    () => {
+      const parisTz = process.env.TZ;
+      process.env.TZ = "America/Martinique";
+      try {
+        expect(at(new Date("2026-09-14T01:00:00Z"), todayIsoDate)).toBe("2026-09-13");
+      } finally {
+        process.env.TZ = parisTz;
+      }
+    },
+  );
 });
 
 describe("isoDateOfInstant", () => {
