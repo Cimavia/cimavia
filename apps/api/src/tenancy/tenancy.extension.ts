@@ -1,4 +1,4 @@
-import { type CapabilityName, required } from "@cmv/shared";
+import type { CapabilityName } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
@@ -124,13 +124,6 @@ export function tenantField(scope: TenantScope, exercised: CapabilityName | null
   }
 }
 
-const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
-
-type FindFirstDelegate = {
-  findFirst: (args: unknown) => Promise<unknown>;
-  findFirstOrThrow: (args: unknown) => Promise<unknown>;
-};
-
 type TenantFilter = Record<string, unknown>;
 
 /**
@@ -163,28 +156,14 @@ function tenantFilterOrThrow(
 }
 
 /**
- * findUnique n'accepte que des clés uniques dans `where` → bascule en findFirst pour pouvoir AND
- * le filtre tenant sans que Prisma rejette l'argument.
+ * Lecture/écriture ciblée : le filtre s'ajoute au `where`. Un `where` unique (`findUnique`,
+ * `update`, `delete`) l'accepte aussi : Prisma y admet des champs non uniques à côté de la clé.
+ *
+ * Prisma REGROUPE les `findUnique` d'un même tick en une requête — par modèle et forme
+ * d'arguments, sans leurs valeurs, donc entre tenants — et rend à chacun sa ligne en comparant
+ * TOUS les champs du `where`, filtre tenant compris. Un e2e tient ce tri (« Tranché en #626 ») :
+ * il est ce qui sépare deux coachs lisant le même id.
  */
-function findUniqueScoped(
-  prisma: PrismaClient,
-  model: string,
-  operation: string,
-  args: unknown,
-  filter: TenantFilter,
-): Promise<unknown> {
-  const method = operation === "findUnique" ? "findFirst" : "findFirstOrThrow";
-  const delegates = prisma as unknown as Record<string, FindFirstDelegate | undefined>;
-  // Le modèle a passé `tenantFilterOrThrow` : il est au registre, donc un modèle Prisma réel.
-  const delegate = required(
-    delegates[delegateName(model)],
-    `[tenancy] délégué Prisma introuvable pour ${model}`,
-  );
-  const a = args as { where?: Record<string, unknown> };
-  return delegate[method]({ ...a, where: { ...a.where, ...filter } });
-}
-
-// Lecture/écriture ciblée : le filtre s'ajoute au `where`.
 function scopeWhere(args: unknown, filter: TenantFilter): void {
   const a = args as { where?: Record<string, unknown> };
   a.where = { ...a.where, ...filter };
@@ -215,8 +194,6 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
           switch (operation) {
             case "findUnique":
             case "findUniqueOrThrow":
-              return findUniqueScoped(prisma, model, operation, args, filter);
-
             case "findFirst":
             case "findFirstOrThrow":
             case "findMany":

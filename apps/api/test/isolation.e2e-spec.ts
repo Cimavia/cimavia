@@ -533,6 +533,22 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
   });
 
   /**
+   * Prisma REGROUPE les `findUnique` d'un même tick, sans regarder leurs valeurs : ces deux
+   * lectures partent en UNE requête (`WHERE (id, coachId A) OR (id, coachId B)`, constaté en #626),
+   * et Prisma rend à chacun sa ligne en comparant tout le `where`. Le jour où il ne comparerait que
+   * la clé unique, le coach B recevrait la ligne du coach A : c'est ce test qui le verrait.
+   */
+  it("deux findUnique simultanés de deux coachs sur le même id ne se répondent pas l'un l'autre", async () => {
+    const read = (coachId: string) =>
+      as(coach(coachId), () => db.exercise.findUnique({ where: { id: exerciseAId } }));
+
+    const [own, foreign] = await Promise.all([read(coachAId), read(coachBId)]);
+
+    expect(own).toMatchObject({ id: exerciseAId, coachId: coachAId });
+    expect(foreign).toBeNull();
+  });
+
+  /**
    * `findFirstOrThrow`, `aggregate` et `createManyAndReturn` : l'extension les autorise sans
    * qu'aucun service ne les appelle encore (#626). Le mutation testing a montré qu'on pouvait les
    * retirer du `switch` sans qu'un test le voie ; le jour où un service les emprunte, elles doivent
