@@ -29,11 +29,20 @@ type TenantScope =
   | { company: string; coach?: never; athlete?: never }
   | { coach: string; company: string; athlete?: never };
 
+/**
+ * Une clé n'est ouverte que si une route la TRAVERSE (#626) : le mutation testing a montré qu'on
+ * pouvait vider `AthleteSheet.athlete`, `PlanWeek.athlete` et les deux tables de rattachement des
+ * exercices planifiés sans qu'aucun test ne le voie — aucune route athlète n'interroge ces modèles
+ * à plat. L'athlète lit ses semaines et ses rattachements IMBRIQUÉS dans la séance ou le cycle,
+ * que l'extension ne voit pas : leur scope est celui du parent. Les colonnes `athleteId` restent,
+ * la réaffectation d'un cycle les tient à jour. La fiche, elle, n'est à l'athlète en aucune façon
+ * (`CONTEXT.cimavia.md`, matrice des capacités).
+ */
 export const TENANT_SCOPES: Record<string, TenantScope> = {
   CoachAthlete: { coach: "coachId", athlete: "athleteId" },
   // Émise par un Coach (vers un athlète) ou par une entreprise (vers un Coach, #601).
   Invitation: { coach: "coachId", company: "organizationId" },
-  AthleteSheet: { coach: "coachId", athlete: "athleteId" },
+  AthleteSheet: { coach: "coachId" },
   Exercise: { coach: "coachId" },
   ExerciseDocument: { coach: "coachId" },
   ExerciseTag: { coach: "coachId" },
@@ -41,13 +50,19 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   Session: { coach: "coachId" },
   SessionExercise: { coach: "coachId" },
   Plan: { coach: "coachId", athlete: "athleteId" },
-  PlanWeek: { coach: "coachId", athlete: "athleteId" },
+  PlanWeek: { coach: "coachId" },
   ScheduledSession: { coach: "coachId", athlete: "athleteId" },
   ScheduledSessionExercise: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExerciseDocument: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExerciseTag: { coach: "coachId", athlete: "athleteId" },
+  ScheduledSessionExerciseDocument: { coach: "coachId" },
+  ScheduledSessionExerciseTag: { coach: "coachId" },
   SessionFeedback: { coach: "coachId", athlete: "athleteId" },
-  FeedbackMedia: { coach: "coachId", athlete: "athleteId" },
+  FeedbackMedia: {
+    // Le coach lit les médias IMBRIQUÉS dans le débrief, jamais à plat : sa clé ne sert à aucune
+    // route, mais un modèle d'entraînement en porte une par construction (`TenantScope`).
+    // Stryker disable next-line StringLiteral: clé coach imposée par le type, qu'aucune route ne traverse
+    coach: "coachId",
+    athlete: "athleteId",
+  },
   Conversation: { coach: "coachId", athlete: "athleteId" },
   Message: { coach: "coachId", athlete: "athleteId" },
   Invoice: { coach: "coachId", athlete: "athleteId" },
@@ -59,9 +74,10 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   // La LECTURE pour envoyer vise le destinataire, donc un autre tenant → NotificationService.
   NotificationEmailPreference: { coach: "userId", athlete: "userId" },
   /**
-   * Rappels (#44) — le SEUL modèle métier sans scope athlète : c'est un outil privé du coach.
-   * L'absence de clé `athlete` n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait
-   * ce modèle se verrait refusé par `tenantFilterOrThrow` (fail closed).
+   * Rappels (#44) — le SEUL modèle métier que l'athlète n'atteint d'aucune façon, ni à plat ni
+   * imbriqué : c'est un outil privé du coach, sans colonne athlète. L'absence de clé `athlete`
+   * n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait ce modèle se verrait
+   * refusé par `tenantFilterOrThrow` (fail closed).
    *
    * Ce refus étant une ERREUR (500) et non un 403, deux gardes le précèdent :
    * `@RequireCapability("coach")` sur le contrôleur, et le branchement par rôle du centre de
