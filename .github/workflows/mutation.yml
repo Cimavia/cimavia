@@ -1,0 +1,165 @@
+name: Mutation testing (Stryker)
+
+# La couverture dit qu'une ligne a tourné, pas qu'un test l'a vérifiée. Stryker altère le code —
+# une borne, un opérateur, une condition — et compte les mutants qu'aucun test ne voit (#626).
+#
+# Deux cibles, deux rythmes, et aucun check requis (« Tranché en #626 ») :
+#
+#   - `@cmv/shared`, sur chaque PR qui touche ses sources. Le mode incrémental ne rejoue que les
+#     mutants dont le code ou les tests ont changé : quelques dizaines de secondes, contre ~4 min
+#     pour un run complet. Le seuil est un cliquet, posé dans `packages/shared/stryker.config.mjs` ;
+#   - la tenancy de l'API, chaque semaine et à la demande. Son juge est la suite e2e, sur une vraie
+#     base (« Tranché en #506 ») : ~40 min, un mutant à la fois. Son seuil est 100 % — un survivant
+#     y est un filtre qu'on pourrait retirer sans qu'aucun test ne le voie.
+#
+# Une PR qui modifie ce workflow ou la configuration d'une cible la fait tourner aussi : c'est la
+# seule façon de voir un job tourner avant le merge, `workflow_dispatch` n'existant qu'une fois sur
+# `main`.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      # Tout le paquet, comme le filtre du job : une montée de Stryker dans son `package.json`
+      # doit tourner avant le merge, pas le lundi suivant.
+      - "packages/shared/**"
+      - "apps/api/stryker.config.mjs"
+      - "apps/api/vitest.config.mutation.ts"
+      - ".github/workflows/mutation.yml"
+  schedule:
+    # Le lundi, avant la copie hebdomadaire des images (`mirror-images.yml`, 6 h).
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+# Une PR relancée annule son run précédent. Un run de `main` (le lundi, ou à la demande) ne l'est
+# jamais : il porte les 40 min de la tenancy et le cache incrémental que les PR relisent.
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+jobs:
+  shared:
+    name: Mutation — @cmv/shared
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20 # 4 min 12 en local pour un run complet, sans cache
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Comme dans `ci.yml` : le filtre est porté par une étape, pour qu'une PR qui ne touche que la
+      # tenancy ne relance pas shared — et inversement plus bas. Hors PR, tout tourne.
+      - name: Ce que la PR touche
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "run=true" | tee -a "$GITHUB_OUTPUT"
+          elif git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
+            | grep -qE '^(packages/shared/|\.github/workflows/mutation\.yml)'; then
+            echo "run=true" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "run=false" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup
+        if: steps.changes.outputs.run == 'true'
+        uses: $/.github/actions/setup
+
+      # Le rapport incrémental du dernier run. Une PR lit celui de `main` (écrit par le run de la
+      # semaine) et n'écrit que dans son propre périmètre : elle ne peut rien imposer aux autres. La
+      # clé suit ce qui est muté et ce qui le juge : un push qui n'y touche pas retrouve son cache
+      # et n'en écrit pas un de plus.
+      - name: Cache du mode incrémental
+        if: steps.changes.outputs.run == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/shared/reports/mutation/stryker-incremental.json
+          key: stryker-shared-${{ hashFiles('packages/shared/src/**', 'packages/shared/stryker.config.mjs', 'packages/shared/vitest.config.ts', 'pnpm-lock.yaml') }}
+          restore-keys: stryker-shared-
+
+      - name: Mutation testing
+        if: steps.changes.outputs.run == 'true'
+        run: pnpm turbo test:mutation --filter=@cmv/shared
+
+      - name: Rapport
+        if: steps.changes.outputs.run == 'true' && !cancelled()
+        uses: $/.github/actions/mutation-report
+        with:
+          report-dir: packages/shared/reports/mutation
+          artifact-name: mutation-shared
+
+  tenancy:
+    name: Mutation — tenancy (API)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90 # ~40 min en local
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Jamais pour une PR de code (« Tranché en #626 ») : 40 min par PR, pour un code qui bouge
+      # peu. Seulement quand sa propre configuration change.
+      - name: Ce que la PR touche
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$EVENT" != pull_request ]]; then
+            echo "run=true" | tee -a "$GITHUB_OUTPUT"
+          elif git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
+            | grep -qE '^(apps/api/(stryker\.config\.mjs|vitest\.config\.mutation\.ts)|\.github/workflows/mutation\.yml)$'; then
+            echo "run=true" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "run=false" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup
+        if: steps.changes.outputs.run == 'true'
+        uses: $/.github/actions/setup
+
+      # La mise en place du job `e2e` de `ci.yml`, à l'identique : les mêmes composes, le même
+      # modèle d'env copié tel quel.
+      - name: Bootstrap l'env e2e
+        if: steps.changes.outputs.run == 'true'
+        run: cp apps/api/.env.test.example apps/api/.env.test
+
+      - name: Démarre la base e2e jetable (5434)
+        if: steps.changes.outputs.run == 'true'
+        run: docker compose -f apps/api/docker-compose.test.yml up -d --wait
+
+      - name: Démarre SILO et crée le bucket e2e
+        if: steps.changes.outputs.run == 'true'
+        run: docker compose -f apps/api/docker-compose.yml run --rm silo-setup
+
+      - name: Mutation testing
+        if: steps.changes.outputs.run == 'true'
+        run: pnpm turbo test:mutation --filter=@cmv/api
+
+      - name: Rapport
+        if: steps.changes.outputs.run == 'true' && !cancelled()
+        uses: $/.github/actions/mutation-report
+        with:
+          report-dir: apps/api/reports/mutation
+          artifact-name: mutation-tenancy
+
+      - name: Logs des services (si échec)
+        if: failure() && steps.changes.outputs.run == 'true'
+        run: |
+          docker compose -f apps/api/docker-compose.test.yml logs --tail=50
+          docker compose -f apps/api/docker-compose.yml logs --tail=50
