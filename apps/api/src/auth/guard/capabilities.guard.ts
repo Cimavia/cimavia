@@ -21,7 +21,7 @@ import { requiredCapabilityOf } from "../decorator/require-capability.decorator"
  * posé par l'AuthGuard, donc une exigence de capacité sans utilisateur signifie que cette garde a
  * tourné AVANT lui. C'est un bug de câblage, pas un refus métier — on lève une erreur (500) plutôt
  * qu'un 403, pour que les e2e tombent en bloc au lieu que la garde ouvre en silence. Même principe
- * que `tenantFilterOrThrow` : un scope qu'on ne sait pas calculer casse bruyamment.
+ * que `resolveScopeOrThrow` : un scope qu'on ne sait pas calculer casse bruyamment.
  */
 @Injectable()
 export class CapabilitiesGuard implements CanActivate {

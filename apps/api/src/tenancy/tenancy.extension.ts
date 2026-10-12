@@ -1,158 +1,50 @@
-import type { CapabilityName } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
+import {
+  type CapabilityScope,
+  creationDataOrThrow,
+  type OperationKind,
+  operationKindOf,
+  scopeFor,
+  TENANT_SCOPES,
+  type TenantFilter,
+} from "./tenant-scope";
+
+type ResolvedScope = { scope: CapabilityScope; kind: OperationKind; actorId: string };
 
 /**
- * Registre du scope tenant par modèle métier : champ portant le coach propriétaire et, s'il y a
- * accès, l'athlète. Un modèle ABSENT d'ici est **refusé** via le client tenant (fail closed) —
- * ce qui force à rattacher explicitement toute nouvelle entité au tenant (règle dure).
- *
- * Trois familles, et le type les sépare (#600, #601) :
- * - un modèle d'ENTRAÎNEMENT appartient à un coach : son scope coach est obligatoire, le scope
- *   athlète optionnel — son absence est un refus (cf. `Reminder`) ;
- * - un modèle d'ENTREPRISE n'a qu'un scope `company`. Il n'a ni clé coach ni clé athlète, et un
- *   modèle d'entraînement n'a pas de clé `company` : un compte Entreprise ne peut donc atteindre
- *   AUCUN contenu d'entraînement, et c'est la structure du registre qui le dit, pas une règle de
- *   service ;
- * - un modèle ÉMIS par un Coach OU par une entreprise — `Invitation` seule (#601) : un scope
- *   coach et un scope `company`, chacun sur SA colonne d'émetteur, et jamais de scope athlète.
- *   Chaque capacité n'y voit que ce qu'elle a émis : l'émetteur absent d'une ligne y est `NULL`,
- *   que rien ne peut égaler. Le destinataire, lui, la lit par le client de base, sur l'adresse de
- *   sa session.
- *
- * Les `never` ferment les mélanges : un modèle d'entraînement qui recevrait `company`, ou un modèle
- * émis qui recevrait `athlete`, ne compile pas.
+ * Le scope applicable à cette requête et la classe de son opération, ou une erreur explicite.
+ * Quatre refus, dans cet ordre : pas d'acteur (requête hors contexte), modèle absent de
+ * TENANT_SCOPES (oubli de rattachement), capacité sans accès, opération non gérée (`upsert` et
+ * les exotiques). Aucun n'est silencieux — un scope manquant doit casser bruyamment plutôt que
+ * servir la donnée d'un autre tenant.
  */
-type TenantScope =
-  | { coach: string; athlete?: string; company?: never }
-  | { company: string; coach?: never; athlete?: never }
-  | { coach: string; company: string; athlete?: never };
-
-/**
- * Une clé n'est ouverte que si une route la TRAVERSE (#626) : le mutation testing a montré qu'on
- * pouvait vider `AthleteSheet.athlete`, `PlanWeek.athlete` et les deux tables de rattachement des
- * exercices planifiés sans qu'aucun test ne le voie — aucune route athlète n'interroge ces modèles
- * à plat. L'athlète lit ses semaines et ses rattachements IMBRIQUÉS dans la séance ou le cycle,
- * que l'extension ne voit pas : leur scope est celui du parent. Les colonnes `athleteId` restent,
- * la réaffectation d'un cycle les tient à jour. La fiche, elle, n'est à l'athlète en aucune façon
- * (`CONTEXT.cimavia.md`, matrice des capacités).
- */
-export const TENANT_SCOPES: Record<string, TenantScope> = {
-  CoachAthlete: { coach: "coachId", athlete: "athleteId" },
-  // Émise par un Coach (vers un athlète) ou par une entreprise (vers un Coach, #601).
-  Invitation: { coach: "coachId", company: "organizationId" },
-  AthleteSheet: { coach: "coachId" },
-  Exercise: { coach: "coachId" },
-  ExerciseDocument: { coach: "coachId" },
-  ExerciseTag: { coach: "coachId" },
-  CustomMetric: { coach: "coachId" },
-  Session: { coach: "coachId" },
-  SessionExercise: { coach: "coachId" },
-  Plan: { coach: "coachId", athlete: "athleteId" },
-  PlanWeek: { coach: "coachId" },
-  ScheduledSession: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExercise: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExerciseDocument: { coach: "coachId" },
-  ScheduledSessionExerciseTag: { coach: "coachId" },
-  SessionFeedback: { coach: "coachId", athlete: "athleteId" },
-  FeedbackMedia: {
-    // Le coach lit les médias IMBRIQUÉS dans le débrief, jamais à plat : sa clé ne sert à aucune
-    // route, mais un modèle d'entraînement en porte une par construction (`TenantScope`).
-    // Stryker disable next-line StringLiteral: clé coach imposée par le type, qu'aucune route ne traverse
-    coach: "coachId",
-    athlete: "athleteId",
-  },
-  Conversation: { coach: "coachId", athlete: "athleteId" },
-  Message: { coach: "coachId", athlete: "athleteId" },
-  Invoice: { coach: "coachId", athlete: "athleteId" },
-  PushToken: { coach: "userId", athlete: "userId" },
-  // Comme PushToken : le même champ pour les deux rôles, chacun ne lisant que ce qu'il a reçu.
-  // L'ÉCRITURE vise le destinataire, donc un AUTRE tenant → hors de ce client (NotificationService).
-  Notification: { coach: "recipientId", athlete: "recipientId" },
-  // Réglages d'e-mail (#65) : comme PushToken, chacun ne gère que les siens, dans les deux rôles.
-  // La LECTURE pour envoyer vise le destinataire, donc un autre tenant → NotificationService.
-  NotificationEmailPreference: { coach: "userId", athlete: "userId" },
-  /**
-   * Rappels (#44) — le SEUL modèle métier que l'athlète n'atteint d'aucune façon, ni à plat ni
-   * imbriqué : c'est un outil privé du coach, sans colonne athlète. L'absence de clé `athlete`
-   * n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait ce modèle se verrait
-   * refusé par `tenantFilterOrThrow` (fail closed).
-   *
-   * Ce refus étant une ERREUR (500) et non un 403, deux gardes le précèdent :
-   * `@RequireCapability("coach")` sur le contrôleur, et le branchement par rôle du centre de
-   * notifications (#51), qui ne lit les rappels que pour un coach.
-   */
-  Reminder: { coach: "coachId" },
-  // L'entreprise (#600) : son id EST celui du compte Entreprise, qui ne voit qu'elle.
-  Organization: { company: "id" },
-  // Ses Coachs (#601). Le Coach n'y lit rien par ce client en v1 : ses entreprises viendront avec
-  // les droits d'accès (#605), avec leur propre clé.
-  OrganizationCoach: { company: "organizationId" },
-  // Ses athlètes (#602), au même titre. Le suivi, lui, reste dans `CoachAthlete`, sans clé
-  // `company` : l'entreprise sait qui en est, jamais ce qui s'y fait.
-  OrganizationAthlete: { company: "organizationId" },
-};
-
-/**
- * Champ de scope applicable, ou `null` si la capacité exercée n'a aucun accès à ce modèle.
- *
- * Depuis #10, le champ se dérive de la capacité **exercée par la route** et non plus du rôle de
- * l'acteur — question qui n'avait plus de réponse dès qu'un compte porte les deux : `GET /invoices`
- * ne pouvait pas savoir s'il fallait montrer les factures émises ou reçues. La route le déclare
- * (`@RequireCapability`), l'interceptor le résout, on le lit ici.
- *
- * `exercised === null` (route qui n'exerce aucune capacité) n'est PAS un refus par défaut : c'est
- * le cas voulu de `Notification` et `PushToken`, dont le scope est le MÊME champ pour les deux
- * capacités. La condition l'exprime littéralement — un modèle dont les deux scopes coïncident n'a
- * pas besoin qu'on choisisse. Tout autre modèle atteint sans capacité déclarée est refusé, ce qui
- * transforme un oubli de décorateur en panne immédiate plutôt qu'en fuite de tenant.
- *
- * La capacité `company` ne s'ouvre qu'aux modèles qui portent sa clé (#600) ; un modèle émis
- * (#601) s'ouvre à l'entreprise ET au coach, chacun sur sa colonne.
- */
-export function tenantField(scope: TenantScope, exercised: CapabilityName | null): string | null {
-  switch (exercised) {
-    case "company":
-      return scope.company ?? null;
-    case "coach":
-      return scope.coach ?? null;
-    case "athlete":
-      return scope.athlete ?? null;
-    case null:
-      return scope.coach != null && scope.coach === scope.athlete ? scope.coach : null;
-  }
-}
-
-type TenantFilter = Record<string, unknown>;
-
-/**
- * Le filtre tenant applicable à cette requête, ou une erreur explicite. Trois refus, dans cet
- * ordre : pas d'acteur (requête hors contexte), modèle absent de TENANT_SCOPES (oubli de
- * rattachement), capacité sans accès. Aucun n'est silencieux — un scope manquant doit casser
- * bruyamment plutôt que servir la donnée d'un autre tenant.
- */
-function tenantFilterOrThrow(
+function resolveScopeOrThrow(
   model: string,
   operation: string,
   actor: TenantContext | undefined,
-): TenantFilter {
+): ResolvedScope {
   if (!actor) {
     throw new Error(
       `[tenancy] acteur courant absent — ${model}.${operation} exécuté hors contexte tenant`,
     );
   }
-  const scope = TENANT_SCOPES[model];
-  if (scope == null) {
+  const registered = TENANT_SCOPES[model];
+  if (registered == null) {
     throw new Error(`[tenancy] modèle non scopé : ${model} — rattacher au tenant avant usage`);
   }
-  const field = tenantField(scope, actor.exercised);
-  if (!field) {
+  const scope = scopeFor(registered, actor.exercised);
+  if (!scope) {
     throw new Error(
       `[tenancy] capacité ${actor.exercised ?? "(aucune déclarée)"} non autorisée sur ${model}`,
     );
   }
-  return { [field]: actor.userId };
+  const kind = operationKindOf(registered, operation);
+  if (!kind) {
+    throw new Error(`[tenancy] opération non gérée : ${operation} sur ${model}`);
+  }
+  return { scope, kind, actorId: actor.userId };
 }
 
 /**
@@ -170,18 +62,19 @@ function scopeWhere(args: unknown, filter: TenantFilter): void {
 }
 
 // Création : le tenant est INJECTÉ dans les données — l'appelant ne le fournit jamais. `createMany`
-// reçoit un tableau, `create` un objet ; le test couvre les deux formes.
-function scopeData(args: unknown, filter: TenantFilter): void {
+// reçoit un tableau, `create` un objet ; les e2e couvrent les deux formes.
+function scopeData(args: unknown, owner: TenantFilter): void {
   const a = args as { data?: Record<string, unknown> | Record<string, unknown>[] };
   a.data = Array.isArray(a.data)
-    ? a.data.map((item) => ({ ...item, ...filter }))
-    : { ...a.data, ...filter };
+    ? a.data.map((item) => ({ ...item, ...owner }))
+    : { ...a.data, ...owner };
 }
 
 /**
  * Prisma Client Extension appliquant le scope tenant à TOUTE requête métier.
  * L'acteur courant est lu dans le CLS (peuplé par TenancyInterceptor). Aucune query ne
- * s'exécute hors scope : lecture filtrée par `where`, écriture avec le champ tenant injecté.
+ * s'exécute hors scope : toute opération ciblée filtrée par le `where` de sa classe (#603),
+ * création avec le champ tenant injecté.
  */
 export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
   return prisma.$extends({
@@ -189,35 +82,14 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
           const actor = cls.get<TenantContext | undefined>(TENANT_CLS_KEY);
-          const filter = tenantFilterOrThrow(model, operation, actor);
+          const { scope, kind, actorId } = resolveScopeOrThrow(model, operation, actor);
 
-          switch (operation) {
-            case "findUnique":
-            case "findUniqueOrThrow":
-            case "findFirst":
-            case "findFirstOrThrow":
-            case "findMany":
-            case "count":
-            case "aggregate":
-            case "groupBy":
-            case "update":
-            case "updateMany":
-            case "delete":
-            case "deleteMany":
-              scopeWhere(args, filter);
-              return query(args);
-
-            case "create":
-            case "createMany":
-            case "createManyAndReturn":
-              scopeData(args, filter);
-              return query(args);
-
-            default:
-              // upsert & opérations exotiques : interdites via le client tenant en P1
-              // (leur `where`/`create` unique créerait un angle mort de scope).
-              throw new Error(`[tenancy] opération non gérée : ${operation} sur ${model}`);
+          if (kind.creates) {
+            scopeData(args, creationDataOrThrow(scope, model, actorId));
+          } else {
+            scopeWhere(args, scope.where(actorId, kind.operationClass));
           }
+          return query(args);
         },
       },
     },
