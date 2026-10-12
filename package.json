@@ -27,6 +27,7 @@
     "check:dette": "node scripts/check-dette.mjs",
     "check:i18n": "node scripts/check-i18n-keys.mjs",
     "check:lint-rules": "node scripts/check-lint-rules.mjs",
+    "check:migrations": "node scripts/check-migrations.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -35,6 +36,7 @@
     "@commitlint/config-conventional": "21.1.0",
     "husky": "9.1.7",
     "lint-staged": "17.0.8",
+    "squawk-cli": "2.67.0",
     "turbo": "2.10.0",
     "typescript": "6.0.3"
   }
