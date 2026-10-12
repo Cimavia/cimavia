@@ -91,7 +91,12 @@ function session(
   };
 }
 
-function plan(id: string, sessionIds: readonly string[], sessionUpdatedAt = EDITED_AT): PlanDto {
+function plan(
+  id: string,
+  sessionIds: readonly string[],
+  sessionUpdatedAt = EDITED_AT,
+  sessionStatus: ScheduledSessionStatus = ScheduledSessionStatus.PLANNED,
+): PlanDto {
   return {
     id,
     coachId: "coach-1",
@@ -125,7 +130,7 @@ function plan(id: string, sessionIds: readonly string[], sessionUpdatedAt = EDIT
           notes: null,
           scheduledDate: "2026-08-18",
           position: index,
-          status: ScheduledSessionStatus.PLANNED,
+          status: sessionStatus,
           exerciseCount: 1,
           updatedAt: sessionUpdatedAt,
         })),
@@ -355,6 +360,30 @@ describe("syncOfflineDocuments — séance retouchée depuis le cache (#307)", (
   });
 });
 
+/**
+ * Débriefée depuis un autre appareil : le débrief ne fait pas avancer `updatedAt`, qui reste la
+ * version du coach (#604). La copie « planifiée » proposerait, hors ligne, de débriefer encore.
+ */
+describe("syncOfflineDocuments — séance débriefée ailleurs (#604)", () => {
+  it("recharge une séance que le planning annonce débriefée, à version égale", async () => {
+    const client = newQueryClient();
+    client.setQueryData(myPlanKeys.session("s-1"), session("s-1", [document()]));
+    localDocumentUri.mockReturnValue("file:///documents/plan-documents/plan-1/doc-1.pdf");
+    fetchSession.mockResolvedValue({
+      ...session("s-1", [document()]),
+      status: ScheduledSessionStatus.DONE,
+    });
+
+    await syncOfflineDocuments(client, [
+      plan("plan-1", ["s-1"], EDITED_AT, ScheduledSessionStatus.DONE),
+    ]);
+
+    expect(client.getQueryData<ScheduledSessionDto>(myPlanKeys.session("s-1"))?.status).toBe(
+      ScheduledSessionStatus.DONE,
+    );
+  });
+});
+
 describe("syncOfflineDocuments — complétude (#307)", () => {
   it("se dit complète quand chaque séance est chargée et chaque document descendu", async () => {
     fetchSession.mockResolvedValue(session("s-1", [document()]));
@@ -396,6 +425,12 @@ describe("offlineSignature", () => {
     expect(offlineSignature([plan("plan-1", ["s-1"], "2026-08-12T18:00:00.000Z")])).not.toBe(
       offlineSignature([plan("plan-1", ["s-1"])]),
     );
+  });
+
+  it("change quand une séance est débriefée, sa version restant la même", () => {
+    expect(
+      offlineSignature([plan("plan-1", ["s-1"], EDITED_AT, ScheduledSessionStatus.DONE)]),
+    ).not.toBe(offlineSignature([plan("plan-1", ["s-1"])]));
   });
 
   it("change quand une séance est ajoutée", () => {

@@ -58,6 +58,7 @@ describe("Débrief de séance (P4)", () => {
   });
 
   it("débriefe la séance : le texte est enregistré et la séance passe en DONE", async () => {
+    const before = await coachA.get(`/scheduled-sessions/${sessionId}`);
     const res = await athleteA1
       .put(`/me/scheduled-sessions/${sessionId}/feedback`)
       .send({ content: "Bonne séance, épaule un peu sensible sur les tractions." });
@@ -72,6 +73,9 @@ describe("Débrief de séance (P4)", () => {
 
     const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
     expect(session.body.status).toBe("DONE");
+    // La version reste celle du coach (#604) : le débrief ne change rien de ce qu'il a composé, et
+    // ne doit pas faire refuser son enregistrement par un conflit qui ne dit pas vrai.
+    expect(session.body.updatedAt).toBe(before.body.updatedAt);
   });
 
   // L'athlète débriefe en plusieurs fois : le PUT est idempotent, pas un doublon.

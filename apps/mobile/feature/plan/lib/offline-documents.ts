@@ -6,7 +6,7 @@ import {
   type ScheduledSessionSummaryDto,
 } from "@cmv/shared";
 import type { QueryClient } from "@tanstack/react-query";
-import { usableSession } from "@/feature/plan/lib/usable-session";
+import { isCurrentCopy, usableSession } from "@/feature/plan/lib/usable-session";
 import {
   cacheDocument,
   localDocumentUri,
@@ -83,7 +83,8 @@ export async function syncOfflineDocuments(
  * refetch, fût-il identique — relancerait une passe complète toutes les cinq minutes.
  *
  * Les séances y figurent une à une (#307) : retoucher une séance ne touche pas la ligne `Plan`,
- * et `PlanDto.updatedAt` seul laissait l'athlète sur le déroulé d'avant.
+ * et `PlanDto.updatedAt` seul laissait l'athlète sur le déroulé d'avant. Leur statut aussi : un
+ * débrief ne fait pas avancer `updatedAt` (#604).
  */
 export function offlineSignature(plans: readonly PlanDto[]): string {
   return plans
@@ -91,7 +92,7 @@ export function offlineSignature(plans: readonly PlanDto[]): string {
       [
         `${plan.id}:${plan.updatedAt}`,
         ...plan.weeks.flatMap((week) =>
-          week.sessions.map((session) => `${session.id}:${session.updatedAt}`),
+          week.sessions.map((session) => `${session.id}:${session.updatedAt}:${session.status}`),
         ),
       ].join(","),
     )
@@ -135,16 +136,16 @@ async function loadSession(
     const cached = queryClient.getQueryData<ScheduledSessionDto>(myPlanKeys.session(summary.id));
     // Rien à descendre : le cache connaît la séance TELLE QUE le planning l'annonce, et tous ses
     // documents sont là. Inutile de rafraîchir des URLs signées dont personne n'a besoin. Sans la
-    // comparaison des dates, une séance retouchée depuis restait servie du cache (#307).
+    // comparaison, une séance retouchée — ou débriefée (#604) — restait servie du cache (#307).
     if (
       cached != null &&
-      cached.updatedAt === summary.updatedAt &&
+      isCurrentCopy(cached, summary) &&
       missingDocuments(summary.planId, cached).length === 0
     ) {
       return cached;
     }
 
-    return await usableSession(queryClient, summary.id, summary.updatedAt);
+    return await usableSession(queryClient, summary.id, summary);
   } catch {
     return null;
   }
