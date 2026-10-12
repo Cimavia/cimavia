@@ -893,7 +893,9 @@ liste des domaines vivent dans l'index.
 > **Les `.env` recopiés au `pnpm install`** (`scripts/worktree-env.mjs`, au `prepare`) : c'est le
 > seul passage commun à `git worktree add`, à herdr et à Claude Code — aucun des trois n'a de hook
 > de création qui serve aux autres. Les `.env*` ignorés de la racine et des paquets, jamais un
-> fichier déjà là ; hors worktree, ou sous `--ignore-scripts` (CI, images), rien.
+> fichier déjà là ; hors worktree, ou sous `--ignore-scripts` (CI), rien. L'image de l'API, elle,
+> joue ce `prepare` (`pnpm deploy`) sur un arbre élagué par `turbo prune`, sans `scripts/` : l'appel
+> tolère donc un module introuvable, et lui seul — c'était le job *Builds de production* en rouge.
 >
 > **Un hook de fin de réponse** (`.claude/hooks/stop-gate.sh`) passe `biome ci .` et `check:i18n`
 > quand la session a modifié un fichier pendant sa réponse — une revue lancée en lecture seule dans

@@ -18,6 +18,11 @@
  * CE QU'IL NE FAIT JAMAIS : écraser un fichier présent — un `.env` retouché dans le worktree est à
  * son auteur —, ni faire échouer l'installation. Dans le dépôt principal, hors git, ou en CI (qui
  * installe en `--ignore-scripts`), il ne fait rien.
+ *
+ * ABSENT, IL N'EST PAS UNE ERREUR : l'image de l'API lance ce `prepare` (`pnpm deploy` joue les
+ * scripts du workspace) sur un arbre issu de `turbo prune`, qui ne copie pas `scripts/`. D'où son
+ * appel par un `import()` qui tolère le seul module introuvable, dans `package.json` — comme
+ * `husky` y tolère l'absence de `.git`.
  */
 import { execFileSync } from "node:child_process";
 import { constants, copyFileSync } from "node:fs";
