@@ -4,7 +4,9 @@ import {
   type ApiFetch,
   apiErrorMessage,
   createApiClient,
+  isStaleWriteError,
   isUnauthorizedError,
+  STALE_WRITE,
 } from "./client";
 
 /** Un `fetch` qui répond toujours `status`, avec le corps d'erreur que NestJS renverrait. */
@@ -47,6 +49,46 @@ describe("isUnauthorizedError", () => {
     // Le message est celui de l'API, donc traduisible et changeant ; le statut est le contrat.
     expect(isUnauthorizedError(new ApiError(401, "Session expirée", null))).toBe(true);
     expect(isUnauthorizedError(new ApiError(400, "Unauthorized", null))).toBe(false);
+  });
+});
+
+describe("isStaleWriteError", () => {
+  /**
+   * La valeur est un contrat sur le fil, pas un détail : l'API la pose dans le corps du 409, et une
+   * app installée la compare à la sienne. La changer côté API casserait le bandeau des apps déjà
+   * en service, que les autres tests ne verraient pas — ils lisent tous la même constante.
+   */
+  it("garde le code que les apps installées attendent", () => {
+    expect(STALE_WRITE).toBe("STALE_WRITE");
+  });
+
+  it("reconnaît le 409 que l'API lève sur une version périmée", async () => {
+    // Par le vrai client : le code doit survivre au trajet corps NestJS → `ApiError`.
+    const fetchFn: ApiFetch = () =>
+      Promise.resolve({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(JSON.stringify({ message: STALE_WRITE, statusCode: 409 })),
+      });
+    const api = createApiClient({ baseUrl: "http://api.test", fetchFn });
+    const error = await api.put("/athletes/a1/sheet", {}).catch((caught: unknown) => caught);
+
+    expect(isStaleWriteError(error)).toBe(true);
+  });
+
+  it("ne prend pas un autre refus 409 pour un conflit d'édition", () => {
+    expect(isStaleWriteError(new ApiError(409, "Exercice utilisé dans 2 séances", null))).toBe(
+      false,
+    );
+  });
+
+  it("exige le statut 409, pas seulement le code", () => {
+    expect(isStaleWriteError(new ApiError(400, STALE_WRITE, null))).toBe(false);
+  });
+
+  it("ne prend pas une panne réseau pour un conflit", () => {
+    expect(isStaleWriteError(new TypeError("Failed to fetch"))).toBe(false);
+    expect(isStaleWriteError(null)).toBe(false);
   });
 });
 

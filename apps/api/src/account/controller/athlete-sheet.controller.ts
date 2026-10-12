@@ -4,7 +4,8 @@ import { RequireCapability } from "../../auth/decorator/require-capability.decor
 import { UpdateAthleteSheetDto } from "../dto/update-athlete-sheet.dto";
 import { AthleteSheetService } from "../service/athlete-sheet.service";
 
-// Fiche athlète : champ libre, éditable par le coach uniquement (rôle + tenancy layer).
+// Fiche athlète : champ libre, éditable par le coach uniquement (rôle + tenancy layer). Le `PUT`
+// remplace la fiche s'il connaît sa dernière version, sinon 409 `STALE_WRITE` (#440).
 @ApiTags("athlete-sheets")
 @RequireCapability("coach")
 @Controller("athletes/:athleteId/sheet")
@@ -18,6 +19,6 @@ export class AthleteSheetController {
 
   @Put()
   upsert(@Param("athleteId") athleteId: string, @Body() dto: UpdateAthleteSheetDto) {
-    return this.sheets.upsert(athleteId, dto.content);
+    return this.sheets.upsert(athleteId, dto);
   }
 }

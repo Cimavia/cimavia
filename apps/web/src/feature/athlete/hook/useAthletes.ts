@@ -3,10 +3,12 @@ import type {
   CoachAthleteDto,
   CreateInvitationInput,
   InvitationDto,
+  UpdateAthleteSheetInput,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, athleteKeys, invitationKeys } from "@/feature/athlete/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { isStaleWriteError } from "@/shared/lib/api";
 
 export function useAthletes() {
   return useQuery<CoachAthleteDto[]>({
@@ -22,16 +24,25 @@ export function useAthleteSheet(athleteId: string) {
   });
 }
 
+/**
+ * Un conflit d'édition (#440) ne passe pas par le toast : le panneau le dit à côté de la saisie, avec
+ * de quoi recharger — un toast disparaîtrait en emportant la seule explication.
+ */
 export function useSaveAthleteSheet(athleteId: string) {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
   return useMutation({
-    mutationFn: (content: string) => accountApi.saveAthleteSheet(athleteId, { content }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: athleteKeys.sheet(athleteId) });
+    mutationFn: (input: UpdateAthleteSheetInput) => accountApi.saveAthleteSheet(athleteId, input),
+    // La fiche RENDUE va en cache, version comprise : le panneau se ferme, la requête n'a plus
+    // d'observateur, et une invalidation ne la relirait pas — rouvert, il citerait la version
+    // d'avant et prendrait l'enregistrement du coach pour un conflit.
+    onSuccess: (sheet) => {
+      queryClient.setQueryData(athleteKeys.sheet(athleteId), sheet);
       toast.onSuccess("athlete.toast.sheetSaved");
     },
-    onError: toast.onError,
+    onError: (error) => {
+      if (!isStaleWriteError(error)) toast.onError(error);
+    },
   });
 }
 

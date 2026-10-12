@@ -1,4 +1,4 @@
-import { type AthleteSheetDto, athleteKeys } from "@cmv/shared";
+import { ApiError, type AthleteSheetDto, athleteKeys, STALE_WRITE } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
@@ -89,7 +89,10 @@ describe("AthleteSheetPanel — une fiche non reçue ne s'édite pas (#301)", ()
     await user.click(submitButton() as HTMLElement);
 
     await waitFor(() =>
-      expect(saveAthleteSheet).toHaveBeenCalledWith("ath_1", { content: "Objectif : 7b" }),
+      expect(saveAthleteSheet).toHaveBeenCalledWith("ath_1", {
+        content: "Objectif : 7b",
+        expectedUpdatedAt: null,
+      }),
     );
   });
 
@@ -121,5 +124,133 @@ describe("AthleteSheetPanel — une fiche non reçue ne s'édite pas (#301)", ()
     expect(screen.getByRole("textbox")).toHaveValue(`${SHEET.content} Genou OK.`);
     expect(submitButton()).toBeInTheDocument();
     expect(screen.queryByText("common.errorTitle")).toBeNull();
+  });
+});
+
+describe("AthleteSheetPanel — la version lue (#440)", () => {
+  const LATER: AthleteSheetDto = {
+    ...SHEET,
+    content: "Écrit dans l'autre onglet.",
+    updatedAt: "2026-09-02T10:00:00.000Z",
+  };
+  const staleWrite = () => new ApiError(409, STALE_WRITE, null);
+
+  it("cite la version de la fiche reçue", async () => {
+    const { user } = render();
+
+    await user.type(await screen.findByRole("textbox"), " Genou OK.");
+    await user.click(submitButton() as HTMLElement);
+
+    await waitFor(() =>
+      expect(saveAthleteSheet).toHaveBeenCalledWith("ath_1", {
+        content: `${SHEET.content} Genou OK.`,
+        expectedUpdatedAt: SHEET.updatedAt,
+      }),
+    );
+  });
+
+  /**
+   * Au retour d'onglet, la relance range en cache la version qu'un autre onglet a écrite. Citer
+   * celle-là ferait passer le brouillon par-dessus : c'est la version de DÉPART qui part.
+   */
+  it("cite la version sur laquelle la saisie a commencé, pas celle d'une relance", async () => {
+    const { user, queryClient } = render();
+    await user.type(await screen.findByRole("textbox"), " Genou OK.");
+
+    getAthleteSheet.mockResolvedValue(LATER);
+    await queryClient.refetchQueries({ queryKey: athleteKeys.sheet("ath_1") });
+    await user.click(submitButton() as HTMLElement);
+
+    await waitFor(() =>
+      expect(saveAthleteSheet).toHaveBeenCalledWith("ath_1", {
+        content: `${SHEET.content} Genou OK.`,
+        expectedUpdatedAt: SHEET.updatedAt,
+      }),
+    );
+  });
+
+  /**
+   * Le panneau se ferme sur l'enregistrement : la requête perd son observateur, et une simple
+   * invalidation ne la relirait pas. Rouvert, il citerait la version d'avant — un 409 sur la propre
+   * écriture du coach.
+   */
+  it("range en cache la fiche rendue, version comprise", async () => {
+    saveAthleteSheet.mockResolvedValue(LATER);
+    const { user, queryClient } = render();
+
+    await user.type(await screen.findByRole("textbox"), " Genou OK.");
+    await user.click(submitButton() as HTMLElement);
+
+    await waitFor(() =>
+      expect(queryClient.getQueryData(athleteKeys.sheet("ath_1"))).toEqual(LATER),
+    );
+  });
+
+  it("sur un conflit, garde la saisie et le dit, sans fermer le panneau", async () => {
+    saveAthleteSheet.mockRejectedValue(staleWrite());
+    const onClose = vi.fn();
+    const { user } = renderWithProviders(
+      <AthleteSheetPanel athlete={{ athleteId: "ath_1", athleteName: "Léa" }} onClose={onClose} />,
+    );
+
+    await user.type(await screen.findByRole("textbox"), " Genou OK.");
+    await user.click(submitButton() as HTMLElement);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("athlete.sheet.stale");
+    expect(screen.getByRole("textbox")).toHaveValue(`${SHEET.content} Genou OK.`);
+    expect(onClose).not.toHaveBeenCalled();
+    // Le code brut de l'API n'atteint pas l'écran : le bandeau le dit déjà, traduit.
+    expect(screen.queryByText(STALE_WRITE)).toBeNull();
+  });
+
+  it("« Recharger » remplace la saisie par la dernière version", async () => {
+    saveAthleteSheet.mockRejectedValueOnce(staleWrite());
+    const { user } = render();
+    await user.type(await screen.findByRole("textbox"), " Genou OK.");
+    await user.click(submitButton() as HTMLElement);
+
+    getAthleteSheet.mockResolvedValue(LATER);
+    await user.click(await screen.findByRole("button", { name: "common.staleReload" }));
+
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(LATER.content));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // La saisie suivante part de la version rechargée.
+    await user.type(screen.getByRole("textbox"), " Repris.");
+    await user.click(submitButton() as HTMLElement);
+    await waitFor(() =>
+      expect(saveAthleteSheet).toHaveBeenLastCalledWith("ath_1", {
+        content: `${LATER.content} Repris.`,
+        expectedUpdatedAt: LATER.updatedAt,
+      }),
+    );
+  });
+
+  it("une relecture ratée garde la saisie et le bandeau", async () => {
+    saveAthleteSheet.mockRejectedValue(staleWrite());
+    const { user } = render();
+    await user.type(await screen.findByRole("textbox"), " Genou OK.");
+    await user.click(submitButton() as HTMLElement);
+
+    getAthleteSheet.mockRejectedValue(new Error("boom"));
+    await user.click(await screen.findByRole("button", { name: "common.staleReload" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "common.staleReload" })).toBeEnabled(),
+    );
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue(`${SHEET.content} Genou OK.`);
+  });
+
+  // Un autre refus n'est pas un conflit d'édition : pas de « Recharger » qui ne servirait à rien.
+  it("n'affiche pas le bandeau sur un autre échec", async () => {
+    saveAthleteSheet.mockRejectedValue(new ApiError(500, "Erreur interne", null));
+    const { user } = render();
+
+    await user.type(await screen.findByRole("textbox"), " Genou OK.");
+    await user.click(submitButton() as HTMLElement);
+
+    expect(await screen.findByText("Erreur interne")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "common.staleReload" })).toBeNull();
   });
 });

@@ -11,6 +11,7 @@
     "errorTitle": "Chargement impossible",
     "errorDescription": "Tes séances n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
+    "staleReload": "Recharger",
     "cancel": "Annuler",
     "crash": {
       "title": "L'app a rencontré un problème",
@@ -642,7 +643,8 @@
       "edit": "Modifier",
       "save": "Enregistrer",
       "saving": "Enregistrement…",
-      "error": "Impossible d'enregistrer la note. Vérifie ta connexion."
+      "error": "Impossible d'enregistrer la note. Vérifie ta connexion.",
+      "stale": "Cette note a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version."
     },
     "self": "{{name}} (moi)"
   },

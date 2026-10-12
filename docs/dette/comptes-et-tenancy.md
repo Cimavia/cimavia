@@ -10,9 +10,8 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | D-1 | **Sept requêtes au chargement de `/`** (athlètes, planifs, débriefs, factures, conversations, résumé des rappels, non-lues) : la jointure du tableau est faite côté client, sans endpoint d'agrégat. Le **polling** de deux d'entre elles a été coupé sur cet écran (#113) — il ne reste que celui du badge, qui est sa raison d'être. Le tableau rend par ailleurs **toutes** ses lignes, `GET /athletes` n'étant pas borné : même déclencheur, même épic. | 🟢 | [#114](https://github.com/Cimavia/cimavia/issues/114) *(épic : [#139](https://github.com/Cimavia/cimavia/issues/139) agrégat · [#140](https://github.com/Cimavia/cimavia/issues/140) pagination)* |
-| D-3 | **La fiche athlète n'a pas de garde serveur contre l'écrasement** : `PUT /athletes/:id/sheet` remplace `content` sans vérifier la version lue, et le produit n'a pas d'historique. Depuis #301, seuls les clients empêchent d'éditer une fiche non reçue ; deux onglets (ou le web et le mobile) ouverts sur la même fiche s'écrasent toujours sans que personne ne le voie. | 🟡 | [#440](https://github.com/Cimavia/cimavia/issues/440) |
 
-*Résolues, à l'[archive](archive.md) : D-2.*
+*Résolues, à l'[archive](archive.md) : D-2, D-3.*
 
 > **Tranché en #52** (aucune information lue deux fois) : c'est la contrainte qui a façonné l'écran,
 > parce que sept tuiles offrent sept occasions de recompter la même chose. Trois conséquences.
@@ -111,6 +110,31 @@ liste des domaines vivent dans l'index.
 >   coach porte deux fiches, et le second `PUT` tombait en 500 sur la contrainte. Migration
 >   `20260926120000_fiche_athlete_par_coach` : `@@unique([coachId, athleteId])`, sans risque sur
 >   l'existant. Le tenancy scopant sur `coachId`, aucune des deux fiches ne voit l'autre.
+
+> **Tranché en [#440](https://github.com/Cimavia/cimavia/issues/440)** (la fiche refuse une
+> écriture fondée sur une version périmée) : ce que le code ne dit pas seul, et qui vaut pour
+> [#604](https://github.com/Cimavia/cimavia/issues/604).
+>
+> - **La version est `updatedAt`, pas un compteur.** Prisma l'avance à chaque `update` et
+>   `updateMany` sans qu'aucun chemin d'écriture ait à y penser ; un compteur `version` s'incrémente
+>   à la main, et un seul chemin oublié rouvrirait l'écrasement silencieux. La milliseconde suffit :
+>   deux écritures dans la même milliseconde n'arrivent pas avec des humains qui tapent. Pas de
+>   migration.
+> - **Le client cite la version sur laquelle la saisie a COMMENCÉ**, pas celle du cache au moment
+>   d'enregistrer. Sur le web, `refetchOnWindowFocus` range au retour d'onglet la version qu'un
+>   autre onglet a écrite : la citer ferait passer le brouillon par-dessus, garde comprise. Elle se
+>   fige à la première frappe (web) ou à « Modifier » (mobile).
+> - **« Recharger » remplace la saisie** par la dernière version (maquette #597 : « Recharger
+>   remplace la saisie par la dernière version, sans fusion »), et seulement une fois celle-ci
+>   reçue : sur une relecture ratée, la saisie et le bandeau restent.
+> - **Le 409 porte un code, `STALE_WRITE`** (`isStaleWriteError`, `@cmv/shared`), comme
+>   `CapabilityBlocker` : d'autres refus sont des 409, et y proposer « Recharger » ne servirait à
+>   rien. Le web ne le double pas d'un toast — le bandeau le dit à côté de la saisie.
+> - **La garde de version vient après celle du tenant** : un autre coach reçoit 404, jamais 409,
+>   qui lui dirait que la fiche existe.
+> - **Contrat cassé** : `expectedUpdatedAt` est requis. Un APK installé qui ne l'envoie pas reçoit
+>   400 en enregistrant la fiche, sans perte — le mobile garde la saisie sur un échec. Le nouvel APK
+>   part avec la promotion du NAS, comme en #599.
 
 ---
 

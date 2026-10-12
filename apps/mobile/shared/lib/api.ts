@@ -17,4 +17,4 @@ export const api = createApiClient({
 });
 
 export type { ApiFieldError } from "@cmv/shared";
-export { ApiError, apiErrorMessage } from "@cmv/shared";
+export { ApiError, apiErrorMessage, isStaleWriteError } from "@cmv/shared";

@@ -570,7 +570,9 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
   it("tient sa propre fiche, du premier enregistrement à la relecture", async () => {
     expect((await solo.get(`/athletes/${soloId}/sheet`)).body).toBeNull();
 
-    const write = await solo.put(`/athletes/${soloId}/sheet`).send({ content: "Objectif 8a" });
+    const write = await solo
+      .put(`/athletes/${soloId}/sheet`)
+      .send({ content: "Objectif 8a", expectedUpdatedAt: null });
     expect(write.status).toBe(200);
 
     const read = await solo.get(`/athletes/${soloId}/sheet`);
@@ -589,7 +591,11 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
 
     expect((await coachOnly.get(`/athletes/${selfId}/sheet`)).status).toBe(404);
     expect(
-      (await coachOnly.put(`/athletes/${selfId}/sheet`).send({ content: "pour moi" })).status,
+      (
+        await coachOnly
+          .put(`/athletes/${selfId}/sheet`)
+          .send({ content: "pour moi", expectedUpdatedAt: null })
+      ).status,
     ).toBe(404);
   });
 
@@ -605,9 +611,13 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     const accepted = await dual.post(`/invitations/${invitation.body.id}/accept`);
     const dualId = accepted.body[0].athleteId;
 
-    const own = await dual.put(`/athletes/${dualId}/sheet`).send({ content: "mes notes" });
+    const own = await dual
+      .put(`/athletes/${dualId}/sheet`)
+      .send({ content: "mes notes", expectedUpdatedAt: null });
     expect(own.status).toBe(200);
-    const coachs = await coach.put(`/athletes/${dualId}/sheet`).send({ content: "vu du coach" });
+    const coachs = await coach
+      .put(`/athletes/${dualId}/sheet`)
+      .send({ content: "vu du coach", expectedUpdatedAt: null });
     expect(coachs.status).toBe(200);
 
     expect((await dual.get(`/athletes/${dualId}/sheet`)).body.content).toBe("mes notes");

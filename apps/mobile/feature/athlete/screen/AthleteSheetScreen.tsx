@@ -1,4 +1,10 @@
-import { type AthleteSheetDto, type CoachAthleteDto, initialsOf } from "@cmv/shared";
+import {
+  type AthleteSheetDto,
+  athleteSheetDraft,
+  type CoachAthleteDto,
+  initialsOf,
+  type UpdateAthleteSheetInput,
+} from "@cmv/shared";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,6 +18,7 @@ import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { isStaleWriteError } from "@/shared/lib/api";
 import { formatInstantDate } from "@/shared/util/date.util";
 
 /**
@@ -75,16 +82,29 @@ function AthleteIdentity({ athlete }: Readonly<{ athlete: CoachAthleteDto | null
  *
  * `draft` à `null` EST le mode lecture. Un booléen séparé pourrait mentir sur le contenu en cours
  * de saisie ; ici les deux ne peuvent pas diverger.
+ *
+ * Le brouillon porte la version de la fiche sur laquelle il a commencé (#440), figée à « Modifier » :
+ * c'est elle que l'API compare, pas celle d'une relecture arrivée pendant la saisie.
  */
 function SheetNote({ athleteId }: Readonly<{ athleteId: string }>) {
   const { t } = useTranslation();
-  const { data: sheet, isPending, isError, refetch } = useAthleteSheet(athleteId);
+  const { data: sheet, isPending, isError, isFetching, refetch } = useAthleteSheet(athleteId);
   const save = useSaveAthleteSheet(athleteId);
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft] = useState<UpdateAthleteSheetInput | null>(null);
+  const isStale = isStaleWriteError(save.error);
 
   // `draft` à `null` EST le mode lecture — mais on n'affiche rien tant que la fiche n'est pas
   // résolue : un « Aucune note » sur une requête en cours serait faux, pas vide.
   const isReading = !isPending && !isError && draft == null;
+
+  // « Recharger » REMPLACE la saisie par la dernière version (maquette #597), en restant en
+  // édition — une fois celle-ci reçue seulement : sur une relecture ratée, la saisie reste.
+  async function reload() {
+    const { isSuccess, data } = await refetch();
+    if (!isSuccess) return;
+    setDraft(athleteSheetDraft(data ?? null));
+    save.reset();
+  }
 
   return (
     <View className="gap-3 border-cmv-border border-t pt-4">
@@ -101,16 +121,20 @@ function SheetNote({ athleteId }: Readonly<{ athleteId: string }>) {
       {isError ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
       {isReading ? (
-        <SheetReading sheet={sheet ?? null} onEdit={() => setDraft(sheet?.content ?? "")} />
+        <SheetReading
+          sheet={sheet ?? null}
+          onEdit={() => setDraft(athleteSheetDraft(sheet ?? null))}
+        />
       ) : null}
 
       {draft == null ? null : (
         <>
+          {isStale ? <StaleNotice onReload={reload} isReloading={isFetching} /> : null}
           <CmvTextField
             label={t("athlete.sheet.label")}
             placeholder={t("athlete.sheet.placeholder")}
-            value={draft}
-            onChangeText={setDraft}
+            value={draft.content}
+            onChangeText={(content) => setDraft({ ...draft, content })}
             multiline
             editable={!save.isPending}
           />
@@ -125,16 +149,37 @@ function SheetNote({ athleteId }: Readonly<{ athleteId: string }>) {
             <View className="flex-1">
               <CmvButton
                 label={t("common.cancel")}
-                onPress={() => setDraft(null)}
+                onPress={() => {
+                  setDraft(null);
+                  save.reset();
+                }}
                 disabled={save.isPending}
               />
             </View>
           </View>
-          {save.isError ? (
+          {save.isError && !isStale ? (
             <CmvText className="text-cmv-error text-sm">{t("athlete.sheet.error")}</CmvText>
           ) : null}
         </>
       )}
+    </View>
+  );
+}
+
+/**
+ * La note a changé pendant la saisie (#440) : l'API a refusé l'écriture. La saisie reste ; ni
+ * version serveur à côté, ni nom d'auteur — tranché en #597.
+ */
+function StaleNotice({
+  onReload,
+  isReloading,
+}: Readonly<{ onReload: () => void; isReloading: boolean }>) {
+  const { t } = useTranslation();
+
+  return (
+    <View className="gap-2 rounded-md border border-cmv-warning-line bg-cmv-warning-soft p-3">
+      <CmvText className="text-cmv-warning-on text-sm">{t("athlete.sheet.stale")}</CmvText>
+      <CmvButton label={t("common.staleReload")} onPress={onReload} disabled={isReloading} />
     </View>
   );
 }

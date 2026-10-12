@@ -1,9 +1,16 @@
-import type { AthleteIdentity } from "@cmv/shared";
+import { type AthleteIdentity, athleteSheetDraft, type UpdateAthleteSheetInput } from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthleteSheet, useSaveAthleteSheet } from "@/feature/athlete/hook/useAthletes";
-import { CmvButton, CmvErrorState, CmvPanel, CmvTextArea } from "@/shared/component";
+import {
+  CmvButton,
+  CmvErrorState,
+  CmvPanel,
+  CmvStaleBanner,
+  CmvTextArea,
+} from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { isStaleWriteError } from "@/shared/lib/api";
 
 type AthleteSheetPanelProps = {
   /**
@@ -22,7 +29,7 @@ type AthleteSheetPanelProps = {
 export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPanelProps>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
-  const { data: sheet, isError, refetch } = useAthleteSheet(athlete.athleteId);
+  const { data: sheet, isError, isFetching, refetch } = useAthleteSheet(athlete.athleteId);
   const saveSheet = useSaveAthleteSheet(athlete.athleteId);
 
   // `PUT` REMPLACE la fiche (#301) : n'offrir l'édition que sur une fiche REÇUE, sinon un échec de
@@ -31,14 +38,28 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
   // alors que la fiche est en cache — masquer le formulaire perdrait le brouillon en cours.
   const isReceived = sheet !== undefined;
 
-  // La fiche est null tant qu'elle n'a pas été écrite : le champ démarre vide, sans fabriquer
-  // un objet fiche fictif côté client.
-  const [content, setContent] = useState<string | null>(null);
-  const value = content ?? sheet?.content ?? "";
+  /**
+   * `null` tant que le coach n'a pas tapé : le champ suit alors la fiche en cache. À la première
+   * frappe, le brouillon fige la version que l'enregistrement citera (#440) — pas celle du cache au
+   * moment d'enregistrer : au retour d'onglet, la relance y range la version d'un autre onglet, et
+   * la citer ferait passer le brouillon par-dessus sans un mot.
+   */
+  const [draft, setDraft] = useState<UpdateAthleteSheetInput | null>(null);
+  const current = draft ?? athleteSheetDraft(sheet ?? null);
+  const isStale = isStaleWriteError(saveSheet.error);
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
-    saveSheet.mutate(value, { onSuccess: onClose });
+    saveSheet.mutate(current, { onSuccess: onClose });
+  }
+
+  // « Recharger » REMPLACE la saisie par la dernière version (maquette #597) — une fois celle-ci
+  // reçue seulement : sur une relecture ratée, le brouillon et le bandeau restent.
+  async function onReload() {
+    const { isSuccess } = await refetch();
+    if (!isSuccess) return;
+    setDraft(null);
+    saveSheet.reset();
   }
 
   return (
@@ -61,12 +82,19 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
       }
     >
       {isReceived ? (
-        <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} className="flex flex-col gap-cmv-md">
+          {isStale ? (
+            <CmvStaleBanner
+              message={t("athlete.sheet.stale")}
+              onReload={onReload}
+              isReloading={isFetching}
+            />
+          ) : null}
           <CmvTextArea
             label={t("athlete.sheet.label")}
             name="sheetContent"
-            value={value}
-            onChange={(event) => setContent(event.target.value)}
+            value={current.content}
+            onChange={(event) => setDraft({ ...current, content: event.target.value })}
             placeholder={t("athlete.sheet.placeholder")}
             rows={16}
           />

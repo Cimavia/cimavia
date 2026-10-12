@@ -7,9 +7,10 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { type Conversation, Prisma } from "@prisma/client";
+import type { Conversation } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
+import { isUniqueViolation } from "../../infra/prisma/prisma-error";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import {
@@ -141,7 +142,7 @@ export class ConversationService {
       // l'acteur) — même dénormalisation que PlanWeek / le débrief.
       return await this.db.conversation.create({ data: { coachId, athleteId } });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (isUniqueViolation(error)) {
         const raced = await this.db.conversation.findFirst({ where: { coachId, athleteId } });
         if (raced != null) return raced;
       }
