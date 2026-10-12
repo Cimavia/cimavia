@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { API_BODY_LIMIT_BYTES } from "../../src/app.setup";
 import { type Agent, billAndPublish, inviteFor, signUp, signUpWith } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
+import { versionOf } from "../support/version";
 
 describe("Composition & isolation des séances (P2)", () => {
   let coachA: Agent;
@@ -291,9 +292,14 @@ describe("Dosage à trois niveaux (#164)", () => {
   it("recharge depuis la bibliothèque : la référence suit, les ajustements tombent", async () => {
     // L'exercice de bibliothèque change APRÈS la composition.
     const updated = [{ ...BLOCKS[0], rows: [{ id: "r1", values: { col_reps: 12 } }] }];
-    expect((await coach.patch(`/exercises/${exerciseId}`).send({ blocks: updated })).status).toBe(
-      200,
-    );
+    expect(
+      (
+        await coach.patch(`/exercises/${exerciseId}`).send({
+          expectedUpdatedAt: await versionOf(coach, `/exercises/${exerciseId}`),
+          blocks: updated,
+        })
+      ).status,
+    ).toBe(200);
 
     // Tant qu'on ne recharge pas, la séance ne bouge PAS — elle est indépendante une fois composée.
     const before = await coach.get(`/sessions/${sessionId}`);

@@ -9,7 +9,7 @@ import {
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
-import type { TenantPrisma } from "../../tenancy/tenancy.extension";
+import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import {
   parseBlocks,
@@ -22,6 +22,7 @@ import {
   instructionImageIds,
   withCopiedImages,
 } from "../../util/instruction-images.util";
+import { assertWrittenAtVersion, StaleWriteException } from "../../util/stale-write.util";
 import {
   EXERCISE_DETAIL_INCLUDE,
   type ExerciseWithDocuments,
@@ -29,6 +30,8 @@ import {
 } from "../exercise.mapper";
 import { exerciseListWhere, type ListExercisesFilters } from "../exercise.where";
 import { DocumentCleanupService } from "./document-cleanup.service";
+
+const EXERCISE_NOT_FOUND = "Exercice introuvable";
 
 @Injectable()
 export class ExerciseService {
@@ -53,7 +56,7 @@ export class ExerciseService {
       include: EXERCISE_DETAIL_INCLUDE,
     });
     if (exercise == null) {
-      throw new NotFoundException("Exercice introuvable");
+      throw new NotFoundException(EXERCISE_NOT_FOUND);
     }
     return exercise;
   }
@@ -94,7 +97,8 @@ export class ExerciseService {
       include: EXERCISE_DETAIL_INCLUDE,
     });
     if (!input.tags?.length) return this.toDto(created);
-    return this.toDto(await this.replaceTags(created.id, input.tags));
+    await this.replaceTags(this.db, created.id, input.tags);
+    return this.get(created.id);
   }
 
   /**
@@ -180,19 +184,19 @@ export class ExerciseService {
    * `coachId` n'est pas passé — l'extension tenant l'injecte, comme sur toute écriture directe.
    */
   private async replaceTags(
+    db: TenantPrisma | TenantTx,
     exerciseId: string,
     tags: readonly string[],
-  ): Promise<ExerciseWithDocuments> {
-    await this.db.exerciseTag.deleteMany({ where: { exerciseId } });
+  ): Promise<void> {
+    await db.exerciseTag.deleteMany({ where: { exerciseId } });
     if (tags.length > 0) {
-      await this.db.exerciseTag.createMany({
+      await db.exerciseTag.createMany({
         data: tags.map((name) => ({ exerciseId, name })) satisfies Omit<
           Prisma.ExerciseTagUncheckedCreateInput,
           "coachId"
         >[] as Prisma.ExerciseTagUncheckedCreateInput[],
       });
     }
-    return this.getOwnedOrThrow(exerciseId);
   }
 
   async list(filters: ListExercisesFilters): Promise<ExerciseDto[]> {
@@ -208,10 +212,24 @@ export class ExerciseService {
     return this.toDto(await this.getOwnedOrThrow(id));
   }
 
+  /**
+   * Remplace ce que la saisie envoie, à condition que l'exercice n'ait pas changé depuis qu'elle a
+   * commencé (#604) — sinon 409 `STALE_WRITE`, et la base garde l'autre écriture.
+   *
+   * La version avance à CHAQUE écriture, tags seuls compris : ils font partie de l'exercice, et un
+   * second onglet qui les réécrirait sans le savoir effacerait ceux du premier. D'où `updatedAt`
+   * posé à la main — l'écriture conditionnelle peut n'avoir aucun autre champ à écrire. Les tags
+   * suivent dans la même transaction : une écriture refusée n'en laisse rien.
+   */
   async update(id: string, input: UpdateExerciseInput): Promise<ExerciseDto> {
     const current = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Déjà périmée à la lecture : le dire AVANT de valider la saisie contre un état qu'elle n'a pas
+    // vu — une image de consigne retirée par l'autre écriture donnerait sinon un 400 au lieu du
+    // 409. La garde reste l'écriture conditionnelle ci-dessous ; ceci n'en est que le raccourci.
+    if (current.updatedAt.getTime() !== expected.getTime()) throw new StaleWriteException();
     assertInstructionImagesOwned(input.instructions, current.documents);
-    const data: Prisma.ExerciseUpdateInput = {};
+    const data: Prisma.ExerciseUpdateManyMutationInput = { updatedAt: new Date() };
     // Les deux ensemble, sous la MÊME garde : un titre modifié sans sa forme comparable laisserait
     // la ligne introuvable par l'ancien mot autant que par le nouveau, sans rien afficher d'anormal.
     if (input.title !== undefined) {
@@ -223,13 +241,19 @@ export class ExerciseService {
       data.instructions = toInstructionsInput(input.instructions);
     if (input.blocks !== undefined) data.blocks = toBlocksInput(input.blocks);
 
-    const exercise = await this.db.exercise.update({
-      where: { id },
-      data,
-      include: EXERCISE_DETAIL_INCLUDE,
+    await this.db.$transaction(async (tx) => {
+      const { count } = await tx.exercise.updateMany({
+        where: { id, updatedAt: expected },
+        data,
+      });
+      await assertWrittenAtVersion(
+        count,
+        async () => (await tx.exercise.count({ where: { id } })) > 0,
+        EXERCISE_NOT_FOUND,
+      );
+      if (input.tags !== undefined) await this.replaceTags(tx, id, input.tags);
     });
-    if (input.tags === undefined) return this.toDto(exercise);
-    return this.toDto(await this.replaceTags(id, input.tags));
+    return this.get(id);
   }
 
   async delete(id: string): Promise<void> {

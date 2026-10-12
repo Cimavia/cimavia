@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
+import { versionOf } from "../support/version";
 
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
@@ -180,6 +181,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
   it("la copie est FIGÉE : retravailler l'exercice source ne la touche pas", async () => {
     const patched = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${exerciseAId}`),
       instructions: [{ type: "PARAGRAPH", content: [{ text: "Réécrit après diffusion." }] }],
       blocks: [],
     });
@@ -306,6 +308,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const imageId = await uploadInstructionImage(coachA, exerciseAId);
 
     const withImage = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${exerciseAId}`),
       instructions: [
         { type: "PARAGRAPH", content: [{ text: "Position basse." }] },
         { type: "IMAGE", mediaId: imageId },

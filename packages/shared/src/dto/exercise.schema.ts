@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { expectedVersionSchema } from "./expected-version.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 
 export const EXERCISE_TITLE_MAX_LENGTH = 200;
@@ -84,6 +85,7 @@ export const updateExerciseSchema = z
     instructions: richDocumentSchema.nullable().optional(),
     blocks: exerciseBlocksSchema.optional(),
     tags: exerciseTagsSchema.optional(),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdateExerciseInput = z.infer<typeof updateExerciseSchema>;

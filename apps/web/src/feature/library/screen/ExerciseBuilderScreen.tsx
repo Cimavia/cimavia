@@ -17,6 +17,7 @@ import {
   useDeleteExercise,
   useExercise,
   useExerciseTags,
+  useReloadExercise,
 } from "@/feature/library/hook/useExercises";
 import {
   CmvAppShell,
@@ -25,6 +26,7 @@ import {
   CmvErrorState,
   CmvFormError,
   CmvLeaveDialog,
+  CmvStaleBanner,
   CmvTagInput,
   CmvTextField,
   useToast,
@@ -32,6 +34,7 @@ import {
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
+import { isStaleWriteError } from "@/shared/lib/api";
 
 /**
  * Chargé à la demande : TipTap et ProseMirror pèsent ~120 kB gzip, pour un éditeur que seul le
@@ -71,9 +74,25 @@ export function ExerciseBuilderScreen({
 }: Readonly<ExerciseBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: exercise, isPending, isError, refetch } = useExercise(exerciseId);
 
-  if (exerciseId != null && isPending) {
+  /**
+   * Le dernier « Recharger » (#604) : l'exercice relu, et un compteur qui remonte le constructeur —
+   * la saisie naît de l'exercice au montage, la remplacer par la dernière version, c'est repartir
+   * de zéro. L'exercice relu est celui qu'un enregistrement interrompu a CRÉÉ quand l'écran s'est
+   * ouvert en création : l'écran passe alors en édition, comme il l'aurait dû.
+   */
+  const [reloaded, setReloaded] = useState<{ id: string; generation: number } | null>(null);
+  const reload = useReloadExercise();
+  const loadedId = exerciseId ?? reloaded?.id;
+  const { data: exercise, isPending, isError, refetch } = useExercise(loadedId);
+
+  function onReload(id: string) {
+    reload.mutate(id, {
+      onSuccess: () => setReloaded((last) => ({ id, generation: (last?.generation ?? 0) + 1 })),
+    });
+  }
+
+  if (loadedId != null && isPending) {
     return (
       <CmvAppShell title={t("library.builder.loadingTitle")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
@@ -81,7 +100,10 @@ export function ExerciseBuilderScreen({
     );
   }
 
-  if (exerciseId != null && isError) {
+  // Sur la DONNÉE, pas sur l'état de la requête : une relecture ratée (« Recharger », retour
+  // d'onglet) passe la requête en erreur en gardant l'exercice en cache. Remplacer le constructeur
+  // par l'erreur perdrait la saisie que le bandeau promet de garder.
+  if (loadedId != null && isError && exercise === undefined) {
     return (
       <CmvAppShell title={t("library.builder.loadingTitle")}>
         <CmvErrorState
@@ -110,14 +132,17 @@ export function ExerciseBuilderScreen({
   }
 
   // `key` remonte l'identité de l'exercice au montage : l'état local du formulaire naît de lui, et
-  // React doit repartir de zéro si l'URL change d'exercice sans démonter l'écran.
+  // React doit repartir de zéro si l'URL change d'exercice sans démonter l'écran — ou si
+  // « Recharger » remplace la saisie.
   return (
     <ExerciseBuilder
-      key={exercise?.id ?? "new"}
+      key={`${exercise?.id ?? "new"}:${reloaded?.generation ?? 0}`}
       exercise={exercise ?? null}
       initialTitle={initialTitle}
       onLeave={() => leave(null)}
       onSaved={leave}
+      onReload={onReload}
+      isReloading={reload.isPending}
     />
   );
 }
@@ -128,6 +153,9 @@ type ExerciseBuilderProps = {
   /** Sortie sans enregistrement : Annuler, ou l'exercice supprimé. */
   onLeave: () => void;
   onSaved: (saved: ExerciseDto) => void;
+  /** Remplace la saisie par la dernière version de cet exercice, après un conflit (#604). */
+  onReload: (id: string) => void;
+  isReloading: boolean;
 };
 
 function ExerciseBuilder({
@@ -135,6 +163,8 @@ function ExerciseBuilder({
   initialTitle,
   onLeave,
   onSaved,
+  onReload,
+  isReloading,
 }: Readonly<ExerciseBuilderProps>) {
   const { t } = useTranslation();
   const { data: knownTags } = useExerciseTags();
@@ -170,7 +200,9 @@ function ExerciseBuilder({
     try {
       saved = await draft.submit();
     } catch (error) {
-      onFailure("library.builder.saveFailed", error);
+      // Un conflit d'édition se dit par le bandeau, à côté de la saisie : un toast disparaîtrait
+      // en emportant la seule explication.
+      if (!isStaleWriteError(error)) onFailure("library.builder.saveFailed", error);
       return;
     }
     toast.success(t("library.builder.saved"));
@@ -213,6 +245,15 @@ function ExerciseBuilder({
           que de le comprimer — une grille de dosage étroite devient illisible. */}
       {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
           doit montrer l'image dès qu'elle est posée — pas seulement après enregistrement. */}
+      {draft.isStale && edited != null ? (
+        <div className="mb-cmv-xl">
+          <CmvStaleBanner
+            message={t("library.builder.stale")}
+            onReload={() => onReload(edited.id)}
+            isReloading={isReloading}
+          />
+        </div>
+      ) : null}
       <RefusedFieldsContext value={refused.report}>
         <InstructionMediaProvider media={draft.media}>
           <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -273,7 +314,7 @@ function ExerciseBuilder({
                 onPendingLinks={draft.setPendingLinks}
               />
 
-              <CmvFormError error={draft.error} />
+              <CmvFormError error={draft.isStale ? null : draft.error} />
             </div>
 
             {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}

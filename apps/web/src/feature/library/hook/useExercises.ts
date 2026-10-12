@@ -26,6 +26,23 @@ export function useExercise(id: string | undefined) {
   });
 }
 
+/**
+ * « Recharger » après un conflit d'édition (#604) : relit l'exercice en passant outre le cache, et
+ * ne réussit qu'une fois la dernière version REÇUE — sur une relecture ratée, l'écran garde la
+ * saisie et le bandeau.
+ */
+export function useReloadExercise() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      queryClient.fetchQuery({
+        queryKey: exerciseKeys.detail(id),
+        queryFn: () => getExercise(id),
+        staleTime: 0,
+      }),
+  });
+}
+
 export function useExerciseTags() {
   return useQuery<string[]>({ queryKey: exerciseKeys.tags(), queryFn: listExerciseTags });
 }

@@ -1,4 +1,11 @@
-import { DocumentType, type ExerciseDto, type RichBlock, RichBlockType } from "@cmv/shared";
+import {
+  ApiError,
+  DocumentType,
+  type ExerciseDto,
+  type RichBlock,
+  RichBlockType,
+  STALE_WRITE,
+} from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { uploadToSignedUrl } from "@/shared/lib/upload";
@@ -271,5 +278,100 @@ describe("useExerciseDraft — la taille du ticket, redite au rattachement (#317
     const attachedSizes = fileAttachments().map(([, input]) => input.size);
     expect(ticketSizes).toEqual([pendingPdf.file.size, 1]);
     expect(attachedSizes).toEqual(ticketSizes);
+  });
+});
+
+describe("useExerciseDraft — la version citée (#604)", () => {
+  const READ = "2026-10-12T08:00:00.000Z";
+  const SAVED = "2026-10-12T08:05:00.000Z";
+  const OTHER_TAB = "2026-10-12T08:03:00.000Z";
+
+  beforeEach(() => {
+    // Sans pièce jointe : seul compte ici ce que chaque écriture cite.
+    api.attachDocument.mockReset();
+  });
+
+  const versionsCited = () =>
+    api.updateExercise.mock.calls.map(([, input]) => input.expectedUpdatedAt);
+
+  // La relecture du retour d'onglet range la version d'un AUTRE onglet : la citer ferait passer la
+  // saisie par-dessus sa sauvegarde, garde comprise.
+  it("cite la version ouverte, pas celle qu'une relecture a rangée depuis", async () => {
+    const { wrapper } = renderWithQueryClient();
+    const { result, rerender } = renderHook(({ loaded }) => useExerciseDraft(loaded), {
+      wrapper,
+      initialProps: { loaded: exercise({ updatedAt: READ }) },
+    });
+
+    rerender({ loaded: exercise({ updatedAt: OTHER_TAB }) });
+    await act(() => result.current.submit());
+
+    expect(versionsCited()).toEqual([READ]);
+  });
+
+  // Notre propre écriture n'est pas un conflit : l'enregistrement suivant cite ce qu'elle a rendu.
+  it("cite, au second enregistrement, la version que le premier a rendue", async () => {
+    api.updateExercise.mockResolvedValue(exercise({ updatedAt: SAVED }));
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(exercise({ updatedAt: READ })), {
+      wrapper,
+    });
+
+    await act(() => result.current.submit());
+    await act(() => result.current.submit());
+
+    expect(versionsCited()).toEqual([READ, SAVED]);
+  });
+
+  it("cite, au réessai d'une création interrompue, la version de l'exercice créé", async () => {
+    api.createExercise.mockResolvedValue(exercise({ updatedAt: SAVED }));
+    linkFailsOnce();
+    const { result } = setup(null);
+
+    await submitFails(result);
+    await act(() => result.current.submit());
+
+    expect(versionsCited()).toEqual([SAVED]);
+  });
+
+  // Les images se rattachent ENTRE les deux écritures sans faire avancer la version : la seconde
+  // cite celle que la première a rendue.
+  it("cite, pour la consigne réécrite, la version que le premier temps a rendue", async () => {
+    api.updateExercise
+      .mockResolvedValueOnce(exercise({ updatedAt: SAVED }))
+      .mockResolvedValue(exercise({ updatedAt: OTHER_TAB }));
+    api.attachDocument.mockResolvedValue({ id: "doc-img" });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(exercise({ updatedAt: READ })), {
+      wrapper,
+    });
+    let mediaId = "";
+    act(() => {
+      mediaId = result.current.media.register(png("prise.png"), "image/png");
+    });
+    act(() => result.current.setInstructions([image(mediaId)]));
+
+    await act(() => result.current.submit());
+
+    expect(versionsCited()).toEqual([READ, SAVED]);
+  });
+
+  it("se dit périmé sur le 409 du conflit d'édition, et seulement sur lui", async () => {
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(exercise({ updatedAt: READ })), {
+      wrapper,
+    });
+
+    api.updateExercise.mockRejectedValueOnce(new ApiError(409, "Exercice utilisé", null));
+    await act(async () => {
+      await expect(result.current.submit()).rejects.toThrow();
+    });
+    expect(result.current.isStale).toBe(false);
+
+    api.updateExercise.mockRejectedValueOnce(new ApiError(409, STALE_WRITE, null));
+    await act(async () => {
+      await expect(result.current.submit()).rejects.toThrow();
+    });
+    expect(result.current.isStale).toBe(true);
   });
 });

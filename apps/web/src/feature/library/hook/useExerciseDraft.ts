@@ -8,7 +8,12 @@ import {
 import { useState } from "react";
 import { useExercise } from "@/feature/library/hook/useExercises";
 import { useInstructionMedia } from "@/feature/library/hook/useInstructionMedia";
-import { type PendingFile, useSaveExercise } from "@/feature/library/hook/useSaveExercise";
+import {
+  type ExerciseVersion,
+  type PendingFile,
+  useSaveExercise,
+} from "@/feature/library/hook/useSaveExercise";
+import { isStaleWriteError } from "@/shared/lib/api";
 
 /**
  * Tout l'état du constructeur, et le seul geste qui l'écrit. Extrait de l'écran pour que celui-ci
@@ -33,6 +38,15 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
   const [created, setCreated] = useState<ExerciseDto | null>(null);
   const { data: refreshed } = useExercise(exercise == null ? created?.id : undefined);
   const current = exercise ?? refreshed ?? created;
+
+  /**
+   * Ce que le prochain enregistrement réécrit, à la version qu'il citera (#604). Figée à
+   * l'ouverture — c'est là que la saisie commence —, elle n'avance qu'avec NOS écritures : chaque
+   * temps réussi rend la version que le suivant, ou un réessai, doit citer. Jamais avec le cache :
+   * au retour d'onglet, la relecture y range la version d'un autre onglet, et la citer ferait
+   * passer la saisie par-dessus sans un mot.
+   */
+  const [edited, setEdited] = useState<ExerciseVersion | null>(exercise);
 
   // L'exercice chargé l'emporte : `initialTitle` ne sert qu'à la création.
   const [title, setTitle] = useState(exercise?.title ?? initialTitle ?? "");
@@ -65,7 +79,7 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
   /** L'exercice tel qu'enregistré : l'écran qui l'a ouvert depuis une séance l'y fait ajouter. */
   async function submit(): Promise<ExerciseDto> {
     const result = await save({
-      exercise: current,
+      exercise: edited,
       input,
       pendingFiles,
       pendingLinks,
@@ -74,6 +88,7 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
       onImageProgress: media.setProgress,
       onExerciseSaved: (saved) => {
         if (exercise == null) setCreated(saved);
+        setEdited(saved);
       },
       onFileAttached: (pendingId) =>
         setPendingFiles((files) => files.filter((file) => file.id !== pendingId)),
@@ -83,6 +98,7 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
     // Seulement une fois TOUT passé : un envoi interrompu laisse l'écran modifié, et le coach
     // averti s'il part sans réessayer.
     setSaved(input);
+    setEdited(result);
     return result;
   }
 
@@ -108,6 +124,8 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
     isDirty,
     isSaving,
     error,
+    /** L'exercice a changé pendant la saisie (#604) : l'écran le dit, et propose de recharger. */
+    isStale: isStaleWriteError(error),
     progress,
   };
 }

@@ -1,4 +1,4 @@
-import { Role } from "@cmv/shared";
+import { Role, STALE_WRITE } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, required, signUp } from "../support/actors";
 import {
@@ -7,6 +7,7 @@ import {
   putExerciseFile,
   uploadInstructionImage,
 } from "../support/fixtures";
+import { versionOf } from "../support/version";
 
 describe("Isolation bibliothèque d'exercices (P2)", () => {
   let coachA: Agent;
@@ -92,7 +93,10 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     // Et le scope tenant s'applique toujours : la recherche ne le fait pas sauter.
     expect(await idsFound(coachB, "echauffement")).toHaveLength(0);
 
-    const renamed = await coachA.patch(`/exercises/${id}`).send({ title: "Gainage postural" });
+    const renamed = await coachA.patch(`/exercises/${id}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${id}`),
+      title: "Gainage postural",
+    });
     expect(renamed.status).toBe(200);
     expect(renamed.body.title).toBe("Gainage postural");
 
@@ -112,17 +116,23 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       .send({ title: "Poutre à doigts", tags: ["doigts", "force"] });
     const id: string = created.body.id;
 
-    const retagged = await coachA
-      .patch(`/exercises/${id}`)
-      .send({ description: "Réglette 15 mm", tags: ["Poutre"] });
+    const retagged = await coachA.patch(`/exercises/${id}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${id}`),
+      description: "Réglette 15 mm",
+      tags: ["Poutre"],
+    });
     expect(retagged.status).toBe(200);
     expect(retagged.body).toMatchObject({ description: "Réglette 15 mm", tags: ["poutre"] });
 
     // Sans `tags`, la liste reste celle d'avant — un renommage ne doit pas détagguer l'exercice.
-    const renamed = await coachA.patch(`/exercises/${id}`).send({ description: null });
+    const renamed = await coachA
+      .patch(`/exercises/${id}`)
+      .send({ expectedUpdatedAt: await versionOf(coachA, `/exercises/${id}`), description: null });
     expect(renamed.body).toMatchObject({ description: null, tags: ["poutre"] });
 
-    const cleared = await coachA.patch(`/exercises/${id}`).send({ tags: [] });
+    const cleared = await coachA
+      .patch(`/exercises/${id}`)
+      .send({ expectedUpdatedAt: await versionOf(coachA, `/exercises/${id}`), tags: [] });
     expect(cleared.status).toBe(200);
     expect(cleared.body.tags).toEqual([]);
     // Le tag ne vit plus nulle part : ni dans la liste du coach, ni dans le filtre.
@@ -224,7 +234,10 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
   });
 
   it("un coach ne peut PAS modifier ni supprimer l'exercice d'un autre coach", async () => {
-    const patch = await coachB.patch(`/exercises/${exerciseAId}`).send({ title: "intrusion" });
+    const patch = await coachB.patch(`/exercises/${exerciseAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${exerciseAId}`),
+      title: "intrusion",
+    });
     expect(patch.status).toBe(404);
     const del = await coachB.delete(`/exercises/${exerciseAId}`);
     expect(del.status).toBe(404);
@@ -457,6 +470,7 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
       .send({ type: "LINK", url: "https://exemple.test/demo" });
     attachmentId = attachment.body.id;
     const withImage = await coachA.patch(`/exercises/${sourceId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${sourceId}`),
       instructions: [paragraph, { type: "IMAGE", mediaId: imageId, width: "SMALL" }],
     });
     expect(withImage.status).toBe(200);
@@ -513,9 +527,10 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
   it("supprimer la source garde l'image que la variante affiche", async () => {
     const source = await coachA.post("/exercises").send({ title: "Dips" });
     const image = await uploadInstructionImage(coachA, source.body.id);
-    await coachA
-      .patch(`/exercises/${source.body.id}`)
-      .send({ instructions: [{ type: "IMAGE", mediaId: image }] });
+    await coachA.patch(`/exercises/${source.body.id}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${source.body.id}`),
+      instructions: [{ type: "IMAGE", mediaId: image }],
+    });
     const variant = await coachA
       .post(`/exercises/${source.body.id}/duplicate`)
       .send({ title: "Dips (variante)" });
@@ -559,6 +574,7 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
     const cited = await citedOf(target.body.id);
 
     const res = await coachA.patch(`/exercises/${target.body.id}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${target.body.id}`),
       title: "Cible renommée",
       instructions: [paragraph, { type: "IMAGE", mediaId: cited }],
     });
@@ -571,9 +587,10 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
 
   it("refuse l'image d'un autre coach (400)", async () => {
     const own = await coachB.post("/exercises").send({ title: "Chez B" });
-    const res = await coachB
-      .patch(`/exercises/${own.body.id}`)
-      .send({ instructions: [{ type: "IMAGE", mediaId: imageId }] });
+    const res = await coachB.patch(`/exercises/${own.body.id}`).send({
+      expectedUpdatedAt: await versionOf(coachB, `/exercises/${own.body.id}`),
+      instructions: [{ type: "IMAGE", mediaId: imageId }],
+    });
     expect(res.status).toBe(400);
   });
 
@@ -665,5 +682,114 @@ describe("Métriques maison du coach (#162)", () => {
       valueType: "NUMBER",
       scale: null,
     });
+  });
+});
+
+/**
+ * Un exercice refuse une écriture fondée sur une version périmée (#604) : deux onglets — bientôt
+ * deux Coachs d'une même entreprise — ouverts sur le même exercice s'écrasaient sans un message.
+ */
+describe("Exercice — version lue (#604)", () => {
+  let coach: Agent;
+  let exerciseId: string;
+
+  const path = () => `/exercises/${exerciseId}`;
+  const patch = (body: Record<string, unknown>, expectedUpdatedAt: string) =>
+    coach.patch(path()).send({ ...body, expectedUpdatedAt });
+  const current = async () => (await coach.get(path())).body;
+
+  beforeAll(async () => {
+    coach = await signUp("exercise-version-coach@cmv.test", Role.COACH);
+    const created = await coach.post("/exercises").send({ title: "Suspensions", tags: ["force"] });
+    exerciseId = created.body.id;
+  });
+
+  it("écrit quand la version lue est la dernière, et la fait avancer", async () => {
+    const before = await current();
+    const write = await patch({ title: "Suspensions 7/3" }, before.updatedAt);
+
+    expect(write.status).toBe(200);
+    expect(write.body.title).toBe("Suspensions 7/3");
+    expect(write.body.updatedAt).not.toBe(before.updatedAt);
+  });
+
+  // Les tags font partie de l'exercice : les réécrire seuls doit aussi changer la version.
+  it("fait avancer la version sur une écriture de tags seuls", async () => {
+    const before = await current();
+    const write = await patch({ tags: ["force", "doigts"] }, before.updatedAt);
+
+    expect(write.status).toBe(200);
+    expect(write.body.updatedAt).not.toBe(before.updatedAt);
+  });
+
+  it("refuse une écriture fondée sur une version périmée, et la base garde la première", async () => {
+    const read = await current();
+    expect((await patch({ title: "Écrit dans l'onglet 1" }, read.updatedAt)).status).toBe(200);
+    const kept = await current();
+
+    const stale = await patch({ title: "Écrit dans l'onglet 2", tags: [] }, read.updatedAt);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    // Rien de l'écriture refusée ne passe — ni le titre, ni les tags qu'elle aurait vidés.
+    expect(await current()).toEqual(kept);
+  });
+
+  /**
+   * L'onglet 1 retire l'image de la consigne puis le document ; l'onglet 2, resté sur l'ancienne
+   * version, la cite encore. C'est un conflit d'édition, pas une saisie invalide : 409, pour que
+   * le builder propose de recharger plutôt qu'un « enregistrement impossible ».
+   */
+  it("répond 409, pas 400, à une version périmée qui cite une image retirée depuis", async () => {
+    const image = await uploadInstructionImage(coach, exerciseId);
+    const withImage = await patch(
+      { instructions: [{ type: "IMAGE", mediaId: image }] },
+      (await current()).updatedAt,
+    );
+    expect(withImage.status).toBe(200);
+
+    expect((await patch({ instructions: null }, withImage.body.updatedAt)).status).toBe(200);
+    expect((await coach.delete(`${path()}/documents/${image}`)).status).toBe(204);
+
+    const stale = await patch(
+      { instructions: [{ type: "IMAGE", mediaId: image }] },
+      withImage.body.updatedAt,
+    );
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+  });
+
+  // La comparaison et l'écriture tiennent en une requête : lancées ensemble, une seule passe.
+  it("ne laisse passer qu'une écriture sur deux lancées ensemble", async () => {
+    const read = await current();
+    const [first, second] = await Promise.all([
+      patch({ title: "Course A" }, read.updatedAt),
+      patch({ title: "Course B" }, read.updatedAt),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    const winner = first.status === 200 ? "Course A" : "Course B";
+    expect((await current()).title).toBe(winner);
+  });
+
+  it("refuse une écriture qui ne dit pas quelle version elle a lue", async () => {
+    const before = await current();
+    const write = await coach.patch(path()).send({ title: "Sans version" });
+
+    expect(write.status).toBe(400);
+    expect(await current()).toEqual(before);
+  });
+
+  // « Recharger » n'y trouverait rien : un exercice supprimé se dit 404, pas 409.
+  it("répond 404 sur un exercice supprimé, même muni de sa dernière version", async () => {
+    const doomed = await coach.post("/exercises").send({ title: "À supprimer" });
+    expect((await coach.delete(`/exercises/${doomed.body.id}`)).status).toBe(204);
+
+    const write = await coach
+      .patch(`/exercises/${doomed.body.id}`)
+      .send({ title: "Trop tard", expectedUpdatedAt: doomed.body.updatedAt });
+
+    expect(write.status).toBe(404);
   });
 });

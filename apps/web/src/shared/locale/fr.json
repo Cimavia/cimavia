@@ -416,6 +416,7 @@
       },
       "saved": "Exercice enregistré.",
       "saveFailed": "L'enregistrement a échoué.",
+      "stale": "Cet exercice a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "imageWidth": {
         "SMALL": "Petite",
         "MEDIUM": "Moyenne",
