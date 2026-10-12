@@ -1,6 +1,7 @@
 import type { CreateCustomMetricInput, CustomMetric, UpdateCustomMetricInput } from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { isUniqueViolation } from "../../infra/prisma/prisma-error";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toCustomMetricDto } from "../custom-metric.mapper";
@@ -82,18 +83,13 @@ export class CustomMetricService {
     try {
       return toCustomMetricDto(await operation());
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === UNIQUE_VIOLATION
-      ) {
+      if (isUniqueViolation(error)) {
         throw new ConflictException("Une métrique porte déjà ce nom");
       }
       throw error;
     }
   }
 }
-
-const UNIQUE_VIOLATION = "P2002";
 
 /**
  * `Prisma.DbNull` et non `null` : sur une colonne JSON nullable, le NULL SQL et le littéral JSON
