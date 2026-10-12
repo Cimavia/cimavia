@@ -2,10 +2,13 @@ import { type CapabilityName, required } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import {
   type CapabilityScope,
+  childOf,
   column,
-  creationDataOrThrow,
   type OperationClass,
   operationKindOf,
+  ownerColumnOrThrow,
+  type ParentLink,
+  parentIdsOrThrow,
   scopeFor,
   TENANT_SCOPES,
   type TenantScope,
@@ -36,8 +39,9 @@ describe("column", () => {
     }
   });
 
-  it("remplit cette colonne à la création", () => {
-    expect(creationDataOrThrow(column("coachId"), "Exercise", ACTOR)).toEqual({ coachId: ACTOR });
+  it("remplit cette colonne à la création, avec l'acteur", () => {
+    expect(ownerColumnOrThrow(column("coachId"), "Exercise")).toBe("coachId");
+    expect(column("coachId").parent).toBeNull();
   });
 });
 
@@ -46,6 +50,7 @@ describe("throughRoot", () => {
   const root: CapabilityScope = {
     where: (actorId, operation) => ({ coachId: actorId, level: operation }),
     owner: "coachId",
+    parent: null,
   };
 
   it.each(CLASSES)("filtre l'enfant par sa racine, pour la même classe (%s)", (operation) => {
@@ -54,11 +59,85 @@ describe("throughRoot", () => {
     });
   });
 
-  // Un filtre de relation ne s'écrit pas dans la ligne : l'enfant reprend le propriétaire du parent.
-  it("refuse la création par injection de l'acteur", () => {
-    expect(() =>
-      creationDataOrThrow(throughRoot("exercise", root), "ExerciseDocument", ACTOR),
-    ).toThrow("[tenancy] ExerciseDocument ne se crée pas en y injectant l'acteur");
+  // Un filtre de relation ne s'écrit pas dans la ligne : il ne dit pas quelle colonne remplir.
+  it("ne crée rien sous ce scope", () => {
+    expect(() => ownerColumnOrThrow(throughRoot("exercise", root), "ExerciseDocument")).toThrow(
+      "[tenancy] ExerciseDocument ne se crée pas sous ce scope",
+    );
+  });
+});
+
+describe("childOf", () => {
+  const exercise: ParentLink = { model: "Exercise", key: "exerciseId" };
+
+  it("filtre comme son scope, et désigne le parent dont il reprend le propriétaire", () => {
+    const scope = childOf(column("coachId"), exercise);
+    expect(scope.where(ACTOR, "write")).toEqual({ coachId: ACTOR });
+    expect(scope.owner).toBe("coachId");
+    expect(scope.parent).toEqual(exercise);
+  });
+
+  /**
+   * Les enfants que le Coach crée suivent leur racine (#593) ; le débrief et ses médias, que crée
+   * l'athlète, n'en ont pas : leur colonne est celle de l'acteur.
+   */
+  it.each([
+    ["ExerciseDocument", "Exercise", "exerciseId"],
+    ["ExerciseTag", "Exercise", "exerciseId"],
+    ["SessionExercise", "Session", "sessionId"],
+    ["PlanWeek", "Plan", "planId"],
+    ["ScheduledSession", "Plan", "planId"],
+    ["ScheduledSessionExercise", "ScheduledSession", "scheduledSessionId"],
+    ["ScheduledSessionExerciseDocument", "ScheduledSessionExercise", "scheduledSessionExerciseId"],
+    ["ScheduledSessionExerciseTag", "ScheduledSessionExercise", "scheduledSessionExerciseId"],
+  ])("%s se crée sous son %s", (model, parent, key) => {
+    expect(scopeOf(model).coach?.parent).toEqual({ model: parent, key });
+  });
+
+  it("la facture suit sa planification, si elle en a une", () => {
+    expect(scopeOf("Invoice").coach?.parent).toEqual({
+      model: "Plan",
+      key: "planId",
+      optional: true,
+    });
+  });
+
+  it.each([
+    "Exercise",
+    "Session",
+    "Plan",
+    "SessionFeedback",
+    "FeedbackMedia",
+  ])("%s se crée avec l'acteur", (model) => {
+    expect(scopeOf(model).coach?.parent).toBeNull();
+  });
+});
+
+describe("parentIdsOrThrow", () => {
+  const exercise: ParentLink = { model: "Exercise", key: "exerciseId" };
+  const plan: ParentLink = { model: "Plan", key: "planId", optional: true };
+
+  it("rend les parents désignés, sans doublon", () => {
+    const rows = [{ exerciseId: "e1" }, { exerciseId: "e2" }, { exerciseId: "e1" }];
+    expect(parentIdsOrThrow(rows, exercise, "ExerciseTag")).toEqual(["e1", "e2"]);
+  });
+
+  // Une relation écrite `connect`, ou rien du tout : la lecture du parent passerait à côté.
+  it.each([
+    [{ exercise: { connect: { id: "e1" } } }],
+    [{ exerciseId: null }],
+  ])("refuse une ligne qui ne porte pas la clé de son parent (%o)", (row) => {
+    expect(() => parentIdsOrThrow([row], exercise, "ExerciseTag")).toThrow(
+      "[tenancy] ExerciseTag se crée avec son exerciseId : son propriétaire est celui de son Exercise",
+    );
+  });
+
+  // `null` dit « sans parent » ; une clé absente ne dit rien, et reste refusée.
+  it("admet un parent optionnel à null, pas absent", () => {
+    expect(parentIdsOrThrow([{ planId: null }, { planId: "p1" }], plan, "Invoice")).toEqual(["p1"]);
+    expect(() => parentIdsOrThrow([{}], plan, "Invoice")).toThrow(
+      "[tenancy] Invoice se crée avec son planId : son propriétaire est celui de son Plan",
+    );
   });
 });
 

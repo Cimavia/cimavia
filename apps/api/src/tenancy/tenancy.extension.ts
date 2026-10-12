@@ -1,17 +1,42 @@
+import { type CapabilityName, required } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
 import {
   type CapabilityScope,
-  creationDataOrThrow,
   type OperationKind,
   operationKindOf,
+  ownerColumnOrThrow,
+  type ParentLink,
+  parentIdsOrThrow,
   scopeFor,
   TENANT_SCOPES,
   type TenantFilter,
 } from "./tenant-scope";
 
-type ResolvedScope = { scope: CapabilityScope; kind: OperationKind; actorId: string };
+type ResolvedScope = {
+  scope: CapabilityScope;
+  kind: OperationKind;
+  actorId: string;
+  exercised: CapabilityName | null;
+};
+
+type Row = Record<string, unknown>;
+
+/**
+ * La transaction en cours, que Prisma passe à l'extension par un paramètre INTERNE, absent de ses
+ * types (`__internalParams`) — seul moyen de lire le parent dans la transaction qui vient de le
+ * créer (dette MC-3). Une montée de Prisma qui le retirerait ferait lire hors transaction : le parent
+ * encore non validé y est invisible, la création est refusée, et les e2e tombent.
+ */
+type PrismaTransaction = { kind: string };
+type InternalParams = { __internalParams?: { transaction?: PrismaTransaction } };
+
+/** Une lecture du client de base, rattachée à la transaction en cours par `requestTransaction`. */
+type ParentRead = PromiseLike<Row[]> & {
+  requestTransaction(transaction: PrismaTransaction): PromiseLike<Row[]>;
+};
+type ParentDelegate = { findMany(args: unknown): ParentRead };
 
 /**
  * Le scope applicable à cette requête et la classe de son opération, ou une erreur explicite.
@@ -44,7 +69,7 @@ function resolveScopeOrThrow(
   if (!kind) {
     throw new Error(`[tenancy] opération non gérée : ${operation} sur ${model}`);
   }
-  return { scope, kind, actorId: actor.userId };
+  return { scope, kind, actorId: actor.userId, exercised: actor.exercised };
 }
 
 /**
@@ -61,33 +86,111 @@ function scopeWhere(args: unknown, filter: TenantFilter): void {
   a.where = { ...a.where, ...filter };
 }
 
-// Création : le tenant est INJECTÉ dans les données — l'appelant ne le fournit jamais. `createMany`
-// reçoit un tableau, `create` un objet ; les e2e couvrent les deux formes.
-function scopeData(args: unknown, owner: TenantFilter): void {
-  const a = args as { data?: Record<string, unknown> | Record<string, unknown>[] };
+// Création : le tenant est INJECTÉ dans les données — l'appelant ne le fournit jamais, et ce qu'il
+// glisserait est écrasé. `createMany` reçoit un tableau, `create` un objet ; les e2e couvrent les
+// deux formes.
+function scopeData(args: unknown, ownerOf: (row: Row) => TenantFilter): void {
+  const a = args as { data: Row | Row[] };
   a.data = Array.isArray(a.data)
-    ? a.data.map((item) => ({ ...item, ...owner }))
-    : { ...a.data, ...owner };
+    ? a.data.map((row) => ({ ...row, ...ownerOf(row) }))
+    : { ...a.data, ...ownerOf(a.data) };
+}
+
+/**
+ * Le propriétaire de chaque parent, lu avec le filtre d'ÉCRITURE de la capacité exercée (#603) :
+ * un parent introuvable, ou que l'acteur ne fait que lire (#605), fait refuser TOUTE la création.
+ *
+ * Par le client de base, avec le filtre posé à la main : le client tenant ne s'atteint pas d'ici.
+ * Dans la transaction en cours quand il y en a une — sinon le parent qu'elle vient de créer serait
+ * invisible. Une transaction en tableau n'y est pas admise : y glisser une lecture décalerait ses
+ * résultats, et aucun service ne crée d'enfant de cette façon.
+ */
+async function parentOwnersOrThrow(
+  prisma: PrismaClient,
+  parent: ParentLink,
+  child: { model: string; ids: string[] },
+  actor: { actorId: string; exercised: CapabilityName | null },
+  transaction: PrismaTransaction | undefined,
+): Promise<Map<unknown, unknown>> {
+  if (transaction != null && transaction.kind !== "itx") {
+    throw new Error(`[tenancy] ${child.model} ne se crée pas dans une transaction en tableau`);
+  }
+  const registered = TENANT_SCOPES[parent.model];
+  const parentScope = required(
+    registered && scopeFor(registered, actor.exercised),
+    // Stryker disable next-line StringLiteral: invariant du registre, qu'aucune requête n'atteint
+    `[tenancy] ${parent.model}, parent de ${child.model}, n'a pas de scope pour cette capacité`,
+  );
+  const column = ownerColumnOrThrow(parentScope, parent.model);
+  const delegateName = parent.model.charAt(0).toLowerCase() + parent.model.slice(1);
+  const delegate = required(
+    (prisma as unknown as Record<string, ParentDelegate | undefined>)[delegateName],
+    // Stryker disable next-line StringLiteral: invariant du registre, qu'aucune requête n'atteint
+    `[tenancy] ${parent.model}, parent de ${child.model}, n'est pas un modèle Prisma`,
+  );
+
+  const read = delegate.findMany({
+    where: { id: { in: child.ids }, ...parentScope.where(actor.actorId, "write") },
+    select: { id: true, [column]: true },
+  });
+  const parents = await (transaction == null ? read : read.requestTransaction(transaction));
+  if (parents.length !== child.ids.length) {
+    throw new Error(
+      `[tenancy] ${child.model} : son ${parent.model} est introuvable, ou fermé en écriture`,
+    );
+  }
+  return new Map(parents.map((row) => [row.id, row[column]]));
+}
+
+/**
+ * Création : l'acteur dans la colonne du scope, ou — pour un enfant partageable — le propriétaire
+ * de son parent (piège n°7). Une ligne sans parent optionnel (facture hors planification) prend
+ * l'acteur.
+ */
+async function scopeCreation(
+  prisma: PrismaClient,
+  args: unknown,
+  model: string,
+  resolved: ResolvedScope,
+  transaction: PrismaTransaction | undefined,
+): Promise<void> {
+  const { scope, actorId } = resolved;
+  const column = ownerColumnOrThrow(scope, model);
+  const parent = scope.parent;
+  if (parent == null) {
+    scopeData(args, () => ({ [column]: actorId }));
+    return;
+  }
+
+  const data = (args as { data: Row | Row[] }).data;
+  const ids = parentIdsOrThrow(Array.isArray(data) ? data : [data], parent, model);
+  const owners = await parentOwnersOrThrow(prisma, parent, { model, ids }, resolved, transaction);
+  scopeData(args, (row) => {
+    const parentId = row[parent.key];
+    return { [column]: parentId == null ? actorId : owners.get(parentId) };
+  });
 }
 
 /**
  * Prisma Client Extension appliquant le scope tenant à TOUTE requête métier.
  * L'acteur courant est lu dans le CLS (peuplé par TenancyInterceptor). Aucune query ne
  * s'exécute hors scope : toute opération ciblée filtrée par le `where` de sa classe (#603),
- * création avec le champ tenant injecté.
+ * création avec le champ tenant injecté — celui de l'acteur, ou celui du parent.
  */
 export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
   return prisma.$extends({
     query: {
       $allModels: {
-        async $allOperations({ model, operation, args, query }) {
+        async $allOperations(params) {
+          const { model, operation, args, query } = params;
           const actor = cls.get<TenantContext | undefined>(TENANT_CLS_KEY);
-          const { scope, kind, actorId } = resolveScopeOrThrow(model, operation, actor);
+          const resolved = resolveScopeOrThrow(model, operation, actor);
 
-          if (kind.creates) {
-            scopeData(args, creationDataOrThrow(scope, model, actorId));
+          if (resolved.kind.creates) {
+            const { transaction } = (params as InternalParams).__internalParams ?? {};
+            await scopeCreation(prisma, args, model, resolved, transaction);
           } else {
-            scopeWhere(args, scope.where(actorId, kind.operationClass));
+            scopeWhere(args, resolved.scope.where(resolved.actorId, resolved.kind.operationClass));
           }
           return query(args);
         },

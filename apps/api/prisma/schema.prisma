@@ -528,10 +528,10 @@ model Plan {
 model PlanWeek {
   id         String       @id @default(cuid())
   // coachId/athleteId recopiés du Plan parent : l'extension tenant filtre par un champ du
-  // modèle INTERROGÉ (`where: { coachId }`), elle ne sait pas remonter la relation
-  // (`where: { plan: { coachId } }`). Sans ces colonnes, la semaine serait non scopable.
-  // L'extension n'injecte que le champ de l'ACTEUR (ici coachId) : `athleteId` est recopié
-  // par le service, et suit le plan quand celui-ci change de destinataire (#144).
+  // modèle INTERROGÉ (`where: { coachId }`) ; le filtre à travers la relation
+  // (`where: { plan: { coachId } }`) n'est branché qu'avec les droits d'accès (#605).
+  // L'extension n'injecte que le propriétaire, coachId, lu sur le plan (#603) : `athleteId` est
+  // recopié par le service, et suit le plan quand celui-ci change de destinataire (#144).
   coachId    String
   athleteId  String?
   planId     String

@@ -459,7 +459,7 @@ export class PlanService {
   }
 
   // Insère des semaines consécutives à partir de `firstWeekNumber` (athleteId dénormalisé
-  // explicitement : l'extension n'injecte que le champ tenant de l'acteur, ici coachId).
+  // explicitement : l'extension n'injecte que le propriétaire, coachId, repris du plan — #603).
   private async createWeeks(
     tx: TenantTx | TenantPrisma,
     planId: string,

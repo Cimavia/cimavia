@@ -1,4 +1,5 @@
 import type { CapabilityName } from "@cmv/shared";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Ce qu'une opération exige de l'acteur sur la ligne qu'elle touche (#603) :
@@ -16,21 +17,38 @@ export type OperationClass = "read" | "write" | "admin";
 export type TenantFilter = Record<string, unknown>;
 
 /**
+ * Le parent d'un enfant partageable (#603) : son modèle, et la clé étrangère qui le désigne dans
+ * les données de création. `optional` : une clé à `null` dit « sans parent » — la facture hors
+ * planification, qui reste privée et prend l'acteur pour propriétaire.
+ */
+export type ParentLink = { model: Prisma.ModelName; key: string; optional?: true };
+
+/**
  * Le scope d'UNE capacité sur un modèle : le `where` qu'elle pose, selon la classe d'opération, et
- * la colonne que la création remplit avec l'acteur.
+ * la colonne que la création remplit — avec l'acteur, ou avec celle de son `parent` s'il en a un.
  *
- * Les deux se séparent dès que le filtre n'est plus une colonne : « propriétaire, ou droit
+ * Filtre et colonne se séparent dès que le filtre n'est plus une colonne : « propriétaire, ou droit
  * accordé » (#605) se lit, il ne s'écrit pas dans la ligne créée. `owner` à `null` dit qu'on ne
- * crée pas ce modèle en y injectant l'acteur — un enfant reprend le propriétaire de son parent.
+ * crée pas ce modèle sous ce scope.
  */
 export type CapabilityScope = {
   where: (actorId: string, operation: OperationClass) => TenantFilter;
   owner: string | null;
+  parent: ParentLink | null;
 };
 
 /** Une colonne comparée à l'acteur, la même pour les trois classes : la forme de tout modèle non partagé. */
 export function column(name: string): CapabilityScope {
-  return { where: (actorId) => ({ [name]: actorId }), owner: name };
+  return { where: (actorId) => ({ [name]: actorId }), owner: name, parent: null };
+}
+
+/**
+ * Un enfant d'élément partageable : filtré comme `scope`, mais créé avec le propriétaire de son
+ * PARENT, jamais avec l'acteur (piège n°7). Quand M écrira dans l'exercice de C (#605), le document
+ * qu'il ajoute restera dans le scope de C.
+ */
+export function childOf(scope: CapabilityScope, parent: ParentLink): CapabilityScope {
+  return { ...scope, parent };
 }
 
 /**
@@ -45,6 +63,7 @@ export function throughRoot(relation: string, root: CapabilityScope): Capability
   return {
     where: (actorId, operation) => ({ [relation]: root.where(actorId, operation) }),
     owner: null,
+    parent: null,
   };
 }
 
@@ -80,6 +99,13 @@ const coachOwner = column("coachId");
 const athleteOwner = column("athleteId");
 const issuingOrganization = column("organizationId");
 
+const ofExercise = childOf(coachOwner, { model: "Exercise", key: "exerciseId" });
+const ofPlan = childOf(coachOwner, { model: "Plan", key: "planId" });
+const ofScheduledExercise = childOf(coachOwner, {
+  model: "ScheduledSessionExercise",
+  key: "scheduledSessionExerciseId",
+});
+
 /**
  * Le MÊME scope pour les deux capacités : c'est ce qui ouvre le modèle à une route sans capacité
  * (`scopeFor`). L'identité le dit, pas la ressemblance — deux `column("userId")` écrits l'un à côté
@@ -104,24 +130,31 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   Invitation: { coach: coachOwner, company: issuingOrganization },
   AthleteSheet: { coach: coachOwner },
   Exercise: { coach: coachOwner, root: true },
-  ExerciseDocument: { coach: coachOwner },
-  ExerciseTag: { coach: coachOwner },
+  ExerciseDocument: { coach: ofExercise },
+  ExerciseTag: { coach: ofExercise },
   CustomMetric: { coach: coachOwner },
   Session: { coach: coachOwner, root: true },
-  SessionExercise: { coach: coachOwner },
+  SessionExercise: { coach: childOf(coachOwner, { model: "Session", key: "sessionId" }) },
   Plan: { coach: coachOwner, athlete: athleteOwner, root: true },
-  PlanWeek: { coach: coachOwner },
-  ScheduledSession: { coach: coachOwner, athlete: athleteOwner },
-  ScheduledSessionExercise: { coach: coachOwner, athlete: athleteOwner },
-  ScheduledSessionExerciseDocument: { coach: coachOwner },
-  ScheduledSessionExerciseTag: { coach: coachOwner },
+  PlanWeek: { coach: ofPlan },
+  ScheduledSession: { coach: ofPlan, athlete: athleteOwner },
+  ScheduledSessionExercise: {
+    coach: childOf(coachOwner, { model: "ScheduledSession", key: "scheduledSessionId" }),
+    athlete: athleteOwner,
+  },
+  ScheduledSessionExerciseDocument: { coach: ofScheduledExercise },
+  ScheduledSessionExerciseTag: { coach: ofScheduledExercise },
   SessionFeedback: { coach: coachOwner, athlete: athleteOwner },
   // Le coach lit les médias IMBRIQUÉS dans le débrief, jamais à plat : sa clé ne sert à aucune
   // route, mais un modèle d'entraînement en porte une par construction (`TenantScope`).
   FeedbackMedia: { coach: coachOwner, athlete: athleteOwner },
   Conversation: { coach: coachOwner, athlete: athleteOwner },
   Message: { coach: coachOwner, athlete: athleteOwner },
-  Invoice: { coach: coachOwner, athlete: athleteOwner },
+  // La facture suit sa planification ; sans elle, elle reste privée à qui l'émet (#593).
+  Invoice: {
+    coach: childOf(coachOwner, { model: "Plan", key: "planId", optional: true }),
+    athlete: athleteOwner,
+  },
   PushToken: sameForBoth(column("userId")),
   // Comme PushToken : le même champ pour les deux rôles, chacun ne lisant que ce qu'il a reçu.
   // L'ÉCRITURE vise le destinataire, donc un AUTRE tenant → hors de ce client (NotificationService).
@@ -222,16 +255,37 @@ export function operationKindOf(scope: TenantScope, operation: string): Operatio
 }
 
 /**
- * Ce que la création injecte : l'acteur dans la colonne du scope. Un scope sans colonne (`owner`
- * à `null`) ne crée rien de cette façon — mieux vaut refuser qu'écrire un filtre dans la ligne.
+ * La colonne que la création remplit. Un scope sans colonne (`owner` à `null`) ne crée rien — mieux
+ * vaut refuser qu'écrire un filtre dans la ligne.
  */
-export function creationDataOrThrow(
-  scope: CapabilityScope,
-  model: string,
-  actorId: string,
-): TenantFilter {
+export function ownerColumnOrThrow(scope: CapabilityScope, model: string): string {
   if (scope.owner == null) {
-    throw new Error(`[tenancy] ${model} ne se crée pas en y injectant l'acteur`);
+    throw new Error(`[tenancy] ${model} ne se crée pas sous ce scope`);
   }
-  return { [scope.owner]: actorId };
+  return scope.owner;
+}
+
+/**
+ * Les parents que désignent les lignes à créer, sans doublon. Une ligne doit porter la clé de son
+ * parent, en clair : sans elle, rien ne dirait à qui l'enfant appartient — et une relation écrite
+ * `connect` passerait à côté de la lecture du parent. Seul `null` sur un parent optionnel est
+ * admis : la ligne n'a pas de parent, et prendra l'acteur pour propriétaire.
+ */
+export function parentIdsOrThrow(
+  rows: TenantFilter[],
+  parent: ParentLink,
+  model: string,
+): string[] {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    const id = row[parent.key];
+    if (typeof id === "string") {
+      ids.add(id);
+    } else if (id !== null || parent.optional !== true) {
+      throw new Error(
+        `[tenancy] ${model} se crée avec son ${parent.key} : son propriétaire est celui de son ${parent.model}`,
+      );
+    }
+  }
+  return [...ids];
 }

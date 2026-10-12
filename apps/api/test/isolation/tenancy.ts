@@ -160,6 +160,7 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
   let coachAId: string;
   let coachBId: string;
   let exerciseAId: string;
+  let exerciseBId: string;
 
   /**
    * Exécute `fn` comme le ferait une requête après le TenancyInterceptor. Le `await` compte : une
@@ -191,6 +192,7 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
     coachAId = created.body.coachId;
     const decoy = await coachB.post("/exercises").send({ title: "Campus" });
     coachBId = decoy.body.coachId;
+    exerciseBId = decoy.body.id;
   });
 
   it("refuse une requête sans acteur courant", async () => {
@@ -313,6 +315,106 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
     );
 
     expect(created.map((row) => row.coachId)).toEqual([coachAId, coachAId]);
+  });
+
+  /**
+   * Un enfant prend le propriétaire de son PARENT, lu avec le filtre d'écriture (#603, piège n°7).
+   * Aucune route n'atteint le refus : chaque service vérifie le parent avant — d'où l'attaque
+   * directe, qui tient la dernière ligne de défense.
+   */
+  const tagsNamed = (name: string) =>
+    app.get(PrismaService).exerciseTag.findMany({ where: { name } });
+
+  // Le parent créé dans la MÊME transaction n'est visible que d'elle : la lecture doit y entrer.
+  it("lit le parent dans la transaction qui vient de le créer", async () => {
+    const tag = await as(coach(coachAId), () =>
+      db.$transaction(async (tx) => {
+        const exercise = await tx.exercise.create({
+          data: { title: "Dalle", titleSearch: "dalle" } as never,
+        });
+        return tx.exerciseTag.create({ data: { exerciseId: exercise.id, name: "tx" } as never });
+      }),
+    );
+
+    expect(tag.coachId).toBe(coachAId);
+  });
+
+  it("écrit le propriétaire du parent, même si la donnée en désigne un autre", async () => {
+    const tag = await as(coach(coachAId), () =>
+      db.exerciseTag.create({
+        data: { exerciseId: exerciseAId, name: "glissé", coachId: coachBId } as never,
+      }),
+    );
+
+    expect(tag.coachId).toBe(coachAId);
+  });
+
+  it("refuse un enfant sous le parent d'un autre coach, et n'écrit rien", async () => {
+    await expect(
+      as(coach(coachBId), () =>
+        db.exerciseTag.create({ data: { exerciseId: exerciseAId, name: "intrus" } as never }),
+      ),
+    ).rejects.toThrow("[tenancy] ExerciseTag : son Exercise est introuvable, ou fermé en écriture");
+
+    expect(await tagsNamed("intrus")).toEqual([]);
+  });
+
+  // Un seul parent étranger suffit : rien n'est écrit, pas même sous le parent légitime.
+  it("refuse en entier un createMany dont un parent est à un autre coach", async () => {
+    await expect(
+      as(coach(coachBId), () =>
+        db.exerciseTag.createMany({
+          data: [
+            { exerciseId: exerciseBId, name: "mêlé" },
+            { exerciseId: exerciseAId, name: "mêlé" },
+          ] as never,
+        }),
+      ),
+    ).rejects.toThrow("[tenancy] ExerciseTag : son Exercise est introuvable, ou fermé en écriture");
+
+    expect(await tagsNamed("mêlé")).toEqual([]);
+  });
+
+  it("refuse un enfant qui désigne son parent par une relation", async () => {
+    await expect(
+      as(coach(coachAId), () =>
+        db.exerciseTag.create({
+          data: { name: "connecté", exercise: { connect: { id: exerciseAId } } } as never,
+        }),
+      ),
+    ).rejects.toThrow(
+      "[tenancy] ExerciseTag se crée avec son exerciseId : son propriétaire est celui de son Exercise",
+    );
+  });
+
+  // Une lecture glissée dans un lot décalerait ses résultats : la forme est refusée.
+  it("refuse un enfant créé dans une transaction en tableau", async () => {
+    await expect(
+      as(coach(coachAId), () =>
+        db.$transaction([
+          db.exerciseTag.create({ data: { exerciseId: exerciseAId, name: "lot" } as never }),
+        ]),
+      ),
+    ).rejects.toThrow("[tenancy] ExerciseTag ne se crée pas dans une transaction en tableau");
+
+    expect(await tagsNamed("lot")).toEqual([]);
+  });
+
+  // Sans planification, la facture reste privée à qui l'émet (#593) : l'acteur en est le propriétaire.
+  it("crée une facture sans planification au nom du coach courant", async () => {
+    const invoice = await as(coach(coachAId), () =>
+      db.invoice.create({
+        data: {
+          athleteId: coachBId,
+          planId: null,
+          period: "2026-10",
+          amountCents: 1000,
+          dueDate: new Date("2026-10-31"),
+        } as never,
+      }),
+    );
+
+    expect(invoice.coachId).toBe(coachAId);
   });
 });
 
