@@ -381,6 +381,7 @@ le PC étant un faux négatif en mode *mirrored* :
 
 - Lint/format : **Biome**, plus des règles maison en GritQL (`scripts/lint-rules/`) qui tiennent quatre règles dures : pas de SQL brut, pas de couleur hex hors tokens, des routes mobiles réduites au shell, pas de texte en dur dans le JSX. Une exception se déclare dans le code, `// biome-ignore lint/plugin/<règle>: <raison>`, et `pnpm check:lint-rules` vérifie sur des fixtures que chaque règle signale encore ce qu'elle doit
 - Tests : **Vitest** sur les quatre paquets, mobile compris (pas de `jest-expo`) ; la couverture est mesurée partout et remontée à SonarCloud
+- Performance : deux budgets, tenus par la suite et par le build. Les **routes de liste** de l'API émettent un nombre de requêtes SQL figé, identique sur un petit et un grand jeu de données (`apps/api/test/isolation/query-budget.ts`) — un N+1 fait rougir les e2e. Le **bundle web** a une taille plafonnée, au premier affichage et au total (`apps/web/bundle-budget.ts`) — un dépassement fait échouer `vite build`. Un budget se relève à la main, dans la PR qui le justifie (#629)
 - Commits : **Conventional Commits** (sujet en minuscule, signés)
 - Composants design system : préfixe `Cmv`
 - Packages : scope `@cmv/*`

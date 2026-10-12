@@ -826,3 +826,36 @@ liste des domaines vivent dans l'index.
 > **Limite assumée** : squawk lit la structure, pas les données. Un `DELETE` ou un `UPDATE` de
 > reprise (la purge de `conversation_not_self`) passe sans signal. Prisma n'en génère jamais : ils
 > s'écrivent à la main, avec le commentaire qui les justifie, et se relisent.
+
+> **Tranché en [#629](https://github.com/Cimavia/cimavia/issues/629)** (requêtes par route et
+> taille du bundle mesurées) : on mesure, on n'optimise pas — #114 garde son déclencheur. Le
+> premier relevé n'a trouvé **aucun N+1** : les vingt routes de liste émettent le même nombre de
+> requêtes avec un élément et avec quatre.
+>
+> **Les requêtes, comptées par l'événement `query` de Prisma**, que Prisma 7 émet aussi derrière
+> `adapter-pg`. Il faut le déclarer à la construction du client : `PrismaService` prend donc un
+> journal par le jeton `PRISMA_LOG`, qu'aucun module ne fournit — la prod ne journalise rien — et
+> que le harnais e2e passe à la main (`test/support/query-count.ts`). L'OpenTelemetry de Prisma
+> aurait évité de toucher au service, au prix des dépendances OpenTelemetry pour un compteur. Les ordres de
+> transaction ne comptent pas : Prisma rapporte le `COMMIT` mais jamais le `BEGIN`.
+>
+> **Un budget exact, et identique sur deux jeux** (`test/isolation/query-budget.ts`). Chaque route
+> est lue sur un petit jeu puis sur un grand, et doit émettre exactement son chiffre les deux
+> fois : l'égalité attrape le N+1, le chiffre exact une requête ajoutée sans le dire. Pas de
+> marge, qui l'aurait laissée passer. Le chiffre compte tout, la lecture de session de Better Auth
+> comprise : une montée qui y ajoute une requête bouge les vingt budgets d'un coup, ce qui se voit
+> et se corrige d'un remplacement. Le test vérifie aussi que le grand jeu a **nourri** la route —
+> une liste restée vide ne mesure rien ; c'est lui qui a sorti `/me/counterparts`, deux booléens et
+> non une liste. Un domaine de la suite d'isolation plutôt qu'une spec à part (« Tranché en
+> #625 ») : ≈ 4 s de plus au job E2E, et autant à chaque passe de Stryker sur la tenancy.
+>
+> **Le bundle, en octets bruts et par un plugin Vite** (`apps/web/bundle-budget.ts`). Le job
+> *Builds de production* construit le web DANS l'image, en `cacheonly` : aucun `dist` n'en sort,
+> et une étape à part aurait reconstruit le bundle. Le plugin fait échouer `vite build` lui-même,
+> donc ce job, le poste et l'e2e web. Brut et non gzip, qui dépend de la version de zlib. Deux
+> budgets, le premier affichage (l'entrée et ses imports statiques) et le total, à 511 396 et
+> 1 360 719 octets mesurés plus 10 % : une dépendance qui double le bundle est refusée, la
+> croissance ordinaire consomme la marge, et le budget se relève dans la PR qui le justifie. Mesuré
+> en `writeBundle`, une fois les préchargements réécrits par Vite. **Pas quand Sentry téléverse** :
+> son plugin injecte quelques centaines d'octets par chunk, et l'image de `main` échouerait sur un
+> code que la PR a déjà fait passer. Le mobile n'a pas de budget : hors périmètre de l'issue.
