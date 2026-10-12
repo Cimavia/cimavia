@@ -1,4 +1,4 @@
-import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "../../../api/e2e-worktree";
+import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "@cmv/e2e";
 
 /**
  * L'environnement des e2e navigateur : une API et un web JETABLES, à eux, sur une base à eux.

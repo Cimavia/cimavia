@@ -16,6 +16,10 @@ import { basename, join } from "node:path";
  * - **ses ports**, de son rang parmi les worktrees liés, triés par nom. Un rang peut glisser quand
  *   on en crée ou en supprime un pendant qu'une suite tourne : deux suites peuvent alors viser le
  *   même port, et la seconde échoue sur un port pris, en le disant — jamais sur la base d'une autre.
+ *
+ * UN SEUL FICHIER, et c'est voulu : Vitest charge sa config en laissant ce paquet à Node, qui lit le
+ * `.ts` lui-même (types effacés, Node ≥ 22.18) et refuse un import relatif sans extension. Le
+ * scinder demande d'écrire `./x.ts` — sans quoi les e2e de l'API tombent au démarrage.
  */
 
 /** Un worktree lié. Le dépôt principal n'en est pas un : il vaut `null`. */

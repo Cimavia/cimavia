@@ -1,5 +1,5 @@
+import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "@cmv/e2e";
 import { defineConfig } from "vitest/config";
-import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "./e2e-worktree";
 
 // Charge .env.test dans le process principal (Node ≥22). loadEnvFile n'écrase PAS les vars
 // déjà définies → DATABASE_URL e2e reste prioritaire même quand prisma.config.ts charge .env.

@@ -7,8 +7,7 @@
  * POURQUOI : ces fichiers sont ignorés par git, et un worktree n'en reçoit aucun. Sans eux, l'API
  * ne démarre pas, les e2e refusent de se lancer, et Metro annonce une IP que le téléphone ne joint
  * pas (`apps/mobile/.env.local`). Aucun ne porte de chemin propre au checkout, et les e2e dérivent
- * eux-mêmes leur port et leur base du worktree (`apps/api/e2e-worktree.ts`) : une copie telle quelle
- * suffit.
+ * eux-mêmes leur port et leur base du worktree (`@cmv/e2e`) : une copie telle quelle suffit.
  *
  * CE QU'IL COPIE : les fichiers `.env*` ignorés par git à la racine ou à la racine d'un paquet
  * (`apps/api/.env`, `apps/mobile/.env.local`…). Pas plus profond : le bac à sable de Stryker en

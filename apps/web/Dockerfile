@@ -34,9 +34,9 @@ WORKDIR /app
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 1 — pruning du monorepo
 # ─────────────────────────────────────────────────────────────────────────────
-# Isole le sous-graphe de @cmv/web (+ @cmv/shared, @cmv/tokens, @cmv/tsconfig) : la couche
-# d'install ne dépend alors plus des manifests de l'API ni du mobile, donc une modification
-# côté API n'invalide pas le build du web.
+# Isole le sous-graphe de @cmv/web (+ @cmv/shared, @cmv/tokens, @cmv/tsconfig, et @cmv/e2e que le
+# `tsc` du build lit par `e2e/`) : la couche d'install ne dépend alors plus des manifests de l'API
+# ni du mobile, donc une modification côté API n'invalide pas le build du web.
 FROM base AS pruner
 COPY . .
 RUN pnpm dlx turbo@2.10.0 prune @cmv/web --docker

@@ -10,7 +10,7 @@ import {
   type Worktree,
   worktreeDatabaseUrl,
   worktreePort,
-} from "./e2e-worktree";
+} from "./index";
 
 const COMMON = "/depot/.git";
 const E2E_URL = "postgresql://cimavia_e2e:cimavia_dev_e2e@localhost:5434/cimavia_db_e2e";

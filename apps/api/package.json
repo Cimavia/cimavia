@@ -49,6 +49,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@cmv/e2e": "workspace:*",
     "@cmv/tsconfig": "workspace:*",
     "@nestjs/cli": "11.0.23",
     "@nestjs/schematics": "11.1.0",

@@ -226,7 +226,7 @@ jobs:
         run: |
           files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"
           common='^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json|\.nvmrc|\.github/workflows/ci\.yml|\.github/actions/)'
-          if grep -qE -e "$common" -e '^(apps/(web|api)/|packages/(shared|tokens|tsconfig)/)' <<<"$files"; then
+          if grep -qE -e "$common" -e '^(apps/(web|api)/|packages/(shared|tokens|tsconfig|e2e)/)' <<<"$files"; then
             echo "web=true"
           else
             echo "web=false"
@@ -331,7 +331,8 @@ jobs:
           }
           {
             flag api '^(apps/api/|packages/(shared|tsconfig)/)'
-            flag web '^(apps/web/|packages/(shared|tokens|tsconfig)/)'
+            # `e2e` : le `tsc` du build web vérifie `e2e/`, qui importe @cmv/e2e (#630).
+            flag web '^(apps/web/|packages/(shared|tokens|tsconfig|e2e)/)'
             flag mobile '^(apps/mobile/|packages/(shared|tokens|tsconfig)/)'
           } | tee -a "$GITHUB_OUTPUT"
 
