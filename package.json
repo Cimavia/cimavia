@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.12.1",
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">=22.18.0",
     "pnpm": ">=10.34.5"
   },
   "packageManager": "pnpm@10.34.5",
@@ -28,7 +28,7 @@
     "check:i18n": "node scripts/check-i18n-keys.mjs",
     "check:lint-rules": "node scripts/check-lint-rules.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
-    "prepare": "husky"
+    "prepare": "husky && node -e \"import('./scripts/worktree-env.mjs').catch((error) => { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; })\""
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",

@@ -106,8 +106,11 @@ relecture se fait dans ma session ; la relecture par une autre session vient sur
 - chaque constat est **corrigé avant** de donner le commit, ou **remonté** s'il sort du sujet — jamais
   ignoré en silence.
 
-Les hooks de `.claude/settings.json` passent déjà Biome sur chaque fichier modifié et refusent
-`git commit` / `git push` / `gh pr create` : un refus du hook n'est pas un obstacle à contourner.
+Les hooks de `.claude/settings.json` passent déjà Biome sur chaque fichier modifié, `biome ci .` et
+`check:i18n` en fin de réponse quand j'ai modifié un fichier, et refusent `git commit` / `git push` /
+`gh pr create` : un refus du hook n'est pas un obstacle à contourner. Ils ne voient que les
+modifications faites par Edit/Write — un fichier réécrit par une commande shell leur échappe, et
+la porte du §6 reste la vérification.
 
 ## 6. Portes
 

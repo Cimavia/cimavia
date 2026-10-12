@@ -14,6 +14,7 @@ apps/
   mobile/             # Expo Router + NativeWind (cf. §3)
   web/                # React + Vite + TanStack (cf. §4)
 packages/
+  e2e/                # @cmv/e2e — outillage des e2e (port et base par worktree)
   shared/             # @cmv/shared — types métier (DTO), schémas Zod, logique pure
   tokens/             # @cmv/tokens — design tokens (couleurs/spacing/typo)
   tsconfig/           # @cmv/tsconfig — configs TS de base

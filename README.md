@@ -8,6 +8,7 @@ Application de suivi de la relation **coach ↔ athlète**, quel que soit le spo
 apps/api      — @cmv/api    : NestJS 11 + Prisma 7 + PostgreSQL
 apps/mobile   — @cmv/mobile : Expo SDK 56 + Expo Router + NativeWind
 apps/web      — @cmv/web    : React 19 + Vite + TanStack Router/Query + Tailwind v3
+packages/e2e     — @cmv/e2e     : Outillage des e2e — port et base par worktree (#630)
 packages/shared  — @cmv/shared  : DTOs, schémas Zod (partagés front/back)
 packages/tokens  — @cmv/tokens  : Design tokens → Tailwind (web) + NativeWind (mobile)
 packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
@@ -39,6 +40,9 @@ pnpm --filter @cmv/api exec prisma migrate dev
 pnpm turbo dev
 ```
 
+> **Dans un worktree** (`git worktree add`, herdr, Claude Code) : `pnpm install` y recopie les `.env`
+> ignorés du dépôt principal, sans écraser ceux déjà là (`scripts/worktree-env.mjs`, #630).
+
 > **Passage de MinIO à SILO** (#257), une seule fois sur un poste qui avait déjà le compose :
 > `docker compose -f apps/api/docker-compose.yml up -d --remove-orphans`. Le service s'appelle
 > désormais `silo` ; sans `--remove-orphans`, les anciens conteneurs `cimavia_minio*` restent
@@ -60,16 +64,18 @@ pnpm check:i18n --strict                 # + les clés mortes — exigé en loca
 pnpm check:dette                         # journal de dette : identifiants, suivi, archive
 pnpm check:migrations                    # squawk sur les migrations de la branche (CONTRIBUTING.md)
 pnpm --filter @cmv/api exec prisma migrate dev
-# Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + SILO sur son bucket e2e)
+# Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + SILO sur son bucket e2e).
+# Un worktree a son port et sa base, dérivés de git (#630) : les e2e de deux worktrees tournent
+# ensemble. Le dépôt principal et la CI gardent 3001 et cimavia_db_e2e.
 cp apps/api/.env.test.example apps/api/.env.test   # une fois — rien à renseigner
 docker compose -f apps/api/docker-compose.test.yml up -d
-docker compose -f apps/api/docker-compose.yml run --rm silo-setup   # buckets + clé de l'API (idempotent), et vide le bucket e2e
+docker compose -f apps/api/docker-compose.yml run --rm silo-setup   # buckets + clé de l'API (idempotent), et vide le bucket e2e — partagé : pas pendant les e2e d'un autre worktree
 # Via turbo, pas `pnpm --filter` : la tâche dépend de `^build`, et les e2e bootent le vrai
 # AppModule — qui importe @cmv/shared depuis son `dist`. Sans build préalable, ça casse à l'import.
 pnpm turbo test:e2e --filter=@cmv/api
 # Parcours du Coach dans un navigateur (Playwright) — base à eux sur le même conteneur 5434, sans SILO
 pnpm --filter @cmv/web exec playwright install chromium   # une fois, puis à chaque montée de Playwright
-pnpm --filter @cmv/web test:e2e:web             # lance lui-même une API (3101) et le web (4310)
+pnpm --filter @cmv/web test:e2e:web             # lance lui-même une API (3101) et le web (4310), décalés dans un worktree
 # Mutation testing (Stryker) — rapport HTML dans <paquet>/reports/mutation/mutation.html
 pnpm turbo test:mutation --filter=@cmv/shared   # ~4 min, puis incrémental : seul ce qui a changé repasse
 pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e : mêmes conteneurs, ~30 min

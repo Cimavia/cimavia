@@ -1,8 +1,7 @@
 import { execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-const DISPOSABLE_SUFFIX = "_e2e";
+import { DISPOSABLE_SUFFIX } from "@cmv/e2e";
 
 /**
  * La suite TRUNCATE toutes les tables à l'ouverture. Il suffit d'un `.env.test` absent et d'un

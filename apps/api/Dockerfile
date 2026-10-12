@@ -45,9 +45,10 @@ RUN corepack enable \
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 1 — pruning du monorepo
 # ─────────────────────────────────────────────────────────────────────────────
-# `turbo prune` réécrit le lockfile en n'y gardant que le sous-graphe de @cmv/api
-# (+ @cmv/shared, @cmv/tsconfig) et produit deux dossiers : `out/json` (les manifests seuls,
-# pour la couche d'install) et `out/full` (les sources).
+# `turbo prune` réécrit le lockfile en n'y gardant que le sous-graphe de @cmv/api (+ @cmv/shared,
+# @cmv/tsconfig, et @cmv/e2e — outillage des e2e, que `deploy --prod` laisse de côté) et produit
+# deux dossiers : `out/json` (les manifests seuls, pour la couche d'install) et `out/full` (les
+# sources).
 #
 # L'intérêt est la VITESSE et la stabilité du cache : sans lui, la couche d'install dépend du
 # lockfile entier, donc une modification côté mobile ou web invaliderait le build de l'API.

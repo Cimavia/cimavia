@@ -1,8 +1,34 @@
+import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "@cmv/e2e";
 import { defineConfig } from "vitest/config";
 
 // Charge .env.test dans le process principal (Node ≥22). loadEnvFile n'écrase PAS les vars
 // déjà définies → DATABASE_URL e2e reste prioritaire même quand prisma.config.ts charge .env.
 process.loadEnvFile(".env.test");
+
+/**
+ * Un worktree lié prend son port et sa base (#630) — le dépôt principal et la CI gardent ceux du
+ * `.env.test`. Réécrits dans `process.env` et non dans le seul bloc `env` ci-dessous : le
+ * `globalSetup` tourne dans CE process et migre la base qu'il y lit. Deux ports par suite :
+ * `signup-mode.e2e-spec.ts` monte sa propre app sur `PORT + 1`.
+ *
+ * Une seule fois par environnement : la config se réévalue (mode watch, process enfants de Stryker,
+ * qui héritent de l'environnement déjà décalé), et un second passage décalerait le port encore et
+ * renommerait la base `…_wt_x_wt_x_e2e`. `CMV_E2E_WORKTREE` dit que c'est fait.
+ */
+const worktree = currentWorktree();
+if (worktree != null && process.env.CMV_E2E_WORKTREE == null) {
+  process.env.CMV_E2E_WORKTREE = worktree.name;
+  const port = worktreePort(Number(process.env.PORT ?? 3001), worktree, 2);
+  process.env.PORT = String(port);
+  // Même origine que la `baseURL` du harnais (`test/support/app.ts`).
+  process.env.BETTER_AUTH_URL = `http://localhost:${port}`;
+  // Absent, il le reste : `globalSetup` refuse alors de démarrer, en disant quel fichier copier.
+  const databaseUrl =
+    process.env.DATABASE_URL && worktreeDatabaseUrl(process.env.DATABASE_URL, worktree);
+  if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
+  const database = databaseUrl ? new URL(databaseUrl).pathname.slice(1) : "absente";
+  console.info(`e2e du worktree « ${worktree.name} » : port ${port}, base ${database}`);
+}
 
 export default defineConfig({
   test: {
