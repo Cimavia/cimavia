@@ -29,5 +29,5 @@ export default {
   jsonReporter: { fileName: "reports/mutation/mutation.json" },
   // Cliquet (« Tranché en #626 ») : le seuil suit le score mesuré, arrondi en dessous, et ne monte
   // qu'avec lui. Les survivants restants sont suivis en #635.
-  thresholds: { high: 95, low: 85, break: 89 },
+  thresholds: { high: 95, low: 85, break: 92 },
 };
