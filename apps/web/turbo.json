@@ -4,6 +4,12 @@
   "tasks": {
     "test": {
       "outputs": []
+    },
+    "typecheck": {
+      // Les e2e web dérivent leurs ports et leur base du worktree par le module de l'API (#630),
+      // hors de ce paquet : sans cette entrée, le changer rejouerait un typecheck en cache, vert
+      // sur un `e2e/support/env.ts` qui ne compile plus.
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/api/e2e-worktree.ts"]
     }
   }
 }

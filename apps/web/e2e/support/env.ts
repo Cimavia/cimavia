@@ -1,3 +1,5 @@
+import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "../../../api/e2e-worktree";
+
 /**
  * L'environnement des e2e navigateur : une API et un web JETABLES, à eux, sur une base à eux.
  *
@@ -11,11 +13,18 @@
  */
 
 /**
- * Des ports que rien d'autre ne prend : 3000 est l'API de dev, 3001-3002 les e2e de l'API, 5173 le
- * web de dev, et 4173 le `vite preview` de n'importe qui.
+ * Un worktree lié prend ses ports et sa base (#630), par le même module que les e2e de l'API : le
+ * dépôt principal et la CI gardent les valeurs ci-dessous. Calculé à chaque chargement de la
+ * config — Playwright la relit dans chaque worker — et toujours au même résultat.
  */
-export const API_PORT = 3101;
-export const WEB_PORT = 4310;
+const worktree = currentWorktree();
+
+/**
+ * Des ports que rien d'autre ne prend : 3000 est l'API de dev, 3001-3100 les e2e de l'API (deux par
+ * worktree), 5173 le web de dev, et 4173 le `vite preview` de n'importe qui.
+ */
+export const API_PORT = worktreePort(3101, worktree);
+export const WEB_PORT = worktreePort(4310, worktree);
 
 export const API_URL = `http://localhost:${API_PORT}`;
 export const WEB_URL = `http://localhost:${WEB_PORT}`;
@@ -24,5 +33,7 @@ export const WEB_URL = `http://localhost:${WEB_PORT}`;
  * Le suffixe `_e2e` n'est pas décoratif : `prepare-database.mjs` VIDE cette base, et refuse d'en
  * toucher une qui ne l'annonce pas jetable (même garde que `apps/api/test/global-setup.e2e.ts`).
  */
-export const DATABASE_URL =
-  "postgresql://cimavia_e2e:cimavia_dev_e2e@localhost:5434/cimavia_db_web_e2e";
+export const DATABASE_URL = worktreeDatabaseUrl(
+  "postgresql://cimavia_e2e:cimavia_dev_e2e@localhost:5434/cimavia_db_web_e2e",
+  worktree,
+);
