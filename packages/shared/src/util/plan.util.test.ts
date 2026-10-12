@@ -187,6 +187,19 @@ describe("selectCurrentPlan", () => {
   it("départage plusieurs cycles en cours par la date de début la plus récente", () => {
     const second = { id: "second", startDate: "2026-10-19", weekCount: 2 };
     expect(selectCurrentPlan([ongoing, second], "2026-10-20")?.id).toBe("second");
+    expect(selectCurrentPlan([second, ongoing], "2026-10-20")?.id).toBe("second");
+  });
+
+  it("parmi plusieurs cycles terminés, montre le plus récent, quel que soit l'ordre reçu", () => {
+    const older = { id: "older", startDate: "2026-08-03", weekCount: 2 };
+    expect(selectCurrentPlan([past, older], "2026-10-20")?.id).toBe("past");
+    expect(selectCurrentPlan([older, past], "2026-10-20")?.id).toBe("past");
+  });
+
+  // Bornes incluses, comme `planPhase` : le jour du départ et le dernier dimanche, il court.
+  it("tient un cycle pour en cours le jour de son départ et celui de sa fin", () => {
+    expect(selectCurrentPlan([ongoing], MONDAY)?.id).toBe("ongoing");
+    expect(selectCurrentPlan([ongoing], "2026-11-08")?.id).toBe("ongoing");
   });
 
   it("retourne null sans plan exploitable (pas de valeur de repli)", () => {
@@ -196,6 +209,10 @@ describe("selectCurrentPlan", () => {
     // Plan sans semaine : aucune période → ignoré.
     expect(
       selectCurrentPlan([{ id: "empty", startDate: MONDAY, weekCount: 0 }], MONDAY),
+    ).toBeNull();
+    // Un cycle non situable ne passe pas pour « à venir » parce que son lundi est devant.
+    expect(
+      selectCurrentPlan([{ id: "broken", startDate: "2026-11-09", weekCount: 0 }], MONDAY),
     ).toBeNull();
   });
 });
@@ -237,6 +254,10 @@ describe("selectVisiblePlans", () => {
 
   it("rend une liste vide sur une date illisible plutôt que de deviner une époque", () => {
     expect(selectVisiblePlans([ongoing], "pas-une-date")).toEqual([]);
+  });
+
+  it("sert une seule fois le cycle qui démarre aujourd'hui", () => {
+    expect(idsAt([ongoing], MONDAY)).toEqual(["ongoing"]);
   });
 
   it("départage par l'id deux cycles partant le même lundi (ordre stable)", () => {
@@ -294,6 +315,13 @@ describe("planAudience", () => {
     });
   });
 
+  // Les AUTRES cycles en cours seulement : celui qui arrive ne se mène pas encore de front.
+  it("ne compte pas un cycle à venir parmi ceux menés en parallèle", () => {
+    expect(planAudience(ongoing, [ongoing, upcoming], "2026-10-14")).toEqual({
+      kind: "VISIBLE_ALONE",
+    });
+  });
+
   it("un cycle à venir est VISIBLE, et annonce sa date de début", () => {
     expect(planAudience(upcoming, [ongoing, upcoming], "2026-10-14")).toEqual({
       kind: "VISIBLE_UPCOMING",
@@ -317,6 +345,20 @@ describe("planAudience", () => {
     const somebodyElse = { ...of("other", MONDAY, 4), athleteId: "ath_adrien" };
     expect(planAudience(ongoing, [ongoing, somebodyElse], "2026-10-14")).toEqual({
       kind: "VISIBLE_ALONE",
+    });
+  });
+
+  /**
+   * Le constructeur passe le cycle tel qu'il est en train de l'écrire, et la liste telle que l'API
+   * l'a servie : une copie plus ancienne du même cycle y figure. C'est le cycle passé qui est jugé —
+   * sa copie, encore en cours, ne doit pas le faire passer pour vu.
+   */
+  it("juge le cycle tel qu'on le lui passe, jamais sa copie de la liste", () => {
+    const stale = { ...ongoing, id: "ended" };
+    const later = of("later", "2026-09-07", 2); // → 2026-09-20, après `ended`
+    expect(planAudience(ended, [stale, later], "2026-10-14")).toEqual({
+      kind: "ENDED_SUPERSEDED",
+      insteadPlanIds: ["later"],
     });
   });
 
@@ -374,6 +416,15 @@ describe("planWeekNumber", () => {
   it("rend null avant le début et après la fin du cycle", () => {
     expect(planWeekNumber(PLAN, "2026-10-11")).toBeNull(); // la veille du départ
     expect(planWeekNumber(PLAN, "2026-11-09")).toBeNull(); // le lendemain de la fin
+  });
+
+  it("compte la semaine unique d'un cycle d'une semaine", () => {
+    expect(planWeekNumber({ startDate: MONDAY, weekCount: 1 }, MONDAY)).toBe(1);
+  });
+
+  // 1,5 semaine n'est pas un cycle : sa première semaine n'existe pas plus que la deuxième.
+  it("rend null sur un nombre de semaines non entier", () => {
+    expect(planWeekNumber({ startDate: MONDAY, weekCount: 1.5 }, MONDAY)).toBeNull();
   });
 
   it("rend null sur une date illisible ou un cycle sans semaine", () => {
