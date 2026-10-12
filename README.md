@@ -66,6 +66,9 @@ docker compose -f apps/api/docker-compose.yml run --rm silo-setup   # buckets + 
 # Via turbo, pas `pnpm --filter` : la tâche dépend de `^build`, et les e2e bootent le vrai
 # AppModule — qui importe @cmv/shared depuis son `dist`. Sans build préalable, ça casse à l'import.
 pnpm turbo test:e2e --filter=@cmv/api
+# Parcours du Coach dans un navigateur (Playwright) — base à eux sur le même conteneur 5434, sans SILO
+pnpm --filter @cmv/web exec playwright install chromium   # une fois, puis à chaque montée de Playwright
+pnpm --filter @cmv/web test:e2e:web             # lance lui-même une API (3101) et le web (4310)
 # Mutation testing (Stryker) — rapport HTML dans <paquet>/reports/mutation/mutation.html
 pnpm turbo test:mutation --filter=@cmv/shared   # ~4 min, puis incrémental : seul ce qui a changé repasse
 pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e : mêmes conteneurs, ~30 min
@@ -76,6 +79,17 @@ pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e
 > cliquet, dont le seuil ne fait que monter (#635). Un mutant qu'aucun test ne peut tuer se
 > déclare à sa ligne, `// Stryker disable next-line <mutateur>: <raison>`. La CI le fait tourner
 > dans `mutation.yml`, sans check requis.
+
+> Les **e2e navigateur** (`apps/web/e2e/`) jouent les parcours du Coach — connexion, diffusion
+> d'un cycle, lecture d'un débrief, facture réglée — contre une vraie API et le bundle de
+> production du web, qu'ils démarrent eux-mêmes. Leur base, `cimavia_db_web_e2e`, est créée puis
+> vidée avant que l'API démarre (`e2e/prepare-database.mjs`) : ils tournent en même temps que les
+> e2e de l'API sans les gêner. Un serveur déjà présent sur 3101 ou 4310 n'est jamais réutilisé : la
+> suite échoue en nommant le port.
+> Chaque test pose ses données par l'API (`e2e/support/seed.ts`), sous des adresses à lui, et
+> cherche ses éléments par leur libellé tiré de `fr.json`, jamais par du texte en dur. Un échec
+> laisse une trace : `pnpm --filter @cmv/web exec playwright show-trace <test-results/…/trace.zip>`.
+> Pourquoi ces choix : « Tranché en #627 ».
 
 > Les e2e tournent contre le **SILO du docker-compose** (bucket `cimavia-media-e2e`) : sans
 > storage réel, le flux d'upload des médias ne serait pas couvert. Le cas « storage non

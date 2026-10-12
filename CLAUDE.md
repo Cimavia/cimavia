@@ -105,6 +105,7 @@ comprises — #414) ; les lancer en local sert à ne pas attendre la CI :
 docker compose -f apps/api/docker-compose.test.yml up -d
 docker compose -f apps/api/docker-compose.yml run --rm silo-setup
 pnpm turbo test:e2e --filter=@cmv/api
+pnpm --filter @cmv/web test:e2e:web   # parcours Coach dans Chromium — job CI NON requis (#627)
 
 pnpm --filter @cmv/web exec vite build
 pnpm --filter @cmv/mobile exec expo export --platform android

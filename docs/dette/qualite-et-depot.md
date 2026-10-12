@@ -732,3 +732,50 @@ liste des domaines vivent dans l'index.
 > principal. La tenancy n'en pose pas — un `TZ` là changerait le fuseau de toute la suite e2e. Le
 > bac à sable `.stryker-tmp` est exclu des configs Vitest : sans quoi `pnpm test` rejouait ses
 > copies, dépendances comprises.
+
+> **Tranché en [#627](https://github.com/Cimavia/cimavia/issues/627)** (les parcours du Coach
+> dans un navigateur) : **Playwright**, dans `apps/web/e2e/`, sur quatre parcours — connexion et
+> garde, création puis diffusion d'un cycle, lecture d'un débrief, facture réglée. Les tests de
+> rendu simulent l'API, les e2e de l'API n'ont pas de navigateur : seuls ceux-ci voient le
+> routage, le cookie de session, le cache TanStack Query et le rendu réel ensemble.
+>
+> **Une API et un web à eux.** Le job E2E de l'API n'expose aucun serveur — Nest y tourne dans le
+> process de Vitest. La config Playwright lance donc l'API construite (`node dist/main.js`, port
+> 3101) et le bundle de **production** du web (`vite preview`, port 4310), pas le serveur de dev.
+> Aucun serveur déjà présent n'est réutilisé : une API restée là tournerait sur du code périmé, un
+> `vite preview` ordinaire (4173) viserait l'API de dev. Leur base, `cimavia_db_web_e2e`, vit dans
+> le même conteneur que celle de l'API (5434) mais n'est pas la sienne : la suite de l'API la vide à
+> l'ouverture, et les deux se seraient vidées l'une sous l'autre. Elles tournent ensemble sans
+> attendre #630.
+>
+> **La base avant l'API, pas en `globalSetup`** : Playwright démarre ses `webServer` AVANT le
+> global setup, et l'API serait partie sur une base pas encore créée. `e2e/prepare-database.mjs`
+> ouvre donc la commande de l'API : `migrate deploy`, qui crée la base au besoin, puis un
+> `TRUNCATE` des tables lues au catalogue. Pas de `migrate reset`, que Prisma refuse quand un
+> agent le lance.
+>
+> **Un environnement entièrement écrit.** `ConfigModule` et `instrument.ts` chargent
+> `apps/api/.env` pour toute variable que le process ne pose pas : l'API de test serait partie
+> avec le Sentry, l'Axiom et le SMTP du poste. La config pose donc VIDE chaque clé du schéma d'env
+> (`envSchema.shape`, pas une liste à tenir), puis les quelques valeurs de test par-dessus —
+> `process.env` l'emporte sur le fichier, même vide, et le schéma lit le vide comme absent. Pas
+> de SILO : aucun parcours ne touche aux médias.
+>
+> **Les données par l'API, jamais par Prisma.** `e2e/support/seed.ts` inscrit, invite, crée,
+> facture, diffuse et débriefe par les routes : les données franchissent les mêmes règles que
+> dans l'app. Chaque test inscrit ses propres comptes, suffixés d'un identifiant aléatoire — une
+> relance ne heurte pas ses adresses. Le navigateur reçoit la session par son cookie ; seul le
+> parcours de connexion passe par l'écran.
+>
+> **Les sélecteurs par libellé, tirés de `fr.json`** par un i18next sur le vrai catalogue : une
+> reformulation ne casse rien, une clé supprimée échoue. Les tests de rendu, eux, restent sur les
+> clés (`test/i18n.ts`). Les specs s'appellent `*.e2e-spec.ts` : le motif par défaut de Vitest
+> ramasserait un `*.spec.ts`.
+>
+> **Chromium seul, et un job non requis.** Un navigateur flake plus qu'une API : sa stabilité se
+> juge avant de lui confier une porte. En CI, un essai de plus marque le test « flaky » dans le
+> rapport sans faire rougir le job ; les traces partent en artefact sur échec, et les logs de
+> l'API sont dans ceux du job. Le job est filtré
+> par étapes, comme *Builds de production*, pour pouvoir devenir requis sans changer de forme.
+> Le mobile (Maestro) n'est pas dans ce lot : il demande un émulateur, cassé sous WSL2 et coûteux
+> en CI — suivi en [#638](https://github.com/Cimavia/cimavia/issues/638).
