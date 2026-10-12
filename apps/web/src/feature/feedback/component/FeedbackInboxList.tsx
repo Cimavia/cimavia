@@ -1,4 +1,4 @@
-import { type CoachFeedbackSummaryDto, comparableText } from "@cmv/shared";
+import { type CoachFeedbackSummaryDto, comparableText, searchMatcher } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { CmvAvatar, CmvBadge, CmvEmptyState, CmvSegmented, CmvTextField } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
@@ -51,15 +51,15 @@ export function FeedbackInboxList({
    * débrief : un coach qui cherche ici cherche quelqu'un, et élargir la recherche au contenu
    * ferait remonter des lignes sans que rien à l'écran n'explique pourquoi.
    *
-   * `comparableText` des DEUX côtés — règle unique du dépôt : le coach tape « lea » et doit
-   * trouver « Léa ». Exiger l'accent ferait échouer la recherche sur exactement les noms que le
-   * clavier rend pénibles à écrire.
+   * `searchMatcher` rend les DEUX côtés comparables — règle unique du dépôt : le coach tape
+   * « lea » et doit trouver « Léa ». Exiger l'accent ferait échouer la recherche sur exactement
+   * les noms que le clavier rend pénibles à écrire.
    */
-  const needle = comparableText(search);
+  const matches = searchMatcher(search);
   const shown = feedbacks.filter(
     (feedback) =>
       (filter !== InboxFilter.UNREAD || feedback.coachReadAt == null) &&
-      (needle === "" || comparableText(feedback.athleteName).includes(needle)),
+      matches(feedback.athleteName),
   );
 
   return (
@@ -91,7 +91,7 @@ export function FeedbackInboxList({
             par l'écran, avant même que cette colonne existe. */}
         {shown.length === 0 ? (
           <div className="p-cmv-lg">
-            {needle === "" ? (
+            {comparableText(search) === "" ? (
               <CmvEmptyState
                 title={t("feedback.inbox.allRead.title")}
                 description={t("feedback.inbox.allRead.description")}

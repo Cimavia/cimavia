@@ -1,4 +1,4 @@
-import { type CustomMetric, comparableText, type ExerciseDto } from "@cmv/shared";
+import { type CustomMetric, type ExerciseDto, searchMatcher } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
@@ -44,12 +44,10 @@ export function LibraryPicker({
   const { data: exercises } = useExercises(tag === NO_TAG ? {} : { tag });
   const { data: tags } = useExerciseTags();
 
-  // Filtrage du titre côté client : la liste d'un coach tient en mémoire, et `comparableText` des
-  // DEUX côtés permet de taper « echauffement » pour trouver « Échauffement ».
-  const needle = comparableText(search);
-  const visible = (exercises ?? []).filter(
-    (exercise) => needle === "" || comparableText(exercise.title).includes(needle),
-  );
+  // Filtrage du titre côté client : la liste d'un coach tient en mémoire, et `searchMatcher` rend
+  // les DEUX côtés comparables — taper « echauffement » trouve « Échauffement ».
+  const matches = searchMatcher(search);
+  const visible = (exercises ?? []).filter((exercise) => matches(exercise.title));
 
   return (
     <div className="flex w-full flex-col gap-cmv-sm">

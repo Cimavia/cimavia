@@ -9,7 +9,7 @@ import {
   planWeekNumber,
   selectCurrentPlan,
 } from "./plan.util";
-import { comparableText } from "./search.util";
+import { searchMatcher } from "./search.util";
 
 /**
  * Le tableau de suivi des athlètes du coach (#113) : une ligne par athlète, composée de cinq
@@ -250,16 +250,11 @@ export function visibleAthleteRows(
   rows: readonly AthleteRow[],
   query: AthleteRowQuery,
 ): AthleteRow[] {
-  const needle = comparableText(query.search);
+  const matchesSearch = searchMatcher(query.search);
 
   return rows
-    .filter((row) => matchesFilter(row, query.filter) && matchesSearch(row, needle))
+    .filter((row) => matchesFilter(row, query.filter) && matchesSearch(row.athleteName))
     .sort((left, right) => left.athleteName.localeCompare(right.athleteName, query.locale));
-}
-
-function matchesSearch(row: AthleteRow, needle: string): boolean {
-  // Sous-chaîne et non préfixe : un coach tape aussi bien le nom de famille que le prénom.
-  return needle === "" || comparableText(row.athleteName).includes(needle);
 }
 
 function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {

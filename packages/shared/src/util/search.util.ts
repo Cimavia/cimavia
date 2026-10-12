@@ -21,3 +21,16 @@ export function comparableText(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase();
 }
+
+/**
+ * Le test d'une recherche, prêt à appliquer à chaque valeur : le terme est rendu comparable UNE
+ * fois, la valeur à chaque appel — les deux côtés de la même règle, sans qu'un appelant puisse en
+ * oublier un.
+ *
+ * Sous-chaîne et non préfixe : un coach tape aussi bien le nom de famille que le prénom. Un terme
+ * vide garde tout, sans cas particulier : la chaîne vide est contenue dans toutes les autres.
+ */
+export function searchMatcher(search: string): (value: string) => boolean {
+  const needle = comparableText(search);
+  return (value) => comparableText(value).includes(needle);
+}

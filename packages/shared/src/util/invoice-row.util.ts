@@ -3,7 +3,7 @@ import { daysBetweenIsoDates, isoDateOfInstant } from "./date.util";
 import { required } from "./invariant.util";
 import { InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
 import type { Page } from "./pagination.util";
-import { comparableText } from "./search.util";
+import { searchMatcher } from "./search.util";
 
 /**
  * La facturation vue PAR ATHLÈTE (#120) : une ligne par personne facturée, dépliable sur son
@@ -317,11 +317,12 @@ export function visibleInvoiceAthleteRows<T extends InvoiceRowSource>(
   rows: readonly InvoiceAthleteRow<T>[],
   query: InvoiceRowQuery,
 ): InvoiceAthleteRow<T>[] {
-  const needle = comparableText(query.search);
+  const matches = searchMatcher(query.search);
 
   return rows
     .filter(
-      (row) => (query.filter === "ALL" || row.situation === query.filter) && matches(row, needle),
+      (row) =>
+        (query.filter === "ALL" || row.situation === query.filter) && matches(row.athleteName),
     )
     .sort(
       (left, right) =>
@@ -362,11 +363,6 @@ export {
 } from "./pagination.util";
 export type InvoicePage<T> = Page<T>;
 
-// Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
-function matches(row: InvoiceAthleteRow<InvoiceRowSource>, needle: string): boolean {
-  return needle === "" || comparableText(row.athleteName).includes(needle);
-}
-
 /**
  * Combien d'athlètes dans chaque situation — les compteurs des segments.
  *
@@ -383,8 +379,8 @@ export function countAthletesBySituation(
   rows: readonly InvoiceAthleteRow<InvoiceRowSource>[],
   search = "",
 ): Record<InvoiceRowFilter, number> {
-  const needle = comparableText(search);
-  const searched = rows.filter((row) => matches(row, needle));
+  const matches = searchMatcher(search);
+  const searched = rows.filter((row) => matches(row.athleteName));
 
   return {
     ALL: searched.length,
