@@ -83,12 +83,16 @@ describe("Isolation multi-tenant (P1)", () => {
   });
 
   it("un coach ne peut PAS écrire la fiche d'un athlète d'un autre coach", async () => {
-    const res = await coachA.put(`/athletes/${b1Id}/sheet`).send({ content: "intrusion" });
+    const res = await coachA
+      .put(`/athletes/${b1Id}/sheet`)
+      .send({ content: "intrusion", expectedUpdatedAt: null });
     expect(res.status).toBe(404);
   });
 
   it("la fiche écrite par un coach reste invisible à l'autre coach", async () => {
-    const write = await coachA.put(`/athletes/${a1Id}/sheet`).send({ content: "objectif 8a" });
+    const write = await coachA
+      .put(`/athletes/${a1Id}/sheet`)
+      .send({ content: "objectif 8a", expectedUpdatedAt: null });
     expect(write.status).toBe(200);
     expect(write.body.content).toBe("objectif 8a");
 
@@ -101,8 +105,10 @@ describe("Isolation multi-tenant (P1)", () => {
 
   // Une fiche par athlète : la réécrire la remplace, elle n'en crée pas une seconde.
   it("réécrire la fiche la remplace, sans en créer une autre", async () => {
-    const first = await coachA.put(`/athletes/${a1Id}/sheet`).send({ content: "objectif 8a" });
-    const second = await coachA.put(`/athletes/${a1Id}/sheet`).send({ content: "objectif 8b" });
+    const first = await coachA.get(`/athletes/${a1Id}/sheet`);
+    const second = await coachA
+      .put(`/athletes/${a1Id}/sheet`)
+      .send({ content: "objectif 8b", expectedUpdatedAt: first.body.updatedAt });
 
     expect(second.status).toBe(200);
     expect(second.body).toMatchObject({ id: first.body.id, content: "objectif 8b" });

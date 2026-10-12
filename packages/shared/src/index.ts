@@ -18,7 +18,14 @@ export type { CacheClient } from "./api/cache-client";
 export type { CapabilityApi } from "./api/capability.api";
 export { capabilityKeys, createCapabilityApi } from "./api/capability.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
-export { ApiError, apiErrorMessage, createApiClient, isUnauthorizedError } from "./api/client";
+export {
+  ApiError,
+  apiErrorMessage,
+  createApiClient,
+  isStaleWriteError,
+  isUnauthorizedError,
+  STALE_WRITE,
+} from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";
 export { coachFeedbackKeys, createCoachFeedbackApi } from "./api/coach-feedback.api";
 export type { InvoiceApi } from "./api/invoice.api";
@@ -656,6 +663,7 @@ export {
   currentAthletePlan,
   visibleAthleteRows,
 } from "./util/athlete-row.util";
+export { athleteSheetDraft } from "./util/athlete-sheet.util";
 export type {
   AthleteCalendarBounds,
   AthleteCalendarCycle,

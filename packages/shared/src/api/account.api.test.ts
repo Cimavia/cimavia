@@ -68,20 +68,26 @@ describe("createAccountApi — moitié coach", () => {
   });
 
   // PUT et non PATCH : la fiche est UN champ texte libre, remplacé en entier à chaque
-  // enregistrement. Il n'y a rien à fusionner.
+  // enregistrement. Il n'y a rien à fusionner — la version lue part avec (#440).
   it("lit et remplace la fiche d'un athlète", async () => {
     const { api, calls } = spyClient();
     const account = createAccountApi(api);
 
     await account.getAthleteSheet("ath_1");
-    await account.saveAthleteSheet("ath_1", { content: "Épaule droite sensible." });
+    await account.saveAthleteSheet("ath_1", {
+      content: "Épaule droite sensible.",
+      expectedUpdatedAt: "2026-09-30T08:00:00.000Z",
+    });
 
     expect(calls).toEqual([
       { method: "GET", path: "/athletes/ath_1/sheet", body: undefined },
       {
         method: "PUT",
         path: "/athletes/ath_1/sheet",
-        body: { content: "Épaule droite sensible." },
+        body: {
+          content: "Épaule droite sensible.",
+          expectedUpdatedAt: "2026-09-30T08:00:00.000Z",
+        },
       },
     ]);
   });

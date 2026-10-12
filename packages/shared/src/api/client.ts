@@ -60,6 +60,22 @@ export function isUnauthorizedError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
 }
 
+/**
+ * Le code du 409 qui refuse une écriture fondée sur une version périmée (#440) : l'élément a changé
+ * depuis que l'auteur l'a lu. Un CODE et pas une phrase, comme `CapabilityBlocker` — chaque client
+ * le traduit, et le distingue des autres 409 de la même route.
+ */
+export const STALE_WRITE = "STALE_WRITE";
+
+/**
+ * L'écriture a été refusée parce que l'élément a changé entre-temps. Le statut ne suffit pas :
+ * d'autres refus sont des 409 (un exercice encore utilisé, une transition de facture), et les
+ * prendre pour un conflit d'édition ferait proposer de « recharger » là où rien n'a bougé.
+ */
+export function isStaleWriteError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409 && error.message === STALE_WRITE;
+}
+
 // Corps d'erreur NestJS : `message` vaut soit une string, soit la liste des erreurs Zod.
 type NestErrorBody = { message?: string | ApiFieldError[]; error?: string };
 

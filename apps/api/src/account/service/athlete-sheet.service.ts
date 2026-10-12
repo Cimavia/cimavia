@@ -1,10 +1,12 @@
-import type { AthleteSheetDto } from "@cmv/shared";
+import type { AthleteSheetDto, UpdateAthleteSheetInput } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import type { AthleteSheet, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import { isUniqueViolation } from "../../infra/prisma/prisma-error";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
+import { StaleWriteException } from "../../util/stale-write.util";
 import { toAthleteSheetDto } from "../athlete-sheet.mapper";
 
 @Injectable()
@@ -44,25 +46,46 @@ export class AthleteSheetService {
     return sheet == null ? null : toAthleteSheetDto(sheet);
   }
 
-  // Coach seul : édite le champ libre. Crée la fiche si absente (coachId injecté par le tenancy layer).
-  async upsert(athleteId: string, content: string): Promise<AthleteSheetDto> {
+  /**
+   * Coach seul : remplace le champ libre, à condition que la fiche n'ait pas changé depuis que la
+   * saisie a commencé (#440) — sinon 409 `STALE_WRITE`, et la base garde l'autre écriture.
+   *
+   * - `expectedUpdatedAt` à `null` (le coach n'a vu aucune fiche) : création. Si une fiche est née
+   *   entre-temps — un autre onglet —, l'unicité `(coachId, athleteId)` la refuse, et c'est le même
+   *   conflit, pas une panne.
+   * - Sinon : écriture conditionnée sur la version lue, dans la même requête SQL. Aucune fiche à
+   *   cette version — elle a changé, ou n'existe pas — et rien n'est écrit.
+   */
+  async upsert(athleteId: string, input: UpdateAthleteSheetInput): Promise<AthleteSheetDto> {
     await this.assertOwnedAthlete(athleteId);
-    const existing = await this.db.athleteSheet.findFirst({
-      where: { athleteId },
+    const { content, expectedUpdatedAt } = input;
+
+    if (expectedUpdatedAt == null) return toAthleteSheetDto(await this.create(athleteId, content));
+
+    const { count } = await this.db.athleteSheet.updateMany({
+      where: { athleteId, updatedAt: new Date(expectedUpdatedAt) },
+      data: { content },
     });
-    const sheet =
-      existing == null
-        ? await this.db.athleteSheet.create({
-            // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
-            data: { athleteId, content } satisfies Omit<
-              Prisma.AthleteSheetUncheckedCreateInput,
-              "coachId"
-            > as Prisma.AthleteSheetUncheckedCreateInput,
-          })
-        : await this.db.athleteSheet.update({
-            where: { id: existing.id },
-            data: { content },
-          });
+    if (count === 0) throw new StaleWriteException();
+
+    // `updateMany` ne rend pas la ligne. Relue après coup, elle peut déjà porter une écriture
+    // suivante : c'est alors celle-ci que le client reçoit, contenu et version ensemble.
+    const sheet = await this.db.athleteSheet.findFirstOrThrow({ where: { athleteId } });
     return toAthleteSheetDto(sheet);
+  }
+
+  private async create(athleteId: string, content: string): Promise<AthleteSheet> {
+    try {
+      return await this.db.athleteSheet.create({
+        // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
+        data: { athleteId, content } satisfies Omit<
+          Prisma.AthleteSheetUncheckedCreateInput,
+          "coachId"
+        > as Prisma.AthleteSheetUncheckedCreateInput,
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new StaleWriteException();
+      throw error;
+    }
   }
 }
