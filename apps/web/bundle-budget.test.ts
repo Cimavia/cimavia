@@ -7,8 +7,13 @@ import {
   measureBundle,
 } from "./bundle-budget";
 
-const chunk = (fileName: string, bytes: number, imports: string[] = [], isEntry = false) =>
-  ({ fileName, bytes, isEntry, imports }) satisfies EmittedChunk;
+const chunk = (
+  fileName: string,
+  bytes: number,
+  imports: string[] = [],
+  isEntry = false,
+  css: string[] = [],
+) => ({ fileName, bytes, isEntry, imports, css }) satisfies EmittedChunk;
 
 describe("measureBundle", () => {
   it("compte au premier affichage l'entrée et ses imports statiques, de proche en proche", () => {
@@ -30,6 +35,35 @@ describe("measureBundle", () => {
     ]);
 
     expect(measured).toEqual({ initial: 22, total: 22 });
+  });
+
+  it("compte au premier affichage les feuilles des chunks initiaux, et toutes au total", () => {
+    const measured = measureBundle(
+      [
+        chunk("index.js", 100, ["crash.js"], true, ["index.css"]),
+        chunk("crash.js", 20, [], false, ["crash.css"]),
+        chunk("editor.js", 400, [], false, ["editor.css"]),
+      ],
+      [
+        { fileName: "index.css", bytes: 30 },
+        { fileName: "crash.css", bytes: 4 },
+        { fileName: "editor.css", bytes: 50 },
+      ],
+    );
+
+    expect(measured).toEqual({ initial: 154, total: 604 });
+  });
+
+  it("ne compte qu'une fois une feuille partagée par deux chunks", () => {
+    const measured = measureBundle(
+      [
+        chunk("index.js", 10, ["a.js"], true, ["shared.css"]),
+        chunk("a.js", 5, [], false, ["shared.css"]),
+      ],
+      [{ fileName: "shared.css", bytes: 8 }],
+    );
+
+    expect(measured).toEqual({ initial: 23, total: 23 });
   });
 
   it("ignore un import qu'aucun chunk émis ne porte", () => {
@@ -75,21 +109,57 @@ describe("bundleBudgetPlugin", () => {
       throw new Error(message);
     },
   };
-  const output = (fileName: string, bytes: number, isEntry = false) => ({
+  const output = (fileName: string, bytes: number, isEntry = false, css: string[] = []) => ({
     type: "chunk",
     fileName,
     code: "x".repeat(bytes),
     isEntry,
     imports: [],
+    viteMetadata: { importedCss: new Set(css), importedAssets: new Set() },
+  });
+  const asset = (fileName: string, bytes: number) => ({
+    type: "asset",
+    fileName,
+    source: "x".repeat(bytes),
   });
 
-  it("laisse passer un bundle au budget, assets non comptés", () => {
+  it("laisse passer un bundle au budget, images non comptées", () => {
     const bundle = {
-      "index.js": output("index.js", BUNDLE_BUDGET.initial, true),
-      "index.css": { type: "asset", fileName: "index.css", source: "x".repeat(10_000_000) },
+      "index.js": output("index.js", BUNDLE_BUDGET.initial - 10, true, ["index.css"]),
+      "index.css": asset("index.css", 10),
+      "logo.png": asset("logo.png", 10_000_000),
     };
 
     expect(() => writeBundle.call(context, {}, bundle)).not.toThrow();
+  });
+
+  it("compte la feuille de style de l'entrée au premier affichage", () => {
+    const bundle = {
+      "index.js": output("index.js", BUNDLE_BUDGET.initial, true, ["index.css"]),
+      "index.css": asset("index.css", 1),
+    };
+
+    expect(() => writeBundle.call(context, {}, bundle)).toThrow(
+      `bundle initial : ${BUNDLE_BUDGET.initial + 1} octets`,
+    );
+  });
+
+  it("compte au total une feuille chargée à la demande", () => {
+    const bundle = {
+      "index.js": output("index.js", 10, true),
+      "editor.js": output("editor.js", 10, false, ["editor.css"]),
+      "editor.css": asset("editor.css", BUNDLE_BUDGET.total),
+    };
+
+    expect(() => writeBundle.call(context, {}, bundle)).toThrow(
+      `bundle total : ${BUNDLE_BUDGET.total + 20} octets`,
+    );
+  });
+
+  it("compte un chunk que Vite n'a pas annoté, sans feuille", () => {
+    const { viteMetadata: _, ...bare } = output("index.js", BUNDLE_BUDGET.initial + 1, true);
+
+    expect(() => writeBundle.call(context, {}, { "index.js": bare })).toThrow("bundle initial");
   });
 
   it("fait échouer le build d'un octet de trop, et nomme le budget dépassé", () => {

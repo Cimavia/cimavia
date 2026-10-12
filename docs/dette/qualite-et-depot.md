@@ -852,10 +852,11 @@ liste des domaines vivent dans l'index.
 > **Le bundle, en octets bruts et par un plugin Vite** (`apps/web/bundle-budget.ts`). Le job
 > *Builds de production* construit le web DANS l'image, en `cacheonly` : aucun `dist` n'en sort,
 > et une étape à part aurait reconstruit le bundle. Le plugin fait échouer `vite build` lui-même,
-> donc ce job, le poste et l'e2e web. Brut et non gzip, qui dépend de la version de zlib. Deux
-> budgets, le premier affichage (l'entrée et ses imports statiques) et le total, à 511 396 et
-> 1 360 719 octets mesurés plus 10 % : une dépendance qui double le bundle est refusée, la
-> croissance ordinaire consomme la marge, et le budget se relève dans la PR qui le justifie. Mesuré
-> en `writeBundle`, une fois les préchargements réécrits par Vite. **Pas quand Sentry téléverse** :
-> son plugin injecte quelques centaines d'octets par chunk, et l'image de `main` échouerait sur un
-> code que la PR a déjà fait passer. Le mobile n'a pas de budget : hors périmètre de l'issue.
+> donc ce job, le poste et l'e2e web. Brut et non gzip, qui dépend de la version de zlib. JS et
+> CSS, qui bloque le rendu autant que le JS ; les polices et images en fichiers à part n'y sont
+> pas. Deux budgets, le premier affichage (l'entrée, ses imports statiques et leurs feuilles) et le
+> total, à 534 949 et 1 384 272 octets mesurés plus 10 % : une dépendance qui double le bundle
+> est refusée, la croissance ordinaire consomme la marge, et le budget se relève dans la PR qui le
+> justifie. Mesuré en `writeBundle`, une fois les préchargements réécrits par Vite. **Pas quand
+> Sentry téléverse** : son plugin injecte quelques centaines d'octets par chunk, et l'image de
+> `main` échouerait sur un code que la PR a déjà fait passer. Le mobile n'a pas de budget : hors périmètre de l'issue.

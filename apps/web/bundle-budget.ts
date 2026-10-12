@@ -2,31 +2,54 @@ import type { Plugin } from "vite";
 
 /**
  * Le budget du bundle web (#629), en octets BRUTS : le gzip dépend de la version de zlib qui le
- * calcule, la taille brute ne dépend que du code. Mesuré à 511 396 et 1 360 719 octets au départ,
+ * calcule, la taille brute ne dépend que du code. Mesuré à 534 949 et 1 384 272 octets,
  * plus 10 % arrondi au millier inférieur.
  *
- * - `initial` : le JS du premier affichage — l'entrée et tout ce qu'elle importe statiquement,
- *   que le navigateur charge avant de rendre quoi que ce soit ;
- * - `total` : tout le JS émis, chunks chargés à la demande compris (l'éditeur TipTap en est un).
+ * - `initial` : le JS et le CSS du premier affichage — l'entrée, tout ce qu'elle importe
+ *   statiquement et les feuilles de style de ces chunks, que le navigateur charge avant de rendre
+ *   quoi que ce soit ;
+ * - `total` : tout le JS et le CSS émis, chunks chargés à la demande compris (l'éditeur TipTap en
+ *   est un).
+ *
+ * Le CSS compte parce qu'il bloque le rendu autant que le JS : une police embarquée en data URI ou
+ * un safelist Tailwind trop large le gonflerait sans que rien d'autre bouge. Les polices et images
+ * servies en fichiers à part restent hors budget.
  *
  * Un dépassement fait ÉCHOUER `vite build`, donc le job *Builds de production* et l'image. Relever
  * un budget se fait ici, dans la PR qui le justifie : c'est le chiffre qui se relit.
  */
 export type Bundle = { initial: number; total: number };
 
-export const BUNDLE_BUDGET: Readonly<Bundle> = { initial: 562_000, total: 1_496_000 };
+export const BUNDLE_BUDGET: Readonly<Bundle> = { initial: 588_000, total: 1_522_000 };
 
-/** Ce que le plugin retient d'un chunk émis. */
-export type EmittedChunk = { fileName: string; bytes: number; isEntry: boolean; imports: string[] };
+/** Ce que le plugin retient d'un chunk émis : son poids, ses imports statiques, ses feuilles. */
+export type EmittedChunk = {
+  fileName: string;
+  bytes: number;
+  isEntry: boolean;
+  imports: string[];
+  css: string[];
+};
+
+/** Une feuille de style émise. */
+export type EmittedStyle = { fileName: string; bytes: number };
 
 /** La taille du premier affichage et la taille totale, en octets. */
-export function measureBundle(chunks: readonly EmittedChunk[]): Bundle {
-  const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+export function measureBundle(
+  chunks: readonly EmittedChunk[],
+  styles: readonly EmittedStyle[] = [],
+): Bundle {
+  const byName = new Map<string, { bytes: number }>(
+    [...chunks, ...styles].map((file) => [file.fileName, file]),
+  );
+  const chunkByName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
   const initial = new Set<string>();
   const visit = (fileName: string) => {
     if (initial.has(fileName)) return;
     initial.add(fileName);
-    for (const imported of byName.get(fileName)?.imports ?? []) visit(imported);
+    const chunk = chunkByName.get(fileName);
+    for (const sheet of chunk?.css ?? []) initial.add(sheet);
+    for (const imported of chunk?.imports ?? []) visit(imported);
   };
   for (const chunk of chunks) if (chunk.isEntry) visit(chunk.fileName);
 
@@ -49,7 +72,7 @@ export function budgetOverruns(
 }
 
 /**
- * Le plugin : mesure les chunks JS ÉCRITS par `vite build`, et échoue au-delà du budget. En
+ * Le plugin : mesure le JS et le CSS ÉCRITS par `vite build`, et échoue au-delà du budget. En
  * `writeBundle` et non en `generateBundle` : Vite réécrit encore les préchargements des imports
  * dynamiques dans son propre `generateBundle`, qui passe après celui d'un plugin ordinaire.
  */
@@ -58,19 +81,22 @@ export function bundleBudgetPlugin(): Plugin {
     name: "cmv-bundle-budget",
     apply: "build",
     writeBundle(_options, bundle) {
-      const chunks: EmittedChunk[] = Object.values(bundle).flatMap((output) =>
-        output.type === "chunk"
-          ? [
-              {
-                fileName: output.fileName,
-                bytes: Buffer.byteLength(output.code),
-                isEntry: output.isEntry,
-                imports: output.imports,
-              },
-            ]
-          : [],
-      );
-      const overruns = budgetOverruns(measureBundle(chunks));
+      const chunks: EmittedChunk[] = [];
+      const styles: EmittedStyle[] = [];
+      for (const output of Object.values(bundle)) {
+        if (output.type === "chunk") {
+          chunks.push({
+            fileName: output.fileName,
+            bytes: Buffer.byteLength(output.code),
+            isEntry: output.isEntry,
+            imports: output.imports,
+            css: [...(output.viteMetadata?.importedCss ?? [])],
+          });
+        } else if (output.fileName.endsWith(".css")) {
+          styles.push({ fileName: output.fileName, bytes: Buffer.byteLength(output.source) });
+        }
+      }
+      const overruns = budgetOverruns(measureBundle(chunks, styles));
       if (overruns.length > 0) {
         this.error(`Budget dépassé (#629) — ${overruns.join(" ; ")}. Voir bundle-budget.ts.`);
       }
