@@ -60,3 +60,7 @@ test-results/
 prisma/migrations/.gitkeep
 
 *Zone.Identifier
+# Claude Code : les permissions accordées sur ce poste, réécrites par l'outil à chaque accord. Ignoré
+# ici et pas seulement dans l'ignore global : Biome ne lit que celui du dépôt, et `biome ci .` (porte
+# qualité, hook de fin de réponse) échouait sur un fichier que personne n'édite.
+.claude/settings.local.json
