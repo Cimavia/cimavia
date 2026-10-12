@@ -756,6 +756,14 @@ liste des domaines vivent dans l'index.
 > `parseIsoDate`, que l'aller-retour rendait sans objet ; les gardes de `parseTrainingDuration`
 > qu'aucune suite de chiffres ne franchit ; le filtre des cycles diffusés d'`athlete-row`, doublé
 > par `currentAthletePlan`. Le cliquet passe de 89 à 92.
+>
+> **Le cliquet se remonte sur une mesure complète.** Le mode incrémental ne rejoue un survivant
+> que si un test qui le couvre est apparu. Un mutant **statique** — une regex, une constante, un
+> schéma posés au niveau du module — n'a pas de couverture par test : son « survivant » était relu
+> à vie, même tué depuis. La PR mesurait ainsi 91,30 % là où le score réel est 92,03 %, et le run
+> du lundi, incrémental lui aussi, n'aurait jamais assaini le cache. Désormais `main` (lundi et à
+> la demande) et toute PR qui touche `stryker.config.mjs` passent `--force` ; les autres PR
+> restent incrémentales.
 
 > **Tranché en [#627](https://github.com/Cimavia/cimavia/issues/627)** (les parcours du Coach
 > dans un navigateur) : **Playwright**, dans `apps/web/e2e/`, sur quatre parcours — connexion et
