@@ -17,7 +17,8 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app, baseURL } from "../support/app";
-import { mondayOfCurrentWeek } from "../support/fixtures";
+import { attachInvoiceDocument, mondayOfCurrentWeek } from "../support/fixtures";
+import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
 
 describe("Isolation multi-tenant (P1)", () => {
   let coachA: Agent;
@@ -750,6 +751,52 @@ describe("Isolation multi-capacité (#18)", () => {
     ).toBe(200);
     expect((await temp.get("/exercises")).status).toBe(403);
     expect((await temp.get("/athletes")).status).toBe(403);
+  });
+
+  /**
+   * Le piège propre au cumul, côté écriture (#325) : le cycle que `hisCoach` adresse à `dual` porte
+   * l'id de `dual` en `athleteId`. Une route du Coach le scope par `coachId` ; un `OR` entre les
+   * deux capacités le lui rendrait réécrivable — titre, semaines, séances, facturation, jusqu'à sa
+   * suppression. Il n'en touche rien, et `hisCoach` le retrouve à l'identique.
+   */
+  it("ne réécrit pas le cycle que son propre coach lui adresse", async () => {
+    const plan = await hisCoach.post("/plans").send({
+      athleteId: dualId,
+      title: "Cycle adressé",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    const weekId = required(plan.body.weeks[0]?.id, "semaine du cycle adressé");
+    const session = await hisCoach
+      .post(`/plan-weeks/${weekId}/sessions`)
+      .send({ title: "Séance adressée", scheduledDate: monday });
+    const billing = await hisCoach
+      .put(`/plans/${plan.body.id}/billing`)
+      .send({ amountCents: 4000, dueDate: monday });
+    expect([session.status, billing.status]).toEqual([201, 200]);
+    const storagePath = await attachInvoiceDocument(hisCoach, plan.body.id);
+
+    const read = async (path: string) => withoutSignatures((await hisCoach.get(path)).body);
+    const paths = [
+      `/plans/${plan.body.id}`,
+      `/scheduled-sessions/${session.body.id}`,
+      `/plans/${plan.body.id}/billing`,
+    ];
+    const before = await Promise.all(paths.map(read));
+
+    const statuses = await attemptPlanWrites(dual, {
+      planId: plan.body.id,
+      weekId,
+      sessionId: session.body.id,
+      monday,
+      storagePath,
+    });
+
+    expect(statuses).toEqual(notFoundEverywhere(statuses));
+    expect(await Promise.all(paths.map(read))).toEqual(before);
+    const document = (await hisCoach.get(`/plans/${plan.body.id}/billing`)).body.documentUrl;
+    expect((await fetch(document)).status).toBe(200);
   });
 
   /**
