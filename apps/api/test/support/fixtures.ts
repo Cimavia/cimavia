@@ -44,6 +44,27 @@ export async function putExerciseFile(
   return signed.body.storagePath;
 }
 
+/**
+ * Le PDF justificatif d'un cycle, réellement envoyé au storage puis rattaché à sa facture DRAFT :
+ * un test qui éprouve la purge du bucket a besoin d'un objet qui existe. Rend sa clé.
+ */
+export async function attachInvoiceDocument(coach: Agent, planId: string): Promise<string> {
+  const file = { fileName: "facture.pdf", mimeType: "application/pdf", size: 2_000 };
+  const signed = await coach.post(`/plans/${planId}/billing/document/upload-url`).send(file);
+  expect(signed.status).toBe(201);
+  const uploaded = await fetch(signed.body.uploadUrl, {
+    method: "PUT",
+    body: Buffer.alloc(file.size, 1),
+    headers: { "content-type": file.mimeType },
+  });
+  expect(uploaded.status).toBe(200);
+  const attached = await coach
+    .put(`/plans/${planId}/billing/document`)
+    .send({ storagePath: signed.body.storagePath, ...file });
+  expect(attached.status).toBe(200);
+  return signed.body.storagePath;
+}
+
 /** Une image de consigne réellement envoyée : la purge du stockage se vérifie en la relisant. */
 export async function uploadInstructionImage(coach: Agent, exerciseId: string) {
   const image = jpeg("prise.jpg");
