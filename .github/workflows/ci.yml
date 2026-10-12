@@ -183,6 +183,95 @@ jobs:
           docker compose -f apps/api/docker-compose.test.yml logs --tail=50
           docker compose -f apps/api/docker-compose.yml logs --tail=50
 
+  # Les parcours du Coach dans un navigateur, contre une vraie API (#627). Ni les tests de rendu du
+  # web (API simulée) ni les e2e de l'API (sans navigateur) ne voient ce qui les relie : routage,
+  # cookie de session, cache TanStack Query, rendu réel.
+  #
+  # PAS un check requis, pour l'instant : un navigateur flake plus qu'une API, et sa stabilité se
+  # juge avant de lui confier une porte. Le rouge se voit sur la PR, il ne bloque pas le merge.
+  #
+  # Filtré par ÉTAPES, comme « Builds de production » : le job conclut toujours, et pourra devenir
+  # requis sans qu'une PR de documentation reste en attente d'un statut.
+  e2e-web:
+    name: E2E web (parcours Coach)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Le web et ce qu'il consomme, plus l'API : un parcours casse aussi bien sur une route qui
+      # change que sur un écran.
+      - name: Ce que la PR touche
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"
+          common='^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json|\.nvmrc|\.github/workflows/ci\.yml|\.github/actions/)'
+          if grep -qE -e "$common" -e '^(apps/(web|api)/|packages/(shared|tokens|tsconfig)/)' <<<"$files"; then
+            echo "web=true"
+          else
+            echo "web=false"
+          fi | tee -a "$GITHUB_OUTPUT"
+
+      - name: Setup
+        if: steps.changes.outputs.web == 'true'
+        uses: $/.github/actions/setup
+
+      # La base seule : aucun parcours ne touche aux médias, et l'API démarre sans storage.
+      # `e2e/prepare-database.mjs` y crée sa propre base, `cimavia_db_web_e2e`, avant que l'API démarre.
+      - name: Démarre la base e2e jetable (5434)
+        if: steps.changes.outputs.web == 'true'
+        run: docker compose -f apps/api/docker-compose.test.yml up -d --wait
+
+      # Le navigateur suit la version de Playwright : la clé de cache la lit dans le paquet installé,
+      # pas dans une seconde valeur à tenir à la main.
+      - name: Version de Playwright
+        if: steps.changes.outputs.web == 'true'
+        id: playwright
+        run: echo "version=$(pnpm --filter @cmv/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache du navigateur
+        if: steps.changes.outputs.web == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ steps.playwright.outputs.version }}-${{ runner.os }}
+
+      # `--with-deps` à chaque fois : le cache garde le navigateur, pas les bibliothèques système
+      # qu'il réclame. Le téléchargement, lui, est sauté quand le cache a répondu.
+      - name: Installe Chromium
+        if: steps.changes.outputs.web == 'true'
+        run: pnpm --filter @cmv/web exec playwright install --with-deps chromium
+
+      # La config lance elle-même l'API et le web de test (`webServer`), sur leurs ports à eux.
+      - name: E2E web
+        if: steps.changes.outputs.web == 'true'
+        run: pnpm --filter @cmv/web test:e2e:web
+
+      # Les traces des échecs : le DOM, le réseau et chaque étape, rejouables par
+      # `pnpm exec playwright show-trace`. Leurs données n'existent que le temps de la suite.
+      - name: Rapport Playwright (si échec)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+
+      - name: Logs de la base (si échec)
+        if: failure()
+        run: docker compose -f apps/api/docker-compose.test.yml logs --tail=50
+
   # Le build de PRODUCTION des trois apps, avant le merge (#414). Le typecheck ne voit pas ce qu'un
   # build voit : un fichier exclu par `.dockerignore`, une dépendance que `pnpm deploy --prod`
   # retire, un `turbo prune` qui ne suit plus le graphe, un import que Rollup ou Metro ne résout

@@ -52,6 +52,9 @@ coverage-e2e/
 # sable où Stryker copie le paquet — il y reste si un run est interrompu.
 **/reports/mutation/
 .stryker-tmp/
+# E2e navigateur (#627) : le rapport HTML et les traces des échecs, régénérés à chaque run.
+playwright-report/
+test-results/
 
 # Prisma
 prisma/migrations/.gitkeep
