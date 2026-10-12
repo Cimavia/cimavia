@@ -29,6 +29,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { benchHolds } from "./fixture-bench.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RULES = join(ROOT, "scripts/lint-rules");
@@ -92,9 +93,8 @@ function lint(dir) {
   }
 }
 
-/** Les écarts entre ce qui est marqué et ce que Biome signale, vides si le banc tient. */
-function compare(workdir) {
-  const expected = expectedMarks(workdir);
+/** Ce que Biome signale sur le banc, sous la même forme que les marques. */
+function reportedMarks(workdir) {
   const rules = rulesByMessage();
   const reported = new Set();
   for (const diagnostic of lint(workdir)) {
@@ -103,11 +103,7 @@ function compare(workdir) {
     const where = `${relative(workdir, diagnostic.location.path)}:${diagnostic.location.start.line}`;
     reported.add(`${where} ${rule}`);
   }
-  return {
-    expected,
-    silent: [...expected].filter((mark) => !reported.has(mark)),
-    unexpected: [...reported].filter((mark) => !expected.has(mark)),
-  };
+  return reported;
 }
 
 // `process.exitCode` et non `process.exit()` : ce dernier sort sans passer par `finally`, et
@@ -115,21 +111,13 @@ function compare(workdir) {
 const workdir = mkdtempSync(join(tmpdir(), "cmv-lint-rules-"));
 try {
   cpSync(FIXTURES, workdir, { recursive: true });
-  const { expected, silent, unexpected } = compare(workdir);
-
-  for (const mark of silent) console.error(`✗ attendu, rien de signalé : ${mark}`);
-  for (const mark of unexpected) console.error(`✗ signalé sans être attendu : ${mark}`);
-
-  if (silent.length > 0 || unexpected.length > 0) {
-    console.error(
-      `\n${silent.length} marque(s) muette(s), ${unexpected.length} signalement(s) en trop — une règle maison ne fait plus ce qu'elle dit (scripts/lint-rules/).`,
-    );
-    process.exitCode = 1;
-  } else {
-    console.log(
-      `Règles maison : ${expected.size} signalements attendus, tous rendus, rien en trop.`,
-    );
-  }
+  const holds = benchHolds({
+    name: "Règles maison",
+    expected: expectedMarks(workdir),
+    reported: reportedMarks(workdir),
+    culprit: "une règle maison ne fait plus ce qu'elle dit (scripts/lint-rules/).",
+  });
+  if (!holds) process.exitCode = 1;
 } catch (error) {
   console.error(error.message);
   process.exitCode = 2;

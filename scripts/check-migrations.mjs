@@ -29,6 +29,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { benchHolds } from "./fixture-bench.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = join(ROOT, ".squawk.toml");
@@ -149,20 +150,19 @@ function expectedMarks(files) {
   return expected;
 }
 
-/** Le banc tient-il ? Les écarts, vides si oui. */
-function checkFixtures() {
+/** Le banc tient-il ? Ses écarts sont rapportés au passage. */
+function fixturesHold() {
   const files = readdirSync(FIXTURES)
     .filter((name) => name.endsWith(".sql"))
     .map((name) => join(FIXTURES, name));
-  const expected = expectedMarks(files);
-  const reported = new Set(
-    lint(files).map((f) => `${relative(ROOT, resolve(ROOT, f.file))}:${f.line} ${f.rule}`),
-  );
-  return {
-    expected,
-    silent: [...expected].filter((mark) => !reported.has(mark)),
-    unexpected: [...reported].filter((mark) => !expected.has(mark)),
-  };
+  return benchHolds({
+    name: "Banc squawk",
+    expected: expectedMarks(files),
+    reported: new Set(
+      lint(files).map((f) => `${relative(ROOT, resolve(ROOT, f.file))}:${f.line} ${f.rule}`),
+    ),
+    culprit: ".squawk.toml ne fait plus ce qu'il dit (scripts/migration-lint/).",
+  });
 }
 
 /** Le conseil d'une règle, ou `null` : nos règles d'exception disent déjà quoi faire. */
@@ -212,17 +212,9 @@ function argument(name, fallback) {
 }
 
 try {
-  const { expected, silent, unexpected } = checkFixtures();
-  for (const mark of silent) console.error(`✗ attendu, rien de signalé : ${mark}`);
-  for (const mark of unexpected) console.error(`✗ signalé sans être attendu : ${mark}`);
-  if (silent.length > 0 || unexpected.length > 0) {
-    console.error(
-      `\n${silent.length} marque(s) muette(s), ${unexpected.length} signalement(s) en trop — .squawk.toml ne fait plus ce qu'il dit (scripts/migration-lint/).`,
-    );
+  if (!fixturesHold()) {
     process.exitCode = 1;
   } else {
-    console.log(`Banc squawk : ${expected.size} signalements attendus, tous rendus, rien en trop.`);
-
     const files = changedMigrations(argument("--base", "origin/main"));
     const findings = lint(files);
     report(findings);
