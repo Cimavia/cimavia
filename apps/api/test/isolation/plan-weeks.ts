@@ -2,6 +2,7 @@ import { PLAN_MAX_WEEKS, Role, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
+import { patchAtLatest } from "../support/version";
 
 describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
   let coach: Agent;
@@ -214,7 +215,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     const empty = await coach
       .post("/plans")
       .send({ title: "Encore vide", startDate: monday, weeks: [{ type: "TRAINING" }] });
-    const assignedEmpty = await coach.patch(`/plans/${empty.body.id}`).send({ athleteId });
+    const assignedEmpty = await patchAtLatest(coach, `/plans/${empty.body.id}`, { athleteId });
     expect(assignedEmpty.status).toBe(200);
     expect(assignedEmpty.body.athleteId).toBe(athleteId);
 
@@ -226,7 +227,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
       .send({ title: "Échauffement libre", scheduledDate: monday });
     expect(session.body.exercises).toEqual([]);
 
-    expect((await coach.patch(`/plans/${bare.body.id}`).send({ athleteId })).status).toBe(200);
+    expect((await patchAtLatest(coach, `/plans/${bare.body.id}`, { athleteId })).status).toBe(200);
     expect((await billAndPublish(coach, bare.body.id)).status).toBe(200);
 
     const read = await athlete.get(`/me/scheduled-sessions/${session.body.id}`);

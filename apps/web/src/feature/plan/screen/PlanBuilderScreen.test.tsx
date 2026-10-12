@@ -7,6 +7,7 @@ import {
   PlanWeekType,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
+  STALE_WRITE,
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
@@ -18,16 +19,24 @@ import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { PlanBuilderScreen } from "@/feature/plan/screen/PlanBuilderScreen";
+import { ApiError } from "@/shared/lib/api";
 import { renderInRoute } from "../../../../test/render";
 
 /**
  * Les données ont leurs propres tests ; ce qui s'éprouve ici est ce que l'écran DÉCIDE — comment
  * il nomme un cycle sans destinataire, et ce qu'il ferme tant qu'il n'en a pas (#144).
  */
-vi.mock("@/feature/plan/hook/usePlan", () => ({
-  usePlan: vi.fn(),
-  usePlanMutations: vi.fn(),
-}));
+const getPlan = vi.hoisted(() => vi.fn());
+vi.mock("@/feature/plan/hook/usePlan", async () => {
+  // La VRAIE clé du détail : une clé recopiée ici survivrait à un renommage de l'application.
+  const { planKeys } = await import("@/feature/plan/api");
+  return {
+    usePlan: vi.fn(),
+    usePlanMutations: vi.fn(),
+    // « Recharger » relit le cycle par cette requête (#604) : sa lecture est la seule doublure.
+    planDetailQuery: (id: string) => ({ queryKey: planKeys.detail(id), queryFn: getPlan }),
+  };
+});
 vi.mock("@/feature/invoice/hook/useInvoices", () => ({
   usePlanBilling: vi.fn(),
   useSavePlanBilling: () => ({ mutate: vi.fn(), isPending: false }),
@@ -102,10 +111,11 @@ const plan = (over: Partial<PlanDto>): PlanDto =>
   }) as PlanDto;
 
 const saveHeader = vi.fn();
+const resetHeader = vi.fn();
 const addWeek = vi.fn();
 const refetch = vi.fn();
 
-type PlanQuery = { data?: PlanDto | undefined; isPending?: boolean; isError?: boolean };
+type PlanQuery = { data?: PlanDto | undefined; isPending?: boolean; error?: unknown };
 
 const mount = async (
   over: Partial<PlanDto>,
@@ -114,6 +124,8 @@ const mount = async (
   // le passer explicitement déclencherait la valeur par défaut du paramètre.
   coachPlans: PlanSummaryDto[] | null = [],
   query: PlanQuery = {},
+  // Le refus du dernier enregistrement d'en-tête, tel que la mutation le garde.
+  headerError: unknown = null,
 ) => {
   vi.mocked(usePlans).mockReturnValue({
     data: coachPlans ?? undefined,
@@ -121,13 +133,13 @@ const mount = async (
   vi.mocked(usePlan).mockReturnValue({
     data: plan(over),
     isPending: false,
-    isError: false,
+    error: null,
     refetch,
     ...query,
   } as unknown as ReturnType<typeof usePlan>);
   vi.mocked(usePlanMutations).mockReturnValue({
     addWeek: { mutate: addWeek },
-    saveHeader: { mutate: saveHeader, isPending: false },
+    saveHeader: { mutate: saveHeader, isPending: false, error: headerError, reset: resetHeader },
     isBusy: false,
   } as unknown as ReturnType<typeof usePlanMutations>);
   vi.mocked(usePlanBilling).mockReturnValue({ data: billing } as unknown as ReturnType<
@@ -178,7 +190,10 @@ describe("PlanBuilderScreen — le destinataire", () => {
     await user.selectOptions(getByRole("combobox"), "ath_lea");
     await user.click(getByText("plan.header.submit"));
 
-    expect(saveHeader).toHaveBeenCalledWith({ athleteId: "ath_lea" });
+    expect(saveHeader).toHaveBeenCalledWith(
+      { athleteId: "ath_lea", expectedUpdatedAt: "2026-10-01T10:00:00Z" },
+      { onSuccess: expect.any(Function) },
+    );
   });
 
   it("ferme la diffusion et la facturation tant que le cycle n'a pas de destinataire", async () => {
@@ -290,7 +305,10 @@ describe("PlanBuilderScreen — le cycle ne se lit pas", () => {
 
   // Une panne n'est pas une disparition : rediriger vers la liste laisserait croire le cycle perdu.
   it("dit la panne et relit le cycle quand on réessaie", async () => {
-    const { getByRole, user } = await mount({}, null, [], { isError: true, data: undefined });
+    const { getByRole, user } = await mount({}, null, [], {
+      error: new Error("réseau"),
+      data: undefined,
+    });
 
     await user.click(getByRole("button", { name: "common.retry" }));
 
@@ -301,6 +319,81 @@ describe("PlanBuilderScreen — le cycle ne se lit pas", () => {
     const { router } = await mount({}, null, [], { data: undefined });
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+  });
+
+  // Une relecture ratée — « Recharger », un retour d'onglet — avec le cycle en cache : l'écran
+  // d'erreur effacerait la saisie en cours (#604).
+  it("garde le builder quand une relecture échoue sur un cycle déjà reçu", async () => {
+    const { getByRole, queryByRole } = await mount({}, null, [], { error: new Error("réseau") });
+
+    expect(getByRole("button", { name: "plan.header.submit" })).toBeTruthy();
+    expect(queryByRole("button", { name: "common.retry" })).toBeNull();
+  });
+
+  // Supprimé par un autre Coach : il n'y a plus rien à garder, l'écran ne fait pas comme si.
+  it("ramène à la liste un cycle en cache que la relecture dit supprimé", async () => {
+    const { router } = await mount({}, null, [], {
+      error: new ApiError(404, "Planification introuvable", null),
+    });
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+  });
+});
+
+describe("PlanBuilderScreen — conflit d'édition sur l'en-tête (#604)", () => {
+  const stale = () => new ApiError(409, STALE_WRITE, null);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("dit le conflit par le bandeau, à côté de la saisie", async () => {
+    const { getByText } = await mount({}, null, [], {}, stale());
+
+    expect(getByText("plan.header.stale")).toBeTruthy();
+  });
+
+  it("ne montre pas de bandeau pour un autre refus", async () => {
+    const { queryByText } = await mount(
+      {},
+      null,
+      [],
+      {},
+      new ApiError(400, "Requête invalide", null),
+    );
+
+    expect(queryByText("plan.header.stale")).toBeNull();
+  });
+
+  // Maquette #597 : « Recharger » remplace la saisie par la dernière version, sans fusion.
+  it("« Recharger » relit le cycle, remplace la saisie et oublie le refus", async () => {
+    getPlan.mockResolvedValue(plan({}));
+    const { container, getByRole, user } = await mount({}, null, [], {}, stale());
+    const title = container.querySelector("#planTitle") as HTMLInputElement;
+    await user.clear(title);
+    await user.type(title, "Saisie périmée");
+
+    await user.click(getByRole("button", { name: "common.staleReload" }));
+
+    await waitFor(() =>
+      expect((container.querySelector("#planTitle") as HTMLInputElement).value).toBe("Cycle bloc"),
+    );
+    expect(getPlan).toHaveBeenCalledOnce();
+    expect(resetHeader).toHaveBeenCalledOnce();
+  });
+
+  it("garde la saisie et le refus quand la relecture échoue", async () => {
+    getPlan.mockRejectedValue(new Error("réseau"));
+    const { container, findByText, getByRole, user } = await mount({}, null, [], {}, stale());
+    const title = container.querySelector("#planTitle") as HTMLInputElement;
+    await user.clear(title);
+    await user.type(title, "Saisie gardée");
+
+    await user.click(getByRole("button", { name: "common.staleReload" }));
+
+    expect(await findByText("common.staleReloadFailed")).toBeTruthy();
+    expect((container.querySelector("#planTitle") as HTMLInputElement).value).toBe("Saisie gardée");
+    expect(resetHeader).not.toHaveBeenCalled();
   });
 });
 
@@ -455,7 +548,7 @@ describe("PlanBuilderScreen — diffuser une saisie non enregistrée", () => {
     vi.mocked(usePlan).mockReturnValue({
       data: plan({ weeks: [week], status: PlanStatus.PUBLISHED }),
       isPending: false,
-      isError: false,
+      error: null,
       refetch,
     } as unknown as ReturnType<typeof usePlan>);
     await user.click(getAllByRole("button", { name: "plan.week.addSession" })[0] as HTMLElement);

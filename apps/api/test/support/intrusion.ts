@@ -1,6 +1,13 @@
 import type request from "supertest";
 import type { Agent } from "./actors";
 
+/**
+ * Une version bien formée, que l'intrus cite faute de pouvoir lire la vraie (#604) : sans elle, le
+ * 400 de validation masquerait le 404 du scope qu'on éprouve. La garde scopée répond avant toute
+ * comparaison de version.
+ */
+const ANY_VERSION = "2026-01-01T00:00:00.000Z";
+
 /** Le cycle d'un autre, tel qu'un intrus le vise : ses identifiants, et la clé de son justificatif. */
 export type PlanTarget = {
   planId: string;
@@ -27,7 +34,13 @@ export async function attemptPlanWrites(
   const { planId, weekId, sessionId, monday } = target;
   const pdf = { fileName: "detourne.pdf", mimeType: "application/pdf", size: 2_000 };
   const attempts: [string, () => request.Test][] = [
-    ["PATCH /plans/:id", () => intruder.patch(`/plans/${planId}`).send({ title: "Détourné" })],
+    [
+      "PATCH /plans/:id",
+      () =>
+        intruder
+          .patch(`/plans/${planId}`)
+          .send({ title: "Détourné", expectedUpdatedAt: ANY_VERSION }),
+    ],
     [
       "POST /plans/:id/weeks",
       () => intruder.post(`/plans/${planId}/weeks`).send({ type: "TRAINING" }),

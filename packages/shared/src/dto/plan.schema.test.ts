@@ -7,6 +7,7 @@ import {
   reorderPlanDaySchema,
   SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
   scheduledSessionExerciseInputSchema,
+  updatePlanSchema,
   updateScheduledSessionSchema,
 } from "./plan.schema";
 import { SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from "./session.schema";
@@ -40,6 +41,18 @@ describe("createPlanSchema", () => {
       coachId: "coach_intrus",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("updatePlanSchema", () => {
+  const VERSION = "2026-10-12T08:00:00.000Z";
+
+  // L'en-tête d'un cycle peut être retouché par deux Coachs : la version lue part avec (#604).
+  it("exige la version sur laquelle la saisie a commencé", () => {
+    expect(updatePlanSchema.safeParse({ title: "Bloc" }).success).toBe(false);
+    expect(updatePlanSchema.safeParse({ title: "Bloc", expectedUpdatedAt: VERSION }).success).toBe(
+      true,
+    );
   });
 });
 

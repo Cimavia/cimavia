@@ -24,6 +24,7 @@ import {
 } from "@/feature/plan/api";
 import { forgetPlanClipboardSource } from "@/feature/plan/hook/usePlanClipboard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { isStaleWriteError } from "@/shared/lib/api";
 
 // La semaine QUI REÇOIT et celle qu'on recopie — nommées, parce que deux `string` côte à côte
 // s'inversent en silence.
@@ -32,11 +33,13 @@ type PasteWeekVariables = { targetWeekId: string; sourcePlanWeekId: string };
 // La journée visée et l'ordre voulu, en entier — l'API refuse un sous-ensemble.
 type ReorderDayVariables = { weekId: string; date: string; sessionIds: string[] };
 
+export const planDetailQuery = (id: string) => ({
+  queryKey: planKeys.detail(id),
+  queryFn: () => getPlan(id),
+});
+
 export function usePlan(planId: string) {
-  return useQuery<PlanDto>({
-    queryKey: planKeys.detail(planId),
-    queryFn: () => getPlan(planId),
-  });
+  return useQuery<PlanDto>(planDetailQuery(planId));
 }
 
 /**
@@ -69,12 +72,15 @@ export function usePlanMutations(planId: string) {
    * le cycle ENTIER d'une vue athlète à une autre.
    *
    * Un seul toast pour les quatre champs : le formulaire les montre tous à l'écran, une
-   * confirmation n'a pas à répéter ce qu'on vient d'y lire.
+   * confirmation n'a pas à répéter ce qu'on vient d'y lire. Un conflit d'édition (#604) n'en a
+   * pas : le formulaire le dit à côté de la saisie, avec de quoi recharger.
    */
   const saveHeader = useMutation({
     mutationFn: (input: UpdatePlanInput) => updatePlan(planId, input),
     onSuccess: done("plan.toast.headerSaved"),
-    onError: toast.onError,
+    onError: (error) => {
+      if (!isStaleWriteError(error)) toast.onError(error);
+    },
   });
 
   const addWeek = useMutation({

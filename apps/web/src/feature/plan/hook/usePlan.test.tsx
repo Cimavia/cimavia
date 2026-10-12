@@ -1,4 +1,4 @@
-import { myPlanKeys, type PlanDto } from "@cmv/shared";
+import { ApiError, myPlanKeys, type PlanDto, STALE_WRITE } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "../../../../test/query";
@@ -42,6 +42,9 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
 vi.mock("@/shared/hook/useMutationToast", () => ({
   useMutationToast: () => ({ onSuccess: onSuccessMock, onError: onErrorMock }),
 }));
+
+// La version que le formulaire d'en-tête cite (#604) : le hook la transmet sans la regarder.
+const VERSION = "2026-10-12T08:00:00.000Z";
 
 const planWith = (weeks: { id: string; sessionCount: number }[]) =>
   ({
@@ -149,16 +152,53 @@ describe("usePlanMutations", () => {
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
     await act(async () => {
-      await result.current.saveHeader.mutateAsync({ title: "Bloc force max", athleteId: null });
+      await result.current.saveHeader.mutateAsync({
+        title: "Bloc force max",
+        athleteId: null,
+        expectedUpdatedAt: VERSION,
+      });
     });
 
     expect(updatePlanMock).toHaveBeenCalledWith("plan-1", {
       title: "Bloc force max",
       athleteId: null,
+      expectedUpdatedAt: VERSION,
     });
     // Un seul toast pour les quatre champs : le formulaire les montre tous, une confirmation n'a
     // pas à répéter ce qu'on vient d'y lire.
     expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.headerSaved");
+  });
+
+  // Le formulaire dit le conflit à côté de la saisie, avec de quoi recharger (#604) : un toast
+  // disparaîtrait en emportant la seule explication.
+  it("ne dit pas un conflit d'édition sur l'en-tête par un toast, mais le garde", async () => {
+    updatePlanMock.mockRejectedValue(new ApiError(409, STALE_WRITE, null));
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.saveHeader
+        .mutateAsync({ title: "Bloc", expectedUpdatedAt: VERSION })
+        .catch(() => undefined);
+    });
+
+    await waitFor(() => expect(result.current.saveHeader.isError).toBe(true));
+    expect(onErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("dit par un toast tout autre refus de l'en-tête", async () => {
+    const refused = new ApiError(409, "Planification déjà diffusée", null);
+    updatePlanMock.mockRejectedValue(refused);
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.saveHeader
+        .mutateAsync({ title: "Bloc", expectedUpdatedAt: VERSION })
+        .catch(() => undefined);
+    });
+
+    expect(onErrorMock).toHaveBeenCalledWith(refused);
   });
 
   /**
@@ -173,7 +213,10 @@ describe("usePlanMutations", () => {
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
     await act(async () => {
-      await result.current.saveHeader.mutateAsync({ startDate: "2026-10-26" });
+      await result.current.saveHeader.mutateAsync({
+        startDate: "2026-10-26",
+        expectedUpdatedAt: VERSION,
+      });
     });
 
     const roots = invalidate.mock.calls.map(([options]) => options?.queryKey);

@@ -1,4 +1,4 @@
-import { Role, shiftIsoDate } from "@cmv/shared";
+import { Role, STALE_WRITE, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
@@ -839,5 +839,127 @@ describe("Les cycles diffusés s'accumulent chez l'athlète (#172)", () => {
   it("reste fermée au coach, comme le reste de /me (@Roles ATHLETE)", async () => {
     expect((await coachA.get("/me/plans")).status).toBe(403);
     expect((await coachB.get("/me/plans")).status).toBe(403);
+  });
+});
+
+/**
+ * L'en-tête d'un cycle refuse une écriture fondée sur une version périmée (#604) : deux Coachs d'une
+ * même entreprise retouchent le même cycle, et le second n'efface plus le premier en silence.
+ */
+describe("Cycle — version lue (#604)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let athleteId: string;
+  let planId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const path = () => `/plans/${planId}`;
+  const current = async () => (await coach.get(path())).body;
+  const rename = (title: string, expectedUpdatedAt: string, id = planId) =>
+    coach.patch(`/plans/${id}`).send({ title, expectedUpdatedAt });
+
+  /** Un brouillon garni d'une séance : de quoi le diffuser. */
+  async function draft(title: string): Promise<string> {
+    const plan = await coach
+      .post("/plans")
+      .send({ athleteId, title, startDate: monday, weeks: [{ type: "TRAINING" }] });
+    expect(plan.status).toBe(201);
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance", scheduledDate: monday });
+    expect(session.status).toBe(201);
+    return plan.body.id;
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("plan-version-coach@cmv.test", Role.COACH);
+    other = await signUp("plan-version-other@cmv.test", Role.COACH);
+    athleteId = await link(coach, await signUp("plan-version-athlete@cmv.test", Role.ATHLETE));
+    planId = await draft("Bloc");
+  });
+
+  it("écrit quand la version lue est la dernière, et la fait avancer", async () => {
+    const before = await current();
+    const write = await rename("Bloc (v2)", before.updatedAt);
+
+    expect(write.status).toBe(200);
+    expect(write.body.updatedAt).not.toBe(before.updatedAt);
+  });
+
+  it("refuse une écriture fondée sur une version périmée, et la base garde la première", async () => {
+    const read = await current();
+    expect((await rename("Écrit par le coach 1", read.updatedAt)).status).toBe(200);
+    const kept = await current();
+
+    const stale = await coach.patch(path()).send({
+      title: "Écrit par le coach 2",
+      startDate: shiftIsoDate(monday, 7),
+      expectedUpdatedAt: read.updatedAt,
+    });
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    // Ni le titre, ni le décalage des séances qu'aurait emporté la date de début.
+    expect(await current()).toEqual(kept);
+  });
+
+  it("ne laisse passer qu'une écriture sur deux lancées ensemble", async () => {
+    const read = await current();
+    const [first, second] = await Promise.all([
+      rename("Course A", read.updatedAt),
+      rename("Course B", read.updatedAt),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+  });
+
+  it("ne fait pas avancer la version d'un enregistrement qui ne change rien", async () => {
+    const before = await current();
+    const write = await coach.patch(path()).send({ expectedUpdatedAt: before.updatedAt });
+
+    expect(write.status).toBe(200);
+    expect(await current()).toEqual(before);
+  });
+
+  it("refuse une écriture qui ne dit pas quelle version elle a lue", async () => {
+    const before = await current();
+    const write = await coach.patch(path()).send({ title: "Sans version" });
+
+    expect(write.status).toBe(400);
+    expect(await current()).toEqual(before);
+  });
+
+  /**
+   * Le conflit passe AVANT le verrou de diffusion : la saisie n'a pas vu le cycle diffusé, et
+   * « Recharger » le lui montrera — un refus « cycle diffusé » lui parlerait d'un état inconnu.
+   */
+  it("répond par un conflit de version sur un cycle diffusé depuis la lecture", async () => {
+    const id = await draft("Diffusé entre-temps");
+    const read = await versionOf(coach, `/plans/${id}`);
+    expect((await billAndPublish(coach, id)).status).toBe(200);
+
+    const stale = await rename("Trop tard", read, id);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+  });
+
+  // Un 409 apprendrait à l'autre coach que le cycle existe.
+  it("répond 404 à un autre coach, même muni de la dernière version", async () => {
+    const read = await current();
+    const write = await other
+      .patch(path())
+      .send({ title: "Intrusion", expectedUpdatedAt: read.updatedAt });
+
+    expect(write.status).toBe(404);
+    expect(await current()).toEqual(read);
+  });
+
+  it("répond 404 sur un cycle supprimé, même muni de sa dernière version", async () => {
+    const id = await draft("À supprimer");
+    const read = await versionOf(coach, `/plans/${id}`);
+    expect((await coach.delete(`/plans/${id}`)).status).toBe(204);
+
+    expect((await rename("Trop tard", read, id)).status).toBe(404);
   });
 });

@@ -10,6 +10,8 @@ import { useMutationToast } from "@/shared/hook/useMutationToast";
  *   version REÇUE — sur une relecture ratée, l'écran garde la saisie et le bandeau, et un toast
  *   dit pourquoi rien n'a changé ;
  * - `generation` avance alors : en `key` du formulaire, elle le remonte sur la version relue ;
+ * - `onReloaded`, s'il est donné, suit le même succès : de quoi oublier le refus qui a ouvert le
+ *   bandeau, quand l'erreur vit hors du formulaire remonté ;
  * - `loadedId` est l'élément à afficher. Celui que l'URL désigne, ou, sur un écran ouvert en
  *   création, celui qu'un enregistrement interrompu a CRÉÉ : l'écran passe alors en édition, comme
  *   il l'aurait dû.
@@ -25,9 +27,12 @@ export function useStaleReload(
     mutationFn: (id: string) => queryClient.fetchQuery({ ...detail(id), staleTime: 0 }),
   });
 
-  function reload(id: string) {
+  function reload(id: string, onReloaded?: () => void) {
     mutation.mutate(id, {
-      onSuccess: () => setReloaded((last) => ({ id, generation: (last?.generation ?? 0) + 1 })),
+      onSuccess: () => {
+        setReloaded((last) => ({ id, generation: (last?.generation ?? 0) + 1 }));
+        onReloaded?.();
+      },
       onError: (error) => onFailure("common.staleReloadFailed", error),
     });
   }

@@ -4,6 +4,7 @@ import {
   type PlanDto,
   PlanStatus,
 } from "@cmv/shared";
+import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { renderWithProviders } from "../../../../test/render";
@@ -49,23 +50,39 @@ const plan = (over: Partial<PlanDto> = {}): PlanDto =>
     ...over,
   }) as PlanDto;
 
+// La version du cycle monté : celle que l'enregistrement cite tant que rien d'autre n'a été écrit.
+const VERSION = "2026-10-01T10:00:00Z";
+
 const onSave = vi.fn();
 const onDirtyChange = vi.fn();
+const onReload = vi.fn();
+
+/** Ce que reçoit `onSave` : les champs changés, la version lue, et de quoi confirmer. */
+const sent = (fields: object, version = VERSION) =>
+  [{ ...fields, expectedUpdatedAt: version }, expect.any(Function)] as const;
+
+type FormProps = Partial<Parameters<typeof PlanHeaderForm>[0]>;
+
+const form = (current: PlanDto, over: FormProps = {}) => (
+  <PlanHeaderForm
+    plan={current}
+    hasInvoiceDocument={false}
+    isSaving={false}
+    onSave={onSave}
+    isStale={false}
+    isReloading={false}
+    onReload={onReload}
+    onDirtyChange={onDirtyChange}
+    {...over}
+  />
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 const mount = (over: Partial<PlanDto> = {}, hasInvoiceDocument = false) =>
-  renderWithProviders(
-    <PlanHeaderForm
-      plan={plan(over)}
-      hasInvoiceDocument={hasInvoiceDocument}
-      isSaving={false}
-      onSave={onSave}
-      onDirtyChange={onDirtyChange}
-    />,
-  );
+  renderWithProviders(form(plan(over), { hasInvoiceDocument }));
 
 /**
  * Le cœur de l'issue : ces quatre champs ne se saisissaient qu'une fois, dans un panneau qui ne
@@ -81,7 +98,7 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
     await user.type(title, "Bloc force max");
     await user.click(getByText("plan.header.submit"));
 
-    expect(onSave).toHaveBeenCalledWith({ title: "Bloc force max" });
+    expect(onSave).toHaveBeenCalledWith(...sent({ title: "Bloc force max" }));
   });
 
   /**
@@ -95,7 +112,7 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
     await user.type(description, "Montée en charge");
     await user.click(getByText("plan.header.submit"));
 
-    expect(onSave).toHaveBeenCalledWith({ description: "Montée en charge" });
+    expect(onSave).toHaveBeenCalledWith(...sent({ description: "Montée en charge" }));
   });
 
   // Le choix neutre vaut « pas encore décidé », et part en `null` — jamais en chaîne vide, que
@@ -106,7 +123,7 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
     await user.selectOptions(getByRole("combobox"), "");
     await user.click(getByText("plan.header.submit"));
 
-    expect(onSave).toHaveBeenCalledWith({ athleteId: null });
+    expect(onSave).toHaveBeenCalledWith(...sent({ athleteId: null }));
   });
 
   // Une description vidée vaut l'absence, pas une chaîne vide que le rendu afficherait en
@@ -117,7 +134,7 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
     await user.clear(container.querySelector("#planDescription") as HTMLTextAreaElement);
     await user.click(getByText("plan.header.submit"));
 
-    expect(onSave).toHaveBeenCalledWith({ description: null });
+    expect(onSave).toHaveBeenCalledWith(...sent({ description: null }));
   });
 
   it("borne le titre et la description à ce que l'API accepte (#319)", () => {
@@ -140,15 +157,7 @@ describe("PlanHeaderForm — ce qui part à l'enregistrement", () => {
   });
 
   it("dit que l'enregistrement part, et ne se relance pas pendant ce temps", () => {
-    const { getByRole } = renderWithProviders(
-      <PlanHeaderForm
-        plan={plan()}
-        hasInvoiceDocument={false}
-        isSaving
-        onSave={onSave}
-        onDirtyChange={onDirtyChange}
-      />,
-    );
+    const { getByRole } = renderWithProviders(form(plan(), { isSaving: true }));
 
     expect(getByRole("button", { name: "plan.header.submitting" })).toBeDisabled();
   });
@@ -261,7 +270,7 @@ describe("PlanHeaderForm — un début choisi hors lundi, avant le recalage", ()
 
     await user.click(submit);
 
-    expect(onSave).toHaveBeenCalledWith({ startDate: NEXT_MONDAY });
+    expect(onSave).toHaveBeenCalledWith(...sent({ startDate: NEXT_MONDAY }));
   });
 
   /**
@@ -273,7 +282,7 @@ describe("PlanHeaderForm — un début choisi hors lundi, avant le recalage", ()
 
     await user.keyboard("{Enter}");
 
-    expect(onSave).toHaveBeenCalledWith({ startDate: NEXT_MONDAY });
+    expect(onSave).toHaveBeenCalledWith(...sent({ startDate: NEXT_MONDAY }));
     expect(start.value).toBe(NEXT_MONDAY);
     expect(getByText("plan.header.startDateSnapped")).toBeTruthy();
   });
@@ -375,5 +384,100 @@ describe("PlanHeaderForm — une saisie non enregistrée", () => {
     await user.clear(container.querySelector("#startDate") as HTMLInputElement);
 
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+});
+
+/**
+ * Deux Coachs d'une même entreprise retouchent le même cycle (#604) : l'enregistrement cite la
+ * version sur laquelle la saisie a COMMENCÉ, jamais celle que le cache a reçue depuis.
+ */
+describe("PlanHeaderForm — la version que l'enregistrement cite (#604)", () => {
+  const LATEST = "2026-10-12T08:03:00.000Z";
+  const title = (container: HTMLElement) =>
+    container.querySelector("#planTitle") as HTMLInputElement;
+
+  it("suit le cycle, version comprise, tant que rien n'est saisi", async () => {
+    const { container, getByText, rerender, user } = mount();
+
+    rerender(form(plan({ title: "Renommé ailleurs", updatedAt: LATEST })));
+    expect(title(container).value).toBe("Renommé ailleurs");
+
+    await user.type(container.querySelector("#planDescription") as HTMLTextAreaElement, "Ajout");
+    await user.click(getByText("plan.header.submit"));
+
+    expect(onSave).toHaveBeenCalledWith(...sent({ description: "Ajout" }, LATEST));
+  });
+
+  // Citer la version du cache ferait passer la saisie par-dessus l'écriture de l'autre Coach.
+  it("fige la saisie ET la version dès la première frappe", async () => {
+    const { container, getByText, rerender, user } = mount();
+    await user.clear(title(container));
+    await user.type(title(container), "Ma saisie");
+
+    rerender(form(plan({ title: "Renommé ailleurs", updatedAt: LATEST })));
+    expect(title(container).value).toBe("Ma saisie");
+
+    await user.click(getByText("plan.header.submit"));
+    expect(onSave).toHaveBeenCalledWith(...sent({ title: "Ma saisie" }));
+  });
+
+  // Le formulaire paraît propre : figé, il opposerait à l'autre Coach des champs que personne n'a
+  // touchés, et fermerait « Diffuser » sans raison visible.
+  it("suit de nouveau le cycle quand la saisie revient à son point de départ", async () => {
+    const { container, rerender, user } = mount();
+    await user.type(title(container), "x");
+    await user.type(title(container), "{Backspace}");
+
+    rerender(form(plan({ title: "Renommé ailleurs", updatedAt: LATEST })));
+
+    expect(title(container).value).toBe("Renommé ailleurs");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("repart du cycle enregistré quand rien n'a été saisi pendant l'envoi", async () => {
+    const { container, getByText, rerender, user } = mount();
+    await user.clear(title(container));
+    await user.type(title(container), "Enregistré");
+    await user.click(getByText("plan.header.submit"));
+    const saved = plan({ title: "Enregistré", updatedAt: LATEST });
+
+    act(() => onSave.mock.calls[0]?.[1](saved));
+    rerender(form(saved));
+    // Le formulaire suit de nouveau le cycle : une écriture d'ailleurs s'y voit.
+    rerender(form(plan({ title: "Puis renommé ailleurs", updatedAt: "2026-10-12T09:00:00.000Z" })));
+
+    expect(title(container).value).toBe("Puis renommé ailleurs");
+  });
+
+  // L'écriture qui vient de passer est la NÔTRE : la citer à nouveau n'est pas un conflit.
+  it("garde une saisie faite pendant l'envoi, et la fait citer la version écrite", async () => {
+    const { container, getByText, rerender, user } = mount();
+    await user.clear(title(container));
+    await user.type(title(container), "Premier");
+    await user.click(getByText("plan.header.submit"));
+    await user.type(title(container), " jet");
+
+    const saved = plan({ title: "Premier", updatedAt: LATEST });
+    act(() => onSave.mock.calls[0]?.[1](saved));
+    rerender(form(saved));
+    expect(title(container).value).toBe("Premier jet");
+
+    await user.click(getByText("plan.header.submit"));
+    expect(onSave).toHaveBeenLastCalledWith(...sent({ title: "Premier jet" }, LATEST));
+  });
+
+  it("dit le conflit par le bandeau, et « Recharger » le confie à l'écran", async () => {
+    const { getByRole, getByText, user } = renderWithProviders(form(plan(), { isStale: true }));
+
+    expect(getByText("plan.header.stale")).toBeTruthy();
+    await user.click(getByRole("button", { name: "common.staleReload" }));
+
+    expect(onReload).toHaveBeenCalledOnce();
+  });
+
+  it("ne montre aucun bandeau sans conflit", () => {
+    const { queryByText } = mount();
+
+    expect(queryByText("plan.header.stale")).toBeNull();
   });
 });

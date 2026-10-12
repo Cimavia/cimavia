@@ -30,6 +30,7 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
 import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
+import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import {
   PLAN_COUNTS_INCLUDE,
   PLAN_DETAIL_INCLUDE,
@@ -39,6 +40,8 @@ import {
 } from "../plan.mapper";
 
 export type ListPlansFilters = { athleteId?: string };
+
+const PLAN_NOT_FOUND = "Planification introuvable";
 
 @Injectable()
 export class PlanService {
@@ -100,9 +103,16 @@ export class PlanService {
    *
    * Tant que le cycle est un BROUILLON. Une fois diffusé, plus rien de ce qui le définit ne se
    * réécrit : ni son en-tête (`assertHeaderWritable`), ni son destinataire (`assertReassignable`).
+   *
+   * Sous la version lue (#604) : deux Coachs d'une même entreprise peuvent retoucher le même cycle,
+   * et le second enregistrement n'efface plus le premier en silence — 409 `STALE_WRITE`.
    */
   async update(id: string, input: UpdatePlanInput): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Le premier refus : une saisie périmée n'a pas vu l'état qu'on jugerait ensuite — un cycle
+    // diffusé entre-temps, un destinataire déjà changé. « Recharger » le lui montrera.
+    assertReadAtVersion(plan.updatedAt, expected);
     // Avant toute lecture supplémentaire : le refus est certain, inutile d'aller interroger la
     // base pour le destinataire.
     assertHeaderWritable(plan, input);
@@ -110,7 +120,7 @@ export class PlanService {
     // Forme UNCHECKED : `athleteId` s'écrit en scalaire, comme partout ailleurs sur cette chaîne
     // dénormalisée. La forme relationnelle demanderait un `connect`/`disconnect` là où le reste
     // du module raisonne en identifiants.
-    const data: Prisma.PlanUncheckedUpdateInput = {};
+    const data: Prisma.PlanUncheckedUpdateManyInput = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
 
@@ -132,17 +142,23 @@ export class PlanService {
       data.athleteId = input.athleteId ?? null;
     }
 
-    await this.db.$transaction(async (tx) => {
-      await tx.plan.update({ where: { id }, data });
+    // Rien à écrire : la version n'avance pas. L'avancer sans changement ferait prendre un 409 à
+    // l'autre Coach pour une écriture qui n'a rien modifié.
+    if (Object.keys(data).length === 0) return this.getDto(id);
+
+    return this.db.$transaction(async (tx) => {
+      await writeAtVersion(tx.plan, id, expected, data, PLAN_NOT_FOUND);
       if (shiftDays !== 0) {
         await this.shiftSessions(tx, { planId: id }, shiftDays);
       }
       if (reassigned) {
         await this.propagateAthlete(tx, id, input.athleteId ?? null);
       }
+      // Relu DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
+      // donc NOTRE version. Relue après, elle pourrait déjà porter celle d'un autre Coach — et le
+      // formulaire, qui garde une saisie faite pendant l'envoi, la citerait par-dessus lui.
+      return this.getDto(id, tx);
     });
-
-    return this.getDto(id);
   }
 
   /**
@@ -396,7 +412,7 @@ export class PlanService {
   async getOwnedOrThrow(id: string): Promise<Plan> {
     const plan = await this.db.plan.findFirst({ where: { id } });
     if (plan == null) {
-      throw new NotFoundException("Planification introuvable");
+      throw new NotFoundException(PLAN_NOT_FOUND);
     }
     return plan;
   }
@@ -410,16 +426,19 @@ export class PlanService {
   }
 
   // Le plan complet (semaines + séances) — la forme rendue par l'API après chaque écriture.
-  private async getDetailOrThrow(id: string): Promise<PlanWithWeeks> {
-    const plan = await this.db.plan.findFirst({ where: { id }, include: PLAN_DETAIL_INCLUDE });
+  private async getDetailOrThrow(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<PlanWithWeeks> {
+    const plan = await db.plan.findFirst({ where: { id }, include: PLAN_DETAIL_INCLUDE });
     if (plan == null) {
-      throw new NotFoundException("Planification introuvable");
+      throw new NotFoundException(PLAN_NOT_FOUND);
     }
     return plan;
   }
 
-  private async getDto(id: string): Promise<PlanDto> {
-    return toPlanDto(await this.getDetailOrThrow(id));
+  private async getDto(id: string, db: TenantPrisma | TenantTx = this.db): Promise<PlanDto> {
+    return toPlanDto(await this.getDetailOrThrow(id, db));
   }
 
   /**

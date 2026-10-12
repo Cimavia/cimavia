@@ -512,6 +512,7 @@
       "title": "Le cycle",
       "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
       "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
+      "stale": "Ce cycle a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "titleLabel": "Titre du cycle",
       "titlePlaceholder": "Ex. Cycle force — automne",
       "athlete": "Destinataire",

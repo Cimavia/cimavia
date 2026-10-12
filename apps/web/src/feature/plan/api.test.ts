@@ -61,9 +61,9 @@ describe.each([
   ],
   [
     "updatePlan",
-    () => updatePlan("p-1", { title: "Bloc" }),
+    () => updatePlan("p-1", { title: "Bloc", expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
     "patch",
-    ["/plans/p-1", { title: "Bloc" }],
+    ["/plans/p-1", { title: "Bloc", expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }],
   ],
   ["deletePlan", () => deletePlan("p-1"), "delete", ["/plans/p-1"]],
   ["publishPlan", () => publishPlan("p-1"), "post", ["/plans/p-1/publish"]],

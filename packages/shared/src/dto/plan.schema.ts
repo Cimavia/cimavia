@@ -15,6 +15,7 @@ import {
   exerciseTrackingSchema,
 } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
+import { expectedVersionSchema } from "./expected-version.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 import {
   SESSION_MAX_EXERCISES,
@@ -111,6 +112,7 @@ export const updatePlanSchema = z
      * Refusé sur un cycle diffusé (409) : son destinataire en a déjà été prévenu.
      */
     athleteId: z.string().min(1).nullable().optional(),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
