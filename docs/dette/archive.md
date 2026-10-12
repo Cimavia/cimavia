@@ -16,6 +16,7 @@ l'[index](../dette-technique.md).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~D-2~~ | ~~**Pas de recherche, de tri ni de filtre** sur le tableau de suivi, là où la maquette en prévoit.~~ | ✅ | résolue en **#123** — recherche par nom, filtres *Cycle terminé* / *Sans plan*, ordre alphabétique. Le **tri par activité** est resté dehors (cf. encadré ci-dessous) |
+| ~~D-3~~ | ~~**La fiche athlète n'a pas de garde serveur contre l'écrasement**~~ : `PUT /athletes/:id/sheet` remplaçait `content` sans vérifier la version lue ; deux onglets ouverts sur la même fiche s'écrasaient sans que personne ne le voie. | ✅ | résolue en **#440** — `expectedUpdatedAt` requis, écriture conditionnée sur `updatedAt`, 409 `STALE_WRITE` ; la saisie reste, « Recharger » la remplace |
 
 ### Post-MVP — Capacités coach/athlète ([#7](https://github.com/Cimavia/cimavia/issues/7))
 
