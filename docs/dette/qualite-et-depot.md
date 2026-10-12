@@ -600,6 +600,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | GF-1 | **Un `findUnique` regroupé pourrait rendre la ligne d'un tenant à l'autre, dans un cas que rien n'atteint** (#626). Prisma rattache chaque ligne d'un lot à sa requête par les champs du `where`, dans leur ordre. Un appelant du client tenant qui écrirait lui-même la colonne tenant AVANT une clé composée qui la contient (`coachId_athleteId` de `CoachAthlete`, `AthleteSheet`) ferait comparer la valeur de la clé composée, pas celle du filtre : lu dans le même tick que la lecture légitime de l'autre coach, il recevrait sa ligne. Constaté sur le plan compilé, jamais en vrai : aucun `findUnique` ne passe aujourd'hui par le client tenant. La parade est dans `scopeWhere` — retirer du `where` les clés du filtre avant de les reposer en dernier —, avec un e2e concurrent sur clé composée pour la tenir. | 🟢 | — *(déclencheur : le premier `findUnique` sur le client tenant d'un modèle à clé composée tenant)* |
+| GF-2 | **Les règles de verrou de squawk sont exclues** (#628) : `lock_timeout`, `statement_timeout`, index non `CONCURRENTLY`, contrainte ou clé étrangère validée d'emblée. Une migration peut donc bloquer une table le temps qu'elle dure, sans signal. Sur les volumes du Coach bêta (des milliers de lignes), ce temps se compte en millisecondes, et l'API est arrêtée pendant qu'elle migre. | 🟢 | — *(déclencheur : une table qui dépasse le million de lignes, ou une prod où l'API sert pendant la migration — #84 ; retirer alors ces règles de `excluded_rules`)* |
 
 > **Tranché en [#623](https://github.com/Cimavia/cimavia/issues/623)** (quatre règles dures
 > vérifiées par Biome) : des plugins **GritQL**, et non les règles natives. `style/noJsxLiterals`
@@ -779,3 +780,49 @@ liste des domaines vivent dans l'index.
 > par étapes, comme *Builds de production*, pour pouvoir devenir requis sans changer de forme.
 > Le mobile (Maestro) n'est pas dans ce lot : il demande un émulateur, cassé sous WSL2 et coûteux
 > en CI — suivi en [#638](https://github.com/Cimavia/cimavia/issues/638).
+
+> **Tranché en [#628](https://github.com/Cimavia/cimavia/issues/628)** (une migration destructive
+> signalée en CI) : **squawk 2.67**, sur les seuls `migration.sql` qu'une PR ajoute, modifie ou
+> renomme — une migration jouée ne se modifie plus. `pnpm check:migrations`, étape du job *Lint +
+> Typecheck + Test* sur les PR, comme commitlint : elle hérite de son statut requis sans ajouter
+> de check au ruleset. Le paquet npm tire son binaire par `optionalDependencies`, sans script
+> d'installation : il passe sous `--ignore-scripts`.
+>
+> **Les migrations neuves sont atomiques.** Prisma ne joue PAS un `migration.sql` dans une
+> transaction — constaté sur Prisma 7.8, base jetable : une instruction qui échoue laisse en place
+> les tables et colonnes créées avant elle, la migration reste « en échec » et `migrate deploy`
+> refuse de continuer. Sur preview, c'était un schéma à réparer en `psql` sur le NAS. Enveloppé
+> dans `BEGIN;` … `COMMIT;`, le même échec n'a rien laissé, et `migrate resolve --rolled-back` puis
+> la migration corrigée sont passés. D'où `assume_in_transaction = false` — la vérité — et
+> `prefer-robust-stmts` **gardée** : une migration est atomique, ou rejouable (`IF NOT EXISTS`),
+> ce qui est la voie d'un futur `CREATE INDEX CONCURRENTLY`. Le prix : `--create-only` avant chaque
+> migration, le `BEGIN`/`COMMIT` que Prisma pose lui-même autour d'un `AlterEnum` à retirer
+> (`transaction-nesting`), et une erreur masquée — Prisma écrit `current transaction is aborted`
+> au lieu de la cause, que les logs du Postgres gardent. Les 41 migrations d'avant ne sont pas
+> enveloppées, et ne le seront pas : on ne modifie pas une migration jouée.
+>
+> **Ce que la config garde** : ce qui perd des données ou empêche l'API de démarrer —
+> `ban-drop-column`, `ban-drop-table`, `ban-drop-type`, `ban-truncate-cascade`,
+> `changing-column-type`, `adding-required-field`, `adding-not-nullable-field`, plus les défauts de
+> squawk qu'aucune migration n'a encore touchés. **Ce qu'elle exclut**, chaque règle avec sa raison
+> dans `.squawk.toml` : les conventions de Prisma (`timestamp` en UTC, `integer`, ordre d'enum),
+> les verrous (GF-2), et la compatibilité entre deux versions sur un même schéma — l'API est une
+> instance unique, arrêtée avant de migrer, jamais ramenée en arrière (« Tranché en #266 »). Prisma
+> ne génère d'ailleurs jamais de `RENAME` : un renommage écrit à la main est la voie sans perte.
+> Rejouée sur l'historique, la config signale les trois `DROP COLUMN` (`retrait_categorie_exercice`,
+> `invitation_nominative`), le `DROP TYPE` et le `SET NOT NULL` — chacun voulu, chacun aurait porté
+> son exception.
+>
+> **Une exception se déclare à l'instruction**, `-- squawk-ignore <règle> -- <raison>`, comme un
+> `biome-ignore` : squawk accepte une exception muette, le script la refuse, ainsi qu'un
+> `squawk-ignore-file` qui ne nomme aucune règle. Un nom de règle mal écrit, squawk le signale
+> (`unused-ignore`) ; une exception devenue inutile, non — sans objet sur un fichier qui ne bouge
+> plus.
+>
+> **Un banc**, comme `check:lint-rules` : `scripts/migration-lint/fixtures/`, où `-- ✗ <règle>`
+> marque la ligne suivante. squawk refuse un nom inconnu dans `excluded_rules`, mais une règle
+> gardée qu'une montée retirerait se tairait sans rien casser.
+>
+> **Limite assumée** : squawk lit la structure, pas les données. Un `DELETE` ou un `UPDATE` de
+> reprise (la purge de `conversation_not_self`) passe sans signal. Prisma n'en génère jamais : ils
+> s'écrivent à la main, avec le commentaire qui les justifie, et se relisent.
