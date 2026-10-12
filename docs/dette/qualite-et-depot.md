@@ -866,7 +866,7 @@ liste des domaines vivent dans l'index.
 > par worktree) : deux worktrees qui lançaient leurs e2e ensemble écoutaient sur le même port et
 > vidaient la même base l'un sous l'autre. Le dépôt principal et la CI gardent `3001` et
 > `cimavia_db_e2e` ; un worktree lié les dérive de git, sans rien à configurer
-> (`apps/api/e2e-worktree.ts`, que les e2e web importent aussi).
+> (`@cmv/e2e`, que les e2e de l'API et ceux du web importent).
 >
 > **La base par le nom du worktree, les ports par son rang.** Le nom que git donne au worktree
 > (`.git/worktrees/<nom>`) est unique et stable : deux suites ne partagent donc jamais une base
@@ -882,9 +882,16 @@ liste des domaines vivent dans l'index.
 > le glissement, au prix de collisions muettes dans une plage aussi courte. Une base qui ne finit
 > pas par `_e2e` n'est pas réécrite : lui donner le suffixe ferait taire la garde qui la refuse.
 > La réécriture ne se fait qu'une fois par environnement (`CMV_E2E_WORKTREE`) : le mode watch et
-> les process enfants de Stryker réévaluent la config sur un environnement déjà décalé. Le module
-> vit dans `apps/api` et le web l'importe : `apps/web/turbo.json` le déclare en entrée de son
-> typecheck, que le cache rejouerait sinon.
+> les process enfants de Stryker réévaluent la config sur un environnement déjà décalé.
+>
+> **Un paquet à part, `@cmv/e2e`, et non un fichier d'`apps/api` que le web importerait.** Ce fut
+> la première version : l'image web est tombée, son `tsc` vérifiant `e2e/` sur un arbre élagué par
+> `turbo prune @cmv/web`, qui n'a pas `apps/api` — et le cache turbo du typecheck web ignorait le
+> fichier. Déclaré en `devDependency` des deux apps, le paquet entre dans les deux élagages, et
+> turbo suit la dépendance. `pnpm deploy --prod` ne l'embarque pas dans l'image de l'API.
+> **Un seul fichier, sans import relatif** : Vitest charge sa config en laissant les paquets à Node,
+> qui lit le `.ts` lui-même (types effacés, Node ≥ 22.18 — d'où `engines`) mais refuse un import
+> sans extension. Le scinder casserait les e2e de l'API au démarrage.
 >
 > **Le bucket reste partagé.** Ses clés naissent des identifiants de la base : deux suites ne s'y
 > écrasent pas, et la clé de l'API ne sait pas lister. Seul `silo-setup` le vide — à ne pas lancer

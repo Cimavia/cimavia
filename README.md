@@ -8,6 +8,7 @@ Application de suivi de la relation **coach ↔ athlète**, quel que soit le spo
 apps/api      — @cmv/api    : NestJS 11 + Prisma 7 + PostgreSQL
 apps/mobile   — @cmv/mobile : Expo SDK 56 + Expo Router + NativeWind
 apps/web      — @cmv/web    : React 19 + Vite + TanStack Router/Query + Tailwind v3
+packages/e2e     — @cmv/e2e     : Outillage des e2e — port et base par worktree (#630)
 packages/shared  — @cmv/shared  : DTOs, schémas Zod (partagés front/back)
 packages/tokens  — @cmv/tokens  : Design tokens → Tailwind (web) + NativeWind (mobile)
 packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base

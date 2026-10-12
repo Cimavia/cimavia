@@ -25,6 +25,7 @@ apps/
   mobile/     # Expo SDK 56 (RN ~0.85) — Expo Router + NativeWind
   web/        # React 19 + Vite — TanStack Router + Query (coach surtout)
 packages/
+  e2e/        # @cmv/e2e — outillage des e2e (port et base par worktree), devDependency api + web
   shared/     # @cmv/shared — types métier (DTO), schémas Zod, logique pure
   tokens/     # @cmv/tokens — design tokens → Tailwind (web) + NativeWind (mobile)
   tsconfig/   # @cmv/tsconfig — configs TS de base
@@ -89,7 +90,7 @@ Tout doit passer avant de conclure une étape. Ces sept commandes sont celles du
 *Lint + Typecheck + Test*, à l'exception du `--strict`, exigé en local et pas en CI :
 
 ```bash
-pnpm biome ci .                # ⚠️ PAS `turbo lint` : les 5 paquets ont désormais chacun leur
+pnpm biome ci .                # ⚠️ PAS `turbo lint` : les 6 paquets ont désormais chacun leur
                                #    script (`biome check .`), mais turbo ne voit JAMAIS la racine —
                                #    biome.json, turbo.json, scripts/check-i18n-keys.mjs. C'est
                                #    celle-ci que lance la CI.
