@@ -746,8 +746,8 @@ liste des domaines vivent dans l'index.
 > Aucun serveur déjà présent n'est réutilisé : une API restée là tournerait sur du code périmé, un
 > `vite preview` ordinaire (4173) viserait l'API de dev. Leur base, `cimavia_db_web_e2e`, vit dans
 > le même conteneur que celle de l'API (5434) mais n'est pas la sienne : la suite de l'API la vide à
-> l'ouverture, et les deux se seraient vidées l'une sous l'autre. Elles tournent ensemble sans
-> attendre #630.
+> l'ouverture, et les deux se seraient vidées l'une sous l'autre. Elles tournent ensemble — et,
+> depuis #630, d'un worktree à l'autre aussi.
 >
 > **La base avant l'API, pas en `globalSetup`** : Playwright démarre ses `webServer` AVANT le
 > global setup, et l'API serait partie sur une base pas encore créée. `e2e/prepare-database.mjs`
@@ -861,3 +861,45 @@ liste des domaines vivent dans l'index.
 > justifie. Mesuré en `writeBundle`, une fois les préchargements réécrits par Vite. **Pas quand
 > Sentry téléverse** : son plugin injecte quelques centaines d'octets par chunk, et l'image de
 > `main` échouerait sur un code que la PR a déjà fait passer. Le mobile n'a pas de budget : hors périmètre de l'issue.
+
+> **Tranché en [#630](https://github.com/Cimavia/cimavia/issues/630)** (un port et une base e2e
+> par worktree) : deux worktrees qui lançaient leurs e2e ensemble écoutaient sur le même port et
+> vidaient la même base l'un sous l'autre. Le dépôt principal et la CI gardent `3001` et
+> `cimavia_db_e2e` ; un worktree lié les dérive de git, sans rien à configurer
+> (`apps/api/e2e-worktree.ts`, que les e2e web importent aussi).
+>
+> **La base par le nom du worktree, les ports par son rang.** Le nom que git donne au worktree
+> (`.git/worktrees/<nom>`) est unique et stable : deux suites ne partagent donc jamais une base
+> (`cimavia_db_wt_<nom>_<empreinte>_e2e`, que `migrate deploy` crée). Le `wt_` sépare le nom de
+> la suite de celui du worktree — sans lui, l'API d'un worktree `web` visait la base des e2e web ;
+> l'empreinte du nom brut départage `tech-630` et `tech_630`, qu'un identifiant Postgres confond.
+> Un port demande un nombre : c'est le rang du worktree parmi les worktrees liés, triés par octets
+> et non selon la locale du shell — deux ports par rang pour l'API (3001 + 2 ×
+> rang, `signup-mode` prend le second), un pour l'API et le web des e2e web (3101 et 4310 +
+> rang), 49 rangs avant que l'API ne déborde sur le web. Un rang glisse si l'on crée ou supprime
+> un worktree pendant qu'une suite tourne : la collision qui en résulte est un port pris, qui
+> échoue en le disant, jamais une base vidée sous une autre suite. Un hash du chemin aurait évité
+> le glissement, au prix de collisions muettes dans une plage aussi courte. Une base qui ne finit
+> pas par `_e2e` n'est pas réécrite : lui donner le suffixe ferait taire la garde qui la refuse.
+> La réécriture ne se fait qu'une fois par environnement (`CMV_E2E_WORKTREE`) : le mode watch et
+> les process enfants de Stryker réévaluent la config sur un environnement déjà décalé. Le module
+> vit dans `apps/api` et le web l'importe : `apps/web/turbo.json` le déclare en entrée de son
+> typecheck, que le cache rejouerait sinon.
+>
+> **Le bucket reste partagé.** Ses clés naissent des identifiants de la base : deux suites ne s'y
+> écrasent pas, et la clé de l'API ne sait pas lister. Seul `silo-setup` le vide — à ne pas lancer
+> pendant qu'un autre worktree fait tourner ses e2e.
+>
+> **Les `.env` recopiés au `pnpm install`** (`scripts/worktree-env.mjs`, au `prepare`) : c'est le
+> seul passage commun à `git worktree add`, à herdr et à Claude Code — aucun des trois n'a de hook
+> de création qui serve aux autres. Les `.env*` ignorés de la racine et des paquets, jamais un
+> fichier déjà là ; hors worktree, ou sous `--ignore-scripts` (CI, images), rien.
+>
+> **Un hook de fin de réponse** (`.claude/hooks/stop-gate.sh`) passe `biome ci .` et `check:i18n`
+> quand la session a modifié un fichier pendant sa réponse — une revue lancée en lecture seule dans
+> le même worktree n'est jamais bloquée par les fichiers en cours d'une autre. Un échec est rendu à
+> Claude ; au second d'affilée, il rend la main avec le rapport plutôt que de boucler. Une
+> modification faite par une commande shell ne l'arme pas, comme elle échappe déjà au Biome par
+> fichier : la porte qualité reste la vérification. `.claude/settings.local.json`, réécrit par Claude
+> Code à chaque permission accordée, entre au `.gitignore` du dépôt : Biome ne lit pas l'ignore
+> global, et `biome ci .` échouait dessus.
