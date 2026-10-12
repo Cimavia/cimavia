@@ -29,6 +29,9 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
 
 const MONDAY_1 = "2026-10-05";
 const MONDAY_2 = "2026-10-12";
+// Chaque geste cite la version de la semaine qu'il réécrit (#604) — jamais celle de la source.
+const VERSION = "2026-10-01T10:00:00.000Z";
+const SOURCE_VERSION = "2026-09-30T08:00:00.000Z";
 
 const session = (id: string, date: string, position: number): ScheduledSessionSummaryDto => ({
   id,
@@ -49,6 +52,7 @@ const week = (over: Partial<PlanWeekDto> & Pick<PlanWeekDto, "id" | "startDate">
   type: PlanWeekType.TRAINING,
   note: null,
   endDate: over.startDate,
+  updatedAt: VERSION,
   sessions: [],
   ...over,
 });
@@ -56,6 +60,7 @@ const week = (over: Partial<PlanWeekDto> & Pick<PlanWeekDto, "id" | "startDate">
 const SOURCE = week({
   id: "w-1",
   startDate: MONDAY_1,
+  updatedAt: SOURCE_VERSION,
   sessions: [session("s-a", MONDAY_1, 0)],
 });
 
@@ -119,7 +124,10 @@ describe("PlanWeekCard — la garde de collage (#362)", () => {
     await user.click(target.getByRole("button", { name: "plan.week.paste" }));
 
     expect(copyPlanWeek).toHaveBeenCalledOnce();
-    expect(copyPlanWeek).toHaveBeenCalledWith("w-2", { sourcePlanWeekId: "w-1" });
+    expect(copyPlanWeek).toHaveBeenCalledWith("w-2", {
+      sourcePlanWeekId: "w-1",
+      expectedUpdatedAt: VERSION,
+    });
   });
 
   /**
@@ -141,7 +149,10 @@ describe("PlanWeekCard — la garde de collage (#362)", () => {
 
     await user.click(target.getByRole("button", { name: "plan.week.pasteConfirm" }));
 
-    expect(copyPlanWeek).toHaveBeenCalledWith("w-2", { sourcePlanWeekId: "w-1" });
+    expect(copyPlanWeek).toHaveBeenCalledWith("w-2", {
+      sourcePlanWeekId: "w-1",
+      expectedUpdatedAt: VERSION,
+    });
   });
 
   it("montre le geste fermé sur un cycle diffusé, sans masquer la copie", async () => {
@@ -172,7 +183,26 @@ describe("PlanWeekCard — la semaine", () => {
     target.getByRole("button", { name: "plan.week.moveSession 1" }).focus();
     await user.keyboard("{ArrowDown}");
 
-    expect(reorderPlanDay).toHaveBeenCalledWith("w-2", MONDAY_2, { sessionIds: ["s-c", "s-b"] });
+    expect(reorderPlanDay).toHaveBeenCalledWith("w-2", MONDAY_2, {
+      sessionIds: ["s-c", "s-b"],
+      expectedUpdatedAt: VERSION,
+    });
+  });
+
+  // La carte n'a pas encore bougé : un second geste citerait la grille d'avant et serait refusé
+  // comme périmé (#604). Il attend la fin de l'écriture.
+  it("n'écrit pas un second geste tant que le premier est en vol", async () => {
+    vi.mocked(reorderPlanDay).mockReturnValue(new Promise<PlanDto>(() => {}));
+    const { user, target } = mount(busy);
+
+    target.getByRole("button", { name: "plan.week.moveSession 1" }).focus();
+    await user.keyboard("{ArrowDown}");
+    await user.keyboard("{ArrowDown}");
+
+    expect(reorderPlanDay).toHaveBeenCalledOnce();
+    expect(
+      target.getByRole("button", { name: `plan.weekType.${PlanWeekType.DELOAD}` }),
+    ).toBeDisabled();
   });
 
   it("n'écrit rien quand la séance est déjà en tête de sa journée", async () => {
@@ -198,7 +228,10 @@ describe("PlanWeekCard — la semaine", () => {
     fireEvent.drop(emptyDay);
 
     await waitFor(() =>
-      expect(reorderPlanDay).toHaveBeenCalledWith("w-2", tuesday, { sessionIds: ["s-c"] }),
+      expect(reorderPlanDay).toHaveBeenCalledWith("w-2", tuesday, {
+        sessionIds: ["s-c"],
+        expectedUpdatedAt: VERSION,
+      }),
     );
   });
 
@@ -207,7 +240,10 @@ describe("PlanWeekCard — la semaine", () => {
 
     await user.click(target.getByRole("button", { name: `plan.weekType.${PlanWeekType.DELOAD}` }));
 
-    expect(updatePlanWeek).toHaveBeenCalledWith("w-2", { type: PlanWeekType.DELOAD });
+    expect(updatePlanWeek).toHaveBeenCalledWith("w-2", {
+      type: PlanWeekType.DELOAD,
+      expectedUpdatedAt: VERSION,
+    });
   });
 
   it("supprime la semaine après confirmation", async () => {
@@ -216,7 +252,7 @@ describe("PlanWeekCard — la semaine", () => {
     await user.click(target.getByRole("button", { name: "plan.week.delete" }));
     await user.click(target.getByRole("button", { name: "common.confirmDelete" }));
 
-    expect(deletePlanWeek).toHaveBeenCalledWith("w-2");
+    expect(deletePlanWeek).toHaveBeenCalledWith("w-2", { expectedUpdatedAt: VERSION });
   });
 
   // Sur un cycle diffusé, retirer une semaine décalerait le planning de l'athlète (#312).

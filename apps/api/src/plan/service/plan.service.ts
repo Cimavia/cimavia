@@ -3,6 +3,7 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
+  PlanWeekVersionQuery,
   UpdatePlanInput,
   UpdatePlanWeekInput,
 } from "@cmv/shared";
@@ -30,7 +31,12 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
 import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
-import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
+import {
+  assertReadAtVersion,
+  deleteAtVersion,
+  staleOnCollision,
+  writeAtVersion,
+} from "../../util/stale-write.util";
 import {
   PLAN_COUNTS_INCLUDE,
   PLAN_DETAIL_INCLUDE,
@@ -38,6 +44,7 @@ import {
   toPlanDto,
   toPlanSummaryDto,
 } from "../plan.mapper";
+import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
 
 export type ListPlansFilters = { athleteId?: string };
 
@@ -149,6 +156,9 @@ export class PlanService {
     return this.db.$transaction(async (tx) => {
       await writeAtVersion(tx.plan, id, expected, data, PLAN_NOT_FOUND);
       if (shiftDays !== 0) {
+        // Toutes les dates de la grille bougent : un geste fondé sur l'ancienne est périmé. Les
+        // semaines d'abord, puis leurs séances — l'ordre des verrous de `touchWeeks`.
+        await touchWeeks(tx, { planId: id });
         await this.shiftSessions(tx, { planId: id }, shiftDays);
       }
       if (reassigned) {
@@ -205,6 +215,8 @@ export class PlanService {
     planId: string,
     athleteId: string | null,
   ): Promise<void> {
+    // `@updatedAt` fait avancer chaque semaine, et c'est voulu (#604) : un collage ou un glisser
+    // pensé pour l'athlète d'avant n'a pas à passer en silence chez le suivant.
     await tx.planWeek.updateMany({ where: { planId }, data: { athleteId } });
     await tx.scheduledSession.updateMany({ where: { planId }, data: { athleteId } });
     if (athleteId != null) {
@@ -344,19 +356,30 @@ export class PlanService {
 
     // `plan.athleteId` peut être `null` (brouillon non encore affecté) : la semaine le recopie
     // tel quel, et l'affectation la rattrapera avec le reste du cycle.
-    await this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1);
+    // Sans version (#604) : deux ajouts simultanés visent le même numéro, et le second, refusé
+    // par l'unicité, reçoit le 409 d'une grille périmée plutôt qu'un 500.
+    await staleOnCollision(() =>
+      this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1),
+    );
     return this.getDto(planId);
   }
 
+  /** Sous la version de la semaine affichée (#604) — voir `updatePlanWeekSchema`. */
   async updateWeek(weekId: string, input: UpdatePlanWeekInput): Promise<PlanDto> {
     const week = await this.getWeekOwnedOrThrow(weekId);
+    const expected = new Date(input.expectedUpdatedAt);
+    assertReadAtVersion(week.updatedAt, expected);
 
-    const data: Prisma.PlanWeekUpdateInput = {};
+    const data: Prisma.PlanWeekUpdateManyMutationInput = {};
     if (input.type !== undefined) data.type = input.type;
     if (input.note !== undefined) data.note = input.note;
+    // Rien à écrire : la version n'avance pas, comme sur l'en-tête du cycle.
+    if (Object.keys(data).length === 0) return this.getDto(week.planId);
 
-    await this.db.planWeek.update({ where: { id: weekId }, data });
-    return this.getDto(week.planId);
+    return this.db.$transaction(async (tx) => {
+      await writeAtVersion(tx.planWeek, weekId, expected, data, WEEK_NOT_FOUND);
+      return this.getDto(week.planId, tx);
+    });
   }
 
   /**
@@ -373,8 +396,12 @@ export class PlanService {
    * (#313) ne protégerait de rien ici : le statut vit sur la ligne `Plan`, pas sur celle supprimée,
    * et Postgres ne revérifie pas une condition portée par une autre table.
    */
-  async deleteWeek(weekId: string): Promise<PlanDto> {
+  async deleteWeek(weekId: string, query: PlanWeekVersionQuery): Promise<PlanDto> {
     const week = await this.getWeekOwnedOrThrow(weekId);
+    const expected = new Date(query.expectedUpdatedAt);
+    // Retirer une semaine qu'un autre Coach vient de garnir emporterait ses séances sans qu'on les
+    // ait vues (#604) : le conflit passe avant le verrou de diffusion, comme sur l'en-tête.
+    assertReadAtVersion(week.updatedAt, expected);
     const plan = await this.getOwnedOrThrow(week.planId);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException(
@@ -383,8 +410,9 @@ export class PlanService {
     }
 
     await this.db.$transaction(async (tx) => {
-      // Les séances de la semaine supprimée partent en cascade (schéma).
-      await tx.planWeek.delete({ where: { id: weekId } });
+      // Les séances de la semaine supprimée partent en cascade (schéma). Sous la version lue :
+      // entre la lecture et ici, une séance a pu y être posée.
+      await deleteAtVersion(tx.planWeek, weekId, expected, WEEK_NOT_FOUND);
 
       const following = await tx.planWeek.findMany({
         where: { planId: week.planId, weekNumber: { gt: week.weekNumber } },
@@ -420,7 +448,7 @@ export class PlanService {
   async getWeekOwnedOrThrow(weekId: string): Promise<PlanWeek> {
     const week = await this.db.planWeek.findFirst({ where: { id: weekId } });
     if (week == null) {
-      throw new NotFoundException("Semaine introuvable");
+      throw new NotFoundException(WEEK_NOT_FOUND);
     }
     return week;
   }

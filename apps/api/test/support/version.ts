@@ -12,6 +12,33 @@ export async function versionOf(agent: Agent, path: string): Promise<string> {
   return required(res.body?.updatedAt, `version de ${path}`);
 }
 
+/**
+ * Une version bien formée, que cite un client qui ne peut pas lire la vraie (#604) : sans elle, le
+ * 400 de validation masquerait le 404 du scope qu'on éprouve. La garde scopée répond avant toute
+ * comparaison de version.
+ */
+export const ANY_VERSION = "2026-01-01T00:00:00.000Z";
+
+/** La version d'une semaine (#604) : elle n'a pas de route à elle, elle se lit dans son cycle. */
+export async function weekVersionOf(agent: Agent, planId: string, weekId: string): Promise<string> {
+  const plan = await agent.get(`/plans/${planId}`);
+  const week = plan.body?.weeks?.find((w: { id: string }) => w.id === weekId);
+  return required(week?.updatedAt, `version de la semaine ${weekId}`);
+}
+
+/** Un geste sur une semaine tel qu'un client à jour l'envoie (#604) : en citant sa version du moment. */
+export async function atWeekVersion<T extends object = object>(
+  agent: Agent,
+  planId: string,
+  weekId: string,
+  fields?: T,
+): Promise<T & { expectedUpdatedAt: string }> {
+  return {
+    ...(fields as T),
+    expectedUpdatedAt: await weekVersionOf(agent, planId, weekId),
+  };
+}
+
 /** Un PATCH tel qu'un client à jour l'envoie (#604) : en citant la version du moment. */
 export async function patchAtLatest(
   agent: Agent,

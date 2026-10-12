@@ -424,6 +424,7 @@ describe("PlanBuilderScreen — les semaines", () => {
     note: null,
     startDate: MONDAY,
     endDate: shiftIsoDate(MONDAY, 6) ?? MONDAY,
+    updatedAt: "2026-10-01T10:00:00.000Z",
     sessions: [summary],
   };
 
@@ -488,6 +489,7 @@ describe("PlanBuilderScreen — diffuser une saisie non enregistrée", () => {
     note: null,
     startDate: "2026-10-19",
     endDate: "2026-10-25",
+    updatedAt: "2026-10-01T10:00:00.000Z",
     sessions: [],
   };
   const billing = {

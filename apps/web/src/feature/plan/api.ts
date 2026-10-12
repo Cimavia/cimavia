@@ -5,6 +5,7 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
+  PlanWeekVersionQuery,
   ReorderPlanDayInput,
   ScheduledSessionDto,
   UpdatePlanInput,
@@ -65,8 +66,9 @@ export function updatePlanWeek(weekId: string, input: UpdatePlanWeekInput): Prom
   return api.patch<PlanDto>(`/plan-weeks/${weekId}`, input);
 }
 
-export function deletePlanWeek(weekId: string): Promise<PlanDto> {
-  return api.delete<PlanDto>(`/plan-weeks/${weekId}`);
+// Un DELETE n'a pas de corps : la version lue voyage dans la requête (#604).
+export function deletePlanWeek(weekId: string, query: PlanWeekVersionQuery): Promise<PlanDto> {
+  return api.delete<PlanDto>(`/plan-weeks/${weekId}?${new URLSearchParams(query)}`);
 }
 
 // Colle le contenu d'une autre semaine ICI : la cible est la ressource, la source voyage dans le

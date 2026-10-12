@@ -82,6 +82,7 @@ const plan = (id: string, title: string, sessions: ScheduledSessionSummaryDto[])
       note: null,
       startDate: THIS_MONDAY,
       endDate: shiftIsoDate(THIS_MONDAY, 6) ?? THIS_MONDAY,
+      updatedAt: "2026-10-01T10:00:00Z",
       sessions,
     },
   ],

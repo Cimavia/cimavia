@@ -8,7 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { API_BODY_LIMIT_BYTES } from "../../src/app.setup";
 import { type Agent, billAndPublish, inviteFor, signUp, signUpWith } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { versionOf } from "../support/version";
+import { atWeekVersion, versionOf } from "../support/version";
 
 describe("Composition & isolation des séances (P2)", () => {
   let coachA: Agent;
@@ -547,7 +547,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
   it("la copie de semaine emporte la référence des marqueurs avec celle des valeurs", async () => {
     const res = await coach
       .post(`/plan-weeks/${week2Id}/copy-from`)
-      .send({ sourcePlanWeekId: week1Id });
+      .send(await atWeekVersion(coach, planId, week2Id, { sourcePlanWeekId: week1Id }));
     expect(res.status).toBe(201);
 
     const plan = await coach.get(`/plans/${planId}`);
@@ -717,8 +717,10 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     return created.body.id;
   }
 
-  const reorder = (day: Day, sessionIds: string[]) =>
-    day.coach.put(`/plan-weeks/${day.weekId}/days/${monday}/order`).send({ sessionIds });
+  const reorder = async (day: Day, sessionIds: string[], date = monday) =>
+    day.coach
+      .put(`/plan-weeks/${day.weekId}/days/${date}/order`)
+      .send(await atWeekVersion(day.coach, day.planId, day.weekId, { sessionIds }));
 
   /**
    * L'échange de DEUX séances est le cas qui casse : passer l'une en position 0 avant que l'autre
@@ -816,9 +818,7 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     it("accueille une séance dans une journée vide", async () => {
       const day = await dayOf("move-empty", 1);
 
-      const res = await day.coach
-        .put(`/plan-weeks/${day.weekId}/days/${tuesdayIso}/order`)
-        .send({ sessionIds: day.sessionIds });
+      const res = await reorder(day, day.sessionIds, tuesdayIso);
 
       expect(res.status).toBe(200);
       expect(await titlesOn(day)).toEqual([]);
@@ -835,9 +835,12 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     const mine = await dayOf("mine", 2);
     const theirs = await dayOf("theirs", 2);
 
-    const res = await theirs.coach
-      .put(`/plan-weeks/${mine.weekId}/days/${monday}/order`)
-      .send({ sessionIds: [mine.sessionIds[1] as string, mine.sessionIds[0] as string] });
+    // Même en citant la bonne version : le scope répond avant elle (#604).
+    const res = await theirs.coach.put(`/plan-weeks/${mine.weekId}/days/${monday}/order`).send(
+      await atWeekVersion(mine.coach, mine.planId, mine.weekId, {
+        sessionIds: [mine.sessionIds[1] as string, mine.sessionIds[0] as string],
+      }),
+    );
 
     expect(res.status).toBe(404);
     expect(await titlesOn(mine)).toEqual(["Séance 1", "Séance 2"]);

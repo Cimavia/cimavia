@@ -11,6 +11,8 @@ import {
   parseCustomMetrics,
   parseInstructions,
 } from "../../util/exercise-json.util";
+import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
+import { WEEK_NOT_FOUND } from "../plan-week.version";
 import { SESSION_DETAIL_INCLUDE } from "../scheduled-session.mapper";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
@@ -38,6 +40,10 @@ export class PlanWeekCopyService {
 
   async copyWeek(targetWeekId: string, input: CopyPlanWeekInput): Promise<PlanDto> {
     const target = await this.plans.getWeekOwnedOrThrow(targetWeekId);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Coller REMPLACE le contenu de la cible : sur une semaine qu'un autre Coach a garnie depuis
+    // qu'on l'a vue, ce serait effacer son travail sans l'avoir vu (#604).
+    assertReadAtVersion(target.updatedAt, expected);
     const targetPlan = await this.plans.getOwnedOrThrow(target.planId);
 
     /**
@@ -91,10 +97,14 @@ export class PlanWeekCopyService {
       // Le type de semaine fait partie de ce que le coach a composé : une décharge collée sur une
       // semaine restée « entraînement » mentirait sur le volume des séances qu'elle vient de
       // recevoir.
-      await tx.planWeek.update({
-        where: { id: target.id },
-        data: { type: source.type, note: source.note },
-      });
+      // Sous la version lue : la garde, et l'avancée que voit le geste suivant.
+      await writeAtVersion(
+        tx.planWeek,
+        target.id,
+        expected,
+        { type: source.type, note: source.note },
+        WEEK_NOT_FOUND,
+      );
 
       /**
        * Remplacement, jamais fusion (#4). `@@unique([planWeekId, scheduledDate, position])` rend

@@ -619,7 +619,8 @@
       "sessionDeleted": "Séance supprimée",
       "weekPasted": "Semaine collée — {{count}} séance(s)",
       "headerSaved": "Cycle enregistré",
-      "weekPastedPlain": "Semaine collée"
+      "weekPastedPlain": "Semaine collée",
+      "stale": "Le cycle a changé entre-temps : il vient d'être relu. Refais ton geste si besoin."
     },
     "clipboard": {
       "banner": "Semaine {{number}} de « {{plan}} » copiée — choisis où la coller.",

@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Param, Patch, Post } from "@nestjs/common";
+import { type PlanWeekVersionQuery, planWeekVersionQuerySchema } from "@cmv/shared";
+import { Body, Controller, Delete, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CopyPlanWeekDto } from "../dto/copy-plan-week.dto";
 import { UpdatePlanWeekDto } from "../dto/update-plan-week.dto";
 import { PlanService } from "../service/plan.service";
@@ -35,9 +37,13 @@ export class PlanWeekController {
     return this.copies.copyWeek(id, dto);
   }
 
-  // Renumérote les semaines suivantes et fait remonter leurs séances d'une semaine.
+  // Renumérote les semaines suivantes et fait remonter leurs séances d'une semaine. Sans corps :
+  // la version de la semaine lue voyage en `?expectedUpdatedAt=` (#604).
   @Delete(":id")
-  delete(@Param("id") id: string) {
-    return this.plans.deleteWeek(id);
+  delete(
+    @Param("id") id: string,
+    @Query(new ZodSchemaPipe(planWeekVersionQuerySchema)) query: PlanWeekVersionQuery,
+  ) {
+    return this.plans.deleteWeek(id, query);
   }
 }

@@ -1,12 +1,6 @@
 import type request from "supertest";
 import type { Agent } from "./actors";
-
-/**
- * Une version bien formée, que l'intrus cite faute de pouvoir lire la vraie (#604) : sans elle, le
- * 400 de validation masquerait le 404 du scope qu'on éprouve. La garde scopée répond avant toute
- * comparaison de version.
- */
-const ANY_VERSION = "2026-01-01T00:00:00.000Z";
+import { ANY_VERSION } from "./version";
 
 /** Le cycle d'un autre, tel qu'un intrus le vise : ses identifiants, et la clé de son justificatif. */
 export type PlanTarget = {
@@ -48,11 +42,17 @@ export async function attemptPlanWrites(
     ["POST /plans/:id/publish", () => intruder.post(`/plans/${planId}/publish`)],
     [
       "PATCH /plan-weeks/:id",
-      () => intruder.patch(`/plan-weeks/${weekId}`).send({ note: "détournée" }),
+      () =>
+        intruder
+          .patch(`/plan-weeks/${weekId}`)
+          .send({ note: "détournée", expectedUpdatedAt: ANY_VERSION }),
     ],
     [
       "POST /plan-weeks/:id/copy-from",
-      () => intruder.post(`/plan-weeks/${weekId}/copy-from`).send({ sourcePlanWeekId: weekId }),
+      () =>
+        intruder
+          .post(`/plan-weeks/${weekId}/copy-from`)
+          .send({ sourcePlanWeekId: weekId, expectedUpdatedAt: ANY_VERSION }),
     ],
     [
       "POST /plan-weeks/:id/sessions",
@@ -66,7 +66,7 @@ export async function attemptPlanWrites(
       () =>
         intruder
           .put(`/plan-weeks/${weekId}/days/${monday}/order`)
-          .send({ sessionIds: [sessionId] }),
+          .send({ sessionIds: [sessionId], expectedUpdatedAt: ANY_VERSION }),
     ],
     [
       "PUT /scheduled-sessions/:id",
@@ -95,7 +95,10 @@ export async function attemptPlanWrites(
       () => intruder.delete(`/plans/${planId}/billing/document`),
     ],
     ["DELETE /scheduled-sessions/:id", () => intruder.delete(`/scheduled-sessions/${sessionId}`)],
-    ["DELETE /plan-weeks/:id", () => intruder.delete(`/plan-weeks/${weekId}`)],
+    [
+      "DELETE /plan-weeks/:id",
+      () => intruder.delete(`/plan-weeks/${weekId}`).query({ expectedUpdatedAt: ANY_VERSION }),
+    ],
     ["DELETE /plans/:id", () => intruder.delete(`/plans/${planId}`)],
   ];
 

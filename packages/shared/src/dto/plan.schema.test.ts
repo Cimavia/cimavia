@@ -4,15 +4,18 @@ import {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
+  planWeekVersionQuerySchema,
   reorderPlanDaySchema,
   SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
   scheduledSessionExerciseInputSchema,
   updatePlanSchema,
+  updatePlanWeekSchema,
   updateScheduledSessionSchema,
 } from "./plan.schema";
 import { SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from "./session.schema";
 
 const MONDAY = "2026-10-12";
+const VERSION = "2026-10-12T08:00:00.000Z";
 
 describe("createPlanSchema", () => {
   it("accepte un cycle démarrant un lundi, semaines par défaut vides", () => {
@@ -45,8 +48,6 @@ describe("createPlanSchema", () => {
 });
 
 describe("updatePlanSchema", () => {
-  const VERSION = "2026-10-12T08:00:00.000Z";
-
   // L'en-tête d'un cycle peut être retouché par deux Coachs : la version lue part avec (#604).
   it("exige la version sur laquelle la saisie a commencé", () => {
     expect(updatePlanSchema.safeParse({ title: "Bloc" }).success).toBe(false);
@@ -148,13 +149,18 @@ describe("updateScheduledSessionSchema", () => {
 
 describe("copyPlanWeekSchema", () => {
   it("ne demande que la semaine source (la cible est la ressource de la route)", () => {
-    const parsed = copyPlanWeekSchema.parse({ sourcePlanWeekId: "pw_1" });
+    const parsed = copyPlanWeekSchema.parse({
+      sourcePlanWeekId: "pw_1",
+      expectedUpdatedAt: VERSION,
+    });
     expect(parsed.sourcePlanWeekId).toBe("pw_1");
   });
 
   it("refuse une source absente ou vide", () => {
-    expect(copyPlanWeekSchema.safeParse({}).success).toBe(false);
-    expect(copyPlanWeekSchema.safeParse({ sourcePlanWeekId: "" }).success).toBe(false);
+    expect(copyPlanWeekSchema.safeParse({ expectedUpdatedAt: VERSION }).success).toBe(false);
+    expect(
+      copyPlanWeekSchema.safeParse({ sourcePlanWeekId: "", expectedUpdatedAt: VERSION }).success,
+    ).toBe(false);
   });
 
   // Le client ne choisit AUCUNE date : elles se déduisent de la semaine cible. Les accepter,
@@ -162,6 +168,7 @@ describe("copyPlanWeekSchema", () => {
   it("refuse toute date proposée par le client (schéma strict)", () => {
     const result = copyPlanWeekSchema.safeParse({
       sourcePlanWeekId: "pw_1",
+      expectedUpdatedAt: VERSION,
       scheduledDate: "2026-10-14",
     });
     expect(result.success).toBe(false);
@@ -170,7 +177,10 @@ describe("copyPlanWeekSchema", () => {
 
 describe("reorderPlanDaySchema", () => {
   it("ne demande que l'ordre voulu (la journée est la ressource de la route)", () => {
-    const parsed = reorderPlanDaySchema.parse({ sessionIds: ["ss_2", "ss_1"] });
+    const parsed = reorderPlanDaySchema.parse({
+      sessionIds: ["ss_2", "ss_1"],
+      expectedUpdatedAt: VERSION,
+    });
     expect(parsed.sessionIds).toEqual(["ss_2", "ss_1"]);
   });
 
@@ -179,12 +189,17 @@ describe("reorderPlanDaySchema", () => {
    * qu'il affiche ne doit pas recevoir un 400. Une journée VIDE, elle, n'a rien à réordonner.
    */
   it("accepte une seule séance mais refuse une liste vide", () => {
-    expect(reorderPlanDaySchema.safeParse({ sessionIds: ["ss_1"] }).success).toBe(true);
-    expect(reorderPlanDaySchema.safeParse({ sessionIds: [] }).success).toBe(false);
+    const day = (sessionIds: string[]) =>
+      reorderPlanDaySchema.safeParse({ sessionIds, expectedUpdatedAt: VERSION }).success;
+    expect(day(["ss_1"])).toBe(true);
+    expect(day([])).toBe(false);
   });
 
   it("refuse un identifiant vide", () => {
-    expect(reorderPlanDaySchema.safeParse({ sessionIds: ["ss_1", ""] }).success).toBe(false);
+    expect(
+      reorderPlanDaySchema.safeParse({ sessionIds: ["ss_1", ""], expectedUpdatedAt: VERSION })
+        .success,
+    ).toBe(false);
   });
 
   // La date et la semaine sont dans l'URL. Les accepter dans le corps, même ignorées, laisserait
@@ -192,8 +207,25 @@ describe("reorderPlanDaySchema", () => {
   it("refuse une journée proposée dans le corps (schéma strict)", () => {
     const result = reorderPlanDaySchema.safeParse({
       sessionIds: ["ss_1"],
+      expectedUpdatedAt: VERSION,
       scheduledDate: "2026-10-14",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+/**
+ * Les gestes sur une semaine citent la version de la semaine affichée (#604) : sans elle, un geste
+ * fondé sur une grille qu'un autre Coach a changée défait son travail sans un mot.
+ */
+describe("version d'une semaine (#604)", () => {
+  it.each([
+    ["le type ou la note", updatePlanWeekSchema, { type: "TRAINING" }],
+    ["le collage", copyPlanWeekSchema, { sourcePlanWeekId: "pw_1" }],
+    ["l'ordre d'une journée", reorderPlanDaySchema, { sessionIds: ["ss_1"] }],
+    ["le retrait", planWeekVersionQuerySchema, {}],
+  ] as const)("l'exige pour %s", (_gesture, schema, fields) => {
+    expect(schema.safeParse(fields).success).toBe(false);
+    expect(schema.safeParse({ ...fields, expectedUpdatedAt: VERSION }).success).toBe(true);
   });
 });

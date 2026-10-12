@@ -26,6 +26,8 @@ const { apiMock } = vi.hoisted(() => ({
 // Le client HTTP est la frontière : verbe, chemin et corps sont tout ce que ce module décide.
 vi.mock("@/shared/lib/api", () => ({ api: apiMock }));
 
+const VERSION = "2026-10-12T08:00:00.000Z";
+
 beforeEach(() => {
   vi.clearAllMocks();
   for (const fn of Object.values(apiMock)) fn.mockResolvedValue("réponse");
@@ -79,18 +81,30 @@ describe.each([
     "patch",
     ["/plan-weeks/w-1", { note: "Décharge" }],
   ],
-  ["deletePlanWeek", () => deletePlanWeek("w-1"), "delete", ["/plan-weeks/w-1"]],
+  [
+    "deletePlanWeek",
+    () => deletePlanWeek("w-1", { expectedUpdatedAt: VERSION }),
+    "delete",
+    ["/plan-weeks/w-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
   [
     "copyPlanWeek",
-    () => copyPlanWeek("w-cible", { sourcePlanWeekId: "w-source" }),
+    () => copyPlanWeek("w-cible", { sourcePlanWeekId: "w-source", expectedUpdatedAt: VERSION }),
     "post",
-    ["/plan-weeks/w-cible/copy-from", { sourcePlanWeekId: "w-source" }],
+    ["/plan-weeks/w-cible/copy-from", { sourcePlanWeekId: "w-source", expectedUpdatedAt: VERSION }],
   ],
   [
     "reorderPlanDay",
-    () => reorderPlanDay("w-1", "2026-10-05", { sessionIds: ["s-2", "s-1"] }),
+    () =>
+      reorderPlanDay("w-1", "2026-10-05", {
+        sessionIds: ["s-2", "s-1"],
+        expectedUpdatedAt: VERSION,
+      }),
     "put",
-    ["/plan-weeks/w-1/days/2026-10-05/order", { sessionIds: ["s-2", "s-1"] }],
+    [
+      "/plan-weeks/w-1/days/2026-10-05/order",
+      { sessionIds: ["s-2", "s-1"], expectedUpdatedAt: VERSION },
+    ],
   ],
   [
     "createScheduledSession",

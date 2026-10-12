@@ -7,7 +7,7 @@ import type {
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
 import { myPlanKeys } from "@cmv/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addPlanWeek,
   copyPlanWeek,
@@ -26,17 +26,30 @@ import { forgetPlanClipboardSource } from "@/feature/plan/hook/usePlanClipboard"
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { isStaleWriteError } from "@/shared/lib/api";
 
+// La version de la semaine telle que le geste l'a vue (#604) : l'API refuse une grille périmée.
+type AtWeekVersion = { expectedUpdatedAt: string };
+
 // La semaine QUI REÇOIT et celle qu'on recopie — nommées, parce que deux `string` côte à côte
-// s'inversent en silence.
-type PasteWeekVariables = { targetWeekId: string; sourcePlanWeekId: string };
+// s'inversent en silence. La version est celle de la cible : c'est elle que le collage écrase.
+type PasteWeekVariables = AtWeekVersion & { targetWeekId: string; sourcePlanWeekId: string };
 
 // La journée visée et l'ordre voulu, en entier — l'API refuse un sous-ensemble.
-type ReorderDayVariables = { weekId: string; date: string; sessionIds: string[] };
+type ReorderDayVariables = AtWeekVersion & { weekId: string; date: string; sessionIds: string[] };
+
+type RemoveWeekVariables = AtWeekVersion & { weekId: string };
 
 export const planDetailQuery = (id: string) => ({
   queryKey: planKeys.detail(id),
   queryFn: () => getPlan(id),
 });
+
+/**
+ * Toutes les écritures d'un cycle portent cette clé : l'occupation se lit sur le CYCLE, pas sur
+ * l'instance du hook. Une séance enregistrée depuis le panneau fait avancer sa semaine (#604) ; la
+ * carte de la semaine doit attendre la relecture, sans quoi son geste suivant citerait la version
+ * d'avant.
+ */
+const planWriteKey = (planId: string) => ["plans", "write", planId] as const;
 
 export function usePlan(planId: string) {
   return useQuery<PlanDto>(planDetailQuery(planId));
@@ -51,6 +64,7 @@ export function usePlan(planId: string) {
 export function usePlanMutations(planId: string) {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
+  const mutationKey = planWriteKey(planId);
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: planKeys.all });
@@ -66,6 +80,35 @@ export function usePlanMutations(planId: string) {
   };
 
   /**
+   * Le cycle rendu par un geste sur une semaine porte déjà ses nouvelles versions (#604) : posé en
+   * cache avant la relecture, il évite qu'un geste enchaîné cite la version d'avant et se voie
+   * refuser le sien.
+   */
+  const settle = async (plan: PlanDto) => {
+    queryClient.setQueryData(planKeys.detail(planId), plan);
+    await invalidate();
+  };
+
+  const settled = (messageKey: string) => async (plan: PlanDto) => {
+    await settle(plan);
+    toast.onSuccess(messageKey);
+  };
+
+  /**
+   * Un geste sans saisie — glisser, coller, retirer, changer un type, ajouter — refusé sur une
+   * grille périmée (#604) : rien n'est à sauver, le cycle se relit et le toast dit pourquoi
+   * l'écran a changé. Le bandeau « Recharger » reste aux formulaires, qui ont une saisie à garder.
+   */
+  const onGestureError = async (error: unknown) => {
+    if (!isStaleWriteError(error)) {
+      toast.onError(error);
+      return;
+    }
+    toast.onFailure("plan.toast.stale", error);
+    await invalidate();
+  };
+
+  /**
    * Ce qui définit le cycle : son titre, sa description, son début, son destinataire (#207).
    * Rangée avec les écritures du builder parce qu'elle invalide exactement les mêmes caches —
    * déplacer le début rejoue les dates de toutes les séances, et changer de destinataire déplace
@@ -76,6 +119,7 @@ export function usePlanMutations(planId: string) {
    * pas : le formulaire le dit à côté de la saisie, avec de quoi recharger.
    */
   const saveHeader = useMutation({
+    mutationKey,
     mutationFn: (input: UpdatePlanInput) => updatePlan(planId, input),
     onSuccess: done("plan.toast.headerSaved"),
     onError: (error) => {
@@ -84,27 +128,32 @@ export function usePlanMutations(planId: string) {
   });
 
   const addWeek = useMutation({
+    mutationKey,
     mutationFn: (input: PlanWeekInput) => addPlanWeek(planId, input),
-    onSuccess: done("plan.toast.weekAdded"),
-    onError: toast.onError,
+    onSuccess: settled("plan.toast.weekAdded"),
+    // Sans version, mais deux ajouts croisés visent le même numéro : le refusé reçoit un 409.
+    onError: onGestureError,
   });
 
   const updateWeek = useMutation({
+    mutationKey,
     mutationFn: ({ weekId, input }: { weekId: string; input: UpdatePlanWeekInput }) =>
       updatePlanWeek(weekId, input),
-    onSuccess: done("plan.toast.weekUpdated"),
-    onError: toast.onError,
+    onSuccess: settled("plan.toast.weekUpdated"),
+    onError: onGestureError,
   });
 
   // Renumérote les semaines suivantes et fait remonter leurs séances d'une semaine (côté API).
   const removeWeek = useMutation({
-    mutationFn: (weekId: string) => deletePlanWeek(weekId),
-    onSuccess: async (_plan, weekId) => {
+    mutationKey,
+    mutationFn: ({ weekId, expectedUpdatedAt }: RemoveWeekVariables) =>
+      deletePlanWeek(weekId, { expectedUpdatedAt }),
+    onSuccess: async (plan, { weekId }) => {
       // Si c'était la semaine copiée, le bandeau ne doit plus proposer de la coller (#341).
       forgetPlanClipboardSource({ planWeekId: weekId });
-      await done("plan.toast.weekDeleted")();
+      await settled("plan.toast.weekDeleted")(plan);
     },
-    onError: toast.onError,
+    onError: onGestureError,
   });
 
   /**
@@ -112,10 +161,11 @@ export function usePlanMutations(planId: string) {
    * atterri : sans ce chiffre, un collage qui remplace 4 séances par 2 passerait inaperçu.
    */
   const pasteWeek = useMutation({
-    mutationFn: ({ targetWeekId, sourcePlanWeekId }: PasteWeekVariables) =>
-      copyPlanWeek(targetWeekId, { sourcePlanWeekId }),
+    mutationKey,
+    mutationFn: ({ targetWeekId, ...input }: PasteWeekVariables) =>
+      copyPlanWeek(targetWeekId, input),
     onSuccess: async (plan, { targetWeekId }) => {
-      await invalidate();
+      await settle(plan);
       const pasted = plan.weeks.find((week) => week.id === targetWeekId);
       // La semaine cible est forcément dans la réponse (l'API rend le plan cible). Si elle
       // manquait, on confirme sans chiffre plutôt que d'annoncer un « 0 séance » inventé.
@@ -125,7 +175,7 @@ export function usePlanMutations(planId: string) {
       }
       toast.onSuccess("plan.toast.weekPasted", { count: String(pasted.sessions.length) });
     },
-    onError: toast.onError,
+    onError: onGestureError,
   });
 
   /**
@@ -134,13 +184,15 @@ export function usePlanMutations(planId: string) {
    * glissement transformerait un geste fluide en notification permanente. L'échec, lui, se dit.
    */
   const reorderDay = useMutation({
-    mutationFn: ({ weekId, date, sessionIds }: ReorderDayVariables) =>
-      reorderPlanDay(weekId, date, { sessionIds }),
-    onSuccess: invalidate,
-    onError: toast.onError,
+    mutationKey,
+    mutationFn: ({ weekId, date, ...input }: ReorderDayVariables) =>
+      reorderPlanDay(weekId, date, input),
+    onSuccess: settle,
+    onError: onGestureError,
   });
 
   const createSession = useMutation({
+    mutationKey,
     mutationFn: ({ weekId, input }: { weekId: string; input: CreateScheduledSessionInput }) =>
       createScheduledSession(weekId, input),
     onSuccess: done("plan.toast.sessionCreated"),
@@ -148,6 +200,7 @@ export function usePlanMutations(planId: string) {
   });
 
   const saveSession = useMutation({
+    mutationKey,
     mutationFn: ({ sessionId, input }: { sessionId: string; input: UpdateScheduledSessionInput }) =>
       updateScheduledSession(sessionId, input),
     onSuccess: done("plan.toast.sessionSaved"),
@@ -155,21 +208,13 @@ export function usePlanMutations(planId: string) {
   });
 
   const removeSession = useMutation({
+    mutationKey,
     mutationFn: (sessionId: string) => deleteScheduledSession(sessionId),
     onSuccess: done("plan.toast.sessionDeleted"),
     onError: toast.onError,
   });
 
-  const isBusy =
-    saveHeader.isPending ||
-    addWeek.isPending ||
-    updateWeek.isPending ||
-    removeWeek.isPending ||
-    pasteWeek.isPending ||
-    reorderDay.isPending ||
-    createSession.isPending ||
-    saveSession.isPending ||
-    removeSession.isPending;
+  const isBusy = useIsMutating({ mutationKey }) > 0;
 
   return {
     saveHeader,

@@ -117,10 +117,17 @@ export const updatePlanSchema = z
   .strict();
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 
+/**
+ * Les gestes sur une semaine citent la version de la semaine AFFICHÉE (#604) : type, collage,
+ * ordre d'une journée, retrait. Toute écriture de ses séances la fait avancer — un geste fondé sur
+ * une grille qu'un autre Coach a changée depuis est refusé en 409 `STALE_WRITE`, plutôt que de
+ * défaire son travail sans un mot.
+ */
 export const updatePlanWeekSchema = z
   .object({
     type: planWeekTypeSchema.optional(),
     note: z.string().max(PLAN_WEEK_NOTE_MAX_LENGTH).nullable().optional(),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdatePlanWeekInput = z.infer<typeof updatePlanWeekSchema>;
@@ -137,6 +144,8 @@ export type UpdatePlanWeekInput = z.infer<typeof updatePlanWeekSchema>;
 export const copyPlanWeekSchema = z
   .object({
     sourcePlanWeekId: z.string().min(1),
+    // La version de la CIBLE, celle dont le contenu est remplacé.
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type CopyPlanWeekInput = z.infer<typeof copyPlanWeekSchema>;
@@ -227,9 +236,16 @@ export type UpdateScheduledSessionInput = z.infer<typeof updateScheduledSessionS
 export const reorderPlanDaySchema = z
   .object({
     sessionIds: z.array(z.string().min(1)).min(1),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type ReorderPlanDayInput = z.infer<typeof reorderPlanDaySchema>;
+
+/** Retirer une semaine : sans corps, la version voyage en paramètre de requête (#604). */
+export const planWeekVersionQuerySchema = z
+  .object({ expectedUpdatedAt: expectedVersionSchema })
+  .strict();
+export type PlanWeekVersionQuery = z.infer<typeof planWeekVersionQuerySchema>;
 
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 
@@ -315,6 +331,8 @@ export const planWeekDtoSchema = z.object({
   note: z.string().nullable(),
   startDate: z.iso.date(),
   endDate: z.iso.date(),
+  // La version que citent les gestes sur la semaine (#604).
+  updatedAt: z.iso.datetime(),
   sessions: z.array(scheduledSessionSummaryDtoSchema),
 });
 export type PlanWeekDto = z.infer<typeof planWeekDtoSchema>;

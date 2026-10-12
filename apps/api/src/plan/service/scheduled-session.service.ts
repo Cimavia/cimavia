@@ -43,7 +43,9 @@ import { toDbDate, toIsoDate } from "../../util/date.util";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import { assertInstructionImagesOwned } from "../../util/instruction-images.util";
+import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
+import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
 import {
   type ScheduledSessionWithExercises,
   SESSION_DETAIL_INCLUDE,
@@ -108,7 +110,10 @@ export class ScheduledSessionService {
       assertInstructionImagesOwned(exercise.instructions, libraryDocumentsOf(exercise, documents));
     }
 
+    // Sans version (#604) : la semaine avance, verrouillée d'abord — deux séances posées au même
+    // instant le même jour prennent leur rang l'une après l'autre (`touchWeeks`).
     const session = await this.db.$transaction(async (tx) => {
+      await touchWeeks(tx, { id: planWeekId });
       const created = await tx.scheduledSession.create({
         // coachId injecté par le tenancy layer ; athleteId dénormalisé explicitement.
         data: {
@@ -177,6 +182,8 @@ export class ScheduledSessionService {
     assertRowImagesOwned(session.exercises, rows, documents);
 
     await this.db.$transaction(async (tx) => {
+      // La semaine d'abord : l'ordre des verrous de `touchWeeks`.
+      await touchWeeks(tx, { id: session.planWeekId });
       await tx.scheduledSession.update({
         where: { id },
         data: {
@@ -231,6 +238,10 @@ export class ScheduledSessionService {
     input: ReorderPlanDayInput,
   ): Promise<PlanDto> {
     const week = await this.plans.getWeekOwnedOrThrow(planWeekId);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Avant de juger le tableau : fondé sur une grille périmée, il ne correspond plus à la journée,
+    // et le refus serait un 400 « contenu invalide » au lieu de proposer de relire (#604).
+    assertReadAtVersion(week.updatedAt, expected);
     const plan = await this.plans.getOwnedOrThrow(week.planId);
     this.assertDateInWeek(plan, week, isoDate);
 
@@ -258,6 +269,7 @@ export class ScheduledSessionService {
       const sources = [...new Set(moved.map((session) => session.scheduledDate.getTime()))];
 
       await this.db.$transaction(async (tx) => {
+        await writeAtVersion(tx.planWeek, planWeekId, expected, {}, WEEK_NOT_FOUND);
         await writeDay(tx, ordered, date);
         for (const source of sources) {
           await compactDay(tx, planWeekId, new Date(source));
@@ -312,6 +324,8 @@ export class ScheduledSessionService {
     const plan = await this.plans.getOwnedOrThrow(session.planId);
 
     await this.db.$transaction(async (tx) => {
+      // La semaine d'abord : l'ordre des verrous de `touchWeeks`. Un refus plus bas l'annule.
+      await touchWeeks(tx, { id: session.planWeekId });
       /**
        * Une séance débriefée ne se supprime pas (#313) : la cascade emporterait le débrief de
        * l'athlète, son suivi d'exécution et le lien des messages qui y répondent — et laisserait

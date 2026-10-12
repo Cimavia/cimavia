@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
-import { versionOf } from "../support/version";
+import { atWeekVersion, versionOf } from "../support/version";
 
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
@@ -536,7 +536,9 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect((await coachB.post(`/plans/${planId}/weeks`).send({ type: "TRAINING" })).status).toBe(
       404,
     );
-    expect((await coachB.delete(`/plan-weeks/${week2Id}`)).status).toBe(404);
+    // Même en citant la bonne version : le scope répond avant elle (#604).
+    const atA = await atWeekVersion(coachA, planId, week2Id);
+    expect((await coachB.delete(`/plan-weeks/${week2Id}`).query(atA)).status).toBe(404);
     expect((await coachB.get(`/scheduled-sessions/${scheduledId}`)).status).toBe(404);
   });
 

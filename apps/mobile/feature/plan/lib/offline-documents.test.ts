@@ -121,6 +121,7 @@ function plan(
         note: null,
         startDate: "2026-08-17",
         endDate: "2026-08-23",
+        updatedAt: "2026-08-10T00:00:00.000Z",
         sessions: sessionIds.map((sessionId, index) => ({
           id: sessionId,
           planId: id,

@@ -13,8 +13,10 @@ const {
   updatePlanMock,
   updatePlanWeekMock,
   deletePlanWeekMock,
+  reorderPlanDayMock,
   onSuccessMock,
   onErrorMock,
+  onFailureMock,
 } = vi.hoisted(() => ({
   getPlanMock: vi.fn(),
   addPlanWeekMock: vi.fn(),
@@ -22,8 +24,10 @@ const {
   updatePlanMock: vi.fn(),
   updatePlanWeekMock: vi.fn(),
   deletePlanWeekMock: vi.fn(),
+  reorderPlanDayMock: vi.fn(),
   onSuccessMock: vi.fn(),
   onErrorMock: vi.fn(),
+  onFailureMock: vi.fn(),
 }));
 
 // Les fabriques de clés restent les VRAIES : c'est sur elles que porte l'assertion d'invalidation.
@@ -35,15 +39,20 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   updatePlan: updatePlanMock,
   updatePlanWeek: updatePlanWeekMock,
   deletePlanWeek: deletePlanWeekMock,
+  reorderPlanDay: reorderPlanDayMock,
 }));
 
 // Le toast est coupé pour ne pas traîner i18next et le contexte d'affichage : ce qui est vérifié
 // ici, c'est QUELLE clé le hook annonce, pas comment elle s'affiche.
 vi.mock("@/shared/hook/useMutationToast", () => ({
-  useMutationToast: () => ({ onSuccess: onSuccessMock, onError: onErrorMock }),
+  useMutationToast: () => ({
+    onSuccess: onSuccessMock,
+    onError: onErrorMock,
+    onFailure: onFailureMock,
+  }),
 }));
 
-// La version que le formulaire d'en-tête cite (#604) : le hook la transmet sans la regarder.
+// La version que le formulaire ou le geste cite (#604) : le hook la transmet sans la regarder.
 const VERSION = "2026-10-12T08:00:00.000Z";
 
 const planWith = (weeks: { id: string; sessionCount: number }[]) =>
@@ -117,9 +126,14 @@ describe("usePlanMutations", () => {
       await result.current.pasteWeek.mutateAsync({
         targetWeekId: "w-2",
         sourcePlanWeekId: "w-1",
+        expectedUpdatedAt: VERSION,
       });
     });
 
+    expect(copyPlanWeekMock).toHaveBeenCalledWith("w-2", {
+      sourcePlanWeekId: "w-1",
+      expectedUpdatedAt: VERSION,
+    });
     expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekPasted", { count: "2" });
   });
 
@@ -136,6 +150,7 @@ describe("usePlanMutations", () => {
       await result.current.pasteWeek.mutateAsync({
         targetWeekId: "w-2",
         sourcePlanWeekId: "w-1",
+        expectedUpdatedAt: VERSION,
       });
     });
 
@@ -243,10 +258,10 @@ describe("usePlanMutations", () => {
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
     await act(async () => {
-      await result.current.removeWeek.mutateAsync("w-1");
+      await result.current.removeWeek.mutateAsync({ weekId: "w-1", expectedUpdatedAt: VERSION });
     });
 
-    expect(deletePlanWeekMock).toHaveBeenCalledWith("w-1");
+    expect(deletePlanWeekMock).toHaveBeenCalledWith("w-1", { expectedUpdatedAt: VERSION });
     expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekDeleted");
   });
 
@@ -272,7 +287,10 @@ describe("usePlanMutations", () => {
     );
 
     await act(async () => {
-      await result.current.plan.removeWeek.mutateAsync(removed);
+      await result.current.plan.removeWeek.mutateAsync({
+        weekId: removed,
+        expectedUpdatedAt: VERSION,
+      });
     });
 
     // La semaine copiée qui disparaît ne se colle plus nulle part : le bandeau ne doit plus la
@@ -292,6 +310,75 @@ describe("usePlanMutations", () => {
 
     // TanStack passe aussi variables, contexte et méta : seul le premier argument nous intéresse.
     expect(onErrorMock.mock.calls[0]?.[0]).toBe(failure);
+    expect(onSuccessMock).not.toHaveBeenCalled();
+  });
+
+  type Mutations = ReturnType<typeof usePlanMutations>;
+
+  /**
+   * Un geste sans saisie refusé sur une grille périmée (#604) : rien n'est à garder, le cycle se
+   * relit, et un toast dit pourquoi l'écran a changé. Les créations n'ont pas de version, mais deux
+   * ajouts croisés visent le même rang : le refusé reçoit le même 409, et le même traitement.
+   */
+  it.each([
+    [
+      "le retrait",
+      deletePlanWeekMock,
+      (m: Mutations) => m.removeWeek.mutateAsync({ weekId: "w-1", expectedUpdatedAt: VERSION }),
+    ],
+    [
+      "le collage",
+      copyPlanWeekMock,
+      (m: Mutations) =>
+        m.pasteWeek.mutateAsync({
+          targetWeekId: "w-2",
+          sourcePlanWeekId: "w-1",
+          expectedUpdatedAt: VERSION,
+        }),
+    ],
+    ["l'ajout", addPlanWeekMock, (m: Mutations) => m.addWeek.mutateAsync({} as never)],
+  ])("relit le cycle quand %s se fonde sur une grille périmée", async (_, api, gesture) => {
+    const stale = new ApiError(409, STALE_WRITE, null);
+    api.mockRejectedValue(stale);
+    const { wrapper, queryClient } = renderWithQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await gesture(result.current).catch(() => undefined);
+    });
+
+    expect(onFailureMock).toHaveBeenCalledWith("plan.toast.stale", stale);
+    expect(onErrorMock).not.toHaveBeenCalled();
+    const roots = invalidate.mock.calls.map(([options]) => options?.queryKey);
+    expect(roots).toEqual([planKeys.all, scheduledSessionKeys.all, myPlanKeys.all]);
+  });
+
+  /**
+   * Le cycle rendu par un geste porte déjà les nouvelles versions (#604) : posé en cache sans
+   * attendre la relecture, il évite que le geste suivant cite la version d'avant.
+   */
+  it("pose en cache le cycle rendu par un geste sur une semaine", async () => {
+    const reordered = planWith([{ id: "w-1", sessionCount: 2 }]);
+    reorderPlanDayMock.mockResolvedValue(reordered);
+    const { wrapper, queryClient } = renderWithQueryClient();
+    const seed = vi.spyOn(queryClient, "setQueryData");
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.reorderDay.mutateAsync({
+        weekId: "w-1",
+        date: "2026-10-12",
+        sessionIds: ["s-1", "s-0"],
+        expectedUpdatedAt: VERSION,
+      });
+    });
+
+    expect(reorderPlanDayMock).toHaveBeenCalledWith("w-1", "2026-10-12", {
+      sessionIds: ["s-1", "s-0"],
+      expectedUpdatedAt: VERSION,
+    });
+    expect(seed).toHaveBeenCalledWith(planKeys.detail("plan-1"), reordered);
     expect(onSuccessMock).not.toHaveBeenCalled();
   });
 
@@ -317,5 +404,30 @@ describe("usePlanMutations", () => {
       resolvePending(planWith([]));
     });
     await waitFor(() => expect(result.current.isBusy).toBe(false));
+  });
+
+  /**
+   * L'occupation se lit sur le CYCLE, pas sur l'instance (#604) : une séance enregistrée depuis le
+   * panneau fait avancer sa semaine, et la carte — une autre instance du hook — doit attendre la
+   * relecture avant d'offrir un geste qui citerait la version d'avant.
+   */
+  it("partage l'occupation entre les instances d'un même cycle, pas avec un autre", async () => {
+    addPlanWeekMock.mockReturnValue(new Promise<PlanDto>(() => {}));
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(
+      () => ({
+        panel: usePlanMutations("plan-1"),
+        card: usePlanMutations("plan-1"),
+        other: usePlanMutations("plan-2"),
+      }),
+      { wrapper },
+    );
+    act(() => {
+      result.current.panel.addWeek.mutate({} as never);
+    });
+
+    await waitFor(() => expect(result.current.card.isBusy).toBe(true));
+    expect(result.current.other.isBusy).toBe(false);
   });
 });

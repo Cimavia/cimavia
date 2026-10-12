@@ -1,5 +1,6 @@
 import { STALE_WRITE } from "@cmv/shared";
 import { ConflictException, NotFoundException } from "@nestjs/common";
+import { isUniqueViolation } from "../infra/prisma/prisma-error";
 
 /**
  * Le 409 d'une écriture fondée sur une version périmée (#440) : l'élément a changé depuis que
@@ -79,4 +80,46 @@ export async function writeAtVersion<Data extends object>(
     async () => (await delegate.count({ where: { id } })) > 0,
     notFoundMessage,
   );
+}
+
+/** Ce qu'il faut d'un délégué Prisma (scopé tenant) pour supprimer sous une version. */
+type VersionedDeleteDelegate = {
+  deleteMany(args: { where: { id: string; updatedAt: Date } }): Promise<{ count: number }>;
+  count(args: { where: { id: string } }): Promise<number>;
+};
+
+/**
+ * La suppression conditionnelle (#604) : supprime l'élément s'il est encore à la version lue, sinon
+ * 404 ou 409 comme une écriture. Ce qui part en cascade a pu changer depuis la lecture — c'est
+ * justement ce que la version garde.
+ */
+export async function deleteAtVersion(
+  delegate: VersionedDeleteDelegate,
+  id: string,
+  expected: Date,
+  notFoundMessage: string,
+): Promise<void> {
+  const { count } = await delegate.deleteMany({ where: { id, updatedAt: expected } });
+  await assertWrittenAtVersion(
+    count,
+    async () => (await delegate.count({ where: { id } })) > 0,
+    notFoundMessage,
+  );
+}
+
+/**
+ * Une CRÉATION ne cite pas de version (#604) : rien n'existe encore à avoir lu. Mais deux Coachs
+ * qui ajoutent au même instant une semaine au même cycle visent le même numéro, et se heurtent sur
+ * l'unicité, et le second a bien travaillé sur une grille périmée :
+ * c'est le même 409, et « relire » lui montrera ce que l'autre a posé.
+ *
+ * Autour de la TRANSACTION entière, jamais dedans : Postgres l'a déjà annulée à la violation.
+ */
+export async function staleOnCollision<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new StaleWriteException();
+    throw error;
+  }
 }
