@@ -3,6 +3,7 @@ import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { TanStackRouterVite } from "@tanstack/router-vite-plugin";
 import react from "@vitejs/plugin-react";
 import { type Connect, defineConfig, loadEnv, type Plugin } from "vite";
+import { bundleBudgetPlugin } from "./bundle-budget";
 
 /**
  * Téléversement des sourcemaps à Sentry. Le JETON est le seul déclencheur : présent, on publie ;
@@ -103,6 +104,10 @@ export default defineConfig({
       // satisfaire un générateur de routes, alors qu'il est à sa place à côté de ce qu'il teste.
       routeFileIgnorePattern: String.raw`\.test\.tsx?$`,
     }),
+    // Le budget de taille (#629) : un dépassement fait échouer le build. Pas quand Sentry téléverse :
+    // son plugin injecte dans chaque chunk quelques centaines d'octets que le build d'une PR n'a pas,
+    // et l'image de `main` échouerait sur un code que la PR a déjà fait passer. La porte, c'est elle.
+    SENTRY_AUTH_TOKEN ? null : bundleBudgetPlugin(),
     // En DERNIER : le plugin lit les artefacts que les précédents ont produits.
     sentryVitePlugin(sentryOptions),
   ],
