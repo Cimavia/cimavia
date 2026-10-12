@@ -1,4 +1,4 @@
-import { type AthleteSheetDto, athleteKeys, type CoachAthleteDto } from "@cmv/shared";
+import { type AthleteSheetDto, athleteKeys, type CoachAthleteDto, STALE_WRITE } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -168,7 +168,10 @@ describe("AthleteSheetScreen — l'édition", () => {
     pressButton(container, "athlete.sheet.save");
 
     expect(await findByText("Épaule rétablie")).toBeTruthy();
-    expect(saveSheet).toHaveBeenCalledWith("ath-1", { content: "Épaule rétablie" });
+    expect(saveSheet).toHaveBeenCalledWith("ath-1", {
+      content: "Épaule rétablie",
+      expectedUpdatedAt: "2026-09-01T08:00:00.000Z",
+    });
     expect(container.querySelector("textarea")).toBeNull();
     expect(queryClient.getQueryData(athleteKeys.sheet("ath-1"))).toMatchObject({
       content: "Épaule rétablie",
@@ -214,5 +217,116 @@ describe("AthleteSheetScreen — l'édition", () => {
 
     expect(await findByText("athlete.sheet.error")).toBeTruthy();
     await waitFor(() => expect(field(container).value).toBe("Épaule rétablie"));
+  });
+});
+
+describe("AthleteSheetScreen — la version lue (#440)", () => {
+  const LATER: AthleteSheetDto = {
+    ...sheet("Écrit sur le web"),
+    updatedAt: "2026-09-02T10:00:00.000Z",
+  };
+  const STALE = new ApiError(409, STALE_WRITE, null);
+
+  /** Ouvre l'édition, remplace le texte, enregistre. */
+  async function editAndSave(content: string) {
+    const rendered = renderRn(<AthleteSheetScreen />);
+    await rendered.findByText("Épaule gauche fragile");
+    pressButton(rendered.container, "athlete.sheet.edit");
+    fireEvent.change(field(rendered.container), { target: { value: content } });
+    pressButton(rendered.container, "athlete.sheet.save");
+    return rendered;
+  }
+
+  // `null` : le coach n'a vu aucune fiche — il en crée une, il n'en remplace pas.
+  it("crée une fiche jamais écrite sans citer de version", async () => {
+    getSheet.mockResolvedValue(null);
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+    await findByText("athlete.sheet.add");
+    pressButton(container, "athlete.sheet.add");
+    fireEvent.change(field(container), { target: { value: "Objectif 7b" } });
+
+    pressButton(container, "athlete.sheet.save");
+
+    await waitFor(() =>
+      expect(saveSheet).toHaveBeenCalledWith("ath-1", {
+        content: "Objectif 7b",
+        expectedUpdatedAt: null,
+      }),
+    );
+  });
+
+  /** La relecture arrivée pendant la saisie ne change pas la version citée : celle de « Modifier ». */
+  it("cite la version ouverte à « Modifier », pas celle d'une relecture", async () => {
+    const { container, findByText, queryClient } = renderRn(<AthleteSheetScreen />);
+    await findByText("Épaule gauche fragile");
+    pressButton(container, "athlete.sheet.edit");
+    fireEvent.change(field(container), { target: { value: "Épaule rétablie" } });
+
+    getSheet.mockResolvedValue(LATER);
+    await queryClient.refetchQueries({ queryKey: athleteKeys.sheet("ath-1") });
+    pressButton(container, "athlete.sheet.save");
+
+    await waitFor(() =>
+      expect(saveSheet).toHaveBeenCalledWith("ath-1", {
+        content: "Épaule rétablie",
+        expectedUpdatedAt: "2026-09-01T08:00:00.000Z",
+      }),
+    );
+  });
+
+  it("sur un conflit, garde la saisie et le dit, sans l'erreur générique", async () => {
+    saveSheet.mockRejectedValue(STALE);
+    const { container, findByText, queryByText } = await editAndSave("Épaule rétablie");
+
+    expect(await findByText("athlete.sheet.stale")).toBeTruthy();
+    expect(field(container).value).toBe("Épaule rétablie");
+    expect(queryByText("athlete.sheet.error")).toBeNull();
+  });
+
+  it("« Recharger » remplace la saisie par la dernière version, en restant en édition", async () => {
+    saveSheet.mockRejectedValueOnce(STALE);
+    const { container, findByText, queryByText } = await editAndSave("Épaule rétablie");
+    await findByText("athlete.sheet.stale");
+
+    getSheet.mockResolvedValue(LATER);
+    pressButton(container, "common.staleReload");
+
+    await waitFor(() => expect(field(container).value).toBe("Écrit sur le web"));
+    expect(queryByText("athlete.sheet.stale")).toBeNull();
+
+    // La saisie suivante part de la version rechargée.
+    pressButton(container, "athlete.sheet.save");
+    await waitFor(() =>
+      expect(saveSheet).toHaveBeenLastCalledWith("ath-1", {
+        content: "Écrit sur le web",
+        expectedUpdatedAt: LATER.updatedAt,
+      }),
+    );
+  });
+
+  it("une relecture ratée garde la saisie et le bandeau", async () => {
+    saveSheet.mockRejectedValue(STALE);
+    const { container, findByText } = await editAndSave("Épaule rétablie");
+    await findByText("athlete.sheet.stale");
+
+    getSheet.mockRejectedValue(FAILURE);
+    pressButton(container, "common.staleReload");
+
+    expect(await findByText("common.errorTitle")).toBeTruthy();
+    expect(field(container).value).toBe("Épaule rétablie");
+    expect(await findByText("athlete.sheet.stale")).toBeTruthy();
+  });
+
+  // Abandonner efface le refus : rouvrir l'édition ne montre pas un conflit d'une autre saisie.
+  it("abandonner après un conflit rouvre une édition sans bandeau", async () => {
+    saveSheet.mockRejectedValue(STALE);
+    const { container, findByText, queryByText } = await editAndSave("Épaule rétablie");
+    await findByText("athlete.sheet.stale");
+
+    pressButton(container, "common.cancel");
+    await findByText("athlete.sheet.edit");
+    pressButton(container, "athlete.sheet.edit");
+
+    expect(queryByText("athlete.sheet.stale")).toBeNull();
   });
 });

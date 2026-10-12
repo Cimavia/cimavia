@@ -3,6 +3,7 @@ import type {
   CoachAthleteDto,
   CreateInvitationInput,
   InvitationDto,
+  UpdateAthleteSheetInput,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, athleteKeys, invitationKeys } from "@/feature/athlete/api";
@@ -65,12 +66,13 @@ export function useAthleteSheet(athleteId: string) {
   });
 }
 
-// PUT et non PATCH : la fiche est UN champ texte libre, remplacé en entier. Rien à fusionner.
+// PUT et non PATCH : la fiche est UN champ texte libre, remplacé en entier. Rien à fusionner — mais
+// l'API refuse en 409 si elle a changé depuis la version citée (#440).
 export function useSaveAthleteSheet(athleteId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (content: string) => accountApi.saveAthleteSheet(athleteId, { content }),
+    mutationFn: (input: UpdateAthleteSheetInput) => accountApi.saveAthleteSheet(athleteId, input),
     onSuccess: (sheet) => {
       queryClient.setQueryData(athleteKeys.sheet(athleteId), sheet);
     },
