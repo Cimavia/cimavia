@@ -43,12 +43,14 @@ const FULL: AthleteRowsInput = {
   conversations: [{ counterpartId: LEA.athleteId, unreadCount: 3 }],
   invoices: [
     {
+      id: "inv_1",
       athleteId: LEA.athleteId,
       status: InvoiceStatus.PAID,
       dueDate: "2026-09-30",
       issuedAt: "2026-09-01T10:00:00Z",
     },
     {
+      id: "inv_2",
       athleteId: LEA.athleteId,
       status: InvoiceStatus.PENDING,
       dueDate: "2026-10-20",
@@ -176,12 +178,42 @@ describe("buildAthleteRows", () => {
     expect(lea?.invoiceState).toBe(InvoiceState.OVERDUE);
   });
 
+  /**
+   * Deux débriefs, ou deux factures, à la même seconde : le plus petit `id` l'emporte, dans les
+   * deux ordres. Sinon le lien de la colonne et la pastille changeraient d'un chargement à l'autre.
+   */
+  it("départage par l'id deux éléments datés à l'identique, quel que soit l'ordre reçu", () => {
+    const at = "2026-10-25T09:00:00Z";
+    const feedback = { athleteId: LEA.athleteId, coachReadAt: null, createdAt: at };
+    const feedbacks = [
+      { ...feedback, id: "fbk_b" },
+      { ...feedback, id: "fbk_a" },
+    ];
+    const invoice = { athleteId: LEA.athleteId, dueDate: "2026-10-20", issuedAt: at };
+    const invoices = [
+      { ...invoice, id: "inv_b", status: InvoiceStatus.PAID },
+      { ...invoice, id: "inv_a", status: InvoiceStatus.PENDING },
+    ];
+
+    const asReceived = buildAthleteRows({ ...FULL, feedbacks, invoices });
+    const reversed = buildAthleteRows({
+      ...FULL,
+      feedbacks: feedbacks.toReversed(),
+      invoices: invoices.toReversed(),
+    });
+    for (const [lea] of [asReceived ?? [], reversed ?? []]) {
+      expect(lea?.lastUnreadFeedbackId).toBe("fbk_a");
+      expect(lea?.invoiceState).toBe(InvoiceState.OVERDUE);
+    }
+  });
+
   // Un brouillon n'est pas dû à l'athlète : il ne décide pas de la pastille.
   it("ignore les factures non émises", () => {
     const rows = buildAthleteRows({
       ...FULL,
       invoices: [
         {
+          id: "inv_draft",
           athleteId: LEA.athleteId,
           status: InvoiceStatus.DRAFT,
           dueDate: "2026-10-20",
@@ -195,6 +227,7 @@ describe("buildAthleteRows", () => {
   // Une facture non émise n'a pas de date d'émission : elle ne passe pas pour la plus récente.
   it("ne laisse pas une facture non émise masquer la dernière émise", () => {
     const draft = {
+      id: "inv_draft",
       athleteId: LEA.athleteId,
       status: InvoiceStatus.DRAFT,
       dueDate: "2026-11-20",
