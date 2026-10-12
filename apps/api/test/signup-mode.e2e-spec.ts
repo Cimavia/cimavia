@@ -10,9 +10,10 @@ import { PrismaService } from "../src/infra/prisma/prisma.service";
 /**
  * Inscription FERMÉE (#263) — le comportement du tier preview (NAS).
  *
- * Une suite à part, et pas quelques cas ajoutés à `isolation.e2e-spec.ts` : la politique est lue
- * AU DÉMARRAGE de l'app (variable d'environnement), les deux modes ne peuvent donc pas cohabiter
- * dans une seule instance. Celle-ci pose `SIGNUP_MODE=invitation` avant de monter la sienne.
+ * Une suite à part, et pas un domaine de plus sous `isolation/` : la politique est lue AU
+ * DÉMARRAGE de l'app (variable d'environnement), les deux modes ne peuvent donc pas cohabiter dans
+ * une seule instance. Celle-ci pose `SIGNUP_MODE=invitation` avant de monter la sienne — et garde
+ * sa spec, donc son contexte de modules : partagé, l'`AppModule` déjà évalué resterait ouvert (#625).
  *
  * Ce qu'on vérifie n'est pas « le code refuse bien », c'est la LISTE EXACTE des façons d'entrer :
  * la liste d'adresses (les coachs, que personne n'invite) et l'invitation à leur adresse (les

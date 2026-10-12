@@ -656,6 +656,28 @@ liste des domaines vivent dans l'index.
 > (identifiant en double, dette ouverte sans suivi, ligne hors tableau — **M-6** en était une, écrite
 > sous un encadré, affichée en barres verticales) ne demande rien.
 
+> **Tranché en [#625](https://github.com/Cimavia/cimavia/issues/625)** (la suite d'isolation
+> découpée) : **une seule spec**, `isolation.e2e-spec.ts`, monte l'app et charge chaque domaine de
+> `test/isolation/` par `import.meta.glob` ; les acteurs et les données de base vivent dans
+> `test/support/`. Un domaine ajouté n'a rien à déclarer, et ne peut donc pas être oublié.
+>
+> Deux voies plus naturelles ont été mesurées, puis écartées :
+> - **une spec par domaine** : chaque fichier réimporte le graphe d'`AppModule` dans un contexte
+>   neuf, soit ≈ 1,4 s, ce qui fait ≈ +20 s pour seize domaines sur une étape E2E de 62 s. Démarrer
+>   Nest ne coûte presque rien ; c'est l'import qui coûte ;
+> - **`isolate: false`** : il garde l'import (+0,1 s par fichier), mais partage le cache de modules.
+>   `signup-mode.e2e-spec.ts` lit alors un `AppModule` évalué en mode ouvert, et six refus
+>   échouent. Le contourner par `vi.resetModules()` fait pire : le graphe « fermé » reste en cache
+>   pour les fichiers suivants.
+>
+> Ce que l'entrée unique impose aux domaines : **aucun hook de niveau fichier**, puisqu'il vaudrait
+> pour toute la suite (celui d'`organization`, qui vidait `sentMails`, est descendu dans ses deux
+> blocs lecteurs) ; des adresses à soi, puisque la base n'est vidée qu'une fois ; et `-t` pour
+> lancer un seul domaine, puisqu'un module n'est pas une spec. `-t` étant une regex, on coupe le
+> titre avant sa parenthèse : « (#44) » n'attrape rien, et tout passe en vert sans avoir tourné. Restent des specs à part celles
+> qui exigent leur propre app : `signup-mode` (un autre environnement) et `route-declarations`
+> (un module compilé avec `DiscoveryModule`, sans serveur).
+
 > **Tranché en [#626](https://github.com/Cimavia/cimavia/issues/626)** (mutation testing) : la
 > couverture dit qu'une ligne a tourné, pas qu'un test l'a vérifiée. **Stryker** mute deux cibles,
 > choisies pour ce qu'une erreur y coûte : `@cmv/shared`, où vit la logique pure, et la **tenancy**
