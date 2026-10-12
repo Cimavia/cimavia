@@ -6,7 +6,6 @@
 // Ces dates se comparent directement (`<`, `>`) : le format est à largeur fixe, donc l'ordre
 // lexicographique est l'ordre chronologique.
 
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MONDAY = 1;
 
@@ -32,12 +31,15 @@ export function shiftDate(date: Date, days: number): Date | null {
 }
 
 function parseIsoDate(isoDate: string): Date | null {
-  if (!ISO_DATE_PATTERN.test(isoDate)) return null;
   const time = Date.parse(`${isoDate}T00:00:00Z`);
   if (Number.isNaN(time)) return null;
   const date = new Date(time);
-  // Date.parse REPORTE une date inexistante au lieu de la refuser (2026-02-31 → 2026-03-03) :
-  // seul l'aller-retour la démasque.
+  /**
+   * L'aller-retour est le SEUL juge, du format comme du calendrier. Date.parse REPORTE une date
+   * inexistante au lieu de la refuser (2026-02-31 → 2026-03-03), et chaque moteur tolère à sa
+   * façon un mois sans zéro ou une année étendue : réécrite en `YYYY-MM-DD`, aucune de ces saisies
+   * ne retombe sur elle-même. Un motif posé avant ne refusait donc rien de plus (#635).
+   */
   return toIsoDate(date) === isoDate ? date : null;
 }
 
