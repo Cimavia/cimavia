@@ -452,6 +452,8 @@ describe("Effacer une invitation refusée (#146)", () => {
 
     expect((await intruder.delete(`/invitations/${id}`)).status).toBe(404);
     expect((await owner.get("/invitations")).body).toHaveLength(1);
+    // La liste, sous le même scope (#325) : l'intrus n'y lit rien de ce qu'a émis l'autre coach.
+    expect((await intruder.get("/invitations")).body).toEqual([]);
   });
 
   // La route est celle du coach : un athlète n'efface pas ce qu'il vient de refuser.
