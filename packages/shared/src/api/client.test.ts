@@ -53,6 +53,15 @@ describe("isUnauthorizedError", () => {
 });
 
 describe("isStaleWriteError", () => {
+  /**
+   * La valeur est un contrat sur le fil, pas un détail : l'API la pose dans le corps du 409, et une
+   * app installée la compare à la sienne. La changer côté API casserait le bandeau des apps déjà
+   * en service, que les autres tests ne verraient pas — ils lisent tous la même constante.
+   */
+  it("garde le code que les apps installées attendent", () => {
+    expect(STALE_WRITE).toBe("STALE_WRITE");
+  });
+
   it("reconnaît le 409 que l'API lève sur une version périmée", async () => {
     // Par le vrai client : le code doit survivre au trajet corps NestJS → `ApiError`.
     const fetchFn: ApiFetch = () =>
