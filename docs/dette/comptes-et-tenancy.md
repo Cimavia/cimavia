@@ -571,6 +571,7 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | MC-1 | **Les docs décrivent la cible avant le code** ([#594](https://github.com/Cimavia/cimavia/issues/594)) : règle dure n°1, `architecture-choice.md` §6, `CONTEXT.cimavia.md` et le cahier des charges posent déjà les règles de l'épic. Chaque affirmation que le code ne tient pas encore porte un marqueur *(cible — #N)* ; la PR de #N le retire en rendant la règle vraie. | 🟡 | [#593](https://github.com/Cimavia/cimavia/issues/593) — résolue au dernier marqueur retiré (`grep -rnE "cible — #[0-9]" CLAUDE.md docs/`) |
 | MC-2 | **Une notification d'invitation mène toujours côté coach un compte à double capacité** : la cloche et le push routent `INVITATION` par capacité, pas par type. Invité par une entreprise (`INVITATION_RECEIVED`) ou rejoint par l'un de ses Coachs (`ORGANIZATION_COACH_JOINED`, #602), un compte coach et athlète arrive sur son tableau de bord de coach, et non dans « Mes coachs ». Déjà vrai de l'invitation d'un Coach depuis #146. | 🟢 | — *(déclencheur : un retour beta d'un compte à double capacité perdu ; le correctif lirait `capabilityOfNotification` dans les deux tables de routage)* |
+| MC-3 | **La lecture du parent à la création passe par un paramètre interne de Prisma** ([#603](https://github.com/Cimavia/cimavia/issues/603)) : `__internalParams.transaction`, absent de ses types, relayé par `requestTransaction`. C'est le seul moyen de lire, depuis une extension de requête, le parent qu'une transaction interactive vient de créer. Une montée de Prisma qui le retirerait ferait lire hors transaction : le parent y serait invisible, la création refusée (500), jamais une fuite — et l'e2e « lit le parent dans la transaction qui vient de le créer » tomberait. | 🟢 | — *(déclencheur : une montée de version de Prisma ; la sortie serait une transaction portée par le CLS, `@nestjs-cls/transactional`, au prix des ~24 `$transaction` des services)* |
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -771,3 +772,39 @@ liste des domaines vivent dans l'index.
 > - **L'invitation reçue nomme les Coachs qui suivront** (`issuer.coachNames`), l'invité exclu
 >   s'il en est. Liste vide = l'entreprise n'a pas encore de Coach, et la carte le dit.
 > - **Routage d'un compte à double capacité** : voir **MC-2**.
+
+> **Tranché en [#603](https://github.com/Cimavia/cimavia/issues/603)** (la couche d'isolation
+> filtre par opération et recopie le propriétaire du parent) : le registre `TENANT_SCOPES` quitte
+> l'extension pour `tenancy/tenant-scope.ts`, et chaque capacité y déclare un **constructeur** de
+> filtre `(acteur, classe) → where` au lieu d'un nom de colonne. Aucun comportement ne change : les
+> 587 e2e existants passent sans modification. Six arbitrages que l'issue ne tranchait pas :
+>
+> - **Le parent direct, pas la racine.** Un document d'exercice planifié ne porte que la clé de son
+>   exercice planifié, pas celle de la planification. Le parent lu avec SON filtre d'écriture vaut
+>   la racine : sa colonne `coachId` est déjà celle du propriétaire, et ce mécanisme la tient.
+> - **Seul `coachId` est recopié.** `athleteId` reste au service, qui le pose déjà et le tient à
+>   jour à la réaffectation d'une planification.
+> - **Au seul titre de Coach.** Le parent est déclaré dans le scope coach (`childOf`) ; le débrief
+>   et ses médias, créés par l'athlète, gardent l'injection de l'acteur.
+> - **La facture suit sa planification**, et reste privée sans elle : `planId` à `null` prend
+>   l'acteur, une clé absente est refusée — sans quoi un `connect` passerait à côté de la lecture.
+> - **Un enfant se filtre encore par sa colonne.** `throughRoot` existe et se teste, mais n'est
+>   branché qu'avec la branche « droit accordé » (#605). Point de vigilance pour elle : Prisma
+>   regroupe les `findUnique` d'un même tick et rend à chacun sa ligne en comparant tout le
+>   `where` (« Tranché en #626 ») — un filtre de relation n'est pas dans la ligne rendue, ce tri
+>   est à reprouver par un e2e concurrent avant de s'y fier.
+> - **Réaffecter une planification est de l'administration, mais c'est un `update`** : l'opération
+>   Prisma ne le dit pas, et l'extension ne lit pas les données pour le deviner. Laissé à #607, qui
+>   ouvre l'écriture des planifications à d'autres Coachs. Supprimer une racine (exercice, séance,
+>   planification) est, lui, classé `admin` par modèle (`root: true`).
+>
+> Une création refusée par l'extension est une **erreur** (500), comme ses autres refus : chaque
+> service vérifie le parent avant d'écrire et répond 404 ; l'extension est la dernière ligne, pas
+> la réponse au client. Une transaction en tableau (`$transaction([…])`) qui créerait un enfant est
+> refusée : y glisser la lecture du parent décalerait ses résultats. Pour la lecture dans une
+> transaction interactive, voir **MC-3**.
+>
+> Le coût est assumé : une lecture par clé primaire par création d'enfant, y compris quand le
+> service vient de créer le parent — copier une semaine chargée en ajoute quelques dizaines à sa
+> transaction. Un cache par transaction aurait mis un état de plus dans la couche qui décide de
+> l'isolation ; il se reconsidère si une copie approche le délai d'une transaction interactive.
