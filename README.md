@@ -58,6 +58,7 @@ pnpm turbo typecheck test                # (la CI bloque aussi sur les e2e, plus
 pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
 pnpm check:i18n --strict                 # + les clés mortes — exigé en local, pas en CI
 pnpm check:dette                         # journal de dette : identifiants, suivi, archive
+pnpm check:migrations                    # squawk sur les migrations de la branche (CONTRIBUTING.md)
 pnpm --filter @cmv/api exec prisma migrate dev
 # Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + SILO sur son bucket e2e)
 cp apps/api/.env.test.example apps/api/.env.test   # une fois — rien à renseigner

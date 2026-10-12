@@ -40,6 +40,7 @@ Ces sorties sont le socle du rapport, et elles cadrent le §2 : là où Sonar es
 pnpm biome ci .
 pnpm check:lint-rules
 pnpm check:dette
+pnpm check:migrations
 pnpm turbo typecheck test
 pnpm check:i18n --strict          # --strict : clés mortes comprises
 

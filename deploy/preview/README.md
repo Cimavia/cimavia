@@ -177,6 +177,7 @@ pourquoi.
 | `tirage de …cimavia-api:preview : … unauthorized` | jeton GHCR expiré ou révoqué : en créer un, refaire le `docker login` |
 | `compose de … invalide avec ce .env` | une ligne cassée dans le `.env` (une commande collée dedans, une variable renommée par la version promue) |
 | `api non sain après 300s` | l'API ne démarre pas, souvent une migration ou une variable refusée au démarrage (voir « Avant de promouvoir ») : `docker logs` du conteneur `api` |
+| `current transaction is aborted`, dans `docker logs` de `api` | une migration a échoué, et sa transaction l'a annulée **en entier** (#628) : rien n'est appliqué. Le message est l'effet, pas la cause — la cause est dans `docker logs cimavia_preview_postgres` (ligne `ERROR`, puis `STATEMENT`). Corriger **ce même** `migration.sql` (il n'a été appliqué nulle part sur preview) et publier une version. Puis, dans l'ordre : arrêter `cimavia_preview_api` — sans quoi son redémarrage rejouerait l'ancienne migration dès qu'elle n'est plus marquée en échec —, la marquer annulée (`prisma migrate resolve --rolled-back <nom>`, depuis l'image de l'API), promouvoir. Une migration corrigée ajoutée à côté ne servirait à rien : `migrate deploy` rejouerait d'abord celle en échec |
 | `web non sain après 300s` | nginx ne démarre pas : `unknown "cmv_…" variable` dans `docker logs` du conteneur `web` veut dire une variable de config du web qui ne lui arrive pas (#417) |
 
 Une fois la cause réglée, le prochain passage réessaie seul. Si seule la confirmation du workflow a

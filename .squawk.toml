@@ -1,0 +1,53 @@
+# squawk — ce qu'une migration Prisma a le droit de faire sans exception déclarée (#628).
+#
+# Lancé par `pnpm check:migrations`, sur les seuls `migration.sql` qu'une PR ajoute ou modifie :
+# une migration déjà jouée ne se modifie plus, la relire ne servirait à rien.
+#
+# Une règle gardée signale ce qui PERD des données ou EMPÊCHE l'API de démarrer sur preview, qui
+# porte les données réelles du Coach bêta et migre au démarrage du conteneur. Une opération voulue
+# se déclare juste au-dessus de son instruction, avec sa raison :
+#
+#   -- squawk-ignore ban-drop-column -- la consigne vit dans `instructions` depuis #163
+#   ALTER TABLE "exercise" DROP COLUMN "description";
+#
+# Les exclusions ci-dessous valent pour un PostgreSQL 18 en instance unique, migré API arrêtée,
+# sans retour arrière de version (« Tranché en #266 »). Chacune porte sa raison : celle qui ne
+# tient plus fait revenir sa règle.
+
+pg_version = "18"
+
+# Prisma ne joue PAS une migration dans une transaction : une instruction qui échoue laisse
+# appliquées celles d'avant (constaté sur Prisma 7.8). D'où `false`, et la règle qui va avec,
+# `prefer-robust-stmts`, gardée : une migration est atomique (`BEGIN;` … `COMMIT;`) ou rejouable
+# (`IF NOT EXISTS`…). Mentir ici ferait taire la règle sur des fichiers qui ne sont pas atomiques.
+assume_in_transaction = false
+
+excluded_rules = [
+  # ── Conventions de Prisma, pas des risques ───────────────────────────────────────────────
+  # `DateTime` est un `timestamp(3)` que Prisma écrit toujours en UTC.
+  "prefer-timestamp-tz",
+  # `Int` est un `integer` ; les identifiants sont des cuid, pas des séquences.
+  "prefer-bigint-over-int",
+  # `ALTER TYPE … ADD VALUE` sans `BEFORE`/`AFTER` : aucun tri ne repose sur l'ordre d'un enum.
+  "require-enum-value-ordering",
+
+  # ── Verrous : les volumes du Coach bêta se comptent en milliers de lignes ────────────────
+  # Le verrou d'un index, d'une contrainte ou d'une validation y dure des millisecondes, et la
+  # migration tourne avant que l'API n'écoute. Dette GF-2 : elles reviennent quand une table
+  # devient grosse ou que la prod ouvre.
+  "require-lock-timeout",
+  "require-statement-timeout",
+  "require-concurrent-index-creation",
+  "require-concurrent-index-deletion",
+  "constraint-missing-not-valid",
+  "adding-foreign-key-constraint",
+
+  # ── Compatibilité entre deux versions de l'API sur le même schéma ────────────────────────
+  # Instance unique, arrêtée avant de migrer, jamais ramenée à une version plus ancienne : aucun
+  # code ne lit un schéma qui n'est pas le sien. Ces règles ne signalent aucune perte de données —
+  # et Prisma ne génère jamais de RENAME : un renommage écrit à la main est la voie SANS perte.
+  "renaming-column",
+  "renaming-table",
+  "ban-drop-not-null",
+  "ban-drop-default",
+]

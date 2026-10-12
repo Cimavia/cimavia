@@ -22,7 +22,8 @@ Merge unidirectionnel `feature/* → main → preview → production` (jamais en
 CI (`.github/workflows/`) :
 
 - `ci.yml`, job **`Lint + Typecheck + Test`** — commitlint sur les commits de la PR (#416), Biome,
-  `check:lint-rules`, `check:dette`, `turbo typecheck test`, `check:i18n`.
+  `check:lint-rules`, `check:dette`, `check:migrations` (squawk, sur les PR — #628),
+  `turbo typecheck test`, `check:i18n`.
 - `ci.yml`, job **`E2E (isolation multi-tenant)`** — les e2e de l'API (359 en #257), contre un Postgres
   et un SILO jetables montés par les composes du dépôt. Ils portent la couverture réelle de la couche
   API (~89 %) : ses douze tests unitaires n'en couvrent que 3,5 %. Bloquant.
@@ -106,6 +107,51 @@ commentaires de permissions) :
 docker run --rm -v "$PWD:/repo:ro" -w /repo -e GH_TOKEN="$(gh auth token)" \
   ghcr.io/zizmorcore/zizmor:latest --persona pedantic .github/
 ```
+
+## Migrations Prisma
+
+Preview porte les données réelles du Coach bêta et joue les migrations au démarrage du conteneur.
+Deux règles, vérifiées par `pnpm check:migrations` (squawk, `.squawk.toml`) en local et sur chaque
+PR, sur les seuls `migration.sql` que la branche apporte (#628).
+
+**Une migration est atomique.** Prisma ne joue pas le fichier dans une transaction : une
+instruction qui échoue laisse appliquées celles d'avant, et le schéma reste à réparer à la main.
+Une migration neuve s'écrit donc en trois temps :
+
+```bash
+pnpm --filter @cmv/api exec prisma migrate dev --create-only --name <nom>
+# envelopper le migration.sql généré : `BEGIN;` en tête, `COMMIT;` à la fin
+pnpm --filter @cmv/api exec prisma migrate dev
+```
+
+- Quand Prisma **retire** une valeur d'enum, il recrée le type dans son propre `BEGIN;` …
+  `COMMIT;` : le retirer, la migration a le sien (`transaction-nesting`). Un `ADD VALUE`, lui,
+  arrive nu.
+- Une valeur **ajoutée** à un enum ne s'utilise pas dans la transaction qui l'ajoute (défaut de
+  colonne, reprise de données) : PostgreSQL refuse, `unsafe use of new value`. L'ajout part dans
+  une migration à lui, juste avant. `migrate dev` le dit en local, avant toute PR.
+- Une instruction qui ne peut pas tourner dans une transaction (`CREATE INDEX CONCURRENTLY`) va
+  dans une migration à elle, sans `BEGIN`, et rejouable (`IF NOT EXISTS`).
+- Migration déjà appliquée en local avant d'être enveloppée : `migrate dev` voit le fichier
+  modifié et propose de réinitialiser la base locale. Repartir du `--create-only` évite ça.
+
+**Une opération destructive se déclare.** Supprimer une colonne, une table, un type, changer un
+type de colonne, rendre une colonne obligatoire sur des lignes existantes : squawk le refuse, sauf
+exception posée **juste au-dessus** de l'instruction, avec sa raison :
+
+```sql
+-- squawk-ignore ban-drop-column -- la consigne vit dans `instructions` depuis #163
+ALTER TABLE "exercise" DROP COLUMN "description";
+```
+
+Une exception ne vaut que pour l'instruction qui la suit. Sans raison, ou en
+`squawk-ignore-file` sans règle nommée, `check:migrations` la refuse. Ce que squawk ne voit pas :
+les données — un `DELETE` ou un `UPDATE` de reprise passe sans signal. Il s'écrit à la main, donc se
+relit.
+
+Une migration qui échoue sur preview affiche `current transaction is aborted` : c'est l'effet de
+la transaction, pas la cause. La vraie erreur est dans les logs du Postgres
+(`deploy/preview/README.md`, « Quand ça échoue »).
 
 ## Commits
 
