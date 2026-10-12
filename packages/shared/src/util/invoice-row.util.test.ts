@@ -317,6 +317,30 @@ describe("buildInvoiceAthleteRows", () => {
     });
     expect(rowOf(LEA.athleteId, [unreadable])?.subtitle).toBeNull();
   });
+
+  /**
+   * Un instant illisible se range APRÈS toute date dans l'ordre des chaînes (« p » > « 2 ») : élu
+   * le plus grand, il effaçait le sous-titre que le règlement lisible suffisait à écrire. Une
+   * facture payée sans instant ne l'emporte pas davantage.
+   */
+  it("ne laisse pas un règlement illisible ou non daté masquer le dernier lisible", () => {
+    const paid = (period: string, paidAt?: string) =>
+      invoice(LEA, {
+        period,
+        amountCents: 18000,
+        status: InvoiceStatus.PAID,
+        dueDate: `${period}-05`,
+        ...(paidAt == null ? {} : { paidAt }),
+      });
+    const settled = [
+      paid("2026-05", "2026-05-04T09:00:00Z"),
+      paid("2026-06", "pas-un-instant"),
+      paid("2026-07"),
+    ];
+    const expected = { kind: "LAST_PAID", date: "2026-05-04" };
+    expect(rowOf(LEA.athleteId, settled)?.subtitle).toEqual(expected);
+    expect(rowOf(LEA.athleteId, [...settled].reverse())?.subtitle).toEqual(expected);
+  });
 });
 
 describe("sortAthleteInvoices", () => {

@@ -193,17 +193,19 @@ function toSubtitle<T extends InvoiceRowSource>(
 ): InvoiceRowSubtitle | null {
   if (situation === "OVERDUE") {
     /**
-     * Le PLUS ANCIEN retard : c'est lui qui mesure l'urgence, pas le dernier arrivé. Les échéances
-     * illisibles sont écartées AVANT le maximum — les garder ferait rendre `NaN` à `Math.max`, et
-     * une seule date corrompue effacerait un sous-titre que les autres suffisaient à écrire.
+     * Le PLUS ANCIEN retard : c'est lui qui mesure l'urgence, pas le dernier arrivé. Chaque âge est
+     * lisible : être en retard suppose une échéance LISIBLE, `resolveInvoiceState` l'ayant déjà
+     * exigée — et la situation OVERDUE suppose au moins un retard.
      */
-    const ages = overdue
-      .map((invoice) => daysBetweenIsoDates(invoice.dueDate, today))
-      .filter((days): days is number => days != null);
-    // Jamais vide : être en retard suppose une échéance LISIBLE, `resolveInvoiceState` l'ayant
-    // déjà exigée.
-    const [first, ...rest] = ages;
-    const oldest = required(first, "retard sans échéance lisible");
+    const [first, ...rest] = overdue.map((invoice) =>
+      required(
+        daysBetweenIsoDates(invoice.dueDate, today),
+        // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
+        "retard sans échéance lisible",
+      ),
+    );
+    // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
+    const oldest = required(first, "situation OVERDUE sans retard");
     return { kind: "OVERDUE_SINCE", days: Math.max(oldest, ...rest) };
   }
 
@@ -211,6 +213,7 @@ function toSubtitle<T extends InvoiceRowSource>(
     // La PROCHAINE échéance : la plus proche, donc la plus petite date. « À échéance » suppose au
     // moins une impayée.
     const next = minOf(unpaid.map((invoice) => invoice.dueDate));
+    // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
     return { kind: "NEXT_DUE", date: required(next, "échéance sans facture impayée") };
   }
 
@@ -218,31 +221,36 @@ function toSubtitle<T extends InvoiceRowSource>(
    * Le dernier règlement. `paidAt` est un INSTANT, le sous-titre parle d'un jour : on le ramène
    * ici au jour du LECTEUR pour que `formatIsoDate` reçoive une date civile comme partout ailleurs —
    * le tronquer aurait rendu le jour UTC, la veille pour un règlement saisi à 0 h 30 à Paris
-   * (#321). Comparer les chaînes ISO revient à les comparer chronologiquement, préfixe commun
-   * oblige. Un instant illisible ne fabrique pas de date : pas de sous-titre.
+   * (#321). Chaque instant est ramené à son jour AVANT le maximum : un instant illisible est
+   * écarté au lieu de l'emporter, et le dernier règlement lisible donne encore le sous-titre. Le
+   * jour croît avec l'instant, le maximum des jours est donc le jour du dernier instant.
    */
-  const paidAt = maxOf(
+  const paidOn = maxOf(
     invoices
       .filter((invoice) => invoice.status === InvoiceStatus.PAID)
-      .map((invoice) => invoice.paidAt)
-      .filter((value): value is string => value != null),
+      .map(paidDayOf)
+      .filter((date): date is string => date != null),
   );
-  const paidOn = paidAt == null ? null : isoDateOfInstant(paidAt);
   return paidOn == null ? null : { kind: "LAST_PAID", date: paidOn };
 }
 
-function minOf(values: readonly string[]): string | null {
-  return values.reduce<string | null>(
-    (best, value) => (best == null || value < best ? value : best),
-    null,
-  );
+// Le jour du règlement, au fuseau du lecteur — `null` sans instant lisible.
+function paidDayOf(invoice: InvoiceRowSource): string | null {
+  // Stryker disable next-line ConditionalExpression: Date.parse(null) vaut NaN, isoDateOfInstant rendrait null de lui-même
+  return invoice.paidAt == null ? null : isoDateOfInstant(invoice.paidAt);
 }
 
-function maxOf(values: readonly string[]): string | null {
-  return values.reduce<string | null>(
-    (best, value) => (best == null || value > best ? value : best),
-    null,
-  );
+// Les dates ISO se comparent comme des chaînes : préfixe commun, chiffres de même largeur.
+function minOf(dates: readonly string[]): string | null {
+  return ascending(dates)[0] ?? null;
+}
+
+function maxOf(dates: readonly string[]): string | null {
+  return ascending(dates).at(-1) ?? null;
+}
+
+function ascending(dates: readonly string[]): string[] {
+  return [...dates].sort((left, right) => left.localeCompare(right));
 }
 
 /**
@@ -343,9 +351,13 @@ function compareWithinSituation(
 ): number {
   const a = left.subtitle;
   const b = right.subtitle;
+  // Deux lignes de MÊME situation portent le même genre de sous-titre : tester le genre des deux
+  // côtés ne sert qu'au typage, d'où les mutants déclarés.
   // Le plus ancien retard d'abord : le plus grand nombre de jours.
+  // Stryker disable next-line ConditionalExpression,LogicalOperator,OptionalChaining: même situation, même genre
   if (a?.kind === "OVERDUE_SINCE" && b?.kind === "OVERDUE_SINCE") return b.days - a.days;
   // L'échéance la plus proche d'abord.
+  // Stryker disable next-line ConditionalExpression,LogicalOperator,OptionalChaining: même situation, même genre
   if (a?.kind === "NEXT_DUE" && b?.kind === "NEXT_DUE") return a.date.localeCompare(b.date);
   return 0;
 }
