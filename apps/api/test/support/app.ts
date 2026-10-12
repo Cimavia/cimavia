@@ -6,6 +6,7 @@ import { configureApp, createHttpAdapter } from "../../src/app.setup";
 import type { MailMessage } from "../../src/infra/mail/mail.service";
 import { MailService } from "../../src/infra/mail/mail.service";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
+import { queryCountingPrisma } from "./query-count";
 
 // Toutes les tables du schéma (les `@@map` de Prisma), enfants avant parents.
 const TABLES = [
@@ -77,6 +78,9 @@ export function setupE2eApp(): void {
       // notifications) : c'est le transport qu'on double, pas les gabarits — eux restent les vrais.
       .overrideProvider(MailService)
       .useValue(mailServiceDouble)
+      // Le vrai service, construit avec son journal de requêtes : `countQueries` le lit (#629).
+      .overrideProvider(PrismaService)
+      .useValue(queryCountingPrisma())
       .compile();
     app = moduleRef.createNestApplication<NestFastifyApplication>(createHttpAdapter(), {
       bodyParser: false,
