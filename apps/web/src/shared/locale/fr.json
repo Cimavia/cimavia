@@ -20,6 +20,7 @@
     "errorTitle": "Chargement impossible",
     "errorDescription": "Les données n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
+    "staleReload": "Recharger",
     "relativeTime": {
       "now": "à l'instant",
       "minute": "il y a {{count}} min",
@@ -878,6 +879,7 @@
       "description": "Champ libre, visible de toi seul : objectifs, points forts, notes de suivi.",
       "label": "Notes",
       "placeholder": "Ex. Objectif 8a en salle d'ici juin. Épaule droite sensible — surveiller le volume de tractions.",
+      "stale": "Cette fiche a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "submit": "Enregistrer la fiche",
       "submitting": "Enregistrement…"
     },

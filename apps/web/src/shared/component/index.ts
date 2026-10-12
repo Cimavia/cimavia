@@ -25,6 +25,7 @@ export type { CmvSegmentedOption } from "./CmvSegmented";
 export { CmvSegmented } from "./CmvSegmented";
 export type { CmvSelectOption } from "./CmvSelect";
 export { CmvSelect } from "./CmvSelect";
+export { CmvStaleBanner } from "./CmvStaleBanner";
 export type { CmvTab } from "./CmvTabs";
 export { CmvTabs } from "./CmvTabs";
 export { CmvTagInput } from "./CmvTagInput";
