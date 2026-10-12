@@ -36,8 +36,12 @@ export function mondayOfThisWeek(): string {
   return required(mondayOfIsoWeek(today) ?? undefined, "lundi de la semaine");
 }
 
-export function upcomingDueDate(): string {
-  return required(shiftIsoDate(mondayOfThisWeek(), DUE_IN_DAYS) ?? undefined, "échéance à venir");
+/**
+ * Ancrée sur le `monday` de l'appelant quand il en a déjà un : recalculé après des allers-retours
+ * réseau, il pourrait tomber de l'autre côté de minuit et désigner une autre semaine.
+ */
+export function upcomingDueDate(monday = mondayOfThisWeek()): string {
+  return required(shiftIsoDate(monday, DUE_IN_DAYS) ?? undefined, "échéance à venir");
 }
 
 /**
@@ -121,7 +125,7 @@ export class Seed {
     );
     await json(
       await coach.api.put(`/plans/${plan.id}/billing`, {
-        data: { amountCents: 5000, dueDate: upcomingDueDate() },
+        data: { amountCents: 5000, dueDate: upcomingDueDate(monday) },
       }),
       "facturation du cycle",
     );
