@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { expectRefusal } from "../../test/expect-refusal";
 import {
   installationSecretSchema,
   isExpoPushToken,
@@ -15,12 +16,13 @@ describe("registerPushTokenSchema", () => {
     }
   });
 
-  it("refuse un token qui ne pourrait jamais être livré", () => {
-    const result = registerPushTokenSchema.safeParse({
-      token: "pas-un-token",
-      platform: PushPlatform.ANDROID,
-    });
-    expect(result.success).toBe(false);
+  // Ancré des deux côtés : un token entouré d'autre chose ne serait pas plus livrable.
+  it.each([
+    "pas-un-token",
+    "xExpoPushToken[abc123]",
+    "ExpoPushToken[abc123]x",
+  ])("refuse un token qui ne pourrait jamais être livré — %s", (token) => {
+    expectRefusal(registerPushTokenSchema, { token, platform: PushPlatform.ANDROID }, ["token"]);
   });
 
   it("refuse une plateforme inconnue", () => {
@@ -50,9 +52,9 @@ describe("registerPushTokenSchema — secret d'installation (#90)", () => {
   // Un secret trop court se force ; un secret bavard sert à autre chose qu'à s'identifier.
   it("refuse un secret hors bornes ou hors alphabet", () => {
     for (const installationSecret of ["trop-court", "a".repeat(129), `${"a".repeat(40)}=+/`]) {
-      expect(registerPushTokenSchema.safeParse({ ...base, installationSecret }).success).toBe(
-        false,
-      );
+      expectRefusal(registerPushTokenSchema, { ...base, installationSecret }, [
+        "installationSecret",
+      ]);
     }
   });
 

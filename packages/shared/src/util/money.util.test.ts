@@ -21,9 +21,10 @@ describe("formatInvoicePeriod", () => {
     expect(formatInvoicePeriod("2026-12", "fr-FR")).toBe("décembre 2026");
   });
 
+  // L'erreur nomme la période fautive : c'est elle qu'il faut retrouver dans les données.
   it("lève sur une période illisible plutôt que de replier", () => {
-    expect(() => formatInvoicePeriod("2026-13", "fr-FR")).toThrow();
-    expect(() => formatInvoicePeriod("2026-7", "fr-FR")).toThrow();
-    expect(() => formatInvoicePeriod("juillet", "fr-FR")).toThrow();
+    for (const period of ["2026-13", "2026-7", "juillet", "2026-07-01", "x2026-07"]) {
+      expect(() => formatInvoicePeriod(period, "fr-FR")).toThrow(period);
+    }
   });
 });
