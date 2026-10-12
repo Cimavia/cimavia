@@ -1,4 +1,4 @@
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginScreen } from "@/feature/auth/screen/LoginScreen";
@@ -143,6 +143,12 @@ describe("LoginScreen — la connexion", () => {
     fillCredentials(container);
     pressButton(container, SUBMIT);
     await waitFor(() => expect(queryByText("auth.errors.invalidCredentials")).not.toBeNull());
+    /**
+     * Le bouton redevient pressable un temps APRÈS l'erreur affichée : `Pressable` (react-native-web)
+     * ne relit son `disabled` que dans un effet passif. Pressé dans cet intervalle, il ignore le
+     * clic — ce qu'un runner chargé a fini par faire (#635). Vider les effets ferme la fenêtre.
+     */
+    await act(async () => {});
 
     pressButton(container, SUBMIT);
 
