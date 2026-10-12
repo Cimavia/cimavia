@@ -7,7 +7,7 @@ import {
 import { DAYS_PER_WEEK, daysBetweenIsoDates } from "./date.util";
 import { required } from "./invariant.util";
 import { type PlanPhase, planEndDate, planPhase } from "./plan.util";
-import { comparableText } from "./search.util";
+import { searchMatcher } from "./search.util";
 
 /**
  * La liste des planifications vue PAR ATHLÈTE (#225) : une ligne par personne, dépliable sur son
@@ -167,6 +167,7 @@ function toRow<T extends PlanRowSource>(
     // L'id est la clé du groupe. Le nom, lui, va avec l'id (#144) : un cycle qui a l'un sans
     // l'autre est une donnée incohérente, pas une ligne à afficher sans nom.
     athleteId,
+    // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
     athleteName: required(first.athleteName, `cycle ${first.id} sans nom d'athlète`),
     situation: currentPlan?.phase ?? null,
     currentPlan,
@@ -209,6 +210,7 @@ function toDeadline(plan: AthleteRowPlan | null, today: string): PlanDeadline | 
  * quoi les motifs `THIS_WEEK` prennent le relais.
  */
 function fullWeeksBetween(from: string, to: string): number {
+  // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
   const days = required(daysBetweenIsoDates(from, to), `dates illisibles : ${from} → ${to}`);
   return Math.floor(days / DAYS_PER_WEEK);
 }
@@ -233,6 +235,7 @@ function toConcurrency<T extends PlanRowSource>(
     if (plan.status !== PlanStatus.PUBLISHED || planPhase(plan, today) !== "ONGOING") return [];
     const endDate = required(
       planEndDate(plan.startDate, plan.weekCount),
+      // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
       `cycle en cours sans fin : ${plan.id}`,
     );
     return [{ id: plan.id, startDate: plan.startDate, endDate }];
@@ -243,6 +246,7 @@ function toConcurrency<T extends PlanRowSource>(
    * inventée, et sans `reduce` sans accumulateur, que Sonar refuse à juste titre.
    */
   const [first, second, ...rest] = ongoing;
+  // Stryker disable next-line ConditionalExpression,LogicalOperator: sans premier, pas de second — le premier test ne sert qu'au typage
   if (first == null || second == null) return null;
 
   /**
@@ -252,10 +256,12 @@ function toConcurrency<T extends PlanRowSource>(
    * comparer à lui-même est sans effet, et évite une seconde liste dont on n'a pas besoin.
    */
   const from = ongoing.reduce(
+    // Stryker disable next-line EqualityOperator: à égalité, garder l'un ou l'autre rend la même date
     (latest, plan) => (plan.startDate > latest ? plan.startDate : latest),
     first.startDate,
   );
   const to = ongoing.reduce(
+    // Stryker disable next-line EqualityOperator: à égalité, garder l'un ou l'autre rend la même date
     (earliest, plan) => (plan.endDate < earliest ? plan.endDate : earliest),
     first.endDate,
   );
@@ -357,11 +363,12 @@ export function visiblePlanAthleteRows<T extends PlanRowSource>(
   rows: readonly PlanAthleteRow<T>[],
   query: PlanRowQuery,
 ): PlanAthleteRow<T>[] {
-  const needle = comparableText(query.search);
+  const matches = searchMatcher(query.search);
 
   return rows
     .filter(
-      (row) => (query.filter === "ALL" || row.situation === query.filter) && matches(row, needle),
+      (row) =>
+        (query.filter === "ALL" || row.situation === query.filter) && matches(row.athleteName),
     )
     .sort(
       (left, right) =>
@@ -390,15 +397,12 @@ function compareWithinSituation(
 ): number {
   const a = left.currentPlan;
   const b = right.currentPlan;
+  // Même situation, même présence de cycle courant : tester les deux côtés ne sert qu'au typage.
+  // Stryker disable next-line ConditionalExpression,LogicalOperator: même situation, même présence
   if (a == null || b == null) return 0;
 
   if (left.situation === "UPCOMING") return a.startDate.localeCompare(b.startDate);
   return a.endDate.localeCompare(b.endDate);
-}
-
-// Sous-chaîne et non préfixe : un coach tape aussi bien le nom que le prénom.
-function matches(row: PlanAthleteRow<PlanRowSource>, needle: string): boolean {
-  return needle === "" || comparableText(row.athleteName).includes(needle);
 }
 
 /**
@@ -421,8 +425,8 @@ export function countPlanAthletesBySituation(
   rows: readonly PlanAthleteRow<PlanRowSource>[],
   search = "",
 ): Record<PlanRowFilter, number> {
-  const needle = comparableText(search);
-  const searched = rows.filter((row) => matches(row, needle));
+  const matches = searchMatcher(search);
+  const searched = rows.filter((row) => matches(row.athleteName));
 
   return {
     ALL: searched.length,

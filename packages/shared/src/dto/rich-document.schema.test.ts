@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { expectRefusal } from "../../test/expect-refusal";
 import {
   InlineMark,
   imageMediaIds,
@@ -80,21 +81,33 @@ describe("richDocumentSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  const linked = (href: string) => [
+    { type: RichBlockType.PARAGRAPH, content: [{ text: "x", href }] },
+  ];
+
+  it("refuse ce qui n'est pas une url", () => {
+    expect(richDocumentSchema.safeParse(linked("pas-une-url")).success).toBe(false);
+  });
+
+  // Des url valides, mais pas en http(s) — y compris un protocole qui le CONTIENT sans l'être.
   it.each([
     "javascript:alert(1)",
     "data:text/html,<script>",
-    "pas-une-url",
-  ])("refuse un href non http(s) — %s", (href) => {
-    const result = richDocumentSchema.safeParse([
-      { type: RichBlockType.PARAGRAPH, content: [{ text: "x", href }] },
-    ]);
-    expect(result.success).toBe(false);
+    "xhttps://example.com",
+  ])("refuse un href non http(s), au champ du lien — %s", (href) => {
+    expectRefusal(richDocumentSchema, linked(href), [0, "content", 0, "href"]);
+  });
+
+  it("accepte un lien http comme un lien https", () => {
+    for (const href of ["http://example.com", "HTTPS://example.com"]) {
+      expect(richDocumentSchema.safeParse(linked(href)).success).toBe(true);
+    }
   });
 
   it("refuse un document dont le texte cumulé dépasse le plafond", () => {
     const blocks = Array.from({ length: 6 }, () => paragraph("a".repeat(1000)));
     expect(richDocumentTextLength(blocks)).toBeGreaterThan(RICH_DOCUMENT_MAX_TEXT_LENGTH);
-    expect(richDocumentSchema.safeParse(blocks).success).toBe(false);
+    expectRefusal(richDocumentSchema, blocks);
   });
 });
 

@@ -28,12 +28,13 @@ const BARE_NUMBER = /^\d{1,5}$/;
  */
 export function parseTrainingDuration(input: string | null | undefined): number | null {
   const value = input?.trim();
+  // Stryker disable next-line ConditionalExpression: une saisie vide ne passe aucun motif, le raccourci ne change rien
   if (!value) return null;
 
+  // Les motifs ne laissent passer que des chiffres : un total fini et positif, seul le plafond
+  // reste à tenir.
   const bounded = (seconds: number): number | null =>
-    Number.isFinite(seconds) && seconds >= 0 && seconds <= TRAINING_DURATION_MAX_SECONDS
-      ? seconds
-      : null;
+    seconds <= TRAINING_DURATION_MAX_SECONDS ? seconds : null;
 
   const minutesSeconds = MINUTES_SECONDS.exec(value);
   if (minutesSeconds) {

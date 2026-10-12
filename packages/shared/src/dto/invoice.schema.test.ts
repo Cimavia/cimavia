@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { expectRefusal } from "../../test/expect-refusal";
 import {
   INVOICE_AMOUNT_MAX_CENTS,
+  invoicePeriodSchema,
   isAllowedInvoiceDocumentMime,
   planBillingSchema,
   updateInvoiceStatusSchema,
@@ -38,6 +40,24 @@ describe("planBillingSchema", () => {
       false,
     );
     expect(planBillingSchema.safeParse({ ...validBilling, period: "2026-07" }).success).toBe(false);
+  });
+});
+
+describe("invoicePeriodSchema", () => {
+  it("accepte un mois civil, de janvier à décembre", () => {
+    for (const period of ["2026-01", "2026-07", "2026-12"]) {
+      expect(invoicePeriodSchema.safeParse(period).success).toBe(true);
+    }
+  });
+
+  // Ancré des deux côtés : un jour ou un préfixe collé au mois n'en fait pas une période.
+  it.each([
+    "2026-13",
+    "2026-7",
+    "2026-07-01",
+    "x2026-07",
+  ])("refuse %s, avec son propre message", (period) => {
+    expectRefusal(invoicePeriodSchema, period);
   });
 });
 

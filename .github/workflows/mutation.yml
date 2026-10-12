@@ -8,6 +8,7 @@ name: Mutation testing (Stryker)
 #   - `@cmv/shared`, sur chaque PR qui touche ses sources. Le mode incrémental ne rejoue que les
 #     mutants dont le code ou les tests ont changé : quelques dizaines de secondes, contre ~4 min
 #     pour un run complet. Le seuil est un cliquet, posé dans `packages/shared/stryker.config.mjs` ;
+#     `main`, et la PR qui le remonte, mesurent en entier (#635, voir l'étape « Mutation testing ») ;
 #   - la tenancy de l'API, chaque semaine et à la demande. Son juge est la suite e2e, sur une vraie
 #     base (« Tranché en #506 ») : ~30 min, un mutant à la fois. Son seuil est 100 % — un survivant
 #     y est un filtre qu'on pourrait retirer sans qu'aucun test ne le voie.
@@ -64,9 +65,14 @@ jobs:
         run: |
           if [[ "$EVENT" != pull_request ]]; then
             echo "run=true" | tee -a "$GITHUB_OUTPUT"
+            echo "force=true" | tee -a "$GITHUB_OUTPUT"
           elif git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
             | grep -qE '^(packages/shared/|\.github/workflows/mutation\.yml)'; then
             echo "run=true" | tee -a "$GITHUB_OUTPUT"
+            if git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
+              | grep -qx 'packages/shared/stryker\.config\.mjs'; then
+              echo "force=true" | tee -a "$GITHUB_OUTPUT"
+            fi
           else
             echo "run=false" | tee -a "$GITHUB_OUTPUT"
           fi
@@ -87,9 +93,21 @@ jobs:
           key: stryker-shared-${{ hashFiles('packages/shared/src/**', 'packages/shared/stryker.config.mjs', 'packages/shared/vitest.config.ts', 'pnpm-lock.yaml') }}
           restore-keys: stryker-shared-
 
+      # `--force` rejoue TOUT, et réécrit le cache. Le mode incrémental ne rejoue un survivant que si
+      # un test qui le couvre est apparu ; un mutant STATIQUE (une regex, une constante, un schéma
+      # au niveau du module) n'a pas de couverture par test, et son « survivant » serait relu à
+      # vie, même tué depuis (#635). D'où une mesure complète sur `main`, qui assainit le cache que
+      # les PR relisent, et sur la PR qui remonte le cliquet : il se juge sur le score réel.
       - name: Mutation testing
         if: steps.changes.outputs.run == 'true'
-        run: pnpm turbo test:mutation --filter=@cmv/shared
+        env:
+          FORCE: ${{ steps.changes.outputs.force }}
+        run: |
+          if [[ "$FORCE" == true ]]; then
+            pnpm turbo test:mutation --filter=@cmv/shared -- --force
+          else
+            pnpm turbo test:mutation --filter=@cmv/shared
+          fi
 
       - name: Rapport
         if: steps.changes.outputs.run == 'true' && !cancelled()

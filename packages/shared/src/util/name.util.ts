@@ -14,6 +14,7 @@
  * c'est un affichage, pas une clé de tri.
  */
 export function initialsOf(name: string): string {
+  // Stryker disable next-line Regex: découpé espace par espace, les mots vides que le filtre écarte reviennent au même
   const [first, ...rest] = name.split(/\s+/).filter((word) => word.length > 0);
   if (first == null) return "";
 

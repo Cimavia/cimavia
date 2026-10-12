@@ -257,6 +257,40 @@ describe("buildInvoiceAthleteRows", () => {
     expect(rowOf(LEA.athleteId, [...settled].reverse())?.subtitle).toEqual(expected);
   });
 
+  it("retient le dernier règlement parmi plusieurs, au milieu de la liste comme à ses bords", () => {
+    const paid = (period: string, paidAt: string) =>
+      invoice(LEA, {
+        period,
+        amountCents: 18000,
+        status: InvoiceStatus.PAID,
+        dueDate: `${period}-05`,
+        paidAt,
+      });
+    // Juillet est réglée en dernier, et n'est ni en tête ni en queue de la liste reçue.
+    const settled = [
+      paid("2026-05", "2026-05-04T09:00:00Z"),
+      paid("2026-07", "2026-08-02T09:00:00Z"),
+      paid("2026-06", "2026-06-03T09:00:00Z"),
+    ];
+    const expected = { kind: "LAST_PAID", date: "2026-08-02" };
+    expect(rowOf(LEA.athleteId, settled)?.subtitle).toEqual(expected);
+    expect(rowOf(LEA.athleteId, [...settled].reverse())?.subtitle).toEqual(expected);
+  });
+
+  it("ne date pas le dernier règlement sur une facture annulée, même réglée après", () => {
+    const cancelledLater = invoice(ADRIEN, {
+      period: "2026-09",
+      amountCents: 15000,
+      status: InvoiceStatus.CANCELLED,
+      dueDate: "2026-09-05",
+      paidAt: "2026-08-20T09:00:00Z",
+    });
+    expect(rowOf(ADRIEN.athleteId, [cancelledLater, ...ADRIEN_INVOICES])?.subtitle).toEqual({
+      kind: "LAST_PAID",
+      date: "2026-08-02",
+    });
+  });
+
   // Réglée le 5 mai à 0 h 30 à Paris, donc le 4 à 22 h 30 UTC : le jour affiché est celui du
   // lecteur, pas les dix premiers caractères de l'instant (#321).
   it("date le dernier règlement au jour du lecteur, pas au jour UTC", () => {
@@ -282,6 +316,30 @@ describe("buildInvoiceAthleteRows", () => {
       paidAt: "pas-un-instant",
     });
     expect(rowOf(LEA.athleteId, [unreadable])?.subtitle).toBeNull();
+  });
+
+  /**
+   * Un instant illisible se range APRÈS toute date dans l'ordre des chaînes (« p » > « 2 ») : élu
+   * le plus grand, il effaçait le sous-titre que le règlement lisible suffisait à écrire. Une
+   * facture payée sans instant ne l'emporte pas davantage.
+   */
+  it("ne laisse pas un règlement illisible ou non daté masquer le dernier lisible", () => {
+    const paid = (period: string, paidAt?: string) =>
+      invoice(LEA, {
+        period,
+        amountCents: 18000,
+        status: InvoiceStatus.PAID,
+        dueDate: `${period}-05`,
+        ...(paidAt == null ? {} : { paidAt }),
+      });
+    const settled = [
+      paid("2026-05", "2026-05-04T09:00:00Z"),
+      paid("2026-06", "pas-un-instant"),
+      paid("2026-07"),
+    ];
+    const expected = { kind: "LAST_PAID", date: "2026-05-04" };
+    expect(rowOf(LEA.athleteId, settled)?.subtitle).toEqual(expected);
+    expect(rowOf(LEA.athleteId, [...settled].reverse())?.subtitle).toEqual(expected);
   });
 });
 
@@ -340,6 +398,28 @@ describe("visibleInvoiceAthleteRows", () => {
     ]);
   });
 
+  it("range les retards par ancienneté, même contre l'ordre alphabétique", () => {
+    const overdue = [
+      invoice(ADRIEN, {
+        period: "2026-08",
+        amountCents: 15000,
+        status: InvoiceStatus.PENDING,
+        dueDate: "2026-08-13",
+      }),
+      invoice(THEO, {
+        period: "2026-06",
+        amountCents: 18000,
+        status: InvoiceStatus.PENDING,
+        dueDate: "2026-06-18",
+      }),
+    ];
+    // Théo attend depuis 68 jours, Adrien depuis 12 : l'alphabet aurait mis Adrien devant.
+    for (const invoices of [overdue, [...overdue].reverse()]) {
+      const visible = visibleInvoiceAthleteRows(rowsOf(invoices), query);
+      expect(visible.map((row) => row.athleteName)).toEqual(["Théo Marchand", "Adrien Roux"]);
+    }
+  });
+
   it("range les échéances de la plus proche à la plus lointaine", () => {
     const later = [
       invoice(ADRIEN, {
@@ -358,6 +438,23 @@ describe("visibleInvoiceAthleteRows", () => {
     const settled = [...ADRIEN_INVOICES, ...LEA_INVOICES.slice(3)];
     const visible = visibleInvoiceAthleteRows(rowsOf(settled), query);
     expect(visible.map((row) => row.athleteName)).toEqual(["Adrien Roux", "Léa Bonnet"]);
+  });
+
+  it("range par nom un athlète à jour sans sous-titre, dans un sens comme dans l'autre", () => {
+    const onlyCancelled = invoice(THEO, {
+      period: "2026-08",
+      amountCents: 9000,
+      status: InvoiceStatus.CANCELLED,
+      dueDate: "2026-08-05",
+    });
+    // Théo n'a rien à dater, Adrien si : aucun sous-titre à comparer, le nom tranche seul.
+    for (const invoices of [
+      [onlyCancelled, ...ADRIEN_INVOICES],
+      [...ADRIEN_INVOICES, onlyCancelled],
+    ]) {
+      const visible = visibleInvoiceAthleteRows(rowsOf(invoices), query);
+      expect(visible.map((row) => row.athleteName)).toEqual(["Adrien Roux", "Théo Marchand"]);
+    }
   });
 
   it("ne retient que la situation demandée", () => {

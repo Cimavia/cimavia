@@ -17,6 +17,8 @@ describe("parseTrainingDuration", () => {
     ["3:00", 180],
     ["30s", 30],
     ["30 s", 30],
+    ["2 m 30 s", 150],
+    ["12:30", 750],
     ["0", 0],
   ])("interprète %s", (input, expected) => {
     expect(parseTrainingDuration(input)).toBe(expected);
@@ -38,6 +40,14 @@ describe("parseTrainingDuration", () => {
     ["", "une chaîne vide"],
     ["-30", "une durée négative"],
     ["2h30", "une unité non gérée"],
+    ["1e3", "une écriture exponentielle"],
+    // Chaque motif est ancré des deux côtés : un préfixe ou une traîne ne passe pas.
+    ["x2:30", "un préfixe avant les minutes"],
+    ["2:30x", "une traîne après les secondes"],
+    ["x30s", "un préfixe avant les secondes seules"],
+    ["30sx", "une traîne après les secondes seules"],
+    ["x150", "un préfixe avant un nombre nu"],
+    ["150x", "une traîne après un nombre nu"],
   ])("refuse %s — %s", (input) => {
     expect(parseTrainingDuration(input)).toBeNull();
   });

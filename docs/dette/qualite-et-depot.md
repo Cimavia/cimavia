@@ -601,6 +601,7 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | GF-1 | **Un `findUnique` regroupé pourrait rendre la ligne d'un tenant à l'autre, dans un cas que rien n'atteint** (#626). Prisma rattache chaque ligne d'un lot à sa requête par les champs du `where`, dans leur ordre. Un appelant du client tenant qui écrirait lui-même la colonne tenant AVANT une clé composée qui la contient (`coachId_athleteId` de `CoachAthlete`, `AthleteSheet`) ferait comparer la valeur de la clé composée, pas celle du filtre : lu dans le même tick que la lecture légitime de l'autre coach, il recevrait sa ligne. Constaté sur le plan compilé, jamais en vrai : aucun `findUnique` ne passe aujourd'hui par le client tenant. La parade est dans `scopeWhere` — retirer du `where` les clés du filtre avant de les reposer en dernier —, avec un e2e concurrent sur clé composée pour la tenir. | 🟢 | — *(déclencheur : le premier `findUnique` sur le client tenant d'un modèle à clé composée tenant)* |
 | GF-2 | **Les règles de verrou de squawk sont exclues** (#628) : `lock_timeout`, `statement_timeout`, index non `CONCURRENTLY`, contrainte ou clé étrangère validée d'emblée. Une migration peut donc bloquer une table le temps qu'elle dure, sans signal. Sur les volumes du Coach bêta (des milliers de lignes), ce temps se compte en millisecondes, et l'API est arrêtée pendant qu'elle migre. | 🟢 | — *(déclencheur : une table qui dépasse le million de lignes, ou une prod où l'API sert pendant la migration — #84 ; retirer alors ces règles de `excluded_rules`)* |
+| GF-3 | **Des mutants survivent encore dans `@cmv/shared`** (#635) : le cliquet est à 92, pas à 100. Le lot `util/` et motifs est livré ; restent les schémas de réponse qu'aucun test de shared ne parse, les bornes `.min`/`.max` jamais testées à leur valeur exacte, la lecture d'horloge de `date.util` et les documents riches. Chaque lot remonte le cliquet du score qu'il gagne. | 🟢 | [#635](https://github.com/Cimavia/cimavia/issues/635) |
 
 > **Tranché en [#623](https://github.com/Cimavia/cimavia/issues/623)** (quatre règles dures
 > vérifiées par Biome) : des plugins **GritQL**, et non les règles natives. `style/noJsxLiterals`
@@ -733,6 +734,36 @@ liste des domaines vivent dans l'index.
 > principal. La tenancy n'en pose pas — un `TZ` là changerait le fuseau de toute la suite e2e. Le
 > bac à sable `.stryker-tmp` est exclu des configs Vitest : sans quoi `pnpm test` rejouait ses
 > copies, dépendances comprises.
+
+> **Tranché en [#635](https://github.com/Cimavia/cimavia/issues/635)** (les survivants de shared,
+> premier lot) : `util/` et les motifs, livrés ensemble ; l'issue reste ouverte pour la suite,
+> suivie en GF-3. Quatre règles, qui valent pour les lots suivants :
+> - **un refus Zod** se vérifie par `expectRefusal(schema, input, path)`
+>   (`packages/shared/test/`) : il tombe au bon champ, avec un message qui n'est ni vide ni le repli
+>   anglais de Zod. Le texte n'est pas recopié — une reformulation casserait le test sans rien
+>   casser d'autre ;
+> - **un schéma de réponse** (`*DtoSchema`), qu'aucun test de shared ne parse, se déclare par
+>   bloc : `// Stryker disable all: <raison>` … `// Stryker restore all` ;
+> - **une borne `.min`/`.max`** se teste dans shared, sur sa valeur exacte et la suivante ;
+> - **un invariant `required(…)`** que rien n'atteint déclare son message (`StringLiteral`) : le
+>   tester obligerait à fabriquer une donnée que le typage interdit.
+>
+> Ce que les survivants ont montré. Choisir le plus récent ou le plus tôt dépendait de l'ordre
+> d'arrivée à date égale — deux cycles partis le même lundi, deux débriefs ou deux factures à la
+> même seconde : tout départage se fait désormais par le **plus petit `id`**, et `plan.util` n'a
+> plus qu'un comparateur. Un règlement à l'instant illisible, rangé après toute date dans l'ordre
+> des chaînes, masquait le dernier règlement lisible. Et du code mort : le motif de
+> `parseIsoDate`, que l'aller-retour rendait sans objet ; les gardes de `parseTrainingDuration`
+> qu'aucune suite de chiffres ne franchit ; le filtre des cycles diffusés d'`athlete-row`, doublé
+> par `currentAthletePlan`. Le cliquet passe de 89 à 92.
+>
+> **Le cliquet se remonte sur une mesure complète.** Le mode incrémental ne rejoue un survivant
+> que si un test qui le couvre est apparu. Un mutant **statique** — une regex, une constante, un
+> schéma posés au niveau du module — n'a pas de couverture par test : son « survivant » était relu
+> à vie, même tué depuis. La PR mesurait ainsi 91,30 % là où le score réel est 92,03 %, et le run
+> du lundi, incrémental lui aussi, n'aurait jamais assaini le cache. Désormais `main` (lundi et à
+> la demande) et toute PR qui touche `stryker.config.mjs` passent `--force` ; les autres PR
+> restent incrémentales.
 
 > **Tranché en [#627](https://github.com/Cimavia/cimavia/issues/627)** (les parcours du Coach
 > dans un navigateur) : **Playwright**, dans `apps/web/e2e/`, sur quatre parcours — connexion et

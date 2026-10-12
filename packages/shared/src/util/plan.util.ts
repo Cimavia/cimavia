@@ -59,6 +59,7 @@ export function planWeekRange(planStartDate: string, weekNumber: number): PlanWe
   // Décaler une date lisible rend toujours une date lisible.
   const endDate = required(
     shiftIsoDate(startDate, DAYS_PER_WEEK - 1),
+    // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
     `lundi illisible : ${startDate}`,
   );
   return { startDate, endDate };
@@ -126,7 +127,8 @@ export function planWeekCopyShiftDays(source: PlanWeekRef, target: PlanWeekRef):
  * dérive possible entre les deux représentations.
  */
 export function planWeekNumber(plan: PlanPeriod, date: string): number | null {
-  if (!Number.isInteger(plan.weekCount) || plan.weekCount < 1) return null;
+  // Nul ou négatif, `weekCount` n'a pas besoin de garde : toute semaine le dépasse, d'où `null`.
+  if (!Number.isInteger(plan.weekCount)) return null;
 
   const elapsed = daysBetweenIsoDates(plan.startDate, date);
   if (elapsed == null || elapsed < 0) return null;
@@ -195,8 +197,11 @@ const isOngoing = <T extends PlanPeriod>(entry: DatedPlan<T>, today: string): bo
  * vrai du temps où l'API n'en servait qu'un, et c'est précisément le défaut qu'a corrigé #172.
  *
  * Source UNIQUE de ce choix (API + clients) — ne pas le reconstituer ailleurs.
+ *
+ * `id` départage deux cycles partant le même lundi, comme dans `selectVisiblePlans` : sans lui,
+ * l'ordre d'arrivée de l'API choisirait, et la cellule changerait d'un chargement à l'autre.
  */
-export function selectCurrentPlan<T extends PlanPeriod>(
+export function selectCurrentPlan<T extends PlanPeriod & { id: string }>(
   plans: readonly T[],
   today: string,
 ): T | null {
@@ -207,13 +212,12 @@ export function selectCurrentPlan<T extends PlanPeriod>(
   const ongoing = dated.filter((entry) => isOngoing(entry, today));
   if (ongoing.length > 0) return pickByStartDate(ongoing, "latest");
 
+  // Stryker disable next-line EqualityOperator: aucun cycle ne démarre aujourd'hui, il serait en cours
   const upcoming = dated.filter((entry) => entry.plan.startDate > today);
   if (upcoming.length > 0) return pickByStartDate(upcoming, "earliest");
 
-  return pickByStartDate(
-    dated.filter((entry) => entry.endDate < today),
-    "latest",
-  );
+  // Ni en cours ni à venir : tous ceux qui restent sont terminés.
+  return pickByStartDate(dated, "latest");
 }
 
 /**
@@ -251,42 +255,43 @@ export function selectVisiblePlans<T extends PlanPeriod & { id: string }>(
   const upcoming = dated.filter((entry) => entry.plan.startDate > today);
 
   if (ongoing.length + upcoming.length > 0) {
-    return [...byStartDateThenId(ongoing), ...byStartDateThenId(upcoming)];
+    return [...byStartDateThenId(ongoing, "earliest"), ...byStartDateThenId(upcoming, "earliest")];
   }
 
-  const last = pickByStartDate(
-    dated.filter((entry) => entry.endDate < today),
-    "latest",
-  );
+  // Ni en cours ni à venir : tous ceux qui restent sont terminés.
+  const last = pickByStartDate(dated, "latest");
   return last == null ? [] : [last];
 }
 
+/** Le sens du tri par date de début, selon le cycle cherché. */
+const START_DATE_DIRECTION = { earliest: 1, latest: -1 } as const;
+type StartDateOrder = keyof typeof START_DATE_DIRECTION;
+
+/**
+ * Les cycles du plus tôt parti au plus tard (`earliest`), ou l'inverse (`latest`) ; à lundi égal,
+ * le plus petit `id` quel que soit le sens — l'ordre doit être stable, pas dépendre de celui
+ * d'arrivée. SEUL comparateur du fichier : la liste servie et le cycle courant ne peuvent pas
+ * diverger sur le départage.
+ */
 function byStartDateThenId<T extends PlanPeriod & { id: string }>(
-  entries: readonly DatedPlan<T>[],
+  entries: readonly { plan: T }[],
+  order: StartDateOrder,
 ): T[] {
+  const direction = START_DATE_DIRECTION[order];
   return entries
     .map((entry) => entry.plan)
     .sort(
       (left, right) =>
-        left.startDate.localeCompare(right.startDate) || left.id.localeCompare(right.id),
+        direction * left.startDate.localeCompare(right.startDate) ||
+        left.id.localeCompare(right.id),
     );
 }
 
-function pickByStartDate<T extends PlanPeriod>(
+function pickByStartDate<T extends PlanPeriod & { id: string }>(
   entries: readonly { plan: T }[],
-  pick: "earliest" | "latest",
+  order: StartDateOrder,
 ): T | null {
-  let best: T | null = null;
-  for (const { plan } of entries) {
-    if (best == null) {
-      best = plan;
-      continue;
-    }
-    const wins =
-      pick === "latest" ? plan.startDate > best.startDate : plan.startDate < best.startDate;
-    if (wins) best = plan;
-  }
-  return best;
+  return byStartDateThenId(entries, order)[0] ?? null;
 }
 
 /**
@@ -365,6 +370,7 @@ export function planAudience<T extends PlanAudienceSource>(
     const [first, ...rest] = others.map((candidate) => candidate.id);
     return {
       kind: "ENDED_SUPERSEDED",
+      // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
       insteadPlanIds: [required(first, `cycle ${plan.id} écarté sans remplaçant`), ...rest],
     };
   }
@@ -390,10 +396,11 @@ export function planAudience<T extends PlanAudienceSource>(
  *
  * Un cycle SANS destinataire (#144) n'est pas solo : `false`, et c'est la bonne réponse — il n'est
  * écrit pour personne, pas pour soi. Ce sont deux absences différentes, et les confondre rouvrirait
- * la facturation d'un cycle qui n'a personne à facturer.
+ * la facturation d'un cycle qui n'a personne à facturer. Le `coachId` n'étant jamais `null`, la
+ * comparaison suffit à l'écarter.
  */
 export function isSelfCoached(plan: { coachId: string; athleteId: string | null }): boolean {
-  return plan.athleteId != null && plan.coachId === plan.athleteId;
+  return plan.coachId === plan.athleteId;
 }
 
 /**

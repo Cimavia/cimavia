@@ -890,7 +890,7 @@ export {
   toReminderFeedId,
 } from "./util/reminder.util";
 export { sameJson } from "./util/same-json.util";
-export { comparableText } from "./util/search.util";
+export { comparableText, searchMatcher } from "./util/search.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
   checkedUnitsOf,

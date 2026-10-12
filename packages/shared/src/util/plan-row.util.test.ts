@@ -258,6 +258,21 @@ describe("deux cycles diffusés menés de front (#172)", () => {
     });
   });
 
+  // Les bornes se cherchent dans TOUS les cycles, pas seulement aux extrémités de la liste reçue.
+  it("trouve la fenêtre commune quel que soit l'ordre reçu", () => {
+    const ADRIEN_BOOST = plan({
+      ...ADRIEN,
+      id: "pln_adrien_boost",
+      title: "Rappel de force",
+      startDate: "2026-09-07",
+      weekCount: 3,
+    });
+
+    expect(
+      rowOf(ADRIEN.athleteId, [ADRIEN_BOOST, ADRIEN_VOLUME, ADRIEN_TRAIL]).concurrency,
+    ).toMatchObject({ from: "2026-09-07", to: "2026-09-27" });
+  });
+
   it("un brouillon qui recouvre un cycle en cours ne compte pas : personne ne le suit", () => {
     const overlappingDraft = plan({
       ...ADRIEN,
@@ -294,6 +309,11 @@ describe("unassignedDraftPlans", () => {
     ]);
   });
 
+  // Un cycle diffusé sans destinataire n'est pas un brouillon à affecter : il n'a rien à faire ici.
+  it("n'y range pas un cycle diffusé sans destinataire", () => {
+    expect(unassignedDraftPlans([plan({ id: "pln_libre" }), ORPHAN_EARLY])).toEqual([ORPHAN_EARLY]);
+  });
+
   it("rend une liste vide quand tout est affecté — le bac disparaît alors de l'écran", () => {
     expect(unassignedDraftPlans([LEA_ONGOING, LEA_DRAFT])).toEqual([]);
   });
@@ -315,8 +335,66 @@ describe("visiblePlanAthleteRows", () => {
     expect(visible.map((row) => row.athleteName)).toEqual(["Léa Bonnet", "Adrien Roux"]);
   });
 
+  /**
+   * Fin et début ne rangent pas pareil ici : Anna finit avant Zoé, mais a commencé après. C'est
+   * la FIN qui décide, et l'alphabet ne peut pas tomber juste par hasard.
+   */
+  it("départage les cycles en cours sur leur fin, pas sur leur début", () => {
+    const anna = plan({
+      athleteId: "ath_a",
+      athleteName: "Anna Costa",
+      id: "pln_anna",
+      startDate: "2026-08-24",
+      weekCount: 3,
+    });
+    // En cours jusqu'au 2026-10-04.
+    const zoe = plan({
+      athleteId: "ath_z",
+      athleteName: "Zoé Ferrand",
+      id: "pln_zoe",
+      weekCount: 12,
+    });
+    for (const source of [
+      [anna, zoe],
+      [zoe, anna],
+    ]) {
+      expect(visiblePlanAthleteRows(rows(source), QUERY).map((row) => row.athleteName)).toEqual([
+        "Anna Costa",
+        "Zoé Ferrand",
+      ]);
+    }
+  });
+
+  // Un cycle en cours devance un cycle à venir, même quand celui-ci s'achève plus tôt.
+  it("range un cycle en cours avant un cycle à venir, quelles que soient leurs dates", () => {
+    const anna = plan({
+      athleteId: "ath_a",
+      athleteName: "Anna Costa",
+      id: "pln_anna",
+      startDate: "2026-09-14",
+      weekCount: 1,
+    });
+    // En cours jusqu'au 2026-10-04.
+    const zoe = plan({
+      athleteId: "ath_z",
+      athleteName: "Zoé Ferrand",
+      id: "pln_zoe",
+      weekCount: 12,
+    });
+    for (const source of [
+      [anna, zoe],
+      [zoe, anna],
+    ]) {
+      expect(visiblePlanAthleteRows(rows(source), QUERY).map((row) => row.athleteName)).toEqual([
+        "Zoé Ferrand",
+        "Anna Costa",
+      ]);
+    }
+  });
+
   it("les cycles à venir se départagent sur leur date de début", () => {
-    const later = plan({ ...LEA, id: "pln_later", startDate: "2026-10-12" });
+    // Léa commence après Sarah, mais finit avant elle : c'est le DÉBUT qui décide.
+    const later = plan({ ...LEA, id: "pln_later", startDate: "2026-10-12", weekCount: 1 });
     const built = rows([SARAH_UPCOMING, later]);
     expect(
       visiblePlanAthleteRows(built, { ...QUERY, filter: "UPCOMING" }).map((row) => row.athleteName),

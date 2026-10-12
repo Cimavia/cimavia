@@ -9,7 +9,7 @@ import {
   planWeekNumber,
   selectCurrentPlan,
 } from "./plan.util";
-import { comparableText } from "./search.util";
+import { searchMatcher } from "./search.util";
 
 /**
  * Le tableau de suivi des athlètes du coach (#113) : une ligne par athlète, composée de cinq
@@ -49,6 +49,7 @@ export type AthleteFeedbackSource = {
 export type AthleteConversationSource = { counterpartId: string; unreadCount: number };
 
 export type AthleteInvoiceSource = InvoiceTiming & {
+  id: string;
   athleteId: string;
   /** `null` tant que la facture est un brouillon — elle n'est alors pas encore due à l'athlète. */
   issuedAt: string | null;
@@ -119,57 +120,54 @@ export type AthleteRowsInput = {
 export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
   if (input.athletes == null) return null;
 
-  const plansByAthlete = groupBy(
-    /**
-     * Un brouillon n'est pas encore le cycle de l'athlète : il ne le voit pas, il ne compte pas
-     * ici. Un cycle SANS destinataire (#144) tombe au même endroit, et pour une autre raison — il
-     * n'appartient à personne. Inatteignable en pratique (un `PUBLISHED` a toujours un athlète,
-     * `publish` l'exige), le cas est écarté quand même : le jour où le verrou bougerait, ces
-     * cycles ne doivent surtout pas se ranger parmi les athlètes « sans plan », qui appellent un
-     * geste du coach.
-     */
-    (input.plans ?? []).filter(
-      (plan): plan is AthletePlanSource & { athleteId: string } =>
-        plan.status === PlanStatus.PUBLISHED && plan.athleteId != null,
-    ),
-    (plan) => plan.athleteId,
-  );
+  /**
+   * Tous les cycles, brouillons compris : c'est `currentAthletePlan` qui écarte ceux que l'athlète
+   * ne voit pas. Un cycle SANS destinataire (#144) se range sous la clé `null`, qu'aucun athlète
+   * ne lit — il ne risque pas de passer pour le cycle de quelqu'un.
+   */
+  const plansOf = groupBy(listOf(input.plans), (plan) => plan.athleteId);
   // Groupés une fois : la colonne en tire son compteur ET l'id du débrief que le lien doit ouvrir.
-  const unreadFeedbacksByAthlete = groupBy(
-    (input.feedbacks ?? []).filter((feedback) => feedback.coachReadAt == null),
+  const unreadFeedbacksOf = groupBy(
+    listOf(input.feedbacks).filter((feedback) => feedback.coachReadAt == null),
     (feedback) => feedback.athleteId,
   );
   const unreadMessagesByAthlete = new Map(
-    (input.conversations ?? []).map((conversation) => [
+    listOf(input.conversations).map((conversation) => [
       conversation.counterpartId,
       conversation.unreadCount,
     ]),
   );
-  const issuedInvoicesByAthlete = groupBy(
-    (input.invoices ?? []).filter((invoice): invoice is IssuedInvoice => invoice.issuedAt != null),
+  const issuedInvoicesOf = groupBy(
+    listOf(input.invoices).filter((invoice): invoice is IssuedInvoice => invoice.issuedAt != null),
     (invoice) => invoice.athleteId,
   );
 
+  /**
+   * Le cycle et la facture n'ont pas à distinguer une liste absente d'une liste vide : les deux
+   * rendent `null` (« — »). Les compteurs, eux, le doivent — « 0 » est une réponse, que seule une
+   * liste reçue autorise.
+   */
   return input.athletes.map((athlete) => ({
     athleteId: athlete.athleteId,
     athleteName: athlete.athleteName,
-    plan:
-      input.plans == null
-        ? null
-        : currentAthletePlan(plansByAthlete.get(athlete.athleteId) ?? [], input.today),
-    unreadFeedbacks:
-      input.feedbacks == null
-        ? null
-        : (unreadFeedbacksByAthlete.get(athlete.athleteId)?.length ?? 0),
-    lastUnreadFeedbackId: latestFeedbackId(unreadFeedbacksByAthlete.get(athlete.athleteId) ?? []),
+    plan: currentAthletePlan(plansOf(athlete.athleteId), input.today),
+    unreadFeedbacks: input.feedbacks == null ? null : unreadFeedbacksOf(athlete.athleteId).length,
+    lastUnreadFeedbackId:
+      latestOf(unreadFeedbacksOf(athlete.athleteId), (feedback) => feedback.createdAt)?.id ?? null,
     // Pas encore de fil ouvert = 0 message non lu, pas « inconnu » : la liste a répondu.
     unreadMessages:
       input.conversations == null ? null : (unreadMessagesByAthlete.get(athlete.athleteId) ?? 0),
-    invoiceState:
-      input.invoices == null
-        ? null
-        : latestInvoiceState(issuedInvoicesByAthlete.get(athlete.athleteId) ?? [], input.today),
+    invoiceState: latestInvoiceState(issuedInvoicesOf(athlete.athleteId), input.today),
   }));
+}
+
+/**
+ * Une liste absente se lit VIDE : chaque colonne décide elle-même, plus haut, si l'absence la
+ * rend `null`. Le repli ne fabrique donc aucune valeur — il évite de traiter `null` cinq fois.
+ */
+function listOf<T>(items: readonly T[] | null | undefined): readonly T[] {
+  // Stryker disable next-line ArrayDeclaration: une liste absente n'est jamais lue pour sa valeur
+  return items ?? [];
 }
 
 /**
@@ -202,10 +200,12 @@ export function currentAthletePlan<T extends AthletePlanSource>(
     title: plan.title,
     weekCount: plan.weekCount,
     currentWeek: planWeekNumber(plan, today),
+    // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
     phase: required(planPhase(plan, today), `cycle élu non situable : ${plan.id}`),
     startDate: plan.startDate,
     endDate: required(
       planEndDate(plan.startDate, plan.weekCount),
+      // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
       `cycle élu sans fin : ${plan.id}`,
     ),
   };
@@ -250,16 +250,11 @@ export function visibleAthleteRows(
   rows: readonly AthleteRow[],
   query: AthleteRowQuery,
 ): AthleteRow[] {
-  const needle = comparableText(query.search);
+  const matchesSearch = searchMatcher(query.search);
 
   return rows
-    .filter((row) => matchesFilter(row, query.filter) && matchesSearch(row, needle))
+    .filter((row) => matchesFilter(row, query.filter) && matchesSearch(row.athleteName))
     .sort((left, right) => left.athleteName.localeCompare(right.athleteName, query.locale));
-}
-
-function matchesSearch(row: AthleteRow, needle: string): boolean {
-  // Sous-chaîne et non préfixe : un coach tape aussi bien le nom de famille que le prénom.
-  return needle === "" || comparableText(row.athleteName).includes(needle);
 }
 
 function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {
@@ -283,13 +278,19 @@ function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {
   }
 }
 
-// Le débrief non lu le plus RÉCENT : c'est celui qu'ouvre le lien de la colonne, pas le plus ancien.
-function latestFeedbackId(feedbacks: readonly AthleteFeedbackSource[]): string | null {
-  let latest: AthleteFeedbackSource | null = null;
-  for (const feedback of feedbacks) {
-    if (latest == null || feedback.createdAt > latest.createdAt) latest = feedback;
-  }
-  return latest?.id ?? null;
+/**
+ * Le plus RÉCENT selon `dateOf` — le débrief qu'ouvre le lien de la colonne, la facture qui donne
+ * sa pastille. À date égale, le plus petit `id` : le choix ne doit pas dépendre de l'ordre
+ * d'arrivée, sans quoi le lien et la pastille changeraient d'un chargement à l'autre.
+ */
+function latestOf<T extends { id: string }>(
+  items: readonly T[],
+  dateOf: (item: T) => string,
+): T | null {
+  const [latest] = [...items].sort(
+    (left, right) => dateOf(right).localeCompare(dateOf(left)) || left.id.localeCompare(right.id),
+  );
+  return latest ?? null;
 }
 
 /**
@@ -301,20 +302,18 @@ function latestInvoiceState(
   invoices: readonly IssuedInvoice[],
   today: string,
 ): InvoiceState | null {
-  let latest: IssuedInvoice | null = null;
-  for (const invoice of invoices) {
-    if (latest == null || invoice.issuedAt > latest.issuedAt) latest = invoice;
-  }
+  const latest = latestOf(invoices, (invoice) => invoice.issuedAt);
   return latest == null ? null : resolveInvoiceState(latest, today);
 }
 
-function groupBy<T>(items: readonly T[], keyOf: (item: T) => string): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
+/** Les éléments groupés par clé, lus par une fonction qui rend `[]` pour une clé sans groupe. */
+function groupBy<T, K>(items: readonly T[], keyOf: (item: T) => K): (key: K) => readonly T[] {
+  const groups = new Map<K, T[]>();
   for (const item of items) {
     const key = keyOf(item);
     const group = groups.get(key);
     if (group == null) groups.set(key, [item]);
     else group.push(item);
   }
-  return groups;
+  return (key) => groups.get(key) ?? [];
 }

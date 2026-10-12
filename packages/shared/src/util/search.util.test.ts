@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialsOf } from "./name.util";
-import { comparableText } from "./search.util";
+import { comparableText, searchMatcher } from "./search.util";
 
 describe("comparableText", () => {
   /**
@@ -32,5 +32,20 @@ describe("comparableText", () => {
   it("ne partage pas la règle d'affichage d'initialsOf", () => {
     expect(initialsOf("Élodie Noël")).toBe("ÉN");
     expect(comparableText("Élodie Noël")).toBe("elodie noel");
+  });
+});
+
+describe("searchMatcher", () => {
+  it("trouve une sous-chaîne, sans casse ni accent, des deux côtés", () => {
+    const matches = searchMatcher("  MOREAU ");
+    expect(matches("Léa Moreau")).toBe(true);
+    expect(searchMatcher("lea")("Léa Moreau")).toBe(true);
+    expect(searchMatcher("léa")("Lea Moreau")).toBe(true);
+    expect(matches("Théo Marchand")).toBe(false);
+  });
+
+  it("garde toutes les valeurs sur un terme vide ou blanc", () => {
+    expect(searchMatcher("")("Léa Moreau")).toBe(true);
+    expect(searchMatcher("   ")("")).toBe(true);
   });
 });
