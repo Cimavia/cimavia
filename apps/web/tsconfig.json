@@ -18,6 +18,8 @@
     "test",
     "e2e",
     "vite.config.ts",
+    "bundle-budget.ts",
+    "bundle-budget.test.ts",
     "vitest.config.ts",
     "vitest.setup.ts",
     "playwright.config.ts"
