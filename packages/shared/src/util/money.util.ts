@@ -4,12 +4,12 @@
 // Un montant est TOUJOURS un entier de centimes (`amountCents`) : jamais un float, dont l'erreur
 // d'arrondi corromprait une somme d'argent. La division par 100 n'a lieu qu'ICI, au dernier moment.
 
+import { INVOICE_PERIOD_PATTERN } from "../dto/invoice.schema";
+
 // « 49,90 € » — montant d'une facture, dans la devise et la locale de l'utilisateur.
 export function formatMoney(amountCents: number, currency: string, locale: string): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amountCents / 100);
 }
-
-const INVOICE_PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /**
  * « juillet 2026 » — période facturée (mois civil "YYYY-MM"). `timeZone: "UTC"` est essentiel :
