@@ -50,8 +50,11 @@ export class ExerciseService {
    * Public : `ExerciseDocumentService` s'appuie dessus — un seul contrôle d'appartenance,
    * un seul message, pas deux implémentations à garder en phase.
    */
-  async getOwnedOrThrow(id: string): Promise<ExerciseWithDocuments> {
-    const exercise = await this.db.exercise.findFirst({
+  async getOwnedOrThrow(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<ExerciseWithDocuments> {
+    const exercise = await db.exercise.findFirst({
       where: { id },
       include: EXERCISE_DETAIL_INCLUDE,
     });
@@ -239,11 +242,15 @@ export class ExerciseService {
       data.instructions = toInstructionsInput(input.instructions);
     if (input.blocks !== undefined) data.blocks = toBlocksInput(input.blocks);
 
-    await this.db.$transaction(async (tx) => {
+    const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(tx.exercise, id, expected, data, EXERCISE_NOT_FOUND);
       if (input.tags !== undefined) await this.replaceTags(tx, id, input.tags);
+      // Relu DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
+      // donc NOTRE version. Relue après, elle pourrait déjà porter celle d'un autre Coach — et le
+      // builder, qui garde une saisie faite pendant l'envoi, la citerait par-dessus lui.
+      return this.getOwnedOrThrow(id, tx);
     });
-    return this.get(id);
+    return this.toDto(saved);
   }
 
   async delete(id: string): Promise<void> {

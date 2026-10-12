@@ -64,7 +64,7 @@ export class SessionService {
     // Avant de valider les exercices cités contre un état que la saisie n'a pas vu.
     assertReadAtVersion(current.updatedAt, expected);
     await this.assertExercisesOwned(input.exercises);
-    await this.db.$transaction(async (tx) => {
+    return this.db.$transaction(async (tx) => {
       await writeAtVersion(
         tx.session,
         id,
@@ -81,8 +81,11 @@ export class SessionService {
       });
       await tx.sessionExercise.deleteMany({ where: { sessionId: id } });
       await this.replaceExercises(tx, id, input.exercises, previous);
+      // Relue DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
+      // donc NOTRE version et NOS lignes. Relue après, elle pourrait déjà porter celles d'un autre
+      // Coach — que le builder, qui garde sa saisie, reprendrait comme les siennes.
+      return this.getDto(id, tx);
     });
-    return this.getDto(id);
   }
 
   async delete(id: string): Promise<void> {
@@ -93,8 +96,11 @@ export class SessionService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  private async getOwnedOrThrow(id: string): Promise<SessionWithExercises> {
-    const session = await this.db.session.findFirst({
+  private async getOwnedOrThrow(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<SessionWithExercises> {
+    const session = await db.session.findFirst({
       where: { id },
       include: { exercises: { orderBy: { position: "asc" } } },
     });
@@ -104,9 +110,12 @@ export class SessionService {
     return session;
   }
 
-  private async getDto(id: string): Promise<SessionDto> {
-    const session = await this.getOwnedOrThrow(id);
-    const byId = await this.loadExerciseMap(session.exercises.map((e) => e.exerciseId));
+  private async getDto(id: string, db: TenantPrisma | TenantTx = this.db): Promise<SessionDto> {
+    const session = await this.getOwnedOrThrow(id, db);
+    const byId = await this.loadExerciseMap(
+      session.exercises.map((e) => e.exerciseId),
+      db,
+    );
     return toSessionDto(session, byId);
   }
 
@@ -144,7 +153,7 @@ export class SessionService {
     sessionExerciseId: string,
     input: ReloadSessionExerciseInput,
   ): Promise<SessionDto> {
-    await this.db.$transaction(async (tx) => {
+    return this.db.$transaction(async (tx) => {
       // Rien d'autre à écrire sur la séance : seule sa version avance.
       await writeAtVersion(
         tx.session,
@@ -175,16 +184,19 @@ export class SessionService {
           adjustments: toAdjustmentsInput([]),
         },
       });
+      // Dans la transaction, comme après un enregistrement : la réponse porte NOTRE version.
+      return this.getDto(sessionId, tx);
     });
-
-    return this.get(sessionId);
   }
 
   // Charge (scopé) les exercices par id → map pour l'enrichissement titre/tags.
-  private async loadExerciseMap(exerciseIds: string[]): Promise<Map<string, ExerciseWithTags>> {
+  private async loadExerciseMap(
+    exerciseIds: string[],
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<Map<string, ExerciseWithTags>> {
     const ids = [...new Set(exerciseIds)];
     if (ids.length === 0) return new Map();
-    const exercises = await this.db.exercise.findMany({
+    const exercises = await db.exercise.findMany({
       where: { id: { in: ids } },
       include: { tags: true },
     });
