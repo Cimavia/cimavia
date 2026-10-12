@@ -1,5 +1,6 @@
 import {
   AdjustmentLevel,
+  ApiError,
   BlockType,
   cellPath,
   type ExerciseBlocks,
@@ -9,9 +10,10 @@ import {
   MetricUnit,
   type SessionDto,
   type SessionExerciseDto,
+  STALE_WRITE,
   structurePath,
 } from "@cmv/shared";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useSessionDraft } from "./useSessionDraft";
@@ -498,6 +500,7 @@ describe("useSessionDraft — enregistrer", () => {
         // Une ligne neuve part SANS id : le serveur lui pose une référence copiée de l'exercice.
         { exerciseId: "ex-dips", note: null, blocks, adjustments: [] },
       ],
+      expectedUpdatedAt: "2026-09-01T00:00:00.000Z",
     });
     expect(createSessionMock).not.toHaveBeenCalled();
   });
@@ -518,5 +521,94 @@ describe("useSessionDraft — enregistrer", () => {
     });
     expect(result.current.error).toBeNull();
     expect(result.current.isSaving).toBe(false);
+  });
+});
+
+describe("useSessionDraft — la version citée (#604)", () => {
+  const SAVED = "2026-10-12T08:05:00.000Z";
+  const RELOADED = "2026-10-12T08:07:00.000Z";
+
+  const versionsCited = () =>
+    updateSessionMock.mock.calls.map(([, input]) => input.expectedUpdatedAt);
+
+  it("cite au second enregistrement la version écrite par le premier", async () => {
+    updateSessionMock.mockResolvedValue({ ...session(), updatedAt: SAVED });
+    const { result } = renderDraft();
+
+    await act(() => result.current.submit());
+    act(() => result.current.setTitle("Force (v2)"));
+    await act(() => result.current.submit());
+
+    expect(versionsCited()).toEqual(["2026-09-01T00:00:00.000Z", SAVED]);
+  });
+
+  // Sans ça, rester sur l'écran après une création — un détour raté — en créerait une seconde.
+  it("passe en édition après une création, et cite sa version", async () => {
+    createSessionMock.mockResolvedValue({ ...session([]), updatedAt: SAVED });
+    const { result } = renderDraft(null);
+
+    act(() => result.current.setTitle("Nouvelle"));
+    await act(() => result.current.submit());
+    await act(() => result.current.submit());
+
+    expect(createSessionMock).toHaveBeenCalledOnce();
+    expect(updateSessionMock).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ expectedUpdatedAt: SAVED }),
+    );
+  });
+
+  // Le rechargement d'un exercice est une écriture : la suivante part de la version qu'il a posée.
+  it("cite la version posée par un rechargement d'exercice", async () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.applyReloaded("sx-tractions", { ...session(), updatedAt: RELOADED }));
+    expect(result.current.edited?.updatedAt).toBe(RELOADED);
+    await act(() => result.current.submit());
+
+    expect(versionsCited()).toEqual([RELOADED]);
+  });
+
+  /**
+   * Le remplace-all recrée les lignes sous de nouveaux ids : un écran resté ouvert doit envoyer
+   * ceux-là, sans quoi chaque ligne perdrait sa référence de dosage au second enregistrement.
+   */
+  it("reprend les ids que l'enregistrement a recréés, sans se dire modifié", async () => {
+    updateSessionMock.mockResolvedValueOnce({
+      ...session([
+        { ...TRACTIONS, id: "sx-tractions-2" },
+        { ...GAINAGE, id: "sx-gainage-2" },
+      ]),
+      updatedAt: SAVED,
+    });
+    const { result } = renderDraft();
+
+    await act(() => result.current.submit());
+    expect(result.current.isDirty).toBe(false);
+    await act(() => result.current.submit());
+
+    const [, second] = updateSessionMock.mock.calls;
+    expect(second?.[1].exercises.map((line: { id?: string }) => line.id)).toEqual([
+      "sx-tractions-2",
+      "sx-gainage-2",
+    ]);
+  });
+
+  it("ne se dit périmé que sur un refus de version, pas sur un autre 409", async () => {
+    const { result } = renderDraft();
+
+    updateSessionMock.mockRejectedValueOnce(new ApiError(409, "Autre conflit", null));
+    await act(async () => {
+      await expect(result.current.submit()).rejects.toThrow();
+    });
+    // L'état de la mutation se publie un tick après le rejet.
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.isStale).toBe(false);
+
+    updateSessionMock.mockRejectedValueOnce(new ApiError(409, STALE_WRITE, null));
+    await act(async () => {
+      await expect(result.current.submit()).rejects.toThrow();
+    });
+    await waitFor(() => expect(result.current.isStale).toBe(true));
   });
 });

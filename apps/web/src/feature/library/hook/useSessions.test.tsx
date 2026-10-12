@@ -28,7 +28,7 @@ vi.mock("@/feature/library/api", async (importOriginal) => ({
   ...apiMock,
 }));
 
-const session = { id: "s-1", title: "Force" } as SessionDto;
+const session = { id: "s-1", title: "Force", updatedAt: "2026-10-12T08:00:00.000Z" } as SessionDto;
 const input = {
   title: "Force max",
   notes: "À jeun",
@@ -106,6 +106,8 @@ describe("useSaveSession", () => {
       title: "Force max",
       notes: "À jeun",
       exercises: input.exercises,
+      // La version sur laquelle la saisie a commencé (#604).
+      expectedUpdatedAt: session.updatedAt,
     });
     expect(apiMock.createSession).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
@@ -125,6 +127,7 @@ describe("useSaveSession", () => {
       title: "Force",
       notes: null,
       exercises: [],
+      expectedUpdatedAt: session.updatedAt,
     });
   });
 
@@ -168,14 +171,16 @@ describe("useDeleteSession", () => {
 });
 
 describe("useReloadSessionExercise", () => {
-  it("recharge l'exercice de CETTE séance puis invalide les séances", async () => {
+  it("recharge l'exercice de CETTE séance, à sa version, puis invalide les séances", async () => {
     apiMock.reloadSessionExercise.mockResolvedValue(session);
     const { wrapper, invalidate } = spyInvalidate();
 
-    const { result } = renderHook(() => useReloadSessionExercise("s-1"), { wrapper });
-    await act(() => result.current.mutateAsync("se-1"));
+    const { result } = renderHook(() => useReloadSessionExercise(), { wrapper });
+    await act(() => result.current.mutateAsync({ session, sessionExerciseId: "se-1" }));
 
-    expect(apiMock.reloadSessionExercise).toHaveBeenCalledExactlyOnceWith("s-1", "se-1");
+    expect(apiMock.reloadSessionExercise).toHaveBeenCalledExactlyOnceWith("s-1", "se-1", {
+      expectedUpdatedAt: session.updatedAt,
+    });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
   });
 });

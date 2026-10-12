@@ -366,12 +366,14 @@ describe("useExerciseDraft — la version citée (#604)", () => {
     await act(async () => {
       await expect(result.current.submit()).rejects.toThrow();
     });
+    // L'état de la mutation se publie un tick après le rejet.
+    await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current.isStale).toBe(false);
 
     api.updateExercise.mockRejectedValueOnce(new ApiError(409, STALE_WRITE, null));
     await act(async () => {
       await expect(result.current.submit()).rejects.toThrow();
     });
-    expect(result.current.isStale).toBe(true);
+    await waitFor(() => expect(result.current.isStale).toBe(true));
   });
 });

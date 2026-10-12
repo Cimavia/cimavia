@@ -591,6 +591,7 @@ export {
 } from "./dto/rich-document.schema";
 export type {
   CreateSessionInput,
+  ReloadSessionExerciseInput,
   SessionDto,
   SessionExerciseDto,
   SessionExerciseInput,
@@ -598,6 +599,7 @@ export type {
 } from "./dto/session.schema";
 export {
   createSessionSchema,
+  reloadSessionExerciseSchema,
   SESSION_MAX_EXERCISES,
   SESSION_NOTE_MAX_LENGTH,
   SESSION_NOTES_MAX_LENGTH,

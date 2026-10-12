@@ -157,6 +157,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
     // Retirer l'exercice de la séance le fait redescendre : le compte est lu, jamais stocké.
     await coachA.put(`/sessions/${session.body.id}`).send({
+      expectedUpdatedAt: session.body.updatedAt,
       title: "Circuit court",
       exercises: [],
     });

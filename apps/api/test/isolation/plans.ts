@@ -207,6 +207,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     // La note est renvoyée telle quelle : ce test ajuste le DOSAGE, et les suivants comptent sur
     // le modèle intact — une suite e2e partage ses fixtures.
     const saved = await coachA.put(`/sessions/${templateId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${templateId}`),
       title: "Bloc force max",
       notes: "Repos 3 min.",
       exercises: [
@@ -628,9 +629,12 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   it("supprimer un exercice de la bibliothèque ne casse PAS la planification diffusée", async () => {
     // Il faut d'abord le retirer du MODÈLE (SessionExercise reste en Restrict → 409).
     expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(409);
-    await coachA
-      .put(`/sessions/${templateId}`)
-      .send({ title: "Bloc force max", notes: null, exercises: [] });
+    await coachA.put(`/sessions/${templateId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${templateId}`),
+      title: "Bloc force max",
+      notes: null,
+      exercises: [],
+    });
 
     expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(204);
 

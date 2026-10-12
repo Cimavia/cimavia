@@ -14,10 +14,10 @@ import { StructureSection } from "@/feature/library/component/StructureSection";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
 import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
 import {
+  exerciseDetailQuery,
   useDeleteExercise,
   useExercise,
   useExerciseTags,
-  useReloadExercise,
 } from "@/feature/library/hook/useExercises";
 import {
   CmvAppShell,
@@ -34,6 +34,7 @@ import {
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
+import { useStaleReload } from "@/shared/hook/useStaleReload";
 import { isStaleWriteError } from "@/shared/lib/api";
 
 /**
@@ -75,22 +76,11 @@ export function ExerciseBuilderScreen({
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  /**
-   * Le dernier « Recharger » (#604) : l'exercice relu, et un compteur qui remonte le constructeur —
-   * la saisie naît de l'exercice au montage, la remplacer par la dernière version, c'est repartir
-   * de zéro. L'exercice relu est celui qu'un enregistrement interrompu a CRÉÉ quand l'écran s'est
-   * ouvert en création : l'écran passe alors en édition, comme il l'aurait dû.
-   */
-  const [reloaded, setReloaded] = useState<{ id: string; generation: number } | null>(null);
-  const reload = useReloadExercise();
-  const loadedId = exerciseId ?? reloaded?.id;
+  const { loadedId, generation, reload, isReloading } = useStaleReload(
+    exerciseId,
+    exerciseDetailQuery,
+  );
   const { data: exercise, isPending, isError, refetch } = useExercise(loadedId);
-
-  function onReload(id: string) {
-    reload.mutate(id, {
-      onSuccess: () => setReloaded((last) => ({ id, generation: (last?.generation ?? 0) + 1 })),
-    });
-  }
 
   if (loadedId != null && isPending) {
     return (
@@ -136,13 +126,13 @@ export function ExerciseBuilderScreen({
   // « Recharger » remplace la saisie.
   return (
     <ExerciseBuilder
-      key={`${exercise?.id ?? "new"}:${reloaded?.generation ?? 0}`}
+      key={`${exercise?.id ?? "new"}:${generation}`}
       exercise={exercise ?? null}
       initialTitle={initialTitle}
       onLeave={() => leave(null)}
       onSaved={leave}
-      onReload={onReload}
-      isReloading={reload.isPending}
+      onReload={reload}
+      isReloading={isReloading}
     />
   );
 }

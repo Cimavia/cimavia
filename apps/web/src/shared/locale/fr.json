@@ -21,6 +21,7 @@
     "errorDescription": "Les données n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
     "staleReload": "Recharger",
+    "staleReloadFailed": "La dernière version n'a pas pu être chargée. Ta saisie reste affichée : réessaie dans un instant.",
     "relativeTime": {
       "now": "à l'instant",
       "minute": "il y a {{count}} min",
@@ -173,6 +174,7 @@
     },
     "session": {
       "createTitle": "Nouvelle séance",
+      "stale": "Cette séance a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "titleLabel": "Titre",
       "titlePlaceholder": "Ex. Force haut du corps, Endurance…",
       "notesLabel": "Notes de séance",

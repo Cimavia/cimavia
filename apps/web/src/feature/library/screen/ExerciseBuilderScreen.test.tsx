@@ -503,6 +503,7 @@ describe("ExerciseBuilderScreen — conflit d'édition (#604)", () => {
     );
     expect(view.getByText("library.builder.stale")).toBeInTheDocument();
     expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Tractions lestées");
+    expect(await view.findByText("common.staleReloadFailed")).toBeInTheDocument();
   });
 
   // L'exercice créé par un enregistrement interrompu est celui qu'on recharge : l'écran reste en

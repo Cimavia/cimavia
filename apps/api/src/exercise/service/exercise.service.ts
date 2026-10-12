@@ -22,7 +22,7 @@ import {
   instructionImageIds,
   withCopiedImages,
 } from "../../util/instruction-images.util";
-import { assertWrittenAtVersion, StaleWriteException } from "../../util/stale-write.util";
+import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import {
   EXERCISE_DETAIL_INCLUDE,
   type ExerciseWithDocuments,
@@ -224,12 +224,10 @@ export class ExerciseService {
   async update(id: string, input: UpdateExerciseInput): Promise<ExerciseDto> {
     const current = await this.getOwnedOrThrow(id);
     const expected = new Date(input.expectedUpdatedAt);
-    // Déjà périmée à la lecture : le dire AVANT de valider la saisie contre un état qu'elle n'a pas
-    // vu — une image de consigne retirée par l'autre écriture donnerait sinon un 400 au lieu du
-    // 409. La garde reste l'écriture conditionnelle ci-dessous ; ceci n'en est que le raccourci.
-    if (current.updatedAt.getTime() !== expected.getTime()) throw new StaleWriteException();
+    // Avant de valider les images de consigne contre un état que la saisie n'a pas vu.
+    assertReadAtVersion(current.updatedAt, expected);
     assertInstructionImagesOwned(input.instructions, current.documents);
-    const data: Prisma.ExerciseUpdateManyMutationInput = { updatedAt: new Date() };
+    const data: Prisma.ExerciseUpdateManyMutationInput = {};
     // Les deux ensemble, sous la MÊME garde : un titre modifié sans sa forme comparable laisserait
     // la ligne introuvable par l'ancien mot autant que par le nouveau, sans rien afficher d'anormal.
     if (input.title !== undefined) {
@@ -242,15 +240,7 @@ export class ExerciseService {
     if (input.blocks !== undefined) data.blocks = toBlocksInput(input.blocks);
 
     await this.db.$transaction(async (tx) => {
-      const { count } = await tx.exercise.updateMany({
-        where: { id, updatedAt: expected },
-        data,
-      });
-      await assertWrittenAtVersion(
-        count,
-        async () => (await tx.exercise.count({ where: { id } })) > 0,
-        EXERCISE_NOT_FOUND,
-      );
+      await writeAtVersion(tx.exercise, id, expected, data, EXERCISE_NOT_FOUND);
       if (input.tags !== undefined) await this.replaceTags(tx, id, input.tags);
     });
     return this.get(id);

@@ -33,3 +33,50 @@ export async function assertWrittenAtVersion(
   if (await exists()) throw new StaleWriteException();
   throw new NotFoundException(notFoundMessage);
 }
+
+/**
+ * Le raccourci de la garde, jamais la garde elle-même : une version DÉJÀ dépassée à la lecture
+ * répond 409 avant que la saisie soit validée contre un état qu'elle n'a pas vu. Sans lui, une
+ * image de consigne ou un exercice retiré par l'autre écriture donnerait un 400 « saisie invalide »
+ * au lieu de proposer de recharger. L'écriture conditionnelle qui suit reste indispensable : entre
+ * cette lecture et elle, une autre écriture peut passer.
+ */
+export function assertReadAtVersion(read: Date, expected: Date): void {
+  if (read.getTime() !== expected.getTime()) throw new StaleWriteException();
+}
+
+/** Ce qu'il faut d'un délégué Prisma (scopé tenant) pour écrire sous une version. */
+type VersionedDelegate<Data> = {
+  updateMany(args: {
+    where: { id: string; updatedAt: Date };
+    data: Data & { updatedAt: Date };
+  }): Promise<{ count: number }>;
+  count(args: { where: { id: string } }): Promise<number>;
+};
+
+/**
+ * L'écriture conditionnelle elle-même (#604) : écrit `data` si l'élément est encore à la version
+ * lue, et fait avancer celle-ci — `updatedAt` posé à la main, l'écriture peut n'avoir aucun autre
+ * champ à écrire (les tags d'un exercice, la composition d'une séance vivent ailleurs). Sinon 404
+ * ou 409, selon `assertWrittenAtVersion`.
+ *
+ * Le délégué est celui de la TRANSACTION : ce qui suit l'écriture — tags, composition — tombe
+ * avec elle si elle est refusée.
+ */
+export async function writeAtVersion<Data extends object>(
+  delegate: VersionedDelegate<Data>,
+  id: string,
+  expected: Date,
+  data: Data,
+  notFoundMessage: string,
+): Promise<void> {
+  const { count } = await delegate.updateMany({
+    where: { id, updatedAt: expected },
+    data: { ...data, updatedAt: new Date() },
+  });
+  await assertWrittenAtVersion(
+    count,
+    async () => (await delegate.count({ where: { id } })) > 0,
+    notFoundMessage,
+  );
+}

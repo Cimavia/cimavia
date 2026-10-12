@@ -8,6 +8,7 @@ import {
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
   type SessionDto,
+  STALE_WRITE,
   structurePath,
 } from "@cmv/shared";
 import { useSearch } from "@tanstack/react-router";
@@ -89,11 +90,14 @@ const composed = (
   adjustments: [],
 });
 
+const READ = "2026-10-12T08:00:00.000Z";
+
 const saved = (over: Partial<SessionDto> = {}) =>
   ({
     id: "s-1",
     title: "Force",
     notes: "Au calme",
+    updatedAt: READ,
     exercises: [
       composed("se-1", "ex-1", "Tractions"),
       composed("se-2", "ex-2", "Gainage"),
@@ -562,10 +566,110 @@ describe("SessionBuilderScreen — édition", () => {
     expect((await view.findAllByDisplayValue("12"))[0]).toBeInTheDocument();
     await view.save();
 
-    expect(api.reloadSessionExercise).toHaveBeenCalledExactlyOnceWith("s-1", "se-2");
+    expect(api.reloadSessionExercise).toHaveBeenCalledExactlyOnceWith("s-1", "se-2", {
+      expectedUpdatedAt: READ,
+    });
     const [first, second] = view.sent().exercises;
     expect(second.blocks).toEqual(fresh);
     expect(first.note).toBe("Lesté");
+  });
+});
+
+describe("SessionBuilderScreen — conflit d'édition (#604)", () => {
+  const LATEST = "2026-10-12T08:03:00.000Z";
+  const STALE = "library.session.stale";
+  const RELOAD = "common.staleReload";
+  const stale = () => new ApiError(409, STALE_WRITE, null);
+
+  async function editThenConflict() {
+    api.updateSession.mockRejectedValueOnce(stale());
+    const view = await edit();
+    const title = view.getByRole("textbox", { name: TITLE });
+    await view.user.clear(title);
+    await view.user.type(title, "Force max");
+    await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
+    await view.findByText(STALE);
+    return view;
+  }
+
+  it("garde la saisie et le dit par le bandeau, sans toast ni code brut", async () => {
+    const view = await editThenConflict();
+
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Force max");
+    expect(view.queryByText("library.session.saveFailed")).not.toBeInTheDocument();
+    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+  });
+
+  it("« Recharger » remplace la saisie par la dernière version, que l'enregistrement cite", async () => {
+    const view = await editThenConflict();
+    api.getSession.mockResolvedValue(saved({ title: "Force (M)", updatedAt: LATEST }));
+
+    await view.user.click(view.getByRole("button", { name: RELOAD }));
+
+    await waitFor(() =>
+      expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Force (M)"),
+    );
+    expect(view.queryByText(STALE)).not.toBeInTheDocument();
+
+    await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
+    await waitFor(() =>
+      expect(api.updateSession).toHaveBeenLastCalledWith(
+        "s-1",
+        expect.objectContaining({ expectedUpdatedAt: LATEST }),
+      ),
+    );
+  });
+
+  it("garde la saisie et le bandeau quand la relecture échoue", async () => {
+    const view = await editThenConflict();
+    api.getSession.mockRejectedValue(new Error("réseau"));
+    const readsBefore = api.getSession.mock.calls.length;
+
+    await view.user.click(view.getByRole("button", { name: RELOAD }));
+
+    await waitFor(() => expect(api.getSession).toHaveBeenCalledTimes(readsBefore + 1));
+    await waitFor(() => expect(view.getByRole("button", { name: RELOAD })).toBeEnabled());
+    expect(view.getByText(STALE)).toBeInTheDocument();
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Force max");
+    // Sans un mot, le bouton se rouvrirait et rien ne dirait pourquoi la saisie n'a pas bougé.
+    expect(await view.findByText("common.staleReloadFailed")).toBeInTheDocument();
+  });
+
+  // Recharger un exercice depuis la bibliothèque est une écriture : elle aussi peut arriver tard.
+  it("le dit aussi quand le rechargement d'un exercice trouve la séance changée", async () => {
+    api.reloadSessionExercise.mockRejectedValueOnce(stale());
+    const view = await edit();
+
+    await view.menu("Gainage", "library.session.reload");
+    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
+
+    expect(await view.findByText(STALE)).toBeInTheDocument();
+  });
+
+  it("dit l'échec d'un rechargement d'exercice qui n'est pas un conflit", async () => {
+    api.reloadSessionExercise.mockRejectedValueOnce(
+      new ApiError(404, "Exercice de séance introuvable", null),
+    );
+    const view = await edit();
+
+    await view.menu("Gainage", "library.session.reload");
+    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
+
+    expect(await view.findByText("Exercice de séance introuvable")).toBeInTheDocument();
+    expect(view.queryByText(STALE)).not.toBeInTheDocument();
+  });
+
+  // Lancées ensemble, les deux écritures citeraient la même version : la seconde prendrait pour
+  // un conflit l'écriture du coach lui-même.
+  it("ferme l'enregistrement tant qu'un exercice se recharge", async () => {
+    api.reloadSessionExercise.mockReturnValue(new Promise(() => undefined));
+    const view = await edit();
+
+    await view.menu("Gainage", "library.session.reload");
+    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
+
+    await waitFor(() => expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeDisabled());
   });
 });
 

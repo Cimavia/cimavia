@@ -2,6 +2,7 @@ import {
   AdjustmentLevel,
   type CreateSessionInput,
   type ExerciseBlocks,
+  type ReloadSessionExerciseInput,
   required,
   type SessionDto,
   type SessionExerciseInput,
@@ -13,7 +14,10 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseBlocks, toAdjustmentsInput, toBlocksInput } from "../../util/exercise-json.util";
+import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { type ExerciseWithTags, type SessionWithExercises, toSessionDto } from "../session.mapper";
+
+const SESSION_NOT_FOUND = "Séance introuvable";
 
 @Injectable()
 export class SessionService {
@@ -50,14 +54,24 @@ export class SessionService {
     return this.getDto(id);
   }
 
+  /**
+   * Remplace la séance, à condition qu'elle n'ait pas changé depuis que la saisie a commencé
+   * (#604) — sinon 409 `STALE_WRITE`, et la base garde l'autre écriture, composition comprise.
+   */
   async update(id: string, input: UpdateSessionInput): Promise<SessionDto> {
-    await this.getOwnedOrThrow(id);
+    const current = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Avant de valider les exercices cités contre un état que la saisie n'a pas vu.
+    assertReadAtVersion(current.updatedAt, expected);
     await this.assertExercisesOwned(input.exercises);
     await this.db.$transaction(async (tx) => {
-      await tx.session.update({
-        where: { id },
-        data: { title: input.title, notes: input.notes ?? null },
-      });
+      await writeAtVersion(
+        tx.session,
+        id,
+        expected,
+        { title: input.title, notes: input.notes ?? null },
+        SESSION_NOT_FOUND,
+      );
       // Replace-all : la composition est intégralement remplacée par la liste fournie.
       // Lues AVANT la destruction : elles portent les références que la nouvelle composition
       // doit récupérer.
@@ -85,7 +99,7 @@ export class SessionService {
       include: { exercises: { orderBy: { position: "asc" } } },
     });
     if (session == null) {
-      throw new NotFoundException("Séance introuvable");
+      throw new NotFoundException(SESSION_NOT_FOUND);
     }
     return session;
   }
@@ -120,32 +134,47 @@ export class SessionService {
    *
    * À ne pas confondre avec « Tout réinitialiser », qui revient aux valeurs copiées à l'ajout et
    * ne touche pas la référence. Celui-ci ÉCRASE, d'où la confirmation côté client.
+   *
+   * La version de la SÉANCE est vérifiée, et avancée, AVANT de chercher la ligne (#604) : chaque
+   * enregistrement recrée la composition sous de nouveaux identifiants, si bien qu'un onglet resté
+   * sur l'ancienne cite une ligne qui n'existe plus. C'est un conflit, pas une ligne inconnue.
    */
   async reloadExerciseFromLibrary(
     sessionId: string,
     sessionExerciseId: string,
+    input: ReloadSessionExerciseInput,
   ): Promise<SessionDto> {
-    const composed = await this.db.sessionExercise.findFirst({
-      where: { id: sessionExerciseId, sessionId },
-    });
-    if (composed == null) {
-      throw new NotFoundException("Exercice de séance introuvable");
-    }
+    await this.db.$transaction(async (tx) => {
+      // Rien d'autre à écrire sur la séance : seule sa version avance.
+      await writeAtVersion(
+        tx.session,
+        sessionId,
+        new Date(input.expectedUpdatedAt),
+        {},
+        SESSION_NOT_FOUND,
+      );
+      const composed = await tx.sessionExercise.findFirst({
+        where: { id: sessionExerciseId, sessionId },
+      });
+      if (composed == null) {
+        throw new NotFoundException("Exercice de séance introuvable");
+      }
 
-    // FK `Restrict`, même coach : l'exercice composé existe tant que la ligne qui le cite.
-    const exercise = required(
-      await this.db.exercise.findFirst({ where: { id: composed.exerciseId } }),
-      `[session] exercice ${composed.exerciseId} hors scope pour la séance ${sessionId}`,
-    );
+      // FK `Restrict`, même coach : l'exercice composé existe tant que la ligne qui le cite.
+      const exercise = required(
+        await tx.exercise.findFirst({ where: { id: composed.exerciseId } }),
+        `[session] exercice ${composed.exerciseId} hors scope pour la séance ${sessionId}`,
+      );
 
-    const blocks = parseBlocks(exercise.blocks);
-    await this.db.sessionExercise.update({
-      where: { id: sessionExerciseId },
-      data: {
-        blocks: toBlocksInput(blocks),
-        baseline: toBlocksInput(blocks),
-        adjustments: toAdjustmentsInput([]),
-      },
+      const blocks = parseBlocks(exercise.blocks);
+      await tx.sessionExercise.update({
+        where: { id: sessionExerciseId },
+        data: {
+          blocks: toBlocksInput(blocks),
+          baseline: toBlocksInput(blocks),
+          adjustments: toAdjustmentsInput([]),
+        },
+      });
     });
 
     return this.get(sessionId);

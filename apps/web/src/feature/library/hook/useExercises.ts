@@ -17,29 +17,20 @@ export function useExercises(filters: ExerciseFilters) {
   });
 }
 
+/**
+ * La lecture d'un exercice, partagée par l'écran et son « Recharger » (#604) : une seule clé, une
+ * seule forme en cache — la relecture remplit exactement ce que l'écran lit.
+ */
+export const exerciseDetailQuery = (id: string) => ({
+  queryKey: exerciseKeys.detail(id),
+  queryFn: () => getExercise(id),
+});
+
 export function useExercise(id: string | undefined) {
   return useQuery<ExerciseDto>({
-    queryKey: exerciseKeys.detail(id ?? ""),
-    queryFn: () => getExercise(id as string),
+    ...exerciseDetailQuery(id ?? ""),
     // `new` n'a pas d'id : la requête ne part pas, plutôt qu'un GET /exercises/undefined.
     enabled: id != null,
-  });
-}
-
-/**
- * « Recharger » après un conflit d'édition (#604) : relit l'exercice en passant outre le cache, et
- * ne réussit qu'une fois la dernière version REÇUE — sur une relecture ratée, l'écran garde la
- * saisie et le bandeau.
- */
-export function useReloadExercise() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) =>
-      queryClient.fetchQuery({
-        queryKey: exerciseKeys.detail(id),
-        queryFn: () => getExercise(id),
-        staleTime: 0,
-      }),
   });
 }
 

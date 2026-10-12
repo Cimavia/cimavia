@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { adjustmentsSchema } from "./dosage-override.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { expectedVersionSchema } from "./expected-version.schema";
 
 export const SESSION_TITLE_MAX_LENGTH = 200;
 export const SESSION_NOTES_MAX_LENGTH = 5000;
@@ -54,9 +55,20 @@ export const updateSessionSchema = z
     exercises: z
       .array(sessionExerciseInputSchema)
       .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
+
+/**
+ * « Recharger depuis la bibliothèque » écrase une ligne de la composition : il cite la version de
+ * la séance comme toute écriture (#604). Sans elle, recharger dans un onglet resté sur une
+ * ancienne composition écraserait celle qu'un autre vient d'enregistrer.
+ */
+export const reloadSessionExerciseSchema = z
+  .object({ expectedUpdatedAt: expectedVersionSchema })
+  .strict();
+export type ReloadSessionExerciseInput = z.infer<typeof reloadSessionExerciseSchema>;
 
 export const sessionExerciseDtoSchema = z.object({
   id: z.string(),

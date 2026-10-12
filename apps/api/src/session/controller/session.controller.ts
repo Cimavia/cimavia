@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nest
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { CreateSessionDto } from "../dto/create-session.dto";
+import { ReloadSessionExerciseDto } from "../dto/reload-session-exercise.dto";
 import { UpdateSessionDto } from "../dto/update-session.dto";
 import { SessionService } from "../service/session.service";
 
@@ -39,8 +40,9 @@ export class SessionController {
   reload(
     @Param("sessionId") sessionId: string,
     @Param("sessionExerciseId") sessionExerciseId: string,
+    @Body() dto: ReloadSessionExerciseDto,
   ) {
-    return this.sessions.reloadExerciseFromLibrary(sessionId, sessionExerciseId);
+    return this.sessions.reloadExerciseFromLibrary(sessionId, sessionExerciseId, dto);
   }
 
   @Delete(":id")
