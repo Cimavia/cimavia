@@ -28,7 +28,7 @@
     "check:i18n": "node scripts/check-i18n-keys.mjs",
     "check:lint-rules": "node scripts/check-lint-rules.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
-    "prepare": "husky"
+    "prepare": "husky && node scripts/worktree-env.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",
