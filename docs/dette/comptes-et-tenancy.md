@@ -737,6 +737,8 @@ liste des domaines vivent dans l'index.
 >   « Tu suivras les athlètes de … » — vrai dès que l'entreprise en aura.
 > - **Une suite e2e dédiée** (`organization.e2e-spec.ts`) plutôt qu'un ajout à `isolation` : elle
 >   éprouve les deux bouts et l'étanchéité entre entreprises sans alourdir le harnais commun.
+>   *Depuis #625, c'est le domaine `test/isolation/organization.ts` : la suite se découpe en
+>   domaines sous une seule entrée, et le harnais commun est sorti dans `test/support/`.*
 
 > **Tranché en [#602](https://github.com/Cimavia/cimavia/issues/602)** (l'entreprise invite des
 > athlètes, suivis par tous ses Coachs) : ce que le code ne dit pas seul.

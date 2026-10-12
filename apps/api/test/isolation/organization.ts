@@ -1,67 +1,22 @@
 import { InvitationRole, InvitationStatus } from "@cmv/shared";
-import type { NestFastifyApplication } from "@nestjs/platform-fastify";
-import { Test } from "@nestjs/testing";
-import request from "supertest";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { AppModule } from "../src/app.module";
-import { configureApp, createHttpAdapter } from "../src/app.setup";
-import { fr } from "../src/infra/mail/locale/fr";
-import type { MailMessage } from "../src/infra/mail/mail.service";
-import { MailService } from "../src/infra/mail/mail.service";
-import { PrismaService } from "../src/infra/prisma/prisma.service";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { fr } from "../../src/infra/mail/locale/fr";
+import { PrismaService } from "../../src/infra/prisma/prisma.service";
+import { type Agent, idOf, required, signUpWith } from "../support/actors";
+import { app, sentMails } from "../support/app";
 
 /**
  * L'entreprise ajoute des Coachs à son équipe (#601), et invite des athlètes que tous ses Coachs
  * suivent (#602).
  *
- * Une suite à part d'`isolation.e2e-spec.ts`, déjà longue de dix mille lignes : celle-ci ne dépend
- * d'aucun de ses blocs, et ses comptes portent le préfixe `org-` pour ne croiser personne. Le
- * harnais est le même — app montée une fois, transport d'e-mails doublé pour affirmer un NON-envoi.
+ * Ses comptes portent le préfixe `org-` pour ne croiser aucun autre domaine. Les deux blocs qui
+ * lisent `sentMails` le vident avant chaque test : le harnais le partage avec toute la suite.
  */
-
-const PASSWORD = "password123";
-
-type Agent = ReturnType<typeof request.agent>;
-
-let app: NestFastifyApplication;
-let baseURL: string;
-
-const sentMails: MailMessage[] = [];
-const mailServiceDouble = {
-  isConfigured: true,
-  send: (message: MailMessage) => {
-    sentMails.push(message);
-    return Promise.resolve(true);
-  },
-};
-
-function required<T>(value: T | undefined, what: string): T {
-  if (value === undefined) throw new Error(`Donnée de test absente : ${what}`);
-  return value;
-}
 
 const COACH = { isCoach: true, isAthlete: false };
 const ATHLETE = { isCoach: false, isAthlete: true };
 const BOTH = { isCoach: true, isAthlete: true };
 const COMPANY = { isCoach: false, isAthlete: false, isCompany: true };
-
-/** `name = email`, comme dans la suite d'isolation : le nom d'un compte s'y lit comme son adresse. */
-async function signUpWith(
-  email: string,
-  capabilities: { isCoach: boolean; isAthlete: boolean; isCompany?: boolean },
-): Promise<Agent> {
-  const agent = request.agent(baseURL);
-  const res = await agent
-    .post("/api/auth/sign-up/email")
-    .send({ name: email, email, password: PASSWORD, ...capabilities });
-  expect([200, 201]).toContain(res.status);
-  return agent;
-}
-
-async function idOf(agent: Agent): Promise<string> {
-  const session = await agent.get("/api/auth/get-session");
-  return required(session.body?.user?.id, "id de session");
-}
 
 async function invite(
   company: Agent,
@@ -79,36 +34,12 @@ const ATHLETE_INVITATIONS = "/organization/invitations?role=ATHLETE";
 const typesOf = async (agent: Agent): Promise<string[]> =>
   (await agent.get("/me/notifications")).body.map((entry: { type: string }) => entry.type);
 
-beforeAll(async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(MailService)
-    .useValue(mailServiceDouble)
-    .compile();
-  app = moduleRef.createNestApplication<NestFastifyApplication>(createHttpAdapter(), {
-    bodyParser: false,
-  });
-  configureApp(app);
-  await app.init();
-  await app.getHttpAdapter().getInstance().ready();
-
-  // `user` en CASCADE emporte tout ce qui en dépend : la suite rejouée ne bute pas sur ses adresses.
-  await app.get(PrismaService).$executeRawUnsafe(`TRUNCATE TABLE "user" CASCADE`);
-
-  const port = Number(process.env.PORT ?? 3001);
-  await app.listen(port);
-  baseURL = `http://localhost:${port}`;
-});
-
-afterAll(async () => {
-  await app?.close();
-});
-
-beforeEach(() => {
-  sentMails.length = 0;
-});
-
 describe("L'entreprise invite des Coachs (#601)", () => {
   let company: Agent;
+
+  beforeEach(() => {
+    sentMails.length = 0;
+  });
 
   beforeAll(async () => {
     company = await signUpWith("org-f@cmv.test", COMPANY);
@@ -433,6 +364,10 @@ describe("L'entreprise invite des athlètes, suivis par tous ses Coachs (#602)",
   let company: Agent;
   let c: { agent: Agent; id: string };
   let m: { agent: Agent; id: string };
+
+  beforeEach(() => {
+    sentMails.length = 0;
+  });
 
   beforeAll(async () => {
     company = await signUpWith("org-ath-f@cmv.test", COMPANY);

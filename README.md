@@ -93,6 +93,15 @@ pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e
 > base jetable du `docker-compose.test.yml` (5434), jamais sur celle de dev ni sur celle de preview — d'où le
 > modèle à copier tel quel, et le refus de démarrer si le nom de base ne finit pas par `_e2e`.
 
+> **Où écrire un e2e** : dans le module de son domaine, `apps/api/test/isolation/<domaine>.ts`, ou
+> dans un nouveau module : l'entrée `isolation.e2e-spec.ts` les charge tous, sans liste à tenir. Les
+> acteurs et les données de base viennent de `apps/api/test/support/`. Un module n'est pas une spec,
+> et n'a donc aucun hook de niveau fichier. Pour lancer un seul domaine, on filtre par titre :
+> `pnpm --filter @cmv/api exec vitest run --config vitest.config.e2e.ts -t "Rappels du coach"`
+> (une fois `@cmv/shared` compilé). `-t` est une **regex** : on coupe le titre avant sa
+> parenthèse, sinon « (#44) » ne correspond à rien et tout est sauté, en vert. Pourquoi une seule
+> spec : « Tranché en #625 ».
+
 ### Clés i18n assemblées
 
 Une clé écrite en dur est vue par TypeScript et par i18next. Une clé **assemblée** ne l'est par
