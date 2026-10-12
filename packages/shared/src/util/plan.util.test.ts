@@ -202,6 +202,26 @@ describe("selectCurrentPlan", () => {
     expect(selectCurrentPlan([ongoing], "2026-11-08")?.id).toBe("ongoing");
   });
 
+  /**
+   * Deux cycles partis le même lundi : le plus petit `id` est élu, comme `selectVisiblePlans` les
+   * range. Sans ce départage, l'ordre d'arrivée choisirait, et le tableau de bord changerait de
+   * cycle d'un chargement à l'autre.
+   */
+  it("départage par l'id deux cycles partis le même lundi, quel que soit l'ordre reçu", () => {
+    const twins = (startDate: string) =>
+      ["b", "a", "c"].map((id) => ({ id, startDate, weekCount: 4 }));
+    // En cours, à venir, terminés : les trois époques élisent par la même règle.
+    for (const [today, startDate] of [
+      ["2026-10-14", MONDAY],
+      ["2026-10-20", "2026-11-09"],
+      ["2026-12-25", "2026-09-07"],
+    ] as const) {
+      const plans = twins(startDate);
+      expect(selectCurrentPlan(plans, today)?.id).toBe("a");
+      expect(selectCurrentPlan(plans.toReversed(), today)?.id).toBe("a");
+    }
+  });
+
   it("retourne null sans plan exploitable (pas de valeur de repli)", () => {
     expect(selectCurrentPlan([], "2026-10-14")).toBeNull();
     // « Aujourd'hui » illisible : rien ne peut être situé, on ne devine pas.
@@ -260,16 +280,24 @@ describe("selectVisiblePlans", () => {
     expect(idsAt([ongoing], MONDAY)).toEqual(["ongoing"]);
   });
 
+  // Bornes incluses : le jour du départ comme le dernier dimanche, il court aux côtés du suivant.
+  it("sert le cycle du jour de son départ ou de sa fin avec celui qui arrive", () => {
+    expect(idsAt([ongoing, upcoming], MONDAY)).toEqual(["ongoing", "upcoming"]);
+    expect(idsAt([ongoing, upcoming], "2026-11-08")).toEqual(["ongoing", "upcoming"]);
+  });
+
   it("départage par l'id deux cycles partant le même lundi (ordre stable)", () => {
     const b = { id: "b", startDate: MONDAY, weekCount: 4 };
     const a = { id: "a", startDate: MONDAY, weekCount: 4 };
     expect(idsAt([b, a], "2026-10-14")).toEqual(["a", "b"]);
   });
 
+  // Dans chaque bloc, l'ordre des ids contredit celui des dates : c'est bien la date qui range.
   it("range les cycles en cours avant ceux à venir, chacun par date de début croissante", () => {
+    const earlier = { ...ongoing, id: "z-earlier" };
     const later = { id: "later", startDate: "2026-12-07", weekCount: 2 };
-    expect(idsAt([later, upcoming, second, ongoing], "2026-10-20")).toEqual([
-      "ongoing",
+    expect(idsAt([later, upcoming, second, earlier], "2026-10-20")).toEqual([
+      "z-earlier",
       "second",
       "upcoming",
       "later",
