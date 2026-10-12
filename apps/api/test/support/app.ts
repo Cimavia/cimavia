@@ -5,8 +5,8 @@ import { AppModule } from "../../src/app.module";
 import { configureApp, createHttpAdapter } from "../../src/app.setup";
 import type { MailMessage } from "../../src/infra/mail/mail.service";
 import { MailService } from "../../src/infra/mail/mail.service";
-import { PrismaService } from "../../src/infra/prisma/prisma.service";
-import { queryCountingPrisma } from "./query-count";
+import { PRISMA_LOG, PrismaService } from "../../src/infra/prisma/prisma.service";
+import { listenToQueries, QUERY_LOG } from "./query-count";
 
 // Toutes les tables du schéma (les `@@map` de Prisma), enfants avant parents.
 const TABLES = [
@@ -78,10 +78,11 @@ export function setupE2eApp(): void {
       // notifications) : c'est le transport qu'on double, pas les gabarits — eux restent les vrais.
       .overrideProvider(MailService)
       .useValue(mailServiceDouble)
-      // Le vrai service, construit avec son journal de requêtes : `countQueries` le lit (#629).
-      .overrideProvider(PrismaService)
-      .useValue(queryCountingPrisma())
+      // Le vrai service, construit par Nest avec le journal des requêtes (#629).
+      .overrideProvider(PRISMA_LOG)
+      .useValue(QUERY_LOG)
       .compile();
+    listenToQueries(moduleRef.get(PrismaService));
     app = moduleRef.createNestApplication<NestFastifyApplication>(createHttpAdapter(), {
       bodyParser: false,
     });

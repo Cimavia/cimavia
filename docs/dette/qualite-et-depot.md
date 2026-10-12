@@ -834,10 +834,11 @@ liste des domaines vivent dans l'index.
 >
 > **Les requêtes, comptées par l'événement `query` de Prisma**, que Prisma 7 émet aussi derrière
 > `adapter-pg`. Il faut le déclarer à la construction du client : `PrismaService` prend donc un
-> journal par le jeton `PRISMA_LOG`, qu'aucun module ne fournit — la prod ne journalise rien — et
-> que le harnais e2e passe à la main (`test/support/query-count.ts`). L'OpenTelemetry de Prisma
-> aurait évité de toucher au service, au prix des dépendances OpenTelemetry pour un compteur. Les ordres de
-> transaction ne comptent pas : Prisma rapporte le `COMMIT` mais jamais le `BEGIN`.
+> journal par le jeton `PRISMA_LOG`, que `PrismaModule` fournit vide — la prod ne journalise rien —
+> et que le harnais e2e remplace, en laissant Nest construire le service
+> (`test/support/query-count.ts`). L'OpenTelemetry de Prisma aurait évité de toucher au service,
+> au prix des dépendances OpenTelemetry pour un compteur. Les ordres de transaction ne comptent
+> pas : Prisma rapporte le `COMMIT` mais jamais le `BEGIN`.
 >
 > **Un budget exact, et identique sur deux jeux** (`test/isolation/query-budget.ts`). Chaque route
 > est lue sur un petit jeu puis sur un grand, et doit émettre exactement son chiffre les deux
