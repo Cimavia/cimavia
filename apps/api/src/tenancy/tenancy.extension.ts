@@ -1,158 +1,75 @@
-import type { CapabilityName } from "@cmv/shared";
+import { type CapabilityName, required } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
+import {
+  type CapabilityScope,
+  type OperationKind,
+  operationKindOf,
+  ownerColumnOrThrow,
+  type ParentLink,
+  parentIdsOrThrow,
+  scopeFor,
+  TENANT_SCOPES,
+  type TenantFilter,
+} from "./tenant-scope";
 
-/**
- * Registre du scope tenant par modèle métier : champ portant le coach propriétaire et, s'il y a
- * accès, l'athlète. Un modèle ABSENT d'ici est **refusé** via le client tenant (fail closed) —
- * ce qui force à rattacher explicitement toute nouvelle entité au tenant (règle dure).
- *
- * Trois familles, et le type les sépare (#600, #601) :
- * - un modèle d'ENTRAÎNEMENT appartient à un coach : son scope coach est obligatoire, le scope
- *   athlète optionnel — son absence est un refus (cf. `Reminder`) ;
- * - un modèle d'ENTREPRISE n'a qu'un scope `company`. Il n'a ni clé coach ni clé athlète, et un
- *   modèle d'entraînement n'a pas de clé `company` : un compte Entreprise ne peut donc atteindre
- *   AUCUN contenu d'entraînement, et c'est la structure du registre qui le dit, pas une règle de
- *   service ;
- * - un modèle ÉMIS par un Coach OU par une entreprise — `Invitation` seule (#601) : un scope
- *   coach et un scope `company`, chacun sur SA colonne d'émetteur, et jamais de scope athlète.
- *   Chaque capacité n'y voit que ce qu'elle a émis : l'émetteur absent d'une ligne y est `NULL`,
- *   que rien ne peut égaler. Le destinataire, lui, la lit par le client de base, sur l'adresse de
- *   sa session.
- *
- * Les `never` ferment les mélanges : un modèle d'entraînement qui recevrait `company`, ou un modèle
- * émis qui recevrait `athlete`, ne compile pas.
- */
-type TenantScope =
-  | { coach: string; athlete?: string; company?: never }
-  | { company: string; coach?: never; athlete?: never }
-  | { coach: string; company: string; athlete?: never };
-
-/**
- * Une clé n'est ouverte que si une route la TRAVERSE (#626) : le mutation testing a montré qu'on
- * pouvait vider `AthleteSheet.athlete`, `PlanWeek.athlete` et les deux tables de rattachement des
- * exercices planifiés sans qu'aucun test ne le voie — aucune route athlète n'interroge ces modèles
- * à plat. L'athlète lit ses semaines et ses rattachements IMBRIQUÉS dans la séance ou le cycle,
- * que l'extension ne voit pas : leur scope est celui du parent. Les colonnes `athleteId` restent,
- * la réaffectation d'un cycle les tient à jour. La fiche, elle, n'est à l'athlète en aucune façon
- * (`CONTEXT.cimavia.md`, matrice des capacités).
- */
-export const TENANT_SCOPES: Record<string, TenantScope> = {
-  CoachAthlete: { coach: "coachId", athlete: "athleteId" },
-  // Émise par un Coach (vers un athlète) ou par une entreprise (vers un Coach, #601).
-  Invitation: { coach: "coachId", company: "organizationId" },
-  AthleteSheet: { coach: "coachId" },
-  Exercise: { coach: "coachId" },
-  ExerciseDocument: { coach: "coachId" },
-  ExerciseTag: { coach: "coachId" },
-  CustomMetric: { coach: "coachId" },
-  Session: { coach: "coachId" },
-  SessionExercise: { coach: "coachId" },
-  Plan: { coach: "coachId", athlete: "athleteId" },
-  PlanWeek: { coach: "coachId" },
-  ScheduledSession: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExercise: { coach: "coachId", athlete: "athleteId" },
-  ScheduledSessionExerciseDocument: { coach: "coachId" },
-  ScheduledSessionExerciseTag: { coach: "coachId" },
-  SessionFeedback: { coach: "coachId", athlete: "athleteId" },
-  FeedbackMedia: {
-    // Le coach lit les médias IMBRIQUÉS dans le débrief, jamais à plat : sa clé ne sert à aucune
-    // route, mais un modèle d'entraînement en porte une par construction (`TenantScope`).
-    // Stryker disable next-line StringLiteral: clé coach imposée par le type, qu'aucune route ne traverse
-    coach: "coachId",
-    athlete: "athleteId",
-  },
-  Conversation: { coach: "coachId", athlete: "athleteId" },
-  Message: { coach: "coachId", athlete: "athleteId" },
-  Invoice: { coach: "coachId", athlete: "athleteId" },
-  PushToken: { coach: "userId", athlete: "userId" },
-  // Comme PushToken : le même champ pour les deux rôles, chacun ne lisant que ce qu'il a reçu.
-  // L'ÉCRITURE vise le destinataire, donc un AUTRE tenant → hors de ce client (NotificationService).
-  Notification: { coach: "recipientId", athlete: "recipientId" },
-  // Réglages d'e-mail (#65) : comme PushToken, chacun ne gère que les siens, dans les deux rôles.
-  // La LECTURE pour envoyer vise le destinataire, donc un autre tenant → NotificationService.
-  NotificationEmailPreference: { coach: "userId", athlete: "userId" },
-  /**
-   * Rappels (#44) — le SEUL modèle métier que l'athlète n'atteint d'aucune façon, ni à plat ni
-   * imbriqué : c'est un outil privé du coach, sans colonne athlète. L'absence de clé `athlete`
-   * n'est donc pas un oubli, c'est la règle — un athlète qui atteindrait ce modèle se verrait
-   * refusé par `tenantFilterOrThrow` (fail closed).
-   *
-   * Ce refus étant une ERREUR (500) et non un 403, deux gardes le précèdent :
-   * `@RequireCapability("coach")` sur le contrôleur, et le branchement par rôle du centre de
-   * notifications (#51), qui ne lit les rappels que pour un coach.
-   */
-  Reminder: { coach: "coachId" },
-  // L'entreprise (#600) : son id EST celui du compte Entreprise, qui ne voit qu'elle.
-  Organization: { company: "id" },
-  // Ses Coachs (#601). Le Coach n'y lit rien par ce client en v1 : ses entreprises viendront avec
-  // les droits d'accès (#605), avec leur propre clé.
-  OrganizationCoach: { company: "organizationId" },
-  // Ses athlètes (#602), au même titre. Le suivi, lui, reste dans `CoachAthlete`, sans clé
-  // `company` : l'entreprise sait qui en est, jamais ce qui s'y fait.
-  OrganizationAthlete: { company: "organizationId" },
+type ResolvedScope = {
+  scope: CapabilityScope;
+  kind: OperationKind;
+  actorId: string;
+  exercised: CapabilityName | null;
 };
 
-/**
- * Champ de scope applicable, ou `null` si la capacité exercée n'a aucun accès à ce modèle.
- *
- * Depuis #10, le champ se dérive de la capacité **exercée par la route** et non plus du rôle de
- * l'acteur — question qui n'avait plus de réponse dès qu'un compte porte les deux : `GET /invoices`
- * ne pouvait pas savoir s'il fallait montrer les factures émises ou reçues. La route le déclare
- * (`@RequireCapability`), l'interceptor le résout, on le lit ici.
- *
- * `exercised === null` (route qui n'exerce aucune capacité) n'est PAS un refus par défaut : c'est
- * le cas voulu de `Notification` et `PushToken`, dont le scope est le MÊME champ pour les deux
- * capacités. La condition l'exprime littéralement — un modèle dont les deux scopes coïncident n'a
- * pas besoin qu'on choisisse. Tout autre modèle atteint sans capacité déclarée est refusé, ce qui
- * transforme un oubli de décorateur en panne immédiate plutôt qu'en fuite de tenant.
- *
- * La capacité `company` ne s'ouvre qu'aux modèles qui portent sa clé (#600) ; un modèle émis
- * (#601) s'ouvre à l'entreprise ET au coach, chacun sur sa colonne.
- */
-export function tenantField(scope: TenantScope, exercised: CapabilityName | null): string | null {
-  switch (exercised) {
-    case "company":
-      return scope.company ?? null;
-    case "coach":
-      return scope.coach ?? null;
-    case "athlete":
-      return scope.athlete ?? null;
-    case null:
-      return scope.coach != null && scope.coach === scope.athlete ? scope.coach : null;
-  }
-}
-
-type TenantFilter = Record<string, unknown>;
+type Row = Record<string, unknown>;
 
 /**
- * Le filtre tenant applicable à cette requête, ou une erreur explicite. Trois refus, dans cet
- * ordre : pas d'acteur (requête hors contexte), modèle absent de TENANT_SCOPES (oubli de
- * rattachement), capacité sans accès. Aucun n'est silencieux — un scope manquant doit casser
- * bruyamment plutôt que servir la donnée d'un autre tenant.
+ * La transaction en cours, que Prisma passe à l'extension par un paramètre INTERNE, absent de ses
+ * types (`__internalParams`) — seul moyen de lire le parent dans la transaction qui vient de le
+ * créer (dette MC-3). Une montée de Prisma qui le retirerait ferait lire hors transaction : le parent
+ * encore non validé y est invisible, la création est refusée, et les e2e tombent.
  */
-function tenantFilterOrThrow(
+type PrismaTransaction = { kind: string };
+type InternalParams = { __internalParams?: { transaction?: PrismaTransaction } };
+
+/** Une lecture du client de base, rattachée à la transaction en cours par `requestTransaction`. */
+type ParentRead = PromiseLike<Row[]> & {
+  requestTransaction(transaction: PrismaTransaction): PromiseLike<Row[]>;
+};
+type ParentDelegate = { findMany(args: unknown): ParentRead };
+
+/**
+ * Le scope applicable à cette requête et la classe de son opération, ou une erreur explicite.
+ * Quatre refus, dans cet ordre : pas d'acteur (requête hors contexte), modèle absent de
+ * TENANT_SCOPES (oubli de rattachement), capacité sans accès, opération non gérée (`upsert` et
+ * les exotiques). Aucun n'est silencieux — un scope manquant doit casser bruyamment plutôt que
+ * servir la donnée d'un autre tenant.
+ */
+function resolveScopeOrThrow(
   model: string,
   operation: string,
   actor: TenantContext | undefined,
-): TenantFilter {
+): ResolvedScope {
   if (!actor) {
     throw new Error(
       `[tenancy] acteur courant absent — ${model}.${operation} exécuté hors contexte tenant`,
     );
   }
-  const scope = TENANT_SCOPES[model];
-  if (scope == null) {
+  const registered = TENANT_SCOPES[model];
+  if (registered == null) {
     throw new Error(`[tenancy] modèle non scopé : ${model} — rattacher au tenant avant usage`);
   }
-  const field = tenantField(scope, actor.exercised);
-  if (!field) {
+  const scope = scopeFor(registered, actor.exercised);
+  if (!scope) {
     throw new Error(
       `[tenancy] capacité ${actor.exercised ?? "(aucune déclarée)"} non autorisée sur ${model}`,
     );
   }
-  return { [field]: actor.userId };
+  const kind = operationKindOf(registered, operation);
+  if (!kind) {
+    throw new Error(`[tenancy] opération non gérée : ${operation} sur ${model}`);
+  }
+  return { scope, kind, actorId: actor.userId, exercised: actor.exercised };
 }
 
 /**
@@ -169,55 +86,113 @@ function scopeWhere(args: unknown, filter: TenantFilter): void {
   a.where = { ...a.where, ...filter };
 }
 
-// Création : le tenant est INJECTÉ dans les données — l'appelant ne le fournit jamais. `createMany`
-// reçoit un tableau, `create` un objet ; le test couvre les deux formes.
-function scopeData(args: unknown, filter: TenantFilter): void {
-  const a = args as { data?: Record<string, unknown> | Record<string, unknown>[] };
+// Création : le tenant est INJECTÉ dans les données — l'appelant ne le fournit jamais, et ce qu'il
+// glisserait est écrasé. `createMany` reçoit un tableau, `create` un objet ; les e2e couvrent les
+// deux formes.
+function scopeData(args: unknown, ownerOf: (row: Row) => TenantFilter): void {
+  const a = args as { data: Row | Row[] };
   a.data = Array.isArray(a.data)
-    ? a.data.map((item) => ({ ...item, ...filter }))
-    : { ...a.data, ...filter };
+    ? a.data.map((row) => ({ ...row, ...ownerOf(row) }))
+    : { ...a.data, ...ownerOf(a.data) };
+}
+
+/**
+ * Le propriétaire de chaque parent, lu avec le filtre d'ÉCRITURE de la capacité exercée (#603) :
+ * un parent introuvable, ou que l'acteur ne fait que lire (#605), fait refuser TOUTE la création.
+ *
+ * Par le client de base, avec le filtre posé à la main : le client tenant ne s'atteint pas d'ici.
+ * Dans la transaction en cours quand il y en a une — sinon le parent qu'elle vient de créer serait
+ * invisible. Une transaction en tableau n'y est pas admise : y glisser une lecture décalerait ses
+ * résultats, et aucun service ne crée d'enfant de cette façon.
+ */
+async function parentOwnersOrThrow(
+  prisma: PrismaClient,
+  parent: ParentLink,
+  child: { model: string; ids: string[] },
+  actor: { actorId: string; exercised: CapabilityName | null },
+  transaction: PrismaTransaction | undefined,
+): Promise<Map<unknown, unknown>> {
+  if (transaction != null && transaction.kind !== "itx") {
+    throw new Error(`[tenancy] ${child.model} ne se crée pas dans une transaction en tableau`);
+  }
+  const registered = TENANT_SCOPES[parent.model];
+  const parentScope = required(
+    registered && scopeFor(registered, actor.exercised),
+    // Stryker disable next-line StringLiteral: invariant du registre, qu'aucune requête n'atteint
+    `[tenancy] ${parent.model}, parent de ${child.model}, n'a pas de scope pour cette capacité`,
+  );
+  const column = ownerColumnOrThrow(parentScope, parent.model);
+  const delegateName = parent.model.charAt(0).toLowerCase() + parent.model.slice(1);
+  const delegate = required(
+    (prisma as unknown as Record<string, ParentDelegate | undefined>)[delegateName],
+    // Stryker disable next-line StringLiteral: invariant du registre, qu'aucune requête n'atteint
+    `[tenancy] ${parent.model}, parent de ${child.model}, n'est pas un modèle Prisma`,
+  );
+
+  const read = delegate.findMany({
+    where: { id: { in: child.ids }, ...parentScope.where(actor.actorId, "write") },
+    select: { id: true, [column]: true },
+  });
+  const parents = await (transaction == null ? read : read.requestTransaction(transaction));
+  if (parents.length !== child.ids.length) {
+    throw new Error(
+      `[tenancy] ${child.model} : son ${parent.model} est introuvable, ou fermé en écriture`,
+    );
+  }
+  return new Map(parents.map((row) => [row.id, row[column]]));
+}
+
+/**
+ * Création : l'acteur dans la colonne du scope, ou — pour un enfant partageable — le propriétaire
+ * de son parent (piège n°7). Une ligne sans parent optionnel (facture hors planification) prend
+ * l'acteur.
+ */
+async function scopeCreation(
+  prisma: PrismaClient,
+  args: unknown,
+  model: string,
+  resolved: ResolvedScope,
+  transaction: PrismaTransaction | undefined,
+): Promise<void> {
+  const { scope, actorId } = resolved;
+  const column = ownerColumnOrThrow(scope, model);
+  const parent = scope.parent;
+  if (parent == null) {
+    scopeData(args, () => ({ [column]: actorId }));
+    return;
+  }
+
+  const data = (args as { data: Row | Row[] }).data;
+  const ids = parentIdsOrThrow(Array.isArray(data) ? data : [data], parent, model);
+  const owners = await parentOwnersOrThrow(prisma, parent, { model, ids }, resolved, transaction);
+  scopeData(args, (row) => {
+    const parentId = row[parent.key];
+    return { [column]: parentId == null ? actorId : owners.get(parentId) };
+  });
 }
 
 /**
  * Prisma Client Extension appliquant le scope tenant à TOUTE requête métier.
  * L'acteur courant est lu dans le CLS (peuplé par TenancyInterceptor). Aucune query ne
- * s'exécute hors scope : lecture filtrée par `where`, écriture avec le champ tenant injecté.
+ * s'exécute hors scope : toute opération ciblée filtrée par le `where` de sa classe (#603),
+ * création avec le champ tenant injecté — celui de l'acteur, ou celui du parent.
  */
 export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
   return prisma.$extends({
     query: {
       $allModels: {
-        async $allOperations({ model, operation, args, query }) {
+        async $allOperations(params) {
+          const { model, operation, args, query } = params;
           const actor = cls.get<TenantContext | undefined>(TENANT_CLS_KEY);
-          const filter = tenantFilterOrThrow(model, operation, actor);
+          const resolved = resolveScopeOrThrow(model, operation, actor);
 
-          switch (operation) {
-            case "findUnique":
-            case "findUniqueOrThrow":
-            case "findFirst":
-            case "findFirstOrThrow":
-            case "findMany":
-            case "count":
-            case "aggregate":
-            case "groupBy":
-            case "update":
-            case "updateMany":
-            case "delete":
-            case "deleteMany":
-              scopeWhere(args, filter);
-              return query(args);
-
-            case "create":
-            case "createMany":
-            case "createManyAndReturn":
-              scopeData(args, filter);
-              return query(args);
-
-            default:
-              // upsert & opérations exotiques : interdites via le client tenant en P1
-              // (leur `where`/`create` unique créerait un angle mort de scope).
-              throw new Error(`[tenancy] opération non gérée : ${operation} sur ${model}`);
+          if (resolved.kind.creates) {
+            const { transaction } = (params as InternalParams).__internalParams ?? {};
+            await scopeCreation(prisma, args, model, resolved, transaction);
+          } else {
+            scopeWhere(args, resolved.scope.where(resolved.actorId, resolved.kind.operationClass));
           }
+          return query(args);
         },
       },
     },

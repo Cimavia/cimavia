@@ -69,8 +69,8 @@ export type ScheduledSessionExerciseDraft = {
  * Écrit la composition : un exercice par ligne, `position` = ordre du tableau (l'ordre DÉFINIT
  * les positions, comme pour la séance modèle), et ses documents recopiés.
  *
- * `athleteId` est passé explicitement : l'extension tenant n'injecte que le champ de l'ACTEUR
- * (ici `coachId`). Une copie inter-planification doit donc atterrir avec l'athlète du plan
+ * `athleteId` est passé explicitement : l'extension tenant n'injecte que le propriétaire,
+ * `coachId`, repris du parent (#603). Une copie inter-planification doit donc atterrir avec l'athlète du plan
  * CIBLE — le renseigner depuis la source ferait fuir une ligne dans le mauvais tenant.
  *
  * `null` est une valeur ATTENDUE (#144), pas une défaillance : composer un brouillon dont le
