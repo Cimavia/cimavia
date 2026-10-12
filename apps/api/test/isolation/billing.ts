@@ -12,6 +12,7 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
   let coachAId: string;
   let planId: string;
   let invoiceId: string;
+  let documentPath: string;
 
   const monday = mondayOfCurrentWeek();
 
@@ -107,9 +108,10 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
       headers: { "content-type": "application/pdf" },
     });
     expect(put.status).toBe(200);
+    documentPath = signed.body.storagePath;
 
     const attached = await coachA.put(`/plans/${planId}/billing/document`).send({
-      storagePath: signed.body.storagePath,
+      storagePath: documentPath,
       fileName: "facture-juillet.pdf",
       mimeType: "application/pdf",
       size: 20_000,
@@ -134,6 +136,27 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
           .send({ fileName: "x.pdf", mimeType: "application/pdf", size: 1000 })
       ).status,
     ).toBe(404);
+  });
+
+  /**
+   * Remplacer et retirer le justificatif PURGENT l'objet du bucket (#325) : sans le scope, l'autre
+   * coach effacerait le PDF de A. Il tente avec la clé exacte de A, celle qui passerait
+   * `assertKeyUnder` si le cycle lui était rendu — et avant la diffusion, quand ces deux écritures
+   * sont encore ouvertes à A.
+   */
+  it("un autre coach ne remplace ni ne retire le justificatif (404), et l'objet reste servi", async () => {
+    const replaced = await coachB.put(`/plans/${planId}/billing/document`).send({
+      storagePath: documentPath,
+      fileName: "detourne.pdf",
+      mimeType: "application/pdf",
+      size: 20_000,
+    });
+    const removed = await coachB.delete(`/plans/${planId}/billing/document`);
+    expect([replaced.status, removed.status]).toEqual([404, 404]);
+
+    const billing = await coachA.get(`/plans/${planId}/billing`);
+    expect(billing.body.documentFileName).toBe("facture-juillet.pdf");
+    expect((await fetch(billing.body.documentUrl)).status).toBe(200);
   });
 
   it("diffuser le cycle émet la facture (DRAFT → PENDING) et notifie l'athlète", async () => {
