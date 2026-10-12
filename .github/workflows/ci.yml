@@ -89,6 +89,17 @@ jobs:
       - name: Check journal de dette
         run: pnpm check:dette
 
+      # Une migration qui supprime une colonne passait la CI sans signal, et preview la joue au
+      # démarrage, sur les données réelles du Coach bêta (#628). squawk relit les seuls
+      # `migration.sql` que la PR apporte ; une opération voulue se déclare dans le fichier, avec sa
+      # raison. Une étape de `quality`, comme commitlint : elle hérite de son statut requis. Sur les
+      # PR seulement — le run de release n'apporte aucune migration qui n'ait déjà été relue.
+      - name: Migrations (squawk)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: pnpm check:migrations --base "$BASE_SHA"
+
       - name: Typecheck
         run: pnpm turbo typecheck
 
