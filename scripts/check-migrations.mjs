@@ -42,7 +42,7 @@ const IGNORE = /(?:--|\/\*)\s*squawk-ignore(-file)?\b(.*)$/;
 /** Ce que squawk ne dit pas lui-même : quoi faire d'une règle qui mord. */
 const HINTS = {
   "prefer-robust-stmts":
-    "migration non atomique : l'envelopper dans `BEGIN;` … `COMMIT;`, ou rendre chaque instruction rejouable (CONTRIBUTING.md, « Migrations »).",
+    "migration non atomique : l'envelopper dans `BEGIN;` … `COMMIT;`, ou rendre chaque instruction rejouable (CONTRIBUTING.md, « Migrations Prisma »).",
   "unused-ignore":
     "nom de règle inconnu de squawk : l'exception ne tait rien (https://squawkhq.com/docs/rules).",
   "transaction-nesting":
