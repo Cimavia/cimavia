@@ -2,6 +2,7 @@ import { Role, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
+import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
 
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
@@ -533,6 +534,27 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     );
     expect((await coachB.delete(`/plan-weeks/${week2Id}`)).status).toBe(404);
     expect((await coachB.get(`/scheduled-sessions/${scheduledId}`)).status).toBe(404);
+  });
+
+  // Les écritures, sous le même scope (#325) : le détail des tentatives est dans le harnais.
+  it("un coach n'écrit nulle part dans le cycle d'un autre, et le cycle reste intact", async () => {
+    const planOfA = async () => withoutSignatures((await coachA.get(`/plans/${planId}`)).body);
+    const sessionOfA = async () =>
+      withoutSignatures((await coachA.get(`/scheduled-sessions/${scheduledId}`)).body);
+    const planBefore = await planOfA();
+    const sessionBefore = await sessionOfA();
+    expect([planBefore, sessionBefore]).toMatchObject([{ id: planId }, { id: scheduledId }]);
+
+    const statuses = await attemptPlanWrites(coachB, {
+      planId,
+      weekId: week1Id,
+      sessionId: scheduledId,
+      monday,
+    });
+
+    expect(statuses).toEqual(notFoundEverywhere(statuses));
+    expect(await planOfA()).toEqual(planBefore);
+    expect(await sessionOfA()).toEqual(sessionBefore);
   });
 
   it("refuse de diffuser un cycle sans semaine (rien à consulter)", async () => {
