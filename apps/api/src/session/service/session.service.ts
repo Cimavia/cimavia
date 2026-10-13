@@ -85,7 +85,7 @@ export class SessionService {
     assertReadAtVersion(current.updatedAt, expected);
     // Un exercice que la séance cite déjà reste citable, même privé : le droit vient d'elle.
     const library = await this.loadCited(input.exercises, current);
-    return this.db.$transaction(async (tx) => {
+    const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(
         tx.session,
         id,
@@ -105,8 +105,11 @@ export class SessionService {
       // Relue DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version et NOS lignes. Relue après, elle pourrait déjà porter celles d'un autre
       // Coach — que le builder, qui garde sa saisie, reprendrait comme les siennes.
-      return this.getDto(id, tx, context);
+      return this.getReadableOrThrow(id, tx);
     });
+    // Le DTO hors de la transaction : les catalogues ne sont pas versionnés avec la séance, et
+    // les lire par une autre connexion pendant qu'elle tient la sienne épuiserait le pool.
+    return this.toDto(saved, context);
   }
 
   /**
@@ -162,12 +165,12 @@ export class SessionService {
     return { session: row, context };
   }
 
-  private async getDto(
-    id: string,
-    db: TenantPrisma | TenantTx = this.db,
-    context?: AccessContext,
-  ): Promise<SessionDto> {
-    const [dto] = await this.toDtos([await this.getReadableOrThrow(id, db)], context);
+  private async getDto(id: string): Promise<SessionDto> {
+    return this.toDto(await this.getReadableOrThrow(id));
+  }
+
+  private async toDto(session: SessionWithExercises, context?: AccessContext): Promise<SessionDto> {
+    const [dto] = await this.toDtos([session], context);
     return required(dto, "[session] une séance, un DTO");
   }
 
@@ -227,7 +230,7 @@ export class SessionService {
     input: ReloadSessionExerciseInput,
   ): Promise<SessionDto> {
     const { context } = await this.getForOrThrow(sessionId, "write");
-    return this.db.$transaction(async (tx) => {
+    const saved = await this.db.$transaction(async (tx) => {
       // Rien d'autre à écrire sur la séance : seule sa version avance.
       await writeAtVersion(
         tx.session,
@@ -245,7 +248,11 @@ export class SessionService {
       }
       // Lisible, ou privé au propriétaire de la séance qui le cite (#605) — pas l'exercice d'un
       // tiers que l'acteur ne lit pas : recharger en recopierait le dosage.
-      const library = await this.library.loadAccessibleOrThrow([composed.exerciseId], sessionId);
+      const library = await this.library.loadAccessibleOrThrow(
+        [composed.exerciseId],
+        sessionId,
+        tx,
+      );
       const blocks = parseBlocks(
         required(library.get(composed.exerciseId), "[session] exercice rechargé non chargé").blocks,
       );
@@ -258,8 +265,9 @@ export class SessionService {
         },
       });
       // Dans la transaction, comme après un enregistrement : la réponse porte NOTRE version.
-      return this.getDto(sessionId, tx, context);
+      return this.getReadableOrThrow(sessionId, tx);
     });
+    return this.toDto(saved, context);
   }
 
   /**

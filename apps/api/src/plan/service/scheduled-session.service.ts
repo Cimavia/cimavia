@@ -465,6 +465,18 @@ export class ScheduledSessionService {
     if (template == null) {
       throw new BadRequestException("Séance modèle inconnue");
     }
+    const heading = {
+      title: input.title ?? template.title,
+      notes: input.notes !== undefined ? (input.notes ?? null) : template.notes,
+    };
+    // La composition envoyée remplace la copie : copier le modèle ne servirait à rien, et refuserait
+    // pour un exercice que la saisie a justement retiré. Les siens se prouvent dans `loadSources`.
+    if (input.exercises != null) {
+      return {
+        draft: { ...heading, exercises: composedByClient(input.exercises) },
+        library: new Map(),
+      };
+    }
 
     // Prouvés accessibles, et lus à travers le modèle quand ils ne le sont que par lui : un
     // exercice privé de C, dans la séance qu'il ouvre à F, se recopie dans la planification de M.
@@ -507,13 +519,8 @@ export class ScheduledSessionService {
       return { exercise: copy, baselineAdjustments: adjustments };
     });
 
-    const draft = {
-      title: input.title ?? template.title,
-      notes: input.notes !== undefined ? (input.notes ?? null) : template.notes,
-      exercises: input.exercises == null ? copied : composedByClient(input.exercises),
-    };
     // Rendus avec le brouillon : `create` y prend les documents sans relire la bibliothèque.
-    return { draft, library };
+    return { draft: { ...heading, exercises: copied }, library };
   }
 
   /**

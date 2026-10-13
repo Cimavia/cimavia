@@ -836,6 +836,18 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         .send({ sourceSessionId: mixte.body.id, scheduledDate: mondayOfCurrentWeek() });
       expect(planned.status).toBe(400);
       expect(planned.body.message).toBe("Un ou plusieurs exercices sont inconnus");
+      // Sans Toit dans la composition qu'il envoie, M planifie : la copie qu'il remplace n'est
+      // pas validée pour rien.
+      const composed = await m.post(`/plan-weeks/${mWeekId}/sessions`).send({
+        sourceSessionId: mixte.body.id,
+        scheduledDate: mondayOfCurrentWeek(),
+        exercises: [{ title: "Voie", sourceExerciseId: voieId }],
+      });
+      expect(composed.status).toBe(201);
+      expect(composed.body).toMatchObject({
+        title: "Mixte",
+        exercises: [{ title: "Voie", sourceExerciseId: voieId, customMetrics: [] }],
+      });
       const [toitRow, voieRow] = session.body.exercises;
       const reload = await m
         .post(`/sessions/${mixte.body.id}/exercises/${toitRow.id}/reload`)

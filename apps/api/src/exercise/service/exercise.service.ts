@@ -30,11 +30,13 @@ import {
 } from "../../access/access.mapper";
 import { type AccessGesture, AccessService } from "../../access/service/access.service";
 import { AccessGrantService } from "../../access/service/access-grant.service";
+import type { CatalogOf } from "../../custom-metric/custom-metric.mapper";
 import {
   assertCitesCatalog,
   CustomMetricService,
 } from "../../custom-metric/service/custom-metric.service";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { explainForeignKeyViolation } from "../../infra/prisma/prisma-error";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -78,19 +80,21 @@ export class ExerciseService {
   private async toDto(
     exercise: ExerciseWithDocuments,
     context?: AccessContext,
+    catalogOf?: CatalogOf,
   ): Promise<ExerciseDto> {
-    const [dto] = await this.toDtos([exercise], context);
+    const [dto] = await this.toDtos([exercise], context, catalogOf);
     return required(dto, "[exercise] un exercice, un DTO");
   }
 
   // Un seul aller-retour pour les catalogues de tous les propriétaires de la page, et un pour les
-  // entreprises de l'acteur.
+  // entreprises de l'acteur ; aucun pour ce que l'appelant a déjà lu.
   private async toDtos(
     exercises: ExerciseWithDocuments[],
     context?: AccessContext,
+    loadedCatalogOf?: CatalogOf,
   ): Promise<ExerciseDto[]> {
     const [catalogOf, actor] = await Promise.all([
-      this.metrics.catalogOf(exercises.map((exercise) => exercise.coachId)),
+      loadedCatalogOf ?? this.metrics.catalogOf(exercises.map((exercise) => exercise.coachId)),
       context ?? this.access.context(),
     ]);
     return Promise.all(
@@ -151,18 +155,19 @@ export class ExerciseService {
   async loadAccessibleOrThrow(
     ids: readonly string[],
     citedBy: string | null = null,
+    db: TenantPrisma | TenantTx = this.db,
   ): Promise<Map<string, LibraryExercise>> {
     const wanted = [...new Set(ids)];
     if (wanted.length === 0) return new Map();
 
-    const readable = await this.db.exercise.findMany({
+    const readable = await db.exercise.findMany({
       where: { id: { in: wanted } },
       include: LIBRARY_EXERCISE_INCLUDE,
     });
     const byId = new Map(readable.map((exercise) => [exercise.id, exercise]));
     const missing = wanted.filter((id) => !byId.has(id));
     if (missing.length > 0 && citedBy != null) {
-      const cited = await this.db.sessionExercise.findMany({
+      const cited = await db.sessionExercise.findMany({
         where: { sessionId: citedBy, exerciseId: { in: missing } },
         include: { exercise: { include: LIBRARY_EXERCISE_INCLUDE } },
       });
@@ -339,7 +344,11 @@ export class ExerciseService {
    * PROPRIÉTAIRE (#605). Dans l'exercice de C, le sélecteur de M ne propose que celles de C.
    */
   async customMetricsOf(id: string): Promise<CustomMetric[]> {
-    const exercise = await this.getReadableOrThrow(id);
+    // Le propriétaire seul : documents, tags et décompte ne serviraient à rien ici.
+    const exercise = await this.db.exercise.findFirst({ where: { id }, select: { coachId: true } });
+    if (exercise == null) {
+      throw new NotFoundException(EXERCISE_NOT_FOUND);
+    }
     return this.metrics.catalogDtosOf(exercise.coachId);
   }
 
@@ -358,8 +367,10 @@ export class ExerciseService {
     // Avant de valider les images de consigne contre un état que la saisie n'a pas vu.
     assertReadAtVersion(current.updatedAt, expected);
     assertInstructionImagesOwned(input.instructions, current.documents);
+    // Lu une fois : la réponse résout les mêmes citations dans le même catalogue.
+    let catalogOf: CatalogOf | undefined;
     if (input.blocks !== undefined) {
-      const catalogOf = await this.metrics.catalogOf([current.coachId]);
+      catalogOf = await this.metrics.catalogOf([current.coachId]);
       assertCitesCatalog(input.blocks, parseBlocks(current.blocks), catalogOf(current.coachId));
     }
     const data: Prisma.ExerciseUpdateManyMutationInput = {};
@@ -382,7 +393,7 @@ export class ExerciseService {
       // builder, qui garde une saisie faite pendant l'envoi, la citerait par-dessus lui.
       return this.getReadableOrThrow(id, tx);
     });
-    return this.toDto(saved, context);
+    return this.toDto(saved, context, catalogOf);
   }
 
   /**
@@ -396,7 +407,12 @@ export class ExerciseService {
     assertReadAtVersion(exercise.updatedAt, expected);
     await this.assertUnused(exercise);
 
-    await deleteAtVersion(this.db.exercise, id, expected, EXERCISE_NOT_FOUND);
+    // Un Coach qui lit l'exercice a pu le citer depuis le décompte : la clé étrangère refuse, et
+    // le même 409 le dit plutôt qu'un 500.
+    await explainForeignKeyViolation(
+      () => deleteAtVersion(this.db.exercise, id, expected, EXERCISE_NOT_FOUND),
+      () => this.assertUnused(exercise),
+    );
 
     // Les lignes ExerciseDocument sont parties en cascade, mais PAS les objets en storage : on les
     // supprime explicitement, sinon ils resteraient orphelins (et facturés). Sauf ceux qu'une
@@ -442,8 +458,12 @@ export class ExerciseService {
       where: { coachId: { in: [...new Set(citations.map((c) => c.session.coachId))] } },
       select: { coachId: true, organizationId: true },
     });
-    const organizationsOf = (coachId: string) =>
-      new Set(memberships.filter((m) => m.coachId === coachId).map((m) => m.organizationId));
+    // Groupées une fois : chaque citation de chaque exercice y cherche son Coach.
+    const byCoach = new Map<string, Set<string>>();
+    for (const { coachId, organizationId } of memberships) {
+      byCoach.set(coachId, (byCoach.get(coachId) ?? new Set()).add(organizationId));
+    }
+    const organizationsOf = (coachId: string) => byCoach.get(coachId) ?? new Set<string>();
     const losing = new Set(
       exercises.flatMap((exercise) =>
         citationsLosingRead(
