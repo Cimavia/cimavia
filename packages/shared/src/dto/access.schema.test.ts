@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACCESS_MAX_CHANGES,
   ACCESS_MAX_TARGETS,
   accessGrantDtoSchema,
   accessOwnerSchema,
@@ -32,6 +33,8 @@ describe("libraryScopeQuerySchema", () => {
 });
 
 const distinctIds = (count: number) => Array.from({ length: count }, (_, i) => `e${i}`);
+const distinctChanges = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({ organizationId: `org-${i}`, level: null }));
 
 describe("changeAccessSchema", () => {
   const valid = { ids: ["e1", "e2"], changes: [{ organizationId: "org-f", level: "WRITE" }] };
@@ -87,6 +90,7 @@ describe("changeAccessSchema", () => {
       },
     ],
     ["trop d'éléments", { ...valid, ids: distinctIds(ACCESS_MAX_TARGETS + 1) }],
+    ["trop d'entreprises", { ...valid, changes: distinctChanges(ACCESS_MAX_CHANGES + 1) }],
     ["un champ inconnu", { ...valid, replace: true }],
   ])("refuse %s", (_, input) => {
     expect(changeAccessSchema.safeParse(input).success).toBe(false);
@@ -95,6 +99,10 @@ describe("changeAccessSchema", () => {
   it("accepte le plafond exact", () => {
     expect(
       changeAccessSchema.safeParse({ ...valid, ids: distinctIds(ACCESS_MAX_TARGETS) }).success,
+    ).toBe(true);
+    expect(
+      changeAccessSchema.safeParse({ ...valid, changes: distinctChanges(ACCESS_MAX_CHANGES) })
+        .success,
     ).toBe(true);
   });
 });

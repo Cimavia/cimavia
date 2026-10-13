@@ -73,6 +73,12 @@ export type LibraryScopeQuery = z.infer<typeof libraryScopeQuerySchema>;
 export const ACCESS_MAX_TARGETS = 200;
 
 /**
+ * Les entreprises changées d'un coup. Chacune coûte des écritures, et un retrait (« Aucun ») ne
+ * vérifie pas l'appartenance : sans plafond, une requête pourrait en citer autant qu'elle veut.
+ */
+export const ACCESS_MAX_CHANGES = 50;
+
+/**
  * Changer les droits de plusieurs éléments à la fois (#597) : seuls les bénéficiaires CHANGÉS sont
  * envoyés. Une ligne restée « Mixte » n'est pas dans `changes`, et chaque élément garde sa valeur.
  * Remplacer tous les droits de chaque élément l'aurait écrasée.
@@ -99,6 +105,7 @@ export const changeAccessSchema = z
           .strict(),
       )
       .min(1)
+      .max(ACCESS_MAX_CHANGES)
       .refine((changes) => new Set(changes.map((c) => c.organizationId)).size === changes.length, {
         message: "Une entreprise ne peut pas être citée deux fois.",
       }),
