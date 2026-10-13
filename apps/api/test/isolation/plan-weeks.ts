@@ -1,7 +1,18 @@
-import { PLAN_MAX_WEEKS, Role, shiftIsoDate } from "@cmv/shared";
+import { PLAN_MAX_WEEKS, Role, STALE_WRITE, shiftIsoDate } from "@cmv/shared";
+import type request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
+import {
+  ANY_VERSION,
+  atWeekVersion,
+  deleteAtLatest,
+  expectLocked,
+  patchAtLatest,
+  putAtLatest,
+  versionOf,
+  weekVersionOf,
+} from "../support/version";
 
 describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
   let coach: Agent;
@@ -86,7 +97,9 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
       .send({ title: "Mardi de S3", scheduledDate: day(15) });
     expect(moved.status).toBe(201);
 
-    const res = await coach.delete(`/plan-weeks/${week2.id}`);
+    const res = await coach
+      .delete(`/plan-weeks/${week2.id}`)
+      .query(await atWeekVersion(coach, plan.body.id, week2.id));
 
     expect(res.status).toBe(200);
     expect(res.body.weekCount).toBe(2);
@@ -112,11 +125,15 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     });
     const weekId = plan.body.weeks[0].id;
 
-    const noted = await coach.patch(`/plan-weeks/${weekId}`).send({ note: "volume -30 %" });
+    const noted = await coach
+      .patch(`/plan-weeks/${weekId}`)
+      .send(await atWeekVersion(coach, plan.body.id, weekId, { note: "volume -30 %" }));
     expect(noted.status).toBe(200);
     expect(noted.body.weeks[0]).toMatchObject({ type: "DELOAD", note: "volume -30 %" });
 
-    const typed = await coach.patch(`/plan-weeks/${weekId}`).send({ type: "TRAINING" });
+    const typed = await coach
+      .patch(`/plan-weeks/${weekId}`)
+      .send(await atWeekVersion(coach, plan.body.id, weekId, { type: "TRAINING" }));
     expect(typed.body.weeks[0]).toMatchObject({ type: "TRAINING", note: "volume -30 %" });
   });
 
@@ -128,7 +145,10 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
       weeks: [{ type: "TRAINING" }, { type: "DELOAD" }],
     });
 
-    const res = await coach.delete(`/plan-weeks/${plan.body.weeks[1].id}`);
+    const lastId = plan.body.weeks[1].id;
+    const res = await coach
+      .delete(`/plan-weeks/${lastId}`)
+      .query(await atWeekVersion(coach, plan.body.id, lastId));
 
     expect(res.body.weeks).toEqual([
       expect.objectContaining({ id: plan.body.weeks[0].id, weekNumber: 1, startDate: monday }),
@@ -154,7 +174,9 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     expect(kept.status).toBe(201);
     expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
 
-    const res = await coach.delete(`/plan-weeks/${week2.id}`);
+    const res = await coach
+      .delete(`/plan-weeks/${week2.id}`)
+      .query(await atWeekVersion(coach, plan.body.id, week2.id));
 
     expect(res.status).toBe(409);
     expect(res.body.message).toContain("diffusé");
@@ -179,7 +201,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     });
     expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
 
-    const res = await coach.delete(`/plans/${plan.body.id}`);
+    const res = await deleteAtLatest(coach, `/plans/${plan.body.id}`);
 
     expect(res.status).toBe(409);
     expect(res.body.message).toContain("diffusé");
@@ -214,7 +236,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     const empty = await coach
       .post("/plans")
       .send({ title: "Encore vide", startDate: monday, weeks: [{ type: "TRAINING" }] });
-    const assignedEmpty = await coach.patch(`/plans/${empty.body.id}`).send({ athleteId });
+    const assignedEmpty = await patchAtLatest(coach, `/plans/${empty.body.id}`, { athleteId });
     expect(assignedEmpty.status).toBe(200);
     expect(assignedEmpty.body.athleteId).toBe(athleteId);
 
@@ -226,7 +248,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
       .send({ title: "Échauffement libre", scheduledDate: monday });
     expect(session.body.exercises).toEqual([]);
 
-    expect((await coach.patch(`/plans/${bare.body.id}`).send({ athleteId })).status).toBe(200);
+    expect((await patchAtLatest(coach, `/plans/${bare.body.id}`, { athleteId })).status).toBe(200);
     expect((await billAndPublish(coach, bare.body.id)).status).toBe(200);
 
     const read = await athlete.get(`/me/scheduled-sessions/${session.body.id}`);
@@ -277,8 +299,15 @@ describe("Copie d'une semaine de planification (#4)", () => {
     return plan.body.weeks.find((w: { id: string }) => w.id === weekId);
   }
 
-  async function paste(coach: Agent, targetWeekId: string, sourcePlanWeekId: string) {
-    return coach.post(`/plan-weeks/${targetWeekId}/copy-from`).send({ sourcePlanWeekId });
+  // Le collage cite la version de la semaine CIBLE (#604) : c'est elle qu'il écrase.
+  async function paste(
+    coach: Agent,
+    [targetPlanId, targetWeekId]: [string, string],
+    sourcePlanWeekId: string,
+  ) {
+    return coach
+      .post(`/plan-weeks/${targetWeekId}/copy-from`)
+      .send(await atWeekVersion(coach, targetPlanId, targetWeekId, { sourcePlanWeekId }));
   }
 
   beforeAll(async () => {
@@ -374,7 +403,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
   });
 
   it("colle le contenu d'une semaine dans une autre, en REMPLAÇANT ce qui s'y trouvait", async () => {
-    const res = await paste(coachA, w3Id, w1Id);
+    const res = await paste(coachA, [draftPlanId, w3Id], w1Id);
     expect(res.status).toBe(201);
 
     const week3 = res.body.weeks.find((w: { id: string }) => w.id === w3Id);
@@ -450,7 +479,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     expect(source.status).toBe(201);
     const sourceMediaId = source.body.exercises[0].instructions[0].mediaId;
 
-    expect((await paste(coachA, targetWeekId, sourceWeekId)).status).toBe(201);
+    expect((await paste(coachA, [plan.body.id, targetWeekId], sourceWeekId)).status).toBe(201);
 
     const target = await weekOf(coachA, plan.body.id, targetWeekId);
     const copied = await coachA.get(`/scheduled-sessions/${target.sessions[0].id}`);
@@ -459,26 +488,32 @@ describe("Copie d'une semaine de planification (#4)", () => {
     expect(mediaId).not.toBe(sourceMediaId);
     expect(line.documents.map((d: { id: string }) => d.id)).toContain(mediaId);
 
-    await coachA.delete(`/plans/${plan.body.id}`);
+    await deleteAtLatest(coachA, `/plans/${plan.body.id}`);
   });
 
   it("emporte le type et la note de la semaine, pas seulement ses séances", async () => {
-    await coachA.patch(`/plan-weeks/${w1Id}`).send({ type: "DELOAD", note: "volume -40 %" });
+    await coachA
+      .patch(`/plan-weeks/${w1Id}`)
+      .send(
+        await atWeekVersion(coachA, draftPlanId, w1Id, { type: "DELOAD", note: "volume -40 %" }),
+      );
 
-    const res = await paste(coachA, w4Id, w1Id);
+    const res = await paste(coachA, [draftPlanId, w4Id], w1Id);
     expect(res.status).toBe(201);
 
     const week4 = res.body.weeks.find((w: { id: string }) => w.id === w4Id);
     expect(week4.type).toBe("DELOAD");
     expect(week4.note).toBe("volume -40 %");
 
-    await coachA.patch(`/plan-weeks/${w1Id}`).send({ type: "TRAINING", note: null });
+    await coachA
+      .patch(`/plan-weeks/${w1Id}`)
+      .send(await atWeekVersion(coachA, draftPlanId, w1Id, { type: "TRAINING", note: null }));
   });
 
   it("une séance faite arrive PLANNED, et son débrief ne la suit pas", async () => {
     // La source est le cycle DIFFUSÉ : y lire ne le mute pas, et c'est le cas d'usage réel
     // (« reprendre le bloc du mois dernier »).
-    const res = await paste(coachA, w2Id, liveWeekId);
+    const res = await paste(coachA, [draftPlanId, w2Id], liveWeekId);
     expect(res.status).toBe(201);
 
     const week2 = res.body.weeks.find((w: { id: string }) => w.id === w2Id);
@@ -499,7 +534,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
   });
 
   it("colle vers le cycle d'un AUTRE athlète : les séances atterrissent chez lui seul", async () => {
-    const res = await paste(coachA, otherWeekId, w1Id);
+    const res = await paste(coachA, [otherPlanId, otherWeekId], w1Id);
     expect(res.status).toBe(201);
 
     const week = res.body.weeks.find((w: { id: string }) => w.id === otherWeekId);
@@ -523,7 +558,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
   it("refuse de coller dans un cycle DIFFUSÉ (409), sans rien y écrire", async () => {
     const before = await weekOf(coachA, livePlanId, liveWeekId);
 
-    const res = await paste(coachA, liveWeekId, w1Id);
+    const res = await paste(coachA, [livePlanId, liveWeekId], w1Id);
     expect(res.status).toBe(409);
 
     const after = await weekOf(coachA, livePlanId, liveWeekId);
@@ -534,38 +569,490 @@ describe("Copie d'une semaine de planification (#4)", () => {
   it("coller dans un brouillon n'émet AUCUNE notification à l'athlète", async () => {
     const before = (await athleteA1.get("/me/notifications")).body.length;
 
-    expect((await paste(coachA, w3Id, w1Id)).status).toBe(201);
+    expect((await paste(coachA, [draftPlanId, w3Id], w1Id)).status).toBe(201);
 
     expect((await athleteA1.get("/me/notifications")).body.length).toBe(before);
   });
 
   it("refuse une semaine source inconnue par un 400 — jamais un 404 qui confirmerait son id", async () => {
     // La semaine existe, mais chez un autre coach : indiscernable d'un id inventé.
-    const foreign = await paste(coachA, w2Id, foreignWeekId);
+    const foreign = await paste(coachA, [draftPlanId, w2Id], foreignWeekId);
     expect(foreign.status).toBe(400);
 
-    const unknown = await paste(coachA, w2Id, "pw_inexistante");
+    const unknown = await paste(coachA, [draftPlanId, w2Id], "pw_inexistante");
     expect(unknown.status).toBe(400);
     expect(unknown.status).toBe(foreign.status);
   });
 
   it("refuse une semaine cible qui n'est pas la sienne (404)", async () => {
-    expect((await paste(coachA, foreignWeekId, w1Id)).status).toBe(404);
+    // A ne lit pas la version de B : il en cite une bien formée, le 404 tombe avant de la comparer.
+    const res = await coachA
+      .post(`/plan-weeks/${foreignWeekId}/copy-from`)
+      .send({ sourcePlanWeekId: w1Id, expectedUpdatedAt: ANY_VERSION });
+    expect(res.status).toBe(404);
   });
 
   it("refuse la copie d'une semaine sur elle-même", async () => {
     // Ce n'est pas un no-op : détruire puis recréer donnerait de nouveaux id aux séances.
-    expect((await paste(coachA, w1Id, w1Id)).status).toBe(400);
+    expect((await paste(coachA, [draftPlanId, w1Id], w1Id)).status).toBe(400);
   });
 
   it("refuse toute date proposée par le client (le schéma est strict)", async () => {
-    const res = await coachA
-      .post(`/plan-weeks/${w2Id}/copy-from`)
-      .send({ sourcePlanWeekId: w1Id, scheduledDate: day(0) });
+    const res = await coachA.post(`/plan-weeks/${w2Id}/copy-from`).send(
+      await atWeekVersion(coachA, draftPlanId, w2Id, {
+        sourcePlanWeekId: w1Id,
+        scheduledDate: day(0),
+      }),
+    );
     expect(res.status).toBe(400);
   });
 
   it("la route reste fermée à l'athlète", async () => {
     expect((await athleteA1.post(`/plan-weeks/${w3Id}/copy-from`).send({})).status).toBe(403);
+  });
+});
+
+/**
+ * Les gestes sur une semaine refusent une grille périmée (#604) : deux Coachs d'une même entreprise
+ * composent le même cycle, et un collage ou un glisser fondé sur ce que l'autre a changé depuis ne
+ * défait plus son travail en silence. La version d'une semaine avance aussi quand ses SÉANCES
+ * changent : c'est la grille qu'un geste réécrit, pas seulement le type et la note.
+ */
+describe("Semaine — version lue (#604)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let athlete: Agent;
+  let athleteId: string;
+
+  const monday = mondayOfCurrentWeek();
+
+  type Grid = { planId: string; weekId: string; sourceWeekId: string; sessionIds: string[] };
+
+  /** Un brouillon de deux semaines : la première porte deux séances le lundi, la seconde une. */
+  async function grid(title: string): Promise<Grid> {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    const [weekId, sourceWeekId] = plan.body.weeks.map((w: { id: string }) => w.id);
+    const sessionIds: string[] = [];
+    for (const name of ["Lundi 1", "Lundi 2"]) {
+      const session = await coach
+        .post(`/plan-weeks/${weekId}/sessions`)
+        .send({ title: name, scheduledDate: monday });
+      sessionIds.push(session.body.id);
+    }
+    await coach
+      .post(`/plan-weeks/${sourceWeekId}/sessions`)
+      .send({ title: "Source", scheduledDate: shiftIsoDate(monday, 7) });
+    return { planId: plan.body.id, weekId, sourceWeekId, sessionIds };
+  }
+
+  const planOf = async (g: Grid) => (await coach.get(`/plans/${g.planId}`)).body;
+  const versionOfWeek = (g: Grid) => weekVersionOf(coach, g.planId, g.weekId);
+
+  /** Un autre geste passe d'abord : la version lue avant lui est désormais périmée. */
+  async function outpaced(g: Grid): Promise<string> {
+    const read = await versionOfWeek(g);
+    const note = await coach
+      .patch(`/plan-weeks/${g.weekId}`)
+      .send(await atWeekVersion(coach, g.planId, g.weekId, { note: "écrite par l'autre coach" }));
+    expect(note.status).toBe(200);
+    return read;
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("week-version-coach@cmv.test", Role.COACH);
+    other = await signUp("week-version-other@cmv.test", Role.COACH);
+    athlete = await signUp("week-version-athlete@cmv.test", Role.ATHLETE);
+    athleteId = await link(coach, athlete);
+  });
+
+  it("la semaine expose sa version, et une retouche la fait avancer", async () => {
+    const g = await grid("Avance");
+    const before = await versionOfWeek(g);
+
+    const write = await coach
+      .patch(`/plan-weeks/${g.weekId}`)
+      .send({ type: "DELOAD", expectedUpdatedAt: before });
+
+    expect(write.status).toBe(200);
+    const week = write.body.weeks.find((w: { id: string }) => w.id === g.weekId);
+    expect(week.updatedAt).not.toBe(before);
+    // La réponse porte la version de NOTRE écriture : celle que le prochain geste citera.
+    expect(week.updatedAt).toBe(await versionOfWeek(g));
+  });
+
+  const gestures: [string, (g: Grid, expectedUpdatedAt: string) => request.Test][] = [
+    [
+      "la retouche du type",
+      (g, expectedUpdatedAt) =>
+        coach.patch(`/plan-weeks/${g.weekId}`).send({ type: "DELOAD", expectedUpdatedAt }),
+    ],
+    [
+      "le collage",
+      (g, expectedUpdatedAt) =>
+        coach
+          .post(`/plan-weeks/${g.weekId}/copy-from`)
+          .send({ sourcePlanWeekId: g.sourceWeekId, expectedUpdatedAt }),
+    ],
+    [
+      "le réordonnancement d'une journée",
+      (g, expectedUpdatedAt) =>
+        coach
+          .put(`/plan-weeks/${g.weekId}/days/${monday}/order`)
+          .send({ sessionIds: [...g.sessionIds].reverse(), expectedUpdatedAt }),
+    ],
+    [
+      "le retrait",
+      (g, expectedUpdatedAt) =>
+        coach.delete(`/plan-weeks/${g.weekId}`).query({ expectedUpdatedAt }),
+    ],
+  ];
+
+  it.each(
+    gestures,
+  )("refuse %s fondé sur une grille périmée, sans rien écrire", async (_, gesture) => {
+    const g = await grid("Périmée");
+    const read = await outpaced(g);
+    const kept = await planOf(g);
+
+    const stale = await gesture(g, read);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(await planOf(g)).toEqual(kept);
+  });
+
+  it.each(gestures)("refuse %s qui ne dit pas quelle version il a lue", async (_, gesture) => {
+    const g = await grid("Sans version");
+    const kept = await planOf(g);
+
+    expect((await gesture(g, undefined as unknown as string)).status).toBe(400);
+    expect(await planOf(g)).toEqual(kept);
+  });
+
+  /**
+   * Le scénario de l'issue : le Coach 1 pose une séance, le Coach 2 glisse la journée telle qu'il
+   * l'a vue. Sans avancée de la semaine, son ordre — qui ignore la séance posée — passerait.
+   */
+  it.each([
+    [
+      "posée",
+      (g: Grid) =>
+        coach
+          .post(`/plan-weeks/${g.weekId}/sessions`)
+          .send({ title: "Posée par l'autre", scheduledDate: monday }),
+    ],
+    [
+      "retouchée",
+      (g: Grid) =>
+        putAtLatest(coach, `/scheduled-sessions/${g.sessionIds[0]}`, {
+          title: "Retouchée",
+          scheduledDate: monday,
+          exercises: [],
+        }),
+    ],
+    ["supprimée", (g: Grid) => deleteAtLatest(coach, `/scheduled-sessions/${g.sessionIds[0]}`)],
+  ])("une séance %s fait avancer sa semaine", async (_, change) => {
+    const g = await grid("Séances");
+    const read = await versionOfWeek(g);
+
+    expect((await change(g)).status).toBeLessThan(300);
+
+    expect(await versionOfWeek(g)).not.toBe(read);
+  });
+
+  it("décaler la date du cycle fait avancer chacune de ses semaines", async () => {
+    const g = await grid("Décalage");
+    const before = (await planOf(g)).weeks.map((w: { updatedAt: string }) => w.updatedAt);
+
+    const shifted = await patchAtLatest(coach, `/plans/${g.planId}`, {
+      startDate: shiftIsoDate(monday, 7),
+    });
+
+    expect(shifted.status).toBe(200);
+    const after = (await planOf(g)).weeks.map((w: { updatedAt: string }) => w.updatedAt);
+    after.forEach((version: string, index: number) => {
+      expect(version).not.toBe(before[index]);
+    });
+  });
+
+  it("ne fait pas avancer la version d'une retouche qui ne change rien", async () => {
+    const g = await grid("Rien");
+    const before = await planOf(g);
+
+    const write = await coach
+      .patch(`/plan-weeks/${g.weekId}`)
+      .send(await atWeekVersion(coach, g.planId, g.weekId));
+
+    expect(write.status).toBe(200);
+    expect(await planOf(g)).toEqual(before);
+  });
+
+  it("ne laisse passer qu'un geste sur deux lancés ensemble", async () => {
+    const g = await grid("Course");
+    const read = await versionOfWeek(g);
+    const [first, second] = await Promise.all([
+      coach.patch(`/plan-weeks/${g.weekId}`).send({ note: "A", expectedUpdatedAt: read }),
+      coach.patch(`/plan-weeks/${g.weekId}`).send({ note: "B", expectedUpdatedAt: read }),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+  });
+
+  /**
+   * Le conflit passe AVANT le verrou de diffusion : le geste n'a pas vu le cycle diffusé, et la
+   * relecture le lui montrera — un refus « cycle diffusé » lui parlerait d'un état inconnu.
+   */
+  it("répond par un conflit de version sur un cycle diffusé depuis la lecture", async () => {
+    const g = await grid("Diffusé entre-temps");
+    const read = await outpaced(g);
+    expect((await billAndPublish(coach, g.planId)).status).toBe(200);
+
+    const stale = await coach.delete(`/plan-weeks/${g.weekId}`).query({ expectedUpdatedAt: read });
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+  });
+
+  // Le débrief raconte l'exécution, pas la composition : il ne doit pas périmer la grille du coach.
+  it("le débrief de l'athlète ne fait pas avancer la semaine", async () => {
+    const g = await grid("Débriefée");
+    expect((await billAndPublish(coach, g.planId)).status).toBe(200);
+    const read = await versionOfWeek(g);
+
+    const feedback = await athlete
+      .put(`/me/scheduled-sessions/${g.sessionIds[0]}/feedback`)
+      .send({ content: "Faite." });
+
+    expect(feedback.status).toBe(200);
+    expect(await versionOfWeek(g)).toBe(read);
+  });
+
+  // Un 409 apprendrait à l'autre coach que la semaine existe.
+  it("répond 404 à un autre coach, même muni de la dernière version", async () => {
+    const g = await grid("Chez un autre");
+    const kept = await planOf(g);
+
+    const write = await other
+      .patch(`/plan-weeks/${g.weekId}`)
+      .send(await atWeekVersion(coach, g.planId, g.weekId, { note: "Intrusion" }));
+
+    expect(write.status).toBe(404);
+    expect(await planOf(g)).toEqual(kept);
+  });
+
+  it("répond 404 sur une semaine retirée, même munie de sa dernière version", async () => {
+    const g = await grid("Retirée");
+    const read = await versionOfWeek(g);
+    expect(
+      (await coach.delete(`/plan-weeks/${g.weekId}`).query({ expectedUpdatedAt: read })).status,
+    ).toBe(200);
+
+    const write = await coach
+      .patch(`/plan-weeks/${g.weekId}`)
+      .send({ note: "Trop tard", expectedUpdatedAt: read });
+
+    expect(write.status).toBe(404);
+  });
+
+  /**
+   * Les créations ne citent pas de version : deux semaines ajoutées au même instant visent le même
+   * numéro, et l'unicité en refuse une — jamais un 500, jamais deux semaines au même numéro. Que
+   * les requêtes se croisent ou non dépend du moment : seul l'invariant s'affirme.
+   */
+  it("deux semaines ajoutées ensemble : chacune son numéro, le refusé reçoit un 409", async () => {
+    const g = await grid("Ajouts croisés");
+    const added = await Promise.all(
+      [1, 2, 3].map(() => coach.post(`/plans/${g.planId}/weeks`).send({ type: "TRAINING" })),
+    );
+
+    for (const res of added) expect([201, 409]).toContain(res.status);
+    const numbers = (await planOf(g)).weeks.map((w: { weekNumber: number }) => w.weekNumber);
+    expect(numbers).toEqual(numbers.map((_: number, index: number) => index + 1));
+  });
+
+  // Une séance verrouille d'abord sa semaine : posées au même instant, elles prennent leur rang
+  // l'une après l'autre, et aucune n'est refusée.
+  it("des séances posées ensemble le même jour prennent chacune leur rang", async () => {
+    const g = await grid("Séances croisées");
+    const created = await Promise.all(
+      ["A", "B", "C"].map((title) =>
+        coach.post(`/plan-weeks/${g.weekId}/sessions`).send({ title, scheduledDate: monday }),
+      ),
+    );
+
+    expect(created.map((res) => res.status)).toEqual([201, 201, 201]);
+    const week = (await planOf(g)).weeks.find((w: { id: string }) => w.id === g.weekId);
+    expect(week.sessions.map((s: { position: number }) => s.position)).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
+/**
+ * L'édition d'une séance planifiée refuse une version périmée (#604) : deux Coachs ajustent la même
+ * séance, et le second enregistrement ne défait plus le premier sans un mot. Le débrief de
+ * l'athlète, lui, ne périme pas la séance du Coach.
+ */
+describe("Séance planifiée — version lue (#604)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let athlete: Agent;
+  let athleteId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const path = (sessionId: string) => `/scheduled-sessions/${sessionId}`;
+  const edit = (title: string) => ({ title, scheduledDate: monday, exercises: [] });
+
+  /** Un brouillon d'une semaine, une séance le lundi : rend son identifiant et son cycle. */
+  async function scheduled(title: string): Promise<{ planId: string; sessionId: string }> {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title, scheduledDate: monday });
+    expect(session.status).toBe(201);
+    return { planId: plan.body.id, sessionId: session.body.id };
+  }
+
+  /** Un autre enregistrement passe d'abord : la version lue avant lui est désormais périmée. */
+  async function outpaced(sessionId: string): Promise<string> {
+    const read = await versionOf(coach, path(sessionId));
+    expect((await putAtLatest(coach, path(sessionId), edit("Écrite par l'autre"))).status).toBe(
+      200,
+    );
+    return read;
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("scheduled-version-coach@cmv.test", Role.COACH);
+    other = await signUp("scheduled-version-other@cmv.test", Role.COACH);
+    athlete = await signUp("scheduled-version-athlete@cmv.test", Role.ATHLETE);
+    athleteId = await link(coach, athlete);
+  });
+
+  it("la réponse porte la version de NOTRE enregistrement", async () => {
+    const { sessionId } = await scheduled("Avance");
+    const before = await versionOf(coach, path(sessionId));
+
+    const saved = await coach
+      .put(path(sessionId))
+      .send({ ...edit("Retouchée"), expectedUpdatedAt: before });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body.updatedAt).not.toBe(before);
+    expect(saved.body.updatedAt).toBe(await versionOf(coach, path(sessionId)));
+  });
+
+  type Write = (agent: Agent, sessionId: string, expectedUpdatedAt: string) => request.Test;
+  const writes: [string, Write][] = [
+    [
+      "l'enregistrement",
+      (agent, sessionId, expectedUpdatedAt) =>
+        agent.put(path(sessionId)).send({ ...edit("Réécrite"), expectedUpdatedAt }),
+    ],
+    [
+      "la suppression",
+      (agent, sessionId, expectedUpdatedAt) =>
+        agent.delete(path(sessionId)).query({ expectedUpdatedAt }),
+    ],
+  ];
+
+  it.each(writes)("refuse %s fondé sur une séance périmée, sans rien écrire", async (_, write) => {
+    const { sessionId } = await scheduled("Périmée");
+    const read = await outpaced(sessionId);
+    const kept = (await coach.get(path(sessionId))).body;
+
+    const stale = await write(coach, sessionId, read);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    expect((await coach.get(path(sessionId))).body).toEqual(kept);
+  });
+
+  it.each(writes)("refuse %s qui ne dit pas quelle version il a lue", async (_, write) => {
+    const { sessionId } = await scheduled("Sans version");
+    const kept = (await coach.get(path(sessionId))).body;
+
+    expect((await write(coach, sessionId, undefined as unknown as string)).status).toBe(400);
+    expect((await coach.get(path(sessionId))).body).toEqual(kept);
+  });
+
+  it("ne laisse passer qu'un enregistrement sur deux lancés ensemble", async () => {
+    const { sessionId } = await scheduled("Course");
+    const read = await versionOf(coach, path(sessionId));
+    const [first, second] = await Promise.all(
+      ["A", "B"].map((title) =>
+        coach.put(path(sessionId)).send({ ...edit(title), expectedUpdatedAt: read }),
+      ),
+    );
+
+    expect([first?.status, second?.status].sort()).toEqual([200, 409]);
+  });
+
+  // Le débrief raconte l'exécution, pas la composition : le Coach garde la main sur sa séance.
+  it("l'enregistrement du coach avec la version d'avant le débrief passe", async () => {
+    const { planId, sessionId } = await scheduled("Débriefée");
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+    const read = await versionOf(coach, path(sessionId));
+    const feedback = await athlete
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Faite." });
+    expect(feedback.status).toBe(200);
+
+    const saved = await coach
+      .put(path(sessionId))
+      .send({ ...edit("Ajustée après coup"), expectedUpdatedAt: read });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body.status).toBe("DONE");
+  });
+
+  // Recharger n'y changerait rien : le motif durable passe avant le conflit de version.
+  it("une séance débriefée refuse d'être supprimée pour ce motif, même citée périmée", async () => {
+    const { planId, sessionId } = await scheduled("Débriefée puis retouchée");
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({ content: "Faite." });
+    const read = await outpaced(sessionId);
+
+    const refused = await coach.delete(path(sessionId)).query({ expectedUpdatedAt: read });
+
+    expectLocked(refused);
+    expect(refused.body.message).toContain("débriefée");
+  });
+
+  // Un 409 apprendrait à l'autre coach que la séance existe.
+  it.each(
+    writes,
+  )("refuse %s d'un autre coach en 404, même muni de la dernière version", async (_, write) => {
+    const { sessionId } = await scheduled("Chez un autre");
+    const kept = (await coach.get(path(sessionId))).body;
+
+    const intrusion = await write(other, sessionId, await versionOf(coach, path(sessionId)));
+
+    expect(intrusion.status).toBe(404);
+    expect((await coach.get(path(sessionId))).body).toEqual(kept);
+  });
+
+  it("répond 404 sur une séance supprimée, même munie de sa dernière version", async () => {
+    const { sessionId } = await scheduled("Supprimée");
+    const read = await versionOf(coach, path(sessionId));
+    expect((await coach.delete(path(sessionId)).query({ expectedUpdatedAt: read })).status).toBe(
+      204,
+    );
+
+    const write = await coach
+      .put(path(sessionId))
+      .send({ ...edit("Trop tard"), expectedUpdatedAt: read });
+
+    expect(write.status).toBe(404);
   });
 });

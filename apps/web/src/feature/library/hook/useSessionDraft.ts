@@ -19,7 +19,8 @@ import {
   toSessionInput,
 } from "@cmv/shared";
 import { useState } from "react";
-import { useSaveSession } from "@/feature/library/hook/useSessions";
+import { type SessionVersion, useSaveSession } from "@/feature/library/hook/useSessions";
+import { isStaleWriteError } from "@/shared/lib/api";
 
 type CreateSessionLine = CreateSessionInput["exercises"][number];
 
@@ -84,6 +85,14 @@ const fromExercise = (exercise: ExerciseDto): CompositionItem => ({
  */
 export function useSessionDraft(session: SessionDto | null, added: ExerciseDto | null = null) {
   const { save, isSaving, error } = useSaveSession();
+
+  /**
+   * La séance éditée et la version que l'enregistrement cite (#604) — celle sur laquelle la saisie
+   * a commencé, qui n'avance qu'avec NOS écritures : l'enregistrement, le rechargement d'un
+   * exercice. Jamais avec le cache, qu'un retour d'onglet rafraîchit : la saisie, elle, ne l'a pas
+   * vu. Une création enregistrée passe ainsi en édition, plutôt que d'en créer une seconde.
+   */
+  const [edited, setEdited] = useState<SessionVersion | null>(session);
 
   const [title, setTitle] = useState(session?.title ?? "");
   const [notes, setNotes] = useState(session?.notes ?? "");
@@ -169,10 +178,33 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
     replace(key, (item) => resetAllAdjustments(item, SESSION_SCOPE));
   }
 
-  /** La séance telle qu'enregistrée : son id ramène à elle après un détour (#303). */
+  /**
+   * La séance telle qu'enregistrée : son id ramène à elle après un détour (#303).
+   *
+   * Le remplace-all recrée chaque ligne sous un NOUVEL id, à la position où elle est partie : la
+   * saisie les reprend, sans quoi un écran resté ouvert — un détour raté — enverrait au prochain
+   * enregistrement des ids disparus, et chaque ligne perdrait sa référence de dosage. Par clé, et
+   * non par position actuelle : la composition a pu bouger pendant l'enregistrement.
+   */
   async function submit(): Promise<SessionDto> {
-    const result = await save({ session, input });
-    setSaved(input);
+    const sentKeys = items.map((item) => item.key);
+    const result = await save({ session: edited, input });
+    const savedIdAt = (position: number) => result.exercises[position]?.id;
+    const idByKey = new Map(sentKeys.map((key, position) => [key, savedIdAt(position)]));
+    setItems((current) =>
+      current.map((item) => {
+        const id = idByKey.get(item.key);
+        return id == null ? item : { ...item, id };
+      }),
+    );
+    setEdited(result);
+    setSaved({
+      ...input,
+      exercises: input.exercises.map((line, position) => {
+        const id = savedIdAt(position);
+        return id == null ? line : { ...line, id };
+      }),
+    });
     return result;
   }
 
@@ -186,6 +218,7 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
    * en silence tout ce que le coach y a modifié sans encore enregistrer (#300).
    */
   function applyReloaded(sessionExerciseId: string, reloaded: SessionDto) {
+    setEdited(reloaded);
     const fresh = reloaded.exercises.find((composed) => composed.id === sessionExerciseId);
     if (fresh == null) return;
     // Le rechargement est ENREGISTRÉ : la ligne repart de ce que le serveur a écrit, des deux côtés
@@ -233,5 +266,8 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
     isDirty,
     isSaving,
     error,
+    edited,
+    /** L'enregistrement a été refusé : la séance a changé depuis le début de la saisie (#604). */
+    isStale: isStaleWriteError(error),
   };
 }

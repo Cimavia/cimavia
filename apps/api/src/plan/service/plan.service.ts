@@ -3,8 +3,10 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
+  PublishPlanInput,
   UpdatePlanInput,
   UpdatePlanWeekInput,
+  VersionQuery,
 } from "@cmv/shared";
 import {
   CoachAthleteStatus,
@@ -31,14 +33,23 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
 import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
 import {
+  assertReadAtVersion,
+  deleteAtVersion,
+  staleOnCollision,
+  writeAtVersion,
+} from "../../util/stale-write.util";
+import {
   PLAN_COUNTS_INCLUDE,
   PLAN_DETAIL_INCLUDE,
   type PlanWithWeeks,
   toPlanDto,
   toPlanSummaryDto,
 } from "../plan.mapper";
+import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
 
 export type ListPlansFilters = { athleteId?: string };
+
+const PLAN_NOT_FOUND = "Planification introuvable";
 
 @Injectable()
 export class PlanService {
@@ -100,9 +111,16 @@ export class PlanService {
    *
    * Tant que le cycle est un BROUILLON. Une fois diffusé, plus rien de ce qui le définit ne se
    * réécrit : ni son en-tête (`assertHeaderWritable`), ni son destinataire (`assertReassignable`).
+   *
+   * Sous la version lue (#604) : deux Coachs d'une même entreprise peuvent retoucher le même cycle,
+   * et le second enregistrement n'efface plus le premier en silence — 409 `STALE_WRITE`.
    */
   async update(id: string, input: UpdatePlanInput): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Le premier refus : une saisie périmée n'a pas vu l'état qu'on jugerait ensuite — un cycle
+    // diffusé entre-temps, un destinataire déjà changé. « Recharger » le lui montrera.
+    assertReadAtVersion(plan.updatedAt, expected);
     // Avant toute lecture supplémentaire : le refus est certain, inutile d'aller interroger la
     // base pour le destinataire.
     assertHeaderWritable(plan, input);
@@ -110,7 +128,7 @@ export class PlanService {
     // Forme UNCHECKED : `athleteId` s'écrit en scalaire, comme partout ailleurs sur cette chaîne
     // dénormalisée. La forme relationnelle demanderait un `connect`/`disconnect` là où le reste
     // du module raisonne en identifiants.
-    const data: Prisma.PlanUncheckedUpdateInput = {};
+    const data: Prisma.PlanUncheckedUpdateManyInput = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
 
@@ -132,17 +150,26 @@ export class PlanService {
       data.athleteId = input.athleteId ?? null;
     }
 
-    await this.db.$transaction(async (tx) => {
-      await tx.plan.update({ where: { id }, data });
+    // Rien à écrire : la version n'avance pas. L'avancer sans changement ferait prendre un 409 à
+    // l'autre Coach pour une écriture qui n'a rien modifié.
+    if (Object.keys(data).length === 0) return this.getDto(id);
+
+    return this.db.$transaction(async (tx) => {
+      await writeAtVersion(tx.plan, id, expected, data, PLAN_NOT_FOUND);
       if (shiftDays !== 0) {
+        // Toutes les dates de la grille bougent : un geste fondé sur l'ancienne est périmé. Les
+        // semaines d'abord, puis leurs séances — l'ordre des verrous de `touchWeeks`.
+        await touchWeeks(tx, { planId: id });
         await this.shiftSessions(tx, { planId: id }, shiftDays);
       }
       if (reassigned) {
         await this.propagateAthlete(tx, id, input.athleteId ?? null);
       }
+      // Relu DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
+      // donc NOTRE version. Relue après, elle pourrait déjà porter celle d'un autre Coach — et le
+      // formulaire, qui garde une saisie faite pendant l'envoi, la citerait par-dessus lui.
+      return this.getDto(id, tx);
     });
-
-    return this.getDto(id);
   }
 
   /**
@@ -189,6 +216,8 @@ export class PlanService {
     planId: string,
     athleteId: string | null,
   ): Promise<void> {
+    // `@updatedAt` fait avancer chaque semaine, et c'est voulu (#604) : un collage ou un glisser
+    // pensé pour l'athlète d'avant n'a pas à passer en silence chez le suivant.
     await tx.planWeek.updateMany({ where: { planId }, data: { athleteId } });
     await tx.scheduledSession.updateMany({ where: { planId }, data: { athleteId } });
     if (athleteId != null) {
@@ -224,9 +253,20 @@ export class PlanService {
    * Un cycle DIFFUSÉ ne se supprime pas (#85) : la cascade emporterait sa facture émise, que
    * l'athlète a déjà vue, et les débriefs de ses séances — médias laissés orphelins dans le bucket.
    * Un brouillon, lui, n'a jamais été visible de l'athlète : aucune séance n'y est débriefée.
+   *
+   * Sous la version affichée (#604) : un cycle qu'un autre Coach a retouché, réaffecté ou DIFFUSÉ
+   * depuis ne part pas sur la foi d'un écran périmé. La suppression conditionnelle tient aussi la
+   * diffusion qui passerait entre le contrôle du statut et elle — sans quoi la cascade emporterait
+   * un cycle tout juste diffusé, et sa facture émise. Cette version est celle de l'EN-TÊTE : les
+   * semaines qu'un autre Coach vient d'y poser partent avec le cycle, que la suppression vise en
+   * entier, après confirmation.
    */
-  async delete(id: string): Promise<void> {
+  async delete(id: string, query: VersionQuery): Promise<void> {
     const plan = await this.getOwnedOrThrow(id);
+    const expected = new Date(query.expectedUpdatedAt);
+    // La version avant le verrou, comme pour l'en-tête : un écran qui n'a pas vu la diffusion se
+    // relit et la montre, au lieu d'opposer un refus à un état que le Coach ignore.
+    assertReadAtVersion(plan.updatedAt, expected);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException(
         "Un cycle diffusé ne se supprime plus : sa facture est émise et son athlète s'entraîne dessus",
@@ -238,9 +278,12 @@ export class PlanService {
     // Les RAPPELS, eux, n'ont pas de clé étrangère vers leur cible (référence polymorphe) : rien en
     // base ne les emporte. On les purge donc explicitement, dans la MÊME transaction — sinon un
     // rappel « relancer ce cycle » survivrait au cycle et ne mènerait plus nulle part (#44).
+    //
+    // La purge AVANT la suppression : elle retrouve la facture du cycle, que la cascade emporte.
+    // Refusée, la suppression l'annule avec elle.
     await this.db.$transaction(async (tx) => {
       await this.reminders.purgeForPlan(tx, id);
-      await tx.plan.delete({ where: { id } });
+      await deleteAtVersion(tx.plan, id, expected, PLAN_NOT_FOUND);
     });
   }
 
@@ -252,9 +295,17 @@ export class PlanService {
    * La facture du cycle est ÉMISE ici, atomiquement : passage PUBLISHED et DRAFT → PENDING dans la
    * même transaction. Sans termes de facturation saisis, `issueForPlan` lève (400) et rien n'est
    * diffusé — c'est le gating (P6). L'athlète reçoit alors deux notifications : cycle + facture.
+   *
+   * Sous la version affichée (#604) : le destinataire, le titre et le début sont ceux que le Coach
+   * a vus en diffusant. Réaffecté entre-temps par un autre Coach, le cycle partirait sinon chez un
+   * athlète qu'il n'a jamais vu à l'écran — notifié, et facturé à son nom.
    */
-  async publish(id: string): Promise<PlanDto> {
+  async publish(id: string, input: PublishPlanInput): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Avant tout autre refus : sur un écran périmé, le cycle est peut-être déjà diffusé, ou son
+    // destinataire choisi — « relire » le montrera, « choisis l'athlète » le ferait chercher.
+    assertReadAtVersion(plan.updatedAt, expected);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException("Planification déjà diffusée");
     }
@@ -290,13 +341,20 @@ export class PlanService {
      */
     const solo = this.isSelfCoaching(plan);
 
-    const invoice = await this.db.$transaction(async (tx) => {
-      await tx.plan.update({
-        where: { id },
-        data: { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
-      });
+    const { invoice, published } = await this.db.$transaction(async (tx) => {
+      // Conditionnée, et non lue puis écrite : la réaffectation qui passerait entre la lecture et
+      // ici laisserait `plan` — donc la facture et les notifications — sur l'ancien athlète.
+      await writeAtVersion(
+        tx.plan,
+        id,
+        expected,
+        { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
+        PLAN_NOT_FOUND,
+      );
       // Gating : lève si aucune facturation n'a été saisie → la transaction est annulée.
-      return solo ? null : await this.invoices.issueForPlan(tx, plan);
+      const issued = solo ? null : await this.invoices.issueForPlan(tx, plan);
+      // Relu DANS la transaction, comme l'en-tête : la réponse porte NOTRE version.
+      return { invoice: issued, published: await this.getDto(id, tx) };
     });
 
     // Pas de garde `solo` ici : `NotificationService` ignore déjà toute notification vers soi-même
@@ -313,7 +371,7 @@ export class PlanService {
       });
     }
 
-    return this.getDto(id);
+    return published;
   }
 
   // ── Semaines ───────────────────────────────────────────────────────────────
@@ -328,19 +386,30 @@ export class PlanService {
 
     // `plan.athleteId` peut être `null` (brouillon non encore affecté) : la semaine le recopie
     // tel quel, et l'affectation la rattrapera avec le reste du cycle.
-    await this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1);
+    // Sans version (#604) : deux ajouts simultanés visent le même numéro, et le second, refusé
+    // par l'unicité, reçoit le 409 d'une grille périmée plutôt qu'un 500.
+    await staleOnCollision(() =>
+      this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1),
+    );
     return this.getDto(planId);
   }
 
+  /** Sous la version de la semaine affichée (#604) — voir `updatePlanWeekSchema`. */
   async updateWeek(weekId: string, input: UpdatePlanWeekInput): Promise<PlanDto> {
     const week = await this.getWeekOwnedOrThrow(weekId);
+    const expected = new Date(input.expectedUpdatedAt);
+    assertReadAtVersion(week.updatedAt, expected);
 
-    const data: Prisma.PlanWeekUpdateInput = {};
+    const data: Prisma.PlanWeekUpdateManyMutationInput = {};
     if (input.type !== undefined) data.type = input.type;
     if (input.note !== undefined) data.note = input.note;
+    // Rien à écrire : la version n'avance pas, comme sur l'en-tête du cycle.
+    if (Object.keys(data).length === 0) return this.getDto(week.planId);
 
-    await this.db.planWeek.update({ where: { id: weekId }, data });
-    return this.getDto(week.planId);
+    return this.db.$transaction(async (tx) => {
+      await writeAtVersion(tx.planWeek, weekId, expected, data, WEEK_NOT_FOUND);
+      return this.getDto(week.planId, tx);
+    });
   }
 
   /**
@@ -357,8 +426,12 @@ export class PlanService {
    * (#313) ne protégerait de rien ici : le statut vit sur la ligne `Plan`, pas sur celle supprimée,
    * et Postgres ne revérifie pas une condition portée par une autre table.
    */
-  async deleteWeek(weekId: string): Promise<PlanDto> {
+  async deleteWeek(weekId: string, query: VersionQuery): Promise<PlanDto> {
     const week = await this.getWeekOwnedOrThrow(weekId);
+    const expected = new Date(query.expectedUpdatedAt);
+    // Retirer une semaine qu'un autre Coach vient de garnir emporterait ses séances sans qu'on les
+    // ait vues (#604) : le conflit passe avant le verrou de diffusion, comme sur l'en-tête.
+    assertReadAtVersion(week.updatedAt, expected);
     const plan = await this.getOwnedOrThrow(week.planId);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException(
@@ -367,8 +440,9 @@ export class PlanService {
     }
 
     await this.db.$transaction(async (tx) => {
-      // Les séances de la semaine supprimée partent en cascade (schéma).
-      await tx.planWeek.delete({ where: { id: weekId } });
+      // Les séances de la semaine supprimée partent en cascade (schéma). Sous la version lue :
+      // entre la lecture et ici, une séance a pu y être posée.
+      await deleteAtVersion(tx.planWeek, weekId, expected, WEEK_NOT_FOUND);
 
       const following = await tx.planWeek.findMany({
         where: { planId: week.planId, weekNumber: { gt: week.weekNumber } },
@@ -396,7 +470,7 @@ export class PlanService {
   async getOwnedOrThrow(id: string): Promise<Plan> {
     const plan = await this.db.plan.findFirst({ where: { id } });
     if (plan == null) {
-      throw new NotFoundException("Planification introuvable");
+      throw new NotFoundException(PLAN_NOT_FOUND);
     }
     return plan;
   }
@@ -404,22 +478,25 @@ export class PlanService {
   async getWeekOwnedOrThrow(weekId: string): Promise<PlanWeek> {
     const week = await this.db.planWeek.findFirst({ where: { id: weekId } });
     if (week == null) {
-      throw new NotFoundException("Semaine introuvable");
+      throw new NotFoundException(WEEK_NOT_FOUND);
     }
     return week;
   }
 
   // Le plan complet (semaines + séances) — la forme rendue par l'API après chaque écriture.
-  private async getDetailOrThrow(id: string): Promise<PlanWithWeeks> {
-    const plan = await this.db.plan.findFirst({ where: { id }, include: PLAN_DETAIL_INCLUDE });
+  private async getDetailOrThrow(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<PlanWithWeeks> {
+    const plan = await db.plan.findFirst({ where: { id }, include: PLAN_DETAIL_INCLUDE });
     if (plan == null) {
-      throw new NotFoundException("Planification introuvable");
+      throw new NotFoundException(PLAN_NOT_FOUND);
     }
     return plan;
   }
 
-  private async getDto(id: string): Promise<PlanDto> {
-    return toPlanDto(await this.getDetailOrThrow(id));
+  private async getDto(id: string, db: TenantPrisma | TenantTx = this.db): Promise<PlanDto> {
+    return toPlanDto(await this.getDetailOrThrow(id, db));
   }
 
   /**

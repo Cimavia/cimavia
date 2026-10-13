@@ -176,10 +176,7 @@ export class FeedbackService {
       const created = await tx.sessionFeedback.create({
         data: data as Prisma.SessionFeedbackUncheckedCreateInput,
       });
-      await tx.scheduledSession.update({
-        where: { id: scheduledSessionId },
-        data: { status: ScheduledSessionStatus.DONE },
-      });
+      await markDoneKeepingVersion(tx, scheduledSessionId);
       return created;
     });
     return { feedback, sessionTitle: session.title, created: true };
@@ -274,4 +271,35 @@ export class FeedbackService {
       ),
     );
   }
+}
+
+/** Au-delà, la version cède : le coach prendra un conflit de trop, l'athlète jamais un échec. */
+const MARK_DONE_ATTEMPTS = 3;
+
+/**
+ * Passe la séance en DONE sans faire avancer sa version (#604). `updatedAt` y veut dire « dernière
+ * écriture du coach » : c'est la version que cite son panneau d'édition, et un débrief ne change
+ * rien de ce que le coach a composé. Sans cette exception, l'athlète qui débriefe ferait refuser
+ * l'enregistrement du coach par un « modifiée pendant que tu l'éditais » qui ne dit pas vrai.
+ *
+ * La version relue est réécrite telle quelle, SOUS CONDITION qu'elle n'ait pas bougé : une
+ * écriture du coach glissée entre la lecture et l'écriture ferait sinon RECULER la version, et un
+ * onglet resté sur l'ancienne repasserait la garde. Elle a bougé → on relit et on recommence.
+ */
+async function markDoneKeepingVersion(tx: TenantTx, id: string): Promise<void> {
+  for (let attempt = 0; attempt < MARK_DONE_ATTEMPTS; attempt++) {
+    const { updatedAt } = required(
+      await tx.scheduledSession.findFirst({ where: { id }, select: { updatedAt: true } }),
+      `[feedback] séance ${id} disparue pendant son débrief`,
+    );
+    const { count } = await tx.scheduledSession.updateMany({
+      where: { id, updatedAt },
+      data: { status: ScheduledSessionStatus.DONE, updatedAt },
+    });
+    if (count > 0) return;
+  }
+  await tx.scheduledSession.update({
+    where: { id },
+    data: { status: ScheduledSessionStatus.DONE },
+  });
 }

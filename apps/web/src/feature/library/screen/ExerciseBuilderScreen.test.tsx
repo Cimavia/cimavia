@@ -13,6 +13,7 @@ import {
   MetricUnit,
   MetricValueType,
   RichBlockType,
+  STALE_WRITE,
 } from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -436,6 +437,101 @@ describe("ExerciseBuilderScreen — édition", () => {
 
     expect(await view.findByText("Utilisé dans 2 séances")).toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
+  });
+});
+
+describe("ExerciseBuilderScreen — conflit d'édition (#604)", () => {
+  const READ = "2026-10-12T08:00:00.000Z";
+  const LATEST = "2026-10-12T08:03:00.000Z";
+  const stale = () => new ApiError(409, STALE_WRITE, null);
+
+  beforeEach(() => {
+    api.getExercise.mockResolvedValue(saved({ updatedAt: READ }));
+  });
+
+  async function editThenConflict() {
+    api.updateExercise.mockRejectedValueOnce(stale());
+    const view = await edit();
+    const title = await view.findByRole("textbox", { name: TITLE });
+    await view.user.clear(title);
+    await view.user.type(title, "Tractions lestées");
+    await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
+    await view.findByText("library.builder.stale");
+    return view;
+  }
+
+  it("garde la saisie et le dit par le bandeau, sans toast ni code brut", async () => {
+    const view = await editThenConflict();
+
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Tractions lestées");
+    expect(view.queryByText("library.builder.saveFailed")).not.toBeInTheDocument();
+    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
+  });
+
+  // Maquette #597 : « Recharger » remplace la saisie par la dernière version, sans fusion.
+  it("« Recharger » remplace la saisie par la dernière version, que l'enregistrement cite", async () => {
+    const view = await editThenConflict();
+    api.getExercise.mockResolvedValue(saved({ title: "Tractions (M)", updatedAt: LATEST }));
+
+    await view.user.click(view.getByRole("button", { name: "common.staleReload" }));
+
+    await waitFor(() =>
+      expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Tractions (M)"),
+    );
+    expect(view.queryByText("library.builder.stale")).not.toBeInTheDocument();
+
+    await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
+    await waitFor(() =>
+      expect(api.updateExercise).toHaveBeenLastCalledWith(
+        "ex-1",
+        expect.objectContaining({ expectedUpdatedAt: LATEST }),
+      ),
+    );
+  });
+
+  it("garde la saisie et le bandeau quand la relecture échoue", async () => {
+    const view = await editThenConflict();
+    api.getExercise.mockRejectedValue(new Error("réseau"));
+    const readsBefore = api.getExercise.mock.calls.length;
+
+    await view.user.click(view.getByRole("button", { name: "common.staleReload" }));
+
+    await waitFor(() => expect(api.getExercise).toHaveBeenCalledTimes(readsBefore + 1));
+    await waitFor(() =>
+      expect(view.getByRole("button", { name: "common.staleReload" })).toBeEnabled(),
+    );
+    expect(view.getByText("library.builder.stale")).toBeInTheDocument();
+    expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Tractions lestées");
+    expect(await view.findByText("common.staleReloadFailed")).toBeInTheDocument();
+  });
+
+  // L'exercice créé par un enregistrement interrompu est celui qu'on recharge : l'écran reste en
+  // édition sur lui, sans recréer quoi que ce soit.
+  it("recharge l'exercice créé quand le conflit survient au réessai d'une création", async () => {
+    api.createExercise.mockResolvedValue(saved({ updatedAt: READ }));
+    api.attachDocument.mockRejectedValue(new Error("réseau"));
+    const view = await create("Planche");
+    await view.user.type(
+      view.getByRole("textbox", { name: "library.builder.attachment.addLink" }),
+      "https://video.example/tuto",
+    );
+    await view.user.click(
+      view.getByRole("button", { name: "library.builder.attachment.addLinkAction" }),
+    );
+    await view.user.click(view.getByRole("button", { name: SUBMIT_CREATE }));
+    api.updateExercise.mockRejectedValueOnce(stale());
+    await view.user.click(await view.findByRole("button", { name: SUBMIT_EDIT }));
+    await view.findByText("library.builder.stale");
+    api.getExercise.mockResolvedValue(saved({ title: "Planche (M)", updatedAt: LATEST }));
+
+    await view.user.click(view.getByRole("button", { name: "common.staleReload" }));
+
+    await waitFor(() =>
+      expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Planche (M)"),
+    );
+    expect(heading(view)).toBe("library.builder.editTitle");
+    expect(api.createExercise).toHaveBeenCalledTimes(1);
   });
 });
 

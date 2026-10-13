@@ -57,7 +57,11 @@ export function PlanWeekCard({
     }
 
     const onPaste = () =>
-      pasteWeek.mutate({ targetWeekId: week.id, sourcePlanWeekId: clipboard.planWeekId });
+      pasteWeek.mutate({
+        targetWeekId: week.id,
+        sourcePlanWeekId: clipboard.planWeekId,
+        expectedUpdatedAt: week.updatedAt,
+      });
 
     if (week.sessions.length === 0) {
       return (
@@ -95,10 +99,14 @@ export function PlanWeekCard({
 
   // Une seule journée est écrite : celle d'arrivée. Le serveur retire la séance de son jour
   // d'origine et l'y recolle — deux écritures feraient deux notifications pour un seul geste.
+  // Pendant une écriture sur le cycle — d'ici, du panneau ou de l'en-tête —, la grille affichée
+  // n'est pas encore celle du serveur : un second geste la citerait et se verrait refuser comme
+  // périmé (#604). Il attend que la relecture ait posé la nouvelle version.
   function onDrop(from: WeekSlot, to: WeekSlot) {
+    if (isBusy) return;
     const day = dayAfterDrop(sessionsOn(from.date), sessionsOn(to.date), from, to);
     if (day == null) return;
-    reorderDay.mutate({ weekId: week.id, ...day });
+    reorderDay.mutate({ weekId: week.id, expectedUpdatedAt: week.updatedAt, ...day });
   }
 
   // Le chemin clavier de la poignée : un cran, DANS la journée. Sortir du jour se fait au glisser,
@@ -126,7 +134,13 @@ export function PlanWeekCard({
 
         <CmvSegmented<PlanWeekType>
           value={week.type}
-          onChange={(type) => updateWeek.mutate({ weekId: week.id, input: { type } })}
+          disabled={isBusy}
+          onChange={(type) =>
+            updateWeek.mutate({
+              weekId: week.id,
+              input: { type, expectedUpdatedAt: week.updatedAt },
+            })
+          }
           options={PLAN_WEEK_TYPES.map((type) => ({
             value: type,
             label: t(`plan.weekType.${type}`),
@@ -162,7 +176,9 @@ export function PlanWeekCard({
           cancelLabel={t("common.cancel")}
           disabled={isBusy}
           {...(isPublished ? { disabledReason: t("plan.week.deleteDisabledPublished") } : {})}
-          onConfirm={() => removeWeek.mutate(week.id)}
+          onConfirm={() =>
+            removeWeek.mutate({ weekId: week.id, expectedUpdatedAt: week.updatedAt })
+          }
         />
       </header>
 

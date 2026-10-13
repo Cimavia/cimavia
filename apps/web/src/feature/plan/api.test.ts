@@ -26,6 +26,8 @@ const { apiMock } = vi.hoisted(() => ({
 // Le client HTTP est la frontière : verbe, chemin et corps sont tout ce que ce module décide.
 vi.mock("@/shared/lib/api", () => ({ api: apiMock }));
 
+const VERSION = "2026-10-12T08:00:00.000Z";
+
 beforeEach(() => {
   vi.clearAllMocks();
   for (const fn of Object.values(apiMock)) fn.mockResolvedValue("réponse");
@@ -61,12 +63,22 @@ describe.each([
   ],
   [
     "updatePlan",
-    () => updatePlan("p-1", { title: "Bloc" }),
+    () => updatePlan("p-1", { title: "Bloc", expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
     "patch",
-    ["/plans/p-1", { title: "Bloc" }],
+    ["/plans/p-1", { title: "Bloc", expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }],
   ],
-  ["deletePlan", () => deletePlan("p-1"), "delete", ["/plans/p-1"]],
-  ["publishPlan", () => publishPlan("p-1"), "post", ["/plans/p-1/publish"]],
+  [
+    "deletePlan",
+    () => deletePlan("p-1", { expectedUpdatedAt: VERSION }),
+    "delete",
+    ["/plans/p-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
+  [
+    "publishPlan",
+    () => publishPlan("p-1", { expectedUpdatedAt: VERSION }),
+    "post",
+    ["/plans/p-1/publish", { expectedUpdatedAt: VERSION }],
+  ],
   [
     "addPlanWeek",
     () => addPlanWeek("p-1", { type: "TRAINING" } as never),
@@ -79,18 +91,30 @@ describe.each([
     "patch",
     ["/plan-weeks/w-1", { note: "Décharge" }],
   ],
-  ["deletePlanWeek", () => deletePlanWeek("w-1"), "delete", ["/plan-weeks/w-1"]],
+  [
+    "deletePlanWeek",
+    () => deletePlanWeek("w-1", { expectedUpdatedAt: VERSION }),
+    "delete",
+    ["/plan-weeks/w-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
   [
     "copyPlanWeek",
-    () => copyPlanWeek("w-cible", { sourcePlanWeekId: "w-source" }),
+    () => copyPlanWeek("w-cible", { sourcePlanWeekId: "w-source", expectedUpdatedAt: VERSION }),
     "post",
-    ["/plan-weeks/w-cible/copy-from", { sourcePlanWeekId: "w-source" }],
+    ["/plan-weeks/w-cible/copy-from", { sourcePlanWeekId: "w-source", expectedUpdatedAt: VERSION }],
   ],
   [
     "reorderPlanDay",
-    () => reorderPlanDay("w-1", "2026-10-05", { sessionIds: ["s-2", "s-1"] }),
+    () =>
+      reorderPlanDay("w-1", "2026-10-05", {
+        sessionIds: ["s-2", "s-1"],
+        expectedUpdatedAt: VERSION,
+      }),
     "put",
-    ["/plan-weeks/w-1/days/2026-10-05/order", { sessionIds: ["s-2", "s-1"] }],
+    [
+      "/plan-weeks/w-1/days/2026-10-05/order",
+      { sessionIds: ["s-2", "s-1"], expectedUpdatedAt: VERSION },
+    ],
   ],
   [
     "createScheduledSession",
@@ -107,9 +131,9 @@ describe.each([
   ["getScheduledSession", () => getScheduledSession("s-1"), "get", ["/scheduled-sessions/s-1"]],
   [
     "deleteScheduledSession",
-    () => deleteScheduledSession("s-1"),
+    () => deleteScheduledSession("s-1", { expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
     "delete",
-    ["/scheduled-sessions/s-1"],
+    ["/scheduled-sessions/s-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
   ],
 ] as const)("%s", (_, call, verb, args) => {
   it(`part en ${verb.toUpperCase()} sur la bonne ressource`, async () => {

@@ -175,7 +175,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 
 | Domaine | Exigence |
 |--------|----------|
-| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès ou participation *(cible — #605, #611)*. Refus d'une version périmée (409) sur un élément partagé *(cible — #604)*. |
+| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès ou participation *(cible — #605, #611)*. Refus d'une version périmée (409) sur un exercice, une séance ou un cycle partagé (#604). |
 | **RGPD / hébergement** | Données perso + médias : consentement, droit à l'effacement. **Hébergement en France** (résidence MVP, souveraineté visée — voir §7.5). Caveat : si les données sont qualifiées de **santé**, hébergeur **HDS** requis. |
 | **i18n** | Toutes les chaînes externalisées dès le MVP (FR), EN activable en v1.0. |
 | **Médias** | Compression côté client avant upload. Plafonds : vidéo **180 s** / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |

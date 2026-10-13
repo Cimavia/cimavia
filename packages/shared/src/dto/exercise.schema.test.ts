@@ -70,11 +70,23 @@ describe("duplicateExerciseSchema", () => {
 });
 
 describe("updateExerciseSchema", () => {
+  const READ_AT = "2026-10-12T08:00:00.000Z";
+
   it("distingue « tags absents » de « tags vidés »", () => {
     // undefined : ne touche pas aux tags. [] : les retire tous. La différence porte l'intention,
     // et le service s'en sert pour ne réécrire que sur demande explicite.
-    expect(updateExerciseSchema.parse({ title: "x" }).tags).toBeUndefined();
-    expect(updateExerciseSchema.parse({ tags: [] }).tags).toEqual([]);
+    expect(
+      updateExerciseSchema.parse({ title: "x", expectedUpdatedAt: READ_AT }).tags,
+    ).toBeUndefined();
+    expect(updateExerciseSchema.parse({ tags: [], expectedUpdatedAt: READ_AT }).tags).toEqual([]);
+  });
+
+  // Requise (#604) : sans elle, la dernière sauvegarde effacerait l'autre sans un message.
+  it("exige la version sur laquelle la saisie a commencé", () => {
+    expect(updateExerciseSchema.safeParse({ title: "x" }).success).toBe(false);
+    expect(updateExerciseSchema.safeParse({ title: "x", expectedUpdatedAt: null }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -103,8 +115,13 @@ describe("consigne structurée et blocs", () => {
 
   it("distingue « consigne absente » de « consigne effacée »", () => {
     // undefined : ne touche pas. null : efface. Le service s'appuie sur cette différence.
-    expect(updateExerciseSchema.parse({ title: "x" }).instructions).toBeUndefined();
-    expect(updateExerciseSchema.parse({ instructions: null }).instructions).toBeNull();
+    const expectedUpdatedAt = "2026-10-12T08:00:00.000Z";
+    expect(
+      updateExerciseSchema.parse({ title: "x", expectedUpdatedAt }).instructions,
+    ).toBeUndefined();
+    expect(
+      updateExerciseSchema.parse({ instructions: null, expectedUpdatedAt }).instructions,
+    ).toBeNull();
   });
 });
 

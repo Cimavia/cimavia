@@ -474,6 +474,7 @@ export type {
   PlanWeekDto,
   PlanWeekInput,
   PlanWeekType as PlanWeekTypeType,
+  PublishPlanInput,
   ReorderPlanDayInput,
   ScheduledSessionDto,
   ScheduledSessionExerciseDto,
@@ -483,6 +484,7 @@ export type {
   UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
+  VersionQuery,
 } from "./dto/plan.schema";
 export {
   copyPlanWeekSchema,
@@ -501,6 +503,7 @@ export {
   planWeekDtoSchema,
   planWeekInputSchema,
   planWeekTypeSchema,
+  publishPlanSchema,
   reorderPlanDaySchema,
   SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
   ScheduledSessionStatus,
@@ -512,6 +515,7 @@ export {
   updatePlanSchema,
   updatePlanWeekSchema,
   updateScheduledSessionSchema,
+  versionQuerySchema,
 } from "./dto/plan.schema";
 export type {
   PushPlatform as PushPlatformType,
@@ -591,6 +595,7 @@ export {
 } from "./dto/rich-document.schema";
 export type {
   CreateSessionInput,
+  ReloadSessionExerciseInput,
   SessionDto,
   SessionExerciseDto,
   SessionExerciseInput,
@@ -598,6 +603,7 @@ export type {
 } from "./dto/session.schema";
 export {
   createSessionSchema,
+  reloadSessionExerciseSchema,
   SESSION_MAX_EXERCISES,
   SESSION_NOTE_MAX_LENGTH,
   SESSION_NOTES_MAX_LENGTH,

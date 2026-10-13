@@ -2,6 +2,7 @@ import { Role } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, inviteFor, link, linkRelation, signUp } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
+import { publishAtLatest } from "../support/version";
 
 describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", () => {
   let coachA: Agent;
@@ -39,7 +40,7 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
   });
 
   it("refuse de diffuser un cycle sans facturation saisie (gating)", async () => {
-    const res = await coachA.post(`/plans/${planId}/publish`);
+    const res = await publishAtLatest(coachA, planId);
     expect(res.status).toBe(400);
     // Le cycle reste en brouillon (rien n'a été diffusé).
     expect((await coachA.get(`/plans/${planId}`)).body.status).toBe("DRAFT");
@@ -160,7 +161,7 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
   });
 
   it("diffuser le cycle émet la facture (DRAFT → PENDING) et notifie l'athlète", async () => {
-    const res = await coachA.post(`/plans/${planId}/publish`);
+    const res = await publishAtLatest(coachA, planId);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("PUBLISHED");
 

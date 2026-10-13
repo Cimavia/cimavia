@@ -25,9 +25,17 @@ import {
   toExerciseInput,
   useSessionComposition,
 } from "@/feature/plan/hook/useSessionComposition";
-import { CmvLeaveDialog, CmvPanel, CmvSelect, CmvTextArea, CmvTextField } from "@/shared/component";
+import {
+  CmvLeaveDialog,
+  CmvPanel,
+  CmvSelect,
+  CmvStaleBanner,
+  CmvTextArea,
+  CmvTextField,
+} from "@/shared/component";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useReportDirty } from "@/shared/hook/useReportDirty";
+import { isStaleWriteError } from "@/shared/lib/api";
 import { formatDayLabel } from "@/shared/util/date.util";
 
 /**
@@ -76,6 +84,52 @@ function useCloseGuard(isDirty: boolean, onClose: () => void) {
   };
 }
 
+/**
+ * Les écritures du panneau. Enregistrer et retirer citent la version sur laquelle la saisie a
+ * commencé (#604), figée à l'ouverture : la séance en cache peut être relue entre-temps (retour
+ * d'onglet), la saisie, elle, ne l'a pas vue. « Recharger » remonte le panneau, et la fige à
+ * nouveau.
+ */
+function useSessionWrites(planId: string, session: ScheduledSessionDto | null) {
+  const { createSession, saveSession, removeSession, isBusy } = usePlanMutations(planId);
+  const [opened] = useState(
+    session == null ? null : { id: session.id, version: session.updatedAt },
+  );
+  // Enregistrer et supprimer ne sont offerts qu'en édition, donc sur une séance existante.
+  const edited = () => required(opened, "écriture hors édition");
+
+  return {
+    createSession,
+    isBusy,
+    // Chaque écriture oublie le refus de l'autre : le bandeau ne dit que celui du dernier geste.
+    save(input: ReturnType<typeof toSaveInput>, onSuccess: () => void) {
+      const { id, version } = edited();
+      removeSession.reset();
+      saveSession.mutate(
+        { sessionId: id, input: { ...input, expectedUpdatedAt: version } },
+        { onSuccess },
+      );
+    },
+    remove(onSuccess: () => void) {
+      const { id, version } = edited();
+      saveSession.reset();
+      removeSession.mutate({ sessionId: id, expectedUpdatedAt: version }, { onSuccess });
+    },
+    staleMessage: staleMessageOf(saveSession.error, removeSession.error),
+  };
+}
+
+/**
+ * Ce que dit le bandeau quand la séance a changé depuis l'ouverture, ou `null` sans conflit. Un
+ * enregistrement refusé garde une saisie ; une suppression refusée n'en a pas, elle invite à voir
+ * ce qui a changé avant de retirer.
+ */
+function staleMessageOf(saveError: unknown, removeError: unknown): string | null {
+  if (isStaleWriteError(saveError)) return "library.session.stale";
+  if (isStaleWriteError(removeError)) return "plan.session.staleDelete";
+  return null;
+}
+
 type ScheduledSessionPanelProps = {
   planId: string;
   // Cycle diffusé : retirer une séance prévient l'athlète, le panneau l'annonce avant confirmation.
@@ -96,6 +150,12 @@ type ScheduledSessionPanelProps = {
    * comme pour son en-tête et sa facturation (#327). Doit être stable — un setter d'état.
    */
   onDirtyChange: (isDirty: boolean) => void;
+  /**
+   * Remplace la saisie par la dernière version de la séance, après un conflit (#604) : l'écran
+   * relit la séance et remonte le panneau dessus.
+   */
+  onReload: () => void;
+  isReloading: boolean;
 };
 
 /**
@@ -114,9 +174,11 @@ export function ScheduledSessionPanel({
   athleteName,
   onClose,
   onDirtyChange,
+  onReload,
+  isReloading,
 }: Readonly<ScheduledSessionPanelProps>) {
   const { t } = useTranslation();
-  const { createSession, saveSession, removeSession, isBusy } = usePlanMutations(planId);
+  const { createSession, save, remove, isBusy, staleMessage } = useSessionWrites(planId, session);
   const { data: templates } = useSessions();
   const { data: exercises } = useExercises({});
   // Une valeur refusée reste dans sa cellule mais pas dans le brouillon : enregistrer enverrait
@@ -128,7 +190,8 @@ export function ScheduledSessionPanel({
   const [sourceSessionId, setSourceSessionId] = useState("");
   const [title, setTitle] = useState(session?.title ?? "");
   const [notes, setNotes] = useState(session?.notes ?? "");
-  const [scheduledDate, setScheduledDate] = useState(date);
+  // Le jour de la séance relue, et non celui du clic : un autre Coach a pu la déplacer.
+  const [scheduledDate, setScheduledDate] = useState(session?.scheduledDate ?? date);
   const composition = useSessionComposition(session);
 
   /**
@@ -155,15 +218,7 @@ export function ScheduledSessionPanel({
       return;
     }
 
-    saveSession.mutate(
-      { sessionId: session.id, input: toSaveInput(title, notes, scheduledDate, composition.items) },
-      { onSuccess: onClose },
-    );
-  }
-
-  // « Supprimer » n'est offert qu'en édition, donc sur une séance existante.
-  function onDelete() {
-    removeSession.mutate(required(session, "suppression hors édition").id, { onSuccess: onClose });
+    save(toSaveInput(title, notes, scheduledDate, composition.items), onClose);
   }
 
   const dayOptions = required(planWeekDays(week.startDate), "lundi de semaine illisible").map(
@@ -190,12 +245,17 @@ export function ScheduledSessionPanel({
           isBusy={isBusy}
           canSubmit={canSubmit}
           hasRefused={refused.hasRefused}
-          onDelete={onDelete}
+          onDelete={() => remove(onClose)}
           onClose={close.requestClose}
           onSubmit={onSubmit}
         />
       }
     >
+      {staleMessage == null ? null : (
+        <div className="mb-cmv-lg">
+          <CmvStaleBanner message={t(staleMessage)} onReload={onReload} isReloading={isReloading} />
+        </div>
+      )}
       <RefusedFieldsContext value={refused.report}>
         <form onSubmit={onSubmit} className="flex flex-col gap-cmv-xl lg:flex-row">
           <section className="flex flex-1 flex-col gap-cmv-lg">

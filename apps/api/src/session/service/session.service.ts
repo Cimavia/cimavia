@@ -2,6 +2,7 @@ import {
   AdjustmentLevel,
   type CreateSessionInput,
   type ExerciseBlocks,
+  type ReloadSessionExerciseInput,
   required,
   type SessionDto,
   type SessionExerciseInput,
@@ -13,7 +14,10 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseBlocks, toAdjustmentsInput, toBlocksInput } from "../../util/exercise-json.util";
+import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { type ExerciseWithTags, type SessionWithExercises, toSessionDto } from "../session.mapper";
+
+const SESSION_NOT_FOUND = "Séance introuvable";
 
 @Injectable()
 export class SessionService {
@@ -50,14 +54,24 @@ export class SessionService {
     return this.getDto(id);
   }
 
+  /**
+   * Remplace la séance, à condition qu'elle n'ait pas changé depuis que la saisie a commencé
+   * (#604) — sinon 409 `STALE_WRITE`, et la base garde l'autre écriture, composition comprise.
+   */
   async update(id: string, input: UpdateSessionInput): Promise<SessionDto> {
-    await this.getOwnedOrThrow(id);
+    const current = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Avant de valider les exercices cités contre un état que la saisie n'a pas vu.
+    assertReadAtVersion(current.updatedAt, expected);
     await this.assertExercisesOwned(input.exercises);
-    await this.db.$transaction(async (tx) => {
-      await tx.session.update({
-        where: { id },
-        data: { title: input.title, notes: input.notes ?? null },
-      });
+    return this.db.$transaction(async (tx) => {
+      await writeAtVersion(
+        tx.session,
+        id,
+        expected,
+        { title: input.title, notes: input.notes ?? null },
+        SESSION_NOT_FOUND,
+      );
       // Replace-all : la composition est intégralement remplacée par la liste fournie.
       // Lues AVANT la destruction : elles portent les références que la nouvelle composition
       // doit récupérer.
@@ -67,8 +81,11 @@ export class SessionService {
       });
       await tx.sessionExercise.deleteMany({ where: { sessionId: id } });
       await this.replaceExercises(tx, id, input.exercises, previous);
+      // Relue DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
+      // donc NOTRE version et NOS lignes. Relue après, elle pourrait déjà porter celles d'un autre
+      // Coach — que le builder, qui garde sa saisie, reprendrait comme les siennes.
+      return this.getDto(id, tx);
     });
-    return this.getDto(id);
   }
 
   async delete(id: string): Promise<void> {
@@ -79,20 +96,26 @@ export class SessionService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  private async getOwnedOrThrow(id: string): Promise<SessionWithExercises> {
-    const session = await this.db.session.findFirst({
+  private async getOwnedOrThrow(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<SessionWithExercises> {
+    const session = await db.session.findFirst({
       where: { id },
       include: { exercises: { orderBy: { position: "asc" } } },
     });
     if (session == null) {
-      throw new NotFoundException("Séance introuvable");
+      throw new NotFoundException(SESSION_NOT_FOUND);
     }
     return session;
   }
 
-  private async getDto(id: string): Promise<SessionDto> {
-    const session = await this.getOwnedOrThrow(id);
-    const byId = await this.loadExerciseMap(session.exercises.map((e) => e.exerciseId));
+  private async getDto(id: string, db: TenantPrisma | TenantTx = this.db): Promise<SessionDto> {
+    const session = await this.getOwnedOrThrow(id, db);
+    const byId = await this.loadExerciseMap(
+      session.exercises.map((e) => e.exerciseId),
+      db,
+    );
     return toSessionDto(session, byId);
   }
 
@@ -120,42 +143,60 @@ export class SessionService {
    *
    * À ne pas confondre avec « Tout réinitialiser », qui revient aux valeurs copiées à l'ajout et
    * ne touche pas la référence. Celui-ci ÉCRASE, d'où la confirmation côté client.
+   *
+   * La version de la SÉANCE est vérifiée, et avancée, AVANT de chercher la ligne (#604) : chaque
+   * enregistrement recrée la composition sous de nouveaux identifiants, si bien qu'un onglet resté
+   * sur l'ancienne cite une ligne qui n'existe plus. C'est un conflit, pas une ligne inconnue.
    */
   async reloadExerciseFromLibrary(
     sessionId: string,
     sessionExerciseId: string,
+    input: ReloadSessionExerciseInput,
   ): Promise<SessionDto> {
-    const composed = await this.db.sessionExercise.findFirst({
-      where: { id: sessionExerciseId, sessionId },
+    return this.db.$transaction(async (tx) => {
+      // Rien d'autre à écrire sur la séance : seule sa version avance.
+      await writeAtVersion(
+        tx.session,
+        sessionId,
+        new Date(input.expectedUpdatedAt),
+        {},
+        SESSION_NOT_FOUND,
+      );
+      const composed = await tx.sessionExercise.findFirst({
+        where: { id: sessionExerciseId, sessionId },
+      });
+      if (composed == null) {
+        throw new NotFoundException("Exercice de séance introuvable");
+      }
+
+      // FK `Restrict`, même coach : l'exercice composé existe tant que la ligne qui le cite.
+      const exercise = required(
+        await tx.exercise.findFirst({ where: { id: composed.exerciseId } }),
+        `[session] exercice ${composed.exerciseId} hors scope pour la séance ${sessionId}`,
+      );
+
+      const blocks = parseBlocks(exercise.blocks);
+      await tx.sessionExercise.update({
+        where: { id: sessionExerciseId },
+        data: {
+          blocks: toBlocksInput(blocks),
+          baseline: toBlocksInput(blocks),
+          adjustments: toAdjustmentsInput([]),
+        },
+      });
+      // Dans la transaction, comme après un enregistrement : la réponse porte NOTRE version.
+      return this.getDto(sessionId, tx);
     });
-    if (composed == null) {
-      throw new NotFoundException("Exercice de séance introuvable");
-    }
-
-    // FK `Restrict`, même coach : l'exercice composé existe tant que la ligne qui le cite.
-    const exercise = required(
-      await this.db.exercise.findFirst({ where: { id: composed.exerciseId } }),
-      `[session] exercice ${composed.exerciseId} hors scope pour la séance ${sessionId}`,
-    );
-
-    const blocks = parseBlocks(exercise.blocks);
-    await this.db.sessionExercise.update({
-      where: { id: sessionExerciseId },
-      data: {
-        blocks: toBlocksInput(blocks),
-        baseline: toBlocksInput(blocks),
-        adjustments: toAdjustmentsInput([]),
-      },
-    });
-
-    return this.get(sessionId);
   }
 
   // Charge (scopé) les exercices par id → map pour l'enrichissement titre/tags.
-  private async loadExerciseMap(exerciseIds: string[]): Promise<Map<string, ExerciseWithTags>> {
+  private async loadExerciseMap(
+    exerciseIds: string[],
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<Map<string, ExerciseWithTags>> {
     const ids = [...new Set(exerciseIds)];
     if (ids.length === 0) return new Map();
-    const exercises = await this.db.exercise.findMany({
+    const exercises = await db.exercise.findMany({
       where: { id: { in: ids } },
       include: { tags: true },
     });

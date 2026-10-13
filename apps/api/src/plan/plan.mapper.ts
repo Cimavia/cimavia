@@ -75,6 +75,7 @@ export function toPlanWeekDto(
     note: week.note,
     startDate: range.startDate,
     endDate: range.endDate,
+    updatedAt: week.updatedAt.toISOString(),
     sessions: week.sessions.map(toScheduledSessionSummaryDto),
   };
 }

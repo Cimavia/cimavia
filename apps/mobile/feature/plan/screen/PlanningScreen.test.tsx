@@ -90,6 +90,7 @@ function plan(
         note: index === 0 ? note : null,
         startDate: weekStart,
         endDate: weekEnd,
+        updatedAt: "2026-10-01T10:00:00Z",
         sessions: sessions.filter(
           (session) => session.scheduledDate >= weekStart && session.scheduledDate <= weekEnd,
         ),

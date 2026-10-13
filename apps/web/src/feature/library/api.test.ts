@@ -143,9 +143,9 @@ describe.each([
   ["getSession", () => getSession("s-1"), "get", ["/sessions/s-1"]],
   [
     "reloadSessionExercise",
-    () => reloadSessionExercise("s-1", "se-1"),
+    () => reloadSessionExercise("s-1", "se-1", { expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
     "post",
-    ["/sessions/s-1/exercises/se-1/reload", {}],
+    ["/sessions/s-1/exercises/se-1/reload", { expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }],
   ],
   [
     "createSession",

@@ -28,9 +28,15 @@ import { uploadToSignedUrl } from "@/shared/lib/upload";
 // garantit qu'aucun fichier non autorisé n'atteint l'API.
 export type PendingFile = { id: string; file: File; mimeType: DocumentMimeType };
 
+/**
+ * L'exercice qu'un enregistrement réécrit, et la version que la saisie a lue (#604) : l'API refuse
+ * en 409 une écriture dont l'exercice a changé depuis. Un `ExerciseDto` en est un.
+ */
+export type ExerciseVersion = Pick<ExerciseDto, "id" | "updatedAt">;
+
 type SaveExerciseArgs = {
-  // null = création ; sinon édition de cet exercice.
-  exercise: ExerciseDto | null;
+  // null = création ; sinon édition de cet exercice, à la version que la saisie a lue.
+  exercise: ExerciseVersion | null;
   input: CreateExerciseInput;
   pendingFiles: PendingFile[];
   pendingLinks: string[];
@@ -93,7 +99,10 @@ export function useSaveExercise() {
       const saved =
         exercise == null
           ? await createExercise(firstPass)
-          : await updateExercise(exercise.id, firstPass);
+          : await updateExercise(exercise.id, {
+              ...firstPass,
+              expectedUpdatedAt: exercise.updatedAt,
+            });
       onExerciseSaved?.(saved);
 
       // Envois séquentiels : progression lisible et pas de rafale vers l'object storage.
@@ -150,8 +159,11 @@ export function useSaveExercise() {
         onImageAttached?.(image.mediaId, attached.id);
       }
 
+      // La version que le temps 1 vient de rendre : c'est NOTRE écriture, pas un conflit. Les
+      // rattachements ne la font pas avancer — ils n'écrivent pas la ligne de l'exercice.
       return updateExercise(saved.id, {
         instructions: nullIfEmpty(withResolvedImages(instructions, idByPendingId)),
+        expectedUpdatedAt: saved.updatedAt,
       });
     },
     // `onSettled` et non `onSuccess` : un échec partiel a pu créer l'exercice ou rattacher des

@@ -5,12 +5,13 @@ import {
   PLAN_TITLE_MAX_LENGTH,
   type PlanDto,
   PlanStatus,
+  sameJson,
   type UpdatePlanInput,
 } from "@cmv/shared";
-import { type SyntheticEvent, useEffect, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
-import { CmvButton, CmvCard, CmvTextArea, CmvTextField } from "@/shared/component";
+import { CmvButton, CmvCard, CmvStaleBanner, CmvTextArea, CmvTextField } from "@/shared/component";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useReportDirty } from "@/shared/hook/useReportDirty";
 import { formatDate } from "@/shared/util/date.util";
@@ -20,7 +21,13 @@ type PlanHeaderFormProps = {
   /** Un justificatif est joint à la facturation : le destinataire est figé (#472). */
   hasInvoiceDocument: boolean;
   isSaving: boolean;
-  onSave: (input: UpdatePlanInput) => void;
+  /** `onSaved` reçoit le cycle tel qu'enregistré : sa version est celle que NOUS avons écrite. */
+  onSave: (input: UpdatePlanInput, onSaved: (saved: PlanDto) => void) => void;
+  /** Le dernier enregistrement a été refusé : le cycle a changé depuis le début de la saisie (#604). */
+  isStale: boolean;
+  isReloading: boolean;
+  /** Relit le cycle ; l'écran remonte alors le formulaire sur la dernière version. */
+  onReload: () => void;
   /**
    * Une saisie diffère de ce qui est enregistré : « Diffuser », qui part avec le cycle ENREGISTRÉ,
    * se ferme tant que c'est vrai (#326). Doit être stable : un `setState` de l'écran.
@@ -42,28 +49,34 @@ export function PlanHeaderForm({
   hasInvoiceDocument,
   isSaving,
   onSave,
+  isStale,
+  isReloading,
+  onReload,
   onDirtyChange,
 }: Readonly<PlanHeaderFormProps>) {
   const { t } = useTranslation();
   const toast = useMutationToast();
 
-  const [title, setTitle] = useState(plan.title);
-  const [description, setDescription] = useState(plan.description ?? "");
-  const [startDate, setStartDate] = useState(plan.startDate);
-  const [athleteId, setAthleteId] = useState(plan.athleteId);
-
   /**
-   * Réaligné sur les VALEURS du serveur, jamais sur l'objet `plan` : celui-ci change à chaque
-   * invalidation du cache — dont celles que déclenchent les autres écritures du builder (ajouter
-   * une semaine, coller, enregistrer une séance). Dépendre de l'objet effacerait la saisie en
-   * cours à chacune d'elles.
+   * `null` tant que le coach n'a rien saisi : les champs suivent alors le cycle en cache, version
+   * comprise. La première saisie fige les champs ET la version que l'enregistrement citera (#604)
+   * — pas celle du cache au moment d'enregistrer : une autre écriture du builder ou un retour
+   * d'onglet y range peut-être celle d'un autre Coach, et la citer ferait passer la saisie
+   * par-dessus sans un mot.
    */
-  useEffect(() => {
-    setTitle(plan.title);
-    setDescription(plan.description ?? "");
-    setStartDate(plan.startDate);
-    setAthleteId(plan.athleteId);
-  }, [plan.title, plan.description, plan.startDate, plan.athleteId]);
+  const [draft, setDraft] = useState<HeaderDraft | null>(null);
+  const current = draft ?? headerDraft(plan);
+  const { title, description, startDate, athleteId } = current;
+  /**
+   * Une saisie revenue à son point de départ relâche le brouillon : le formulaire paraît propre, il
+   * doit aussi suivre de nouveau le cycle. Figé, il opposerait à la prochaine écriture d'un autre
+   * Coach des champs que personne n'a touchés, et un 409 certain.
+   */
+  const settle = (next: HeaderDraft) => (sameJson(next, headerDraft(plan)) ? null : next);
+
+  function edit(change: Partial<HeaderDraft>) {
+    setDraft(settle({ ...current, ...change }));
+  }
 
   /**
    * Le début qui sera ENREGISTRÉ : le lundi de la semaine saisie. C'est sur lui, et non sur la
@@ -79,10 +92,13 @@ export function PlanHeaderForm({
    * DIT par un toast : une valeur qui change toute seule sans explication est plus déroutante
    * qu'un refus.
    */
-  function snapToMonday() {
-    if (effectiveStartDate == null || effectiveStartDate === startDate) return;
-    setStartDate(effectiveStartDate);
+  function snapToMonday(): HeaderDraft | null {
+    if (effectiveStartDate == null || effectiveStartDate === startDate) return draft;
+    const snapped = settle({ ...current, startDate: effectiveStartDate });
+    setDraft(snapped);
     toast.onInfo("plan.header.startDateSnapped", { date: formatDate(effectiveStartDate) });
+    // Le brouillon tel qu'il part — `null` s'il suit le cycle : la confirmation s'y compare.
+    return snapped;
   }
 
   /**
@@ -90,8 +106,8 @@ export function PlanHeaderForm({
    * traverser `shiftSessions` à une date immobile, et rejouerait la propagation du destinataire
    * sur six tables sans qu'il ait bougé. Le `undefined` d'`updatePlanSchema` existe pour ça.
    */
-  function changedFields(): UpdatePlanInput {
-    const input: UpdatePlanInput = {};
+  function changedFields(): HeaderChanges {
+    const input: HeaderChanges = {};
     const nextTitle = title.trim();
     if (nextTitle !== plan.title) input.title = nextTitle;
     // Une description vidée vaut `null` — l'absence, pas une chaîne vide qui n'est ni l'un ni
@@ -110,8 +126,14 @@ export function PlanHeaderForm({
     // `canSubmit` faux ferme le bouton, donc aussi l'envoi à la touche Entrée. Ouvert, Entrée
     // envoie sans passer par le blur : le recalage se fait ici aussi, pour que le champ et le
     // toast disent ce qui part.
-    snapToMonday();
-    onSave(changedFields());
+    const sent = snapToMonday();
+    onSave({ ...changedFields(), expectedUpdatedAt: current.version }, (saved) =>
+      // Rien saisi pendant l'envoi : le formulaire repart du cycle enregistré. Sinon la saisie
+      // reste, et cite la version que NOUS venons d'écrire — pas un conflit avec soi-même.
+      setDraft((latest) =>
+        latest === sent ? null : latest && { ...latest, version: saved.updatedAt },
+      ),
+    );
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
@@ -147,13 +169,21 @@ export function PlanHeaderForm({
           </p>
         </div>
 
+        {isStale ? (
+          <CmvStaleBanner
+            message={t("plan.header.stale")}
+            onReload={onReload}
+            isReloading={isReloading}
+          />
+        ) : null}
+
         <div className="grid gap-cmv-md md:grid-cols-2">
           <CmvTextField
             label={t("plan.header.titleLabel")}
             name="planTitle"
             maxLength={PLAN_TITLE_MAX_LENGTH}
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => edit({ title: event.target.value })}
             placeholder={t("plan.header.titlePlaceholder")}
             disabled={isPublished}
             required
@@ -165,7 +195,7 @@ export function PlanHeaderForm({
             isPublished={isPublished}
             hasInvoiceDocument={hasInvoiceDocument}
             isBusy={isSaving}
-            onChange={setAthleteId}
+            onChange={(next) => edit({ athleteId: next })}
           />
         </div>
 
@@ -175,7 +205,7 @@ export function PlanHeaderForm({
             name="startDate"
             type="date"
             value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
+            onChange={(event) => edit({ startDate: event.target.value })}
             onBlur={snapToMonday}
             disabled={isPublished}
             required
@@ -201,7 +231,7 @@ export function PlanHeaderForm({
           name="planDescription"
           maxLength={PLAN_DESCRIPTION_MAX_LENGTH}
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
+          onChange={(event) => edit({ description: event.target.value })}
           placeholder={t("plan.header.descriptionPlaceholder")}
           disabled={isPublished}
           rows={3}
@@ -219,6 +249,26 @@ export function PlanHeaderForm({
     </CmvCard>
   );
 }
+
+/** Ce qui part : les champs changés, la version s'y ajoute à l'envoi. */
+type HeaderChanges = Omit<UpdatePlanInput, "expectedUpdatedAt">;
+
+/** La saisie de l'en-tête, et la version du cycle sur laquelle elle a commencé. */
+type HeaderDraft = {
+  title: string;
+  description: string;
+  startDate: string;
+  athleteId: string | null;
+  version: string;
+};
+
+const headerDraft = (plan: PlanDto): HeaderDraft => ({
+  title: plan.title,
+  description: plan.description ?? "",
+  startDate: plan.startDate,
+  athleteId: plan.athleteId,
+  version: plan.updatedAt,
+});
 
 /**
  * Ce qu'un déplacement du début emporte, et dans quel sens. Avancer et repousser ne se disent pas

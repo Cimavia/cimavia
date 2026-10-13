@@ -119,7 +119,8 @@ liste des domaines vivent dans l'index.
 >   `updateMany` sans qu'aucun chemin d'écriture ait à y penser ; un compteur `version` s'incrémente
 >   à la main, et un seul chemin oublié rouvrirait l'écrasement silencieux. La milliseconde suffit :
 >   deux écritures dans la même milliseconde n'arrivent pas avec des humains qui tapent. Pas de
->   migration.
+>   migration. *Nuancé en #604* : la version d'une semaine avance aussi quand l'une de ses séances
+>   change, et celle-là s'avance à la main (**MC-4**).
 > - **Le client cite la version sur laquelle la saisie a COMMENCÉ**, pas celle du cache au moment
 >   d'enregistrer. Sur le web, `refetchOnWindowFocus` range au retour d'onglet la version qu'un
 >   autre onglet a écrite : la citer ferait passer le brouillon par-dessus, garde comprise. Elle se
@@ -596,6 +597,11 @@ liste des domaines vivent dans l'index.
 | MC-1 | **Les docs décrivent la cible avant le code** ([#594](https://github.com/Cimavia/cimavia/issues/594)) : règle dure n°1, `architecture-choice.md` §6, `CONTEXT.cimavia.md` et le cahier des charges posent déjà les règles de l'épic. Chaque affirmation que le code ne tient pas encore porte un marqueur *(cible — #N)* ; la PR de #N le retire en rendant la règle vraie. | 🟡 | [#593](https://github.com/Cimavia/cimavia/issues/593) — résolue au dernier marqueur retiré (`grep -rnE "cible — #[0-9]" CLAUDE.md docs/`) |
 | MC-2 | **Une notification d'invitation mène toujours côté coach un compte à double capacité** : la cloche et le push routent `INVITATION` par capacité, pas par type. Invité par une entreprise (`INVITATION_RECEIVED`) ou rejoint par l'un de ses Coachs (`ORGANIZATION_COACH_JOINED`, #602), un compte coach et athlète arrive sur son tableau de bord de coach, et non dans « Mes coachs ». Déjà vrai de l'invitation d'un Coach depuis #146. | 🟢 | — *(déclencheur : un retour beta d'un compte à double capacité perdu ; le correctif lirait `capabilityOfNotification` dans les deux tables de routage)* |
 | MC-3 | **La lecture du parent à la création passe par un paramètre interne de Prisma** ([#603](https://github.com/Cimavia/cimavia/issues/603)) : `__internalParams.transaction`, absent de ses types, relayé par `requestTransaction`. C'est le seul moyen de lire, depuis une extension de requête, le parent qu'une transaction interactive vient de créer. Une montée de Prisma qui le retirerait ferait lire hors transaction : le parent y serait invisible, la création refusée (500), jamais une fuite — et l'e2e « lit le parent dans la transaction qui vient de le créer » tomberait. | 🟢 | — *(déclencheur : une montée de version de Prisma ; la sortie serait une transaction portée par le CLS, `@nestjs-cls/transactional`, au prix des ~24 `$transaction` des services)* |
+| MC-4 | **Les versions avancent à la main, pas par un trigger** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : une semaine n'est pas réécrite quand l'une de ses séances change, et c'est `touchWeeks` qui fait avancer sa version, appelé chemin par chemin (création, retouche et retrait de séance, décalage du début). Un nouveau chemin qui écrirait une séance sans l'appeler laisserait passer un collage ou un glisser périmé, sans 409. | 🟢 | — *(déclencheur : un nouveau chemin d'écriture de séance planifiée — import, déplacement groupé, script ; la sortie serait un trigger Postgres sur `scheduled_session` qui ignore les colonnes du débrief, ou un écrivain unique)* |
+| MC-5 | **Ranger une journée fait avancer ses séances** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `writeDay` et `compactDay` réécrivent la position des séances voisines, et avec elle leur `updatedAt`. Un Coach dont le panneau est ouvert sur l'une d'elles prend un « modifiée pendant que tu l'éditais » alors que seul son rang a bougé. Le faux conflit est rare et sans perte : la saisie reste, « Recharger » repart de la dernière version. | 🟢 | — *(déclencheur : un retour beta d'un conflit inexpliqué ; la sortie serait une position écrite sans faire avancer la version, comme le débrief)* |
+| MC-6 | **Le débrief peut faire avancer la version, au troisième essai** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `markDoneKeepingVersion` passe la séance en DONE en réécrivant la version lue, sous condition qu'elle n'ait pas bougé ; après trois écritures du Coach glissées entre sa lecture et son écriture, il écrit sans condition. Le Coach prend alors un conflit de trop, jamais une perte. | 🟢 | — *(déclencheur : un 409 inexpliqué juste après un débrief ; trois écritures concurrentes en quelques millisecondes ne se voient pas avec des humains)* |
+| MC-7 | **Supprimer un brouillon emporte les semaines qu'un autre Coach vient d'y poser** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : la suppression cite la version du cycle, qui est celle de son en-tête ; ajouter une semaine ou une séance ne la fait pas avancer. Le geste vise le cycle entier, après confirmation. | 🟢 | — *(déclencheur : une perte de travail rapportée par un Coach d'entreprise ; la sortie serait de citer aussi la plus récente version de ses semaines)* |
+| MC-8 | **Supprimer un exercice ou une séance-type ne cite pas de version** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : leur retrait reste inconditionnel, là où celui d'un cycle, d'une semaine ou d'une séance planifiée cite la sienne. Tant que la bibliothèque n'est écrite que par son propriétaire, le risque se limite à deux onglets du même Coach. | 🟢 | — *(déclencheur : [#605](https://github.com/Cimavia/cimavia/issues/605), qui ouvre la bibliothèque à l'écriture d'autres Coachs ; la sortie est `deleteAtVersion`, comme pour un cycle)* |
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -832,3 +838,67 @@ liste des domaines vivent dans l'index.
 > service vient de créer le parent — copier une semaine chargée en ajoute quelques dizaines à sa
 > transaction. Un cache par transaction aurait mis un état de plus dans la couche qui décide de
 > l'isolation ; il se reconsidère si une copie approche le délai d'une transaction interactive.
+
+> **Tranché en [#604](https://github.com/Cimavia/cimavia/issues/604)** (deux Coachs ne s'écrasent
+> plus en silence) : la garde de #440 s'étend à l'exercice, à la séance-type, au cycle, à ses
+> semaines et à ses séances planifiées. Ce que le code ne dit pas seul :
+>
+> - **Chaque geste cite la version de ce qu'il remplace.** Le contenu d'une séance planifiée, et son
+>   retrait, citent la séance ; un collage, un glisser, un changement de type ou le retrait d'une
+>   semaine citent la SEMAINE affichée ; l'en-tête, la diffusion et la suppression d'un cycle citent
+>   le cycle. La diffusion
+>   aussi : sans elle, un cycle réaffecté par l'autre Coach partait chez un athlète que celui qui
+>   diffuse n'avait jamais vu à l'écran, notifié et facturé. Une garde côté serveur seule, sur la
+>   version qu'il vient de relire, n'aurait fermé que la fenêtre de quelques millisecondes entre sa
+>   lecture et son écriture.
+> - **Une semaine avance quand ce qu'elle montre change**, même si sa ligne ne bouge pas : poser,
+>   retoucher, retirer une séance, décaler le début du cycle. `touchWeeks` s'appelle **avant toute
+>   séance** : l'ordre des verrous est cycle, puis semaines, puis séances, celui des gestes ;
+>   l'ordre inverse ferait se tenir deux transactions le verrou que l'autre attend (un 500 de
+>   Postgres). Réaffecter le cycle
+>   fait avancer toutes ses semaines, et c'est voulu : un collage pensé pour l'athlète d'avant n'a
+>   pas à passer chez le suivant. Le trigger Postgres, plus sûr contre l'oubli, est écarté pour
+>   l'instant : il mettrait de la logique métier hors du code testé à l'unité, et devrait savoir
+>   ignorer le débrief. Le risque est suivi en **MC-4**.
+> - **Les créations ne citent pas de version** : rien n'existe encore à avoir lu. Deux semaines
+>   ajoutées au même instant visent le même numéro ; la seconde heurte l'unicité et reçoit le même
+>   409 (`staleOnCollision`).
+> - **Le débrief ne compte pas comme une retouche.** Il passe la séance en DONE sans faire avancer
+>   `updatedAt`, qui reste « la dernière écriture du Coach » : sans cette exception, l'athlète qui
+>   débriefe ferait refuser l'enregistrement du Coach par un conflit qui ne dit pas vrai. Le mobile
+>   compare donc la version ET le statut pour savoir si sa copie hors-ligne est à jour. Une séance
+>   débriefée reste modifiable, mais ne se retire plus : ce refus-là passe avant le conflit de
+>   version, que recharger ne lèverait pas. Limite en **MC-6**.
+> - **404 avant 409, toujours en relisant** : une écriture qui n'a rien écrit relit l'élément par
+>   le client tenant. Disparu, ou appartenant à un autre Coach → 404 ; encore là → 409. Un 409 sur
+>   un élément supprimé proposerait un « Recharger » qui ne trouverait rien. La fiche athlète (#440)
+>   répond encore 409 sans relire : sa disparition, à la rupture d'un lien, est rare.
+> - **Un formulaire relit sa réponse dans la transaction** (exercice, séance-type, en-tête, séance
+>   planifiée, diffusion) : la ligne y reste verrouillée par notre écriture, la réponse porte donc
+>   NOTRE version. Relue après, elle pouvait déjà porter celle de l'autre Coach, et un formulaire
+>   qui garde sa saisie la citerait par-dessus son écriture. Les gestes sur la grille, eux, rendent
+>   le cycle entier relu après coup : la grille affichée est remplacée par cette réponse, et la
+>   version y va avec ce qu'elle montre.
+> - **La version citée avance à chaque écriture réussie du même brouillon** : l'exercice
+>   s'enregistre en plusieurs temps (consigne, réessai après échec partiel), et chaque temps cite
+>   la version que le précédent vient de rendre.
+> - **Les gestes sans saisie se relisent, les formulaires gardent la saisie.** Un glisser, un
+>   collage, une diffusion refusés affichent un toast et relisent le cycle : il n'y a rien à
+>   sauver. L'en-tête, le panneau de séance et les constructeurs gardent la saisie et affichent
+>   `CmvStaleBanner`. Le panneau de séance planifiée relit la séance à l'ouverture, au lieu de
+>   figer la version d'un cache qui pouvait dater d'une minute.
+> - **Horloge et ABA** : la version reste `updatedAt` (#440). Deux écritures dans la même
+>   milliseconde, ou deux instances de l'API aux horloges décalées, pourraient reposer la même
+>   valeur et laisser passer une écriture périmée. La preview tourne en une seule instance, et des
+>   humains ne tapent pas à la milliseconde ; un compteur incrémenté en SQL se reconsidère si la
+>   production en lance plusieurs.
+> - **Contrat cassé côté web** : `expectedUpdatedAt` est requis sur toute écriture qui remplace
+>   (hors exercice et séance-type supprimés, **MC-8**). Un onglet resté sur
+>   l'ancien bundle (#290) reçoit un 400 en enregistrant, sans perte, jusqu'à ce qu'il recharge.
+> - **#361 se ferme ici** : un dépôt pendant une écriture en vol sur le cycle est ignoré, au glisser
+>   comme au clavier — `isBusy` se lit sur le cycle entier (`useIsMutating`), plus par instance. La
+>   poignée n'est pas grisée pour autant. Un glisser sur une grille déjà périmée reçoit un 409 et
+>   la grille se relit, au lieu d'un 400 incompréhensible.
+> - **Les factures n'y passent pas**, comme le dit l'issue : leurs statuts sont des transitions
+>   gardées, et le brouillon tient en trois champs. Une facturation retouchée par l'autre Coach ne
+>   fait donc pas avancer la version du cycle, et la diffusion ne la voit pas.

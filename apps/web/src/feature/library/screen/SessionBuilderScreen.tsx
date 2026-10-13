@@ -10,7 +10,11 @@ import { SessionPreview } from "@/feature/library/component/SessionPreview";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
 import { useDuplicateExercise, useExercise } from "@/feature/library/hook/useExercises";
 import { useSessionDraft } from "@/feature/library/hook/useSessionDraft";
-import { useReloadSessionExercise, useSession } from "@/feature/library/hook/useSessions";
+import {
+  sessionDetailQuery,
+  useReloadSessionExercise,
+  useSession,
+} from "@/feature/library/hook/useSessions";
 import {
   CmvAppShell,
   CmvButton,
@@ -19,6 +23,7 @@ import {
   CmvErrorState,
   CmvFormError,
   CmvLeaveDialog,
+  CmvStaleBanner,
   CmvTextArea,
   CmvTextField,
   useToast,
@@ -27,6 +32,8 @@ import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
+import { useStaleReload } from "@/shared/hook/useStaleReload";
+import { isStaleWriteError } from "@/shared/lib/api";
 import { cn } from "@/shared/util/cn.util";
 
 type SessionBuilderScreenProps = {
@@ -50,7 +57,11 @@ export function SessionBuilderScreen({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
-  const { data: session, isPending, isError, refetch } = useSession(sessionId);
+  const { loadedId, generation, reload, isReloading } = useStaleReload(
+    sessionId,
+    sessionDetailQuery,
+  );
+  const { data: session, isPending, isError, refetch } = useSession(loadedId);
   const added = useExercise(addExerciseId);
   const addSettled = added.data != null || added.isError;
 
@@ -68,7 +79,7 @@ export function SessionBuilderScreen({
   }, [sessionId, addExerciseId, addSettled, added.isError, navigate, toast, t]);
 
   // Le brouillon naît UNE fois : il doit attendre l'exercice à ajouter pour le compter d'emblée.
-  if ((sessionId != null && isPending) || (addExerciseId != null && !addSettled)) {
+  if ((loadedId != null && isPending) || (addExerciseId != null && !addSettled)) {
     return (
       <CmvAppShell title={t("library.session.loadingTitle")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
@@ -76,7 +87,10 @@ export function SessionBuilderScreen({
     );
   }
 
-  if (sessionId != null && isError) {
+  // Sur la DONNÉE, pas sur l'état de la requête : une relecture ratée (« Recharger », retour
+  // d'onglet) passe la requête en erreur en gardant la séance en cache. Remplacer le constructeur
+  // par l'erreur perdrait la saisie que le bandeau promet de garder.
+  if (loadedId != null && isError && session === undefined) {
     return (
       <CmvAppShell title={t("library.session.loadingTitle")}>
         <CmvErrorState
@@ -90,25 +104,38 @@ export function SessionBuilderScreen({
   }
 
   // `key` : l'état du brouillon naît de la séance chargée, et doit repartir de zéro si l'URL
-  // change de séance sans démonter l'écran.
+  // change de séance sans démonter l'écran — ou si « Recharger » remplace la saisie.
   return (
     <SessionBuilder
-      key={session?.id ?? "new"}
+      key={`${session?.id ?? "new"}:${generation}`}
       session={session ?? null}
       added={added.data ?? null}
       onLeave={() => navigate({ to: "/library" })}
+      onReload={reload}
+      isReloading={isReloading}
     />
   );
 }
+
+type SessionBuilderProps = {
+  session: SessionDto | null;
+  added: ExerciseDto | null;
+  onLeave: () => void;
+  /** Remplace la saisie par la dernière version de cette séance, après un conflit (#604). */
+  onReload: (id: string) => void;
+  isReloading: boolean;
+};
 
 function SessionBuilder({
   session,
   added,
   onLeave,
-}: Readonly<{ session: SessionDto | null; added: ExerciseDto | null; onLeave: () => void }>) {
+  onReload,
+  isReloading,
+}: Readonly<SessionBuilderProps>) {
   const { t } = useTranslation();
   const toast = useToast();
-  const { onFailure } = useMutationToast();
+  const { onError, onFailure } = useMutationToast();
   const navigate = useNavigate();
   const { data: customMetrics } = useCustomMetrics();
   const draft = useSessionDraft(session, added);
@@ -120,7 +147,14 @@ function SessionBuilder({
   const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
   // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
   const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
-  const reload = useReloadSessionExercise(session?.id);
+  const reload = useReloadSessionExercise();
+  // Enregistrer ou recharger un exercice : les deux écritures citent la version, les deux peuvent
+  // trouver la séance changée depuis.
+  const isStale = draft.isStale || isStaleWriteError(reload.error);
+  // Une écriture à la fois : lancées ensemble, elles citeraient la même version, et la seconde
+  // prendrait pour un conflit l'écriture du coach lui-même.
+  const isWriting = draft.isSaving || reload.isPending;
+  const edited = draft.edited;
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -158,7 +192,9 @@ function SessionBuilder({
       toast.success(t(successKey));
       return saved;
     } catch (error) {
-      onFailure("library.session.saveFailed", error);
+      // Un conflit d'édition se dit par le bandeau, à côté de la saisie : un toast disparaîtrait
+      // en emportant la seule explication.
+      if (!isStaleWriteError(error)) onFailure("library.session.saveFailed", error);
       return null;
     }
   }
@@ -212,14 +248,23 @@ function SessionBuilder({
           </CmvButton>
           <CmvButton
             onClick={onSubmit}
-            disabled={draft.isSaving || draft.trimmedTitle === "" || blockedBy != null}
+            disabled={isWriting || draft.trimmedTitle === "" || blockedBy != null}
             title={blockedBy}
           >
-            {submitLabel(draft.isSaving, session != null, t)}
+            {submitLabel(draft.isSaving, edited != null, t)}
           </CmvButton>
         </>
       }
     >
+      {isStale && edited != null ? (
+        <div className="mb-cmv-xl">
+          <CmvStaleBanner
+            message={t("library.session.stale")}
+            onReload={() => onReload(edited.id)}
+            isReloading={isReloading}
+          />
+        </div>
+      ) : null}
       <RefusedFieldsContext value={refused.report}>
         <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-cmv-xl">
@@ -276,7 +321,7 @@ function SessionBuilder({
                   <CompositionCard
                     item={item}
                     customMetrics={metrics}
-                    isReloading={reload.isPending}
+                    isReloading={isWriting}
                     isDropTarget={drag.isOver(index)}
                     isFirst={index === 0}
                     isLast={index === draft.items.length - 1}
@@ -310,11 +355,22 @@ function SessionBuilder({
                     }
                     onResetAll={() => draft.resetItem(item.key)}
                     onReload={() => {
-                      // `CompositionCard` ferme « Recharger » sur une ligne sans id.
-                      reload.mutate(required(item.id, "rechargement d'une ligne sans id"), {
-                        onSuccess: (reloaded, sessionExerciseId) =>
-                          draft.applyReloaded(sessionExerciseId, reloaded),
-                      });
+                      // `CompositionCard` ferme « Recharger » sur une ligne sans id : la ligne est
+                      // enregistrée, la séance aussi.
+                      reload.mutate(
+                        {
+                          session: required(edited, "rechargement hors d'une séance"),
+                          sessionExerciseId: required(item.id, "rechargement d'une ligne sans id"),
+                        },
+                        {
+                          onSuccess: (reloaded, { sessionExerciseId }) =>
+                            draft.applyReloaded(sessionExerciseId, reloaded),
+                          // Le conflit, lui, se dit par le bandeau.
+                          onError: (error) => {
+                            if (!isStaleWriteError(error)) onError(error);
+                          },
+                        },
+                      );
                     }}
                     onDuplicate={() => onDuplicate(item.exerciseId, item.blocks)}
                     onRemove={() => draft.removeItem(item.key)}
@@ -330,7 +386,7 @@ function SessionBuilder({
                     customMetrics={metrics}
                     onPick={onPick}
                     onCreateMissing={onCreateMissing}
-                    isSaving={draft.isSaving}
+                    isSaving={isWriting}
                   />
                   <div>
                     <CmvButton variant="ghost" onClick={() => setPicking(false)}>
@@ -347,7 +403,7 @@ function SessionBuilder({
               )}
             </div>
 
-            <CmvFormError error={draft.error} />
+            <CmvFormError error={draft.isStale ? null : draft.error} />
           </div>
 
           {/* `sticky` : l'aperçu suit le défilement de la composition, bien plus longue que lui. */}

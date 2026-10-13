@@ -5,11 +5,13 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
+  PublishPlanInput,
   ReorderPlanDayInput,
   ScheduledSessionDto,
   UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
+  VersionQuery,
 } from "@cmv/shared";
 import { createAthletePlanApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
@@ -45,13 +47,15 @@ export function updatePlan(planId: string, input: UpdatePlanInput): Promise<Plan
   return api.patch<PlanDto>(`/plans/${planId}`, input);
 }
 
-export function deletePlan(planId: string): Promise<void> {
-  return api.delete<void>(`/plans/${planId}`);
+// Un DELETE n'a pas de corps : la version du cycle affiché voyage dans la requête (#604).
+export function deletePlan(planId: string, query: VersionQuery): Promise<void> {
+  return api.delete<void>(`/plans/${planId}?${new URLSearchParams(query)}`);
 }
 
-// Diffusion : le cycle devient visible de l'athlète (et lui est notifié).
-export function publishPlan(planId: string): Promise<PlanDto> {
-  return api.post<PlanDto>(`/plans/${planId}/publish`);
+// Diffusion : le cycle devient visible de l'athlète (et lui est notifié). Elle cite la version du
+// cycle affiché (#604) : réaffecté depuis, il ne part pas chez un athlète que l'écran ne montrait pas.
+export function publishPlan(planId: string, input: PublishPlanInput): Promise<PlanDto> {
+  return api.post<PlanDto>(`/plans/${planId}/publish`, input);
 }
 
 // ── Semaines ─────────────────────────────────────────────────────────────────
@@ -65,8 +69,9 @@ export function updatePlanWeek(weekId: string, input: UpdatePlanWeekInput): Prom
   return api.patch<PlanDto>(`/plan-weeks/${weekId}`, input);
 }
 
-export function deletePlanWeek(weekId: string): Promise<PlanDto> {
-  return api.delete<PlanDto>(`/plan-weeks/${weekId}`);
+// Un DELETE n'a pas de corps : la version lue voyage dans la requête (#604).
+export function deletePlanWeek(weekId: string, query: VersionQuery): Promise<PlanDto> {
+  return api.delete<PlanDto>(`/plan-weeks/${weekId}?${new URLSearchParams(query)}`);
 }
 
 // Colle le contenu d'une autre semaine ICI : la cible est la ressource, la source voyage dans le
@@ -109,8 +114,9 @@ export function getScheduledSession(sessionId: string): Promise<ScheduledSession
   return api.get<ScheduledSessionDto>(`/scheduled-sessions/${sessionId}`);
 }
 
-export function deleteScheduledSession(sessionId: string): Promise<void> {
-  return api.delete<void>(`/scheduled-sessions/${sessionId}`);
+// Sans corps : la version de la séance ouverte voyage en paramètre de requête (#604).
+export function deleteScheduledSession(sessionId: string, query: VersionQuery): Promise<void> {
+  return api.delete<void>(`/scheduled-sessions/${sessionId}?${new URLSearchParams(query)}`);
 }
 
 // ── Lecture athlète ──────────────────────────────────────────────────────────

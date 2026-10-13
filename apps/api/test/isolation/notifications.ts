@@ -12,6 +12,7 @@ import {
 } from "../support/actors";
 import { app, baseURL, sentMails } from "../support/app";
 import { mondayOfCurrentWeek } from "../support/fixtures";
+import { deleteAtLatest, publishAtLatest, putAtLatest } from "../support/version";
 
 describe("Tokens de notification push (P4)", () => {
   let coach: Agent;
@@ -179,7 +180,7 @@ describe("Tokens de notification push (P4)", () => {
     expect(feedback.status).toBe(200);
 
     // Ajustement en cours de cycle diffusé (CDC §5.7) : notifie l'athlète, sans échouer.
-    const adjusted = await c.put(`/scheduled-sessions/${session.body.id}`).send({
+    const adjusted = await putAtLatest(c, `/scheduled-sessions/${session.body.id}`, {
       title: "Séance (ajustée)",
       notes: null,
       scheduledDate: monday,
@@ -290,7 +291,7 @@ describe("Centre de notifications (#48)", () => {
   });
 
   it("ajuster une séance diffusée notifie l'athlète, avec le titre de la séance", async () => {
-    const adjusted = await coachA.put(`/scheduled-sessions/${sessionId}`).send({
+    const adjusted = await putAtLatest(coachA, `/scheduled-sessions/${sessionId}`, {
       title: "Séance ajustée",
       notes: null,
       scheduledDate: monday,
@@ -323,7 +324,7 @@ describe("Centre de notifications (#48)", () => {
       readAt: null,
     });
 
-    expect((await coachA.delete(`/scheduled-sessions/${added.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/scheduled-sessions/${added.body.id}`)).status).toBe(204);
 
     // Le titre est la seule trace qu'il reste de la séance : la ligne, elle, a disparu en base.
     expect(await find(athleteA1, "PLAN_SESSION_REMOVED")).toMatchObject({
@@ -349,7 +350,9 @@ describe("Centre de notifications (#48)", () => {
       .post(`/plan-weeks/${draft.body.weeks[0].id}/sessions`)
       .send({ title: "Séance brouillon", scheduledDate: monday });
     expect(session.status).toBe(201);
-    expect((await coachA.delete(`/scheduled-sessions/${session.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/scheduled-sessions/${session.body.id}`)).status).toBe(
+      204,
+    );
 
     expect(await inbox(athleteA1)).toHaveLength(before);
   });
@@ -788,7 +791,7 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
       startDate: monday,
       weeks: [{ type: "TRAINING" }],
     });
-    expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(solo, plan.body.id)).status).toBe(200);
 
     expect(sentMails).toEqual([]);
   });

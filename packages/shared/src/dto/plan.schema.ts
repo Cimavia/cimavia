@@ -15,6 +15,7 @@ import {
   exerciseTrackingSchema,
 } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
+import { expectedVersionSchema } from "./expected-version.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 import {
   SESSION_MAX_EXERCISES,
@@ -111,14 +112,22 @@ export const updatePlanSchema = z
      * Refusé sur un cycle diffusé (409) : son destinataire en a déjà été prévenu.
      */
     athleteId: z.string().min(1).nullable().optional(),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 
+/**
+ * Les gestes sur une semaine citent la version de la semaine AFFICHÉE (#604) : type, collage,
+ * ordre d'une journée, retrait. Toute écriture de ses séances la fait avancer — un geste fondé sur
+ * une grille qu'un autre Coach a changée depuis est refusé en 409 `STALE_WRITE`, plutôt que de
+ * défaire son travail sans un mot.
+ */
 export const updatePlanWeekSchema = z
   .object({
     type: planWeekTypeSchema.optional(),
     note: z.string().max(PLAN_WEEK_NOTE_MAX_LENGTH).nullable().optional(),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdatePlanWeekInput = z.infer<typeof updatePlanWeekSchema>;
@@ -135,6 +144,8 @@ export type UpdatePlanWeekInput = z.infer<typeof updatePlanWeekSchema>;
 export const copyPlanWeekSchema = z
   .object({
     sourcePlanWeekId: z.string().min(1),
+    // La version de la CIBLE, celle dont le contenu est remplacé.
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type CopyPlanWeekInput = z.infer<typeof copyPlanWeekSchema>;
@@ -195,8 +206,14 @@ export const createScheduledSessionSchema = z
   });
 export type CreateScheduledSessionInput = z.infer<typeof createScheduledSessionSchema>;
 
-// Édition d'une instance (y compris en cours de cycle diffusé — CDC §5.7) : replace-all, comme
-// la séance modèle. L'ordre du tableau DÉFINIT les positions. `status` n'est pas éditable en P3.
+/**
+ * Édition d'une instance (y compris en cours de cycle diffusé — CDC §5.7) : replace-all, comme la
+ * séance modèle. L'ordre du tableau DÉFINIT les positions. `status` n'est pas éditable en P3.
+ *
+ * Elle cite la version de la séance OUVERTE (#604) : deux Coachs d'une entreprise peuvent ajuster
+ * la même séance, et le second effacerait sinon le premier sans un mot. Le débrief de l'athlète ne
+ * la fait pas avancer — il ne touche à rien de ce que le Coach a composé.
+ */
 export const updateScheduledSessionSchema = z
   .object({
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
@@ -205,6 +222,7 @@ export const updateScheduledSessionSchema = z
     exercises: z
       .array(scheduledSessionExerciseInputSchema)
       .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdateScheduledSessionInput = z.infer<typeof updateScheduledSessionSchema>;
@@ -225,9 +243,26 @@ export type UpdateScheduledSessionInput = z.infer<typeof updateScheduledSessionS
 export const reorderPlanDaySchema = z
   .object({
     sessionIds: z.array(z.string().min(1)).min(1),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type ReorderPlanDayInput = z.infer<typeof reorderPlanDaySchema>;
+
+/**
+ * Retirer un cycle, une semaine ou une séance planifiée : sans corps, la version voyage en
+ * paramètre de requête (#604).
+ */
+export const versionQuerySchema = z.object({ expectedUpdatedAt: expectedVersionSchema }).strict();
+export type VersionQuery = z.infer<typeof versionQuerySchema>;
+
+/**
+ * Diffuser un cycle cite la version AFFICHÉE (#604) : le destinataire, le titre ou le début ont pu
+ * changer sous la main d'un autre Coach depuis, et la diffusion partirait alors chez un athlète que
+ * celui qui diffuse n'a jamais vu à l'écran — notifié, et facturé. La même forme que le retrait,
+ * en corps plutôt qu'en requête.
+ */
+export const publishPlanSchema = versionQuerySchema;
+export type PublishPlanInput = z.infer<typeof publishPlanSchema>;
 
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 
@@ -313,6 +348,8 @@ export const planWeekDtoSchema = z.object({
   note: z.string().nullable(),
   startDate: z.iso.date(),
   endDate: z.iso.date(),
+  // La version que citent les gestes sur la semaine (#604).
+  updatedAt: z.iso.datetime(),
   sessions: z.array(scheduledSessionSummaryDtoSchema),
 });
 export type PlanWeekDto = z.infer<typeof planWeekDtoSchema>;

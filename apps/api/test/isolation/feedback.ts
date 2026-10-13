@@ -2,6 +2,7 @@ import { Role, SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from 
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, signUp } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
+import { putAtLatest } from "../support/version";
 
 describe("Débrief de séance (P4)", () => {
   let coachA: Agent;
@@ -58,6 +59,7 @@ describe("Débrief de séance (P4)", () => {
   });
 
   it("débriefe la séance : le texte est enregistré et la séance passe en DONE", async () => {
+    const before = await coachA.get(`/scheduled-sessions/${sessionId}`);
     const res = await athleteA1
       .put(`/me/scheduled-sessions/${sessionId}/feedback`)
       .send({ content: "Bonne séance, épaule un peu sensible sur les tractions." });
@@ -72,6 +74,9 @@ describe("Débrief de séance (P4)", () => {
 
     const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
     expect(session.body.status).toBe("DONE");
+    // La version reste celle du coach (#604) : le débrief ne change rien de ce qu'il a composé, et
+    // ne doit pas faire refuser son enregistrement par un conflit qui ne dit pas vrai.
+    expect(session.body.updatedAt).toBe(before.body.updatedAt);
   });
 
   // L'athlète débriefe en plusieurs fois : le PUT est idempotent, pas un doublon.
@@ -292,7 +297,7 @@ describe("Suivi d'exécution (#168)", () => {
     expect(exercise.blocks).toHaveLength(1);
 
     // Ce que le panneau du coach renvoie : il réordonne et annote, il ne touche pas au dosage.
-    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+    const saved = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: "Force — ajustée",
       notes: null,
       scheduledDate: monday,
@@ -330,7 +335,7 @@ describe("Suivi d'exécution (#168)", () => {
     const before = await coach.get(`/scheduled-sessions/${sessionId}`);
     const exercise = before.body.exercises[0];
 
-    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+    const saved = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: "Force — ajustée",
       notes: null,
       scheduledDate: monday,
@@ -375,7 +380,7 @@ describe("Suivi d'exécution (#168)", () => {
     });
 
     // Le coach réordonne et annote : les lignes changent de rang, pas d'identité.
-    const saved = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+    const saved = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: "Force — ajustée",
       notes: null,
       scheduledDate: monday,
@@ -399,7 +404,7 @@ describe("Suivi d'exécution (#168)", () => {
     );
 
     // Retirer une ligne l'emporte avec son suivi ; la ligne restante reprend le premier rang.
-    const trimmed = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+    const trimmed = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: "Force — ajustée",
       notes: null,
       scheduledDate: monday,
@@ -417,7 +422,7 @@ describe("Suivi d'exécution (#168)", () => {
   it("refuse le même exercice cité deux fois dans la séance (400)", async () => {
     const before = (await coach.get(`/scheduled-sessions/${sessionId}`)).body;
     const exercise = before.exercises[0];
-    const res = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+    const res = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: before.title,
       notes: null,
       scheduledDate: monday,
@@ -436,7 +441,7 @@ describe("Suivi d'exécution (#168)", () => {
   it("refuse une séance planifiée au-delà du plafond d'exercices (400), sans rien écrire", async () => {
     const before = (await coach.get(`/scheduled-sessions/${sessionId}`)).body;
 
-    const res = await coach.put(`/scheduled-sessions/${sessionId}`).send({
+    const res = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: before.title,
       scheduledDate: before.scheduledDate,
       exercises: Array.from({ length: SESSION_MAX_EXERCISES + 1 }, (_, index) => ({

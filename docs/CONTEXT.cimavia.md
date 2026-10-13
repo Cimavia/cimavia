@@ -142,7 +142,7 @@ Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou plani
 - **Écrire n'est pas posséder** : `WRITE` modifie le contenu, enfants et publication compris. **Supprimer** l'élément, **gérer ses accès** et **réaffecter** une planification à un autre athlète restent au propriétaire.
 - **Les enfants suivent leur racine** : semaines, séances planifiées, débriefs et facture suivent la planification ; documents et tags suivent l'exercice. Une facture sans planification reste privée.
 - **Une planification ne s'ouvre qu'aux Coachs de son athlète** ; sans athlète, elle s'ouvre comme un exercice. Celle d'un athlète d'entreprise naît ouverte **en écriture à l'entreprise**.
-- **Plus d'écrasement silencieux** : une écriture sur une version périmée d'un élément partagé est refusée en 409 *(cible — #604)*. Ouvrir un élément ne notifie personne.
+- **Plus d'écrasement silencieux** : une écriture sur une version périmée d'un exercice, d'une séance ou d'un cycle est refusée en 409 (#604). Sa facturation n'y passe pas : elle se ressaisit d'un geste. Ouvrir un élément ne notifie personne.
 
 ---
 

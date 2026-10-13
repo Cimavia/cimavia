@@ -7,6 +7,7 @@ import type {
   DuplicateExerciseInput,
   ExerciseDocumentDto,
   ExerciseDto,
+  ReloadSessionExerciseInput,
   RequestUploadUrlInput,
   SessionDto,
   UpdateCustomMetricInput,
@@ -142,8 +143,12 @@ export function getSession(id: string): Promise<SessionDto> {
 export function reloadSessionExercise(
   sessionId: string,
   sessionExerciseId: string,
+  input: ReloadSessionExerciseInput,
 ): Promise<SessionDto> {
-  return api.post<SessionDto>(`/sessions/${sessionId}/exercises/${sessionExerciseId}/reload`, {});
+  return api.post<SessionDto>(
+    `/sessions/${sessionId}/exercises/${sessionExerciseId}/reload`,
+    input,
+  );
 }
 
 export function createSession(input: CreateSessionInput): Promise<SessionDto> {

@@ -1,5 +1,6 @@
 import type request from "supertest";
 import type { Agent } from "./actors";
+import { ANY_VERSION } from "./version";
 
 /** Le cycle d'un autre, tel qu'un intrus le vise : ses identifiants, et la clé de son justificatif. */
 export type PlanTarget = {
@@ -27,19 +28,34 @@ export async function attemptPlanWrites(
   const { planId, weekId, sessionId, monday } = target;
   const pdf = { fileName: "detourne.pdf", mimeType: "application/pdf", size: 2_000 };
   const attempts: [string, () => request.Test][] = [
-    ["PATCH /plans/:id", () => intruder.patch(`/plans/${planId}`).send({ title: "Détourné" })],
+    [
+      "PATCH /plans/:id",
+      () =>
+        intruder
+          .patch(`/plans/${planId}`)
+          .send({ title: "Détourné", expectedUpdatedAt: ANY_VERSION }),
+    ],
     [
       "POST /plans/:id/weeks",
       () => intruder.post(`/plans/${planId}/weeks`).send({ type: "TRAINING" }),
     ],
-    ["POST /plans/:id/publish", () => intruder.post(`/plans/${planId}/publish`)],
+    [
+      "POST /plans/:id/publish",
+      () => intruder.post(`/plans/${planId}/publish`).send({ expectedUpdatedAt: ANY_VERSION }),
+    ],
     [
       "PATCH /plan-weeks/:id",
-      () => intruder.patch(`/plan-weeks/${weekId}`).send({ note: "détournée" }),
+      () =>
+        intruder
+          .patch(`/plan-weeks/${weekId}`)
+          .send({ note: "détournée", expectedUpdatedAt: ANY_VERSION }),
     ],
     [
       "POST /plan-weeks/:id/copy-from",
-      () => intruder.post(`/plan-weeks/${weekId}/copy-from`).send({ sourcePlanWeekId: weekId }),
+      () =>
+        intruder
+          .post(`/plan-weeks/${weekId}/copy-from`)
+          .send({ sourcePlanWeekId: weekId, expectedUpdatedAt: ANY_VERSION }),
     ],
     [
       "POST /plan-weeks/:id/sessions",
@@ -53,14 +69,17 @@ export async function attemptPlanWrites(
       () =>
         intruder
           .put(`/plan-weeks/${weekId}/days/${monday}/order`)
-          .send({ sessionIds: [sessionId] }),
+          .send({ sessionIds: [sessionId], expectedUpdatedAt: ANY_VERSION }),
     ],
     [
       "PUT /scheduled-sessions/:id",
       () =>
-        intruder
-          .put(`/scheduled-sessions/${sessionId}`)
-          .send({ title: "Détournée", scheduledDate: monday, exercises: [] }),
+        intruder.put(`/scheduled-sessions/${sessionId}`).send({
+          title: "Détournée",
+          scheduledDate: monday,
+          exercises: [],
+          expectedUpdatedAt: ANY_VERSION,
+        }),
     ],
     [
       "PUT /plans/:id/billing",
@@ -81,9 +100,21 @@ export async function attemptPlanWrites(
       "DELETE /plans/:id/billing/document",
       () => intruder.delete(`/plans/${planId}/billing/document`),
     ],
-    ["DELETE /scheduled-sessions/:id", () => intruder.delete(`/scheduled-sessions/${sessionId}`)],
-    ["DELETE /plan-weeks/:id", () => intruder.delete(`/plan-weeks/${weekId}`)],
-    ["DELETE /plans/:id", () => intruder.delete(`/plans/${planId}`)],
+    [
+      "DELETE /scheduled-sessions/:id",
+      () =>
+        intruder
+          .delete(`/scheduled-sessions/${sessionId}`)
+          .query({ expectedUpdatedAt: ANY_VERSION }),
+    ],
+    [
+      "DELETE /plan-weeks/:id",
+      () => intruder.delete(`/plan-weeks/${weekId}`).query({ expectedUpdatedAt: ANY_VERSION }),
+    ],
+    [
+      "DELETE /plans/:id",
+      () => intruder.delete(`/plans/${planId}`).query({ expectedUpdatedAt: ANY_VERSION }),
+    ],
   ];
 
   const statuses: Record<string, number> = {};

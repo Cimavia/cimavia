@@ -21,6 +21,7 @@
     "errorDescription": "Les données n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
     "staleReload": "Recharger",
+    "staleReloadFailed": "La dernière version n'a pas pu être chargée. Ta saisie reste affichée : réessaie dans un instant.",
     "relativeTime": {
       "now": "à l'instant",
       "minute": "il y a {{count}} min",
@@ -173,6 +174,7 @@
     },
     "session": {
       "createTitle": "Nouvelle séance",
+      "stale": "Cette séance a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "titleLabel": "Titre",
       "titlePlaceholder": "Ex. Force haut du corps, Endurance…",
       "notesLabel": "Notes de séance",
@@ -416,6 +418,7 @@
       },
       "saved": "Exercice enregistré.",
       "saveFailed": "L'enregistrement a échoué.",
+      "stale": "Cet exercice a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "imageWidth": {
         "SMALL": "Petite",
         "MEDIUM": "Moyenne",
@@ -509,6 +512,7 @@
       "title": "Le cycle",
       "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
       "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
+      "stale": "Ce cycle a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "titleLabel": "Titre du cycle",
       "titlePlaceholder": "Ex. Cycle force — automne",
       "athlete": "Destinataire",
@@ -544,6 +548,7 @@
     "session": {
       "createTitle": "Ajouter une séance",
       "editTitle": "Séance planifiée",
+      "staleDelete": "Cette séance a été modifiée depuis que tu l'as ouverte : recharge-la pour voir sa dernière version avant de la supprimer.",
       "panelDescription": "Cette séance est une copie : la modifier ne touche pas ta bibliothèque.",
       "day": "Jour",
       "template": "Séance modèle",
@@ -615,7 +620,9 @@
       "sessionDeleted": "Séance supprimée",
       "weekPasted": "Semaine collée — {{count}} séance(s)",
       "headerSaved": "Cycle enregistré",
-      "weekPastedPlain": "Semaine collée"
+      "weekPastedPlain": "Semaine collée",
+      "stale": "Le cycle a changé entre-temps : il vient d'être relu. Refais ton geste si besoin.",
+      "planStale": "Le cycle a changé depuis que tu l'as ouvert : il vient d'être relu. Vérifie-le avant de recommencer."
     },
     "clipboard": {
       "banner": "Semaine {{number}} de « {{plan}} » copiée — choisis où la coller.",

@@ -1,8 +1,14 @@
-import { Role, SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from "@cmv/shared";
+import {
+  Role,
+  SESSION_MAX_EXERCISES,
+  SESSION_TOO_MANY_EXERCISES_MESSAGE,
+  STALE_WRITE,
+} from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { API_BODY_LIMIT_BYTES } from "../../src/app.setup";
 import { type Agent, billAndPublish, inviteFor, signUp, signUpWith } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
+import { atWeekVersion, deleteAtLatest, putAtLatest, versionOf } from "../support/version";
 
 describe("Composition & isolation des séances (P2)", () => {
   let coachA: Agent;
@@ -64,6 +70,7 @@ describe("Composition & isolation des séances (P2)", () => {
    */
   it(`accepte ${SESSION_MAX_EXERCISES} lignes citant le même exercice`, async () => {
     const res = await coachA.put(`/sessions/${sessionAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${sessionAId}`),
       title: "Bloc force max",
       exercises: Array.from({ length: SESSION_MAX_EXERCISES }, () => ({ exerciseId: exA1 })),
     });
@@ -78,9 +85,11 @@ describe("Composition & isolation des séances (P2)", () => {
   it("refuse un exercice de plus que le plafond (400), sans rien écrire", async () => {
     const tooMany = Array.from({ length: SESSION_MAX_EXERCISES + 1 }, () => ({ exerciseId: exA1 }));
 
-    const updated = await coachA
-      .put(`/sessions/${sessionAId}`)
-      .send({ title: "Trop long", exercises: tooMany });
+    const updated = await coachA.put(`/sessions/${sessionAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${sessionAId}`),
+      title: "Trop long",
+      exercises: tooMany,
+    });
     expect(updated.status).toBe(400);
     expect(updated.body.message).toContainEqual({
       path: "exercises",
@@ -106,6 +115,7 @@ describe("Composition & isolation des séances (P2)", () => {
 
   it("met à jour la séance en remplaçant intégralement la composition (replace-all)", async () => {
     const res = await coachA.put(`/sessions/${sessionAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${sessionAId}`),
       title: "Bloc force max (v2)",
       notes: null,
       exercises: [{ exerciseId: exA2, note: "4×6" }],
@@ -127,7 +137,13 @@ describe("Composition & isolation des séances (P2)", () => {
 
     expect((await coachB.get(`/sessions/${sessionAId}`)).status).toBe(404);
     expect(
-      (await coachB.put(`/sessions/${sessionAId}`).send({ title: "x", exercises: [] })).status,
+      (
+        await coachB.put(`/sessions/${sessionAId}`).send({
+          expectedUpdatedAt: await versionOf(coachA, `/sessions/${sessionAId}`),
+          title: "x",
+          exercises: [],
+        })
+      ).status,
     ).toBe(404);
     expect((await coachB.delete(`/sessions/${sessionAId}`)).status).toBe(404);
   });
@@ -144,9 +160,12 @@ describe("Composition & isolation des séances (P2)", () => {
     expect(conflict.status).toBe(409);
 
     // On vide la composition → l'exercice n'est plus référencé.
-    const emptied = await coachA
-      .put(`/sessions/${sessionAId}`)
-      .send({ title: "Bloc force max (v2)", notes: null, exercises: [] });
+    const emptied = await coachA.put(`/sessions/${sessionAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${sessionAId}`),
+      title: "Bloc force max (v2)",
+      notes: null,
+      exercises: [],
+    });
     expect(emptied.status).toBe(200);
 
     expect((await coachA.delete(`/exercises/${exA2}`)).status).toBe(204);
@@ -228,6 +247,7 @@ describe("Dosage à trois niveaux (#164)", () => {
     // Le remplace-all détruit et recrée les lignes : sans le report de la référence,
     // « Tout réinitialiser » reviendrait à la dernière sauvegarde au lieu de l'ajout.
     const res = await coach.put(`/sessions/${sessionId}`).send({
+      expectedUpdatedAt: await versionOf(coach, `/sessions/${sessionId}`),
       title: "Bloc force",
       exercises: [
         {
@@ -265,6 +285,7 @@ describe("Dosage à trois niveaux (#164)", () => {
   ])("REFUSE de changer %s au niveau séance", async (_label, build) => {
     // Le verrou est vérifié côté serveur : un formulaire n'est pas une frontière.
     const res = await coach.put(`/sessions/${sessionId}`).send({
+      expectedUpdatedAt: await versionOf(coach, `/sessions/${sessionId}`),
       title: "Bloc force",
       exercises: [{ id: composedId, exerciseId, blocks: build() }],
     });
@@ -274,6 +295,7 @@ describe("Dosage à trois niveaux (#164)", () => {
   it("ACCEPTE le repli d'une colonne — c'est de l'affichage, pas de la donnée", async () => {
     const collapsed = [{ ...BLOCKS[0], metrics: [{ ...REPS, collapsed: true }] }];
     const res = await coach.put(`/sessions/${sessionId}`).send({
+      expectedUpdatedAt: await versionOf(coach, `/sessions/${sessionId}`),
       title: "Bloc force",
       exercises: [{ id: composedId, exerciseId, blocks: collapsed }],
     });
@@ -282,6 +304,7 @@ describe("Dosage à trois niveaux (#164)", () => {
 
     // Remis en place : les tests suivants partent de la grille complète.
     const restored = await coach.put(`/sessions/${sessionId}`).send({
+      expectedUpdatedAt: await versionOf(coach, `/sessions/${sessionId}`),
       title: "Bloc force",
       exercises: [{ id: composedId, exerciseId, blocks: adjusted(8) }],
     });
@@ -291,15 +314,22 @@ describe("Dosage à trois niveaux (#164)", () => {
   it("recharge depuis la bibliothèque : la référence suit, les ajustements tombent", async () => {
     // L'exercice de bibliothèque change APRÈS la composition.
     const updated = [{ ...BLOCKS[0], rows: [{ id: "r1", values: { col_reps: 12 } }] }];
-    expect((await coach.patch(`/exercises/${exerciseId}`).send({ blocks: updated })).status).toBe(
-      200,
-    );
+    expect(
+      (
+        await coach.patch(`/exercises/${exerciseId}`).send({
+          expectedUpdatedAt: await versionOf(coach, `/exercises/${exerciseId}`),
+          blocks: updated,
+        })
+      ).status,
+    ).toBe(200);
 
     // Tant qu'on ne recharge pas, la séance ne bouge PAS — elle est indépendante une fois composée.
     const before = await coach.get(`/sessions/${sessionId}`);
     expect(before.body.exercises[0].baseline).toEqual(BLOCKS);
 
-    const res = await coach.post(`/sessions/${sessionId}/exercises/${composedId}/reload`);
+    const res = await coach
+      .post(`/sessions/${sessionId}/exercises/${composedId}/reload`)
+      .send({ expectedUpdatedAt: await versionOf(coach, `/sessions/${sessionId}`) });
     expect(res.status).toBe(201);
     const composed = res.body.exercises[0];
     expect(composed.blocks).toEqual(updated);
@@ -308,7 +338,9 @@ describe("Dosage à trois niveaux (#164)", () => {
   });
 
   it("un coach ne recharge PAS l'exercice d'une séance d'un autre coach", async () => {
-    const res = await other.post(`/sessions/${sessionId}/exercises/${composedId}/reload`);
+    const res = await other
+      .post(`/sessions/${sessionId}/exercises/${composedId}/reload`)
+      .send({ expectedUpdatedAt: await versionOf(coach, `/sessions/${sessionId}`) });
     expect(res.status).toBe(404);
   });
 });
@@ -369,7 +401,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
   }
 
   function save(exercises: unknown[]) {
-    return coach.put(`/scheduled-sessions/${sessionId}`).send({
+    return putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: "Force",
       notes: null,
       scheduledDate: monday,
@@ -389,6 +421,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
       .send({ title: "Force", exercises: [{ exerciseId }] });
     templateId = template.body.id;
     const saved = await coach.put(`/sessions/${templateId}`).send({
+      expectedUpdatedAt: await versionOf(coach, `/sessions/${templateId}`),
       title: "Force",
       exercises: [
         {
@@ -447,7 +480,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
     expect(exercise.baselineAdjustments).toEqual([]);
 
     // Retirée aussitôt : la copie de semaine plus bas n'attend qu'une séance dans la semaine 1.
-    expect((await coach.delete(`/scheduled-sessions/${res.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coach, `/scheduled-sessions/${res.body.id}`)).status).toBe(204);
   });
 
   it("ACCEPTE un changement de valeur pour l'athlète, sans toucher aux deux références", async () => {
@@ -514,7 +547,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
   it("la copie de semaine emporte la référence des marqueurs avec celle des valeurs", async () => {
     const res = await coach
       .post(`/plan-weeks/${week2Id}/copy-from`)
-      .send({ sourcePlanWeekId: week1Id });
+      .send(await atWeekVersion(coach, planId, week2Id, { sourcePlanWeekId: week1Id }));
     expect(res.status).toBe(201);
 
     const plan = await coach.get(`/plans/${planId}`);
@@ -579,7 +612,7 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
     await addSession(coach, weekId, monday, "Séance 3");
     expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
 
-    expect((await coach.delete(`/scheduled-sessions/${first}`)).status).toBe(204);
+    expect((await deleteAtLatest(coach, `/scheduled-sessions/${first}`)).status).toBe(204);
     expect(await positionsOn(coach, planId, monday)).toEqual([0, 1]);
 
     // Le geste qui échouait : ajouter après avoir supprimé.
@@ -608,7 +641,7 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
     await addSession(coach, weekId, monday, "Lundi 2");
     await addSession(coach, weekId, monday, "Lundi 3");
 
-    const moved = await coach.put(`/scheduled-sessions/${first}`).send({
+    const moved = await putAtLatest(coach, `/scheduled-sessions/${first}`, {
       title: "Lundi 1",
       scheduledDate: tuesdayIso,
       exercises: [],
@@ -684,8 +717,10 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     return created.body.id;
   }
 
-  const reorder = (day: Day, sessionIds: string[]) =>
-    day.coach.put(`/plan-weeks/${day.weekId}/days/${monday}/order`).send({ sessionIds });
+  const reorder = async (day: Day, sessionIds: string[], date = monday) =>
+    day.coach
+      .put(`/plan-weeks/${day.weekId}/days/${date}/order`)
+      .send(await atWeekVersion(day.coach, day.planId, day.weekId, { sessionIds }));
 
   /**
    * L'échange de DEUX séances est le cas qui casse : passer l'une en position 0 avant que l'autre
@@ -783,9 +818,7 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     it("accueille une séance dans une journée vide", async () => {
       const day = await dayOf("move-empty", 1);
 
-      const res = await day.coach
-        .put(`/plan-weeks/${day.weekId}/days/${tuesdayIso}/order`)
-        .send({ sessionIds: day.sessionIds });
+      const res = await reorder(day, day.sessionIds, tuesdayIso);
 
       expect(res.status).toBe(200);
       expect(await titlesOn(day)).toEqual([]);
@@ -802,9 +835,12 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     const mine = await dayOf("mine", 2);
     const theirs = await dayOf("theirs", 2);
 
-    const res = await theirs.coach
-      .put(`/plan-weeks/${mine.weekId}/days/${monday}/order`)
-      .send({ sessionIds: [mine.sessionIds[1] as string, mine.sessionIds[0] as string] });
+    // Même en citant la bonne version : le scope répond avant elle (#604).
+    const res = await theirs.coach.put(`/plan-weeks/${mine.weekId}/days/${monday}/order`).send(
+      await atWeekVersion(mine.coach, mine.planId, mine.weekId, {
+        sessionIds: [mine.sessionIds[1] as string, mine.sessionIds[0] as string],
+      }),
+    );
 
     expect(res.status).toBe(404);
     expect(await titlesOn(mine)).toEqual(["Séance 1", "Séance 2"]);
@@ -895,5 +931,143 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
 
       expect(await reordered(day.athlete)).toHaveLength(0);
     });
+  });
+});
+
+describe("Séance modèle — version lue (#604)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let exerciseId: string;
+  let sessionId: string;
+
+  const path = () => `/sessions/${sessionId}`;
+  const current = async () => (await coach.get(path())).body;
+  /** La composition renvoyée telle quelle, lignes comprises : seul le titre change. */
+  const save = async (title: string, expectedUpdatedAt: string) => {
+    const read = await current();
+    return coach.put(path()).send({
+      title,
+      exercises: read.exercises.map((line: { id: string; exerciseId: string }) => ({
+        id: line.id,
+        exerciseId: line.exerciseId,
+      })),
+      expectedUpdatedAt,
+    });
+  };
+  const reload = (lineId: string, expectedUpdatedAt: string) =>
+    coach.post(`${path()}/exercises/${lineId}/reload`).send({ expectedUpdatedAt });
+
+  beforeAll(async () => {
+    coach = await signUp("session-version-coach@cmv.test", Role.COACH);
+    other = await signUp("session-version-other@cmv.test", Role.COACH);
+    exerciseId = (await coach.post("/exercises").send({ title: "Tractions" })).body.id;
+    const created = await coach
+      .post("/sessions")
+      .send({ title: "Force", exercises: [{ exerciseId }] });
+    sessionId = created.body.id;
+  });
+
+  it("écrit quand la version lue est la dernière, et la fait avancer", async () => {
+    const before = await current();
+    const write = await save("Force (v2)", before.updatedAt);
+
+    expect(write.status).toBe(200);
+    expect(write.body.updatedAt).not.toBe(before.updatedAt);
+  });
+
+  it("refuse une écriture fondée sur une version périmée, et la base garde la première", async () => {
+    const read = await current();
+    expect((await save("Écrit dans l'onglet 1", read.updatedAt)).status).toBe(200);
+    const kept = await current();
+
+    const stale = await coach
+      .put(path())
+      .send({ title: "Écrit dans l'onglet 2", exercises: [], expectedUpdatedAt: read.updatedAt });
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    // Ni le titre, ni la composition qu'elle aurait vidée.
+    expect(await current()).toEqual(kept);
+  });
+
+  it("ne laisse passer qu'une écriture sur deux lancées ensemble", async () => {
+    const read = await current();
+    const [first, second] = await Promise.all([
+      save("Course A", read.updatedAt),
+      save("Course B", read.updatedAt),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+  });
+
+  it("refuse une écriture qui ne dit pas quelle version elle a lue", async () => {
+    const before = await current();
+    const write = await coach.put(path()).send({ title: "Sans version", exercises: [] });
+
+    expect(write.status).toBe(400);
+    expect(await current()).toEqual(before);
+  });
+
+  it("fait avancer la version quand un exercice est rechargé depuis la bibliothèque", async () => {
+    const before = await current();
+    const res = await reload(before.exercises[0].id, before.updatedAt);
+
+    expect(res.status).toBe(201);
+    expect(res.body.updatedAt).not.toBe(before.updatedAt);
+  });
+
+  /**
+   * L'enregistrement de l'autre onglet a recréé la composition sous de nouveaux identifiants : la
+   * ligne citée n'existe plus. C'est un conflit — « Recharger » la retrouvera — pas un 404.
+   */
+  it("répond 409 à un rechargement fondé sur une composition réécrite depuis", async () => {
+    const read = await current();
+    expect((await save("Réécrite ailleurs", read.updatedAt)).status).toBe(200);
+    const kept = await current();
+
+    const stale = await reload(read.exercises[0].id, read.updatedAt);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(await current()).toEqual(kept);
+  });
+
+  it("refuse un rechargement qui ne dit pas quelle version il a lue", async () => {
+    const read = await current();
+    const res = await coach.post(`${path()}/exercises/${read.exercises[0].id}/reload`).send({});
+
+    expect(res.status).toBe(400);
+  });
+
+  // Un 409 apprendrait à l'autre coach que la séance existe.
+  it("répond 404 à un autre coach, même muni de la dernière version", async () => {
+    const read = await current();
+
+    expect(
+      (
+        await other
+          .put(path())
+          .send({ title: "Intrusion", exercises: [], expectedUpdatedAt: read.updatedAt })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await other
+          .post(`${path()}/exercises/${read.exercises[0].id}/reload`)
+          .send({ expectedUpdatedAt: read.updatedAt })
+      ).status,
+    ).toBe(404);
+    expect(await current()).toEqual(read);
+  });
+
+  it("répond 404 sur une séance supprimée, même munie de sa dernière version", async () => {
+    const doomed = await coach.post("/sessions").send({ title: "À supprimer", exercises: [] });
+    expect((await coach.delete(`/sessions/${doomed.body.id}`)).status).toBe(204);
+
+    const write = await coach
+      .put(`/sessions/${doomed.body.id}`)
+      .send({ title: "Trop tard", exercises: [], expectedUpdatedAt: doomed.body.updatedAt });
+
+    expect(write.status).toBe(404);
   });
 });

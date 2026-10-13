@@ -17,10 +17,18 @@ export function useExercises(filters: ExerciseFilters) {
   });
 }
 
+/**
+ * La lecture d'un exercice, partagée par l'écran et son « Recharger » (#604) : une seule clé, une
+ * seule forme en cache — la relecture remplit exactement ce que l'écran lit.
+ */
+export const exerciseDetailQuery = (id: string) => ({
+  queryKey: exerciseKeys.detail(id),
+  queryFn: () => getExercise(id),
+});
+
 export function useExercise(id: string | undefined) {
   return useQuery<ExerciseDto>({
-    queryKey: exerciseKeys.detail(id ?? ""),
-    queryFn: () => getExercise(id as string),
+    ...exerciseDetailQuery(id ?? ""),
     // `new` n'a pas d'id : la requête ne part pas, plutôt qu'un GET /exercises/undefined.
     enabled: id != null,
   });

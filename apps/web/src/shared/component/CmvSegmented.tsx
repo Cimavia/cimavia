@@ -7,6 +7,8 @@ type CmvSegmentedProps<T extends string> = {
   value: T;
   onChange: (value: T) => void;
   label?: string;
+  // Une écriture en vol : un second choix partirait sur l'état d'avant elle.
+  disabled?: boolean;
 };
 
 // Sélecteur segmenté (catégorie d'exercice, filtre de liste…) — alternative accessible au select.
@@ -15,6 +17,7 @@ export function CmvSegmented<T extends string>({
   value,
   onChange,
   label,
+  disabled = false,
 }: Readonly<CmvSegmentedProps<T>>) {
   return (
     <div className="flex flex-col gap-cmv-xs">
@@ -24,9 +27,10 @@ export function CmvSegmented<T extends string>({
           <button
             key={option.value}
             type="button"
+            disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(
-              "rounded-cmv-sm px-cmv-md py-cmv-xs text-cmv-caption transition-colors",
+              "rounded-cmv-sm px-cmv-md py-cmv-xs text-cmv-caption transition-colors disabled:opacity-50",
               option.value === value
                 ? "bg-cmv-surface-hi text-cmv-text-hi"
                 : "text-cmv-text-mid hover:text-cmv-text-hi",

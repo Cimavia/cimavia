@@ -12,6 +12,7 @@ import {
 } from "../support/actors";
 import { app } from "../support/app";
 import { mondayOfCurrentWeek } from "../support/fixtures";
+import { expectLocked, patchAtLatest, publishAtLatest } from "../support/version";
 
 describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   let coachA: Agent;
@@ -48,7 +49,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   // Un brouillon affecté à A1 et chiffré : l'état où un justificatif peut se joindre.
   async function billedDraftForA1(title: string): Promise<string> {
     const { planId } = await draftWithoutAthlete(title);
-    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
     await coachA.put(`/plans/${planId}/billing`).send({ amountCents: 7000, dueDate: monday });
     return planId;
   }
@@ -146,7 +147,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   it("refuse de diffuser un cycle sans destinataire, et n'écrit rien", async () => {
     const { planId } = await draftWithoutAthlete("Jamais diffusé");
 
-    const res = await coachA.post(`/plans/${planId}/publish`);
+    const res = await publishAtLatest(coachA, planId);
     expect(res.status).toBe(400);
 
     // Ni statut, ni facture : le refus tombe AVANT la transaction.
@@ -180,7 +181,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   it("refuse d'affecter le cycle à l'athlète d'un autre coach", async () => {
     const { planId } = await draftWithoutAthlete("Pas chez le voisin");
 
-    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: b1Id })).status).toBe(400);
+    expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: b1Id })).status).toBe(400);
     expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBeNull();
   });
 
@@ -193,7 +194,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   it("affecte, propage jusqu'aux exercices, puis diffuse", async () => {
     const { planId, sessionId } = await draftWithoutAthlete("Bloc pour Léa");
 
-    const assigned = await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    const assigned = await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
     expect(assigned.status).toBe(200);
     expect(assigned.body.athleteId).toBe(a1Id);
     expect(assigned.body.athleteName).not.toBeNull();
@@ -218,11 +219,11 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
 
   it("ne laisse plus changer le destinataire d'un cycle diffusé", async () => {
     const { planId } = await draftWithoutAthlete("Déjà parti");
-    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
     expect((await billAndPublish(coachA, planId)).status).toBe(200);
 
-    const res = await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id });
-    expect(res.status).toBe(409);
+    const res = await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id });
+    expectLocked(res);
     expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBe(a1Id);
   });
 
@@ -233,11 +234,11 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
    */
   it("fait suivre la facture brouillon quand le cycle change de destinataire", async () => {
     const { planId } = await draftWithoutAthlete("Réaffecté après chiffrage");
-    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
     await coachA.put(`/plans/${planId}/billing`).send({ amountCents: 7000, dueDate: monday });
 
-    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+    expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id })).status).toBe(200);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(200);
 
     const issued = (await coachA.get("/invoices")).body.find(
       (invoice: { planId: string }) => invoice.planId === planId,
@@ -254,8 +255,8 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     const planId = await billedDraftForA1("Justificatif rédigé pour A1");
     expect((await attachPdf(planId, await uploadPdf(planId))).status).toBe(200);
 
-    const refused = await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id });
-    expect(refused.status).toBe(409);
+    const refused = await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id });
+    expectLocked(refused);
 
     expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBe(a1Id);
     const billing = await coachA.get(`/plans/${planId}/billing`);
@@ -264,7 +265,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     expect((await fetch(billing.body.documentUrl)).status).toBe(200);
 
     // Renvoyer le MÊME destinataire ne change rien : il n'y a rien à refuser.
-    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id })).status).toBe(200);
+    expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id })).status).toBe(200);
   });
 
   it("réaffecte une fois le justificatif retiré, et la facture suit sans lui", async () => {
@@ -272,8 +273,8 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     expect((await attachPdf(planId, await uploadPdf(planId))).status).toBe(200);
     expect((await coachA.delete(`/plans/${planId}/billing/document`)).status).toBe(200);
 
-    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+    expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id })).status).toBe(200);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(200);
 
     const issued = (await coachA.get("/invoices")).body.find(
       (invoice: { planId: string }) => invoice.planId === planId,
@@ -291,7 +292,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     const planId = await billedDraftForA1("Clé signée avant la réaffectation");
     const keyForA1 = await uploadPdf(planId);
 
-    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
+    expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id })).status).toBe(200);
     expect((await attachPdf(planId, keyForA1)).status).toBe(403);
 
     expect((await coachA.get(`/plans/${planId}/billing`)).body.documentFileName).toBeNull();
@@ -312,11 +313,11 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
       SELECT "documentPath" FROM invoice WHERE "planId" = ${planId}`;
     const keyForA1 = required(draft, "justificatif joint").documentPath;
     await prisma.$executeRaw`UPDATE invoice SET "documentPath" = NULL WHERE "planId" = ${planId}`;
-    expect((await coachA.patch(`/plans/${planId}`).send({ athleteId: a2Id })).status).toBe(200);
+    expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id })).status).toBe(200);
     await prisma.$executeRaw`
       UPDATE invoice SET "documentPath" = ${keyForA1} WHERE "planId" = ${planId}`;
 
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(409);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(409);
     expect((await coachA.get(`/plans/${planId}`)).body.status).toBe("DRAFT");
     const issued = (await coachA.get("/invoices")).body.map(
       (invoice: { planId: string }) => invoice.planId,
@@ -325,7 +326,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
 
     // Le PDF retiré, le cycle part — à A2, sans le document de A1.
     expect((await coachA.delete(`/plans/${planId}/billing/document`)).status).toBe(200);
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(200);
   });
 
   /**
@@ -335,19 +336,19 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
    */
   it("détache un brouillon, mais pas un brouillon déjà chiffré", async () => {
     const { planId, sessionId } = await draftWithoutAthlete("Détachable");
-    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
 
-    const detached = await coachA.patch(`/plans/${planId}`).send({ athleteId: null });
+    const detached = await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: null });
     expect(detached.status).toBe(200);
     expect(detached.body.athleteId).toBeNull();
     // Redevenu invisible, comme s'il n'avait jamais été affecté — vérifié sur SA séance et non
     // sur `/me/plans`, qui sert les cycles visibles de l'athlète et parlerait donc d'un autre cycle.
     expect((await athleteA1.get(`/me/scheduled-sessions/${sessionId}`)).status).toBe(404);
 
-    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
     await coachA.put(`/plans/${planId}/billing`).send({ amountCents: 4200, dueDate: monday });
-    const refused = await coachA.patch(`/plans/${planId}`).send({ athleteId: null });
-    expect(refused.status).toBe(409);
+    const refused = await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: null });
+    expectLocked(refused);
     expect((await coachA.get(`/plans/${planId}`)).body.athleteId).toBe(a1Id);
   });
 
@@ -358,16 +359,14 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
    */
   it("ne laisse plus réécrire le titre ni le début d'un cycle diffusé", async () => {
     const { planId } = await draftWithoutAthlete("Figé par la diffusion");
-    await coachA.patch(`/plans/${planId}`).send({ athleteId: a1Id });
+    await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
     expect((await billAndPublish(coachA, planId)).status).toBe(200);
 
-    expect((await coachA.patch(`/plans/${planId}`).send({ title: "Renommé" })).status).toBe(409);
-    expect(
-      (await coachA.patch(`/plans/${planId}`).send({ startDate: shiftIsoDate(monday, 7) })).status,
-    ).toBe(409);
-    expect((await coachA.patch(`/plans/${planId}`).send({ description: "Ajout" })).status).toBe(
-      409,
+    expectLocked(await patchAtLatest(coachA, `/plans/${planId}`, { title: "Renommé" }));
+    expectLocked(
+      await patchAtLatest(coachA, `/plans/${planId}`, { startDate: shiftIsoDate(monday, 7) }),
     );
+    expectLocked(await patchAtLatest(coachA, `/plans/${planId}`, { description: "Ajout" }));
 
     const plan = await coachA.get(`/plans/${planId}`);
     expect(plan.body.title).toBe("Figé par la diffusion");
@@ -384,9 +383,11 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     const { planId, sessionId } = await draftWithoutAthlete("Encore modifiable");
     const nextMonday = shiftIsoDate(monday, 7);
 
-    const patched = await coachA
-      .patch(`/plans/${planId}`)
-      .send({ title: "Bloc force max", description: "Montée en charge", startDate: nextMonday });
+    const patched = await patchAtLatest(coachA, `/plans/${planId}`, {
+      title: "Bloc force max",
+      description: "Montée en charge",
+      startDate: nextMonday,
+    });
     expect(patched.status).toBe(200);
     expect(patched.body.title).toBe("Bloc force max");
     expect(patched.body.startDate).toBe(nextMonday);
@@ -460,7 +461,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect(plan.status).toBe(201);
 
     // Le gating de facturation est levé : diffuser ne demande AUCUN terme saisi.
-    const published = await solo.post(`/plans/${plan.body.id}/publish`);
+    const published = await publishAtLatest(solo, plan.body.id);
     expect(published.status).toBe(200);
     expect(published.body.status).toBe("PUBLISHED");
 
@@ -525,7 +526,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
       .post(`/plan-weeks/${weekId}/sessions`)
       .send({ sourceSessionId: template.body.id, scheduledDate: monday });
     expect(scheduled.status).toBe(201);
-    expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(solo, plan.body.id)).status).toBe(200);
 
     // Écrit en tant qu'ATHLÈTE…
     const written = await solo

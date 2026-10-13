@@ -27,6 +27,7 @@ beforeEach(() => {
 // Un brouillon à qui plus rien ne manque : chaque test n'en dégrade qu'un aspect à la fois.
 const READY: ComponentProps<typeof PlanBuilderActions> = {
   planId: "pln_1",
+  version: "2026-10-12T08:00:00.000Z",
   isPublished: false,
   hasWeeks: true,
   hasAthlete: true,
@@ -85,7 +86,11 @@ describe("PlanBuilderActions — diffuser", () => {
 
     await user.click(getByText("plan.builder.publish"));
 
-    expect(publish).toHaveBeenCalledWith("pln_1");
+    // La version affichée part avec (#604) : l'API refuse si le cycle a changé depuis.
+    expect(publish).toHaveBeenCalledWith({
+      planId: "pln_1",
+      expectedUpdatedAt: "2026-10-12T08:00:00.000Z",
+    });
   });
 
   /**
@@ -161,12 +166,15 @@ describe("PlanBuilderActions — diffuser", () => {
     expect(remove).not.toHaveBeenCalled();
 
     await user.click(getByText("common.confirmDelete"));
-    expect(remove.mock.calls[0]?.[0]).toBe("pln_1");
+    expect(remove.mock.calls[0]?.[0]).toEqual({
+      planId: "pln_1",
+      expectedUpdatedAt: "2026-10-12T08:00:00.000Z",
+    });
   });
 
   // Le cycle n'existe plus : rester sur son constructeur montrerait une page sans objet.
   it("ramène à la liste des planifications une fois le cycle supprimé", async () => {
-    remove.mockImplementation((_id: string, options: { onSuccess: () => void }) =>
+    remove.mockImplementation((_plan: unknown, options: { onSuccess: () => void }) =>
       options.onSuccess(),
     );
     const { getByText, router, user } = await mount({});

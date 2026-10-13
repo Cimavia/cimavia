@@ -5,6 +5,11 @@ import { CmvButton, CmvConfirmButton } from "@/shared/component";
 
 type PlanBuilderActionsProps = {
   planId: string;
+  /**
+   * La version du cycle affiché (#604) : diffuser ou supprimer la cite, et l'API refuse si un autre
+   * Coach l'a retouché, réaffecté ou diffusé depuis.
+   */
+  version: string;
   isPublished: boolean;
   hasWeeks: boolean;
   /** Un cycle sans destinataire n'a personne à qui être diffusé (#144) — l'API refuse en 400. */
@@ -63,6 +68,7 @@ function publishBlockedKey(gate: PublishGate): string | null {
  */
 export function PlanBuilderActions({
   planId,
+  version,
   isPublished,
   hasWeeks,
   hasAthlete,
@@ -77,6 +83,7 @@ export function PlanBuilderActions({
   const navigate = useNavigate();
   const publish = usePublishPlan();
   const removePlan = useDeletePlan();
+  const atVersion = { planId, expectedUpdatedAt: version };
 
   // Info-bulle expliquant pourquoi la diffusion est bloquée — muette sur un cycle déjà diffusé,
   // dont le bouton dit lui-même l'état.
@@ -103,7 +110,7 @@ export function PlanBuilderActions({
         disabled={isBusy}
         {...deleteBlocked}
         onConfirm={() =>
-          removePlan.mutate(planId, {
+          removePlan.mutate(atVersion, {
             onSuccess: () => {
               onDeleted();
               navigate({
@@ -121,7 +128,7 @@ export function PlanBuilderActions({
           `title` natif selon le navigateur. */}
       <span title={publishBlockedTitle == null ? undefined : t(publishBlockedTitle)}>
         <CmvButton
-          onClick={() => publish.mutate(planId)}
+          onClick={() => publish.mutate(atVersion)}
           disabled={
             isPublished || !hasWeeks || publishBlockedTitle != null || isBusy || publish.isPending
           }

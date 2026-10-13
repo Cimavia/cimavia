@@ -78,6 +78,7 @@ function week(
     note,
     startDate,
     endDate: shiftIsoDate(startDate, 6) ?? startDate,
+    updatedAt: "2026-10-01T10:00:00.000Z",
     sessions,
   };
 }

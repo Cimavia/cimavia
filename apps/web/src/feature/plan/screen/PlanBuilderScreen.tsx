@@ -12,19 +12,24 @@ import {
   type ScheduledSessionSummaryDto,
   todayIsoDate,
 } from "@cmv/shared";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
-import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
+import { planKeys } from "@/feature/plan/api";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
-import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
+import {
+  planDetailQuery,
+  scheduledSessionDetailQuery,
+  usePlan,
+  usePlanMutations,
+} from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { ScheduleReminderButton } from "@/feature/reminder";
@@ -37,6 +42,9 @@ import {
 } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { useStaleReload } from "@/shared/hook/useStaleReload";
+import { ApiError, isStaleWriteError } from "@/shared/lib/api";
 
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
 type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null };
@@ -124,7 +132,7 @@ export function PlanBuilderScreen() {
   const athleteLabel = useAthleteLabel();
   const { planId } = useParams({ from: "/plans/$planId" });
 
-  const { data: plan, isPending, isError, refetch } = usePlan(planId);
+  const { data: plan, isPending, error, refetch } = usePlan(planId);
   /**
    * Les autres cycles du coach, pour dire ce que l'athlète voit de CELUI-CI (#172). La liste est
    * déjà en cache dès qu'on arrive depuis `/plans` ; ailleurs elle coûte une requête, et c'est le
@@ -132,6 +140,9 @@ export function PlanBuilderScreen() {
    */
   const { data: coachPlans } = usePlans();
   const { addWeek, saveHeader, isBusy } = usePlanMutations(planId);
+  // « Recharger » après un conflit sur l'en-tête (#604) : la génération remonte le formulaire sur
+  // la version relue, et le refus qui ouvrait le bandeau s'oublie avec lui.
+  const headerReload = useStaleReload(planId, planDetailQuery);
   const { clipboard, clearClipboard } = usePlanClipboard();
   // Gating de la diffusion : une facturation (DRAFT) doit avoir été saisie. `null` = pas encore.
   // Lue UNE fois ici, puis descendue à la section — cf. `isBillable`.
@@ -147,14 +158,6 @@ export function PlanBuilderScreen() {
     guard,
   } = useUnsavedInputs();
 
-  // Le résumé (vue semaine) ne porte pas la composition : on charge le détail à l'ouverture.
-  const { data: editedSession } = useQuery<ScheduledSessionDto>({
-    queryKey: scheduledSessionKeys.detail(edit?.sessionId ?? ""),
-    // `enabled` garantit l'id : la requête ne part jamais sans lui.
-    queryFn: () => getScheduledSession(required(edit?.sessionId, "requête sans séance")),
-    enabled: edit?.sessionId != null,
-  });
-
   if (isPending) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
@@ -162,22 +165,11 @@ export function PlanBuilderScreen() {
       </main>
     );
   }
-  // Échec de chargement : on le DIT, avec un recours. Rediriger vers la liste (ce que faisait le
-  // `plan == null` seul) laisserait croire que le cycle a disparu.
-  if (isError) {
-    return (
-      <CmvAppShell title={t("plan.title")}>
-        <CmvErrorState
-          title={t("common.errorTitle")}
-          description={t("common.errorDescription")}
-          retryLabel={t("common.retry")}
-          onRetry={() => refetch()}
-        />
-      </CmvAppShell>
-    );
-  }
-  if (plan == null) {
-    return <Navigate to="/plans" search={{ q: undefined, state: undefined, athlete: undefined }} />;
+  // Sur la DONNÉE, pas sur l'échec : une relecture ratée — « Recharger », un retour d'onglet —
+  // échoue alors que le cycle est en cache, et l'écran d'erreur effacerait la saisie en cours
+  // (#604). Sauf s'il n'existe plus : supprimé par un autre Coach, il n'y a rien à garder.
+  if (plan == null || isNotFound(error)) {
+    return <PlanUnreadable error={error} onRetry={() => refetch()} />;
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
@@ -195,10 +187,6 @@ export function PlanBuilderScreen() {
   function onOpenEdit(week: PlanWeekDto, session: ScheduledSessionSummaryDto) {
     setEdit({ week, date: session.scheduledDate, sessionId: session.id });
   }
-
-  // Le panneau d'édition attend l'instance complète : on n'ouvre qu'une fois le détail chargé.
-  const panelSession = edit?.sessionId == null ? null : (editedSession ?? null);
-  const isPanelReady = edit != null && (edit.sessionId == null || panelSession != null);
 
   return (
     <CmvAppShell
@@ -227,6 +215,7 @@ export function PlanBuilderScreen() {
           />
           <PlanBuilderActions
             planId={planId}
+            version={plan.updatedAt}
             isPublished={isPublished}
             hasWeeks={plan.weeks.length > 0}
             hasAthlete={hasAthlete}
@@ -282,13 +271,17 @@ export function PlanBuilderScreen() {
             (#207). C'est aussi l'emplacement que la maquette réservait à sa bande « plan meta ».
             Clé sur le statut : la diffusion remonte le formulaire, qui repart des valeurs
             ENREGISTRÉES — ses champs grisés ne doivent pas garder une saisie qui n'est pas partie
-            (#326). */}
+            (#326). Clé sur la relecture aussi : « Recharger » le remonte sur la dernière version
+            (#604). */}
         <PlanHeaderForm
-          key={plan.status}
+          key={`${plan.status}:${headerReload.generation}`}
           plan={plan}
           hasInvoiceDocument={billing?.documentFileName != null}
           isSaving={saveHeader.isPending}
-          onSave={(input) => saveHeader.mutate(input)}
+          onSave={(input, onSaved) => saveHeader.mutate(input, { onSuccess: onSaved })}
+          isStale={isStaleWriteError(saveHeader.error)}
+          isReloading={headerReload.isReloading}
+          onReload={() => headerReload.reload(planId, saveHeader.reset)}
           onDirtyChange={setHeaderUnsaved}
         />
 
@@ -336,19 +329,110 @@ export function PlanBuilderScreen() {
         )}
       </div>
 
-      {isPanelReady && edit != null ? (
-        <ScheduledSessionPanel
+      {edit == null ? null : (
+        <SessionPanelHost
+          edit={edit}
+          weeks={plan.weeks}
           planId={planId}
           isPublished={isPublished}
-          week={edit.week}
-          date={edit.date}
-          session={panelSession}
           athleteName={athleteNameOf(plan, athleteLabel)}
           onClose={() => setEdit(null)}
           onDirtyChange={setPanelUnsaved}
         />
-      ) : null}
+      )}
       <CmvLeaveDialog {...guard.dialog} />
+    </CmvAppShell>
+  );
+}
+
+const isNotFound = (error: unknown) => error instanceof ApiError && error.status === 404;
+
+type SessionPanelHostProps = {
+  edit: SessionEdit;
+  // Les semaines telles que le cycle les montre À L'INSTANT : un autre Coach a pu le décaler.
+  weeks: readonly PlanWeekDto[];
+  planId: string;
+  isPublished: boolean;
+  athleteName: string | null;
+  onClose: () => void;
+  onDirtyChange: (isDirty: boolean) => void;
+};
+
+/**
+ * Le panneau de séance, ouvert sur ce que l'écran a cliqué. En édition, il attend l'instance
+ * complète : le résumé de la vue semaine ne porte pas la composition.
+ *
+ * Elle est RELUE à chaque ouverture, même en cache (#604) : nos propres gestes — un glisser, un
+ * recollage de journée — ont pu faire avancer la séance, et la saisie citerait la version d'avant,
+ * refusée comme si un autre Coach l'avait changée. « Recharger », après un vrai conflit, relit la
+ * séance et le cycle, et remonte le panneau sur la version relue.
+ */
+function SessionPanelHost({ edit, weeks, ...props }: Readonly<SessionPanelHostProps>) {
+  const queryClient = useQueryClient();
+  const { onError } = useMutationToast();
+  const { onClose, planId } = props;
+  const isEditing = edit.sessionId != null;
+  const {
+    data: session,
+    error,
+    isFetchedAfterMount,
+  } = useQuery<ScheduledSessionDto>({
+    ...scheduledSessionDetailQuery(edit.sessionId ?? ""),
+    // La requête ne part jamais sans l'id.
+    enabled: isEditing,
+    refetchOnMount: "always",
+  });
+  const { generation, reload, isReloading } = useStaleReload(
+    undefined,
+    scheduledSessionDetailQuery,
+  );
+  // Relue, et toujours rien : retirée entre-temps par un autre Coach. Le panneau ne s'ouvre pas,
+  // et le dit — sans quoi le clic semblerait ne rien faire.
+  const isGone = isEditing && isFetchedAfterMount && session == null;
+
+  useEffect(() => {
+    if (!isGone) return;
+    onError(error);
+    onClose();
+  }, [isGone, error, onError, onClose]);
+
+  if (isEditing && (!isFetchedAfterMount || session == null)) return null;
+
+  return (
+    <ScheduledSessionPanel
+      key={generation}
+      {...props}
+      week={weeks.find((week) => week.id === edit.week.id) ?? edit.week}
+      date={edit.date}
+      session={session ?? null}
+      onReload={() =>
+        reload(required(edit.sessionId, "rechargement hors édition"), () =>
+          queryClient.invalidateQueries({ queryKey: planKeys.detail(planId) }),
+        )
+      }
+      isReloading={isReloading}
+    />
+  );
+}
+
+/**
+ * Le cycle n'a pas pu être lu. Une panne se DIT, avec un recours : rediriger vers la liste
+ * laisserait croire que le cycle a disparu. Sans échec, ou sur un 404, il n'existe pas, ou plus.
+ */
+function PlanUnreadable({ error, onRetry }: Readonly<{ error: unknown; onRetry: () => void }>) {
+  const { t } = useTranslation();
+
+  if (error == null || isNotFound(error)) {
+    return <Navigate to="/plans" search={{ q: undefined, state: undefined, athlete: undefined }} />;
+  }
+  return (
+    <CmvAppShell title={t("plan.title")}>
+      <CmvErrorState
+        title={t("common.errorTitle")}
+        description={t("common.errorDescription")}
+        retryLabel={t("common.retry")}
+        onRetry={onRetry}
+      />
     </CmvAppShell>
   );
 }

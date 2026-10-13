@@ -1,8 +1,16 @@
-import { Role, shiftIsoDate } from "@cmv/shared";
+import { Role, STALE_WRITE, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
+import {
+  ANY_VERSION,
+  atWeekVersion,
+  deleteAtLatest,
+  publishAtLatest,
+  putAtLatest,
+  versionOf,
+} from "../support/version";
 
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
@@ -153,7 +161,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const cleared = await pose(null);
     // Semaine 2 : nettoyée aussitôt, la semaine 1 est le décor d'autres assertions.
     for (const res of [inherited, replaced, cleared]) {
-      await coachA.delete(`/scheduled-sessions/${res.body.id}`);
+      await deleteAtLatest(coachA, `/scheduled-sessions/${res.body.id}`);
     }
 
     expect([inherited.status, replaced.status, cleared.status]).toEqual([201, 201, 201]);
@@ -180,6 +188,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
   it("la copie est FIGÉE : retravailler l'exercice source ne la touche pas", async () => {
     const patched = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${exerciseAId}`),
       instructions: [{ type: "PARAGRAPH", content: [{ text: "Réécrit après diffusion." }] }],
       blocks: [],
     });
@@ -205,6 +214,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     // La note est renvoyée telle quelle : ce test ajuste le DOSAGE, et les suivants comptent sur
     // le modèle intact — une suite e2e partage ses fixtures.
     const saved = await coachA.put(`/sessions/${templateId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${templateId}`),
       title: "Bloc force max",
       notes: "Repos 3 min.",
       exercises: [
@@ -235,7 +245,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     // Nettoyage par courtoisie : aucune assertion sur son statut, la semaine 2 n'est comptée
     // nulle part et un échec ici ne dirait rien d'utile.
-    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
   });
 
   it("une métrique MAISON citée par un bloc part avec la diffusion", async () => {
@@ -296,7 +306,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       },
     ]);
 
-    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
   });
 
   it("les images de consigne survivent à la diffusion", async () => {
@@ -306,6 +316,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const imageId = await uploadInstructionImage(coachA, exerciseAId);
 
     const withImage = await coachA.patch(`/exercises/${exerciseAId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${exerciseAId}`),
       instructions: [
         { type: "PARAGRAPH", content: [{ text: "Position basse." }] },
         { type: "IMAGE", mediaId: imageId },
@@ -326,7 +337,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(block.mediaId).not.toBe(imageId);
     expect(documentIds).toContain(block.mediaId);
 
-    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
     await coachA.delete(`/exercises/${exerciseAId}/documents/${imageId}`);
   });
 
@@ -357,7 +368,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const resave = async () => {
       const read = await coachA.get(`/scheduled-sessions/${created.body.id}`);
       const line = required(read.body.exercises[0], "exercice de la séance");
-      const saved = await coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+      const saved = await putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
         title: "Gainage",
         notes: null,
         scheduledDate: mondayOfWeek2Iso,
@@ -407,7 +418,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const copy = required(orphaned.documents[0], "document de la copie");
     expect((await fetch(copy.url)).status).toBe(200);
 
-    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
   });
 
   /**
@@ -444,7 +455,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(created.status).toBe(201);
     const kept = required(created.body.exercises[0], "ligne créée");
     const resave = (mediaId: string) =>
-      coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+      putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
         title: "Gainage",
         notes: null,
         scheduledDate: mondayOfWeek2Iso,
@@ -453,7 +464,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect((await resave(sourceImage)).status).toBe(400);
     expect((await resave(kept.instructions[0].mediaId)).status).toBe(200);
 
-    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
     await coachA.delete(`/exercises/${source.body.id}`);
     await coachA.delete(`/exercises/${other.body.id}`);
   });
@@ -466,7 +477,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     });
     const lineId: string = created.body.exercises[0].id;
     const save = (line: Record<string, unknown>) =>
-      coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+      putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
         title: "Tags",
         scheduledDate: mondayOfWeek2Iso,
         exercises: [{ id: lineId, title: "Planche", ...line }],
@@ -474,7 +485,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     const retagged = await save({ tags: ["Abdos"] });
     const untagged = await save({});
-    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
 
     expect(retagged.status).toBe(200);
     expect(retagged.body.exercises[0]).toMatchObject({ id: lineId, tags: ["abdos"] });
@@ -497,7 +508,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   });
 
   it("éditer l'instance ne touche PAS le modèle de la bibliothèque", async () => {
-    const edited = await coachA.put(`/scheduled-sessions/${scheduledId}`).send({
+    const edited = await putAtLatest(coachA, `/scheduled-sessions/${scheduledId}`, {
       title: "Bloc force max (ajusté)",
       notes: null,
       scheduledDate: monday,
@@ -528,11 +539,16 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
   it("un coach ne voit ni ne diffuse la planification d'un autre coach", async () => {
     expect((await coachB.get(`/plans/${planId}`)).status).toBe(404);
-    expect((await coachB.post(`/plans/${planId}/publish`)).status).toBe(404);
+    expect(
+      (await coachB.post(`/plans/${planId}/publish`).send({ expectedUpdatedAt: ANY_VERSION }))
+        .status,
+    ).toBe(404);
     expect((await coachB.post(`/plans/${planId}/weeks`).send({ type: "TRAINING" })).status).toBe(
       404,
     );
-    expect((await coachB.delete(`/plan-weeks/${week2Id}`)).status).toBe(404);
+    // Même en citant la bonne version : le scope répond avant elle (#604).
+    const atA = await atWeekVersion(coachA, planId, week2Id);
+    expect((await coachB.delete(`/plan-weeks/${week2Id}`).query(atA)).status).toBe(404);
     expect((await coachB.get(`/scheduled-sessions/${scheduledId}`)).status).toBe(404);
   });
 
@@ -561,14 +577,14 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const empty = await coachA
       .post("/plans")
       .send({ athleteId: a1Id, title: "Cycle vide", startDate: monday });
-    const res = await coachA.post(`/plans/${empty.body.id}/publish`);
+    const res = await publishAtLatest(coachA, empty.body.id);
     expect(res.status).toBe(400);
-    await coachA.delete(`/plans/${empty.body.id}`);
+    await deleteAtLatest(coachA, `/plans/${empty.body.id}`);
   });
 
   it("diffuse le cycle : DRAFT → PUBLISHED, une seule fois", async () => {
     // Gating P6 : sans facturation saisie, la diffusion est refusée (rien n'est diffusé).
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(400);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(400);
 
     const billing = await coachA
       .put(`/plans/${planId}/billing`)
@@ -576,12 +592,12 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(billing.status).toBe(200);
     expect(billing.body.status).toBe("DRAFT");
 
-    const res = await coachA.post(`/plans/${planId}/publish`);
+    const res = await publishAtLatest(coachA, planId);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("PUBLISHED");
     expect(res.body.publishedAt).not.toBeNull();
 
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(409);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(409);
   });
 
   it("l'athlète consulte SON cycle diffusé (semaines + séances) et le détail d'une séance", async () => {
@@ -625,9 +641,12 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   it("supprimer un exercice de la bibliothèque ne casse PAS la planification diffusée", async () => {
     // Il faut d'abord le retirer du MODÈLE (SessionExercise reste en Restrict → 409).
     expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(409);
-    await coachA
-      .put(`/sessions/${templateId}`)
-      .send({ title: "Bloc force max", notes: null, exercises: [] });
+    await coachA.put(`/sessions/${templateId}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/sessions/${templateId}`),
+      title: "Bloc force max",
+      notes: null,
+      exercises: [],
+    });
 
     expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(204);
 
@@ -674,7 +693,7 @@ describe("Retouche d'une séance diffusée : le résumé la signale (#307)", () 
 
     // `updatedAt` est à la milliseconde : sans cette attente, la retouche peut tomber dessus.
     await new Promise((resolve) => setTimeout(resolve, 5));
-    const adjusted = await coach.put(`/scheduled-sessions/${session.body.id}`).send({
+    const adjusted = await putAtLatest(coach, `/scheduled-sessions/${session.body.id}`, {
       title: "Séance (ajustée)",
       notes: null,
       scheduledDate: monday,
@@ -832,5 +851,225 @@ describe("Les cycles diffusés s'accumulent chez l'athlète (#172)", () => {
   it("reste fermée au coach, comme le reste de /me (@Roles ATHLETE)", async () => {
     expect((await coachA.get("/me/plans")).status).toBe(403);
     expect((await coachB.get("/me/plans")).status).toBe(403);
+  });
+});
+
+/**
+ * L'en-tête d'un cycle refuse une écriture fondée sur une version périmée (#604) : deux Coachs d'une
+ * même entreprise retouchent le même cycle, et le second n'efface plus le premier en silence.
+ */
+describe("Cycle — version lue (#604)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let athleteId: string;
+  let otherAthleteId: string;
+  let planId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const path = () => `/plans/${planId}`;
+  const current = async () => (await coach.get(path())).body;
+  const rename = (title: string, expectedUpdatedAt: string, id = planId) =>
+    coach.patch(`/plans/${id}`).send({ title, expectedUpdatedAt });
+
+  /** Un brouillon garni d'une séance : de quoi le diffuser. */
+  async function draft(title: string): Promise<string> {
+    const plan = await coach
+      .post("/plans")
+      .send({ athleteId, title, startDate: monday, weeks: [{ type: "TRAINING" }] });
+    expect(plan.status).toBe(201);
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title: "Séance", scheduledDate: monday });
+    expect(session.status).toBe(201);
+    return plan.body.id;
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("plan-version-coach@cmv.test", Role.COACH);
+    other = await signUp("plan-version-other@cmv.test", Role.COACH);
+    athleteId = await link(coach, await signUp("plan-version-athlete@cmv.test", Role.ATHLETE));
+    otherAthleteId = await link(
+      coach,
+      await signUp("plan-version-athlete-2@cmv.test", Role.ATHLETE),
+    );
+    planId = await draft("Bloc");
+  });
+
+  it("écrit quand la version lue est la dernière, et la fait avancer", async () => {
+    const before = await current();
+    const write = await rename("Bloc (v2)", before.updatedAt);
+
+    expect(write.status).toBe(200);
+    expect(write.body.updatedAt).not.toBe(before.updatedAt);
+  });
+
+  it("refuse une écriture fondée sur une version périmée, et la base garde la première", async () => {
+    const read = await current();
+    expect((await rename("Écrit par le coach 1", read.updatedAt)).status).toBe(200);
+    const kept = await current();
+
+    const stale = await coach.patch(path()).send({
+      title: "Écrit par le coach 2",
+      startDate: shiftIsoDate(monday, 7),
+      expectedUpdatedAt: read.updatedAt,
+    });
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    // Ni le titre, ni le décalage des séances qu'aurait emporté la date de début.
+    expect(await current()).toEqual(kept);
+  });
+
+  it("ne laisse passer qu'une écriture sur deux lancées ensemble", async () => {
+    const read = await current();
+    const [first, second] = await Promise.all([
+      rename("Course A", read.updatedAt),
+      rename("Course B", read.updatedAt),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+  });
+
+  it("ne fait pas avancer la version d'un enregistrement qui ne change rien", async () => {
+    const before = await current();
+    const write = await coach.patch(path()).send({ expectedUpdatedAt: before.updatedAt });
+
+    expect(write.status).toBe(200);
+    expect(await current()).toEqual(before);
+  });
+
+  it("refuse une écriture qui ne dit pas quelle version elle a lue", async () => {
+    const before = await current();
+    const write = await coach.patch(path()).send({ title: "Sans version" });
+
+    expect(write.status).toBe(400);
+    expect(await current()).toEqual(before);
+  });
+
+  /**
+   * Le conflit passe AVANT le verrou de diffusion : la saisie n'a pas vu le cycle diffusé, et
+   * « Recharger » le lui montrera — un refus « cycle diffusé » lui parlerait d'un état inconnu.
+   */
+  it("répond par un conflit de version sur un cycle diffusé depuis la lecture", async () => {
+    const id = await draft("Diffusé entre-temps");
+    const read = await versionOf(coach, `/plans/${id}`);
+    expect((await billAndPublish(coach, id)).status).toBe(200);
+
+    const stale = await rename("Trop tard", read, id);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+  });
+
+  // Un 409 apprendrait à l'autre coach que le cycle existe.
+  it("répond 404 à un autre coach, même muni de la dernière version", async () => {
+    const read = await current();
+    const write = await other
+      .patch(path())
+      .send({ title: "Intrusion", expectedUpdatedAt: read.updatedAt });
+
+    expect(write.status).toBe(404);
+    expect(await current()).toEqual(read);
+  });
+
+  /** Un brouillon prêt à partir — semaine, séance, facturation : seule la version peut le retenir. */
+  async function billed(title: string): Promise<string> {
+    const id = await draft(title);
+    const billing = await coach
+      .put(`/plans/${id}/billing`)
+      .send({ amountCents: 5000, dueDate: "2026-01-05" });
+    expect(billing.status).toBe(200);
+    return id;
+  }
+
+  const publish = (id: string, expectedUpdatedAt: string) =>
+    coach.post(`/plans/${id}/publish`).send({ expectedUpdatedAt });
+  const remove = (id: string, expectedUpdatedAt: string) =>
+    coach.delete(`/plans/${id}`).query({ expectedUpdatedAt });
+  const reassign = (id: string, expectedUpdatedAt: string) =>
+    coach.patch(`/plans/${id}`).send({ athleteId: otherAthleteId, expectedUpdatedAt });
+
+  /**
+   * Le cas qui fait mal : un autre Coach réaffecte le cycle pendant que le premier le regarde. Sans
+   * la version, la diffusion partait chez un athlète qu'il n'a jamais vu — notifié, et facturé.
+   */
+  it("refuse une diffusion fondée sur une version périmée : le cycle réaffecté reste un brouillon", async () => {
+    const id = await billed("Réaffecté entre-temps");
+    const read = await versionOf(coach, `/plans/${id}`);
+    expect((await reassign(id, read)).status).toBe(200);
+
+    const stale = await publish(id, read);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    const plan = (await coach.get(`/plans/${id}`)).body;
+    expect(plan.status).toBe("DRAFT");
+    expect((await coach.get(`/plans/${id}/billing`)).body.status).toBe("DRAFT");
+  });
+
+  // L'écriture conditionnelle, et non la seule lecture : entre les deux, l'autre passerait.
+  it("diffusion et réaffectation lancées ensemble : une seule passe, et la diffusion part chez l'athlète lu", async () => {
+    const id = await billed("Course diffusion");
+    const read = await versionOf(coach, `/plans/${id}`);
+
+    const [published, reassigned] = await Promise.all([publish(id, read), reassign(id, read)]);
+
+    expect([published.status, reassigned.status].sort()).toEqual([200, 409]);
+    const plan = (await coach.get(`/plans/${id}`)).body;
+    if (published.status === 200) {
+      expect(plan.status).toBe("PUBLISHED");
+      expect(plan.athleteId).toBe(athleteId);
+      const invoices: { planId: string; athleteId: string }[] = (await coach.get("/invoices")).body;
+      expect(invoices.find((invoice) => invoice.planId === id)?.athleteId).toBe(athleteId);
+    } else {
+      expect(plan.status).toBe("DRAFT");
+      expect(plan.athleteId).toBe(otherAthleteId);
+    }
+  });
+
+  it("refuse une suppression fondée sur une version périmée, et garde le cycle", async () => {
+    const id = await draft("Retouché entre-temps");
+    const read = await versionOf(coach, `/plans/${id}`);
+    expect((await rename("Retouché", read, id)).status).toBe(200);
+
+    const stale = await remove(id, read);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    expect((await coach.get(`/plans/${id}`)).body.title).toBe("Retouché");
+  });
+
+  // La cascade emporterait sinon un cycle tout juste diffusé, et sa facture émise.
+  it("suppression et diffusion lancées ensemble : jamais un cycle diffusé supprimé", async () => {
+    const id = await billed("Course suppression");
+    const read = await versionOf(coach, `/plans/${id}`);
+
+    const [published, removed] = await Promise.all([publish(id, read), remove(id, read)]);
+
+    // Diffusé d'abord, il ne se supprime plus ; supprimé d'abord, il n'y a plus rien à diffuser.
+    const plan = await coach.get(`/plans/${id}`);
+    if (published.status === 200) {
+      expect(removed.status).toBe(409);
+      expect(plan.body.status).toBe("PUBLISHED");
+    } else {
+      expect([published.status, removed.status]).toEqual([404, 204]);
+      expect(plan.status).toBe(404);
+    }
+  });
+
+  it("refuse une diffusion ou une suppression qui ne dit pas quelle version elle a lue", async () => {
+    const id = await billed("Sans version");
+
+    expect((await coach.post(`/plans/${id}/publish`)).status).toBe(400);
+    expect((await coach.delete(`/plans/${id}`)).status).toBe(400);
+    expect((await coach.get(`/plans/${id}`)).body.status).toBe("DRAFT");
+  });
+
+  it("répond 404 sur un cycle supprimé, même muni de sa dernière version", async () => {
+    const id = await draft("À supprimer");
+    const read = await versionOf(coach, `/plans/${id}`);
+    expect((await deleteAtLatest(coach, `/plans/${id}`)).status).toBe(204);
+
+    expect((await rename("Trop tard", read, id)).status).toBe(404);
   });
 });
