@@ -80,9 +80,12 @@ export class CustomMetricService {
             orderBy: { label: "asc" },
           });
     // Groupées une fois : une page appelle la fonction par exercice, ou par ligne de séance.
-    const byOwner = new Map<string, CustomMetricCatalog>();
-    for (const metric of rows)
-      byOwner.set(metric.coachId, [...(byOwner.get(metric.coachId) ?? []), metric]);
+    const byOwner = new Map<string, typeof rows>();
+    for (const metric of rows) {
+      const catalog = byOwner.get(metric.coachId);
+      if (catalog == null) byOwner.set(metric.coachId, [metric]);
+      else catalog.push(metric);
+    }
     return (coachId) => byOwner.get(coachId) ?? [];
   }
 

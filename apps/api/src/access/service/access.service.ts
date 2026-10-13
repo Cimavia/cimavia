@@ -1,4 +1,4 @@
-import { type CoachOrganizationDto, MyAccessLevel, required } from "@cmv/shared";
+import { type CoachOrganizationDto, canWrite, MyAccessLevel, required } from "@cmv/shared";
 import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { ClsService } from "nestjs-cls";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
@@ -59,9 +59,7 @@ export class AccessService {
    */
   assertCan(view: AccessView, gesture: AccessGesture): void {
     const allowed =
-      gesture === "write"
-        ? view.myAccess.level !== MyAccessLevel.READ
-        : view.myAccess.level === MyAccessLevel.OWNER;
+      gesture === "write" ? canWrite(view.myAccess) : view.myAccess.level === MyAccessLevel.OWNER;
     if (!allowed) throw new ForbiddenException(DENIED[gesture]);
   }
 
