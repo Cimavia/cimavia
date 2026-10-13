@@ -15,6 +15,7 @@ import {
   deletePlanWeek,
   deleteScheduledSession,
   getPlan,
+  getScheduledSession,
   planKeys,
   reorderPlanDay,
   scheduledSessionKeys,
@@ -38,6 +39,9 @@ type ReorderDayVariables = AtWeekVersion & { weekId: string; date: string; sessi
 
 type RemoveWeekVariables = AtWeekVersion & { weekId: string };
 
+// La séance ouverte, et la version sur laquelle la saisie a commencé (#604).
+type RemoveSessionVariables = { sessionId: string; expectedUpdatedAt: string };
+
 export const planDetailQuery = (id: string) => ({
   queryKey: planKeys.detail(id),
   queryFn: () => getPlan(id),
@@ -50,6 +54,12 @@ export const planDetailQuery = (id: string) => ({
  * d'avant.
  */
 const planWriteKey = (planId: string) => ["plans", "write", planId] as const;
+
+/** La lecture d'une séance planifiée, partagée par le panneau et son « Recharger » (#604). */
+export const scheduledSessionDetailQuery = (id: string) => ({
+  queryKey: scheduledSessionKeys.detail(id),
+  queryFn: () => getScheduledSession(id),
+});
 
 export function usePlan(planId: string) {
   return useQuery<PlanDto>(planDetailQuery(planId));
@@ -109,22 +119,27 @@ export function usePlanMutations(planId: string) {
   };
 
   /**
+   * Un formulaire avec saisie — l'en-tête, le panneau de séance — refusé sur une version périmée
+   * (#604) : pas de toast, le formulaire le dit à côté de la saisie, avec de quoi recharger.
+   */
+  const onFormError = (error: unknown) => {
+    if (!isStaleWriteError(error)) toast.onError(error);
+  };
+
+  /**
    * Ce qui définit le cycle : son titre, sa description, son début, son destinataire (#207).
    * Rangée avec les écritures du builder parce qu'elle invalide exactement les mêmes caches —
    * déplacer le début rejoue les dates de toutes les séances, et changer de destinataire déplace
    * le cycle ENTIER d'une vue athlète à une autre.
    *
    * Un seul toast pour les quatre champs : le formulaire les montre tous à l'écran, une
-   * confirmation n'a pas à répéter ce qu'on vient d'y lire. Un conflit d'édition (#604) n'en a
-   * pas : le formulaire le dit à côté de la saisie, avec de quoi recharger.
+   * confirmation n'a pas à répéter ce qu'on vient d'y lire.
    */
   const saveHeader = useMutation({
     mutationKey,
     mutationFn: (input: UpdatePlanInput) => updatePlan(planId, input),
     onSuccess: done("plan.toast.headerSaved"),
-    onError: (error) => {
-      if (!isStaleWriteError(error)) toast.onError(error);
-    },
+    onError: onFormError,
   });
 
   const addWeek = useMutation({
@@ -204,14 +219,15 @@ export function usePlanMutations(planId: string) {
     mutationFn: ({ sessionId, input }: { sessionId: string; input: UpdateScheduledSessionInput }) =>
       updateScheduledSession(sessionId, input),
     onSuccess: done("plan.toast.sessionSaved"),
-    onError: toast.onError,
+    onError: onFormError,
   });
 
   const removeSession = useMutation({
     mutationKey,
-    mutationFn: (sessionId: string) => deleteScheduledSession(sessionId),
+    mutationFn: ({ sessionId, expectedUpdatedAt }: RemoveSessionVariables) =>
+      deleteScheduledSession(sessionId, { expectedUpdatedAt }),
     onSuccess: done("plan.toast.sessionDeleted"),
-    onError: toast.onError,
+    onError: onFormError,
   });
 
   const isBusy = useIsMutating({ mutationKey }) > 0;

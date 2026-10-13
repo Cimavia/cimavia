@@ -13,6 +13,7 @@ import {
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
+import { deleteAtLatest } from "../support/version";
 
 describe("Médias de débrief (P4)", () => {
   let coachA: Agent;
@@ -118,7 +119,7 @@ describe("Médias de débrief (P4)", () => {
   it("refuse de supprimer une séance débriefée (409) : séance, débrief et objet restent", async () => {
     const notificationsBefore = (await athleteA1.get("/me/notifications")).body.length;
 
-    const refused = await coachA.delete(`/scheduled-sessions/${sessionId}`);
+    const refused = await deleteAtLatest(coachA, `/scheduled-sessions/${sessionId}`);
     expect(refused.status).toBe(409);
     expect(refused.body.message).toContain("débriefée");
 

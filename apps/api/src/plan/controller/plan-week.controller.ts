@@ -1,4 +1,4 @@
-import { type PlanWeekVersionQuery, planWeekVersionQuerySchema } from "@cmv/shared";
+import { type VersionQuery, versionQuerySchema } from "@cmv/shared";
 import { Body, Controller, Delete, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
@@ -42,7 +42,7 @@ export class PlanWeekController {
   @Delete(":id")
   delete(
     @Param("id") id: string,
-    @Query(new ZodSchemaPipe(planWeekVersionQuerySchema)) query: PlanWeekVersionQuery,
+    @Query(new ZodSchemaPipe(versionQuerySchema)) query: VersionQuery,
   ) {
     return this.plans.deleteWeek(id, query);
   }

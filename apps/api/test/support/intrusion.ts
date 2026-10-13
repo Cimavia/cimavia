@@ -71,9 +71,12 @@ export async function attemptPlanWrites(
     [
       "PUT /scheduled-sessions/:id",
       () =>
-        intruder
-          .put(`/scheduled-sessions/${sessionId}`)
-          .send({ title: "Détournée", scheduledDate: monday, exercises: [] }),
+        intruder.put(`/scheduled-sessions/${sessionId}`).send({
+          title: "Détournée",
+          scheduledDate: monday,
+          exercises: [],
+          expectedUpdatedAt: ANY_VERSION,
+        }),
     ],
     [
       "PUT /plans/:id/billing",
@@ -94,7 +97,13 @@ export async function attemptPlanWrites(
       "DELETE /plans/:id/billing/document",
       () => intruder.delete(`/plans/${planId}/billing/document`),
     ],
-    ["DELETE /scheduled-sessions/:id", () => intruder.delete(`/scheduled-sessions/${sessionId}`)],
+    [
+      "DELETE /scheduled-sessions/:id",
+      () =>
+        intruder
+          .delete(`/scheduled-sessions/${sessionId}`)
+          .query({ expectedUpdatedAt: ANY_VERSION }),
+    ],
     [
       "DELETE /plan-weeks/:id",
       () => intruder.delete(`/plan-weeks/${weekId}`).query({ expectedUpdatedAt: ANY_VERSION }),

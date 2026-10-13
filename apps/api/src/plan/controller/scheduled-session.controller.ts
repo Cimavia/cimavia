@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
+import { type VersionQuery, versionQuerySchema } from "@cmv/shared";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CreateScheduledSessionDto } from "../dto/create-scheduled-session.dto";
 import { ReorderPlanDayDto } from "../dto/reorder-plan-day.dto";
 import { UpdateScheduledSessionDto } from "../dto/update-scheduled-session.dto";
@@ -43,9 +45,13 @@ export class ScheduledSessionController {
     return this.sessions.update(id, dto);
   }
 
+  // Sans corps : la version de la séance ouverte voyage en `?expectedUpdatedAt=` (#604).
   @Delete("scheduled-sessions/:id")
   @HttpCode(204)
-  delete(@Param("id") id: string) {
-    return this.sessions.delete(id);
+  delete(
+    @Param("id") id: string,
+    @Query(new ZodSchemaPipe(versionQuerySchema)) query: VersionQuery,
+  ) {
+    return this.sessions.delete(id, query);
   }
 }

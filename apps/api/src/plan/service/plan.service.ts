@@ -3,9 +3,9 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
-  PlanWeekVersionQuery,
   UpdatePlanInput,
   UpdatePlanWeekInput,
+  VersionQuery,
 } from "@cmv/shared";
 import {
   CoachAthleteStatus,
@@ -396,7 +396,7 @@ export class PlanService {
    * (#313) ne protégerait de rien ici : le statut vit sur la ligne `Plan`, pas sur celle supprimée,
    * et Postgres ne revérifie pas une condition portée par une autre table.
    */
-  async deleteWeek(weekId: string, query: PlanWeekVersionQuery): Promise<PlanDto> {
+  async deleteWeek(weekId: string, query: VersionQuery): Promise<PlanDto> {
     const week = await this.getWeekOwnedOrThrow(weekId);
     const expected = new Date(query.expectedUpdatedAt);
     // Retirer une semaine qu'un autre Coach vient de garnir emporterait ses séances sans qu'on les

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
-import { atWeekVersion, versionOf } from "../support/version";
+import { atWeekVersion, deleteAtLatest, putAtLatest, versionOf } from "../support/version";
 
 describe("Planifications : diffusion & isolation (P3)", () => {
   let coachA: Agent;
@@ -154,7 +154,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const cleared = await pose(null);
     // Semaine 2 : nettoyée aussitôt, la semaine 1 est le décor d'autres assertions.
     for (const res of [inherited, replaced, cleared]) {
-      await coachA.delete(`/scheduled-sessions/${res.body.id}`);
+      await deleteAtLatest(coachA, `/scheduled-sessions/${res.body.id}`);
     }
 
     expect([inherited.status, replaced.status, cleared.status]).toEqual([201, 201, 201]);
@@ -238,7 +238,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     // Nettoyage par courtoisie : aucune assertion sur son statut, la semaine 2 n'est comptée
     // nulle part et un échec ici ne dirait rien d'utile.
-    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
   });
 
   it("une métrique MAISON citée par un bloc part avec la diffusion", async () => {
@@ -299,7 +299,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       },
     ]);
 
-    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
   });
 
   it("les images de consigne survivent à la diffusion", async () => {
@@ -330,7 +330,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(block.mediaId).not.toBe(imageId);
     expect(documentIds).toContain(block.mediaId);
 
-    await coachA.delete(`/scheduled-sessions/${diffused.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
     await coachA.delete(`/exercises/${exerciseAId}/documents/${imageId}`);
   });
 
@@ -361,7 +361,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const resave = async () => {
       const read = await coachA.get(`/scheduled-sessions/${created.body.id}`);
       const line = required(read.body.exercises[0], "exercice de la séance");
-      const saved = await coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+      const saved = await putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
         title: "Gainage",
         notes: null,
         scheduledDate: mondayOfWeek2Iso,
@@ -411,7 +411,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const copy = required(orphaned.documents[0], "document de la copie");
     expect((await fetch(copy.url)).status).toBe(200);
 
-    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
   });
 
   /**
@@ -448,7 +448,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect(created.status).toBe(201);
     const kept = required(created.body.exercises[0], "ligne créée");
     const resave = (mediaId: string) =>
-      coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+      putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
         title: "Gainage",
         notes: null,
         scheduledDate: mondayOfWeek2Iso,
@@ -457,7 +457,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect((await resave(sourceImage)).status).toBe(400);
     expect((await resave(kept.instructions[0].mediaId)).status).toBe(200);
 
-    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
     await coachA.delete(`/exercises/${source.body.id}`);
     await coachA.delete(`/exercises/${other.body.id}`);
   });
@@ -470,7 +470,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     });
     const lineId: string = created.body.exercises[0].id;
     const save = (line: Record<string, unknown>) =>
-      coachA.put(`/scheduled-sessions/${created.body.id}`).send({
+      putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
         title: "Tags",
         scheduledDate: mondayOfWeek2Iso,
         exercises: [{ id: lineId, title: "Planche", ...line }],
@@ -478,7 +478,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     const retagged = await save({ tags: ["Abdos"] });
     const untagged = await save({});
-    await coachA.delete(`/scheduled-sessions/${created.body.id}`);
+    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
 
     expect(retagged.status).toBe(200);
     expect(retagged.body.exercises[0]).toMatchObject({ id: lineId, tags: ["abdos"] });
@@ -501,7 +501,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   });
 
   it("éditer l'instance ne touche PAS le modèle de la bibliothèque", async () => {
-    const edited = await coachA.put(`/scheduled-sessions/${scheduledId}`).send({
+    const edited = await putAtLatest(coachA, `/scheduled-sessions/${scheduledId}`, {
       title: "Bloc force max (ajusté)",
       notes: null,
       scheduledDate: monday,
@@ -683,7 +683,7 @@ describe("Retouche d'une séance diffusée : le résumé la signale (#307)", () 
 
     // `updatedAt` est à la milliseconde : sans cette attente, la retouche peut tomber dessus.
     await new Promise((resolve) => setTimeout(resolve, 5));
-    const adjusted = await coach.put(`/scheduled-sessions/${session.body.id}`).send({
+    const adjusted = await putAtLatest(coach, `/scheduled-sessions/${session.body.id}`, {
       title: "Séance (ajustée)",
       notes: null,
       scheduledDate: monday,

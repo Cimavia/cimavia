@@ -12,19 +12,24 @@ import {
   type ScheduledSessionSummaryDto,
   todayIsoDate,
 } from "@cmv/shared";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
-import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
+import { planKeys } from "@/feature/plan/api";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
-import { planDetailQuery, usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
+import {
+  planDetailQuery,
+  scheduledSessionDetailQuery,
+  usePlan,
+  usePlanMutations,
+} from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { ScheduleReminderButton } from "@/feature/reminder";
@@ -37,6 +42,7 @@ import {
 } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
 import { ApiError, isStaleWriteError } from "@/shared/lib/api";
 
@@ -152,14 +158,6 @@ export function PlanBuilderScreen() {
     guard,
   } = useUnsavedInputs();
 
-  // Le résumé (vue semaine) ne porte pas la composition : on charge le détail à l'ouverture.
-  const { data: editedSession } = useQuery<ScheduledSessionDto>({
-    queryKey: scheduledSessionKeys.detail(edit?.sessionId ?? ""),
-    // `enabled` garantit l'id : la requête ne part jamais sans lui.
-    queryFn: () => getScheduledSession(required(edit?.sessionId, "requête sans séance")),
-    enabled: edit?.sessionId != null,
-  });
-
   if (isPending) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
@@ -189,10 +187,6 @@ export function PlanBuilderScreen() {
   function onOpenEdit(week: PlanWeekDto, session: ScheduledSessionSummaryDto) {
     setEdit({ week, date: session.scheduledDate, sessionId: session.id });
   }
-
-  // Le panneau d'édition attend l'instance complète : on n'ouvre qu'une fois le détail chargé.
-  const panelSession = edit?.sessionId == null ? null : (editedSession ?? null);
-  const isPanelReady = edit != null && (edit.sessionId == null || panelSession != null);
 
   return (
     <CmvAppShell
@@ -334,24 +328,91 @@ export function PlanBuilderScreen() {
         )}
       </div>
 
-      {isPanelReady && edit != null ? (
-        <ScheduledSessionPanel
+      {edit == null ? null : (
+        <SessionPanelHost
+          edit={edit}
+          weeks={plan.weeks}
           planId={planId}
           isPublished={isPublished}
-          week={edit.week}
-          date={edit.date}
-          session={panelSession}
           athleteName={athleteNameOf(plan, athleteLabel)}
           onClose={() => setEdit(null)}
           onDirtyChange={setPanelUnsaved}
         />
-      ) : null}
+      )}
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
 }
 
 const isNotFound = (error: unknown) => error instanceof ApiError && error.status === 404;
+
+type SessionPanelHostProps = {
+  edit: SessionEdit;
+  // Les semaines telles que le cycle les montre À L'INSTANT : un autre Coach a pu le décaler.
+  weeks: readonly PlanWeekDto[];
+  planId: string;
+  isPublished: boolean;
+  athleteName: string | null;
+  onClose: () => void;
+  onDirtyChange: (isDirty: boolean) => void;
+};
+
+/**
+ * Le panneau de séance, ouvert sur ce que l'écran a cliqué. En édition, il attend l'instance
+ * complète : le résumé de la vue semaine ne porte pas la composition.
+ *
+ * Elle est RELUE à chaque ouverture, même en cache (#604) : nos propres gestes — un glisser, un
+ * recollage de journée — ont pu faire avancer la séance, et la saisie citerait la version d'avant,
+ * refusée comme si un autre Coach l'avait changée. « Recharger », après un vrai conflit, relit la
+ * séance et le cycle, et remonte le panneau sur la version relue.
+ */
+function SessionPanelHost({ edit, weeks, ...props }: Readonly<SessionPanelHostProps>) {
+  const queryClient = useQueryClient();
+  const { onError } = useMutationToast();
+  const { onClose, planId } = props;
+  const isEditing = edit.sessionId != null;
+  const {
+    data: session,
+    error,
+    isFetchedAfterMount,
+  } = useQuery<ScheduledSessionDto>({
+    ...scheduledSessionDetailQuery(edit.sessionId ?? ""),
+    // La requête ne part jamais sans l'id.
+    enabled: isEditing,
+    refetchOnMount: "always",
+  });
+  const { generation, reload, isReloading } = useStaleReload(
+    undefined,
+    scheduledSessionDetailQuery,
+  );
+  // Relue, et toujours rien : retirée entre-temps par un autre Coach. Le panneau ne s'ouvre pas,
+  // et le dit — sans quoi le clic semblerait ne rien faire.
+  const isGone = isEditing && isFetchedAfterMount && session == null;
+
+  useEffect(() => {
+    if (!isGone) return;
+    onError(error);
+    onClose();
+  }, [isGone, error, onError, onClose]);
+
+  if (isEditing && (!isFetchedAfterMount || session == null)) return null;
+
+  return (
+    <ScheduledSessionPanel
+      key={generation}
+      {...props}
+      week={weeks.find((week) => week.id === edit.week.id) ?? edit.week}
+      date={edit.date}
+      session={session ?? null}
+      onReload={() =>
+        reload(required(edit.sessionId, "rechargement hors édition"), () =>
+          queryClient.invalidateQueries({ queryKey: planKeys.detail(planId) }),
+        )
+      }
+      isReloading={isReloading}
+    />
+  );
+}
 
 /**
  * Le cycle n'a pas pu être lu. Une panne se DIT, avec un recours : rediriger vers la liste

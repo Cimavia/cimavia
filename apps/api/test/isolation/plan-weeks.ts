@@ -3,7 +3,16 @@ import type request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
-import { ANY_VERSION, atWeekVersion, patchAtLatest, weekVersionOf } from "../support/version";
+import {
+  ANY_VERSION,
+  atWeekVersion,
+  deleteAtLatest,
+  expectLocked,
+  patchAtLatest,
+  putAtLatest,
+  versionOf,
+  weekVersionOf,
+} from "../support/version";
 
 describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
   let coach: Agent;
@@ -741,11 +750,13 @@ describe("Semaine — version lue (#604)", () => {
     [
       "retouchée",
       (g: Grid) =>
-        coach
-          .put(`/scheduled-sessions/${g.sessionIds[0]}`)
-          .send({ title: "Retouchée", scheduledDate: monday, exercises: [] }),
+        putAtLatest(coach, `/scheduled-sessions/${g.sessionIds[0]}`, {
+          title: "Retouchée",
+          scheduledDate: monday,
+          exercises: [],
+        }),
     ],
-    ["supprimée", (g: Grid) => coach.delete(`/scheduled-sessions/${g.sessionIds[0]}`)],
+    ["supprimée", (g: Grid) => deleteAtLatest(coach, `/scheduled-sessions/${g.sessionIds[0]}`)],
   ])("une séance %s fait avancer sa semaine", async (_, change) => {
     const g = await grid("Séances");
     const read = await versionOfWeek(g);
@@ -878,5 +889,170 @@ describe("Semaine — version lue (#604)", () => {
     expect(created.map((res) => res.status)).toEqual([201, 201, 201]);
     const week = (await planOf(g)).weeks.find((w: { id: string }) => w.id === g.weekId);
     expect(week.sessions.map((s: { position: number }) => s.position)).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
+/**
+ * L'édition d'une séance planifiée refuse une version périmée (#604) : deux Coachs ajustent la même
+ * séance, et le second enregistrement ne défait plus le premier sans un mot. Le débrief de
+ * l'athlète, lui, ne périme pas la séance du Coach.
+ */
+describe("Séance planifiée — version lue (#604)", () => {
+  let coach: Agent;
+  let other: Agent;
+  let athlete: Agent;
+  let athleteId: string;
+
+  const monday = mondayOfCurrentWeek();
+  const path = (sessionId: string) => `/scheduled-sessions/${sessionId}`;
+  const edit = (title: string) => ({ title, scheduledDate: monday, exercises: [] });
+
+  /** Un brouillon d'une semaine, une séance le lundi : rend son identifiant et son cycle. */
+  async function scheduled(title: string): Promise<{ planId: string; sessionId: string }> {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send({ title, scheduledDate: monday });
+    expect(session.status).toBe(201);
+    return { planId: plan.body.id, sessionId: session.body.id };
+  }
+
+  /** Un autre enregistrement passe d'abord : la version lue avant lui est désormais périmée. */
+  async function outpaced(sessionId: string): Promise<string> {
+    const read = await versionOf(coach, path(sessionId));
+    expect((await putAtLatest(coach, path(sessionId), edit("Écrite par l'autre"))).status).toBe(
+      200,
+    );
+    return read;
+  }
+
+  beforeAll(async () => {
+    coach = await signUp("scheduled-version-coach@cmv.test", Role.COACH);
+    other = await signUp("scheduled-version-other@cmv.test", Role.COACH);
+    athlete = await signUp("scheduled-version-athlete@cmv.test", Role.ATHLETE);
+    athleteId = await link(coach, athlete);
+  });
+
+  it("la réponse porte la version de NOTRE enregistrement", async () => {
+    const { sessionId } = await scheduled("Avance");
+    const before = await versionOf(coach, path(sessionId));
+
+    const saved = await coach
+      .put(path(sessionId))
+      .send({ ...edit("Retouchée"), expectedUpdatedAt: before });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body.updatedAt).not.toBe(before);
+    expect(saved.body.updatedAt).toBe(await versionOf(coach, path(sessionId)));
+  });
+
+  type Write = (agent: Agent, sessionId: string, expectedUpdatedAt: string) => request.Test;
+  const writes: [string, Write][] = [
+    [
+      "l'enregistrement",
+      (agent, sessionId, expectedUpdatedAt) =>
+        agent.put(path(sessionId)).send({ ...edit("Réécrite"), expectedUpdatedAt }),
+    ],
+    [
+      "la suppression",
+      (agent, sessionId, expectedUpdatedAt) =>
+        agent.delete(path(sessionId)).query({ expectedUpdatedAt }),
+    ],
+  ];
+
+  it.each(writes)("refuse %s fondé sur une séance périmée, sans rien écrire", async (_, write) => {
+    const { sessionId } = await scheduled("Périmée");
+    const read = await outpaced(sessionId);
+    const kept = (await coach.get(path(sessionId))).body;
+
+    const stale = await write(coach, sessionId, read);
+
+    expect(stale.status).toBe(409);
+    expect(stale.body.message).toBe(STALE_WRITE);
+    expect((await coach.get(path(sessionId))).body).toEqual(kept);
+  });
+
+  it.each(writes)("refuse %s qui ne dit pas quelle version il a lue", async (_, write) => {
+    const { sessionId } = await scheduled("Sans version");
+    const kept = (await coach.get(path(sessionId))).body;
+
+    expect((await write(coach, sessionId, undefined as unknown as string)).status).toBe(400);
+    expect((await coach.get(path(sessionId))).body).toEqual(kept);
+  });
+
+  it("ne laisse passer qu'un enregistrement sur deux lancés ensemble", async () => {
+    const { sessionId } = await scheduled("Course");
+    const read = await versionOf(coach, path(sessionId));
+    const [first, second] = await Promise.all(
+      ["A", "B"].map((title) =>
+        coach.put(path(sessionId)).send({ ...edit(title), expectedUpdatedAt: read }),
+      ),
+    );
+
+    expect([first?.status, second?.status].sort()).toEqual([200, 409]);
+  });
+
+  // Le débrief raconte l'exécution, pas la composition : le Coach garde la main sur sa séance.
+  it("l'enregistrement du coach avec la version d'avant le débrief passe", async () => {
+    const { planId, sessionId } = await scheduled("Débriefée");
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+    const read = await versionOf(coach, path(sessionId));
+    const feedback = await athlete
+      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
+      .send({ content: "Faite." });
+    expect(feedback.status).toBe(200);
+
+    const saved = await coach
+      .put(path(sessionId))
+      .send({ ...edit("Ajustée après coup"), expectedUpdatedAt: read });
+
+    expect(saved.status).toBe(200);
+    expect(saved.body.status).toBe("DONE");
+  });
+
+  // Recharger n'y changerait rien : le motif durable passe avant le conflit de version.
+  it("une séance débriefée refuse d'être supprimée pour ce motif, même citée périmée", async () => {
+    const { planId, sessionId } = await scheduled("Débriefée puis retouchée");
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({ content: "Faite." });
+    const read = await outpaced(sessionId);
+
+    const refused = await coach.delete(path(sessionId)).query({ expectedUpdatedAt: read });
+
+    expectLocked(refused);
+    expect(refused.body.message).toContain("débriefée");
+  });
+
+  // Un 409 apprendrait à l'autre coach que la séance existe.
+  it.each(
+    writes,
+  )("refuse %s d'un autre coach en 404, même muni de la dernière version", async (_, write) => {
+    const { sessionId } = await scheduled("Chez un autre");
+    const kept = (await coach.get(path(sessionId))).body;
+
+    const intrusion = await write(other, sessionId, await versionOf(coach, path(sessionId)));
+
+    expect(intrusion.status).toBe(404);
+    expect((await coach.get(path(sessionId))).body).toEqual(kept);
+  });
+
+  it("répond 404 sur une séance supprimée, même munie de sa dernière version", async () => {
+    const { sessionId } = await scheduled("Supprimée");
+    const read = await versionOf(coach, path(sessionId));
+    expect((await coach.delete(path(sessionId)).query({ expectedUpdatedAt: read })).status).toBe(
+      204,
+    );
+
+    const write = await coach
+      .put(path(sessionId))
+      .send({ ...edit("Trop tard"), expectedUpdatedAt: read });
+
+    expect(write.status).toBe(404);
   });
 });

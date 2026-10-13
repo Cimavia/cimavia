@@ -548,6 +548,7 @@
     "session": {
       "createTitle": "Ajouter une séance",
       "editTitle": "Séance planifiée",
+      "staleDelete": "Cette séance a été modifiée depuis que tu l'as ouverte : recharge-la pour voir sa dernière version avant de la supprimer.",
       "panelDescription": "Cette séance est une copie : la modifier ne touche pas ta bibliothèque.",
       "day": "Jour",
       "template": "Séance modèle",

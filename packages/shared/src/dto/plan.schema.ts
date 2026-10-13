@@ -206,8 +206,14 @@ export const createScheduledSessionSchema = z
   });
 export type CreateScheduledSessionInput = z.infer<typeof createScheduledSessionSchema>;
 
-// Édition d'une instance (y compris en cours de cycle diffusé — CDC §5.7) : replace-all, comme
-// la séance modèle. L'ordre du tableau DÉFINIT les positions. `status` n'est pas éditable en P3.
+/**
+ * Édition d'une instance (y compris en cours de cycle diffusé — CDC §5.7) : replace-all, comme la
+ * séance modèle. L'ordre du tableau DÉFINIT les positions. `status` n'est pas éditable en P3.
+ *
+ * Elle cite la version de la séance OUVERTE (#604) : deux Coachs d'une entreprise peuvent ajuster
+ * la même séance, et le second effacerait sinon le premier sans un mot. Le débrief de l'athlète ne
+ * la fait pas avancer — il ne touche à rien de ce que le Coach a composé.
+ */
 export const updateScheduledSessionSchema = z
   .object({
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
@@ -216,6 +222,7 @@ export const updateScheduledSessionSchema = z
     exercises: z
       .array(scheduledSessionExerciseInputSchema)
       .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE),
+    expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
 export type UpdateScheduledSessionInput = z.infer<typeof updateScheduledSessionSchema>;
@@ -241,11 +248,12 @@ export const reorderPlanDaySchema = z
   .strict();
 export type ReorderPlanDayInput = z.infer<typeof reorderPlanDaySchema>;
 
-/** Retirer une semaine : sans corps, la version voyage en paramètre de requête (#604). */
-export const planWeekVersionQuerySchema = z
-  .object({ expectedUpdatedAt: expectedVersionSchema })
-  .strict();
-export type PlanWeekVersionQuery = z.infer<typeof planWeekVersionQuerySchema>;
+/**
+ * Retirer une semaine ou une séance planifiée : sans corps, la version voyage en paramètre de
+ * requête (#604).
+ */
+export const versionQuerySchema = z.object({ expectedUpdatedAt: expectedVersionSchema }).strict();
+export type VersionQuery = z.infer<typeof versionQuerySchema>;
 
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 

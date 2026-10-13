@@ -8,7 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { API_BODY_LIMIT_BYTES } from "../../src/app.setup";
 import { type Agent, billAndPublish, inviteFor, signUp, signUpWith } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { atWeekVersion, versionOf } from "../support/version";
+import { atWeekVersion, deleteAtLatest, putAtLatest, versionOf } from "../support/version";
 
 describe("Composition & isolation des séances (P2)", () => {
   let coachA: Agent;
@@ -401,7 +401,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
   }
 
   function save(exercises: unknown[]) {
-    return coach.put(`/scheduled-sessions/${sessionId}`).send({
+    return putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: "Force",
       notes: null,
       scheduledDate: monday,
@@ -480,7 +480,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
     expect(exercise.baselineAdjustments).toEqual([]);
 
     // Retirée aussitôt : la copie de semaine plus bas n'attend qu'une séance dans la semaine 1.
-    expect((await coach.delete(`/scheduled-sessions/${res.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coach, `/scheduled-sessions/${res.body.id}`)).status).toBe(204);
   });
 
   it("ACCEPTE un changement de valeur pour l'athlète, sans toucher aux deux références", async () => {
@@ -612,7 +612,7 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
     await addSession(coach, weekId, monday, "Séance 3");
     expect(await positionsOn(coach, planId, monday)).toEqual([0, 1, 2]);
 
-    expect((await coach.delete(`/scheduled-sessions/${first}`)).status).toBe(204);
+    expect((await deleteAtLatest(coach, `/scheduled-sessions/${first}`)).status).toBe(204);
     expect(await positionsOn(coach, planId, monday)).toEqual([0, 1]);
 
     // Le geste qui échouait : ajouter après avoir supprimé.
@@ -641,7 +641,7 @@ describe("Rangs d'une journée : aucun trou après un départ (#148)", () => {
     await addSession(coach, weekId, monday, "Lundi 2");
     await addSession(coach, weekId, monday, "Lundi 3");
 
-    const moved = await coach.put(`/scheduled-sessions/${first}`).send({
+    const moved = await putAtLatest(coach, `/scheduled-sessions/${first}`, {
       title: "Lundi 1",
       scheduledDate: tuesdayIso,
       exercises: [],

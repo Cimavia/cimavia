@@ -11,10 +11,12 @@ import {
   type ScheduledSessionDto,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
+  STALE_WRITE,
   structurePath,
 } from "@cmv/shared";
 import { fireEvent, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/shared/lib/api";
 import { renderWithProviders } from "../../../../test/render";
 import { ScheduledSessionPanel } from "./ScheduledSessionPanel";
 
@@ -58,6 +60,8 @@ const TEMPLATE = "plan.session.template";
 
 const week = { id: "week-1", startDate: "2026-09-07" } as PlanWeekDto;
 const DATE = "2026-09-09";
+// La version de la séance à l'ouverture : celle qu'enregistrer et supprimer citent (#604).
+const VERSION = "2026-09-01T10:00:00.000Z";
 
 /** Le snapshot que le panneau ne touche jamais, mais dont il est le seul à pouvoir le renvoyer. */
 const snapshot = {
@@ -76,6 +80,7 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
     title: "Séance haute",
     notes: "Échauffement long",
     scheduledDate: DATE,
+    updatedAt: VERSION,
     exercises: [
       {
         id: "sx-1",
@@ -94,6 +99,7 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
 function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) {
   const onClose = vi.fn();
   const onDirtyChange = vi.fn();
+  const onReload = vi.fn();
   const view = renderWithProviders(
     <ScheduledSessionPanel
       planId="plan-1"
@@ -104,10 +110,12 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
       athleteName="Léa Bonnet"
       onClose={onClose}
       onDirtyChange={onDirtyChange}
+      onReload={onReload}
+      isReloading={false}
       {...over}
     />,
   );
-  return { ...view, onClose, onDirtyChange };
+  return { ...view, onClose, onDirtyChange, onReload };
 }
 
 beforeEach(() => {
@@ -237,7 +245,12 @@ describe("ScheduledSessionPanel", () => {
 
       await user.click(getByRole("button", { name: SUBMIT }));
 
-      await waitFor(() => expect(updateMock).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(updateMock).toHaveBeenCalledWith(
+          "ss-1",
+          expect.objectContaining({ expectedUpdatedAt: VERSION }),
+        ),
+      );
       expect(createMock).not.toHaveBeenCalled();
     });
 
@@ -316,7 +329,9 @@ describe("ScheduledSessionPanel", () => {
       await user.click(getByRole("button", { name: "plan.session.delete" }));
       await user.click(getByRole("button", { name: "common.confirmDelete" }));
 
-      await waitFor(() => expect(deleteMock).toHaveBeenCalledWith("ss-1"));
+      await waitFor(() =>
+        expect(deleteMock).toHaveBeenCalledWith("ss-1", { expectedUpdatedAt: VERSION }),
+      );
     });
 
     // #313 : la suppression emporterait le débrief de l'athlète, l'API la refuse. Le bouton reste
@@ -349,6 +364,117 @@ describe("ScheduledSessionPanel", () => {
       expect(queryByText("plan.session.deleteHintPublished")).not.toBeInTheDocument();
       expect(queryByTitle("plan.session.deleteDisabledDebriefed")).not.toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * Deux Coachs ajustent la même séance (#604) : l'enregistrement fondé sur une version périmée est
+ * refusé, et le panneau le dit à côté de la saisie, qu'il garde — un toast disparaîtrait en
+ * emportant la seule explication.
+ */
+describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
+  const STALE = "library.session.stale";
+  const stale = () => new ApiError(409, STALE_WRITE, null);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listSessionsMock.mockResolvedValue([]);
+    listExercisesMock.mockResolvedValue([]);
+    listCustomMetricsMock.mockResolvedValue([]);
+  });
+
+  it("garde la saisie et le dit par le bandeau, sans toast ni fermeture", async () => {
+    updateMock.mockRejectedValue(stale());
+    const { user, getByRole, findByText, queryByText, onClose } = setup({ session: session() });
+    const title = getByRole("textbox", { name: TITLE });
+    await user.clear(title);
+    await user.type(title, "Saisie gardée");
+
+    await user.click(getByRole("button", { name: SUBMIT }));
+
+    expect(await findByText(STALE)).toBeInTheDocument();
+    expect(getByRole("textbox", { name: TITLE })).toHaveValue("Saisie gardée");
+    expect(queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  async function remove(view: ReturnType<typeof setup>) {
+    await view.user.click(view.getByRole("button", { name: "plan.session.delete" }));
+    await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
+  }
+
+  // Une suppression n'a pas de saisie à garder : le bandeau invite à voir ce qui a changé.
+  it("le dit aussi quand la suppression trouve la séance changée", async () => {
+    deleteMock.mockRejectedValue(stale());
+    const view = setup({ session: session() });
+
+    await remove(view);
+
+    expect(await view.findByText("plan.session.staleDelete")).toBeInTheDocument();
+    expect(view.onClose).not.toHaveBeenCalled();
+  });
+
+  it("ne garde que le refus du dernier geste", async () => {
+    updateMock.mockRejectedValue(stale());
+    deleteMock.mockRejectedValue(new ApiError(409, "Séance débriefée", null));
+    const view = setup({ session: session() });
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+    await view.findByText(STALE);
+
+    await remove(view);
+
+    expect(await view.findByText("Séance débriefée")).toBeInTheDocument();
+    expect(view.queryByText(STALE)).not.toBeInTheDocument();
+  });
+
+  it("« Recharger » demande la dernière version à l'écran", async () => {
+    updateMock.mockRejectedValue(stale());
+    const { user, getByRole, findByRole, onReload } = setup({ session: session() });
+    await user.click(getByRole("button", { name: SUBMIT }));
+
+    await user.click(await findByRole("button", { name: "common.staleReload" }));
+
+    expect(onReload).toHaveBeenCalledOnce();
+  });
+
+  it("ne montre pas de bandeau pour un autre refus", async () => {
+    updateMock.mockRejectedValue(new ApiError(400, "Requête invalide", null));
+    const { user, getByRole, findByText, queryByText } = setup({ session: session() });
+
+    await user.click(getByRole("button", { name: SUBMIT }));
+
+    expect(await findByText("Requête invalide")).toBeInTheDocument();
+    expect(queryByText(STALE)).not.toBeInTheDocument();
+  });
+
+  // La séance en cache peut être relue pendant la saisie (retour d'onglet) : la saisie, elle, ne
+  // l'a pas vue, et citer la version relue écraserait ce que l'autre Coach a enregistré.
+  it("cite la version de l'ouverture, même relue entre-temps", async () => {
+    updateMock.mockResolvedValue(session());
+    const { user, getByRole, rerender } = setup({ session: session() });
+    rerender(
+      <ScheduledSessionPanel
+        planId="plan-1"
+        isPublished={false}
+        week={week}
+        date={DATE}
+        session={session({ updatedAt: "2026-09-02T10:00:00.000Z" })}
+        athleteName="Léa Bonnet"
+        onClose={vi.fn()}
+        onDirtyChange={vi.fn()}
+        onReload={vi.fn()}
+        isReloading={false}
+      />,
+    );
+
+    await user.click(getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ expectedUpdatedAt: VERSION }),
+      ),
+    );
   });
 });
 

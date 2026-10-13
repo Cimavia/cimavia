@@ -5,12 +5,12 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
-  PlanWeekVersionQuery,
   ReorderPlanDayInput,
   ScheduledSessionDto,
   UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
+  VersionQuery,
 } from "@cmv/shared";
 import { createAthletePlanApi } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
@@ -67,7 +67,7 @@ export function updatePlanWeek(weekId: string, input: UpdatePlanWeekInput): Prom
 }
 
 // Un DELETE n'a pas de corps : la version lue voyage dans la requête (#604).
-export function deletePlanWeek(weekId: string, query: PlanWeekVersionQuery): Promise<PlanDto> {
+export function deletePlanWeek(weekId: string, query: VersionQuery): Promise<PlanDto> {
   return api.delete<PlanDto>(`/plan-weeks/${weekId}?${new URLSearchParams(query)}`);
 }
 
@@ -111,8 +111,9 @@ export function getScheduledSession(sessionId: string): Promise<ScheduledSession
   return api.get<ScheduledSessionDto>(`/scheduled-sessions/${sessionId}`);
 }
 
-export function deleteScheduledSession(sessionId: string): Promise<void> {
-  return api.delete<void>(`/scheduled-sessions/${sessionId}`);
+// Sans corps : la version de la séance ouverte voyage en paramètre de requête (#604).
+export function deleteScheduledSession(sessionId: string, query: VersionQuery): Promise<void> {
+  return api.delete<void>(`/scheduled-sessions/${sessionId}?${new URLSearchParams(query)}`);
 }
 
 // ── Lecture athlète ──────────────────────────────────────────────────────────

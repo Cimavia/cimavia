@@ -121,9 +121,9 @@ describe.each([
   ["getScheduledSession", () => getScheduledSession("s-1"), "get", ["/scheduled-sessions/s-1"]],
   [
     "deleteScheduledSession",
-    () => deleteScheduledSession("s-1"),
+    () => deleteScheduledSession("s-1", { expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
     "delete",
-    ["/scheduled-sessions/s-1"],
+    ["/scheduled-sessions/s-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
   ],
 ] as const)("%s", (_, call, verb, args) => {
   it(`part en ${verb.toUpperCase()} sur la bonne ressource`, async () => {

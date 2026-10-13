@@ -7,6 +7,7 @@ import type {
   ScheduledSessionDto,
   ScheduledSessionExerciseInput,
   UpdateScheduledSessionInput,
+  VersionQuery,
 } from "@cmv/shared";
 import {
   AdjustmentLevel,
@@ -43,7 +44,11 @@ import { toDbDate, toIsoDate } from "../../util/date.util";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
 import { assertInstructionImagesOwned } from "../../util/instruction-images.util";
-import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
+import {
+  assertReadAtVersion,
+  assertWrittenAtVersion,
+  writeAtVersion,
+} from "../../util/stale-write.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
 import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
 import {
@@ -75,6 +80,8 @@ type DraftExercise = { exercise: ScheduledSessionExerciseInput; baselineAdjustme
 
 const composedByClient = (exercises: ScheduledSessionExerciseInput[]): DraftExercise[] =>
   exercises.map((exercise) => ({ exercise, baselineAdjustments: [] }));
+
+const SESSION_NOT_FOUND = "Séance planifiée introuvable";
 
 // Documents de la bibliothèque, par exercice source — à copier sur les exercices de l'instance.
 type DocumentsBySource = Map<string, ExerciseDocument[]>;
@@ -159,9 +166,15 @@ export class ScheduledSessionService {
    * gardent leur identité (#296, #311) : une ligne citée par son `id` est mise à jour en place,
    * avec son suivi et ses documents. Seules les lignes nouvelles naissent, et seules celles que le
    * tableau ne cite plus partent.
+   *
+   * Sous la version de la séance ouverte (#604) : un autre Coach a pu l'ajuster depuis.
    */
   async update(id: string, input: UpdateScheduledSessionInput): Promise<ScheduledSessionDto> {
     const session = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Avant de juger la composition contre un état que la saisie n'a pas vu : une ligne retirée
+    // par l'autre Coach ferait un 400 au lieu de proposer de recharger.
+    assertReadAtVersion(session.updatedAt, expected);
     const week = await this.plans.getWeekOwnedOrThrow(session.planWeekId);
     const plan = await this.plans.getOwnedOrThrow(session.planId);
     this.assertDateInWeek(plan, week, input.scheduledDate);
@@ -181,12 +194,14 @@ export class ScheduledSessionService {
     const documents = await this.loadSourceDocuments(rows.added.map((row) => row.item));
     assertRowImagesOwned(session.exercises, rows, documents);
 
-    await this.db.$transaction(async (tx) => {
-      // La semaine d'abord : l'ordre des verrous de `touchWeeks`.
+    const updated = await this.db.$transaction(async (tx) => {
+      // La semaine d'abord, puis la séance : l'ordre des verrous de `touchWeeks`.
       await touchWeeks(tx, { id: session.planWeekId });
-      await tx.scheduledSession.update({
-        where: { id },
-        data: {
+      await writeAtVersion(
+        tx.scheduledSession,
+        id,
+        expected,
+        {
           title: input.title,
           notes: input.notes ?? null,
           scheduledDate: toDbDate(input.scheduledDate),
@@ -195,7 +210,8 @@ export class ScheduledSessionService {
             ? await this.nextPosition(tx, session.planWeekId, input.scheduledDate)
             : session.position,
         },
-      });
+        SESSION_NOT_FOUND,
+      );
 
       await rewriteScheduledSessionExercises(tx, id, session.athleteId, rows, (exercise) =>
         libraryDocumentsOf(exercise, documents),
@@ -203,6 +219,9 @@ export class ScheduledSessionService {
 
       // Changer de jour, c'est aussi QUITTER un jour : sans ce recollage, l'ancien garde le trou.
       if (dateChanged) await compactDay(tx, session.planWeekId, session.scheduledDate);
+      // Relue DANS la transaction : la réponse porte NOTRE version, pas celle d'un Coach passé
+      // juste après.
+      return this.getDto(id, tx);
     });
 
     // Ajuster un cycle DÉJÀ diffusé doit prévenir l'athlète (CDC §5.7) : il a peut-être la
@@ -216,7 +235,7 @@ export class ScheduledSessionService {
       });
     }
 
-    return this.getDto(id);
+    return updated;
   }
 
   /**
@@ -319,8 +338,10 @@ export class ScheduledSessionService {
     }
   }
 
-  async delete(id: string): Promise<void> {
+  /** Sous la version de la séance ouverte (#604) : la retirer ne se fait pas sur ce qu'on n'a pas vu. */
+  async delete(id: string, query: VersionQuery): Promise<void> {
     const session = await this.getOwnedOrThrow(id);
+    const expected = new Date(query.expectedUpdatedAt);
     const plan = await this.plans.getOwnedOrThrow(session.planId);
 
     await this.db.$transaction(async (tx) => {
@@ -331,22 +352,19 @@ export class ScheduledSessionService {
        * l'athlète, son suivi d'exécution et le lien des messages qui y répondent — et laisserait
        * ses médias orphelins dans le bucket. Le coach garde l'édition, qui préserve tout ça.
        *
-       * La garde est DANS la suppression, pas dans une lecture préalable : un débrief créé au même
-       * instant passe la séance en DONE dans sa transaction, et Postgres revérifie la condition sur
-       * la ligne mise à jour avant de la supprimer. `DONE` n'est posé que par le débrief, qui ne
+       * La garde — le statut, et la version lue (#604) — est DANS la suppression, pas dans une
+       * lecture préalable : un débrief créé au même instant passe la séance en DONE dans sa
+       * transaction, et Postgres revérifie la condition sur la ligne mise à jour avant de la
+       * supprimer. `DONE` n'est posé que par le débrief, qui ne
        * se supprime jamais : le statut dit exactement « un débrief existe ».
        *
        * Exercices et copies de documents partent en cascade. Aucun objet storage supprimé : les
        * copies ne font que partager les clés de la bibliothèque, qui en reste propriétaire.
        */
       const { count } = await tx.scheduledSession.deleteMany({
-        where: { id, status: { not: ScheduledSessionStatus.DONE } },
+        where: { id, updatedAt: expected, status: { not: ScheduledSessionStatus.DONE } },
       });
-      if (count === 0) {
-        throw new ConflictException(
-          "Cette séance a été débriefée par l'athlète : elle ne peut plus être supprimée, mais reste modifiable",
-        );
-      }
+      await assertDeleted(tx, id, count);
       // La journée se recolle DANS la même transaction : un trou laissé derrière ferait échouer
       // la prochaine séance ajoutée ce jour-là, sur une contrainte d'unicité que le coach n'a
       // aucun moyen de relier à la suppression qu'il vient de faire.
@@ -367,19 +385,25 @@ export class ScheduledSessionService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  async getOwnedOrThrow(id: string): Promise<ScheduledSessionWithExercises> {
-    const session = await this.db.scheduledSession.findFirst({
+  async getOwnedOrThrow(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<ScheduledSessionWithExercises> {
+    const session = await db.scheduledSession.findFirst({
       where: { id },
       include: SESSION_DETAIL_INCLUDE,
     });
     if (session == null) {
-      throw new NotFoundException("Séance planifiée introuvable");
+      throw new NotFoundException(SESSION_NOT_FOUND);
     }
     return session;
   }
 
-  private async getDto(id: string): Promise<ScheduledSessionDto> {
-    return toScheduledSessionDto(await this.getOwnedOrThrow(id), this.storage);
+  private async getDto(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<ScheduledSessionDto> {
+    return toScheduledSessionDto(await this.getOwnedOrThrow(id, db), this.storage);
   }
 
   // Une séance ne peut pas être posée hors de la plage de sa semaine (sinon la vue calendrier
@@ -526,6 +550,22 @@ export class ScheduledSessionService {
     }));
     return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
   }
+}
+
+/**
+ * Dit pourquoi la suppression n'a rien supprimé, relu dans sa transaction. Débriefée : le refus de
+ * #313 prime, recharger n'y changerait rien. Sinon, comme toute écriture sous version (#604) :
+ * disparue → 404, changée depuis la lecture → 409 `STALE_WRITE`.
+ */
+async function assertDeleted(tx: TenantTx, id: string, count: number): Promise<void> {
+  if (count > 0) return;
+  const current = await tx.scheduledSession.findFirst({ where: { id }, select: { status: true } });
+  if (current?.status === ScheduledSessionStatus.DONE) {
+    throw new ConflictException(
+      "Cette séance a été débriefée par l'athlète : elle ne peut plus être supprimée, mais reste modifiable",
+    );
+  }
+  await assertWrittenAtVersion(count, async () => current != null, SESSION_NOT_FOUND);
 }
 
 /**

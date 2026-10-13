@@ -4,13 +4,13 @@ import {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
-  planWeekVersionQuerySchema,
   reorderPlanDaySchema,
   SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
   scheduledSessionExerciseInputSchema,
   updatePlanSchema,
   updatePlanWeekSchema,
   updateScheduledSessionSchema,
+  versionQuerySchema,
 } from "./plan.schema";
 import { SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from "./session.schema";
 
@@ -82,6 +82,7 @@ describe("plafond d'exercices d'une séance planifiée (#297)", () => {
       title: "Bloc",
       scheduledDate: "2026-10-14",
       exercises: scheduledExercises(count),
+      expectedUpdatedAt: VERSION,
     });
   const create = (count: number) =>
     createScheduledSessionSchema.safeParse({
@@ -130,6 +131,7 @@ describe("updateScheduledSessionSchema", () => {
         { sourceExerciseId: "ex_1", title: "Échauffement" },
         { title: "Tractions", tags: ["renfo"], note: "Épaule sensible" },
       ],
+      expectedUpdatedAt: VERSION,
     });
     expect(parsed.exercises).toHaveLength(2);
     expect(parsed.exercises[1]?.sourceExerciseId).toBeUndefined();
@@ -142,6 +144,7 @@ describe("updateScheduledSessionSchema", () => {
       title: "Bloc",
       scheduledDate: "2026-10-14",
       exercises: [{ title: "x", category: "RENFO" }],
+      expectedUpdatedAt: VERSION,
     });
     expect(result.success).toBe(false);
   });
@@ -215,15 +218,21 @@ describe("reorderPlanDaySchema", () => {
 });
 
 /**
- * Les gestes sur une semaine citent la version de la semaine affichée (#604) : sans elle, un geste
- * fondé sur une grille qu'un autre Coach a changée défait son travail sans un mot.
+ * Les gestes sur une semaine citent la version de la semaine affichée, l'édition d'une séance celle
+ * de la séance ouverte (#604) : sans elle, une écriture fondée sur ce qu'un autre Coach a changé
+ * depuis défait son travail sans un mot.
  */
-describe("version d'une semaine (#604)", () => {
+describe("version lue (#604)", () => {
   it.each([
     ["le type ou la note", updatePlanWeekSchema, { type: "TRAINING" }],
     ["le collage", copyPlanWeekSchema, { sourcePlanWeekId: "pw_1" }],
     ["l'ordre d'une journée", reorderPlanDaySchema, { sessionIds: ["ss_1"] }],
-    ["le retrait", planWeekVersionQuerySchema, {}],
+    ["le retrait d'une semaine ou d'une séance", versionQuerySchema, {}],
+    [
+      "l'édition d'une séance",
+      updateScheduledSessionSchema,
+      { title: "Bloc", scheduledDate: "2026-10-14", exercises: [] },
+    ],
   ] as const)("l'exige pour %s", (_gesture, schema, fields) => {
     expect(schema.safeParse(fields).success).toBe(false);
     expect(schema.safeParse({ ...fields, expectedUpdatedAt: VERSION }).success).toBe(true);

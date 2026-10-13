@@ -14,7 +14,7 @@ import {
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
-import { getScheduledSession } from "@/feature/plan/api";
+import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
@@ -27,7 +27,7 @@ import { renderInRoute } from "../../../../test/render";
  * il nomme un cycle sans destinataire, et ce qu'il ferme tant qu'il n'en a pas (#144).
  */
 const getPlan = vi.hoisted(() => vi.fn());
-vi.mock("@/feature/plan/hook/usePlan", async () => {
+vi.mock("@/feature/plan/hook/usePlan", async (importOriginal) => {
   // La VRAIE clé du détail : une clé recopiée ici survivrait à un renommage de l'application.
   const { planKeys } = await import("@/feature/plan/api");
   return {
@@ -35,6 +35,10 @@ vi.mock("@/feature/plan/hook/usePlan", async () => {
     usePlanMutations: vi.fn(),
     // « Recharger » relit le cycle par cette requête (#604) : sa lecture est la seule doublure.
     planDetailQuery: (id: string) => ({ queryKey: planKeys.detail(id), queryFn: getPlan }),
+    // La vraie : elle lit la séance par la doublure de `api.ts`.
+    scheduledSessionDetailQuery: (
+      await importOriginal<typeof import("@/feature/plan/hook/usePlan")>()
+    ).scheduledSessionDetailQuery,
   };
 });
 vi.mock("@/feature/invoice/hook/useInvoices", () => ({
@@ -126,6 +130,8 @@ const mount = async (
   query: PlanQuery = {},
   // Le refus du dernier enregistrement d'en-tête, tel que la mutation le garde.
   headerError: unknown = null,
+  // Celui du dernier enregistrement de séance, que le panneau lit de même.
+  sessionError: unknown = null,
 ) => {
   vi.mocked(usePlans).mockReturnValue({
     data: coachPlans ?? undefined,
@@ -140,6 +146,8 @@ const mount = async (
   vi.mocked(usePlanMutations).mockReturnValue({
     addWeek: { mutate: addWeek },
     saveHeader: { mutate: saveHeader, isPending: false, error: headerError, reset: resetHeader },
+    saveSession: { mutate: vi.fn(), error: sessionError },
+    removeSession: { mutate: vi.fn(), error: null },
     isBusy: false,
   } as unknown as ReturnType<typeof usePlanMutations>);
   vi.mocked(usePlanBilling).mockReturnValue({ data: billing } as unknown as ReturnType<
@@ -452,6 +460,66 @@ describe("PlanBuilderScreen — les semaines", () => {
 
     expect(await findByText("plan.session.editTitle")).toBeTruthy();
     expect(getScheduledSession).toHaveBeenCalledWith("ss_1");
+  });
+
+  // Maquette #597 : « Recharger » remplace la saisie par la dernière version, sans fusion (#604).
+  it("« Recharger » relit la séance ouverte et remonte le panneau dessus", async () => {
+    const stale = new ApiError(409, STALE_WRITE, null);
+    const { findByRole, getByRole, user } = await mount(
+      { weeks: [week] },
+      null,
+      [],
+      {},
+      null,
+      stale,
+    );
+    await user.click(getByRole("button", { name: /Force max/ }));
+    const title = await findByRole("textbox", { name: "plan.session.titleLabel" });
+    await user.clear(title);
+    await user.type(title, "Saisie périmée");
+    vi.mocked(getScheduledSession).mockResolvedValue({ ...summary, title: "Force (M)" });
+
+    await user.click(getByRole("button", { name: "common.staleReload" }));
+
+    await waitFor(() =>
+      expect(getByRole("textbox", { name: "plan.session.titleLabel" })).toHaveValue("Force (M)"),
+    );
+    expect(getScheduledSession).toHaveBeenCalledTimes(2);
+  });
+
+  // Nos propres gestes — un glisser, un recollage — font avancer la séance : ouverte sur le cache,
+  // la saisie citerait la version d'avant et se verrait refuser (#604).
+  it("ouvre la séance sur sa relecture, jamais sur le cache", async () => {
+    const { findByRole, findByText, getByRole, queryClient, user } = await mount({
+      weeks: [week],
+    });
+    // Comme en production : la séance reste en cache, et fraîche, après la fermeture du panneau.
+    queryClient.setQueryDefaults(scheduledSessionKeys.detail("ss_1"), {
+      gcTime: 60_000,
+      staleTime: 60_000,
+    });
+    await user.click(getByRole("button", { name: /Force max/ }));
+    await findByText("plan.session.editTitle");
+    await user.click(getByRole("button", { name: "common.cancel" }));
+    vi.mocked(getScheduledSession).mockResolvedValue({ ...summary, title: "Force (déplacée)" });
+
+    await user.click(getByRole("button", { name: /Force max/ }));
+
+    expect(await findByRole("textbox", { name: "plan.session.titleLabel" })).toHaveValue(
+      "Force (déplacée)",
+    );
+  });
+
+  it("dit qu'une séance retirée entre-temps ne s'ouvre plus", async () => {
+    vi.mocked(getScheduledSession).mockRejectedValue(
+      new ApiError(404, "Séance planifiée introuvable", null),
+    );
+    const { findByText, getByRole, queryByText, user } = await mount({ weeks: [week] });
+
+    await user.click(getByRole("button", { name: /Force max/ }));
+
+    expect(await findByText("Séance planifiée introuvable")).toBeTruthy();
+    expect(queryByText("plan.session.editTitle")).toBeNull();
   });
 
   it("ajoute une semaine d'entraînement en fin de cycle", async () => {

@@ -48,6 +48,20 @@ export async function patchAtLatest(
   return agent.patch(path).send({ ...fields, expectedUpdatedAt: await versionOf(agent, path) });
 }
 
+/** Un PUT tel qu'un client à jour l'envoie (#604) : en citant la version du moment. */
+export async function putAtLatest(
+  agent: Agent,
+  path: string,
+  fields: object,
+): Promise<request.Response> {
+  return agent.put(path).send({ ...fields, expectedUpdatedAt: await versionOf(agent, path) });
+}
+
+/** Un DELETE tel qu'un client à jour l'envoie (#604) : sans corps, la version voyage en requête. */
+export async function deleteAtLatest(agent: Agent, path: string): Promise<request.Response> {
+  return agent.delete(path).query({ expectedUpdatedAt: await versionOf(agent, path) });
+}
+
 /**
  * Refusé par un VERROU de l'élément, et non par sa version : depuis #604, les deux répondent 409,
  * et seul le message les distingue.

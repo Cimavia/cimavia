@@ -474,7 +474,6 @@ export type {
   PlanWeekDto,
   PlanWeekInput,
   PlanWeekType as PlanWeekTypeType,
-  PlanWeekVersionQuery,
   ReorderPlanDayInput,
   ScheduledSessionDto,
   ScheduledSessionExerciseDto,
@@ -484,6 +483,7 @@ export type {
   UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
+  VersionQuery,
 } from "./dto/plan.schema";
 export {
   copyPlanWeekSchema,
@@ -502,7 +502,6 @@ export {
   planWeekDtoSchema,
   planWeekInputSchema,
   planWeekTypeSchema,
-  planWeekVersionQuerySchema,
   reorderPlanDaySchema,
   SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
   ScheduledSessionStatus,
@@ -514,6 +513,7 @@ export {
   updatePlanSchema,
   updatePlanWeekSchema,
   updateScheduledSessionSchema,
+  versionQuerySchema,
 } from "./dto/plan.schema";
 export type {
   PushPlatform as PushPlatformType,
