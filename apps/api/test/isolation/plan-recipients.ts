@@ -12,7 +12,7 @@ import {
 } from "../support/actors";
 import { app } from "../support/app";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { expectLocked, patchAtLatest } from "../support/version";
+import { expectLocked, patchAtLatest, publishAtLatest } from "../support/version";
 
 describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   let coachA: Agent;
@@ -147,7 +147,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   it("refuse de diffuser un cycle sans destinataire, et n'écrit rien", async () => {
     const { planId } = await draftWithoutAthlete("Jamais diffusé");
 
-    const res = await coachA.post(`/plans/${planId}/publish`);
+    const res = await publishAtLatest(coachA, planId);
     expect(res.status).toBe(400);
 
     // Ni statut, ni facture : le refus tombe AVANT la transaction.
@@ -238,7 +238,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     await coachA.put(`/plans/${planId}/billing`).send({ amountCents: 7000, dueDate: monday });
 
     expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id })).status).toBe(200);
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(200);
 
     const issued = (await coachA.get("/invoices")).body.find(
       (invoice: { planId: string }) => invoice.planId === planId,
@@ -274,7 +274,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     expect((await coachA.delete(`/plans/${planId}/billing/document`)).status).toBe(200);
 
     expect((await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a2Id })).status).toBe(200);
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(200);
 
     const issued = (await coachA.get("/invoices")).body.find(
       (invoice: { planId: string }) => invoice.planId === planId,
@@ -317,7 +317,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     await prisma.$executeRaw`
       UPDATE invoice SET "documentPath" = ${keyForA1} WHERE "planId" = ${planId}`;
 
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(409);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(409);
     expect((await coachA.get(`/plans/${planId}`)).body.status).toBe("DRAFT");
     const issued = (await coachA.get("/invoices")).body.map(
       (invoice: { planId: string }) => invoice.planId,
@@ -326,7 +326,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
 
     // Le PDF retiré, le cycle part — à A2, sans le document de A1.
     expect((await coachA.delete(`/plans/${planId}/billing/document`)).status).toBe(200);
-    expect((await coachA.post(`/plans/${planId}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(coachA, planId)).status).toBe(200);
   });
 
   /**
@@ -461,7 +461,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect(plan.status).toBe(201);
 
     // Le gating de facturation est levé : diffuser ne demande AUCUN terme saisi.
-    const published = await solo.post(`/plans/${plan.body.id}/publish`);
+    const published = await publishAtLatest(solo, plan.body.id);
     expect(published.status).toBe(200);
     expect(published.body.status).toBe("PUBLISHED");
 
@@ -526,7 +526,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
       .post(`/plan-weeks/${weekId}/sessions`)
       .send({ sourceSessionId: template.body.id, scheduledDate: monday });
     expect(scheduled.status).toBe(201);
-    expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(solo, plan.body.id)).status).toBe(200);
 
     // Écrit en tant qu'ATHLÈTE…
     const written = await solo

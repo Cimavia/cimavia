@@ -4,6 +4,7 @@ import {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
+  publishPlanSchema,
   reorderPlanDaySchema,
   SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
   scheduledSessionExerciseInputSchema,
@@ -219,15 +220,16 @@ describe("reorderPlanDaySchema", () => {
 
 /**
  * Les gestes sur une semaine citent la version de la semaine affichée, l'édition d'une séance celle
- * de la séance ouverte (#604) : sans elle, une écriture fondée sur ce qu'un autre Coach a changé
- * depuis défait son travail sans un mot.
+ * de la séance ouverte, la diffusion et le retrait d'un cycle celle du cycle affiché (#604) : sans
+ * elle, une écriture fondée sur ce qu'un autre Coach a changé depuis défait son travail sans un mot.
  */
 describe("version lue (#604)", () => {
   it.each([
     ["le type ou la note", updatePlanWeekSchema, { type: "TRAINING" }],
     ["le collage", copyPlanWeekSchema, { sourcePlanWeekId: "pw_1" }],
     ["l'ordre d'une journée", reorderPlanDaySchema, { sessionIds: ["ss_1"] }],
-    ["le retrait d'une semaine ou d'une séance", versionQuerySchema, {}],
+    ["le retrait d'un cycle, d'une semaine ou d'une séance", versionQuerySchema, {}],
+    ["la diffusion d'un cycle", publishPlanSchema, {}],
     [
       "l'édition d'une séance",
       updateScheduledSessionSchema,

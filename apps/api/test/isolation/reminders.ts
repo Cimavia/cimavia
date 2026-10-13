@@ -6,6 +6,7 @@ import { startOfProductDay, toDbDate } from "../../src/util/date.util";
 import { type Agent, billAndPublish, inviteFor, required, signUp } from "../support/actors";
 import { app, baseURL } from "../support/app";
 import { inFuture, inPast, mondayOfCurrentWeek } from "../support/fixtures";
+import { deleteAtLatest, publishAtLatest } from "../support/version";
 
 describe("Rappels du coach (#44)", () => {
   let coachA: Agent;
@@ -270,7 +271,7 @@ describe("Rappels du coach (#44)", () => {
     }
     expect((await reminders(coachA)).filter((r) => r.note === "à purger")).toHaveLength(2);
 
-    expect((await coachA.delete(`/plans/${draftPlanId}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/plans/${draftPlanId}`)).status).toBe(204);
     expect((await reminders(coachA)).filter((r) => r.note === "à purger")).toHaveLength(0);
   });
 });
@@ -727,7 +728,7 @@ describe("Génération automatique des rappels (#47)", () => {
       .put(`/plans/${quietPlanId}/billing`)
       .send({ amountCents: 5000, dueDate: "2099-01-05" });
     quietInvoiceId = billing.body.id;
-    expect((await coachG.post(`/plans/${quietPlanId}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(coachG, quietPlanId)).status).toBe(200);
     await app.get(PrismaService).$executeRaw`DELETE FROM plan_week WHERE "planId" = ${quietPlanId}`;
     expect((await coachG.get(`/plans/${quietPlanId}`)).body.weeks).toEqual([]);
   });

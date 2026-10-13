@@ -249,11 +249,20 @@ export const reorderPlanDaySchema = z
 export type ReorderPlanDayInput = z.infer<typeof reorderPlanDaySchema>;
 
 /**
- * Retirer une semaine ou une séance planifiée : sans corps, la version voyage en paramètre de
- * requête (#604).
+ * Retirer un cycle, une semaine ou une séance planifiée : sans corps, la version voyage en
+ * paramètre de requête (#604).
  */
 export const versionQuerySchema = z.object({ expectedUpdatedAt: expectedVersionSchema }).strict();
 export type VersionQuery = z.infer<typeof versionQuerySchema>;
+
+/**
+ * Diffuser un cycle cite la version AFFICHÉE (#604) : le destinataire, le titre ou le début ont pu
+ * changer sous la main d'un autre Coach depuis, et la diffusion partirait alors chez un athlète que
+ * celui qui diffuse n'a jamais vu à l'écran — notifié, et facturé. La même forme que le retrait,
+ * en corps plutôt qu'en requête.
+ */
+export const publishPlanSchema = versionQuerySchema;
+export type PublishPlanInput = z.infer<typeof publishPlanSchema>;
 
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 

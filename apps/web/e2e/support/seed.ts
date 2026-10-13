@@ -110,7 +110,7 @@ export class Seed {
     const title = `Cycle ${this.run}`;
     const sessionTitle = `Séance ${this.run}`;
 
-    const plan = await json<{ id: string; weeks: { id: string }[] }>(
+    const plan = await json<{ id: string; updatedAt: string; weeks: { id: string }[] }>(
       await coach.api.post("/plans", {
         data: { athleteId, title, startDate: monday, weeks: [{ type: PlanWeekType.TRAINING }] },
       }),
@@ -129,7 +129,13 @@ export class Seed {
       }),
       "facturation du cycle",
     );
-    await json(await coach.api.post(`/plans/${plan.id}/publish`), "diffusion du cycle");
+    // La version du cycle créé (#604) : la séance et la facturation ne la font pas avancer.
+    await json(
+      await coach.api.post(`/plans/${plan.id}/publish`, {
+        data: { expectedUpdatedAt: plan.updatedAt },
+      }),
+      "diffusion du cycle",
+    );
 
     return { planId: plan.id, title, sessionId: session.id, sessionTitle };
   }

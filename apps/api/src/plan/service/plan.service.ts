@@ -3,6 +3,7 @@ import type {
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
+  PublishPlanInput,
   UpdatePlanInput,
   UpdatePlanWeekInput,
   VersionQuery,
@@ -252,9 +253,20 @@ export class PlanService {
    * Un cycle DIFFUSÉ ne se supprime pas (#85) : la cascade emporterait sa facture émise, que
    * l'athlète a déjà vue, et les débriefs de ses séances — médias laissés orphelins dans le bucket.
    * Un brouillon, lui, n'a jamais été visible de l'athlète : aucune séance n'y est débriefée.
+   *
+   * Sous la version affichée (#604) : un cycle qu'un autre Coach a retouché, réaffecté ou DIFFUSÉ
+   * depuis ne part pas sur la foi d'un écran périmé. La suppression conditionnelle tient aussi la
+   * diffusion qui passerait entre le contrôle du statut et elle — sans quoi la cascade emporterait
+   * un cycle tout juste diffusé, et sa facture émise. Cette version est celle de l'EN-TÊTE : les
+   * semaines qu'un autre Coach vient d'y poser partent avec le cycle, que la suppression vise en
+   * entier, après confirmation.
    */
-  async delete(id: string): Promise<void> {
+  async delete(id: string, query: VersionQuery): Promise<void> {
     const plan = await this.getOwnedOrThrow(id);
+    const expected = new Date(query.expectedUpdatedAt);
+    // La version avant le verrou, comme pour l'en-tête : un écran qui n'a pas vu la diffusion se
+    // relit et la montre, au lieu d'opposer un refus à un état que le Coach ignore.
+    assertReadAtVersion(plan.updatedAt, expected);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException(
         "Un cycle diffusé ne se supprime plus : sa facture est émise et son athlète s'entraîne dessus",
@@ -266,9 +278,12 @@ export class PlanService {
     // Les RAPPELS, eux, n'ont pas de clé étrangère vers leur cible (référence polymorphe) : rien en
     // base ne les emporte. On les purge donc explicitement, dans la MÊME transaction — sinon un
     // rappel « relancer ce cycle » survivrait au cycle et ne mènerait plus nulle part (#44).
+    //
+    // La purge AVANT la suppression : elle retrouve la facture du cycle, que la cascade emporte.
+    // Refusée, la suppression l'annule avec elle.
     await this.db.$transaction(async (tx) => {
       await this.reminders.purgeForPlan(tx, id);
-      await tx.plan.delete({ where: { id } });
+      await deleteAtVersion(tx.plan, id, expected, PLAN_NOT_FOUND);
     });
   }
 
@@ -280,9 +295,17 @@ export class PlanService {
    * La facture du cycle est ÉMISE ici, atomiquement : passage PUBLISHED et DRAFT → PENDING dans la
    * même transaction. Sans termes de facturation saisis, `issueForPlan` lève (400) et rien n'est
    * diffusé — c'est le gating (P6). L'athlète reçoit alors deux notifications : cycle + facture.
+   *
+   * Sous la version affichée (#604) : le destinataire, le titre et le début sont ceux que le Coach
+   * a vus en diffusant. Réaffecté entre-temps par un autre Coach, le cycle partirait sinon chez un
+   * athlète qu'il n'a jamais vu à l'écran — notifié, et facturé à son nom.
    */
-  async publish(id: string): Promise<PlanDto> {
+  async publish(id: string, input: PublishPlanInput): Promise<PlanDto> {
     const plan = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    // Avant tout autre refus : sur un écran périmé, le cycle est peut-être déjà diffusé, ou son
+    // destinataire choisi — « relire » le montrera, « choisis l'athlète » le ferait chercher.
+    assertReadAtVersion(plan.updatedAt, expected);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException("Planification déjà diffusée");
     }
@@ -318,13 +341,20 @@ export class PlanService {
      */
     const solo = this.isSelfCoaching(plan);
 
-    const invoice = await this.db.$transaction(async (tx) => {
-      await tx.plan.update({
-        where: { id },
-        data: { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
-      });
+    const { invoice, published } = await this.db.$transaction(async (tx) => {
+      // Conditionnée, et non lue puis écrite : la réaffectation qui passerait entre la lecture et
+      // ici laisserait `plan` — donc la facture et les notifications — sur l'ancien athlète.
+      await writeAtVersion(
+        tx.plan,
+        id,
+        expected,
+        { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
+        PLAN_NOT_FOUND,
+      );
       // Gating : lève si aucune facturation n'a été saisie → la transaction est annulée.
-      return solo ? null : await this.invoices.issueForPlan(tx, plan);
+      const issued = solo ? null : await this.invoices.issueForPlan(tx, plan);
+      // Relu DANS la transaction, comme l'en-tête : la réponse porte NOTRE version.
+      return { invoice: issued, published: await this.getDto(id, tx) };
     });
 
     // Pas de garde `solo` ici : `NotificationService` ignore déjà toute notification vers soi-même
@@ -341,7 +371,7 @@ export class PlanService {
       });
     }
 
-    return this.getDto(id);
+    return published;
   }
 
   // ── Semaines ───────────────────────────────────────────────────────────────

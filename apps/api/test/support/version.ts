@@ -1,7 +1,8 @@
 import { STALE_WRITE } from "@cmv/shared";
 import type request from "supertest";
 import { expect } from "vitest";
-import { type Agent, required } from "./actors";
+import type { Agent } from "./actors";
+import { required } from "./required";
 
 /**
  * La version qu'un élément porte À L'INSTANT (#604) : celle qu'un client à jour cite en écrivant.
@@ -60,6 +61,12 @@ export async function putAtLatest(
 /** Un DELETE tel qu'un client à jour l'envoie (#604) : sans corps, la version voyage en requête. */
 export async function deleteAtLatest(agent: Agent, path: string): Promise<request.Response> {
   return agent.delete(path).query({ expectedUpdatedAt: await versionOf(agent, path) });
+}
+
+/** Une diffusion telle qu'un client à jour l'envoie (#604) : en citant la version du cycle affiché. */
+export async function publishAtLatest(agent: Agent, planId: string): Promise<request.Response> {
+  const expectedUpdatedAt = await versionOf(agent, `/plans/${planId}`);
+  return agent.post(`/plans/${planId}/publish`).send({ expectedUpdatedAt });
 }
 
 /**

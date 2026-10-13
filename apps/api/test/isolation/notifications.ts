@@ -12,7 +12,7 @@ import {
 } from "../support/actors";
 import { app, baseURL, sentMails } from "../support/app";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { deleteAtLatest, putAtLatest } from "../support/version";
+import { deleteAtLatest, publishAtLatest, putAtLatest } from "../support/version";
 
 describe("Tokens de notification push (P4)", () => {
   let coach: Agent;
@@ -791,7 +791,7 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
       startDate: monday,
       weeks: [{ type: "TRAINING" }],
     });
-    expect((await solo.post(`/plans/${plan.body.id}/publish`)).status).toBe(200);
+    expect((await publishAtLatest(solo, plan.body.id)).status).toBe(200);
 
     expect(sentMails).toEqual([]);
   });

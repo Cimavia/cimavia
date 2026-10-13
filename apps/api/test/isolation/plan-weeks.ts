@@ -201,7 +201,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     });
     expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
 
-    const res = await coach.delete(`/plans/${plan.body.id}`);
+    const res = await deleteAtLatest(coach, `/plans/${plan.body.id}`);
 
     expect(res.status).toBe(409);
     expect(res.body.message).toContain("diffusé");
@@ -488,7 +488,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     expect(mediaId).not.toBe(sourceMediaId);
     expect(line.documents.map((d: { id: string }) => d.id)).toContain(mediaId);
 
-    await coachA.delete(`/plans/${plan.body.id}`);
+    await deleteAtLatest(coachA, `/plans/${plan.body.id}`);
   });
 
   it("emporte le type et la note de la semaine, pas seulement ses séances", async () => {

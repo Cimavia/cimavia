@@ -215,6 +215,7 @@ export function PlanBuilderScreen() {
           />
           <PlanBuilderActions
             planId={planId}
+            version={plan.updatedAt}
             isPublished={isPublished}
             hasWeeks={plan.weeks.length > 0}
             hasAthlete={hasAthlete}

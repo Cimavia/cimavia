@@ -24,6 +24,7 @@ import {
   updateScheduledSession,
 } from "@/feature/plan/api";
 import { forgetPlanClipboardSource } from "@/feature/plan/hook/usePlanClipboard";
+import { useStaleWriteError } from "@/feature/plan/hook/useStaleWriteError";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { isStaleWriteError } from "@/shared/lib/api";
 
@@ -104,19 +105,8 @@ export function usePlanMutations(planId: string) {
     toast.onSuccess(messageKey);
   };
 
-  /**
-   * Un geste sans saisie — glisser, coller, retirer, changer un type, ajouter — refusé sur une
-   * grille périmée (#604) : rien n'est à sauver, le cycle se relit et le toast dit pourquoi
-   * l'écran a changé. Le bandeau « Recharger » reste aux formulaires, qui ont une saisie à garder.
-   */
-  const onGestureError = async (error: unknown) => {
-    if (!isStaleWriteError(error)) {
-      toast.onError(error);
-      return;
-    }
-    toast.onFailure("plan.toast.stale", error);
-    await invalidate();
-  };
+  // Glisser, coller, retirer, changer un type, ajouter : un geste sans saisie (#604).
+  const onGestureError = useStaleWriteError("plan.toast.stale", invalidate);
 
   /**
    * Un formulaire avec saisie — l'en-tête, le panneau de séance — refusé sur une version périmée

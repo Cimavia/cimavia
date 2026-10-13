@@ -67,8 +67,18 @@ describe.each([
     "patch",
     ["/plans/p-1", { title: "Bloc", expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }],
   ],
-  ["deletePlan", () => deletePlan("p-1"), "delete", ["/plans/p-1"]],
-  ["publishPlan", () => publishPlan("p-1"), "post", ["/plans/p-1/publish"]],
+  [
+    "deletePlan",
+    () => deletePlan("p-1", { expectedUpdatedAt: VERSION }),
+    "delete",
+    ["/plans/p-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
+  [
+    "publishPlan",
+    () => publishPlan("p-1", { expectedUpdatedAt: VERSION }),
+    "post",
+    ["/plans/p-1/publish", { expectedUpdatedAt: VERSION }],
+  ],
   [
     "addPlanWeek",
     () => addPlanWeek("p-1", { type: "TRAINING" } as never),

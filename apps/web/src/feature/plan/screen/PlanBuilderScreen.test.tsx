@@ -590,7 +590,11 @@ describe("PlanBuilderScreen — diffuser une saisie non enregistrée", () => {
     await user.selectOptions(getByRole("combobox"), "ath_lea");
     await user.click(publishButton(getByText));
 
-    expect(publishPlan).toHaveBeenCalledWith("pln_1");
+    // Avec la version du cycle affiché (#604) : réaffecté depuis, il ne partirait pas.
+    expect(publishPlan).toHaveBeenCalledWith({
+      planId: "pln_1",
+      expectedUpdatedAt: "2026-10-01T10:00:00Z",
+    });
   });
 
   it("ne diffuse pas une facture dont le montant changé n'est pas enregistré", async () => {

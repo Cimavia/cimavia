@@ -39,7 +39,10 @@ export async function attemptPlanWrites(
       "POST /plans/:id/weeks",
       () => intruder.post(`/plans/${planId}/weeks`).send({ type: "TRAINING" }),
     ],
-    ["POST /plans/:id/publish", () => intruder.post(`/plans/${planId}/publish`)],
+    [
+      "POST /plans/:id/publish",
+      () => intruder.post(`/plans/${planId}/publish`).send({ expectedUpdatedAt: ANY_VERSION }),
+    ],
     [
       "PATCH /plan-weeks/:id",
       () =>
@@ -108,7 +111,10 @@ export async function attemptPlanWrites(
       "DELETE /plan-weeks/:id",
       () => intruder.delete(`/plan-weeks/${weekId}`).query({ expectedUpdatedAt: ANY_VERSION }),
     ],
-    ["DELETE /plans/:id", () => intruder.delete(`/plans/${planId}`)],
+    [
+      "DELETE /plans/:id",
+      () => intruder.delete(`/plans/${planId}`).query({ expectedUpdatedAt: ANY_VERSION }),
+    ],
   ];
 
   const statuses: Record<string, number> = {};

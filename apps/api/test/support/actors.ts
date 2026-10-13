@@ -2,21 +2,15 @@ import { Role } from "@cmv/shared";
 import request from "supertest";
 import { expect } from "vitest";
 import { baseURL } from "./app";
+import { required } from "./required";
+import { publishAtLatest } from "./version";
 
 export const PASSWORD = "password123";
 
 export type Agent = ReturnType<typeof request.agent>;
 
-/**
- * Sous `noUncheckedIndexedAccess`, `list[0]` et `.find()` rendent `T | undefined`. La correction
- * réflexe — `list[0]?.id` — est un piège : une liste vide produirait alors une requête sur
- * `/undefined` dont le 404 ferait PASSER un test d'isolation qui ne teste plus rien. On échoue
- * donc ici, à l'endroit exact où la donnée manque, avec le nom de ce qu'on attendait.
- */
-export function required<T>(value: T | undefined, what: string): T {
-  if (value === undefined) throw new Error(`Donnée de test absente : ${what}`);
-  return value;
-}
+// Dans son module : `version.ts` s'en sert, et `actors.ts` importe `version.ts`.
+export { required } from "./required";
 
 /**
  * Inscrit un compte en envoyant ses CAPACITÉS — ce que le signup transmet depuis #12, `role` en
@@ -47,7 +41,7 @@ export async function signUpWith(
 // juste un cycle diffusé passent par ce raccourci : termes de facturation puis publish.
 export async function billAndPublish(coach: Agent, planId: string): Promise<request.Response> {
   await coach.put(`/plans/${planId}/billing`).send({ amountCents: 5000, dueDate: "2026-01-05" });
-  return coach.post(`/plans/${planId}/publish`);
+  return publishAtLatest(coach, planId);
 }
 
 /** L'adresse d'un compte, lue dans sa session : c'est elle qu'une invitation nominative vise. */
