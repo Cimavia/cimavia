@@ -74,6 +74,31 @@ export {
   signUpCapabilities,
   toggledCapability,
 } from "./capability";
+export type {
+  AccessGrantDto,
+  AccessOwner,
+  ChangeAccessInput,
+  CoachOrganizationDto,
+  ElementAccessDto,
+  LibraryScopeQuery,
+  MyAccess,
+  OrganizationAccessLevel,
+} from "./dto/access.schema";
+export {
+  ACCESS_MAX_TARGETS,
+  AccessLevel,
+  accessGrantDtoSchema,
+  accessOwnerSchema,
+  changeAccessSchema,
+  coachOrganizationDtoSchema,
+  elementAccessDtoSchema,
+  LibraryScope,
+  libraryScopeQuerySchema,
+  libraryScopeSchema,
+  MyAccessLevel,
+  myAccessSchema,
+  organizationAccessLevelSchema,
+} from "./dto/access.schema";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
 export type { UpdateCapabilitiesInput } from "./dto/capability.schema";
@@ -643,6 +668,8 @@ export type { Locale as LocaleType } from "./locale";
 export { Locale } from "./locale";
 export type { Role as RoleType } from "./role";
 export { Role } from "./role";
+export type { AccessSubject } from "./util/access.util";
+export { canWrite, effectiveAccess } from "./util/access.util";
 export type { AppTier } from "./util/app-version.util";
 export { formatAppVersion, isAppTier } from "./util/app-version.util";
 export type { AthleteLabelHooks } from "./util/athlete-label.util";
