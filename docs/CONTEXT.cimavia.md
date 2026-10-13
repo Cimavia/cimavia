@@ -29,7 +29,7 @@ Identité authentifiée (gérée par Better Auth). Porte deux **capacités cumul
 `role` (`COACH` | `ATHLETE` | `ADMIN`) survit sur le modèle, mais **ne fonde plus aucun droit** : c'est le **persona d'affichage**, l'univers dans lequel un compte à double capacité atterrit. Toute autorisation se décide sur les capacités.
 
 ### Coach
-Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exercices/séances, ses planifications, ses factures, et participe à ses conversations. Appartient à **0..N entreprises** (#601), dont il peut lire ou modifier ce que les autres Coachs lui ouvrent *(cible — #605)*.
+Un `User` qui porte `isCoach`. Suit N athlètes, possède sa bibliothèque d'exercices/séances, ses planifications, ses factures, et participe à ses conversations. Appartient à **0..N entreprises** (#601), dont il peut lire ou modifier ce que les autres Coachs lui ouvrent (#605).
 
 ### Athlete
 Un `User` qui porte `isAthlete`, suivi par **0..N Coachs**, en direct ou via une entreprise (#602). Consulte ses planifications, débriefe ses séances, échange avec ses Coachs.
@@ -58,7 +58,7 @@ Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement
 ## Entraînement
 
 ### Exercise
-Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Appartient à un coach (`coachId`), qui peut l'ouvrir par un **droit d'accès** *(cible — #605)*. Réutilisable dans plusieurs `Session` — y compris celles d'un autre Coach à qui il est ouvert, qui le **référencent en direct** et en gardent une **copie figée** si l'accès disparaît ou si l'exercice est supprimé *(cible — #609)*.
+Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Appartient à un coach (`coachId`), qui peut l'ouvrir par un **droit d'accès** (#605). Réutilisable dans plusieurs `Session` — y compris celles d'un autre Coach à qui il est ouvert, qui le **référencent en direct** et en gardent une **copie figée** si l'accès disparaît ou si l'exercice est supprimé *(cible — #609)*.
 
 ### Document
 Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
@@ -136,7 +136,7 @@ Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: Se
 La bibliothèque, elle, garde son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
 ### AccessGrant (droit d'accès)
-Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou planification — à une **entreprise** ou à un **Coach** de ses entreprises *(cible — #605, #607, #608)*. Niveau `READ` (Lecture) ou `WRITE` (Écriture), et `NONE` pour une ligne de Coach qui ferme ce que son entreprise ouvre.
+Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou planification — à une **entreprise** ou à un **Coach** de ses entreprises. Exercices et séances s'ouvrent aux entreprises (#605) ; planifications *(cible — #607)*, lignes Coach *(cible — #608)*. Niveau `READ` (Lecture) ou `WRITE` (Écriture), et `NONE` pour une ligne de Coach qui ferme ce que son entreprise ouvre.
 
 - **Un droit accordé à F vaut pour ses Coachs**, pas pour le compte Entreprise. La ligne d'un Coach l'emporte sur celle de son entreprise, `NONE` compris ; un Coach de plusieurs entreprises hérite du droit le plus large.
 - **Écrire n'est pas posséder** : `WRITE` modifie le contenu, enfants et publication compris. **Supprimer** l'élément, **gérer ses accès** et **réaffecter** une planification à un autre athlète restent au propriétaire.
@@ -220,9 +220,9 @@ Trois règles à connaître :
 ## Multi-tenant (frontière de données)
 
 - **Invariant** : 1 `Athlete` = **0..N `Coach`**, un lien par couple, en direct ou via une entreprise. 1 `Coach` = N `Athlete`, et 0..N entreprises. Le compte Entreprise n'a accès à **aucun** contenu d'entraînement.
-- **Trois formes de scope**, toujours au sein de la capacité exercée — jamais un `OR` entre les deux : **colonne directe** (aujourd'hui partout), **élément partageable** — propriétaire, ou droit d'accès qui vise l'acteur ou l'une de ses entreprises *(cible — #605)* —, **participation** à une conversation *(cible — #611)*.
+- **Trois formes de scope**, toujours au sein de la capacité exercée — jamais un `OR` entre les deux : **colonne directe**, **élément partageable** — propriétaire, ou droit d'accès qui vise l'acteur ou l'une de ses entreprises (#605) —, **participation** à une conversation *(cible — #611)*.
 - Presque toute entité par couple (`Plan`, `SessionFeedback`, `Invoice`, `AthleteSheet`…) est **scopée à la relation `CoachAthlete`**.
-- La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) appartient à **un coach** (`coachId`), qui peut l'ouvrir aux Coachs de ses entreprises *(cible — #605)* : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
+- La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) appartient à **un coach** (`coachId`), qui peut l'ouvrir aux Coachs de ses entreprises (#605) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux capacités** : chaque table porte donc `coachId` ET `athleteId` en direct. L'extension n'ouvre pourtant la clé `athlete` que sur les tables que l'athlète lit **à plat** — `Plan`, `ScheduledSession`, `ScheduledSessionExercise` (#626) ; ses semaines et les rattachements de ses exercices lui arrivent **imbriqués**, et une lecture à plat de ces tables sous sa capacité échoue (fail closed, comme `Reminder`). La **fiche** (`AthleteSheet`) n'est qu'au coach.
 - ⚠️ **Le scope tenant ne dit RIEN du statut.** Un athlète scopé par `athleteId` verrait les `DRAFT` de son coach : le filtre `PUBLISHED` est imposé par un service dédié (`AthletePlanService`), seul point d'entrée de la lecture athlète. Couvert par e2e.
 - ⚠️ **`CoachAthleteStatus.PENDING` n'est jamais écrit** : la colonne est `@default(ACTIVE)`, `InvitationService` pose `ACTIVE` à l'acceptation, et les services filtrent sur `ACTIVE`. Le palier existe dans le modèle (« réservé si besoin »), pas dans les faits — ne pas construire d'UI qui suppose deux états tant qu'un flux n'en produit pas deux.
@@ -240,7 +240,7 @@ deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il
 
 | Donnée | isCoach | isAthlete | Entreprise |
 |---|---|---|---|
-| Bibliothèque exercices/séances | CRUD (les siens) ; lecture ou écriture de ce qu'on lui ouvre *(cible — #605)* | — | — |
+| Bibliothèque exercices/séances | CRUD (les siens) ; lecture ou écriture de ce qu'on lui ouvre (#605) | — | — |
 | Planification | CRUD (ses athlètes) ; lecture ou écriture de ce qu'on lui ouvre *(cible — #607)* | lecture (les siennes, de chaque Coach) | — |
 | Débrief de séance | lecture + marquage « lu » (le sien, par Coach *(cible — #610)*) | écriture (le sien) | — |
 | Fiche athlète | CRUD (une par couple) | — | — |
