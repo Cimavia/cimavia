@@ -68,6 +68,7 @@ const composed = (over: Partial<SessionExerciseDto> = {}): SessionExerciseDto =>
   baseline: blocks,
   adjustments: [],
   title: "Tractions",
+  customMetrics: [],
   tags: ["force"],
   ...over,
 });
@@ -85,6 +86,9 @@ const GAINAGE = composed({
 const session = (exercises: SessionExerciseDto[] = [TRACTIONS, GAINAGE]): SessionDto => ({
   id: "session-1",
   coachId: "coach-1",
+  owner: { id: "coach-1", name: "Coach" },
+  myAccess: { level: "OWNER", via: null },
+  grants: [],
   title: "Force",
   notes: null,
   exercises,

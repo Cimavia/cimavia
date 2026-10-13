@@ -14,6 +14,7 @@ import type {
   UpdateExerciseInput,
   UpdateSessionInput,
   UploadUrlDto,
+  VersionQuery,
 } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
@@ -69,8 +70,9 @@ export function updateExercise(id: string, input: UpdateExerciseInput): Promise<
   return api.patch<ExerciseDto>(`/exercises/${id}`, input);
 }
 
-export function deleteExercise(id: string): Promise<void> {
-  return api.delete<void>(`/exercises/${id}`);
+// Sous la version affichée (#605, MC-8) : un autre Coach a pu écrire l'exercice depuis.
+export function deleteExercise(id: string, query: VersionQuery): Promise<void> {
+  return api.delete<void>(`/exercises/${id}?${new URLSearchParams(query)}`);
 }
 
 // Étape 1 du flux d'upload : obtenir l'URL PUT signée (le binaire ne passe pas par l'API).
@@ -160,6 +162,7 @@ export function updateSession(id: string, input: UpdateSessionInput): Promise<Se
   return api.put<SessionDto>(`/sessions/${id}`, input);
 }
 
-export function deleteSession(id: string): Promise<void> {
-  return api.delete<void>(`/sessions/${id}`);
+// Sous la version affichée (#605, MC-8) : un autre Coach a pu écrire la séance depuis.
+export function deleteSession(id: string, query: VersionQuery): Promise<void> {
+  return api.delete<void>(`/sessions/${id}?${new URLSearchParams(query)}`);
 }

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage, isUnauthorizedError } from "@/shared/lib/api";
+import { apiErrorMessage, isStaleWriteError, isUnauthorizedError } from "@/shared/lib/api";
 
 type CmvFormErrorProps = {
   /** L'erreur de la mutation (`mutation.error`), `null` tant qu'elle n'a pas échoué. */
@@ -12,11 +12,16 @@ type CmvFormErrorProps = {
  *
  * Rien sur un 401 : la fenêtre de reconnexion en dit déjà la cause, et ce message resterait affiché
  * APRÈS la reconnexion, alors que le coach n'a plus qu'à réenregistrer (#336).
+ *
+ * Une version périmée (#604) n'a pas de message d'API à lire, seulement un code : un formulaire qui
+ * garde une saisie la dit par `CmvStaleBanner` ; un geste sans saisie qui arrive ici, comme une
+ * suppression (#605), la dit par ce message.
  */
 export function CmvFormError({ error }: Readonly<CmvFormErrorProps>) {
   const { t } = useTranslation();
   if (error == null || isUnauthorizedError(error)) return null;
-  return (
-    <p className="text-cmv-caption text-cmv-error">{apiErrorMessage(error) ?? t("common.error")}</p>
-  );
+  const message = isStaleWriteError(error)
+    ? t("common.staleWrite")
+    : (apiErrorMessage(error) ?? t("common.error"));
+  return <p className="text-cmv-caption text-cmv-error">{message}</p>;
 }

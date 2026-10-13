@@ -33,7 +33,9 @@ export class ExerciseDocumentService {
   // dans la signature : sans elle, le plafond n'était qu'une déclaration, et l'athlète
   // télécharge ces documents d'office (#95, #317).
   async createUploadUrl(exerciseId: string, input: RequestUploadUrlInput): Promise<UploadUrlDto> {
-    const exercise = await this.exercises.getOwnedOrThrow(exerciseId);
+    // Un rédacteur range ses envois sous le préfixe du PROPRIÉTAIRE (piège n°6) : l'objet vit avec
+    // l'exercice, quel que soit qui l'envoie.
+    const { exercise } = await this.exercises.getForOrThrow(exerciseId, "write");
     const storagePath = buildDocumentKey(exercise.coachId, exerciseId, input.fileName);
     const uploadUrl = await this.storage.createUploadUrl(
       storagePath,
@@ -46,10 +48,9 @@ export class ExerciseDocumentService {
 
   // Étape 2 : rattacher le document (après upload pour un FILE, ou lien externe pour un LINK).
   async attach(exerciseId: string, input: AttachDocumentInput): Promise<ExerciseDocumentDto> {
-    const exercise = await this.exercises.getOwnedOrThrow(exerciseId);
+    const { exercise } = await this.exercises.getForOrThrow(exerciseId, "write");
     // La clé vient du client : elle doit désigner un objet de CET exercice (#293). Sans quoi la
-    // suppression du document — qui ne compte les copies que dans le scope du coach — purgerait
-    // l'objet d'un autre tenant.
+    // suppression du document purgerait l'objet d'un autre exercice, voire d'un autre tenant.
     // Puis l'objet doit être celui que le ticket a signé : le rattachement redit son type et sa
     // taille, le storage les confronte à ce qu'il a reçu (#317).
     if (input.type === DocumentType.FILE) {
@@ -78,6 +79,8 @@ export class ExerciseDocumentService {
   }
 
   async remove(exerciseId: string, documentId: string): Promise<void> {
+    // Le droit d'abord : un lecteur purgerait l'objet sans pouvoir supprimer la ligne.
+    await this.exercises.getForOrThrow(exerciseId, "write");
     const doc = await this.db.exerciseDocument.findFirst({
       where: { id: documentId, exerciseId },
     });

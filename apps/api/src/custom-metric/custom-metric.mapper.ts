@@ -1,5 +1,16 @@
-import { type CustomMetric, orderedScaleSchema } from "@cmv/shared";
+import {
+  type CustomMetric,
+  customMetricIdsIn,
+  type ExerciseBlocks,
+  orderedScaleSchema,
+} from "@cmv/shared";
 import type { CustomMetric as CustomMetricRow } from "@prisma/client";
+
+/** Le catalogue d'un Coach : ses métriques maison, triées par libellé. */
+export type CustomMetricCatalog = readonly CustomMetricRow[];
+
+/** Le catalogue de chaque propriétaire chargé — vide pour un Coach qui n'en a créé aucune. */
+export type CatalogOf = (coachId: string) => CustomMetricCatalog;
 
 /**
  * `scale` est une colonne JSON : Prisma la rend en `JsonValue`, sans contrat. Comme pour la
@@ -14,4 +25,21 @@ export function toCustomMetricDto(metric: CustomMetricRow): CustomMetric {
     valueType: metric.valueType,
     scale: metric.scale === null ? null : orderedScaleSchema.parse(metric.scale),
   };
+}
+
+/**
+ * Les définitions que ces blocs citent, prises dans le catalogue de leur propriétaire (piège n°9).
+ * Une citation orpheline est ignorée : la métrique a été supprimée depuis (dette EX-2).
+ *
+ * Passe par `toCustomMetricDto` et non par `customMetricSchema.parse` : le schéma est `.strict()`,
+ * et une ligne Prisma porte `coachId`, `createdAt`, `updatedAt` qu'il refuse. Parser une ligne de
+ * base comme si c'était un DTO faisait échouer toute la diffusion dès qu'un exercice citait une
+ * métrique maison.
+ */
+export function citedCustomMetrics(
+  blocks: ExerciseBlocks,
+  catalog: CustomMetricCatalog,
+): CustomMetric[] {
+  const wanted = new Set(customMetricIdsIn(blocks));
+  return catalog.filter((metric) => wanted.has(metric.id)).map(toCustomMetricDto);
 }

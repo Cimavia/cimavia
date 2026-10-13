@@ -409,7 +409,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     // L'exercice quitte la bibliothèque : `sourceExerciseId` passe à null, et l'objet reste —
     // la copie le référence encore. Repasser par la bibliothèque perdait alors TOUS les documents.
-    expect((await coachA.delete(`/exercises/${exercise.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/exercises/${exercise.body.id}`)).status).toBe(204);
     const orphaned = await resave();
     expect(orphaned.sourceExerciseId).toBeNull();
     assertIntact(orphaned);
@@ -465,8 +465,8 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     expect((await resave(kept.instructions[0].mediaId)).status).toBe(200);
 
     await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
-    await coachA.delete(`/exercises/${source.body.id}`);
-    await coachA.delete(`/exercises/${other.body.id}`);
+    await deleteAtLatest(coachA, `/exercises/${source.body.id}`);
+    await deleteAtLatest(coachA, `/exercises/${other.body.id}`);
   });
 
   it("remplace les tags d'un exercice repris, et les retire quand la ligne n'en porte plus", async () => {
@@ -640,7 +640,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   // donc la bibliothèque reste librement modifiable — pas de 409 à vie sur un exercice planifié.
   it("supprimer un exercice de la bibliothèque ne casse PAS la planification diffusée", async () => {
     // Il faut d'abord le retirer du MODÈLE (SessionExercise reste en Restrict → 409).
-    expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(409);
+    expect((await deleteAtLatest(coachA, `/exercises/${exerciseAId}`)).status).toBe(409);
     await coachA.put(`/sessions/${templateId}`).send({
       expectedUpdatedAt: await versionOf(coachA, `/sessions/${templateId}`),
       title: "Bloc force max",
@@ -648,7 +648,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       exercises: [],
     });
 
-    expect((await coachA.delete(`/exercises/${exerciseAId}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/exercises/${exerciseAId}`)).status).toBe(204);
 
     // La séance de l'athlète est intacte : titre, note et document toujours là.
     const session = await athleteA1.get(`/me/scheduled-sessions/${scheduledId}`);

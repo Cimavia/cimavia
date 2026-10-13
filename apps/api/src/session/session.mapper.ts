@@ -1,45 +1,61 @@
 import type { SessionDto } from "@cmv/shared";
-import { required } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
+import { ACCESS_INCLUDE, type AccessContext, toAccessView } from "../access/access.mapper";
+import { type CatalogOf, citedCustomMetrics } from "../custom-metric/custom-metric.mapper";
 import { parseAdjustments, parseBlocks } from "../util/exercise-json.util";
 
-// L'exercice référencé, avec ses tags : le DTO les expose, et un `include` les charge en une
-// requête plutôt qu'une par ligne de composition.
-export type ExerciseWithTags = Prisma.ExerciseGetPayload<{ include: { tags: true } }>;
-
-// La séance avec ses exercices composés (positions), ordonnés.
-export type SessionWithExercises = Prisma.SessionGetPayload<{ include: { exercises: true } }>;
-
 /**
- * Assemble le DTO à partir de la séance et de la map d'exercices — celle-ci est chargée par une
- * requête SCOPÉE séparée (les include imbriqués ne sont pas scopés, cf. architecture-choice §6).
- * Un exercice absent de la map est une fuite de scope : on lève plutôt que d'afficher un trou.
+ * La séance avec sa composition ordonnée, et l'exercice que chaque ligne cite.
+ *
+ * L'exercice arrive par un `include` imbriqué, que la couche d'isolation ne scope pas (piège n°2) —
+ * et c'est voulu : il se lit À TRAVERS la séance, déjà prouvée lisible (#605). Tout exercice cité a
+ * été prouvé accessible à l'écriture de la ligne (`loadAccessibleOrThrow`), et un exercice privé de
+ * C, cité par la séance qu'il ouvre à F, doit s'y afficher pour M sans entrer dans sa bibliothèque.
  */
+export const SESSION_DETAIL_INCLUDE = {
+  exercises: {
+    orderBy: { position: "asc" },
+    include: { exercise: { include: { tags: true } } },
+  },
+  ...ACCESS_INCLUDE,
+} satisfies Prisma.SessionInclude;
+
+export type SessionWithExercises = Prisma.SessionGetPayload<{
+  include: typeof SESSION_DETAIL_INCLUDE;
+}>;
+
+/** Les propriétaires des exercices composés : leurs catalogues, que les blocs citent. */
+export function exerciseOwnersOf(sessions: readonly SessionWithExercises[]): string[] {
+  return sessions.flatMap((session) => session.exercises.map((row) => row.exercise.coachId));
+}
+
 export function toSessionDto(
   session: SessionWithExercises,
-  exerciseById: Map<string, ExerciseWithTags>,
+  catalogOf: CatalogOf,
+  context: AccessContext,
 ): SessionDto {
   return {
     id: session.id,
     coachId: session.coachId,
+    ...toAccessView(session, context),
     title: session.title,
     notes: session.notes,
     exercises: session.exercises.map((composed) => {
-      const exercise = required(
-        exerciseById.get(composed.exerciseId),
-        `[session] exercice ${composed.exerciseId} hors scope pour la séance ${session.id}`,
-      );
+      const blocks = parseBlocks(composed.blocks);
       return {
         id: composed.id,
         exerciseId: composed.exerciseId,
         position: composed.position,
         note: composed.note,
-        blocks: parseBlocks(composed.blocks),
+        blocks,
         baseline: parseBlocks(composed.baseline),
         adjustments: parseAdjustments(composed.adjustments),
-        title: exercise.title,
+        title: composed.exercise.title,
+        // Le verrou de forme garde les colonnes de l'exercice : celles de la ligne citent donc le
+        // catalogue de SON propriétaire.
+        customMetrics: citedCustomMetrics(blocks, catalogOf(composed.exercise.coachId)),
         // Triés, comme partout ailleurs : l'ordre d'insertion n'a aucun sens pour un tag.
-        tags: exercise.tags.map((tag) => tag.name).sort(),
+        tags: composed.exercise.tags.map((tag) => tag.name).sort(),
       };
     }),
     createdAt: session.createdAt.toISOString(),

@@ -7,7 +7,7 @@ import {
   putExerciseFile,
   uploadInstructionImage,
 } from "../support/fixtures";
-import { versionOf } from "../support/version";
+import { ANY_VERSION, deleteAtLatest, versionOf } from "../support/version";
 
 describe("Isolation bibliothèque d'exercices (P2)", () => {
   let coachA: Agent;
@@ -139,7 +139,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect((await coachA.get("/exercises/tags")).body).not.toContain("poutre");
     expect((await coachA.get("/exercises").query({ tag: "poutre" })).body).toEqual([]);
 
-    await coachA.delete(`/exercises/${id}`);
+    await deleteAtLatest(coachA, `/exercises/${id}`);
   });
 
   it("compte les séances MODÈLES qui référencent l'exercice, pas les copies diffusées", async () => {
@@ -163,8 +163,8 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     });
     expect((await coachA.get(`/exercises/${fresh.body.id}`)).body.usedInSessionCount).toBe(0);
 
-    await coachA.delete(`/sessions/${session.body.id}`);
-    await coachA.delete(`/exercises/${fresh.body.id}`);
+    await deleteAtLatest(coachA, `/sessions/${session.body.id}`);
+    await deleteAtLatest(coachA, `/exercises/${fresh.body.id}`);
   });
 
   it("un coach ne peut PAS lire l'exercice d'un autre coach", async () => {
@@ -240,7 +240,9 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       title: "intrusion",
     });
     expect(patch.status).toBe(404);
-    const del = await coachB.delete(`/exercises/${exerciseAId}`);
+    const del = await coachB
+      .delete(`/exercises/${exerciseAId}`)
+      .query({ expectedUpdatedAt: ANY_VERSION });
     expect(del.status).toBe(404);
     const still = await coachA.get(`/exercises/${exerciseAId}`);
     expect(still.body.title).toBe("Gainage dynamique");
@@ -338,7 +340,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(await docsOfA()).toContain(doc.body.id);
 
     await coachA.delete(`/exercises/${exerciseAId}/documents/${doc.body.id}`);
-    await coachA.delete(`/exercises/${sibling.body.id}`);
+    await deleteAtLatest(coachA, `/exercises/${sibling.body.id}`);
     expect(await docsOfA()).not.toContain(doc.body.id);
   });
 
@@ -536,13 +538,13 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
       .post(`/exercises/${source.body.id}/duplicate`)
       .send({ title: "Dips (variante)" });
 
-    expect((await coachA.delete(`/exercises/${source.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/exercises/${source.body.id}`)).status).toBe(204);
 
     const [copy] = await documentsOf(variant.body.id);
     expect((await fetch(required(copy, "image de la variante").url)).status).toBe(200);
 
     // La dernière ligne qui porte la clé part : l'objet part avec elle.
-    expect((await coachA.delete(`/exercises/${variant.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/exercises/${variant.body.id}`)).status).toBe(204);
     expect((await fetch(required(copy, "image de la variante").url)).status).toBe(404);
   });
 
@@ -785,7 +787,7 @@ describe("Exercice — version lue (#604)", () => {
   // « Recharger » n'y trouverait rien : un exercice supprimé se dit 404, pas 409.
   it("répond 404 sur un exercice supprimé, même muni de sa dernière version", async () => {
     const doomed = await coach.post("/exercises").send({ title: "À supprimer" });
-    expect((await coach.delete(`/exercises/${doomed.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coach, `/exercises/${doomed.body.id}`)).status).toBe(204);
 
     const write = await coach
       .patch(`/exercises/${doomed.body.id}`)

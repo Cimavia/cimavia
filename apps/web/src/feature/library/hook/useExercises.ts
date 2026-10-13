@@ -41,7 +41,9 @@ export function useExerciseTags() {
 export function useDeleteExercise() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteExercise(id),
+    // La version affichée voyage avec l'id (#605, MC-8) : supprimer ce qu'on n'a pas vu est un 409.
+    mutationFn: ({ id, updatedAt }: Pick<ExerciseDto, "id" | "updatedAt">) =>
+      deleteExercise(id, { expectedUpdatedAt: updatedAt }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
   });
 }

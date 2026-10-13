@@ -1,7 +1,6 @@
 import type {
   Adjustments,
   CreateScheduledSessionInput,
-  CustomMetric,
   PlanDto,
   ReorderPlanDayInput,
   ScheduledSessionDto,
@@ -11,7 +10,6 @@ import type {
 } from "@cmv/shared";
 import {
   AdjustmentLevel,
-  customMetricIdsIn,
   isDateInPlanWeek,
   PlanStatus,
   required,
@@ -24,25 +22,23 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type {
-  CustomMetric as CustomMetricRow,
-  ExerciseDocument,
-  Plan,
-  PlanWeek,
-  Prisma,
-} from "@prisma/client";
-
-// L'exercice de bibliothèque AVEC ses tags : la copie diffusée les fige, comme les documents.
-type ExerciseWithTags = Prisma.ExerciseGetPayload<{ include: { tags: true } }>;
-
-import { toCustomMetricDto } from "../../custom-metric/custom-metric.mapper";
+import type { ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
+import { citedCustomMetrics } from "../../custom-metric/custom-metric.mapper";
+import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
+import type { LibraryExercise } from "../../exercise/exercise.mapper";
+import { ExerciseService } from "../../exercise/service/exercise.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toDbDate, toIsoDate } from "../../util/date.util";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
-import { parseAdjustments, parseBlocks, parseInstructions } from "../../util/exercise-json.util";
+import {
+  parseAdjustments,
+  parseBlocks,
+  parseCustomMetrics,
+  parseInstructions,
+} from "../../util/exercise-json.util";
 import { assertInstructionImagesOwned } from "../../util/instruction-images.util";
 import {
   assertReadAtVersion,
@@ -86,6 +82,14 @@ const SESSION_NOT_FOUND = "Séance planifiée introuvable";
 // Documents de la bibliothèque, par exercice source — à copier sur les exercices de l'instance.
 type DocumentsBySource = Map<string, ExerciseDocument[]>;
 
+/** Les exercices de la bibliothèque dont la séance part, prouvés accessibles, par id. */
+type LibrarySources = ReadonlyMap<string, LibraryExercise>;
+
+/** Les documents à copier, par exercice source. */
+function documentsOf(library: LibrarySources): DocumentsBySource {
+  return new Map([...library].map(([id, exercise]) => [id, exercise.documents]));
+}
+
 /**
  * Séances planifiées = COPIES ÉDITABLES d'un modèle de séance (CDC §5.4). Modifier une instance
  * ne touche jamais la bibliothèque, et modifier la bibliothèque ne touche jamais une planif
@@ -99,6 +103,8 @@ export class ScheduledSessionService {
     // Contrôles d'appartenance du plan et de la semaine : source unique (PlanService).
     private readonly plans: PlanService,
     private readonly notifications: NotificationService,
+    private readonly library: ExerciseService,
+    private readonly metrics: CustomMetricService,
   ) {}
 
   async create(
@@ -109,8 +115,14 @@ export class ScheduledSessionService {
     const plan = await this.plans.getOwnedOrThrow(week.planId);
     this.assertDateInWeek(plan, week, input.scheduledDate);
 
-    const draft = await this.buildDraft(input);
-    const documents = await this.loadSourceDocuments(draft.exercises.map((e) => e.exercise));
+    const { draft, library: copied } = await this.buildDraft(input);
+    const documents = documentsOf(
+      await this.loadSources(
+        draft.exercises.map((e) => e.exercise),
+        input.sourceSessionId ?? null,
+        copied,
+      ),
+    );
     // Seule une composition ENVOYÉE se contrôle : celle d'un modèle est écrite par le serveur,
     // depuis une bibliothèque dont les consignes sont contrôlées à l'écriture.
     for (const exercise of input.exercises ?? []) {
@@ -180,18 +192,17 @@ export class ScheduledSessionService {
     this.assertDateInWeek(plan, week, input.scheduledDate);
 
     const dateChanged = toIsoDate(session.scheduledDate) !== input.scheduledDate;
-    // Le client n'a pas les DÉFINITIONS maison d'un exercice piocché dans la bibliothèque : sans
-    // elles, l'athlète ne verrait qu'un identifiant de colonne. Le serveur les résout, comme à la
-    // diffusion. Une définition déjà envoyée n'est pas retouchée : elle est figée depuis P3.
-    const coachMetrics = await this.db.customMetric.findMany();
-    const rows = planExerciseRows(
-      session.exercises,
-      input.exercises.map((exercise) => resolveCustomMetrics(exercise, coachMetrics)),
-    );
+    const received = planExerciseRows(session.exercises, input.exercises);
+    assertKeptShapesLocked(session.exercises, received);
     // La bibliothèque ne sert qu'aux exercices AJOUTÉS : une ligne reprise garde ses documents, et
-    // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`).
-    assertKeptShapesLocked(session.exercises, rows);
-    const documents = await this.loadSourceDocuments(rows.added.map((row) => row.item));
+    // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`) ni rien
+    // ouvrir (droit retiré depuis la copie).
+    const library = await this.loadSources(
+      received.added.map((row) => row.item),
+      null,
+    );
+    const rows = await this.withCustomMetrics(session, received, library);
+    const documents = documentsOf(library);
     assertRowImagesOwned(session.exercises, rows, documents);
 
     const updated = await this.db.$transaction(async (tx) => {
@@ -434,14 +445,17 @@ export class ScheduledSessionService {
    * Le client peut surcharger n'importe quelle partie de la copie (titre, consignes, composition)
    * dès la création — c'est déjà une instance, pas une référence.
    */
-  private async buildDraft(input: CreateScheduledSessionInput): Promise<SessionDraft> {
+  private async buildDraft(
+    input: CreateScheduledSessionInput,
+  ): Promise<{ draft: SessionDraft; library: LibrarySources }> {
     if (input.sourceSessionId == null) {
-      return {
+      const draft = {
         // Garanti par le schéma (refine) : titre requis sans modèle source.
         title: required(input.title, "[plan] séance ad hoc sans titre malgré le schéma"),
         notes: input.notes ?? null,
         exercises: composedByClient(input.exercises ?? []),
       };
+      return { draft, library: new Map() };
     }
 
     const template = await this.db.session.findFirst({
@@ -452,16 +466,21 @@ export class ScheduledSessionService {
       throw new BadRequestException("Séance modèle inconnue");
     }
 
-    // Les include imbriqués ne sont PAS scopés : les exercices de la bibliothèque se chargent
-    // par une requête scopée séparée (architecture-choice §6, piège n°2).
-    const library = await this.loadExercises(template.exercises.map((e) => e.exerciseId));
-    // Chargées UNE fois pour toute la séance : chaque exercice n'en cite qu'une poignée, et une
-    // requête par exercice serait du gaspillage.
-    const coachMetrics = await this.db.customMetric.findMany();
+    // Prouvés accessibles, et lus à travers le modèle quand ils ne le sont que par lui : un
+    // exercice privé de C, dans la séance qu'il ouvre à F, se recopie dans la planification de M.
+    const library = await this.library.loadAccessibleOrThrow(
+      template.exercises.map((e) => e.exerciseId),
+      template.id,
+    );
+    // Chargés UNE fois pour toute la séance, chez le propriétaire de chaque exercice (piège n°9) :
+    // le modèle peut composer l'exercice d'un autre Coach, qui cite son catalogue.
+    const catalogOf = await this.metrics.catalogOf(
+      [...library.values()].map((exercise) => exercise.coachId),
+    );
     const copied = template.exercises.map((composed): DraftExercise => {
       const exercise = required(
         library.get(composed.exerciseId),
-        `[plan] exercice ${composed.exerciseId} hors scope du coach courant`,
+        `[plan] exercice ${composed.exerciseId} absent des exercices chargés`,
       );
       const adjustments = parseAdjustments(composed.adjustments);
       const copy = {
@@ -478,59 +497,97 @@ export class ScheduledSessionService {
         adjustments,
         // Les définitions des métriques maison partent AVEC la copie : sans elles l'athlète ne
         // verrait qu'un identifiant, et renommer la métrique dégraderait une planif diffusée.
-        customMetrics: customMetricsFor(parseBlocks(composed.blocks), coachMetrics),
+        customMetrics: citedCustomMetrics(
+          parseBlocks(composed.blocks),
+          catalogOf(exercise.coachId),
+        ),
         tags: exercise.tags.map((tag) => tag.name).sort(),
         note: composed.note,
       };
       return { exercise: copy, baselineAdjustments: adjustments };
     });
 
-    return {
+    const draft = {
       title: input.title ?? template.title,
       notes: input.notes !== undefined ? (input.notes ?? null) : template.notes,
       exercises: input.exercises == null ? copied : composedByClient(input.exercises),
     };
+    // Rendus avec le brouillon : `create` y prend les documents sans relire la bibliothèque.
+    return { draft, library };
   }
 
-  // Charge (scopé) les exercices de la bibliothèque référencés, en vérifiant qu'ils existent TOUS
-  // pour le coach courant : une FK ne garantit pas le tenant (architecture-choice §6, piège n°3).
-  private async loadExercises(exerciseIds: string[]): Promise<Map<string, ExerciseWithTags>> {
-    const ids = [...new Set(exerciseIds)];
-    if (ids.length === 0) return new Map();
+  /**
+   * Le client n'a pas les DÉFINITIONS maison d'un exercice pioché dans la bibliothèque : sans
+   * elles, l'athlète ne verrait qu'un identifiant de colonne. Le serveur les résout, comme à la
+   * diffusion. Une définition déjà envoyée n'est pas retouchée : elle est figée depuis P3.
+   *
+   * Une ligne AJOUTÉE les prend chez le propriétaire de son exercice source (piège n°9), déjà
+   * prouvé accessible dans `library` ; sans source, chez le Coach de la séance, qui l'a composée.
+   * Une ligne REPRISE garde celles qu'elle porte : sa forme est verrouillée, ses citations aussi.
+   */
+  private async withCustomMetrics(
+    session: ScheduledSessionWithExercises,
+    rows: ExerciseRows<ScheduledSessionExerciseInput>,
+    library: LibrarySources,
+  ): Promise<ExerciseRows<ScheduledSessionExerciseInput>> {
+    const ownerOf = (exercise: ScheduledSessionExerciseInput): string =>
+      exercise.sourceExerciseId == null
+        ? session.coachId
+        : required(library.get(exercise.sourceExerciseId), "source non chargée").coachId;
+    const pending = rows.added.filter((row) => row.item.customMetrics == null);
+    const catalogOf = await this.metrics.catalogOf(pending.map((row) => ownerOf(row.item)));
+    const storedOf = new Map(session.exercises.map((row) => [row.id, row.customMetrics]));
 
-    const exercises = await this.db.exercise.findMany({
-      where: { id: { in: ids } },
-      include: { tags: true },
-    });
-    if (exercises.length !== ids.length) {
-      throw new BadRequestException("Un ou plusieurs exercices sont inconnus");
-    }
-    return new Map(exercises.map((exercise) => [exercise.id, exercise]));
+    return {
+      ...rows,
+      kept: rows.kept.map((row) =>
+        row.item.customMetrics != null
+          ? row
+          : {
+              ...row,
+              item: {
+                ...row.item,
+                customMetrics: parseCustomMetrics(
+                  required(storedOf.get(row.id), `ligne ${row.id} hors séance`),
+                ),
+              },
+            },
+      ),
+      added: rows.added.map((row) =>
+        row.item.customMetrics != null
+          ? row
+          : {
+              ...row,
+              item: {
+                ...row.item,
+                customMetrics: citedCustomMetrics(
+                  row.item.blocks ?? [],
+                  catalogOf(ownerOf(row.item)),
+                ),
+              },
+            },
+      ),
+    };
   }
 
-  // Documents à copier, par exercice source. Valide au passage l'appartenance des sourceExerciseId
-  // fournis par le client (ils peuvent venir d'un autre coach — la FK ne l'interdit pas).
-  private async loadSourceDocuments(
-    exercises: ScheduledSessionExerciseInput[],
-  ): Promise<DocumentsBySource> {
-    const sourceIds = exercises
-      .map((exercise) => exercise.sourceExerciseId)
-      .filter((id): id is string => id != null);
-    await this.loadExercises(sourceIds);
-    if (sourceIds.length === 0) return new Map();
-
-    const documents = await this.db.exerciseDocument.findMany({
-      where: { exerciseId: { in: [...new Set(sourceIds)] } },
-      orderBy: { createdAt: "asc" },
-    });
-
-    const bySource: DocumentsBySource = new Map();
-    for (const document of documents) {
-      const existing = bySource.get(document.exerciseId) ?? [];
-      existing.push(document);
-      bySource.set(document.exerciseId, existing);
-    }
-    return bySource;
+  /**
+   * Les exercices sources, prouvés accessibles (#353) : la FK n'empêche pas un `sourceExerciseId`
+   * de désigner l'exercice d'un autre coach. `citedBy` est le modèle dont la séance part — un
+   * exercice qu'il cite reste citable, même privé. `known` : ceux que le modèle a déjà chargés,
+   * qui ne sont pas relus.
+   */
+  private async loadSources(
+    exercises: readonly ScheduledSessionExerciseInput[],
+    citedBy: string | null,
+    known: LibrarySources = new Map(),
+  ): Promise<LibrarySources> {
+    const missing = exercises.flatMap((exercise) =>
+      exercise.sourceExerciseId == null || known.has(exercise.sourceExerciseId)
+        ? []
+        : [exercise.sourceExerciseId],
+    );
+    const loaded = await this.library.loadAccessibleOrThrow(missing, citedBy);
+    return new Map([...known, ...loaded]);
   }
 
   // Rattache à chaque exercice les documents de la BIBLIOTHÈQUE (via `sourceExerciseId`), puis
@@ -616,34 +673,6 @@ function libraryDocumentsOf(
 ): ExerciseDocument[] {
   if (exercise.sourceExerciseId == null) return [];
   return documentsBySource.get(exercise.sourceExerciseId) ?? [];
-}
-
-/**
- * Les définitions citées par ces blocs, parmi celles du coach. Une citation orpheline est ignorée.
- *
- * Passe par le MAPPER et non par `customMetricSchema.parse` : le schéma est `.strict()`, et une
- * ligne Prisma porte `coachId`, `createdAt`, `updatedAt` qu'il refuse. Parser une ligne de base
- * comme si c'était un DTO faisait échouer toute la diffusion dès qu'un exercice citait une
- * métrique maison.
- */
-function customMetricsFor(
-  blocks: ReturnType<typeof parseBlocks>,
-  coachMetrics: readonly CustomMetricRow[],
-): CustomMetric[] {
-  const wanted = new Set(customMetricIdsIn(blocks));
-  return coachMetrics.filter((metric) => wanted.has(metric.id)).map(toCustomMetricDto);
-}
-
-/** Complète les métriques maison quand le client ne les a pas — un exercice tout juste ajouté. */
-function resolveCustomMetrics(
-  exercise: ScheduledSessionExerciseInput,
-  coachMetrics: readonly CustomMetricRow[],
-): ScheduledSessionExerciseInput {
-  if (exercise.customMetrics != null) return exercise;
-  return {
-    ...exercise,
-    customMetrics: customMetricsFor(exercise.blocks ?? [], coachMetrics),
-  };
 }
 
 /**

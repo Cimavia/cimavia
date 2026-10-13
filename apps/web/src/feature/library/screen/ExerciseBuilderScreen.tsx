@@ -368,7 +368,7 @@ function BuilderActions({
           disabled={isBusy}
           // `mutate` et non `mutateAsync` : le 409 « exercice utilisé dans N séances » atterrit
           // dans `removeExercise.error`, pas en rejet non capturé.
-          onConfirm={() => removeExercise.mutate(exercise.id, { onSuccess: onDeleted })}
+          onConfirm={() => removeExercise.mutate(exercise, { onSuccess: onDeleted })}
         />
       ) : null}
       <CmvButton variant="ghost" onClick={onCancel} disabled={isBusy}>

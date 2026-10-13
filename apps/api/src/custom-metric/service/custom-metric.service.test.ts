@@ -2,6 +2,7 @@ import type { CreateCustomMetricInput } from "@cmv/shared";
 import { ConflictException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
+import type { PrismaService } from "../../infra/prisma/prisma.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { CustomMetricService } from "./custom-metric.service";
 
@@ -19,7 +20,7 @@ function serviceFailingWith(error: Error) {
   const db = {
     customMetric: { create: () => Promise.reject(error) },
   } as unknown as TenantPrisma;
-  return new CustomMetricService(db);
+  return new CustomMetricService(db, {} as PrismaService);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { DocumentType } from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
+import type { PrismaService } from "../../infra/prisma/prisma.service";
 import type { StorageService } from "../../infra/storage/storage.service";
-import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { DocumentCleanupService } from "./document-cleanup.service";
 
 const FILE = { id: "doc-1", type: DocumentType.FILE, storagePath: "coach/c/exercises/e/a.jpg" };
@@ -11,7 +11,7 @@ function cleanupWith(counts: { copies: number; siblings: number }) {
   const db = {
     scheduledSessionExerciseDocument: { count: vi.fn().mockResolvedValue(counts.copies) },
     exerciseDocument: { count: exerciseDocumentCount },
-  } as unknown as TenantPrisma;
+  } as unknown as PrismaService;
   const deleteObject = vi.fn().mockResolvedValue(undefined);
   const storage = { deleteObject } as unknown as StorageService;
   return { cleanup: new DocumentCleanupService(db, storage), deleteObject, exerciseDocumentCount };

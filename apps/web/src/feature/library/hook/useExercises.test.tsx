@@ -98,14 +98,18 @@ describe("useExerciseTags", () => {
 });
 
 describe("useDeleteExercise", () => {
-  it("supprime puis invalide toute la bibliothèque d'exercices", async () => {
+  const shown = { id: "ex-1", updatedAt: "2026-10-12T08:00:00.000Z" };
+
+  it("supprime à la version affichée, puis invalide toute la bibliothèque d'exercices", async () => {
     apiMock.deleteExercise.mockResolvedValue(undefined);
     const { wrapper, invalidate } = spyInvalidate();
 
     const { result } = renderHook(() => useDeleteExercise(), { wrapper });
-    await result.current.mutateAsync("ex-1");
+    await result.current.mutateAsync(shown);
 
-    expect(apiMock.deleteExercise).toHaveBeenCalledWith("ex-1");
+    expect(apiMock.deleteExercise).toHaveBeenCalledWith("ex-1", {
+      expectedUpdatedAt: shown.updatedAt,
+    });
     expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: exerciseKeys.all });
   });
 
@@ -114,7 +118,7 @@ describe("useDeleteExercise", () => {
     const { wrapper, invalidate } = spyInvalidate();
 
     const { result } = renderHook(() => useDeleteExercise(), { wrapper });
-    await expect(result.current.mutateAsync("ex-1")).rejects.toThrow("500");
+    await expect(result.current.mutateAsync(shown)).rejects.toThrow("500");
 
     expect(invalidate).not.toHaveBeenCalled();
   });

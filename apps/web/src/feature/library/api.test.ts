@@ -106,7 +106,12 @@ describe.each([
     "patch",
     ["/exercises/ex-1", { title: "Tractions" }],
   ],
-  ["deleteExercise", () => deleteExercise("ex-1"), "delete", ["/exercises/ex-1"]],
+  [
+    "deleteExercise",
+    () => deleteExercise("ex-1", { expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
+    "delete",
+    ["/exercises/ex-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
   [
     "requestUploadUrl",
     () => requestUploadUrl("ex-1", { contentType: "image/png" } as never),
@@ -159,7 +164,12 @@ describe.each([
     "put",
     ["/sessions/s-1", { title: "Force" }],
   ],
-  ["deleteSession", () => deleteSession("s-1"), "delete", ["/sessions/s-1"]],
+  [
+    "deleteSession",
+    () => deleteSession("s-1", { expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
+    "delete",
+    ["/sessions/s-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
 ] as const)("%s", (_name, call, verb, args) => {
   it(`part en ${verb.toUpperCase()} sur le bon chemin et rend la réponse de l'API`, async () => {
     await expect(call()).resolves.toBe("réponse");
