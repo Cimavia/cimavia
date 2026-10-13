@@ -8,9 +8,10 @@ import type { Prisma } from "@prisma/client";
  *   retirer une semaine ou un document ;
  * - `admin` : supprimer une RACINE (exercice, séance, planification), qui reste au propriétaire.
  *
- * Gérer les accès d'un élément (#605) et réaffecter une planification (#607) sont aussi de
- * l'administration, mais l'opération Prisma ne les dit pas : la première vise un autre modèle, la
- * seconde est un `update` comme un autre. Elles se décideront là où elles arrivent.
+ * Gérer les accès d'un élément et réaffecter une planification (#607) sont aussi de
+ * l'administration, mais l'opération Prisma ne les dit pas. Gérer les accès vise un autre modèle,
+ * `AccessGrant`, que seul le propriétaire atteint (#605) ; réaffecter est un `update` comme un
+ * autre, et se décidera avec #607.
  */
 export type OperationClass = "read" | "write" | "admin";
 
@@ -55,9 +56,6 @@ export function childOf(scope: CapabilityScope, parent: ParentLink): CapabilityS
  * Un enfant filtré à TRAVERS sa racine (`{ exercise: { … } }`), pour la même classe d'opération :
  * ce que la racine permet, l'enfant le permet. C'est un filtre de relation dans le `where`, pas un
  * `include` — il reste dans la requête scopée, et le piège n°2 ne s'y applique pas.
- *
- * Branché par #605, avec la branche « droit accordé » : d'ici là, chaque enfant se lit par sa
- * colonne dénormalisée, qui donne le même résultat.
  */
 export function throughRoot(relation: string, root: CapabilityScope): CapabilityScope {
   return {
@@ -65,6 +63,65 @@ export function throughRoot(relation: string, root: CapabilityScope): Capability
     owner: null,
     parent: null,
   };
+}
+
+/**
+ * Les niveaux de droit qu'exige chaque classe (#605) : lire accepte l'Écriture, écrire l'exige.
+ * L'administration n'en accepte aucun — elle reste au propriétaire.
+ */
+const GRANTED_LEVELS = { read: ["READ", "WRITE"], write: ["WRITE"] } as const;
+
+/**
+ * Un droit qui ouvre l'élément à l'acteur pour cette classe : accordé à l'une de ses entreprises,
+ * au niveau requis. La ligne d'un Coach, prioritaire sur celle de son entreprise, viendra avec
+ * #608 ; d'ici là l'API n'en écrit aucune, et ce filtre l'ignore.
+ */
+export function grantedTo(actorId: string, operation: "read" | "write"): TenantFilter {
+  return {
+    level: { in: [...GRANTED_LEVELS[operation]] },
+    organization: { coaches: { some: { coachId: actorId } } },
+  };
+}
+
+/**
+ * Une RACINE d'élément partageable (#605) — exercice, séance : l'acteur en est propriétaire, ou un
+ * droit le vise au niveau qu'exige l'opération. L'administration (supprimer l'élément) ne regarde
+ * que la colonne.
+ *
+ * Le composé passe sous `AND` : posé à plat, son `OR` écraserait celui de l'appelant, et sa
+ * recherche ou son filtre de tags deviendraient le filtre tenant — ou l'inverse.
+ */
+export function sharedRoot(ownerColumn: string): CapabilityScope {
+  return {
+    where: (actorId, operation) =>
+      operation === "admin"
+        ? { [ownerColumn]: actorId }
+        : {
+            AND: [
+              {
+                OR: [
+                  { [ownerColumn]: actorId },
+                  { accessGrants: { some: grantedTo(actorId, operation) } },
+                ],
+              },
+            ],
+          },
+    owner: ownerColumn,
+    parent: null,
+  };
+}
+
+/**
+ * Un enfant d'élément partageable (#605) : filtré à travers sa racine, créé avec le propriétaire de
+ * son parent. Documents et tags suivent l'exercice, exercices de séance suivent la séance — un
+ * rédacteur y écrit, la ligne reste chez le propriétaire (piège n°7).
+ */
+export function sharedChild(
+  relation: string,
+  root: CapabilityScope,
+  parent: ParentLink,
+): CapabilityScope {
+  return childOf({ ...throughRoot(relation, root), owner: root.owner }, parent);
 }
 
 /**
@@ -89,6 +146,9 @@ export function throughRoot(relation: string, root: CapabilityScope): Capability
  * émis qui recevrait `athlete`, ne compile pas.
  *
  * `root` marque une RACINE d'élément partageable : sa suppression est de l'administration.
+ *
+ * `OrganizationCoach` a la forme d'un modèle émis : l'entreprise y lit ses Coachs, le Coach ses
+ * entreprises (#605), chacun sur sa colonne.
  */
 export type TenantScope =
   | { coach: CapabilityScope; athlete?: CapabilityScope; company?: never; root?: true }
@@ -99,7 +159,13 @@ const coachOwner = column("coachId");
 const athleteOwner = column("athleteId");
 const issuingOrganization = column("organizationId");
 
-const ofExercise = childOf(coachOwner, { model: "Exercise", key: "exerciseId" });
+// Exercices et séances s'ouvrent aux entreprises (#605) ; les planifications suivront avec #607.
+const sharedExercise = sharedRoot("coachId");
+const sharedSession = sharedRoot("coachId");
+const ofExercise = sharedChild("exercise", sharedExercise, {
+  model: "Exercise",
+  key: "exerciseId",
+});
 const ofPlan = childOf(coachOwner, { model: "Plan", key: "planId" });
 const ofScheduledExercise = childOf(coachOwner, {
   model: "ScheduledSessionExercise",
@@ -129,12 +195,17 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   // Émise par un Coach (vers un athlète) ou par une entreprise (vers un Coach, #601).
   Invitation: { coach: coachOwner, company: issuingOrganization },
   AthleteSheet: { coach: coachOwner },
-  Exercise: { coach: coachOwner, root: true },
+  Exercise: { coach: sharedExercise, root: true },
   ExerciseDocument: { coach: ofExercise },
   ExerciseTag: { coach: ofExercise },
   CustomMetric: { coach: coachOwner },
-  Session: { coach: coachOwner, root: true },
-  SessionExercise: { coach: childOf(coachOwner, { model: "Session", key: "sessionId" }) },
+  Session: { coach: sharedSession, root: true },
+  SessionExercise: {
+    coach: sharedChild("session", sharedSession, { model: "Session", key: "sessionId" }),
+  },
+  // Les droits accordés (#605) : le propriétaire seul les lit et les gère. Celui qui en bénéficie
+  // ne les lit pas ici : son droit se calcule sur l'élément qu'il ouvre.
+  AccessGrant: { coach: column("ownerId") },
   Plan: { coach: coachOwner, athlete: athleteOwner, root: true },
   PlanWeek: { coach: ofPlan },
   ScheduledSession: { coach: ofPlan, athlete: athleteOwner },
@@ -175,9 +246,8 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   Reminder: { coach: coachOwner },
   // L'entreprise (#600) : son id EST celui du compte Entreprise, qui ne voit qu'elle.
   Organization: { company: column("id") },
-  // Ses Coachs (#601). Le Coach n'y lit rien par ce client en v1 : ses entreprises viendront avec
-  // les droits d'accès (#605), avec leur propre clé.
-  OrganizationCoach: { company: issuingOrganization },
+  // Ses Coachs (#601) ; et, pour le Coach, ses entreprises (#605) — chacun sur sa colonne.
+  OrganizationCoach: { company: issuingOrganization, coach: coachOwner },
   // Ses athlètes (#602), au même titre. Le suivi, lui, reste dans `CoachAthlete`, sans clé
   // `company` : l'entreprise sait qui en est, jamais ce qui s'y fait.
   OrganizationAthlete: { company: issuingOrganization },

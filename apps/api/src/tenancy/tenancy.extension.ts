@@ -83,7 +83,24 @@ function resolveScopeOrThrow(
  */
 function scopeWhere(args: unknown, filter: TenantFilter): void {
   const a = args as { where?: Record<string, unknown> };
-  a.where = { ...a.where, ...filter };
+  const where: Record<string, unknown> = { ...a.where };
+  const added: unknown[] = [];
+  for (const [key, value] of Object.entries(filter)) {
+    // Un filtre composé (#605), ou une clé que l'appelant pose aussi — la relation d'un enfant
+    // filtré à travers sa racine (`{ session: … }`) : il s'AJOUTE aux conditions de l'appelant.
+    // Posé à plat, il remplacerait la sienne, et un `deleteMany` visant une séance viserait
+    // toutes celles que l'acteur peut écrire.
+    if (key === "AND") added.push(...asList(value));
+    else if (key in where) added.push({ [key]: value });
+    else where[key] = value;
+  }
+  if (added.length > 0) where.AND = [...asList(where.AND), ...added];
+  a.where = where;
+}
+
+function asList(value: unknown): unknown[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
 // Création : le tenant est INJECTÉ dans les données — l'appelant ne le fournit jamais, et ce qu'il
