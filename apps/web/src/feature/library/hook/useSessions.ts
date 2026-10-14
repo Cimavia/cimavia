@@ -60,7 +60,12 @@ export function useDeleteSession() {
     // La version affichée voyage avec l'id (#605, MC-8) : supprimer ce qu'on n'a pas vu est un 409.
     mutationFn: ({ id, updatedAt }: SessionVersion) =>
       deleteSession(id, { expectedUpdatedAt: updatedAt }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
+    onSuccess: (_, { id }) => {
+      // La séance supprimée ne se relit pas : le constructeur qui la montre s'en va, et sa
+      // relecture — un 404, retenté — retiendrait la navigation qui suit.
+      queryClient.removeQueries({ queryKey: sessionKeys.detail(id) });
+      return queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    },
   });
 }
 

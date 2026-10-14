@@ -50,6 +50,7 @@ const item = (over: Partial<CompositionItem> = {}): CompositionItem => ({
   blocks,
   baseline: blocks,
   adjustments: [],
+  customMetrics: [],
   ...over,
 });
 

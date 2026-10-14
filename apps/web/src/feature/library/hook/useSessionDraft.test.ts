@@ -8,6 +8,7 @@ import {
   MetricKey,
   MetricSource,
   MetricUnit,
+  MetricValueType,
   type SessionDto,
   type SessionExerciseDto,
   STALE_WRITE,
@@ -206,6 +207,27 @@ describe("useSessionDraft — recharger depuis la bibliothèque (#300)", () => {
     expect(gainage.adjustments).toEqual([]);
     // La note n'est pas touchée par le rechargement : elle reste locale.
     expect(gainage.note).toBe("Gainage lent");
+  });
+
+  it("la ligne rechargée reprend les métriques que cite désormais l'exercice (#605)", () => {
+    const prises = {
+      id: "cm-prises",
+      label: "Prises",
+      unit: null,
+      valueType: MetricValueType.NUMBER,
+      scale: null,
+    };
+    const { result } = renderDraft();
+
+    act(() =>
+      result.current.applyReloaded(
+        "sx-gainage",
+        session([TRACTIONS, { ...GAINAGE, customMetrics: [prises] }]),
+      ),
+    );
+
+    expect(itemOf(result, "sx-gainage").customMetrics).toEqual([prises]);
+    expect(itemOf(result, "sx-tractions").customMetrics).toEqual([]);
   });
 
   it("ne bouge rien si la ligne rechargée manque à la réponse", () => {

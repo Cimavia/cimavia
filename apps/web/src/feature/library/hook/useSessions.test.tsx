@@ -186,6 +186,20 @@ describe("useDeleteSession", () => {
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
   });
+
+  it("oublie la séance supprimée plutôt que de la relire", async () => {
+    apiMock.deleteSession.mockResolvedValue(undefined);
+    const { wrapper, queryClient } = renderWithQueryClient();
+    queryClient.setQueryData(sessionKeys.detail("s-1"), session);
+
+    const { result } = renderHook(() => useDeleteSession(), { wrapper });
+    await act(() =>
+      result.current.mutateAsync({ id: "s-1", updatedAt: "2026-10-12T08:00:00.000Z" }),
+    );
+
+    expect(queryClient.getQueryState(sessionKeys.detail("s-1"))).toBeUndefined();
+    expect(apiMock.getSession).not.toHaveBeenCalled();
+  });
 });
 
 describe("useReloadSessionExercise", () => {

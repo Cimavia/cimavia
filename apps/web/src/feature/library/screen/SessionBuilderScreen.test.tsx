@@ -2,9 +2,13 @@ import {
   AdjustmentLevel,
   ApiError,
   BlockType,
+  type CustomMetric,
   cellPath,
   type ExerciseBlocks,
   type ExerciseDto,
+  MetricSource,
+  MetricValueType,
+  MyAccessLevel,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
   type SessionDto,
@@ -22,6 +26,7 @@ const api = vi.hoisted(() => ({
   getSession: vi.fn(),
   createSession: vi.fn(),
   updateSession: vi.fn(),
+  deleteSession: vi.fn(),
   reloadSessionExercise: vi.fn(),
   listExercises: vi.fn(),
   listExerciseTags: vi.fn(),
@@ -88,6 +93,7 @@ const composed = (
   blocks,
   baseline: blocks,
   adjustments: [],
+  customMetrics: [] as CustomMetric[],
 });
 
 const READ = "2026-10-12T08:00:00.000Z";
@@ -97,6 +103,9 @@ const saved = (over: Partial<SessionDto> = {}) =>
     id: "s-1",
     title: "Force",
     notes: "Au calme",
+    owner: { id: "coach-1", name: "Cédric" },
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
+    grants: [],
     updatedAt: READ,
     exercises: [
       composed("se-1", "ex-1", "Tractions"),
@@ -111,6 +120,7 @@ const planche = {
   title: "Planche",
   tags: ["gainage"],
   blocks: series("p-b", 3),
+  customMetrics: [],
 } as unknown as ExerciseDto;
 
 beforeEach(() => {
@@ -1068,5 +1078,155 @@ describe("SessionBuilderScreen — saisie refusée (#566)", () => {
 
     expect(await view.findByRole("dialog")).toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+  });
+});
+
+describe("SessionBuilderScreen — suppression", () => {
+  const DELETE = "library.session.deleteSession";
+
+  it("une séance qui naît ne se supprime pas", async () => {
+    const view = await create();
+
+    expect(view.queryByRole("button", { name: DELETE })).not.toBeInTheDocument();
+  });
+
+  it("supprime la séance après confirmation, à la version lue, et revient à la bibliothèque", async () => {
+    api.deleteSession.mockResolvedValue(undefined);
+    const view = await edit();
+    // Une saisie en cours ne retient pas : supprimer, c'est renoncer à la séance entière.
+    await view.user.type(view.getByRole("textbox", { name: TITLE }), " max");
+
+    await view.user.click(view.getByRole("button", { name: DELETE }));
+    await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(api.deleteSession).toHaveBeenCalledWith("s-1", { expectedUpdatedAt: READ });
+  });
+
+  it("une suppression qui trouve la séance changée le dit par le bandeau, qui la recharge", async () => {
+    api.deleteSession.mockRejectedValue(new ApiError(409, STALE_WRITE, null));
+    const view = await edit();
+
+    await view.user.click(view.getByRole("button", { name: DELETE }));
+    await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
+
+    expect(await view.findByText("library.session.stale")).toBeInTheDocument();
+    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "common.staleReload" })).toBeInTheDocument();
+  });
+
+  it("dit pourquoi la suppression est refusée, et reste sur la séance", async () => {
+    api.deleteSession.mockRejectedValue(new ApiError(409, "Séance modifiée entre-temps", null));
+    const view = await edit();
+
+    await view.user.click(view.getByRole("button", { name: DELETE }));
+    await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
+
+    expect(await view.findByText("Séance modifiée entre-temps")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+  });
+});
+
+describe("SessionBuilderScreen — séance d'un autre Coach (#606)", () => {
+  const prises: CustomMetric = {
+    id: "cm-m",
+    label: "Prises",
+    unit: null,
+    valueType: MetricValueType.NUMBER,
+    scale: null,
+  };
+  /** Un exercice de M, dont la colonne cite le catalogue de M : le lecteur ne l'a pas. */
+  const ofMExercise = {
+    ...composed("se-9", "ex-m", "Pan Güllich", [
+      {
+        id: "b-m",
+        label: null,
+        structure: { type: BlockType.FREE },
+        metrics: [
+          {
+            id: "c-m",
+            source: MetricSource.CUSTOM,
+            customMetricId: "cm-m",
+            label: null,
+            // Repliée, la colonne se lit dans la phrase de l'aperçu : « · Prises 12 ».
+            collapsed: true,
+          },
+        ],
+        rows: [{ id: "r-m", values: { "c-m": 12 } }],
+      },
+    ] as unknown as ExerciseBlocks),
+    customMetrics: [prises],
+  };
+  const ofM = (level: MyAccessLevel) =>
+    saved({
+      owner: { id: "coach-m", name: "M" },
+      myAccess: { level, via: { id: "org-f", name: "F" } },
+      grants: null,
+      exercises: [
+        composed("se-1", "ex-1", "Tractions"),
+        ofMExercise,
+      ] as unknown as SessionDto["exercises"],
+    });
+
+  /** Ouvre la séance de M — en Lecture, il n'y a pas le bouton d'enregistrement qu'attend `edit()`. */
+  async function openOfM(session: SessionDto) {
+    api.getSession.mockResolvedValue(session);
+    const view = withReaders(
+      await renderInRoute(<SessionBuilderScreen sessionId="s-1" />, {
+        path: "/library/sessions/s-1",
+        links: LINKS,
+      }),
+    );
+    await view.findByText("library.session.ofOwner");
+    return view;
+  }
+
+  it("en Lecture : figée, un bandeau qui dit pourquoi, et « Fermer » seul", async () => {
+    const view = await openOfM(ofM(MyAccessLevel.READ));
+
+    expect(view.getByRole("textbox", { name: TITLE })).toBeDisabled();
+    expect(view.getByRole("textbox", { name: NOTES })).toBeDisabled();
+    expect(view.getByText("library.session.ofOwner")).toBeInTheDocument();
+    for (const name of [SUBMIT_EDIT, "library.session.deleteSession", PICK, MENU]) {
+      expect(view.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
+    expect(view.queryByRole("button", { name: /library\.session\.moveExercise/ })).toBeNull();
+
+    await view.user.click(view.getByRole("button", { name: "common.close" }));
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+  });
+
+  it("en Lecture, une carte se déplie, mais son dosage et sa note restent figés", async () => {
+    const view = await openOfM(ofM(MyAccessLevel.READ));
+
+    await view.openCard("Tractions");
+
+    const card = view.getByRole("button", { name: "Tractions", expanded: true }).closest("article");
+    const fields = within(card as HTMLElement).getAllByRole("textbox");
+    expect(fields.length).toBeGreaterThan(0);
+    for (const field of fields) expect(field).toBeDisabled();
+  });
+
+  it("en Lecture, une séance vide dit qu'elle l'est, sans inviter à la composer", async () => {
+    const view = await openOfM({ ...ofM(MyAccessLevel.READ), exercises: [] });
+
+    expect(view.getByText("library.session.readOnlyEmpty")).toBeInTheDocument();
+    expect(view.queryByText("library.session.emptyTitle")).not.toBeInTheDocument();
+  });
+
+  it("en Écriture : modifiable, mais la suppression reste au propriétaire", async () => {
+    api.getSession.mockResolvedValue(ofM(MyAccessLevel.WRITE));
+    const view = await edit();
+
+    expect(view.getByRole("textbox", { name: TITLE })).toBeEnabled();
+    expect(view.getByRole("button", { name: PICK })).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "library.session.deleteSession" })).toBeNull();
+    expect(view.queryByText("library.session.readOnly")).not.toBeInTheDocument();
+  });
+
+  it("nomme les colonnes d'un exercice par les métriques de son propriétaire", async () => {
+    const view = await openOfM(ofM(MyAccessLevel.READ));
+
+    await waitFor(() => expect(view.getAllByText(/Prises/).length).toBeGreaterThan(0));
   });
 });

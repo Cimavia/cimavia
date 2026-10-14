@@ -1,9 +1,16 @@
-import type { ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
-import { required, SESSION_NOTES_MAX_LENGTH, SESSION_TITLE_MAX_LENGTH } from "@cmv/shared";
+import type { CustomMetric, ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
+import {
+  canWrite,
+  isOwner,
+  required,
+  SESSION_NOTES_MAX_LENGTH,
+  SESSION_TITLE_MAX_LENGTH,
+} from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { BuilderActions } from "@/feature/library/component/BuilderActions";
 import { CompositionCard } from "@/feature/library/component/CompositionCard";
 import { LibraryPicker } from "@/feature/library/component/LibraryPicker";
 import { SessionPreview } from "@/feature/library/component/SessionPreview";
@@ -12,9 +19,12 @@ import { useDuplicateExercise, useExercise } from "@/feature/library/hook/useExe
 import { useSessionDraft } from "@/feature/library/hook/useSessionDraft";
 import {
   sessionDetailQuery,
+  useDeleteSession,
   useReloadSessionExercise,
   useSession,
 } from "@/feature/library/hook/useSessions";
+import { myRightText } from "@/feature/library/util/access-text.util";
+import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
   CmvAppShell,
   CmvButton,
@@ -23,6 +33,7 @@ import {
   CmvErrorState,
   CmvFormError,
   CmvLeaveDialog,
+  CmvReadOnlyBanner,
   CmvStaleBanner,
   CmvTextArea,
   CmvTextField,
@@ -117,6 +128,25 @@ export function SessionBuilderScreen({
   );
 }
 
+/**
+ * Les écritures que le constructeur ajoute à l'enregistrement du brouillon : recharger un
+ * exercice, supprimer la séance. Les trois citent la version, les trois peuvent trouver la séance
+ * changée depuis — et « Recharger » est alors la seule issue.
+ */
+function useSessionWrites(draft: ReturnType<typeof useSessionDraft>) {
+  const reload = useReloadSessionExercise();
+  const removeSession = useDeleteSession();
+  return {
+    reload,
+    removeSession,
+    isStale:
+      draft.isStale || isStaleWriteError(reload.error) || isStaleWriteError(removeSession.error),
+    // Une écriture à la fois : lancées ensemble, elles citeraient la même version, et la seconde
+    // prendrait pour un conflit l'écriture du coach lui-même.
+    isWriting: draft.isSaving || reload.isPending || removeSession.isPending,
+  };
+}
+
 type SessionBuilderProps = {
   session: SessionDto | null;
   added: ExerciseDto | null;
@@ -147,19 +177,22 @@ function SessionBuilder({
   const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
   // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
   const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
-  const reload = useReloadSessionExercise();
-  // Enregistrer ou recharger un exercice : les deux écritures citent la version, les deux peuvent
-  // trouver la séance changée depuis.
-  const isStale = draft.isStale || isStaleWriteError(reload.error);
-  // Une écriture à la fois : lancées ensemble, elles citeraient la même version, et la seconde
-  // prendrait pour un conflit l'écriture du coach lui-même.
-  const isWriting = draft.isSaving || reload.isPending;
+  const { reload, removeSession, isStale, isWriting } = useSessionWrites(draft);
   const edited = draft.edited;
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);
-  const [picking, setPicking] = useState(false);
 
-  const metrics = customMetrics ?? [];
+  // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
+  // Lecture elle se consulte. Une séance qui naît est au Coach qui la crée.
+  const foreign = foreignSession(session);
+  const readOnly = foreign != null && !canWrite(foreign.myAccess);
+  // Chaque ligne apporte les métriques de l'exercice qu'elle compose, chez son propriétaire
+  // (#605) : le catalogue du Coach ne résout que les siennes.
+  // Mémorisées : la saisie du titre ne doit pas redonner un catalogue neuf à chaque carte.
+  const metrics = useMemo(
+    () => mergeCatalogs(customMetrics, ...draft.items.map((item) => item.customMetrics)),
+    [customMetrics, draft.items],
+  );
   const drag = useReorderDrag(draft.moveItem);
   const adjustedItems = draft.items.filter((item) => item.adjustments.length > 0).length;
 
@@ -205,10 +238,19 @@ function SessionBuilder({
     onLeave();
   }
 
-  function onPick(exercise: ExerciseDto) {
-    draft.addExercise(exercise);
-    setPicking(false);
-  }
+  // Supprimer : la séance enregistrée, et à soi. `mutate` et non `mutateAsync` : un refus atterrit
+  // dans `removeSession.error`, pas en rejet non capturé.
+  const deletable = foreign == null ? edited : null;
+  const onDelete =
+    deletable == null
+      ? null
+      : () =>
+          removeSession.mutate(deletable, {
+            onSuccess: () => {
+              guard.release();
+              onLeave();
+            },
+          });
 
   async function onDuplicate(exerciseId: string, blocks: ExerciseBlocks) {
     if ((await save("library.session.savedBeforeVariant")) == null) return;
@@ -237,25 +279,32 @@ function SessionBuilder({
   return (
     <CmvAppShell
       title={draft.trimmedTitle === "" ? t("library.session.createTitle") : draft.trimmedTitle}
-      subtitle={t("library.session.subtitle", {
-        count: draft.items.length,
-        adjusted: adjustedItems,
-      })}
+      subtitle={sessionSubtitle(foreign, draft.items.length, adjustedItems, t)}
       actions={
-        <>
-          <CmvButton variant="ghost" onClick={onLeave} disabled={draft.isSaving}>
-            {t("library.builder.cancel")}
-          </CmvButton>
-          <CmvButton
-            onClick={onSubmit}
-            disabled={isWriting || draft.trimmedTitle === "" || blockedBy != null}
-            title={blockedBy}
-          >
-            {submitLabel(draft.isSaving, edited != null, t)}
-          </CmvButton>
-        </>
+        <BuilderActions
+          readOnly={readOnly}
+          deleteLabel={t("library.session.deleteSession")}
+          onDelete={onDelete}
+          isDeleting={removeSession.isPending}
+          // Un conflit se dit par le bandeau, comme pour l'enregistrement.
+          deleteError={unlessStale(removeSession.error)}
+          isSaving={draft.isSaving}
+          isWriting={isWriting}
+          submitLabel={submitLabel(draft.isSaving, edited != null, t)}
+          canSubmit={draft.trimmedTitle !== ""}
+          blockedBy={blockedBy}
+          onCancel={onLeave}
+          onSubmit={onSubmit}
+        />
       }
     >
+      {readOnly ? (
+        <div className="mb-cmv-xl">
+          <CmvReadOnlyBanner
+            message={t("library.session.readOnly", { owner: foreign.owner.name })}
+          />
+        </div>
+      ) : null}
       {isStale && edited != null ? (
         <div className="mb-cmv-xl">
           <CmvStaleBanner
@@ -268,49 +317,48 @@ function SessionBuilder({
       <RefusedFieldsContext value={refused.report}>
         <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-cmv-xl">
-            {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
-              (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
-            <div className="flex flex-col gap-cmv-xs">
-              <CmvTextField
-                label={t("library.session.titleLabel")}
-                name="title"
-                maxLength={SESSION_TITLE_MAX_LENGTH}
-                value={draft.title}
-                onChange={(event) => draft.setTitle(event.target.value)}
-                onBlur={() => setTitleTouched(true)}
-                placeholder={t("library.session.titlePlaceholder")}
-                required
-                requiredMark
-              />
-              {titleTouched && draft.trimmedTitle === "" ? (
-                <p className="text-cmv-caption text-cmv-error">
-                  {t("library.session.titleRequired")}
-                </p>
-              ) : null}
-              <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
-            </div>
+            {/* Le titre et les notes se figent d'un geste ; la composition, elle, reste HORS du
+              fieldset : ses cartes doivent encore se déplier en Lecture. */}
+            <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-cmv-xl">
+              {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
+                (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
+              <div className="flex flex-col gap-cmv-xs">
+                <CmvTextField
+                  label={t("library.session.titleLabel")}
+                  name="title"
+                  maxLength={SESSION_TITLE_MAX_LENGTH}
+                  value={draft.title}
+                  onChange={(event) => draft.setTitle(event.target.value)}
+                  onBlur={() => setTitleTouched(true)}
+                  placeholder={t("library.session.titlePlaceholder")}
+                  required
+                  requiredMark
+                />
+                {titleTouched && draft.trimmedTitle === "" ? (
+                  <p className="text-cmv-caption text-cmv-error">
+                    {t("library.session.titleRequired")}
+                  </p>
+                ) : null}
+                <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+              </div>
 
-            <CmvTextArea
-              label={t("library.session.notesLabel")}
-              name="notes"
-              maxLength={SESSION_NOTES_MAX_LENGTH}
-              value={draft.notes}
-              onChange={(event) => draft.setNotes(event.target.value)}
-              placeholder={t("library.session.notesPlaceholder")}
-              rows={3}
-            />
+              <CmvTextArea
+                label={t("library.session.notesLabel")}
+                name="notes"
+                maxLength={SESSION_NOTES_MAX_LENGTH}
+                value={draft.notes}
+                onChange={(event) => draft.setNotes(event.target.value)}
+                placeholder={t("library.session.notesPlaceholder")}
+                rows={3}
+              />
+            </fieldset>
 
             <div className="flex flex-col gap-cmv-sm">
               <span className="text-cmv-caption text-cmv-text-mid">
                 {t("library.session.composition")}
               </span>
 
-              {draft.items.length === 0 ? (
-                <CmvEmptyState
-                  title={t("library.session.emptyTitle")}
-                  description={t("library.session.emptyDescription")}
-                />
-              ) : null}
+              {draft.items.length === 0 ? <EmptyComposition readOnly={readOnly} /> : null}
 
               {draft.items.map((item, index) => (
                 <div
@@ -325,13 +373,17 @@ function SessionBuilder({
                     isDropTarget={drag.isOver(index)}
                     isFirst={index === 0}
                     isLast={index === draft.items.length - 1}
+                    readOnly={readOnly}
                     onMove={(direction) => draft.moveItem(index, index + direction)}
                     dragHandle={
-                      <CmvDragHandle
-                        label={`${t("library.session.moveExercise")} ${index + 1}`}
-                        {...drag.handleProps(index)}
-                        onMove={(direction) => draft.moveItem(index, index + direction)}
-                      />
+                      // Sans poignée, rien ne se glisse : les lignes n'ont rien à recevoir.
+                      readOnly ? null : (
+                        <CmvDragHandle
+                          label={`${t("library.session.moveExercise")} ${index + 1}`}
+                          {...drag.handleProps(index)}
+                          onMove={(direction) => draft.moveItem(index, index + direction)}
+                        />
+                      )
                     }
                     onNoteChange={(note) =>
                       draft.setItems((current) =>
@@ -378,28 +430,13 @@ function SessionBuilder({
                 </div>
               ))}
 
-              {/* Le sélecteur s'ouvre AU CENTRE, comme le choix de structure du constructeur
-                d'exercice : même geste, même endroit. La colonne de droite ne porte que l'aperçu. */}
-              {picking ? (
-                <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
-                  <LibraryPicker
-                    customMetrics={metrics}
-                    onPick={onPick}
-                    onCreateMissing={onCreateMissing}
-                    isSaving={isWriting}
-                  />
-                  <div>
-                    <CmvButton variant="ghost" onClick={() => setPicking(false)}>
-                      {t("library.builder.cancel")}
-                    </CmvButton>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <CmvButton variant="secondary" onClick={() => setPicking(true)}>
-                    {t("library.session.pickerTitle")}
-                  </CmvButton>
-                </div>
+              {readOnly ? null : (
+                <AddExercise
+                  customMetrics={metrics}
+                  onPick={draft.addExercise}
+                  onCreateMissing={onCreateMissing}
+                  isSaving={isWriting}
+                />
               )}
             </div>
 
@@ -415,6 +452,94 @@ function SessionBuilder({
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
+}
+
+/** La séance si elle est à un autre Coach ; `null` pour la sienne, ou pour celle qui naît. */
+function foreignSession(session: SessionDto | null) {
+  return session != null && !isOwner(session.myAccess) ? session : null;
+}
+
+/** La composition, précédée — pour la séance d'un autre — de son propriétaire et du droit qu'on en a. */
+function sessionSubtitle(
+  foreign: SessionDto | null,
+  count: number,
+  adjusted: number,
+  t: TFunction,
+): string {
+  const composition = t("library.session.subtitle", { count, adjusted });
+  if (foreign == null) return composition;
+  return t("library.session.ofOwner", {
+    owner: foreign.owner.name,
+    right: myRightText(foreign.myAccess, t),
+    composition,
+  });
+}
+
+type AddExerciseProps = {
+  customMetrics: readonly CustomMetric[];
+  onPick: (exercise: ExerciseDto) => void;
+  onCreateMissing: (title: string) => void;
+  isSaving: boolean;
+};
+
+/**
+ * « Ajouter un exercice », puis le sélecteur. Il s'ouvre AU CENTRE, comme le choix de structure du
+ * constructeur d'exercice : même geste, même endroit. La colonne de droite ne porte que l'aperçu.
+ */
+function AddExercise({
+  customMetrics,
+  onPick,
+  onCreateMissing,
+  isSaving,
+}: Readonly<AddExerciseProps>) {
+  const { t } = useTranslation();
+  const [picking, setPicking] = useState(false);
+
+  if (!picking) {
+    return (
+      <div>
+        <CmvButton variant="secondary" onClick={() => setPicking(true)}>
+          {t("library.session.pickerTitle")}
+        </CmvButton>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-bg-1 p-cmv-md">
+      <LibraryPicker
+        customMetrics={customMetrics}
+        onPick={(exercise) => {
+          onPick(exercise);
+          setPicking(false);
+        }}
+        onCreateMissing={onCreateMissing}
+        isSaving={isSaving}
+      />
+      <div>
+        <CmvButton variant="ghost" onClick={() => setPicking(false)}>
+          {t("library.builder.cancel")}
+        </CmvButton>
+      </div>
+    </div>
+  );
+}
+
+/** « Compose ta séance » n'a pas de sens pour qui ne peut que la lire : à lui, on dit qu'elle est vide. */
+function EmptyComposition({ readOnly }: Readonly<{ readOnly: boolean }>) {
+  const { t } = useTranslation();
+  return readOnly ? (
+    <CmvEmptyState title={t("library.session.readOnlyEmpty")} />
+  ) : (
+    <CmvEmptyState
+      title={t("library.session.emptyTitle")}
+      description={t("library.session.emptyDescription")}
+    />
+  );
+}
+
+/** L'erreur à dire sous le formulaire : un conflit d'édition, lui, se dit par le bandeau. */
+function unlessStale(error: unknown): unknown {
+  return isStaleWriteError(error) ? null : error;
 }
 
 /** Enregistrement en cours · création · édition — trois libellés, un seul endroit pour les lire. */
