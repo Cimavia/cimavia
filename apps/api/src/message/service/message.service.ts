@@ -1,8 +1,9 @@
 import type { MessageDto, SendMessageInput } from "@cmv/shared";
-import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType } from "@cmv/shared";
+import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType, required } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import { PrismaService } from "../../infra/prisma/prisma.service";
 import { assertKeyUnder } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
@@ -14,6 +15,7 @@ import {
   exercisedOrThrow,
   type TenantContext,
 } from "../../tenancy/tenant-context.type";
+import { TENANT_SCOPES } from "../../tenancy/tenant-scope";
 import { toMessageDto } from "../message.mapper";
 import { ConversationService } from "./conversation.service";
 import { MessageAttachmentResolver } from "./message-attachment.resolver";
@@ -39,6 +41,9 @@ export class MessageService {
     // Le « à propos de… » du message, résolu en lot et sous scope tenant.
     private readonly attachments: MessageAttachmentResolver,
     private readonly cls: ClsService,
+    // Client de BASE, pour une seule lecture : ce que le coach du fil lit, quand c'est l'athlète
+    // qui écrit (`assertCoachReads`).
+    private readonly prisma: PrismaService,
   ) {}
 
   // Fil chronologique (du plus ancien au plus récent). Pas de pagination en MVP (dette P2-2) : le
@@ -128,9 +133,10 @@ export class MessageService {
 
   /**
    * Valide le rattachement optionnel (« à propos de… ») : la FK n'impose pas le tenant, donc un id
-   * entrant doit être prouvé possédé AVANT écriture. Deux gardes :
-   * - la cible doit appartenir à la MÊME relation que le fil (un coach a N athlètes : sa séance
-   *   d'un autre athlète n'a rien à faire ici) ;
+   * entrant doit être prouvé lisible AVANT écriture. Deux gardes :
+   * - la cible doit tenir au fil : être de SON athlète (un coach a N athlètes : sa séance d'un
+   *   autre athlète n'a rien à faire ici), et lisible par SON coach — la sienne, ou celle d'un
+   *   cycle qu'on lui ouvre (#607) ;
    * - côté athlète, une séance passe par AthletePlanService (filtre PUBLISHED) — le scope tenant,
    *   lui, laisserait référencer un brouillon du coach.
    */
@@ -145,7 +151,11 @@ export class MessageService {
         actor,
         input.scheduledSessionId ?? null,
       ),
-      sessionFeedbackId: await this.validateFeedback(conversation, input.sessionFeedbackId ?? null),
+      sessionFeedbackId: await this.validateFeedback(
+        conversation,
+        actor,
+        input.sessionFeedbackId ?? null,
+      ),
     };
   }
 
@@ -163,7 +173,10 @@ export class MessageService {
     if (session == null) {
       throw new BadRequestException("Séance inconnue");
     }
-    if (session.coachId !== conversation.coachId || session.athleteId !== conversation.athleteId) {
+    const inThread =
+      session.athleteId === conversation.athleteId &&
+      (await this.coachReads(conversation, actor, "ScheduledSession", id));
+    if (!inThread) {
       throw new BadRequestException("Séance hors de ce fil");
     }
     return id;
@@ -171,6 +184,7 @@ export class MessageService {
 
   private async validateFeedback(
     conversation: Conversation,
+    actor: TenantContext,
     id: string | null,
   ): Promise<string | null> {
     if (id == null) return null;
@@ -180,13 +194,35 @@ export class MessageService {
     if (feedback == null) {
       throw new BadRequestException("Débrief inconnu");
     }
-    if (
-      feedback.coachId !== conversation.coachId ||
-      feedback.athleteId !== conversation.athleteId
-    ) {
+    const inThread =
+      feedback.athleteId === conversation.athleteId &&
+      (await this.coachReads(conversation, actor, "SessionFeedback", id));
+    if (!inThread) {
       throw new BadRequestException("Débrief hors de ce fil");
     }
     return id;
+  }
+
+  /**
+   * Le coach du fil lit-il la cible ? Écrite par lui, la lecture scopée qui vient de la trouver le
+   * prouve : il EST l'acteur. Écrite par l'athlète, rien ne le dit — l'athlète lit tous ses cycles,
+   * pas seulement ceux que ce coach-là partage. On relit alors la cible par le client de base, sous
+   * le filtre que l'extension appliquerait au coach du fil : le même, pas une règle réécrite ici.
+   */
+  private async coachReads(
+    conversation: Conversation,
+    actor: TenantContext,
+    model: "ScheduledSession" | "SessionFeedback",
+    id: string,
+  ): Promise<boolean> {
+    if (exercisedOrThrow(actor) === "coach") return true;
+    const scope = required(TENANT_SCOPES[model]?.coach, `[message] ${model} sans scope coach`);
+    const where = { AND: [{ id }, scope.where(conversation.coachId, "read")] };
+    const count =
+      model === "ScheduledSession"
+        ? await this.prisma.scheduledSession.count({ where })
+        : await this.prisma.sessionFeedback.count({ where });
+    return count > 0;
   }
 }
 

@@ -1,4 +1,5 @@
 import { FEEDBACK_EVENT_MESSAGE_TYPES } from "@cmv/shared";
+import type { ClsService } from "nestjs-cls";
 import { describe, expect, it, vi } from "vitest";
 import type { UserDirectoryService } from "../../account/service/user-directory.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -42,7 +43,8 @@ function build(messages: readonly Reply[]) {
   const users = {
     namesByIds: vi.fn().mockResolvedValue(new Map([["a1", "Léa"]])),
   } as unknown as UserDirectoryService;
-  return { service: new CoachFeedbackService(db, users), findMessages };
+  const cls = { get: () => ({ userId: "c1" }) } as unknown as ClsService;
+  return { service: new CoachFeedbackService(db, users, cls), findMessages };
 }
 
 describe("CoachFeedbackService.list — « répondu »", () => {
