@@ -898,6 +898,30 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
     expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
   });
 
+  // La lecture ouvre un enregistrement : une autre écriture lancée pendant qu'elle court citerait
+  // la même version, et la seconde prendrait l'écriture du Coach lui-même pour un conflit.
+  it("ferme l'enregistrement tant que l'exercice source se lit", async () => {
+    let answer: (exercise: unknown) => void = () => {};
+    api.getExercise.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const view = await edit();
+
+    await view.menu("Tractions", "library.session.duplicate");
+
+    const submit = view.getByRole("button", { name: "library.session.submitEdit" });
+    await waitFor(() => expect(submit).toBeDisabled());
+    answer({
+      ...planche,
+      id: "ex-1",
+      owner: { id: "coach-m", name: "Marc" },
+      myAccess: { level: MyAccessLevel.READ, via: { id: "org-f", name: "F" } },
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+  });
+
   it("ne touche pas à la séance quand l'exercice ne se lit pas, et le dit", async () => {
     api.getExercise.mockRejectedValue(new ApiError(404, "Exercice introuvable", null));
     const view = await edit();

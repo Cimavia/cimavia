@@ -23,7 +23,11 @@ import { cn } from "@/shared/util/cn.util";
 type CompositionCardProps = {
   item: CompositionItem;
   customMetrics: readonly CustomMetric[];
-  isReloading: boolean;
+  /**
+   * Une écriture de la séance est en cours : recharger ou dupliquer en lanceraient une seconde,
+   * à la même version — et la seconde prendrait la première pour un conflit.
+   */
+  isWriting: boolean;
   onNoteChange: (note: string) => void;
   onCellChange: (blockId: string, rowId: string, metricId: string, value: MetricValue) => void;
   onStructureChange: (blockId: string, structure: ExerciseBlock["structure"]) => void;
@@ -54,7 +58,7 @@ type CompositionCardProps = {
 export function CompositionCard({
   item,
   customMetrics,
-  isReloading,
+  isWriting,
   onNoteChange,
   onCellChange,
   onStructureChange,
@@ -148,7 +152,7 @@ export function CompositionCard({
                   </CmvButton>
                   <CmvButton
                     variant="ghost"
-                    disabled={item.id == null || isReloading}
+                    disabled={item.id == null || isWriting}
                     onClick={() => {
                       setConfirmReload(true);
                       setMenuOpen(false);
@@ -158,6 +162,7 @@ export function CompositionCard({
                   </CmvButton>
                   <CmvButton
                     variant="ghost"
+                    disabled={isWriting}
                     onClick={() => {
                       onDuplicate();
                       setMenuOpen(false);

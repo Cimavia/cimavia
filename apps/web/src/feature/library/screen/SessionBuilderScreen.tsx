@@ -159,14 +159,19 @@ function useSessionWrites(draft: ReturnType<typeof useSessionDraft>) {
  * L'exercice dont on veut une variante, lu AVANT d'enregistrer la séance : la variante reste au
  * propriétaire de l'exercice (#605, jusqu'à #609), et la séance n'a pas à avancer d'une version
  * pour un geste voué au 403. `null` quand la variante n'aura pas lieu — et le refus est dit.
+ *
+ * `isReading` compte comme une écriture : la lecture OUVRE un enregistrement, et une autre
+ * écriture lancée pendant qu'elle court citerait la même version que lui.
  */
 function useVariantSource() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { onError } = useMutationToast();
-  return async (exerciseId: string): Promise<ExerciseDto | null> => {
+  const [isReading, setReading] = useState(false);
+  async function read(exerciseId: string): Promise<ExerciseDto | null> {
     let source: ExerciseDto;
+    setReading(true);
     try {
       // Relu, pas tiré du cache : le titre nomme la variante, et le droit a pu changer depuis.
       // Sans nouvel essai, qu'un 404 ne ferait que retarder.
@@ -178,11 +183,14 @@ function useVariantSource() {
     } catch (error) {
       onError(error);
       return null;
+    } finally {
+      setReading(false);
     }
     if (isOwner(source.myAccess)) return source;
     toast.error(t("library.session.variantOwnerOnly", { owner: source.owner.name }));
     return null;
-  };
+  }
+  return { read, isReading };
 }
 
 /**
@@ -224,10 +232,12 @@ function SessionBuilder({
   const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
   // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
   const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
-  const { reload, removeSession, staleMessage, isWriting } = useSessionWrites(draft);
+  const writes = useSessionWrites(draft);
+  const { reload, removeSession, staleMessage } = writes;
   const edited = draft.edited;
   const duplicate = useDuplicateExercise();
   const variantSource = useVariantSource();
+  const isWriting = writes.isWriting || variantSource.isReading;
   const [titleTouched, setTitleTouched] = useState(false);
 
   // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
@@ -306,7 +316,7 @@ function SessionBuilder({
   async function onDuplicate(exerciseId: string, blocks: ExerciseBlocks) {
     // Ce qui bloque l'enregistrement se dit d'abord : inutile de lire l'exercice pour rien.
     if (cannotSave()) return;
-    const source = await variantSource(exerciseId);
+    const source = await variantSource.read(exerciseId);
     if (source == null) return;
     if ((await save("library.session.savedBeforeVariant")) == null) return;
     duplicate.mutate(
@@ -430,7 +440,7 @@ function SessionBuilder({
                   <CompositionCard
                     item={item}
                     customMetrics={metrics}
-                    isReloading={isWriting}
+                    isWriting={isWriting}
                     isDropTarget={drag.isOver(index)}
                     isFirst={index === 0}
                     isLast={index === draft.items.length - 1}
